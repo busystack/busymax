@@ -568,7 +568,7 @@ void main() {
           ),
         );
 
-    expect(menu.entries, hasLength(4));
+    expect(menu.entries, hasLength(5));
     expect(menu.entries.every((entry) => !entry.enabled), isTrue);
   });
 

@@ -133,6 +133,324 @@ abstract class AppLocalizations {
     Locale.fromSubtags(languageCode: 'zh', scriptCode: 'Hant'),
   ];
 
+  /// No description provided for @nextcloudCollectionSettings.
+  ///
+  /// In en, this message translates to:
+  /// **'Collection settings'**
+  String get nextcloudCollectionSettings;
+
+  /// No description provided for @nextcloudSharing.
+  ///
+  /// In en, this message translates to:
+  /// **'Sharing'**
+  String get nextcloudSharing;
+
+  /// No description provided for @nextcloudOwned.
+  ///
+  /// In en, this message translates to:
+  /// **'Owned'**
+  String get nextcloudOwned;
+
+  /// No description provided for @nextcloudShared.
+  ///
+  /// In en, this message translates to:
+  /// **'Shared'**
+  String get nextcloudShared;
+
+  /// No description provided for @nextcloudDelegated.
+  ///
+  /// In en, this message translates to:
+  /// **'Delegated'**
+  String get nextcloudDelegated;
+
+  /// No description provided for @nextcloudSubscription.
+  ///
+  /// In en, this message translates to:
+  /// **'Subscription'**
+  String get nextcloudSubscription;
+
+  /// No description provided for @nextcloudDeleted.
+  ///
+  /// In en, this message translates to:
+  /// **'Deleted'**
+  String get nextcloudDeleted;
+
+  /// No description provided for @nextcloudMetadataEditable.
+  ///
+  /// In en, this message translates to:
+  /// **'Calendar contents are read-only; collection properties can be changed.'**
+  String get nextcloudMetadataEditable;
+
+  /// No description provided for @nextcloudServerOrder.
+  ///
+  /// In en, this message translates to:
+  /// **'Server order (separate from sidebar order)'**
+  String get nextcloudServerOrder;
+
+  /// No description provided for @nextcloudCalendarEnabled.
+  ///
+  /// In en, this message translates to:
+  /// **'Enabled on the server'**
+  String get nextcloudCalendarEnabled;
+
+  /// No description provided for @nextcloudAvailability.
+  ///
+  /// In en, this message translates to:
+  /// **'Include this collection in availability'**
+  String get nextcloudAvailability;
+
+  /// No description provided for @nextcloudCalendarTimezone.
+  ///
+  /// In en, this message translates to:
+  /// **'Calendar timezone (VTIMEZONE document)'**
+  String get nextcloudCalendarTimezone;
+
+  /// No description provided for @nextcloudRefreshPending.
+  ///
+  /// In en, this message translates to:
+  /// **'The change was saved on Nextcloud. Refresh is pending; do not repeat the change.'**
+  String get nextcloudRefreshPending;
+
+  /// No description provided for @nextcloudOutcomeUnknown.
+  ///
+  /// In en, this message translates to:
+  /// **'The server outcome could not be confirmed. Refresh before trying again.'**
+  String get nextcloudOutcomeUnknown;
+
+  /// No description provided for @nextcloudRemoveShared.
+  ///
+  /// In en, this message translates to:
+  /// **'Remove shared calendar/list'**
+  String get nextcloudRemoveShared;
+
+  /// No description provided for @nextcloudRemoveMixed.
+  ///
+  /// In en, this message translates to:
+  /// **'This collection contains events and tasks. Deleting it removes both its events and tasks.'**
+  String get nextcloudRemoveMixed;
+
+  /// No description provided for @nextcloudReadAccess.
+  ///
+  /// In en, this message translates to:
+  /// **'Read-only'**
+  String get nextcloudReadAccess;
+
+  /// No description provided for @nextcloudWriteAccess.
+  ///
+  /// In en, this message translates to:
+  /// **'Read and write'**
+  String get nextcloudWriteAccess;
+
+  /// No description provided for @nextcloudRecipientSearch.
+  ///
+  /// In en, this message translates to:
+  /// **'Find people or groups'**
+  String get nextcloudRecipientSearch;
+
+  /// No description provided for @nextcloudNoRecipients.
+  ///
+  /// In en, this message translates to:
+  /// **'No matching people or groups.'**
+  String get nextcloudNoRecipients;
+
+  /// No description provided for @nextcloudRevokeShare.
+  ///
+  /// In en, this message translates to:
+  /// **'Revoke access'**
+  String get nextcloudRevokeShare;
+
+  /// No description provided for @nextcloudPublish.
+  ///
+  /// In en, this message translates to:
+  /// **'Publish link'**
+  String get nextcloudPublish;
+
+  /// No description provided for @nextcloudUnpublish.
+  ///
+  /// In en, this message translates to:
+  /// **'Stop publishing'**
+  String get nextcloudUnpublish;
+
+  /// No description provided for @nextcloudPublishWarning.
+  ///
+  /// In en, this message translates to:
+  /// **'Anyone with the published link may be able to read this calendar. Publish it?'**
+  String get nextcloudPublishWarning;
+
+  /// No description provided for @nextcloudTrash.
+  ///
+  /// In en, this message translates to:
+  /// **'Deleted calendars and tasks'**
+  String get nextcloudTrash;
+
+  /// No description provided for @nextcloudTrashEmpty.
+  ///
+  /// In en, this message translates to:
+  /// **'No deleted calendar items.'**
+  String get nextcloudTrashEmpty;
+
+  /// No description provided for @nextcloudRestore.
+  ///
+  /// In en, this message translates to:
+  /// **'Restore'**
+  String get nextcloudRestore;
+
+  /// No description provided for @nextcloudPermanentDelete.
+  ///
+  /// In en, this message translates to:
+  /// **'Permanently delete'**
+  String get nextcloudPermanentDelete;
+
+  /// No description provided for @nextcloudPermanentDeleteWarning.
+  ///
+  /// In en, this message translates to:
+  /// **'Permanently delete this item? It cannot be restored from Nextcloud\'s calendar trash.'**
+  String get nextcloudPermanentDeleteWarning;
+
+  /// No description provided for @nextcloudOperationDenied.
+  ///
+  /// In en, this message translates to:
+  /// **'Nextcloud did not allow this operation.'**
+  String get nextcloudOperationDenied;
+
+  /// No description provided for @nextcloudUnsupported.
+  ///
+  /// In en, this message translates to:
+  /// **'The server does not support this operation.'**
+  String get nextcloudUnsupported;
+
+  /// No description provided for @nextcloudPendingChanges.
+  ///
+  /// In en, this message translates to:
+  /// **'Save or discard collection changes before closing.'**
+  String get nextcloudPendingChanges;
+
+  /// No description provided for @nextcloudServerUnavailable.
+  ///
+  /// In en, this message translates to:
+  /// **'Nextcloud could not be reached. Cached items and pending work are unchanged.'**
+  String get nextcloudServerUnavailable;
+
+  /// No description provided for @mapsShow.
+  ///
+  /// In en, this message translates to:
+  /// **'Show map'**
+  String get mapsShow;
+
+  /// No description provided for @mapsDirections.
+  ///
+  /// In en, this message translates to:
+  /// **'Directions in Google Maps'**
+  String get mapsDirections;
+
+  /// No description provided for @mapsPrivacy.
+  ///
+  /// In en, this message translates to:
+  /// **'Online location search and maps use Geoapify. Only your search text and map area are sent.'**
+  String get mapsPrivacy;
+
+  /// No description provided for @mapsSearch.
+  ///
+  /// In en, this message translates to:
+  /// **'Search locations'**
+  String get mapsSearch;
+
+  /// No description provided for @mapsLoading.
+  ///
+  /// In en, this message translates to:
+  /// **'Searching locations…'**
+  String get mapsLoading;
+
+  /// No description provided for @mapsEmpty.
+  ///
+  /// In en, this message translates to:
+  /// **'No matching locations. You can keep the location as text.'**
+  String get mapsEmpty;
+
+  /// No description provided for @mapsOffline.
+  ///
+  /// In en, this message translates to:
+  /// **'Location search is offline. Directions are still available.'**
+  String get mapsOffline;
+
+  /// No description provided for @mapsUnconfigured.
+  ///
+  /// In en, this message translates to:
+  /// **'Online maps are not configured in this build. Directions are still available.'**
+  String get mapsUnconfigured;
+
+  /// No description provided for @mapsRateLimited.
+  ///
+  /// In en, this message translates to:
+  /// **'Location service is busy. Please wait before searching again.'**
+  String get mapsRateLimited;
+
+  /// No description provided for @mapsServiceError.
+  ///
+  /// In en, this message translates to:
+  /// **'Location search is unavailable. You can still save the location as text.'**
+  String get mapsServiceError;
+
+  /// No description provided for @mapsTilesFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Some map tiles could not be loaded. The destination and directions remain available.'**
+  String get mapsTilesFailed;
+
+  /// No description provided for @mapsApproximate.
+  ///
+  /// In en, this message translates to:
+  /// **'Approximate area'**
+  String get mapsApproximate;
+
+  /// No description provided for @mapsZoomIn.
+  ///
+  /// In en, this message translates to:
+  /// **'Zoom in'**
+  String get mapsZoomIn;
+
+  /// No description provided for @mapsZoomOut.
+  ///
+  /// In en, this message translates to:
+  /// **'Zoom out'**
+  String get mapsZoomOut;
+
+  /// No description provided for @mapsRecenter.
+  ///
+  /// In en, this message translates to:
+  /// **'Recenter destination'**
+  String get mapsRecenter;
+
+  /// No description provided for @mapsDestination.
+  ///
+  /// In en, this message translates to:
+  /// **'Destination'**
+  String get mapsDestination;
+
+  /// No description provided for @mapsBrowserFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'The browser could not be opened.'**
+  String get mapsBrowserFailed;
+
+  /// No description provided for @mapsRememberFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'The map location could not be remembered.'**
+  String get mapsRememberFailed;
+
+  /// No description provided for @mapsSelected.
+  ///
+  /// In en, this message translates to:
+  /// **'Map location selected'**
+  String get mapsSelected;
+
+  /// No description provided for @mapsChoose.
+  ///
+  /// In en, this message translates to:
+  /// **'Choose a location'**
+  String get mapsChoose;
+
   /// Proposed event interval while dragging.
   ///
   /// In en, this message translates to:

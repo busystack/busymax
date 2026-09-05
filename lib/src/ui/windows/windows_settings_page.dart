@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'windows_nextcloud_dialogs.dart';
 
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter/foundation.dart';
@@ -345,6 +346,14 @@ class WindowsSettingsPage extends ConsumerWidget {
                     trailing: DropDownButton(
                       title: Icon(windowsBusyMaxGlyph(BusyMaxGlyph.more)),
                       items: [
+                        if (values[index].provider == BusyProvider.nextcloud)
+                          MenuFlyoutItem(
+                            text: Text(l10n.nextcloudTrash),
+                            onPressed: () => showWindowsNextcloudTrashDialog(
+                              context,
+                              accountId: values[index].id,
+                            ),
+                          ),
                         MenuFlyoutItem(
                           leading: Icon(
                             windowsBusyMaxGlyph(BusyMaxGlyph.delete),
@@ -357,6 +366,24 @@ class WindowsSettingsPage extends ConsumerWidget {
                       ],
                     ),
                   ),
+                  if (values[index].provider == BusyProvider.nextcloud)
+                    for (final collection
+                        in ref
+                                .watch(davCollectionsStreamProvider)
+                                .valueOrNull ??
+                            const [])
+                      if (collection.accountId == values[index].id &&
+                          (collection.supportsEvents ||
+                              collection.supportsTasks))
+                        ListTile(
+                          title: Text(collection.name),
+                          subtitle: Text(l10n.nextcloudCollectionSettings),
+                          onPressed: () => showWindowsNextcloudCollectionDialog(
+                            context,
+                            accountId: collection.accountId,
+                            collectionId: collection.id,
+                          ),
+                        ),
                   if (index != values.length - 1) const Divider(),
                 ],
               ],

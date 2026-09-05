@@ -1,4 +1,6 @@
 import 'dart:async';
+import '../../../dav/presentation/nextcloud_collection_dialog.dart';
+import '../../../dav/nextcloud/nextcloud_dav_context.dart';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -23,6 +25,7 @@ import '../../accounts/data/accounts_repository.dart';
 import '../../accounts/domain/account_collection_creation_capabilities.dart';
 import '../../calendar/data/calendar_collection_creation_service.dart';
 import '../../calendar/data/calendar_repository.dart';
+import '../../connectivity/network_connectivity_service.dart';
 import '../../calendar/presentation/calendar_color_dialog.dart';
 import '../../sync/sync_auth_error.dart';
 import '../../task_lists/data/task_lists_repository.dart';
@@ -168,6 +171,14 @@ class _SourceRow extends ConsumerWidget {
                 unawaited(_setCalendarRemindersEnabled(context, ref, source));
               case 'color':
                 unawaited(_changeCalendarColor(context, ref, source));
+              case 'collection-settings':
+                unawaited(
+                  showLinuxNextcloudCollectionDialog(
+                    context,
+                    accountId: source.accountId,
+                    collectionId: source.davCollectionId!,
+                  ),
+                );
               case 'rename':
                 unawaited(_renameCalendar(context, ref, source));
               case 'delete':
@@ -175,6 +186,13 @@ class _SourceRow extends ConsumerWidget {
             }
           },
           entries: [
+            if (source.provider == BusyProvider.nextcloud &&
+                source.davCollectionId != null)
+              BusyMaxMenuEntry(
+                value: 'collection-settings',
+                label: context.l10n.nextcloudCollectionSettings,
+                icon: Icons.settings_outlined,
+              ),
             ..._movementEntries(context, source.id, siblingIds),
             BusyMaxMenuEntry(
               value: 'refresh',
@@ -216,7 +234,9 @@ class _SourceRow extends ConsumerWidget {
               value: 'delete',
               label:
                   capabilities.removalMode == CalendarRemovalMode.removeFromList
-                  ? context.l10n.removeFromMyCalendars
+                  ? (source.provider == BusyProvider.nextcloud
+                        ? context.l10n.nextcloudRemoveShared
+                        : context.l10n.removeFromMyCalendars)
                   : context.l10n.delete,
               icon: YaruIcons.trash,
               enabled: capabilities.canRemoveCalendar,
@@ -376,6 +396,11 @@ class _AccountSourcesGroupState extends ConsumerState<_AccountSourcesGroup> {
       taskListCreationRunning: _creatingTaskList,
     );
     final headerActions = <_AccountHeaderCollectionAction>[
+      if (account.provider == BusyProvider.nextcloud)
+        _AccountHeaderCollectionAction(
+          action: AccountHeaderCollectionAction.trash,
+          enabled: networkAvailability != NetworkAvailability.offline,
+        ),
       _AccountHeaderCollectionAction(
         action: AccountHeaderCollectionAction.moveUp,
         enabled: widget.siblingIds.indexOf(account.id) > 0,
@@ -456,6 +481,11 @@ class _AccountSourcesGroupState extends ConsumerState<_AccountSourcesGroup> {
     AccountHeaderCollectionAction action,
   ) async {
     switch (action) {
+      case AccountHeaderCollectionAction.trash:
+        await showLinuxNextcloudTrashDialog(
+          context,
+          accountId: widget.account.id,
+        );
       case AccountHeaderCollectionAction.moveUp:
       case AccountHeaderCollectionAction.moveDown:
         _moveSidebarItem(
@@ -727,6 +757,8 @@ class _AccountHeaderRow extends StatelessWidget {
                   BusyMaxMenuEntry(
                     value: item.action,
                     label: switch (item.action) {
+                      AccountHeaderCollectionAction.trash =>
+                        context.l10n.nextcloudTrash,
                       AccountHeaderCollectionAction.newCalendar =>
                         '${context.l10n.newCalendar}…',
                       AccountHeaderCollectionAction.newTaskList =>
@@ -737,6 +769,7 @@ class _AccountHeaderRow extends StatelessWidget {
                         context.l10n.moveDown,
                     },
                     icon: switch (item.action) {
+                      AccountHeaderCollectionAction.trash => YaruIcons.trash,
                       AccountHeaderCollectionAction.moveUp =>
                         Icons.arrow_upward,
                       AccountHeaderCollectionAction.moveDown =>
@@ -1011,12 +1044,27 @@ class _TaskListScheduleRow extends ConsumerWidget {
                 unawaited(_setTaskListRemindersEnabled(context, ref, list));
               case 'rename':
                 unawaited(_renameTaskList(context, ref, list));
+              case 'collection-settings':
+                unawaited(
+                  showLinuxNextcloudCollectionDialog(
+                    context,
+                    accountId: list.accountId,
+                    collectionId: list.davCollectionId!,
+                  ),
+                );
               case 'delete':
                 unawaited(_deleteTaskList(context, ref, list));
             }
           },
           entries: [
             ..._movementEntries(context, list.id, siblingIds),
+            if (account.provider == BusyProvider.nextcloud &&
+                list.davCollectionId != null)
+              BusyMaxMenuEntry(
+                value: 'collection-settings',
+                label: context.l10n.nextcloudCollectionSettings,
+                icon: Icons.settings_outlined,
+              ),
             BusyMaxMenuEntry(
               value: 'refresh',
               label: context.l10n.refreshList,
@@ -1301,6 +1349,7 @@ String? _calendarDeleteRestriction(
 }
 
 enum AccountHeaderCollectionAction {
+  trash,
   newCalendar,
   newTaskList,
   moveUp,
@@ -1482,6 +1531,12 @@ Future<void> _changeCalendarColor(
         .read(calendarRepositoryProvider)
         .setSourceColor(source.id, choice);
     _requestCalendarMutationSync(ref, source.accountId);
+  } on NextcloudRefreshPending {
+    if (context.mounted)
+      _showCalendarMutationFailure(
+        context,
+        context.l10n.nextcloudRefreshPending,
+      );
   } on Object catch (error) {
     if (context.mounted) {
       _showCalendarMutationFailure(
@@ -1525,6 +1580,12 @@ Future<void> _renameCalendar(
         .read(calendarRepositoryProvider)
         .renameLocalSource(source.id, title.trim());
     _requestCalendarMutationSync(ref, source.accountId);
+  } on NextcloudRefreshPending {
+    if (context.mounted)
+      _showCalendarMutationFailure(
+        context,
+        context.l10n.nextcloudRefreshPending,
+      );
   } on Object catch (error) {
     if (context.mounted) {
       _showCalendarMutationFailure(
@@ -1550,10 +1611,15 @@ Future<void> _deleteCalendar(
   final confirmed = await showBusyMaxConfirm(
     context,
     title: removeFromList
-        ? context.l10n.removeFromMyCalendars
+        ? (source.provider == BusyProvider.nextcloud
+              ? context.l10n.nextcloudRemoveShared
+              : context.l10n.removeFromMyCalendars)
         : context.l10n.delete,
     message: removeFromList
         ? context.l10n.removeCalendarConfirmation(source.summary)
+        : source.provider == BusyProvider.nextcloud &&
+              source.davEffectivePermissions['supportedComponentMask'] == 3
+        ? context.l10n.nextcloudRemoveMixed
         : context.l10n.deleteCalendarConfirmation(source.summary),
     confirmLabel: removeFromList
         ? context.l10n.removeAction
@@ -1567,6 +1633,12 @@ Future<void> _deleteCalendar(
   try {
     await ref.read(calendarRepositoryProvider).deleteLocalSource(source.id);
     _requestCalendarMutationSync(ref, source.accountId);
+  } on NextcloudRefreshPending {
+    if (context.mounted)
+      _showCalendarMutationFailure(
+        context,
+        context.l10n.nextcloudRefreshPending,
+      );
   } on Object catch (error) {
     if (context.mounted) {
       final message =
@@ -1643,10 +1715,14 @@ Future<void> _deleteTaskList(
   final confirmed = await showBusyMaxConfirm(
     context,
     title: list.isShared == true
-        ? context.l10n.unshare
+        ? (list.davCollectionId != null
+              ? context.l10n.nextcloudRemoveShared
+              : context.l10n.unshare)
         : context.l10n.deleteList,
     message: list.isShared == true
         ? context.l10n.unshareTaskListConfirmation(list.title)
+        : list.isMixedDavCollection
+        ? context.l10n.nextcloudRemoveMixed
         : context.l10n.deleteTaskListConfirmation(list.title),
     confirmLabel: list.isShared == true
         ? context.l10n.unshare

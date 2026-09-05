@@ -13,6 +13,184 @@ class AppLocalizationsKo extends AppLocalizations {
   AppLocalizationsKo([String locale = 'ko']) : super(locale);
 
   @override
+  String get nextcloudCollectionSettings => 'Collection settings';
+
+  @override
+  String get nextcloudSharing => 'Sharing';
+
+  @override
+  String get nextcloudOwned => 'Owned';
+
+  @override
+  String get nextcloudShared => 'Shared';
+
+  @override
+  String get nextcloudDelegated => 'Delegated';
+
+  @override
+  String get nextcloudSubscription => 'Subscription';
+
+  @override
+  String get nextcloudDeleted => 'Deleted';
+
+  @override
+  String get nextcloudMetadataEditable =>
+      'Calendar contents are read-only; collection properties can be changed.';
+
+  @override
+  String get nextcloudServerOrder =>
+      'Server order (separate from sidebar order)';
+
+  @override
+  String get nextcloudCalendarEnabled => 'Enabled on the server';
+
+  @override
+  String get nextcloudAvailability => 'Include this collection in availability';
+
+  @override
+  String get nextcloudCalendarTimezone =>
+      'Calendar timezone (VTIMEZONE document)';
+
+  @override
+  String get nextcloudRefreshPending =>
+      'The change was saved on Nextcloud. Refresh is pending; do not repeat the change.';
+
+  @override
+  String get nextcloudOutcomeUnknown =>
+      'The server outcome could not be confirmed. Refresh before trying again.';
+
+  @override
+  String get nextcloudRemoveShared => 'Remove shared calendar/list';
+
+  @override
+  String get nextcloudRemoveMixed =>
+      'This collection contains events and tasks. Deleting it removes both its events and tasks.';
+
+  @override
+  String get nextcloudReadAccess => 'Read-only';
+
+  @override
+  String get nextcloudWriteAccess => 'Read and write';
+
+  @override
+  String get nextcloudRecipientSearch => 'Find people or groups';
+
+  @override
+  String get nextcloudNoRecipients => 'No matching people or groups.';
+
+  @override
+  String get nextcloudRevokeShare => 'Revoke access';
+
+  @override
+  String get nextcloudPublish => 'Publish link';
+
+  @override
+  String get nextcloudUnpublish => 'Stop publishing';
+
+  @override
+  String get nextcloudPublishWarning =>
+      'Anyone with the published link may be able to read this calendar. Publish it?';
+
+  @override
+  String get nextcloudTrash => 'Deleted calendars and tasks';
+
+  @override
+  String get nextcloudTrashEmpty => 'No deleted calendar items.';
+
+  @override
+  String get nextcloudRestore => 'Restore';
+
+  @override
+  String get nextcloudPermanentDelete => 'Permanently delete';
+
+  @override
+  String get nextcloudPermanentDeleteWarning =>
+      'Permanently delete this item? It cannot be restored from Nextcloud\'s calendar trash.';
+
+  @override
+  String get nextcloudOperationDenied =>
+      'Nextcloud did not allow this operation.';
+
+  @override
+  String get nextcloudUnsupported =>
+      'The server does not support this operation.';
+
+  @override
+  String get nextcloudPendingChanges =>
+      'Save or discard collection changes before closing.';
+
+  @override
+  String get nextcloudServerUnavailable =>
+      'Nextcloud could not be reached. Cached items and pending work are unchanged.';
+
+  @override
+  String get mapsShow => 'Show map';
+
+  @override
+  String get mapsDirections => 'Directions in Google Maps';
+
+  @override
+  String get mapsPrivacy =>
+      'Online location search and maps use Geoapify. Only your search text and map area are sent.';
+
+  @override
+  String get mapsSearch => 'Search locations';
+
+  @override
+  String get mapsLoading => 'Searching locations…';
+
+  @override
+  String get mapsEmpty =>
+      'No matching locations. You can keep the location as text.';
+
+  @override
+  String get mapsOffline =>
+      'Location search is offline. Directions are still available.';
+
+  @override
+  String get mapsUnconfigured =>
+      'Online maps are not configured in this build. Directions are still available.';
+
+  @override
+  String get mapsRateLimited =>
+      'Location service is busy. Please wait before searching again.';
+
+  @override
+  String get mapsServiceError =>
+      'Location search is unavailable. You can still save the location as text.';
+
+  @override
+  String get mapsTilesFailed =>
+      'Some map tiles could not be loaded. The destination and directions remain available.';
+
+  @override
+  String get mapsApproximate => 'Approximate area';
+
+  @override
+  String get mapsZoomIn => 'Zoom in';
+
+  @override
+  String get mapsZoomOut => 'Zoom out';
+
+  @override
+  String get mapsRecenter => 'Recenter destination';
+
+  @override
+  String get mapsDestination => 'Destination';
+
+  @override
+  String get mapsBrowserFailed => 'The browser could not be opened.';
+
+  @override
+  String get mapsRememberFailed => 'The map location could not be remembered.';
+
+  @override
+  String get mapsSelected => 'Map location selected';
+
+  @override
+  String get mapsChoose => 'Choose a location';
+
+  @override
   String scheduleProposedRange(String start, String end) {
     return '$start – $end';
   }

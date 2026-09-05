@@ -1,4 +1,6 @@
 import 'dart:async';
+import 'windows_nextcloud_dialogs.dart';
+import '../../dav/nextcloud/nextcloud_dav_context.dart';
 
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -11,6 +13,7 @@ import '../../features/accounts/data/accounts_repository.dart';
 import '../../features/accounts/domain/account_collection_creation_capabilities.dart';
 import '../../features/calendar/data/calendar_collection_creation_service.dart';
 import '../../features/calendar/data/calendar_repository.dart';
+import '../../features/connectivity/network_connectivity_service.dart';
 import '../../features/task_lists/data/task_lists_repository.dart';
 import '../../providers/busy_provider.dart';
 import '../../schedule/schedule_filters.dart';
@@ -161,6 +164,12 @@ class _WindowsScheduleSourcePaneState
               children: [
                 for (final account in accounts) ...[
                   _AccountHeader(
+                    online:
+                        (ref.watch(networkAvailabilityProvider).valueOrNull ??
+                            ref
+                                .read(networkConnectivityMonitorProvider)
+                                .availability) !=
+                        NetworkAvailability.offline,
                     key: ValueKey(('schedule-account', account.id)),
                     account: account,
                     movementItems: _movementItems(
@@ -293,6 +302,18 @@ class _WindowsScheduleSourcePaneState
   ) {
     final l10n = AppLocalizations.of(context);
     return [
+      if (source.provider == BusyProvider.nextcloud &&
+          source.davCollectionId != null)
+        MenuFlyoutItem(
+          text: Text(l10n.nextcloudCollectionSettings),
+          onPressed: () => unawaited(
+            showWindowsNextcloudCollectionDialog(
+              context,
+              accountId: source.accountId,
+              collectionId: source.davCollectionId!,
+            ),
+          ),
+        ),
       ..._movementItems(
         context,
         SidebarOrderSection.calendars,
@@ -326,7 +347,9 @@ class _WindowsScheduleSourcePaneState
         leading: Icon(windowsBusyMaxGlyph(BusyMaxGlyph.delete)),
         text: Text(
           source.capabilities.removalMode == CalendarRemovalMode.removeFromList
-              ? l10n.removeFromMyCalendars
+              ? (source.provider == BusyProvider.nextcloud
+                    ? l10n.nextcloudRemoveShared
+                    : l10n.removeFromMyCalendars)
               : l10n.delete,
         ),
         onPressed: source.capabilities.canRemoveCalendar
@@ -363,6 +386,18 @@ class _WindowsScheduleSourcePaneState
         ? davCapabilities?.supportsListDelete ?? false
         : true;
     return [
+      if (account.provider == BusyProvider.nextcloud &&
+          list.davCollectionId != null)
+        MenuFlyoutItem(
+          text: Text(l10n.nextcloudCollectionSettings),
+          onPressed: () => unawaited(
+            showWindowsNextcloudCollectionDialog(
+              context,
+              accountId: list.accountId,
+              collectionId: list.davCollectionId!,
+            ),
+          ),
+        ),
       ..._movementItems(
         context,
         SidebarOrderSection.taskLists,
@@ -385,7 +420,13 @@ class _WindowsScheduleSourcePaneState
       ),
       MenuFlyoutItem(
         leading: Icon(windowsBusyMaxGlyph(BusyMaxGlyph.delete)),
-        text: Text(list.isShared == true ? l10n.unshare : l10n.deleteList),
+        text: Text(
+          list.isShared == true
+              ? (list.davCollectionId != null
+                    ? l10n.nextcloudRemoveShared
+                    : l10n.unshare)
+              : l10n.deleteList,
+        ),
         onPressed: canDelete ? () => unawaited(_deleteTaskList(list)) : null,
       ),
     ];
@@ -506,9 +547,16 @@ class _WindowsScheduleSourcePaneState
     final removeFromList =
         source.capabilities.removalMode == CalendarRemovalMode.removeFromList;
     final confirmed = await _confirm(
-      title: removeFromList ? l10n.removeFromMyCalendars : l10n.delete,
+      title: removeFromList
+          ? (source.provider == BusyProvider.nextcloud
+                ? l10n.nextcloudRemoveShared
+                : l10n.removeFromMyCalendars)
+          : l10n.delete,
       message: removeFromList
           ? l10n.removeCalendarConfirmation(source.summary)
+          : source.provider == BusyProvider.nextcloud &&
+                source.davEffectivePermissions['supportedComponentMask'] == 3
+          ? l10n.nextcloudRemoveMixed
           : l10n.deleteCalendarConfirmation(source.summary),
       actionLabel: removeFromList ? l10n.removeAction : l10n.delete,
     );
@@ -537,9 +585,15 @@ class _WindowsScheduleSourcePaneState
   Future<void> _deleteTaskList(TaskListEntity list) async {
     final l10n = AppLocalizations.of(context);
     final confirmed = await _confirm(
-      title: list.isShared == true ? l10n.unshare : l10n.deleteList,
+      title: list.isShared == true
+          ? (list.davCollectionId != null
+                ? l10n.nextcloudRemoveShared
+                : l10n.unshare)
+          : l10n.deleteList,
       message: list.isShared == true
           ? l10n.unshareTaskListConfirmation(list.title)
+          : list.isMixedDavCollection
+          ? l10n.nextcloudRemoveMixed
           : l10n.deleteTaskListConfirmation(list.title),
       actionLabel: list.isShared == true ? l10n.unshare : l10n.delete,
     );
@@ -565,6 +619,11 @@ class _WindowsScheduleSourcePaneState
     try {
       await operation();
       if (mounted) widget.onSourcesChanged();
+    } on NextcloudRefreshPending {
+      if (mounted)
+        await _showMessage(
+          AppLocalizations.of(context).nextcloudRefreshPending,
+        );
     } on Object {
       if (mounted) {
         await _showMessage(AppLocalizations.of(context).operationFailed);
@@ -651,6 +710,7 @@ class _AccountHeader extends StatelessWidget {
     required this.onCreateCalendar,
     required this.onCreateTaskList,
     required this.movementItems,
+    required this.online,
   });
 
   final AccountEntity account;
@@ -658,6 +718,7 @@ class _AccountHeader extends StatelessWidget {
   final VoidCallback onCreateCalendar;
   final VoidCallback onCreateTaskList;
   final List<MenuFlyoutItem> movementItems;
+  final bool online;
 
   @override
   Widget build(BuildContext context) => Padding(
@@ -676,6 +737,18 @@ class _AccountHeader extends StatelessWidget {
           title: Icon(windowsBusyMaxGlyph(BusyMaxGlyph.more), size: 16),
           items: [
             ...movementItems,
+            if (account.provider == BusyProvider.nextcloud)
+              MenuFlyoutItem(
+                text: Text(AppLocalizations.of(context).nextcloudTrash),
+                onPressed: !online
+                    ? null
+                    : () => unawaited(
+                        showWindowsNextcloudTrashDialog(
+                          context,
+                          accountId: account.id,
+                        ),
+                      ),
+              ),
             if (capabilities.supportsCalendarCreation)
               MenuFlyoutItem(
                 leading: Icon(windowsBusyMaxGlyph(BusyMaxGlyph.calendar)),

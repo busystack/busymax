@@ -1,4 +1,5 @@
 import 'dart:async';
+import '../../providers/busy_provider.dart';
 import 'dart:math' as math;
 
 import 'package:fluent_ui/fluent_ui.dart';
@@ -912,7 +913,19 @@ class _WindowsSchedulePageState extends ConsumerState<WindowsSchedulePage> {
   Future<void> _export(ScheduleItem item) async {
     final l10n = AppLocalizations.of(context);
     try {
-      final file = await exportScheduleItemWithSaveDialog(item);
+      final rawICalendar = item is CalendarScheduleItem
+          ? await ref
+                .read(calendarRepositoryProvider)
+                .nativeEventExport(item.id)
+          : item is TaskScheduleItem && item.provider == BusyProvider.nextcloud
+          ? await ref
+                .read(tasksRepositoryForAccountProvider(item.accountId))
+                .nativeTaskExport(item.sourceId, item.id)
+          : null;
+      final file = await exportScheduleItemWithSaveDialog(
+        item,
+        rawICalendar: rawICalendar,
+      );
       if (file == null || !mounted) return;
       await showDialog<void>(
         context: context,

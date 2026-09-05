@@ -17,6 +17,7 @@ import '../../../app/busymax_keyboard_shortcuts_dialog.dart';
 import '../../../app/busymax_layout.dart';
 import '../../../core/logging/redacting_logger.dart';
 import '../../../dav/auth/dav_account_dialogs.dart';
+import '../../../dav/presentation/nextcloud_collection_dialog.dart';
 import '../../../dav/dav_errors.dart';
 import '../../../dav/http/dav_http_transport.dart';
 import '../../../dav/mutation/dav_conflict_repository.dart';
@@ -1259,6 +1260,13 @@ class _AccountManagementSection extends StatelessWidget {
               ],
               onResolve: onResolveConflict,
             ),
+          if (account.provider == BusyProvider.nextcloud)
+            BusyMaxActionRow(
+              title: context.l10n.nextcloudTrash,
+              leading: const Icon(YaruIcons.trash),
+              onTap: () =>
+                  showLinuxNextcloudTrashDialog(context, accountId: account.id),
+            ),
         ],
         _CalendarImportCard(onImport: onImportIcs),
         _CalendarSubscriptionsCard(
@@ -1710,13 +1718,25 @@ class _DavCollectionsCard extends StatelessWidget {
       title: l10n.collectionSettings,
       filled: true,
       children: [
-        for (final collection in collections)
+        for (final collection in collections) ...[
           _DavCollectionItem(
             key: ValueKey('dav-collection-${collection.id}'),
             collection: collection,
             onEventsSelected: onEventsSelected,
             onTasksSelected: onTasksSelected,
           ),
+          if (collection.provider == BusyProvider.nextcloud)
+            BusyMaxActionRow(
+              title: l10n.nextcloudCollectionSettings,
+              subtitle: collection.name,
+              leading: const Icon(Icons.settings_outlined),
+              onTap: () => showLinuxNextcloudCollectionDialog(
+                context,
+                accountId: collection.accountId,
+                collectionId: collection.id,
+              ),
+            ),
+        ],
       ],
     );
   }

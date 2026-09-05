@@ -14,6 +14,8 @@ import '../common/busymax_glyph.dart';
 import 'windows_busymax_glyphs.dart';
 import 'windows_task_details_dialog.dart';
 import 'windows_task_editor_dialog.dart';
+import 'windows_nextcloud_dialogs.dart';
+import '../../providers/busy_provider.dart';
 
 class WindowsTasksPage extends ConsumerStatefulWidget {
   const WindowsTasksPage({super.key});
@@ -48,6 +50,46 @@ class _WindowsTasksPageState extends ConsumerState<WindowsTasksPage> {
   }
 
   void _reload() => setState(() => _tasks = _load());
+
+  Future<void> _manageLists() async {
+    final collections = await ref
+        .read(davSettingsRepositoryProvider)
+        .watchCollections()
+        .first;
+    if (!mounted) return;
+    final l10n = AppLocalizations.of(context);
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) => ContentDialog(
+        title: Text(l10n.nextcloudCollectionSettings),
+        content: SizedBox(
+          height: 340,
+          child: ListView(
+            children: [
+              for (final collection in collections)
+                if (collection.provider == BusyProvider.nextcloud &&
+                    collection.supportsTasks)
+                  ListTile(
+                    title: Text(collection.name),
+                    subtitle: Text(collection.accountLabel),
+                    onPressed: () => showWindowsNextcloudCollectionDialog(
+                      dialogContext,
+                      accountId: collection.accountId,
+                      collectionId: collection.id,
+                    ),
+                  ),
+            ],
+          ),
+        ),
+        actions: [
+          Button(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: Text(l10n.close),
+          ),
+        ],
+      ),
+    );
+  }
 
   Future<void> _createTask() async {
     final changed = await showWindowsTaskEditorDialog(context, ref);
@@ -88,6 +130,18 @@ class _WindowsTasksPageState extends ConsumerState<WindowsTasksPage> {
           title: Text(l10n.tasks),
           commandBar: CommandBar(
             primaryItems: [
+              if (ref
+                      .watch(accountManagementStreamProvider)
+                      .valueOrNull
+                      ?.any(
+                        (account) => account.provider == BusyProvider.nextcloud,
+                      ) ==
+                  true)
+                CommandBarButton(
+                  icon: Icon(windowsBusyMaxGlyph(BusyMaxGlyph.settings)),
+                  label: Text(l10n.nextcloudCollectionSettings),
+                  onPressed: () => unawaited(_manageLists()),
+                ),
               CommandBarButton(
                 icon: Icon(windowsBusyMaxGlyph(BusyMaxGlyph.add)),
                 label: Text(l10n.newTask),

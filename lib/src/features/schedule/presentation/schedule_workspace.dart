@@ -1604,6 +1604,11 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
   Future<void> _exportItem(ScheduleItem item) async {
     try {
       String? rawICalendar;
+      if (item is CalendarScheduleItem) {
+        rawICalendar = await ref
+            .read(calendarRepositoryProvider)
+            .nativeEventExport(item.id);
+      }
       if (item is TaskScheduleItem &&
           (item.provider == BusyProvider.nextcloud ||
               item.provider == BusyProvider.appleICloud)) {
