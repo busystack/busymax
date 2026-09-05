@@ -1,5 +1,6 @@
 import 'package:busymax/src/app/app_bootstrap.dart';
 import 'package:busymax/src/app/busymax_design.dart';
+import 'package:busymax/src/app/busymax_yaru_theme.dart';
 import 'package:busymax/src/features/accounts/data/accounts_repository.dart';
 import 'package:busymax/src/features/calendar/data/calendar_repository.dart';
 import 'package:busymax/src/features/calendar/data/calendar_collection_creation_service.dart';
@@ -53,6 +54,136 @@ void main() {
       await tester.pumpAndSettle();
     }
   });
+
+  testWidgets(
+    'same-email accounts use provider-derived indicators and semantics',
+    (tester) async {
+      final semantics = tester.ensureSemantics();
+      const email = 'shared@example.test';
+      await _pumpSidebar(tester, [
+        _account(
+          BusyProvider.google,
+          id: 'google-shared',
+          displayName: 'Shared account',
+          email: email,
+        ),
+        _account(
+          BusyProvider.microsoft,
+          id: 'microsoft-shared',
+          displayName: 'Shared account',
+          email: email,
+        ),
+        _account(
+          BusyProvider.nextcloud,
+          id: 'nextcloud-shared',
+          displayName: 'Shared account',
+          email: email,
+        ),
+      ]);
+
+      for (final expected in const [
+        ('google-shared', 'G', 'Google'),
+        ('microsoft-shared', 'M', 'Microsoft'),
+        ('nextcloud-shared', 'N', 'Nextcloud'),
+      ]) {
+        final indicator = find.byKey(
+          ValueKey(('account-provider-indicator', expected.$1)),
+        );
+        expect(indicator, findsOneWidget);
+        expect(
+          find.descendant(of: indicator, matching: find.text(expected.$2)),
+          findsOneWidget,
+        );
+        expect(
+          tester
+              .widget<Tooltip>(
+                find.descendant(of: indicator, matching: find.byType(Tooltip)),
+              )
+              .message,
+          expected.$3,
+        );
+        expect(
+          find.bySemanticsLabel('${expected.$3}, Shared account, $email'),
+          findsOneWidget,
+        );
+      }
+      semantics.dispose();
+    },
+  );
+
+  testWidgets(
+    'provider indicator stays visible with truncated text in both themes',
+    (tester) async {
+      for (final brightness in [Brightness.light, Brightness.dark]) {
+        final theme = BusyMaxYaruTheme.build(
+          brightness: brightness,
+          accentColor: const Color(0xFFE95464),
+        );
+        const accountId = 'google-long';
+        const displayName =
+            'A very long account display name that must be truncated';
+        const email = 'a-very-long-address-for-sidebar@example.test';
+        await _pumpSidebar(
+          tester,
+          [
+            _account(
+              BusyProvider.google,
+              id: accountId,
+              displayName: displayName,
+              email: email,
+            ),
+          ],
+          theme: theme,
+          width: 240,
+        );
+
+        final indicator = find.byKey(
+          const ValueKey(('account-provider-indicator', accountId)),
+        );
+        final indicatorRect = tester.getRect(indicator);
+        expect(indicatorRect.size, const Size.square(24));
+        expect(indicatorRect.left, greaterThanOrEqualTo(0));
+        expect(indicatorRect.right, lessThanOrEqualTo(240));
+        final decoration =
+            tester
+                    .widget<DecoratedBox>(
+                      find.descendant(
+                        of: indicator,
+                        matching: find.byType(DecoratedBox),
+                      ),
+                    )
+                    .decoration
+                as BoxDecoration;
+        final indicatorContext = tester.element(indicator);
+        final colorScheme = Theme.of(indicatorContext).colorScheme;
+        expect(decoration.shape, BoxShape.circle);
+        expect(decoration.color, colorScheme.surfaceContainerHighest);
+        final letter = tester.widget<Text>(
+          find.descendant(of: indicator, matching: find.text('G')),
+        );
+        expect(letter.style?.color, colorScheme.onSurface);
+
+        final name = tester.widget<Text>(find.text(displayName));
+        final address = tester.widget<Text>(find.text(email));
+        expect(name.maxLines, 1);
+        expect(name.overflow, TextOverflow.ellipsis);
+        expect(address.maxLines, 1);
+        expect(address.overflow, TextOverflow.ellipsis);
+        expect(
+          tester.getTopLeft(find.text(displayName)).dy,
+          lessThan(tester.getTopLeft(find.text(email)).dy),
+        );
+
+        await tester.tap(
+          find.byKey(const ValueKey(('account-collapse', accountId))),
+        );
+        await tester.pumpAndSettle();
+        expect(indicator, findsOneWidget);
+        expect(tester.getRect(indicator).size, const Size.square(24));
+        expect(tester.takeException(), isNull);
+      }
+    },
+  );
 
   testWidgets('Apple has no empty collection Options menu', (tester) async {
     await _pumpSidebar(tester, [_account(BusyProvider.appleICloud)]);
@@ -343,6 +474,8 @@ Future<void> _pumpSidebar(
   NetworkAvailability? networkAvailability,
   List<CalendarSourceEntity> calendarSources = const [],
   List<TaskListEntity> taskLists = const [],
+  ThemeData? theme,
+  double width = 320,
 }) async {
   tester.view.devicePixelRatio = 1;
   tester.view.physicalSize = const Size(900, 1200);
@@ -369,8 +502,9 @@ Future<void> _pumpSidebar(
       ],
       child: localizedTestApp(
         locale: locale,
+        theme: theme,
         child: SizedBox(
-          width: 320,
+          width: width,
           height: 800,
           child: ScheduleSidebar(
             selectedDate: DateTime(2026, 8, 29),
@@ -438,14 +572,19 @@ AccountEntity _account(
   String? id,
   bool calendarsEnabled = true,
   bool tasksEnabled = true,
+  String? displayName,
+  String? email,
 }) => AccountEntity(
   id: id ?? '${provider.storageValue}-account',
   provider: provider,
   authority: 'https://example.test',
   providerAccountId: 'identity',
-  displayName: provider == BusyProvider.webCal
-      ? 'WebCal account'
-      : provider.displayName,
+  displayName:
+      displayName ??
+      (provider == BusyProvider.webCal
+          ? 'WebCal account'
+          : provider.displayName),
+  email: email,
   authState: accountAuthStateSignedIn,
   calendarsEnabled: calendarsEnabled,
   tasksEnabled: tasksEnabled,

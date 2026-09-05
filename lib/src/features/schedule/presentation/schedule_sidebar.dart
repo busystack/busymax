@@ -547,6 +547,12 @@ class _AccountHeaderRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
     final secondaryLabel = account.secondaryLabel;
+    final providerName = _accountProviderName(context, account.provider);
+    final accountSemanticsLabel = [
+      providerName,
+      account.displayLabel,
+      if (secondaryLabel != null && secondaryLabel.isNotEmpty) secondaryLabel,
+    ].join(', ');
     return Padding(
       padding: const EdgeInsetsDirectional.only(
         start: BusyMaxSpacing.md,
@@ -557,25 +563,46 @@ class _AccountHeaderRow extends StatelessWidget {
       child: Row(
         children: [
           Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  account.displayLabel,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: Theme.of(context).textTheme.labelLarge,
-                ),
-                if (secondaryLabel != null && secondaryLabel.isNotEmpty)
-                  Text(
-                    secondaryLabel,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: colorScheme.onSurfaceVariant,
+            child: Semantics(
+              key: ValueKey(('account-identity', account.id)),
+              container: true,
+              label: accountSemanticsLabel,
+              child: ExcludeSemantics(
+                child: Row(
+                  children: [
+                    _AccountProviderIndicator(
+                      key: ValueKey(('account-provider-indicator', account.id)),
+                      provider: account.provider,
+                      providerName: providerName,
                     ),
-                  ),
-              ],
+                    const SizedBox(width: BusyMaxSpacing.sm),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            account.displayLabel,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: Theme.of(context).textTheme.labelLarge,
+                          ),
+                          if (secondaryLabel != null &&
+                              secondaryLabel.isNotEmpty)
+                            Text(
+                              secondaryLabel,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: Theme.of(context).textTheme.bodySmall
+                                  ?.copyWith(
+                                    color: colorScheme.onSurfaceVariant,
+                                  ),
+                            ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
             ),
           ),
           const SizedBox(width: BusyMaxSpacing.xs),
@@ -644,6 +671,64 @@ class _AccountHeaderRow extends StatelessWidget {
     );
   }
 }
+
+class _AccountProviderIndicator extends StatelessWidget {
+  const _AccountProviderIndicator({
+    super.key,
+    required this.provider,
+    required this.providerName,
+  });
+
+  static const double _diameter = 24;
+
+  final BusyProvider provider;
+  final String providerName;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Tooltip(
+      message: providerName,
+      excludeFromSemantics: true,
+      child: SizedBox.square(
+        dimension: _diameter,
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: theme.colorScheme.surfaceContainerHighest,
+            border: Border.all(color: theme.colorScheme.outlineVariant),
+          ),
+          child: Center(
+            child: Text(
+              _accountProviderLetter(provider),
+              style: theme.textTheme.labelSmall?.copyWith(
+                color: theme.colorScheme.onSurface,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+String _accountProviderLetter(BusyProvider provider) => switch (provider) {
+  BusyProvider.google => 'G',
+  BusyProvider.microsoft => 'M',
+  BusyProvider.nextcloud => 'N',
+  BusyProvider.appleICloud => 'A',
+  BusyProvider.webCal => 'W',
+};
+
+String _accountProviderName(BuildContext context, BusyProvider provider) =>
+    switch (provider) {
+      BusyProvider.google => context.l10n.googleProvider,
+      BusyProvider.microsoft => context.l10n.microsoftProvider,
+      BusyProvider.nextcloud => context.l10n.nextcloudProvider,
+      BusyProvider.appleICloud => context.l10n.appleICloudProvider,
+      BusyProvider.webCal => 'WebCal',
+    };
 
 class _AccountCalendarSources extends ConsumerWidget {
   const _AccountCalendarSources({required this.account});
