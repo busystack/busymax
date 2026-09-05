@@ -3,7 +3,7 @@ set -euo pipefail
 
 usage() {
   cat <<'EOF'
-Usage: tools/install_linux_dev_desktop.sh [options]
+Usage: tool/install_linux_dev_desktop.sh [options]
 
 Register this BusyMax checkout with the current user's Linux desktop so GNOME
 can associate native Wayland windows with the BusyMax launcher and icon.

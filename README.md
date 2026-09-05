@@ -116,7 +116,7 @@ Wayland windows with its desktop icon. The helper is idempotent and defaults to
 the Flutter debug bundle:
 
 ```bash
-tools/install_linux_dev_desktop.sh
+tool/install_linux_dev_desktop.sh
 ```
 
 Then run BusyMax normally:
@@ -128,7 +128,7 @@ flutter run -d linux -t lib/main_linux.dart \
   --dart-define=MICROSOFT_OAUTH_CLIENT_ID=<microsoft-client-id>
 ```
 
-Use `tools/install_linux_dev_desktop.sh --uninstall` to remove the development
+Use `tool/install_linux_dev_desktop.sh --uninstall` to remove the development
 launcher. Remove it before testing an installed Snap so the user-level launcher
 does not take precedence; packaged Snaps register their own launcher.
 

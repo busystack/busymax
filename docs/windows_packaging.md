@@ -51,7 +51,7 @@ also require production HTTPS and OAuth configuration.
 From a 64-bit Windows 11 PowerShell prompt:
 
 ```powershell
-.\tools\windows\build_release.ps1 `
+.\tool\windows\build_release.ps1 `
   -ConfigPath config\windows_store.local.json
 ```
 
@@ -67,7 +67,7 @@ SHA-256. It performs no network deployment.
 check, so the manifest cannot claim a newer SDK than the release builder used.
 
 The manifest is rendered reproducibly from
-`tools/windows/AppxManifest.xml.template`. It declares x64, minimum OS
+`tool/windows/AppxManifest.xml.template`. It declares x64, minimum OS
 `10.0.26100.0`, only internet client and full-trust desktop capabilities, `.ics`,
 `webcal`, StartupTask, toast activation, resource languages derived from ARB
 catalogs, and BusyMax visual assets. It contains no location, microphone,
@@ -112,9 +112,9 @@ by default; that element does not define an arguments attribute.
 For installed-package testing only:
 
 ```powershell
-.\tools\windows\create_test_certificate.ps1 `
+.\tool\windows\create_test_certificate.ps1 `
   -ConfigPath config\windows_store.local.json
-.\tools\windows\install_test_package.ps1 `
+.\tool\windows\install_test_package.ps1 `
   -ConfigPath config\windows_store.local.json `
   -PackagePath build\windows\store\BusyMax-<version>-x64.msix `
   -PfxPath build\windows\test-signing\busymax-test-only.pfx
@@ -153,7 +153,7 @@ artifact.
 After installing a release-equivalent locally signed package, run:
 
 ```powershell
-.\tools\windows\run_wack.ps1 `
+.\tool\windows\run_wack.ps1 `
   -PackagePath build\windows\store\BusyMax-test-signed.msix
 ```
 

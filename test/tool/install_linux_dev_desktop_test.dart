@@ -22,7 +22,7 @@ void main() {
 
         for (var attempt = 0; attempt < 2; attempt++) {
           final result = await Process.run('bash', <String>[
-            'tools/install_linux_dev_desktop.sh',
+            'tool/install_linux_dev_desktop.sh',
             '--executable',
             executable,
           ], environment: environment);
@@ -53,7 +53,7 @@ void main() {
         );
 
         final uninstall = await Process.run('bash', <String>[
-          'tools/install_linux_dev_desktop.sh',
+          'tool/install_linux_dev_desktop.sh',
           '--uninstall',
         ], environment: environment);
         expect(uninstall.exitCode, 0, reason: _processFailure(uninstall));
@@ -77,7 +77,7 @@ void main() {
 
         final result = await Process.run(
           'bash',
-          <String>['tools/install_linux_dev_desktop.sh'],
+          <String>['tool/install_linux_dev_desktop.sh'],
           environment: <String, String>{
             ...Platform.environment,
             'XDG_DATA_HOME': dataHome.path,

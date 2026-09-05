@@ -183,7 +183,7 @@ void main() {
 
       await _expectUnsafeRootRejected(
         fixture,
-        arguments: const <String>['--root', 'tools/..'],
+        arguments: const <String>['--root', 'tool/..'],
       );
     });
 
@@ -327,8 +327,8 @@ final class _LocalSnapFixture {
     final commandLog = File('${root.path}/commands.log');
 
     _writeFile(
-      '${project.path}/tools/build_install_snap_local.sh',
-      File('tools/build_install_snap_local.sh').readAsStringSync(),
+      '${project.path}/tool/build_install_snap_local.sh',
+      File('tool/build_install_snap_local.sh').readAsStringSync(),
     );
     _writeFile(
       '${project.path}/pubspec.yaml',
@@ -461,7 +461,7 @@ fi
     return Process.run(
       'bash',
       <String>[
-        '${project.path}/tools/build_install_snap_local.sh',
+        '${project.path}/tool/build_install_snap_local.sh',
         '--skip-tests',
         '--no-run',
         '--scaffold',

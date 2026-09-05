@@ -6,7 +6,7 @@ import 'package:xml/xml.dart';
 
 void main() {
   final manifestSource = File(
-    'tools/windows/AppxManifest.xml.template',
+    'tool/windows/AppxManifest.xml.template',
   ).readAsStringSync();
   final manifest = XmlDocument.parse(manifestSource);
 

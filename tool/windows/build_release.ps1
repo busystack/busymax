@@ -23,7 +23,7 @@ function Invoke-BusyMaxPesterTests {
   New-Item -ItemType Directory -Force `
     -Path 'build\windows\test-results' | Out-Null
   $pester = Invoke-Pester `
-    -Path 'tools\windows\tests' -PassThru -Output Detailed
+    -Path 'tool\windows\tests' -PassThru -Output Detailed
   [pscustomobject]@{
     Result = [string]$pester.Result
     PassedCount = $pester.PassedCount

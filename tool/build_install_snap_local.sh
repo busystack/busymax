@@ -3,7 +3,7 @@ set -euo pipefail
 
 usage() {
   cat <<'EOF'
-Usage: tools/build_install_snap_local.sh [version] [options]
+Usage: tool/build_install_snap_local.sh [version] [options]
 
 Build the Flutter Linux release, replace the payload in an installed snap
 scaffold, pack it, install it locally, and optionally run it.

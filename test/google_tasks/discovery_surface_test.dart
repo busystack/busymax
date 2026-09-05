@@ -9,7 +9,7 @@ void main() {
     final discovery =
         jsonDecode(
               File(
-                'tools/google_tasks_discovery/cache/tasks_v1_discovery.json',
+                'tool/google_tasks_discovery/cache/tasks_v1_discovery.json',
               ).readAsStringSync(),
             )
             as Map<String, Object?>;

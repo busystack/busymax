@@ -76,7 +76,7 @@ For a local scaffold smoke build instead, first quit every running BusyMax
 instance, including its tray process and any development build:
 
 ```bash
-./tools/build_install_snap_local.sh \
+./tool/build_install_snap_local.sh \
   --dart-define-from-file .snap-local/busymax-dart-defines.json
 ```
 

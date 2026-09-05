@@ -24,7 +24,7 @@ Windows 11 24H2 minimum:
 
 ```powershell
 flutter config --enable-windows-desktop
-.\tools\windows\check_prerequisites.ps1
+.\tool\windows\check_prerequisites.ps1
 ```
 
 ## Entry points

@@ -89,7 +89,7 @@ jobs:
       - name: Verify Windows SDK packaging tools
         shell: pwsh
         run: |
-          . ./tools/windows/common.ps1
+          . ./tool/windows/common.ps1
           $kitsBin = Join-Path ${env:ProgramFiles(x86)} 'Windows Kits\10\bin'
           $sdk = Get-BusyMaxWindowsSdkDirectory -KitsBin $kitsBin
           if ($null -eq $sdk) {
@@ -107,7 +107,7 @@ jobs:
         run: |
           New-Item -ItemType Directory -Force `
             -Path build/windows/test-results | Out-Null
-          $environment = ./tools/windows/check_prerequisites.ps1
+          $environment = ./tool/windows/check_prerequisites.ps1
           $environment | ConvertTo-Json | Set-Content `
             -LiteralPath build/windows/test-results/windows-environment.json `
             -Encoding utf8NoBOM
@@ -116,28 +116,28 @@ jobs:
       - name: Validate non-production CI identity
         shell: pwsh
         run: >-
-          ./tools/windows/validate_release_config.ps1
+          ./tool/windows/validate_release_config.ps1
           -ConfigPath build/windows/store-ci.json
           -Ci | Format-List
 
       - name: Run pinned Pester contract tests
         shell: pwsh
         run: >-
-          ./tools/windows/build_release.ps1
+          ./tool/windows/build_release.ps1
           -ConfigPath build/windows/store-ci.json
           -Ci -Stage PesterTests
 
       - name: Restore dependencies and generate sources
         shell: pwsh
         run: >-
-          ./tools/windows/build_release.ps1
+          ./tool/windows/build_release.ps1
           -ConfigPath build/windows/store-ci.json
           -Ci -Stage SourceGeneration
 
       - name: Check formatting, analysis, and platform boundaries
         shell: pwsh
         run: >-
-          ./tools/windows/build_release.ps1
+          ./tool/windows/build_release.ps1
           -ConfigPath build/windows/store-ci.json
           -Ci -Stage StaticAnalysis
 
@@ -145,7 +145,7 @@ jobs:
         id: flutter-tests
         shell: pwsh
         run: >-
-          ./tools/windows/build_release.ps1
+          ./tool/windows/build_release.ps1
           -ConfigPath build/windows/store-ci.json
           -Ci -Stage FlutterTests
 
@@ -206,7 +206,7 @@ jobs:
         id: windows-compile
         shell: pwsh
         run: >-
-          ./tools/windows/build_release.ps1
+          ./tool/windows/build_release.ps1
           -ConfigPath build/windows/store-ci.json
           -Ci -Stage WindowsCompile
 
@@ -239,7 +239,7 @@ jobs:
         id: native-tests
         shell: pwsh
         run: >-
-          ./tools/windows/build_release.ps1
+          ./tool/windows/build_release.ps1
           -ConfigPath build/windows/store-ci.json
           -Ci -Stage NativeTests
 
@@ -275,7 +275,7 @@ jobs:
         id: package
         shell: pwsh
         run: >-
-          ./tools/windows/build_release.ps1
+          ./tool/windows/build_release.ps1
           -ConfigPath build/windows/store-ci.json
           -Ci -Stage Package
 
