@@ -13,6 +13,12 @@ class AppLocalizationsRu extends AppLocalizations {
   AppLocalizationsRu([String locale = 'ru']) : super(locale);
 
   @override
+  String get moveUp => 'Переместить вверх';
+
+  @override
+  String get moveDown => 'Переместить вниз';
+
+  @override
   String get windowsSupport => 'Поддержка';
 
   @override

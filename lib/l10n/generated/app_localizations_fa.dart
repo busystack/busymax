@@ -13,6 +13,12 @@ class AppLocalizationsFa extends AppLocalizations {
   AppLocalizationsFa([String locale = 'fa']) : super(locale);
 
   @override
+  String get moveUp => 'انتقال به بالا';
+
+  @override
+  String get moveDown => 'انتقال به پایین';
+
+  @override
   String get windowsSupport => 'پشتیبانی';
 
   @override

@@ -7,6 +7,9 @@ import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:busymax/src/db/app_database.dart';
 import 'package:busymax/src/features/sync/pending_ops_replayer.dart';
+import 'package:busymax/src/features/sync/sync_engine.dart';
+import 'package:busymax/src/app/app_settings.dart';
+import 'package:busymax/src/schedule/schedule_sidebar_order.dart';
 import 'package:busymax/src/features/tasks/data/tasks_repository.dart';
 import 'package:busymax/src/features/tasks/domain/task_remote_client.dart';
 import 'package:busymax/src/google_tasks/api/google_tasks_api_error.dart';
@@ -16,6 +19,8 @@ import 'package:busymax/src/microsoft_todo/api/microsoft_todo_api_client.dart';
 import 'package:busymax/src/microsoft_todo/api/microsoft_todo_api_error.dart';
 import 'package:busymax/src/microsoft_todo/api/microsoft_todo_api_models.dart';
 import 'package:busymax/src/microsoft_todo/api/microsoft_todo_task_remote_client.dart';
+
+import '../../support/memory_settings_store.dart';
 
 void main() {
   late AppDatabase database;
@@ -31,6 +36,89 @@ void main() {
   tearDown(() async {
     await database.close();
   });
+
+  for (final throughEngine in [false, true]) {
+    for (final failSettings in [false, true]) {
+      test(
+        'task list ID callback follows commit (engine=$throughEngine, failure=$failSettings)',
+        () async {
+          final settings = AppSettingsController(MemorySettingsStore());
+          addTearDown(settings.dispose);
+          await settings.registerSidebarIds(SidebarOrderSection.taskLists, [
+            'before',
+            'temp-list',
+            'after',
+            'list-server',
+          ], accountId: 'account');
+          await database.taskListsDao.upsertTaskList(
+            _taskList('temp-list', title: 'Temp'),
+          );
+          await _enqueue(
+            database,
+            id: 'create-list',
+            operation: 'create_task_list',
+            entityType: 'task_list',
+            taskListId: 'temp-list',
+            localTempId: 'temp-list',
+            request: {'title': 'Temp'},
+          );
+          var callbackCount = 0;
+          var committed = false;
+          Future<void> replaced(String oldId, String newId) async {
+            callbackCount++;
+            final ids = (await database.taskListsDao.listTaskLists(
+              'account',
+            )).map((list) => list.id);
+            committed =
+                oldId == 'temp-list' &&
+                newId == 'list-server' &&
+                !ids.contains(oldId) &&
+                ids.contains(newId);
+            await settings.replaceSidebarId(
+              SidebarOrderSection.taskLists,
+              oldId,
+              newId,
+              accountId: 'account',
+            );
+            if (failSettings) throw StateError('settings unavailable');
+          }
+
+          final replayer = PendingOpsReplayer(
+            database: database,
+            apiClient: apiClient,
+            accountId: 'account',
+            onTaskListIdReplaced: replaced,
+            nowUtc: () => DateTime.utc(2026, 6, 4),
+          );
+          if (throughEngine) {
+            await SyncEngine(
+              database: database,
+              apiClient: apiClient,
+              accountId: 'account',
+              onTaskListIdReplaced: replaced,
+              nowUtc: () => DateTime.utc(2026, 6, 4),
+            ).fullSync();
+          } else {
+            expect(await replayer.replayDueOps(), 1);
+          }
+          expect(committed, isTrue);
+          expect(callbackCount, 1);
+          expect(settings.state.sidebarOrder.taskListIdsByAccount['account'], [
+            'before',
+            'list-server',
+            'after',
+          ]);
+          expect(await replayer.replayDueOps(), 0);
+          expect(
+            apiClient.calls.where(
+              (call) => call.startsWith('create_task_list:'),
+            ),
+            ['create_task_list:Temp'],
+          );
+        },
+      );
+    }
+  }
 
   test('replays all operation handlers and rewrites task temp IDs', () async {
     await database.taskListsDao.upsertTaskList(
@@ -1643,7 +1731,7 @@ class _FakeTaskRemoteClient implements TaskRemoteClient {
   Future<TaskListsPageDto> listTaskListsPage({
     int maxResults = 1000,
     String? pageToken,
-  }) => throw UnimplementedError();
+  }) async => const TaskListsPageDto(items: [], rawJson: {});
 
   @override
   Future<TasksPageDto> listTasksPage({

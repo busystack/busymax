@@ -1,4 +1,6 @@
 {
+  "moveUp": "Переместить вверх",
+  "moveDown": "Переместить вниз",
   "@@locale": "ru",
   "windowsSupport": "Поддержка",
   "windowsThirdPartyLicenses": "Лицензии сторонних компонентов",

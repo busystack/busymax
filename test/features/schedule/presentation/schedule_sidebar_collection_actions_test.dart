@@ -1,4 +1,8 @@
+import 'dart:async';
+
 import 'package:busymax/src/app/app_bootstrap.dart';
+import 'package:busymax/src/schedule/schedule_sidebar_order.dart';
+import 'package:busymax/src/schedule/schedule_sidebar_sources.dart';
 import 'package:busymax/src/app/busymax_design.dart';
 import 'package:busymax/src/app/busymax_yaru_theme.dart';
 import 'package:busymax/src/features/accounts/data/accounts_repository.dart';
@@ -15,6 +19,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import '../../../test_localized_app.dart';
+import '../../../support/memory_settings_store.dart';
 
 const _nativeMenuChannel = MethodChannel(nativeMenuChannelName);
 
@@ -33,6 +38,246 @@ void main() {
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(_nativeMenuChannel, null);
   });
+
+  testWidgets(
+    'sidebar moves adjacent siblings locally and restores order after restart',
+    (tester) async {
+      final store = MemorySettingsStore();
+      final accounts = [
+        _account(BusyProvider.appleICloud, id: 'a'),
+        _account(BusyProvider.google, id: 'b'),
+      ];
+      final calendars = [
+        _calendar('a', 'c1'),
+        _calendar('a', 'c2'),
+        _calendar('b', 'c3'),
+      ];
+      final lists = [_list('a', 'l1'), _list('a', 'l2'), _list('b', 'l1')];
+      await _pumpSidebar(
+        tester,
+        accounts,
+        calendarSources: calendars,
+        taskLists: lists,
+        settingsStore: store,
+        height: 1100,
+        networkAvailability: NetworkAvailability.offline,
+      );
+      BusyMaxMenuButton<String> calendarMenu(String id) =>
+          tester.widget(find.byKey(ValueKey(('calendar-options', id))));
+      expect(
+        calendarMenu(
+          'c1',
+        ).entries.singleWhere((entry) => entry.value == 'move-up').enabled,
+        isFalse,
+      );
+      expect(
+        calendarMenu(
+          'c2',
+        ).entries.singleWhere((entry) => entry.value == 'move-down').enabled,
+        isFalse,
+      );
+      final beforeElement = tester.element(
+        find.byKey(const ValueKey(('schedule-calendar', 'a', 'c2'))),
+      );
+      await tester.tap(find.byKey(const ValueKey(('calendar-options', 'c2'))));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Move up'));
+      await tester.pumpAndSettle();
+      _expectRows(tester, [
+        ('schedule-calendar', 'a', 'c2'),
+        ('schedule-calendar', 'a', 'c1'),
+        ('schedule-calendar', 'b', 'c3'),
+      ]);
+      expect(
+        tester.element(
+          find.byKey(const ValueKey(('schedule-calendar', 'a', 'c2'))),
+        ),
+        same(beforeElement),
+      );
+      final taskMenu = tester.widget<BusyMaxMenuButton<String>>(
+        find.byKey(const ValueKey(('task-list-options', 'a', 'l2'))),
+      );
+      taskMenu.onSelected('move-up');
+      await tester.pumpAndSettle();
+      _expectRows(tester, [
+        ('schedule-task-list', 'a', 'l2'),
+        ('schedule-task-list', 'a', 'l1'),
+        ('schedule-task-list', 'b', 'l1'),
+      ]);
+      await tester.tap(find.byKey(const ValueKey(('account-collapse', 'a'))));
+      await tester.pumpAndSettle();
+      final header = tester
+          .widget<BusyMaxMenuButton<AccountHeaderCollectionAction>>(
+            find.byKey(const ValueKey(('account-collection-options', 'a'))),
+          );
+      expect(
+        header.entries
+            .singleWhere(
+              (entry) => entry.value == AccountHeaderCollectionAction.moveDown,
+            )
+            .enabled,
+        isTrue,
+      );
+      header.onSelected(AccountHeaderCollectionAction.moveDown);
+      await tester.pumpAndSettle();
+      _expectRows(tester, [
+        ('schedule-account', 'b'),
+        ('schedule-account', 'a'),
+      ]);
+      expect(
+        find.byKey(const ValueKey(('schedule-calendar', 'a', 'c2'))),
+        findsNothing,
+      );
+      expect(
+        AppSettings.fromJson(
+          store.value,
+        ).isTaskListVisibleInSchedule('a', 'l2'),
+        isTrue,
+      );
+      await tester.pumpWidget(const SizedBox.shrink());
+      await _pumpSidebar(
+        tester,
+        accounts.reversed.toList(),
+        calendarSources: calendars.reversed.toList(),
+        taskLists: lists.reversed.toList(),
+        settingsStore: store,
+        height: 1100,
+      );
+      _expectRows(tester, [
+        ('schedule-account', 'b'),
+        ('schedule-account', 'a'),
+      ]);
+      _expectRows(tester, [
+        ('schedule-calendar', 'a', 'c2'),
+        ('schedule-calendar', 'a', 'c1'),
+      ]);
+      _expectRows(tester, [
+        ('schedule-task-list', 'a', 'l2'),
+        ('schedule-task-list', 'a', 'l1'),
+      ]);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
+    'collapsed accounts register snapshots and survive rename, sync, removals and ID replacement',
+    (tester) async {
+      final calendars =
+          StreamController<List<CalendarSourceEntity>>.broadcast();
+      final lists = StreamController<List<TaskListEntity>>.broadcast();
+      addTearDown(calendars.close);
+      addTearDown(lists.close);
+      final store = MemorySettingsStore();
+      await _pumpSidebar(
+        tester,
+        [_account(BusyProvider.google, id: 'a')],
+        calendarSnapshots: calendars.stream,
+        taskSnapshots: lists.stream,
+        settingsStore: store,
+      );
+      await tester.tap(find.byKey(const ValueKey(('account-collapse', 'a'))));
+      await tester.pumpAndSettle();
+      calendars.add([_calendar('a', 'c2'), _calendar('a', 'c1')]);
+      lists.add([_list('a', 'l2'), _list('a', 'l1')]);
+      await tester.pumpAndSettle();
+      expect(
+        AppSettings.fromJson(
+          store.value,
+        ).sidebarOrder.calendarSourceIdsByAccount['a'],
+        ['c2', 'c1'],
+      );
+      expect(
+        AppSettings.fromJson(
+          store.value,
+        ).sidebarOrder.taskListIdsByAccount['a'],
+        ['l2', 'l1'],
+      );
+      calendars.add([
+        _calendar('a', 'c1', title: 'Renamed'),
+        _calendar('a', 'c2'),
+        _calendar('a', 'c3'),
+      ]);
+      lists.add([_list('a', 'l1'), _list('a', 'l2'), _list('a', 'l3')]);
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const ValueKey(('account-collapse', 'a'))));
+      await tester.pumpAndSettle();
+      _expectRows(tester, [
+        ('schedule-calendar', 'a', 'c2'),
+        ('schedule-calendar', 'a', 'c1'),
+        ('schedule-calendar', 'a', 'c3'),
+      ]);
+      _expectRows(tester, [
+        ('schedule-task-list', 'a', 'l2'),
+        ('schedule-task-list', 'a', 'l1'),
+        ('schedule-task-list', 'a', 'l3'),
+      ]);
+      expect(find.text('Renamed'), findsOneWidget);
+      final controller = ProviderScope.containerOf(
+        tester.element(find.byType(ScheduleSidebar)),
+      ).read(appSettingsControllerProvider.notifier);
+      unawaited(
+        controller.replaceSidebarId(
+          SidebarOrderSection.calendars,
+          'c2',
+          'server',
+          accountId: 'a',
+        ),
+      );
+      unawaited(
+        controller.replaceSidebarId(
+          SidebarOrderSection.taskLists,
+          'l2',
+          'server',
+          accountId: 'a',
+        ),
+      );
+      calendars.add([_calendar('a', 'c3'), _calendar('a', 'server')]);
+      lists.add([_list('a', 'l3'), _list('a', 'server')]);
+      await tester.pumpAndSettle();
+      _expectRows(tester, [
+        ('schedule-calendar', 'a', 'server'),
+        ('schedule-calendar', 'a', 'c3'),
+      ]);
+      _expectRows(tester, [
+        ('schedule-task-list', 'a', 'server'),
+        ('schedule-task-list', 'a', 'l3'),
+      ]);
+      expect(find.text('Renamed'), findsNothing);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
+    'subscription rows move within the existing subscriptions section',
+    (tester) async {
+      await _pumpSidebar(
+        tester,
+        [_account(BusyProvider.webCal, id: 'feed')],
+        calendarSources: [
+          _calendar('feed', 's1', provider: BusyProvider.webCal),
+          _calendar('feed', 's2', provider: BusyProvider.webCal),
+        ],
+      );
+      final menu = tester.widget<BusyMaxMenuButton<String>>(
+        find.byKey(const ValueKey(('subscription-options', 's2'))),
+      );
+      expect(
+        menu.entries.singleWhere((entry) => entry.value == 'move-down').enabled,
+        isFalse,
+      );
+      menu.onSelected('move-up');
+      await tester.pumpAndSettle();
+      _expectRows(tester, [
+        ('subscription-source', 's2'),
+        ('subscription-source', 's1'),
+      ]);
+      expect(find.text('Subscriptions'), findsOneWidget);
+      expect(
+        find.byKey(const ValueKey(('schedule-account', 'feed'))),
+        findsNothing,
+      );
+    },
+  );
 
   testWidgets('Google, Microsoft, and Nextcloud headers expose both actions', (
     tester,
@@ -222,10 +467,23 @@ void main() {
     },
   );
 
-  testWidgets('Apple has no empty collection Options menu', (tester) async {
+  testWidgets('Apple receives local ordering without creation actions', (
+    tester,
+  ) async {
     await _pumpSidebar(tester, [_account(BusyProvider.appleICloud)]);
 
-    expect(find.byTooltip('Options'), findsNothing);
+    expect(find.byTooltip('Options'), findsOneWidget);
+    final menu = tester
+        .widget<BusyMaxMenuButton<AccountHeaderCollectionAction>>(
+          find.byKey(
+            const ValueKey((
+              'account-collection-options',
+              'apple_icloud-account',
+            )),
+          ),
+        );
+    expect(menu.entries.map((entry) => entry.label), ['Move up', 'Move down']);
+    expect(menu.entries.every((entry) => !entry.enabled), isTrue);
     expect(find.text('No calendars synced yet.'), findsOneWidget);
     expect(find.text('No task lists synced yet.'), findsOneWidget);
   });
@@ -310,7 +568,7 @@ void main() {
           ),
         );
 
-    expect(menu.entries, hasLength(2));
+    expect(menu.entries, hasLength(4));
     expect(menu.entries.every((entry) => !entry.enabled), isTrue);
   });
 
@@ -513,6 +771,10 @@ Future<void> _pumpSidebar(
   List<TaskListEntity> taskLists = const [],
   ThemeData? theme,
   double width = 320,
+  double height = 800,
+  MemorySettingsStore? settingsStore,
+  Stream<List<CalendarSourceEntity>>? calendarSnapshots,
+  Stream<List<TaskListEntity>>? taskSnapshots,
 }) async {
   tester.view.devicePixelRatio = 1;
   tester.view.physicalSize = const Size(900, 1200);
@@ -521,6 +783,9 @@ Future<void> _pumpSidebar(
   await tester.pumpWidget(
     ProviderScope(
       overrides: [
+        localSettingsStoreProvider.overrideWithValue(
+          settingsStore ?? MemorySettingsStore(),
+        ),
         accountsStreamProvider.overrideWith((ref) => Stream.value(accounts)),
         if (networkAvailability != null)
           networkAvailabilityProvider.overrideWith(
@@ -530,8 +795,25 @@ Future<void> _pumpSidebar(
           _CalendarSourcesRepository(calendarSources),
         ),
         taskListsRepositoryForAccountProvider.overrideWith(
-          (ref, accountId) => _TaskListsRepository(taskLists),
+          (ref, accountId) => _TaskListsRepository(
+            taskLists.where((list) => list.accountId == accountId).toList(),
+          ),
         ),
+        if (calendarSnapshots != null)
+          sidebarCalendarSourcesProvider.overrideWith(
+            (ref, accountId) => calendarSnapshots.map(
+              (sources) => sources
+                  .where((source) => source.accountId == accountId)
+                  .toList(),
+            ),
+          ),
+        if (taskSnapshots != null)
+          sidebarTaskListsProvider.overrideWith(
+            (ref, accountId) => taskSnapshots.map(
+              (lists) =>
+                  lists.where((list) => list.accountId == accountId).toList(),
+            ),
+          ),
         if (creationService != null)
           calendarCollectionCreationServiceProvider.overrideWithValue(
             creationService,
@@ -544,7 +826,7 @@ Future<void> _pumpSidebar(
           alignment: Alignment.topLeft,
           child: SizedBox(
             width: width,
-            height: 800,
+            height: height,
             child: ScheduleSidebar(
               selectedDate: DateTime(2026, 8, 29),
               firstWeekday: DateTime.monday,
@@ -561,6 +843,46 @@ Future<void> _pumpSidebar(
   );
   await tester.pumpAndSettle();
 }
+
+Finder _row(Object value) => find.byWidgetPredicate(
+  (widget) =>
+      widget.key is ValueKey && (widget.key! as ValueKey).value == value,
+);
+
+void _expectRows(WidgetTester tester, List<Object> keys) {
+  for (var index = 1; index < keys.length; index++) {
+    expect(
+      tester.getTopLeft(_row(keys[index - 1])).dy,
+      lessThan(tester.getTopLeft(_row(keys[index])).dy),
+    );
+  }
+}
+
+CalendarSourceEntity _calendar(
+  String accountId,
+  String id, {
+  String? title,
+  BusyProvider provider = BusyProvider.google,
+}) => CalendarSourceEntity(
+  id: id,
+  accountId: accountId,
+  provider: provider,
+  providerCalendarId: id,
+  summary: title ?? id,
+  selected: false,
+  hidden: false,
+  readOnly: true,
+  isDeleted: false,
+);
+
+TaskListEntity _list(String accountId, String id) => TaskListEntity(
+  accountId: accountId,
+  id: id,
+  title: id,
+  localDirty: false,
+  pendingDelete: false,
+  rawJson: '{}',
+);
 
 final class _CalendarSourcesRepository implements CalendarRepository {
   const _CalendarSourcesRepository(this.sources);

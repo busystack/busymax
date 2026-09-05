@@ -1,4 +1,6 @@
 {
+  "moveUp": "Monter",
+  "moveDown": "Descendre",
   "@@locale": "fr",
   "windowsSupport": "Assistance",
   "windowsThirdPartyLicenses": "Licences tierces",

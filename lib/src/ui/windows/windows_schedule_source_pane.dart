@@ -14,6 +14,7 @@ import '../../features/calendar/data/calendar_repository.dart';
 import '../../features/task_lists/data/task_lists_repository.dart';
 import '../../providers/busy_provider.dart';
 import '../../schedule/schedule_filters.dart';
+import '../../schedule/schedule_sidebar_order.dart';
 import '../common/busymax_glyph.dart';
 import 'windows_busymax_glyphs.dart';
 
@@ -52,6 +53,53 @@ class WindowsScheduleSourcePane extends ConsumerStatefulWidget {
 
 class _WindowsScheduleSourcePaneState
     extends ConsumerState<WindowsScheduleSourcePane> {
+  final _snapshots = StreamController<WindowsScheduleSourcePane>();
+  late final StreamSubscription<WindowsScheduleSourcePane> _snapshotListener;
+
+  @override
+  void initState() {
+    super.initState();
+    _snapshotListener = _snapshots.stream.listen(_registerSnapshot);
+    _snapshots.add(widget);
+  }
+
+  void _registerSnapshot(WindowsScheduleSourcePane snapshot) {
+    final controller = ref.read(appSettingsControllerProvider.notifier);
+    unawaited(
+      controller.registerSidebarIds(
+        SidebarOrderSection.accounts,
+        snapshot.accounts.map((account) => account.id),
+      ),
+    );
+    for (final account in snapshot.accounts) {
+      unawaited(
+        controller.registerSidebarIds(
+          SidebarOrderSection.calendars,
+          snapshot.calendarSources
+              .where((source) => source.accountId == account.id)
+              .map((source) => source.id),
+          accountId: account.id,
+        ),
+      );
+      unawaited(
+        controller.registerSidebarIds(
+          SidebarOrderSection.taskLists,
+          snapshot.taskLists
+              .where((list) => list.accountId == account.id)
+              .map((list) => list.id),
+          accountId: account.id,
+        ),
+      );
+    }
+  }
+
+  @override
+  void dispose() {
+    unawaited(_snapshotListener.cancel());
+    unawaited(_snapshots.close());
+    super.dispose();
+  }
+
   late DateTime _displayedMonth = DateTime(
     widget.selectedDate.year,
     widget.selectedDate.month,
@@ -60,6 +108,7 @@ class _WindowsScheduleSourcePaneState
   @override
   void didUpdateWidget(covariant WindowsScheduleSourcePane oldWidget) {
     super.didUpdateWidget(oldWidget);
+    _snapshots.add(widget);
     if (oldWidget.selectedDate.year != widget.selectedDate.year ||
         oldWidget.selectedDate.month != widget.selectedDate.month) {
       _displayedMonth = DateTime(
@@ -73,6 +122,13 @@ class _WindowsScheduleSourcePaneState
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     final locale = Localizations.localeOf(context).toLanguageTag();
+    final order = ref.watch(appSettingsControllerProvider).sidebarOrder;
+    final accounts = order.apply(
+      SidebarOrderSection.accounts,
+      widget.accounts,
+      (account) => account.id,
+    );
+    final accountIds = accounts.map((account) => account.id).toList();
     return ColoredBox(
       color: FluentTheme.of(context).cardColor,
       child: Column(
@@ -103,9 +159,16 @@ class _WindowsScheduleSourcePaneState
             child: ListView(
               padding: const EdgeInsets.symmetric(vertical: 8),
               children: [
-                for (final account in widget.accounts) ...[
+                for (final account in accounts) ...[
                   _AccountHeader(
+                    key: ValueKey(('schedule-account', account.id)),
                     account: account,
+                    movementItems: _movementItems(
+                      context,
+                      SidebarOrderSection.accounts,
+                      account.id,
+                      accountIds,
+                    ),
                     capabilities: AccountCollectionCreationCapabilities.resolve(
                       account: account,
                       networkAvailability:
@@ -117,13 +180,13 @@ class _WindowsScheduleSourcePaneState
                     onCreateCalendar: () => unawaited(_createCalendar(account)),
                     onCreateTaskList: () => unawaited(_createTaskList(account)),
                   ),
-                  for (final source in widget.calendarSources.where(
-                    (source) =>
-                        source.accountId == account.id &&
-                        !source.hidden &&
-                        !source.isDeleted,
-                  ))
+                  for (final source in _calendarsFor(account.id))
                     _VisibilityRow(
+                      key: ValueKey((
+                        'schedule-calendar',
+                        account.id,
+                        source.id,
+                      )),
                       icon: BusyMaxGlyph.calendar,
                       title: source.summary,
                       checked: widget.visibleCalendarSourceIds.contains(
@@ -133,11 +196,13 @@ class _WindowsScheduleSourcePaneState
                           widget.onCalendarVisibilityChanged(source, value),
                       menuItems: _calendarMenuItems(context, source),
                     ),
-                  for (final list in widget.taskLists.where(
-                    (list) =>
-                        list.accountId == account.id && !list.pendingDelete,
-                  ))
+                  for (final list in _taskListsFor(account.id))
                     _VisibilityRow(
+                      key: ValueKey((
+                        'schedule-task-list',
+                        account.id,
+                        list.id,
+                      )),
                       icon: BusyMaxGlyph.task,
                       title: list.title,
                       checked: widget.visibleTaskListKeys.contains(
@@ -164,12 +229,77 @@ class _WindowsScheduleSourcePaneState
     );
   }
 
+  List<CalendarSourceEntity> _calendarsFor(String accountId) => ref
+      .read(appSettingsControllerProvider)
+      .sidebarOrder
+      .apply(
+        SidebarOrderSection.calendars,
+        widget.calendarSources.where(
+          (source) =>
+              source.accountId == accountId &&
+              !source.hidden &&
+              !source.isDeleted,
+        ),
+        (source) => source.id,
+        accountId: accountId,
+      );
+
+  List<TaskListEntity> _taskListsFor(String accountId) => ref
+      .read(appSettingsControllerProvider)
+      .sidebarOrder
+      .apply(
+        SidebarOrderSection.taskLists,
+        widget.taskLists.where(
+          (list) => list.accountId == accountId && !list.pendingDelete,
+        ),
+        (list) => list.id,
+        accountId: accountId,
+      );
+
+  List<MenuFlyoutItem> _movementItems(
+    BuildContext context,
+    SidebarOrderSection section,
+    String id,
+    List<String> siblings, {
+    String? accountId,
+  }) {
+    final order = ref.read(appSettingsControllerProvider).sidebarOrder;
+    final l10n = AppLocalizations.of(context);
+    return [
+      for (final offset in [-1, 1])
+        MenuFlyoutItem(
+          leading: Icon(offset == -1 ? FluentIcons.up : FluentIcons.down),
+          text: Text(offset == -1 ? l10n.moveUp : l10n.moveDown),
+          onPressed: order.canMove(id, offset, siblings)
+              ? () => unawaited(
+                  ref
+                      .read(appSettingsControllerProvider.notifier)
+                      .moveSidebarItem(
+                        section,
+                        id,
+                        offset,
+                        siblings,
+                        accountId: accountId,
+                      ),
+                )
+              : null,
+        ),
+    ];
+  }
+
   List<MenuFlyoutItem> _calendarMenuItems(
     BuildContext context,
     CalendarSourceEntity source,
   ) {
     final l10n = AppLocalizations.of(context);
     return [
+      ..._movementItems(
+        context,
+        SidebarOrderSection.calendars,
+        source.id,
+        _calendarsFor(source.accountId).map((source) => source.id).toList(),
+        accountId: source.accountId,
+      ),
       MenuFlyoutItem(
         leading: Icon(windowsBusyMaxGlyph(BusyMaxGlyph.reminder)),
         text: Text(
@@ -233,6 +363,13 @@ class _WindowsScheduleSourcePaneState
         ? davCapabilities?.supportsListDelete ?? false
         : true;
     return [
+      ..._movementItems(
+        context,
+        SidebarOrderSection.taskLists,
+        list.id,
+        _taskListsFor(account.id).map((list) => list.id).toList(),
+        accountId: account.id,
+      ),
       MenuFlyoutItem(
         leading: Icon(windowsBusyMaxGlyph(BusyMaxGlyph.reminder)),
         text: Text(
@@ -508,16 +645,19 @@ class _WindowsScheduleSourcePaneState
 
 class _AccountHeader extends StatelessWidget {
   const _AccountHeader({
+    super.key,
     required this.account,
     required this.capabilities,
     required this.onCreateCalendar,
     required this.onCreateTaskList,
+    required this.movementItems,
   });
 
   final AccountEntity account;
   final AccountCollectionCreationCapabilities capabilities;
   final VoidCallback onCreateCalendar;
   final VoidCallback onCreateTaskList;
+  final List<MenuFlyoutItem> movementItems;
 
   @override
   Widget build(BuildContext context) => Padding(
@@ -532,28 +672,28 @@ class _AccountHeader extends StatelessWidget {
             style: FluentTheme.of(context).typography.caption,
           ),
         ),
-        if (capabilities.hasActions)
-          DropDownButton(
-            title: Icon(windowsBusyMaxGlyph(BusyMaxGlyph.add), size: 16),
-            items: [
-              if (capabilities.supportsCalendarCreation)
-                MenuFlyoutItem(
-                  leading: Icon(windowsBusyMaxGlyph(BusyMaxGlyph.calendar)),
-                  text: Text(AppLocalizations.of(context).newCalendar),
-                  onPressed: capabilities.calendarActionEnabled
-                      ? onCreateCalendar
-                      : null,
-                ),
-              if (capabilities.supportsTaskListCreation)
-                MenuFlyoutItem(
-                  leading: Icon(windowsBusyMaxGlyph(BusyMaxGlyph.task)),
-                  text: Text(AppLocalizations.of(context).newTaskList),
-                  onPressed: capabilities.taskListActionEnabled
-                      ? onCreateTaskList
-                      : null,
-                ),
-            ],
-          ),
+        DropDownButton(
+          title: Icon(windowsBusyMaxGlyph(BusyMaxGlyph.more), size: 16),
+          items: [
+            ...movementItems,
+            if (capabilities.supportsCalendarCreation)
+              MenuFlyoutItem(
+                leading: Icon(windowsBusyMaxGlyph(BusyMaxGlyph.calendar)),
+                text: Text(AppLocalizations.of(context).newCalendar),
+                onPressed: capabilities.calendarActionEnabled
+                    ? onCreateCalendar
+                    : null,
+              ),
+            if (capabilities.supportsTaskListCreation)
+              MenuFlyoutItem(
+                leading: Icon(windowsBusyMaxGlyph(BusyMaxGlyph.task)),
+                text: Text(AppLocalizations.of(context).newTaskList),
+                onPressed: capabilities.taskListActionEnabled
+                    ? onCreateTaskList
+                    : null,
+              ),
+          ],
+        ),
       ],
     ),
   );
@@ -561,6 +701,7 @@ class _AccountHeader extends StatelessWidget {
 
 class _VisibilityRow extends StatelessWidget {
   const _VisibilityRow({
+    super.key,
     required this.icon,
     required this.title,
     required this.checked,

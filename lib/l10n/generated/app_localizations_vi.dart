@@ -13,6 +13,12 @@ class AppLocalizationsVi extends AppLocalizations {
   AppLocalizationsVi([String locale = 'vi']) : super(locale);
 
   @override
+  String get moveUp => 'Di chuyển lên';
+
+  @override
+  String get moveDown => 'Di chuyển xuống';
+
+  @override
   String get windowsSupport => 'Hỗ trợ';
 
   @override

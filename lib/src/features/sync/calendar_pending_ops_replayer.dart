@@ -18,6 +18,7 @@ import '../calendar/data/calendar_repository.dart';
 import '../recurrence/domain/event_recurrence_codec.dart';
 import '../recurrence/domain/recurrence_rule.dart';
 import 'pending_ops_replay_coordinator.dart';
+import 'collection_id_replacement.dart';
 
 class CalendarPendingOpsReplayer {
   CalendarPendingOpsReplayer({
@@ -26,12 +27,14 @@ class CalendarPendingOpsReplayer {
     required String accountId,
     DateTime Function()? nowUtc,
     Future<void> Function(String summary)? onConflictBlocked,
+    CollectionIdReplacement? onCalendarSourceIdReplaced,
     Random? random,
   }) : _database = database,
        _client = client,
        _accountId = accountId,
        _nowUtc = nowUtc ?? (() => DateTime.now().toUtc()),
        _onConflictBlocked = onConflictBlocked,
+       _onCalendarSourceIdReplaced = onCalendarSourceIdReplaced,
        _random = random ?? Random.secure(),
        _repository = CalendarRepository(database: database, now: nowUtc);
 
@@ -40,6 +43,7 @@ class CalendarPendingOpsReplayer {
   final String _accountId;
   final DateTime Function() _nowUtc;
   final Future<void> Function(String summary)? _onConflictBlocked;
+  final CollectionIdReplacement? _onCalendarSourceIdReplaced;
   final Random _random;
   final CalendarRepository _repository;
 
@@ -1014,6 +1018,13 @@ class CalendarPendingOpsReplayer {
         )..where((row) => row.id.equals(temporarySourceId))).go();
       }
     });
+    if (temporarySourceId != null) {
+      await notifyCollectionIdReplacement(
+        _onCalendarSourceIdReplaced,
+        temporarySourceId,
+        serverSourceId,
+      );
+    }
   }
 
   Future<void> _rewriteCalendarPendingReferences({

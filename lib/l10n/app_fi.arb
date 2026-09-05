@@ -1,4 +1,6 @@
 {
+  "moveUp": "Siirrä ylös",
+  "moveDown": "Siirrä alas",
   "@@locale": "fi",
   "windowsSupport": "Tuki",
   "windowsThirdPartyLicenses": "Kolmannen osapuolen lisenssit",

@@ -1,4 +1,6 @@
 {
+  "moveUp": "Move up",
+  "moveDown": "Move down",
   "@@locale": "en",
   "windowsSupport": "Support",
   "windowsThirdPartyLicenses": "Third-party licenses",

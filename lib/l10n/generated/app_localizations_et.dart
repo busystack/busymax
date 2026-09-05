@@ -13,6 +13,12 @@ class AppLocalizationsEt extends AppLocalizations {
   AppLocalizationsEt([String locale = 'et']) : super(locale);
 
   @override
+  String get moveUp => 'Liiguta üles';
+
+  @override
+  String get moveDown => 'Liiguta alla';
+
+  @override
   String get windowsSupport => 'Tugi';
 
   @override

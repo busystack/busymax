@@ -13,6 +13,12 @@ class AppLocalizationsEs extends AppLocalizations {
   AppLocalizationsEs([String locale = 'es']) : super(locale);
 
   @override
+  String get moveUp => 'Mover hacia arriba';
+
+  @override
+  String get moveDown => 'Mover hacia abajo';
+
+  @override
   String get windowsSupport => 'Soporte';
 
   @override

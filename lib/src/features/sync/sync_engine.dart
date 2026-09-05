@@ -9,6 +9,7 @@ import '../tasks/domain/task_checklist_item.dart';
 import '../tasks/domain/task_remote_client.dart';
 import '../tasks/domain/task_remote_models.dart';
 import 'pending_ops_replayer.dart';
+import 'collection_id_replacement.dart';
 
 class SyncEngine {
   SyncEngine({
@@ -17,6 +18,7 @@ class SyncEngine {
     required String accountId,
     bool fullRefreshOnly = false,
     Future<void> Function(String summary)? onConflictBlocked,
+    CollectionIdReplacement? onTaskListIdReplaced,
     Uuid uuid = const Uuid(),
     DateTime Function()? nowUtc,
   }) : _database = database,
@@ -24,6 +26,7 @@ class SyncEngine {
        _accountId = accountId,
        _fullRefreshOnly = fullRefreshOnly,
        _onConflictBlocked = onConflictBlocked,
+       _onTaskListIdReplaced = onTaskListIdReplaced,
        _uuid = uuid,
        _nowUtc = nowUtc ?? (() => DateTime.now().toUtc());
 
@@ -32,6 +35,7 @@ class SyncEngine {
   final String _accountId;
   final bool _fullRefreshOnly;
   final Future<void> Function(String summary)? _onConflictBlocked;
+  final CollectionIdReplacement? _onTaskListIdReplaced;
   final Uuid _uuid;
   final DateTime Function() _nowUtc;
 
@@ -95,6 +99,7 @@ class SyncEngine {
         accountId: _accountId,
         nowUtc: _nowUtc,
         onConflictBlocked: _onConflictBlocked,
+        onTaskListIdReplaced: _onTaskListIdReplaced,
       ).replayDueOps();
       final listIds = await _pullTaskLists();
       await _reconcileTaskListMembership(listIds);

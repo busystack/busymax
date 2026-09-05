@@ -1,4 +1,6 @@
 {
+  "moveUp": "Liiguta üles",
+  "moveDown": "Liiguta alla",
   "@@locale": "et",
   "windowsSupport": "Tugi",
   "windowsThirdPartyLicenses": "Kolmandate osapoolte litsentsid",

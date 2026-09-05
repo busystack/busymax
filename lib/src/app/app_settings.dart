@@ -9,6 +9,7 @@ import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 
 import '../l10n/app_locale.dart';
+import '../schedule/schedule_sidebar_order.dart';
 import '../schedule/schedule_view_mode.dart';
 
 enum BusyMaxThemeFamily { yaru }
@@ -55,6 +56,7 @@ class AppSettings {
     required this.scheduleViewMode,
     required this.scheduleDayStartMinute,
     required this.scheduleDayEndMinute,
+    this.sidebarOrder = const ScheduleSidebarOrder.empty(),
   });
 
   factory AppSettings.defaults() {
@@ -78,6 +80,7 @@ class AppSettings {
       redactTaskContentInDiagnostics: true,
       lastDueTodayNotificationDate: null,
       taskListScheduleVisibility: <String, bool>{},
+      sidebarOrder: ScheduleSidebarOrder.empty(),
       scheduleViewMode: ScheduleViewMode.week,
       scheduleDayStartMinute: defaultScheduleDayStartMinute,
       scheduleDayEndMinute: defaultScheduleDayEndMinute,
@@ -174,6 +177,7 @@ class AppSettings {
       lastDueTodayNotificationDate: json['lastDueTodayNotificationDate']
           ?.toString(),
       taskListScheduleVisibility: _boolMap(json['taskListScheduleVisibility']),
+      sidebarOrder: ScheduleSidebarOrder.fromJson(json['sidebarOrder']),
       scheduleViewMode: _enumFromName(
         ScheduleViewMode.values,
         json['scheduleViewMode'],
@@ -203,6 +207,7 @@ class AppSettings {
   final bool redactTaskContentInDiagnostics;
   final String? lastDueTodayNotificationDate;
   final Map<String, bool> taskListScheduleVisibility;
+  final ScheduleSidebarOrder sidebarOrder;
   final ScheduleViewMode scheduleViewMode;
   final int scheduleDayStartMinute;
   final int scheduleDayEndMinute;
@@ -232,6 +237,7 @@ class AppSettings {
       'redactTaskContentInDiagnostics': redactTaskContentInDiagnostics,
       'lastDueTodayNotificationDate': lastDueTodayNotificationDate,
       'taskListScheduleVisibility': taskListScheduleVisibility,
+      'sidebarOrder': sidebarOrder.toJson(),
       'scheduleViewMode': scheduleViewMode.name,
       'scheduleDayStartMinute': scheduleDayStartMinute,
       'scheduleDayEndMinute': scheduleDayEndMinute,
@@ -258,6 +264,7 @@ class AppSettings {
     bool? redactTaskContentInDiagnostics,
     String? lastDueTodayNotificationDate,
     Map<String, bool>? taskListScheduleVisibility,
+    ScheduleSidebarOrder? sidebarOrder,
     ScheduleViewMode? scheduleViewMode,
     int? scheduleDayStartMinute,
     int? scheduleDayEndMinute,
@@ -300,6 +307,7 @@ class AppSettings {
           : lastDueTodayNotificationDate ?? this.lastDueTodayNotificationDate,
       taskListScheduleVisibility:
           taskListScheduleVisibility ?? this.taskListScheduleVisibility,
+      sidebarOrder: sidebarOrder ?? this.sidebarOrder,
       scheduleViewMode: scheduleViewMode ?? this.scheduleViewMode,
       scheduleDayStartMinute: resolvedScheduleDayStartMinute,
       scheduleDayEndMinute: resolvedScheduleDayEndMinute,
@@ -374,6 +382,57 @@ class AppSettingsController extends StateNotifier<AppSettings> {
   var _disposed = false;
 
   Future<void> get ready => _loadFuture;
+
+  Future<void> registerSidebarIds(
+    SidebarOrderSection section,
+    Iterable<String> ids, {
+    String? accountId,
+  }) async {
+    final snapshot = List<String>.unmodifiable(ids);
+    // Listeners can run before settings load or during widget initialization.
+    // Wait before registering so the first snapshot extends the saved order.
+    await ready;
+    if (_disposed) return;
+    await _mutateSidebarOrder(
+      (order) => order.register(section, snapshot, accountId: accountId),
+    );
+  }
+
+  Future<void> moveSidebarItem(
+    SidebarOrderSection section,
+    String id,
+    int offset,
+    Iterable<String> presentIds, {
+    String? accountId,
+  }) {
+    final snapshot = List<String>.unmodifiable(presentIds);
+    return _mutateSidebarOrder(
+      (order) =>
+          order.move(section, id, offset, snapshot, accountId: accountId),
+    );
+  }
+
+  Future<void> replaceSidebarId(
+    SidebarOrderSection section,
+    String oldId,
+    String newId, {
+    required String accountId,
+  }) => _mutateSidebarOrder(
+    (order) => order.replaceId(section, oldId, newId, accountId: accountId),
+  );
+
+  Future<void> _mutateSidebarOrder(
+    ScheduleSidebarOrder Function(ScheduleSidebarOrder) transform,
+  ) {
+    if (_loadComplete &&
+        identical(transform(state.sidebarOrder), state.sidebarOrder)) {
+      return Future<void>.value();
+    }
+    return _mutate(
+      (current) =>
+          current.copyWith(sidebarOrder: transform(current.sidebarOrder)),
+    );
+  }
 
   Future<void> setThemeModePreference(BusyMaxThemeModePreference preference) {
     return _mutate(

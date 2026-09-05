@@ -13,6 +13,12 @@ class AppLocalizationsJa extends AppLocalizations {
   AppLocalizationsJa([String locale = 'ja']) : super(locale);
 
   @override
+  String get moveUp => '上に移動';
+
+  @override
+  String get moveDown => '下に移動';
+
+  @override
   String get windowsSupport => 'サポート';
 
   @override

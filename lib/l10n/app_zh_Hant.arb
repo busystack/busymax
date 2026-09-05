@@ -1,4 +1,6 @@
 {
+  "moveUp": "上移",
+  "moveDown": "下移",
   "@@locale": "zh_Hant",
   "windowsSupport": "支援",
   "windowsThirdPartyLicenses": "第三方授權",

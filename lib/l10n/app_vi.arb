@@ -1,4 +1,6 @@
 {
+  "moveUp": "Di chuyển lên",
+  "moveDown": "Di chuyển xuống",
   "@@locale": "vi",
   "windowsSupport": "Hỗ trợ",
   "windowsThirdPartyLicenses": "Giấy phép bên thứ ba",

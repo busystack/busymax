@@ -13,6 +13,12 @@ class AppLocalizationsFi extends AppLocalizations {
   AppLocalizationsFi([String locale = 'fi']) : super(locale);
 
   @override
+  String get moveUp => 'Siirrä ylös';
+
+  @override
+  String get moveDown => 'Siirrä alas';
+
+  @override
   String get windowsSupport => 'Tuki';
 
   @override

@@ -58,6 +58,7 @@ import 'package:busymax/src/providers/busy_provider.dart';
 import 'package:busymax/src/features/tasks/domain/task_capabilities.dart';
 import '../schedule/schedule_commands.dart';
 import '../schedule/schedule_repository.dart';
+import '../schedule/schedule_sidebar_order.dart';
 import '../webcal/webcal_http_client.dart';
 import '../webcal/webcal_subscription_service.dart';
 import 'app_settings.dart';
@@ -539,6 +540,14 @@ final syncEngineForAccountFactoryProvider =
           apiClient: apiClient,
           accountId: accountId,
           fullRefreshOnly: provider == BusyProvider.microsoft,
+          onTaskListIdReplaced: (oldId, newId) => ref
+              .read(appSettingsControllerProvider.notifier)
+              .replaceSidebarId(
+                SidebarOrderSection.taskLists,
+                oldId,
+                newId,
+                accountId: accountId,
+              ),
           onConflictBlocked: ref
               .read(desktopNotificationServiceProvider)
               .notifyConflict,
@@ -571,6 +580,14 @@ final calendarSyncEngineForAccountFactoryProvider =
           database: ref.read(databaseProvider),
           client: client,
           accountId: accountId,
+          onCalendarSourceIdReplaced: (oldId, newId) => ref
+              .read(appSettingsControllerProvider.notifier)
+              .replaceSidebarId(
+                SidebarOrderSection.calendars,
+                oldId,
+                newId,
+                accountId: accountId,
+              ),
           onConflictBlocked: ref
               .read(desktopNotificationServiceProvider)
               .notifyConflict,

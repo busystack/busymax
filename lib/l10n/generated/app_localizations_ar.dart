@@ -13,6 +13,12 @@ class AppLocalizationsAr extends AppLocalizations {
   AppLocalizationsAr([String locale = 'ar']) : super(locale);
 
   @override
+  String get moveUp => 'نقل لأعلى';
+
+  @override
+  String get moveDown => 'نقل لأسفل';
+
+  @override
   String get windowsSupport => 'الدعم';
 
   @override

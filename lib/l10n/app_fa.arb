@@ -1,4 +1,6 @@
 {
+  "moveUp": "انتقال به بالا",
+  "moveDown": "انتقال به پایین",
   "@@locale": "fa",
   "windowsSupport": "پشتیبانی",
   "windowsThirdPartyLicenses": "مجوزهای شخص ثالث",

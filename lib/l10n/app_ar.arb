@@ -1,4 +1,6 @@
 {
+  "moveUp": "نقل لأعلى",
+  "moveDown": "نقل لأسفل",
   "@@locale": "ar",
   "windowsSupport": "الدعم",
   "windowsThirdPartyLicenses": "تراخيص الجهات الخارجية",

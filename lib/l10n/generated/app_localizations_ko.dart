@@ -13,6 +13,12 @@ class AppLocalizationsKo extends AppLocalizations {
   AppLocalizationsKo([String locale = 'ko']) : super(locale);
 
   @override
+  String get moveUp => '위로 이동';
+
+  @override
+  String get moveDown => '아래로 이동';
+
+  @override
   String get windowsSupport => '지원';
 
   @override

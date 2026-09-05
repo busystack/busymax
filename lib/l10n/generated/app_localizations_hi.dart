@@ -13,6 +13,12 @@ class AppLocalizationsHi extends AppLocalizations {
   AppLocalizationsHi([String locale = 'hi']) : super(locale);
 
   @override
+  String get moveUp => 'ऊपर ले जाएँ';
+
+  @override
+  String get moveDown => 'नीचे ले जाएँ';
+
+  @override
   String get windowsSupport => 'सहायता';
 
   @override

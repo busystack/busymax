@@ -1,4 +1,6 @@
 {
+  "moveUp": "위로 이동",
+  "moveDown": "아래로 이동",
   "@@locale": "ko",
   "windowsSupport": "지원",
   "windowsThirdPartyLicenses": "타사 라이선스",

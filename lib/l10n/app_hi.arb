@@ -1,4 +1,6 @@
 {
+  "moveUp": "ऊपर ले जाएँ",
+  "moveDown": "नीचे ले जाएँ",
   "@@locale": "hi",
   "windowsSupport": "सहायता",
   "windowsThirdPartyLicenses": "तृतीय-पक्ष लाइसेंस",

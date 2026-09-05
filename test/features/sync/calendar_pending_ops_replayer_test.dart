@@ -2,6 +2,8 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:busymax/src/calendar_providers/calendar_colors.dart';
+import 'package:busymax/src/app/app_settings.dart';
+import 'package:busymax/src/schedule/schedule_sidebar_order.dart';
 import 'package:busymax/src/calendar_providers/calendar_create_identity.dart';
 import 'package:busymax/src/calendar_providers/calendar_mutation.dart';
 import 'package:busymax/src/calendar_providers/calendar_provider_capabilities.dart';
@@ -19,6 +21,8 @@ import 'package:busymax/src/providers/busy_provider.dart';
 import 'package:drift/drift.dart';
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
+
+import '../../support/memory_settings_store.dart';
 
 void main() {
   late AppDatabase database;
@@ -43,6 +47,78 @@ void main() {
   tearDown(() async {
     await database.close();
   });
+
+  for (final throughEngine in [false, true]) {
+    for (final failSettings in [false, true]) {
+      test(
+        'calendar ID callback follows commit (engine=$throughEngine, failure=$failSettings)',
+        () async {
+          final settings = AppSettingsController(MemorySettingsStore());
+          addTearDown(settings.dispose);
+          final temporaryId = await CalendarRepository(
+            database: database,
+            now: () => DateTime.utc(2026, 6, 8),
+          ).createLocalSource(accountId: 'account', summary: 'Project');
+          const serverId = 'account|google|cal-created';
+          await settings.registerSidebarIds(SidebarOrderSection.calendars, [
+            'before',
+            temporaryId,
+            'after',
+            serverId,
+          ], accountId: 'account');
+          var callbackCount = 0;
+          var committed = false;
+          Future<void> replaced(String oldId, String newId) async {
+            callbackCount++;
+            final ids = (await database.select(database.calendarSources).get())
+                .map((source) => source.id);
+            committed =
+                oldId == temporaryId &&
+                newId == serverId &&
+                !ids.contains(oldId) &&
+                ids.contains(newId);
+            await settings.replaceSidebarId(
+              SidebarOrderSection.calendars,
+              oldId,
+              newId,
+              accountId: 'account',
+            );
+            if (failSettings) throw StateError('settings unavailable');
+          }
+
+          final replayer = CalendarPendingOpsReplayer(
+            database: database,
+            client: client,
+            accountId: 'account',
+            onCalendarSourceIdReplaced: replaced,
+            nowUtc: () => DateTime.utc(2026, 6, 8),
+          );
+          if (throughEngine) {
+            await CalendarSyncEngine(
+              database: database,
+              client: client,
+              accountId: 'account',
+              onCalendarSourceIdReplaced: replaced,
+              nowUtc: () => DateTime.utc(2026, 6, 8),
+            ).fullSync();
+          } else {
+            expect(await replayer.replayDueOps(), 1);
+          }
+          expect(committed, isTrue);
+          expect(callbackCount, 1);
+          expect(
+            settings.state.sidebarOrder.calendarSourceIdsByAccount['account'],
+            ['before', serverId, 'after'],
+          );
+          expect(await replayer.replayDueOps(), 0);
+          expect(
+            client.calls.where((call) => call.startsWith('createCalendar:')),
+            ['createCalendar:Project'],
+          );
+        },
+      );
+    }
+  }
 
   test(
     'event create pending op calls provider createEvent and deletes op',
