@@ -66,11 +66,13 @@ Snapcraft writes `busymax_<version>_amd64.snap`. Use the exact path it prints.
 If the app says **This provider is not configured**, the bundle was built
 without valid defines; reconnecting cannot fix it, so rebuild the package.
 
-The `Flutter Linux` GitHub workflow performs the same release build and strict
-Snap packaging on pushes and pull requests targeting `main`. It uploads only
-the installable `busymax-snap` artifact; it does not upload a redundant ZIP of
-the unpackaged Flutter bundle. CI also installs the generated Snap and verifies
-that its runtime reports strict confinement before the artifact is accepted.
+The `Flutter Linux` GitHub workflow performs the release build and strict Snap
+packaging on pushes and pull requests targeting `main`. Pull requests build and
+install an unconfigured Snap for packaging validation, but do not upload it.
+Pushes to `main` require the two client IDs and Google Desktop client secret in
+GitHub Actions configuration, verify that all three values reached the compiled
+binary, and upload the installable `busymax-snap` artifact. Missing provider
+configuration fails the workflow before the release build.
 
 For a local scaffold smoke build instead, first quit every running BusyMax
 instance, including its tray process and any development build:
