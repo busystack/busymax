@@ -4,6 +4,34 @@ import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   group('build_install_snap_local.sh', () {
+    test('explains missing OAuth configuration for local builds', () async {
+      final fixture = await _LocalSnapFixture.create();
+      addTearDown(fixture.dispose);
+
+      final result = await fixture.run(
+        arguments: <String>['--root', fixture.validRoot.path],
+      );
+      final output = '${result.stdout}\n${result.stderr}';
+
+      expect(
+        result.exitCode,
+        0,
+        reason: _processFailure(result, fixture.commandLogContents),
+      );
+      expect(
+        output,
+        contains('Google and Microsoft sign-in will be unavailable'),
+      );
+      expect(
+        output,
+        contains(
+          './tool/build_install_snap_local.sh '
+          '--dart-define-from-file .snap-local/busymax-dart-defines.json',
+        ),
+      );
+      expect(output, contains('Apple and Nextcloud remain available'));
+    });
+
     test('installs without removing the existing snap or its data', () async {
       final fixture = await _LocalSnapFixture.create();
       addTearDown(fixture.dispose);

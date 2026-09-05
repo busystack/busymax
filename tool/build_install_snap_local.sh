@@ -285,7 +285,17 @@ echo "App ID:   $APP_ID"
 echo "Scaffold: $SNAP_SCAFFOLD"
 echo "Root:     $SNAP_ROOT"
 echo "Output:   $OUT"
-echo "Defines:  $((${#DART_DEFINE_ARGS[@]} + ${#DART_DEFINE_FILE_ARGS[@]})) build-time entries"
+DEFINE_ENTRY_COUNT=$((${#DART_DEFINE_ARGS[@]} + ${#DART_DEFINE_FILE_ARGS[@]}))
+echo "Defines:  $DEFINE_ENTRY_COUNT build-time entries"
+if [[ "$DEFINE_ENTRY_COUNT" -eq 0 ]]; then
+  cat >&2 <<'EOF'
+Warning: No OAuth build definitions were supplied.
+Google and Microsoft sign-in will be unavailable in this local build.
+Apple and Nextcloud remain available.
+To configure OAuth providers, rebuild with:
+  ./tool/build_install_snap_local.sh --dart-define-from-file .snap-local/busymax-dart-defines.json
+EOF
+fi
 
 if [[ "$SKIP_TESTS" != "1" ]]; then
   echo "== Validate source =="
