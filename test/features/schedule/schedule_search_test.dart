@@ -198,6 +198,48 @@ void main() {
     },
   );
 
+  test('events from a deleted calendar source are excluded', () async {
+    final database = AppDatabase(NativeDatabase.memory());
+    addTearDown(database.close);
+    await _insertScheduleAccount(database, provider: BusyProvider.microsoft);
+    final calendarRepository = CalendarRepository(database: database);
+    await calendarRepository.upsertSource(
+      accountId: 'account',
+      source: const CalendarSourceDto(
+        provider: BusyProvider.microsoft,
+        providerCalendarId: 'calendar',
+        summary: 'Deleted calendar',
+      ),
+    );
+    await calendarRepository.upsertEvent(
+      accountId: 'account',
+      event: const CalendarEventDto(
+        provider: BusyProvider.microsoft,
+        providerCalendarId: 'calendar',
+        providerEventId: 'event',
+        title: 'Pending local edit',
+        startDateTime: '2026-06-11T09:00:00.000Z',
+        endDateTime: '2026-06-11T10:00:00.000Z',
+      ),
+    );
+    await (database.update(database.calendarSources)
+          ..where((row) => row.providerCalendarId.equals('calendar')))
+        .write(const CalendarSourcesCompanion(isDeleted: Value(true)));
+    await (database.update(database.calendarEvents)
+          ..where((row) => row.providerEventId.equals('event')))
+        .write(const CalendarEventsCompanion(syncStatus: Value('pending')));
+
+    final items = await ScheduleRepository(database).listItems(
+      range: ScheduleRange.day(DateTime(2026, 6, 11)),
+      filters: const ScheduleFilters(
+        accountIds: {'account'},
+        includeTasks: false,
+      ),
+    );
+
+    expect(items, isEmpty);
+  });
+
   test('Microsoft timed calendar event projects its display times', () async {
     final database = AppDatabase(NativeDatabase.memory());
     addTearDown(database.close);

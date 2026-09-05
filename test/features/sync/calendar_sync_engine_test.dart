@@ -4,6 +4,7 @@ import 'package:busymax/src/calendar_providers/calendar_sync_dto.dart';
 import 'package:busymax/src/calendar_providers/cloud_calendar_client.dart';
 import 'package:busymax/src/db/app_database.dart';
 import 'package:busymax/src/features/calendar/data/calendar_repository.dart';
+import 'package:busymax/src/features/notifications/notification_schedule_service.dart';
 import 'package:busymax/src/features/sync/calendar_sync_engine.dart';
 import 'package:busymax/src/providers/busy_provider.dart';
 import 'package:drift/drift.dart';
@@ -402,6 +403,118 @@ void main() {
   });
 
   test(
+    'Microsoft full sync tombstones calendars absent from the collection',
+    () async {
+      const source = CalendarSourceDto(
+        provider: BusyProvider.microsoft,
+        providerCalendarId: 'cal-deleted',
+        summary: 'Deleted in Outlook',
+      );
+      await _insertAccount(database, provider: BusyProvider.microsoft);
+      await _insertSource(database, source);
+      final eventId = await _insertEvent(
+        database,
+        provider: BusyProvider.microsoft,
+        providerCalendarId: source.providerCalendarId,
+        remindersJson: const {
+          'isReminderOn': true,
+          'reminderMinutesBeforeStart': 30,
+        },
+      );
+      final notificationService = NotificationScheduleService(
+        database: database,
+        nowUtc: () => DateTime.utc(2026, 7, 10),
+      );
+      await notificationService.rebuildUpcomingEventNotifications('account');
+      expect(
+        await database.select(database.notificationSchedule).get(),
+        hasLength(1),
+      );
+
+      await CalendarSyncEngine(
+        database: database,
+        client: _FakeCalendarClient(
+          provider: BusyProvider.microsoft,
+          calendars: const [],
+          pages: const [],
+        ),
+        accountId: 'account',
+        nowUtc: () => DateTime.utc(2026, 7, 10),
+      ).fullSync();
+
+      final storedSource =
+          await (database.select(
+                database.calendarSources,
+              )..where((row) => row.id.equals('account|microsoft|cal-deleted')))
+              .getSingle();
+      final storedEvent = await (database.select(
+        database.calendarEvents,
+      )..where((row) => row.id.equals(eventId))).getSingle();
+      expect(storedSource.isDeleted, isTrue);
+      expect(storedSource.hidden, isTrue);
+      expect(storedEvent.isDeleted, isTrue);
+      expect(
+        await database.select(database.notificationSchedule).get(),
+        isEmpty,
+      );
+    },
+  );
+
+  test(
+    'Microsoft incremental reconciliation preserves a queued calendar create',
+    () async {
+      const missingSource = CalendarSourceDto(
+        provider: BusyProvider.microsoft,
+        providerCalendarId: 'cal-deleted',
+        summary: 'Deleted in Outlook',
+      );
+      await _insertAccount(database, provider: BusyProvider.microsoft);
+      await _insertSource(database, missingSource);
+      final repository = CalendarRepository(database: database);
+      final localSourceId = await repository.createLocalSource(
+        accountId: 'account',
+        summary: 'Offline calendar',
+      );
+      await (database.update(
+        database.pendingOps,
+      )..where((row) => row.calendarSourceId.equals(localSourceId))).write(
+        const PendingOpsCompanion(
+          nextAttemptAtUtc: Value('9999-12-31T00:00:00.000Z'),
+        ),
+      );
+
+      await CalendarSyncEngine(
+        database: database,
+        client: _FakeCalendarClient(
+          provider: BusyProvider.microsoft,
+          calendars: const [],
+          pages: const [],
+        ),
+        accountId: 'account',
+        nowUtc: () => DateTime.utc(2026, 7, 10),
+      ).incrementalSync();
+
+      final sources = await database.select(database.calendarSources).get();
+      expect(
+        sources.singleWhere((source) => source.id == localSourceId).isDeleted,
+        isFalse,
+      );
+      expect(
+        sources
+            .singleWhere((source) => source.providerCalendarId == 'cal-deleted')
+            .isDeleted,
+        isTrue,
+      );
+      expect(
+        await (database.select(
+          database.pendingOps,
+        )..where((row) => row.calendarSourceId.equals(localSourceId))).get(),
+        hasLength(1),
+      );
+    },
+  );
+
+  test(
     'Microsoft primary sync persists and reuses the terminal delta link',
     () async {
       const source = CalendarSourceDto(
@@ -564,10 +677,12 @@ Future<String> _insertEvent(
   AppDatabase database, {
   required BusyProvider provider,
   required String providerCalendarId,
+  Object? remindersJson,
 }) async {
   final event = _event(
     provider: provider,
     providerCalendarId: providerCalendarId,
+    remindersJson: remindersJson,
   );
   await CalendarRepository(
     database: database,
@@ -583,6 +698,7 @@ Future<String> _insertEvent(
 CalendarEventDto _event({
   required BusyProvider provider,
   required String providerCalendarId,
+  Object? remindersJson,
 }) {
   return CalendarEventDto(
     provider: provider,
@@ -591,6 +707,7 @@ CalendarEventDto _event({
     title: 'Planning',
     startDateTime: '2026-07-15T09:00:00.000Z',
     endDateTime: '2026-07-15T10:00:00.000Z',
+    remindersJson: remindersJson,
     updatedAtServer: '2026-07-01T00:00:00.000Z',
     rawJson: const {
       'id': 'event-1',

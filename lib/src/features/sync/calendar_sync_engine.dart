@@ -1,4 +1,5 @@
 import '../../calendar_providers/cloud_calendar_client.dart';
+import '../../calendar_providers/calendar_sync_dto.dart';
 import '../../db/app_database.dart';
 import 'package:busymax/src/providers/busy_provider.dart';
 import '../calendar/data/calendar_repository.dart';
@@ -37,10 +38,7 @@ class CalendarSyncEngine {
 
   Future<void> fullSync() async {
     await _replayPendingOps();
-    final calendars = await _client.listCalendars();
-    for (final calendar in calendars) {
-      await _repository.upsertSource(accountId: _accountId, source: calendar);
-    }
+    final calendars = await _refreshCalendarSources();
 
     final window = _calendarSyncWindow(_nowUtc());
     for (final calendar in calendars.where((source) => !source.isDeleted)) {
@@ -61,10 +59,7 @@ class CalendarSyncEngine {
 
   Future<void> incrementalSync() async {
     await _replayPendingOps();
-    final calendars = await _client.listCalendars();
-    for (final calendar in calendars) {
-      await _repository.upsertSource(accountId: _accountId, source: calendar);
-    }
+    final calendars = await _refreshCalendarSources();
 
     final window = _calendarSyncWindow(_nowUtc());
     final rangeStartValue = window.start.toIso8601String();
@@ -119,6 +114,26 @@ class CalendarSyncEngine {
       nowUtc: _nowUtc,
     ).rebuildUpcomingEventNotifications(_accountId);
     await _onNotificationScheduleChanged?.call();
+  }
+
+  Future<List<CalendarSourceDto>> _refreshCalendarSources() async {
+    // listCalendars() returns only after every page has been retrieved, so an
+    // absent Microsoft calendar can be treated as a provider-side deletion.
+    final calendars = await _client.listCalendars();
+    for (final calendar in calendars) {
+      await _repository.upsertSource(accountId: _accountId, source: calendar);
+    }
+    if (provider == BusyProvider.microsoft) {
+      await _repository.reconcileProviderSourceSnapshot(
+        accountId: _accountId,
+        provider: provider,
+        activeProviderCalendarIds: {
+          for (final calendar in calendars)
+            if (!calendar.isDeleted) calendar.providerCalendarId,
+        },
+      );
+    }
+    return calendars;
   }
 
   Future<void> _syncCalendarRange({

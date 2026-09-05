@@ -764,6 +764,105 @@ class CalendarRepository {
     });
   }
 
+  /// Reconciles a provider's complete calendar-list snapshot.
+  ///
+  /// A missing provider calendar is tombstoned locally together with its
+  /// synchronized event cache. Calendar creations that are still queued are
+  /// excluded because they cannot be expected to appear in the provider
+  /// snapshot yet.
+  Future<void> reconcileProviderSourceSnapshot({
+    required String accountId,
+    required BusyProvider provider,
+    required Set<String> activeProviderCalendarIds,
+  }) async {
+    final now = _now().millisecondsSinceEpoch;
+    await _database.transaction(() async {
+      final pendingCreates =
+          await (_database.select(_database.pendingOps)..where(
+                (row) =>
+                    row.accountId.equals(accountId) &
+                    row.operationType.equals('calendar.create'),
+              ))
+              .get();
+      final pendingCreateSourceIds = {
+        for (final operation in pendingCreates)
+          if (operation.calendarSourceId != null) operation.calendarSourceId!,
+      };
+      final pendingCreateProviderIds = {
+        for (final operation in pendingCreates)
+          if (operation.providerCalendarId != null)
+            operation.providerCalendarId!,
+      };
+      final sources =
+          await (_database.select(_database.calendarSources)..where(
+                (row) =>
+                    row.accountId.equals(accountId) &
+                    row.provider.equals(provider.storageValue),
+              ))
+              .get();
+      final missingSourceIds = {
+        for (final source in sources)
+          if (!activeProviderCalendarIds.contains(source.providerCalendarId) &&
+              !pendingCreateSourceIds.contains(source.id) &&
+              !pendingCreateProviderIds.contains(source.providerCalendarId))
+            source.id,
+      };
+      if (missingSourceIds.isEmpty) return;
+
+      final missingEventIds = {
+        for (final event
+            in await (_database.select(_database.calendarEvents)..where(
+                  (row) =>
+                      row.accountId.equals(accountId) &
+                      row.calendarSourceId.isIn(missingSourceIds),
+                ))
+                .get())
+          event.id,
+      };
+
+      await (_database.update(_database.calendarSources)..where(
+            (row) =>
+                row.accountId.equals(accountId) & row.id.isIn(missingSourceIds),
+          ))
+          .write(
+            CalendarSourcesCompanion(
+              isDeleted: const Value(true),
+              hidden: const Value(true),
+              updatedAtLocal: Value(now),
+            ),
+          );
+      await (_database.update(_database.calendarEvents)..where(
+            (row) =>
+                row.accountId.equals(accountId) &
+                row.calendarSourceId.isIn(missingSourceIds) &
+                row.syncStatus.equals('synced') &
+                row.isDeleted.equals(false),
+          ))
+          .write(
+            CalendarEventsCompanion(
+              isDeleted: const Value(true),
+              updatedAtLocal: Value(now),
+            ),
+          );
+      if (missingEventIds.isNotEmpty) {
+        await (_database.delete(_database.notificationSchedule)..where(
+              (row) =>
+                  row.accountId.equals(accountId) &
+                  row.sourceType.equals('event') &
+                  row.sourceId.isIn(missingEventIds),
+            ))
+            .go();
+      }
+      await (_database.delete(_database.syncCursors)..where(
+            (row) =>
+                row.accountId.equals(accountId) &
+                row.provider.equals(provider.storageValue) &
+                row.projectionSourceId.isIn(missingSourceIds),
+          ))
+          .go();
+    });
+  }
+
   Future<void> restoreSourceAfterRemovalFailure(PendingOp op) async {
     final operationType =
         op.operationType ?? '${op.entityType}.${op.operation}';

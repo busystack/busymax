@@ -390,7 +390,11 @@ class ScheduleRepository {
           ])
           ..where(_database.calendarEvents.accountId.isIn(accountIds))
           ..where(_database.calendarEvents.isDeleted.equals(false))
-          ..where(_database.calendarEvents.isCancelled.equals(false));
+          ..where(_database.calendarEvents.isCancelled.equals(false))
+          ..where(
+            _database.calendarSources.isDeleted.isNull() |
+                _database.calendarSources.isDeleted.equals(false),
+          );
     if (filters.sourceFilterActive) {
       query.where(
         _database.calendarEvents.calendarSourceId.isIn(filters.sourceIds),
