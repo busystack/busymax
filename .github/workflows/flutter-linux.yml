@@ -63,6 +63,20 @@ jobs:
       - name: Test
         run: flutter test
 
+      - name: Validate release provider configuration
+        if: github.event_name == 'push'
+        env:
+          GOOGLE_OAUTH_CLIENT_ID: ${{ vars.GOOGLE_OAUTH_CLIENT_ID }}
+          GOOGLE_OAUTH_CLIENT_SECRET: ${{ secrets.GOOGLE_OAUTH_CLIENT_SECRET }}
+          MICROSOFT_OAUTH_CLIENT_ID: ${{ vars.MICROSOFT_OAUTH_CLIENT_ID }}
+        run: |
+          if [ -z "$GOOGLE_OAUTH_CLIENT_ID" ] ||
+             [ -z "$GOOGLE_OAUTH_CLIENT_SECRET" ] ||
+             [ -z "$MICROSOFT_OAUTH_CLIENT_ID" ]; then
+            echo '::error::Release provider configuration is incomplete.'
+            exit 1
+          fi
+
       - name: Build Linux release
         env:
           GOOGLE_OAUTH_CLIENT_ID: ${{ vars.GOOGLE_OAUTH_CLIENT_ID }}
@@ -81,11 +95,24 @@ jobs:
           fi
           flutter build linux -t lib/main_linux.dart "${args[@]}"
 
+      - name: Verify release provider configuration
+        if: github.event_name == 'push'
+        env:
+          GOOGLE_OAUTH_CLIENT_ID: ${{ vars.GOOGLE_OAUTH_CLIENT_ID }}
+          GOOGLE_OAUTH_CLIENT_SECRET: ${{ secrets.GOOGLE_OAUTH_CLIENT_SECRET }}
+          MICROSOFT_OAUTH_CLIENT_ID: ${{ vars.MICROSOFT_OAUTH_CLIENT_ID }}
+        run: |
+          binary=build/linux/x64/release/bundle/lib/libapp.so
+          grep -aFq -- "$GOOGLE_OAUTH_CLIENT_ID" "$binary"
+          grep -aFq -- "$GOOGLE_OAUTH_CLIENT_SECRET" "$binary"
+          grep -aFq -- "$MICROSOFT_OAUTH_CLIENT_ID" "$binary"
+
       - name: Build strict Snap from the release bundle
         id: snapcraft
         uses: snapcore/action-build@v1
 
       - name: Upload Snap artifact
+        if: github.event_name == 'push'
         uses: actions/upload-artifact@v7
         with:
           name: busymax-snap
