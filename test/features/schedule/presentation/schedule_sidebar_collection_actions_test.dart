@@ -111,6 +111,41 @@ void main() {
     },
   );
 
+  testWidgets('Nextcloud uses its server host when email is unavailable', (
+    tester,
+  ) async {
+    final semantics = tester.ensureSemantics();
+    await _pumpSidebar(tester, [
+      _account(
+        BusyProvider.nextcloud,
+        id: 'nextcloud-custom-port',
+        authority:
+            'https://cloud.example.test:8443/nextcloud/index.php?token=secret',
+        displayName: 'albert',
+      ),
+      _account(
+        BusyProvider.nextcloud,
+        id: 'nextcloud-default-port',
+        authority: 'https://work.example.test:443/nextcloud',
+        displayName: 'work-user',
+      ),
+    ]);
+
+    expect(find.text('cloud.example.test:8443'), findsOneWidget);
+    expect(find.text('work.example.test'), findsOneWidget);
+    expect(find.textContaining('/nextcloud'), findsNothing);
+    expect(find.textContaining('token=secret'), findsNothing);
+    expect(
+      find.bySemanticsLabel('Nextcloud, albert, cloud.example.test:8443'),
+      findsOneWidget,
+    );
+    expect(
+      find.bySemanticsLabel('Nextcloud, work-user, work.example.test'),
+      findsOneWidget,
+    );
+    semantics.dispose();
+  });
+
   testWidgets(
     'provider indicator stays visible with truncated text in both themes',
     (tester) async {
@@ -579,10 +614,11 @@ AccountEntity _account(
   bool tasksEnabled = true,
   String? displayName,
   String? email,
+  String authority = 'https://example.test',
 }) => AccountEntity(
   id: id ?? '${provider.storageValue}-account',
   provider: provider,
-  authority: 'https://example.test',
+  authority: authority,
   providerAccountId: 'identity',
   displayName:
       displayName ??
