@@ -100,6 +100,7 @@ DavMutationPatch? buildDavEventUpdatePatch({
   required IcalComponentKey target,
   required String baselineRawIcs,
   required DavEventMutationInput input,
+  bool timingOnly = false,
 }) {
   final semantic = IcalSemanticDocument.parse(baselineRawIcs);
   final current = semantic.components.firstWhere(
@@ -130,7 +131,9 @@ DavMutationPatch? buildDavEventUpdatePatch({
   final end = _eventTemporal(
     input.end,
     allDay: input.allDay,
-    timeZone: input.endTimeZone ?? input.startTimeZone,
+    timeZone: timingOnly
+        ? input.endTimeZone
+        : input.endTimeZone ?? input.startTimeZone,
   );
   if (!_sameTemporal(current.start, start)) {
     operations.add(
@@ -174,6 +177,12 @@ DavMutationPatch? buildDavEventUpdatePatch({
   if (input.remindersChanged) {
     operations.addAll(_eventAlarmUpdateOperations(current, input.reminders));
   }
+  if (timingOnly) {
+    operations.removeWhere(
+      (operation) =>
+          !{'DTSTART', 'DTEND', 'DURATION'}.contains(operation.propertyName),
+    );
+  }
   if (operations.isEmpty) return null;
   return DavMutationPatch(
     target: target,
@@ -192,6 +201,7 @@ DavMutationPatch buildDavEventOccurrenceExceptionPatch({
   required String occurrenceKey,
   required String baselineRawIcs,
   required DavEventMutationInput input,
+  bool timingOnly = false,
   bool thisAndFuture = false,
   DateTime Function()? nowUtc,
 }) {
@@ -224,6 +234,7 @@ DavMutationPatch buildDavEventOccurrenceExceptionPatch({
       target: target,
       baselineRawIcs: baselineRawIcs,
       input: input,
+      timingOnly: timingOnly,
     );
     final recurrenceProperty = current.documentComponent.firstProperty(
       'RECURRENCE-ID',
@@ -252,7 +263,9 @@ DavMutationPatch buildDavEventOccurrenceExceptionPatch({
   final end = _eventTemporal(
     input.end,
     allDay: input.allDay,
-    timeZone: input.endTimeZone ?? input.startTimeZone,
+    timeZone: timingOnly
+        ? input.endTimeZone
+        : input.endTimeZone ?? input.startTimeZone,
   );
   final sequence = master.single.sequence;
   final component = IcalComponent(
@@ -270,18 +283,38 @@ DavMutationPatch buildDavEventOccurrenceExceptionPatch({
       if (sequence != null) _property('SEQUENCE', '${sequence + 1}'),
       _property('DTSTART', start.value, parameters: start.parameters),
       _property('DTEND', end.value, parameters: end.parameters),
-      _property('SUMMARY', encodeIcalText(input.title.trim())),
-      if (_nonEmpty(input.description) case final description?)
-        _property('DESCRIPTION', encodeIcalText(description)),
-      if (_nonEmpty(input.location) case final location?)
-        _property('LOCATION', encodeIcalText(location)),
-      if (_classification(input.classification) case final value?)
-        _property('CLASS', value),
-      if (_transparency(input.transparency) case final value?)
-        _property('TRANSP', value),
-      if (input.categories.isNotEmpty)
-        _property('CATEGORIES', _categories(input.categories)),
-      ..._eventAlarmComponents(input.reminders),
+      if (timingOnly)
+        ...master.single.documentComponent.children.where(
+          (child) =>
+              child is! IcalProperty ||
+              !{
+                'UID',
+                'RECURRENCE-ID',
+                'DTSTAMP',
+                'SEQUENCE',
+                'DTSTART',
+                'DTEND',
+                'DURATION',
+                'RRULE',
+                'RDATE',
+                'EXDATE',
+                'EXRULE',
+              }.contains(child.name),
+        ),
+      if (!timingOnly) ...[
+        _property('SUMMARY', encodeIcalText(input.title.trim())),
+        if (_nonEmpty(input.description) case final description?)
+          _property('DESCRIPTION', encodeIcalText(description)),
+        if (_nonEmpty(input.location) case final location?)
+          _property('LOCATION', encodeIcalText(location)),
+        if (_classification(input.classification) case final value?)
+          _property('CLASS', value),
+        if (_transparency(input.transparency) case final value?)
+          _property('TRANSP', value),
+        if (input.categories.isNotEmpty)
+          _property('CATEGORIES', _categories(input.categories)),
+        ..._eventAlarmComponents(input.reminders),
+      ],
     ],
     originalBeginLine: 'BEGIN:VEVENT',
     originalEndLine: 'END:VEVENT',

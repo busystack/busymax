@@ -1711,17 +1711,18 @@ Map<String, Object?> _seriesRequestForMaster(
       request[calendarEventOriginalStartKey]?.toString(),
       timeZone,
     );
-    final desiredStart = DateTime.tryParse(request['start']?.toString() ?? '');
+    final desiredStart = providerDateTimeAsWallTime(
+      request['start']?.toString(),
+      timeZone,
+    );
     if (masterStart == null || originalStart == null || desiredStart == null) {
       throw StateError('The recurring series start could not be adjusted.');
     }
-    result['start'] = _naiveWallTime(masterStart)
-        .add(
-          _naiveWallTime(
-            desiredStart,
-          ).difference(_naiveWallTime(originalStart)),
-        )
-        .toIso8601String();
+    result['start'] = providerWallTimeIso8601String(
+      _naiveWallTime(masterStart).add(
+        _naiveWallTime(desiredStart).difference(_naiveWallTime(originalStart)),
+      ),
+    );
   }
   if (request.containsKey('end')) {
     final timeZone = request['endTimeZone']?.toString();
@@ -1733,13 +1734,18 @@ Map<String, Object?> _seriesRequestForMaster(
       request[calendarEventOriginalEndKey]?.toString(),
       timeZone,
     );
-    final desiredEnd = DateTime.tryParse(request['end']?.toString() ?? '');
+    final desiredEnd = providerDateTimeAsWallTime(
+      request['end']?.toString(),
+      timeZone,
+    );
     if (masterEnd == null || originalEnd == null || desiredEnd == null) {
       throw StateError('The recurring series end could not be adjusted.');
     }
-    result['end'] = _naiveWallTime(masterEnd)
-        .add(_naiveWallTime(desiredEnd).difference(_naiveWallTime(originalEnd)))
-        .toIso8601String();
+    result['end'] = providerWallTimeIso8601String(
+      _naiveWallTime(
+        masterEnd,
+      ).add(_naiveWallTime(desiredEnd).difference(_naiveWallTime(originalEnd))),
+    );
   }
   if (request.containsKey('start') && master.recurrenceJson != null) {
     final adjustedStart = DateTime.tryParse(result['start']?.toString() ?? '');
@@ -1815,16 +1821,7 @@ String _isoDate(DateTime value) =>
     '${value.month.toString().padLeft(2, '0')}-'
     '${value.day.toString().padLeft(2, '0')}';
 
-DateTime _naiveWallTime(DateTime value) => DateTime(
-  value.year,
-  value.month,
-  value.day,
-  value.hour,
-  value.minute,
-  value.second,
-  value.millisecond,
-  value.microsecond,
-);
+DateTime _naiveWallTime(DateTime value) => providerCivilDateTime(value);
 
 DateTime _requiredDateTime(Object? value, String field) {
   final parsed = DateTime.tryParse(value?.toString() ?? '');

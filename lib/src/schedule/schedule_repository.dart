@@ -8,6 +8,8 @@ import '../core/time/provider_date_time.dart';
 import '../dav/storage/dav_collection_capabilities.dart';
 import '../db/app_database.dart';
 import '../features/accounts/data/accounts_repository.dart';
+import '../features/calendar/data/calendar_event_detail.dart';
+import '../features/calendar/domain/event_timing_policy.dart';
 import '../features/tasks/domain/task_checklist_item.dart';
 import 'package:busymax/src/providers/busy_provider.dart';
 import 'schedule_filters.dart';
@@ -429,6 +431,9 @@ class ScheduleRepository {
           sourceId: event.calendarSourceId,
           providerCalendarId: event.providerCalendarId,
           providerRecurringEventId: event.providerRecurringEventId,
+          timingBaseline: EventTimingBaseline.fromDetail(
+            CalendarEventDetail.fromRow(event),
+          ),
           title: event.title,
           allDay: event.allDay,
           start: start,

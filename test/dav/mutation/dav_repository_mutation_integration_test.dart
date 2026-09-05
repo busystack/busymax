@@ -7,6 +7,10 @@ import 'package:busymax/src/dav/storage/dav_object_repository.dart';
 import 'package:busymax/src/db/app_database.dart';
 import 'package:busymax/src/features/calendar/data/calendar_repository.dart';
 import 'package:busymax/src/features/calendar/presentation/event_editor_draft.dart';
+import 'package:busymax/src/features/calendar/domain/event_timing_policy.dart';
+import 'package:busymax/src/core/time/provider_date_time.dart';
+import 'package:busymax/src/schedule/schedule_event_rescheduling.dart';
+import 'package:busymax/src/schedule/schedule_item.dart';
 import 'package:busymax/src/features/tasks/data/tasks_repository.dart';
 import 'package:busymax/src/providers/busy_provider.dart';
 import 'package:drift/drift.dart' hide isNull;
@@ -44,6 +48,159 @@ void main() {
   });
 
   tearDown(() => database.close());
+
+  test(
+    'timing-only occurrence exception retains guests, alarms and opaque provider fields',
+    () async {
+      final baseline = _recurringEventResource().replaceFirst(
+        'X-SERIES-KEEP:opaque',
+        'X-SERIES-KEEP:opaque\r\nATTENDEE;CN=Guest:mailto:guest@example.test\r\n'
+            'ORGANIZER:mailto:owner@example.test\r\nATTACH:https://example.test/agenda.pdf\r\n'
+            'X-ALT-DESC;FMTTYPE=text/html:<p>Full HTML</p>\r\nBEGIN:VALARM\r\n'
+            'ACTION:DISPLAY\r\nTRIGGER:-PT10M\r\nDESCRIPTION:Reminder\r\nEND:VALARM',
+      );
+      await _commitObjects(objectRepository, [
+        _prepared(
+          href: '${_collectionHref}timing-series.ics',
+          etag: '"timing"',
+          body: baseline,
+        ),
+      ]);
+      final row = (await database.select(database.calendarEvents).get())
+          .singleWhere(
+            (row) => row.occurrenceKey!.contains('2026-08-10T09:00:00'),
+          );
+      final detail = (await calendarRepository.loadEventDetail(row.id))!;
+      await calendarRepository.updateLocalEvent(
+        EventEditorDraft.fromEventDetail(detail).copyWith(
+          start: DateTime.utc(2026, 8, 10, 13),
+          end: DateTime.utc(2026, 8, 10, 14),
+          recurringMutationScope: RecurringEventMutationScope.singleOccurrence,
+        ),
+        timingBaseline: EventTimingBaseline.fromDetail(detail),
+      );
+      final operation = await database.select(database.pendingOps).getSingle();
+      final candidate = DavMutationPatch.fromJsonString(
+        operation.mutationPatchJson!,
+      ).applyTo(baseline, nowUtc: _now);
+      final exception = IcalSemanticDocument.parse(candidate).components
+          .singleWhere(
+            (component) =>
+                component.recurrenceId?.rawValue == '20260810T090000Z',
+          );
+      expect(exception.start!.rawValue, '20260810T130000Z');
+      expect(exception.attendees, hasLength(1));
+      expect(exception.organizers, hasLength(1));
+      expect(exception.alarms, hasLength(1));
+      expect(
+        exception.documentComponent.firstProperty('ATTACH')!.rawValue,
+        'https://example.test/agenda.pdf',
+      );
+      expect(
+        exception.documentComponent.firstProperty('X-ALT-DESC')!.rawValue,
+        '<p>Full HTML</p>',
+      );
+      expect(exception.documentComponent.firstProperty('RRULE'), isNull);
+      expect(candidate, contains('SUMMARY:Existing exception'));
+      expect(
+        (await calendarRepository.loadEventDetail(
+          row.id,
+        ))!.providerOriginalStartKey,
+        detail.providerOriginalStartKey,
+      );
+    },
+  );
+
+  for (final floating in [false, true]) {
+    test(
+      'rescheduling preserves ${floating ? 'floating' : 'embedded custom-zone'} DAV representation',
+      () async {
+        final zone = floating ? '' : ';TZID=Custom/Office';
+        final body = _ical([
+          'BEGIN:VCALENDAR',
+          'VERSION:2.0',
+          'PRODID:-//BusyMax test//EN',
+          if (!floating) ...[
+            'BEGIN:VTIMEZONE',
+            'TZID:Custom/Office',
+            'BEGIN:STANDARD',
+            'DTSTART:20200101T000000',
+            'TZOFFSETFROM:+0545',
+            'TZOFFSETTO:+0545',
+            'END:STANDARD',
+            'END:VTIMEZONE',
+          ],
+          'BEGIN:VEVENT',
+          'UID:reschedule-zone',
+          'DTSTAMP:20260808T080000Z',
+          'DTSTART$zone:20260808T090000',
+          'DTEND$zone:20260808T100000',
+          'SUMMARY:Zoned',
+          'X-KEEP:opaque',
+          'END:VEVENT',
+          'END:VCALENDAR',
+        ]);
+        await _commitObjects(objectRepository, [
+          _prepared(
+            href: '${_collectionHref}zone-event.ics',
+            etag: '"zone"',
+            body: body,
+          ),
+        ]);
+        final row = await database.select(database.calendarEvents).getSingle();
+        final detail = (await calendarRepository.loadEventDetail(row.id))!;
+        final start = floating
+            ? DateTime(2026, 8, 8, 11)
+            : DateTime.utc(2026, 8, 8, 5, 15).toLocal();
+        final item = CalendarScheduleItem(
+          id: detail.id,
+          accountId: detail.accountId,
+          provider: detail.provider,
+          sourceId: detail.sourceId,
+          providerCalendarId: detail.providerCalendarId,
+          title: detail.title,
+          allDay: false,
+          start: providerDateTimeAsLocal(
+            detail.startDateTime,
+            detail.startTimeZone,
+          ),
+          end: providerDateTimeAsLocal(detail.endDateTime, detail.endTimeZone),
+          timingBaseline: EventTimingBaseline.fromDetail(detail),
+        );
+        final result =
+            await ScheduleReschedulingCoordinator(
+              repository: calendarRepository,
+              chooseScope: (_, _) async => null,
+              chooseGuestUpdates: (_) async =>
+                  throw StateError('DAV organizer is nullable'),
+              requestSync: (_) async {},
+            ).commit(
+              ScheduleRescheduleRequest(
+                item: item,
+                interval: ScheduleInterval(
+                  start,
+                  start.add(const Duration(hours: 1)),
+                ),
+              ),
+            );
+        expect(result, ScheduleRescheduleResult.saved);
+        final pending = await database.select(database.pendingOps).getSingle();
+        final candidate = DavMutationPatch.fromJsonString(
+          pending.mutationPatchJson!,
+        ).applyTo(body, nowUtc: _now);
+        expect(candidate, contains('DTSTART$zone:20260808T110000'));
+        expect(candidate, contains('DTEND$zone:20260808T120000'));
+        expect(candidate, contains('X-KEEP:opaque'));
+        expect(candidate.contains('BEGIN:VTIMEZONE'), !floating);
+        final savedRow = await database
+            .select(database.calendarEvents)
+            .getSingle();
+        final saved = (await calendarRepository.loadEventDetail(savedRow.id))!;
+        expect(saved.startTimeZone, detail.startTimeZone);
+        expect(saved.endTimeZone, detail.endTimeZone);
+      },
+    );
+  }
 
   test(
     'event create, unsent update, and delete remain one local unit',

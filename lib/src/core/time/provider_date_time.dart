@@ -1,7 +1,39 @@
 import 'package:timezone/data/latest_all.dart' as time_zone_data;
 import 'package:timezone/timezone.dart' as time_zone;
+import 'windows_time_zone_ids.dart';
 
 var _timeZonesInitialized = false;
+
+final _civilLocation = time_zone.Location('BusyMax/Civil', const [], const [], [
+  const time_zone.TimeZone(Duration.zero, isDst: false, abbreviation: 'civil'),
+]);
+
+/// Host-independent wall-field arithmetic. This is not an instant; serialize
+/// it with [providerWallTimeIso8601String], not DateTime.toIso8601String.
+DateTime providerCivilDateTime(DateTime value) => time_zone.TZDateTime.from(
+  DateTime.utc(
+    value.year,
+    value.month,
+    value.day,
+    value.hour,
+    value.minute,
+    value.second,
+    value.millisecond,
+    value.microsecond,
+  ),
+  _civilLocation,
+);
+
+String providerWallTimeIso8601String(DateTime value) => DateTime.utc(
+  value.year,
+  value.month,
+  value.day,
+  value.hour,
+  value.minute,
+  value.second,
+  value.millisecond,
+  value.microsecond,
+).toIso8601String().replaceFirst(RegExp(r'Z$'), '');
 
 DateTime? providerDateTimeAsLocal(String? value, String? timeZone) {
   final parsed = DateTime.tryParse(value ?? '');
@@ -26,7 +58,7 @@ DateTime? providerDateTimeAsLocal(String? value, String? timeZone) {
       parsed.microsecond,
     ).toLocal();
   }
-  return parsed;
+  return _providerWallTimeAsUtc(parsed, timeZone)?.toLocal() ?? parsed;
 }
 
 DateTime? providerDateTimeAsUtcInstant(String? value, String? timeZone) {
@@ -122,6 +154,48 @@ DateTime providerUtcInstantAsWallTime(DateTime value, String? timeZone) {
   );
 }
 
+/// A real zoned DateTime, retaining the offset even in a host-zone DST gap.
+/// Unknown explicit zones must not silently acquire the machine's timezone.
+DateTime providerInstantInTimeZone(DateTime instant, String? zone) {
+  if (isUtcTimeZone(zone)) return instant.toUtc();
+  if (zone == null || zone.isEmpty) return instant.toLocal();
+  final location = _timeZoneLocation(zone);
+  if (location == null) throw UnsupportedError('Unknown event timezone: $zone');
+  return time_zone.TZDateTime.from(instant, location);
+}
+
+/// Resolves a civil displayed value before a preview is shown. Returning the
+/// resolved instant lets preview and persistence agree across DST gaps/folds.
+DateTime providerWallTimeToInstant(DateTime wall, String? zone) {
+  if (isUtcTimeZone(zone)) {
+    return DateTime.utc(
+      wall.year,
+      wall.month,
+      wall.day,
+      wall.hour,
+      wall.minute,
+      wall.second,
+      wall.millisecond,
+      wall.microsecond,
+    );
+  }
+  if (zone == null || zone.isEmpty) {
+    return DateTime(
+      wall.year,
+      wall.month,
+      wall.day,
+      wall.hour,
+      wall.minute,
+      wall.second,
+      wall.millisecond,
+      wall.microsecond,
+    ).toUtc();
+  }
+  final instant = _providerWallTimeAsUtc(wall, zone);
+  if (instant == null) throw UnsupportedError('Unknown event timezone: $zone');
+  return instant;
+}
+
 bool isUtcTimeZone(String? timeZone) {
   final normalizedZone = timeZone?.trim().toLowerCase();
   return normalizedZone == 'utc' ||
@@ -162,7 +236,7 @@ time_zone.Location? _timeZoneLocation(String? timeZoneId) {
     _timeZonesInitialized = true;
   }
   try {
-    return time_zone.getLocation(id);
+    return time_zone.getLocation(windowsToIanaTimeZones[id] ?? id);
   } on time_zone.LocationNotFoundException {
     // Some providers use platform-specific zone labels. Preserve their prior
     // local-wall-time behavior when no IANA definition is available.

@@ -12,6 +12,7 @@ import '../../../calendar_providers/calendar_sync_dto.dart';
 import '../../../core/time/provider_date_time.dart';
 import '../../../dav/ical/ical_document.dart';
 import '../../../dav/ical/ical_semantics.dart';
+import '../../../dav/ical/ical_timezone.dart';
 import '../../../dav/mutation/dav_mutation_patch.dart';
 import '../../../dav/mutation/dav_pending_operations.dart';
 import '../../../dav/mutation/dav_projection_mutations.dart';
@@ -23,6 +24,7 @@ import '../../accounts/domain/account_collection_creation_capabilities.dart';
 import '../../notifications/notification_schedule_service.dart';
 import '../../recurrence/domain/event_recurrence_codec.dart';
 import '../domain/event_move_policy.dart';
+import '../domain/event_timing_policy.dart';
 import '../presentation/event_editor_draft.dart';
 import 'calendar_event_detail.dart';
 
@@ -379,6 +381,25 @@ class CalendarRepository {
       _database.calendarEvents,
     )..where((event) => event.id.equals(eventId))).getSingleOrNull();
     return row == null ? null : CalendarEventDetail.fromRow(row);
+  }
+
+  /// Uses the editable document, including queued local changes and its
+  /// embedded VTIMEZONE rules, rather than a provider or machine-zone guess.
+  Future<String?> loadEventTimeZoneDocument(CalendarEventDetail detail) async {
+    final collectionId = detail.davCollectionId;
+    if (collectionId == null) return null;
+    if (detail.davObjectId == null) {
+      final create = await _pendingDavCreateForProjection(detail.id);
+      return create == null ? null : _pendingCreateRawIcs(create);
+    }
+    return DavPendingOperationQueue(
+      database: _database,
+      nowUtc: () => _now().toUtc(),
+    ).editableRawIcsForObject(
+      accountId: detail.accountId,
+      collectionId: collectionId,
+      objectId: detail.davObjectId!,
+    );
   }
 
   Future<CalendarSourceEntity> _sourceEntity(CalendarSource source) async {
@@ -1624,6 +1645,60 @@ class CalendarRepository {
     EventEditorDraft draft, {
     CalendarGuestUpdatePolicy guestUpdatePolicy =
         CalendarGuestUpdatePolicy.send,
+    EventTimingBaseline? timingBaseline,
+  }) async {
+    if (timingBaseline == null) {
+      return _updateLocalEvent(draft, guestUpdatePolicy: guestUpdatePolicy);
+    }
+    // Compare and change timing in the same transaction. Rebase unrelated
+    // fields on the latest detail, including provider-only and HTML content.
+    await _database.transaction(() async {
+      final latest = draft.eventId == null
+          ? null
+          : await loadEventDetail(draft.eventId!);
+      if (latest == null || !timingBaseline.matches(latest)) {
+        throw const StaleEventTiming();
+      }
+      if (!detailAllowsTimingEdit(latest) ||
+          latest.accountId != draft.accountId ||
+          latest.sourceId != draft.sourceId ||
+          latest.allDay != draft.allDay ||
+          latest.providerCalendarId != draft.providerCalendarId) {
+        throw CalendarMutationNotAllowed(
+          operation: CalendarMutationOperation.editEvent,
+          sourceId: draft.sourceId,
+        );
+      }
+      if (draft.start == null ||
+          draft.end == null ||
+          !draft.end!.isAfter(draft.start!)) {
+        throw ArgumentError('An event interval must be positive.');
+      }
+      await _updateLocalEvent(
+        EventEditorDraft.fromEventDetail(latest).copyWith(
+          start: draft.start,
+          end: draft.end,
+          recurringMutationScope: draft.recurringMutationScope,
+        ),
+        guestUpdatePolicy: guestUpdatePolicy,
+        timingOnly: true,
+      );
+    });
+    try {
+      await _notificationScheduleService().rebuildUpcomingEventNotifications(
+        draft.accountId,
+      );
+      await _onNotificationScheduleChanged?.call();
+    } catch (error) {
+      throw EventNotificationRefreshFailure(error);
+    }
+  }
+
+  Future<void> _updateLocalEvent(
+    EventEditorDraft draft, {
+    CalendarGuestUpdatePolicy guestUpdatePolicy =
+        CalendarGuestUpdatePolicy.send,
+    bool timingOnly = false,
   }) async {
     final eventId = draft.eventId;
     if (eventId == null) {
@@ -1679,7 +1754,12 @@ class CalendarRepository {
       );
     }
     if (source.davCollectionId != null) {
-      return _updateLocalDavEvent(source, existing, draft);
+      return _updateLocalDavEvent(
+        source,
+        existing,
+        draft,
+        timingOnly: timingOnly,
+      );
     }
     final provider = BusyProviderCodec.requireStorageValue(source.provider);
     final recurringOccurrence = existing.providerRecurringEventId != null;
@@ -1732,8 +1812,37 @@ class CalendarRepository {
       conference: conferenceRequest,
       guestUpdatePolicy: guestUpdatePolicy,
     );
+    if (timingOnly) {
+      request.removeWhere(
+        (key, _) => !{
+          'allDay',
+          'start',
+          'end',
+          'startTimeZone',
+          'endTimeZone',
+          calendarEventGuestUpdatePolicyKey,
+        }.contains(key),
+      );
+      // TZDateTime emits compact offsets; provider wire timestamps use RFC3339.
+      for (final key in ['start', 'end']) {
+        final value = request[key];
+        if (value is String) {
+          request[key] = value.replaceFirstMapped(
+            RegExp(r'([+-]\d{2})(\d{2})$'),
+            (match) => '${match[1]}:${match[2]}',
+          );
+        }
+      }
+    }
     if (!_eventRequestHasMutation(request)) {
       return;
+    }
+    if (request.containsKey('allDay') &&
+        !detailAllowsTimingEdit(CalendarEventDetail.fromRow(existing))) {
+      throw CalendarMutationNotAllowed(
+        operation: CalendarMutationOperation.editEvent,
+        sourceId: source.id,
+      );
     }
     if (recurringOccurrence) {
       request[calendarEventRecurringScopeKey] = recurringScope!.name;
@@ -1771,6 +1880,7 @@ class CalendarRepository {
           startTimeZone: startTimeZone,
           endTimeZone: endTimeZone,
           now: now,
+          timingOnly: timingOnly,
         );
       } else {
         await (_database.update(
@@ -1803,6 +1913,7 @@ class CalendarRepository {
             ),
           );
     });
+    if (timingOnly) return;
     await _notificationScheduleService().rebuildUpcomingEventNotifications(
       draft.accountId,
     );
@@ -2526,6 +2637,7 @@ class CalendarRepository {
     required String? startTimeZone,
     required String? endTimeZone,
     required int now,
+    bool timingOnly = false,
   }) async {
     final recurringEventId = existing.providerRecurringEventId;
     if (recurringEventId == null) {
@@ -2541,18 +2653,20 @@ class CalendarRepository {
                   row.isDeleted.equals(false),
             ))
             .get();
-    final existingStart = _storedEventStartDateTime(existing);
-    final existingEnd = _storedEventEndDateTime(existing);
+    DateTime? wall(DateTime? value) =>
+        value == null ? null : providerCivilDateTime(value);
+    final existingStart = wall(_storedEventStartDateTime(existing));
+    final existingEnd = wall(_storedEventEndDateTime(existing));
     final startChanged =
-        draft.allDay != existing.allDay || draft.start != existingStart;
+        draft.allDay != existing.allDay || wall(draft.start) != existingStart;
     final endChanged =
-        draft.allDay != existing.allDay || draft.end != existingEnd;
+        draft.allDay != existing.allDay || wall(draft.end) != existingEnd;
     final startDelta =
         startChanged && draft.start != null && existingStart != null
-        ? draft.start!.difference(existingStart)
+        ? wall(draft.start)!.difference(existingStart)
         : Duration.zero;
     final endDelta = endChanged && draft.end != null && existingEnd != null
-        ? draft.end!.difference(existingEnd)
+        ? wall(draft.end)!.difference(existingEnd)
         : Duration.zero;
     final raw = _jsonMap(existing.rawJson);
     final descriptionChanged =
@@ -2585,8 +2699,8 @@ class CalendarRepository {
 
     for (final row in rows) {
       if (!_seriesRowInScope(row, existing, scope)) continue;
-      final rowStart = _storedEventStartDateTime(row);
-      final rowEnd = _storedEventEndDateTime(row);
+      final rowStart = wall(_storedEventStartDateTime(row));
+      final rowEnd = wall(_storedEventEndDateTime(row));
       final shiftedStart = startChanged && rowStart != null
           ? rowStart.add(startDelta)
           : rowStart;
@@ -2610,7 +2724,11 @@ class CalendarRepository {
             ? Value(draft.allDay ? _date(shiftedStart) : null)
             : const Value.absent(),
         startDateTime: startChanged
-            ? Value(draft.allDay ? null : shiftedStart?.toIso8601String())
+            ? Value(
+                draft.allDay || shiftedStart == null
+                    ? null
+                    : providerWallTimeIso8601String(shiftedStart),
+              )
             : const Value.absent(),
         startTimeZone:
             startChanged || draft.startTimeZone != existing.startTimeZone
@@ -2620,7 +2738,11 @@ class CalendarRepository {
             ? Value(draft.allDay ? _date(shiftedEnd) : null)
             : const Value.absent(),
         endDateTime: endChanged
-            ? Value(draft.allDay ? null : shiftedEnd?.toIso8601String())
+            ? Value(
+                draft.allDay || shiftedEnd == null
+                    ? null
+                    : providerWallTimeIso8601String(shiftedEnd),
+              )
             : const Value.absent(),
         endTimeZone: endChanged || draft.endTimeZone != existing.endTimeZone
             ? Value(draft.allDay ? null : endTimeZone)
@@ -2660,7 +2782,21 @@ class CalendarRepository {
       );
       await (_database.update(
         _database.calendarEvents,
-      )..where((table) => table.id.equals(row.id))).write(companion);
+      )..where((table) => table.id.equals(row.id))).write(
+        timingOnly
+            ? CalendarEventsCompanion(
+                allDay: companion.allDay,
+                startDate: companion.startDate,
+                startDateTime: companion.startDateTime,
+                startTimeZone: companion.startTimeZone,
+                endDate: companion.endDate,
+                endDateTime: companion.endDateTime,
+                endTimeZone: companion.endTimeZone,
+                updatedAtLocal: companion.updatedAtLocal,
+                syncStatus: companion.syncStatus,
+              )
+            : companion,
+      );
     }
   }
 
@@ -3029,8 +3165,9 @@ class CalendarRepository {
   Future<void> _updateLocalDavEvent(
     CalendarSource source,
     CalendarEvent existing,
-    EventEditorDraft draft,
-  ) async {
+    EventEditorDraft draft, {
+    bool timingOnly = false,
+  }) async {
     _requireDavSchedulingUnchanged(draft, creating: false);
     final collectionId = source.davCollectionId;
     final uid = existing.icalUid;
@@ -3046,17 +3183,17 @@ class CalendarRepository {
         'A supported recurring-event editing scope is required.',
       );
     }
-    final startTimeZone = _effectiveStartTimeZone(
-      draft,
-      source.timeZone,
-      _localTimeZone,
-    );
-    final endTimeZone = _effectiveEndTimeZone(
-      draft,
-      source.timeZone,
-      startTimeZone,
-      _localTimeZone,
-    );
+    final startTimeZone = timingOnly
+        ? existing.startTimeZone
+        : _effectiveStartTimeZone(draft, source.timeZone, _localTimeZone);
+    final endTimeZone = timingOnly
+        ? existing.endTimeZone
+        : _effectiveEndTimeZone(
+            draft,
+            source.timeZone,
+            startTimeZone,
+            _localTimeZone,
+          );
     var input = _davEventInput(
       draft,
       start: start,
@@ -3100,6 +3237,7 @@ class CalendarRepository {
         target: IcalComponentKey(componentType: 'VEVENT', uid: uid),
         baselineRawIcs: baselineRawIcs,
         input: input,
+        timingOnly: timingOnly,
       );
     } else if (recurringScope == RecurringEventMutationScope.thisAndFuture ||
         (recurringScope == RecurringEventMutationScope.singleOccurrence &&
@@ -3115,6 +3253,7 @@ class CalendarRepository {
         occurrenceKey: occurrenceKey,
         baselineRawIcs: baselineRawIcs,
         input: input,
+        timingOnly: timingOnly,
         thisAndFuture:
             recurringScope == RecurringEventMutationScope.thisAndFuture,
         nowUtc: () => _now().toUtc(),
@@ -3124,6 +3263,7 @@ class CalendarRepository {
         target: target,
         baselineRawIcs: baselineRawIcs,
         input: input,
+        timingOnly: timingOnly,
       );
     }
     if (patch == null) return;
@@ -3170,6 +3310,7 @@ class CalendarRepository {
         );
       }
     });
+    if (timingOnly) return;
     await _notificationScheduleService().rebuildUpcomingEventNotifications(
       existing.accountId,
     );
@@ -3858,23 +3999,44 @@ DavEventMutationInput _seriesDavEventInput({
   final masterEnd = master.end == null
       ? masterStart.add(master.duration?.duration ?? const Duration(hours: 1))
       : _editableIcalTemporal(master.end!);
-  final projectedStart = DateTime.tryParse(
+  var projectedStart = DateTime.tryParse(
     existing.allDay ? existing.startDate ?? '' : existing.startDateTime ?? '',
   );
-  final projectedEnd = DateTime.tryParse(
+  var projectedEnd = DateTime.tryParse(
     existing.allDay ? existing.endDate ?? '' : existing.endDateTime ?? '',
   );
   if (projectedStart == null || projectedEnd == null) {
     throw StateError('The DAV occurrence projection is incomplete.');
   }
-  final startChanged = desired.start != projectedStart;
-  final endChanged = desired.end != projectedEnd;
+  final resolver = IcalTimeZoneResolver.fromDocument(semantic);
+  if (!existing.allDay) {
+    if (existing.startTimeZone case final zone?) {
+      projectedStart = resolver.fromUtc(
+        providerDateTimeAsUtcInstant(existing.startDateTime, zone)!,
+        zone,
+      );
+    }
+    if (existing.endTimeZone case final zone?) {
+      projectedEnd = resolver.fromUtc(
+        providerDateTimeAsUtcInstant(existing.endDateTime, zone)!,
+        zone,
+      );
+    }
+  }
+  final startDelta = providerCivilDateTime(
+    desired.start,
+  ).difference(providerCivilDateTime(projectedStart));
+  final endDelta = providerCivilDateTime(
+    desired.end,
+  ).difference(providerCivilDateTime(projectedEnd));
+  final startChanged = startDelta != Duration.zero;
+  final endChanged = endDelta != Duration.zero;
   final allDayChanged = desired.allDay != existing.allDay;
   final seriesStart = startChanged
-      ? masterStart.add(desired.start.difference(projectedStart))
+      ? providerCivilDateTime(masterStart).add(startDelta)
       : masterStart;
   final seriesEnd = endChanged
-      ? masterEnd.add(desired.end.difference(projectedEnd))
+      ? providerCivilDateTime(masterEnd).add(endDelta)
       : masterEnd;
   final masterTimeZone = _icalTimeZone(master.start!);
   final masterEndTimeZone = master.end == null
@@ -4552,16 +4714,10 @@ bool _seriesRowInScope(
 }
 
 bool _googleEventCanSplit(CalendarEvent event) {
-  final eventType = event.eventType;
-  if (eventType != null && eventType.isNotEmpty && eventType != 'default') {
-    return false;
-  }
-  final conference = _decodeStoredJson(event.conferenceJson);
-  if (conference == null) return true;
-  if (conference is! Map || conference.isEmpty) return conference is Map;
-  final solution = conference['conferenceSolution'];
-  final key = solution is Map ? solution['key'] : null;
-  return key is Map && key['type']?.toString() == 'hangoutsMeet';
+  return googleEventCanSplit(
+    eventType: event.eventType,
+    conference: _decodeStoredJson(event.conferenceJson),
+  );
 }
 
 DateTime? _seriesOriginalStart(CalendarEvent event) {

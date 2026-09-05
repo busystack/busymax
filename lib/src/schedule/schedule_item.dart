@@ -1,4 +1,5 @@
 import 'package:busymax/src/providers/busy_provider.dart';
+import '../features/calendar/domain/event_timing_policy.dart';
 import '../features/tasks/domain/task_checklist_item.dart';
 
 enum ScheduleItemKind { calendarEvent, task, localReminder }
@@ -50,6 +51,7 @@ class CalendarScheduleItem implements ScheduleItem {
     required this.allDay,
     this.start,
     this.providerRecurringEventId,
+    this.timingBaseline,
     this.end,
     this.location,
     this.description,
@@ -81,6 +83,19 @@ class CalendarScheduleItem implements ScheduleItem {
   final String sourceId;
   final String providerCalendarId;
   final String? providerRecurringEventId;
+  final EventTimingBaseline? timingBaseline;
+
+  bool get canReschedule =>
+      start != null &&
+      end != null &&
+      end!.isAfter(start!) &&
+      canEditEventTiming(
+        provider: provider,
+        canEdit: capabilities.canEdit,
+        isOrganizer: isOrganizer,
+        locked: locked,
+        guestsCanModify: guestsCanModify,
+      );
   @override
   final String title;
   @override

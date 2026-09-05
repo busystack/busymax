@@ -7,6 +7,11 @@ import 'package:busymax/src/calendar_providers/calendar_sync_dto.dart';
 import 'package:busymax/src/db/app_database.dart';
 import 'package:busymax/src/features/calendar/data/calendar_repository.dart';
 import 'package:busymax/src/features/calendar/presentation/event_editor_draft.dart';
+import 'package:busymax/src/features/calendar/data/calendar_event_detail.dart';
+import 'package:busymax/src/features/calendar/domain/event_timing_policy.dart';
+import 'package:busymax/src/core/time/provider_date_time.dart';
+import 'package:busymax/src/schedule/schedule_event_rescheduling.dart';
+import 'package:busymax/src/schedule/schedule_item.dart';
 import 'package:busymax/src/providers/busy_provider.dart';
 import 'package:drift/drift.dart';
 import 'package:drift/native.dart';
@@ -46,6 +51,346 @@ void main() {
   tearDown(() async {
     await database.close();
   });
+
+  test(
+    'reschedule persists once, retains latest unrelated fields and refreshes reminders offline',
+    () async {
+      await _seedScheduledEvent(repository, database);
+      final event = await database.select(database.calendarEvents).getSingle();
+      final detail = (await repository.loadEventDetail(event.id))!;
+      final request = _timingRequest(detail);
+      await database
+          .update(database.calendarEvents)
+          .write(
+            const CalendarEventsCompanion(
+              title: Value('Concurrent rename'),
+              description: Value('<p>Keep full HTML</p>'),
+              attachmentsJson: Value('[{"id":"keep"}]'),
+              conferenceJson: Value(
+                '{"entryPoints":[{"uri":"https://example.com/meeting"}]}',
+              ),
+            ),
+          );
+      var syncRequests = 0;
+      final coordinator = ScheduleReschedulingCoordinator(
+        repository: repository,
+        chooseScope: (_, _) async => throw StateError('Not recurring'),
+        chooseGuestUpdates: (_) async => throw StateError('No guests'),
+        requestSync: (account) async {
+          expect(account, detail.accountId);
+          syncRequests++;
+        },
+      );
+      expect(await coordinator.commit(request), ScheduleRescheduleResult.saved);
+      expect(
+        await coordinator.commit(request),
+        ScheduleRescheduleResult.cancelled,
+      );
+      final saved = await database.select(database.calendarEvents).getSingle();
+      expect(
+        DateTime.parse(saved.startDateTime!),
+        DateTime.utc(2026, 6, 8, 11),
+      );
+      expect(DateTime.parse(saved.endDateTime!), DateTime.utc(2026, 6, 8, 12));
+      expect(saved.title, 'Concurrent rename');
+      expect(saved.description, '<p>Keep full HTML</p>');
+      expect(saved.attachmentsJson, '[{"id":"keep"}]');
+      expect(saved.conferenceJson, contains('https://example.com/meeting'));
+      expect(saved.calendarSourceId, detail.sourceId);
+      expect(saved.providerCalendarId, detail.providerCalendarId);
+      expect(saved.accountId, detail.accountId);
+      final pending = await database.select(database.pendingOps).getSingle();
+      final body = jsonDecode(pending.requestJson) as Map;
+      expect(body.containsKey('title'), isFalse);
+      expect(body.containsKey('description'), isFalse);
+      expect(body.containsKey('attendeesJson'), isFalse);
+      expect(syncRequests, 1);
+      expect(
+        (await database.select(database.notificationSchedule).getSingle())
+            .scheduledAtUtc,
+        DateTime.utc(2026, 6, 8, 10, 50).millisecondsSinceEpoch,
+      );
+    },
+  );
+
+  test(
+    'zoned whole-series drag preserves wall delta and occurrence fields',
+    () async {
+      await _upsertSource(repository);
+      final ids = [
+        await _upsertGoogleOccurrence(repository, day: 8),
+        await _upsertGoogleOccurrence(repository, day: 15),
+      ];
+      await database
+          .update(database.calendarEvents)
+          .write(
+            const CalendarEventsCompanion(
+              startTimeZone: Value('America/Vancouver'),
+              endTimeZone: Value('Asia/Tokyo'),
+            ),
+          );
+      await (database.update(
+        database.calendarEvents,
+      )..where((row) => row.id.equals(ids.last))).write(
+        const CalendarEventsCompanion(
+          conferenceJson: Value('{"occurrence":"keep"}'),
+        ),
+      );
+      final detail = (await repository.loadEventDetail(ids.first))!;
+      final coordinator = ScheduleReschedulingCoordinator(
+        repository: repository,
+        chooseScope: (_, _) async => RecurringEventMutationScope.entireSeries,
+        chooseGuestUpdates: (_) async => CalendarGuestUpdatePolicy.doNotSend,
+        requestSync: (_) async {},
+      );
+      expect(
+        await coordinator.commit(_timingRequest(detail)),
+        ScheduleRescheduleResult.saved,
+      );
+      for (var index = 0; index < ids.length; index++) {
+        final saved = (await repository.loadEventDetail(ids[index]))!;
+        expect(
+          providerDateTimeAsUtcInstant(
+            saved.startDateTime,
+            saved.startTimeZone,
+          ),
+          DateTime.utc(2026, 6, 8 + index * 7, 11),
+        );
+        expect(
+          providerDateTimeAsUtcInstant(saved.endDateTime, saved.endTimeZone),
+          DateTime.utc(2026, 6, 8 + index * 7, 12),
+        );
+        expect(saved.startTimeZone, 'America/Vancouver');
+        expect(saved.endTimeZone, 'Asia/Tokyo');
+      }
+      expect((await repository.loadEventDetail(ids.last))!.conference, {
+        'occurrence': 'keep',
+      });
+      final body =
+          jsonDecode(
+                (await database.select(database.pendingOps).getSingle())
+                    .requestJson,
+              )
+              as Map;
+      expect(body.containsKey('conferenceJson'), isFalse);
+    },
+  );
+
+  for (final failure in ['timing', 'deletion', 'readonly']) {
+    test('reschedule rejects $failure before persistence', () async {
+      await _seedScheduledEvent(repository, database);
+      final row = await database.select(database.calendarEvents).getSingle();
+      final detail = (await repository.loadEventDetail(row.id))!;
+      if (failure == 'timing') {
+        await database
+            .update(database.calendarEvents)
+            .write(
+              const CalendarEventsCompanion(
+                startDateTime: Value('2026-06-08T09:30:00.000Z'),
+              ),
+            );
+      } else if (failure == 'deletion') {
+        await database.delete(database.calendarEvents).go();
+      } else {
+        await database
+            .update(database.calendarSources)
+            .write(const CalendarSourcesCompanion(readOnly: Value(true)));
+      }
+      await expectLater(
+        repository.updateLocalEvent(
+          EventEditorDraft.fromEventDetail(detail).copyWith(
+            start: DateTime.utc(2026, 6, 8, 11),
+            end: DateTime.utc(2026, 6, 8, 12),
+          ),
+          timingBaseline: EventTimingBaseline.fromDetail(detail),
+        ),
+        throwsA(isA<Exception>()),
+      );
+      expect(await database.select(database.pendingOps).get(), isEmpty);
+    });
+  }
+
+  test(
+    'failed local timing transaction leaves no projection or pending operation',
+    () async {
+      await _seedScheduledEvent(repository, database);
+      final event = await database.select(database.calendarEvents).getSingle();
+      final detail = (await repository.loadEventDetail(event.id))!;
+      await database.customStatement(
+        "CREATE TRIGGER fail_timing BEFORE INSERT ON pending_ops BEGIN SELECT RAISE(ABORT, 'test write failure'); END",
+      );
+      await expectLater(
+        repository.updateLocalEvent(
+          EventEditorDraft.fromEventDetail(detail).copyWith(
+            start: DateTime.utc(2026, 6, 8, 11),
+            end: DateTime.utc(2026, 6, 8, 12),
+          ),
+          timingBaseline: EventTimingBaseline.fromDetail(detail),
+        ),
+        throwsA(anything),
+      );
+      expect(
+        (await database.select(database.calendarEvents).getSingle())
+            .startDateTime,
+        event.startDateTime,
+      );
+      expect(await database.select(database.pendingOps).get(), isEmpty);
+    },
+  );
+
+  for (final notificationFailure in [false, true]) {
+    test(
+      'post-commit ${notificationFailure ? 'notification' : 'sync'} failure does not repeat or revert timing',
+      () async {
+        await _seedScheduledEvent(repository, database);
+        final event = await database
+            .select(database.calendarEvents)
+            .getSingle();
+        final detail = (await repository.loadEventDetail(event.id))!;
+        final failingRepository = CalendarRepository(
+          database: database,
+          onNotificationScheduleChanged: () async {
+            if (notificationFailure) throw StateError('Notification failure');
+          },
+        );
+        var syncRequests = 0;
+        final coordinator = ScheduleReschedulingCoordinator(
+          repository: failingRepository,
+          chooseScope: (_, _) async => null,
+          chooseGuestUpdates: (_) async => null,
+          requestSync: (_) async {
+            syncRequests++;
+            if (!notificationFailure) throw StateError('Offline');
+          },
+        );
+        final request = _timingRequest(detail);
+        expect(
+          await coordinator.commit(request),
+          notificationFailure
+              ? ScheduleRescheduleResult.savedWithNotificationFailure
+              : ScheduleRescheduleResult.savedWithSyncFailure,
+        );
+        expect(
+          await coordinator.commit(request),
+          ScheduleRescheduleResult.cancelled,
+        );
+        expect(await database.select(database.pendingOps).get(), hasLength(1));
+        expect(
+          DateTime.parse(
+            (await database.select(database.calendarEvents).getSingle())
+                .startDateTime!,
+          ),
+          DateTime.utc(2026, 6, 8, 11),
+        );
+        expect(syncRequests, 1);
+      },
+    );
+  }
+
+  for (final decision in ['cancel', 'stale', 'save']) {
+    test(
+      'recurrence drag $decision honors scope and rechecks after dialogs',
+      () async {
+        await _upsertSource(repository);
+        final id = await _upsertGoogleOccurrence(repository, day: 8);
+        final detail = (await repository.loadEventDetail(id))!;
+        final coordinator = ScheduleReschedulingCoordinator(
+          repository: repository,
+          chooseScope: (_, following) async {
+            expect(following, isTrue);
+            if (decision == 'cancel') return null;
+            if (decision == 'stale') {
+              await database
+                  .update(database.calendarEvents)
+                  .write(
+                    const CalendarEventsCompanion(
+                      endDateTime: Value('2026-06-08T10:15:00.000Z'),
+                    ),
+                  );
+            }
+            return RecurringEventMutationScope.singleOccurrence;
+          },
+          chooseGuestUpdates: (_) async => CalendarGuestUpdatePolicy.doNotSend,
+          requestSync: (_) async {},
+        );
+        if (decision == 'stale') {
+          await expectLater(
+            coordinator.commit(_timingRequest(detail)),
+            throwsA(isA<StaleEventTiming>()),
+          );
+        } else {
+          expect(
+            await coordinator.commit(_timingRequest(detail)),
+            decision == 'cancel'
+                ? ScheduleRescheduleResult.cancelled
+                : ScheduleRescheduleResult.saved,
+          );
+        }
+        final ops = await database.select(database.pendingOps).get();
+        if (decision == 'save') {
+          expect(ops, hasLength(1));
+          expect(
+            (jsonDecode(ops.single.requestJson)
+                as Map)[calendarEventRecurringScopeKey],
+            'singleOccurrence',
+          );
+          expect(
+            (await repository.loadEventDetail(id))!.providerOriginalStartKey,
+            detail.providerOriginalStartKey,
+          );
+        } else {
+          expect(ops, isEmpty);
+        }
+      },
+    );
+  }
+
+  for (final send in [
+    null,
+    CalendarGuestUpdatePolicy.send,
+    CalendarGuestUpdatePolicy.doNotSend,
+  ]) {
+    test('drag guest decision $send is preserved in pending patch', () async {
+      await _seedScheduledEvent(repository, database);
+      await database
+          .update(database.calendarEvents)
+          .write(
+            const CalendarEventsCompanion(
+              attendeesJson: Value('[{"email":"guest@example.com"}]'),
+            ),
+          );
+      final event = await database.select(database.calendarEvents).getSingle();
+      final detail = (await repository.loadEventDetail(event.id))!;
+      var decisions = 0;
+      final coordinator = ScheduleReschedulingCoordinator(
+        repository: repository,
+        chooseScope: (_, _) async => null,
+        chooseGuestUpdates: (_) async {
+          decisions++;
+          return send;
+        },
+        requestSync: (_) async {},
+      );
+      final result = await coordinator.commit(_timingRequest(detail));
+      expect(decisions, 1);
+      expect(
+        result,
+        send == null
+            ? ScheduleRescheduleResult.cancelled
+            : ScheduleRescheduleResult.saved,
+      );
+      final ops = await database.select(database.pendingOps).get();
+      if (send == null) {
+        expect(ops, isEmpty);
+      } else {
+        expect(
+          (jsonDecode(ops.single.requestJson)
+              as Map)[calendarEventGuestUpdatePolicyKey],
+          send.name,
+        );
+      }
+    });
+  }
 
   test('provider upsert preserves locally deselected source', () async {
     await repository.upsertSource(
@@ -1358,6 +1703,30 @@ void main() {
 }
 
 const _sourceId = 'google:g|google|calendar-1';
+
+ScheduleRescheduleRequest _timingRequest(CalendarEventDetail detail) =>
+    ScheduleRescheduleRequest(
+      item: CalendarScheduleItem(
+        id: detail.id,
+        accountId: detail.accountId,
+        provider: detail.provider,
+        sourceId: detail.sourceId,
+        providerCalendarId: detail.providerCalendarId,
+        title: detail.title,
+        allDay: detail.allDay,
+        start: providerDateTimeAsLocal(
+          detail.startDateTime,
+          detail.startTimeZone,
+        ),
+        end: providerDateTimeAsLocal(detail.endDateTime, detail.endTimeZone),
+        isOrganizer: true,
+        timingBaseline: EventTimingBaseline.fromDetail(detail),
+      ),
+      interval: ScheduleInterval(
+        DateTime.utc(2026, 6, 8, 11).toLocal(),
+        DateTime.utc(2026, 6, 8, 12).toLocal(),
+      ),
+    );
 
 Future<void> _upsertSource(CalendarRepository repository) {
   return repository.upsertSource(

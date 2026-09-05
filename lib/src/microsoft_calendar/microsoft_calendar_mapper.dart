@@ -2,6 +2,7 @@ import '../calendar_providers/calendar_colors.dart';
 import '../calendar_providers/calendar_mutation.dart';
 import '../calendar_providers/calendar_description.dart';
 import '../calendar_providers/calendar_sync_dto.dart';
+import '../core/time/provider_date_time.dart';
 import 'package:busymax/src/providers/busy_provider.dart';
 
 CalendarSourceDto microsoftCalendarSourceFromJson(Map<String, Object?> json) {
@@ -171,14 +172,25 @@ String? _startDateTime(CalendarEventMutation mutation) {
   if (mutation.allDay == true && mutation.startDate != null) {
     return '${mutation.startDate}T00:00:00.0000000';
   }
-  return mutation.startDateTime;
+  return _graphWallTime(mutation.startDateTime, mutation.startTimeZone);
 }
 
 String? _endDateTime(CalendarEventMutation mutation) {
   if (mutation.allDay == true && mutation.endDate != null) {
     return '${mutation.endDate}T00:00:00.0000000';
   }
-  return mutation.endDateTime;
+  return _graphWallTime(
+    mutation.endDateTime,
+    mutation.endTimeZone ?? mutation.startTimeZone,
+  );
+}
+
+String? _graphWallTime(String? value, String? zone) {
+  if (value == null || !RegExp(r'[+-]\d{2}:?\d{2}$').hasMatch(value)) {
+    return value;
+  }
+  final wall = providerDateTimeAsWallTime(value, zone);
+  return wall == null ? value : providerWallTimeIso8601String(wall);
 }
 
 Map<String, Object?> _mapValue(Object? value) {

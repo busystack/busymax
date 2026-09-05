@@ -31,6 +31,22 @@ final class IcalTimeZoneResolver {
 
   final Map<String, _TimeZoneDefinition> _zones;
 
+  /// Inverse of [toUtc], using the same embedded rules in preference to IANA.
+  /// The returned DateTime carries the effective offset, so its wall fields
+  /// are not normalized through the host operating system's timezone.
+  DateTime fromUtc(DateTime instant, String timeZoneId) {
+    final embedded = _zones[timeZoneId];
+    if (embedded != null) return embedded.fromUtc(instant.toUtc());
+    try {
+      return time_zone.TZDateTime.from(
+        instant,
+        time_zone.getLocation(timeZoneId),
+      );
+    } on time_zone.LocationNotFoundException {
+      throw _invalidTimeZone('IcalUnknownTimeZone');
+    }
+  }
+
   DateTime toUtc(IcalTemporalValue value) {
     if (value.kind == IcalTemporalKind.utcDateTime) {
       return value.localValue.toUtc();
@@ -96,7 +112,45 @@ final class _TimeZoneDefinition {
   final String id;
   final List<_TimeZoneObservance> observances;
 
+  DateTime fromUtc(DateTime instant) {
+    final transitions = [
+      for (final observance in observances)
+        ...observance.transitionsThrough(instant.year + 1),
+    ];
+    DateTime at(_TimeZoneTransition transition) {
+      final wall = transition.localAt;
+      return DateTime.utc(
+        wall.year,
+        wall.month,
+        wall.day,
+        wall.hour,
+        wall.minute,
+        wall.second,
+      ).subtract(transition.offsetFrom);
+    }
+
+    transitions.sort((a, b) => at(a).compareTo(at(b)));
+    if (transitions.isEmpty) throw _invalidTimeZone();
+    var offset = transitions.first.offsetFrom;
+    for (final transition in transitions) {
+      if (at(transition).isAfter(instant)) break;
+      offset = transition.offsetTo;
+    }
+    final location = time_zone.Location(id, const [], const [], [
+      time_zone.TimeZone(offset, isDst: false, abbreviation: id),
+    ]);
+    return time_zone.TZDateTime.from(instant, location);
+  }
+
   DateTime toUtc(DateTime wall) {
+    wall = DateTime.utc(
+      wall.year,
+      wall.month,
+      wall.day,
+      wall.hour,
+      wall.minute,
+      wall.second,
+    );
     final transitions = <_TimeZoneTransition>[];
     for (final observance in observances) {
       transitions.addAll(observance.transitionsThrough(wall.year + 1));

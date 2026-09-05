@@ -4,6 +4,27 @@ import 'package:busymax/src/microsoft_calendar/microsoft_calendar_mapper.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  test(
+    'Microsoft timing patches serialize zoned endpoints as Graph wall times',
+    () {
+      final body = microsoftEventMutationToJson(
+        const CalendarEventMutation(
+          startDateTime: '2026-06-08T09:15:00.000-07:00',
+          startTimeZone: 'America/Vancouver',
+          endDateTime: '2026-06-09T02:45:00.000+09:00',
+          endTimeZone: 'Asia/Tokyo',
+        ),
+      );
+      expect(body['start'], {
+        'dateTime': '2026-06-08T09:15:00.000',
+        'timeZone': 'America/Vancouver',
+      });
+      expect(body['end'], {
+        'dateTime': '2026-06-09T02:45:00.000',
+        'timeZone': 'Asia/Tokyo',
+      });
+    },
+  );
   test('Microsoft calendar source uses explicit hex color when available', () {
     final source = microsoftCalendarSourceFromJson({
       'id': 'cal-1',

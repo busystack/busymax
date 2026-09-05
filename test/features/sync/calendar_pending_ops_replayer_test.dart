@@ -8,10 +8,12 @@ import 'package:busymax/src/calendar_providers/calendar_create_identity.dart';
 import 'package:busymax/src/calendar_providers/calendar_mutation.dart';
 import 'package:busymax/src/calendar_providers/calendar_provider_capabilities.dart';
 import 'package:busymax/src/calendar_providers/calendar_sync_dto.dart';
+import 'package:busymax/src/core/time/provider_date_time.dart';
 import 'package:busymax/src/calendar_providers/cloud_calendar_client.dart';
 import 'package:busymax/src/db/app_database.dart';
 import 'package:busymax/src/features/calendar/data/calendar_repository.dart';
 import 'package:busymax/src/features/calendar/presentation/event_editor_draft.dart';
+import 'package:busymax/src/features/calendar/domain/event_timing_policy.dart';
 import 'package:busymax/src/features/sync/calendar_pending_ops_replayer.dart';
 import 'package:busymax/src/features/sync/calendar_sync_engine.dart';
 import 'package:busymax/src/features/sync/pending_op_resolution_service.dart';
@@ -47,6 +49,60 @@ void main() {
   tearDown(() async {
     await database.close();
   });
+
+  test(
+    'guarded timing edit replays exact endpoints and guest policy without moving ownership',
+    () async {
+      final repository = CalendarRepository(database: database);
+      final id = await _insertEvent(
+        database,
+        providerEventId: 'drag-event',
+        startTimeZone: 'UTC',
+        endTimeZone: 'UTC',
+      );
+      final detail = (await repository.loadEventDetail(id))!;
+      client.remoteEvent = client._event(
+        'drag-event',
+        title: 'Base',
+        organizerJson: const {'self': true},
+      );
+      client.persistEventUpdates = true;
+      await repository.updateLocalEvent(
+        EventEditorDraft.fromEventDetail(detail).copyWith(
+          start: DateTime.utc(2026, 6, 8, 14, 15),
+          end: DateTime.utc(2026, 6, 8, 15, 45),
+        ),
+        timingBaseline: EventTimingBaseline.fromDetail(detail),
+        guestUpdatePolicy: CalendarGuestUpdatePolicy.doNotSend,
+      );
+      final replay = CalendarPendingOpsReplayer(
+        database: database,
+        client: client,
+        accountId: 'account',
+        nowUtc: () => DateTime.utc(2026, 6, 9),
+      );
+      expect(await replay.replayDueOps(), 1);
+      expect(await replay.replayDueOps(), 0);
+      final mutation = client.updatedMutations.single;
+      expect(
+        DateTime.parse(mutation.startDateTime!),
+        DateTime.utc(2026, 6, 8, 14, 15),
+      );
+      expect(
+        DateTime.parse(mutation.endDateTime!),
+        DateTime.utc(2026, 6, 8, 15, 45),
+      );
+      expect(mutation.title, equals(null));
+      expect(client.guestUpdatePolicies, [CalendarGuestUpdatePolicy.doNotSend]);
+      final saved = (await repository.loadEventDetail(id))!;
+      expect(saved.startDateTime, client.remoteEvent!.startDateTime);
+      expect(saved.endDateTime, client.remoteEvent!.endDateTime);
+      expect(saved.sourceId, detail.sourceId);
+      expect(saved.accountId, detail.accountId);
+      expect(saved.providerCalendarId, detail.providerCalendarId);
+      expect(saved.title, 'Base');
+    },
+  );
 
   for (final throughEngine in [false, true]) {
     for (final failSettings in [false, true]) {
@@ -1150,6 +1206,53 @@ void main() {
       );
     },
   );
+
+  test('zoned guarded series edit replays the same civil delta', () async {
+    final repository = CalendarRepository(database: database);
+    final id = await _insertGoogleOccurrence(repository, day: 8);
+    await database
+        .update(database.calendarEvents)
+        .write(
+          const CalendarEventsCompanion(
+            startTimeZone: Value('America/Vancouver'),
+            endTimeZone: Value('America/Vancouver'),
+          ),
+        );
+    final detail = (await repository.loadEventDetail(id))!;
+    await repository.updateLocalEvent(
+      EventEditorDraft.fromEventDetail(detail).copyWith(
+        start: providerInstantInTimeZone(
+          DateTime.utc(2026, 6, 8, 11),
+          'America/Vancouver',
+        ),
+        end: providerInstantInTimeZone(
+          DateTime.utc(2026, 6, 8, 12),
+          'America/Vancouver',
+        ),
+        recurringMutationScope: RecurringEventMutationScope.entireSeries,
+      ),
+      timingBaseline: EventTimingBaseline.fromDetail(detail),
+    );
+    client.remoteEvent = _googleSeriesMaster(timeZone: 'America/Vancouver');
+    expect(
+      await CalendarPendingOpsReplayer(
+        database: database,
+        client: client,
+        accountId: 'account',
+        nowUtc: () => DateTime.utc(2026, 6, 8),
+      ).replayDueOps(),
+      1,
+    );
+    // UTC instants are projected in Vancouver, from 02:00 to 04:00 local.
+    expect(
+      client.updatedMutations.single.startDateTime,
+      '2026-06-01T04:00:00.000',
+    );
+    expect(
+      client.updatedMutations.single.endDateTime,
+      '2026-06-01T05:00:00.000',
+    );
+  });
 
   test('entire-series edit patches the recurring master', () async {
     final repository = CalendarRepository(database: database);
@@ -2454,27 +2557,27 @@ Future<String> _insertGoogleOccurrence(
   );
 }
 
-CalendarEventDto _googleSeriesMaster() {
+CalendarEventDto _googleSeriesMaster({String timeZone = 'UTC'}) {
   const start = '2026-06-01T09:00:00.000Z';
   const end = '2026-06-01T10:00:00.000Z';
   const recurrence = ['RRULE:FREQ=WEEKLY;INTERVAL=1;BYDAY=MO;COUNT=5'];
-  return const CalendarEventDto(
+  return CalendarEventDto(
     provider: BusyProvider.google,
     providerCalendarId: 'cal-1',
     providerEventId: 'series-master',
     title: 'Base',
     organizerJson: {'self': true},
     startDateTime: start,
-    startTimeZone: 'UTC',
+    startTimeZone: timeZone,
     endDateTime: end,
-    endTimeZone: 'UTC',
+    endTimeZone: timeZone,
     recurrenceJson: recurrence,
     updatedAtServer: '2026-05-30T00:00:00.000Z',
     rawJson: {
       'id': 'series-master',
       'summary': 'Base',
-      'start': {'dateTime': start, 'timeZone': 'UTC'},
-      'end': {'dateTime': end, 'timeZone': 'UTC'},
+      'start': {'dateTime': start, 'timeZone': timeZone},
+      'end': {'dateTime': end, 'timeZone': timeZone},
       'recurrence': recurrence,
       'updated': '2026-05-30T00:00:00.000Z',
     },
@@ -2681,6 +2784,8 @@ class _FakeCalendarClient
       startTimeZone: mutation.startTimeZone,
       endTimeZone: mutation.endTimeZone,
       providerCalendarId: calendarId,
+      startDateTime: mutation.startDateTime ?? current?.startDateTime,
+      endDateTime: mutation.endDateTime ?? current?.endDateTime,
     );
     if (persistEventUpdates) {
       remoteEvent = event;
@@ -2779,6 +2884,8 @@ class _FakeCalendarClient
     String updatedAtServer = '2026-06-08T00:00:00.000Z',
     String? startTimeZone,
     String? endTimeZone,
+    String? startDateTime,
+    String? endDateTime,
   }) {
     return CalendarEventDto(
       provider: provider,
@@ -2788,9 +2895,9 @@ class _FakeCalendarClient
       title: title,
       description: description,
       location: location,
-      startDateTime: '2026-06-08T09:00:00.000Z',
+      startDateTime: startDateTime ?? '2026-06-08T09:00:00.000Z',
       startTimeZone: startTimeZone ?? 'UTC',
-      endDateTime: '2026-06-08T10:00:00.000Z',
+      endDateTime: endDateTime ?? '2026-06-08T10:00:00.000Z',
       endTimeZone: endTimeZone ?? 'UTC',
       remindersJson: remindersJson,
       organizerJson: organizerJson,
@@ -2802,11 +2909,11 @@ class _FakeCalendarClient
         if (location != null) 'location': location,
         if (etagOrChangeKey != null) 'etag': etagOrChangeKey,
         'start': {
-          'dateTime': '2026-06-08T09:00:00.000Z',
+          'dateTime': startDateTime ?? '2026-06-08T09:00:00.000Z',
           'timeZone': startTimeZone ?? 'UTC',
         },
         'end': {
-          'dateTime': '2026-06-08T10:00:00.000Z',
+          'dateTime': endDateTime ?? '2026-06-08T10:00:00.000Z',
           'timeZone': endTimeZone ?? 'UTC',
         },
         if (remindersJson != null) 'reminders': remindersJson,
