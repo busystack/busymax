@@ -26,6 +26,12 @@ import '../domain/event_move_policy.dart';
 import '../presentation/event_editor_draft.dart';
 import 'calendar_event_detail.dart';
 
+typedef CalendarEventRecoveryFetcher =
+    Future<CalendarEventDto> Function({
+      required String calendarId,
+      required String eventId,
+    });
+
 class CalendarSourceEntity {
   const CalendarSourceEntity({
     required this.id,
@@ -979,14 +985,43 @@ class CalendarRepository {
     await _onNotificationScheduleChanged?.call();
   }
 
-  Future<void> restoreEventAfterMutationDiscard(PendingOp op) async {
+  Future<void> restoreEventAfterMutationDiscard(
+    PendingOp op, {
+    CalendarEventRecoveryFetcher? fetchProviderEvent,
+  }) async {
     if (op.entityType != 'event' ||
         _calendarOperationType(op) == 'event.create') {
       return;
     }
+    final eventId = op.eventId;
+    if (eventId == null) {
+      throw StateError('The event recovery identity is unavailable.');
+    }
+    final target = await (_database.select(
+      _database.calendarEvents,
+    )..where((row) => row.id.equals(eventId))).getSingleOrNull();
+    if (target == null) return;
+    final provider = BusyProviderCodec.requireStorageValue(target.provider);
+    CalendarEventDto? providerSnapshot;
+    final operationBaseline = _jsonMap(op.baselineRawJson);
+    final recoveryBaseline = operationBaseline.isNotEmpty
+        ? operationBaseline
+        : _jsonMap(target.baselineRawJson);
+    if (!_isCompleteProviderEventBaseline(provider, recoveryBaseline)) {
+      if (fetchProviderEvent == null) {
+        throw StateError('The provider event recovery client is unavailable.');
+      }
+      providerSnapshot = await fetchProviderEvent(
+        calendarId: target.providerCalendarId,
+        eventId: target.providerEventId,
+      );
+    }
     await _database.transaction(
-      () =>
-          _restoreEventProjectionAfterDiscard(op, ignoredOperationIds: {op.id}),
+      () => _restoreEventProjectionAfterDiscard(
+        op,
+        ignoredOperationIds: {op.id},
+        providerSnapshot: providerSnapshot,
+      ),
     );
     await _notificationScheduleService().rebuildUpcomingEventNotifications(
       op.accountId,
@@ -997,6 +1032,7 @@ class CalendarRepository {
   Future<void> _restoreEventProjectionAfterDiscard(
     PendingOp op, {
     required Set<String> ignoredOperationIds,
+    CalendarEventDto? providerSnapshot,
   }) async {
     final eventId = op.eventId;
     if (eventId == null) return;
@@ -1034,57 +1070,19 @@ class CalendarRepository {
     if (remainingOperations.isNotEmpty) return;
 
     for (final event in affectedEvents) {
+      final provider = BusyProviderCodec.requireStorageValue(event.provider);
       final operationBaseline = event.id == eventId
           ? _jsonMap(op.baselineRawJson)
           : const <String, Object?>{};
-      final baseline = operationBaseline.isNotEmpty
-          ? operationBaseline
-          : _jsonMap(event.baselineRawJson);
-      if (baseline.isEmpty) {
-        throw StateError('The event recovery baseline is unavailable.');
-      }
-      final provider = BusyProviderCodec.requireStorageValue(event.provider);
-      baseline.putIfAbsent('id', () => event.providerEventId);
-      switch (provider) {
-        case BusyProvider.google:
-          if (event.providerRecurringEventId case final recurringId?) {
-            baseline.putIfAbsent('recurringEventId', () => recurringId);
-          }
-          if (event.providerOriginalStartKey case final originalStart?) {
-            baseline.putIfAbsent(
-              'originalStartTime',
-              () => originalStart.length == 10
-                  ? {'date': originalStart}
-                  : {'dateTime': originalStart},
+      final restored = event.id == eventId && providerSnapshot != null
+          ? providerSnapshot
+          : _eventFromRecoveryBaseline(
+              event,
+              provider,
+              operationBaseline.isNotEmpty
+                  ? operationBaseline
+                  : _jsonMap(event.baselineRawJson),
             );
-          }
-        case BusyProvider.microsoft:
-          if (event.providerRecurringEventId case final recurringId?) {
-            baseline.putIfAbsent('seriesMasterId', () => recurringId);
-          }
-          if (event.providerOriginalStartKey case final originalStart?) {
-            baseline.putIfAbsent('originalStart', () => originalStart);
-          }
-        case BusyProvider.appleICloud ||
-            BusyProvider.nextcloud ||
-            BusyProvider.webCal:
-          break;
-      }
-      final restored = switch (provider) {
-        BusyProvider.google => googleCalendarEventFromJson(
-          event.providerCalendarId,
-          baseline,
-        ),
-        BusyProvider.microsoft => microsoftCalendarEventFromJson(
-          event.providerCalendarId,
-          baseline,
-        ),
-        BusyProvider.appleICloud ||
-        BusyProvider.nextcloud ||
-        BusyProvider.webCal => throw StateError(
-          'Provider event recovery is unavailable for ${provider.storageValue}.',
-        ),
-      };
       final restoredId = CalendarRepository.eventId(
         accountId: event.accountId,
         provider: provider,
@@ -1097,6 +1095,93 @@ class CalendarRepository {
       }
       await upsertEvent(accountId: event.accountId, event: restored);
     }
+  }
+
+  CalendarEventDto _eventFromRecoveryBaseline(
+    CalendarEvent event,
+    BusyProvider provider,
+    Map<String, Object?> baseline,
+  ) {
+    if (!_isCompleteProviderEventBaseline(provider, baseline)) {
+      throw StateError('A complete event recovery baseline is unavailable.');
+    }
+    baseline.putIfAbsent('id', () => event.providerEventId);
+    switch (provider) {
+      case BusyProvider.google:
+        if (event.providerRecurringEventId case final recurringId?) {
+          baseline.putIfAbsent('recurringEventId', () => recurringId);
+        }
+        if (event.providerOriginalStartKey case final originalStart?) {
+          baseline.putIfAbsent(
+            'originalStartTime',
+            () => originalStart.length == 10
+                ? {'date': originalStart}
+                : {'dateTime': originalStart},
+          );
+        }
+      case BusyProvider.microsoft:
+        if (event.providerRecurringEventId case final recurringId?) {
+          baseline.putIfAbsent('seriesMasterId', () => recurringId);
+        }
+        if (event.providerOriginalStartKey case final originalStart?) {
+          baseline.putIfAbsent('originalStart', () => originalStart);
+        }
+      case BusyProvider.appleICloud ||
+          BusyProvider.nextcloud ||
+          BusyProvider.webCal:
+        break;
+    }
+    return switch (provider) {
+      BusyProvider.google => googleCalendarEventFromJson(
+        event.providerCalendarId,
+        baseline,
+      ),
+      BusyProvider.microsoft => microsoftCalendarEventFromJson(
+        event.providerCalendarId,
+        baseline,
+      ),
+      BusyProvider.appleICloud ||
+      BusyProvider.nextcloud ||
+      BusyProvider.webCal => throw StateError(
+        'Provider event recovery is unavailable for ${provider.storageValue}.',
+      ),
+    };
+  }
+
+  bool _isCompleteProviderEventBaseline(
+    BusyProvider provider,
+    Map<String, Object?> baseline,
+  ) {
+    if (baseline.isEmpty ||
+        baseline.containsKey(calendarEventSemanticBaselineKey)) {
+      return false;
+    }
+    final start = _jsonObjectMap(baseline['start']);
+    final end = _jsonObjectMap(baseline['end']);
+    return switch (provider) {
+      BusyProvider.google =>
+        _hasNonEmptyValue(start, 'date', 'dateTime') &&
+            _hasNonEmptyValue(end, 'date', 'dateTime'),
+      BusyProvider.microsoft =>
+        _hasNonEmptyValue(start, 'dateTime') &&
+            _hasNonEmptyValue(end, 'dateTime'),
+      BusyProvider.appleICloud ||
+      BusyProvider.nextcloud ||
+      BusyProvider.webCal => false,
+    };
+  }
+
+  bool _hasNonEmptyValue(
+    Map<String, Object?> values,
+    String key, [
+    String? alternativeKey,
+  ]) {
+    final value = values[key]?.toString().trim();
+    if (value != null && value.isNotEmpty) return true;
+    final alternative = alternativeKey == null
+        ? null
+        : values[alternativeKey]?.toString().trim();
+    return alternative != null && alternative.isNotEmpty;
   }
 
   Future<void> restoreSourceAfterPatchDiscard(PendingOp op) async {

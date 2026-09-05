@@ -7,6 +7,7 @@ import 'package:http/http.dart' as http;
 import 'package:uuid/uuid.dart';
 
 import '../config/build_config.dart';
+import '../calendar_providers/cloud_calendar_client.dart';
 import '../db/app_database.dart';
 import '../dav/auth/dav_account_onboarding_service.dart';
 import '../dav/auth/nextcloud_app_password_revoker.dart';
@@ -487,6 +488,30 @@ final taskRemoteApiClientForAccountProvider =
       };
     });
 
+final calendarRemoteApiClientForAccountProvider =
+    Provider.family<CloudCalendarClient?, String>((ref, accountId) {
+      final accounts = ref.watch(accountsStreamProvider).valueOrNull;
+      AccountEntity? account;
+      for (final candidate in accounts ?? const <AccountEntity>[]) {
+        if (candidate.id == accountId) {
+          account = candidate;
+          break;
+        }
+      }
+      if (account == null) return null;
+      return switch (account.provider) {
+        BusyProvider.google => ref.watch(
+          googleCalendarApiClientForAccountProvider(accountId),
+        ),
+        BusyProvider.microsoft => ref.watch(
+          microsoftCalendarApiClientForAccountProvider(accountId),
+        ),
+        BusyProvider.appleICloud ||
+        BusyProvider.nextcloud ||
+        BusyProvider.webCal => null,
+      };
+    });
+
 typedef SyncEngineForAccountFactory =
     SyncEngine Function(String accountId, BusyProvider provider);
 
@@ -935,6 +960,9 @@ final pendingOpResolutionServiceProvider =
       return PendingOpResolutionService(
         database: ref.watch(databaseProvider),
         apiClient: ref.watch(googleTasksApiClientProvider),
+        calendarClient: ref.watch(
+          calendarRemoteApiClientForAccountProvider(accountId),
+        ),
         accountId: accountId,
         syncTasks: () => ref
             .read(accountSyncOperationsProvider)

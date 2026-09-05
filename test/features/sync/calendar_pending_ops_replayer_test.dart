@@ -12,6 +12,7 @@ import 'package:busymax/src/features/calendar/data/calendar_repository.dart';
 import 'package:busymax/src/features/calendar/presentation/event_editor_draft.dart';
 import 'package:busymax/src/features/sync/calendar_pending_ops_replayer.dart';
 import 'package:busymax/src/features/sync/calendar_sync_engine.dart';
+import 'package:busymax/src/features/sync/pending_op_resolution_service.dart';
 import 'package:busymax/src/google_calendar/google_calendar_errors.dart';
 import 'package:busymax/src/microsoft_calendar/microsoft_calendar_errors.dart';
 import 'package:busymax/src/providers/busy_provider.dart';
@@ -1391,6 +1392,149 @@ void main() {
     },
   );
 
+  test(
+    'discarding a rebased blocked edit restores the complete remote event',
+    () async {
+      final repository = CalendarRepository(
+        database: database,
+        now: () => DateTime.utc(2026, 6, 8),
+      );
+      final baseEvent = client._event(
+        'provider-event',
+        title: 'Base title',
+        description: 'Planning description',
+        location: 'Base room',
+        remindersJson: const {
+          'useDefault': false,
+          'overrides': [
+            {'method': 'popup', 'minutes': 30},
+          ],
+        },
+        organizerJson: const {'self': true},
+      );
+      await repository.upsertEvent(accountId: 'account', event: baseEvent);
+      final eventId = CalendarRepository.eventId(
+        accountId: 'account',
+        provider: BusyProvider.google,
+        providerCalendarId: 'cal-1',
+        providerEventId: 'provider-event',
+      );
+
+      var detail = await repository.loadEventDetail(eventId);
+      await repository.updateLocalEvent(
+        EventEditorDraft.fromEventDetail(
+          detail!,
+        ).copyWith(title: 'First local title'),
+      );
+      detail = await repository.loadEventDetail(eventId);
+      await repository.updateLocalEvent(
+        EventEditorDraft.fromEventDetail(
+          detail!,
+        ).copyWith(location: 'Second local room'),
+      );
+
+      client
+        ..persistEventUpdates = true
+        ..remoteEvent = client._event(
+          'provider-event',
+          title: 'Base title',
+          description: 'Planning description',
+          location: 'Remote room',
+          remindersJson: baseEvent.remindersJson,
+          organizerJson: baseEvent.organizerJson,
+          updatedAtServer: '2026-06-08T00:05:00.000Z',
+        );
+
+      final applied = await CalendarPendingOpsReplayer(
+        database: database,
+        client: client,
+        accountId: 'account',
+        nowUtc: () => DateTime.utc(2026, 6, 8, 1),
+      ).replayDueOps();
+
+      expect(applied, 1);
+      final blocked = await database.select(database.pendingOps).getSingle();
+      expect(blocked.lastErrorCode, 'conflict');
+      expect(
+        (jsonDecode(blocked.baselineRawJson!) as Map).containsKey(
+          calendarEventSemanticBaselineKey,
+        ),
+        isTrue,
+      );
+      client.getEventError = StateError('Provider temporarily unavailable');
+      final failingResolutionService = PendingOpResolutionService(
+        database: database,
+        calendarClient: client,
+        accountId: 'account',
+        syncTasks: () async {},
+        syncCalendar: () async {},
+        nowUtc: () => DateTime.utc(2026, 6, 8),
+      );
+      await expectLater(
+        failingResolutionService.discard(blocked.id),
+        throwsA(isA<StateError>()),
+      );
+      expect(
+        await database.pendingOpsDao.getOp(blocked.id),
+        isNot(equals(null)),
+      );
+      expect(
+        (await (database.select(
+          database.calendarEvents,
+        )..where((row) => row.id.equals(eventId))).getSingle()).location,
+        'Second local room',
+      );
+      client.getEventError = null;
+      final getCallsBeforeDiscard = client.calls
+          .where((call) => call == 'getEvent:cal-1:provider-event')
+          .length;
+      var calendarSyncCalls = 0;
+      final resolutionService = PendingOpResolutionService(
+        database: database,
+        calendarClient: client,
+        accountId: 'account',
+        syncTasks: () async {},
+        syncCalendar: () async => calendarSyncCalls += 1,
+        nowUtc: () => DateTime.utc(2026, 6, 8),
+      );
+
+      await resolutionService.discard(blocked.id);
+
+      expect(
+        client.calls
+            .where((call) => call == 'getEvent:cal-1:provider-event')
+            .length,
+        getCallsBeforeDiscard + 1,
+      );
+      expect(await database.select(database.pendingOps).get(), isEmpty);
+      expect(calendarSyncCalls, 1);
+      final restored = await (database.select(
+        database.calendarEvents,
+      )..where((row) => row.id.equals(eventId))).getSingle();
+      expect(restored.title, 'First local title');
+      expect(restored.description, 'Planning description');
+      expect(restored.location, 'Remote room');
+      expect(restored.startDateTime, '2026-06-08T09:00:00.000Z');
+      expect(restored.endDateTime, '2026-06-08T10:00:00.000Z');
+      expect(restored.startTimeZone, 'UTC');
+      expect(restored.endTimeZone, 'UTC');
+      expect(restored.remindersJson, jsonEncode(baseEvent.remindersJson));
+      expect(restored.organizerJson, jsonEncode(baseEvent.organizerJson));
+      expect(restored.syncStatus, 'synced');
+      expect(restored.isDeleted, isFalse);
+
+      final notification = await database
+          .select(database.notificationSchedule)
+          .getSingle();
+      expect(notification.sourceId, eventId);
+      expect(notification.title, 'First local title');
+      expect(
+        notification.scheduledAtUtc,
+        DateTime.utc(2026, 6, 8, 8, 30).millisecondsSinceEpoch,
+      );
+    },
+  );
+
   test('event delete pending op calls provider deleteEvent', () async {
     final eventId = await _insertEvent(
       database,
@@ -2345,6 +2489,7 @@ class _FakeCalendarClient
   Completer<void>? createEventGate;
   Completer<void>? calendarPatchGate;
   Object? createEventResponseError;
+  Object? getEventError;
 
   int get distinctCreatedEventCount => _createdEventsByIdentity.length;
 
@@ -2438,9 +2583,16 @@ class _FakeCalendarClient
       title: persistEventUpdates
           ? mutation.title ?? current?.title ?? ''
           : mutation.title ?? '',
+      description: persistEventUpdates
+          ? mutation.description ?? current?.description
+          : mutation.description,
       location: persistEventUpdates
           ? mutation.location ?? current?.location
           : mutation.location,
+      remindersJson: persistEventUpdates
+          ? mutation.reminders ?? current?.remindersJson
+          : mutation.reminders,
+      organizerJson: persistEventUpdates ? current?.organizerJson : null,
       updatedAtServer: persistEventUpdates
           ? DateTime.utc(
               2026,
@@ -2466,6 +2618,8 @@ class _FakeCalendarClient
     required String eventId,
   }) async {
     calls.add('getEvent:$calendarId:$eventId');
+    final error = getEventError;
+    if (error != null) throw error;
     final remote = remoteEvent;
     if (remote != null) return remote;
     for (final created in _createdEventsByIdentity.values) {
@@ -2541,7 +2695,10 @@ class _FakeCalendarClient
     String id, {
     required String title,
     String providerCalendarId = 'cal-1',
+    String? description,
     String? location,
+    Object? remindersJson,
+    Object? organizerJson,
     String? etagOrChangeKey,
     String updatedAtServer = '2026-06-08T00:00:00.000Z',
     String? startTimeZone,
@@ -2553,17 +2710,31 @@ class _FakeCalendarClient
       providerEventId: id,
       etagOrChangeKey: etagOrChangeKey,
       title: title,
+      description: description,
       location: location,
       startDateTime: '2026-06-08T09:00:00.000Z',
-      startTimeZone: startTimeZone,
+      startTimeZone: startTimeZone ?? 'UTC',
       endDateTime: '2026-06-08T10:00:00.000Z',
-      endTimeZone: endTimeZone,
+      endTimeZone: endTimeZone ?? 'UTC',
+      remindersJson: remindersJson,
+      organizerJson: organizerJson,
       updatedAtServer: updatedAtServer,
       rawJson: {
         'id': id,
         'summary': title,
+        if (description != null) 'description': description,
         if (location != null) 'location': location,
         if (etagOrChangeKey != null) 'etag': etagOrChangeKey,
+        'start': {
+          'dateTime': '2026-06-08T09:00:00.000Z',
+          'timeZone': startTimeZone ?? 'UTC',
+        },
+        'end': {
+          'dateTime': '2026-06-08T10:00:00.000Z',
+          'timeZone': endTimeZone ?? 'UTC',
+        },
+        if (remindersJson != null) 'reminders': remindersJson,
+        if (organizerJson != null) 'organizer': organizerJson,
         'updated': updatedAtServer,
       },
     );

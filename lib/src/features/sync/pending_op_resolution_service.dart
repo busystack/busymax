@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import '../../calendar_providers/cloud_calendar_client.dart';
 import '../../db/app_database.dart';
 import '../calendar/data/calendar_repository.dart';
 import '../task_lists/data/task_lists_repository.dart';
@@ -11,12 +12,14 @@ class PendingOpResolutionService {
   PendingOpResolutionService({
     required AppDatabase database,
     TaskRemoteClient? apiClient,
+    CloudCalendarClient? calendarClient,
     required String accountId,
     required Future<void> Function() syncTasks,
     required Future<void> Function() syncCalendar,
     DateTime Function()? nowUtc,
   }) : _database = database,
        _apiClient = apiClient,
+       _calendarClient = calendarClient,
        _accountId = accountId,
        _syncTasks = syncTasks,
        _syncCalendar = syncCalendar,
@@ -24,6 +27,7 @@ class PendingOpResolutionService {
 
   final AppDatabase _database;
   final TaskRemoteClient? _apiClient;
+  final CloudCalendarClient? _calendarClient;
   final String _accountId;
   final Future<void> Function() _syncTasks;
   final Future<void> Function() _syncCalendar;
@@ -72,7 +76,13 @@ class PendingOpResolutionService {
         await repository.discardPendingEventCreation(op);
         return false;
       }
-      await repository.restoreEventAfterMutationDiscard(op);
+      await repository.restoreEventAfterMutationDiscard(
+        op,
+        fetchProviderEvent: _calendarClient == null
+            ? null
+            : ({required calendarId, required eventId}) => _calendarClient
+                  .getEvent(calendarId: calendarId, eventId: eventId),
+      );
       return true;
     }
 

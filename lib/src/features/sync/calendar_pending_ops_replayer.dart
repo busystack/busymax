@@ -495,7 +495,7 @@ class CalendarPendingOpsReplayer {
       )..where((row) => row.id.equals(dependent.id))).write(
         PendingOpsCompanion(
           baselineRawJson: Value(
-            jsonEncode({_eventSemanticBaselineKey: baseline}),
+            jsonEncode({calendarEventSemanticBaselineKey: baseline}),
           ),
           updatedAtUtc: Value(_nowUtc().toIso8601String()),
         ),
@@ -1259,7 +1259,7 @@ class CalendarPendingOpsReplayer {
     String encodedBaseline,
   ) {
     final raw = _jsonObject(encodedBaseline);
-    final semantic = raw[_eventSemanticBaselineKey];
+    final semantic = raw[calendarEventSemanticBaselineKey];
     if (semantic is Map) {
       return semantic.cast<String, Object?>();
     }
@@ -1886,8 +1886,6 @@ String? _localStart(CalendarEvent event) =>
 
 String? _localEnd(CalendarEvent event) =>
     event.allDay ? event.endDate : event.endDateTime;
-
-const _eventSemanticBaselineKey = '__busymaxSemanticBaseline';
 
 Map<String, Object?> _mapValue(Object? value) {
   if (value is Map<String, Object?>) {
