@@ -172,8 +172,8 @@ void main() {
         final nameRect = tester.getRect(find.text(displayName));
         final addressRect = tester.getRect(find.text(email));
         expect(nameRect.top, lessThan(addressRect.top));
-        expect(nameRect.left, closeTo(indicatorRect.left, 0.01));
-        expect(addressRect.left, greaterThan(indicatorRect.right));
+        expect(nameRect.left, closeTo(addressRect.left, 0.01));
+        expect(addressRect.right, lessThan(indicatorRect.left));
         expect(addressRect.center.dy, closeTo(indicatorRect.center.dy, 0.01));
 
         await tester.tap(
@@ -505,17 +505,20 @@ Future<void> _pumpSidebar(
       child: localizedTestApp(
         locale: locale,
         theme: theme,
-        child: SizedBox(
-          width: width,
-          height: 800,
-          child: ScheduleSidebar(
-            selectedDate: DateTime(2026, 8, 29),
-            firstWeekday: DateTime.monday,
-            items: const [],
-            onDateSelected: (_) {},
-            onMonthSelected: (_) {},
-            onYearSelected: (_) {},
-            onWeekSelected: (_) {},
+        child: Align(
+          alignment: Alignment.topLeft,
+          child: SizedBox(
+            width: width,
+            height: 800,
+            child: ScheduleSidebar(
+              selectedDate: DateTime(2026, 8, 29),
+              firstWeekday: DateTime.monday,
+              items: const [],
+              onDateSelected: (_) {},
+              onMonthSelected: (_) {},
+              onYearSelected: (_) {},
+              onWeekSelected: (_) {},
+            ),
           ),
         ),
       ),

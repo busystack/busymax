@@ -583,15 +583,6 @@ class _AccountHeaderRow extends StatelessWidget {
                       ),
                     Row(
                       children: [
-                        _AccountProviderIndicator(
-                          key: ValueKey((
-                            'account-provider-indicator',
-                            account.id,
-                          )),
-                          provider: account.provider,
-                          providerName: providerName,
-                        ),
-                        const SizedBox(width: BusyMaxSpacing.xs),
                         Expanded(
                           child: Text(
                             hasSecondaryLabel
@@ -607,6 +598,15 @@ class _AccountHeaderRow extends StatelessWidget {
                                   )
                                 : Theme.of(context).textTheme.labelLarge,
                           ),
+                        ),
+                        const SizedBox(width: BusyMaxSpacing.xs),
+                        _AccountProviderIndicator(
+                          key: ValueKey((
+                            'account-provider-indicator',
+                            account.id,
+                          )),
+                          provider: account.provider,
+                          providerName: providerName,
                         ),
                       ],
                     ),
