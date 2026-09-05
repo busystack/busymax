@@ -1,4 +1,5 @@
 import '../dav_errors.dart';
+import '../../features/maps/domain/geographic_point.dart';
 import '../ical/ical_document.dart';
 import '../ical/ical_recurrence.dart';
 import '../ical/ical_semantics.dart';
@@ -16,6 +17,8 @@ final class DavEventMutationInput {
     this.endTimeZone,
     this.description,
     this.location,
+    this.locationPoint,
+    this.locationChanged = false,
     this.recurrence,
     this.recurrenceChanged = false,
     this.reminders,
@@ -34,6 +37,8 @@ final class DavEventMutationInput {
   final String? endTimeZone;
   final String? description;
   final String? location;
+  final GeographicPoint? locationPoint;
+  final bool locationChanged;
   final Object? recurrence;
   final bool recurrenceChanged;
   final Object? reminders;
@@ -70,6 +75,7 @@ DavNewObject buildDavEventObject(
     location: _nonEmpty(input.location),
   );
   final operations = <DavPatchOperation>[
+    if (input.locationPoint != null) DavPatchOperation.setRaw('GEO', input.locationPoint!.icalValue),
     if (_classification(input.classification) case final value?)
       DavPatchOperation.setRaw('CLASS', value),
     if (_transparency(input.transparency) case final value?)
@@ -122,6 +128,9 @@ DavMutationPatch? buildDavEventUpdatePatch({
     operations.add(
       DavPatchOperation.setText('LOCATION', _nonEmpty(input.location)),
     );
+  }
+  if (input.locationChanged || (current.location ?? '') != (input.location ?? '')) {
+    operations.add(DavPatchOperation.setRaw('GEO', input.locationPoint?.icalValue));
   }
   final start = _eventTemporal(
     input.start,
@@ -307,6 +316,8 @@ DavMutationPatch buildDavEventOccurrenceExceptionPatch({
           _property('DESCRIPTION', encodeIcalText(description)),
         if (_nonEmpty(input.location) case final location?)
           _property('LOCATION', encodeIcalText(location)),
+        if (_nonEmpty(input.location) == null && input.locationChanged) _property('LOCATION', ''),
+        if (input.locationPoint != null) _property('GEO', input.locationPoint!.icalValue),
         if (_classification(input.classification) case final value?)
           _property('CLASS', value),
         if (_transparency(input.transparency) case final value?)
@@ -467,6 +478,7 @@ DavNewObject buildDavTaskObject(
         'LOCATION',
         _nonEmpty(fields['location']?.toString()),
       ),
+    if (GeographicPoint.fromJson(fields['locationPoint']) case final point?) DavPatchOperation.setRaw('GEO', point.icalValue),
     if (fields.containsKey('taskUrl'))
       DavPatchOperation.setRaw('URL', _taskUrl(fields['taskUrl'])),
     if (fields.containsKey('taskClassification'))
@@ -586,6 +598,9 @@ DavMutationPatch? buildDavTaskUpdatePatch({
         _nonEmpty(fields['location']?.toString()),
       ),
     );
+  }
+  if (fields.containsKey('locationPoint') || fields.containsKey('location')) {
+    operations.add(DavPatchOperation.setRaw('GEO', GeographicPoint.fromJson(fields['locationPoint'])?.icalValue));
   }
   if (fields.containsKey('taskUrl')) {
     operations.add(
@@ -753,6 +768,7 @@ DavMutationPatch buildDavRecurringTaskCompletionPatch({
         _property('DESCRIPTION', encodeIcalText(description)),
       if (_nonEmpty(master.location) case final location?)
         _property('LOCATION', encodeIcalText(location)),
+      if (master.documentComponent.firstProperty('GEO') case final geo?) geo.deepCopy(),
       if (_nonEmpty(master.url) case final url?) _property('URL', url),
       if (master.priority case final priority?)
         _property('PRIORITY', '$priority'),

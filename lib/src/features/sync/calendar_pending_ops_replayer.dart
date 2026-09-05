@@ -1,4 +1,6 @@
 import 'dart:convert';
+import '../maps/data/location_resolution_repository.dart';
+import '../maps/domain/location_result.dart';
 import 'dart:math';
 
 import 'package:drift/drift.dart';
@@ -900,6 +902,11 @@ class CalendarPendingOpsReplayer {
 
     await _database.transaction(() async {
       await _repository.upsertEvent(accountId: _accountId, event: serverEvent);
+      if (tempEventId != null) {
+        final old = await (_database.select(_database.calendarEvents)..where((r) => r.id.equals(tempEventId))).getSingleOrNull();
+        final replacement = await (_database.select(_database.calendarEvents)..where((r) => r.id.equals(serverEventId))).getSingle();
+        if (old != null) await LocationResolutionRepository(_database).transfer(LocationItemIdentity(kind: LocationItemKind.event, accountId: old.accountId, sourceId: old.calendarSourceId, itemId: old.id), LocationItemIdentity(kind: LocationItemKind.event, accountId: replacement.accountId, sourceId: replacement.calendarSourceId, itemId: replacement.id));
+      }
       await _removeMovedSeriesSourceRows(op);
       await _confirmDependentCopyDeletes(op, serverEventId);
       if (tempEventId != null && tempEventId != serverEventId) {
@@ -1371,6 +1378,7 @@ class CalendarPendingOpsReplayer {
       descriptionContentType: request['descriptionContentType']?.toString(),
       descriptionHtml: request['descriptionHtml']?.toString(),
       location: request['location']?.toString(),
+      structuredLocation: request['structuredLocation'] is Map ? Map<String, Object?>.from(request['structuredLocation'] as Map) : null,
       allDay: request['allDay'] as bool?,
       startDate: allDay ? _dateFromIso(start) : null,
       startDateTime: allDay ? null : start,

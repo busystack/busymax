@@ -1,4 +1,6 @@
 import '../../../core/time/provider_date_time.dart';
+import '../../maps/domain/geographic_point.dart';
+import '../../maps/domain/location_result.dart';
 import '../../../providers/busy_provider.dart';
 import '../data/calendar_event_detail.dart';
 
@@ -116,6 +118,8 @@ class EventEditorDraft {
     this.startTimeZone,
     this.endTimeZone,
     this.location,
+    this.locationPoint,
+    this.locationChange = const LocationChange.unchanged(),
     this.description,
     this.descriptionContentType,
     this.descriptionHtml,
@@ -212,6 +216,7 @@ class EventEditorDraft {
       startTimeZone: detail.startTimeZone,
       endTimeZone: detail.endTimeZone,
       location: detail.location,
+      locationPoint: detail.locationPoint,
       description: detail.description,
       descriptionContentType: descriptionContentType,
       descriptionHtml: descriptionHtml,
@@ -249,6 +254,7 @@ class EventEditorDraft {
     DateTime? start,
     DateTime? end,
     String? location,
+    GeographicPoint? locationPoint,
     String? providerRecurringEventId,
     String? eventType,
     RecurringEventMutationScope? recurringMutationScope,
@@ -289,6 +295,7 @@ class EventEditorDraft {
       startTimeZone: startTimeZone,
       endTimeZone: endTimeZone,
       location: location,
+      locationPoint: locationPoint,
       description: description,
       descriptionContentType: descriptionContentType,
       descriptionHtml: descriptionHtml,
@@ -325,6 +332,9 @@ class EventEditorDraft {
   final String? startTimeZone;
   final String? endTimeZone;
   final String? location;
+  final GeographicPoint? locationPoint;
+  final LocationChange locationChange;
+  GeographicPoint? get effectiveLocationPoint => locationChange.changed ? locationChange.selection?.point : locationPoint;
   final String? description;
   final String? descriptionContentType;
   final String? descriptionHtml;
@@ -371,6 +381,7 @@ class EventEditorDraft {
   }
 
   EventEditorDraft copyWith({
+    LocationChange? locationChange,
     String? accountId,
     String? sourceId,
     String? providerCalendarId,
@@ -433,6 +444,8 @@ class EventEditorDraft {
       startTimeZone: startTimeZone ?? this.startTimeZone,
       endTimeZone: endTimeZone ?? this.endTimeZone,
       location: clearLocation ? null : location ?? this.location,
+      locationPoint: locationPoint,
+      locationChange: locationChange ?? (clearLocation || (location != null && location != this.location) ? const LocationChange.clear() : this.locationChange),
       description: clearDescription ? null : description ?? this.description,
       descriptionContentType: clearDescription
           ? null
@@ -489,6 +502,8 @@ class EventEditorDraft {
         other.startTimeZone == startTimeZone &&
         other.endTimeZone == endTimeZone &&
         other.location == location &&
+        other.locationPoint == locationPoint &&
+        other.locationChange == locationChange &&
         other.description == description &&
         other.descriptionContentType == descriptionContentType &&
         other.descriptionHtml == descriptionHtml &&
@@ -530,6 +545,8 @@ class EventEditorDraft {
     startTimeZone,
     endTimeZone,
     location,
+    locationPoint,
+    locationChange,
     description,
     descriptionContentType,
     descriptionHtml,

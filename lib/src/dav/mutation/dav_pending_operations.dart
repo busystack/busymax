@@ -1,4 +1,6 @@
 import 'dart:convert';
+import '../../features/maps/data/location_resolution_repository.dart';
+import '../../features/maps/domain/location_result.dart';
 import 'dart:math';
 
 import 'package:drift/drift.dart';
@@ -938,6 +940,25 @@ final class DavPendingOperationsReplayer {
     await _confirmDependentCopyDeletes(op, canonical?.hrefKey);
     await _database.pendingOpsDao.deleteOp(op.id);
     if (op.operationType == 'dav.create') {
+      final resolutions = LocationResolutionRepository(_database);
+      if (op.eventId != null) {
+        final old = await (_database.select(_database.calendarEvents)..where((r) => r.accountId.equals(_accountId) & r.id.equals(op.eventId!))).getSingleOrNull();
+        if (old != null && old.icalUid != null) {
+          final rows = await (_database.select(_database.calendarEvents)..where((r) => r.accountId.equals(_accountId) & r.calendarSourceId.equals(old.calendarSourceId) & r.icalUid.equals(old.icalUid!) & r.davObjectId.isNotNull())).get();
+          for (final row in rows) {
+            await resolutions.transfer(LocationItemIdentity(kind: LocationItemKind.event, accountId: _accountId, sourceId: old.calendarSourceId, itemId: old.id), LocationItemIdentity(kind: LocationItemKind.event, accountId: _accountId, sourceId: row.calendarSourceId, itemId: row.id));
+          }
+        }
+      }
+      if (op.taskId != null) {
+        final old = await (_database.select(_database.tasks)..where((r) => r.accountId.equals(_accountId) & r.id.equals(op.taskId!) & r.davCollectionId.equals(op.davCollectionId!))).getSingleOrNull();
+        if (old != null && old.icalUid != null) {
+          final rows = await (_database.select(_database.tasks)..where((r) => r.accountId.equals(_accountId) & r.taskListId.equals(old.taskListId) & r.icalUid.equals(old.icalUid!) & r.davObjectId.isNotNull())).get();
+          for (final row in rows) {
+            await resolutions.transfer(LocationItemIdentity(kind: LocationItemKind.task, accountId: _accountId, sourceId: old.taskListId, itemId: old.id), LocationItemIdentity(kind: LocationItemKind.task, accountId: _accountId, sourceId: row.taskListId, itemId: row.id));
+          }
+        }
+      }
       if (op.eventId != null) {
         await (_database.delete(_database.calendarEvents)..where(
               (row) =>

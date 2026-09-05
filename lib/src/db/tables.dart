@@ -258,6 +258,8 @@ class Tasks extends Table {
   IntColumn get icalPriority => integer().nullable()();
   IntColumn get percentComplete => integer().nullable()();
   TextColumn get taskLocation => text().nullable()();
+  RealColumn get locationLatitude => real().nullable()();
+  RealColumn get locationLongitude => real().nullable()();
   TextColumn get taskUrl => text().nullable()();
   TextColumn get taskClassification => text().nullable()();
   BoolColumn get taskPinned => boolean().nullable()();
@@ -459,6 +461,8 @@ class CalendarEvents extends Table {
   TextColumn get title => text()();
   TextColumn get description => text().nullable()();
   TextColumn get location => text().nullable()();
+  RealColumn get locationLatitude => real().nullable()();
+  RealColumn get locationLongitude => real().nullable()();
   BoolColumn get allDay => boolean().withDefault(const Constant(false))();
   TextColumn get startDate => text().nullable()();
   TextColumn get startDateTime => text().nullable()();
@@ -492,6 +496,22 @@ class CalendarEvents extends Table {
 
   @override
   Set<Column<Object>> get primaryKey => {id};
+}
+
+/// Local-only selected geocoding results, not synchronized provider content.
+class LocationResolutions extends Table {
+  TextColumn get kind => text()();
+  TextColumn get accountId => text().references(Accounts, #id, onDelete: KeyAction.cascade)();
+  TextColumn get sourceId => text()();
+  TextColumn get itemId => text()();
+  TextColumn get locationText => text()();
+  TextColumn get label => text()();
+  RealColumn get latitude => real()();
+  RealColumn get longitude => real()();
+  TextColumn get source => text()();
+  TextColumn get attribution => text()();
+  @override
+  Set<Column<Object>> get primaryKey => {kind, accountId, sourceId, itemId};
 }
 
 class IcalImportReceipts extends Table {

@@ -1,4 +1,6 @@
 import 'dart:convert';
+import '../../maps/domain/geographic_point.dart';
+import '../../maps/domain/location_result.dart';
 
 import 'package:timezone/data/latest_all.dart' as time_zone_data;
 import 'package:timezone/timezone.dart' as time_zone;
@@ -36,6 +38,8 @@ class TaskDetailsDraft {
     required this.completedDate,
     required this.completedTime,
     required this.location,
+    this.locationPoint,
+    this.locationChange = const LocationChange.unchanged(),
     required this.taskUrl,
     required this.classification,
     required this.pinned,
@@ -96,6 +100,7 @@ class TaskDetailsDraft {
       completedDate: _localDatePart(task.completedUtc),
       completedTime: _localTimePart(task.completedUtc),
       location: task.taskLocation ?? '',
+      locationPoint: task.locationPoint,
       taskUrl: task.taskUrl ?? '',
       classification: _classificationValue(task.taskClassification),
       pinned: task.taskPinned ?? false,
@@ -128,6 +133,9 @@ class TaskDetailsDraft {
   final String? completedDate;
   final String? completedTime;
   final String location;
+  final GeographicPoint? locationPoint;
+  final LocationChange locationChange;
+  GeographicPoint? get effectiveLocationPoint => locationChange.changed ? locationChange.selection?.point : locationPoint;
   final String taskUrl;
   final String classification;
   final bool pinned;
@@ -218,6 +226,7 @@ class TaskDetailsDraft {
         completedDate == other.completedDate &&
         completedTime == other.completedTime &&
         location == other.location &&
+        locationPoint == other.locationPoint && locationChange == other.locationChange &&
         taskUrl == other.taskUrl &&
         classification == other.classification &&
         pinned == other.pinned &&
@@ -369,6 +378,7 @@ class TaskDetailsDraft {
         location != (original.taskLocation ?? '')) {
       fields['location'] = location;
     }
+    if (capabilities.supportsLocation && locationChange.changed) fields['locationPoint'] = locationChange.selection?.point.toJson();
     if (capabilities.supportsUrl && taskUrl != (original.taskUrl ?? '')) {
       fields['taskUrl'] = taskUrl;
     }
@@ -433,6 +443,7 @@ class TaskDetailsDraft {
   }
 
   TaskDetailsDraft copyWith({
+    LocationChange? locationChange,
     String? taskListId,
     String? title,
     String? notes,
@@ -507,6 +518,8 @@ class TaskDetailsDraft {
           ? this.completedTime
           : completedTime as String?,
       location: location ?? this.location,
+      locationPoint: locationPoint,
+      locationChange: locationChange ?? (location != null && location != this.location ? const LocationChange.clear() : this.locationChange),
       taskUrl: taskUrl ?? this.taskUrl,
       classification: classification ?? this.classification,
       pinned: pinned ?? this.pinned,

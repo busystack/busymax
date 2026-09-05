@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import '../features/maps/data/location_resolution_repository.dart';
 import 'dart:math' as math;
 
 import 'package:crypto/crypto.dart';
@@ -903,6 +904,13 @@ final class WebCalSubscriptionService {
     required List<ProjectedIcalEvent> projections,
     required DateTime now,
   }) async {
+    final resolutions = LocationResolutionRepository(_database);
+    final remembered = await resolutions.capture(eventSourceId: sourceId);
+    await _replaceEventsBody(subscriptionId: subscriptionId, accountId: accountId, sourceId: sourceId, color: color, projections: projections, now: now);
+    await resolutions.restore(remembered);
+  }
+
+  Future<void> _replaceEventsBody({required String subscriptionId, required String accountId, required String sourceId, required String? color, required List<ProjectedIcalEvent> projections, required DateTime now}) async {
     await (_database.delete(
       _database.calendarEvents,
     )..where((row) => row.calendarSourceId.equals(sourceId))).go();
@@ -938,6 +946,8 @@ final class WebCalSubscriptionService {
               title: projected.title,
               description: Value(projected.description),
               location: Value(projected.location),
+              locationLatitude: Value(projected.locationPoint?.latitude),
+              locationLongitude: Value(projected.locationPoint?.longitude),
               allDay: Value(projected.allDay),
               startDate: Value(projected.startDate),
               startDateTime: Value(projected.startDateTime),

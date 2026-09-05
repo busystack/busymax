@@ -48,6 +48,7 @@ class CalendarEventMutation {
     this.descriptionContentType,
     this.descriptionHtml,
     this.location,
+    this.structuredLocation,
     this.allDay,
     this.startDate,
     this.startDateTime,
@@ -80,6 +81,8 @@ class CalendarEventMutation {
   final String? descriptionContentType;
   final String? descriptionHtml;
   final String? location;
+  /// Explicit Graph replacement. Null means leave structured location intact.
+  final Map<String, Object?>? structuredLocation;
   final bool? allDay;
   final String? startDate;
   final String? startDateTime;

@@ -3,6 +3,7 @@ import '../calendar_providers/calendar_mutation.dart';
 import '../calendar_providers/calendar_description.dart';
 import '../calendar_providers/calendar_sync_dto.dart';
 import '../core/time/provider_date_time.dart';
+import '../features/maps/domain/geographic_point.dart';
 import 'package:busymax/src/providers/busy_provider.dart';
 
 CalendarSourceDto microsoftCalendarSourceFromJson(Map<String, Object?> json) {
@@ -56,6 +57,8 @@ CalendarEventDto microsoftCalendarEventFromJson(
       contentType: body['contentType']?.toString(),
     ).text,
     location: location['displayName']?.toString(),
+    locationPoint: GeographicPoint.fromJson(location['coordinates']),
+    locationAddress: location['address'] is Map ? Map<String, Object?>.from(location['address'] as Map) : null,
     allDay: isAllDay,
     startDate: isAllDay ? _dateOnly(start['dateTime']) : null,
     startDateTime: start['dateTime']?.toString(),
@@ -101,8 +104,8 @@ Map<String, Object?> microsoftEventMutationToJson(
   final result = _compact({
     'subject': mutation.title,
     if (_bodyPatch(mutation) != null) 'body': _bodyPatch(mutation),
-    if (mutation.location != null)
-      'location': {'displayName': mutation.location},
+    if (mutation.structuredLocation != null || mutation.location != null)
+      'location': mutation.structuredLocation ?? {'displayName': mutation.location, 'address': const <String, Object?>{}, 'coordinates': const <String, Object?>{}},
     'isAllDay': mutation.allDay,
     if (_startDateTime(mutation) != null)
       'start': {

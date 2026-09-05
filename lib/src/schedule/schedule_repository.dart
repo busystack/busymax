@@ -1,4 +1,5 @@
 import 'dart:convert';
+import '../features/maps/domain/geographic_point.dart';
 
 import 'package:drift/drift.dart';
 
@@ -439,6 +440,7 @@ class ScheduleRepository {
           start: start,
           end: end,
           location: event.location,
+          locationPoint: GeographicPoint.tryParse(latitude: event.locationLatitude, longitude: event.locationLongitude),
           description: event.description,
           descriptionContentType: descriptionBody.contentType,
           descriptionHtml: descriptionBody.html,
@@ -707,6 +709,8 @@ class ScheduleRepository {
       start: start,
       end: _taskEnd(task, provider),
       notes: task.notes ?? task.bodyContent,
+      location: task.taskLocation,
+      locationPoint: GeographicPoint.tryParse(latitude: task.locationLatitude, longitude: task.locationLongitude),
       categories: _stringListFromJson(task.categoriesJson),
       reminder: task.microsoftIsReminderOn == true
           ? providerDateTimeAsLocal(

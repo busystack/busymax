@@ -62,12 +62,21 @@ import '../schedule/schedule_sidebar_order.dart';
 import '../webcal/webcal_http_client.dart';
 import '../webcal/webcal_subscription_service.dart';
 import 'app_settings.dart';
+import '../features/maps/data/geoapify_client.dart';
+import '../features/maps/data/location_resolution_repository.dart';
 
 export '../app/app_settings.dart';
 
 final buildConfigProvider = Provider<BuildConfig>(
   (ref) => BuildConfig.fromEnvironment(),
 );
+
+final geoapifyClientProvider = Provider<GeoapifyClient>((ref) {
+  final client = http.Client();
+  ref.onDispose(client.close);
+  return GeoapifyClient(client: client, apiKey: ref.watch(buildConfigProvider).geoapifyApiKey, canUseNetwork: ref.watch(networkConnectivityMonitorProvider).canUseNetwork);
+});
+final locationResolutionRepositoryProvider = Provider<LocationResolutionRepository>((ref) => LocationResolutionRepository(ref.watch(databaseProvider)));
 
 final databaseProvider = Provider<AppDatabase>((ref) {
   final database = AppDatabase.open();

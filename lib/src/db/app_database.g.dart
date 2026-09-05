@@ -8157,6 +8157,29 @@ class $TasksTable extends Tasks with TableInfo<$TasksTable, Task> {
     type: DriftSqlType.string,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _locationLatitudeMeta = const VerificationMeta(
+    'locationLatitude',
+  );
+  @override
+  late final GeneratedColumn<double> locationLatitude = GeneratedColumn<double>(
+    'location_latitude',
+    aliasedName,
+    true,
+    type: DriftSqlType.double,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _locationLongitudeMeta = const VerificationMeta(
+    'locationLongitude',
+  );
+  @override
+  late final GeneratedColumn<double> locationLongitude =
+      GeneratedColumn<double>(
+        'location_longitude',
+        aliasedName,
+        true,
+        type: DriftSqlType.double,
+        requiredDuringInsert: false,
+      );
   static const VerificationMeta _taskUrlMeta = const VerificationMeta(
     'taskUrl',
   );
@@ -8792,6 +8815,8 @@ class $TasksTable extends Tasks with TableInfo<$TasksTable, Task> {
     icalPriority,
     percentComplete,
     taskLocation,
+    locationLatitude,
+    locationLongitude,
     taskUrl,
     taskClassification,
     taskPinned,
@@ -8949,6 +8974,24 @@ class $TasksTable extends Tasks with TableInfo<$TasksTable, Task> {
         taskLocation.isAcceptableOrUnknown(
           data['task_location']!,
           _taskLocationMeta,
+        ),
+      );
+    }
+    if (data.containsKey('location_latitude')) {
+      context.handle(
+        _locationLatitudeMeta,
+        locationLatitude.isAcceptableOrUnknown(
+          data['location_latitude']!,
+          _locationLatitudeMeta,
+        ),
+      );
+    }
+    if (data.containsKey('location_longitude')) {
+      context.handle(
+        _locationLongitudeMeta,
+        locationLongitude.isAcceptableOrUnknown(
+          data['location_longitude']!,
+          _locationLongitudeMeta,
         ),
       );
     }
@@ -9439,6 +9482,14 @@ class $TasksTable extends Tasks with TableInfo<$TasksTable, Task> {
         DriftSqlType.string,
         data['${effectivePrefix}task_location'],
       ),
+      locationLatitude: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}location_latitude'],
+      ),
+      locationLongitude: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}location_longitude'],
+      ),
       taskUrl: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}task_url'],
@@ -9676,6 +9727,8 @@ class Task extends DataClass implements Insertable<Task> {
   final int? icalPriority;
   final int? percentComplete;
   final String? taskLocation;
+  final double? locationLatitude;
+  final double? locationLongitude;
   final String? taskUrl;
   final String? taskClassification;
   final bool? taskPinned;
@@ -9742,6 +9795,8 @@ class Task extends DataClass implements Insertable<Task> {
     this.icalPriority,
     this.percentComplete,
     this.taskLocation,
+    this.locationLatitude,
+    this.locationLongitude,
     this.taskUrl,
     this.taskClassification,
     this.taskPinned,
@@ -9826,6 +9881,12 @@ class Task extends DataClass implements Insertable<Task> {
     }
     if (!nullToAbsent || taskLocation != null) {
       map['task_location'] = Variable<String>(taskLocation);
+    }
+    if (!nullToAbsent || locationLatitude != null) {
+      map['location_latitude'] = Variable<double>(locationLatitude);
+    }
+    if (!nullToAbsent || locationLongitude != null) {
+      map['location_longitude'] = Variable<double>(locationLongitude);
     }
     if (!nullToAbsent || taskUrl != null) {
       map['task_url'] = Variable<String>(taskUrl);
@@ -10019,6 +10080,12 @@ class Task extends DataClass implements Insertable<Task> {
       taskLocation: taskLocation == null && nullToAbsent
           ? const Value.absent()
           : Value(taskLocation),
+      locationLatitude: locationLatitude == null && nullToAbsent
+          ? const Value.absent()
+          : Value(locationLatitude),
+      locationLongitude: locationLongitude == null && nullToAbsent
+          ? const Value.absent()
+          : Value(locationLongitude),
       taskUrl: taskUrl == null && nullToAbsent
           ? const Value.absent()
           : Value(taskUrl),
@@ -10184,6 +10251,10 @@ class Task extends DataClass implements Insertable<Task> {
       icalPriority: serializer.fromJson<int?>(json['icalPriority']),
       percentComplete: serializer.fromJson<int?>(json['percentComplete']),
       taskLocation: serializer.fromJson<String?>(json['taskLocation']),
+      locationLatitude: serializer.fromJson<double?>(json['locationLatitude']),
+      locationLongitude: serializer.fromJson<double?>(
+        json['locationLongitude'],
+      ),
       taskUrl: serializer.fromJson<String?>(json['taskUrl']),
       taskClassification: serializer.fromJson<String?>(
         json['taskClassification'],
@@ -10287,6 +10358,8 @@ class Task extends DataClass implements Insertable<Task> {
       'icalPriority': serializer.toJson<int?>(icalPriority),
       'percentComplete': serializer.toJson<int?>(percentComplete),
       'taskLocation': serializer.toJson<String?>(taskLocation),
+      'locationLatitude': serializer.toJson<double?>(locationLatitude),
+      'locationLongitude': serializer.toJson<double?>(locationLongitude),
       'taskUrl': serializer.toJson<String?>(taskUrl),
       'taskClassification': serializer.toJson<String?>(taskClassification),
       'taskPinned': serializer.toJson<bool?>(taskPinned),
@@ -10374,6 +10447,8 @@ class Task extends DataClass implements Insertable<Task> {
     Value<int?> icalPriority = const Value.absent(),
     Value<int?> percentComplete = const Value.absent(),
     Value<String?> taskLocation = const Value.absent(),
+    Value<double?> locationLatitude = const Value.absent(),
+    Value<double?> locationLongitude = const Value.absent(),
     Value<String?> taskUrl = const Value.absent(),
     Value<String?> taskClassification = const Value.absent(),
     Value<bool?> taskPinned = const Value.absent(),
@@ -10448,6 +10523,12 @@ class Task extends DataClass implements Insertable<Task> {
         ? percentComplete.value
         : this.percentComplete,
     taskLocation: taskLocation.present ? taskLocation.value : this.taskLocation,
+    locationLatitude: locationLatitude.present
+        ? locationLatitude.value
+        : this.locationLatitude,
+    locationLongitude: locationLongitude.present
+        ? locationLongitude.value
+        : this.locationLongitude,
     taskUrl: taskUrl.present ? taskUrl.value : this.taskUrl,
     taskClassification: taskClassification.present
         ? taskClassification.value
@@ -10580,6 +10661,12 @@ class Task extends DataClass implements Insertable<Task> {
       taskLocation: data.taskLocation.present
           ? data.taskLocation.value
           : this.taskLocation,
+      locationLatitude: data.locationLatitude.present
+          ? data.locationLatitude.value
+          : this.locationLatitude,
+      locationLongitude: data.locationLongitude.present
+          ? data.locationLongitude.value
+          : this.locationLongitude,
       taskUrl: data.taskUrl.present ? data.taskUrl.value : this.taskUrl,
       taskClassification: data.taskClassification.present
           ? data.taskClassification.value
@@ -10728,6 +10815,8 @@ class Task extends DataClass implements Insertable<Task> {
           ..write('icalPriority: $icalPriority, ')
           ..write('percentComplete: $percentComplete, ')
           ..write('taskLocation: $taskLocation, ')
+          ..write('locationLatitude: $locationLatitude, ')
+          ..write('locationLongitude: $locationLongitude, ')
           ..write('taskUrl: $taskUrl, ')
           ..write('taskClassification: $taskClassification, ')
           ..write('taskPinned: $taskPinned, ')
@@ -10801,6 +10890,8 @@ class Task extends DataClass implements Insertable<Task> {
     icalPriority,
     percentComplete,
     taskLocation,
+    locationLatitude,
+    locationLongitude,
     taskUrl,
     taskClassification,
     taskPinned,
@@ -10871,6 +10962,8 @@ class Task extends DataClass implements Insertable<Task> {
           other.icalPriority == this.icalPriority &&
           other.percentComplete == this.percentComplete &&
           other.taskLocation == this.taskLocation &&
+          other.locationLatitude == this.locationLatitude &&
+          other.locationLongitude == this.locationLongitude &&
           other.taskUrl == this.taskUrl &&
           other.taskClassification == this.taskClassification &&
           other.taskPinned == this.taskPinned &&
@@ -10941,6 +11034,8 @@ class TasksCompanion extends UpdateCompanion<Task> {
   final Value<int?> icalPriority;
   final Value<int?> percentComplete;
   final Value<String?> taskLocation;
+  final Value<double?> locationLatitude;
+  final Value<double?> locationLongitude;
   final Value<String?> taskUrl;
   final Value<String?> taskClassification;
   final Value<bool?> taskPinned;
@@ -11008,6 +11103,8 @@ class TasksCompanion extends UpdateCompanion<Task> {
     this.icalPriority = const Value.absent(),
     this.percentComplete = const Value.absent(),
     this.taskLocation = const Value.absent(),
+    this.locationLatitude = const Value.absent(),
+    this.locationLongitude = const Value.absent(),
     this.taskUrl = const Value.absent(),
     this.taskClassification = const Value.absent(),
     this.taskPinned = const Value.absent(),
@@ -11076,6 +11173,8 @@ class TasksCompanion extends UpdateCompanion<Task> {
     this.icalPriority = const Value.absent(),
     this.percentComplete = const Value.absent(),
     this.taskLocation = const Value.absent(),
+    this.locationLatitude = const Value.absent(),
+    this.locationLongitude = const Value.absent(),
     this.taskUrl = const Value.absent(),
     this.taskClassification = const Value.absent(),
     this.taskPinned = const Value.absent(),
@@ -11150,6 +11249,8 @@ class TasksCompanion extends UpdateCompanion<Task> {
     Expression<int>? icalPriority,
     Expression<int>? percentComplete,
     Expression<String>? taskLocation,
+    Expression<double>? locationLatitude,
+    Expression<double>? locationLongitude,
     Expression<String>? taskUrl,
     Expression<String>? taskClassification,
     Expression<bool>? taskPinned,
@@ -11218,6 +11319,8 @@ class TasksCompanion extends UpdateCompanion<Task> {
       if (icalPriority != null) 'ical_priority': icalPriority,
       if (percentComplete != null) 'percent_complete': percentComplete,
       if (taskLocation != null) 'task_location': taskLocation,
+      if (locationLatitude != null) 'location_latitude': locationLatitude,
+      if (locationLongitude != null) 'location_longitude': locationLongitude,
       if (taskUrl != null) 'task_url': taskUrl,
       if (taskClassification != null) 'task_classification': taskClassification,
       if (taskPinned != null) 'task_pinned': taskPinned,
@@ -11303,6 +11406,8 @@ class TasksCompanion extends UpdateCompanion<Task> {
     Value<int?>? icalPriority,
     Value<int?>? percentComplete,
     Value<String?>? taskLocation,
+    Value<double?>? locationLatitude,
+    Value<double?>? locationLongitude,
     Value<String?>? taskUrl,
     Value<String?>? taskClassification,
     Value<bool?>? taskPinned,
@@ -11371,6 +11476,8 @@ class TasksCompanion extends UpdateCompanion<Task> {
       icalPriority: icalPriority ?? this.icalPriority,
       percentComplete: percentComplete ?? this.percentComplete,
       taskLocation: taskLocation ?? this.taskLocation,
+      locationLatitude: locationLatitude ?? this.locationLatitude,
+      locationLongitude: locationLongitude ?? this.locationLongitude,
       taskUrl: taskUrl ?? this.taskUrl,
       taskClassification: taskClassification ?? this.taskClassification,
       taskPinned: taskPinned ?? this.taskPinned,
@@ -11475,6 +11582,12 @@ class TasksCompanion extends UpdateCompanion<Task> {
     }
     if (taskLocation.present) {
       map['task_location'] = Variable<String>(taskLocation.value);
+    }
+    if (locationLatitude.present) {
+      map['location_latitude'] = Variable<double>(locationLatitude.value);
+    }
+    if (locationLongitude.present) {
+      map['location_longitude'] = Variable<double>(locationLongitude.value);
     }
     if (taskUrl.present) {
       map['task_url'] = Variable<String>(taskUrl.value);
@@ -11684,6 +11797,8 @@ class TasksCompanion extends UpdateCompanion<Task> {
           ..write('icalPriority: $icalPriority, ')
           ..write('percentComplete: $percentComplete, ')
           ..write('taskLocation: $taskLocation, ')
+          ..write('locationLatitude: $locationLatitude, ')
+          ..write('locationLongitude: $locationLongitude, ')
           ..write('taskUrl: $taskUrl, ')
           ..write('taskClassification: $taskClassification, ')
           ..write('taskPinned: $taskPinned, ')
@@ -16375,6 +16490,29 @@ class $CalendarEventsTable extends CalendarEvents
     type: DriftSqlType.string,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _locationLatitudeMeta = const VerificationMeta(
+    'locationLatitude',
+  );
+  @override
+  late final GeneratedColumn<double> locationLatitude = GeneratedColumn<double>(
+    'location_latitude',
+    aliasedName,
+    true,
+    type: DriftSqlType.double,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _locationLongitudeMeta = const VerificationMeta(
+    'locationLongitude',
+  );
+  @override
+  late final GeneratedColumn<double> locationLongitude =
+      GeneratedColumn<double>(
+        'location_longitude',
+        aliasedName,
+        true,
+        type: DriftSqlType.double,
+        requiredDuringInsert: false,
+      );
   static const VerificationMeta _allDayMeta = const VerificationMeta('allDay');
   @override
   late final GeneratedColumn<bool> allDay = GeneratedColumn<bool>(
@@ -16738,6 +16876,8 @@ class $CalendarEventsTable extends CalendarEvents
     title,
     description,
     location,
+    locationLatitude,
+    locationLongitude,
     allDay,
     startDate,
     startDateTime,
@@ -16949,6 +17089,24 @@ class $CalendarEventsTable extends CalendarEvents
       context.handle(
         _locationMeta,
         location.isAcceptableOrUnknown(data['location']!, _locationMeta),
+      );
+    }
+    if (data.containsKey('location_latitude')) {
+      context.handle(
+        _locationLatitudeMeta,
+        locationLatitude.isAcceptableOrUnknown(
+          data['location_latitude']!,
+          _locationLatitudeMeta,
+        ),
+      );
+    }
+    if (data.containsKey('location_longitude')) {
+      context.handle(
+        _locationLongitudeMeta,
+        locationLongitude.isAcceptableOrUnknown(
+          data['location_longitude']!,
+          _locationLongitudeMeta,
+        ),
       );
     }
     if (data.containsKey('all_day')) {
@@ -17281,6 +17439,14 @@ class $CalendarEventsTable extends CalendarEvents
         DriftSqlType.string,
         data['${effectivePrefix}location'],
       ),
+      locationLatitude: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}location_latitude'],
+      ),
+      locationLongitude: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}location_longitude'],
+      ),
       allDay: attachedDatabase.typeMapping.read(
         DriftSqlType.bool,
         data['${effectivePrefix}all_day'],
@@ -17431,6 +17597,8 @@ class CalendarEvent extends DataClass implements Insertable<CalendarEvent> {
   final String title;
   final String? description;
   final String? location;
+  final double? locationLatitude;
+  final double? locationLongitude;
   final bool allDay;
   final String? startDate;
   final String? startDateTime;
@@ -17482,6 +17650,8 @@ class CalendarEvent extends DataClass implements Insertable<CalendarEvent> {
     required this.title,
     this.description,
     this.location,
+    this.locationLatitude,
+    this.locationLongitude,
     required this.allDay,
     this.startDate,
     this.startDateTime,
@@ -17563,6 +17733,12 @@ class CalendarEvent extends DataClass implements Insertable<CalendarEvent> {
     }
     if (!nullToAbsent || location != null) {
       map['location'] = Variable<String>(location);
+    }
+    if (!nullToAbsent || locationLatitude != null) {
+      map['location_latitude'] = Variable<double>(locationLatitude);
+    }
+    if (!nullToAbsent || locationLongitude != null) {
+      map['location_longitude'] = Variable<double>(locationLongitude);
     }
     map['all_day'] = Variable<bool>(allDay);
     if (!nullToAbsent || startDate != null) {
@@ -17691,6 +17867,12 @@ class CalendarEvent extends DataClass implements Insertable<CalendarEvent> {
       location: location == null && nullToAbsent
           ? const Value.absent()
           : Value(location),
+      locationLatitude: locationLatitude == null && nullToAbsent
+          ? const Value.absent()
+          : Value(locationLatitude),
+      locationLongitude: locationLongitude == null && nullToAbsent
+          ? const Value.absent()
+          : Value(locationLongitude),
       allDay: Value(allDay),
       startDate: startDate == null && nullToAbsent
           ? const Value.absent()
@@ -17804,6 +17986,10 @@ class CalendarEvent extends DataClass implements Insertable<CalendarEvent> {
       title: serializer.fromJson<String>(json['title']),
       description: serializer.fromJson<String?>(json['description']),
       location: serializer.fromJson<String?>(json['location']),
+      locationLatitude: serializer.fromJson<double?>(json['locationLatitude']),
+      locationLongitude: serializer.fromJson<double?>(
+        json['locationLongitude'],
+      ),
       allDay: serializer.fromJson<bool>(json['allDay']),
       startDate: serializer.fromJson<String?>(json['startDate']),
       startDateTime: serializer.fromJson<String?>(json['startDateTime']),
@@ -17866,6 +18052,8 @@ class CalendarEvent extends DataClass implements Insertable<CalendarEvent> {
       'title': serializer.toJson<String>(title),
       'description': serializer.toJson<String?>(description),
       'location': serializer.toJson<String?>(location),
+      'locationLatitude': serializer.toJson<double?>(locationLatitude),
+      'locationLongitude': serializer.toJson<double?>(locationLongitude),
       'allDay': serializer.toJson<bool>(allDay),
       'startDate': serializer.toJson<String?>(startDate),
       'startDateTime': serializer.toJson<String?>(startDateTime),
@@ -17920,6 +18108,8 @@ class CalendarEvent extends DataClass implements Insertable<CalendarEvent> {
     String? title,
     Value<String?> description = const Value.absent(),
     Value<String?> location = const Value.absent(),
+    Value<double?> locationLatitude = const Value.absent(),
+    Value<double?> locationLongitude = const Value.absent(),
     bool? allDay,
     Value<String?> startDate = const Value.absent(),
     Value<String?> startDateTime = const Value.absent(),
@@ -17985,6 +18175,12 @@ class CalendarEvent extends DataClass implements Insertable<CalendarEvent> {
     title: title ?? this.title,
     description: description.present ? description.value : this.description,
     location: location.present ? location.value : this.location,
+    locationLatitude: locationLatitude.present
+        ? locationLatitude.value
+        : this.locationLatitude,
+    locationLongitude: locationLongitude.present
+        ? locationLongitude.value
+        : this.locationLongitude,
     allDay: allDay ?? this.allDay,
     startDate: startDate.present ? startDate.value : this.startDate,
     startDateTime: startDateTime.present
@@ -18090,6 +18286,12 @@ class CalendarEvent extends DataClass implements Insertable<CalendarEvent> {
           ? data.description.value
           : this.description,
       location: data.location.present ? data.location.value : this.location,
+      locationLatitude: data.locationLatitude.present
+          ? data.locationLatitude.value
+          : this.locationLatitude,
+      locationLongitude: data.locationLongitude.present
+          ? data.locationLongitude.value
+          : this.locationLongitude,
       allDay: data.allDay.present ? data.allDay.value : this.allDay,
       startDate: data.startDate.present ? data.startDate.value : this.startDate,
       startDateTime: data.startDateTime.present
@@ -18188,6 +18390,8 @@ class CalendarEvent extends DataClass implements Insertable<CalendarEvent> {
           ..write('title: $title, ')
           ..write('description: $description, ')
           ..write('location: $location, ')
+          ..write('locationLatitude: $locationLatitude, ')
+          ..write('locationLongitude: $locationLongitude, ')
           ..write('allDay: $allDay, ')
           ..write('startDate: $startDate, ')
           ..write('startDateTime: $startDateTime, ')
@@ -18244,6 +18448,8 @@ class CalendarEvent extends DataClass implements Insertable<CalendarEvent> {
     title,
     description,
     location,
+    locationLatitude,
+    locationLongitude,
     allDay,
     startDate,
     startDateTime,
@@ -18299,6 +18505,8 @@ class CalendarEvent extends DataClass implements Insertable<CalendarEvent> {
           other.title == this.title &&
           other.description == this.description &&
           other.location == this.location &&
+          other.locationLatitude == this.locationLatitude &&
+          other.locationLongitude == this.locationLongitude &&
           other.allDay == this.allDay &&
           other.startDate == this.startDate &&
           other.startDateTime == this.startDateTime &&
@@ -18352,6 +18560,8 @@ class CalendarEventsCompanion extends UpdateCompanion<CalendarEvent> {
   final Value<String> title;
   final Value<String?> description;
   final Value<String?> location;
+  final Value<double?> locationLatitude;
+  final Value<double?> locationLongitude;
   final Value<bool> allDay;
   final Value<String?> startDate;
   final Value<String?> startDateTime;
@@ -18404,6 +18614,8 @@ class CalendarEventsCompanion extends UpdateCompanion<CalendarEvent> {
     this.title = const Value.absent(),
     this.description = const Value.absent(),
     this.location = const Value.absent(),
+    this.locationLatitude = const Value.absent(),
+    this.locationLongitude = const Value.absent(),
     this.allDay = const Value.absent(),
     this.startDate = const Value.absent(),
     this.startDateTime = const Value.absent(),
@@ -18457,6 +18669,8 @@ class CalendarEventsCompanion extends UpdateCompanion<CalendarEvent> {
     required String title,
     this.description = const Value.absent(),
     this.location = const Value.absent(),
+    this.locationLatitude = const Value.absent(),
+    this.locationLongitude = const Value.absent(),
     this.allDay = const Value.absent(),
     this.startDate = const Value.absent(),
     this.startDateTime = const Value.absent(),
@@ -18518,6 +18732,8 @@ class CalendarEventsCompanion extends UpdateCompanion<CalendarEvent> {
     Expression<String>? title,
     Expression<String>? description,
     Expression<String>? location,
+    Expression<double>? locationLatitude,
+    Expression<double>? locationLongitude,
     Expression<bool>? allDay,
     Expression<String>? startDate,
     Expression<String>? startDateTime,
@@ -18574,6 +18790,8 @@ class CalendarEventsCompanion extends UpdateCompanion<CalendarEvent> {
       if (title != null) 'title': title,
       if (description != null) 'description': description,
       if (location != null) 'location': location,
+      if (locationLatitude != null) 'location_latitude': locationLatitude,
+      if (locationLongitude != null) 'location_longitude': locationLongitude,
       if (allDay != null) 'all_day': allDay,
       if (startDate != null) 'start_date': startDate,
       if (startDateTime != null) 'start_date_time': startDateTime,
@@ -18630,6 +18848,8 @@ class CalendarEventsCompanion extends UpdateCompanion<CalendarEvent> {
     Value<String>? title,
     Value<String?>? description,
     Value<String?>? location,
+    Value<double?>? locationLatitude,
+    Value<double?>? locationLongitude,
     Value<bool>? allDay,
     Value<String?>? startDate,
     Value<String?>? startDateTime,
@@ -18685,6 +18905,8 @@ class CalendarEventsCompanion extends UpdateCompanion<CalendarEvent> {
       title: title ?? this.title,
       description: description ?? this.description,
       location: location ?? this.location,
+      locationLatitude: locationLatitude ?? this.locationLatitude,
+      locationLongitude: locationLongitude ?? this.locationLongitude,
       allDay: allDay ?? this.allDay,
       startDate: startDate ?? this.startDate,
       startDateTime: startDateTime ?? this.startDateTime,
@@ -18785,6 +19007,12 @@ class CalendarEventsCompanion extends UpdateCompanion<CalendarEvent> {
     }
     if (location.present) {
       map['location'] = Variable<String>(location.value);
+    }
+    if (locationLatitude.present) {
+      map['location_latitude'] = Variable<double>(locationLatitude.value);
+    }
+    if (locationLongitude.present) {
+      map['location_longitude'] = Variable<double>(locationLongitude.value);
     }
     if (allDay.present) {
       map['all_day'] = Variable<bool>(allDay.value);
@@ -18907,6 +19135,8 @@ class CalendarEventsCompanion extends UpdateCompanion<CalendarEvent> {
           ..write('title: $title, ')
           ..write('description: $description, ')
           ..write('location: $location, ')
+          ..write('locationLatitude: $locationLatitude, ')
+          ..write('locationLongitude: $locationLongitude, ')
           ..write('allDay: $allDay, ')
           ..write('startDate: $startDate, ')
           ..write('startDateTime: $startDateTime, ')
@@ -24827,6 +25057,625 @@ class NotificationScheduleCompanion
   }
 }
 
+class $LocationResolutionsTable extends LocationResolutions
+    with TableInfo<$LocationResolutionsTable, LocationResolution> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $LocationResolutionsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _kindMeta = const VerificationMeta('kind');
+  @override
+  late final GeneratedColumn<String> kind = GeneratedColumn<String>(
+    'kind',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _accountIdMeta = const VerificationMeta(
+    'accountId',
+  );
+  @override
+  late final GeneratedColumn<String> accountId = GeneratedColumn<String>(
+    'account_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES accounts (id) ON DELETE CASCADE',
+    ),
+  );
+  static const VerificationMeta _sourceIdMeta = const VerificationMeta(
+    'sourceId',
+  );
+  @override
+  late final GeneratedColumn<String> sourceId = GeneratedColumn<String>(
+    'source_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _itemIdMeta = const VerificationMeta('itemId');
+  @override
+  late final GeneratedColumn<String> itemId = GeneratedColumn<String>(
+    'item_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _locationTextMeta = const VerificationMeta(
+    'locationText',
+  );
+  @override
+  late final GeneratedColumn<String> locationText = GeneratedColumn<String>(
+    'location_text',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _labelMeta = const VerificationMeta('label');
+  @override
+  late final GeneratedColumn<String> label = GeneratedColumn<String>(
+    'label',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _latitudeMeta = const VerificationMeta(
+    'latitude',
+  );
+  @override
+  late final GeneratedColumn<double> latitude = GeneratedColumn<double>(
+    'latitude',
+    aliasedName,
+    false,
+    type: DriftSqlType.double,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _longitudeMeta = const VerificationMeta(
+    'longitude',
+  );
+  @override
+  late final GeneratedColumn<double> longitude = GeneratedColumn<double>(
+    'longitude',
+    aliasedName,
+    false,
+    type: DriftSqlType.double,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _sourceMeta = const VerificationMeta('source');
+  @override
+  late final GeneratedColumn<String> source = GeneratedColumn<String>(
+    'source',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _attributionMeta = const VerificationMeta(
+    'attribution',
+  );
+  @override
+  late final GeneratedColumn<String> attribution = GeneratedColumn<String>(
+    'attribution',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    kind,
+    accountId,
+    sourceId,
+    itemId,
+    locationText,
+    label,
+    latitude,
+    longitude,
+    source,
+    attribution,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'location_resolutions';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<LocationResolution> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('kind')) {
+      context.handle(
+        _kindMeta,
+        kind.isAcceptableOrUnknown(data['kind']!, _kindMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_kindMeta);
+    }
+    if (data.containsKey('account_id')) {
+      context.handle(
+        _accountIdMeta,
+        accountId.isAcceptableOrUnknown(data['account_id']!, _accountIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_accountIdMeta);
+    }
+    if (data.containsKey('source_id')) {
+      context.handle(
+        _sourceIdMeta,
+        sourceId.isAcceptableOrUnknown(data['source_id']!, _sourceIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_sourceIdMeta);
+    }
+    if (data.containsKey('item_id')) {
+      context.handle(
+        _itemIdMeta,
+        itemId.isAcceptableOrUnknown(data['item_id']!, _itemIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_itemIdMeta);
+    }
+    if (data.containsKey('location_text')) {
+      context.handle(
+        _locationTextMeta,
+        locationText.isAcceptableOrUnknown(
+          data['location_text']!,
+          _locationTextMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_locationTextMeta);
+    }
+    if (data.containsKey('label')) {
+      context.handle(
+        _labelMeta,
+        label.isAcceptableOrUnknown(data['label']!, _labelMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_labelMeta);
+    }
+    if (data.containsKey('latitude')) {
+      context.handle(
+        _latitudeMeta,
+        latitude.isAcceptableOrUnknown(data['latitude']!, _latitudeMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_latitudeMeta);
+    }
+    if (data.containsKey('longitude')) {
+      context.handle(
+        _longitudeMeta,
+        longitude.isAcceptableOrUnknown(data['longitude']!, _longitudeMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_longitudeMeta);
+    }
+    if (data.containsKey('source')) {
+      context.handle(
+        _sourceMeta,
+        source.isAcceptableOrUnknown(data['source']!, _sourceMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_sourceMeta);
+    }
+    if (data.containsKey('attribution')) {
+      context.handle(
+        _attributionMeta,
+        attribution.isAcceptableOrUnknown(
+          data['attribution']!,
+          _attributionMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_attributionMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {kind, accountId, sourceId, itemId};
+  @override
+  LocationResolution map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return LocationResolution(
+      kind: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}kind'],
+      )!,
+      accountId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}account_id'],
+      )!,
+      sourceId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}source_id'],
+      )!,
+      itemId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}item_id'],
+      )!,
+      locationText: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}location_text'],
+      )!,
+      label: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}label'],
+      )!,
+      latitude: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}latitude'],
+      )!,
+      longitude: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}longitude'],
+      )!,
+      source: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}source'],
+      )!,
+      attribution: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}attribution'],
+      )!,
+    );
+  }
+
+  @override
+  $LocationResolutionsTable createAlias(String alias) {
+    return $LocationResolutionsTable(attachedDatabase, alias);
+  }
+}
+
+class LocationResolution extends DataClass
+    implements Insertable<LocationResolution> {
+  final String kind;
+  final String accountId;
+  final String sourceId;
+  final String itemId;
+  final String locationText;
+  final String label;
+  final double latitude;
+  final double longitude;
+  final String source;
+  final String attribution;
+  const LocationResolution({
+    required this.kind,
+    required this.accountId,
+    required this.sourceId,
+    required this.itemId,
+    required this.locationText,
+    required this.label,
+    required this.latitude,
+    required this.longitude,
+    required this.source,
+    required this.attribution,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['kind'] = Variable<String>(kind);
+    map['account_id'] = Variable<String>(accountId);
+    map['source_id'] = Variable<String>(sourceId);
+    map['item_id'] = Variable<String>(itemId);
+    map['location_text'] = Variable<String>(locationText);
+    map['label'] = Variable<String>(label);
+    map['latitude'] = Variable<double>(latitude);
+    map['longitude'] = Variable<double>(longitude);
+    map['source'] = Variable<String>(source);
+    map['attribution'] = Variable<String>(attribution);
+    return map;
+  }
+
+  LocationResolutionsCompanion toCompanion(bool nullToAbsent) {
+    return LocationResolutionsCompanion(
+      kind: Value(kind),
+      accountId: Value(accountId),
+      sourceId: Value(sourceId),
+      itemId: Value(itemId),
+      locationText: Value(locationText),
+      label: Value(label),
+      latitude: Value(latitude),
+      longitude: Value(longitude),
+      source: Value(source),
+      attribution: Value(attribution),
+    );
+  }
+
+  factory LocationResolution.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return LocationResolution(
+      kind: serializer.fromJson<String>(json['kind']),
+      accountId: serializer.fromJson<String>(json['accountId']),
+      sourceId: serializer.fromJson<String>(json['sourceId']),
+      itemId: serializer.fromJson<String>(json['itemId']),
+      locationText: serializer.fromJson<String>(json['locationText']),
+      label: serializer.fromJson<String>(json['label']),
+      latitude: serializer.fromJson<double>(json['latitude']),
+      longitude: serializer.fromJson<double>(json['longitude']),
+      source: serializer.fromJson<String>(json['source']),
+      attribution: serializer.fromJson<String>(json['attribution']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'kind': serializer.toJson<String>(kind),
+      'accountId': serializer.toJson<String>(accountId),
+      'sourceId': serializer.toJson<String>(sourceId),
+      'itemId': serializer.toJson<String>(itemId),
+      'locationText': serializer.toJson<String>(locationText),
+      'label': serializer.toJson<String>(label),
+      'latitude': serializer.toJson<double>(latitude),
+      'longitude': serializer.toJson<double>(longitude),
+      'source': serializer.toJson<String>(source),
+      'attribution': serializer.toJson<String>(attribution),
+    };
+  }
+
+  LocationResolution copyWith({
+    String? kind,
+    String? accountId,
+    String? sourceId,
+    String? itemId,
+    String? locationText,
+    String? label,
+    double? latitude,
+    double? longitude,
+    String? source,
+    String? attribution,
+  }) => LocationResolution(
+    kind: kind ?? this.kind,
+    accountId: accountId ?? this.accountId,
+    sourceId: sourceId ?? this.sourceId,
+    itemId: itemId ?? this.itemId,
+    locationText: locationText ?? this.locationText,
+    label: label ?? this.label,
+    latitude: latitude ?? this.latitude,
+    longitude: longitude ?? this.longitude,
+    source: source ?? this.source,
+    attribution: attribution ?? this.attribution,
+  );
+  LocationResolution copyWithCompanion(LocationResolutionsCompanion data) {
+    return LocationResolution(
+      kind: data.kind.present ? data.kind.value : this.kind,
+      accountId: data.accountId.present ? data.accountId.value : this.accountId,
+      sourceId: data.sourceId.present ? data.sourceId.value : this.sourceId,
+      itemId: data.itemId.present ? data.itemId.value : this.itemId,
+      locationText: data.locationText.present
+          ? data.locationText.value
+          : this.locationText,
+      label: data.label.present ? data.label.value : this.label,
+      latitude: data.latitude.present ? data.latitude.value : this.latitude,
+      longitude: data.longitude.present ? data.longitude.value : this.longitude,
+      source: data.source.present ? data.source.value : this.source,
+      attribution: data.attribution.present
+          ? data.attribution.value
+          : this.attribution,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('LocationResolution(')
+          ..write('kind: $kind, ')
+          ..write('accountId: $accountId, ')
+          ..write('sourceId: $sourceId, ')
+          ..write('itemId: $itemId, ')
+          ..write('locationText: $locationText, ')
+          ..write('label: $label, ')
+          ..write('latitude: $latitude, ')
+          ..write('longitude: $longitude, ')
+          ..write('source: $source, ')
+          ..write('attribution: $attribution')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    kind,
+    accountId,
+    sourceId,
+    itemId,
+    locationText,
+    label,
+    latitude,
+    longitude,
+    source,
+    attribution,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is LocationResolution &&
+          other.kind == this.kind &&
+          other.accountId == this.accountId &&
+          other.sourceId == this.sourceId &&
+          other.itemId == this.itemId &&
+          other.locationText == this.locationText &&
+          other.label == this.label &&
+          other.latitude == this.latitude &&
+          other.longitude == this.longitude &&
+          other.source == this.source &&
+          other.attribution == this.attribution);
+}
+
+class LocationResolutionsCompanion extends UpdateCompanion<LocationResolution> {
+  final Value<String> kind;
+  final Value<String> accountId;
+  final Value<String> sourceId;
+  final Value<String> itemId;
+  final Value<String> locationText;
+  final Value<String> label;
+  final Value<double> latitude;
+  final Value<double> longitude;
+  final Value<String> source;
+  final Value<String> attribution;
+  final Value<int> rowid;
+  const LocationResolutionsCompanion({
+    this.kind = const Value.absent(),
+    this.accountId = const Value.absent(),
+    this.sourceId = const Value.absent(),
+    this.itemId = const Value.absent(),
+    this.locationText = const Value.absent(),
+    this.label = const Value.absent(),
+    this.latitude = const Value.absent(),
+    this.longitude = const Value.absent(),
+    this.source = const Value.absent(),
+    this.attribution = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  LocationResolutionsCompanion.insert({
+    required String kind,
+    required String accountId,
+    required String sourceId,
+    required String itemId,
+    required String locationText,
+    required String label,
+    required double latitude,
+    required double longitude,
+    required String source,
+    required String attribution,
+    this.rowid = const Value.absent(),
+  }) : kind = Value(kind),
+       accountId = Value(accountId),
+       sourceId = Value(sourceId),
+       itemId = Value(itemId),
+       locationText = Value(locationText),
+       label = Value(label),
+       latitude = Value(latitude),
+       longitude = Value(longitude),
+       source = Value(source),
+       attribution = Value(attribution);
+  static Insertable<LocationResolution> custom({
+    Expression<String>? kind,
+    Expression<String>? accountId,
+    Expression<String>? sourceId,
+    Expression<String>? itemId,
+    Expression<String>? locationText,
+    Expression<String>? label,
+    Expression<double>? latitude,
+    Expression<double>? longitude,
+    Expression<String>? source,
+    Expression<String>? attribution,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (kind != null) 'kind': kind,
+      if (accountId != null) 'account_id': accountId,
+      if (sourceId != null) 'source_id': sourceId,
+      if (itemId != null) 'item_id': itemId,
+      if (locationText != null) 'location_text': locationText,
+      if (label != null) 'label': label,
+      if (latitude != null) 'latitude': latitude,
+      if (longitude != null) 'longitude': longitude,
+      if (source != null) 'source': source,
+      if (attribution != null) 'attribution': attribution,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  LocationResolutionsCompanion copyWith({
+    Value<String>? kind,
+    Value<String>? accountId,
+    Value<String>? sourceId,
+    Value<String>? itemId,
+    Value<String>? locationText,
+    Value<String>? label,
+    Value<double>? latitude,
+    Value<double>? longitude,
+    Value<String>? source,
+    Value<String>? attribution,
+    Value<int>? rowid,
+  }) {
+    return LocationResolutionsCompanion(
+      kind: kind ?? this.kind,
+      accountId: accountId ?? this.accountId,
+      sourceId: sourceId ?? this.sourceId,
+      itemId: itemId ?? this.itemId,
+      locationText: locationText ?? this.locationText,
+      label: label ?? this.label,
+      latitude: latitude ?? this.latitude,
+      longitude: longitude ?? this.longitude,
+      source: source ?? this.source,
+      attribution: attribution ?? this.attribution,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (kind.present) {
+      map['kind'] = Variable<String>(kind.value);
+    }
+    if (accountId.present) {
+      map['account_id'] = Variable<String>(accountId.value);
+    }
+    if (sourceId.present) {
+      map['source_id'] = Variable<String>(sourceId.value);
+    }
+    if (itemId.present) {
+      map['item_id'] = Variable<String>(itemId.value);
+    }
+    if (locationText.present) {
+      map['location_text'] = Variable<String>(locationText.value);
+    }
+    if (label.present) {
+      map['label'] = Variable<String>(label.value);
+    }
+    if (latitude.present) {
+      map['latitude'] = Variable<double>(latitude.value);
+    }
+    if (longitude.present) {
+      map['longitude'] = Variable<double>(longitude.value);
+    }
+    if (source.present) {
+      map['source'] = Variable<String>(source.value);
+    }
+    if (attribution.present) {
+      map['attribution'] = Variable<String>(attribution.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('LocationResolutionsCompanion(')
+          ..write('kind: $kind, ')
+          ..write('accountId: $accountId, ')
+          ..write('sourceId: $sourceId, ')
+          ..write('itemId: $itemId, ')
+          ..write('locationText: $locationText, ')
+          ..write('label: $label, ')
+          ..write('latitude: $latitude, ')
+          ..write('longitude: $longitude, ')
+          ..write('source: $source, ')
+          ..write('attribution: $attribution, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
 abstract class _$AppDatabase extends GeneratedDatabase {
   _$AppDatabase(QueryExecutor e) : super(e);
   $AppDatabaseManager get managers => $AppDatabaseManager(this);
@@ -24861,6 +25710,8 @@ abstract class _$AppDatabase extends GeneratedDatabase {
       $ScheduleItemOverridesTable(this);
   late final $NotificationScheduleTable notificationSchedule =
       $NotificationScheduleTable(this);
+  late final $LocationResolutionsTable locationResolutions =
+      $LocationResolutionsTable(this);
   late final TaskListsDao taskListsDao = TaskListsDao(this as AppDatabase);
   late final TasksDao tasksDao = TasksDao(this as AppDatabase);
   late final PendingOpsDao pendingOpsDao = PendingOpsDao(this as AppDatabase);
@@ -24890,6 +25741,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     calendarColors,
     scheduleItemOverrides,
     notificationSchedule,
+    locationResolutions,
   ];
   @override
   StreamQueryUpdateRules get streamUpdateRules => const StreamQueryUpdateRules([
@@ -25155,6 +26007,13 @@ abstract class _$AppDatabase extends GeneratedDatabase {
         limitUpdateKind: UpdateKind.delete,
       ),
       result: [TableUpdate('notification_schedule', kind: UpdateKind.delete)],
+    ),
+    WritePropagation(
+      on: TableUpdateQuery.onTableName(
+        'accounts',
+        limitUpdateKind: UpdateKind.delete,
+      ),
+      result: [TableUpdate('location_resolutions', kind: UpdateKind.delete)],
     ),
   ]);
 }
@@ -25514,6 +26373,33 @@ final class $$AccountsTableReferences
 
     final cache = $_typedResult.readTableOrNull(
       _notificationScheduleRefsTable($_db),
+    );
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
+
+  static MultiTypedResultKey<
+    $LocationResolutionsTable,
+    List<LocationResolution>
+  >
+  _locationResolutionsRefsTable(_$AppDatabase db) =>
+      MultiTypedResultKey.fromTable(
+        db.locationResolutions,
+        aliasName: $_aliasNameGenerator(
+          db.accounts.id,
+          db.locationResolutions.accountId,
+        ),
+      );
+
+  $$LocationResolutionsTableProcessedTableManager get locationResolutionsRefs {
+    final manager = $$LocationResolutionsTableTableManager(
+      $_db,
+      $_db.locationResolutions,
+    ).filter((f) => f.accountId.id.sqlEquals($_itemColumn<String>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(
+      _locationResolutionsRefsTable($_db),
     );
     return ProcessedTableManager(
       manager.$state.copyWith(prefetchedData: cache),
@@ -25967,6 +26853,31 @@ class $$AccountsTableFilterComposer
           }) => $$NotificationScheduleTableFilterComposer(
             $db: $db,
             $table: $db.notificationSchedule,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<bool> locationResolutionsRefs(
+    Expression<bool> Function($$LocationResolutionsTableFilterComposer f) f,
+  ) {
+    final $$LocationResolutionsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.locationResolutions,
+      getReferencedColumn: (t) => t.accountId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$LocationResolutionsTableFilterComposer(
+            $db: $db,
+            $table: $db.locationResolutions,
             $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
             joinBuilder: joinBuilder,
             $removeJoinBuilderFromRootComposer:
@@ -26528,6 +27439,32 @@ class $$AccountsTableAnnotationComposer
         );
     return f(composer);
   }
+
+  Expression<T> locationResolutionsRefs<T extends Object>(
+    Expression<T> Function($$LocationResolutionsTableAnnotationComposer a) f,
+  ) {
+    final $$LocationResolutionsTableAnnotationComposer composer =
+        $composerBuilder(
+          composer: this,
+          getCurrentColumn: (t) => t.id,
+          referencedTable: $db.locationResolutions,
+          getReferencedColumn: (t) => t.accountId,
+          builder:
+              (
+                joinBuilder, {
+                $addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer,
+              }) => $$LocationResolutionsTableAnnotationComposer(
+                $db: $db,
+                $table: $db.locationResolutions,
+                $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+                joinBuilder: joinBuilder,
+                $removeJoinBuilderFromRootComposer:
+                    $removeJoinBuilderFromRootComposer,
+              ),
+        );
+    return f(composer);
+  }
 }
 
 class $$AccountsTableTableManager
@@ -26558,6 +27495,7 @@ class $$AccountsTableTableManager
             bool syncCursorsRefs,
             bool scheduleItemOverridesRefs,
             bool notificationScheduleRefs,
+            bool locationResolutionsRefs,
           })
         > {
   $$AccountsTableTableManager(_$AppDatabase db, $AccountsTable table)
@@ -26683,6 +27621,7 @@ class $$AccountsTableTableManager
                 syncCursorsRefs = false,
                 scheduleItemOverridesRefs = false,
                 notificationScheduleRefs = false,
+                locationResolutionsRefs = false,
               }) {
                 return PrefetchHooks(
                   db: db,
@@ -26701,6 +27640,7 @@ class $$AccountsTableTableManager
                     if (syncCursorsRefs) db.syncCursors,
                     if (scheduleItemOverridesRefs) db.scheduleItemOverrides,
                     if (notificationScheduleRefs) db.notificationSchedule,
+                    if (locationResolutionsRefs) db.locationResolutions,
                   ],
                   addJoins: null,
                   getPrefetchedDataCallback: (items) async {
@@ -26999,6 +27939,27 @@ class $$AccountsTableTableManager
                               ),
                           typedResults: items,
                         ),
+                      if (locationResolutionsRefs)
+                        await $_getPrefetchedData<
+                          Account,
+                          $AccountsTable,
+                          LocationResolution
+                        >(
+                          currentTable: table,
+                          referencedTable: $$AccountsTableReferences
+                              ._locationResolutionsRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$AccountsTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).locationResolutionsRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.accountId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
                     ];
                   },
                 );
@@ -27034,6 +27995,7 @@ typedef $$AccountsTableProcessedTableManager =
         bool syncCursorsRefs,
         bool scheduleItemOverridesRefs,
         bool notificationScheduleRefs,
+        bool locationResolutionsRefs,
       })
     >;
 typedef $$DavAccountServicesTableCreateCompanionBuilder =
@@ -32658,6 +33620,8 @@ typedef $$TasksTableCreateCompanionBuilder =
       Value<int?> icalPriority,
       Value<int?> percentComplete,
       Value<String?> taskLocation,
+      Value<double?> locationLatitude,
+      Value<double?> locationLongitude,
       Value<String?> taskUrl,
       Value<String?> taskClassification,
       Value<bool?> taskPinned,
@@ -32727,6 +33691,8 @@ typedef $$TasksTableUpdateCompanionBuilder =
       Value<int?> icalPriority,
       Value<int?> percentComplete,
       Value<String?> taskLocation,
+      Value<double?> locationLatitude,
+      Value<double?> locationLongitude,
       Value<String?> taskUrl,
       Value<String?> taskClassification,
       Value<bool?> taskPinned,
@@ -32906,6 +33872,16 @@ class $$TasksTableFilterComposer extends Composer<_$AppDatabase, $TasksTable> {
 
   ColumnFilters<String> get taskLocation => $composableBuilder(
     column: $table.taskLocation,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get locationLatitude => $composableBuilder(
+    column: $table.locationLatitude,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get locationLongitude => $composableBuilder(
+    column: $table.locationLongitude,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -33317,6 +34293,16 @@ class $$TasksTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<double> get locationLatitude => $composableBuilder(
+    column: $table.locationLatitude,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get locationLongitude => $composableBuilder(
+    column: $table.locationLongitude,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<String> get taskUrl => $composableBuilder(
     column: $table.taskUrl,
     builder: (column) => ColumnOrderings(column),
@@ -33722,6 +34708,16 @@ class $$TasksTableAnnotationComposer
     builder: (column) => column,
   );
 
+  GeneratedColumn<double> get locationLatitude => $composableBuilder(
+    column: $table.locationLatitude,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<double> get locationLongitude => $composableBuilder(
+    column: $table.locationLongitude,
+    builder: (column) => column,
+  );
+
   GeneratedColumn<String> get taskUrl =>
       $composableBuilder(column: $table.taskUrl, builder: (column) => column);
 
@@ -34099,6 +35095,8 @@ class $$TasksTableTableManager
                 Value<int?> icalPriority = const Value.absent(),
                 Value<int?> percentComplete = const Value.absent(),
                 Value<String?> taskLocation = const Value.absent(),
+                Value<double?> locationLatitude = const Value.absent(),
+                Value<double?> locationLongitude = const Value.absent(),
                 Value<String?> taskUrl = const Value.absent(),
                 Value<String?> taskClassification = const Value.absent(),
                 Value<bool?> taskPinned = const Value.absent(),
@@ -34170,6 +35168,8 @@ class $$TasksTableTableManager
                 icalPriority: icalPriority,
                 percentComplete: percentComplete,
                 taskLocation: taskLocation,
+                locationLatitude: locationLatitude,
+                locationLongitude: locationLongitude,
                 taskUrl: taskUrl,
                 taskClassification: taskClassification,
                 taskPinned: taskPinned,
@@ -34240,6 +35240,8 @@ class $$TasksTableTableManager
                 Value<int?> icalPriority = const Value.absent(),
                 Value<int?> percentComplete = const Value.absent(),
                 Value<String?> taskLocation = const Value.absent(),
+                Value<double?> locationLatitude = const Value.absent(),
+                Value<double?> locationLongitude = const Value.absent(),
                 Value<String?> taskUrl = const Value.absent(),
                 Value<String?> taskClassification = const Value.absent(),
                 Value<bool?> taskPinned = const Value.absent(),
@@ -34311,6 +35313,8 @@ class $$TasksTableTableManager
                 icalPriority: icalPriority,
                 percentComplete: percentComplete,
                 taskLocation: taskLocation,
+                locationLatitude: locationLatitude,
+                locationLongitude: locationLongitude,
                 taskUrl: taskUrl,
                 taskClassification: taskClassification,
                 taskPinned: taskPinned,
@@ -37592,6 +38596,8 @@ typedef $$CalendarEventsTableCreateCompanionBuilder =
       required String title,
       Value<String?> description,
       Value<String?> location,
+      Value<double?> locationLatitude,
+      Value<double?> locationLongitude,
       Value<bool> allDay,
       Value<String?> startDate,
       Value<String?> startDateTime,
@@ -37646,6 +38652,8 @@ typedef $$CalendarEventsTableUpdateCompanionBuilder =
       Value<String> title,
       Value<String?> description,
       Value<String?> location,
+      Value<double?> locationLatitude,
+      Value<double?> locationLongitude,
       Value<bool> allDay,
       Value<String?> startDate,
       Value<String?> startDateTime,
@@ -37935,6 +38943,16 @@ class $$CalendarEventsTableFilterComposer
 
   ColumnFilters<String> get location => $composableBuilder(
     column: $table.location,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get locationLatitude => $composableBuilder(
+    column: $table.locationLatitude,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get locationLongitude => $composableBuilder(
+    column: $table.locationLongitude,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -38340,6 +39358,16 @@ class $$CalendarEventsTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<double> get locationLatitude => $composableBuilder(
+    column: $table.locationLatitude,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get locationLongitude => $composableBuilder(
+    column: $table.locationLongitude,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<bool> get allDay => $composableBuilder(
     column: $table.allDay,
     builder: (column) => ColumnOrderings(column),
@@ -38678,6 +39706,16 @@ class $$CalendarEventsTableAnnotationComposer
 
   GeneratedColumn<String> get location =>
       $composableBuilder(column: $table.location, builder: (column) => column);
+
+  GeneratedColumn<double> get locationLatitude => $composableBuilder(
+    column: $table.locationLatitude,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<double> get locationLongitude => $composableBuilder(
+    column: $table.locationLongitude,
+    builder: (column) => column,
+  );
 
   GeneratedColumn<bool> get allDay =>
       $composableBuilder(column: $table.allDay, builder: (column) => column);
@@ -39038,6 +40076,8 @@ class $$CalendarEventsTableTableManager
                 Value<String> title = const Value.absent(),
                 Value<String?> description = const Value.absent(),
                 Value<String?> location = const Value.absent(),
+                Value<double?> locationLatitude = const Value.absent(),
+                Value<double?> locationLongitude = const Value.absent(),
                 Value<bool> allDay = const Value.absent(),
                 Value<String?> startDate = const Value.absent(),
                 Value<String?> startDateTime = const Value.absent(),
@@ -39090,6 +40130,8 @@ class $$CalendarEventsTableTableManager
                 title: title,
                 description: description,
                 location: location,
+                locationLatitude: locationLatitude,
+                locationLongitude: locationLongitude,
                 allDay: allDay,
                 startDate: startDate,
                 startDateTime: startDateTime,
@@ -39144,6 +40186,8 @@ class $$CalendarEventsTableTableManager
                 required String title,
                 Value<String?> description = const Value.absent(),
                 Value<String?> location = const Value.absent(),
+                Value<double?> locationLatitude = const Value.absent(),
+                Value<double?> locationLongitude = const Value.absent(),
                 Value<bool> allDay = const Value.absent(),
                 Value<String?> startDate = const Value.absent(),
                 Value<String?> startDateTime = const Value.absent(),
@@ -39196,6 +40240,8 @@ class $$CalendarEventsTableTableManager
                 title: title,
                 description: description,
                 location: location,
+                locationLatitude: locationLatitude,
+                locationLongitude: locationLongitude,
                 allDay: allDay,
                 startDate: startDate,
                 startDateTime: startDateTime,
@@ -43374,6 +44420,443 @@ typedef $$NotificationScheduleTableProcessedTableManager =
       NotificationScheduleData,
       PrefetchHooks Function({bool accountId})
     >;
+typedef $$LocationResolutionsTableCreateCompanionBuilder =
+    LocationResolutionsCompanion Function({
+      required String kind,
+      required String accountId,
+      required String sourceId,
+      required String itemId,
+      required String locationText,
+      required String label,
+      required double latitude,
+      required double longitude,
+      required String source,
+      required String attribution,
+      Value<int> rowid,
+    });
+typedef $$LocationResolutionsTableUpdateCompanionBuilder =
+    LocationResolutionsCompanion Function({
+      Value<String> kind,
+      Value<String> accountId,
+      Value<String> sourceId,
+      Value<String> itemId,
+      Value<String> locationText,
+      Value<String> label,
+      Value<double> latitude,
+      Value<double> longitude,
+      Value<String> source,
+      Value<String> attribution,
+      Value<int> rowid,
+    });
+
+final class $$LocationResolutionsTableReferences
+    extends
+        BaseReferences<
+          _$AppDatabase,
+          $LocationResolutionsTable,
+          LocationResolution
+        > {
+  $$LocationResolutionsTableReferences(
+    super.$_db,
+    super.$_table,
+    super.$_typedResult,
+  );
+
+  static $AccountsTable _accountIdTable(_$AppDatabase db) =>
+      db.accounts.createAlias(
+        $_aliasNameGenerator(db.locationResolutions.accountId, db.accounts.id),
+      );
+
+  $$AccountsTableProcessedTableManager get accountId {
+    final $_column = $_itemColumn<String>('account_id')!;
+
+    final manager = $$AccountsTableTableManager(
+      $_db,
+      $_db.accounts,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_accountIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+}
+
+class $$LocationResolutionsTableFilterComposer
+    extends Composer<_$AppDatabase, $LocationResolutionsTable> {
+  $$LocationResolutionsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get kind => $composableBuilder(
+    column: $table.kind,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get sourceId => $composableBuilder(
+    column: $table.sourceId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get itemId => $composableBuilder(
+    column: $table.itemId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get locationText => $composableBuilder(
+    column: $table.locationText,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get label => $composableBuilder(
+    column: $table.label,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get latitude => $composableBuilder(
+    column: $table.latitude,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get longitude => $composableBuilder(
+    column: $table.longitude,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get source => $composableBuilder(
+    column: $table.source,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get attribution => $composableBuilder(
+    column: $table.attribution,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  $$AccountsTableFilterComposer get accountId {
+    final $$AccountsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.accountId,
+      referencedTable: $db.accounts,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$AccountsTableFilterComposer(
+            $db: $db,
+            $table: $db.accounts,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$LocationResolutionsTableOrderingComposer
+    extends Composer<_$AppDatabase, $LocationResolutionsTable> {
+  $$LocationResolutionsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get kind => $composableBuilder(
+    column: $table.kind,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get sourceId => $composableBuilder(
+    column: $table.sourceId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get itemId => $composableBuilder(
+    column: $table.itemId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get locationText => $composableBuilder(
+    column: $table.locationText,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get label => $composableBuilder(
+    column: $table.label,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get latitude => $composableBuilder(
+    column: $table.latitude,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get longitude => $composableBuilder(
+    column: $table.longitude,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get source => $composableBuilder(
+    column: $table.source,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get attribution => $composableBuilder(
+    column: $table.attribution,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  $$AccountsTableOrderingComposer get accountId {
+    final $$AccountsTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.accountId,
+      referencedTable: $db.accounts,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$AccountsTableOrderingComposer(
+            $db: $db,
+            $table: $db.accounts,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$LocationResolutionsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $LocationResolutionsTable> {
+  $$LocationResolutionsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get kind =>
+      $composableBuilder(column: $table.kind, builder: (column) => column);
+
+  GeneratedColumn<String> get sourceId =>
+      $composableBuilder(column: $table.sourceId, builder: (column) => column);
+
+  GeneratedColumn<String> get itemId =>
+      $composableBuilder(column: $table.itemId, builder: (column) => column);
+
+  GeneratedColumn<String> get locationText => $composableBuilder(
+    column: $table.locationText,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get label =>
+      $composableBuilder(column: $table.label, builder: (column) => column);
+
+  GeneratedColumn<double> get latitude =>
+      $composableBuilder(column: $table.latitude, builder: (column) => column);
+
+  GeneratedColumn<double> get longitude =>
+      $composableBuilder(column: $table.longitude, builder: (column) => column);
+
+  GeneratedColumn<String> get source =>
+      $composableBuilder(column: $table.source, builder: (column) => column);
+
+  GeneratedColumn<String> get attribution => $composableBuilder(
+    column: $table.attribution,
+    builder: (column) => column,
+  );
+
+  $$AccountsTableAnnotationComposer get accountId {
+    final $$AccountsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.accountId,
+      referencedTable: $db.accounts,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$AccountsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.accounts,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$LocationResolutionsTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $LocationResolutionsTable,
+          LocationResolution,
+          $$LocationResolutionsTableFilterComposer,
+          $$LocationResolutionsTableOrderingComposer,
+          $$LocationResolutionsTableAnnotationComposer,
+          $$LocationResolutionsTableCreateCompanionBuilder,
+          $$LocationResolutionsTableUpdateCompanionBuilder,
+          (LocationResolution, $$LocationResolutionsTableReferences),
+          LocationResolution,
+          PrefetchHooks Function({bool accountId})
+        > {
+  $$LocationResolutionsTableTableManager(
+    _$AppDatabase db,
+    $LocationResolutionsTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$LocationResolutionsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$LocationResolutionsTableOrderingComposer(
+                $db: db,
+                $table: table,
+              ),
+          createComputedFieldComposer: () =>
+              $$LocationResolutionsTableAnnotationComposer(
+                $db: db,
+                $table: table,
+              ),
+          updateCompanionCallback:
+              ({
+                Value<String> kind = const Value.absent(),
+                Value<String> accountId = const Value.absent(),
+                Value<String> sourceId = const Value.absent(),
+                Value<String> itemId = const Value.absent(),
+                Value<String> locationText = const Value.absent(),
+                Value<String> label = const Value.absent(),
+                Value<double> latitude = const Value.absent(),
+                Value<double> longitude = const Value.absent(),
+                Value<String> source = const Value.absent(),
+                Value<String> attribution = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => LocationResolutionsCompanion(
+                kind: kind,
+                accountId: accountId,
+                sourceId: sourceId,
+                itemId: itemId,
+                locationText: locationText,
+                label: label,
+                latitude: latitude,
+                longitude: longitude,
+                source: source,
+                attribution: attribution,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String kind,
+                required String accountId,
+                required String sourceId,
+                required String itemId,
+                required String locationText,
+                required String label,
+                required double latitude,
+                required double longitude,
+                required String source,
+                required String attribution,
+                Value<int> rowid = const Value.absent(),
+              }) => LocationResolutionsCompanion.insert(
+                kind: kind,
+                accountId: accountId,
+                sourceId: sourceId,
+                itemId: itemId,
+                locationText: locationText,
+                label: label,
+                latitude: latitude,
+                longitude: longitude,
+                source: source,
+                attribution: attribution,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable(table),
+                  $$LocationResolutionsTableReferences(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: ({accountId = false}) {
+            return PrefetchHooks(
+              db: db,
+              explicitlyWatchedTables: [],
+              addJoins:
+                  <
+                    T extends TableManagerState<
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic
+                    >
+                  >(state) {
+                    if (accountId) {
+                      state =
+                          state.withJoin(
+                                currentTable: table,
+                                currentColumn: table.accountId,
+                                referencedTable:
+                                    $$LocationResolutionsTableReferences
+                                        ._accountIdTable(db),
+                                referencedColumn:
+                                    $$LocationResolutionsTableReferences
+                                        ._accountIdTable(db)
+                                        .id,
+                              )
+                              as T;
+                    }
+
+                    return state;
+                  },
+              getPrefetchedDataCallback: (items) async {
+                return [];
+              },
+            );
+          },
+        ),
+      );
+}
+
+typedef $$LocationResolutionsTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $LocationResolutionsTable,
+      LocationResolution,
+      $$LocationResolutionsTableFilterComposer,
+      $$LocationResolutionsTableOrderingComposer,
+      $$LocationResolutionsTableAnnotationComposer,
+      $$LocationResolutionsTableCreateCompanionBuilder,
+      $$LocationResolutionsTableUpdateCompanionBuilder,
+      (LocationResolution, $$LocationResolutionsTableReferences),
+      LocationResolution,
+      PrefetchHooks Function({bool accountId})
+    >;
 
 class $AppDatabaseManager {
   final _$AppDatabase _db;
@@ -43424,6 +44907,8 @@ class $AppDatabaseManager {
       $$ScheduleItemOverridesTableTableManager(_db, _db.scheduleItemOverrides);
   $$NotificationScheduleTableTableManager get notificationSchedule =>
       $$NotificationScheduleTableTableManager(_db, _db.notificationSchedule);
+  $$LocationResolutionsTableTableManager get locationResolutions =>
+      $$LocationResolutionsTableTableManager(_db, _db.locationResolutions);
 }
 
 mixin _$TaskListsDaoMixin on DatabaseAccessor<AppDatabase> {

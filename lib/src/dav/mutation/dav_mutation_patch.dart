@@ -503,6 +503,7 @@ const _editableProperties = {
   'SUMMARY',
   'DESCRIPTION',
   'LOCATION',
+  'GEO',
   'DTSTART',
   'DTEND',
   'DUE',

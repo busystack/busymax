@@ -324,7 +324,7 @@ class _TaskDetailsPaneState extends ConsumerState<TaskDetailsPane> {
       await repository.patchTask(
         task.taskListId,
         task.id,
-        TaskPatchInput(patch),
+        TaskPatchInput(patch, locationChange: draft.locationChange),
       );
       mutated = true;
     }

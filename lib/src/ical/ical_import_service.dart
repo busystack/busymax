@@ -1,4 +1,5 @@
 import 'package:drift/drift.dart';
+import '../features/maps/domain/location_result.dart';
 
 import '../dav/dav_errors.dart';
 import '../dav/ical/ical_document.dart';
@@ -344,6 +345,7 @@ _PreparedImportDraft _prepareDraft(
           endTimeZone: endTimeZone,
           description: master.description,
           location: master.location,
+          locationChange: master.locationPoint == null ? const LocationChange.unchanged() : LocationChange.replace(LocationResult(label: master.location ?? '', point: master.locationPoint!, source: 'ical', attribution: 'Imported iCalendar GEO')),
           recurrence: recurrence,
           recurrenceChanged: recurrence != null,
           reminders: reminders,

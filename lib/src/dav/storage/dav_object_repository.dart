@@ -1,4 +1,5 @@
 import 'dart:convert';
+import '../../features/maps/data/location_resolution_repository.dart';
 
 import 'package:crypto/crypto.dart';
 import 'package:drift/drift.dart';
@@ -848,6 +849,13 @@ final class DavObjectRepository {
     required IcalSemanticDocument semantic,
     required Map<String, String> componentIds,
   }) async {
+    final resolutions = LocationResolutionRepository(_database);
+    final remembered = await resolutions.capture(davObjectId: objectId);
+    await _replaceProjectionsBody(commit: commit, collection: collection, objectId: objectId, etag: etag, semantic: semantic, componentIds: componentIds);
+    await resolutions.restore(remembered, accountId: commit.accountId, sourceId: semantic.components.firstOrNull?.componentType == 'VTODO' ? 'dav-task-list-${commit.collectionId}' : 'dav-calendar-${commit.collectionId}');
+  }
+
+  Future<void> _replaceProjectionsBody({required DavCollectionCommit commit, required DavCollection collection, required String objectId, required String? etag, required IcalSemanticDocument semantic, required Map<String, String> componentIds}) async {
     await _deleteProjections(objectId);
     if (semantic.components.isEmpty) return;
     final componentType = semantic.components.first.componentType;
@@ -942,6 +950,8 @@ final class DavObjectRepository {
               title: projected.title,
               description: Value(projected.description),
               location: Value(projected.location),
+              locationLatitude: Value(projected.locationPoint?.latitude),
+              locationLongitude: Value(projected.locationPoint?.longitude),
               allDay: Value(projected.allDay),
               startDate: Value(projected.startDate),
               startDateTime: Value(projected.startDateTime),
@@ -1077,7 +1087,9 @@ final class DavObjectRepository {
               percentComplete: Value(
                 component.percentComplete ?? master.percentComplete,
               ),
-              taskLocation: Value(component.location ?? master.location),
+              taskLocation: Value(effectiveIcalLocation([component, master])),
+              locationLatitude: Value(effectiveIcalLocationPoint([component, master])?.latitude),
+              locationLongitude: Value(effectiveIcalLocationPoint([component, master])?.longitude),
               taskUrl: Value(component.url ?? master.url),
               taskClassification: Value(
                 component.classification ?? master.classification,

@@ -25,6 +25,8 @@ import '../../notifications/notification_schedule_service.dart';
 import '../../recurrence/domain/event_recurrence_codec.dart';
 import '../domain/event_move_policy.dart';
 import '../domain/event_timing_policy.dart';
+import '../../maps/domain/location_result.dart';
+import '../../maps/data/location_resolution_repository.dart';
 import '../presentation/event_editor_draft.dart';
 import 'calendar_event_detail.dart';
 
@@ -1325,6 +1327,8 @@ class CalendarRepository {
       title: event.title,
       description: Value(event.description),
       location: Value(event.location),
+      locationLatitude: Value(event.locationPoint?.latitude),
+      locationLongitude: Value(event.locationPoint?.longitude),
       allDay: Value(event.allDay),
       startDate: Value(event.startDate),
       startDateTime: Value(event.startDateTime),
@@ -1455,6 +1459,20 @@ class CalendarRepository {
         CalendarGuestUpdatePolicy.send,
     bool rebuildNotifications = true,
   }) async {
+    final operationId = await _database.transaction(() async {
+      final operationId = await _createLocalEvent(draft, guestUpdatePolicy: guestUpdatePolicy, rebuildNotifications: false);
+      final operation = await (_database.select(_database.pendingOps)..where((r) => r.id.equals(operationId))).getSingle();
+      await _saveMapSelection(draft, eventId: operation.eventId);
+      return operationId;
+    });
+    if (rebuildNotifications) {
+      await _notificationScheduleService().rebuildUpcomingEventNotifications(draft.accountId);
+      await _onNotificationScheduleChanged?.call();
+    }
+    return operationId;
+  }
+
+  Future<String> _createLocalEvent(EventEditorDraft draft, {CalendarGuestUpdatePolicy guestUpdatePolicy = CalendarGuestUpdatePolicy.send, bool rebuildNotifications = true}) async {
     final source = await (_database.select(
       _database.calendarSources,
     )..where((row) => row.id.equals(draft.sourceId))).getSingle();
@@ -1536,6 +1554,8 @@ class CalendarRepository {
               title: draft.title.trim(),
               description: Value(draft.description),
               location: Value(draft.location),
+              locationLatitude: Value(provider == BusyProvider.microsoft ? draft.effectiveLocationPoint?.latitude : null),
+              locationLongitude: Value(provider == BusyProvider.microsoft ? draft.effectiveLocationPoint?.longitude : null),
               allDay: Value(draft.allDay),
               startDate: Value(draft.allDay ? _date(draft.start) : null),
               startDateTime: Value(
@@ -1648,7 +1668,13 @@ class CalendarRepository {
     EventTimingBaseline? timingBaseline,
   }) async {
     if (timingBaseline == null) {
-      return _updateLocalEvent(draft, guestUpdatePolicy: guestUpdatePolicy);
+      await _database.transaction(() async {
+        await _updateLocalEvent(draft, guestUpdatePolicy: guestUpdatePolicy, deferNotifications: true);
+        await _saveMapSelection(draft);
+      });
+      await _notificationScheduleService().rebuildUpcomingEventNotifications(draft.accountId);
+      await _onNotificationScheduleChanged?.call();
+      return;
     }
     // Compare and change timing in the same transaction. Rebase unrelated
     // fields on the latest detail, including provider-only and HTML content.
@@ -1699,6 +1725,7 @@ class CalendarRepository {
     CalendarGuestUpdatePolicy guestUpdatePolicy =
         CalendarGuestUpdatePolicy.send,
     bool timingOnly = false,
+    bool deferNotifications = false,
   }) async {
     final eventId = draft.eventId;
     if (eventId == null) {
@@ -1759,6 +1786,7 @@ class CalendarRepository {
         existing,
         draft,
         timingOnly: timingOnly,
+        deferNotifications: deferNotifications,
       );
     }
     final provider = BusyProviderCodec.requireStorageValue(source.provider);
@@ -1913,11 +1941,34 @@ class CalendarRepository {
             ),
           );
     });
-    if (timingOnly) return;
+    if (timingOnly || deferNotifications) return;
     await _notificationScheduleService().rebuildUpcomingEventNotifications(
       draft.accountId,
     );
     await _onNotificationScheduleChanged?.call();
+  }
+
+  Future<void> _saveMapSelection(EventEditorDraft draft, {String? eventId}) async {
+    if (!draft.locationChange.changed) return;
+    final rows = await (_database.select(_database.calendarEvents)..where((r) => r.accountId.equals(draft.accountId) & r.calendarSourceId.equals(draft.sourceId) & r.isDeleted.equals(false))).get();
+    final id = eventId ?? draft.eventId;
+    final original = draft.originalDetail;
+    CalendarEvent? selected;
+    for (final row in rows) {
+      if (row.id == id || (original?.icalUid != null && original?.providerRecurringEventId == null && row.icalUid == original!.icalUid)) { selected = row; break; }
+    }
+    if (selected == null && original != null) {
+      for (final row in rows) {
+        if (row.icalUid == original.icalUid && row.occurrenceKey == original.occurrenceKey) { selected = row; break; }
+      }
+    }
+    if (selected == null) return;
+    final scope = draft.recurringMutationScope;
+    for (final row in rows) {
+      final inSeries = scope != null && scope != RecurringEventMutationScope.singleOccurrence && selected.providerRecurringEventId != null && row.providerRecurringEventId == selected.providerRecurringEventId && _seriesRowInScope(row, selected, scope);
+      if (row.id != selected.id && !inSeries) continue;
+      await LocationResolutionRepository(_database).apply(LocationItemIdentity(kind: LocationItemKind.event, accountId: row.accountId, sourceId: row.calendarSourceId, itemId: row.id), draft.location ?? '', draft.locationChange);
+    }
   }
 
   Future<void> _moveLocalEvent({
@@ -2671,7 +2722,7 @@ class CalendarRepository {
     final raw = _jsonMap(existing.rawJson);
     final descriptionChanged =
         (draft.description ?? '') != (existing.description ?? '');
-    final locationChanged = (draft.location ?? '') != (existing.location ?? '');
+    final locationChanged = (draft.location ?? '') != (existing.location ?? '') || (provider == BusyProvider.microsoft && draft.locationChange.changed);
     final remindersChanged = !_sameJsonValue(
       _decodeStoredJson(existing.remindersJson),
       draft.reminders,
@@ -2692,6 +2743,7 @@ class CalendarRepository {
     final newTimeProposalsChanged =
         draft.allowNewTimeProposals != raw['allowNewTimeProposals'];
     final rawChanged =
+        (provider == BusyProvider.microsoft && draft.locationChange.changed) ||
         importanceChanged ||
         responseRequestedChanged ||
         hideAttendeesChanged ||
@@ -2717,6 +2769,8 @@ class CalendarRepository {
         location: locationChanged
             ? Value(draft.location)
             : const Value.absent(),
+        locationLatitude: locationChanged && provider == BusyProvider.microsoft ? Value(draft.effectiveLocationPoint?.latitude) : const Value.absent(),
+        locationLongitude: locationChanged && provider == BusyProvider.microsoft ? Value(draft.effectiveLocationPoint?.longitude) : const Value.absent(),
         allDay: startChanged || endChanged
             ? Value(draft.allDay)
             : const Value.absent(),
@@ -3119,6 +3173,8 @@ class CalendarRepository {
               title: draft.title.trim(),
               description: Value(draft.description),
               location: Value(draft.location),
+              locationLatitude: Value(draft.effectiveLocationPoint?.latitude),
+              locationLongitude: Value(draft.effectiveLocationPoint?.longitude),
               allDay: Value(draft.allDay),
               startDate: Value(draft.allDay ? _date(start) : null),
               startDateTime: Value(
@@ -3167,6 +3223,7 @@ class CalendarRepository {
     CalendarEvent existing,
     EventEditorDraft draft, {
     bool timingOnly = false,
+    bool deferNotifications = false,
   }) async {
     _requireDavSchedulingUnchanged(draft, creating: false);
     final collectionId = source.davCollectionId;
@@ -3310,7 +3367,7 @@ class CalendarRepository {
         );
       }
     });
-    if (timingOnly) return;
+    if (timingOnly || deferNotifications) return;
     await _notificationScheduleService().rebuildUpcomingEventNotifications(
       existing.accountId,
     );
@@ -3528,6 +3585,8 @@ class CalendarRepository {
         title: Value(draft.title.trim()),
         description: Value(draft.description),
         location: Value(draft.location),
+        locationLatitude: draft.locationChange.changed ? Value(draft.effectiveLocationPoint?.latitude) : const Value.absent(),
+        locationLongitude: draft.locationChange.changed ? Value(draft.effectiveLocationPoint?.longitude) : const Value.absent(),
         allDay: Value(draft.allDay),
         startDate: Value(draft.allDay ? _date(draft.start) : null),
         startDateTime: Value(
@@ -3967,6 +4026,8 @@ DavEventMutationInput _davEventInput(
     endTimeZone: endTimeZone,
     description: draft.description,
     location: draft.location,
+    locationPoint: draft.effectiveLocationPoint,
+    locationChanged: draft.locationChange.changed,
     recurrence: draft.recurrence,
     recurrenceChanged: draft.recurrenceChanged,
     reminders: draft.reminders,
@@ -4061,6 +4122,8 @@ DavEventMutationInput _seriesDavEventInput({
     location: (desired.location ?? '') != (existing.location ?? '')
         ? desired.location
         : master.location,
+    locationPoint: desired.locationChanged ? desired.locationPoint : master.locationPoint,
+    locationChanged: desired.locationChanged,
     recurrence: desired.recurrence,
     recurrenceChanged: desired.recurrenceChanged,
     reminders: desired.reminders,
@@ -4169,7 +4232,7 @@ CalendarEventsCompanion _eventPatchProjection({
       request.containsKey('importance') ||
           request.containsKey('responseRequested') ||
           request.containsKey('hideAttendees') ||
-          request.containsKey('allowNewTimeProposals'),
+          request.containsKey('allowNewTimeProposals') || request.containsKey('structuredLocation'),
     BusyProvider.appleICloud ||
     BusyProvider.nextcloud ||
     BusyProvider.webCal => false,
@@ -4184,6 +4247,8 @@ CalendarEventsCompanion _eventPatchProjection({
     location: request.containsKey('location')
         ? Value(draft.location)
         : const Value.absent(),
+    locationLatitude: request.containsKey('structuredLocation') ? Value(draft.locationChange.selection?.point.latitude) : const Value.absent(),
+    locationLongitude: request.containsKey('structuredLocation') ? Value(draft.locationChange.selection?.point.longitude) : const Value.absent(),
     allDay: rangeChanged ? Value(draft.allDay) : const Value.absent(),
     startDate: rangeChanged
         ? Value(draft.allDay ? _date(draft.start) : null)
@@ -4275,6 +4340,9 @@ Map<String, Object?> _eventDeltaRequest(
   if ((draft.location ?? '') != (original.location ?? '')) {
     result['location'] = draft.location ?? '';
   }
+  if (provider == BusyProvider.microsoft && (draft.locationChange.changed || result.containsKey('location'))) {
+    result['structuredLocation'] = _graphLocation(draft);
+  }
   final rangeChanged =
       draft.allDay != original.allDay ||
       draft.start != _eventDetailStartDateTime(original) ||
@@ -4348,6 +4416,7 @@ Map<String, Object?> _eventRequest(
     'descriptionContentType': draft.descriptionContentType,
     'descriptionHtml': draft.descriptionHtml,
     'location': draft.location,
+    if (provider == BusyProvider.microsoft && (isCreate || draft.locationChange.changed)) 'structuredLocation': _graphLocation(draft),
     'allDay': draft.allDay,
     'start': draft.start?.toIso8601String(),
     'end': draft.end?.toIso8601String(),
@@ -4377,6 +4446,12 @@ Map<String, Object?> _eventRequest(
     if (clearFields.isNotEmpty) calendarEventClearFieldsKey: clearFields,
   };
 }
+
+Map<String, Object?> _graphLocation(EventEditorDraft draft) => {
+  'displayName': draft.location ?? '',
+  'coordinates': draft.locationChange.selection?.point.toJson() ?? const <String, Object?>{},
+  'address': draft.locationChange.selection?.microsoftLocation['address'] ?? const <String, Object?>{},
+};
 
 Object? _conferenceRequest(EventEditorDraft draft, BusyProvider provider) {
   if (!draft.createConference) return null;
@@ -4493,6 +4568,10 @@ Map<String, Object?> _optimisticEventRaw(
   String? existingJson,
 }) {
   final raw = {..._jsonMap(existingJson)};
+  if (provider == BusyProvider.microsoft && draft.locationChange.changed) {
+    raw['location'] = _graphLocation(draft);
+    raw['locations'] = [_graphLocation(draft)];
+  }
   switch (provider) {
     case BusyProvider.google:
       if (draft.hideAttendees case final hidden?) {
@@ -4529,6 +4608,10 @@ Map<String, Object?> _optimisticEventRawForPatch(
   String? existingJson,
 }) {
   final raw = {..._jsonMap(existingJson)};
+  if (provider == BusyProvider.microsoft && request.containsKey('structuredLocation')) {
+    raw['location'] = request['structuredLocation'];
+    raw['locations'] = [request['structuredLocation']];
+  }
   switch (provider) {
     case BusyProvider.google:
       if (request.containsKey('hideAttendees')) {

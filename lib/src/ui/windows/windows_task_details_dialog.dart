@@ -1076,7 +1076,7 @@ Future<bool> showWindowsTaskDetailsDialog(
                             await repository.patchTask(
                               task.sourceId,
                               task.id,
-                              TaskPatchInput(patch),
+                              TaskPatchInput(patch, locationChange: updatedDraft.locationChange),
                             );
                           }
                           if (selectedTaskListId != original.taskListId) {

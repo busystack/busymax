@@ -1,4 +1,7 @@
 import 'dart:convert';
+import '../../maps/domain/geographic_point.dart';
+import '../../maps/domain/location_result.dart';
+import '../../maps/data/location_resolution_repository.dart';
 
 import 'package:collection/collection.dart';
 import 'package:drift/drift.dart';
@@ -113,6 +116,7 @@ class TaskEntity {
     this.icalPriority,
     this.percentComplete,
     this.taskLocation,
+    this.locationPoint,
     this.taskUrl,
     this.taskClassification,
     this.taskPinned,
@@ -174,6 +178,7 @@ class TaskEntity {
       icalPriority: row.icalPriority,
       percentComplete: row.percentComplete,
       taskLocation: row.taskLocation,
+      locationPoint: GeographicPoint.tryParse(latitude: row.locationLatitude, longitude: row.locationLongitude),
       taskUrl: row.taskUrl,
       taskClassification: row.taskClassification,
       taskPinned: row.taskPinned,
@@ -237,6 +242,7 @@ class TaskEntity {
   final int? icalPriority;
   final int? percentComplete;
   final String? taskLocation;
+  final GeographicPoint? locationPoint;
   final String? taskUrl;
   final String? taskClassification;
   final bool? taskPinned;
@@ -289,6 +295,7 @@ class TaskCreateInput {
     this.fields = const {},
     this.parentTaskId,
     this.previousSiblingTaskId,
+    this.locationChange = const LocationChange.unchanged(),
   });
 
   final String title;
@@ -299,6 +306,7 @@ class TaskCreateInput {
   final Map<String, Object?> fields;
   final String? parentTaskId;
   final String? previousSiblingTaskId;
+  final LocationChange locationChange;
 
   Map<String, Object?> toFields() {
     final trimmedCategories = [
@@ -312,14 +320,16 @@ class TaskCreateInput {
       if (dueUtc != null) 'due': dueUtc,
       if (trimmedCategories.isNotEmpty) 'categories': trimmedCategories,
       ...fields,
+      if (locationChange.changed) 'locationPoint': locationChange.selection?.point.toJson(),
     };
   }
 }
 
 class TaskPatchInput {
-  const TaskPatchInput(this.fields);
+  const TaskPatchInput(this.fields, {this.locationChange = const LocationChange.unchanged()});
 
   final Map<String, Object?> fields;
+  final LocationChange locationChange;
 }
 
 class TaskPutInput {
@@ -548,6 +558,7 @@ class TasksRepository {
     if (taskList.davCollectionId != null) {
       return _createDavTask(taskList, input);
     }
+    if (input.locationChange.changed) throw UnsupportedError('This task collection does not support locations.');
     final now = _now();
     final localId = 'local-task-${_uuid.v4()}';
     final fields = input.toFields();
@@ -768,8 +779,13 @@ class TasksRepository {
   ) async {
     final taskList = await _requiredTaskList(taskListId);
     if (taskList.davCollectionId != null) {
-      return _updateDavTaskWithHierarchy(taskList, taskId, input.fields);
+      final fields = {...input.fields, if (input.locationChange.changed) 'locationPoint': input.locationChange.selection?.point.toJson()};
+      await _updateDavTaskWithHierarchy(taskList, taskId, fields);
+      final row = await _requiredTask(taskListId, taskId);
+      await LocationResolutionRepository(_database).apply(LocationItemIdentity(kind: LocationItemKind.task, accountId: _accountId, sourceId: taskListId, itemId: row.id), row.taskLocation ?? '', input.locationChange);
+      return;
     }
+    if (input.locationChange.changed) throw UnsupportedError('This task collection does not support locations.');
     final now = _now();
     await _database.transaction(() async {
       final baseline = await _baselineRow(taskListId, taskId);
@@ -1019,6 +1035,7 @@ class TasksRepository {
         ),
       );
       await _patchLocalTask(taskList.id, localId, fields, now);
+      await LocationResolutionRepository(_database).apply(LocationItemIdentity(kind: LocationItemKind.task, accountId: _accountId, sourceId: taskList.id, itemId: localId), fields['location']?.toString() ?? '', input.locationChange);
       await DavPendingOperationQueue(
         database: _database,
         idFactory: _uuid.v4,
@@ -2170,6 +2187,8 @@ class TasksRepository {
         taskLocation: fields.containsKey('location')
             ? Value(_trimmedOrNull(fields['location']))
             : const Value.absent(),
+        locationLatitude: fields.containsKey('locationPoint') || fields.containsKey('location') ? Value(GeographicPoint.fromJson(fields['locationPoint'])?.latitude) : const Value.absent(),
+        locationLongitude: fields.containsKey('locationPoint') || fields.containsKey('location') ? Value(GeographicPoint.fromJson(fields['locationPoint'])?.longitude) : const Value.absent(),
         taskUrl: fields.containsKey('taskUrl')
             ? Value(_trimmedOrNull(fields['taskUrl']))
             : const Value.absent(),

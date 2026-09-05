@@ -1,6 +1,7 @@
 import 'package:busymax/src/providers/busy_provider.dart';
 import '../features/calendar/domain/event_timing_policy.dart';
 import '../features/tasks/domain/task_checklist_item.dart';
+import '../features/maps/domain/geographic_point.dart';
 
 enum ScheduleItemKind { calendarEvent, task, localReminder }
 
@@ -54,6 +55,7 @@ class CalendarScheduleItem implements ScheduleItem {
     this.timingBaseline,
     this.end,
     this.location,
+    this.locationPoint,
     this.description,
     this.descriptionContentType,
     this.descriptionHtml,
@@ -105,6 +107,7 @@ class CalendarScheduleItem implements ScheduleItem {
   @override
   final bool allDay;
   final String? location;
+  final GeographicPoint? locationPoint;
   final String? description;
   final String? descriptionContentType;
   final String? descriptionHtml;
@@ -150,6 +153,8 @@ class TaskScheduleItem implements ScheduleItem {
     this.start,
     this.end,
     this.notes,
+    this.location,
+    this.locationPoint,
     this.categories = const [],
     this.reminder,
     this.parentId,
@@ -181,6 +186,8 @@ class TaskScheduleItem implements ScheduleItem {
   final bool allDay;
   final bool completed;
   final String? notes;
+  final String? location;
+  final GeographicPoint? locationPoint;
   @override
   final List<String> categories;
   final DateTime? reminder;
