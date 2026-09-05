@@ -1,6 +1,7 @@
 import 'package:xml/xml.dart';
 
 import '../../providers/provider_capabilities.dart';
+import '../../providers/busy_provider.dart';
 import '../dav_errors.dart';
 import '../dav_href.dart';
 import '../dav_provider_profile.dart';
@@ -50,6 +51,7 @@ final class DavDiscoveryService {
     );
     _requireSuccessfulOrDav(options);
     final serviceCapabilities = _serviceCapabilities(options);
+    _transport.setServerFeatures(serviceCapabilities.serverFeatures);
 
     final principalResponse = await _propfind(
       uri: options.requestUri,
@@ -128,7 +130,136 @@ final class DavDiscoveryService {
       inbox: inbox,
       outbox: outbox,
       correlationId: correlationId,
+      principal: principalHref,
     );
+    final contexts = <DavPrincipalContext>[
+      _principalContext(
+        principalHref,
+        calendarHome,
+        addresses,
+        inbox,
+        outbox,
+        inventory,
+        false,
+        inventoryResponse.requestUri,
+        correlationId,
+      ),
+    ];
+    if (_profile.provider == BusyProvider.nextcloud &&
+        serviceCapabilities.serverFeatures.contains('calendar-proxy')) {
+      final principals = <String, Uri>{};
+      for (final name in [
+        'calendar-proxy-read-for',
+        'calendar-proxy-write-for',
+      ]) {
+        for (final response in principalProperties.responses) {
+          for (final stat in response.propstats) {
+            if (stat.property(calendarServerNamespace, name) != null &&
+                !stat.isSuccessful &&
+                stat.statusCode != 404)
+              throw _incompleteInventory();
+          }
+          for (final href in _hrefChildren(
+            response.successfulProperty(calendarServerNamespace, name),
+          )) {
+            final uri = resolveDavHref(
+              href: href,
+              responseRequestUri: homeResponse.requestUri,
+              profile: _profile,
+              accountAuthority: _accountAuthority,
+              correlationId: correlationId,
+            );
+            if (!_sameRequestTarget(uri, principalHref))
+              principals[normalizedDavHrefKey(_profile.provider, uri)] = uri;
+          }
+        }
+      }
+      if (principals.length > 32) throw _incompleteInventory();
+      for (final principal in principals.values) {
+        final response = await _propfind(
+          uri: principal,
+          depth: '0',
+          body: _principalPropertiesPropfind,
+          correlationId: correlationId,
+          cancellationToken: cancellationToken,
+        );
+        final properties = _xmlParser.parseMultistatus(
+          response.bodyBytes,
+          correlationId: correlationId,
+        );
+        final homes = _validatedHrefs(
+          properties,
+          caldavNamespace,
+          'calendar-home-set',
+          response.requestUri,
+          correlationId,
+        );
+        if (homes.isEmpty || homes.length > 32) throw _incompleteInventory();
+        final delegatedAddresses = _calendarAddressListProperty(
+          properties,
+          caldavNamespace,
+          'calendar-user-address-set',
+          responseUri: response.requestUri,
+          correlationId: correlationId,
+        );
+        final delegatedInbox = _optionalHrefProperty(
+          properties,
+          caldavNamespace,
+          'schedule-inbox-URL',
+          responseUri: response.requestUri,
+          correlationId: correlationId,
+        );
+        final delegatedOutbox = _optionalHrefProperty(
+          properties,
+          caldavNamespace,
+          'schedule-outbox-URL',
+          responseUri: response.requestUri,
+          correlationId: correlationId,
+        );
+        for (final home in homes) {
+          final listed = await _propfind(
+            uri: home,
+            depth: '1',
+            body: _calendarHomeInventoryPropfind,
+            correlationId: correlationId,
+            cancellationToken: cancellationToken,
+          );
+          final entries = _xmlParser.parseMultistatus(
+            listed.bodyBytes,
+            correlationId: correlationId,
+          );
+          final discovered = _parseCollections(
+            entries,
+            responseUri: listed.requestUri,
+            home: home,
+            inbox: delegatedInbox,
+            outbox: delegatedOutbox,
+            correlationId: correlationId,
+            principal: principal,
+            delegated: true,
+          );
+          contexts.add(
+            _principalContext(
+              principal,
+              home,
+              delegatedAddresses,
+              delegatedInbox,
+              delegatedOutbox,
+              entries,
+              true,
+              listed.requestUri,
+              correlationId,
+            ),
+          );
+          for (final collection in discovered) {
+            if (!collections.any(
+              (existing) => existing.hrefKey == collection.hrefKey,
+            ))
+              collections.add(collection);
+          }
+        }
+      }
+    }
     final now = _nowUtc().toUtc();
     final canonicalService = principalResponse.requestUri;
     return DavDiscoveryResult(
@@ -157,6 +288,7 @@ final class DavDiscoveryService {
         discoveredAtUtc: now,
         lastValidatedAtUtc: now,
         providerProfileVersion: davProviderProfileVersion,
+        principalContexts: List.unmodifiable(contexts),
       ),
       collections: List.unmodifiable(collections),
     );
@@ -185,6 +317,84 @@ final class DavDiscoveryService {
     return response;
   }
 
+  List<Uri> _validatedHrefs(
+    DavMultistatus data,
+    String namespace,
+    String name,
+    Uri responseUri,
+    String correlationId,
+  ) => [
+    for (final response in data.responses)
+      for (final href in _hrefChildren(
+        response.successfulProperty(namespace, name),
+      ))
+        resolveDavHref(
+          href: href,
+          responseRequestUri: responseUri,
+          profile: _profile,
+          accountAuthority: _accountAuthority,
+          correlationId: correlationId,
+        ),
+  ];
+
+  DavPrincipalContext _principalContext(
+    Uri principal,
+    Uri home,
+    List<Uri> addresses,
+    Uri? inbox,
+    Uri? outbox,
+    DavMultistatus inventory,
+    bool delegated,
+    Uri responseUri,
+    String correlationId,
+  ) {
+    Set<String> privileges(Uri? target) {
+      if (target == null) return const {};
+      for (final entry in inventory.responses) {
+        final uri = resolveDavHref(
+          href: entry.href,
+          responseRequestUri: responseUri,
+          profile: _profile,
+          accountAuthority: _accountAuthority,
+          correlationId: correlationId,
+        );
+        if (_sameRequestTarget(uri, target))
+          return _privilegeNames(
+            entry.successfulProperty(
+              davNamespace,
+              'current-user-privilege-set',
+            ),
+          );
+      }
+      return const {};
+    }
+
+    return DavPrincipalContext(
+      principalHref: principal,
+      calendarHomeHref: home,
+      calendarUserAddresses: addresses,
+      scheduleInboxHref: inbox,
+      scheduleOutboxHref: outbox,
+      scheduleDefaultCalendarHref: _optionalHrefProperty(
+        inventory,
+        caldavNamespace,
+        'schedule-default-calendar-URL',
+        responseUri: responseUri,
+        correlationId: correlationId,
+      ),
+      homePrivileges: privileges(home),
+      outboxPrivileges: privileges(outbox),
+      delegated: delegated,
+    );
+  }
+
+  DavException _incompleteInventory() => const DavException(
+    kind: DavErrorKind.protocol,
+    code: 'DavIncompleteInventory',
+    safeMessage:
+        'DAV discovery was incomplete. Cached sources have been retained.',
+  );
+
   AccountServiceCapabilities _serviceCapabilities(DavResponse response) {
     final davTokens = (response.headers['dav'] ?? '')
         .split(',')
@@ -211,14 +421,37 @@ final class DavDiscoveryService {
     required Uri? inbox,
     required Uri? outbox,
     required String correlationId,
+    required Uri principal,
+    bool delegated = false,
   }) {
     final result = <DavCollectionDiscovery>[];
+    if (inventory.responses.isEmpty || inventory.errorConditions.isNotEmpty)
+      throw _incompleteInventory();
     final homeKey = normalizedDavHrefKey(_profile.provider, home);
+    final homePrivileges = <String>{};
+    for (final response in inventory.responses) {
+      final target = resolveDavHref(
+        href: response.href,
+        responseRequestUri: responseUri,
+        profile: _profile,
+        accountAuthority: _accountAuthority,
+        correlationId: correlationId,
+      );
+      if (normalizedDavHrefKey(_profile.provider, target) == homeKey)
+        homePrivileges.addAll(
+          _privilegeNames(
+            response.successfulProperty(
+              davNamespace,
+              'current-user-privilege-set',
+            ),
+          ),
+        );
+    }
     for (final response in inventory.responses) {
       final responseStatus = response.statusCode;
       if (response.isMissing ||
           (responseStatus != null && responseStatus >= 400)) {
-        continue;
+        throw _incompleteInventory();
       }
       final requestUri = resolveDavHref(
         href: response.href,
@@ -234,6 +467,8 @@ final class DavDiscoveryService {
       final resourceTypes = _nestedNames(
         response.successfulProperty(davNamespace, 'resourcetype'),
       );
+      if (response.successfulProperty(davNamespace, 'resourcetype') == null)
+        throw _incompleteInventory();
       final isCalendar = resourceTypes.contains(
         _name(caldavNamespace, 'calendar'),
       );
@@ -246,7 +481,18 @@ final class DavDiscoveryService {
       final isSubscribed = resourceTypes.contains(
         _name(calendarServerNamespace, 'subscribed'),
       );
-      if (!isCalendar && !isInbox && !isOutbox) {
+      final isTrash = resourceTypes.contains(
+        _name(nextcloudNamespace, 'trash-bin'),
+      );
+      final isDeletedCalendar = resourceTypes.contains(
+        _name(nextcloudNamespace, 'deleted-calendar'),
+      );
+      if (!isCalendar &&
+          !isInbox &&
+          !isOutbox &&
+          !isSubscribed &&
+          !isTrash &&
+          !isDeletedCalendar) {
         continue;
       }
 
@@ -266,27 +512,35 @@ final class DavDiscoveryService {
       final hasAggregateAll = privileges.contains(_name(davNamespace, 'all'));
       final hasAggregateWrite =
           hasAggregateAll || privileges.contains(_name(davNamespace, 'write'));
+      final contentResource =
+          !isSubscribed &&
+          !isTrash &&
+          !isDeletedCalendar &&
+          !isInbox &&
+          !isOutbox;
       final capabilities = CollectionCapabilities(
         canRead:
-            hasAggregateWrite ||
-            privileges.contains(_name(davNamespace, 'read')),
+            hasAggregateAll || privileges.contains(_name(davNamespace, 'read')),
         canReadPrivileges:
             hasAggregateAll ||
             privileges.contains(
               _name(davNamespace, 'read-current-user-privilege-set'),
             ),
         canWriteContent:
-            hasAggregateWrite ||
-            privileges.contains(_name(davNamespace, 'write-content')),
+            contentResource &&
+            (hasAggregateWrite ||
+                privileges.contains(_name(davNamespace, 'write-content'))),
         canWriteProperties:
             hasAggregateWrite ||
             privileges.contains(_name(davNamespace, 'write-properties')),
         canAddMembers:
-            hasAggregateWrite ||
-            privileges.contains(_name(davNamespace, 'bind')),
+            contentResource &&
+            (hasAggregateWrite ||
+                privileges.contains(_name(davNamespace, 'bind'))),
         canDeleteMembers:
-            hasAggregateWrite ||
-            privileges.contains(_name(davNamespace, 'unbind')),
+            contentResource &&
+            (hasAggregateWrite ||
+                privileges.contains(_name(davNamespace, 'unbind'))),
         canReadFreeBusy:
             hasAggregateAll ||
             privileges.contains(_name(caldavNamespace, 'read-free-busy')),
@@ -316,21 +570,29 @@ final class DavDiscoveryService {
         providerAllowsCollectionMutation: _profile.allowCollectionMutations,
         providerAllowsSchedulingMutation: _profile.allowSchedulingMutations,
       );
-      final kind = _classify(
-        isInbox: isInbox,
-        isOutbox: isOutbox,
-        isSubscribed: isSubscribed,
-        hrefKey: hrefKey,
-        supportsEvents: supportsEvents,
-        supportsTasks: supportsTasks,
-        capabilities: capabilities,
-      );
+      final kind = isTrash
+          ? DavCollectionKind.trashBin
+          : isDeletedCalendar
+          ? DavCollectionKind.deletedCalendar
+          : _classify(
+              isInbox: isInbox,
+              isOutbox: isOutbox,
+              isSubscribed: isSubscribed,
+              hrefKey: hrefKey,
+              supportsEvents: supportsEvents,
+              supportsTasks: supportsTasks,
+              capabilities: capabilities,
+            );
       final calendarData = _calendarDataFormats(
         response.successfulProperty(caldavNamespace, 'supported-calendar-data'),
       );
       result.add(
         DavCollectionDiscovery(
           hrefKey: hrefKey,
+          principalHref: principal,
+          calendarHomeHref: home,
+          delegated: delegated,
+          parentPrivileges: Set.unmodifiable(homePrivileges),
           requestUri: requestUri,
           displayName:
               _textProperty(
@@ -386,10 +648,19 @@ final class DavDiscoveryService {
           eventProjectionEnabled:
               !isInbox &&
               !isOutbox &&
+              !isTrash &&
+              !isDeletedCalendar &&
+              capabilities.canRead &&
               _profile.calendarEnabled &&
               supportsEvents,
           taskProjectionEnabled:
-              !isInbox && !isOutbox && _profile.tasksEnabled && supportsTasks,
+              !isInbox &&
+              !isOutbox &&
+              !isTrash &&
+              !isDeletedCalendar &&
+              capabilities.canRead &&
+              _profile.tasksEnabled &&
+              supportsTasks,
         ),
       );
     }
@@ -677,13 +948,31 @@ String _fallbackDisplayName(String hrefKey) =>
 
 Map<String, String> _safeDisplayMetadata(DavMultistatusResponse response) {
   final result = <String, String>{};
-  for (final name in ['owner-display-name', 'calendar-enabled']) {
+  for (final name in [
+    'owner-display-name',
+    'deleted-at',
+    'calendar-uri',
+    'source-calendar-uri',
+    'trash-bin-retention-duration',
+  ]) {
     final value = _textProperty(
       response.successfulProperty(nextcloudNamespace, name),
     );
     if (value != null && value.length <= 512) {
       result[name] = value;
     }
+  }
+  final enabled = _textProperty(
+    response.successfulProperty(owncloudNamespace, 'calendar-enabled'),
+  );
+  if (enabled != null) result['calendar-enabled'] = enabled;
+  for (final (namespace, name) in [
+    (owncloudNamespace, 'invite'),
+    (calendarServerNamespace, 'allowed-sharing-modes'),
+    (calendarServerNamespace, 'publish-url'),
+  ]) {
+    final property = response.successfulProperty(namespace, name);
+    if (property != null) result[name] = property.element.toXmlString();
   }
   return result;
 }
@@ -692,24 +981,28 @@ const _currentPrincipalPropfind = '''<?xml version="1.0" encoding="utf-8"?>
 <d:propfind xmlns:d="DAV:"><d:prop><d:current-user-principal/></d:prop></d:propfind>''';
 
 const _principalPropertiesPropfind = '''<?xml version="1.0" encoding="utf-8"?>
-<d:propfind xmlns:d="DAV:" xmlns:c="urn:ietf:params:xml:ns:caldav">
+<d:propfind xmlns:d="DAV:" xmlns:c="urn:ietf:params:xml:ns:caldav" xmlns:cs="http://calendarserver.org/ns/">
   <d:prop>
     <c:calendar-home-set/><c:calendar-user-address-set/>
     <c:schedule-inbox-URL/><c:schedule-outbox-URL/>
+    <d:current-user-privilege-set/><cs:calendar-proxy-read-for/><cs:calendar-proxy-write-for/>
   </d:prop>
 </d:propfind>''';
 
 const _calendarHomeInventoryPropfind = '''<?xml version="1.0" encoding="utf-8"?>
 <d:propfind xmlns:d="DAV:" xmlns:c="urn:ietf:params:xml:ns:caldav"
  xmlns:cs="http://calendarserver.org/ns/" xmlns:a="http://apple.com/ns/ical/"
- xmlns:nc="http://nextcloud.com/ns">
+ xmlns:nc="http://nextcloud.com/ns" xmlns:oc="http://owncloud.org/ns">
   <d:prop>
     <d:resourcetype/><d:displayname/><d:owner/>
     <d:current-user-privilege-set/><d:supported-report-set/><d:sync-token/>
     <c:supported-calendar-component-set/><c:supported-calendar-data/>
     <c:calendar-description/><c:calendar-timezone/><c:calendar-timezone-id/>
     <c:schedule-calendar-transp/><c:max-resource-size/><c:max-instances/>
+    <c:schedule-default-calendar-URL/>
     <cs:getctag/><a:calendar-color/><a:calendar-order/>
-    <nc:owner-display-name/><nc:calendar-enabled/>
+    <nc:owner-display-name/><oc:calendar-enabled/>
+    <oc:invite/><cs:allowed-sharing-modes/><cs:publish-url/>
+    <nc:deleted-at/><nc:calendar-uri/><nc:source-calendar-uri/><nc:trash-bin-retention-duration/>
   </d:prop>
 </d:propfind>''';

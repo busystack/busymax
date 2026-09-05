@@ -55,6 +55,7 @@ const providerProfiles = <BusyProvider, ProviderProfileCapabilities>{
     authenticationMethod: ProviderAuthenticationMethod.nextcloudLoginFlowV2,
     expectedServices: {ProviderServiceType.calendar, ProviderServiceType.tasks},
     allowsTaskCollectionMutations: true,
+    allowsCalendarCollectionMutations: true,
   ),
 };
 
@@ -85,6 +86,9 @@ class CollectionCapabilities {
     this.canAddMembers = false,
     this.canDeleteMembers = false,
     this.canReadFreeBusy = false,
+    this.canSendInvitations = false,
+    this.canSendReplies = false,
+    this.canSendFreeBusy = false,
     this.supportsEvents = false,
     this.supportsTasks = false,
     this.supportsSyncCollection = false,
@@ -104,6 +108,9 @@ class CollectionCapabilities {
   final bool canAddMembers;
   final bool canDeleteMembers;
   final bool canReadFreeBusy;
+  final bool canSendInvitations;
+  final bool canSendReplies;
+  final bool canSendFreeBusy;
   final bool supportsEvents;
   final bool supportsTasks;
   final bool supportsSyncCollection;
@@ -116,16 +123,15 @@ class CollectionCapabilities {
   final bool providerAllowsSchedulingMutation;
 
   bool get isReadOnly => !canWriteContent;
-  bool get canCreateEvent => supportsEvents && canWriteContent && canAddMembers;
+  bool get canCreateEvent => supportsEvents && canAddMembers;
   bool get canUpdateEvent => supportsEvents && canWriteContent;
-  bool get canDeleteEvent =>
-      supportsEvents && canWriteContent && canDeleteMembers;
-  bool get canCreateTask => supportsTasks && canWriteContent && canAddMembers;
+  bool get canDeleteEvent => supportsEvents && canDeleteMembers;
+  bool get canCreateTask => supportsTasks && canAddMembers;
   bool get canUpdateTask => supportsTasks && canWriteContent;
-  bool get canDeleteTask =>
-      supportsTasks && canWriteContent && canDeleteMembers;
+  bool get canDeleteTask => supportsTasks && canDeleteMembers;
   bool get canMutateCollection =>
       providerAllowsCollectionMutation && canWriteProperties;
   bool get canSchedule =>
-      providerAllowsSchedulingMutation && canWriteContent && canReadFreeBusy;
+      providerAllowsSchedulingMutation &&
+      (canSendInvitations || canSendReplies);
 }

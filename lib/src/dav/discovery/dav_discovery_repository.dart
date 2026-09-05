@@ -45,6 +45,9 @@ final class DavDiscoveryRepository {
               capabilitiesJson: Value(
                 jsonEncode({
                   'hasPrincipal': service.capabilities.hasPrincipal,
+                  'principalContexts': service.principalContexts
+                      .map((context) => context.toJson())
+                      .toList(),
                   'hasCalendarHome': service.capabilities.hasCalendarHome,
                   'hasSchedulingInbox': service.capabilities.hasSchedulingInbox,
                   'hasSchedulingOutbox':
@@ -106,9 +109,14 @@ final class DavDiscoveryRepository {
                 ),
                 ownerHref: Value(discovered.ownerHref),
                 safeDisplayMetadataJson: Value(
-                  discovered.safeDisplayMetadata.isEmpty
-                      ? null
-                      : jsonEncode(discovered.safeDisplayMetadata),
+                  jsonEncode({
+                    ...discovered.safeDisplayMetadata,
+                    'principalHref': discovered.principalHref?.toString(),
+                    'calendarHomeHref': discovered.calendarHomeHref?.toString(),
+                    'delegated': discovered.delegated,
+                    'parentPrivileges': discovered.parentPrivileges.toList()
+                      ..sort(),
+                  }),
                 ),
                 color: Value(discovered.color),
                 sortOrder: Value(discovered.sortOrder),
@@ -341,6 +349,16 @@ String _projectionMetadata(DavCollectionDiscovery collection) => jsonEncode({
   'kind': collection.kind.name,
   'supportedComponentMask': collection.supportedComponentMask,
   'readOnly': collection.capabilities.isReadOnly,
+  'canRead': collection.capabilities.canRead,
+  'canCreateEvents': collection.capabilities.canCreateEvent,
+  'canEditEvents': collection.capabilities.canUpdateEvent,
+  'canDeleteEvents': collection.capabilities.canDeleteEvent,
+  'canWriteProperties': collection.capabilities.canWriteProperties,
+  'ownerHref': collection.ownerHref,
+  'principalHref': collection.principalHref?.toString(),
+  'calendarHomeHref': collection.calendarHomeHref?.toString(),
+  'delegated': collection.delegated,
+  'parentPrivileges': collection.parentPrivileges.toList()..sort(),
 });
 
 bool _differentPrincipal(String? ownerHref, String principalHref) {

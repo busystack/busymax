@@ -8,6 +8,7 @@ import 'package:http/http.dart' as http;
 
 import '../../dav/dav_errors.dart';
 import '../dav_provider_profile.dart';
+import '../../providers/busy_provider.dart';
 
 enum DavRetryClass { safeRead, conditionalMutation, never }
 
@@ -193,6 +194,13 @@ final class DavHttpTransport {
   final DateTime Function() _nowUtc;
   final _accountSemaphores = <String, _AsyncSemaphore>{};
   final _collectionSemaphores = <String, _AsyncSemaphore>{};
+  Set<String> _serverFeatures = const {};
+
+  /// Features come from successful OPTIONS/discovery, never from a guessed
+  /// user agent. Only Nextcloud's trusted DAV requests receive its extension.
+  void setServerFeatures(Iterable<String> features) {
+    _serverFeatures = Set.unmodifiable(features);
+  }
 
   Future<DavResponse> send(
     DavRequest request, {
@@ -326,6 +334,10 @@ final class DavHttpTransport {
         ..headers.addAll(request.headers)
         ..headers['authorization'] = credential.authorizationValue
         ..headers['x-busymax-correlation-id'] = request.correlationId;
+      if (_profile.provider == BusyProvider.nextcloud &&
+          _serverFeatures.contains('nc-calendar-webcal-cache')) {
+        outbound.headers['X-NC-CalDAV-Webcal-Caching'] = 'On';
+      }
       if (body != null) {
         outbound.bodyBytes = body;
       }

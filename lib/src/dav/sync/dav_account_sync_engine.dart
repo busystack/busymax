@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:drift/drift.dart';
 import 'package:http/http.dart' as http;
@@ -171,6 +172,16 @@ final class DavAccountSyncEngine {
       accountAuthority: loaded.authority,
       limits: _transportLimits,
     );
+    final savedService = await (_database.select(
+      _database.davAccountServices,
+    )..where((r) => r.accountId.equals(_accountId))).getSingleOrNull();
+    if (savedService != null) {
+      final metadata = jsonDecode(savedService.capabilitiesJson);
+      if (metadata is Map && metadata['serverFeatures'] is List)
+        transport.setServerFeatures(
+          (metadata['serverFeatures'] as List).whereType<String>(),
+        );
+    }
     final objectRepository = DavObjectRepository(database: _database);
     final discoveryRepository = DavDiscoveryRepository(database: _database);
     var discoveryRefreshed = false;

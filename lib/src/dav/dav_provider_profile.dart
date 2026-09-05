@@ -1,6 +1,6 @@
 import '../providers/busy_provider.dart';
 
-const davProviderProfileVersion = 2;
+const davProviderProfileVersion = 3;
 
 final class DavProviderProfile {
   const DavProviderProfile({

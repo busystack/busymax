@@ -17,29 +17,56 @@ CollectionCapabilities collectionCapabilitiesFromStored(
   final reports = _stringSet(collection.supportedReportsJson);
   final aggregateAll = privileges.contains('{DAV:}all');
   final aggregateWrite = aggregateAll || privileges.contains('{DAV:}write');
+  final resourceTypes = _stringSet(collection.resourceTypesJson);
+  final contentResource =
+      !resourceTypes.any(
+        (type) => const {
+          '{http://calendarserver.org/ns/}subscribed',
+          '{http://nextcloud.com/ns}trash-bin',
+          '{http://nextcloud.com/ns}deleted-calendar',
+          '{urn:ietf:params:xml:ns:caldav}schedule-inbox',
+          '{urn:ietf:params:xml:ns:caldav}schedule-outbox',
+        }.contains(type),
+      ) &&
+      !collection.deleted &&
+      !collection.serverMissing;
   return CollectionCapabilities(
-    canRead:
-        aggregateAll ||
-        privileges.contains('{DAV:}write') ||
-        privileges.contains('{DAV:}read'),
+    canRead: aggregateAll || privileges.contains('{DAV:}read'),
     canReadPrivileges:
         privileges.contains('{DAV:}read-current-user-privilege-set') ||
         aggregateAll,
     canWriteContent:
-        !collection.readOnly &&
+        contentResource &&
         (aggregateWrite || privileges.contains('{DAV:}write-content')),
     canWriteProperties:
-        !collection.readOnly &&
         (aggregateWrite || privileges.contains('{DAV:}write-properties')),
     canAddMembers:
-        !collection.readOnly &&
+        contentResource &&
         (aggregateWrite || privileges.contains('{DAV:}bind')),
     canDeleteMembers:
-        !collection.readOnly &&
+        contentResource &&
         (aggregateWrite || privileges.contains('{DAV:}unbind')),
     canReadFreeBusy:
         privileges.contains('{urn:ietf:params:xml:ns:caldav}read-free-busy') ||
         aggregateAll,
+    canSendInvitations:
+        aggregateAll ||
+        privileges.contains('{urn:ietf:params:xml:ns:caldav}schedule-send') ||
+        privileges.contains(
+          '{urn:ietf:params:xml:ns:caldav}schedule-send-invite',
+        ),
+    canSendReplies:
+        aggregateAll ||
+        privileges.contains('{urn:ietf:params:xml:ns:caldav}schedule-send') ||
+        privileges.contains(
+          '{urn:ietf:params:xml:ns:caldav}schedule-send-reply',
+        ),
+    canSendFreeBusy:
+        aggregateAll ||
+        privileges.contains('{urn:ietf:params:xml:ns:caldav}schedule-send') ||
+        privileges.contains(
+          '{urn:ietf:params:xml:ns:caldav}schedule-send-freebusy',
+        ),
     supportsEvents: collection.supportedComponentMask & davComponentEvent != 0,
     supportsTasks: collection.supportedComponentMask & davComponentTodo != 0,
     supportsSyncCollection: reports.contains('{DAV:}sync-collection'),
@@ -53,6 +80,22 @@ CollectionCapabilities collectionCapabilitiesFromStored(
     maximumResourceSize: collection.maximumResourceSize,
     maximumInstances: collection.maximumInstances,
   );
+}
+
+Map<String, Object?> davSourcePermissionProjection(DavCollection collection) {
+  final capabilities = collectionCapabilitiesFromStored(collection);
+  final metadata = jsonDecode(collection.safeDisplayMetadataJson ?? '{}');
+  return {
+    'canRead': capabilities.canRead,
+    'canCreateEvents': capabilities.canCreateEvent,
+    'canEditEvents': capabilities.canUpdateEvent,
+    'canDeleteEvents': capabilities.canDeleteEvent,
+    'canWriteProperties': capabilities.canWriteProperties,
+    'supportedComponentMask': collection.supportedComponentMask,
+    'resourceTypes': _stringSet(collection.resourceTypesJson).toList(),
+    'ownerHref': collection.ownerHref,
+    if (metadata is Map) ...metadata.cast<String, Object?>(),
+  };
 }
 
 Set<String> _stringSet(String source) {
