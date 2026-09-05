@@ -514,15 +514,13 @@ class _PlannerDayHeader extends StatelessWidget {
             height: 24,
             alignment: Alignment.center,
             decoration: BoxDecoration(
-              color: isToday ? surfaceColors.controlActive : null,
+              color: isToday ? colorScheme.primary : null,
               borderRadius: BorderRadius.circular(BusyMaxRadius.sm),
             ),
             child: Text(
               '${day.day}',
               style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                color: isToday
-                    ? surfaceColors.foreground
-                    : colorScheme.onSurface,
+                color: isToday ? colorScheme.onPrimary : colorScheme.onSurface,
                 fontWeight: FontWeight.w600,
               ),
             ),
@@ -941,7 +939,7 @@ Color _foregroundFor(Color color) {
 
 String _formatHour(BuildContext context, TimeOfDay value) {
   return MaterialLocalizations.of(context).formatTimeOfDay(
-    TimeOfDay(hour: value.hour, minute: 0),
+    value,
     alwaysUse24HourFormat: MediaQuery.alwaysUse24HourFormatOf(context),
   );
 }

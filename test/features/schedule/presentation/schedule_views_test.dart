@@ -2,6 +2,16 @@ import 'dart:io';
 import 'dart:ui' as ui;
 
 import 'package:busymax/src/app/busymax_design.dart';
+import 'package:busymax/l10n/generated/app_localizations.dart';
+import 'package:busymax/src/app/app_bootstrap.dart';
+import 'package:busymax/src/features/calendar/data/calendar_repository.dart';
+import 'package:busymax/src/schedule/schedule_repository.dart';
+import 'package:busymax/src/schedule/schedule_filters.dart';
+import 'package:busymax/src/schedule/schedule_view_mode.dart';
+import 'package:busymax/src/ui/windows/windows_schedule_page.dart';
+import 'package:fluent_ui/fluent_ui.dart' as fluent;
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:intl/intl.dart';
 import 'package:busymax/src/app/busymax_yaru_theme.dart';
 import 'package:busymax/src/features/schedule/presentation/calendar_day_semantics.dart';
 import 'package:busymax/src/features/schedule/presentation/schedule_agenda_view.dart';
@@ -28,8 +38,211 @@ import 'package:infinite_calendar_view/infinite_calendar_view.dart' as icv;
 import 'package:yaru/yaru.dart';
 
 import '../../../test_localized_app.dart';
+import '../../../support/memory_settings_store.dart';
+
+Widget _emptyPlanner(DateTime day, {required int days}) => ScheduleDayWeekView(
+  range: days == 1 ? ScheduleRange.day(day) : ScheduleRange.week(day),
+  selectedDate: day,
+  daysShowed: days,
+  items: const [],
+  onDaySelected: (_) {},
+  onEmptySlot: (_) {},
+  onItemSelected: (_, _, [_]) {},
+  onTaskCompletionChanged: (_, _) {},
+);
+
+class _EmptyCalendarSources implements CalendarRepository {
+  @override
+  Stream<List<CalendarSourceEntity>> watchSourcesForAccounts(
+    List<String> accountIds,
+  ) => Stream.value(const []);
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
+
+class _TestScheduleItems implements ScheduleRepository {
+  @override
+  Future<List<ScheduleItem>> listItems({
+    required ScheduleRange range,
+    ScheduleFilters filters = const ScheduleFilters(),
+  }) async => _itemsFor(DateTime.now());
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
 
 void main() {
+  for (final use24Hours in [false, true]) {
+    testWidgets(
+      'planner current-time and ruler labels retain minutes (24h=$use24Hours)',
+      (tester) async {
+        final day = DateTime(2026, 9, 5);
+        await tester.pumpWidget(
+          localizedTestApp(
+            alwaysUse24HourFormat: use24Hours,
+            child: Scaffold(body: _emptyPlanner(day, days: 1)),
+          ),
+        );
+        await tester.pumpAndSettle();
+        final planner = tester.widget<icv.EventsPlanner>(
+          find.byType(icv.EventsPlanner),
+        );
+        final painter =
+            planner.timesIndicatorsParam.timesIndicatorsCustomPainter!(0.9)
+                as icv.HoursPainter;
+        for (final minute in [37, 30, 0]) {
+          final text = painter.textPainterBuilder!(
+            TimeOfDay(hour: 14, minute: minute),
+            Colors.black,
+          );
+          final suffix = minute.toString().padLeft(2, '0');
+          expect(
+            text.text!.toPlainText(),
+            use24Hours ? '14:$suffix' : '2:$suffix PM',
+          );
+          text.dispose();
+        }
+      },
+    );
+  }
+
+  for (final brightness in [Brightness.light, Brightness.dark]) {
+    for (final accent in [const Color(0xFFE95464), const Color(0xFF3465A4)]) {
+      testWidgets('Linux today badge follows $brightness and accent $accent', (
+        tester,
+      ) async {
+        final today = DateTime.now();
+        final selected = DateTime(
+          today.year,
+          today.month,
+          today.day + (today.weekday == DateTime.sunday ? -1 : 1),
+        );
+        final theme = BusyMaxYaruTheme.build(
+          brightness: brightness,
+          accentColor: accent,
+        );
+        await tester.pumpWidget(
+          localizedTestApp(
+            theme: theme,
+            child: Scaffold(body: _emptyPlanner(selected, days: 7)),
+          ),
+        );
+        await tester.pumpAndSettle();
+        final todayText = find.descendant(
+          of: find.byType(icv.EventsPlanner),
+          matching: find.text('${today.day}'),
+        );
+        final badge = find
+            .ancestor(
+              of: todayText,
+              matching: find.byWidgetPredicate(
+                (widget) =>
+                    widget is Container && widget.constraints?.maxWidth == 28,
+              ),
+            )
+            .first;
+        final container = tester.widget<Container>(badge);
+        final colorScheme = Theme.of(tester.element(badge)).colorScheme;
+        expect(
+          (container.decoration! as BoxDecoration).color,
+          colorScheme.primary,
+        );
+        expect(container.constraints?.maxHeight, 24);
+        expect(
+          tester.widget<Text>(todayText).style?.color,
+          colorScheme.onPrimary,
+        );
+        final otherText = find.descendant(
+          of: find.byType(icv.EventsPlanner),
+          matching: find.text('${selected.day}'),
+        );
+        final otherBadge = find
+            .ancestor(
+              of: otherText,
+              matching: find.byWidgetPredicate(
+                (widget) =>
+                    widget is Container && widget.constraints?.maxWidth == 28,
+              ),
+            )
+            .first;
+        expect(
+          (tester.widget<Container>(otherBadge).decoration! as BoxDecoration)
+              .color,
+          isNull,
+        );
+      });
+    }
+
+    for (final accent in [fluent.Colors.blue, fluent.Colors.purple]) {
+      testWidgets(
+        'Windows today header follows $brightness and accent $accent',
+        (tester) async {
+          tester.view.physicalSize = const Size(1500, 900);
+          tester.view.devicePixelRatio = 1;
+          addTearDown(tester.view.resetPhysicalSize);
+          addTearDown(tester.view.resetDevicePixelRatio);
+          final store = MemorySettingsStore();
+          final today = DateTime.now();
+          final label = DateFormat.MMMEd('en').format(today);
+          await tester.pumpWidget(
+            ProviderScope(
+              overrides: [
+                localSettingsStoreProvider.overrideWithValue(store),
+                initialAppSettingsProvider.overrideWithValue(
+                  AppSettings.defaults(),
+                ),
+                accountsStreamProvider.overrideWith(
+                  (ref) => Stream.value(const []),
+                ),
+                calendarRepositoryProvider.overrideWithValue(
+                  _EmptyCalendarSources(),
+                ),
+                scheduleRepositoryProvider.overrideWithValue(
+                  _TestScheduleItems(),
+                ),
+              ],
+              child: fluent.FluentApp(
+                theme: fluent.FluentThemeData(
+                  brightness: brightness,
+                  accentColor: accent,
+                ),
+                localizationsDelegates: const [AppLocalizations.delegate],
+                supportedLocales: AppLocalizations.supportedLocales,
+                home: const WindowsSchedulePage(),
+              ),
+            ),
+          );
+          await tester.pumpAndSettle();
+          final header = find.ancestor(
+            of: find.text(label),
+            matching: find.byType(fluent.FilledButton),
+          );
+          expect(header, findsOneWidget);
+          final button = tester.widget<fluent.FilledButton>(header);
+          final context = tester.element(header);
+          final theme = fluent.FluentTheme.of(context);
+          expect(
+            button.defaultStyleOf(context).backgroundColor!.resolve({}),
+            accent.defaultBrushFor(brightness),
+          );
+          expect(
+            button.defaultStyleOf(context).foregroundColor!.resolve({}),
+            theme.resources.textOnAccentFillColorPrimary,
+          );
+          expect(find.byType(fluent.HyperlinkButton), findsNWidgets(6));
+          await tester.tap(header);
+          await tester.pumpAndSettle();
+          expect(
+            AppSettings.fromJson(store.value).scheduleViewMode,
+            ScheduleViewMode.day,
+          );
+          expect(find.byType(icv.EventsPlanner), findsNothing);
+          expect(find.byType(fluent.HyperlinkButton), findsNothing);
+          expect(tester.takeException(), isNull);
+        },
+      );
+    }
+  }
+
   test('day and week modes use separate planner state identities', () {
     final workspace = File(
       'lib/src/features/schedule/presentation/schedule_workspace.dart',

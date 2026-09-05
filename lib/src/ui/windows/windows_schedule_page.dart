@@ -1156,6 +1156,7 @@ class _WeekView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final today = DateTime.now();
     final days = [
       for (var offset = 0; offset < 7; offset += 1)
         DateTime(range.start.year, range.start.month, range.start.day + offset),
@@ -1176,10 +1177,16 @@ class _WeekView extends StatelessWidget {
                     child: Card(
                       child: Column(
                         children: [
-                          HyperlinkButton(
-                            onPressed: () => onSelectDate(day),
-                            child: Text(DateFormat.MMMEd(locale).format(day)),
-                          ),
+                          if (_sameDay(day, today))
+                            FilledButton(
+                              onPressed: () => onSelectDate(day),
+                              child: Text(DateFormat.MMMEd(locale).format(day)),
+                            )
+                          else
+                            HyperlinkButton(
+                              onPressed: () => onSelectDate(day),
+                              child: Text(DateFormat.MMMEd(locale).format(day)),
+                            ),
                           const Divider(),
                           Expanded(
                             child: ListView(
