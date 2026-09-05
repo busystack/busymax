@@ -28,6 +28,7 @@ final class DavCollectionSettingsEntity {
     required this.lastSyncAtUtc,
     required this.syncErrorCode,
     required this.capabilities,
+    this.canRemoveCollection = false,
   });
 
   final String id;
@@ -47,6 +48,7 @@ final class DavCollectionSettingsEntity {
   final DateTime? lastSyncAtUtc;
   final String? syncErrorCode;
   final CollectionCapabilities capabilities;
+  final bool canRemoveCollection;
 
   TaskCollectionCapabilities get taskCapabilities {
     if (!supportsTasks) return noTaskCollectionCapabilities;
@@ -71,7 +73,10 @@ final class DavCollectionSettingsEntity {
       supportsListRename:
           base.supportsListRename && capabilities.canWriteProperties,
       supportsListDelete:
-          base.supportsListDelete && (!capabilities.isReadOnly || shared),
+          base.supportsListDelete &&
+          (provider == BusyProvider.nextcloud
+              ? canRemoveCollection
+              : (!capabilities.isReadOnly || shared)),
       canCreateTasks: capabilities.canCreateTask,
       canUpdateTasks: capabilities.canUpdateTask,
       canDeleteTasks: capabilities.canDeleteTask,
@@ -261,14 +266,31 @@ DavCollectionSettingsEntity _fromRow(
     color: collection.color,
     readOnly: capabilities.isReadOnly,
     shared: _isShared(collection, service),
-    supportsEvents: capabilities.supportsEvents,
-    supportsTasks: capabilities.supportsTasks,
+    supportsEvents: collection.eventProjectionEnabled,
+    supportsTasks: collection.taskProjectionEnabled,
     eventsSelected: collection.eventsSelected,
     tasksSelected: collection.tasksSelected,
     lastSyncAtUtc: DateTime.tryParse(collection.lastSyncAtUtc ?? '')?.toUtc(),
     syncErrorCode: cursor?.lastFailureCode ?? service?.lastDiscoveryErrorCode,
     capabilities: capabilities,
+    canRemoveCollection: _parentAllowsRemoval(collection),
   );
+}
+
+bool _parentAllowsRemoval(DavCollection collection) {
+  try {
+    final metadata = jsonDecode(collection.safeDisplayMetadataJson ?? '{}');
+    final privileges = metadata is Map ? metadata['parentPrivileges'] : null;
+    return privileges is List &&
+        privileges.any(
+          (value) =>
+              value == '{DAV:}all' ||
+              value == '{DAV:}write' ||
+              value == '{DAV:}unbind',
+        );
+  } on FormatException {
+    return false;
+  }
 }
 
 String _accountLabel(Account account, BusyProvider provider) {
@@ -280,8 +302,11 @@ String _accountLabel(Account account, BusyProvider provider) {
 }
 
 bool _isShared(DavCollection collection, DavAccountService? service) {
+  String? effectivePrincipal = service?.principalHref;
   try {
     final metadata = jsonDecode(collection.safeDisplayMetadataJson ?? '{}');
+    if (metadata is Map && metadata['principalHref'] is String)
+      effectivePrincipal = metadata['principalHref'] as String;
     if (metadata is Map && metadata['shared'] is bool) {
       return metadata['shared']! as bool;
     }
@@ -289,7 +314,7 @@ bool _isShared(DavCollection collection, DavAccountService? service) {
     // Owner/principal comparison below remains a safe fallback.
   }
   final owner = _hrefPath(collection.ownerHref);
-  final principal = _hrefPath(service?.principalHref);
+  final principal = _hrefPath(effectivePrincipal);
   return owner != null && principal != null && owner != principal;
 }
 

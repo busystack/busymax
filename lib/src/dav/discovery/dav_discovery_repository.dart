@@ -282,7 +282,7 @@ final class DavDiscoveryRepository {
     if (collection.taskProjectionEnabled) {
       final shared = _differentPrincipal(
         collection.ownerHref,
-        result.service.principalHref.toString(),
+        (collection.principalHref ?? result.service.principalHref).toString(),
       );
       await _database
           .into(_database.taskLists)

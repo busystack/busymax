@@ -151,6 +151,7 @@ void main() {
       database,
       secrets,
       MockClient((incoming) async {
+        if (incoming.method == 'PROPFIND') return _adminProbe(incoming);
         request = incoming;
         return http.Response(_successfulProppatch, 207);
       }),
@@ -172,7 +173,11 @@ void main() {
     final service = _service(
       database,
       secrets,
-      MockClient((_) async => http.Response(_forbiddenProppatch, 207)),
+      MockClient(
+        (request) async => request.method == 'PROPFIND'
+            ? _adminProbe(request)
+            : http.Response(_forbiddenProppatch, 207),
+      ),
       refresh: () async => refreshes += 1,
     );
 
@@ -200,6 +205,8 @@ void main() {
       database,
       secrets,
       MockClient((incoming) async {
+        if (incoming.method == 'PROPFIND')
+          return _adminProbe(incoming, shared: true);
         request = incoming;
         return http.Response('', HttpStatus.noContent);
       }),
@@ -212,7 +219,7 @@ void main() {
     expect(refreshes, 1);
   });
 
-  test('read-only owned collection is rejected before DELETE', () async {
+  test('parent unbind denial prevents collection DELETE', () async {
     await _seedCollection(
       database,
       privileges: const ['{DAV:}read'],
@@ -222,7 +229,9 @@ void main() {
     final service = _service(
       database,
       secrets,
-      MockClient((_) async {
+      MockClient((request) async {
+        if (request.method == 'PROPFIND')
+          return _adminProbe(request, parentWritable: false);
         requests += 1;
         return http.Response('', HttpStatus.noContent);
       }),
@@ -234,13 +243,22 @@ void main() {
         isA<DavException>().having(
           (error) => error.code,
           'code',
-          'DavCollectionReadOnly',
+          'DavCollectionRemovalDenied',
         ),
       ),
     );
     expect(requests, 0);
   });
 }
+
+http.Response _adminProbe(
+  http.Request request, {
+  bool shared = false,
+  bool parentWritable = true,
+}) => http.Response(
+  '<d:multistatus xmlns:d="DAV:" xmlns:c="urn:ietf:params:xml:ns:caldav"><d:response><d:href>${request.url.path}</d:href><d:propstat><d:prop><d:resourcetype><d:collection/><c:calendar/></d:resourcetype><d:owner><d:href>/remote.php/dav/principals/users/${shared ? 'bob' : 'alex'}/</d:href></d:owner><d:current-user-privilege-set><d:privilege><d:read/></d:privilege><d:privilege><d:write-properties/></d:privilege>${parentWritable ? '<d:privilege><d:unbind/></d:privilege>' : ''}</d:current-user-privilege-set></d:prop><d:status>HTTP/1.1 200 OK</d:status></d:propstat></d:response></d:multistatus>',
+  207,
+);
 
 DavTaskListMutationService _service(
   AppDatabase database,

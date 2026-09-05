@@ -21,6 +21,9 @@ import '../dav/mutation/dav_pending_operations.dart';
 import '../dav/mutation/dav_task_list_mutation_service.dart';
 import '../dav/sync/dav_account_sync_engine.dart';
 import '../dav/storage/dav_settings_repository.dart';
+import '../dav/nextcloud/nextcloud_collection_service.dart';
+import '../dav/nextcloud/nextcloud_sharing_service.dart';
+import '../dav/nextcloud/nextcloud_trash_service.dart';
 import '../features/calendar/data/calendar_repository.dart';
 import '../features/calendar/data/calendar_collection_creation_service.dart';
 import '../ical/ical_import_service.dart';
@@ -74,9 +77,16 @@ final buildConfigProvider = Provider<BuildConfig>(
 final geoapifyClientProvider = Provider<GeoapifyClient>((ref) {
   final client = http.Client();
   ref.onDispose(client.close);
-  return GeoapifyClient(client: client, apiKey: ref.watch(buildConfigProvider).geoapifyApiKey, canUseNetwork: ref.watch(networkConnectivityMonitorProvider).canUseNetwork);
+  return GeoapifyClient(
+    client: client,
+    apiKey: ref.watch(buildConfigProvider).geoapifyApiKey,
+    canUseNetwork: ref.watch(networkConnectivityMonitorProvider).canUseNetwork,
+  );
 });
-final locationResolutionRepositoryProvider = Provider<LocationResolutionRepository>((ref) => LocationResolutionRepository(ref.watch(databaseProvider)));
+final locationResolutionRepositoryProvider =
+    Provider<LocationResolutionRepository>(
+      (ref) => LocationResolutionRepository(ref.watch(databaseProvider)),
+    );
 
 final databaseProvider = Provider<AppDatabase>((ref) {
   final database = AppDatabase.open();
@@ -744,6 +754,8 @@ final calendarRepositoryProvider = Provider<CalendarRepository>((ref) {
   return CalendarRepository(
     database: ref.watch(databaseProvider),
     localTimeZone: ref.watch(localTimeZoneProvider),
+    nextcloudCollections: (accountId) =>
+        ref.read(nextcloudCollectionServiceProvider(accountId)),
     onNotificationScheduleChanged: () =>
         ref.read(notificationSchedulerProvider).checkNow(),
   );
@@ -821,6 +833,34 @@ final davTaskListMutationClientForAccountProvider =
             .requireNetwork,
       );
     });
+
+final nextcloudCollectionServiceProvider =
+    Provider.family<NextcloudCollectionService, String>(
+      (ref, accountId) => NextcloudCollectionService(
+        database: ref.watch(databaseProvider),
+        secrets: ref.watch(secretStoreProvider),
+        client: ref.watch(baseHttpClientProvider),
+        accountId: accountId,
+        requireNetwork: ref
+            .watch(networkConnectivityMonitorProvider)
+            .requireNetwork,
+        refresh: () => ref
+            .read(accountSyncOperationsProvider)
+            .syncAccount(accountId, full: true),
+      ),
+    );
+final nextcloudSharingServiceProvider =
+    Provider.family<NextcloudSharingService, String>(
+      (ref, accountId) => NextcloudSharingService(
+        ref.watch(nextcloudCollectionServiceProvider(accountId)),
+      ),
+    );
+final nextcloudTrashServiceProvider =
+    Provider.family<NextcloudTrashService, String>(
+      (ref, accountId) => NextcloudTrashService(
+        ref.watch(nextcloudCollectionServiceProvider(accountId)),
+      ),
+    );
 
 final davCalendarCollectionMutationClientForAccountProvider =
     Provider.family<DavCalendarCollectionMutationClient, String>((

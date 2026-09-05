@@ -385,6 +385,12 @@ class ScheduleRepository {
     final query =
         _database.select(_database.calendarEvents).join([
             leftOuterJoin(
+              _database.davCollections,
+              _database.davCollections.id.equalsExp(
+                _database.calendarEvents.davCollectionId,
+              ),
+            ),
+            leftOuterJoin(
               _database.calendarSources,
               _database.calendarSources.id.equalsExp(
                 _database.calendarEvents.calendarSourceId,
@@ -421,6 +427,10 @@ class ScheduleRepository {
       final isOrganizer = _eventIsOrganizer(provider, organizer, raw);
       final sourceWritable =
           source != null && !source.readOnly && !source.isDeleted;
+      final collection = row.readTableOrNull(_database.davCollections);
+      final davCapabilities = collection == null
+          ? null
+          : collectionCapabilitiesFromStored(collection);
       if (!searching && !_intersects(range, start, end)) {
         continue;
       }
@@ -440,7 +450,10 @@ class ScheduleRepository {
           start: start,
           end: end,
           location: event.location,
-          locationPoint: GeographicPoint.tryParse(latitude: event.locationLatitude, longitude: event.locationLongitude),
+          locationPoint: GeographicPoint.tryParse(
+            latitude: event.locationLatitude,
+            longitude: event.locationLongitude,
+          ),
           description: event.description,
           descriptionContentType: descriptionBody.contentType,
           descriptionHtml: descriptionBody.html,
@@ -475,9 +488,15 @@ class ScheduleRepository {
           accountEmail: accountEmails[event.accountId],
           capabilities: ScheduleItemCapabilities(
             canEdit:
-                sourceWritable &&
+                (provider == BusyProvider.nextcloud
+                    ? davCapabilities?.canUpdateEvent == true &&
+                          source?.isDeleted == false
+                    : sourceWritable) &&
                 _eventAllowsFullEditing(provider, isOrganizer, raw),
-            canDelete: sourceWritable,
+            canDelete: provider == BusyProvider.nextcloud
+                ? davCapabilities?.canDeleteEvent == true &&
+                      source?.isDeleted == false
+                : sourceWritable,
           ),
         ),
       );
@@ -710,7 +729,10 @@ class ScheduleRepository {
       end: _taskEnd(task, provider),
       notes: task.notes ?? task.bodyContent,
       location: task.taskLocation,
-      locationPoint: GeographicPoint.tryParse(latitude: task.locationLatitude, longitude: task.locationLongitude),
+      locationPoint: GeographicPoint.tryParse(
+        latitude: task.locationLatitude,
+        longitude: task.locationLongitude,
+      ),
       categories: _stringListFromJson(task.categoriesJson),
       reminder: task.microsoftIsReminderOn == true
           ? providerDateTimeAsLocal(

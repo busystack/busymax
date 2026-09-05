@@ -145,6 +145,59 @@ final class DavDiscoveryService {
         correlationId,
       ),
     ];
+    // A principal may advertise more than one home. Keep the first as the
+    // account's established creation home, but inventory every returned home.
+    final ownHomes = _validatedHrefs(
+      principalProperties,
+      caldavNamespace,
+      'calendar-home-set',
+      homeResponse.requestUri,
+      correlationId,
+    );
+    if (ownHomes.length > 32) throw _incompleteInventory();
+    for (final home in ownHomes.where(
+      (home) => !_sameRequestTarget(home, calendarHome),
+    )) {
+      final listed = await _propfind(
+        uri: home,
+        depth: '1',
+        body: _calendarHomeInventoryPropfind,
+        correlationId: correlationId,
+        cancellationToken: cancellationToken,
+      );
+      final entries = _xmlParser.parseMultistatus(
+        listed.bodyBytes,
+        correlationId: correlationId,
+      );
+      final discovered = _parseCollections(
+        entries,
+        responseUri: listed.requestUri,
+        home: home,
+        inbox: inbox,
+        outbox: outbox,
+        correlationId: correlationId,
+        principal: principalHref,
+      );
+      contexts.add(
+        _principalContext(
+          principalHref,
+          home,
+          addresses,
+          inbox,
+          outbox,
+          entries,
+          false,
+          listed.requestUri,
+          correlationId,
+        ),
+      );
+      for (final collection in discovered) {
+        if (!collections.any(
+          (existing) => existing.hrefKey == collection.hrefKey,
+        ))
+          collections.add(collection);
+      }
+    }
     if (_profile.provider == BusyProvider.nextcloud &&
         serviceCapabilities.serverFeatures.contains('calendar-proxy')) {
       final principals = <String, Uri>{};
@@ -156,8 +209,9 @@ final class DavDiscoveryService {
           for (final stat in response.propstats) {
             if (stat.property(calendarServerNamespace, name) != null &&
                 !stat.isSuccessful &&
-                stat.statusCode != 404)
+                stat.statusCode != 404) {
               throw _incompleteInventory();
+            }
           }
           for (final href in _hrefChildren(
             response.successfulProperty(calendarServerNamespace, name),
@@ -169,8 +223,9 @@ final class DavDiscoveryService {
               accountAuthority: _accountAuthority,
               correlationId: correlationId,
             );
-            if (!_sameRequestTarget(uri, principalHref))
+            if (!_sameRequestTarget(uri, principalHref)) {
               principals[normalizedDavHrefKey(_profile.provider, uri)] = uri;
+            }
           }
         }
       }
@@ -254,8 +309,9 @@ final class DavDiscoveryService {
           for (final collection in discovered) {
             if (!collections.any(
               (existing) => existing.hrefKey == collection.hrefKey,
-            ))
+            )) {
               collections.add(collection);
+            }
           }
         }
       }
@@ -358,13 +414,14 @@ final class DavDiscoveryService {
           accountAuthority: _accountAuthority,
           correlationId: correlationId,
         );
-        if (_sameRequestTarget(uri, target))
+        if (_sameRequestTarget(uri, target)) {
           return _privilegeNames(
             entry.successfulProperty(
               davNamespace,
               'current-user-privilege-set',
             ),
           );
+        }
       }
       return const {};
     }
@@ -425,8 +482,9 @@ final class DavDiscoveryService {
     bool delegated = false,
   }) {
     final result = <DavCollectionDiscovery>[];
-    if (inventory.responses.isEmpty || inventory.errorConditions.isNotEmpty)
+    if (inventory.responses.isEmpty || inventory.errorConditions.isNotEmpty) {
       throw _incompleteInventory();
+    }
     final homeKey = normalizedDavHrefKey(_profile.provider, home);
     final homePrivileges = <String>{};
     for (final response in inventory.responses) {
@@ -437,7 +495,7 @@ final class DavDiscoveryService {
         accountAuthority: _accountAuthority,
         correlationId: correlationId,
       );
-      if (normalizedDavHrefKey(_profile.provider, target) == homeKey)
+      if (normalizedDavHrefKey(_profile.provider, target) == homeKey) {
         homePrivileges.addAll(
           _privilegeNames(
             response.successfulProperty(
@@ -446,6 +504,7 @@ final class DavDiscoveryService {
             ),
           ),
         );
+      }
     }
     for (final response in inventory.responses) {
       final responseStatus = response.statusCode;
@@ -467,8 +526,9 @@ final class DavDiscoveryService {
       final resourceTypes = _nestedNames(
         response.successfulProperty(davNamespace, 'resourcetype'),
       );
-      if (response.successfulProperty(davNamespace, 'resourcetype') == null)
+      if (response.successfulProperty(davNamespace, 'resourcetype') == null) {
         throw _incompleteInventory();
+      }
       final isCalendar = resourceTypes.contains(
         _name(caldavNamespace, 'calendar'),
       );

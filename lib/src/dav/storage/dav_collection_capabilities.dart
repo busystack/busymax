@@ -86,6 +86,7 @@ Map<String, Object?> davSourcePermissionProjection(DavCollection collection) {
   final capabilities = collectionCapabilitiesFromStored(collection);
   final metadata = jsonDecode(collection.safeDisplayMetadataJson ?? '{}');
   return {
+    if (metadata is Map) ...metadata.cast<String, Object?>(),
     'canRead': capabilities.canRead,
     'canCreateEvents': capabilities.canCreateEvent,
     'canEditEvents': capabilities.canUpdateEvent,
@@ -94,7 +95,6 @@ Map<String, Object?> davSourcePermissionProjection(DavCollection collection) {
     'supportedComponentMask': collection.supportedComponentMask,
     'resourceTypes': _stringSet(collection.resourceTypesJson).toList(),
     'ownerHref': collection.ownerHref,
-    if (metadata is Map) ...metadata.cast<String, Object?>(),
   };
 }
 

@@ -41,10 +41,9 @@ const microsoftCalendarColorChoices = <CalendarColorChoice>[
 
 List<CalendarColorChoice> calendarColorChoices(BusyProvider provider) {
   return switch (provider) {
-    BusyProvider.google => googleCalendarColorChoices,
+    BusyProvider.google || BusyProvider.nextcloud => googleCalendarColorChoices,
     BusyProvider.microsoft => microsoftCalendarColorChoices,
     BusyProvider.appleICloud ||
-    BusyProvider.nextcloud ||
     BusyProvider.webCal => const [],
   };
 }

@@ -8,6 +8,8 @@ import '../../core/secrets/secret_store.dart';
 import '../../db/app_database.dart';
 import '../../providers/busy_provider.dart';
 import '../dav_errors.dart';
+import '../nextcloud/nextcloud_collection_service.dart';
+import '../nextcloud/nextcloud_dav_context.dart';
 import '../dav_provider_profile.dart';
 import '../discovery/dav_discovery_models.dart';
 import '../http/dav_http_transport.dart';
@@ -116,18 +118,28 @@ final class DavTaskListMutationService implements DavTaskListMutationClient {
         rethrow;
       }
     }
-    await _refreshAfterMutation();
+    try {
+      await _refreshAfterMutation();
+    } on Object {
+      throw const NextcloudRefreshPending();
+    }
   }
+
+  NextcloudCollectionService get _administration => NextcloudCollectionService(
+    database: _database,
+    secrets: _secretStore,
+    client: _httpClient,
+    accountId: _accountId,
+    requireNetwork: _requireNetwork,
+    refresh: _refreshAfterMutation,
+  );
 
   @override
   Future<void> renameTaskList(String collectionId, String title) async {
     final displayName = _requiredTitle(title);
-    final context = await _loadContext();
     final collection = await _requiredTaskCollection(collectionId);
     final capabilities = collectionCapabilitiesFromStored(collection);
-    if (!capabilities.canWriteProperties) {
-      throw _readOnlyError();
-    }
+    if (!capabilities.canWriteProperties) throw _readOnlyError();
     final existing = await _activeCollections();
     if (existing.any(
       (candidate) =>
@@ -142,50 +154,34 @@ final class DavTaskListMutationService implements DavTaskListMutationClient {
       );
     }
     if (collection.displayName == displayName) return;
+    final result = await _administration.update(collectionId, {
+      const DavPropertyName(davNamespace, 'displayname'): displayName,
+    });
+    if (result == NextcloudMutationOutcome.refreshPending)
+      throw const NextcloudRefreshPending();
+  }
 
-    final response = await context.transport.send(
-      DavRequest.xml(
-        method: 'PROPPATCH',
-        uri: Uri.parse(collection.requestUri),
-        accountId: _accountId,
-        collectionId: collection.id,
-        correlationId: _correlationIdFactory(),
-        body: _displayNameProppatchXml(displayName),
-        retryClass: DavRetryClass.never,
-      ),
-      credential: context.credential,
-    );
-    _requireSuccessfulMutation(response, operation: 'rename the task list');
-    await _refreshAfterMutation();
+  Future<NextcloudMutationOutcome> setTaskListMetadata(
+    String collectionId, {
+    String? color,
+    int? order,
+  }) async {
+    await _requiredTaskCollection(collectionId);
+    return _administration.update(collectionId, {
+      if (color != null)
+        const DavPropertyName(appleIcalNamespace, 'calendar-color'): color,
+      if (order != null)
+        const DavPropertyName(appleIcalNamespace, 'calendar-order'): order
+            .toString(),
+    });
   }
 
   @override
   Future<void> deleteTaskList(String collectionId) async {
-    final context = await _loadContext();
-    final collection = await _requiredTaskCollection(collectionId);
-    final capabilities = collectionCapabilitiesFromStored(collection);
-    final shared = await _isSharedWithAccount(collection);
-    // Nextcloud Tasks exposes Delete for writable owned lists and Unshare for
-    // collections shared with the current account.
-    if (capabilities.isReadOnly && !shared) {
-      throw _readOnlyError();
-    }
-
-    final response = await context.transport.send(
-      DavRequest(
-        method: 'DELETE',
-        uri: Uri.parse(collection.requestUri),
-        accountId: _accountId,
-        collectionId: collection.id,
-        correlationId: _correlationIdFactory(),
-        retryClass: DavRetryClass.never,
-      ),
-      credential: context.credential,
-    );
-    if (response.statusCode != HttpStatus.notFound) {
-      _requireSuccessfulMutation(response, operation: 'delete the task list');
-    }
-    await _refreshAfterMutation();
+    await _requiredTaskCollection(collectionId);
+    final result = await _administration.remove(collectionId);
+    if (result == NextcloudMutationOutcome.refreshPending)
+      throw const NextcloudRefreshPending();
   }
 
   Future<_DavTaskListContext> _loadContext({
@@ -274,15 +270,6 @@ final class DavTaskListMutationService implements DavTaskListMutationClient {
       );
     }
     return collection;
-  }
-
-  Future<bool> _isSharedWithAccount(DavCollection collection) async {
-    final service = await (_database.select(
-      _database.davAccountServices,
-    )..where((row) => row.accountId.equals(_accountId))).getSingleOrNull();
-    final owner = _normalizedHrefPath(collection.ownerHref);
-    final principal = _normalizedHrefPath(service?.principalHref);
-    return owner != null && principal != null && owner != principal;
   }
 
   Future<bool> _isMatchingTaskCollection(
@@ -435,14 +422,6 @@ String _taskCollectionMkcolXml({
     '</d:prop></d:set>'
     '</d:mkcol>';
 
-String _displayNameProppatchXml(String displayName) =>
-    '<?xml version="1.0" encoding="utf-8"?>'
-    '<d:propertyupdate xmlns:d="$davNamespace">'
-    '<d:set><d:prop>'
-    '<d:displayname>${escapeDavXmlText(displayName)}</d:displayname>'
-    '</d:prop></d:set>'
-    '</d:propertyupdate>';
-
 const _taskCollectionProbeXml =
     '<?xml version="1.0" encoding="utf-8"?>'
     '<d:propfind xmlns:d="DAV:" '
@@ -527,15 +506,5 @@ DavException _invalidContextError() => const DavException(
   code: 'DavTaskListMutationContextInvalid',
   safeMessage: 'The Nextcloud task-list connection is invalid.',
 );
-
-String? _normalizedHrefPath(String? value) {
-  final uri = Uri.tryParse(value ?? '');
-  if (uri == null || uri.path.isEmpty) return null;
-  var path = uri.path;
-  while (path.length > 1 && path.endsWith('/')) {
-    path = path.substring(0, path.length - 1);
-  }
-  return path;
-}
 
 Future<void> _noNetworkCheck() async {}

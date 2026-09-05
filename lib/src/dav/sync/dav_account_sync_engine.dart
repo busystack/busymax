@@ -177,10 +177,11 @@ final class DavAccountSyncEngine {
     )..where((r) => r.accountId.equals(_accountId))).getSingleOrNull();
     if (savedService != null) {
       final metadata = jsonDecode(savedService.capabilitiesJson);
-      if (metadata is Map && metadata['serverFeatures'] is List)
+      if (metadata is Map && metadata['serverFeatures'] is List) {
         transport.setServerFeatures(
           (metadata['serverFeatures'] as List).whereType<String>(),
         );
+      }
     }
     final objectRepository = DavObjectRepository(database: _database);
     final discoveryRepository = DavDiscoveryRepository(database: _database);
