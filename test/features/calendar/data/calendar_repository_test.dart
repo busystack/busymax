@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:busymax/src/calendar_providers/calendar_colors.dart';
 import 'package:busymax/src/calendar_providers/calendar_create_identity.dart';
@@ -12,10 +13,14 @@ import 'package:busymax/src/features/calendar/domain/event_timing_policy.dart';
 import 'package:busymax/src/core/time/provider_date_time.dart';
 import 'package:busymax/src/schedule/schedule_event_rescheduling.dart';
 import 'package:busymax/src/schedule/schedule_item.dart';
+import 'package:busymax/src/schedule/schedule_range.dart';
+import 'package:busymax/src/schedule/schedule_repository.dart';
 import 'package:busymax/src/providers/busy_provider.dart';
 import 'package:drift/drift.dart';
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
+
+import '../../../support/process_time_zone.dart';
 
 void main() {
   late AppDatabase database;
@@ -111,6 +116,83 @@ void main() {
         DateTime.utc(2026, 6, 8, 10, 50).millisecondsSinceEpoch,
       );
     },
+  );
+
+  test(
+    'Tokyo series loads through ScheduleRepository and reschedules across the host DST gap',
+    () async {
+      final hostZone = ProcessTimeZone();
+      hostZone.set('America/Vancouver');
+      addTearDown(hostZone.restore);
+      expect(DateTime(2026, 3, 8, 2, 30).hour, isNot(2));
+      await _upsertSource(repository);
+      await repository.upsertEvent(
+        accountId: 'google:g',
+        event: const CalendarEventDto(
+          provider: BusyProvider.google,
+          providerCalendarId: 'calendar-1',
+          providerEventId: 'tokyo-occurrence',
+          providerRecurringEventId: 'tokyo-series',
+          providerOriginalStartKey: '2026-03-08T02:30:00+09:00',
+          title: 'Tokyo meeting',
+          organizerJson: {'self': true},
+          startDateTime: '2026-03-08T02:30:00',
+          endDateTime: '2026-03-08T03:30:00',
+          startTimeZone: 'Asia/Tokyo',
+          endTimeZone: 'Asia/Tokyo',
+        ),
+      );
+      final schedule = ScheduleRepository(database);
+      Future<CalendarScheduleItem> displayed() async =>
+          (await schedule.listItems(
+            range: ScheduleRange.day(DateTime(2026, 3, 7)),
+          )).whereType<CalendarScheduleItem>().single;
+      final item = await displayed();
+      expect(item.start, DateTime(2026, 3, 7, 9, 30));
+      expect(item.end, DateTime(2026, 3, 7, 10, 30));
+      expect(item.end!.difference(item.start!), const Duration(hours: 1));
+      expect(item.canReschedule, isTrue);
+      final coordinator = ScheduleReschedulingCoordinator(
+        repository: repository,
+        chooseScope: (_, _) async => RecurringEventMutationScope.entireSeries,
+        chooseGuestUpdates: (_) async => throw StateError('No guests'),
+        requestSync: (_) async {},
+      );
+      // Move within the written host-gap hour. Series projection persists 02:45
+      // with a separate Tokyo zone, which must still display as 09:45 Vancouver.
+      Future<void> move(CalendarScheduleItem source) async {
+        final interval = const ScheduleTimeMath().change(
+          original: ScheduleInterval(source.start!, source.end!),
+          action: ScheduleTimingAction.move,
+          anchor: source.start!,
+          pointer: source.start!.add(const Duration(minutes: 15)),
+        );
+        expect(
+          await coordinator.commit(
+            ScheduleRescheduleRequest(item: source, interval: interval),
+          ),
+          ScheduleRescheduleResult.saved,
+        );
+      }
+
+      await move(item);
+      final stored = (await repository.loadEventDetail(item.id))!;
+      expect(stored.startDateTime, '2026-03-08T02:45:00.000');
+      expect(stored.endDateTime, '2026-03-08T03:45:00.000');
+      expect(stored.startTimeZone, 'Asia/Tokyo');
+      expect(stored.endTimeZone, 'Asia/Tokyo');
+      expect(stored.syncStatus, 'pending');
+      final updated = await displayed();
+      expect(updated.start, DateTime(2026, 3, 7, 9, 45));
+      expect(updated.end, DateTime(2026, 3, 7, 10, 45));
+      expect(updated.canReschedule, isTrue);
+      await move(updated);
+      final movedAgain = await displayed();
+      expect(movedAgain.start, DateTime(2026, 3, 7, 10));
+      expect(movedAgain.end, DateTime(2026, 3, 7, 11));
+      expect(await database.select(database.pendingOps).get(), hasLength(2));
+    },
+    skip: !(Platform.isLinux || Platform.isMacOS),
   );
 
   test(

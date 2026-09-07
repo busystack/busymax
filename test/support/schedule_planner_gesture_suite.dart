@@ -551,6 +551,71 @@ void schedulePlannerGestureTests(
     },
   );
 
+  for (final drop in ['outside', 'gutter', 'valid']) {
+    testWidgets(
+      '$platform regrouped drag source with $drop drop then another drag',
+      (tester) async {
+        final scenario = PlannerGestureScenario();
+        await mount(tester, scenario);
+        final originalState = tester.state(tile());
+        final down = tester.getCenter(tile());
+        final destination =
+            down + Offset(0, 60 * planner(tester).heightPerMinute);
+        final gesture = await begin(tester, down, destination);
+        final interaction = region(tester);
+        final preview = interaction.preview!;
+        scenario.items = [
+          ...scenario.items,
+          PlannerGestureScenario.event(id: 'neighbor'),
+        ];
+        await tester.pumpWidget(harness(scenario));
+        await tester.pump();
+        expect(
+          originalState.mounted,
+          isFalse,
+          reason: 'Regrouping must actually dispose the original drag source.',
+        );
+        expect(region(tester), same(interaction));
+        expect(interaction.active, isTrue);
+        expect(interaction.preview!.sameAs(preview), isTrue);
+        if (drop == 'outside') {
+          await gesture.moveTo(const Offset(-40, -40));
+        } else if (drop == 'gutter') {
+          // Flutter accepts this DragTarget hit, but the calendar has no time here.
+          final coordinates = interaction.widget.coordinates!;
+          final gutter = coordinates.box!.localToGlobal(
+            Offset(20, coordinates.gridTop + 100),
+          );
+          expect(interaction.at(gutter), isNull);
+          await gesture.moveTo(gutter);
+        } else {
+          await gesture.moveTo(destination);
+        }
+        await release(tester, gesture);
+        expect(scenario.edits, hasLength(drop == 'valid' ? 1 : 0));
+        if (drop == 'valid') {
+          expect(scenario.edits.single.item.id, 'drag-event');
+          expect(scenario.edits.single.interval.sameAs(preview), isTrue);
+        }
+        expect(interaction.active, isFalse);
+        expect(interaction.canMove, isTrue);
+        final nextDown = tester.getCenter(tile('neighbor'));
+        final next = await begin(
+          tester,
+          nextDown,
+          nextDown + Offset(0, 60 * planner(tester).heightPerMinute),
+        );
+        await release(tester, next);
+        expect(scenario.edits, hasLength(drop == 'valid' ? 2 : 1));
+        expect(scenario.edits.last.item.id, 'neighbor');
+        expect(scenario.edits.last.interval.start, DateTime(2026, 1, 12, 10));
+        expect(scenario.edits.last.interval.end, DateTime(2026, 1, 12, 11));
+        expect(interaction.active, isFalse);
+        expect(tester.takeException(), isNull);
+      },
+    );
+  }
+
   testWidgets(
     '$platform task checkbox stays outside range selection and dragging',
     (tester) async {

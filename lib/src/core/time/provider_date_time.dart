@@ -36,59 +36,33 @@ String providerWallTimeIso8601String(DateTime value) => DateTime.utc(
 ).toIso8601String().replaceFirst(RegExp(r'Z$'), '');
 
 DateTime? providerDateTimeAsLocal(String? value, String? timeZone) {
-  final parsed = DateTime.tryParse(value ?? '');
-  if (parsed == null) {
-    return null;
-  }
   if (value == null || !value.contains('T')) {
-    return parsed;
+    return DateTime.tryParse(value ?? '');
   }
-  if (parsed.isUtc) {
-    return parsed.toLocal();
-  }
-  if (isUtcTimeZone(timeZone)) {
-    return DateTime.utc(
-      parsed.year,
-      parsed.month,
-      parsed.day,
-      parsed.hour,
-      parsed.minute,
-      parsed.second,
-      parsed.millisecond,
-      parsed.microsecond,
-    ).toLocal();
-  }
-  return _providerWallTimeAsUtc(parsed, timeZone)?.toLocal() ?? parsed;
+  return providerDateTimeAsUtcInstant(value, timeZone)?.toLocal();
 }
 
 DateTime? providerDateTimeAsUtcInstant(String? value, String? timeZone) {
-  final parsed = DateTime.tryParse(value ?? '');
-  if (parsed == null) {
-    return null;
-  }
   if (value == null || !value.contains('T')) {
-    return parsed.toUtc();
+    return DateTime.tryParse(value ?? '')?.toUtc();
   }
-  if (parsed.isUtc) {
-    return parsed.toUtc();
+  // Inline offsets identify an instant and take precedence over the zone label.
+  if (RegExp(r'(?:[zZ]|[+-]\d{2}(?::?\d{2})?)$').hasMatch(value)) {
+    return DateTime.tryParse(value)?.toUtc();
   }
+  // Parse written fields in UTC solely as a neutral container. A host-local
+  // parse here could normalize a DST gap before the event zone is consulted.
+  final wall = DateTime.tryParse('${value}Z');
+  if (wall == null) return null;
   if (isUtcTimeZone(timeZone)) {
-    return DateTime.utc(
-      parsed.year,
-      parsed.month,
-      parsed.day,
-      parsed.hour,
-      parsed.minute,
-      parsed.second,
-      parsed.millisecond,
-      parsed.microsecond,
-    );
+    return wall;
   }
-  final zoned = _providerWallTimeAsUtc(parsed, timeZone);
+  final zoned = _providerWallTimeAsUtc(wall, timeZone);
   if (zoned != null) {
     return zoned;
   }
-  return parsed.toUtc();
+  // Preserve local-time fallback for missing or unrecognized provider zones.
+  return DateTime.tryParse(value)?.toUtc();
 }
 
 /// Parses wall fields into a neutral civil value, without first constructing a

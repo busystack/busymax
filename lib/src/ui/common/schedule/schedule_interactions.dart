@@ -373,7 +373,12 @@ class ScheduleInteractionRegionState extends State<ScheduleInteractionRegion>
   }
 
   void accept(ScheduleEventDragData data, Offset global) {
-    if (!accepts(data, global)) return;
+    if (!accepts(data, global)) {
+      // Flutter can accept the region's hit even when no calendar time exists
+      // at the drop point. End this gesture without disturbing another owner.
+      dragEnded(data);
+      return;
+    }
     update(global);
     finish();
   }
@@ -798,6 +803,11 @@ class _ScheduleEventInteractionState extends State<ScheduleEventInteraction> {
                     _dragging = false;
                     _data = null;
                   });
+                },
+                // Flutter still invokes this after a refresh disposes the
+                // source Draggable. Cleanup belongs to the surviving region.
+                onDraggableCanceled: (_, _) {
+                  if (region.mounted) region.dragEnded(data);
                 },
                 childWhenDragging: Opacity(opacity: .4, child: widget.child),
                 child: widget.child,
