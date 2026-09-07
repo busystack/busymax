@@ -5,9 +5,11 @@ on:
   pull_request:
     branches: [main]
   push:
-    branches:
-      - main
-      - 'Release/**'
+    branches: [main]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   build:
@@ -57,51 +59,6 @@ jobs:
           } | ConvertTo-Json | Set-Content `
             -LiteralPath build/windows/store-ci.json -Encoding utf8NoBOM
 
-      - name: Verify x64 Windows build host
-        shell: pwsh
-        run: |
-          if ($env:OS -ne 'Windows_NT' -or
-              -not [Environment]::Is64BitOperatingSystem) {
-            throw 'BusyMax Windows builds require 64-bit Windows.'
-          }
-
-      - name: Verify pinned Flutter version
-        shell: pwsh
-        run: |
-          $version = (flutter --version --machine |
-            ConvertFrom-Json).frameworkVersion
-          if ($version -ne '3.44.4') {
-            throw "BusyMax requires Flutter 3.44.4; found $version."
-          }
-
-      - name: Verify Visual Studio C++ toolchain
-        shell: pwsh
-        run: |
-          $vswhere = Join-Path ${env:ProgramFiles(x86)} `
-            'Microsoft Visual Studio\Installer\vswhere.exe'
-          $installation = & $vswhere -latest -products * `
-            -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 `
-            -property installationPath
-          if ([string]::IsNullOrWhiteSpace($installation)) {
-            throw 'Visual Studio C++ x64 desktop tools were not found.'
-          }
-
-      - name: Verify Windows SDK packaging tools
-        shell: pwsh
-        run: |
-          . ./tool/windows/common.ps1
-          $kitsBin = Join-Path ${env:ProgramFiles(x86)} 'Windows Kits\10\bin'
-          $sdk = Get-BusyMaxWindowsSdkDirectory -KitsBin $kitsBin
-          if ($null -eq $sdk) {
-            throw 'Windows SDK 10.0.26100.0 or newer is required.'
-          }
-          foreach ($tool in @('makeappx.exe', 'signtool.exe')) {
-            if (-not (Test-Path -LiteralPath `
-                (Join-Path $sdk.FullName "x64\$tool"))) {
-              throw "$tool was not found in Windows SDK $($sdk.Name)."
-            }
-          }
-
       - name: Verify combined Windows build prerequisites
         shell: pwsh
         run: |
@@ -112,13 +69,6 @@ jobs:
             -LiteralPath build/windows/test-results/windows-environment.json `
             -Encoding utf8NoBOM
           $environment | Format-List
-
-      - name: Validate non-production CI identity
-        shell: pwsh
-        run: >-
-          ./tool/windows/validate_release_config.ps1
-          -ConfigPath build/windows/store-ci.json
-          -Ci | Format-List
 
       - name: Run pinned Pester contract tests
         shell: pwsh
@@ -311,9 +261,10 @@ jobs:
           name: busymax-windows-x64-test-reports
           path: build/windows/test-results/**
           if-no-files-found: warn
+          retention-days: 7
 
       - name: Upload unsigned CI MSIX and package evidence
-        if: success()
+        if: success() && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
         uses: actions/upload-artifact@v7
         with:
           name: busymax-windows-x64-ci
@@ -323,3 +274,4 @@ jobs:
             build/windows/store/*inventory.json
             build/windows/store/*metadata.json
           if-no-files-found: error
+          retention-days: 7

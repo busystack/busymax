@@ -68,9 +68,16 @@ flutter test
 dart run tool/check_platform_boundaries.dart
 ```
 
-The Windows workflow can be started manually with `workflow_dispatch` and runs
-automatically for pushes to `main` and `Release/**`. This permits validation of
-the exact release-branch commit without first merging it into `main`.
+Both platform workflows run automatically for pull requests targeting `main`
+and pushes to `main`; pushes to other branches do not independently start
+either workflow. The Windows workflow can still be started manually with
+`workflow_dispatch` on a selected branch.
+
+For a given workflow and ref, a newer run cancels the superseded run without
+affecting the other platform or unrelated pull requests. CI artifacts are
+retained for seven days. Pull requests still build and validate the package,
+but the Windows package artifact is retained only for successful `main` pushes
+and manual runs.
 
 The boundary checker fails if Windows/common code reaches Yaru, Ubuntu
 localizations, DBus, freedesktop notifications, XDG tray, or GTK services, or

@@ -39,4 +39,55 @@ void main() {
     expect(workflow, isNot(contains('Build Linux debug')));
     expect(workflow, isNot(contains('zip -r')));
   });
+
+  test(
+    'Linux CI has main-only triggers, cancellation, and short Snap retention',
+    () {
+      final workflow = File(
+        '.github/workflows/flutter-linux.yml',
+      ).readAsStringSync();
+      final triggers = workflow.substring(
+        workflow.indexOf('on:'),
+        workflow.indexOf('\nconcurrency:'),
+      );
+      final concurrency = workflow.substring(
+        workflow.indexOf('concurrency:'),
+        workflow.indexOf('\njobs:'),
+      );
+      final upload = _stepBlock(workflow, 'Upload Snap artifact');
+
+      expect(
+        _triggerBlock(triggers, 'pull_request'),
+        'pull_request:\n    branches: [main]',
+      );
+      expect(_triggerBlock(triggers, 'push'), 'push:\n    branches: [main]');
+      expect(triggers, isNot(contains('workflow_dispatch:')));
+      expect(triggers, isNot(contains('Release/**')));
+      expect(
+        concurrency,
+        contains(r'group: ${{ github.workflow }}-${{ github.ref }}'),
+      );
+      expect(concurrency, contains('cancel-in-progress: true'));
+      expect(upload, contains("if: github.event_name == 'push'"));
+      expect(upload, contains('retention-days: 7'));
+      expect(upload, contains('if-no-files-found: error'));
+    },
+  );
+}
+
+String _stepBlock(String workflow, String name) {
+  final start = workflow.indexOf('- name: $name');
+  expect(start, isNonNegative, reason: 'Missing workflow step: $name');
+  final end = workflow.indexOf('\n      - name:', start + 1);
+  return end == -1 ? workflow.substring(start) : workflow.substring(start, end);
+}
+
+String _triggerBlock(String triggers, String event) {
+  final start = triggers.indexOf('  $event:');
+  expect(start, isNonNegative, reason: 'Missing workflow trigger: $event');
+  final nextEvent = RegExp(
+    r'\n  [a-z_]+:',
+  ).firstMatch(triggers.substring(start + 1));
+  final end = nextEvent == null ? null : start + 1 + nextEvent.start;
+  return triggers.substring(start, end).trim();
 }

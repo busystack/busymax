@@ -6,6 +6,10 @@ on:
   push:
     branches: [main]
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build:
     runs-on: ubuntu-24.04
@@ -118,6 +122,7 @@ jobs:
           name: busymax-snap
           path: ${{ steps.snapcraft.outputs.snap }}
           if-no-files-found: error
+          retention-days: 7
 
       - name: Install strict Snap
         run: >-
@@ -128,4 +133,5 @@ jobs:
         run: |
           LC_ALL=C snap info --verbose busymax |
             grep -Eq '^[[:space:]]*confinement:[[:space:]]+strict$'
+          # shellcheck disable=SC2016
           snap run --shell busymax -c 'test -x "$SNAP/busymax"'
