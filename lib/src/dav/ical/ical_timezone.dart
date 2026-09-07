@@ -159,6 +159,16 @@ final class _TimeZoneDefinition {
     transitions.sort((left, right) => left.localAt.compareTo(right.localAt));
     _TimeZoneTransition? effective;
     for (final transition in transitions) {
+      // A forward offset transition creates a local-time gap. RFC 5545
+      // resolves an explicitly written value in that gap using the offset
+      // before the transition, rather than silently treating it as the first
+      // post-transition wall time.
+      final gap = transition.offsetTo - transition.offsetFrom;
+      if (gap > Duration.zero &&
+          !wall.isBefore(transition.localAt) &&
+          wall.isBefore(transition.localAt.add(gap))) {
+        return wall.subtract(transition.offsetFrom);
+      }
       if (transition.localAt.isAfter(wall)) break;
       effective = transition;
     }

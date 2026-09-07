@@ -144,7 +144,9 @@ final class DavCollectionHttpClient implements DavCollectionRemoteClient {
         accountId: _accountId,
         collectionId: _collectionId,
         correlationId: correlationId,
-        headers: const {'depth': '1'},
+        // RFC 6578 section 3.6 requires Depth: 0 here.  The sync-level in
+        // the REPORT body selects direct collection members; Depth must not.
+        headers: const {'depth': '0'},
         body: _syncCollectionBody(syncToken),
       ),
       credential: _credential,

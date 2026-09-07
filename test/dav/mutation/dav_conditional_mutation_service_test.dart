@@ -222,6 +222,91 @@ void main() {
   );
 
   test(
+    'replay adopts server-managed create normalization without a second PUT',
+    () async {
+      var puts = 0;
+      final intended = _event('Created');
+      final canonical = intended.replaceFirst(
+        'SUMMARY:Created',
+        'DTSTAMP:20260808T120000Z\r\n'
+            'LAST-MODIFIED:20260808T120001Z\r\n'
+            'SEQUENCE:1\r\n'
+            'SUMMARY:Created',
+      );
+      final remote = _FakeMutationRemote(
+        put:
+            ({
+              required uri,
+              required rawIcs,
+              required ifMatch,
+              required ifNoneMatch,
+            }) async {
+              puts += 1;
+              return _success;
+            },
+        fetcher: (href, uri) async => _live(href, uri, '"server"', canonical),
+      );
+
+      final result = await DavConditionalMutationService(remoteClient: remote)
+          .create(
+            collectionUri: _collectionUri,
+            object: DavNewObject(
+              uid: 'event@example.test',
+              initialMemberName: 'new.ics',
+              rawIcs: intended,
+              componentType: 'VEVENT',
+            ),
+            capabilities: _writable,
+            correlationId: 'replay-normalized-create',
+            reconcileFirst: true,
+          );
+
+      expect(result.outcome, DavMutationOutcome.succeeded);
+      expect(result.canonicalObject?.rawIcsBody, canonical);
+      expect(puts, 0);
+    },
+  );
+
+  test(
+    'replay does not adopt a same-UID create with changed user content',
+    () async {
+      var puts = 0;
+      final intended = _event('Created');
+      final remote = _FakeMutationRemote(
+        put:
+            ({
+              required uri,
+              required rawIcs,
+              required ifMatch,
+              required ifNoneMatch,
+            }) async {
+              puts += 1;
+              return _success;
+            },
+        fetcher: (href, uri) async =>
+            _live(href, uri, '"server"', _event('Other')),
+      );
+
+      final result = await DavConditionalMutationService(remoteClient: remote)
+          .create(
+            collectionUri: _collectionUri,
+            object: DavNewObject(
+              uid: 'event@example.test',
+              initialMemberName: 'new.ics',
+              rawIcs: intended,
+              componentType: 'VEVENT',
+            ),
+            capabilities: _writable,
+            correlationId: 'replay-content-conflict',
+            reconcileFirst: true,
+          );
+
+      expect(result.outcome, DavMutationOutcome.conflict);
+      expect(puts, 0);
+    },
+  );
+
+  test(
     '412 update auto-merges disjoint properties and retries exact current ETag',
     () async {
       final baseline = _event('Baseline', location: 'One');

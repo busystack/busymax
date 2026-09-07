@@ -21,6 +21,7 @@ import '../dav/mutation/dav_calendar_collection_mutation_service.dart';
 import '../dav/mutation/dav_pending_operations.dart';
 import '../dav/mutation/dav_task_list_mutation_service.dart';
 import '../dav/sync/dav_account_sync_engine.dart';
+import '../dav/storage/dav_projection_coverage_service.dart';
 import '../dav/storage/dav_settings_repository.dart';
 import '../dav/nextcloud/nextcloud_collection_service.dart';
 import '../dav/nextcloud/nextcloud_sharing_service.dart';
@@ -805,15 +806,28 @@ final icalImportServiceProvider = Provider<IcalImportService>((ref) {
   );
 });
 
+final davProjectionCoverageServiceProvider =
+    Provider<DavProjectionCoverageService>((ref) {
+      return DavProjectionCoverageService(
+        database: ref.watch(databaseProvider),
+      );
+    });
+
 final scheduleRepositoryProvider = Provider<ScheduleRepository>((ref) {
   return ScheduleRepository(
     ref.watch(databaseProvider),
-    ensureProjectionCoverage: (range) => ref
-        .read(webCalSubscriptionServiceProvider)
-        .ensureProjectionCoverage(
-          rangeStartUtc: range.start.toUtc(),
-          rangeEndUtc: range.end.toUtc(),
-        ),
+    ensureProjectionCoverage: (range) async {
+      final start = range.start.toUtc();
+      final end = range.end.toUtc();
+      await Future.wait([
+        ref
+            .read(webCalSubscriptionServiceProvider)
+            .ensureProjectionCoverage(rangeStartUtc: start, rangeEndUtc: end),
+        ref
+            .read(davProjectionCoverageServiceProvider)
+            .ensureProjectionCoverage(rangeStartUtc: start, rangeEndUtc: end),
+      ]);
+    },
   );
 });
 

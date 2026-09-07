@@ -39,11 +39,11 @@ creation remains unsupported, and WebCal subscriptions remain read-only.
 | `VALARM` preservation | Supported | Supported | Supported |
 | Read-only and shared collections | Supported | Supported | Supported |
 | Collection creation | Not supported | Supported online through `MKCALENDAR` | Supported online when permitted |
-| Collection rename, delete, or unshare | Not supported | Not supported | Supported online when permitted |
-| Collection color or order editing | Not supported | Not supported | Not supported |
+| Collection rename, delete, unshare, metadata, color, or order editing | Not supported | Supported online when permitted | Supported online when permitted |
 | Cross-list task moves | Not applicable | Not applicable | Supported between writable Nextcloud task collections |
 | Clear completed tasks | Not applicable | Not applicable | Supported |
-| Invitation, scheduling, and attendee changes | Not supported | Not supported | Not applicable |
+| Sharing, publishing, trash restoration, and native import/export | Not supported | Supported online when permitted | Supported online when permitted |
+| Invitation, scheduling identities, organizer/attendee changes, replies, free/busy, and scheduling inbox | Not supported | Supported when the advertised collection and scheduling permissions allow it | Not applicable |
 | HTTP-only or private-CA servers | Not supported | Not supported | Not supported |
 
 ## Nextcloud task data
@@ -79,13 +79,22 @@ The wire format and DAV operations follow
 [RFC 4918](https://www.rfc-editor.org/rfc/rfc4918), and
 [RFC 5689](https://www.rfc-editor.org/rfc/rfc5689).
 
+## Nextcloud collaboration and administration
+
+Nextcloud collections expose their server-advertised metadata, sharing and
+publishing controls, trash restoration, and native iCalendar import/export.
+Calendar collections additionally support scheduling identities, organizer and
+attendee changes, replies, free/busy, and scheduling-inbox workflows when the
+server grants the relevant capabilities. Linux and Windows present these
+Nextcloud-specific controls. These workflows have automated coverage, but
+still require the live-server verification listed in
+`nextcloud_interoperability.md` before a release claim.
+
 ## Deliberate boundaries
 
 - Generic CalDAV account setup
 - Apple Reminders
 - Nextcloud Deck or Notes
-- Nextcloud task-list color/order editing, share administration, or trash-bin
-  management
 - Editing an individual detached task occurrence directly; synchronized
   exceptions are preserved, and recurring completion is handled on the master
 - EventKit or private Apple APIs

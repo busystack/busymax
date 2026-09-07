@@ -36,7 +36,8 @@ final class DavProviderProfile {
       BusyProvider.appleICloud => _isApprovedICloudHost(destination.host),
       BusyProvider.nextcloud =>
         _sameOrigin(destination, accountAuthority) &&
-            _preservesInstallationPath(destination, accountAuthority),
+            (_preservesInstallationPath(destination, accountAuthority) ||
+                _isNextcloudOriginWellKnown(destination)),
       BusyProvider.google ||
       BusyProvider.microsoft ||
       BusyProvider.webCal => false,
@@ -89,7 +90,8 @@ DavProviderProfile davProviderProfile(
 
 Uri davWellKnownUri(DavProviderProfile profile) {
   final bootstrap = profile.bootstrapUri;
-  if (profile.provider == BusyProvider.appleICloud) {
+  if (profile.provider == BusyProvider.appleICloud ||
+      profile.provider == BusyProvider.nextcloud) {
     return bootstrap.replace(
       path: '/.well-known/caldav',
       query: null,
@@ -128,6 +130,16 @@ bool _preservesInstallationPath(Uri destination, Uri authority) {
   return destination.path == basePath ||
       destination.path.startsWith('$basePath/');
 }
+
+/// Nextcloud documents its CalDAV entry point at the origin root, even when
+/// the application itself is installed below a path such as `/nextcloud/`.
+/// This is deliberately narrower than accepting arbitrary origin-root paths:
+/// credentials may only be sent to the exact discovery endpoint before its
+/// redirect brings us back inside the configured installation path.
+bool _isNextcloudOriginWellKnown(Uri destination) =>
+    destination.path == '/.well-known/caldav' &&
+    !destination.hasQuery &&
+    !destination.hasFragment;
 
 bool _isApprovedICloudHost(String value) {
   final host = value.toLowerCase();

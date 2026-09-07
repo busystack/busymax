@@ -1,7 +1,8 @@
 import 'dart:convert';
 
-import 'package:busymax/src/dav/dav_errors.dart';
+import 'package:busymax/src/dav/ical/ical_recurrence.dart';
 import 'package:busymax/src/dav/storage/dav_object_repository.dart';
+import 'package:busymax/src/dav/storage/dav_projection_coverage_service.dart';
 import 'package:busymax/src/db/app_database.dart';
 import 'package:busymax/src/features/tasks/data/tasks_repository.dart';
 import 'package:busymax/src/features/notifications/notification_schedule_service.dart';
@@ -213,7 +214,7 @@ void main() {
   });
 
   test(
-    'projection failure rolls raw object and final cursor back together',
+    'resource projection failure retains raw object and advances final cursor',
     () async {
       final first = DavPreparedObject.parse(
         hrefKey: _eventHref,
@@ -233,31 +234,24 @@ void main() {
         rawIcsBody: _simpleEvent('Changed'),
       );
 
-      await expectLater(
-        repository.commit(
-          _commit(
-            objects: [changed],
-            membership: {_eventHref},
-            cursor: 'token-2',
-            generation: 2,
-            rangeEnd: DateTime.utc(2055),
-          ),
-        ),
-        throwsA(
-          isA<DavException>().having(
-            (error) => error.code,
-            'code',
-            'IcalProjectionRangeLimitExceeded',
-          ),
+      await repository.commit(
+        _commit(
+          objects: [changed],
+          membership: {_eventHref},
+          cursor: 'token-2',
+          generation: 2,
+          rangeEnd: DateTime.utc(2055),
         ),
       );
 
       final object = await database.select(database.davObjects).getSingle();
-      expect(object.rawIcsBody, first.rawIcsBody);
-      expect(object.etag, '"one"');
+      expect(object.rawIcsBody, changed.rawIcsBody);
+      expect(object.etag, '"two"');
+      expect(object.lastParseStatus, 'projection_failed');
+      expect(await database.select(database.calendarEvents).get(), isEmpty);
       expect(
         (await database.select(database.syncCursors).getSingle()).cursorValue,
-        'token-1',
+        'token-2',
       );
     },
   );
@@ -430,6 +424,101 @@ void main() {
       'token-1',
     );
   });
+
+  test(
+    'calendar navigation expands DAV projection coverage from raw cache',
+    () async {
+      final future = DavPreparedObject.parse(
+        hrefKey: _eventHref,
+        requestUri: Uri.parse('https://cloud.example.test$_eventHref'),
+        etag: '"future"',
+        contentType: 'text/calendar',
+        rawIcsBody: _simpleEvent(
+          'Future',
+          start: '20300101T090000Z',
+          end: '20300101T100000Z',
+        ),
+      );
+      await repository.commit(
+        _commit(objects: [future], membership: {_eventHref}, cursor: 'token-1'),
+      );
+      expect(await database.select(database.calendarEvents).get(), isEmpty);
+
+      await DavProjectionCoverageService(
+        database: database,
+        objectRepository: repository,
+        nowUtc: () => _now,
+      ).ensureProjectionCoverage(
+        rangeStartUtc: DateTime.utc(2030),
+        rangeEndUtc: DateTime.utc(2030, 2),
+      );
+
+      expect(
+        await database.select(database.calendarEvents).get(),
+        hasLength(1),
+      );
+      final cursor = await database.select(database.syncCursors).getSingle();
+      expect(cursor.cursorValue, 'token-1');
+      expect(cursor.stateJson, allOf(contains('2029'), contains('2032')));
+    },
+  );
+
+  test(
+    'one unprojectable recurrence does not prevent a collection commit',
+    () async {
+      var id = 0;
+      final isolatedRepository = DavObjectRepository(
+        database: database,
+        idFactory: () => 'isolated-${id += 1}',
+        recurrenceExpander: IcalRecurrenceExpander(
+          limits: const IcalRecurrenceLimits(maximumOccurrences: 5),
+        ),
+      );
+      final safe = DavPreparedObject.parse(
+        hrefKey: '/remote.php/dav/calendars/alex/work/safe.ics',
+        requestUri: Uri.parse(
+          'https://cloud.example.test/remote.php/dav/calendars/alex/work/safe.ics',
+        ),
+        etag: '"safe"',
+        contentType: 'text/calendar',
+        rawIcsBody: _simpleEvent('Safe'),
+      );
+      final excessive = DavPreparedObject.parse(
+        hrefKey: '/remote.php/dav/calendars/alex/work/excessive.ics',
+        requestUri: Uri.parse(
+          'https://cloud.example.test/remote.php/dav/calendars/alex/work/excessive.ics',
+        ),
+        etag: '"excessive"',
+        contentType: 'text/calendar',
+        rawIcsBody: _eventWithExcessiveOccurrences,
+      );
+
+      await isolatedRepository.commit(
+        _commit(
+          objects: [safe, excessive],
+          membership: {safe.hrefKey, excessive.hrefKey},
+          cursor: 'resilient-token',
+        ),
+      );
+
+      final objects = await database.select(database.davObjects).get();
+      expect(objects, hasLength(2));
+      expect(
+        objects
+            .singleWhere((object) => object.hrefKey == excessive.hrefKey)
+            .lastParseStatus,
+        'projection_failed',
+      );
+      expect(
+        await database.select(database.calendarEvents).get(),
+        hasLength(1),
+      );
+      expect(
+        (await database.select(database.syncCursors).getSingle()).cursorValue,
+        'resilient-token',
+      );
+    },
+  );
 }
 
 const _eventHref = '/remote.php/dav/calendars/alex/work/event.ics';
@@ -534,6 +623,19 @@ UID:simple@example.test\r
 DTSTART:$start\r
 DTEND:$end\r
 SUMMARY:$summary\r
+END:VEVENT\r
+END:VCALENDAR\r
+''';
+
+const _eventWithExcessiveOccurrences = '''BEGIN:VCALENDAR\r
+VERSION:2.0\r
+PRODID:-//BusyMax Test//EN\r
+BEGIN:VEVENT\r
+UID:excessive@example.test\r
+DTSTART:20260808T090000Z\r
+DTEND:20260808T100000Z\r
+RRULE:FREQ=DAILY\r
+SUMMARY:Excessive\r
 END:VEVENT\r
 END:VCALENDAR\r
 ''';

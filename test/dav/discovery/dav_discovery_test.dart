@@ -219,6 +219,7 @@ void main() {
         'PROPFIND',
         'PROPFIND',
       ]);
+      expect(requests.first.url.path, '/.well-known/caldav');
       expect(requests[1].headers['depth'], '0');
       expect(requests[2].headers['depth'], '0');
       expect(requests[3].headers['depth'], '1');

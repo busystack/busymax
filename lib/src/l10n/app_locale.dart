@@ -28,6 +28,7 @@ const busyMaxLocaleOptions = <BusyMaxLocaleOption>[
   BusyMaxLocaleOption(locale: Locale('it'), endonym: 'Italiano'),
   BusyMaxLocaleOption(locale: Locale('ja'), endonym: '日本語'),
   BusyMaxLocaleOption(locale: Locale('ko'), endonym: '한국어'),
+  BusyMaxLocaleOption(locale: Locale('pl'), endonym: 'Polski'),
   BusyMaxLocaleOption(locale: Locale('pt', 'PT'), endonym: 'Português'),
   BusyMaxLocaleOption(locale: Locale('ru'), endonym: 'Русский'),
   BusyMaxLocaleOption(locale: Locale('vi'), endonym: 'Tiếng Việt'),

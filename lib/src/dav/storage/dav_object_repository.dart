@@ -17,7 +17,7 @@ import '../nextcloud/nextcloud_scheduling_policy.dart';
 import 'dav_collection_capabilities.dart';
 
 const davRawObjectParserVersion = 1;
-const davProjectionVersion = 3;
+const davProjectionVersion = 4;
 const davSyncStateSchemaVersion = 1;
 
 Map<String, Object?> nextcloudParticipantProjection(
@@ -284,7 +284,7 @@ final class DavObjectRepository {
           object.id,
           parsed[object.id]!,
         );
-        await _replaceProjections(
+        await _replaceProjectionsSafely(
           commit: DavCollectionCommit(
             accountId: accountId,
             collectionId: collectionId,
@@ -395,7 +395,7 @@ final class DavObjectRepository {
     );
     return _database.transaction(() async {
       final componentIds = await _replaceComponentIndex(objectId, semantic);
-      await _replaceProjections(
+      await _replaceProjectionsSafely(
         commit: context,
         collection: collection,
         objectId: objectId,
@@ -735,7 +735,7 @@ final class DavObjectRepository {
             object.id,
             semantic,
           );
-          await _replaceProjections(
+          await _replaceProjectionsSafely(
             commit: commit,
             collection: collection,
             objectId: object.id,
@@ -872,7 +872,7 @@ final class DavObjectRepository {
       );
       if (ignorePendingOperations ||
           !await _hasActivePendingOperation(objectId)) {
-        await _replaceProjections(
+        await _replaceProjectionsSafely(
           commit: commit,
           collection: collection,
           objectId: objectId,
@@ -957,6 +957,52 @@ final class DavObjectRepository {
           ? 'dav-task-list-${commit.collectionId}'
           : 'dav-calendar-${commit.collectionId}',
     );
+  }
+
+  /// Keep a fetched resource and advance the collection cursor even when a
+  /// resource-specific recurrence or time-zone projection cannot be rendered.
+  /// The raw iCalendar body remains available for a later reprojection.
+  Future<bool> _replaceProjectionsSafely({
+    required DavCollectionCommit commit,
+    required DavCollection collection,
+    required String objectId,
+    required String? etag,
+    required IcalSemanticDocument semantic,
+    required Map<String, String> componentIds,
+  }) async {
+    try {
+      await _replaceProjections(
+        commit: commit,
+        collection: collection,
+        objectId: objectId,
+        etag: etag,
+        semantic: semantic,
+        componentIds: componentIds,
+      );
+      await (_database.update(
+        _database.davObjects,
+      )..where((row) => row.id.equals(objectId))).write(
+        const DavObjectsCompanion(
+          lastParseStatus: Value('parsed'),
+          lastParseErrorCode: Value(null),
+        ),
+      );
+      return true;
+    } on DavException catch (error) {
+      if (!_isResourceProjectionFailure(error)) rethrow;
+      // A failure can happen after some occurrence rows have been written.
+      // Remove those partial rows before retaining the raw baseline.
+      await _deleteProjections(objectId);
+      await (_database.update(
+        _database.davObjects,
+      )..where((row) => row.id.equals(objectId))).write(
+        DavObjectsCompanion(
+          lastParseStatus: const Value('projection_failed'),
+          lastParseErrorCode: Value(error.code),
+        ),
+      );
+      return false;
+    }
   }
 
   Future<void> _replaceProjectionsBody({
@@ -1434,6 +1480,13 @@ final class DavObjectRepository {
     return fallback;
   }
 }
+
+bool _isResourceProjectionFailure(DavException error) => switch (error.kind) {
+  DavErrorKind.invalidCalendarData ||
+  DavErrorKind.unsupportedComponent ||
+  DavErrorKind.limitExceeded => true,
+  _ => false,
+};
 
 bool _hrefIsMemberOf(String memberHref, String collectionHref) {
   final prefix = collectionHref.endsWith('/')

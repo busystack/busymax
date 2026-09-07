@@ -478,6 +478,14 @@ final class DavConditionalMutationService {
   bool _sameIntendedObject(String intended, String current) =>
       _sameSemanticObject(intended, current, scheduling: implicitScheduling);
 
+  bool _matchesCreatedCanonical(String intended, String canonical) =>
+      _sameIntendedObject(intended, canonical) ||
+      _sameServerNormalizedCreate(
+        intended,
+        canonical,
+        scheduling: implicitScheduling,
+      );
+
   Future<DavMutationResult> create({
     required Uri collectionUri,
     required DavNewObject object,
@@ -514,7 +522,7 @@ final class DavConditionalMutationService {
         correlationId: correlationId,
       );
       if (!existing.missing) {
-        if (_sameIntendedObject(object.rawIcs, existing.rawIcsBody!)) {
+        if (_matchesCreatedCanonical(object.rawIcs, existing.rawIcsBody!)) {
           return DavMutationResult.succeeded(existing);
         }
         // An uncertain create must not allocate a second name or send another
@@ -547,7 +555,7 @@ final class DavConditionalMutationService {
           correlationId: correlationId,
         );
         if (!canonical.missing &&
-            (_sameIntendedObject(object.rawIcs, canonical.rawIcsBody!) ||
+            (_matchesCreatedCanonical(object.rawIcs, canonical.rawIcsBody!) ||
                 (implicitScheduling &&
                     _sameResourceIdentity(
                       object.rawIcs,
@@ -571,7 +579,7 @@ final class DavConditionalMutationService {
           correlationId: correlationId,
         );
         if (!resolved.missing) {
-          if (_sameIntendedObject(object.rawIcs, resolved.rawIcsBody!)) {
+          if (_matchesCreatedCanonical(object.rawIcs, resolved.rawIcsBody!)) {
             return DavMutationResult.succeeded(resolved);
           }
           return DavMutationResult.conflict(
@@ -1011,6 +1019,74 @@ bool _sameSemanticObject(
   } on DavException {
     return false;
   }
+}
+
+/// CalDAV servers are allowed to store a representation that differs from the
+/// submitted resource.  For an uncertain create, accept only a resource with
+/// the same component identity whose remaining differences are explicitly
+/// server-owned metadata; a UID match by itself is not sufficient.
+bool _sameServerNormalizedCreate(
+  String intended,
+  String canonical, {
+  required bool scheduling,
+}) {
+  if (!_sameResourceIdentity(intended, canonical)) return false;
+  try {
+    return _sameSemanticObject(
+      _withoutServerManagedCreateFields(intended, scheduling: scheduling),
+      _withoutServerManagedCreateFields(canonical, scheduling: scheduling),
+    );
+  } on DavException {
+    return false;
+  }
+}
+
+String _withoutServerManagedCreateFields(
+  String raw, {
+  required bool scheduling,
+}) {
+  final document = IcalDocument.parse(raw);
+
+  void normalize(IcalComponent component) {
+    final before = component.children.length;
+    component.children.removeWhere(
+      (child) =>
+          child is IcalProperty &&
+          const {
+            'DTSTAMP',
+            'LAST-MODIFIED',
+            'CREATED',
+            'SEQUENCE',
+          }.contains(child.name),
+    );
+    if (component.children.length != before) {
+      component.structurallyDirty = true;
+    }
+    for (final property in component.properties) {
+      if (!scheduling ||
+          (property.name != 'ATTENDEE' && property.name != 'ORGANIZER')) {
+        continue;
+      }
+      if (property.parameters.any(
+        (parameter) =>
+            parameter.name == 'SCHEDULE-STATUS' ||
+            parameter.name == 'SCHEDULE-AGENT',
+      )) {
+        property.parameters.removeWhere(
+          (parameter) =>
+              parameter.name == 'SCHEDULE-STATUS' ||
+              parameter.name == 'SCHEDULE-AGENT',
+        );
+        property.isDirty = true;
+      }
+    }
+    for (final child in component.components) {
+      normalize(child);
+    }
+  }
+
+  normalize(document.root);
+  return document.serialize();
 }
 
 bool _sameResourceIdentity(String intended, String current) {

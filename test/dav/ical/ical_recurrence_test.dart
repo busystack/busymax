@@ -179,6 +179,91 @@ END:VCALENDAR\r
     ]);
   });
 
+  test('keeps exact DURATION time across a daylight-saving jump', () {
+    final document = IcalSemanticDocument.parse('''BEGIN:VCALENDAR\r
+VERSION:2.0\r
+PRODID:-//BusyMax Test//EN\r
+BEGIN:VEVENT\r
+UID:exact-duration@example.test\r
+DTSTART;TZID=America/Vancouver:20260308T013000\r
+DURATION:PT2H\r
+SUMMARY:Exact duration\r
+END:VEVENT\r
+END:VCALENDAR\r
+''');
+
+    final occurrence = IcalRecurrenceExpander()
+        .expand(
+          document,
+          rangeStartUtc: DateTime.utc(2026, 3, 8),
+          rangeEndUtc: DateTime.utc(2026, 3, 9),
+        )
+        .single;
+    final resolver = IcalTimeZoneResolver.fromDocument(document);
+
+    expect(occurrence.end?.rawValue, '20260308T043000');
+    expect(
+      icalTemporalToUtc(occurrence.end!, resolver: resolver),
+      DateTime.utc(2026, 3, 8, 11, 30),
+    );
+  });
+
+  test('uses the pre-transition offset for embedded-zone gap values', () {
+    final document = IcalSemanticDocument.parse('''BEGIN:VCALENDAR\r
+VERSION:2.0\r
+PRODID:-//BusyMax Test//EN\r
+BEGIN:VTIMEZONE\r
+TZID:Custom/Pacific-Gap\r
+BEGIN:STANDARD\r
+DTSTART:19701101T020000\r
+RRULE:FREQ=YEARLY;BYMONTH=11;BYDAY=1SU\r
+TZOFFSETFROM:-0700\r
+TZOFFSETTO:-0800\r
+END:STANDARD\r
+BEGIN:DAYLIGHT\r
+DTSTART:19700308T020000\r
+RRULE:FREQ=YEARLY;BYMONTH=3;BYDAY=2SU\r
+TZOFFSETFROM:-0800\r
+TZOFFSETTO:-0700\r
+END:DAYLIGHT\r
+END:VTIMEZONE\r
+BEGIN:VEVENT\r
+UID:gap@example.test\r
+DTSTART;TZID=Custom/Pacific-Gap:20260308T023000\r
+DTEND;TZID=Custom/Pacific-Gap:20260308T033000\r
+SUMMARY:Gap\r
+END:VEVENT\r
+END:VCALENDAR\r
+''');
+    final resolver = IcalTimeZoneResolver.fromDocument(document);
+    final event = document.components.single;
+
+    expect(resolver.toUtc(event.start!), DateTime.utc(2026, 3, 8, 10, 30));
+  });
+
+  test('does not count distant prior occurrences toward projection output', () {
+    final document = IcalSemanticDocument.parse(
+      _eventWithRule(
+        start: 'DTSTART:19950101T090000Z',
+        end: 'DTEND:19950101T100000Z',
+        rule: 'RRULE:FREQ=DAILY',
+      ),
+    );
+
+    final occurrences =
+        IcalRecurrenceExpander(
+          limits: const IcalRecurrenceLimits(maximumOccurrences: 10000),
+        ).expand(
+          document,
+          rangeStartUtc: DateTime.utc(2026, 1),
+          rangeEndUtc: DateTime.utc(2026, 2),
+        );
+
+    expect(occurrences, hasLength(31));
+    expect(occurrences.first.start.rawValue, '20260101T090000Z');
+    expect(occurrences.last.start.rawValue, '20260131T090000Z');
+  });
+
   test('does not guess an unresolved custom TZID', () {
     final document = IcalSemanticDocument.parse(
       _eventWithRule(
