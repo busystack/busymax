@@ -14,12 +14,18 @@ final class IcalTemporalValue {
     required this.kind,
     required this.localValue,
     required this.timeZoneId,
+    this.resolvedUtc,
   });
 
   final String rawValue;
   final IcalTemporalKind kind;
   final DateTime localValue;
   final String? timeZoneId;
+
+  /// The exact instant represented by a value calculated from another
+  /// temporal value. Authored TZID values leave this null so ambiguous wall
+  /// times continue to use RFC 5545's first-occurrence interpretation.
+  final DateTime? resolvedUtc;
 
   bool get isDate => kind == IcalTemporalKind.date;
 

@@ -59,12 +59,15 @@ final class GeoapifyClient {
     LocationRequestCancellation? cancellation,
   }) async {
     if (text.trim().isEmpty) return const [];
-    if (!configured)
+    if (!configured) {
       throw const LocationLookupException(LocationLookupStatus.unconfigured);
-    if (_retryAfter?.isAfter(_now()) == true)
+    }
+    if (_retryAfter?.isAfter(_now()) == true) {
       throw const LocationLookupException(LocationLookupStatus.rateLimited);
-    if (!await canUseNetwork())
+    }
+    if (!await canUseNetwork()) {
       throw const LocationLookupException(LocationLookupStatus.offline);
+    }
     final token = cancellation ?? LocationRequestCancellation();
     if (token.cancelled) return const [];
     final uri = Uri.https(
@@ -122,8 +125,9 @@ final class GeoapifyClient {
             },
           );
       if (token.cancelled) return const [];
-      if (response is! Map || response['results'] is! List)
+      if (response is! Map || response['results'] is! List) {
         throw const LocationLookupException(LocationLookupStatus.failed);
+      }
       final results = <LocationResult>[];
       for (final value in response['results'] as List) {
         if (value is! Map) continue;

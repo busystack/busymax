@@ -48,6 +48,8 @@ final class IcalTimeZoneResolver {
   }
 
   DateTime toUtc(IcalTemporalValue value) {
+    final resolvedUtc = value.resolvedUtc;
+    if (resolvedUtc != null) return resolvedUtc.toUtc();
     if (value.kind == IcalTemporalKind.utcDateTime) {
       return value.localValue.toUtc();
     }

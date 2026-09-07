@@ -25,8 +25,9 @@ final class MapTileClient extends http.BaseClient {
     try {
       if (_closed ||
           _retryAfter?.isAfter(DateTime.now()) == true ||
-          !await canUseNetwork())
+          !await canUseNetwork()) {
         throw const MapTileException();
+      }
       final response = await inner
           .send(request)
           .timeout(const Duration(seconds: 8));
@@ -37,8 +38,9 @@ final class MapTileClient extends http.BaseClient {
           Duration(seconds: seconds.clamp(1, 3600)),
         );
       }
-      if (response.statusCode != 200 && response.statusCode != 304)
+      if (response.statusCode != 200 && response.statusCode != 304) {
         throw const MapTileException();
+      }
       final bytes = await response.stream.toBytes().timeout(
         const Duration(seconds: 8),
       );

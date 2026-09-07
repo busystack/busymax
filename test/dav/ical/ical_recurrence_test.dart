@@ -1,7 +1,10 @@
+import 'dart:convert';
+
 import 'package:busymax/src/dav/dav_errors.dart';
 import 'package:busymax/src/dav/ical/ical_recurrence.dart';
 import 'package:busymax/src/dav/ical/ical_semantics.dart';
 import 'package:busymax/src/dav/ical/ical_timezone.dart';
+import 'package:busymax/src/ical/ical_event_projection.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
@@ -206,6 +209,114 @@ END:VCALENDAR\r
       icalTemporalToUtc(occurrence.end!, resolver: resolver),
       DateTime.utc(2026, 3, 8, 11, 30),
     );
+  });
+
+  test('preserves an exact end instant in the repeated autumn hour', () {
+    final document = IcalSemanticDocument.parse('''BEGIN:VCALENDAR\r
+VERSION:2.0\r
+PRODID:-//BusyMax Test//EN\r
+BEGIN:VTIMEZONE\r
+TZID:Custom/Pacific-Overlap\r
+BEGIN:STANDARD\r
+DTSTART:19701101T020000\r
+RRULE:FREQ=YEARLY;BYMONTH=11;BYDAY=1SU\r
+TZOFFSETFROM:-0700\r
+TZOFFSETTO:-0800\r
+END:STANDARD\r
+BEGIN:DAYLIGHT\r
+DTSTART:19700308T020000\r
+RRULE:FREQ=YEARLY;BYMONTH=3;BYDAY=2SU\r
+TZOFFSETFROM:-0800\r
+TZOFFSETTO:-0700\r
+END:DAYLIGHT\r
+END:VTIMEZONE\r
+BEGIN:VEVENT\r
+UID:overlap-duration@example.test\r
+DTSTART;TZID=Custom/Pacific-Overlap:20261101T013000\r
+DURATION:PT1H\r
+SUMMARY:Repeated hour\r
+END:VEVENT\r
+END:VCALENDAR\r
+''');
+
+    final projected = IcalEventProjector()
+        .projectSemantic(
+          document,
+          rangeStartUtc: DateTime.utc(2026, 11, 1),
+          rangeEndUtc: DateTime.utc(2026, 11, 2),
+          transport: 'caldav',
+        )
+        .single;
+    final raw = jsonDecode(projected.rawJson) as Map<String, Object?>;
+
+    expect(raw['startUtc'], '2026-11-01T08:30:00.000Z');
+    expect(raw['endUtc'], '2026-11-01T09:30:00.000Z');
+    expect(
+      DateTime.parse(
+        raw['endUtc']! as String,
+      ).difference(DateTime.parse(raw['startUtc']! as String)),
+      const Duration(hours: 1),
+    );
+  });
+
+  test('retains an inherited range shift across a projection boundary', () {
+    final document = IcalSemanticDocument.parse('''BEGIN:VCALENDAR\r
+VERSION:2.0\r
+PRODID:-//BusyMax Test//EN\r
+BEGIN:VEVENT\r
+UID:boundary-shift@example.test\r
+DTSTART:20251229T230000Z\r
+DTEND:20251229T233000Z\r
+RRULE:FREQ=DAILY;COUNT=10\r
+SUMMARY:Master\r
+END:VEVENT\r
+BEGIN:VEVENT\r
+UID:boundary-shift@example.test\r
+RECURRENCE-ID;RANGE=THISANDFUTURE:20251230T230000Z\r
+DTSTART:20251231T010000Z\r
+DTEND:20251231T013000Z\r
+SUMMARY:Shifted\r
+END:VEVENT\r
+END:VCALENDAR\r
+''');
+
+    final occurrences = IcalRecurrenceExpander().expand(
+      document,
+      rangeStartUtc: DateTime.utc(2026, 1, 1),
+      rangeEndUtc: DateTime.utc(2026, 1, 2),
+    );
+
+    expect(occurrences, hasLength(1));
+    expect(occurrences.single.recurrenceId.rawValue, '20251231T230000Z');
+    expect(occurrences.single.start.rawValue, '20260101T010000Z');
+    expect(occurrences.single.end?.rawValue, '20260101T013000Z');
+  });
+
+  test('retains every long occurrence overlapping the projection start', () {
+    final document = IcalSemanticDocument.parse('''BEGIN:VCALENDAR\r
+VERSION:2.0\r
+PRODID:-//BusyMax Test//EN\r
+BEGIN:VEVENT\r
+UID:long-overlap@example.test\r
+DTSTART:20260101T000000Z\r
+DURATION:P3D\r
+RRULE:FREQ=DAILY\r
+SUMMARY:Long occurrence\r
+END:VEVENT\r
+END:VCALENDAR\r
+''');
+
+    final occurrences = IcalRecurrenceExpander().expand(
+      document,
+      rangeStartUtc: DateTime.utc(2026, 1, 10),
+      rangeEndUtc: DateTime.utc(2026, 1, 11),
+    );
+
+    expect(occurrences.map((occurrence) => occurrence.start.rawValue), [
+      '20260108T000000Z',
+      '20260109T000000Z',
+      '20260110T000000Z',
+    ]);
   });
 
   test('uses the pre-transition offset for embedded-zone gap values', () {

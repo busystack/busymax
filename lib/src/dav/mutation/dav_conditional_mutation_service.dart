@@ -782,7 +782,7 @@ final class DavConditionalMutationService {
           );
           if (!destination.missing &&
               _sameIntendedObject(expectedRawIcs, destination.rawIcsBody!)) {
-            return _finishMoveAtDestination(
+            return await _finishMoveAtDestination(
               destination,
               postMovePatch: postMovePatch,
               destinationCapabilities: destinationCapabilities,

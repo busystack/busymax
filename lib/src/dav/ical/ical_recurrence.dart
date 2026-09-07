@@ -66,8 +66,9 @@ final class IcalOccurrence {
 
 String? effectiveIcalLocation(Iterable<IcalSemanticComponent?> components) {
   for (final component in components) {
-    if (component?.documentComponent.firstProperty('LOCATION') != null)
+    if (component?.documentComponent.firstProperty('LOCATION') != null) {
       return component!.location;
+    }
   }
   return null;
 }
@@ -79,10 +80,12 @@ GeographicPoint? effectiveIcalLocationPoint(
 ) {
   for (final component in components) {
     if (component == null) continue;
-    if (component.documentComponent.firstProperty('GEO') != null)
+    if (component.documentComponent.firstProperty('GEO') != null) {
       return component.locationPoint;
-    if (component.documentComponent.firstProperty('LOCATION') != null)
+    }
+    if (component.documentComponent.firstProperty('LOCATION') != null) {
       return null;
+    }
   }
   return null;
 }
@@ -188,6 +191,13 @@ final class IcalRecurrenceExpander {
           ..sort((left, right) => _compareRecurrenceIds(left, right));
 
     final masterDuration = _componentDuration(master, timeZoneResolver);
+    final candidateBounds = _candidateProjectionBounds(
+      rangeStart,
+      rangeEnd,
+      masterDuration,
+      rangeOverrides,
+      timeZoneResolver,
+    );
     final starts = <String, IcalTemporalValue>{};
     final excludedStartKeys = {
       for (final property in master.documentComponent.propertiesNamed('EXDATE'))
@@ -197,9 +207,31 @@ final class IcalRecurrenceExpander {
     void retainIfRelevant(IcalTemporalValue value) {
       final key = _temporalIdentity(value);
       if (excludedStartKeys.contains(key)) return;
+      final exception = overrides[key];
+      final inheritedOverride = exception == null
+          ? _rangeOverrideFor(value, rangeOverrides)
+          : null;
+      final effectiveStart =
+          exception?.start ??
+          exception?.due ??
+          _rangeAdjustedStart(value, inheritedOverride) ??
+          value;
+      final effectiveEnd = exception != null
+          ? _occurrenceEnd(
+              exception,
+              effectiveStart,
+              masterDuration,
+              timeZoneResolver,
+            )
+          : _rangeOccurrenceEnd(
+              inheritedOverride,
+              effectiveStart,
+              masterDuration,
+              timeZoneResolver,
+            );
       if (_overlaps(
-        value,
-        _applyDuration(value, masterDuration, timeZoneResolver),
+        effectiveStart,
+        effectiveEnd,
         rangeStart,
         rangeEnd,
         timeZoneResolver,
@@ -222,11 +254,10 @@ final class IcalRecurrenceExpander {
         starts,
         rule,
         anchor,
-        rangeStart,
-        rangeEnd,
-        masterDuration,
-        excludedStartKeys,
+        candidateBounds.start,
+        candidateBounds.end,
         timeZoneResolver,
+        retainIfRelevant,
       );
     }
     for (final property in master.documentComponent.propertiesNamed('RDATE')) {
@@ -323,17 +354,16 @@ final class IcalRecurrenceExpander {
     Map<String, IcalTemporalValue> starts,
     _RecurrenceRule rule,
     IcalTemporalValue anchor,
-    DateTime rangeStartUtc,
-    DateTime rangeEndUtc,
-    _OccurrenceDuration masterDuration,
-    Set<String> excludedStartKeys,
+    DateTime candidateRangeStartUtc,
+    DateTime candidateRangeEndUtc,
     IcalTimeZoneResolver timeZoneResolver,
+    void Function(IcalTemporalValue value) retainIfRelevant,
   ) {
     var generatedForCount = 0;
     var reachedEnd = false;
     for (
       var period = rule.firstProjectionPeriod(
-        rangeStartUtc,
+        candidateRangeStartUtc,
         anchor,
         timeZoneResolver,
       );
@@ -344,7 +374,7 @@ final class IcalRecurrenceExpander {
       if (candidates.isEmpty &&
           rule.periodStartsAfter(
             period,
-            rangeEndUtc,
+            candidateRangeEndUtc,
             anchor,
             timeZoneResolver,
           )) {
@@ -364,24 +394,12 @@ final class IcalRecurrenceExpander {
           reachedEnd = true;
           break;
         }
-        if (!excludedStartKeys.contains(_temporalIdentity(value)) &&
-            _overlaps(
-              value,
-              _applyDuration(value, masterDuration, timeZoneResolver),
-              rangeStartUtc,
-              rangeEndUtc,
-              timeZoneResolver,
-            )) {
-          starts[_temporalIdentity(value)] = value;
-          if (starts.length > limits.maximumOccurrences) {
-            throw _occurrenceLimitError();
-          }
-        }
+        retainIfRelevant(value);
       }
       if (reachedEnd) break;
       if (rule.periodStartsAfter(
         period + 1,
-        rangeEndUtc,
+        candidateRangeEndUtc,
         anchor,
         timeZoneResolver,
       )) {
@@ -594,10 +612,9 @@ final class _RecurrenceRule {
     ).isAfter(rangeEndUtc);
   }
 
-  /// For unbounded rules, periods before the requested projection cannot
-  /// contribute an ordinary occurrence.  Starting just before the requested
-  /// wall-clock range avoids walking decades of historical daily/hourly data
-  /// while retaining a boundary occurrence that may overlap the range.
+  /// For unbounded rules, periods before the caller's duration- and
+  /// range-adjustment-aware candidate bound cannot contribute an occurrence.
+  /// One extra interval is retained only as a calendar/DST rounding guard.
   int firstProjectionPeriod(
     DateTime rangeStartUtc,
     IcalTemporalValue anchor,
@@ -627,8 +644,6 @@ final class _RecurrenceRule {
       _Frequency.yearly => wallEnd.year - wallStart.year,
     };
     if (units <= 0) return 0;
-    // One preceding interval covers an event that begins before the range but
-    // lasts into it, and avoids a DST rounding edge for hour-based rules.
     return math.max(0, units ~/ interval - 1);
   }
 
@@ -889,13 +904,17 @@ IcalTemporalValue _parseTemporalToken(
   )!;
 }
 
-IcalTemporalValue _withWallValue(IcalTemporalValue prototype, DateTime wall) =>
-    IcalTemporalValue(
-      rawValue: _formatWallValue(wall, prototype.kind),
-      kind: prototype.kind,
-      localValue: wall,
-      timeZoneId: prototype.timeZoneId,
-    );
+IcalTemporalValue _withWallValue(
+  IcalTemporalValue prototype,
+  DateTime wall, {
+  DateTime? resolvedUtc,
+}) => IcalTemporalValue(
+  rawValue: _formatWallValue(wall, prototype.kind),
+  kind: prototype.kind,
+  localValue: wall,
+  timeZoneId: prototype.timeZoneId,
+  resolvedUtc: resolvedUtc,
+);
 
 String _formatWallValue(DateTime value, IcalTemporalKind kind) {
   String two(int number) => number.toString().padLeft(2, '0');
@@ -946,6 +965,54 @@ final class _OccurrenceDuration {
   final Duration exact;
 
   bool get isZero => calendarDays == 0 && exact == Duration.zero;
+}
+
+({DateTime start, DateTime end}) _candidateProjectionBounds(
+  DateTime rangeStartUtc,
+  DateTime rangeEndUtc,
+  _OccurrenceDuration masterDuration,
+  List<IcalSemanticComponent> rangeOverrides,
+  IcalTimeZoneResolver timeZoneResolver,
+) {
+  var maximumDuration = _positiveProjectionSpan(masterDuration);
+  var maximumForwardShift = Duration.zero;
+  var maximumBackwardShift = Duration.zero;
+  for (final override in rangeOverrides) {
+    final recurrenceId = override.recurrenceId!;
+    final effectiveStart = override.start ?? override.due;
+    if (effectiveStart != null) {
+      final shift = _wallDateTime(
+        effectiveStart.localValue,
+      ).difference(_wallDateTime(recurrenceId.localValue));
+      if (!shift.isNegative && shift.compareTo(maximumForwardShift) > 0) {
+        maximumForwardShift = shift;
+      } else if (shift.isNegative) {
+        final magnitude = Duration(microseconds: -shift.inMicroseconds);
+        if (magnitude.compareTo(maximumBackwardShift) > 0) {
+          maximumBackwardShift = magnitude;
+        }
+      }
+    }
+    if (override.duration != null || override.end != null) {
+      final span = _positiveProjectionSpan(
+        _componentDuration(override, timeZoneResolver),
+      );
+      if (span.compareTo(maximumDuration) > 0) maximumDuration = span;
+    }
+  }
+  return (
+    start: rangeStartUtc.subtract(maximumDuration + maximumForwardShift),
+    end: rangeEndUtc.add(maximumBackwardShift),
+  );
+}
+
+Duration _positiveProjectionSpan(_OccurrenceDuration duration) {
+  final exact = duration.exact.isNegative ? Duration.zero : duration.exact;
+  if (duration.calendarDays <= 0) return exact;
+  // Civil days can be longer than 24 hours at an offset transition. The
+  // additional day is a conservative bound while final inclusion still uses
+  // the exact effective occurrence interval.
+  return Duration(days: duration.calendarDays + 1) + exact;
 }
 
 _OccurrenceDuration _componentDuration(
@@ -1062,11 +1129,9 @@ IcalTemporalValue? _applyDuration(
   if (duration.exact == Duration.zero) return value;
   if (value.kind == IcalTemporalKind.tzidDateTime) {
     final timeZoneId = value.timeZoneId!;
-    final local = timeZoneResolver.fromUtc(
-      timeZoneResolver.toUtc(value).add(duration.exact),
-      timeZoneId,
-    );
-    return _withWallValue(value, local);
+    final resolvedUtc = timeZoneResolver.toUtc(value).add(duration.exact);
+    final local = timeZoneResolver.fromUtc(resolvedUtc, timeZoneId);
+    return _withWallValue(value, local, resolvedUtc: resolvedUtc);
   }
   return _withWallValue(value, value.localValue.add(duration.exact));
 }

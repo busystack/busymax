@@ -27,8 +27,9 @@ final class GeographicPoint {
         !lat.isFinite ||
         !lon.isFinite ||
         lat.abs() > 90 ||
-        lon.abs() > 180)
+        lon.abs() > 180) {
       return null;
+    }
     return GeographicPoint._(latitude: lat, longitude: lon);
   }
 

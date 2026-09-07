@@ -1,6 +1,9 @@
 import 'dart:convert';
 
 import 'package:busymax/src/dav/ical/ical_recurrence.dart';
+import 'package:busymax/src/dav/ical/ical_document.dart';
+import 'package:busymax/src/dav/mutation/dav_mutation_patch.dart';
+import 'package:busymax/src/dav/mutation/dav_pending_operations.dart';
 import 'package:busymax/src/dav/storage/dav_object_repository.dart';
 import 'package:busymax/src/dav/storage/dav_projection_coverage_service.dart';
 import 'package:busymax/src/db/app_database.dart';
@@ -464,6 +467,155 @@ void main() {
   );
 
   test(
+    'navigation expands a pending offline series edit without changing queue',
+    () async {
+      final baseline = _ongoingWeeklyEvent('09');
+      final prepared = DavPreparedObject.parse(
+        hrefKey: _eventHref,
+        requestUri: Uri.parse('https://cloud.example.test$_eventHref'),
+        etag: '"weekly"',
+        contentType: 'text/calendar',
+        rawIcsBody: baseline,
+      );
+      await repository.commit(
+        _commit(
+          objects: [prepared],
+          membership: {_eventHref},
+          cursor: 'token-1',
+        ),
+      );
+      final object = await database.select(database.davObjects).getSingle();
+      final patch = DavMutationPatch(
+        target: const IcalComponentKey(
+          componentType: 'VEVENT',
+          uid: 'ongoing-weekly@example.test',
+        ),
+        scope: DavMutationScope.recurrenceMaster,
+        operations: [
+          DavPatchOperation.setRaw('DTSTART', '20260803T110000Z'),
+          DavPatchOperation.setRaw('DTEND', '20260803T120000Z'),
+        ],
+      );
+      final queue = DavPendingOperationQueue(
+        database: database,
+        idFactory: () => 'pending-series-edit',
+        nowUtc: () => _now,
+      );
+      await queue.enqueueUpdate(
+        accountId: 'account',
+        collectionId: 'collection',
+        objectId: object.id,
+        patch: patch,
+      );
+      await repository.projectLocalMutationCandidate(
+        accountId: 'account',
+        collectionId: 'collection',
+        provider: BusyProvider.nextcloud,
+        objectId: object.id,
+        candidateRawIcs: patch.applyTo(baseline, nowUtc: _now),
+        projectedAtUtc: _now,
+      );
+      final operationBefore = await database
+          .select(database.pendingOps)
+          .getSingle();
+      final cursorBefore = await database
+          .select(database.syncCursors)
+          .getSingle();
+
+      await DavProjectionCoverageService(
+        database: database,
+        objectRepository: repository,
+        nowUtc: () => _now,
+      ).ensureProjectionCoverage(
+        rangeStartUtc: DateTime.utc(2030, 1),
+        rangeEndUtc: DateTime.utc(2030, 2),
+      );
+
+      final future = (await database.select(database.calendarEvents).get())
+          .where((event) => event.startDateTime?.startsWith('2030-01') ?? false)
+          .toList();
+      expect(future, isNotEmpty);
+      expect(
+        future.every(
+          (event) =>
+              event.startDateTime!.contains('T11:00:00') &&
+              event.syncStatus == 'pending',
+        ),
+        isTrue,
+      );
+      final operationAfter = await database
+          .select(database.pendingOps)
+          .getSingle();
+      expect(operationAfter, operationBefore);
+      final objectAfter = await database
+          .select(database.davObjects)
+          .getSingle();
+      expect(objectAfter.rawIcsBody, baseline);
+      expect(objectAfter.etag, '"weekly"');
+      final cursorAfter = await database
+          .select(database.syncCursors)
+          .getSingle();
+      expect(cursorAfter.cursorValue, cursorBefore.cursorValue);
+      expect(cursorAfter.baselineGeneration, cursorBefore.baselineGeneration);
+      expect(cursorAfter.inProgressCursor, cursorBefore.inProgressCursor);
+      expect(
+        cursorAfter.inProgressGeneration,
+        cursorBefore.inProgressGeneration,
+      );
+      expect(cursorAfter.lastCompleteSyncAt, cursorBefore.lastCompleteSyncAt);
+      expect(cursorAfter.stateJson, contains('2032'));
+    },
+  );
+
+  test(
+    'failed reprojection does not mark an uncovered range as covered',
+    () async {
+      final limitedRepository = DavObjectRepository(
+        database: database,
+        recurrenceExpander: IcalRecurrenceExpander(
+          limits: const IcalRecurrenceLimits(maximumOccurrences: 5),
+        ),
+      );
+      final excessive = DavPreparedObject.parse(
+        hrefKey: _eventHref,
+        requestUri: Uri.parse('https://cloud.example.test$_eventHref'),
+        etag: '"excessive"',
+        contentType: 'text/calendar',
+        rawIcsBody: _eventWithExcessiveOccurrences,
+      );
+      await limitedRepository.commit(
+        _commit(
+          objects: [excessive],
+          membership: {_eventHref},
+          cursor: 'token-1',
+        ),
+      );
+      final stateBefore =
+          (await database.select(database.syncCursors).getSingle()).stateJson;
+
+      await limitedRepository.reprojectCollectionFromStored(
+        accountId: 'account',
+        collectionId: 'collection',
+        provider: BusyProvider.nextcloud,
+        projectionRangeStartUtc: DateTime.utc(2030),
+        projectionRangeEndUtc: DateTime.utc(2031),
+        completedAtUtc: _now,
+      );
+
+      final cursorAfter = await database
+          .select(database.syncCursors)
+          .getSingle();
+      expect(cursorAfter.stateJson, stateBefore);
+      expect(cursorAfter.cursorValue, 'token-1');
+      expect(
+        (await database.select(database.davObjects).getSingle())
+            .lastParseStatus,
+        'projection_failed',
+      );
+    },
+  );
+
+  test(
     'one unprojectable recurrence does not prevent a collection commit',
     () async {
       var id = 0;
@@ -573,6 +725,7 @@ Future<void> _seedCollection(AppDatabase database) async {
           requestUri: 'https://cloud.example.test$href',
           displayName: 'Work',
           supportedComponentMask: const Value(3),
+          currentUserPrivilegesJson: Value(jsonEncode(['{DAV:}write'])),
           readOnly: const Value(false),
           eventProjectionEnabled: const Value(true),
           taskProjectionEnabled: const Value(true),
@@ -623,6 +776,20 @@ UID:simple@example.test\r
 DTSTART:$start\r
 DTEND:$end\r
 SUMMARY:$summary\r
+END:VEVENT\r
+END:VCALENDAR\r
+''';
+
+String _ongoingWeeklyEvent(String hour) =>
+    '''BEGIN:VCALENDAR\r
+VERSION:2.0\r
+PRODID:-//BusyMax Test//EN\r
+BEGIN:VEVENT\r
+UID:ongoing-weekly@example.test\r
+DTSTART:20260803T${hour}0000Z\r
+DTEND:20260803T${hour == '09' ? '10' : '12'}0000Z\r
+RRULE:FREQ=WEEKLY\r
+SUMMARY:Ongoing weekly\r
 END:VEVENT\r
 END:VCALENDAR\r
 ''';

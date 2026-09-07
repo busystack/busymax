@@ -29,8 +29,9 @@ final class LocationSearchController extends ChangeNotifier {
     clear();
     if (composing ||
         text.trim().isEmpty ||
-        (!submit && text.trim().runes.length < 3))
+        (!submit && text.trim().runes.length < 3)) {
       return;
+    }
     final generation = _generation;
     Future<void> run() async {
       if (_disposed || generation != _generation) return;

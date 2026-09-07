@@ -380,8 +380,9 @@ class TaskDetailsDraft {
         location != (original.taskLocation ?? '')) {
       fields['location'] = location;
     }
-    if (capabilities.supportsLocation && locationChange.changed)
+    if (capabilities.supportsLocation && locationChange.changed) {
       fields['locationPoint'] = locationChange.selection?.point.toJson();
+    }
     if (capabilities.supportsUrl && taskUrl != (original.taskUrl ?? '')) {
       fields['taskUrl'] = taskUrl;
     }

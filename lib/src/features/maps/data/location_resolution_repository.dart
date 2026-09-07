@@ -108,8 +108,9 @@ final class LocationResolutionRepository {
     )..where((r) => _owner(r, from))).getSingleOrNull();
     if (old == null) return;
     final result = await load(from, old.locationText);
-    if (result != null)
+    if (result != null) {
       await apply(to, old.locationText, LocationChange.replace(result));
+    }
   }
 
   Future<List<RememberedLocationSnapshot>> capture({
@@ -131,7 +132,7 @@ final class LocationResolutionRepository {
         itemId: event.id,
       );
       final selection = await load(item, event.location ?? '');
-      if (selection != null)
+      if (selection != null) {
         snapshots.add(
           RememberedLocationSnapshot(
             item,
@@ -141,6 +142,7 @@ final class LocationResolutionRepository {
             event.providerRecurringEventId == null ? null : event.occurrenceKey,
           ),
         );
+      }
     }
     if (davObjectId != null) {
       for (final task in await (database.select(
@@ -153,7 +155,7 @@ final class LocationResolutionRepository {
           itemId: task.id,
         );
         final selection = await load(item, task.taskLocation ?? '');
-        if (selection != null)
+        if (selection != null) {
           snapshots.add(
             RememberedLocationSnapshot(
               item,
@@ -163,6 +165,7 @@ final class LocationResolutionRepository {
               task.recurrenceIdKey,
             ),
           );
+        }
       }
     }
     return snapshots;

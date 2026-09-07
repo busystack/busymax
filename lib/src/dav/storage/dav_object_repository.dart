@@ -13,6 +13,7 @@ import '../ical/ical_document.dart';
 import '../ical/ical_recurrence.dart';
 import '../ical/ical_semantics.dart';
 import '../ical/ical_timezone.dart';
+import '../mutation/dav_mutation_patch.dart';
 import '../nextcloud/nextcloud_scheduling_policy.dart';
 import 'dav_collection_capabilities.dart';
 
@@ -248,9 +249,10 @@ final class DavObjectRepository {
         );
   }
 
-  /// Rebuilds the bounded occurrence/task projections entirely from the raw
-  /// local baseline. Advancing the UI horizon never requires a server-wide
-  /// download and does not alter the durable transport cursor.
+  /// Rebuilds bounded occurrence/task projections from the effective local
+  /// resource, including durable pending create/update/move overlays.
+  /// Advancing the UI horizon never requires a server-wide download and does
+  /// not alter the durable transport cursor or pending operation.
   Future<Set<String>> reprojectCollectionFromStored({
     required String accountId,
     required String collectionId,
@@ -278,13 +280,19 @@ final class DavObjectRepository {
     final now = (completedAtUtc ?? DateTime.now()).toUtc();
     return _database.transaction(() async {
       final affected = <String>{};
+      var completelyCovered = true;
       for (final object in objects) {
-        if (await _hasActivePendingOperation(object.id)) continue;
-        final componentIds = await _replaceComponentIndex(
-          object.id,
-          parsed[object.id]!,
-        );
-        await _replaceProjectionsSafely(
+        final pending = await _effectivePendingOperation(object.id);
+        // A pending whole-resource delete is already absent from the effective
+        // local calendar at every date, so it needs no new occurrence rows.
+        if (pending?.operationType == 'dav.delete') continue;
+        final semantic = pending == null
+            ? parsed[object.id]!
+            : IcalSemanticDocument.parse(
+                _pendingCandidateRaw(pending, nowUtc: now),
+              );
+        final componentIds = await _replaceComponentIndex(object.id, semantic);
+        final projected = await _replaceProjectionsSafely(
           commit: DavCollectionCommit(
             accountId: accountId,
             collectionId: collectionId,
@@ -303,13 +311,20 @@ final class DavObjectRepository {
           collection: collection,
           objectId: object.id,
           etag: object.etag,
-          semantic: parsed[object.id]!,
+          semantic: semantic,
           componentIds: componentIds,
         );
+        if (!projected) {
+          completelyCovered = false;
+          continue;
+        }
+        if (pending != null) {
+          await _restorePendingProjectionState(pending, now);
+        }
         affected.add(object.id);
       }
       await _resolveProjectedTaskParents(collectionId);
-      if (cursorState != null) {
+      if (cursorState != null && completelyCovered) {
         await (_database.update(
           _database.syncCursors,
         )..where((row) => row.id.equals(cursorState.id))).write(
@@ -1428,22 +1443,128 @@ final class DavObjectRepository {
   }
 
   Future<bool> _hasActivePendingOperation(String objectId) async {
-    final pending =
-        await (_database.select(_database.pendingOps)..where(
-              (row) =>
-                  row.davObjectId.equals(objectId) &
-                  row.state.isIn(const [
-                    'pending',
-                    'retry',
-                    'in_progress',
-                    'blocked',
-                    'conflict',
-                    'auth_blocked',
-                    'permission_blocked',
-                  ]),
-            ))
-            .getSingleOrNull();
-    return pending != null;
+    return await _effectivePendingOperation(objectId) != null;
+  }
+
+  Future<PendingOp?> _effectivePendingOperation(String objectId) async {
+    final operations =
+        await (_database.select(_database.pendingOps)
+              ..where(
+                (row) =>
+                    row.davObjectId.equals(objectId) &
+                    row.operationType.isIn(const [
+                      'dav.create',
+                      'dav.update',
+                      'dav.delete',
+                      'dav.move',
+                    ]) &
+                    row.state.isIn(const [
+                      'pending',
+                      'retry',
+                      'in_progress',
+                      'blocked',
+                      'conflict',
+                      'auth_blocked',
+                      'permission_blocked',
+                    ]),
+              )
+              ..orderBy([
+                (row) => OrderingTerm.asc(row.createdAtUtc),
+                (row) => OrderingTerm.asc(row.id),
+              ]))
+            .get();
+    if (operations.isEmpty) return null;
+    // A move can depend on an earlier queued update for the same object. Pick
+    // the terminal operation in that chain even when both were created in the
+    // same clock tick and UUID ordering carries no sequencing information.
+    final dependedOnIds = {
+      for (final operation in operations) operation.dependsOnOpId,
+    }..remove(null);
+    final terminal = operations
+        .where((operation) => !dependedOnIds.contains(operation.id))
+        .toList(growable: false);
+    return terminal.length == 1 ? terminal.single : operations.last;
+  }
+
+  String _pendingCandidateRaw(PendingOp operation, {required DateTime nowUtc}) {
+    try {
+      if (operation.operationType == 'dav.create') {
+        final request = jsonDecode(operation.requestJson);
+        final rawIcs = request is Map ? request['rawIcs'] : null;
+        if (rawIcs is String && rawIcs.isNotEmpty) return rawIcs;
+      } else if (operation.operationType == 'dav.update') {
+        final baseline = operation.baselineRawIcs;
+        final patch = operation.mutationPatchJson;
+        if (baseline != null && patch != null) {
+          return DavMutationPatch.fromJsonString(
+            patch,
+          ).applyTo(baseline, nowUtc: nowUtc);
+        }
+      } else if (operation.operationType == 'dav.move') {
+        final baseline = operation.baselineRawIcs;
+        if (baseline != null) {
+          final patch = operation.mutationPatchJson;
+          return patch == null
+              ? baseline
+              : DavMutationPatch.fromJsonString(
+                  patch,
+                ).applyTo(baseline, nowUtc: nowUtc);
+        }
+      }
+    } on DavException {
+      rethrow;
+    } on Object {
+      // Convert malformed durable state into the same safe protocol error as
+      // other invalid pending-operation payloads.
+    }
+    throw const DavException(
+      kind: DavErrorKind.protocol,
+      code: 'DavPendingProjectionCandidateInvalid',
+      safeMessage: 'A pending DAV change could not be projected.',
+    );
+  }
+
+  Future<void> _restorePendingProjectionState(
+    PendingOp operation,
+    DateTime nowUtc,
+  ) async {
+    final objectId = operation.davObjectId!;
+    final eventStatus = operation.state == 'conflict' ? 'conflict' : 'pending';
+    var eventChanges = CalendarEventsCompanion(
+      syncStatus: Value(eventStatus),
+      updatedAtLocal: Value(nowUtc.millisecondsSinceEpoch),
+    );
+    var taskChanges = TasksCompanion(
+      localDirty: const Value(true),
+      localCreated: Value(operation.operationType == 'dav.create'),
+      pendingMove: Value(operation.operationType == 'dav.move'),
+      updatedLocalAtUtc: Value(nowUtc.toIso8601String()),
+    );
+    if (operation.operationType == 'dav.move' &&
+        operation.destinationCollectionId != null) {
+      final destination =
+          await (_database.select(_database.davCollections)..where(
+                (row) => row.id.equals(operation.destinationCollectionId!),
+              ))
+              .getSingleOrNull();
+      if (destination != null) {
+        eventChanges = eventChanges.copyWith(
+          calendarSourceId: Value('dav-calendar-${destination.id}'),
+          providerCalendarId: Value(destination.hrefKey),
+          davCollectionId: Value(destination.id),
+        );
+        taskChanges = taskChanges.copyWith(
+          taskListId: Value('dav-task-list-${destination.id}'),
+          davCollectionId: Value(destination.id),
+        );
+      }
+    }
+    await (_database.update(
+      _database.calendarEvents,
+    )..where((row) => row.davObjectId.equals(objectId))).write(eventChanges);
+    await (_database.update(
+      _database.tasks,
+    )..where((row) => row.davObjectId.equals(objectId))).write(taskChanges);
   }
 
   Future<void> _deleteProjections(String objectId) async {
