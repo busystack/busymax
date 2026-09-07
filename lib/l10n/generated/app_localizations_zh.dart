@@ -301,7 +301,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get windowsUnpackaged => '未打包';
 
   @override
-  String get windowsAgendaLoadMore => '載入更多議程項目';
+  String get windowsAgendaLoadMore => '加载更多议程项目';
 
   @override
   String repeatWeeklyDaySummary(String dayKey, String day) {
