@@ -13,6 +13,14 @@ class AppLocalizationsEn extends AppLocalizations {
   AppLocalizationsEn([String locale = 'en']) : super(locale);
 
   @override
+  String get nextcloudExportCollection => 'Export collection resources';
+
+  @override
+  String nextcloudImportItems(int count) {
+    return '$count event/task resources found';
+  }
+
+  @override
   String get nextcloudSchedulingInbox => 'Scheduling inbox';
 
   @override
@@ -30,7 +38,22 @@ class AppLocalizationsEn extends AppLocalizations {
       'Remove this scheduling message from the inbox? The calendar event will be kept.';
 
   @override
-  String get nextcloudAvailability => 'Include this collection in availability';
+  String get nextcloudGuestAvailability => 'Check guest availability';
+
+  @override
+  String nextcloudTrashRetention(int days) {
+    return 'Server trash retention: $days days';
+  }
+
+  @override
+  String get nextcloudCancelMeeting => 'Cancel meeting';
+
+  @override
+  String get nextcloudDeclineAndRemove => 'Decline and remove invitation';
+
+  @override
+  String get nextcloudDeclineRemovalWarning =>
+      'Removing this invitation sends a decline when synchronized. It does not cancel the organizer’s meeting.';
 
   @override
   String get nextcloudAvailabilityUnknown => 'Availability unknown';
@@ -104,6 +127,9 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get nextcloudCalendarEnabled => 'Enabled on the server';
+
+  @override
+  String get nextcloudAvailability => 'Include this collection in availability';
 
   @override
   String get nextcloudCalendarTimezone =>

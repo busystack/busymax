@@ -135,7 +135,8 @@ class TaskDetailsDraft {
   final String location;
   final GeographicPoint? locationPoint;
   final LocationChange locationChange;
-  GeographicPoint? get effectiveLocationPoint => locationChange.changed ? locationChange.selection?.point : locationPoint;
+  GeographicPoint? get effectiveLocationPoint =>
+      locationChange.changed ? locationChange.selection?.point : locationPoint;
   final String taskUrl;
   final String classification;
   final bool pinned;
@@ -226,7 +227,8 @@ class TaskDetailsDraft {
         completedDate == other.completedDate &&
         completedTime == other.completedTime &&
         location == other.location &&
-        locationPoint == other.locationPoint && locationChange == other.locationChange &&
+        locationPoint == other.locationPoint &&
+        locationChange == other.locationChange &&
         taskUrl == other.taskUrl &&
         classification == other.classification &&
         pinned == other.pinned &&
@@ -378,7 +380,8 @@ class TaskDetailsDraft {
         location != (original.taskLocation ?? '')) {
       fields['location'] = location;
     }
-    if (capabilities.supportsLocation && locationChange.changed) fields['locationPoint'] = locationChange.selection?.point.toJson();
+    if (capabilities.supportsLocation && locationChange.changed)
+      fields['locationPoint'] = locationChange.selection?.point.toJson();
     if (capabilities.supportsUrl && taskUrl != (original.taskUrl ?? '')) {
       fields['taskUrl'] = taskUrl;
     }
@@ -519,7 +522,11 @@ class TaskDetailsDraft {
           : completedTime as String?,
       location: location ?? this.location,
       locationPoint: locationPoint,
-      locationChange: locationChange ?? (location != null && location != this.location ? const LocationChange.clear() : this.locationChange),
+      locationChange:
+          locationChange ??
+          (location != null && location != this.location
+              ? const LocationChange.clear()
+              : this.locationChange),
       taskUrl: taskUrl ?? this.taskUrl,
       classification: classification ?? this.classification,
       pinned: pinned ?? this.pinned,

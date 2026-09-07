@@ -454,7 +454,7 @@ class CalendarPendingOpsReplayer {
     );
     if (recurringScope == 'entireSeries') {
       await _repository.upsertEvent(accountId: _accountId, event: event);
-      await _markRecurringRowsSynced(local);
+      await _markRecurringRowsSynced(op, local);
       return;
     }
     await _database.transaction(() async {
@@ -665,7 +665,7 @@ class CalendarPendingOpsReplayer {
         ),
         guestUpdatePolicy: _guestUpdatePolicy(request),
       );
-      await _markRecurringRowsSynced(local);
+      await _markRecurringRowsSynced(op, local);
       return;
     }
 
@@ -761,7 +761,7 @@ class CalendarPendingOpsReplayer {
       if (error.statusCode != 409) rethrow;
       await _client.getEvent(calendarId: calendarId, eventId: splitEventId);
     }
-    await _markRecurringRowsSynced(local);
+    await _markRecurringRowsSynced(op, local);
   }
 
   Future<void> _deleteGoogleFollowingEvents(
@@ -800,7 +800,7 @@ class CalendarPendingOpsReplayer {
         eventId: masterId,
         guestUpdatePolicy: _guestUpdatePolicy(request),
       );
-      await _markRecurringRowsSynced(local);
+      await _markRecurringRowsSynced(op, local);
       return;
     }
     final rule = EventRecurrenceCodec.decode(
@@ -836,7 +836,7 @@ class CalendarPendingOpsReplayer {
       ),
       guestUpdatePolicy: _guestUpdatePolicy(request),
     );
-    await _markRecurringRowsSynced(local);
+    await _markRecurringRowsSynced(op, local);
   }
 
   Future<RecurrenceRule> _followingGoogleRule(
@@ -867,23 +867,50 @@ class CalendarPendingOpsReplayer {
     return rule.copyWith(count: remaining, untilRaw: null);
   }
 
-  Future<void> _markRecurringRowsSynced(CalendarEvent local) async {
-    final recurringEventId = local.providerRecurringEventId;
-    if (recurringEventId == null) return;
-    await (_database.update(_database.calendarEvents)..where(
-          (row) =>
-              row.accountId.equals(local.accountId) &
-              row.provider.equals(local.provider) &
-              row.providerCalendarId.equals(local.providerCalendarId) &
-              row.providerRecurringEventId.equals(recurringEventId) &
-              row.syncStatus.equals('pending'),
-        ))
-        .write(
-          CalendarEventsCompanion(
-            syncStatus: const Value('synced'),
-            updatedAtLocal: Value(_nowUtc().millisecondsSinceEpoch),
-          ),
-        );
+  Future<void> _markRecurringRowsSynced(
+    PendingOp completedOp,
+    CalendarEvent local,
+  ) async {
+    await _database.transaction(() async {
+      final recurringEventId = local.providerRecurringEventId;
+      if (recurringEventId == null) return;
+      final remaining =
+          await (_database.select(_database.pendingOps)..where(
+                (row) =>
+                    row.accountId.equals(local.accountId) &
+                    row.provider.equals(local.provider) &
+                    row.providerCalendarId.equals(local.providerCalendarId) &
+                    row.entityType.equals('event') &
+                    row.id.equals(completedOp.id).not(),
+              ))
+              .get();
+      // A later series edit owns the optimistic projection until it is acknowledged.
+      if (remaining.any(
+        (op) =>
+            _request(op)[calendarEventTargetProviderIdKey] == recurringEventId,
+      )) {
+        return;
+      }
+      final pendingEventIds = remaining
+          .map((op) => op.eventId)
+          .whereType<String>()
+          .toSet();
+      await (_database.update(_database.calendarEvents)..where(
+            (row) =>
+                row.accountId.equals(local.accountId) &
+                row.provider.equals(local.provider) &
+                row.providerCalendarId.equals(local.providerCalendarId) &
+                row.providerRecurringEventId.equals(recurringEventId) &
+                row.syncStatus.equals('pending') &
+                row.id.isNotIn(pendingEventIds),
+          ))
+          .write(
+            CalendarEventsCompanion(
+              syncStatus: const Value('synced'),
+              updatedAtLocal: Value(_nowUtc().millisecondsSinceEpoch),
+            ),
+          );
+    });
   }
 
   Future<void> _replaceLocalEvent(
@@ -1256,6 +1283,7 @@ class CalendarPendingOpsReplayer {
       calendarEventTargetProviderIdKey,
       calendarEventOriginalStartKey,
       calendarEventOriginalEndKey,
+      calendarEventTimingBaselineKey,
       calendarEventDestinationCalendarIdKey,
       calendarEventDestinationSourceIdKey,
       calendarEventCopyConfirmationRequiredKey,
@@ -1699,6 +1727,7 @@ const _eventRequestMetadataFields = {
   calendarEventTargetProviderIdKey,
   calendarEventOriginalStartKey,
   calendarEventOriginalEndKey,
+  calendarEventTimingBaselineKey,
   _googleSplitMasterRawKey,
   _seriesResolvedRequestKey,
 };
@@ -1709,17 +1738,19 @@ Map<String, Object?> _seriesRequestForMaster(
   required BusyProvider provider,
 }) {
   final result = {...request};
+  final baseline = request[calendarEventTimingBaselineKey];
+  final timing = baseline is Map ? baseline : null;
   if (request.containsKey('start')) {
     final timeZone = request['startTimeZone']?.toString();
-    final masterStart = providerDateTimeAsWallTime(
+    final masterStart = providerDateTimeAsCivilTime(
       master.allDay ? master.startDate : master.startDateTime,
       master.startTimeZone,
     );
-    final originalStart = providerDateTimeAsWallTime(
-      request[calendarEventOriginalStartKey]?.toString(),
-      timeZone,
+    final originalStart = providerDateTimeAsCivilTime(
+      (timing?['start'] ?? request[calendarEventOriginalStartKey])?.toString(),
+      timing == null ? timeZone : timing['startTimeZone']?.toString(),
     );
-    final desiredStart = providerDateTimeAsWallTime(
+    final desiredStart = providerDateTimeAsCivilTime(
       request['start']?.toString(),
       timeZone,
     );
@@ -1734,15 +1765,15 @@ Map<String, Object?> _seriesRequestForMaster(
   }
   if (request.containsKey('end')) {
     final timeZone = request['endTimeZone']?.toString();
-    final masterEnd = providerDateTimeAsWallTime(
+    final masterEnd = providerDateTimeAsCivilTime(
       master.allDay ? master.endDate : master.endDateTime,
       master.endTimeZone,
     );
-    final originalEnd = providerDateTimeAsWallTime(
-      request[calendarEventOriginalEndKey]?.toString(),
-      timeZone,
+    final originalEnd = providerDateTimeAsCivilTime(
+      (timing?['end'] ?? request[calendarEventOriginalEndKey])?.toString(),
+      timing == null ? timeZone : timing['endTimeZone']?.toString(),
     );
-    final desiredEnd = providerDateTimeAsWallTime(
+    final desiredEnd = providerDateTimeAsCivilTime(
       request['end']?.toString(),
       timeZone,
     );
@@ -1756,14 +1787,17 @@ Map<String, Object?> _seriesRequestForMaster(
     );
   }
   if (request.containsKey('start') && master.recurrenceJson != null) {
-    final adjustedStart = DateTime.tryParse(result['start']?.toString() ?? '');
+    final adjustedStart = providerDateTimeAsCivilTime(
+      result['start']?.toString(),
+      request['startTimeZone']?.toString(),
+    );
     if (adjustedStart == null) {
       throw StateError('The recurring series start could not be adjusted.');
     }
     result[calendarEventRecurrenceField] = _reanchorSeriesRecurrence(
       provider,
       master.recurrenceJson!,
-      originalStart: providerDateTimeAsWallTime(
+      originalStart: providerDateTimeAsCivilTime(
         master.allDay ? master.startDate : master.startDateTime,
         master.startTimeZone,
       ),

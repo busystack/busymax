@@ -784,7 +784,7 @@ Future<bool> showWindowsEventEditorDialog(
                                         attendees: attendees,
                                       ),
                             ),
-                      child: Text(l10n.nextcloudAvailability),
+                      child: Text(l10n.nextcloudGuestAvailability),
                     ),
                   const SizedBox(height: 12),
                   InfoLabel(

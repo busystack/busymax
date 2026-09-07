@@ -507,7 +507,12 @@ class ScheduleRepository {
                     ? davCapabilities?.canUpdateEvent == true &&
                           source?.isDeleted == false
                     : sourceWritable) &&
-                _eventAllowsFullEditing(provider, isOrganizer, raw),
+                _eventAllowsFullEditing(
+                  provider,
+                  isOrganizer,
+                  raw,
+                  attendees.isNotEmpty,
+                ),
             canDelete: provider == BusyProvider.nextcloud
                 ? davCapabilities?.canDeleteEvent == true &&
                       source?.isDeleted == false
@@ -1282,9 +1287,11 @@ bool _eventAllowsFullEditing(
   BusyProvider provider,
   bool? isOrganizer,
   Map<String, Object?> raw,
+  bool hasAttendees,
 ) {
   if (provider == BusyProvider.webCal) return false;
   if (provider == BusyProvider.nextcloud &&
+      hasAttendees &&
       isOrganizer == false &&
       raw['federated'] != true) {
     return false;

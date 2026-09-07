@@ -13,240 +13,264 @@ class AppLocalizationsEt extends AppLocalizations {
   AppLocalizationsEt([String locale = 'et']) : super(locale);
 
   @override
-  String get nextcloudSchedulingInbox => 'Scheduling inbox';
+  String get nextcloudExportCollection => 'Ekspordi kogu ressursid';
+
+  @override
+  String nextcloudImportItems(int count) {
+    return 'Leiti $count sündmuse/ülesande ressurssi';
+  }
+
+  @override
+  String get nextcloudSchedulingInbox => 'Kutsete postkast';
 
   @override
   String get nextcloudInboxExplanation =>
-      'Nextcloud processes these messages into your calendars. Acknowledging a message removes only the inbox message, not the event.';
+      'Nextcloud töötleb need sõnumid sinu kalendritesse. Kinnitamine eemaldab ainult sõnumi, mitte sündmuse.';
 
   @override
-  String get nextcloudInboxEmpty => 'No scheduling messages.';
+  String get nextcloudInboxEmpty => 'Ajastussõnumeid pole.';
 
   @override
-  String get nextcloudAcknowledge => 'Acknowledge message';
+  String get nextcloudAcknowledge => 'Kinnita sõnumi kättesaamine';
 
   @override
   String get nextcloudAcknowledgeConfirm =>
-      'Remove this scheduling message from the inbox? The calendar event will be kept.';
+      'Kas eemaldada see sõnum postkastist? Kalendrisündmus säilib.';
 
   @override
-  String get nextcloudAvailability => 'Include this collection in availability';
+  String get nextcloudGuestAvailability => 'Kontrolli külaliste saadavust';
 
   @override
-  String get nextcloudAvailabilityUnknown => 'Availability unknown';
+  String nextcloudTrashRetention(int days) {
+    return 'Serveri prügikasti säilitusaeg: $days päeva';
+  }
+
+  @override
+  String get nextcloudCancelMeeting => 'Tühista koosolek';
+
+  @override
+  String get nextcloudDeclineAndRemove => 'Keeldu ja eemalda kutse';
+
+  @override
+  String get nextcloudDeclineRemovalWarning =>
+      'Eemaldamine saadab sünkroonimisel keeldumise. See ei tühista korraldaja koosolekut.';
+
+  @override
+  String get nextcloudAvailabilityUnknown => 'Saadavus teadmata';
 
   @override
   String get nextcloudAvailabilityFree =>
-      'No busy periods reported for this interval';
+      'Selles ajavahemikus hõivatud aegu ei teatatud';
 
   @override
-  String get nextcloudAvailabilityBusy => 'Busy periods';
+  String get nextcloudAvailabilityBusy => 'Hõivatud ajad';
 
   @override
   String get nextcloudSchedulingPending =>
-      'Nextcloud will send meeting updates when this change synchronizes. Saving locally does not confirm delivery.';
+      'Nextcloud saadab koosoleku uuendused sünkroonimisel. Kohalik salvestamine ei kinnita kohaletoimetamist.';
 
   @override
   String get nextcloudAttendeeRestrictions =>
-      'Only the organizer or an authorized delegate can change meeting details. You can respond to this invitation from its details.';
+      'Koosoleku andmeid saab muuta ainult korraldaja või volitatud esindaja. Kutsele saad vastata selle üksikasjades.';
 
   @override
   String get nextcloudMeetingMoveUnsupported =>
-      'This meeting cannot be moved by copying and deleting it. Use a calendar under the same scheduling identity.';
+      'Koosolekut ei saa teisaldada kopeerimise ja kustutamisega. Kasuta sama ajastusidentiteediga kalendrit.';
 
   @override
-  String get nextcloudSchedulingStatus => 'Server scheduling status';
+  String get nextcloudSchedulingStatus => 'Serveri ajastusolek';
 
   @override
   String get nextcloudImportFollowUp =>
-      'The imported resources were saved locally. Reminder refresh is pending; do not import them again.';
+      'Imporditud ressursid salvestati kohalikult. Meeldetuletuste uuendamine on ootel; ära impordi uuesti.';
 
   @override
   String get nextcloudNativeImport =>
-      'Import complete event and task resources without sending invitations. Existing UIDs are skipped unless you choose new copies. Unsupported resources are reported individually.';
+      'Impordi täielikud sündmused ja ülesanded kutseid saatmata. Olemasolevad UID-d jäetakse vahele, kui sa ei vali uusi koopiaid. Toetamata ressursid teatatakse eraldi.';
 
   @override
   String get nextcloudImportMethod =>
-      'This file contains scheduling messages. Import stores their content and removes METHOD; it does not process an invitation or reply.';
+      'Fail sisaldab ajastussõnumeid. Import salvestab sisu ja eemaldab METHOD-välja; see ei töötle kutseid ega vastuseid.';
 
   @override
   String get nextcloudImportCopies =>
-      'Import as new copies with new identities';
+      'Impordi uute koopiatena uute identiteetidega';
 
   @override
-  String get nextcloudCollectionSettings => 'Collection settings';
+  String get nextcloudCollectionSettings => 'Kogu seaded';
 
   @override
-  String get nextcloudSharing => 'Sharing';
+  String get nextcloudSharing => 'Jagamine';
 
   @override
-  String get nextcloudOwned => 'Owned';
+  String get nextcloudOwned => 'Enda oma';
 
   @override
-  String get nextcloudShared => 'Shared';
+  String get nextcloudShared => 'Jagatud';
 
   @override
-  String get nextcloudDelegated => 'Delegated';
+  String get nextcloudDelegated => 'Delegeeritud';
 
   @override
-  String get nextcloudSubscription => 'Subscription';
+  String get nextcloudSubscription => 'Tellimus';
 
   @override
-  String get nextcloudDeleted => 'Deleted';
+  String get nextcloudDeleted => 'Kustutatud';
 
   @override
   String get nextcloudMetadataEditable =>
-      'Calendar contents are read-only; collection properties can be changed.';
+      'Kalendri sisu on kirjutuskaitstud; kogu omadusi saab muuta.';
 
   @override
   String get nextcloudServerOrder =>
-      'Server order (separate from sidebar order)';
+      'Serveri järjestus (külgriba järjestusest eraldi)';
 
   @override
-  String get nextcloudCalendarEnabled => 'Enabled on the server';
+  String get nextcloudCalendarEnabled => 'Serveris lubatud';
+
+  @override
+  String get nextcloudAvailability => 'Arvesta kogu saadavuse määramisel';
 
   @override
   String get nextcloudCalendarTimezone =>
-      'Calendar timezone (VTIMEZONE document)';
+      'Kalendri ajavöönd (VTIMEZONE-dokument)';
 
   @override
   String get nextcloudRefreshPending =>
-      'The change was saved on Nextcloud. Refresh is pending; do not repeat the change.';
+      'Muudatus salvestati Nextcloudi. Värskendamine on ootel; ära korda muudatust.';
 
   @override
   String get nextcloudOutcomeUnknown =>
-      'The server outcome could not be confirmed. Refresh before trying again.';
+      'Serveri tulemust ei saanud kinnitada. Värskenda enne uuesti proovimist.';
 
   @override
-  String get nextcloudRemoveShared => 'Remove shared calendar/list';
+  String get nextcloudRemoveShared => 'Eemalda jagatud kalender/loend';
 
   @override
   String get nextcloudRemoveMixed =>
-      'This collection contains events and tasks. Deleting it removes both its events and tasks.';
+      'Kogu sisaldab sündmusi ja ülesandeid. Kustutamine eemaldab mõlemad.';
 
   @override
-  String get nextcloudReadAccess => 'Read-only';
+  String get nextcloudReadAccess => 'Ainult lugemine';
 
   @override
-  String get nextcloudWriteAccess => 'Read and write';
+  String get nextcloudWriteAccess => 'Lugemine ja kirjutamine';
 
   @override
-  String get nextcloudRecipientSearch => 'Find people or groups';
+  String get nextcloudRecipientSearch => 'Otsi inimesi või rühmi';
 
   @override
-  String get nextcloudNoRecipients => 'No matching people or groups.';
+  String get nextcloudNoRecipients => 'Sobivaid inimesi ega rühmi pole.';
 
   @override
-  String get nextcloudRevokeShare => 'Revoke access';
+  String get nextcloudRevokeShare => 'Tühista juurdepääs';
 
   @override
-  String get nextcloudPublish => 'Publish link';
+  String get nextcloudPublish => 'Avalda link';
 
   @override
-  String get nextcloudUnpublish => 'Stop publishing';
+  String get nextcloudUnpublish => 'Lõpeta avaldamine';
 
   @override
   String get nextcloudPublishWarning =>
-      'Anyone with the published link may be able to read this calendar. Publish it?';
+      'Avaldatud lingiga inimesed võivad saada kalendrit lugeda. Kas avaldada?';
 
   @override
-  String get nextcloudTrash => 'Deleted calendars and tasks';
+  String get nextcloudTrash => 'Kustutatud kalendrid ja ülesanded';
 
   @override
-  String get nextcloudTrashEmpty => 'No deleted calendar items.';
+  String get nextcloudTrashEmpty => 'Kustutatud kalendrikirjeid pole.';
 
   @override
-  String get nextcloudRestore => 'Restore';
+  String get nextcloudRestore => 'Taasta';
 
   @override
-  String get nextcloudPermanentDelete => 'Permanently delete';
+  String get nextcloudPermanentDelete => 'Kustuta jäädavalt';
 
   @override
   String get nextcloudPermanentDeleteWarning =>
-      'Permanently delete this item? It cannot be restored from Nextcloud\'s calendar trash.';
+      'Kas kustutada jäädavalt? Seda ei saa Nextcloudi kalendriprügikastist taastada.';
 
   @override
-  String get nextcloudOperationDenied =>
-      'Nextcloud did not allow this operation.';
+  String get nextcloudOperationDenied => 'Nextcloud ei lubanud seda toimingut.';
 
   @override
-  String get nextcloudUnsupported =>
-      'The server does not support this operation.';
+  String get nextcloudUnsupported => 'Server ei toeta seda toimingut.';
 
   @override
   String get nextcloudPendingChanges =>
-      'Save or discard collection changes before closing.';
+      'Enne sulgemist salvesta või hülga kogu muudatused.';
 
   @override
   String get nextcloudServerUnavailable =>
-      'Nextcloud could not be reached. Cached items and pending work are unchanged.';
+      'Nextcloudiga ei saa ühendust. Vahemälu ja ootel muudatused jäävad alles.';
 
   @override
-  String get mapsShow => 'Show map';
+  String get mapsShow => 'Näita kaarti';
 
   @override
-  String get mapsDirections => 'Directions in Google Maps';
+  String get mapsDirections => 'Teekond Google Mapsis';
 
   @override
   String get mapsPrivacy =>
-      'Online location search and maps use Geoapify. Only your search text and map area are sent.';
+      'Veebipõhine kohaotsing ja kaardid kasutavad Geoapifyt. Saadetakse ainult otsingutekst ja kaardiala.';
 
   @override
-  String get mapsSearch => 'Search locations';
+  String get mapsSearch => 'Otsi kohti';
 
   @override
-  String get mapsLoading => 'Searching locations…';
+  String get mapsLoading => 'Kohtade otsimine…';
 
   @override
   String get mapsEmpty =>
-      'No matching locations. You can keep the location as text.';
+      'Sobivaid kohti pole. Võid asukoha tekstina alles jätta.';
 
   @override
   String get mapsOffline =>
-      'Location search is offline. Directions are still available.';
+      'Kohaotsing on võrguühenduseta. Teekonnajuhised on endiselt saadaval.';
 
   @override
   String get mapsUnconfigured =>
-      'Online maps are not configured in this build. Directions are still available.';
+      'Veebikaarte pole selles versioonis seadistatud. Teekonnajuhised on endiselt saadaval.';
 
   @override
   String get mapsRateLimited =>
-      'Location service is busy. Please wait before searching again.';
+      'Kohateenus on hõivatud. Oota enne uuesti otsimist.';
 
   @override
   String get mapsServiceError =>
-      'Location search is unavailable. You can still save the location as text.';
+      'Kohaotsing pole saadaval. Asukoha saad endiselt tekstina salvestada.';
 
   @override
   String get mapsTilesFailed =>
-      'Some map tiles could not be loaded. The destination and directions remain available.';
+      'Mõnda kaardipaani ei saanud laadida. Sihtkoht ja teekonnajuhised on endiselt saadaval.';
 
   @override
-  String get mapsApproximate => 'Approximate area';
+  String get mapsApproximate => 'Ligikaudne ala';
 
   @override
-  String get mapsZoomIn => 'Zoom in';
+  String get mapsZoomIn => 'Suurenda';
 
   @override
-  String get mapsZoomOut => 'Zoom out';
+  String get mapsZoomOut => 'Vähenda';
 
   @override
-  String get mapsRecenter => 'Recenter destination';
+  String get mapsRecenter => 'Keskenda sihtkoht';
 
   @override
-  String get mapsDestination => 'Destination';
+  String get mapsDestination => 'Sihtkoht';
 
   @override
-  String get mapsBrowserFailed => 'The browser could not be opened.';
+  String get mapsBrowserFailed => 'Brauserit ei saanud avada.';
 
   @override
-  String get mapsRememberFailed => 'The map location could not be remembered.';
+  String get mapsRememberFailed => 'Kaardi asukohta ei saanud meelde jätta.';
 
   @override
-  String get mapsSelected => 'Map location selected';
+  String get mapsSelected => 'Kaardiasukoht valitud';
 
   @override
-  String get mapsChoose => 'Choose a location';
+  String get mapsChoose => 'Vali asukoht';
 
   @override
   String scheduleProposedRange(String start, String end) {

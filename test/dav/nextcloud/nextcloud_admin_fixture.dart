@@ -37,6 +37,9 @@ class NextcloudAdminFixture {
       published = false;
   String? failedProperty;
   bool omitPropertyResults = false;
+  bool denyTrashObject = false, denySharing = false, ignoreSharing = false;
+  String? deletedCollectionType;
+  bool unexpectedTrashHref = false;
   String displayName = 'Work';
   final shares = <String, bool>{};
   final restored = <String>{};
@@ -151,9 +154,29 @@ class NextcloudAdminFixture {
         );
       }
       if (request.url.path == home) {
+        if (request.headers['depth'] == '1') {
+          return http.Response(
+            '<d:multistatus $nextcloudXmlNamespaces>'
+            '<d:response><d:href>$home</d:href><d:propstat><d:prop>'
+            '<d:resourcetype><d:collection/></d:resourcetype>'
+            '<d:current-user-privilege-set><d:privilege><d:${denyParent ? 'read' : 'all'}/></d:privilege></d:current-user-privilege-set>'
+            '</d:prop><d:status>HTTP/1.1 200 OK</d:status></d:propstat></d:response>'
+            '${deletedCollectionType == null || restored.contains('${home}deleted/') ? '' : '<d:response><d:href>${home}deleted/</d:href><d:propstat><d:prop><d:resourcetype><d:collection/><nc:deleted-calendar/></d:resourcetype><d:displayname>Deleted collection</d:displayname><c:supported-calendar-component-set><c:comp name="$deletedCollectionType"/></c:supported-calendar-component-set><nc:deleted-at>2026-09-05T14:00:00Z</nc:deleted-at></d:prop><d:status>HTTP/1.1 200 OK</d:status></d:propstat></d:response>'}'
+            '</d:multistatus>',
+            207,
+          );
+        }
         return multi(
           home,
           '<d:current-user-privilege-set><d:privilege><d:${denyParent ? 'read' : 'unbind'}/></d:privilege></d:current-user-privilege-set>',
+        );
+      }
+      if (request.url.path == bin) {
+        return multi(
+          bin,
+          '<d:resourcetype><d:collection/><nc:trash-bin/></d:resourcetype>'
+          '<d:current-user-privilege-set><d:privilege><d:all/></d:privilege></d:current-user-privilege-set>'
+          '<nc:trash-bin-retention-duration>2592000</nc:trash-bin-retention-duration>',
         );
       }
       return multi(
@@ -198,13 +221,17 @@ class NextcloudAdminFixture {
       final raw =
           'BEGIN:VCALENDAR\r\nVERSION:2.0\r\nBEGIN:$component\r\nUID:trash-${task ? 'task' : 'event'}\r\nDTSTAMP:20260905T120000Z\r\nDTSTART:20260905T120000Z\r\n${task ? 'DUE' : 'DTEND'}:20260905T130000Z\r\nSUMMARY:Deleted ${task ? 'task' : 'event'}\r\nEND:$component\r\nEND:VCALENDAR\r\n';
       return multi(
-        path,
-        '<d:getetag>"exact-trash-etag"</d:getetag><c:calendar-data>${raw.replaceAll('&', '&amp;').replaceAll('<', '&lt;')}</c:calendar-data><nc:deleted-at>2026-09-05T14:00:00Z</nc:deleted-at><nc:calendar-uri>work</nc:calendar-uri>',
+        unexpectedTrashHref ? '${collection}active.ics' : path,
+        '<d:current-user-privilege-set><d:privilege><d:${denyTrashObject ? 'read' : 'unbind'}/></d:privilege></d:current-user-privilege-set><d:getetag>"exact-trash-etag"</d:getetag><c:calendar-data>${raw.replaceAll('&', '&amp;').replaceAll('<', '&lt;')}</c:calendar-data><nc:deleted-at>2026-09-05T14:00:00Z</nc:deleted-at><nc:calendar-uri>work</nc:calendar-uri>',
       );
     }
     if (request.method == 'POST') {
       final root = XmlDocument.parse(request.body).rootElement;
       if (root.name.local == 'share') {
+        if (denySharing) {
+          return multi(request.url.path, '<oc:share/>', status: 403);
+        }
+        if (ignoreSharing) return http.Response('', 200);
         final action = root.childElements.single;
         final href = action.childElements
             .firstWhere((e) => e.name.local == 'href')

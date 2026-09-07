@@ -13,240 +13,253 @@ class AppLocalizationsKo extends AppLocalizations {
   AppLocalizationsKo([String locale = 'ko']) : super(locale);
 
   @override
-  String get nextcloudSchedulingInbox => 'Scheduling inbox';
+  String get nextcloudExportCollection => '컬렉션 리소스 내보내기';
+
+  @override
+  String nextcloudImportItems(int count) {
+    return '일정/작업 리소스 $count개 발견';
+  }
+
+  @override
+  String get nextcloudSchedulingInbox => '일정 초대 수신함';
 
   @override
   String get nextcloudInboxExplanation =>
-      'Nextcloud processes these messages into your calendars. Acknowledging a message removes only the inbox message, not the event.';
+      'Nextcloud가 이 메시지를 캘린더에 반영합니다. 확인하면 메시지만 삭제되고 일정은 유지됩니다.';
 
   @override
-  String get nextcloudInboxEmpty => 'No scheduling messages.';
+  String get nextcloudInboxEmpty => '일정 메시지가 없습니다.';
 
   @override
-  String get nextcloudAcknowledge => 'Acknowledge message';
+  String get nextcloudAcknowledge => '메시지 확인';
 
   @override
   String get nextcloudAcknowledgeConfirm =>
-      'Remove this scheduling message from the inbox? The calendar event will be kept.';
+      '수신함에서 이 메시지를 삭제할까요? 캘린더 일정은 유지됩니다.';
 
   @override
-  String get nextcloudAvailability => 'Include this collection in availability';
+  String get nextcloudGuestAvailability => '참석자의 가능한 시간 확인';
 
   @override
-  String get nextcloudAvailabilityUnknown => 'Availability unknown';
+  String nextcloudTrashRetention(int days) {
+    return '서버 휴지통 보관 기간: $days일';
+  }
 
   @override
-  String get nextcloudAvailabilityFree =>
-      'No busy periods reported for this interval';
+  String get nextcloudCancelMeeting => '회의 취소';
 
   @override
-  String get nextcloudAvailabilityBusy => 'Busy periods';
+  String get nextcloudDeclineAndRemove => '초대 거절 및 삭제';
+
+  @override
+  String get nextcloudDeclineRemovalWarning =>
+      '동기화할 때 거절 응답을 보냅니다. 주최자의 회의는 취소되지 않습니다.';
+
+  @override
+  String get nextcloudAvailabilityUnknown => '가능한 시간 알 수 없음';
+
+  @override
+  String get nextcloudAvailabilityFree => '이 시간대에 보고된 바쁜 시간이 없습니다';
+
+  @override
+  String get nextcloudAvailabilityBusy => '바쁜 시간대';
 
   @override
   String get nextcloudSchedulingPending =>
-      'Nextcloud will send meeting updates when this change synchronizes. Saving locally does not confirm delivery.';
+      'Nextcloud는 동기화할 때 회의 변경 내용을 보냅니다. 로컬 저장은 전달 완료를 의미하지 않습니다.';
 
   @override
   String get nextcloudAttendeeRestrictions =>
-      'Only the organizer or an authorized delegate can change meeting details. You can respond to this invitation from its details.';
+      '주최자나 권한 있는 대리인만 회의 세부 정보를 변경할 수 있습니다. 초대 세부 정보에서 응답할 수 있습니다.';
 
   @override
   String get nextcloudMeetingMoveUnsupported =>
-      'This meeting cannot be moved by copying and deleting it. Use a calendar under the same scheduling identity.';
+      '복사 후 삭제하는 방식으로는 이 회의를 이동할 수 없습니다. 동일한 일정 관리 주체의 캘린더를 사용하세요.';
 
   @override
-  String get nextcloudSchedulingStatus => 'Server scheduling status';
+  String get nextcloudSchedulingStatus => '서버 일정 처리 상태';
 
   @override
   String get nextcloudImportFollowUp =>
-      'The imported resources were saved locally. Reminder refresh is pending; do not import them again.';
+      '가져온 리소스를 로컬에 저장했습니다. 알림 새로 고침이 대기 중이므로 다시 가져오지 마세요.';
 
   @override
   String get nextcloudNativeImport =>
-      'Import complete event and task resources without sending invitations. Existing UIDs are skipped unless you choose new copies. Unsupported resources are reported individually.';
+      '초대를 보내지 않고 완전한 일정과 작업 리소스를 가져옵니다. 새 사본을 선택하지 않으면 기존 UID를 건너뜁니다. 지원하지 않는 리소스는 개별 보고합니다.';
 
   @override
   String get nextcloudImportMethod =>
-      'This file contains scheduling messages. Import stores their content and removes METHOD; it does not process an invitation or reply.';
+      '이 파일에는 일정 메시지가 있습니다. 가져오기는 내용을 저장하고 METHOD를 제거하며 초대나 응답을 처리하지 않습니다.';
 
   @override
-  String get nextcloudImportCopies =>
-      'Import as new copies with new identities';
+  String get nextcloudImportCopies => '새 식별자로 새 사본 가져오기';
 
   @override
-  String get nextcloudCollectionSettings => 'Collection settings';
+  String get nextcloudCollectionSettings => '컬렉션 설정';
 
   @override
-  String get nextcloudSharing => 'Sharing';
+  String get nextcloudSharing => '공유 설정';
 
   @override
-  String get nextcloudOwned => 'Owned';
+  String get nextcloudOwned => '소유함';
 
   @override
-  String get nextcloudShared => 'Shared';
+  String get nextcloudShared => '공유됨';
 
   @override
-  String get nextcloudDelegated => 'Delegated';
+  String get nextcloudDelegated => '위임됨';
 
   @override
-  String get nextcloudSubscription => 'Subscription';
+  String get nextcloudSubscription => '구독';
 
   @override
-  String get nextcloudDeleted => 'Deleted';
+  String get nextcloudDeleted => '삭제됨';
 
   @override
   String get nextcloudMetadataEditable =>
-      'Calendar contents are read-only; collection properties can be changed.';
+      '캘린더 내용은 읽기 전용이지만 컬렉션 속성은 변경할 수 있습니다.';
 
   @override
-  String get nextcloudServerOrder =>
-      'Server order (separate from sidebar order)';
+  String get nextcloudServerOrder => '서버 순서(사이드바 순서와 별개)';
 
   @override
-  String get nextcloudCalendarEnabled => 'Enabled on the server';
+  String get nextcloudCalendarEnabled => '서버에서 활성화';
 
   @override
-  String get nextcloudCalendarTimezone =>
-      'Calendar timezone (VTIMEZONE document)';
+  String get nextcloudAvailability => '가능한 시간 계산에 이 컬렉션 포함';
+
+  @override
+  String get nextcloudCalendarTimezone => '캘린더 시간대(VTIMEZONE 문서)';
 
   @override
   String get nextcloudRefreshPending =>
-      'The change was saved on Nextcloud. Refresh is pending; do not repeat the change.';
+      '변경 내용을 Nextcloud에 저장했습니다. 새로 고침이 대기 중이므로 변경을 반복하지 마세요.';
 
   @override
-  String get nextcloudOutcomeUnknown =>
-      'The server outcome could not be confirmed. Refresh before trying again.';
+  String get nextcloudOutcomeUnknown => '서버 결과를 확인하지 못했습니다. 새로 고친 후 다시 시도하세요.';
 
   @override
-  String get nextcloudRemoveShared => 'Remove shared calendar/list';
+  String get nextcloudRemoveShared => '공유 캘린더/목록 제거';
 
   @override
-  String get nextcloudRemoveMixed =>
-      'This collection contains events and tasks. Deleting it removes both its events and tasks.';
+  String get nextcloudRemoveMixed => '이 컬렉션에는 일정과 작업이 있습니다. 삭제하면 둘 다 삭제됩니다.';
 
   @override
-  String get nextcloudReadAccess => 'Read-only';
+  String get nextcloudReadAccess => '읽기 전용';
 
   @override
-  String get nextcloudWriteAccess => 'Read and write';
+  String get nextcloudWriteAccess => '읽기 및 쓰기';
 
   @override
-  String get nextcloudRecipientSearch => 'Find people or groups';
+  String get nextcloudRecipientSearch => '사용자 또는 그룹 찾기';
 
   @override
-  String get nextcloudNoRecipients => 'No matching people or groups.';
+  String get nextcloudNoRecipients => '일치하는 사용자나 그룹이 없습니다.';
 
   @override
-  String get nextcloudRevokeShare => 'Revoke access';
+  String get nextcloudRevokeShare => '접근 권한 취소';
 
   @override
-  String get nextcloudPublish => 'Publish link';
+  String get nextcloudPublish => '링크 공개';
 
   @override
-  String get nextcloudUnpublish => 'Stop publishing';
+  String get nextcloudUnpublish => '공개 중단';
 
   @override
   String get nextcloudPublishWarning =>
-      'Anyone with the published link may be able to read this calendar. Publish it?';
+      '공개 링크가 있는 사람은 이 캘린더를 읽을 수 있습니다. 공개할까요?';
 
   @override
-  String get nextcloudTrash => 'Deleted calendars and tasks';
+  String get nextcloudTrash => '삭제된 캘린더와 작업';
 
   @override
-  String get nextcloudTrashEmpty => 'No deleted calendar items.';
+  String get nextcloudTrashEmpty => '삭제된 캘린더 항목이 없습니다.';
 
   @override
-  String get nextcloudRestore => 'Restore';
+  String get nextcloudRestore => '복원';
 
   @override
-  String get nextcloudPermanentDelete => 'Permanently delete';
+  String get nextcloudPermanentDelete => '영구 삭제';
 
   @override
   String get nextcloudPermanentDeleteWarning =>
-      'Permanently delete this item? It cannot be restored from Nextcloud\'s calendar trash.';
+      '이 항목을 영구 삭제할까요? Nextcloud 캘린더 휴지통에서 복원할 수 없게 됩니다.';
 
   @override
-  String get nextcloudOperationDenied =>
-      'Nextcloud did not allow this operation.';
+  String get nextcloudOperationDenied => 'Nextcloud가 이 작업을 허용하지 않았습니다.';
 
   @override
-  String get nextcloudUnsupported =>
-      'The server does not support this operation.';
+  String get nextcloudUnsupported => '서버가 이 작업을 지원하지 않습니다.';
 
   @override
-  String get nextcloudPendingChanges =>
-      'Save or discard collection changes before closing.';
+  String get nextcloudPendingChanges => '닫기 전에 컬렉션 변경 내용을 저장하거나 버리세요.';
 
   @override
   String get nextcloudServerUnavailable =>
-      'Nextcloud could not be reached. Cached items and pending work are unchanged.';
+      'Nextcloud에 연결하지 못했습니다. 캐시와 대기 중인 변경 내용은 유지됩니다.';
 
   @override
-  String get mapsShow => 'Show map';
+  String get mapsShow => '지도 표시';
 
   @override
-  String get mapsDirections => 'Directions in Google Maps';
+  String get mapsDirections => 'Google Maps에서 길찾기';
 
   @override
   String get mapsPrivacy =>
-      'Online location search and maps use Geoapify. Only your search text and map area are sent.';
+      '온라인 장소 검색과 지도는 Geoapify를 사용합니다. 검색어와 지도 영역만 전송됩니다.';
 
   @override
-  String get mapsSearch => 'Search locations';
+  String get mapsSearch => '장소 검색';
 
   @override
-  String get mapsLoading => 'Searching locations…';
+  String get mapsLoading => '장소 검색 중…';
 
   @override
-  String get mapsEmpty =>
-      'No matching locations. You can keep the location as text.';
+  String get mapsEmpty => '일치하는 장소가 없습니다. 위치를 텍스트로 유지할 수 있습니다.';
 
   @override
-  String get mapsOffline =>
-      'Location search is offline. Directions are still available.';
+  String get mapsOffline => '장소 검색이 오프라인입니다. 길찾기는 계속 사용할 수 있습니다.';
 
   @override
   String get mapsUnconfigured =>
-      'Online maps are not configured in this build. Directions are still available.';
+      '이 빌드에는 온라인 지도가 설정되어 있지 않습니다. 길찾기는 계속 사용할 수 있습니다.';
 
   @override
-  String get mapsRateLimited =>
-      'Location service is busy. Please wait before searching again.';
+  String get mapsRateLimited => '장소 서비스가 혼잡합니다. 잠시 기다린 후 다시 검색하세요.';
 
   @override
-  String get mapsServiceError =>
-      'Location search is unavailable. You can still save the location as text.';
+  String get mapsServiceError => '장소 검색을 사용할 수 없습니다. 위치를 텍스트로 저장할 수 있습니다.';
 
   @override
   String get mapsTilesFailed =>
-      'Some map tiles could not be loaded. The destination and directions remain available.';
+      '일부 지도 타일을 불러오지 못했습니다. 목적지와 길찾기는 계속 사용할 수 있습니다.';
 
   @override
-  String get mapsApproximate => 'Approximate area';
+  String get mapsApproximate => '대략적인 지역';
 
   @override
-  String get mapsZoomIn => 'Zoom in';
+  String get mapsZoomIn => '확대';
 
   @override
-  String get mapsZoomOut => 'Zoom out';
+  String get mapsZoomOut => '축소';
 
   @override
-  String get mapsRecenter => 'Recenter destination';
+  String get mapsRecenter => '목적지 중심으로 이동';
 
   @override
-  String get mapsDestination => 'Destination';
+  String get mapsDestination => '목적지';
 
   @override
-  String get mapsBrowserFailed => 'The browser could not be opened.';
+  String get mapsBrowserFailed => '브라우저를 열지 못했습니다.';
 
   @override
-  String get mapsRememberFailed => 'The map location could not be remembered.';
+  String get mapsRememberFailed => '지도 위치를 기억하지 못했습니다.';
 
   @override
-  String get mapsSelected => 'Map location selected';
+  String get mapsSelected => '지도 위치를 선택했습니다';
 
   @override
-  String get mapsChoose => 'Choose a location';
+  String get mapsChoose => '위치 선택';
 
   @override
   String scheduleProposedRange(String start, String end) {

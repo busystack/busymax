@@ -170,7 +170,9 @@ final class IcalSemanticComponent {
   final String? summary;
   final String? description;
   final String? location;
-  GeographicPoint? get locationPoint => GeographicPoint.fromIcal(documentComponent.firstProperty('GEO')?.rawValue);
+  GeographicPoint? get locationPoint => GeographicPoint.fromIcal(
+    documentComponent.firstProperty('GEO')?.rawValue,
+  );
   final String? url;
   final String? status;
   final String? classification;

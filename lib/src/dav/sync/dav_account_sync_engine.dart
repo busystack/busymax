@@ -178,7 +178,13 @@ final class DavAccountSyncEngine {
       _database.davAccountServices,
     )..where((r) => r.accountId.equals(_accountId))).getSingleOrNull();
     if (savedService != null) {
-      final metadata = jsonDecode(savedService.capabilitiesJson);
+      Object? metadata;
+      try {
+        metadata = jsonDecode(savedService.capabilitiesJson);
+      } on FormatException {
+        // Corrupt cached discovery data must trigger rediscovery, never grant
+        // privileges or prevent recovering an otherwise usable account.
+      }
       if (metadata is Map && metadata['serverFeatures'] is List) {
         transport.setServerFeatures(
           (metadata['serverFeatures'] as List).whereType<String>(),

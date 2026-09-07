@@ -249,6 +249,25 @@ final class NextcloudSharingService {
       if (response.statusCode < 200 || response.statusCode >= 300) {
         throw nextcloudOperationError(response.statusCode, 'DavSharingFailed');
       }
+      if (response.statusCode == 207) {
+        final results = const DavXmlParser().parseMultistatus(
+          response.bodyBytes,
+        );
+        for (final entry in results.responses) {
+          final failure = entry.propstats
+              .where((s) => !s.isSuccessful)
+              .firstOrNull;
+          if ((entry.statusCode ?? 200) >= 400 || failure != null) {
+            throw nextcloudOperationError(
+              entry.statusCode ?? failure!.statusCode,
+              'DavSharingFailed',
+            );
+          }
+        }
+        if (results.errorConditions.isNotEmpty) {
+          throw nextcloudOperationError(409, 'DavSharingFailed');
+        }
+      }
     } on DavException catch (error) {
       if (!{
         DavErrorKind.network,
@@ -265,10 +284,17 @@ final class NextcloudSharingService {
         throw nextcloudOperationError(409, 'DavCollectionOutcomeUnknown');
       }
     }
+    NextcloudSharingState refreshed;
     try {
-      await load(id, context: context);
+      refreshed = await load(id, context: context);
     } on Object {
       return NextcloudMutationOutcome.refreshPending;
+    }
+    final actual = refreshed.shares
+        .where((s) => s.recipient.href == recipient.href)
+        .firstOrNull;
+    if (writable == null ? actual != null : actual?.writable != writable) {
+      throw nextcloudOperationError(409, 'DavCollectionOutcomeUnknown');
     }
     return collections.refreshResult();
   }

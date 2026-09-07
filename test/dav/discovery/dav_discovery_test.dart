@@ -151,6 +151,11 @@ void main() {
     expect(policy.canUpdateEvent, isFalse);
     expect(policy.canCreateEvent, isTrue);
     expect(policy.canDeleteEvent, isTrue);
+    // Collection-level all/write privileges do not grant scheduling outbox
+    // authority. The matching principal/outbox policy is required separately.
+    expect(policy.canSendInvitations, isFalse);
+    expect(policy.canSendReplies, isFalse);
+    expect(policy.canSchedule, isFalse);
   });
   test(
     'discovers principal, home, mixed collections, ACLs, and safe HREFs',

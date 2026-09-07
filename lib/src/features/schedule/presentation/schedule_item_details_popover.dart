@@ -235,7 +235,13 @@ class _PopoverActions extends StatelessWidget {
       if (item.capabilities.canDelete)
         BusyMaxPopoverIconButton(
           icon: YaruIcons.trash,
-          tooltip: context.l10n.delete,
+          tooltip: switch (item) {
+            CalendarScheduleItem(isNextcloudAttendee: true) =>
+              context.l10n.nextcloudDeclineAndRemove,
+            CalendarScheduleItem(isNextcloudMeeting: true, isOrganizer: true) =>
+              context.l10n.nextcloudCancelMeeting,
+            _ => context.l10n.delete,
+          },
           destructive: true,
           onPressed: () =>
               Navigator.of(context).pop(ScheduleItemDetailsAction.delete),

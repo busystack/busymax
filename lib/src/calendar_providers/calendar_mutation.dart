@@ -30,6 +30,8 @@ const calendarEventRecurringScopeKey = '_recurringScope';
 const calendarEventTargetProviderIdKey = '_targetProviderEventId';
 const calendarEventOriginalStartKey = '_originalStart';
 const calendarEventOriginalEndKey = '_originalEnd';
+// Occurrence identity stays in _originalStart; each edit has its own interval.
+const calendarEventTimingBaselineKey = '_timingBaseline';
 const calendarEventDestinationCalendarIdKey = '_destinationCalendarId';
 const calendarEventDestinationSourceIdKey = '_destinationSourceId';
 const calendarEventCopyConfirmationRequiredKey = '_copyConfirmationRequired';
@@ -81,6 +83,7 @@ class CalendarEventMutation {
   final String? descriptionContentType;
   final String? descriptionHtml;
   final String? location;
+
   /// Explicit Graph replacement. Null means leave structured location intact.
   final Map<String, Object?>? structuredLocation;
   final bool? allDay;

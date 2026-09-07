@@ -18,6 +18,10 @@ CollectionCapabilities collectionCapabilitiesFromStored(
   final aggregateAll = privileges.contains('{DAV:}all');
   final aggregateWrite = aggregateAll || privileges.contains('{DAV:}write');
   final resourceTypes = _stringSet(collection.resourceTypesJson);
+  final decodedMetadata = jsonDecode(
+    collection.safeDisplayMetadataJson ?? '{}',
+  );
+  final metadata = decodedMetadata is Map ? decodedMetadata : const {};
   final contentResource =
       !resourceTypes.any(
         (type) => const {
@@ -49,24 +53,12 @@ CollectionCapabilities collectionCapabilitiesFromStored(
     canReadFreeBusy:
         privileges.contains('{urn:ietf:params:xml:ns:caldav}read-free-busy') ||
         aggregateAll,
-    canSendInvitations:
-        aggregateAll ||
-        privileges.contains('{urn:ietf:params:xml:ns:caldav}schedule-send') ||
-        privileges.contains(
-          '{urn:ietf:params:xml:ns:caldav}schedule-send-invite',
-        ),
-    canSendReplies:
-        aggregateAll ||
-        privileges.contains('{urn:ietf:params:xml:ns:caldav}schedule-send') ||
-        privileges.contains(
-          '{urn:ietf:params:xml:ns:caldav}schedule-send-reply',
-        ),
-    canSendFreeBusy:
-        aggregateAll ||
-        privileges.contains('{urn:ietf:params:xml:ns:caldav}schedule-send') ||
-        privileges.contains(
-          '{urn:ietf:params:xml:ns:caldav}schedule-send-freebusy',
-        ),
+    // These flags are projected by NextcloudSchedulingPolicy from the matching
+    // principal's actual outbox. DAV:all on a calendar is not outbox authority.
+    canSendInvitations: contentResource && metadata['canInvite'] == true,
+    canSendReplies: contentResource && metadata['canReply'] == true,
+    canSendFreeBusy: contentResource && metadata['canQueryFreeBusy'] == true,
+    providerAllowsSchedulingMutation: metadata['calendarUserAddresses'] is List,
     supportsEvents: collection.supportedComponentMask & davComponentEvent != 0,
     supportsTasks: collection.supportedComponentMask & davComponentTodo != 0,
     supportsSyncCollection: reports.contains('{DAV:}sync-collection'),

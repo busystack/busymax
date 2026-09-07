@@ -646,18 +646,24 @@ class ScheduleEventInteraction extends StatefulWidget {
 
 class _ScheduleEventInteractionState extends State<ScheduleEventInteraction> {
   ScheduleEventDragData? _data;
+  bool _dragging = false;
   bool _ownsResize = false;
 
   @override
   void didUpdateWidget(covariant ScheduleEventInteraction oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.item != widget.item &&
+        !_dragging &&
         !(ScheduleInteractionRegion.maybeOf(context)?.owns(_data) ?? false)) {
       _data = null;
     }
   }
 
-  void _down(PointerDownEvent event, ScheduleInteractionRegionState region) {
+  void _down(
+    PointerDownEvent event,
+    ScheduleInteractionRegionState region,
+    ScheduleEventDragData data,
+  ) {
     if (region.active ||
         event.buttons != kPrimaryMouseButton ||
         event.kind != PointerDeviceKind.mouse) {
@@ -665,8 +671,7 @@ class _ScheduleEventInteractionState extends State<ScheduleEventInteraction> {
     }
     final item = widget.item;
     if (item is! CalendarScheduleItem || !item.canReschedule) return;
-    _data ??= ScheduleEventDragData(item, widget.representedDate);
-    _data!
+    data
       ..pointerDown = event.position
       ..grab =
           region.at(event.position) ??
@@ -707,7 +712,7 @@ class _ScheduleEventInteractionState extends State<ScheduleEventInteraction> {
         behavior: HitTestBehavior.opaque,
         supportedDevices: const {PointerDeviceKind.mouse},
         onPanStart: (details) {
-          _ownsResize = _data != null && region.begin(_data!, action);
+          _ownsResize = region.begin(data, action);
           if (_ownsResize) {
             region.update(details.globalPosition);
           }
@@ -740,7 +745,7 @@ class _ScheduleEventInteractionState extends State<ScheduleEventInteraction> {
     );
     return ScheduleInteractionBlocker(
       child: Listener(
-        onPointerDown: (event) => _down(event, region),
+        onPointerDown: (event) => _down(event, region, data),
         onPointerCancel: (_) {
           if (region.owns(_data)) region.cancel();
         },
@@ -753,7 +758,8 @@ class _ScheduleEventInteractionState extends State<ScheduleEventInteraction> {
                 data: data,
                 allowedButtonsFilter: (buttons) =>
                     buttons == kPrimaryMouseButton && region.canMove,
-                maxSimultaneousDrags: region.canMove ? 1 : 0,
+                // Availability is checked at pointer-down by the live filter.
+                maxSimultaneousDrags: 1,
                 dragAnchorStrategy: pointerDragAnchorStrategy,
                 feedback: ListenableBuilder(
                   listenable: region.changes,
@@ -780,16 +786,18 @@ class _ScheduleEventInteractionState extends State<ScheduleEventInteraction> {
                   },
                 ),
                 onDragStarted: () {
-                  if (_data != null) {
-                    region.begin(_data!, ScheduleTimingAction.move);
-                  }
+                  _dragging = true;
+                  region.begin(data, ScheduleTimingAction.move);
                 },
                 onDragUpdate: (details) {
                   if (region.owns(data)) region.update(details.globalPosition);
                 },
                 onDragEnd: (_) {
                   region.dragEnded(data);
-                  _data = null;
+                  setState(() {
+                    _dragging = false;
+                    _data = null;
+                  });
                 },
                 childWhenDragging: Opacity(opacity: .4, child: widget.child),
                 child: widget.child,

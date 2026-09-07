@@ -268,7 +268,9 @@ void schedulePlannerGestureTests(
     expect(scenario.selections.single.end, DateTime(2026, 1, 12, 0, 45));
   });
   for (final cancellation in ['escape', 'outside', 'pointer', 'focus']) {
-    testWidgets('$platform $cancellation cancels without edit', (tester) async {
+    testWidgets('$platform $cancellation cancel then successful drag', (
+      tester,
+    ) async {
       final scenario = PlannerGestureScenario();
       await mount(tester, scenario);
       final down = tester.getCenter(tile());
@@ -295,6 +297,18 @@ void schedulePlannerGestureTests(
       await tester.pump(const Duration(milliseconds: 1));
       expect(scenario.edits, isEmpty);
       expect(region(tester).active, isFalse);
+      final nextDown = tester.getCenter(tile());
+      final next = await begin(
+        tester,
+        nextDown,
+        nextDown + Offset(0, 60 * planner(tester).heightPerMinute),
+      );
+      await release(tester, next);
+      expect(scenario.edits, hasLength(1));
+      expect(scenario.edits.single.interval.start, DateTime(2026, 1, 12, 10));
+      expect(scenario.edits.single.interval.end, DateTime(2026, 1, 12, 11));
+      expect(region(tester).active, isFalse);
+      expect(tester.takeException(), isNull);
     });
   }
   testWidgets('$platform readonly events do not offer editing gestures', (
@@ -399,7 +413,7 @@ void schedulePlannerGestureTests(
   );
 
   testWidgets(
-    '$platform no-op mouse gesture does not round an off-grid event',
+    '$platform no-op then successful drag preserves the off-grid interval',
     (tester) async {
       final scenario = PlannerGestureScenario(
         items: [
@@ -415,6 +429,18 @@ void schedulePlannerGestureTests(
       await gesture.moveTo(down);
       await release(tester, gesture);
       expect(scenario.edits, isEmpty);
+      expect(region(tester).active, isFalse);
+      final next = await begin(
+        tester,
+        down,
+        down + Offset(0, 60 * planner(tester).heightPerMinute),
+      );
+      await release(tester, next);
+      expect(scenario.edits, hasLength(1));
+      expect(scenario.edits.single.interval.start, DateTime(2026, 1, 12, 10));
+      expect(scenario.edits.single.interval.end, DateTime(2026, 1, 12, 11));
+      expect(region(tester).active, isFalse);
+      expect(tester.takeException(), isNull);
     },
   );
 
@@ -480,6 +506,50 @@ void schedulePlannerGestureTests(
     expect(scenario.edits, hasLength(1));
     expect(scenario.edits.single.interval.sameAs(interval), isTrue);
   });
+
+  testWidgets(
+    '$platform snapshot refresh during drag then cancel then successful drag',
+    (tester) async {
+      final scenario = PlannerGestureScenario();
+      await mount(tester, scenario);
+      final down = tester.getCenter(tile());
+      final gesture = await begin(tester, down, down + const Offset(0, 54));
+      scenario.items = [
+        PlannerGestureScenario.event(),
+        PlannerGestureScenario.event(
+          id: 'newly-loaded',
+          start: DateTime(2026, 1, 12, 12),
+          end: DateTime(2026, 1, 12, 13),
+        ),
+      ];
+      await tester.pumpWidget(harness(scenario));
+      await tester.pump();
+      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+      // A further snapshot after Escape must not replace the avatar's payload.
+      scenario.items = List.of(scenario.items);
+      await tester.pumpWidget(harness(scenario));
+      await release(tester, gesture);
+      expect(scenario.edits, isEmpty);
+      expect(region(tester).active, isFalse);
+      for (final id in ['drag-event', 'newly-loaded']) {
+        final nextDown = tester.getCenter(tile(id));
+        final next = await begin(
+          tester,
+          nextDown,
+          nextDown + Offset(0, 60 * planner(tester).heightPerMinute),
+        );
+        await release(tester, next);
+        expect(scenario.edits.last.item.id, id);
+        expect(
+          scenario.edits.last.interval.start.hour,
+          id == 'drag-event' ? 10 : 13,
+        );
+        expect(region(tester).active, isFalse);
+      }
+      expect(scenario.edits, hasLength(2));
+      expect(tester.takeException(), isNull);
+    },
+  );
 
   testWidgets(
     '$platform task checkbox stays outside range selection and dragging',

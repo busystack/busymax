@@ -930,7 +930,16 @@ class _WindowsSchedulePageState extends ConsumerState<WindowsSchedulePage> {
                 Navigator.pop(dialogContext);
                 unawaited(_delete(item));
               },
-              child: Text(l10n.delete),
+              child: Text(switch (item) {
+                CalendarScheduleItem(isNextcloudAttendee: true) =>
+                  l10n.nextcloudDeclineAndRemove,
+                CalendarScheduleItem(
+                  isNextcloudMeeting: true,
+                  isOrganizer: true,
+                ) =>
+                  l10n.nextcloudCancelMeeting,
+                _ => l10n.delete,
+              }),
             ),
           Button(
             onPressed: () {
@@ -1064,6 +1073,7 @@ class _WindowsSchedulePageState extends ConsumerState<WindowsSchedulePage> {
   }
 
   Future<void> _delete(ScheduleItem item) async {
+    if (!item.capabilities.canDelete) return;
     final l10n = AppLocalizations.of(context);
     RecurringEventMutationScope? scope;
     if (item is CalendarScheduleItem && item.providerRecurringEventId != null) {
@@ -1084,7 +1094,8 @@ class _WindowsSchedulePageState extends ConsumerState<WindowsSchedulePage> {
               ),
               child: Text(l10n.singleOccurrence),
             ),
-            if (supportsThisAndFollowingEventMutation(item.provider))
+            if (supportsThisAndFollowingEventMutation(item.provider) &&
+                !item.isNextcloudAttendee)
               Button(
                 onPressed: () => Navigator.pop(
                   context,
@@ -1118,15 +1129,24 @@ class _WindowsSchedulePageState extends ConsumerState<WindowsSchedulePage> {
       );
       if (choice == null) return;
       guestUpdatePolicy = choice;
-    } else if (scope == null) {
+    } else if (scope == null ||
+        (item is CalendarScheduleItem && item.isNextcloudAttendee)) {
       if (!mounted) return;
       final confirmed = await showDialog<bool>(
         context: context,
         builder: (context) => ContentDialog(
           title: Text(
-            item is TaskScheduleItem ? l10n.deleteTask : l10n.deleteEvent,
+            item is CalendarScheduleItem && item.isNextcloudAttendee
+                ? l10n.nextcloudDeclineAndRemove
+                : item is TaskScheduleItem
+                ? l10n.deleteTask
+                : l10n.deleteEvent,
           ),
-          content: Text(item.title),
+          content: Text(
+            item is CalendarScheduleItem && item.isNextcloudAttendee
+                ? l10n.nextcloudDeclineRemovalWarning
+                : item.title,
+          ),
           actions: [
             Button(
               onPressed: () => Navigator.pop(context, false),
@@ -1144,13 +1164,20 @@ class _WindowsSchedulePageState extends ConsumerState<WindowsSchedulePage> {
     try {
       switch (item) {
         case CalendarScheduleItem():
-          await ref
+          final accountId = await ref
               .read(calendarRepositoryProvider)
               .deleteLocalEvent(
                 item.id,
                 recurringScope: scope,
                 guestUpdatePolicy: guestUpdatePolicy,
               );
+          ref
+              .read(
+                pendingCalendarMutationSyncRequesterForAccountProvider(
+                  accountId,
+                ),
+              )
+              .request();
         case TaskScheduleItem():
           await ref
               .read(tasksRepositoryForAccountProvider(item.accountId))

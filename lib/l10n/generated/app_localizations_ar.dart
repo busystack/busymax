@@ -13,240 +13,261 @@ class AppLocalizationsAr extends AppLocalizations {
   AppLocalizationsAr([String locale = 'ar']) : super(locale);
 
   @override
-  String get nextcloudSchedulingInbox => 'Scheduling inbox';
+  String get nextcloudExportCollection => 'تصدير موارد المجموعة';
+
+  @override
+  String nextcloudImportItems(int count) {
+    return 'تم العثور على $count من موارد الأحداث والمهام';
+  }
+
+  @override
+  String get nextcloudSchedulingInbox => 'صندوق وارد الدعوات';
 
   @override
   String get nextcloudInboxExplanation =>
-      'Nextcloud processes these messages into your calendars. Acknowledging a message removes only the inbox message, not the event.';
+      'يعالج Nextcloud هذه الرسائل في تقاويمك. يؤدي الإقرار إلى إزالة الرسالة فقط، وليس الحدث.';
 
   @override
-  String get nextcloudInboxEmpty => 'No scheduling messages.';
+  String get nextcloudInboxEmpty => 'لا توجد رسائل جدولة.';
 
   @override
-  String get nextcloudAcknowledge => 'Acknowledge message';
+  String get nextcloudAcknowledge => 'الإقرار بالرسالة';
 
   @override
   String get nextcloudAcknowledgeConfirm =>
-      'Remove this scheduling message from the inbox? The calendar event will be kept.';
+      'إزالة هذه الرسالة من صندوق الوارد؟ سيُحتفظ بحدث التقويم.';
 
   @override
-  String get nextcloudAvailability => 'Include this collection in availability';
+  String get nextcloudGuestAvailability => 'التحقق من توفر المدعوين';
 
   @override
-  String get nextcloudAvailabilityUnknown => 'Availability unknown';
+  String nextcloudTrashRetention(int days) {
+    return 'مدة الاحتفاظ في مهملات الخادم: $days يومًا';
+  }
+
+  @override
+  String get nextcloudCancelMeeting => 'إلغاء الاجتماع';
+
+  @override
+  String get nextcloudDeclineAndRemove => 'رفض الدعوة وإزالتها';
+
+  @override
+  String get nextcloudDeclineRemovalWarning =>
+      'ستُرسل رسالة رفض عند المزامنة. لن يُلغى اجتماع المنظّم.';
+
+  @override
+  String get nextcloudAvailabilityUnknown => 'التوفر غير معروف';
 
   @override
   String get nextcloudAvailabilityFree =>
-      'No busy periods reported for this interval';
+      'لم يُبلّغ عن فترات انشغال في هذا النطاق';
 
   @override
-  String get nextcloudAvailabilityBusy => 'Busy periods';
+  String get nextcloudAvailabilityBusy => 'فترات الانشغال';
 
   @override
   String get nextcloudSchedulingPending =>
-      'Nextcloud will send meeting updates when this change synchronizes. Saving locally does not confirm delivery.';
+      'سيرسل Nextcloud تحديثات الاجتماع عند المزامنة. الحفظ المحلي لا يؤكد التسليم.';
 
   @override
   String get nextcloudAttendeeRestrictions =>
-      'Only the organizer or an authorized delegate can change meeting details. You can respond to this invitation from its details.';
+      'لا يمكن تغيير تفاصيل الاجتماع إلا للمنظّم أو المفوّض المخوّل. يمكنك الرد على الدعوة من تفاصيلها.';
 
   @override
   String get nextcloudMeetingMoveUnsupported =>
-      'This meeting cannot be moved by copying and deleting it. Use a calendar under the same scheduling identity.';
+      'لا يمكن نقل هذا الاجتماع بالنسخ والحذف. استخدم تقويمًا له هوية الجدولة نفسها.';
 
   @override
-  String get nextcloudSchedulingStatus => 'Server scheduling status';
+  String get nextcloudSchedulingStatus => 'حالة الجدولة لدى الخادم';
 
   @override
   String get nextcloudImportFollowUp =>
-      'The imported resources were saved locally. Reminder refresh is pending; do not import them again.';
+      'حُفظت الموارد المستوردة محليًا. تحديث التذكيرات معلّق؛ لا تستوردها مجددًا.';
 
   @override
   String get nextcloudNativeImport =>
-      'Import complete event and task resources without sending invitations. Existing UIDs are skipped unless you choose new copies. Unsupported resources are reported individually.';
+      'استيراد موارد الأحداث والمهام كاملةً دون إرسال دعوات. تُتخطى معرّفات UID الموجودة ما لم تختر نسخًا جديدة. يُبلّغ عن الموارد غير المدعومة كلٌّ على حدة.';
 
   @override
   String get nextcloudImportMethod =>
-      'This file contains scheduling messages. Import stores their content and removes METHOD; it does not process an invitation or reply.';
+      'يحتوي الملف على رسائل جدولة. يحفظ الاستيراد المحتوى ويزيل METHOD؛ ولا يعالج دعوة أو ردًا.';
 
   @override
-  String get nextcloudImportCopies =>
-      'Import as new copies with new identities';
+  String get nextcloudImportCopies => 'استيراد نسخ جديدة بهويات جديدة';
 
   @override
-  String get nextcloudCollectionSettings => 'Collection settings';
+  String get nextcloudCollectionSettings => 'إعدادات المجموعة';
 
   @override
-  String get nextcloudSharing => 'Sharing';
+  String get nextcloudSharing => 'المشاركة';
 
   @override
-  String get nextcloudOwned => 'Owned';
+  String get nextcloudOwned => 'مملوكة';
 
   @override
-  String get nextcloudShared => 'Shared';
+  String get nextcloudShared => 'مشتركة';
 
   @override
-  String get nextcloudDelegated => 'Delegated';
+  String get nextcloudDelegated => 'مفوّضة';
 
   @override
-  String get nextcloudSubscription => 'Subscription';
+  String get nextcloudSubscription => 'اشتراك';
 
   @override
-  String get nextcloudDeleted => 'Deleted';
+  String get nextcloudDeleted => 'محذوفة';
 
   @override
   String get nextcloudMetadataEditable =>
-      'Calendar contents are read-only; collection properties can be changed.';
+      'محتوى التقويم للقراءة فقط؛ يمكن تغيير خصائص المجموعة.';
 
   @override
   String get nextcloudServerOrder =>
-      'Server order (separate from sidebar order)';
+      'ترتيب الخادم (منفصل عن ترتيب الشريط الجانبي)';
 
   @override
-  String get nextcloudCalendarEnabled => 'Enabled on the server';
+  String get nextcloudCalendarEnabled => 'مفعّلة على الخادم';
+
+  @override
+  String get nextcloudAvailability => 'تضمين هذه المجموعة في التوفر';
 
   @override
   String get nextcloudCalendarTimezone =>
-      'Calendar timezone (VTIMEZONE document)';
+      'المنطقة الزمنية للتقويم (مستند VTIMEZONE)';
 
   @override
   String get nextcloudRefreshPending =>
-      'The change was saved on Nextcloud. Refresh is pending; do not repeat the change.';
+      'حُفظ التغيير في Nextcloud. التحديث معلّق؛ لا تكرر التغيير.';
 
   @override
   String get nextcloudOutcomeUnknown =>
-      'The server outcome could not be confirmed. Refresh before trying again.';
+      'تعذّر تأكيد النتيجة لدى الخادم. حدّث قبل المحاولة مجددًا.';
 
   @override
-  String get nextcloudRemoveShared => 'Remove shared calendar/list';
+  String get nextcloudRemoveShared => 'إزالة التقويم أو القائمة المشتركة';
 
   @override
   String get nextcloudRemoveMixed =>
-      'This collection contains events and tasks. Deleting it removes both its events and tasks.';
+      'تحتوي هذه المجموعة على أحداث ومهام. يؤدي حذفها إلى إزالة كليهما.';
 
   @override
-  String get nextcloudReadAccess => 'Read-only';
+  String get nextcloudReadAccess => 'للقراءة فقط';
 
   @override
-  String get nextcloudWriteAccess => 'Read and write';
+  String get nextcloudWriteAccess => 'قراءة وكتابة';
 
   @override
-  String get nextcloudRecipientSearch => 'Find people or groups';
+  String get nextcloudRecipientSearch => 'البحث عن أشخاص أو مجموعات';
 
   @override
-  String get nextcloudNoRecipients => 'No matching people or groups.';
+  String get nextcloudNoRecipients => 'لا توجد أشخاص أو مجموعات مطابقة.';
 
   @override
-  String get nextcloudRevokeShare => 'Revoke access';
+  String get nextcloudRevokeShare => 'إلغاء صلاحية الوصول';
 
   @override
-  String get nextcloudPublish => 'Publish link';
+  String get nextcloudPublish => 'نشر الرابط';
 
   @override
-  String get nextcloudUnpublish => 'Stop publishing';
+  String get nextcloudUnpublish => 'إيقاف النشر';
 
   @override
   String get nextcloudPublishWarning =>
-      'Anyone with the published link may be able to read this calendar. Publish it?';
+      'قد يتمكن أي شخص يملك الرابط المنشور من قراءة هذا التقويم. هل تريد نشره؟';
 
   @override
-  String get nextcloudTrash => 'Deleted calendars and tasks';
+  String get nextcloudTrash => 'التقاويم والمهام المحذوفة';
 
   @override
-  String get nextcloudTrashEmpty => 'No deleted calendar items.';
+  String get nextcloudTrashEmpty => 'لا توجد عناصر تقويم محذوفة.';
 
   @override
-  String get nextcloudRestore => 'Restore';
+  String get nextcloudRestore => 'استعادة';
 
   @override
-  String get nextcloudPermanentDelete => 'Permanently delete';
+  String get nextcloudPermanentDelete => 'حذف نهائي';
 
   @override
   String get nextcloudPermanentDeleteWarning =>
-      'Permanently delete this item? It cannot be restored from Nextcloud\'s calendar trash.';
+      'حذف هذا العنصر نهائيًا؟ لن يمكن استعادته من مهملات تقويم Nextcloud.';
 
   @override
-  String get nextcloudOperationDenied =>
-      'Nextcloud did not allow this operation.';
+  String get nextcloudOperationDenied => 'لم يسمح Nextcloud بهذه العملية.';
 
   @override
-  String get nextcloudUnsupported =>
-      'The server does not support this operation.';
+  String get nextcloudUnsupported => 'الخادم لا يدعم هذه العملية.';
 
   @override
   String get nextcloudPendingChanges =>
-      'Save or discard collection changes before closing.';
+      'احفظ تغييرات المجموعة أو تجاهلها قبل الإغلاق.';
 
   @override
   String get nextcloudServerUnavailable =>
-      'Nextcloud could not be reached. Cached items and pending work are unchanged.';
+      'تعذّر الوصول إلى Nextcloud. لم تتغير العناصر المخزّنة مؤقتًا ولا الأعمال المعلّقة.';
 
   @override
-  String get mapsShow => 'Show map';
+  String get mapsShow => 'عرض الخريطة';
 
   @override
-  String get mapsDirections => 'Directions in Google Maps';
+  String get mapsDirections => 'الاتجاهات في Google Maps';
 
   @override
   String get mapsPrivacy =>
-      'Online location search and maps use Geoapify. Only your search text and map area are sent.';
+      'يستخدم البحث عن الأماكن والخرائط عبر الإنترنت خدمة Geoapify. يُرسل نص البحث ومنطقة الخريطة فقط.';
 
   @override
-  String get mapsSearch => 'Search locations';
+  String get mapsSearch => 'البحث عن أماكن';
 
   @override
-  String get mapsLoading => 'Searching locations…';
+  String get mapsLoading => 'جارٍ البحث عن أماكن…';
 
   @override
-  String get mapsEmpty =>
-      'No matching locations. You can keep the location as text.';
+  String get mapsEmpty => 'لا توجد أماكن مطابقة. يمكنك الاحتفاظ بالموقع كنص.';
 
   @override
   String get mapsOffline =>
-      'Location search is offline. Directions are still available.';
+      'البحث عن الأماكن غير متصل. الاتجاهات لا تزال متاحة.';
 
   @override
   String get mapsUnconfigured =>
-      'Online maps are not configured in this build. Directions are still available.';
+      'الخرائط عبر الإنترنت غير مهيأة في هذا الإصدار. الاتجاهات لا تزال متاحة.';
 
   @override
-  String get mapsRateLimited =>
-      'Location service is busy. Please wait before searching again.';
+  String get mapsRateLimited => 'خدمة الأماكن مشغولة. انتظر قبل البحث مجددًا.';
 
   @override
   String get mapsServiceError =>
-      'Location search is unavailable. You can still save the location as text.';
+      'البحث عن الأماكن غير متاح. لا يزال بإمكانك حفظ الموقع كنص.';
 
   @override
   String get mapsTilesFailed =>
-      'Some map tiles could not be loaded. The destination and directions remain available.';
+      'تعذّر تحميل بعض مربعات الخريطة. الوجهة والاتجاهات لا تزال متاحة.';
 
   @override
-  String get mapsApproximate => 'Approximate area';
+  String get mapsApproximate => 'منطقة تقريبية';
 
   @override
-  String get mapsZoomIn => 'Zoom in';
+  String get mapsZoomIn => 'تكبير';
 
   @override
-  String get mapsZoomOut => 'Zoom out';
+  String get mapsZoomOut => 'تصغير';
 
   @override
-  String get mapsRecenter => 'Recenter destination';
+  String get mapsRecenter => 'توسيط الوجهة';
 
   @override
-  String get mapsDestination => 'Destination';
+  String get mapsDestination => 'الوجهة';
 
   @override
-  String get mapsBrowserFailed => 'The browser could not be opened.';
+  String get mapsBrowserFailed => 'تعذّر فتح المتصفح.';
 
   @override
-  String get mapsRememberFailed => 'The map location could not be remembered.';
+  String get mapsRememberFailed => 'تعذّر تذكّر موقع الخريطة.';
 
   @override
-  String get mapsSelected => 'Map location selected';
+  String get mapsSelected => 'تم اختيار موقع على الخريطة';
 
   @override
-  String get mapsChoose => 'Choose a location';
+  String get mapsChoose => 'اختيار موقع';
 
   @override
   String scheduleProposedRange(String start, String end) {

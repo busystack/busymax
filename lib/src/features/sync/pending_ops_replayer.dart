@@ -332,7 +332,20 @@ class PendingOpsReplayer {
         taskFromDto(_accountId, targetTaskListId, dto, _now()),
       );
       if (targetTaskListId != op.taskListId) {
-        await LocationResolutionRepository(_database).transfer(LocationItemIdentity(kind: LocationItemKind.task, accountId: _accountId, sourceId: op.taskListId!, itemId: op.taskId!), LocationItemIdentity(kind: LocationItemKind.task, accountId: _accountId, sourceId: targetTaskListId, itemId: dto.id));
+        await LocationResolutionRepository(_database).transfer(
+          LocationItemIdentity(
+            kind: LocationItemKind.task,
+            accountId: _accountId,
+            sourceId: op.taskListId!,
+            itemId: op.taskId!,
+          ),
+          LocationItemIdentity(
+            kind: LocationItemKind.task,
+            accountId: _accountId,
+            sourceId: targetTaskListId,
+            itemId: dto.id,
+          ),
+        );
         await _database.tasksDao.deleteTask(
           _accountId,
           op.taskListId!,
@@ -578,7 +591,20 @@ class PendingOpsReplayer {
         serverTask.id,
         completedCreateOpId: completedCreateOpId,
       );
-      await LocationResolutionRepository(_database).transfer(LocationItemIdentity(kind: LocationItemKind.task, accountId: _accountId, sourceId: localTask?.taskListId ?? taskListId, itemId: tempTaskId), LocationItemIdentity(kind: LocationItemKind.task, accountId: _accountId, sourceId: taskListId, itemId: serverTask.id));
+      await LocationResolutionRepository(_database).transfer(
+        LocationItemIdentity(
+          kind: LocationItemKind.task,
+          accountId: _accountId,
+          sourceId: localTask?.taskListId ?? taskListId,
+          itemId: tempTaskId,
+        ),
+        LocationItemIdentity(
+          kind: LocationItemKind.task,
+          accountId: _accountId,
+          sourceId: taskListId,
+          itemId: serverTask.id,
+        ),
+      );
       await _database.tasksDao.deleteTask(
         _accountId,
         localTask?.taskListId ?? taskListId,

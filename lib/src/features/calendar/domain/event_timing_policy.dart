@@ -40,6 +40,10 @@ bool detailAllowsTimingEdit(CalendarEventDetail detail) {
         canEdit: true,
         isOrganizer: switch (detail.provider) {
           BusyProvider.google => organizer is Map && organizer['self'] == true,
+          BusyProvider.nextcloud
+              when detail.attendees is! List ||
+                  (detail.attendees as List).isEmpty =>
+            null,
           BusyProvider.microsoft || BusyProvider.nextcloud =>
             raw is Map ? raw['isOrganizer'] as bool? : null,
           _ => null,

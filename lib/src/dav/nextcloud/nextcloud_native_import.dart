@@ -150,126 +150,213 @@ final class NextcloudNativeImportService {
               '${_idFactory()}@busymax.local',
     };
     final results = <NativeImportItemResult>[...preview.rejected];
+    final resourcesByTaskUid = {
+      for (final r in preview.resources)
+        if (r.componentType == 'VTODO') r.uid: r,
+    };
+    final ordered = <NativeImportResource>[];
+    final visited = <String>{}, visiting = <String>{}, invalid = <String>{};
+    void visit(NativeImportResource resource) {
+      if (resource.componentType != 'VTODO') {
+        ordered.add(resource);
+        return;
+      }
+      if (visited.contains(resource.uid)) return;
+      if (!visiting.add(resource.uid)) {
+        invalid.addAll(visiting);
+        return;
+      }
+      for (final parent in _nativeImportParents(resource)) {
+        final related = resourcesByTaskUid[parent];
+        if (related != null) visit(related);
+        if (invalid.contains(parent)) invalid.add(resource.uid);
+      }
+      visiting.remove(resource.uid);
+      visited.add(resource.uid);
+      ordered.add(resource);
+    }
+
     for (final resource in preview.resources) {
+      visit(resource);
+    }
+    final taskOutcomes = <String, NativeImportItemStatus>{};
+    final parentOperations = <String, String>{};
+    for (final resource in ordered) {
+      String? queuedOperation;
       try {
-        results.add(
-          await database.transaction(() async {
-            final collection =
-                await (database.select(database.davCollections)..where(
-                      (r) =>
-                          r.id.equals(collectionId) &
-                          r.accountId.equals(accountId),
-                    ))
-                    .getSingle();
-            final account = await (database.select(
-              database.accounts,
-            )..where((r) => r.id.equals(accountId))).getSingle();
-            final caps = collectionCapabilitiesFromStored(collection);
-            if (account.provider != 'nextcloud' ||
-                !(resource.componentType == 'VEVENT'
-                    ? caps.canCreateEvent
-                    : caps.canCreateTask)) {
-              return NativeImportItemResult(
-                resource.uid,
-                resource.componentType,
-                NativeImportItemStatus.unsupported,
-                'DavImportDestinationDenied',
-              );
-            }
-            final uid =
-                replacements[(resource.componentType, resource.uid)] ??
-                resource.uid;
-            final existing =
+        final result = await database.transaction(() async {
+          final parents = _nativeImportParents(resource);
+          if (invalid.contains(resource.uid) ||
+              parents.length > 1 ||
+              parents.any(
+                (p) =>
+                    taskOutcomes.containsKey(p) &&
+                    taskOutcomes[p] != NativeImportItemStatus.queued &&
+                    taskOutcomes[p] != NativeImportItemStatus.duplicate,
+              )) {
+            return NativeImportItemResult(
+              resource.uid,
+              resource.componentType,
+              NativeImportItemStatus.failed,
+              'IcalImportParentUnavailable',
+            );
+          }
+          final collection =
+              await (database.select(database.davCollections)..where(
+                    (r) =>
+                        r.id.equals(collectionId) &
+                        r.accountId.equals(accountId),
+                  ))
+                  .getSingle();
+          for (final parent in parents.where(
+            (p) => !resourcesByTaskUid.containsKey(p),
+          )) {
+            final known =
                 await (database.select(database.davObjects)..where(
                       (r) =>
                           r.accountId.equals(accountId) &
                           r.collectionId.equals(collectionId) &
-                          r.primaryUid.equals(uid) &
+                          r.primaryUid.equals(parent) &
                           r.serverDeleted.equals(false),
                     ))
                     .get();
-            final pending =
-                await (database.select(database.pendingOps)..where(
-                      (r) =>
-                          r.accountId.equals(accountId) &
-                          r.davCollectionId.equals(collectionId) &
-                          r.operationType.equals('dav.create'),
-                    ))
-                    .get();
-            if (existing.isNotEmpty ||
-                pending.any(
-                  (op) => (jsonDecode(op.requestJson) as Map)['uid'] == uid,
-                )) {
+            if (!known.any(
+              (r) => IcalSemanticDocument.parse(
+                r.rawIcsBody,
+              ).components.any((c) => c.componentType == 'VTODO'),
+            )) {
               return NativeImportItemResult(
                 resource.uid,
                 resource.componentType,
-                NativeImportItemStatus.duplicate,
+                NativeImportItemStatus.failed,
+                'IcalImportParentUnavailable',
               );
             }
-            final document = IcalDocument.parse(resource.rawIcs);
-            if (duplicates == NativeImportDuplicates.newCopies) {
-              for (final component in document.calendarComponents.where(
-                (c) => c.name == resource.componentType,
+          }
+          final account = await (database.select(
+            database.accounts,
+          )..where((r) => r.id.equals(accountId))).getSingle();
+          final caps = collectionCapabilitiesFromStored(collection);
+          if (account.provider != 'nextcloud' ||
+              !(resource.componentType == 'VEVENT'
+                  ? caps.canCreateEvent
+                  : caps.canCreateTask)) {
+            return NativeImportItemResult(
+              resource.uid,
+              resource.componentType,
+              NativeImportItemStatus.unsupported,
+              'DavImportDestinationDenied',
+            );
+          }
+          final uid =
+              replacements[(resource.componentType, resource.uid)] ??
+              resource.uid;
+          final existing =
+              await (database.select(database.davObjects)..where(
+                    (r) =>
+                        r.accountId.equals(accountId) &
+                        r.collectionId.equals(collectionId) &
+                        r.primaryUid.equals(uid) &
+                        r.serverDeleted.equals(false),
+                  ))
+                  .get();
+          final pending =
+              await (database.select(database.pendingOps)..where(
+                    (r) =>
+                        r.accountId.equals(accountId) &
+                        r.davCollectionId.equals(collectionId) &
+                        r.operationType.equals('dav.create'),
+                  ))
+                  .get();
+          if (existing.isNotEmpty ||
+              pending.any(
+                (op) => (jsonDecode(op.requestJson) as Map)['uid'] == uid,
               )) {
-                final property = component.firstProperty('UID')!;
-                property.rawValue = uid;
-                property.isDirty = true;
-                if (resource.componentType == 'VTODO') {
-                  for (final relation in component.propertiesNamed(
-                    'RELATED-TO',
-                  )) {
-                    final replacement =
-                        replacements[('VTODO', relation.decodedTextValue)];
-                    if (replacement != null) {
-                      relation.rawValue = encodeIcalText(replacement);
-                      relation.isDirty = true;
-                    }
+            return NativeImportItemResult(
+              resource.uid,
+              resource.componentType,
+              NativeImportItemStatus.duplicate,
+            );
+          }
+          final document = IcalDocument.parse(resource.rawIcs);
+          if (duplicates == NativeImportDuplicates.newCopies) {
+            for (final component in document.calendarComponents.where(
+              (c) => c.name == resource.componentType,
+            )) {
+              final property = component.firstProperty('UID')!;
+              property.rawValue = uid;
+              property.isDirty = true;
+              if (resource.componentType == 'VTODO') {
+                for (final relation in component.propertiesNamed(
+                  'RELATED-TO',
+                )) {
+                  final replacement =
+                      replacements[('VTODO', relation.decodedTextValue)];
+                  if (replacement != null) {
+                    relation.rawValue = encodeIcalText(replacement);
+                    relation.isDirty = true;
                   }
                 }
               }
             }
-            final object = DavNewObject(
-              uid: uid,
-              initialMemberName: '${_idFactory()}.ics',
-              rawIcs: document.serialize(),
-              componentType: resource.componentType,
-              suppressScheduling: true,
-            );
-            final target = Uri.parse(
-              collection.requestUri.endsWith('/')
-                  ? collection.requestUri
-                  : '${collection.requestUri}/',
-            ).resolve(object.initialMemberName);
-            final repository = DavObjectRepository(database: database);
-            final localObjectId = await repository.projectPendingImport(
-              accountId: accountId,
-              collectionId: collectionId,
-              object: DavPreparedObject.parse(
-                hrefKey: target.path,
-                requestUri: target,
-                etag: null,
-                contentType: 'text/calendar',
-                rawIcsBody: object.rawIcs,
-              ),
-              nowUtc: _nowUtc(),
-            );
-            await DavPendingOperationQueue(
-              database: database,
-              nowUtc: _nowUtc,
-            ).enqueueCreate(
-              accountId: accountId,
-              collectionId: collectionId,
-              object: object,
-              localObjectId: localObjectId,
-            );
-            return NativeImportItemResult(
-              uid,
-              resource.componentType,
-              NativeImportItemStatus.queued,
-            );
-          }),
-        );
+          }
+          final object = DavNewObject(
+            uid: uid,
+            initialMemberName: '${_idFactory()}.ics',
+            rawIcs: document.serialize(),
+            componentType: resource.componentType,
+            suppressScheduling: true,
+          );
+          final target = Uri.parse(
+            collection.requestUri.endsWith('/')
+                ? collection.requestUri
+                : '${collection.requestUri}/',
+          ).resolve(object.initialMemberName);
+          final repository = DavObjectRepository(database: database);
+          final localObjectId = await repository.projectPendingImport(
+            accountId: accountId,
+            collectionId: collectionId,
+            object: DavPreparedObject.parse(
+              hrefKey: target.path,
+              requestUri: target,
+              etag: null,
+              contentType: 'text/calendar',
+              rawIcsBody: object.rawIcs,
+            ),
+            nowUtc: _nowUtc(),
+          );
+          queuedOperation =
+              await DavPendingOperationQueue(
+                database: database,
+                nowUtc: _nowUtc,
+              ).enqueueCreate(
+                accountId: accountId,
+                collectionId: collectionId,
+                object: object,
+                localObjectId: localObjectId,
+                dependsOnOperationId: parents
+                    .map((p) => parentOperations[p])
+                    .whereType<String>()
+                    .firstOrNull,
+              );
+          return NativeImportItemResult(
+            uid,
+            resource.componentType,
+            NativeImportItemStatus.queued,
+          );
+        });
+        results.add(result);
+        if (resource.componentType == 'VTODO') {
+          taskOutcomes[resource.uid] = result.status;
+          if (queuedOperation != null &&
+              result.status == NativeImportItemStatus.queued) {
+            parentOperations[resource.uid] = queuedOperation!;
+          }
+        }
       } on Object catch (error) {
+        if (resource.componentType == 'VTODO') {
+          taskOutcomes[resource.uid] = NativeImportItemStatus.failed;
+        }
         results.add(
           NativeImportItemResult(
             resource.uid,
@@ -283,3 +370,17 @@ final class NextcloudNativeImportService {
     return List.unmodifiable(results);
   }
 }
+
+Set<String> _nativeImportParents(NativeImportResource resource) =>
+    resource.componentType != 'VTODO'
+    ? {}
+    : {
+        for (final component in IcalDocument.parse(
+          resource.rawIcs,
+        ).calendarComponents.where((c) => c.name == 'VTODO'))
+          for (final relation in component.propertiesNamed('RELATED-TO'))
+            if ((relation.parameterValue('RELTYPE') ?? 'PARENT')
+                    .toUpperCase() ==
+                'PARENT')
+              relation.decodedTextValue,
+      };

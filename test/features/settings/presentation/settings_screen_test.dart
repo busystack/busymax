@@ -467,6 +467,14 @@ void main() {
       expect(find.text('Personal'), findsOneWidget);
       expect(find.text('NCC Task List'), findsOneWidget);
       expect(
+        find.byKey(const ValueKey('dav-collection-settings-personal-calendar')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const ValueKey('dav-collection-settings-task-list')),
+        findsOneWidget,
+      );
+      expect(
         find.text('Task list · Read-only · Sync issue: CalDavUnavailable'),
         findsOneWidget,
       );
@@ -1016,6 +1024,7 @@ ProviderContainer _container({
         (ref) => Stream.value(davCollections),
       ),
       davConflictsStreamProvider.overrideWith((ref) => Stream.value(const [])),
+      webCalSubscriptionsProvider.overrideWith((ref) => Stream.value(const [])),
       selectedAccountIdProvider.overrideWith((ref) => selectedAccountId),
       if (activeAccountIdOverride != _useDefaultActiveAccountId)
         activeAccountProvider.overrideWithValue(activeAccountIdOverride),

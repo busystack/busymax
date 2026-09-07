@@ -573,7 +573,7 @@ class _EventEditorState extends State<EventEditor> {
                   collectionId: currentSource.davCollectionId!,
                   draft: _draft,
                 ),
-                child: Text(l10n.nextcloudAvailability),
+                child: Text(l10n.nextcloudGuestAvailability),
               ),
             if ((provider == BusyProvider.google ||
                     provider == BusyProvider.microsoft) &&

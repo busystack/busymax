@@ -7,6 +7,7 @@ import 'package:busymax/src/dav/mutation/dav_conditional_mutation_service.dart';
 import 'package:busymax/src/dav/mutation/dav_mutation_patch.dart';
 import 'package:busymax/src/dav/mutation/dav_pending_operations.dart';
 import 'package:busymax/src/dav/nextcloud/nextcloud_native_import.dart';
+import 'package:busymax/src/dav/nextcloud/nextcloud_native_export.dart';
 import 'package:busymax/src/dav/storage/dav_object_repository.dart';
 import 'package:busymax/src/db/app_database.dart';
 import 'package:busymax/src/features/calendar/data/calendar_repository.dart';
@@ -167,7 +168,91 @@ void main() {
     expect(parent.icalUid, isNot('parent'));
     expect(child.parentUid, parent.icalUid);
     expect(child.parent, parent.id);
+    final operations = await fixture.database
+        .select(fixture.database.pendingOps)
+        .get();
+    final parentOp = operations.singleWhere(
+      (o) => (jsonDecode(o.requestJson) as Map)['uid'] == parent.icalUid,
+    );
+    final childOp = operations.singleWhere(
+      (o) => (jsonDecode(o.requestJson) as Map)['uid'] == child.icalUid,
+    );
+    expect(childOp.dependsOnOpId, parentOp.id);
   });
+  test(
+    'native collection export snapshots pending raw resources without network or mutations',
+    () async {
+      await import();
+      final db = fixture.database;
+      final before = await db.select(db.pendingOps).get();
+      final snapshot = await NextcloudNativeExportService(
+        db,
+      ).collection('account', 'collection');
+      expect(snapshot, hasLength(3));
+      expect(
+        snapshot.singleWhere((r) => r.uid == 'meeting').rawIcs,
+        allOf(
+          contains('X-UNKNOWN;X-PARAM=keep:opaque'),
+          contains('RECURRENCE-ID'),
+          contains('VTIMEZONE'),
+        ),
+      );
+      expect(
+        snapshot.singleWhere((r) => r.uid == 'child').rawIcs,
+        contains('RELATED-TO:parent'),
+      );
+      expect(await db.select(db.pendingOps).get(), before);
+      expect(fixture.requests, isEmpty);
+      await expectLater(
+        NextcloudNativeExportService(
+          db,
+        ).collection('another-account', 'collection'),
+        throwsStateError,
+      );
+    },
+  );
+  test(
+    'native task import rejects cycles and missing parents without orphan rows',
+    () async {
+      final cyclic = _raw.replaceFirst(
+        'SUMMARY:Parent',
+        'RELATED-TO:child\r\nSUMMARY:Parent',
+      );
+      final results = await importer.import(
+        accountId: 'account',
+        collectionId: 'collection',
+        preview: NextcloudNativeImportPreview.parse(IcalDocument.parse(cyclic)),
+        duplicates: NativeImportDuplicates.newCopies,
+        normalizeSchedulingMethod: true,
+      );
+      expect(
+        results
+            .where((r) => r.componentType == 'VTODO')
+            .every((r) => r.status == NativeImportItemStatus.failed),
+        isTrue,
+      );
+      expect(
+        await fixture.database.select(fixture.database.tasks).get(),
+        isEmpty,
+      );
+      final missing = _raw.replaceFirst(
+        'RELATED-TO:parent',
+        'RELATED-TO:missing',
+      );
+      final more = await importer.import(
+        accountId: 'account',
+        collectionId: 'collection',
+        preview: NextcloudNativeImportPreview.parse(
+          IcalDocument.parse(missing),
+        ),
+        normalizeSchedulingMethod: true,
+      );
+      expect(
+        more.singleWhere((r) => r.uid == 'child').status,
+        NativeImportItemStatus.failed,
+      );
+    },
+  );
   test(
     'unsent native resources can be edited and exported while replay is pending',
     () async {
@@ -310,11 +395,22 @@ void main() {
         await fixture.database.select(fixture.database.pendingOps).get(),
         isEmpty,
       );
-      final confirmed = await fixture.database.select(fixture.database.davObjects).get();
+      final confirmed = await fixture.database
+          .select(fixture.database.davObjects)
+          .get();
       expect(confirmed, hasLength(3));
       expect(confirmed.every((o) => o.etag == '"server"'), isTrue);
-      await remote.conditionalPut(uri: Uri.parse(confirmed.first.requestUri), rawIcs: confirmed.first.rawIcsBody, correlationId: 'ordinary-edit', ifMatch: '"server"');
-      expect(puts.last.headers['x-nc-scheduling'], isNull, reason: 'Import suppression must never leak to ordinary edits.');
+      await remote.conditionalPut(
+        uri: Uri.parse(confirmed.first.requestUri),
+        rawIcs: confirmed.first.rawIcsBody,
+        correlationId: 'ordinary-edit',
+        ifMatch: '"server"',
+      );
+      expect(
+        puts.last.headers['x-nc-scheduling'],
+        isNull,
+        reason: 'Import suppression must never leak to ordinary edits.',
+      );
     },
   );
 }

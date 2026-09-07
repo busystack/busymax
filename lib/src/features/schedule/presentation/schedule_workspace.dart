@@ -2094,7 +2094,10 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
     }
     RecurringEventMutationScope? recurringScope;
     if (item is CalendarScheduleItem && item.providerRecurringEventId != null) {
-      recurringScope = await _chooseRecurringEventMutationScope(item.provider);
+      recurringScope = await _chooseRecurringEventMutationScope(
+        item.provider,
+        supportsFollowingOverride: item.isNextcloudAttendee ? false : null,
+      );
       if (recurringScope == null || !mounted) return;
     }
     var guestUpdatePolicy = CalendarGuestUpdatePolicy.send;
@@ -2113,12 +2116,18 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
       final confirmed = await showBusyMaxConfirm(
         context,
         title: item is CalendarScheduleItem
-            ? context.l10n.deleteEvent
+            ? item.isNextcloudAttendee
+                  ? context.l10n.nextcloudDeclineAndRemove
+                  : context.l10n.deleteEvent
             : context.l10n.deleteTask,
-        message: item is TaskScheduleItem
+        message: item is CalendarScheduleItem && item.isNextcloudAttendee
+            ? context.l10n.nextcloudDeclineRemovalWarning
+            : item is TaskScheduleItem
             ? context.l10n.deleteTaskConfirmation(item.title)
             : context.l10n.deleteCalendarConfirmation(item.title),
-        confirmLabel: context.l10n.delete,
+        confirmLabel: item is CalendarScheduleItem && item.isNextcloudAttendee
+            ? context.l10n.nextcloudDeclineAndRemove
+            : context.l10n.delete,
         destructive: true,
         headerBarService: ref.read(linuxHeaderBarServiceProvider),
       );

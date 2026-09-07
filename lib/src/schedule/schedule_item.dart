@@ -98,7 +98,9 @@ class CalendarScheduleItem implements ScheduleItem {
       canEditEventTiming(
         provider: provider,
         canEdit: capabilities.canEdit,
-        isOrganizer: isOrganizer,
+        isOrganizer: provider == BusyProvider.nextcloud && attendees.isEmpty
+            ? null
+            : isOrganizer,
         locked: locked,
         guestsCanModify: guestsCanModify,
         isFederated: isFederated,
@@ -147,6 +149,12 @@ class CalendarScheduleItem implements ScheduleItem {
   final bool canSendReply;
   final bool timingEditable;
   final bool isFederated;
+
+  bool get isNextcloudMeeting =>
+      provider == BusyProvider.nextcloud &&
+      !isFederated &&
+      attendees.isNotEmpty;
+  bool get isNextcloudAttendee => isNextcloudMeeting && isOrganizer == false;
 
   @override
   ScheduleItemKind get kind => ScheduleItemKind.calendarEvent;

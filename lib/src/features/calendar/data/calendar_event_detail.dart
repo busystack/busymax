@@ -91,7 +91,10 @@ final class CalendarEventDetail {
       title: row.title,
       description: row.description,
       location: row.location,
-      locationPoint: GeographicPoint.tryParse(latitude: row.locationLatitude, longitude: row.locationLongitude),
+      locationPoint: GeographicPoint.tryParse(
+        latitude: row.locationLatitude,
+        longitude: row.locationLongitude,
+      ),
       allDay: row.allDay,
       startDate: row.startDate,
       startDateTime: row.startDateTime,
@@ -155,6 +158,7 @@ final class CalendarEventDetail {
     final address = location is Map ? location['address'] : null;
     return address is Map ? Map<String, Object?>.from(address) : null;
   }
+
   final bool allDay;
   final String? startDate;
   final String? startDateTime;

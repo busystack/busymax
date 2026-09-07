@@ -1,4 +1,6 @@
 import 'dart:io';
+import 'support/nextcloud_live_versions.dart';
+import 'package:busymax/src/dav/xml/dav_xml.dart';
 
 import 'package:busymax/src/dav/dav_errors.dart';
 import 'package:busymax/src/dav/dav_provider_profile.dart';
@@ -35,6 +37,7 @@ void main() {
       addTearDown(writer.close);
       addTearDown(reader.close);
       addTearDown(groupMember.close);
+      await recordNextcloudLiveVersions(owner.client, authority);
 
       final ownerDiscovery = await owner.discover('sharing-owner-discovery');
       final suffix = DateTime.now().microsecondsSinceEpoch.toString();
@@ -78,6 +81,8 @@ void main() {
       expect(writerCollection.capabilities.isReadOnly, isFalse);
       expect(readerCollection.capabilities.canCreateEvent, isFalse);
       expect(readerCollection.capabilities.isReadOnly, isTrue);
+      expect(readerCollection.capabilities.canWriteProperties, isTrue);
+      await reader.verifyReadOnlyMetadata(readerCollection.requestUri);
       expect(groupCollection.capabilities.canCreateEvent, isFalse);
       expect(groupCollection.capabilities.isReadOnly, isTrue);
 
@@ -292,6 +297,30 @@ final class _SharingUser {
       credential: credential,
     );
     expect(response.statusCode, anyOf(204, 404));
+  }
+
+  Future<void> verifyReadOnlyMetadata(Uri collectionUri) async {
+    final response = await transport.send(
+      DavRequest.xml(
+        method: 'PROPPATCH',
+        uri: collectionUri,
+        accountId: 'sharing-$username',
+        correlationId: 'sharing-reader-metadata',
+        retryClass: DavRetryClass.never,
+        body:
+            '<d:propertyupdate xmlns:d="DAV:" xmlns:a="http://apple.com/ns/ical/"><d:set><d:prop><a:calendar-color>#123456FF</a:calendar-color></d:prop></d:set></d:propertyupdate>',
+      ),
+      credential: credential,
+    );
+    expect(response.statusCode, 207);
+    final result = const DavXmlParser().parseMultistatus(response.bodyBytes);
+    expect(
+      result.responses.any(
+        (r) =>
+            r.successfulProperty(appleIcalNamespace, 'calendar-color') != null,
+      ),
+      isTrue,
+    );
   }
 
   void close() => client.close();

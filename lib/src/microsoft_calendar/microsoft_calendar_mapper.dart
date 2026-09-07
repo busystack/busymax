@@ -58,7 +58,9 @@ CalendarEventDto microsoftCalendarEventFromJson(
     ).text,
     location: location['displayName']?.toString(),
     locationPoint: GeographicPoint.fromJson(location['coordinates']),
-    locationAddress: location['address'] is Map ? Map<String, Object?>.from(location['address'] as Map) : null,
+    locationAddress: location['address'] is Map
+        ? Map<String, Object?>.from(location['address'] as Map)
+        : null,
     allDay: isAllDay,
     startDate: isAllDay ? _dateOnly(start['dateTime']) : null,
     startDateTime: start['dateTime']?.toString(),
@@ -105,7 +107,13 @@ Map<String, Object?> microsoftEventMutationToJson(
     'subject': mutation.title,
     if (_bodyPatch(mutation) != null) 'body': _bodyPatch(mutation),
     if (mutation.structuredLocation != null || mutation.location != null)
-      'location': mutation.structuredLocation ?? {'displayName': mutation.location, 'address': const <String, Object?>{}, 'coordinates': const <String, Object?>{}},
+      'location':
+          mutation.structuredLocation ??
+          {
+            'displayName': mutation.location,
+            'address': const <String, Object?>{},
+            'coordinates': const <String, Object?>{},
+          },
     'isAllDay': mutation.allDay,
     if (_startDateTime(mutation) != null)
       'start': {

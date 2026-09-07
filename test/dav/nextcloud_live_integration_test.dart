@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'support/nextcloud_live_versions.dart';
 
 import 'package:busymax/src/dav/dav_errors.dart';
 import 'package:busymax/src/dav/dav_provider_profile.dart';
@@ -35,6 +36,8 @@ void main() {
     () async {
       final fixture = _LiveNextcloudFixture.fromEnvironment();
       addTearDown(fixture.close);
+
+      await recordNextcloudLiveVersions(fixture.client, fixture.authority);
 
       final initialDiscovery = await fixture.discover('live-discovery');
       expect(initialDiscovery.service.calendarHomeHref.path, isNotEmpty);

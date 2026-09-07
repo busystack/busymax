@@ -639,73 +639,72 @@ void main() {
     },
   );
 
-  test('DAV calendar management is rejected before local mutation', () async {
-    await database
-        .into(database.accounts)
-        .insert(
-          AccountsCompanion.insert(
-            id: 'nextcloud:n',
-            provider: 'nextcloud',
-            authority: 'https://cloud.example.test',
-            providerAccountId: 'n',
-            credentialKind: 'nextcloud_app_password',
-            authState: const Value('signed_in'),
-            grantedScopes: const Value(''),
-            createdAtUtc: '2026-06-08T00:00:00.000Z',
-            updatedAtUtc: '2026-06-08T00:00:00.000Z',
+  test(
+    'Nextcloud administration never substitutes a local mutation when unavailable',
+    () async {
+      await database
+          .into(database.accounts)
+          .insert(
+            AccountsCompanion.insert(
+              id: 'nextcloud:n',
+              provider: 'nextcloud',
+              authority: 'https://cloud.example.test',
+              providerAccountId: 'n',
+              credentialKind: 'nextcloud_app_password',
+              authState: const Value('signed_in'),
+              grantedScopes: const Value(''),
+              createdAtUtc: '2026-06-08T00:00:00.000Z',
+              updatedAtUtc: '2026-06-08T00:00:00.000Z',
+            ),
+          );
+      await expectLater(
+        repository.createLocalSource(
+          accountId: 'nextcloud:n',
+          summary: 'New calendar',
+        ),
+        throwsA(
+          isA<CalendarMutationNotAllowed>().having(
+            (error) => error.operation,
+            'operation',
+            CalendarMutationOperation.createCalendar,
           ),
-        );
-    await expectLater(
-      repository.createLocalSource(
+        ),
+      );
+      await repository.upsertSource(
         accountId: 'nextcloud:n',
-        summary: 'New calendar',
-      ),
-      throwsA(
-        isA<CalendarMutationNotAllowed>().having(
-          (error) => error.operation,
-          'operation',
-          CalendarMutationOperation.createCalendar,
+        source: const CalendarSourceDto(
+          provider: BusyProvider.nextcloud,
+          providerCalendarId: '/calendars/n/work/',
+          summary: 'Work',
         ),
-      ),
-    );
-    await repository.upsertSource(
-      accountId: 'nextcloud:n',
-      source: const CalendarSourceDto(
-        provider: BusyProvider.nextcloud,
-        providerCalendarId: '/calendars/n/work/',
-        summary: 'Work',
-      ),
-    );
-    final source = await database.select(database.calendarSources).getSingle();
+      );
+      final source = await database
+          .select(database.calendarSources)
+          .getSingle();
 
-    await expectLater(
-      repository.renameLocalSource(source.id, 'Renamed'),
-      throwsA(
-        isA<CalendarMutationNotAllowed>().having(
-          (error) => error.operation,
-          'operation',
-          CalendarMutationOperation.renameCalendar,
+      await expectLater(
+        repository.renameLocalSource(source.id, 'Renamed'),
+        throwsA(
+          isA<CalendarMutationNotAllowed>().having(
+            (error) => error.operation,
+            'operation',
+            CalendarMutationOperation.renameCalendar,
+          ),
         ),
-      ),
-    );
-    await expectLater(
-      repository.deleteLocalSource(source.id),
-      throwsA(
-        isA<CalendarMutationNotAllowed>().having(
-          (error) => error.operation,
-          'operation',
-          CalendarMutationOperation.deleteCalendar,
-        ),
-      ),
-    );
+      );
+      await expectLater(
+        repository.deleteLocalSource(source.id),
+        throwsUnsupportedError,
+      );
 
-    final unchanged = await database
-        .select(database.calendarSources)
-        .getSingle();
-    expect(unchanged.summary, 'Work');
-    expect(unchanged.isDeleted, isFalse);
-    expect(await database.select(database.pendingOps).get(), isEmpty);
-  });
+      final unchanged = await database
+          .select(database.calendarSources)
+          .getSingle();
+      expect(unchanged.summary, 'Work');
+      expect(unchanged.isDeleted, isFalse);
+      expect(await database.select(database.pendingOps).get(), isEmpty);
+    },
+  );
 
   test(
     'event queue preserves guest delivery and Meet creation intent',
@@ -1259,6 +1258,12 @@ void main() {
         calendarEventTargetProviderIdKey: 'series-master',
         calendarEventOriginalStartKey: '2026-06-08T09:00:00.000Z',
         calendarEventOriginalEndKey: '2026-06-08T10:00:00.000Z',
+        calendarEventTimingBaselineKey: {
+          'start': '2026-06-08T09:00:00.000Z',
+          'end': '2026-06-08T10:00:00.000Z',
+          'startTimeZone': 'UTC',
+          'endTimeZone': 'UTC',
+        },
       });
       expect(operation.baselineUpdatedUtc, equals(null));
       expect(operation.baselineRawJson, equals(null));

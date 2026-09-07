@@ -13,6 +13,14 @@ class AppLocalizationsPt extends AppLocalizations {
   AppLocalizationsPt([String locale = 'pt']) : super(locale);
 
   @override
+  String get nextcloudExportCollection => 'Export collection resources';
+
+  @override
+  String nextcloudImportItems(int count) {
+    return '$count event/task resources found';
+  }
+
+  @override
   String get nextcloudSchedulingInbox => 'Scheduling inbox';
 
   @override
@@ -30,7 +38,22 @@ class AppLocalizationsPt extends AppLocalizations {
       'Remove this scheduling message from the inbox? The calendar event will be kept.';
 
   @override
-  String get nextcloudAvailability => 'Include this collection in availability';
+  String get nextcloudGuestAvailability => 'Check guest availability';
+
+  @override
+  String nextcloudTrashRetention(int days) {
+    return 'Server trash retention: $days days';
+  }
+
+  @override
+  String get nextcloudCancelMeeting => 'Cancel meeting';
+
+  @override
+  String get nextcloudDeclineAndRemove => 'Decline and remove invitation';
+
+  @override
+  String get nextcloudDeclineRemovalWarning =>
+      'Removing this invitation sends a decline when synchronized. It does not cancel the organizer’s meeting.';
 
   @override
   String get nextcloudAvailabilityUnknown => 'Availability unknown';
@@ -104,6 +127,9 @@ class AppLocalizationsPt extends AppLocalizations {
 
   @override
   String get nextcloudCalendarEnabled => 'Enabled on the server';
+
+  @override
+  String get nextcloudAvailability => 'Include this collection in availability';
 
   @override
   String get nextcloudCalendarTimezone =>
@@ -2948,240 +2974,268 @@ class AppLocalizationsPtPt extends AppLocalizationsPt {
   AppLocalizationsPtPt() : super('pt_PT');
 
   @override
-  String get nextcloudSchedulingInbox => 'Scheduling inbox';
+  String get nextcloudExportCollection => 'Exportar recursos da coleção';
+
+  @override
+  String nextcloudImportItems(int count) {
+    return '$count recursos de eventos/tarefas encontrados';
+  }
+
+  @override
+  String get nextcloudSchedulingInbox => 'Caixa de entrada de convites';
 
   @override
   String get nextcloudInboxExplanation =>
-      'Nextcloud processes these messages into your calendars. Acknowledging a message removes only the inbox message, not the event.';
+      'O Nextcloud processa estas mensagens nos seus calendários. Confirmar remove apenas a mensagem, não o evento.';
 
   @override
-  String get nextcloudInboxEmpty => 'No scheduling messages.';
+  String get nextcloudInboxEmpty => 'Nenhuma mensagem de agendamento.';
 
   @override
-  String get nextcloudAcknowledge => 'Acknowledge message';
+  String get nextcloudAcknowledge => 'Confirmar receção';
 
   @override
   String get nextcloudAcknowledgeConfirm =>
-      'Remove this scheduling message from the inbox? The calendar event will be kept.';
+      'Remover esta mensagem da caixa de entrada? O evento será mantido.';
 
   @override
-  String get nextcloudAvailability => 'Include this collection in availability';
+  String get nextcloudGuestAvailability =>
+      'Verificar disponibilidade dos convidados';
 
   @override
-  String get nextcloudAvailabilityUnknown => 'Availability unknown';
+  String nextcloudTrashRetention(int days) {
+    return 'Retenção na reciclagem do servidor: $days dias';
+  }
+
+  @override
+  String get nextcloudCancelMeeting => 'Cancelar reunião';
+
+  @override
+  String get nextcloudDeclineAndRemove => 'Recusar e remover convite';
+
+  @override
+  String get nextcloudDeclineRemovalWarning =>
+      'A remoção enviará uma recusa na sincronização. Não cancela a reunião do organizador.';
+
+  @override
+  String get nextcloudAvailabilityUnknown => 'Disponibilidade desconhecida';
 
   @override
   String get nextcloudAvailabilityFree =>
-      'No busy periods reported for this interval';
+      'Nenhum período ocupado informado para este intervalo';
 
   @override
-  String get nextcloudAvailabilityBusy => 'Busy periods';
+  String get nextcloudAvailabilityBusy => 'Períodos ocupados';
 
   @override
   String get nextcloudSchedulingPending =>
-      'Nextcloud will send meeting updates when this change synchronizes. Saving locally does not confirm delivery.';
+      'O Nextcloud enviará as atualizações ao sincronizar. Guardar localmente não confirma a entrega.';
 
   @override
   String get nextcloudAttendeeRestrictions =>
-      'Only the organizer or an authorized delegate can change meeting details. You can respond to this invitation from its details.';
+      'Só o organizador ou um representante autorizado pode alterar os detalhes. Pode responder ao convite nos detalhes.';
 
   @override
   String get nextcloudMeetingMoveUnsupported =>
-      'This meeting cannot be moved by copying and deleting it. Use a calendar under the same scheduling identity.';
+      'Esta reunião não pode ser movida por cópia e eliminação. Use um calendário com a mesma identidade de agendamento.';
 
   @override
-  String get nextcloudSchedulingStatus => 'Server scheduling status';
+  String get nextcloudSchedulingStatus => 'Estado de agendamento do servidor';
 
   @override
   String get nextcloudImportFollowUp =>
-      'The imported resources were saved locally. Reminder refresh is pending; do not import them again.';
+      'Os recursos importados foram guardados localmente. A atualização dos lembretes está pendente; não importe novamente.';
 
   @override
   String get nextcloudNativeImport =>
-      'Import complete event and task resources without sending invitations. Existing UIDs are skipped unless you choose new copies. Unsupported resources are reported individually.';
+      'Importar eventos e tarefas completos sem enviar convites. UIDs existentes são ignorados, salvo se escolher novas cópias. Recursos incompatíveis são informados individualmente.';
 
   @override
   String get nextcloudImportMethod =>
-      'This file contains scheduling messages. Import stores their content and removes METHOD; it does not process an invitation or reply.';
+      'Este ficheiro contém mensagens de agendamento. A importação guardada o conteúdo e remove METHOD; não processa convites nem respostas.';
 
   @override
   String get nextcloudImportCopies =>
-      'Import as new copies with new identities';
+      'Importar novas cópias com novas identidades';
 
   @override
-  String get nextcloudCollectionSettings => 'Collection settings';
+  String get nextcloudCollectionSettings => 'Definições da coleção';
 
   @override
-  String get nextcloudSharing => 'Sharing';
+  String get nextcloudSharing => 'Partilha';
 
   @override
-  String get nextcloudOwned => 'Owned';
+  String get nextcloudOwned => 'Própria';
 
   @override
-  String get nextcloudShared => 'Shared';
+  String get nextcloudShared => 'Partilhada';
 
   @override
-  String get nextcloudDelegated => 'Delegated';
+  String get nextcloudDelegated => 'Delegada';
 
   @override
-  String get nextcloudSubscription => 'Subscription';
+  String get nextcloudSubscription => 'Subscrição';
 
   @override
-  String get nextcloudDeleted => 'Deleted';
+  String get nextcloudDeleted => 'Eliminada';
 
   @override
   String get nextcloudMetadataEditable =>
-      'Calendar contents are read-only; collection properties can be changed.';
+      'O conteúdo é apenas leitura; as propriedades da coleção podem ser alteradas.';
 
   @override
   String get nextcloudServerOrder =>
-      'Server order (separate from sidebar order)';
+      'Ordem no servidor (independente da barra lateral)';
 
   @override
-  String get nextcloudCalendarEnabled => 'Enabled on the server';
+  String get nextcloudCalendarEnabled => 'Ativada no servidor';
+
+  @override
+  String get nextcloudAvailability => 'Incluir esta coleção na disponibilidade';
 
   @override
   String get nextcloudCalendarTimezone =>
-      'Calendar timezone (VTIMEZONE document)';
+      'Fuso horário do calendário (documento VTIMEZONE)';
 
   @override
   String get nextcloudRefreshPending =>
-      'The change was saved on Nextcloud. Refresh is pending; do not repeat the change.';
+      'A alteração foi guardada no Nextcloud. A atualização está pendente; não repita a alteração.';
 
   @override
   String get nextcloudOutcomeUnknown =>
-      'The server outcome could not be confirmed. Refresh before trying again.';
+      'Não foi possível confirmar o resultado no servidor. Atualize antes de tentar novamente.';
 
   @override
-  String get nextcloudRemoveShared => 'Remove shared calendar/list';
+  String get nextcloudRemoveShared => 'Remover calendário/lista partilhada';
 
   @override
   String get nextcloudRemoveMixed =>
-      'This collection contains events and tasks. Deleting it removes both its events and tasks.';
+      'Esta coleção contém eventos e tarefas. A eliminação remove ambos.';
 
   @override
-  String get nextcloudReadAccess => 'Read-only';
+  String get nextcloudReadAccess => 'Apenas leitura';
 
   @override
-  String get nextcloudWriteAccess => 'Read and write';
+  String get nextcloudWriteAccess => 'Leitura e escrita';
 
   @override
-  String get nextcloudRecipientSearch => 'Find people or groups';
+  String get nextcloudRecipientSearch => 'Procurar pessoas ou grupos';
 
   @override
-  String get nextcloudNoRecipients => 'No matching people or groups.';
+  String get nextcloudNoRecipients => 'Nenhuma pessoa ou grupo correspondente.';
 
   @override
-  String get nextcloudRevokeShare => 'Revoke access';
+  String get nextcloudRevokeShare => 'Revogar acesso';
 
   @override
-  String get nextcloudPublish => 'Publish link';
+  String get nextcloudPublish => 'Publicar ligação';
 
   @override
-  String get nextcloudUnpublish => 'Stop publishing';
+  String get nextcloudUnpublish => 'Parar publicação';
 
   @override
   String get nextcloudPublishWarning =>
-      'Anyone with the published link may be able to read this calendar. Publish it?';
+      'Qualquer pessoa com o ligação publicado poderá ler este calendário. Publicar?';
 
   @override
-  String get nextcloudTrash => 'Deleted calendars and tasks';
+  String get nextcloudTrash => 'Calendários e tarefas eliminados';
 
   @override
-  String get nextcloudTrashEmpty => 'No deleted calendar items.';
+  String get nextcloudTrashEmpty => 'Nenhum item de calendário eliminado.';
 
   @override
-  String get nextcloudRestore => 'Restore';
+  String get nextcloudRestore => 'Restaurar';
 
   @override
-  String get nextcloudPermanentDelete => 'Permanently delete';
+  String get nextcloudPermanentDelete => 'Eliminar permanentemente';
 
   @override
   String get nextcloudPermanentDeleteWarning =>
-      'Permanently delete this item? It cannot be restored from Nextcloud\'s calendar trash.';
+      'Eliminar este item permanentemente? Ele não poderá ser restaurado da reciclagem de calendários do Nextcloud.';
 
   @override
   String get nextcloudOperationDenied =>
-      'Nextcloud did not allow this operation.';
+      'O Nextcloud não permitiu esta operação.';
 
   @override
   String get nextcloudUnsupported =>
-      'The server does not support this operation.';
+      'O servidor não oferece suporte a esta operação.';
 
   @override
   String get nextcloudPendingChanges =>
-      'Save or discard collection changes before closing.';
+      'Guarde ou descarte as alterações da coleção antes de fechar.';
 
   @override
   String get nextcloudServerUnavailable =>
-      'Nextcloud could not be reached. Cached items and pending work are unchanged.';
+      'Não foi possível aceder a o Nextcloud. O conteúdo em cache e as alterações pendentes permanecem intactos.';
 
   @override
-  String get mapsShow => 'Show map';
+  String get mapsShow => 'Mostrar mapa';
 
   @override
-  String get mapsDirections => 'Directions in Google Maps';
+  String get mapsDirections => 'Rotas no Google Maps';
 
   @override
   String get mapsPrivacy =>
-      'Online location search and maps use Geoapify. Only your search text and map area are sent.';
+      'A pesquisa de locais e os mapas online usam Geoapify. Apenas o texto da pesquisa e a área do mapa são enviados.';
 
   @override
-  String get mapsSearch => 'Search locations';
+  String get mapsSearch => 'Procurar locais';
 
   @override
-  String get mapsLoading => 'Searching locations…';
+  String get mapsLoading => 'A procurar locais…';
 
   @override
   String get mapsEmpty =>
-      'No matching locations. You can keep the location as text.';
+      'Nenhum local encontrado. Pode manter a localização como texto.';
 
   @override
   String get mapsOffline =>
-      'Location search is offline. Directions are still available.';
+      'A pesquisa de locais está offline. As rotas continuam disponíveis.';
 
   @override
   String get mapsUnconfigured =>
-      'Online maps are not configured in this build. Directions are still available.';
+      'Os mapas online não estão configurados nesta versão. As rotas continuam disponíveis.';
 
   @override
   String get mapsRateLimited =>
-      'Location service is busy. Please wait before searching again.';
+      'O serviço de locais está ocupado. Aguarde antes de procurar novamente.';
 
   @override
   String get mapsServiceError =>
-      'Location search is unavailable. You can still save the location as text.';
+      'A pesquisa de locais está indisponível. Pode guardar a localização como texto.';
 
   @override
   String get mapsTilesFailed =>
-      'Some map tiles could not be loaded. The destination and directions remain available.';
+      'Algumas imagens do mapa não foram carregadas. O destino e as rotas continuam disponíveis.';
 
   @override
-  String get mapsApproximate => 'Approximate area';
+  String get mapsApproximate => 'Área aproximada';
 
   @override
-  String get mapsZoomIn => 'Zoom in';
+  String get mapsZoomIn => 'Ampliar';
 
   @override
-  String get mapsZoomOut => 'Zoom out';
+  String get mapsZoomOut => 'Reduzir';
 
   @override
-  String get mapsRecenter => 'Recenter destination';
+  String get mapsRecenter => 'Centrar destino';
 
   @override
-  String get mapsDestination => 'Destination';
+  String get mapsDestination => 'Local de destino';
 
   @override
-  String get mapsBrowserFailed => 'The browser could not be opened.';
+  String get mapsBrowserFailed => 'Não foi possível abrir o navegador.';
 
   @override
-  String get mapsRememberFailed => 'The map location could not be remembered.';
+  String get mapsRememberFailed =>
+      'Não foi possível lembrar a localização do mapa.';
 
   @override
-  String get mapsSelected => 'Map location selected';
+  String get mapsSelected => 'Localização selecionada no mapa';
 
   @override
-  String get mapsChoose => 'Choose a location';
+  String get mapsChoose => 'Escolher localização';
 
   @override
   String scheduleProposedRange(String start, String end) {

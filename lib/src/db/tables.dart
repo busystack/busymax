@@ -501,7 +501,8 @@ class CalendarEvents extends Table {
 /// Local-only selected geocoding results, not synchronized provider content.
 class LocationResolutions extends Table {
   TextColumn get kind => text()();
-  TextColumn get accountId => text().references(Accounts, #id, onDelete: KeyAction.cascade)();
+  TextColumn get accountId =>
+      text().references(Accounts, #id, onDelete: KeyAction.cascade)();
   TextColumn get sourceId => text()();
   TextColumn get itemId => text()();
   TextColumn get locationText => text()();

@@ -133,6 +133,18 @@ abstract class AppLocalizations {
     Locale.fromSubtags(languageCode: 'zh', scriptCode: 'Hant'),
   ];
 
+  /// No description provided for @nextcloudExportCollection.
+  ///
+  /// In en, this message translates to:
+  /// **'Export collection resources'**
+  String get nextcloudExportCollection;
+
+  /// No description provided for @nextcloudImportItems.
+  ///
+  /// In en, this message translates to:
+  /// **'{count} event/task resources found'**
+  String nextcloudImportItems(int count);
+
   /// No description provided for @nextcloudSchedulingInbox.
   ///
   /// In en, this message translates to:
@@ -163,11 +175,35 @@ abstract class AppLocalizations {
   /// **'Remove this scheduling message from the inbox? The calendar event will be kept.'**
   String get nextcloudAcknowledgeConfirm;
 
-  /// No description provided for @nextcloudAvailability.
+  /// No description provided for @nextcloudGuestAvailability.
   ///
   /// In en, this message translates to:
-  /// **'Include this collection in availability'**
-  String get nextcloudAvailability;
+  /// **'Check guest availability'**
+  String get nextcloudGuestAvailability;
+
+  /// No description provided for @nextcloudTrashRetention.
+  ///
+  /// In en, this message translates to:
+  /// **'Server trash retention: {days} days'**
+  String nextcloudTrashRetention(int days);
+
+  /// No description provided for @nextcloudCancelMeeting.
+  ///
+  /// In en, this message translates to:
+  /// **'Cancel meeting'**
+  String get nextcloudCancelMeeting;
+
+  /// No description provided for @nextcloudDeclineAndRemove.
+  ///
+  /// In en, this message translates to:
+  /// **'Decline and remove invitation'**
+  String get nextcloudDeclineAndRemove;
+
+  /// No description provided for @nextcloudDeclineRemovalWarning.
+  ///
+  /// In en, this message translates to:
+  /// **'Removing this invitation sends a decline when synchronized. It does not cancel the organizer’s meeting.'**
+  String get nextcloudDeclineRemovalWarning;
 
   /// No description provided for @nextcloudAvailabilityUnknown.
   ///
@@ -294,6 +330,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Enabled on the server'**
   String get nextcloudCalendarEnabled;
+
+  /// No description provided for @nextcloudAvailability.
+  ///
+  /// In en, this message translates to:
+  /// **'Include this collection in availability'**
+  String get nextcloudAvailability;
 
   /// No description provided for @nextcloudCalendarTimezone.
   ///

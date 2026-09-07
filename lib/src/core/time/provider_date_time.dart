@@ -91,6 +91,33 @@ DateTime? providerDateTimeAsUtcInstant(String? value, String? timeZone) {
   return parsed.toUtc();
 }
 
+/// Parses wall fields into a neutral civil value, without first constructing a
+/// host-local DateTime (which could normalize a time in the host's DST gap).
+/// Explicit offsets retain their written fields; Z instants use the event zone.
+DateTime? providerDateTimeAsCivilTime(String? value, String? timeZone) {
+  if (value == null || value.isEmpty) return null;
+  if (!value.contains('T')) {
+    final date = value.length >= 10 ? value.substring(0, 10) : value;
+    final parsed = DateTime.tryParse('${date}T00:00:00Z');
+    return parsed == null ? null : providerCivilDateTime(parsed);
+  }
+  if (value.endsWith('Z') || value.endsWith('z')) {
+    final instant = DateTime.tryParse(value);
+    if (instant == null) return null;
+    final location = _timeZoneLocation(timeZone);
+    return providerCivilDateTime(
+      isUtcTimeZone(timeZone)
+          ? instant
+          : location == null
+          ? instant.toLocal()
+          : time_zone.TZDateTime.from(instant, location),
+    );
+  }
+  final fields = value.replaceFirst(RegExp(r'[+-]\d{2}:?\d{2}$'), '');
+  final parsed = DateTime.tryParse('${fields}Z');
+  return parsed == null ? null : providerCivilDateTime(parsed);
+}
+
 /// Parses a provider timestamp as the wall-clock value shown by an editor.
 ///
 /// Explicit offsets already carry their wall time. UTC instants are converted

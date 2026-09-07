@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:drift/drift.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../dav/nextcloud/nextcloud_native_export.dart';
 import 'package:http/http.dart' as http;
 import 'package:uuid/uuid.dart';
 
@@ -863,6 +864,10 @@ final nextcloudCollectionServiceProvider =
             .read(accountSyncOperationsProvider)
             .syncAccount(accountId, full: true),
       ),
+    );
+final nextcloudNativeExportServiceProvider =
+    Provider<NextcloudNativeExportService>(
+      (ref) => NextcloudNativeExportService(ref.watch(databaseProvider)),
     );
 final nextcloudSharingServiceProvider =
     Provider.family<NextcloudSharingService, String>(

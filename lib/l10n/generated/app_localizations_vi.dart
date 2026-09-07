@@ -13,240 +13,265 @@ class AppLocalizationsVi extends AppLocalizations {
   AppLocalizationsVi([String locale = 'vi']) : super(locale);
 
   @override
-  String get nextcloudSchedulingInbox => 'Scheduling inbox';
+  String get nextcloudExportCollection => 'Xuất tài nguyên bộ sưu tập';
+
+  @override
+  String nextcloudImportItems(int count) {
+    return 'Tìm thấy $count tài nguyên sự kiện/công việc';
+  }
+
+  @override
+  String get nextcloudSchedulingInbox => 'Hộp thư lời mời';
 
   @override
   String get nextcloudInboxExplanation =>
-      'Nextcloud processes these messages into your calendars. Acknowledging a message removes only the inbox message, not the event.';
+      'Nextcloud xử lý các thư này vào lịch của bạn. Xác nhận chỉ xóa thư, không xóa sự kiện.';
 
   @override
-  String get nextcloudInboxEmpty => 'No scheduling messages.';
+  String get nextcloudInboxEmpty => 'Không có thư lập lịch.';
 
   @override
-  String get nextcloudAcknowledge => 'Acknowledge message';
+  String get nextcloudAcknowledge => 'Xác nhận thư';
 
   @override
   String get nextcloudAcknowledgeConfirm =>
-      'Remove this scheduling message from the inbox? The calendar event will be kept.';
+      'Xóa thư này khỏi hộp thư đến? Sự kiện lịch sẽ được giữ lại.';
 
   @override
-  String get nextcloudAvailability => 'Include this collection in availability';
+  String get nextcloudGuestAvailability => 'Kiểm tra thời gian rảnh của khách';
 
   @override
-  String get nextcloudAvailabilityUnknown => 'Availability unknown';
+  String nextcloudTrashRetention(int days) {
+    return 'Thời gian lưu trong thùng rác máy chủ: $days ngày';
+  }
+
+  @override
+  String get nextcloudCancelMeeting => 'Hủy cuộc họp';
+
+  @override
+  String get nextcloudDeclineAndRemove => 'Từ chối và xóa lời mời';
+
+  @override
+  String get nextcloudDeclineRemovalWarning =>
+      'Việc xóa sẽ gửi lời từ chối khi đồng bộ. Cuộc họp của người tổ chức không bị hủy.';
+
+  @override
+  String get nextcloudAvailabilityUnknown => 'Chưa rõ thời gian rảnh';
 
   @override
   String get nextcloudAvailabilityFree =>
-      'No busy periods reported for this interval';
+      'Không có khoảng bận nào được báo trong thời gian này';
 
   @override
-  String get nextcloudAvailabilityBusy => 'Busy periods';
+  String get nextcloudAvailabilityBusy => 'Các khoảng bận';
 
   @override
   String get nextcloudSchedulingPending =>
-      'Nextcloud will send meeting updates when this change synchronizes. Saving locally does not confirm delivery.';
+      'Nextcloud sẽ gửi cập nhật cuộc họp khi đồng bộ. Lưu cục bộ không xác nhận đã gửi đến người nhận.';
 
   @override
   String get nextcloudAttendeeRestrictions =>
-      'Only the organizer or an authorized delegate can change meeting details. You can respond to this invitation from its details.';
+      'Chỉ người tổ chức hoặc đại diện được ủy quyền mới được sửa chi tiết. Bạn có thể trả lời lời mời trong phần chi tiết.';
 
   @override
   String get nextcloudMeetingMoveUnsupported =>
-      'This meeting cannot be moved by copying and deleting it. Use a calendar under the same scheduling identity.';
+      'Không thể chuyển cuộc họp bằng cách sao chép rồi xóa. Hãy dùng lịch thuộc cùng danh tính lập lịch.';
 
   @override
-  String get nextcloudSchedulingStatus => 'Server scheduling status';
+  String get nextcloudSchedulingStatus => 'Trạng thái lập lịch trên máy chủ';
 
   @override
   String get nextcloudImportFollowUp =>
-      'The imported resources were saved locally. Reminder refresh is pending; do not import them again.';
+      'Tài nguyên nhập đã được lưu cục bộ. Đang chờ cập nhật lời nhắc; không nhập lại.';
 
   @override
   String get nextcloudNativeImport =>
-      'Import complete event and task resources without sending invitations. Existing UIDs are skipped unless you choose new copies. Unsupported resources are reported individually.';
+      'Nhập đầy đủ sự kiện và công việc mà không gửi lời mời. Bỏ qua UID đã có trừ khi chọn bản sao mới. Tài nguyên không hỗ trợ được báo riêng.';
 
   @override
   String get nextcloudImportMethod =>
-      'This file contains scheduling messages. Import stores their content and removes METHOD; it does not process an invitation or reply.';
+      'Tệp chứa thư lập lịch. Nhập sẽ lưu nội dung và loại bỏ METHOD; không xử lý lời mời hay phản hồi.';
 
   @override
   String get nextcloudImportCopies =>
-      'Import as new copies with new identities';
+      'Nhập thành bản sao mới với danh tính mới';
 
   @override
-  String get nextcloudCollectionSettings => 'Collection settings';
+  String get nextcloudCollectionSettings => 'Cài đặt bộ sưu tập';
 
   @override
-  String get nextcloudSharing => 'Sharing';
+  String get nextcloudSharing => 'Chia sẻ';
 
   @override
-  String get nextcloudOwned => 'Owned';
+  String get nextcloudOwned => 'Sở hữu';
 
   @override
-  String get nextcloudShared => 'Shared';
+  String get nextcloudShared => 'Được chia sẻ';
 
   @override
-  String get nextcloudDelegated => 'Delegated';
+  String get nextcloudDelegated => 'Được ủy quyền';
 
   @override
-  String get nextcloudSubscription => 'Subscription';
+  String get nextcloudSubscription => 'Đăng ký';
 
   @override
-  String get nextcloudDeleted => 'Deleted';
+  String get nextcloudDeleted => 'Đã xóa';
 
   @override
   String get nextcloudMetadataEditable =>
-      'Calendar contents are read-only; collection properties can be changed.';
+      'Nội dung lịch chỉ đọc; vẫn có thể đổi thuộc tính bộ sưu tập.';
 
   @override
   String get nextcloudServerOrder =>
-      'Server order (separate from sidebar order)';
+      'Thứ tự trên máy chủ (tách biệt với thanh bên)';
 
   @override
-  String get nextcloudCalendarEnabled => 'Enabled on the server';
+  String get nextcloudCalendarEnabled => 'Bật trên máy chủ';
 
   @override
-  String get nextcloudCalendarTimezone =>
-      'Calendar timezone (VTIMEZONE document)';
+  String get nextcloudAvailability =>
+      'Tính bộ sưu tập này khi kiểm tra thời gian rảnh';
+
+  @override
+  String get nextcloudCalendarTimezone => 'Múi giờ lịch (tài liệu VTIMEZONE)';
 
   @override
   String get nextcloudRefreshPending =>
-      'The change was saved on Nextcloud. Refresh is pending; do not repeat the change.';
+      'Đã lưu thay đổi trên Nextcloud. Đang chờ làm mới; không lặp lại thay đổi.';
 
   @override
   String get nextcloudOutcomeUnknown =>
-      'The server outcome could not be confirmed. Refresh before trying again.';
+      'Không thể xác nhận kết quả trên máy chủ. Làm mới trước khi thử lại.';
 
   @override
-  String get nextcloudRemoveShared => 'Remove shared calendar/list';
+  String get nextcloudRemoveShared => 'Gỡ lịch/danh sách được chia sẻ';
 
   @override
   String get nextcloudRemoveMixed =>
-      'This collection contains events and tasks. Deleting it removes both its events and tasks.';
+      'Bộ sưu tập có sự kiện và công việc. Xóa bộ sưu tập sẽ xóa cả hai.';
 
   @override
-  String get nextcloudReadAccess => 'Read-only';
+  String get nextcloudReadAccess => 'Chỉ đọc';
 
   @override
-  String get nextcloudWriteAccess => 'Read and write';
+  String get nextcloudWriteAccess => 'Đọc và ghi';
 
   @override
-  String get nextcloudRecipientSearch => 'Find people or groups';
+  String get nextcloudRecipientSearch => 'Tìm người hoặc nhóm';
 
   @override
-  String get nextcloudNoRecipients => 'No matching people or groups.';
+  String get nextcloudNoRecipients => 'Không có người hoặc nhóm phù hợp.';
 
   @override
-  String get nextcloudRevokeShare => 'Revoke access';
+  String get nextcloudRevokeShare => 'Thu hồi quyền truy cập';
 
   @override
-  String get nextcloudPublish => 'Publish link';
+  String get nextcloudPublish => 'Công bố liên kết';
 
   @override
-  String get nextcloudUnpublish => 'Stop publishing';
+  String get nextcloudUnpublish => 'Ngừng công bố';
 
   @override
   String get nextcloudPublishWarning =>
-      'Anyone with the published link may be able to read this calendar. Publish it?';
+      'Bất kỳ ai có liên kết được công bố đều có thể đọc lịch này. Công bố?';
 
   @override
-  String get nextcloudTrash => 'Deleted calendars and tasks';
+  String get nextcloudTrash => 'Lịch và công việc đã xóa';
 
   @override
-  String get nextcloudTrashEmpty => 'No deleted calendar items.';
+  String get nextcloudTrashEmpty => 'Không có mục lịch đã xóa.';
 
   @override
-  String get nextcloudRestore => 'Restore';
+  String get nextcloudRestore => 'Khôi phục';
 
   @override
-  String get nextcloudPermanentDelete => 'Permanently delete';
+  String get nextcloudPermanentDelete => 'Xóa vĩnh viễn';
 
   @override
   String get nextcloudPermanentDeleteWarning =>
-      'Permanently delete this item? It cannot be restored from Nextcloud\'s calendar trash.';
+      'Xóa vĩnh viễn mục này? Không thể khôi phục từ thùng rác lịch của Nextcloud.';
 
   @override
   String get nextcloudOperationDenied =>
-      'Nextcloud did not allow this operation.';
+      'Nextcloud không cho phép thao tác này.';
 
   @override
-  String get nextcloudUnsupported =>
-      'The server does not support this operation.';
+  String get nextcloudUnsupported => 'Máy chủ không hỗ trợ thao tác này.';
 
   @override
   String get nextcloudPendingChanges =>
-      'Save or discard collection changes before closing.';
+      'Lưu hoặc bỏ thay đổi bộ sưu tập trước khi đóng.';
 
   @override
   String get nextcloudServerUnavailable =>
-      'Nextcloud could not be reached. Cached items and pending work are unchanged.';
+      'Không thể kết nối Nextcloud. Dữ liệu đệm và thay đổi đang chờ vẫn nguyên vẹn.';
 
   @override
-  String get mapsShow => 'Show map';
+  String get mapsShow => 'Hiện bản đồ';
 
   @override
-  String get mapsDirections => 'Directions in Google Maps';
+  String get mapsDirections => 'Chỉ đường trong Google Maps';
 
   @override
   String get mapsPrivacy =>
-      'Online location search and maps use Geoapify. Only your search text and map area are sent.';
+      'Tìm địa điểm và bản đồ trực tuyến dùng Geoapify. Chỉ gửi nội dung tìm kiếm và vùng bản đồ.';
 
   @override
-  String get mapsSearch => 'Search locations';
+  String get mapsSearch => 'Tìm địa điểm';
 
   @override
-  String get mapsLoading => 'Searching locations…';
+  String get mapsLoading => 'Đang tìm địa điểm…';
 
   @override
   String get mapsEmpty =>
-      'No matching locations. You can keep the location as text.';
+      'Không có địa điểm phù hợp. Bạn có thể giữ vị trí dưới dạng văn bản.';
 
   @override
   String get mapsOffline =>
-      'Location search is offline. Directions are still available.';
+      'Tìm địa điểm đang ngoại tuyến. Chỉ đường vẫn khả dụng.';
 
   @override
   String get mapsUnconfigured =>
-      'Online maps are not configured in this build. Directions are still available.';
+      'Bản đồ trực tuyến chưa được cấu hình trong bản dựng này. Chỉ đường vẫn khả dụng.';
 
   @override
   String get mapsRateLimited =>
-      'Location service is busy. Please wait before searching again.';
+      'Dịch vụ địa điểm đang bận. Hãy chờ trước khi tìm lại.';
 
   @override
   String get mapsServiceError =>
-      'Location search is unavailable. You can still save the location as text.';
+      'Không thể tìm địa điểm. Bạn vẫn có thể lưu vị trí dưới dạng văn bản.';
 
   @override
   String get mapsTilesFailed =>
-      'Some map tiles could not be loaded. The destination and directions remain available.';
+      'Không tải được một số ô bản đồ. Điểm đến và chỉ đường vẫn khả dụng.';
 
   @override
-  String get mapsApproximate => 'Approximate area';
+  String get mapsApproximate => 'Khu vực gần đúng';
 
   @override
-  String get mapsZoomIn => 'Zoom in';
+  String get mapsZoomIn => 'Phóng to';
 
   @override
-  String get mapsZoomOut => 'Zoom out';
+  String get mapsZoomOut => 'Thu nhỏ';
 
   @override
-  String get mapsRecenter => 'Recenter destination';
+  String get mapsRecenter => 'Căn giữa điểm đến';
 
   @override
-  String get mapsDestination => 'Destination';
+  String get mapsDestination => 'Điểm đến';
 
   @override
-  String get mapsBrowserFailed => 'The browser could not be opened.';
+  String get mapsBrowserFailed => 'Không mở được trình duyệt.';
 
   @override
-  String get mapsRememberFailed => 'The map location could not be remembered.';
+  String get mapsRememberFailed => 'Không lưu nhớ được vị trí trên bản đồ.';
 
   @override
-  String get mapsSelected => 'Map location selected';
+  String get mapsSelected => 'Đã chọn vị trí trên bản đồ';
 
   @override
-  String get mapsChoose => 'Choose a location';
+  String get mapsChoose => 'Chọn vị trí';
 
   @override
   String scheduleProposedRange(String start, String end) {

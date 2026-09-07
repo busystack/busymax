@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:busymax/src/calendar_providers/calendar_colors.dart';
 import 'package:busymax/src/app/app_settings.dart';
@@ -25,6 +26,7 @@ import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import '../../support/memory_settings_store.dart';
+import '../../support/process_time_zone.dart';
 
 void main() {
   late AppDatabase database;
@@ -1254,6 +1256,92 @@ void main() {
     );
   });
 
+  for (final encoding in ['offset', 'instant', 'floating']) {
+    test(
+      'series projection and replay preserve Tokyo wall fields in host DST gap ($encoding)',
+      () async {
+        final hostZone = ProcessTimeZone();
+        hostZone.set('America/Vancouver');
+        addTearDown(hostZone.restore);
+        expect(
+          DateTime(2026, 3, 8, 2, 30).hour,
+          isNot(2),
+          reason:
+              'The host must actually normalize this nonexistent local time.',
+        );
+        const zone = 'Asia/Tokyo';
+        String timestamp(int day, int hour) => switch (encoding) {
+          'offset' =>
+            '2026-03-${day.toString().padLeft(2, '0')}T0$hour:30:00+09:00',
+          'instant' => DateTime.utc(
+            2026,
+            3,
+            day,
+            hour - 9,
+            30,
+          ).toIso8601String(),
+          _ => '2026-03-${day.toString().padLeft(2, '0')}T0$hour:30:00',
+        };
+        final repository = CalendarRepository(database: database);
+        final ids = <String>[];
+        for (final day in [8, 15]) {
+          ids.add(
+            await _insertGoogleOccurrence(
+              repository,
+              day: day,
+              start: timestamp(day, 2),
+              end: timestamp(day, 3),
+              timeZone: zone,
+            ),
+          );
+        }
+        final detail = (await repository.loadEventDetail(ids.first))!;
+        await repository.updateLocalEvent(
+          EventEditorDraft.fromEventDetail(detail).copyWith(
+            start: providerInstantInTimeZone(
+              DateTime.utc(2026, 3, 7, 18, 30),
+              zone,
+            ),
+            end: providerInstantInTimeZone(
+              DateTime.utc(2026, 3, 7, 19, 30),
+              zone,
+            ),
+            recurringMutationScope: RecurringEventMutationScope.entireSeries,
+          ),
+          timingBaseline: EventTimingBaseline.fromDetail(detail),
+        );
+        for (var index = 0; index < ids.length; index++) {
+          final saved = (await repository.loadEventDetail(ids[index]))!;
+          final day = index == 0 ? '08' : '15';
+          expect(saved.startDateTime, '2026-03-${day}T03:30:00.000');
+          expect(saved.endDateTime, '2026-03-${day}T04:30:00.000');
+          expect(saved.syncStatus, 'pending');
+        }
+        client
+          ..remoteEvent = _googleSeriesMaster(
+            timeZone: zone,
+            start: timestamp(1, 2),
+            end: timestamp(1, 3),
+          )
+          ..persistEventUpdates = true;
+        expect(
+          await CalendarPendingOpsReplayer(
+            database: database,
+            client: client,
+            accountId: 'account',
+            nowUtc: () => DateTime.utc(2026, 6, 8),
+          ).replayDueOps(),
+          1,
+        );
+        expect(client.remoteEvent!.startDateTime, '2026-03-01T03:30:00.000');
+        expect(client.remoteEvent!.endDateTime, '2026-03-01T04:30:00.000');
+        final rows = await database.select(database.calendarEvents).get();
+        expect(rows.map((row) => row.syncStatus), everyElement('synced'));
+      },
+      skip: !(Platform.isLinux || Platform.isMacOS),
+    );
+  }
+
   test('entire-series edit patches the recurring master', () async {
     final repository = CalendarRepository(database: database);
     final ids = <String>[];
@@ -1349,6 +1437,89 @@ void main() {
       );
     },
   );
+
+  for (final differentOccurrence in [false, true]) {
+    test(
+      'two queued series moves ${differentOccurrence ? 'from different occurrences' : 'from the same occurrence'} retain the interval and pending projection',
+      () async {
+        final repository = CalendarRepository(database: database);
+        final ids = [
+          await _insertGoogleOccurrence(repository, day: 8),
+          await _insertGoogleOccurrence(repository, day: 15),
+        ];
+        for (var move = 0; move < 2; move++) {
+          final id = ids[differentOccurrence ? move : 0];
+          final detail = (await repository.loadEventDetail(id))!;
+          final day = differentOccurrence && move == 1 ? 15 : 8;
+          await repository.updateLocalEvent(
+            EventEditorDraft.fromEventDetail(detail).copyWith(
+              start: DateTime.utc(2026, 6, day, 10 + move),
+              end: DateTime.utc(2026, 6, day, 11 + move),
+              recurringMutationScope: RecurringEventMutationScope.entireSeries,
+            ),
+          );
+        }
+        final ops = await database.select(database.pendingOps).get();
+        final second = ops.singleWhere((op) => op.dependsOnOpId != null);
+        final first = ops.singleWhere((op) => op.id != second.id);
+        expect(second.dependsOnOpId, first.id);
+        final request = jsonDecode(second.requestJson) as Map;
+        final baseline = request[calendarEventTimingBaselineKey] as Map;
+        expect(
+          providerDateTimeAsCivilTime(baseline['start'] as String, 'UTC')!.hour,
+          10,
+        );
+        expect(
+          providerDateTimeAsCivilTime(baseline['end'] as String, 'UTC')!.hour,
+          11,
+        );
+        expect(
+          providerDateTimeAsCivilTime(
+            request[calendarEventOriginalStartKey] as String,
+            'UTC',
+          )!.hour,
+          9,
+        );
+        await (database.update(
+          database.pendingOps,
+        )..where((row) => row.id.equals(second.id))).write(
+          const PendingOpsCompanion(
+            nextAttemptAtUtc: Value('2026-06-09T00:00:00.000Z'),
+          ),
+        );
+        client
+          ..remoteEvent = _googleSeriesMaster()
+          ..persistEventUpdates = true;
+        Future<int> replay(int day) => CalendarPendingOpsReplayer(
+          database: database,
+          client: client,
+          accountId: 'account',
+          nowUtc: () => DateTime.utc(2026, 6, day),
+        ).replayDueOps();
+        expect(await replay(8), 1);
+        expect(client.remoteEvent!.startDateTime, '2026-06-01T10:00:00.000');
+        expect(client.remoteEvent!.endDateTime, '2026-06-01T11:00:00.000');
+        for (final id in ids) {
+          final detail = (await repository.loadEventDetail(id))!;
+          expect(detail.syncStatus, 'pending');
+          expect(
+            providerDateTimeAsCivilTime(detail.startDateTime, 'UTC')!.hour,
+            11,
+          );
+          expect(
+            providerDateTimeAsCivilTime(detail.endDateTime, 'UTC')!.hour,
+            12,
+          );
+        }
+        expect(await replay(9), 1);
+        expect(client.remoteEvent!.startDateTime, '2026-06-01T11:00:00.000');
+        expect(client.remoteEvent!.endDateTime, '2026-06-01T12:00:00.000');
+        expect(await database.select(database.pendingOps).get(), isEmpty);
+        final rows = await database.select(database.calendarEvents).get();
+        expect(rows.map((row) => row.syncStatus), everyElement('synced'));
+      },
+    );
+  }
 
   test('Google this-and-following edit trims and splits the series', () async {
     final repository = CalendarRepository(database: database);
@@ -2517,10 +2688,13 @@ Future<String> _insertEvent(
 Future<String> _insertGoogleOccurrence(
   CalendarRepository repository, {
   required int day,
+  String? start,
+  String? end,
+  String timeZone = 'UTC',
 }) async {
   final date = day.toString().padLeft(2, '0');
-  final start = '2026-06-${date}T09:00:00.000Z';
-  final end = '2026-06-${date}T10:00:00.000Z';
+  start ??= '2026-06-${date}T09:00:00.000Z';
+  end ??= '2026-06-${date}T10:00:00.000Z';
   final providerEventId = 'occurrence-$date';
   await repository.upsertEvent(
     accountId: 'account',
@@ -2533,17 +2707,17 @@ Future<String> _insertGoogleOccurrence(
       title: 'Base',
       organizerJson: const {'self': true},
       startDateTime: start,
-      startTimeZone: 'UTC',
+      startTimeZone: timeZone,
       endDateTime: end,
-      endTimeZone: 'UTC',
+      endTimeZone: timeZone,
       updatedAtServer: '2026-05-30T00:00:00.000Z',
       rawJson: {
         'id': providerEventId,
         'summary': 'Base',
         'recurringEventId': 'series-master',
         'originalStartTime': {'dateTime': start},
-        'start': {'dateTime': start, 'timeZone': 'UTC'},
-        'end': {'dateTime': end, 'timeZone': 'UTC'},
+        'start': {'dateTime': start, 'timeZone': timeZone},
+        'end': {'dateTime': end, 'timeZone': timeZone},
         'updated': '2026-05-30T00:00:00.000Z',
       },
     ),
@@ -2557,9 +2731,11 @@ Future<String> _insertGoogleOccurrence(
   );
 }
 
-CalendarEventDto _googleSeriesMaster({String timeZone = 'UTC'}) {
-  const start = '2026-06-01T09:00:00.000Z';
-  const end = '2026-06-01T10:00:00.000Z';
+CalendarEventDto _googleSeriesMaster({
+  String timeZone = 'UTC',
+  String start = '2026-06-01T09:00:00.000Z',
+  String end = '2026-06-01T10:00:00.000Z',
+}) {
   const recurrence = ['RRULE:FREQ=WEEKLY;INTERVAL=1;BYDAY=MO;COUNT=5'];
   return CalendarEventDto(
     provider: BusyProvider.google,

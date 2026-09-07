@@ -122,11 +122,11 @@ class _WindowsIcsPreviewDialogState extends State<_WindowsIcsPreviewDialog> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Text(
-            l10n.importEventsFound(
-              native
-                  ? widget.preview.nativePreview.resources.length
-                  : widget.preview.eventCount,
-            ),
+            native
+                ? l10n.nextcloudImportItems(
+                    widget.preview.nativePreview.resources.length,
+                  )
+                : l10n.importEventsFound(widget.preview.eventCount),
           ),
           if (native) ...[
             Text(l10n.nextcloudNativeImport),

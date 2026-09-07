@@ -1,4 +1,5 @@
 import 'dart:async';
+import '../common/schedule/native_collection_export.dart';
 import 'windows_nextcloud_scheduling_dialog.dart';
 import 'dart:math' as math;
 import 'package:fluent_ui/fluent_ui.dart';
@@ -352,6 +353,20 @@ class _WindowsNextcloudCollectionDialogState
         ),
         actions: [
           Button(
+            onPressed: model.busy
+                ? null
+                : () => model.exportTo((resources) async {
+                    final path =
+                        await exportNativeCollectionWithDirectoryDialog(
+                          resources,
+                        );
+                    if (mounted && path != null) {
+                      await _confirm(l10n.exportedFile(path), l10n.close);
+                    }
+                  }),
+            child: Text(l10n.nextcloudExportCollection),
+          ),
+          Button(
             onPressed: model.busy ? null : _close,
             child: Text(l10n.close),
           ),
@@ -501,6 +516,12 @@ class _WindowsNextcloudTrashState
                       : l10n.nextcloudServerUnavailable,
                 ),
               if (refreshPending) Text(l10n.nextcloudRefreshPending),
+              if (listing?.retentionSeconds != null)
+                Text(
+                  l10n.nextcloudTrashRetention(
+                    (listing!.retentionSeconds! / 86400).ceil(),
+                  ),
+                ),
               if (listing?.items.isEmpty == true)
                 Text(l10n.nextcloudTrashEmpty),
               for (final item in listing?.items ?? const <NextcloudTrashItem>[])
@@ -523,13 +544,17 @@ class _WindowsNextcloudTrashState
                         spacing: 8,
                         children: [
                           Button(
-                            onPressed: busy || refreshPending
+                            onPressed:
+                                busy || refreshPending || !item.canRestore
                                 ? null
                                 : () => _mutate(item, false),
                             child: Text(l10n.nextcloudRestore),
                           ),
                           Button(
-                            onPressed: busy || refreshPending
+                            onPressed:
+                                busy ||
+                                    refreshPending ||
+                                    !item.canPermanentlyDelete
                                 ? null
                                 : () => _mutate(item, true),
                             child: Text(l10n.nextcloudPermanentDelete),

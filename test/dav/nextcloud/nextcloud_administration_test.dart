@@ -205,4 +205,100 @@ void main() {
       expect(fixture.requests.where((r) => r.method == 'MOVE'), hasLength(1));
     },
   );
+  test(
+    'trash rechecks object permissions independently from the bin owner',
+    () async {
+      final item = (await fixture.trash.list()).items.first;
+      fixture.denyTrashObject = true;
+      final listing = await fixture.trash.list();
+      expect(listing.retentionSeconds, 2592000);
+      expect(
+        listing.items.every((i) => !i.canRestore && !i.canPermanentlyDelete),
+        isTrue,
+      );
+      await expectLater(
+        fixture.trash.restore(item),
+        throwsA(isA<DavException>().having((e) => e.statusCode, 'status', 403)),
+      );
+      expect(fixture.requests.where((r) => r.method == 'MOVE'), isEmpty);
+    },
+  );
+  test(
+    'deleted calendars and task lists use fresh inventory and returned hrefs',
+    () async {
+      for (final (component, kind) in [
+        ('VEVENT', NextcloudTrashKind.calendar),
+        ('VTODO', NextcloudTrashKind.taskList),
+      ]) {
+        fixture.deletedCollectionType = component;
+        fixture.restored.clear();
+        final item = (await fixture.trash.list()).items.singleWhere(
+          (i) => i.kind == kind,
+        );
+        await fixture.trash.restore(item);
+        expect(
+          fixture.requests.lastWhere((r) => r.method == 'MOVE').url,
+          item.href,
+        );
+        await expectLater(
+          fixture.trash.permanentlyDelete(item),
+          throwsA(
+            isA<DavException>().having((e) => e.statusCode, 'status', 410),
+          ),
+        );
+      }
+      expect(fixture.requests.where((r) => r.method == 'DELETE'), isEmpty);
+    },
+  );
+  test(
+    'permanent trash deletion is separately requested and conditional',
+    () async {
+      final item = (await fixture.trash.list()).items.first;
+      await fixture.trash.permanentlyDelete(item);
+      final deletion = fixture.requests.singleWhere(
+        (r) => r.method == 'DELETE',
+      );
+      expect(deletion.headers['if-match'], item.etag);
+      expect(deletion.headers['x-nc-caldav-no-trashbin'], '1');
+    },
+  );
+  test(
+    'trash rejects an active-calendar href returned in a trash report',
+    () async {
+      fixture.unexpectedTrashHref = true;
+      await expectLater(
+        fixture.trash.list(),
+        throwsA(
+          isA<DavException>().having(
+            (e) => e.code,
+            'code',
+            'DavTrashUnexpectedHref',
+          ),
+        ),
+      );
+    },
+  );
+  test(
+    'sharing checks multistatus failures and confirms the requested grant',
+    () async {
+      final recipient = (await fixture.sharing.search('Bob')).first;
+      fixture.denySharing = true;
+      await expectLater(
+        fixture.sharing.changeShare('collection', recipient, writable: true),
+        throwsA(isA<DavException>().having((e) => e.statusCode, 'status', 403)),
+      );
+      fixture.denySharing = false;
+      fixture.ignoreSharing = true;
+      await expectLater(
+        fixture.sharing.changeShare('collection', recipient, writable: true),
+        throwsA(
+          isA<DavException>().having(
+            (e) => e.code,
+            'code',
+            'DavCollectionOutcomeUnknown',
+          ),
+        ),
+      );
+    },
+  );
 }

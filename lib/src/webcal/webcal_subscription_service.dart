@@ -906,11 +906,25 @@ final class WebCalSubscriptionService {
   }) async {
     final resolutions = LocationResolutionRepository(_database);
     final remembered = await resolutions.capture(eventSourceId: sourceId);
-    await _replaceEventsBody(subscriptionId: subscriptionId, accountId: accountId, sourceId: sourceId, color: color, projections: projections, now: now);
+    await _replaceEventsBody(
+      subscriptionId: subscriptionId,
+      accountId: accountId,
+      sourceId: sourceId,
+      color: color,
+      projections: projections,
+      now: now,
+    );
     await resolutions.restore(remembered);
   }
 
-  Future<void> _replaceEventsBody({required String subscriptionId, required String accountId, required String sourceId, required String? color, required List<ProjectedIcalEvent> projections, required DateTime now}) async {
+  Future<void> _replaceEventsBody({
+    required String subscriptionId,
+    required String accountId,
+    required String sourceId,
+    required String? color,
+    required List<ProjectedIcalEvent> projections,
+    required DateTime now,
+  }) async {
     await (_database.delete(
       _database.calendarEvents,
     )..where((row) => row.calendarSourceId.equals(sourceId))).go();

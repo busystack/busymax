@@ -58,24 +58,31 @@ final class IcalOccurrence {
       override?.description ??
       inheritedOverride?.description ??
       master.description;
-  String? get location => effectiveIcalLocation([override, inheritedOverride, master]);
-  GeographicPoint? get locationPoint => effectiveIcalLocationPoint([override, inheritedOverride, master]);
+  String? get location =>
+      effectiveIcalLocation([override, inheritedOverride, master]);
+  GeographicPoint? get locationPoint =>
+      effectiveIcalLocationPoint([override, inheritedOverride, master]);
 }
 
 String? effectiveIcalLocation(Iterable<IcalSemanticComponent?> components) {
   for (final component in components) {
-    if (component?.documentComponent.firstProperty('LOCATION') != null) return component!.location;
+    if (component?.documentComponent.firstProperty('LOCATION') != null)
+      return component!.location;
   }
   return null;
 }
 
 /// An explicit LOCATION is an inheritance boundary, including an empty value.
 /// A different venue must never inherit an old master's coordinates.
-GeographicPoint? effectiveIcalLocationPoint(Iterable<IcalSemanticComponent?> components) {
+GeographicPoint? effectiveIcalLocationPoint(
+  Iterable<IcalSemanticComponent?> components,
+) {
   for (final component in components) {
     if (component == null) continue;
-    if (component.documentComponent.firstProperty('GEO') != null) return component.locationPoint;
-    if (component.documentComponent.firstProperty('LOCATION') != null) return null;
+    if (component.documentComponent.firstProperty('GEO') != null)
+      return component.locationPoint;
+    if (component.documentComponent.firstProperty('LOCATION') != null)
+      return null;
   }
   return null;
 }

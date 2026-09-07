@@ -13,240 +13,262 @@ class AppLocalizationsFa extends AppLocalizations {
   AppLocalizationsFa([String locale = 'fa']) : super(locale);
 
   @override
-  String get nextcloudSchedulingInbox => 'Scheduling inbox';
+  String get nextcloudExportCollection => 'برون‌بری منابع مجموعه';
+
+  @override
+  String nextcloudImportItems(int count) {
+    return '$count منبع رویداد/کار پیدا شد';
+  }
+
+  @override
+  String get nextcloudSchedulingInbox => 'صندوق ورودی دعوت‌ها';
 
   @override
   String get nextcloudInboxExplanation =>
-      'Nextcloud processes these messages into your calendars. Acknowledging a message removes only the inbox message, not the event.';
+      'Nextcloud این پیام‌ها را در تقویم‌ها پردازش می‌کند. تأیید دریافت فقط پیام را حذف می‌کند، نه رویداد را.';
 
   @override
-  String get nextcloudInboxEmpty => 'No scheduling messages.';
+  String get nextcloudInboxEmpty => 'پیام زمان‌بندی وجود ندارد.';
 
   @override
-  String get nextcloudAcknowledge => 'Acknowledge message';
+  String get nextcloudAcknowledge => 'تأیید دریافت پیام';
 
   @override
   String get nextcloudAcknowledgeConfirm =>
-      'Remove this scheduling message from the inbox? The calendar event will be kept.';
+      'این پیام از صندوق ورودی حذف شود؟ رویداد تقویم حفظ می‌شود.';
 
   @override
-  String get nextcloudAvailability => 'Include this collection in availability';
+  String get nextcloudGuestAvailability => 'بررسی زمان آزاد مهمانان';
 
   @override
-  String get nextcloudAvailabilityUnknown => 'Availability unknown';
+  String nextcloudTrashRetention(int days) {
+    return 'مدت نگهداری در زباله‌دان سرور: $days روز';
+  }
+
+  @override
+  String get nextcloudCancelMeeting => 'لغو جلسه';
+
+  @override
+  String get nextcloudDeclineAndRemove => 'رد و حذف دعوت';
+
+  @override
+  String get nextcloudDeclineRemovalWarning =>
+      'هنگام همگام‌سازی پاسخ رد ارسال می‌شود. جلسهٔ برگزارکننده لغو نمی‌شود.';
+
+  @override
+  String get nextcloudAvailabilityUnknown => 'وضعیت زمان آزاد نامشخص';
 
   @override
   String get nextcloudAvailabilityFree =>
-      'No busy periods reported for this interval';
+      'برای این بازه زمان مشغولی گزارش نشده است';
 
   @override
-  String get nextcloudAvailabilityBusy => 'Busy periods';
+  String get nextcloudAvailabilityBusy => 'بازه‌های مشغول';
 
   @override
   String get nextcloudSchedulingPending =>
-      'Nextcloud will send meeting updates when this change synchronizes. Saving locally does not confirm delivery.';
+      'Nextcloud به‌روزرسانی جلسه را هنگام همگام‌سازی می‌فرستد. ذخیرهٔ محلی تأیید تحویل نیست.';
 
   @override
   String get nextcloudAttendeeRestrictions =>
-      'Only the organizer or an authorized delegate can change meeting details. You can respond to this invitation from its details.';
+      'فقط برگزارکننده یا نمایندهٔ مجاز می‌تواند جزئیات جلسه را تغییر دهد. از جزئیات دعوت می‌توانید پاسخ دهید.';
 
   @override
   String get nextcloudMeetingMoveUnsupported =>
-      'This meeting cannot be moved by copying and deleting it. Use a calendar under the same scheduling identity.';
+      'این جلسه را نمی‌توان با کپی و حذف جابه‌جا کرد. از تقویمی با همان هویت زمان‌بندی استفاده کنید.';
 
   @override
-  String get nextcloudSchedulingStatus => 'Server scheduling status';
+  String get nextcloudSchedulingStatus => 'وضعیت زمان‌بندی سرور';
 
   @override
   String get nextcloudImportFollowUp =>
-      'The imported resources were saved locally. Reminder refresh is pending; do not import them again.';
+      'منابع واردشده محلی ذخیره شدند. تازه‌سازی یادآورها در انتظار است؛ دوباره وارد نکنید.';
 
   @override
   String get nextcloudNativeImport =>
-      'Import complete event and task resources without sending invitations. Existing UIDs are skipped unless you choose new copies. Unsupported resources are reported individually.';
+      'رویدادها و کارها را کامل و بدون ارسال دعوت وارد کنید. UIDهای موجود رد می‌شوند مگر نسخه‌های جدید را انتخاب کنید. منابع پشتیبانی‌نشده جداگانه گزارش می‌شوند.';
 
   @override
   String get nextcloudImportMethod =>
-      'This file contains scheduling messages. Import stores their content and removes METHOD; it does not process an invitation or reply.';
+      'این پرونده پیام زمان‌بندی دارد. درون‌ریزی محتوا را ذخیره و METHOD را حذف می‌کند؛ دعوت یا پاسخ را پردازش نمی‌کند.';
 
   @override
   String get nextcloudImportCopies =>
-      'Import as new copies with new identities';
+      'درون‌ریزی نسخه‌های جدید با هویت‌های جدید';
 
   @override
-  String get nextcloudCollectionSettings => 'Collection settings';
+  String get nextcloudCollectionSettings => 'تنظیمات مجموعه';
 
   @override
-  String get nextcloudSharing => 'Sharing';
+  String get nextcloudSharing => 'اشتراک‌گذاری';
 
   @override
-  String get nextcloudOwned => 'Owned';
+  String get nextcloudOwned => 'متعلق به شما';
 
   @override
-  String get nextcloudShared => 'Shared';
+  String get nextcloudShared => 'اشتراکی';
 
   @override
-  String get nextcloudDelegated => 'Delegated';
+  String get nextcloudDelegated => 'واگذارشده';
 
   @override
-  String get nextcloudSubscription => 'Subscription';
+  String get nextcloudSubscription => 'اشتراک';
 
   @override
-  String get nextcloudDeleted => 'Deleted';
+  String get nextcloudDeleted => 'حذف‌شده';
 
   @override
   String get nextcloudMetadataEditable =>
-      'Calendar contents are read-only; collection properties can be changed.';
+      'محتوای تقویم فقط خواندنی است؛ ویژگی‌های مجموعه قابل تغییرند.';
 
   @override
-  String get nextcloudServerOrder =>
-      'Server order (separate from sidebar order)';
+  String get nextcloudServerOrder => 'ترتیب سرور (جدا از ترتیب نوار کناری)';
 
   @override
-  String get nextcloudCalendarEnabled => 'Enabled on the server';
+  String get nextcloudCalendarEnabled => 'فعال در سرور';
 
   @override
-  String get nextcloudCalendarTimezone =>
-      'Calendar timezone (VTIMEZONE document)';
+  String get nextcloudAvailability => 'لحاظ کردن این مجموعه در زمان آزاد';
+
+  @override
+  String get nextcloudCalendarTimezone => 'منطقهٔ زمانی تقویم (سند VTIMEZONE)';
 
   @override
   String get nextcloudRefreshPending =>
-      'The change was saved on Nextcloud. Refresh is pending; do not repeat the change.';
+      'تغییر در Nextcloud ذخیره شد. تازه‌سازی در انتظار است؛ تغییر را تکرار نکنید.';
 
   @override
   String get nextcloudOutcomeUnknown =>
-      'The server outcome could not be confirmed. Refresh before trying again.';
+      'نتیجهٔ سرور تأیید نشد. پیش از تلاش دوباره تازه‌سازی کنید.';
 
   @override
-  String get nextcloudRemoveShared => 'Remove shared calendar/list';
+  String get nextcloudRemoveShared => 'حذف تقویم/فهرست اشتراکی';
 
   @override
   String get nextcloudRemoveMixed =>
-      'This collection contains events and tasks. Deleting it removes both its events and tasks.';
+      'این مجموعه رویداد و کار دارد. حذف آن هر دو را حذف می‌کند.';
 
   @override
-  String get nextcloudReadAccess => 'Read-only';
+  String get nextcloudReadAccess => 'فقط خواندن';
 
   @override
-  String get nextcloudWriteAccess => 'Read and write';
+  String get nextcloudWriteAccess => 'خواندن و نوشتن';
 
   @override
-  String get nextcloudRecipientSearch => 'Find people or groups';
+  String get nextcloudRecipientSearch => 'یافتن افراد یا گروه‌ها';
 
   @override
-  String get nextcloudNoRecipients => 'No matching people or groups.';
+  String get nextcloudNoRecipients => 'فرد یا گروه مطابقی وجود ندارد.';
 
   @override
-  String get nextcloudRevokeShare => 'Revoke access';
+  String get nextcloudRevokeShare => 'لغو دسترسی';
 
   @override
-  String get nextcloudPublish => 'Publish link';
+  String get nextcloudPublish => 'انتشار پیوند';
 
   @override
-  String get nextcloudUnpublish => 'Stop publishing';
+  String get nextcloudUnpublish => 'توقف انتشار';
 
   @override
   String get nextcloudPublishWarning =>
-      'Anyone with the published link may be able to read this calendar. Publish it?';
+      'هر کس پیوند منتشرشده را داشته باشد ممکن است بتواند این تقویم را بخواند. منتشر شود؟';
 
   @override
-  String get nextcloudTrash => 'Deleted calendars and tasks';
+  String get nextcloudTrash => 'تقویم‌ها و کارهای حذف‌شده';
 
   @override
-  String get nextcloudTrashEmpty => 'No deleted calendar items.';
+  String get nextcloudTrashEmpty => 'مورد حذف‌شده‌ای در تقویم نیست.';
 
   @override
-  String get nextcloudRestore => 'Restore';
+  String get nextcloudRestore => 'بازیابی';
 
   @override
-  String get nextcloudPermanentDelete => 'Permanently delete';
+  String get nextcloudPermanentDelete => 'حذف همیشگی';
 
   @override
   String get nextcloudPermanentDeleteWarning =>
-      'Permanently delete this item? It cannot be restored from Nextcloud\'s calendar trash.';
+      'این مورد برای همیشه حذف شود؟ دیگر از زباله‌دان تقویم Nextcloud بازیابی نمی‌شود.';
 
   @override
-  String get nextcloudOperationDenied =>
-      'Nextcloud did not allow this operation.';
+  String get nextcloudOperationDenied => 'Nextcloud این عملیات را مجاز ندانست.';
 
   @override
-  String get nextcloudUnsupported =>
-      'The server does not support this operation.';
+  String get nextcloudUnsupported => 'سرور از این عملیات پشتیبانی نمی‌کند.';
 
   @override
   String get nextcloudPendingChanges =>
-      'Save or discard collection changes before closing.';
+      'پیش از بستن، تغییرات مجموعه را ذخیره یا دور بیندازید.';
 
   @override
   String get nextcloudServerUnavailable =>
-      'Nextcloud could not be reached. Cached items and pending work are unchanged.';
+      'دسترسی به Nextcloud ممکن نیست. موارد ذخیره‌شده و تغییرات در انتظار دست‌نخورده‌اند.';
 
   @override
-  String get mapsShow => 'Show map';
+  String get mapsShow => 'نمایش نقشه';
 
   @override
-  String get mapsDirections => 'Directions in Google Maps';
+  String get mapsDirections => 'مسیریابی در Google Maps';
 
   @override
   String get mapsPrivacy =>
-      'Online location search and maps use Geoapify. Only your search text and map area are sent.';
+      'جست‌وجوی مکان و نقشه‌های برخط از Geoapify استفاده می‌کنند. فقط متن جست‌وجو و محدودهٔ نقشه فرستاده می‌شود.';
 
   @override
-  String get mapsSearch => 'Search locations';
+  String get mapsSearch => 'جست‌وجوی مکان‌ها';
 
   @override
-  String get mapsLoading => 'Searching locations…';
+  String get mapsLoading => 'در حال جست‌وجوی مکان‌ها…';
 
   @override
   String get mapsEmpty =>
-      'No matching locations. You can keep the location as text.';
+      'مکان مطابقی نیست. می‌توانید مکان را به‌صورت متن نگه دارید.';
 
   @override
   String get mapsOffline =>
-      'Location search is offline. Directions are still available.';
+      'جست‌وجوی مکان آفلاین است. مسیریابی همچنان در دسترس است.';
 
   @override
   String get mapsUnconfigured =>
-      'Online maps are not configured in this build. Directions are still available.';
+      'نقشه‌های برخط در این نسخه پیکربندی نشده‌اند. مسیریابی همچنان در دسترس است.';
 
   @override
   String get mapsRateLimited =>
-      'Location service is busy. Please wait before searching again.';
+      'سرویس مکان مشغول است. پیش از جست‌وجوی دوباره صبر کنید.';
 
   @override
   String get mapsServiceError =>
-      'Location search is unavailable. You can still save the location as text.';
+      'جست‌وجوی مکان در دسترس نیست. همچنان می‌توانید مکان را به‌صورت متن ذخیره کنید.';
 
   @override
   String get mapsTilesFailed =>
-      'Some map tiles could not be loaded. The destination and directions remain available.';
+      'برخی کاشی‌های نقشه بارگیری نشدند. مقصد و مسیریابی همچنان در دسترس‌اند.';
 
   @override
-  String get mapsApproximate => 'Approximate area';
+  String get mapsApproximate => 'محدودهٔ تقریبی';
 
   @override
-  String get mapsZoomIn => 'Zoom in';
+  String get mapsZoomIn => 'بزرگ‌نمایی';
 
   @override
-  String get mapsZoomOut => 'Zoom out';
+  String get mapsZoomOut => 'کوچک‌نمایی';
 
   @override
-  String get mapsRecenter => 'Recenter destination';
+  String get mapsRecenter => 'مرکز کردن مقصد';
 
   @override
-  String get mapsDestination => 'Destination';
+  String get mapsDestination => 'مقصد';
 
   @override
-  String get mapsBrowserFailed => 'The browser could not be opened.';
+  String get mapsBrowserFailed => 'مرورگر باز نشد.';
 
   @override
-  String get mapsRememberFailed => 'The map location could not be remembered.';
+  String get mapsRememberFailed => 'مکان نقشه به خاطر سپرده نشد.';
 
   @override
-  String get mapsSelected => 'Map location selected';
+  String get mapsSelected => 'مکان نقشه انتخاب شد';
 
   @override
-  String get mapsChoose => 'Choose a location';
+  String get mapsChoose => 'انتخاب مکان';
 
   @override
   String scheduleProposedRange(String start, String end) {

@@ -13,240 +13,241 @@ class AppLocalizationsZh extends AppLocalizations {
   AppLocalizationsZh([String locale = 'zh']) : super(locale);
 
   @override
-  String get nextcloudSchedulingInbox => 'Scheduling inbox';
+  String get nextcloudExportCollection => '导出集合资源';
+
+  @override
+  String nextcloudImportItems(int count) {
+    return '找到 $count 个事件/任务资源';
+  }
+
+  @override
+  String get nextcloudSchedulingInbox => '日程邀请收件箱';
 
   @override
   String get nextcloudInboxExplanation =>
-      'Nextcloud processes these messages into your calendars. Acknowledging a message removes only the inbox message, not the event.';
+      'Nextcloud 会将这些消息处理到日历中。确认消息只会移除收件箱消息，不会删除事件。';
 
   @override
-  String get nextcloudInboxEmpty => 'No scheduling messages.';
+  String get nextcloudInboxEmpty => '没有日程消息。';
 
   @override
-  String get nextcloudAcknowledge => 'Acknowledge message';
+  String get nextcloudAcknowledge => '确认消息';
 
   @override
-  String get nextcloudAcknowledgeConfirm =>
-      'Remove this scheduling message from the inbox? The calendar event will be kept.';
+  String get nextcloudAcknowledgeConfirm => '从收件箱移除此消息？日历事件将被保留。';
 
   @override
-  String get nextcloudAvailability => 'Include this collection in availability';
+  String get nextcloudGuestAvailability => '查看受邀者的空闲时间';
 
   @override
-  String get nextcloudAvailabilityUnknown => 'Availability unknown';
+  String nextcloudTrashRetention(int days) {
+    return '服务器回收站保留时间：$days 天';
+  }
 
   @override
-  String get nextcloudAvailabilityFree =>
-      'No busy periods reported for this interval';
+  String get nextcloudCancelMeeting => '取消会议';
 
   @override
-  String get nextcloudAvailabilityBusy => 'Busy periods';
+  String get nextcloudDeclineAndRemove => '拒绝并移除邀请';
 
   @override
-  String get nextcloudSchedulingPending =>
-      'Nextcloud will send meeting updates when this change synchronizes. Saving locally does not confirm delivery.';
+  String get nextcloudDeclineRemovalWarning => '同步时会发送拒绝回复。此操作不会取消组织者的会议。';
+
+  @override
+  String get nextcloudAvailabilityUnknown => '空闲状态未知';
+
+  @override
+  String get nextcloudAvailabilityFree => '此时段未报告忙碌时间';
+
+  @override
+  String get nextcloudAvailabilityBusy => '忙碌时段';
+
+  @override
+  String get nextcloudSchedulingPending => 'Nextcloud 将在同步时发送会议更新。本地保存不代表已送达。';
 
   @override
   String get nextcloudAttendeeRestrictions =>
-      'Only the organizer or an authorized delegate can change meeting details. You can respond to this invitation from its details.';
+      '只有组织者或获授权的代理人才能修改会议详情。您可以在邀请详情中回复。';
 
   @override
   String get nextcloudMeetingMoveUnsupported =>
-      'This meeting cannot be moved by copying and deleting it. Use a calendar under the same scheduling identity.';
+      '无法通过复制并删除来移动此会议。请使用同一日程身份下的日历。';
 
   @override
-  String get nextcloudSchedulingStatus => 'Server scheduling status';
+  String get nextcloudSchedulingStatus => '服务器日程处理状态';
 
   @override
-  String get nextcloudImportFollowUp =>
-      'The imported resources were saved locally. Reminder refresh is pending; do not import them again.';
+  String get nextcloudImportFollowUp => '导入的资源已保存在本地。提醒刷新尚未完成；请勿重复导入。';
 
   @override
   String get nextcloudNativeImport =>
-      'Import complete event and task resources without sending invitations. Existing UIDs are skipped unless you choose new copies. Unsupported resources are reported individually.';
+      '导入完整的事件和任务资源，不发送邀请。除非选择新副本，否则会跳过已有 UID。不支持的资源将逐项报告。';
 
   @override
-  String get nextcloudImportMethod =>
-      'This file contains scheduling messages. Import stores their content and removes METHOD; it does not process an invitation or reply.';
+  String get nextcloudImportMethod => '此文件包含日程消息。导入会保存内容并移除 METHOD，不会处理邀请或回复。';
 
   @override
-  String get nextcloudImportCopies =>
-      'Import as new copies with new identities';
+  String get nextcloudImportCopies => '以新身份导入为新副本';
 
   @override
-  String get nextcloudCollectionSettings => 'Collection settings';
+  String get nextcloudCollectionSettings => '集合设置';
 
   @override
-  String get nextcloudSharing => 'Sharing';
+  String get nextcloudSharing => '共享';
 
   @override
-  String get nextcloudOwned => 'Owned';
+  String get nextcloudOwned => '自有';
 
   @override
-  String get nextcloudShared => 'Shared';
+  String get nextcloudShared => '已共享';
 
   @override
-  String get nextcloudDelegated => 'Delegated';
+  String get nextcloudDelegated => '已委派';
 
   @override
-  String get nextcloudSubscription => 'Subscription';
+  String get nextcloudSubscription => '订阅';
 
   @override
-  String get nextcloudDeleted => 'Deleted';
+  String get nextcloudDeleted => '已删除';
 
   @override
-  String get nextcloudMetadataEditable =>
-      'Calendar contents are read-only; collection properties can be changed.';
+  String get nextcloudMetadataEditable => '日历内容只读，但可以修改集合属性。';
 
   @override
-  String get nextcloudServerOrder =>
-      'Server order (separate from sidebar order)';
+  String get nextcloudServerOrder => '服务器顺序（独立于侧边栏顺序）';
 
   @override
-  String get nextcloudCalendarEnabled => 'Enabled on the server';
+  String get nextcloudCalendarEnabled => '在服务器上启用';
 
   @override
-  String get nextcloudCalendarTimezone =>
-      'Calendar timezone (VTIMEZONE document)';
+  String get nextcloudAvailability => '将此集合纳入空闲状态计算';
 
   @override
-  String get nextcloudRefreshPending =>
-      'The change was saved on Nextcloud. Refresh is pending; do not repeat the change.';
+  String get nextcloudCalendarTimezone => '日历时区（VTIMEZONE 文档）';
 
   @override
-  String get nextcloudOutcomeUnknown =>
-      'The server outcome could not be confirmed. Refresh before trying again.';
+  String get nextcloudRefreshPending => '更改已保存在 Nextcloud。刷新尚未完成；请勿重复更改。';
 
   @override
-  String get nextcloudRemoveShared => 'Remove shared calendar/list';
+  String get nextcloudOutcomeUnknown => '无法确认服务器结果。请刷新后再试。';
 
   @override
-  String get nextcloudRemoveMixed =>
-      'This collection contains events and tasks. Deleting it removes both its events and tasks.';
+  String get nextcloudRemoveShared => '移除共享日历/列表';
 
   @override
-  String get nextcloudReadAccess => 'Read-only';
+  String get nextcloudRemoveMixed => '此集合包含事件和任务。删除集合将同时删除两者。';
 
   @override
-  String get nextcloudWriteAccess => 'Read and write';
+  String get nextcloudReadAccess => '只读';
 
   @override
-  String get nextcloudRecipientSearch => 'Find people or groups';
+  String get nextcloudWriteAccess => '读写';
 
   @override
-  String get nextcloudNoRecipients => 'No matching people or groups.';
+  String get nextcloudRecipientSearch => '查找人员或群组';
 
   @override
-  String get nextcloudRevokeShare => 'Revoke access';
+  String get nextcloudNoRecipients => '没有匹配的人员或群组。';
 
   @override
-  String get nextcloudPublish => 'Publish link';
+  String get nextcloudRevokeShare => '撤销访问权限';
 
   @override
-  String get nextcloudUnpublish => 'Stop publishing';
+  String get nextcloudPublish => '发布链接';
 
   @override
-  String get nextcloudPublishWarning =>
-      'Anyone with the published link may be able to read this calendar. Publish it?';
+  String get nextcloudUnpublish => '停止发布';
 
   @override
-  String get nextcloudTrash => 'Deleted calendars and tasks';
+  String get nextcloudPublishWarning => '拥有发布链接的任何人都可能读取此日历。是否发布？';
 
   @override
-  String get nextcloudTrashEmpty => 'No deleted calendar items.';
+  String get nextcloudTrash => '已删除的日历和任务';
 
   @override
-  String get nextcloudRestore => 'Restore';
+  String get nextcloudTrashEmpty => '没有已删除的日历项目。';
 
   @override
-  String get nextcloudPermanentDelete => 'Permanently delete';
+  String get nextcloudRestore => '恢复';
+
+  @override
+  String get nextcloudPermanentDelete => '永久删除';
 
   @override
   String get nextcloudPermanentDeleteWarning =>
-      'Permanently delete this item? It cannot be restored from Nextcloud\'s calendar trash.';
+      '永久删除此项目？之后无法从 Nextcloud 日历回收站恢复。';
 
   @override
-  String get nextcloudOperationDenied =>
-      'Nextcloud did not allow this operation.';
+  String get nextcloudOperationDenied => 'Nextcloud 不允许此操作。';
 
   @override
-  String get nextcloudUnsupported =>
-      'The server does not support this operation.';
+  String get nextcloudUnsupported => '服务器不支持此操作。';
 
   @override
-  String get nextcloudPendingChanges =>
-      'Save or discard collection changes before closing.';
+  String get nextcloudPendingChanges => '关闭前请保存或放弃集合更改。';
 
   @override
-  String get nextcloudServerUnavailable =>
-      'Nextcloud could not be reached. Cached items and pending work are unchanged.';
+  String get nextcloudServerUnavailable => '无法连接 Nextcloud。缓存项目和待处理更改保持不变。';
 
   @override
-  String get mapsShow => 'Show map';
+  String get mapsShow => '显示地图';
 
   @override
-  String get mapsDirections => 'Directions in Google Maps';
+  String get mapsDirections => '在 Google Maps 中查看路线';
 
   @override
-  String get mapsPrivacy =>
-      'Online location search and maps use Geoapify. Only your search text and map area are sent.';
+  String get mapsPrivacy => '在线地点搜索和地图使用 Geoapify。只发送搜索文字和地图区域。';
 
   @override
-  String get mapsSearch => 'Search locations';
+  String get mapsSearch => '搜索地点';
 
   @override
-  String get mapsLoading => 'Searching locations…';
+  String get mapsLoading => '正在搜索地点…';
 
   @override
-  String get mapsEmpty =>
-      'No matching locations. You can keep the location as text.';
+  String get mapsEmpty => '没有匹配的地点。您可以保留文字位置。';
 
   @override
-  String get mapsOffline =>
-      'Location search is offline. Directions are still available.';
+  String get mapsOffline => '地点搜索处于离线状态。路线功能仍可用。';
 
   @override
-  String get mapsUnconfigured =>
-      'Online maps are not configured in this build. Directions are still available.';
+  String get mapsUnconfigured => '此版本未配置在线地图。路线功能仍可用。';
 
   @override
-  String get mapsRateLimited =>
-      'Location service is busy. Please wait before searching again.';
+  String get mapsRateLimited => '地点服务繁忙。请稍候再搜索。';
 
   @override
-  String get mapsServiceError =>
-      'Location search is unavailable. You can still save the location as text.';
+  String get mapsServiceError => '地点搜索不可用。您仍可将位置保存为文字。';
 
   @override
-  String get mapsTilesFailed =>
-      'Some map tiles could not be loaded. The destination and directions remain available.';
+  String get mapsTilesFailed => '部分地图图块无法加载。目的地和路线仍可用。';
 
   @override
-  String get mapsApproximate => 'Approximate area';
+  String get mapsApproximate => '大致区域';
 
   @override
-  String get mapsZoomIn => 'Zoom in';
+  String get mapsZoomIn => '放大';
 
   @override
-  String get mapsZoomOut => 'Zoom out';
+  String get mapsZoomOut => '缩小';
 
   @override
-  String get mapsRecenter => 'Recenter destination';
+  String get mapsRecenter => '重新居中目的地';
 
   @override
-  String get mapsDestination => 'Destination';
+  String get mapsDestination => '目的地';
 
   @override
-  String get mapsBrowserFailed => 'The browser could not be opened.';
+  String get mapsBrowserFailed => '无法打开浏览器。';
 
   @override
-  String get mapsRememberFailed => 'The map location could not be remembered.';
+  String get mapsRememberFailed => '无法记住地图位置。';
 
   @override
-  String get mapsSelected => 'Map location selected';
+  String get mapsSelected => '已选择地图位置';
 
   @override
-  String get mapsChoose => 'Choose a location';
+  String get mapsChoose => '选择位置';
 
   @override
   String scheduleProposedRange(String start, String end) {
@@ -2840,240 +2841,241 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
   AppLocalizationsZhHans() : super('zh_Hans');
 
   @override
-  String get nextcloudSchedulingInbox => 'Scheduling inbox';
+  String get nextcloudExportCollection => '导出集合资源';
+
+  @override
+  String nextcloudImportItems(int count) {
+    return '找到 $count 个事件/任务资源';
+  }
+
+  @override
+  String get nextcloudSchedulingInbox => '日程邀请收件箱';
 
   @override
   String get nextcloudInboxExplanation =>
-      'Nextcloud processes these messages into your calendars. Acknowledging a message removes only the inbox message, not the event.';
+      'Nextcloud 会将这些消息处理到日历中。确认消息只会移除收件箱消息，不会删除事件。';
 
   @override
-  String get nextcloudInboxEmpty => 'No scheduling messages.';
+  String get nextcloudInboxEmpty => '没有日程消息。';
 
   @override
-  String get nextcloudAcknowledge => 'Acknowledge message';
+  String get nextcloudAcknowledge => '确认消息';
 
   @override
-  String get nextcloudAcknowledgeConfirm =>
-      'Remove this scheduling message from the inbox? The calendar event will be kept.';
+  String get nextcloudAcknowledgeConfirm => '从收件箱移除此消息？日历事件将被保留。';
 
   @override
-  String get nextcloudAvailability => 'Include this collection in availability';
+  String get nextcloudGuestAvailability => '查看受邀者的空闲时间';
 
   @override
-  String get nextcloudAvailabilityUnknown => 'Availability unknown';
+  String nextcloudTrashRetention(int days) {
+    return '服务器回收站保留时间：$days 天';
+  }
 
   @override
-  String get nextcloudAvailabilityFree =>
-      'No busy periods reported for this interval';
+  String get nextcloudCancelMeeting => '取消会议';
 
   @override
-  String get nextcloudAvailabilityBusy => 'Busy periods';
+  String get nextcloudDeclineAndRemove => '拒绝并移除邀请';
 
   @override
-  String get nextcloudSchedulingPending =>
-      'Nextcloud will send meeting updates when this change synchronizes. Saving locally does not confirm delivery.';
+  String get nextcloudDeclineRemovalWarning => '同步时会发送拒绝回复。此操作不会取消组织者的会议。';
+
+  @override
+  String get nextcloudAvailabilityUnknown => '空闲状态未知';
+
+  @override
+  String get nextcloudAvailabilityFree => '此时段未报告忙碌时间';
+
+  @override
+  String get nextcloudAvailabilityBusy => '忙碌时段';
+
+  @override
+  String get nextcloudSchedulingPending => 'Nextcloud 将在同步时发送会议更新。本地保存不代表已送达。';
 
   @override
   String get nextcloudAttendeeRestrictions =>
-      'Only the organizer or an authorized delegate can change meeting details. You can respond to this invitation from its details.';
+      '只有组织者或获授权的代理人才能修改会议详情。您可以在邀请详情中回复。';
 
   @override
   String get nextcloudMeetingMoveUnsupported =>
-      'This meeting cannot be moved by copying and deleting it. Use a calendar under the same scheduling identity.';
+      '无法通过复制并删除来移动此会议。请使用同一日程身份下的日历。';
 
   @override
-  String get nextcloudSchedulingStatus => 'Server scheduling status';
+  String get nextcloudSchedulingStatus => '服务器日程处理状态';
 
   @override
-  String get nextcloudImportFollowUp =>
-      'The imported resources were saved locally. Reminder refresh is pending; do not import them again.';
+  String get nextcloudImportFollowUp => '导入的资源已保存在本地。提醒刷新尚未完成；请勿重复导入。';
 
   @override
   String get nextcloudNativeImport =>
-      'Import complete event and task resources without sending invitations. Existing UIDs are skipped unless you choose new copies. Unsupported resources are reported individually.';
+      '导入完整的事件和任务资源，不发送邀请。除非选择新副本，否则会跳过已有 UID。不支持的资源将逐项报告。';
 
   @override
-  String get nextcloudImportMethod =>
-      'This file contains scheduling messages. Import stores their content and removes METHOD; it does not process an invitation or reply.';
+  String get nextcloudImportMethod => '此文件包含日程消息。导入会保存内容并移除 METHOD，不会处理邀请或回复。';
 
   @override
-  String get nextcloudImportCopies =>
-      'Import as new copies with new identities';
+  String get nextcloudImportCopies => '以新身份导入为新副本';
 
   @override
-  String get nextcloudCollectionSettings => 'Collection settings';
+  String get nextcloudCollectionSettings => '集合设置';
 
   @override
-  String get nextcloudSharing => 'Sharing';
+  String get nextcloudSharing => '共享';
 
   @override
-  String get nextcloudOwned => 'Owned';
+  String get nextcloudOwned => '自有';
 
   @override
-  String get nextcloudShared => 'Shared';
+  String get nextcloudShared => '已共享';
 
   @override
-  String get nextcloudDelegated => 'Delegated';
+  String get nextcloudDelegated => '已委派';
 
   @override
-  String get nextcloudSubscription => 'Subscription';
+  String get nextcloudSubscription => '订阅';
 
   @override
-  String get nextcloudDeleted => 'Deleted';
+  String get nextcloudDeleted => '已删除';
 
   @override
-  String get nextcloudMetadataEditable =>
-      'Calendar contents are read-only; collection properties can be changed.';
+  String get nextcloudMetadataEditable => '日历内容只读，但可以修改集合属性。';
 
   @override
-  String get nextcloudServerOrder =>
-      'Server order (separate from sidebar order)';
+  String get nextcloudServerOrder => '服务器顺序（独立于侧边栏顺序）';
 
   @override
-  String get nextcloudCalendarEnabled => 'Enabled on the server';
+  String get nextcloudCalendarEnabled => '在服务器上启用';
 
   @override
-  String get nextcloudCalendarTimezone =>
-      'Calendar timezone (VTIMEZONE document)';
+  String get nextcloudAvailability => '将此集合纳入空闲状态计算';
 
   @override
-  String get nextcloudRefreshPending =>
-      'The change was saved on Nextcloud. Refresh is pending; do not repeat the change.';
+  String get nextcloudCalendarTimezone => '日历时区（VTIMEZONE 文档）';
 
   @override
-  String get nextcloudOutcomeUnknown =>
-      'The server outcome could not be confirmed. Refresh before trying again.';
+  String get nextcloudRefreshPending => '更改已保存在 Nextcloud。刷新尚未完成；请勿重复更改。';
 
   @override
-  String get nextcloudRemoveShared => 'Remove shared calendar/list';
+  String get nextcloudOutcomeUnknown => '无法确认服务器结果。请刷新后再试。';
 
   @override
-  String get nextcloudRemoveMixed =>
-      'This collection contains events and tasks. Deleting it removes both its events and tasks.';
+  String get nextcloudRemoveShared => '移除共享日历/列表';
 
   @override
-  String get nextcloudReadAccess => 'Read-only';
+  String get nextcloudRemoveMixed => '此集合包含事件和任务。删除集合将同时删除两者。';
 
   @override
-  String get nextcloudWriteAccess => 'Read and write';
+  String get nextcloudReadAccess => '只读';
 
   @override
-  String get nextcloudRecipientSearch => 'Find people or groups';
+  String get nextcloudWriteAccess => '读写';
 
   @override
-  String get nextcloudNoRecipients => 'No matching people or groups.';
+  String get nextcloudRecipientSearch => '查找人员或群组';
 
   @override
-  String get nextcloudRevokeShare => 'Revoke access';
+  String get nextcloudNoRecipients => '没有匹配的人员或群组。';
 
   @override
-  String get nextcloudPublish => 'Publish link';
+  String get nextcloudRevokeShare => '撤销访问权限';
 
   @override
-  String get nextcloudUnpublish => 'Stop publishing';
+  String get nextcloudPublish => '发布链接';
 
   @override
-  String get nextcloudPublishWarning =>
-      'Anyone with the published link may be able to read this calendar. Publish it?';
+  String get nextcloudUnpublish => '停止发布';
 
   @override
-  String get nextcloudTrash => 'Deleted calendars and tasks';
+  String get nextcloudPublishWarning => '拥有发布链接的任何人都可能读取此日历。是否发布？';
 
   @override
-  String get nextcloudTrashEmpty => 'No deleted calendar items.';
+  String get nextcloudTrash => '已删除的日历和任务';
 
   @override
-  String get nextcloudRestore => 'Restore';
+  String get nextcloudTrashEmpty => '没有已删除的日历项目。';
 
   @override
-  String get nextcloudPermanentDelete => 'Permanently delete';
+  String get nextcloudRestore => '恢复';
+
+  @override
+  String get nextcloudPermanentDelete => '永久删除';
 
   @override
   String get nextcloudPermanentDeleteWarning =>
-      'Permanently delete this item? It cannot be restored from Nextcloud\'s calendar trash.';
+      '永久删除此项目？之后无法从 Nextcloud 日历回收站恢复。';
 
   @override
-  String get nextcloudOperationDenied =>
-      'Nextcloud did not allow this operation.';
+  String get nextcloudOperationDenied => 'Nextcloud 不允许此操作。';
 
   @override
-  String get nextcloudUnsupported =>
-      'The server does not support this operation.';
+  String get nextcloudUnsupported => '服务器不支持此操作。';
 
   @override
-  String get nextcloudPendingChanges =>
-      'Save or discard collection changes before closing.';
+  String get nextcloudPendingChanges => '关闭前请保存或放弃集合更改。';
 
   @override
-  String get nextcloudServerUnavailable =>
-      'Nextcloud could not be reached. Cached items and pending work are unchanged.';
+  String get nextcloudServerUnavailable => '无法连接 Nextcloud。缓存项目和待处理更改保持不变。';
 
   @override
-  String get mapsShow => 'Show map';
+  String get mapsShow => '显示地图';
 
   @override
-  String get mapsDirections => 'Directions in Google Maps';
+  String get mapsDirections => '在 Google Maps 中查看路线';
 
   @override
-  String get mapsPrivacy =>
-      'Online location search and maps use Geoapify. Only your search text and map area are sent.';
+  String get mapsPrivacy => '在线地点搜索和地图使用 Geoapify。只发送搜索文字和地图区域。';
 
   @override
-  String get mapsSearch => 'Search locations';
+  String get mapsSearch => '搜索地点';
 
   @override
-  String get mapsLoading => 'Searching locations…';
+  String get mapsLoading => '正在搜索地点…';
 
   @override
-  String get mapsEmpty =>
-      'No matching locations. You can keep the location as text.';
+  String get mapsEmpty => '没有匹配的地点。您可以保留文字位置。';
 
   @override
-  String get mapsOffline =>
-      'Location search is offline. Directions are still available.';
+  String get mapsOffline => '地点搜索处于离线状态。路线功能仍可用。';
 
   @override
-  String get mapsUnconfigured =>
-      'Online maps are not configured in this build. Directions are still available.';
+  String get mapsUnconfigured => '此版本未配置在线地图。路线功能仍可用。';
 
   @override
-  String get mapsRateLimited =>
-      'Location service is busy. Please wait before searching again.';
+  String get mapsRateLimited => '地点服务繁忙。请稍候再搜索。';
 
   @override
-  String get mapsServiceError =>
-      'Location search is unavailable. You can still save the location as text.';
+  String get mapsServiceError => '地点搜索不可用。您仍可将位置保存为文字。';
 
   @override
-  String get mapsTilesFailed =>
-      'Some map tiles could not be loaded. The destination and directions remain available.';
+  String get mapsTilesFailed => '部分地图图块无法加载。目的地和路线仍可用。';
 
   @override
-  String get mapsApproximate => 'Approximate area';
+  String get mapsApproximate => '大致区域';
 
   @override
-  String get mapsZoomIn => 'Zoom in';
+  String get mapsZoomIn => '放大';
 
   @override
-  String get mapsZoomOut => 'Zoom out';
+  String get mapsZoomOut => '缩小';
 
   @override
-  String get mapsRecenter => 'Recenter destination';
+  String get mapsRecenter => '重新居中目的地';
 
   @override
-  String get mapsDestination => 'Destination';
+  String get mapsDestination => '目的地';
 
   @override
-  String get mapsBrowserFailed => 'The browser could not be opened.';
+  String get mapsBrowserFailed => '无法打开浏览器。';
 
   @override
-  String get mapsRememberFailed => 'The map location could not be remembered.';
+  String get mapsRememberFailed => '无法记住地图位置。';
 
   @override
-  String get mapsSelected => 'Map location selected';
+  String get mapsSelected => '已选择地图位置';
 
   @override
-  String get mapsChoose => 'Choose a location';
+  String get mapsChoose => '选择位置';
 
   @override
   String scheduleProposedRange(String start, String end) {
@@ -5667,240 +5669,241 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   AppLocalizationsZhHant() : super('zh_Hant');
 
   @override
-  String get nextcloudSchedulingInbox => 'Scheduling inbox';
+  String get nextcloudExportCollection => '匯出集合資源';
+
+  @override
+  String nextcloudImportItems(int count) {
+    return '找到 $count 個事件／工作資源';
+  }
+
+  @override
+  String get nextcloudSchedulingInbox => '行程邀請收件匣';
 
   @override
   String get nextcloudInboxExplanation =>
-      'Nextcloud processes these messages into your calendars. Acknowledging a message removes only the inbox message, not the event.';
+      'Nextcloud 會將這些訊息處理到行事曆中。確認訊息只會移除收件匣訊息，不會刪除事件。';
 
   @override
-  String get nextcloudInboxEmpty => 'No scheduling messages.';
+  String get nextcloudInboxEmpty => '沒有行程訊息。';
 
   @override
-  String get nextcloudAcknowledge => 'Acknowledge message';
+  String get nextcloudAcknowledge => '確認訊息';
 
   @override
-  String get nextcloudAcknowledgeConfirm =>
-      'Remove this scheduling message from the inbox? The calendar event will be kept.';
+  String get nextcloudAcknowledgeConfirm => '從收件匣移除此訊息？行事曆事件將會保留。';
 
   @override
-  String get nextcloudAvailability => 'Include this collection in availability';
+  String get nextcloudGuestAvailability => '查看受邀者的空閒時間';
 
   @override
-  String get nextcloudAvailabilityUnknown => 'Availability unknown';
+  String nextcloudTrashRetention(int days) {
+    return '伺服器垃圾桶保留時間：$days 天';
+  }
 
   @override
-  String get nextcloudAvailabilityFree =>
-      'No busy periods reported for this interval';
+  String get nextcloudCancelMeeting => '取消會議';
 
   @override
-  String get nextcloudAvailabilityBusy => 'Busy periods';
+  String get nextcloudDeclineAndRemove => '拒絕並移除邀請';
 
   @override
-  String get nextcloudSchedulingPending =>
-      'Nextcloud will send meeting updates when this change synchronizes. Saving locally does not confirm delivery.';
+  String get nextcloudDeclineRemovalWarning => '同步時會傳送拒絕回覆。此操作不會取消主辦人的會議。';
+
+  @override
+  String get nextcloudAvailabilityUnknown => '空閒狀態未知';
+
+  @override
+  String get nextcloudAvailabilityFree => '此時段未回報忙碌時間';
+
+  @override
+  String get nextcloudAvailabilityBusy => '忙碌時段';
+
+  @override
+  String get nextcloudSchedulingPending => 'Nextcloud 將在同步時傳送會議更新。本機儲存不代表已送達。';
 
   @override
   String get nextcloudAttendeeRestrictions =>
-      'Only the organizer or an authorized delegate can change meeting details. You can respond to this invitation from its details.';
+      '只有主辦人或獲授權的代理人才能修改會議詳細資料。您可在邀請詳細資料中回覆。';
 
   @override
   String get nextcloudMeetingMoveUnsupported =>
-      'This meeting cannot be moved by copying and deleting it. Use a calendar under the same scheduling identity.';
+      '無法透過複製並刪除來移動此會議。請使用同一行程身分下的行事曆。';
 
   @override
-  String get nextcloudSchedulingStatus => 'Server scheduling status';
+  String get nextcloudSchedulingStatus => '伺服器行程處理狀態';
 
   @override
-  String get nextcloudImportFollowUp =>
-      'The imported resources were saved locally. Reminder refresh is pending; do not import them again.';
+  String get nextcloudImportFollowUp => '匯入的資源已儲存在本機。提醒更新尚未完成；請勿重複匯入。';
 
   @override
   String get nextcloudNativeImport =>
-      'Import complete event and task resources without sending invitations. Existing UIDs are skipped unless you choose new copies. Unsupported resources are reported individually.';
+      '匯入完整的事件和工作資源，不傳送邀請。除非選擇新副本，否則會略過現有 UID。不支援的資源將逐項回報。';
 
   @override
-  String get nextcloudImportMethod =>
-      'This file contains scheduling messages. Import stores their content and removes METHOD; it does not process an invitation or reply.';
+  String get nextcloudImportMethod => '此檔案包含行程訊息。匯入會儲存內容並移除 METHOD，不會處理邀請或回覆。';
 
   @override
-  String get nextcloudImportCopies =>
-      'Import as new copies with new identities';
+  String get nextcloudImportCopies => '以新身分匯入為新副本';
 
   @override
-  String get nextcloudCollectionSettings => 'Collection settings';
+  String get nextcloudCollectionSettings => '集合設定';
 
   @override
-  String get nextcloudSharing => 'Sharing';
+  String get nextcloudSharing => '共用';
 
   @override
-  String get nextcloudOwned => 'Owned';
+  String get nextcloudOwned => '自有';
 
   @override
-  String get nextcloudShared => 'Shared';
+  String get nextcloudShared => '已共用';
 
   @override
-  String get nextcloudDelegated => 'Delegated';
+  String get nextcloudDelegated => '已委派';
 
   @override
-  String get nextcloudSubscription => 'Subscription';
+  String get nextcloudSubscription => '訂閱';
 
   @override
-  String get nextcloudDeleted => 'Deleted';
+  String get nextcloudDeleted => '已刪除';
 
   @override
-  String get nextcloudMetadataEditable =>
-      'Calendar contents are read-only; collection properties can be changed.';
+  String get nextcloudMetadataEditable => '行事曆內容唯讀，但可修改集合屬性。';
 
   @override
-  String get nextcloudServerOrder =>
-      'Server order (separate from sidebar order)';
+  String get nextcloudServerOrder => '伺服器順序（獨立於側邊欄順序）';
 
   @override
-  String get nextcloudCalendarEnabled => 'Enabled on the server';
+  String get nextcloudCalendarEnabled => '在伺服器上啟用';
 
   @override
-  String get nextcloudCalendarTimezone =>
-      'Calendar timezone (VTIMEZONE document)';
+  String get nextcloudAvailability => '將此集合納入空閒狀態計算';
 
   @override
-  String get nextcloudRefreshPending =>
-      'The change was saved on Nextcloud. Refresh is pending; do not repeat the change.';
+  String get nextcloudCalendarTimezone => '行事曆時區（VTIMEZONE 文件）';
 
   @override
-  String get nextcloudOutcomeUnknown =>
-      'The server outcome could not be confirmed. Refresh before trying again.';
+  String get nextcloudRefreshPending => '變更已儲存在 Nextcloud。更新尚未完成；請勿重複變更。';
 
   @override
-  String get nextcloudRemoveShared => 'Remove shared calendar/list';
+  String get nextcloudOutcomeUnknown => '無法確認伺服器結果。請重新整理後再試。';
 
   @override
-  String get nextcloudRemoveMixed =>
-      'This collection contains events and tasks. Deleting it removes both its events and tasks.';
+  String get nextcloudRemoveShared => '移除共用行事曆／清單';
 
   @override
-  String get nextcloudReadAccess => 'Read-only';
+  String get nextcloudRemoveMixed => '此集合包含事件和工作。刪除集合將同時刪除兩者。';
 
   @override
-  String get nextcloudWriteAccess => 'Read and write';
+  String get nextcloudReadAccess => '唯讀';
 
   @override
-  String get nextcloudRecipientSearch => 'Find people or groups';
+  String get nextcloudWriteAccess => '讀寫';
 
   @override
-  String get nextcloudNoRecipients => 'No matching people or groups.';
+  String get nextcloudRecipientSearch => '尋找人員或群組';
 
   @override
-  String get nextcloudRevokeShare => 'Revoke access';
+  String get nextcloudNoRecipients => '沒有符合的人員或群組。';
 
   @override
-  String get nextcloudPublish => 'Publish link';
+  String get nextcloudRevokeShare => '撤銷存取權';
 
   @override
-  String get nextcloudUnpublish => 'Stop publishing';
+  String get nextcloudPublish => '發佈連結';
 
   @override
-  String get nextcloudPublishWarning =>
-      'Anyone with the published link may be able to read this calendar. Publish it?';
+  String get nextcloudUnpublish => '停止發佈';
 
   @override
-  String get nextcloudTrash => 'Deleted calendars and tasks';
+  String get nextcloudPublishWarning => '擁有發佈連結的任何人都可能讀取此行事曆。是否發佈？';
 
   @override
-  String get nextcloudTrashEmpty => 'No deleted calendar items.';
+  String get nextcloudTrash => '已刪除的行事曆和工作';
 
   @override
-  String get nextcloudRestore => 'Restore';
+  String get nextcloudTrashEmpty => '沒有已刪除的行事曆項目。';
 
   @override
-  String get nextcloudPermanentDelete => 'Permanently delete';
+  String get nextcloudRestore => '還原';
+
+  @override
+  String get nextcloudPermanentDelete => '永久刪除';
 
   @override
   String get nextcloudPermanentDeleteWarning =>
-      'Permanently delete this item? It cannot be restored from Nextcloud\'s calendar trash.';
+      '永久刪除此項目？之後無法從 Nextcloud 行事曆垃圾桶還原。';
 
   @override
-  String get nextcloudOperationDenied =>
-      'Nextcloud did not allow this operation.';
+  String get nextcloudOperationDenied => 'Nextcloud 不允許此操作。';
 
   @override
-  String get nextcloudUnsupported =>
-      'The server does not support this operation.';
+  String get nextcloudUnsupported => '伺服器不支援此操作。';
 
   @override
-  String get nextcloudPendingChanges =>
-      'Save or discard collection changes before closing.';
+  String get nextcloudPendingChanges => '關閉前請儲存或捨棄集合變更。';
 
   @override
-  String get nextcloudServerUnavailable =>
-      'Nextcloud could not be reached. Cached items and pending work are unchanged.';
+  String get nextcloudServerUnavailable => '無法連線至 Nextcloud。快取項目和待處理變更保持不變。';
 
   @override
-  String get mapsShow => 'Show map';
+  String get mapsShow => '顯示地圖';
 
   @override
-  String get mapsDirections => 'Directions in Google Maps';
+  String get mapsDirections => '在 Google Maps 中查看路線';
 
   @override
-  String get mapsPrivacy =>
-      'Online location search and maps use Geoapify. Only your search text and map area are sent.';
+  String get mapsPrivacy => '線上地點搜尋和地圖使用 Geoapify。只傳送搜尋文字和地圖區域。';
 
   @override
-  String get mapsSearch => 'Search locations';
+  String get mapsSearch => '搜尋地點';
 
   @override
-  String get mapsLoading => 'Searching locations…';
+  String get mapsLoading => '正在搜尋地點…';
 
   @override
-  String get mapsEmpty =>
-      'No matching locations. You can keep the location as text.';
+  String get mapsEmpty => '沒有符合的地點。您可以保留文字位置。';
 
   @override
-  String get mapsOffline =>
-      'Location search is offline. Directions are still available.';
+  String get mapsOffline => '地點搜尋處於離線狀態。路線功能仍可用。';
 
   @override
-  String get mapsUnconfigured =>
-      'Online maps are not configured in this build. Directions are still available.';
+  String get mapsUnconfigured => '此版本未設定線上地圖。路線功能仍可用。';
 
   @override
-  String get mapsRateLimited =>
-      'Location service is busy. Please wait before searching again.';
+  String get mapsRateLimited => '地點服務忙碌中。請稍候再搜尋。';
 
   @override
-  String get mapsServiceError =>
-      'Location search is unavailable. You can still save the location as text.';
+  String get mapsServiceError => '地點搜尋無法使用。您仍可將位置儲存為文字。';
 
   @override
-  String get mapsTilesFailed =>
-      'Some map tiles could not be loaded. The destination and directions remain available.';
+  String get mapsTilesFailed => '部分地圖圖磚無法載入。目的地和路線仍可用。';
 
   @override
-  String get mapsApproximate => 'Approximate area';
+  String get mapsApproximate => '大致區域';
 
   @override
-  String get mapsZoomIn => 'Zoom in';
+  String get mapsZoomIn => '放大地圖';
 
   @override
-  String get mapsZoomOut => 'Zoom out';
+  String get mapsZoomOut => '縮小地圖';
 
   @override
-  String get mapsRecenter => 'Recenter destination';
+  String get mapsRecenter => '重新置中目的地';
 
   @override
-  String get mapsDestination => 'Destination';
+  String get mapsDestination => '目的地';
 
   @override
-  String get mapsBrowserFailed => 'The browser could not be opened.';
+  String get mapsBrowserFailed => '無法開啟瀏覽器。';
 
   @override
-  String get mapsRememberFailed => 'The map location could not be remembered.';
+  String get mapsRememberFailed => '無法記住地圖位置。';
 
   @override
-  String get mapsSelected => 'Map location selected';
+  String get mapsSelected => '已選取地圖位置';
 
   @override
-  String get mapsChoose => 'Choose a location';
+  String get mapsChoose => '選擇位置';
 
   @override
   String scheduleProposedRange(String start, String end) {

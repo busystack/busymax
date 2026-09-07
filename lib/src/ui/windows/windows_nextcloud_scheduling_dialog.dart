@@ -101,7 +101,7 @@ class _WindowsNextcloudSchedulingDialogState
       title: Text(
         widget.draft == null
             ? l10n.nextcloudSchedulingInbox
-            : l10n.nextcloudAvailability,
+            : l10n.nextcloudGuestAvailability,
       ),
       content: SizedBox(
         width: math.max(180, math.min(560, size.width - 96)),

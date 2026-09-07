@@ -1727,8 +1727,8 @@ class _DavCollectionsCard extends StatelessWidget {
           ),
           if (collection.provider == BusyProvider.nextcloud)
             BusyMaxActionRow(
+              key: ValueKey('dav-collection-settings-${collection.id}'),
               title: l10n.nextcloudCollectionSettings,
-              subtitle: collection.name,
               leading: const Icon(Icons.settings_outlined),
               onTap: () => showLinuxNextcloudCollectionDialog(
                 context,

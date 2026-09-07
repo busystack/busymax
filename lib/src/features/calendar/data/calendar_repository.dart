@@ -2042,6 +2042,9 @@ class CalendarRepository {
         request[calendarEventOriginalStartKey] =
             existing.providerOriginalStartKey ?? _storedEventStart(existing);
         request[calendarEventOriginalEndKey] = _storedEventEnd(existing);
+        request[calendarEventTimingBaselineKey] = _storedEventTimingBaseline(
+          existing,
+        );
       }
     }
     final requestJson = jsonEncode(request);
@@ -2049,6 +2052,7 @@ class CalendarRepository {
       final predecessor = await _latestPendingEventEdit(
         accountId: draft.accountId,
         eventId: eventId,
+        seriesEvent: seriesMutation ? existing : null,
       );
       final projection = _eventPatchProjection(
         draft: draft,
@@ -2305,6 +2309,9 @@ class CalendarRepository {
       patchRequest[calendarEventOriginalStartKey] =
           existing.providerOriginalStartKey ?? _storedEventStart(existing);
       patchRequest[calendarEventOriginalEndKey] = _storedEventEnd(existing);
+      patchRequest[calendarEventTimingBaselineKey] = _storedEventTimingBaseline(
+        existing,
+      );
     }
     final moveOperationId = const Uuid().v4();
     final patchOperationId = const Uuid().v4();
@@ -3105,13 +3112,34 @@ class CalendarRepository {
   Future<PendingOp?> _latestPendingEventEdit({
     required String accountId,
     required String eventId,
+    CalendarEvent? seriesEvent,
   }) async {
+    final eventIds = {eventId};
+    if (seriesEvent != null) {
+      final rows =
+          await (_database.select(_database.calendarEvents)..where(
+                (row) =>
+                    row.accountId.equals(accountId) &
+                    row.provider.equals(seriesEvent.provider) &
+                    row.providerCalendarId.equals(
+                      seriesEvent.providerCalendarId,
+                    ) &
+                    (row.providerRecurringEventId.equals(
+                          seriesEvent.providerRecurringEventId!,
+                        ) |
+                        row.providerEventId.equals(
+                          seriesEvent.providerRecurringEventId!,
+                        )),
+              ))
+              .get();
+      eventIds.addAll(rows.map((row) => row.id));
+    }
     final query = _database.select(_database.pendingOps)
       ..where(
         (row) =>
             row.accountId.equals(accountId) &
             row.entityType.equals('event') &
-            row.eventId.equals(eventId) &
+            row.eventId.isIn(eventIds) &
             (row.operationType.equals('event.patch') |
                 (row.operationType.isNull() & row.operation.equals('patch'))),
       )
@@ -4435,8 +4463,8 @@ void _requireDavSchedulingUnchanged(
       draft.createConference ||
       (creating && draft.conference != null)) {
     throw UnsupportedError(
-      'DAV attendee and scheduling mutations are disabled until scheduling '
-      'inbox/outbox interoperability is available.',
+      'This DAV calendar does not authorize the requested attendee changes '
+      'or support creating conferencing data.',
     );
   }
 }
@@ -5235,10 +5263,17 @@ String? _storedEventEnd(CalendarEvent event) =>
     event.allDay ? event.endDate : event.endDateTime;
 
 DateTime? _storedEventStartDateTime(CalendarEvent event) =>
-    providerDateTimeAsWallTime(_storedEventStart(event), event.startTimeZone);
+    providerDateTimeAsCivilTime(_storedEventStart(event), event.startTimeZone);
 
 DateTime? _storedEventEndDateTime(CalendarEvent event) =>
-    providerDateTimeAsWallTime(_storedEventEnd(event), event.endTimeZone);
+    providerDateTimeAsCivilTime(_storedEventEnd(event), event.endTimeZone);
+
+Map<String, Object?> _storedEventTimingBaseline(CalendarEvent event) => {
+  'start': _storedEventStart(event),
+  'end': _storedEventEnd(event),
+  'startTimeZone': event.startTimeZone,
+  'endTimeZone': event.endTimeZone,
+};
 
 bool _seriesRowInScope(
   CalendarEvent row,
@@ -5288,6 +5323,7 @@ bool _eventRequestHasMutation(Map<String, Object?> request) {
     calendarEventTargetProviderIdKey,
     calendarEventOriginalStartKey,
     calendarEventOriginalEndKey,
+    calendarEventTimingBaselineKey,
     calendarEventDestinationCalendarIdKey,
     calendarEventDestinationSourceIdKey,
   };
