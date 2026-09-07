@@ -57,20 +57,22 @@ void main() {
       contains('build/windows/test-results/windows-environment.json'),
     );
 
-    for (final name in [
-      'Run pinned Pester contract tests',
-      'Restore dependencies and generate sources',
-      'Check formatting, analysis, and platform boundaries',
-      'Run Dart and Flutter tests',
-      'Compile Windows x64 release',
-      'Run native C++ tests',
-      'Pack and inspect exact MSIX',
-    ]) {
-      expect(workflow, contains('- name: $name'));
+    final stages = {
+      'Run pinned Pester contract tests': 'PesterTests',
+      'Restore dependencies and generate sources': 'SourceGeneration',
+      'Check formatting, analysis, and platform boundaries': 'StaticAnalysis',
+      'Run Dart and Flutter tests': 'FlutterTests',
+      'Compile Windows x64 release': 'WindowsCompile',
+      'Run native C++ tests': 'NativeTests',
+      'Pack and inspect exact MSIX': 'Package',
+    };
+    for (final entry in stages.entries) {
+      final step = _stepBlock(workflow, entry.key);
+      expect(step, contains('./tool/windows/build_release.ps1'));
+      expect(step, contains('-Ci -Stage ${entry.value}'));
     }
 
     final package = _stepBlock(workflow, 'Pack and inspect exact MSIX');
-    expect(package, contains('-Ci -Stage Package'));
     expect(package, isNot(contains('github.event_name')));
   });
 

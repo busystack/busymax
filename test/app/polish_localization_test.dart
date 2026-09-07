@@ -28,6 +28,7 @@ void main() {
     expect(l10n.today, 'Dzisiaj');
     expect(l10n.viewAgenda, 'Plan dnia');
     expect(l10n.currentLocale, 'Język aplikacji');
+    expect(l10n.notificationDismissAction, 'Zamknij');
   });
 
   test('Polish regional preferences resolve without an extra option', () {
@@ -172,6 +173,17 @@ void main() {
                   recurrenceRuleSummary(
                     context,
                     _rule(
+                      RecurrenceFrequency.yearly,
+                      days: ['MO'],
+                      position: 1,
+                      months: [9],
+                    ),
+                  ),
+                ),
+                Text(
+                  recurrenceRuleSummary(
+                    context,
+                    _rule(
                       RecurrenceFrequency.monthly,
                       days: ['SU'],
                       position: -1,
@@ -185,11 +197,9 @@ void main() {
       );
       await tester.pumpAndSettle();
       expect(find.text('Co tydzień we wtorek i w środę'), findsOneWidget);
-      expect(find.text('Co miesiąc 1. środa · 2 razy'), findsOneWidget);
-      expect(
-        find.text('Co miesiąc niedziela (ostatnie wystąpienie)'),
-        findsOneWidget,
-      );
+      expect(find.text('Co miesiąc w pierwszą środę · 2 razy'), findsOneWidget);
+      expect(find.text('Co miesiąc w ostatnią niedzielę'), findsOneWidget);
+      expect(find.text('Co rok, w pierwszy poniedziałek wrz'), findsOneWidget);
       expect(tester.takeException(), isNull);
     });
   }
@@ -222,12 +232,13 @@ RecurrenceRule _rule(
   required List<String> days,
   int? position,
   int? count,
+  List<int> months = const [],
 }) {
   return RecurrenceRule(
     frequency: frequency,
     interval: 1,
     byDay: days,
-    byMonth: const [],
+    byMonth: months,
     byMonthDay: const [],
     bySetPosition: position,
     count: count,

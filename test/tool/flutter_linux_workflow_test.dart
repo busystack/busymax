@@ -73,6 +73,26 @@ void main() {
       expect(upload, contains('if-no-files-found: error'));
     },
   );
+
+  test('Linux CI validates the strict Snap on pull requests', () {
+    final workflow = File(
+      '.github/workflows/flutter-linux.yml',
+    ).readAsStringSync();
+
+    for (final name in [
+      'Build strict Snap from the release bundle',
+      'Install strict Snap',
+      'Verify installed strict Snap',
+    ]) {
+      final step = _stepBlock(workflow, name);
+      expect(step, contains('- name: $name'));
+      expect(
+        step,
+        isNot(contains('\n        if:')),
+        reason: '$name must run for pull requests.',
+      );
+    }
+  });
 }
 
 String _stepBlock(String workflow, String name) {

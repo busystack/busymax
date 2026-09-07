@@ -796,7 +796,7 @@ void main() {
         'Co rok, 1 i 15 wrz',
         'Co rok, 15 wrz i paź',
         'Co rok, 1 i 15 wrz i paź',
-        'Co rok, 1. poniedziałek wrz',
+        'Co rok, w pierwszy poniedziałek wrz',
       ],
       'pt-PT': [
         'Anualmente no dia 15 de set.',

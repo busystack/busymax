@@ -872,7 +872,7 @@
   "repeatAnyDay": "Dzień",
   "repeatWeekday": "Dzień roboczy",
   "repeatWeekendDay": "Dzień weekendu",
-  "repeatOrdinalDaySummary": "{dayKey, select, MO{poniedziałek} TU{wtorek} WE{środa} TH{czwartek} FR{piątek} SA{sobota} SU{niedziela} day{dzień} weekday{dzień roboczy} weekend{dzień weekendu} other{{day}}}",
+  "repeatOrdinalDaySummary": "{dayKey, select, firstMO{w pierwszy poniedziałek} firstTU{w pierwszy wtorek} firstWE{w pierwszą środę} firstTH{w pierwszy czwartek} firstFR{w pierwszy piątek} firstSA{w pierwszą sobotę} firstSU{w pierwszą niedzielę} firstday{w pierwszy dzień} firstweekday{w pierwszy dzień roboczy} firstweekend{w pierwszy dzień weekendu} secondMO{w drugi poniedziałek} secondTU{w drugi wtorek} secondWE{w drugą środę} secondTH{w drugi czwartek} secondFR{w drugi piątek} secondSA{w drugą sobotę} secondSU{w drugą niedzielę} secondday{w drugi dzień} secondweekday{w drugi dzień roboczy} secondweekend{w drugi dzień weekendu} thirdMO{w trzeci poniedziałek} thirdTU{w trzeci wtorek} thirdWE{w trzecią środę} thirdTH{w trzeci czwartek} thirdFR{w trzeci piątek} thirdSA{w trzecią sobotę} thirdSU{w trzecią niedzielę} thirdday{w trzeci dzień} thirdweekday{w trzeci dzień roboczy} thirdweekend{w trzeci dzień weekendu} fourthMO{w czwarty poniedziałek} fourthTU{w czwarty wtorek} fourthWE{w czwartą środę} fourthTH{w czwarty czwartek} fourthFR{w czwarty piątek} fourthSA{w czwartą sobotę} fourthSU{w czwartą niedzielę} fourthday{w czwarty dzień} fourthweekday{w czwarty dzień roboczy} fourthweekend{w czwarty dzień weekendu} fifthMO{w piąty poniedziałek} fifthTU{w piąty wtorek} fifthWE{w piątą środę} fifthTH{w piąty czwartek} fifthFR{w piąty piątek} fifthSA{w piątą sobotę} fifthSU{w piątą niedzielę} fifthday{w piąty dzień} fifthweekday{w piąty dzień roboczy} fifthweekend{w piąty dzień weekendu} secondToLastMO{w przedostatni poniedziałek} secondToLastTU{w przedostatni wtorek} secondToLastWE{w przedostatnią środę} secondToLastTH{w przedostatni czwartek} secondToLastFR{w przedostatni piątek} secondToLastSA{w przedostatnią sobotę} secondToLastSU{w przedostatnią niedzielę} secondToLastday{w przedostatni dzień} secondToLastweekday{w przedostatni dzień roboczy} secondToLastweekend{w przedostatni dzień weekendu} lastMO{w ostatni poniedziałek} lastTU{w ostatni wtorek} lastWE{w ostatnią środę} lastTH{w ostatni czwartek} lastFR{w ostatni piątek} lastSA{w ostatnią sobotę} lastSU{w ostatnią niedzielę} lastday{w ostatni dzień} lastweekday{w ostatni dzień roboczy} lastweekend{w ostatni dzień weekendu} other{w {day}}}",
   "@repeatOrdinalDaySummary": {
     "description": "Sentence-form day label used inside ordinal recurrence summaries. {dayKey} is MO through SU, day, weekday, or weekend; {day} is the locale-formatted weekday fallback.",
     "placeholders": {
@@ -938,7 +938,7 @@
       }
     }
   },
-  "repeatOnOrdinalSummary": "{position, select, first{1. {days}} second{2. {days}} third{3. {days}} fourth{4. {days}} fifth{5. {days}} secondToLast{{days} (przedostatnie wystąpienie)} last{{days} (ostatnie wystąpienie)} other{{days}}}",
+  "repeatOnOrdinalSummary": "{position, select, first{{days}} second{{days}} third{{days}} fourth{{days}} fifth{{days}} secondToLast{{days}} last{{days}} other{{days}}}",
   "@repeatOnOrdinalSummary": {
     "description": "Complete sentence fragment for ordinal recurrence. {position} is one of first, second, third, fourth, fifth, secondToLast, or last; {days} is a localized weekday.",
     "placeholders": {
@@ -1189,7 +1189,7 @@
   "taskReminderNotificationBody": "Zbliża się termin wykonania zadania.",
   "notificationOpenAction": "Otwórz",
   "notificationSnoozeAction": "Przypomnij za 10 minut",
-  "notificationDismissAction": "Odrzuć",
+  "notificationDismissAction": "Zamknij",
   "@notificationDismissAction": {
     "description": "Non-destructive action that closes or dismisses a desktop notification. Translate distinctly from reject, discard, or cancel."
   },
@@ -1704,7 +1704,7 @@
       }
     }
   },
-  "repeatYearlyOnOrdinalSummary": "{frequency}, {position, select, first{1. {days} {month}} second{2. {days} {month}} third{3. {days} {month}} fourth{4. {days} {month}} fifth{5. {days} {month}} secondToLast{{days} (przedostatnie wystąpienie w miesiącu: {month})} last{{days} (ostatnie wystąpienie w miesiącu: {month})} other{{days} {month}}}",
+  "repeatYearlyOnOrdinalSummary": "{frequency}, {position, select, first{{days} {month}} second{{days} {month}} third{{days} {month}} fourth{{days} {month}} fifth{{days} {month}} secondToLast{{days} {month}} last{{days} {month}} other{{days} {month}}}",
   "@repeatYearlyOnOrdinalSummary": {
     "description": "Complete yearly ordinal recurrence summary; {position} selects the ordinal wording and placeholders may be reordered by locale.",
     "placeholders": {
