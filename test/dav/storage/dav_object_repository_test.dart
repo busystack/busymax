@@ -568,6 +568,108 @@ void main() {
   );
 
   test(
+    'previous projection version rebuilds a cached overlap from pending raw data',
+    () async {
+      final baseline = _embeddedAutumnDurationEvent;
+      final prepared = DavPreparedObject.parse(
+        hrefKey: _eventHref,
+        requestUri: Uri.parse('https://cloud.example.test$_eventHref'),
+        etag: '"overlap"',
+        contentType: 'text/calendar',
+        rawIcsBody: baseline,
+      );
+      await repository.commit(
+        _commit(
+          objects: [prepared],
+          membership: {_eventHref},
+          cursor: 'token-1',
+        ),
+      );
+      final object = await database.select(database.davObjects).getSingle();
+      final patch = DavMutationPatch(
+        target: const IcalComponentKey(
+          componentType: 'VEVENT',
+          uid: 'cached-overlap@example.test',
+        ),
+        scope: DavMutationScope.object,
+        operations: [DavPatchOperation.setText('SUMMARY', 'Edited overlap')],
+      );
+      final queue = DavPendingOperationQueue(
+        database: database,
+        idFactory: () => 'pending-overlap-edit',
+        nowUtc: () => _now,
+      );
+      await queue.enqueueUpdate(
+        accountId: 'account',
+        collectionId: 'collection',
+        objectId: object.id,
+        patch: patch,
+      );
+      await repository.projectLocalMutationCandidate(
+        accountId: 'account',
+        collectionId: 'collection',
+        provider: BusyProvider.nextcloud,
+        objectId: object.id,
+        candidateRawIcs: patch.applyTo(baseline, nowUtc: _now),
+        projectedAtUtc: _now,
+      );
+      final operationBefore = await database
+          .select(database.pendingOps)
+          .getSingle();
+      final cachedEvent = await database
+          .select(database.calendarEvents)
+          .getSingle();
+      final staleRaw = Map<String, Object?>.from(
+        jsonDecode(cachedEvent.rawJson!) as Map,
+      )..['endUtc'] = '2026-11-01T08:30:00.000Z';
+      await (database.update(
+        database.calendarEvents,
+      )..where((row) => row.id.equals(cachedEvent.id))).write(
+        CalendarEventsCompanion(
+          projectionVersion: Value(davProjectionVersion - 1),
+          rawJson: Value(jsonEncode(staleRaw)),
+        ),
+      );
+      final cursor = await database.select(database.syncCursors).getSingle();
+      final staleState = Map<String, Object?>.from(
+        jsonDecode(cursor.stateJson!) as Map,
+      )..['projectionVersion'] = davProjectionVersion - 1;
+      await (database.update(
+        database.syncCursors,
+      )..where((row) => row.id.equals(cursor.id))).write(
+        SyncCursorsCompanion(stateJson: Value(jsonEncode(staleState))),
+      );
+
+      await DavProjectionCoverageService(
+        database: database,
+        objectRepository: repository,
+        nowUtc: () => _now,
+      ).ensureProjectionCoverage(
+        rangeStartUtc: DateTime.utc(2026, 11, 1),
+        rangeEndUtc: DateTime.utc(2026, 11, 2),
+      );
+
+      final corrected = await database
+          .select(database.calendarEvents)
+          .getSingle();
+      final correctedRaw = jsonDecode(corrected.rawJson!) as Map;
+      expect(correctedRaw['startUtc'], '2026-11-01T08:30:00.000Z');
+      expect(correctedRaw['endUtc'], '2026-11-01T09:30:00.000Z');
+      expect(corrected.projectionVersion, davProjectionVersion);
+      expect(corrected.syncStatus, 'pending');
+      expect(
+        await database.select(database.pendingOps).getSingle(),
+        operationBefore,
+      );
+      final objectAfter = await database
+          .select(database.davObjects)
+          .getSingle();
+      expect(objectAfter.rawIcsBody, baseline);
+      expect(objectAfter.etag, '"overlap"');
+    },
+  );
+
+  test(
     'failed reprojection does not mark an uncovered range as covered',
     () async {
       final limitedRepository = DavObjectRepository(
@@ -576,22 +678,38 @@ void main() {
           limits: const IcalRecurrenceLimits(maximumOccurrences: 5),
         ),
       );
+      const safeHref =
+          '/remote.php/dav/calendars/alex/work/safe-appointment.ics';
+      const excessiveHref =
+          '/remote.php/dav/calendars/alex/work/future-excessive.ics';
+      final safe = DavPreparedObject.parse(
+        hrefKey: safeHref,
+        requestUri: Uri.parse('https://cloud.example.test$safeHref'),
+        etag: '"safe"',
+        contentType: 'text/calendar',
+        rawIcsBody: _simpleEvent('Safe appointment'),
+      );
       final excessive = DavPreparedObject.parse(
-        hrefKey: _eventHref,
-        requestUri: Uri.parse('https://cloud.example.test$_eventHref'),
+        hrefKey: excessiveHref,
+        requestUri: Uri.parse('https://cloud.example.test$excessiveHref'),
         etag: '"excessive"',
         contentType: 'text/calendar',
-        rawIcsBody: _eventWithExcessiveOccurrences,
+        rawIcsBody: _futureExcessiveOccurrences,
       );
       await limitedRepository.commit(
         _commit(
-          objects: [excessive],
-          membership: {_eventHref},
+          objects: [safe, excessive],
+          membership: {safeHref, excessiveHref},
           cursor: 'token-1',
         ),
       );
       final stateBefore =
           (await database.select(database.syncCursors).getSingle()).stateJson;
+      expect(stateBefore, isNot(equals(null)));
+      expect(
+        (await database.select(database.calendarEvents).get()).single.title,
+        'Safe appointment',
+      );
 
       await limitedRepository.reprojectCollectionFromStored(
         accountId: 'account',
@@ -605,13 +723,34 @@ void main() {
       final cursorAfter = await database
           .select(database.syncCursors)
           .getSingle();
-      expect(cursorAfter.stateJson, stateBefore);
+      expect(cursorAfter.stateJson, equals(null));
       expect(cursorAfter.cursorValue, 'token-1');
+      expect(await database.select(database.calendarEvents).get(), isEmpty);
       expect(
-        (await database.select(database.davObjects).getSingle())
+        (await database.select(database.davObjects).get())
+            .singleWhere((object) => object.hrefKey == excessiveHref)
             .lastParseStatus,
         'projection_failed',
       );
+
+      await DavProjectionCoverageService(
+        database: database,
+        objectRepository: limitedRepository,
+        nowUtc: () => _now,
+      ).ensureProjectionCoverage(
+        rangeStartUtc: DateTime.utc(2026, 8),
+        rangeEndUtc: DateTime.utc(2026, 9),
+      );
+
+      expect(
+        (await database.select(database.calendarEvents).get()).single.title,
+        'Safe appointment',
+      );
+      final restoredCursor = await database
+          .select(database.syncCursors)
+          .getSingle();
+      expect(restoredCursor.cursorValue, 'token-1');
+      expect(restoredCursor.stateJson, isNot(equals(null)));
     },
   );
 
@@ -803,6 +942,46 @@ DTSTART:20260808T090000Z\r
 DTEND:20260808T100000Z\r
 RRULE:FREQ=DAILY\r
 SUMMARY:Excessive\r
+END:VEVENT\r
+END:VCALENDAR\r
+''';
+
+const _futureExcessiveOccurrences = '''BEGIN:VCALENDAR\r
+VERSION:2.0\r
+PRODID:-//BusyMax Test//EN\r
+BEGIN:VEVENT\r
+UID:future-excessive@example.test\r
+DTSTART:20300101T090000Z\r
+DTEND:20300101T100000Z\r
+RRULE:FREQ=DAILY\r
+SUMMARY:Future excessive\r
+END:VEVENT\r
+END:VCALENDAR\r
+''';
+
+const _embeddedAutumnDurationEvent = '''BEGIN:VCALENDAR\r
+VERSION:2.0\r
+PRODID:-//BusyMax Test//EN\r
+BEGIN:VTIMEZONE\r
+TZID:Custom/Pacific-Overlap\r
+BEGIN:STANDARD\r
+DTSTART:19701101T020000\r
+RRULE:FREQ=YEARLY;BYMONTH=11;BYDAY=1SU\r
+TZOFFSETFROM:-0700\r
+TZOFFSETTO:-0800\r
+END:STANDARD\r
+BEGIN:DAYLIGHT\r
+DTSTART:19700308T020000\r
+RRULE:FREQ=YEARLY;BYMONTH=3;BYDAY=2SU\r
+TZOFFSETFROM:-0800\r
+TZOFFSETTO:-0700\r
+END:DAYLIGHT\r
+END:VTIMEZONE\r
+BEGIN:VEVENT\r
+UID:cached-overlap@example.test\r
+DTSTART;TZID=Custom/Pacific-Overlap:20261101T013000\r
+DURATION:PT1H\r
+SUMMARY:Cached overlap\r
 END:VEVENT\r
 END:VCALENDAR\r
 ''';

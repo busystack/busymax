@@ -18,7 +18,7 @@ import '../nextcloud/nextcloud_scheduling_policy.dart';
 import 'dav_collection_capabilities.dart';
 
 const davRawObjectParserVersion = 1;
-const davProjectionVersion = 4;
+const davProjectionVersion = 5;
 const davSyncStateSchemaVersion = 1;
 
 Map<String, Object?> nextcloudParticipantProjection(
@@ -324,21 +324,26 @@ final class DavObjectRepository {
         affected.add(object.id);
       }
       await _resolveProjectedTaskParents(collectionId);
-      if (cursorState != null && completelyCovered) {
+      if (cursorState != null) {
         await (_database.update(
           _database.syncCursors,
         )..where((row) => row.id.equals(cursorState.id))).write(
           SyncCursorsCompanion(
+            // Successful objects now contain rows for the requested window.
+            // If any sibling failed, retaining the old claim would describe
+            // rows that were just replaced and could suppress a later repair.
             stateJson: Value(
-              jsonEncode({
-                'projectionRangeStartUtc': projectionRangeStartUtc
-                    .toUtc()
-                    .toIso8601String(),
-                'projectionRangeEndUtc': projectionRangeEndUtc
-                    .toUtc()
-                    .toIso8601String(),
-                'projectionVersion': davProjectionVersion,
-              }),
+              completelyCovered
+                  ? jsonEncode({
+                      'projectionRangeStartUtc': projectionRangeStartUtc
+                          .toUtc()
+                          .toIso8601String(),
+                      'projectionRangeEndUtc': projectionRangeEndUtc
+                          .toUtc()
+                          .toIso8601String(),
+                      'projectionVersion': davProjectionVersion,
+                    })
+                  : null,
             ),
           ),
         );
@@ -741,16 +746,24 @@ final class DavObjectRepository {
                 ))
                 .get();
         for (final object in live) {
-          if (changedObjectIds.contains(object.id) ||
-              await _hasActivePendingOperation(object.id)) {
-            continue;
-          }
-          final semantic = IcalSemanticDocument.parse(object.rawIcsBody);
+          final pending = await _effectivePendingOperation(object.id);
+          if (changedObjectIds.contains(object.id) && pending == null) continue;
+          // A whole-resource delete is absent throughout the effective local
+          // calendar, so it is already covered without occurrence rows.
+          if (pending?.operationType == 'dav.delete') continue;
+          final semantic = pending == null
+              ? IcalSemanticDocument.parse(object.rawIcsBody)
+              : IcalSemanticDocument.parse(
+                  _pendingCandidateRaw(
+                    pending,
+                    nowUtc: commit.completedAtUtc.toUtc(),
+                  ),
+                );
           final componentIds = await _replaceComponentIndex(
             object.id,
             semantic,
           );
-          await _replaceProjectionsSafely(
+          final projected = await _replaceProjectionsSafely(
             commit: commit,
             collection: collection,
             objectId: object.id,
@@ -758,6 +771,12 @@ final class DavObjectRepository {
             semantic: semantic,
             componentIds: componentIds,
           );
+          if (projected && pending != null) {
+            await _restorePendingProjectionState(
+              pending,
+              commit.completedAtUtc.toUtc(),
+            );
+          }
           changedObjectIds.add(object.id);
         }
       }
@@ -766,6 +785,16 @@ final class DavObjectRepository {
 
       final completed = commit.completedAtUtc.toUtc();
       final cursorId = 'dav-sync-${commit.collectionId}';
+      final failedProjection =
+          await (_database.select(_database.davObjects)
+                ..where(
+                  (row) =>
+                      row.collectionId.equals(commit.collectionId) &
+                      row.serverDeleted.equals(false) &
+                      row.lastParseStatus.equals('projection_failed'),
+                )
+                ..limit(1))
+              .getSingleOrNull();
       await _database
           .into(_database.syncCursors)
           .insertOnConflictUpdate(
@@ -784,16 +813,21 @@ final class DavObjectRepository {
               lastCompleteSyncAt: Value(completed.millisecondsSinceEpoch),
               lastFailureCode: const Value(null),
               stateSchemaVersion: const Value(davSyncStateSchemaVersion),
+              // The opaque transport token can advance independently, but a
+              // partial projection must not advertise a complete date range.
               stateJson: Value(
-                jsonEncode({
-                  'projectionRangeStartUtc': commit.projectionRangeStartUtc
-                      .toUtc()
-                      .toIso8601String(),
-                  'projectionRangeEndUtc': commit.projectionRangeEndUtc
-                      .toUtc()
-                      .toIso8601String(),
-                  'projectionVersion': davProjectionVersion,
-                }),
+                failedProjection == null
+                    ? jsonEncode({
+                        'projectionRangeStartUtc': commit
+                            .projectionRangeStartUtc
+                            .toUtc()
+                            .toIso8601String(),
+                        'projectionRangeEndUtc': commit.projectionRangeEndUtc
+                            .toUtc()
+                            .toIso8601String(),
+                        'projectionVersion': davProjectionVersion,
+                      })
+                    : null,
               ),
             ),
           );
