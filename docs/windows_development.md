@@ -117,7 +117,7 @@ repository's pinned Flutter 3.44.4 toolchain:
 | `dart format --output=none --set-exit-if-changed .` | Passed; 522 files checked, zero changes required. |
 | `flutter analyze` | Passed; no issues found. |
 | `dart run tool/check_platform_boundaries.dart` | Passed. |
-| `flutter test --reporter compact` | Passed; 1,896 tests passed, 10 skipped, zero failed. |
+| `flutter test --reporter compact` | Passed; 1,897 tests passed, 10 skipped, zero failed. |
 | `flutter build linux --release -t lib/main_linux.dart` | Passed; produced `build/linux/x64/release/bundle/busymax`. |
 
 These results establish Linux and platform-neutral source health only. They do

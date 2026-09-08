@@ -498,7 +498,7 @@ class CalendarEvents extends Table {
   Set<Column<Object>> get primaryKey => {id};
 }
 
-/// Local-only selected geocoding results, not synchronized provider content.
+/// Locally remembered coordinates associated with exact saved item snapshots.
 class LocationResolutions extends Table {
   TextColumn get kind => text()();
   TextColumn get accountId =>

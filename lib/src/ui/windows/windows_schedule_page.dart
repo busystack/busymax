@@ -20,9 +20,7 @@ import '../../features/task_lists/data/task_lists_repository.dart';
 import '../../schedule/schedule_filters.dart';
 import '../../schedule/schedule_item.dart';
 import '../../features/maps/application/external_location_launcher.dart';
-import '../../features/maps/application/location_destination_resolver.dart';
-import '../../features/maps/domain/geographic_point.dart';
-import '../../features/maps/domain/location_result.dart';
+import '../../features/schedule/application/saved_schedule_location.dart';
 import '../../schedule/schedule_event_rescheduling.dart';
 import '../../features/calendar/domain/event_timing_policy.dart';
 import '../../features/tasks/data/tasks_repository.dart';
@@ -42,7 +40,9 @@ import 'windows_task_details_dialog.dart';
 import 'windows_task_editor_dialog.dart';
 
 class WindowsSchedulePage extends ConsumerStatefulWidget {
-  const WindowsSchedulePage({super.key});
+  const WindowsSchedulePage({super.key, this.externalLocationLauncher});
+
+  final ExternalLocationLauncher? externalLocationLauncher;
 
   @override
   ConsumerState<WindowsSchedulePage> createState() =>
@@ -842,7 +842,12 @@ class _WindowsSchedulePageState extends ConsumerState<WindowsSchedulePage> {
     );
   }
 
-  Future<void> _showItemDetails(ScheduleItem item) {
+  Future<void> _showItemDetails(ScheduleItem item) async {
+    final locationDestination = await resolveSavedScheduleLocation(
+      item: item,
+      repository: ref.read(locationResolutionRepositoryProvider),
+    );
+    if (!mounted) return;
     final l10n = AppLocalizations.of(context);
     final locale = Localizations.localeOf(context).toLanguageTag();
     final time = _itemDateLabel(item, locale);
@@ -865,9 +870,9 @@ class _WindowsSchedulePageState extends ConsumerState<WindowsSchedulePage> {
                   if (item case TaskScheduleItem(:final notes?)) notes,
                 ].where((value) => value.trim().isNotEmpty).join('\n'),
               ),
-              if (_locationActionsAvailable(item)) ...[
+              if (locationDestination != null) ...[
                 const SizedBox(height: 12),
-                _buildLocationRow(dialogContext, item),
+                _buildLocationRow(dialogContext, item, locationDestination),
               ] else if (item case CalendarScheduleItem(:final location?)) ...[
                 if (location.trim().isNotEmpty) ...[
                   const SizedBox(height: 12),
@@ -968,20 +973,23 @@ class _WindowsSchedulePageState extends ConsumerState<WindowsSchedulePage> {
     );
   }
 
-  Widget _buildLocationRow(BuildContext dialogContext, ScheduleItem item) {
-    final location = _locationText(item);
-    final point = _locationPoint(item);
-    final displayedLocation = location.trim().isNotEmpty
-        ? location
-        : point?.directionsValue ?? '';
+  Widget _buildLocationRow(
+    BuildContext dialogContext,
+    ScheduleItem item,
+    ExternalLocationDestination destination,
+  ) {
+    final displayedLocation = savedScheduleLocationDisplayText(
+      item,
+      destination,
+    );
     final action = Button(
       key: const ValueKey('windows-saved-location-open'),
       onPressed: () {
         Navigator.pop(dialogContext);
-        unawaited(_openSavedLocation(item));
+        unawaited(_openSavedLocation(destination));
       },
       child: Text(
-        completeHttpLocationUri(location) != null
+        destination.kind == ExternalLocationDestinationKind.link
             ? AppLocalizations.of(dialogContext).openLink
             : AppLocalizations.of(dialogContext).mapsShow,
       ),
@@ -1007,21 +1015,16 @@ class _WindowsSchedulePageState extends ConsumerState<WindowsSchedulePage> {
     );
   }
 
-  Future<void> _openSavedLocation(ScheduleItem item) async {
+  Future<void> _openSavedLocation(
+    ExternalLocationDestination destination,
+  ) async {
     try {
-      final identity = _locationIdentity(item);
-      final location = _locationText(item);
-      final destination =
-          await LocationDestinationResolver(
-            ref.read(locationResolutionRepositoryProvider),
-          ).resolveSaved(
-            location: location,
-            nativePoint: _locationPoint(item),
-            identity: identity,
+      final launcher =
+          widget.externalLocationLauncher ??
+          ExternalLocationLauncher(
+            platform: () => ExternalLocationPlatform.windows,
           );
-      final result = await ExternalLocationLauncher(
-        platform: () => ExternalLocationPlatform.windows,
-      ).open(destination);
+      final result = await launcher.open(destination);
       if (result == ExternalLocationLaunchResult.opened) return;
     } on Object {
       // The external handoff is best-effort and never affects saved data.
@@ -1039,34 +1042,6 @@ class _WindowsSchedulePageState extends ConsumerState<WindowsSchedulePage> {
         ),
       );
     }
-  }
-
-  LocationItemIdentity _locationIdentity(ScheduleItem item) =>
-      LocationItemIdentity(
-        kind: item is CalendarScheduleItem
-            ? LocationItemKind.event
-            : LocationItemKind.task,
-        accountId: item.accountId,
-        sourceId: item.sourceId,
-        itemId: item.id,
-      );
-
-  String _locationText(ScheduleItem item) => switch (item) {
-    CalendarScheduleItem(:final location) => location ?? '',
-    TaskScheduleItem(:final location) => location ?? '',
-  };
-
-  GeographicPoint? _locationPoint(ScheduleItem item) => switch (item) {
-    CalendarScheduleItem(:final locationPoint) => locationPoint,
-    TaskScheduleItem(:final locationPoint) => locationPoint,
-  };
-
-  bool _locationActionsAvailable(ScheduleItem item) {
-    final supported =
-        item is CalendarScheduleItem ||
-        (item is TaskScheduleItem && item.provider == BusyProvider.nextcloud);
-    return supported &&
-        (_locationText(item).trim().isNotEmpty || _locationPoint(item) != null);
   }
 
   Future<void> _edit(ScheduleItem item) async {

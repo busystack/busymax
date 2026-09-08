@@ -48,9 +48,7 @@ import '../../tasks/domain/task_checklist_item.dart';
 import '../../tasks/presentation/new_task_dialog.dart';
 import '../../tasks/presentation/task_details_pane.dart';
 import '../../maps/application/external_location_launcher.dart';
-import '../../maps/application/location_destination_resolver.dart';
-import '../../maps/domain/geographic_point.dart';
-import '../../maps/domain/location_result.dart';
+import '../application/saved_schedule_location.dart';
 import 'schedule_agenda_view.dart';
 import 'schedule_anchored_popover.dart';
 import 'schedule_create_menu.dart';
@@ -153,12 +151,14 @@ class ScheduleWorkspace extends ConsumerStatefulWidget {
     this.initialTaskAccountId,
     this.initialTaskListId,
     this.initialTaskId,
+    this.externalLocationLauncher,
   });
 
   final ScheduleScope initialScope;
   final String? initialTaskAccountId;
   final String? initialTaskListId;
   final String? initialTaskId;
+  final ExternalLocationLauncher? externalLocationLauncher;
 
   @override
   ConsumerState<ScheduleWorkspace> createState() => _ScheduleWorkspaceState();
@@ -1541,10 +1541,15 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
     List<CalendarSourceEntity> sources, {
     Offset? globalPosition,
   }) async {
+    final locationDestination = resolveSavedScheduleLocation(
+      item: item,
+      repository: ref.read(locationResolutionRepositoryProvider),
+    );
     final action = await showScheduleItemDetailsPopover(
       context: anchorContext,
       anchorContext: anchorContext,
       item: item,
+      locationDestinationFuture: locationDestination,
       anchorPoint: globalPosition,
     );
     if (!mounted || action == null) {
@@ -1581,25 +1586,20 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
           await _respondToInvitation(item, CalendarInvitationResponse.decline);
         }
       case ScheduleItemDetailsAction.openLocation:
-        await _openSavedLocation(item);
+        await _openSavedLocation(await locationDestination);
     }
   }
 
-  Future<void> _openSavedLocation(ScheduleItem item) async {
+  Future<void> _openSavedLocation(
+    ExternalLocationDestination? destination,
+  ) async {
     try {
-      final identity = _locationIdentity(item);
-      final location = _locationText(item);
-      final destination =
-          await LocationDestinationResolver(
-            ref.read(locationResolutionRepositoryProvider),
-          ).resolveSaved(
-            location: location,
-            nativePoint: _locationPoint(item),
-            identity: identity,
+      final launcher =
+          widget.externalLocationLauncher ??
+          ExternalLocationLauncher(
+            platform: () => ExternalLocationPlatform.linux,
           );
-      final result = await ExternalLocationLauncher(
-        platform: () => ExternalLocationPlatform.linux,
-      ).open(destination);
+      final result = await launcher.open(destination);
       if (result == ExternalLocationLaunchResult.opened) return;
     } on Object {
       // The external handoff is best-effort and never affects saved data.
@@ -1610,26 +1610,6 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
       );
     }
   }
-
-  LocationItemIdentity _locationIdentity(ScheduleItem item) =>
-      LocationItemIdentity(
-        kind: item is CalendarScheduleItem
-            ? LocationItemKind.event
-            : LocationItemKind.task,
-        accountId: item.accountId,
-        sourceId: item.sourceId,
-        itemId: item.id,
-      );
-
-  String _locationText(ScheduleItem item) => switch (item) {
-    CalendarScheduleItem(:final location) => location ?? '',
-    TaskScheduleItem(:final location) => location ?? '',
-  };
-
-  GeographicPoint? _locationPoint(ScheduleItem item) => switch (item) {
-    CalendarScheduleItem(:final locationPoint) => locationPoint,
-    TaskScheduleItem(:final locationPoint) => locationPoint,
-  };
 
   Future<void> _editItem(
     ScheduleItem item,
