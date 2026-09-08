@@ -871,7 +871,11 @@ Future<bool> showWindowsEventEditorDialog(
                                     allDay: allDay,
                                     start: effectiveStart,
                                     end: effectiveEnd,
-                                    location: location.text.trim(),
+                                    location:
+                                        locationChange.changed ||
+                                            originalDraft == null
+                                        ? location.text
+                                        : originalDraft.location,
                                     locationChange: locationChange,
                                     description: description.text.trim(),
                                     startTimeZone: selectedTimeZone,

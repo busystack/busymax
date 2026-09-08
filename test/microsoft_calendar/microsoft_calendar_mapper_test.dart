@@ -1,5 +1,7 @@
 import 'package:busymax/src/calendar_providers/calendar_description.dart';
 import 'package:busymax/src/calendar_providers/calendar_mutation.dart';
+import 'package:busymax/src/features/maps/domain/geographic_point.dart';
+import 'package:busymax/src/features/maps/domain/location_result.dart';
 import 'package:busymax/src/microsoft_calendar/microsoft_calendar_mapper.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -199,6 +201,42 @@ void main() {
       expect((body['location'] as Map), isNot(contains('locationType')));
     },
   );
+
+  test(
+    'structured location uses intended text instead of remembered label',
+    () {
+      final location = microsoftStructuredLocation(
+        displayName: 'Head office',
+        details: LocationResult(
+          label: '123 Long Resolved Address',
+          point: GeographicPoint(latitude: 49.28, longitude: -123.12),
+          address: {'city': 'Vancouver'},
+        ),
+      );
+
+      expect(location, {
+        'displayName': 'Head office',
+        'coordinates': {'latitude': 49.28, 'longitude': -123.12},
+        'address': {'city': 'Vancouver'},
+      });
+      expect(location, isNot(contains('locationType')));
+    },
+  );
+
+  test('structured location omits unavailable address metadata', () {
+    final location = microsoftStructuredLocation(
+      displayName: 'Coordinate-only destination',
+      details: LocationResult(
+        label: 'Imported point',
+        point: GeographicPoint(latitude: 0, longitude: -123.12),
+      ),
+    );
+
+    expect(location, {
+      'displayName': 'Coordinate-only destination',
+      'coordinates': {'latitude': 0.0, 'longitude': -123.12},
+    });
+  });
 
   test('plain-text clear omits nested values that Graph must replace', () {
     final body = microsoftEventMutationToJson(

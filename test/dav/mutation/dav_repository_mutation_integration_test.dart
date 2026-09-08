@@ -14,6 +14,7 @@ import 'package:busymax/src/features/calendar/presentation/event_editor_draft.da
 import 'package:busymax/src/features/calendar/domain/event_timing_policy.dart';
 import 'package:busymax/src/features/maps/domain/geographic_point.dart';
 import 'package:busymax/src/features/maps/domain/location_result.dart';
+import 'package:busymax/src/features/maps/data/location_resolution_repository.dart';
 import 'package:busymax/src/core/time/provider_date_time.dart';
 import 'package:busymax/src/schedule/schedule_event_rescheduling.dart';
 import 'package:busymax/src/schedule/schedule_item.dart';
@@ -931,6 +932,7 @@ void main() {
     );
     expect(projected.single.location, 'New exception');
     expect(projected.single.locationPoint, selection.point);
+    expect(await database.select(database.locationResolutions).get(), isEmpty);
   });
 
   test('timing-only exception edit preserves inherited location data', () async {
@@ -1267,6 +1269,34 @@ void main() {
     expect(await database.select(database.pendingOps).get(), isEmpty);
   });
 
+  test('DAV task creation writes GEO natively without a supplement', () async {
+    final point = GeographicPoint(latitude: 0, longitude: -123.12);
+
+    await tasksRepository.createTask(
+      _taskListId,
+      TaskCreateInput(
+        title: 'Located task',
+        fields: const {'title': 'Located task', 'location': 'Head office'},
+        locationChange: LocationChange.replace(
+          LocationResult(
+            label: 'Long resolved label',
+            point: point,
+            source: 'ical',
+          ),
+        ),
+      ),
+    );
+
+    final task = await database.select(database.tasks).getSingle();
+    final operation = await database.select(database.pendingOps).getSingle();
+    expect(task.taskLocation, 'Head office');
+    expect(task.locationLatitude, point.latitude);
+    expect(task.locationLongitude, point.longitude);
+    expect(_createRaw(operation), contains('LOCATION:Head office'));
+    expect(_createRaw(operation), contains('GEO:0.0;-123.12'));
+    expect(await database.select(database.locationResolutions).get(), isEmpty);
+  });
+
   test('rejected local task create can be corrected and requeued', () async {
     await tasksRepository.createTask(
       _taskListId,
@@ -1552,6 +1582,27 @@ void main() {
           .singleWhere(
             (task) => task.icalUid == 'duplicate-parent@example.test',
           );
+      final rememberedPoint = GeographicPoint(
+        latitude: 49.28,
+        longitude: -123.12,
+      );
+      await LocationResolutionRepository(database).apply(
+        LocationItemIdentity(
+          kind: LocationItemKind.task,
+          accountId: sourceParent.accountId,
+          sourceId: sourceParent.taskListId,
+          itemId: sourceParent.id,
+        ),
+        'Room 4',
+        LocationChange.replace(
+          LocationResult(
+            label: 'Room 4, long resolved label',
+            point: rememberedPoint,
+            source: 'legacy-provider',
+            attribution: 'Existing provenance',
+          ),
+        ),
+      );
 
       final duplicateParentId = await tasksRepository.duplicateTask(
         _taskListId,
@@ -1572,6 +1623,9 @@ void main() {
           .inSeconds;
       expect(duplicateParent.sortOrder, expectedSortOrder);
       expect(duplicateChild.sortOrder, expectedSortOrder);
+      expect(duplicateParent.taskLocation, 'Room 4');
+      expect(duplicateParent.locationLatitude, rememberedPoint.latitude);
+      expect(duplicateParent.locationLongitude, rememberedPoint.longitude);
 
       final operations = await database.select(database.pendingOps).get();
       expect(operations, hasLength(2));
@@ -1586,7 +1640,13 @@ void main() {
       expect(childCreate.dependsOnOpId, parentCreate.id);
       expect(_createRaw(parentCreate), contains('PRIORITY:3'));
       expect(_createRaw(parentCreate), contains('LOCATION:Room 4'));
+      expect(_createRaw(parentCreate), contains('GEO:49.28;-123.12'));
       expect(_createRaw(parentCreate), contains('X-KEEP:opaque'));
+      final supplements = await database
+          .select(database.locationResolutions)
+          .get();
+      expect(supplements, hasLength(1));
+      expect(supplements.single.itemId, sourceParent.id);
       expect(
         IcalSemanticDocument.parse(
           _createRaw(childCreate),

@@ -21,6 +21,7 @@ import 'package:busymax/src/features/sync/pending_op_resolution_service.dart';
 import 'package:busymax/src/features/maps/domain/geographic_point.dart';
 import 'package:busymax/src/features/maps/domain/location_result.dart';
 import 'package:busymax/src/features/maps/data/location_resolution_repository.dart';
+import 'package:busymax/src/features/maps/application/location_destination_resolver.dart';
 import 'package:busymax/src/google_calendar/google_calendar_errors.dart';
 import 'package:busymax/src/microsoft_calendar/microsoft_calendar_errors.dart';
 import 'package:busymax/src/providers/busy_provider.dart';
@@ -984,17 +985,28 @@ void main() {
         (request['structuredLocation'] as Map)['coordinates'],
         selection.point.toJson(),
       );
-      final remembered = await LocationResolutionRepository(database).load(
-        LocationItemIdentity(
-          kind: LocationItemKind.event,
-          accountId: destination.accountId,
-          sourceId: destination.calendarSourceId,
-          itemId: destination.id,
-        ),
-        'Same room',
+      final destinationIdentity = LocationItemIdentity(
+        kind: LocationItemKind.event,
+        accountId: destination.accountId,
+        sourceId: destination.calendarSourceId,
+        itemId: destination.id,
       );
-      expect(remembered?.label, selection.label);
-      expect(remembered?.point, selection.point);
+      final remembered = await LocationResolutionRepository(
+        database,
+      ).load(destinationIdentity, 'Same room');
+      expect(remembered, isNull);
+      final resolved =
+          await LocationDestinationResolver(
+            LocationResolutionRepository(database),
+          ).resolveSaved(
+            location: destination.location ?? '',
+            nativePoint: GeographicPoint.tryParse(
+              latitude: destination.locationLatitude,
+              longitude: destination.locationLongitude,
+            ),
+            identity: destinationIdentity,
+          );
+      expect(resolved?.point, selection.point);
     },
   );
 
@@ -1380,16 +1392,30 @@ void main() {
       expect(destination.id, isNot(temporary.id));
       expect(destination.locationLatitude, selection.point.latitude);
       expect(destination.locationLongitude, selection.point.longitude);
-      final remembered = await LocationResolutionRepository(database).load(
-        LocationItemIdentity(
-          kind: LocationItemKind.event,
-          accountId: destination.accountId,
-          sourceId: destination.calendarSourceId,
-          itemId: destination.id,
-        ),
-        'Mapped room',
+      final destinationIdentity = LocationItemIdentity(
+        kind: LocationItemKind.event,
+        accountId: destination.accountId,
+        sourceId: destination.calendarSourceId,
+        itemId: destination.id,
       );
-      expect(remembered?.point, selection.point);
+      expect(
+        await LocationResolutionRepository(
+          database,
+        ).load(destinationIdentity, 'Mapped room'),
+        isNull,
+      );
+      final resolved =
+          await LocationDestinationResolver(
+            LocationResolutionRepository(database),
+          ).resolveSaved(
+            location: destination.location ?? '',
+            nativePoint: GeographicPoint.tryParse(
+              latitude: destination.locationLatitude,
+              longitude: destination.locationLongitude,
+            ),
+            identity: destinationIdentity,
+          );
+      expect(resolved?.point, selection.point);
       expect(
         await LocationResolutionRepository(database).load(
           LocationItemIdentity(

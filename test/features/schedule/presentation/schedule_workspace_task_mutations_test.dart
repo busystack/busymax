@@ -195,9 +195,11 @@ void main() {
     expect(modalBarrierColors.where((color) => color != null && color.a != 0), [
       busyMaxModalBarrierColor(tester.element(find.byType(ModalBarrier).first)),
     ]);
-    expect(headerBarService.modalBarrierStates, [
-      (visible: true, shadeDepth: 1),
-    ], reason: 'the nested confirmation must not repaint the native headerbar');
+    expect(
+      headerBarService.modalBarrierStates,
+      [(visible: true, shadeDepth: 1)],
+      reason: 'the nested confirmation must not repaint the native headerbar',
+    );
     await tester.tap(find.text('Cancel').last);
     await tester.pumpAndSettle();
     expect(find.text('Edit Task'), findsOneWidget);

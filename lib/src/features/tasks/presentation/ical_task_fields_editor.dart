@@ -36,6 +36,7 @@ class IcalTaskFieldsEditor extends ConsumerStatefulWidget {
     this.savedLocation,
     this.savedPoint,
     this.savedIdentity,
+    this.externalLocationLauncher = const ExternalLocationLauncher(),
   });
 
   final TaskDetailsDraft draft;
@@ -48,6 +49,7 @@ class IcalTaskFieldsEditor extends ConsumerStatefulWidget {
   final String? savedLocation;
   final GeographicPoint? savedPoint;
   final LocationItemIdentity? savedIdentity;
+  final ExternalLocationLauncher externalLocationLauncher;
 
   @override
   ConsumerState<IcalTaskFieldsEditor> createState() =>
@@ -57,12 +59,15 @@ class IcalTaskFieldsEditor extends ConsumerStatefulWidget {
 class _IcalTaskFieldsEditorState extends ConsumerState<IcalTaskFieldsEditor> {
   late final TextEditingController _urlController;
   late final TextEditingController _locationController;
+  ExternalLocationDestination? _savedDestination;
+  var _savedDestinationGeneration = 0;
 
   @override
   void initState() {
     super.initState();
     _urlController = TextEditingController(text: widget.draft.taskUrl);
     _locationController = TextEditingController(text: widget.draft.location);
+    _resolveSavedDestination();
   }
 
   @override
@@ -81,6 +86,11 @@ class _IcalTaskFieldsEditorState extends ConsumerState<IcalTaskFieldsEditor> {
           offset: widget.draft.location.length,
         ),
       );
+    }
+    if (oldWidget.savedIdentity != widget.savedIdentity ||
+        oldWidget.savedLocation != widget.savedLocation ||
+        oldWidget.savedPoint != widget.savedPoint) {
+      _resolveSavedDestination();
     }
   }
 
@@ -248,7 +258,8 @@ class _IcalTaskFieldsEditorState extends ConsumerState<IcalTaskFieldsEditor> {
         if (_canOpenSavedLocation)
           BusyMaxActionRow(
             key: const ValueKey('ical-task-location-open'),
-            title: completeHttpLocationUri(widget.savedLocation ?? '') != null
+            title:
+                _savedDestination!.kind == ExternalLocationDestinationKind.link
                 ? l10n.openLink
                 : l10n.mapsShow,
             leading: const Icon(Icons.map_outlined),
@@ -280,20 +291,39 @@ class _IcalTaskFieldsEditorState extends ConsumerState<IcalTaskFieldsEditor> {
   bool get _canOpenSavedLocation =>
       widget.savedIdentity != null &&
       widget.draft.location == widget.savedLocation &&
-      ((widget.savedLocation?.trim().isNotEmpty ?? false) ||
-          widget.savedPoint != null);
+      _savedDestination != null;
+
+  void _resolveSavedDestination() {
+    final generation = ++_savedDestinationGeneration;
+    final identity = widget.savedIdentity;
+    _savedDestination = null;
+    if (!widget.capabilities.supportsLocation || identity == null) {
+      return;
+    }
+    final location = widget.savedLocation ?? '';
+    final link = completeHttpLocationUri(location);
+    if (link != null) {
+      _savedDestination = ExternalLocationDestination.link(link);
+      return;
+    }
+    final point = widget.savedPoint;
+    if (point != null) {
+      _savedDestination = ExternalLocationDestination.coordinates(point);
+      return;
+    }
+    LocationDestinationResolver(
+      ref.read(locationResolutionRepositoryProvider),
+    ).resolveSaved(location: location, identity: identity).then((destination) {
+      if (!mounted || generation != _savedDestinationGeneration) return;
+      setState(() => _savedDestination = destination);
+    });
+  }
 
   Future<void> _openSavedLocation() async {
+    final destination = _savedDestination;
+    if (destination == null) return;
     try {
-      final destination =
-          await LocationDestinationResolver(
-            ref.read(locationResolutionRepositoryProvider),
-          ).resolveSaved(
-            location: widget.savedLocation ?? '',
-            nativePoint: widget.savedPoint,
-            identity: widget.savedIdentity,
-          );
-      final result = await const ExternalLocationLauncher().open(destination);
+      final result = await widget.externalLocationLauncher.open(destination);
       if (result != ExternalLocationLaunchResult.opened && mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(context.l10n.externalLocationOpenFailed)),

@@ -135,6 +135,12 @@ saved address or point to the registered maps handler on Linux, with a Google
 Maps browser-search fallback, and to the default browser on Windows. A complete
 HTTP(S) location is opened directly as **Open link**. BusyMax has no embedded
 map, address autocomplete, mapping account, or mapping API-key requirement.
+Provider-native coordinates remain in Microsoft structured locations and
+iCalendar `GEO`. When importing or copying a point into Google Calendar, which
+has only free-form location text in this workflow, BusyMax retains one local
+supplemental point for that exact saved event. That supplemental point is not
+uploaded through Google Calendar and therefore is not automatically available
+on another BusyMax installation.
 
 Use `tool/install_linux_dev_desktop.sh --uninstall` to remove the development
 launcher. Remove it before testing an installed Snap so the user-level launcher

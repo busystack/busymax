@@ -21,6 +21,12 @@ import 'package:busymax/src/features/tasks/presentation/task_details_editor.dart
 import 'package:busymax/src/features/tasks/presentation/task_details_pane.dart';
 import 'package:busymax/src/features/maps/domain/geographic_point.dart';
 import 'package:busymax/src/features/maps/domain/location_result.dart';
+import 'package:busymax/src/features/maps/data/location_resolution_repository.dart';
+import 'package:busymax/src/features/maps/application/external_location_launcher.dart';
+import 'package:busymax/src/db/app_database.dart';
+import 'package:drift/drift.dart' show Value;
+import 'package:drift/native.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'package:busymax/src/platform/native_dialog_service.dart';
 import 'package:busymax/src/platform/native_menu_service.dart';
 import 'package:busymax/src/providers/busy_provider.dart';
@@ -157,6 +163,118 @@ void main() {
       );
       expect(draft.locationChange, const LocationChange.unchanged());
       expect(draft.effectiveLocationPoint, point);
+    },
+  );
+
+  testWidgets(
+    'read-only iCalendar task opens a supplemental-only saved point without writes',
+    (tester) async {
+      final database = AppDatabase(NativeDatabase.memory());
+      addTearDown(database.close);
+      await database
+          .into(database.accounts)
+          .insert(
+            AccountsCompanion.insert(
+              id: 'nextcloud:n',
+              provider: 'nextcloud',
+              authority: 'https://cloud.example.test',
+              providerAccountId: 'n',
+              credentialKind: 'nextcloud_app_password',
+              authState: const Value('signed_in'),
+              createdAtUtc: '2026-09-08T00:00:00Z',
+              updatedAtUtc: '2026-09-08T00:00:00Z',
+            ),
+          );
+      await database.taskListsDao.upsertTaskList(
+        TaskListsCompanion.insert(
+          accountId: 'nextcloud:n',
+          id: 'list-1',
+          title: 'Tasks',
+          rawJson: '{}',
+          createdLocalAtUtc: '2026-09-08T00:00:00Z',
+          updatedLocalAtUtc: '2026-09-08T00:00:00Z',
+        ),
+      );
+      await database.tasksDao.upsertTask(
+        TasksCompanion.insert(
+          accountId: 'nextcloud:n',
+          taskListId: 'list-1',
+          id: 'task-location',
+          title: 'Coordinate-only task',
+          taskLocation: const Value(''),
+          rawJson: '{}',
+          createdLocalAtUtc: '2026-09-08T00:00:00Z',
+          updatedLocalAtUtc: '2026-09-08T00:00:00Z',
+        ),
+      );
+      const identity = LocationItemIdentity(
+        kind: LocationItemKind.task,
+        accountId: 'nextcloud:n',
+        sourceId: 'list-1',
+        itemId: 'task-location',
+      );
+      final point = GeographicPoint(latitude: 0, longitude: -123.12);
+      await LocationResolutionRepository(database).apply(
+        identity,
+        '',
+        LocationChange.replace(
+          LocationResult(
+            label: 'Imported point',
+            point: point,
+            source: 'ical',
+            attribution: 'Imported iCalendar GEO',
+          ),
+        ),
+      );
+      final tasksBefore = await database.select(database.tasks).get();
+      final resolutionsBefore = await database
+          .select(database.locationResolutions)
+          .get();
+      final pendingBefore = await database.select(database.pendingOps).get();
+      final launches = <Uri>[];
+      final launcher = ExternalLocationLauncher(
+        platform: () => ExternalLocationPlatform.linux,
+        launcher: (uri, {mode = LaunchMode.platformDefault}) async {
+          expect(mode, LaunchMode.externalApplication);
+          launches.add(uri);
+          return true;
+        },
+      );
+      final task = TaskEntity.fromRow(tasksBefore.single);
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [databaseProvider.overrideWithValue(database)],
+          child: localizedTestApp(
+            child: Scaffold(
+              body: SingleChildScrollView(
+                child: IcalTaskFieldsEditor(
+                  draft: TaskDetailsDraft.fromTask(task, 'UTC'),
+                  capabilities: nextcloudTaskCollectionCapabilities
+                      .asReadOnly(),
+                  enabled: false,
+                  savedLocation: '',
+                  savedIdentity: identity,
+                  externalLocationLauncher: launcher,
+                  onChanged: (_) {},
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Show on map'), findsOneWidget);
+      await tester.tap(find.byKey(const ValueKey('ical-task-location-open')));
+      await tester.pumpAndSettle();
+      expect(launches, [Uri.parse('geo:0.0,-123.12')]);
+      expect(await database.select(database.tasks).get(), tasksBefore);
+      expect(
+        await database.select(database.locationResolutions).get(),
+        resolutionsBefore,
+      );
+      expect(await database.select(database.pendingOps).get(), pendingBefore);
     },
   );
 

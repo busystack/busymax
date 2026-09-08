@@ -1,7 +1,7 @@
 import 'package:collection/collection.dart';
 import 'geographic_point.dart';
 
-/// Coordinate and provider metadata retained for imports and provider writes.
+/// Coordinate metadata retained for imports, copies, and existing records.
 final class LocationResult {
   const LocationResult({
     required this.label,
@@ -16,20 +16,6 @@ final class LocationResult {
   final Map<String, String> address;
   final String source;
   final String attribution;
-  Map<String, Object?> get microsoftLocation => {
-    'displayName': label,
-    'coordinates': point.toJson(),
-    'address': {
-      for (final key in [
-        'street',
-        'city',
-        'state',
-        'postalCode',
-        'countryOrRegion',
-      ])
-        if (address[key]?.isNotEmpty == true) key: address[key],
-    },
-  };
   @override
   bool operator ==(Object other) =>
       other is LocationResult &&

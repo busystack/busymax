@@ -796,17 +796,6 @@ class TasksRepository {
           'locationPoint': input.locationChange.selection?.point.toJson(),
       };
       await _updateDavTaskWithHierarchy(taskList, taskId, fields);
-      final row = await _requiredTask(taskListId, taskId);
-      await LocationResolutionRepository(_database).apply(
-        LocationItemIdentity(
-          kind: LocationItemKind.task,
-          accountId: _accountId,
-          sourceId: taskListId,
-          itemId: row.id,
-        ),
-        row.taskLocation ?? '',
-        input.locationChange,
-      );
       return;
     }
     if (input.locationChange.changed) {
@@ -1063,16 +1052,6 @@ class TasksRepository {
         ),
       );
       await _patchLocalTask(taskList.id, localId, fields, now);
-      await LocationResolutionRepository(_database).apply(
-        LocationItemIdentity(
-          kind: LocationItemKind.task,
-          accountId: _accountId,
-          sourceId: taskList.id,
-          itemId: localId,
-        ),
-        fields['location']?.toString() ?? '',
-        input.locationChange,
-      );
       await DavPendingOperationQueue(
         database: _database,
         idFactory: _uuid.v4,
@@ -1117,9 +1096,40 @@ class TasksRepository {
             collectionId: collectionId,
             objectId: source.davObjectId!,
           );
+    var copySourceRaw = sourceRaw;
+    if (GeographicPoint.tryParse(
+          latitude: source.locationLatitude,
+          longitude: source.locationLongitude,
+        ) ==
+        null) {
+      final remembered = await LocationResolutionRepository(_database).load(
+        LocationItemIdentity(
+          kind: LocationItemKind.task,
+          accountId: _accountId,
+          sourceId: source.taskListId,
+          itemId: source.id,
+        ),
+        source.taskLocation ?? '',
+      );
+      if (remembered != null) {
+        final patch = buildDavTaskUpdatePatch(
+          target: IcalComponentKey(
+            componentType: 'VTODO',
+            uid: sourceUid,
+            recurrenceIdKey: source.recurrenceIdKey,
+          ),
+          baselineRawIcs: sourceRaw,
+          fields: {'locationPoint': remembered.point.toJson()},
+          nowUtc: _nowUtc,
+        );
+        if (patch != null) {
+          copySourceRaw = patch.applyTo(sourceRaw, nowUtc: _nowUtc());
+        }
+      }
+    }
     final newUid = _uuid.v4();
     final duplicatedRaw = _duplicateDavTaskResource(
-      sourceRaw,
+      copySourceRaw,
       sourceUid: sourceUid,
       newUid: newUid,
       parentUid: parentUid,
@@ -1149,6 +1159,8 @@ class TasksRepository {
           icalPriority: Value(source.icalPriority),
           percentComplete: Value(source.percentComplete),
           taskLocation: Value(source.taskLocation),
+          locationLatitude: Value(duplicatedMaster.locationPoint?.latitude),
+          locationLongitude: Value(duplicatedMaster.locationPoint?.longitude),
           taskUrl: Value(source.taskUrl),
           taskClassification: Value(source.taskClassification),
           taskPinned: Value(source.taskPinned),
@@ -1648,6 +1660,24 @@ class TasksRepository {
       if (task.parentUid != parentUid) 'parentUid': parentUid,
       if (completeSubtree && !_davTaskCompleted(task)) 'percentComplete': 100,
     };
+    if (GeographicPoint.tryParse(
+          latitude: task.locationLatitude,
+          longitude: task.locationLongitude,
+        ) ==
+        null) {
+      final remembered = await LocationResolutionRepository(_database).load(
+        LocationItemIdentity(
+          kind: LocationItemKind.task,
+          accountId: _accountId,
+          sourceId: sourceList.id,
+          itemId: task.id,
+        ),
+        task.taskLocation ?? '',
+      );
+      if (remembered != null) {
+        fields['locationPoint'] = remembered.point.toJson();
+      }
+    }
     final uid = task.icalUid;
     if (uid == null || uid.isEmpty) {
       throw StateError('The DAV task UID is unavailable.');
@@ -1730,6 +1760,16 @@ class TasksRepository {
         TasksCompanion(
           taskListId: Value(destinationList.id),
           davCollectionId: Value(destinationList.davCollectionId),
+          locationLatitude: fields.containsKey('locationPoint')
+              ? Value(
+                  GeographicPoint.fromJson(fields['locationPoint'])?.latitude,
+                )
+              : const Value.absent(),
+          locationLongitude: fields.containsKey('locationPoint')
+              ? Value(
+                  GeographicPoint.fromJson(fields['locationPoint'])?.longitude,
+                )
+              : const Value.absent(),
           parent: Value(parentId),
           parentUid: Value(parentUid),
           status: completeSubtree
@@ -1759,6 +1799,20 @@ class TasksRepository {
             TasksCompanion(
               taskListId: Value(destinationList.id),
               davCollectionId: Value(destinationList.davCollectionId),
+              locationLatitude: fields.containsKey('locationPoint')
+                  ? Value(
+                      GeographicPoint.fromJson(
+                        fields['locationPoint'],
+                      )?.latitude,
+                    )
+                  : const Value.absent(),
+              locationLongitude: fields.containsKey('locationPoint')
+                  ? Value(
+                      GeographicPoint.fromJson(
+                        fields['locationPoint'],
+                      )?.longitude,
+                    )
+                  : const Value.absent(),
               parent: Value(parentId),
               parentUid: Value(parentUid),
               status: completeSubtree

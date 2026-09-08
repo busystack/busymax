@@ -905,7 +905,10 @@ final class WebCalSubscriptionService {
     required DateTime now,
   }) async {
     final resolutions = LocationResolutionRepository(_database);
-    final remembered = await resolutions.capture(eventSourceId: sourceId);
+    final remembered = await resolutions.capture(
+      accountId: accountId,
+      eventSourceId: sourceId,
+    );
     await _replaceEventsBody(
       subscriptionId: subscriptionId,
       accountId: accountId,
@@ -914,7 +917,11 @@ final class WebCalSubscriptionService {
       projections: projections,
       now: now,
     );
-    await resolutions.restore(remembered);
+    await resolutions.restore(
+      remembered,
+      accountId: accountId,
+      sourceId: sourceId,
+    );
   }
 
   Future<void> _replaceEventsBody({

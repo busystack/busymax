@@ -45,6 +45,10 @@ flutter run -d windows -t lib/main_windows.dart `
 Location fields require no map-service configuration. Windows opens a saved
 location through the default browser using a Google Maps search URL, or opens a
 complete saved HTTP(S) link directly; BusyMax does not embed a map or geocoder.
+Microsoft structured coordinates and iCalendar `GEO` remain native provider
+data. Local supplemental rows are authored only when an imported/copied Google
+event would otherwise lose its point; they are neither a search history nor a
+Google-synchronized extension.
 
 An unpackaged build accurately reports Windows StartupTask as unavailable. It
 does not create a registry or Startup-folder fallback. Windows notifications
@@ -112,13 +116,15 @@ repository's pinned Flutter 3.44.4 toolchain:
 
 | Command | Result |
 | --- | --- |
+| `flutter pub get` | Passed; the lockfile was resolved with Flutter 3.44.4's SDK-pinned package versions. |
 | `flutter gen-l10n` | Passed; every supported catalog generated. |
 | `dart run build_runner build --delete-conflicting-outputs --force-jit` | Passed; generated Drift content remained consistent and the schema version remained 14. The pinned build runner reported that the legacy delete-conflicting option is ignored. |
-| `dart format --output=none --set-exit-if-changed .` | Passed; 522 files checked, zero changes required. |
+| `dart format --output=none --set-exit-if-changed .` | Passed; 524 files checked, zero changes required. |
 | `flutter analyze` | Passed; no issues found. |
 | `dart run tool/check_platform_boundaries.dart` | Passed. |
-| `flutter test --reporter compact` | Passed; 1,897 tests passed, 10 skipped, zero failed. |
+| `flutter test` | Passed; 1,913 tests passed, 10 skipped, zero failed. |
 | `flutter build linux --release -t lib/main_linux.dart` | Passed; produced `build/linux/x64/release/bundle/busymax`. |
+| `tool/build_install_snap_local.sh --no-run --skip-tests ...` | The current Snap packed and passed its payload, plugin, and desktop-file checks. Local installation was not completed because this host requires an interactive `sudo` credential. |
 
 These results establish Linux and platform-neutral source health only. They do
 not replace the Windows gates below, a Windows CI result, or installed-package

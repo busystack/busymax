@@ -15,7 +15,7 @@ void main() {
     expect(draft.copyWith(), draft);
   });
 
-  test('same-label new pin is a real draft change', () {
+  test('same-label imported point is a real draft change', () {
     final initial = _draft(
       location: 'Hall',
       point: GeographicPoint(latitude: 1, longitude: 2),
@@ -32,6 +32,46 @@ void main() {
     expect(changed, isNot(initial));
     expect(changed.location, initial.location);
     expect(changed.effectiveLocationPoint, selection.point);
+  });
+
+  test('unrelated copies preserve an explicit coordinate payload', () {
+    final selection = LocationResult(
+      label: 'Resolved address',
+      point: GeographicPoint(latitude: 49.28, longitude: -123.12),
+      source: 'ical',
+    );
+    final imported =
+        EventEditorDraft.newEvent(
+          accountId: 'account',
+          sourceId: 'source',
+          providerCalendarId: 'calendar',
+          start: DateTime.utc(2026, 9, 7, 10),
+          end: DateTime.utc(2026, 9, 7, 11),
+        ).copyWith(
+          title: 'Imported',
+          location: 'Head office',
+          locationChange: LocationChange.replace(selection),
+        );
+
+    final prepared = imported.copyWith(
+      title: 'Prepared copy',
+      startTimeZone: 'America/Vancouver',
+    );
+
+    expect(prepared.location, 'Head office');
+    expect(prepared.locationChange, LocationChange.replace(selection));
+    expect(prepared.effectiveLocationPoint, selection.point);
+  });
+
+  test('unrelated edit preserves whitespace and its original point', () {
+    final point = GeographicPoint(latitude: 1, longitude: 2);
+    final initial = _draft(location: '  Head office  ', point: point);
+
+    final renamed = initial.copyWith(title: 'Renamed');
+
+    expect(renamed.location, '  Head office  ');
+    expect(renamed.locationChange, const LocationChange.unchanged());
+    expect(renamed.effectiveLocationPoint, point);
   });
 
   test('typing and clearing invalidate an earlier selection', () {

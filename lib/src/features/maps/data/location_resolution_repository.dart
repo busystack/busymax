@@ -118,58 +118,98 @@ final class LocationResolutionRepository {
   }
 
   Future<List<RememberedLocationSnapshot>> capture({
+    required String accountId,
     String? davObjectId,
     String? eventSourceId,
   }) async {
-    final snapshots = <RememberedLocationSnapshot>[];
-    for (final event
-        in await (database.select(database.calendarEvents)..where(
-              (r) => davObjectId != null
-                  ? r.davObjectId.equals(davObjectId)
-                  : r.calendarSourceId.equals(eventSourceId!),
-            ))
-            .get()) {
-      final item = LocationItemIdentity(
-        kind: LocationItemKind.event,
-        accountId: event.accountId,
-        sourceId: event.calendarSourceId,
-        itemId: event.id,
+    final davScope = davObjectId?.trim();
+    final sourceScope = eventSourceId?.trim();
+    if ((davScope == null || davScope.isEmpty) ==
+        (sourceScope == null || sourceScope.isEmpty)) {
+      throw ArgumentError(
+        'Exactly one nonempty DAV object or event source is required.',
       );
-      final selection = await load(item, event.location ?? '');
-      if (selection != null) {
+    }
+    final snapshots = <RememberedLocationSnapshot>[];
+    final resolutions = database.locationResolutions;
+    final events = database.calendarEvents;
+    final eventQuery = database.select(resolutions).join([
+      innerJoin(
+        events,
+        events.id.equalsExp(resolutions.itemId) &
+            events.accountId.equalsExp(resolutions.accountId) &
+            events.calendarSourceId.equalsExp(resolutions.sourceId),
+      ),
+    ]);
+    eventQuery.where(
+      resolutions.kind.equals(LocationItemKind.event.name) &
+          resolutions.accountId.equals(accountId) &
+          events.accountId.equals(accountId) &
+          events.isDeleted.equals(false) &
+          (davScope != null
+              ? events.davObjectId.equals(davScope)
+              : events.calendarSourceId.equals(sourceScope!)),
+    );
+    for (final joined in await eventQuery.get()) {
+      final stored = joined.readTable(resolutions);
+      final event = joined.readTable(events);
+      if (stored.locationText != (event.location ?? '')) continue;
+      final selection = _selection(stored);
+      if (selection == null) continue;
+      snapshots.add(
+        RememberedLocationSnapshot(
+          LocationItemIdentity(
+            kind: LocationItemKind.event,
+            accountId: event.accountId,
+            sourceId: event.calendarSourceId,
+            itemId: event.id,
+          ),
+          stored.locationText,
+          selection,
+          event.icalUid,
+          event.providerRecurringEventId == null
+              ? event.recurrenceIdKey
+              : event.occurrenceKey,
+        ),
+      );
+    }
+    if (davScope != null) {
+      final tasks = database.tasks;
+      final taskQuery = database.select(resolutions).join([
+        innerJoin(
+          tasks,
+          tasks.id.equalsExp(resolutions.itemId) &
+              tasks.accountId.equalsExp(resolutions.accountId) &
+              tasks.taskListId.equalsExp(resolutions.sourceId),
+        ),
+      ]);
+      taskQuery.where(
+        resolutions.kind.equals(LocationItemKind.task.name) &
+            resolutions.accountId.equals(accountId) &
+            tasks.accountId.equals(accountId) &
+            tasks.davObjectId.equals(davScope) &
+            tasks.pendingDelete.equals(false),
+      );
+      for (final joined in await taskQuery.get()) {
+        final stored = joined.readTable(resolutions);
+        final task = joined.readTable(tasks);
+        if (stored.locationText != (task.taskLocation ?? '')) continue;
+        final selection = _selection(stored);
+        if (selection == null) continue;
         snapshots.add(
           RememberedLocationSnapshot(
-            item,
-            event.location ?? '',
+            LocationItemIdentity(
+              kind: LocationItemKind.task,
+              accountId: task.accountId,
+              sourceId: task.taskListId,
+              itemId: task.id,
+            ),
+            stored.locationText,
             selection,
-            event.icalUid,
-            event.providerRecurringEventId == null ? null : event.occurrenceKey,
+            task.icalUid,
+            task.recurrenceIdKey,
           ),
         );
-      }
-    }
-    if (davObjectId != null) {
-      for (final task in await (database.select(
-        database.tasks,
-      )..where((r) => r.davObjectId.equals(davObjectId))).get()) {
-        final item = LocationItemIdentity(
-          kind: LocationItemKind.task,
-          accountId: task.accountId,
-          sourceId: task.taskListId,
-          itemId: task.id,
-        );
-        final selection = await load(item, task.taskLocation ?? '');
-        if (selection != null) {
-          snapshots.add(
-            RememberedLocationSnapshot(
-              item,
-              task.taskLocation ?? '',
-              selection,
-              task.icalUid,
-              task.recurrenceIdKey,
-            ),
-          );
-        }
       }
     }
     return snapshots;
@@ -177,68 +217,122 @@ final class LocationResolutionRepository {
 
   Future<void> restore(
     List<RememberedLocationSnapshot> snapshots, {
-    String? accountId,
-    String? sourceId,
+    required String accountId,
+    required String sourceId,
+    String? davObjectId,
   }) async {
-    for (final saved in snapshots) {
-      final owner = saved.item;
-      if (owner.kind == LocationItemKind.event) {
-        final rows =
-            await (database.select(database.calendarEvents)..where(
-                  (r) =>
-                      r.accountId.equals(accountId ?? owner.accountId) &
-                      r.calendarSourceId.equals(sourceId ?? owner.sourceId) &
-                      r.isDeleted.equals(false),
-                ))
-                .get();
-        for (final row in rows) {
-          if (row.id == owner.itemId ||
-              (saved.uid != null &&
-                  row.icalUid == saved.uid &&
-                  (row.providerRecurringEventId == null
-                          ? null
-                          : row.occurrenceKey) ==
-                      saved.occurrence)) {
-            await apply(
-              LocationItemIdentity(
-                kind: owner.kind,
-                accountId: row.accountId,
-                sourceId: row.calendarSourceId,
-                itemId: row.id,
-              ),
-              saved.location,
-              LocationChange.replace(saved.selection),
-            );
-          }
-        }
-      } else {
-        final rows =
-            await (database.select(database.tasks)..where(
-                  (r) =>
-                      r.accountId.equals(accountId ?? owner.accountId) &
-                      r.taskListId.equals(sourceId ?? owner.sourceId) &
-                      r.pendingDelete.equals(false),
-                ))
-                .get();
-        for (final row in rows) {
-          if (row.id == owner.itemId ||
-              (saved.uid != null &&
-                  row.icalUid == saved.uid &&
-                  row.recurrenceIdKey == saved.occurrence)) {
-            await apply(
-              LocationItemIdentity(
-                kind: owner.kind,
-                accountId: row.accountId,
-                sourceId: row.taskListId,
-                itemId: row.id,
-              ),
-              saved.location,
-              LocationChange.replace(saved.selection),
-            );
-          }
-        }
+    if (accountId.trim().isEmpty || sourceId.trim().isEmpty) {
+      throw ArgumentError(
+        'A nonempty destination account and source are required.',
+      );
+    }
+    if (snapshots.isEmpty) return;
+    final eventSnapshots = snapshots
+        .where((saved) => saved.item.kind == LocationItemKind.event)
+        .toList();
+    if (eventSnapshots.isNotEmpty) {
+      final rows =
+          await (database.select(database.calendarEvents)..where(
+                (r) =>
+                    r.accountId.equals(accountId) &
+                    r.calendarSourceId.equals(sourceId) &
+                    r.isDeleted.equals(false) &
+                    (davObjectId == null
+                        ? const Constant(true)
+                        : r.davObjectId.equals(davObjectId)),
+              ))
+              .get();
+      for (final saved in eventSnapshots) {
+        final exact =
+            saved.item.accountId == accountId && saved.item.sourceId == sourceId
+            ? rows.where((row) => row.id == saved.item.itemId).toList()
+            : const <CalendarEvent>[];
+        final stable = saved.uid == null
+            ? const <CalendarEvent>[]
+            : rows
+                  .where(
+                    (row) =>
+                        row.icalUid == saved.uid &&
+                        (row.providerRecurringEventId == null
+                                ? row.recurrenceIdKey
+                                : row.occurrenceKey) ==
+                            saved.occurrence,
+                  )
+                  .toList();
+        final matches = exact.isNotEmpty ? exact : stable;
+        if (matches.length != 1) continue;
+        final row = matches.single;
+        await apply(
+          LocationItemIdentity(
+            kind: LocationItemKind.event,
+            accountId: row.accountId,
+            sourceId: row.calendarSourceId,
+            itemId: row.id,
+          ),
+          saved.location,
+          LocationChange.replace(saved.selection),
+        );
       }
     }
+    final taskSnapshots = snapshots
+        .where((saved) => saved.item.kind == LocationItemKind.task)
+        .toList();
+    if (taskSnapshots.isNotEmpty) {
+      final rows =
+          await (database.select(database.tasks)..where(
+                (r) =>
+                    r.accountId.equals(accountId) &
+                    r.taskListId.equals(sourceId) &
+                    r.pendingDelete.equals(false) &
+                    (davObjectId == null
+                        ? const Constant(true)
+                        : r.davObjectId.equals(davObjectId)),
+              ))
+              .get();
+      for (final saved in taskSnapshots) {
+        final exact =
+            saved.item.accountId == accountId && saved.item.sourceId == sourceId
+            ? rows.where((row) => row.id == saved.item.itemId).toList()
+            : const <Task>[];
+        final stable = saved.uid == null
+            ? const <Task>[]
+            : rows
+                  .where(
+                    (row) =>
+                        row.icalUid == saved.uid &&
+                        row.recurrenceIdKey == saved.occurrence,
+                  )
+                  .toList();
+        final matches = exact.isNotEmpty ? exact : stable;
+        if (matches.length != 1) continue;
+        final row = matches.single;
+        await apply(
+          LocationItemIdentity(
+            kind: LocationItemKind.task,
+            accountId: row.accountId,
+            sourceId: row.taskListId,
+            itemId: row.id,
+          ),
+          saved.location,
+          LocationChange.replace(saved.selection),
+        );
+      }
+    }
+  }
+
+  LocationResult? _selection(LocationResolution row) {
+    final point = GeographicPoint.tryParse(
+      latitude: row.latitude,
+      longitude: row.longitude,
+    );
+    return point == null
+        ? null
+        : LocationResult(
+            label: row.label,
+            point: point,
+            source: row.source,
+            attribution: row.attribution,
+          );
   }
 }
 

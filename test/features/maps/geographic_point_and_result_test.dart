@@ -63,15 +63,8 @@ void main() {
 
       expect(result.source, 'provider');
       expect(result.attribution, isEmpty);
-      expect(result.microsoftLocation, {
-        'displayName': result.label,
-        'coordinates': {'latitude': 0.0, 'longitude': 0.0},
-        'address': {
-          'street': '1 Main Street',
-          'city': 'Example City',
-          'postalCode': 'A1A 1A1',
-        },
-      });
+      expect(result.label, '1 Main Street, Example City');
+      expect(result.address['postalCode'], 'A1A 1A1');
     });
 
     test('same label with a different point is a distinct replacement', () {

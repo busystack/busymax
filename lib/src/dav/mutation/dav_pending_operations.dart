@@ -1136,7 +1136,15 @@ final class DavPendingOperationsReplayer {
                         r.davObjectId.isNotNull(),
                   ))
                   .get();
-          for (final row in rows) {
+          final matches = rows
+              .where(
+                (row) => old.providerRecurringEventId == null
+                    ? row.recurrenceIdKey == old.recurrenceIdKey
+                    : row.occurrenceKey == old.occurrenceKey,
+              )
+              .toList();
+          if (matches.length == 1) {
+            final row = matches.single;
             await resolutions.transfer(
               LocationItemIdentity(
                 kind: LocationItemKind.event,
@@ -1173,7 +1181,11 @@ final class DavPendingOperationsReplayer {
                         r.davObjectId.isNotNull(),
                   ))
                   .get();
-          for (final row in rows) {
+          final matches = rows
+              .where((row) => row.recurrenceIdKey == old.recurrenceIdKey)
+              .toList();
+          if (matches.length == 1) {
+            final row = matches.single;
             await resolutions.transfer(
               LocationItemIdentity(
                 kind: LocationItemKind.task,

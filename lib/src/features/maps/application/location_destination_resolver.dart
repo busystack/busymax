@@ -22,9 +22,14 @@ final class LocationDestinationResolver {
       return ExternalLocationDestination.coordinates(nativePoint);
     }
     if (identity != null) {
-      final remembered = await repository.load(identity, location);
-      if (remembered != null) {
-        return ExternalLocationDestination.coordinates(remembered.point);
+      try {
+        final remembered = await repository.load(identity, location);
+        if (remembered != null) {
+          return ExternalLocationDestination.coordinates(remembered.point);
+        }
+      } on Object {
+        // Provider-native points and text remain useful if local supplemental
+        // storage is temporarily unavailable.
       }
     }
     if (location.trim().isEmpty) return null;

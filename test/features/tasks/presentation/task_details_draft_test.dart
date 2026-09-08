@@ -84,7 +84,7 @@ void main() {
     );
   });
 
-  test('same-label pin replacement remains a saved creation change', () {
+  test('same-label imported point remains a saved creation change', () {
     final task = _taskWithLocation(
       'Hall',
       GeographicPoint(latitude: 1, longitude: 2),
@@ -116,6 +116,27 @@ void main() {
           .locationChange,
       LocationChange.replace(selection),
     );
+  });
+
+  test('unrelated copies preserve an explicit coordinate payload', () {
+    final selection = LocationResult(
+      label: 'Resolved address',
+      point: GeographicPoint(latitude: 49.28, longitude: -123.12),
+      source: 'ical',
+    );
+    final imported = TaskDetailsDraft.fromTask(
+      _taskWithLocation('Head office', null),
+      'UTC',
+    ).copyWith(locationChange: LocationChange.replace(selection));
+
+    final prepared = imported.copyWith(
+      title: 'Prepared copy',
+      taskListId: 'destination',
+    );
+
+    expect(prepared.location, 'Head office');
+    expect(prepared.locationChange, LocationChange.replace(selection));
+    expect(prepared.effectiveLocationPoint, selection.point);
   });
 
   test(

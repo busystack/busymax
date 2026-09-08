@@ -1791,48 +1791,107 @@ void main() {
     );
   });
 
-  test(
-    'same-text Google pin is local-only and leaves event and reminders untouched',
-    () async {
-      await _seedScheduledEvent(repository, database);
-      await database
-          .update(database.calendarEvents)
-          .write(const CalendarEventsCompanion(location: Value('Café & Hall')));
-      final before = await database.select(database.calendarEvents).getSingle();
-      final remindersBefore = await database
-          .select(database.notificationSchedule)
-          .get();
-      schedulerCalls = 0;
-      final detail = (await repository.loadEventDetail(before.id))!;
-      final point = GeographicPoint(latitude: 0, longitude: -122.42);
-      final selection = LocationResult(label: 'Café & Hall', point: point);
+  test('ordinary Google update does not author a supplemental point', () async {
+    await _seedScheduledEvent(repository, database);
+    await database
+        .update(database.calendarEvents)
+        .write(const CalendarEventsCompanion(location: Value('Café & Hall')));
+    final before = await database.select(database.calendarEvents).getSingle();
+    final remindersBefore = await database
+        .select(database.notificationSchedule)
+        .get();
+    schedulerCalls = 0;
+    final detail = (await repository.loadEventDetail(before.id))!;
+    final point = GeographicPoint(latitude: 0, longitude: -122.42);
+    final selection = LocationResult(label: 'Café & Hall', point: point);
 
-      await repository.updateLocalEvent(
-        EventEditorDraft.fromEventDetail(
-          detail,
-        ).copyWith(locationChange: LocationChange.replace(selection)),
-      );
+    await repository.updateLocalEvent(
+      EventEditorDraft.fromEventDetail(
+        detail,
+      ).copyWith(locationChange: LocationChange.replace(selection)),
+    );
 
-      final after = await database.select(database.calendarEvents).getSingle();
-      expect(after, before);
-      expect(await database.select(database.pendingOps).get(), isEmpty);
-      expect(
-        await database.select(database.notificationSchedule).get(),
-        remindersBefore,
-      );
-      expect(schedulerCalls, 0);
-      expect(
-        await LocationResolutionRepository(database).load(
-          LocationItemIdentity(
-            kind: LocationItemKind.event,
-            accountId: after.accountId,
-            sourceId: after.calendarSourceId,
-            itemId: after.id,
-          ),
-          'Café & Hall',
+    final after = await database.select(database.calendarEvents).getSingle();
+    expect(after, before);
+    expect(await database.select(database.pendingOps).get(), isEmpty);
+    expect(
+      await database.select(database.notificationSchedule).get(),
+      remindersBefore,
+    );
+    expect(schedulerCalls, 0);
+    expect(
+      await LocationResolutionRepository(database).load(
+        LocationItemIdentity(
+          kind: LocationItemKind.event,
+          accountId: after.accountId,
+          sourceId: after.calendarSourceId,
+          itemId: after.id,
         ),
-        selection,
+        'Café & Hall',
+      ),
+      equals(null),
+    );
+  });
+
+  test('text-only Google creation authors no supplemental record', () async {
+    await _upsertSource(repository);
+
+    final operationId = await repository.createLocalEvent(
+      _newEventDraft().copyWith(
+        title: 'Text location',
+        location: 'Internal room 3',
+      ),
+    );
+
+    final operation = await (database.select(
+      database.pendingOps,
+    )..where((row) => row.id.equals(operationId))).getSingle();
+    expect(operation.eventId, isNot(operationId));
+    expect(
+      (await database.select(database.calendarEvents).getSingle()).location,
+      'Internal room 3',
+    );
+    expect(await database.select(database.locationResolutions).get(), isEmpty);
+  });
+
+  test(
+    'Google creation with an imported point uses the actual destination owner',
+    () async {
+      await _upsertSource(repository);
+      final point = GeographicPoint(latitude: 49.28, longitude: -123.12);
+      final selection = LocationResult(
+        label: '123 Long Resolved Address',
+        point: point,
+        source: 'ical',
+        attribution: 'Imported iCalendar GEO',
       );
+
+      final operationId = await repository.createLocalEvent(
+        _newEventDraft().copyWith(
+          title: 'Imported location',
+          location: 'Head office',
+          locationChange: LocationChange.replace(selection),
+        ),
+      );
+
+      final operation = await (database.select(
+        database.pendingOps,
+      )..where((row) => row.id.equals(operationId))).getSingle();
+      final event = await (database.select(
+        database.calendarEvents,
+      )..where((row) => row.id.equals(operation.eventId!))).getSingle();
+      final stored = await database.select(database.locationResolutions).get();
+      expect(event.location, 'Head office');
+      expect(event.locationLatitude, equals(null));
+      expect(event.locationLongitude, equals(null));
+      expect(stored, hasLength(1));
+      expect(stored.single.itemId, event.id);
+      expect(stored.single.locationText, 'Head office');
+      expect(stored.single.label, selection.label);
+      expect(stored.single.latitude, point.latitude);
+      expect(stored.single.longitude, point.longitude);
+      expect(stored.single.source, 'ical');
+      expect(stored.single.attribution, 'Imported iCalendar GEO');
     },
   );
 }

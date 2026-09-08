@@ -25,8 +25,12 @@ import 'windows_time_zone_dialog.dart';
 Future<bool> showWindowsTaskDetailsDialog(
   BuildContext context,
   WidgetRef ref,
-  TaskScheduleItem task,
-) async {
+  TaskScheduleItem task, {
+  ExternalLocationLauncher externalLocationLauncher =
+      const ExternalLocationLauncher(
+        platform: _windowsExternalLocationPlatform,
+      ),
+}) async {
   final repository = ref.read(
     tasksRepositoryForAccountProvider(task.accountId),
   );
@@ -66,6 +70,21 @@ Future<bool> showWindowsTaskDetailsDialog(
   if (!context.mounted) return false;
   final localTimeZone = ref.read(localTimeZoneProvider);
   final originalDraft = TaskDetailsDraft.fromTask(original, localTimeZone);
+  final savedDestination = capabilities.supportsLocation
+      ? await LocationDestinationResolver(
+          ref.read(locationResolutionRepositoryProvider),
+        ).resolveSaved(
+          location: originalDraft.location,
+          nativePoint: originalDraft.locationPoint,
+          identity: LocationItemIdentity(
+            kind: LocationItemKind.task,
+            accountId: original.accountId,
+            sourceId: original.taskListId,
+            itemId: original.id,
+          ),
+        )
+      : null;
+  if (!context.mounted) return false;
   final title = TextEditingController(text: original.title);
   final notes = TextEditingController(text: original.notes);
   final categories = TextEditingController(
@@ -177,22 +196,9 @@ Future<bool> showWindowsTaskDetailsDialog(
 
         Future<void> openSavedLocation() async {
           try {
-            final destination =
-                await LocationDestinationResolver(
-                  ref.read(locationResolutionRepositoryProvider),
-                ).resolveSaved(
-                  location: originalDraft.location,
-                  nativePoint: originalDraft.locationPoint,
-                  identity: LocationItemIdentity(
-                    kind: LocationItemKind.task,
-                    accountId: original.accountId,
-                    sourceId: original.taskListId,
-                    itemId: original.id,
-                  ),
-                );
-            final result = await ExternalLocationLauncher(
-              platform: () => ExternalLocationPlatform.windows,
-            ).open(destination);
+            final result = await externalLocationLauncher.open(
+              savedDestination,
+            );
             if (result != ExternalLocationLaunchResult.opened &&
                 context.mounted) {
               setState(() => error = l10n.externalLocationOpenFailed);
@@ -490,8 +496,7 @@ Future<bool> showWindowsTaskDetailsDialog(
                       ),
                     ),
                     if (location.text == originalDraft.location &&
-                        (originalDraft.location.trim().isNotEmpty ||
-                            originalDraft.locationPoint != null)) ...[
+                        savedDestination != null) ...[
                       const SizedBox(height: 8),
                       Wrap(
                         spacing: 8,
@@ -501,8 +506,8 @@ Future<bool> showWindowsTaskDetailsDialog(
                             key: const ValueKey('windows-task-location-open'),
                             onPressed: () => unawaited(openSavedLocation()),
                             child: Text(
-                              completeHttpLocationUri(originalDraft.location) !=
-                                      null
+                              savedDestination.kind ==
+                                      ExternalLocationDestinationKind.link
                                   ? l10n.openLink
                                   : l10n.mapsShow,
                             ),
@@ -1189,11 +1194,19 @@ Future<bool> showWindowsTaskDetailsDialog(
   subtaskTitle.dispose();
   if (nextTask case final taskToOpen?) {
     if (!context.mounted) return changed;
-    return await showWindowsTaskDetailsDialog(context, ref, taskToOpen) ||
+    return await showWindowsTaskDetailsDialog(
+          context,
+          ref,
+          taskToOpen,
+          externalLocationLauncher: externalLocationLauncher,
+        ) ||
         changed;
   }
   return changed;
 }
+
+ExternalLocationPlatform _windowsExternalLocationPlatform() =>
+    ExternalLocationPlatform.windows;
 
 TaskScheduleItem _scheduleItemForTask(
   TaskEntity task,

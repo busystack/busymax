@@ -9,7 +9,8 @@ or analytics.
 | OAuth access/refresh tokens and DAV app passwords | Authenticate selected accounts | Windows secure-storage backend or Linux portal/keyring backend; removed on sign-out/account removal as applicable | Google, Microsoft, Apple iCloud, or the user's Nextcloud server over HTTPS |
 | OAuth authorization code, PKCE verifier, and state | Complete browser/loopback sign-in | Short-lived in memory; callback binds only to loopback; never logged | Selected provider token endpoint |
 | Calendar/event/task/source identifiers and content, including location text | Display, edit, synchronize, recur, import/export, and work offline | Drift database in the user-writable application-support directory | The account provider selected by the user during normal synchronization; location is calendar/task content and can be synchronized |
-| Provider/imported coordinates and existing remembered points (item identity, location snapshot, point, source, attribution) | Preserve native `GEO`/structured location data and open the correct saved item's point | Calendar/task rows and existing `location_resolutions` records in Drift; exact identity and location-snapshot checks apply, with invalidation/reconciliation tied to the owner lifecycle | The selected calendar provider during normal synchronization when its format supports coordinates; external application only after activation |
+| Provider-native coordinates | Preserve imported/provider `GEO` and Microsoft structured locations, including through synchronization and copies | Native coordinate columns projected from the provider or iCalendar resource | The selected calendar provider during normal synchronization when its format supports coordinates; external application only after activation |
+| Supplemental coordinates (item identity, location snapshot, point, source, attribution) | Retain an imported/copied point when a Google event cannot store it natively, and preserve valid existing records through owner reconciliation | One `location_resolutions` row for the exact saved owner and location snapshot; ordinary text edits and native-coordinate creation do not author another row | Not uploaded through Google Calendar and not automatically available on another installation; passed to an external application only after activation |
 | User-activated external location destination | Open a saved address, coordinate, or complete HTTP(S) location value | Prepared locally for one handoff; not retained as opening history and does not mutate the saved item | Registered `geo:`/`maps:` handler on Linux; Google Maps in the browser after native-handler failure; default browser on Windows; a supplied complete HTTP(S) link goes to its own host |
 | Reminder schedule rows | Deliver in-process reminders and make actions idempotent | Drift; stopped by explicit Quit | No new scheduling service; Windows toast receives stable opaque IDs only |
 | `.ics` files and export destinations | User-requested import review/export | Read or written only through explicit activation/file selection; external activation never silently imports | None unless the user later synchronizes confirmed content |
@@ -38,7 +39,10 @@ location. Opening does not edit an event/task, update timestamps or dirty flags,
 or enqueue synchronization.
 
 Existing source and attribution values in `location_resolutions` remain stored
-as provenance until the owning item is changed, moved, reconciled, or deleted.
+as provenance. Records follow unambiguous owner reconciliation and are
+invalidated when their owner's location snapshot changes or the owner is
+deleted. BusyMax does not bulk-delete older records merely because their point
+also exists natively or their provenance names a retired service.
 The removed renderer's former `maps` application-cache child is inactive; the
 database, credentials, and unrelated caches are not cleanup targets.
 

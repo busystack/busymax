@@ -990,7 +990,10 @@ final class DavObjectRepository {
     required Map<String, String> componentIds,
   }) async {
     final resolutions = LocationResolutionRepository(_database);
-    final remembered = await resolutions.capture(davObjectId: objectId);
+    final remembered = await resolutions.capture(
+      accountId: commit.accountId,
+      davObjectId: objectId,
+    );
     await _replaceProjectionsBody(
       commit: commit,
       collection: collection,
@@ -1005,6 +1008,7 @@ final class DavObjectRepository {
       sourceId: semantic.components.firstOrNull?.componentType == 'VTODO'
           ? 'dav-task-list-${commit.collectionId}'
           : 'dav-calendar-${commit.collectionId}',
+      davObjectId: objectId,
     );
   }
 

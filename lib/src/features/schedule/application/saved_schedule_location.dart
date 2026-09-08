@@ -49,17 +49,11 @@ Future<ExternalLocationDestination?> resolveSavedScheduleLocation({
   required LocationResolutionRepository repository,
 }) async {
   if (!scheduleItemSupportsLocationOpening(item)) return null;
-  try {
-    return await LocationDestinationResolver(repository).resolveSaved(
-      location: scheduleItemLocationText(item),
-      nativePoint: scheduleItemNativeLocationPoint(item),
-      identity: scheduleItemLocationIdentity(item),
-    );
-  } on Object {
-    // Text and provider-native points remain usable if remembered-point
-    // storage is temporarily unavailable.
-    return projectedScheduleItemLocationDestination(item);
-  }
+  return LocationDestinationResolver(repository).resolveSaved(
+    location: scheduleItemLocationText(item),
+    nativePoint: scheduleItemNativeLocationPoint(item),
+    identity: scheduleItemLocationIdentity(item),
+  );
 }
 
 String savedScheduleLocationDisplayText(

@@ -4,7 +4,31 @@ import '../calendar_providers/calendar_description.dart';
 import '../calendar_providers/calendar_sync_dto.dart';
 import '../core/time/provider_date_time.dart';
 import '../features/maps/domain/geographic_point.dart';
+import '../features/maps/domain/location_result.dart';
 import 'package:busymax/src/providers/busy_provider.dart';
+
+Map<String, Object?> microsoftStructuredLocation({
+  required String displayName,
+  LocationResult? details,
+}) {
+  final address = <String, String>{
+    if (details != null)
+      for (final key in [
+        'street',
+        'city',
+        'state',
+        'postalCode',
+        'countryOrRegion',
+      ])
+        if (details.address[key]?.isNotEmpty == true)
+          key: details.address[key]!,
+  };
+  return {
+    'displayName': displayName,
+    if (details != null) 'coordinates': details.point.toJson(),
+    if (address.isNotEmpty) 'address': address,
+  };
+}
 
 CalendarSourceDto microsoftCalendarSourceFromJson(Map<String, Object?> json) {
   final canEdit = json['canEdit'];

@@ -269,6 +269,342 @@ void main() {
       expect(await repository.load(identity, ''), _matchesStoredSelection);
     },
   );
+
+  test(
+    'capture starts from sparse supplemental rows and is account scoped',
+    () async {
+      final repository = LocationResolutionRepository(database);
+      final identity = _identity(
+        account: 'account-a',
+        source: _sourceId('account-a', 'provider-a'),
+        event: _eventId('account-a', 'provider-a', 'event-a'),
+      );
+      await repository.apply(
+        identity,
+        'Hall',
+        LocationChange.replace(_selection),
+      );
+      await _event(
+        calendars,
+        'account-a',
+        'provider-a',
+        'event-without-supplement',
+        'Hall',
+      );
+
+      final captured = await repository.capture(
+        accountId: 'account-a',
+        eventSourceId: identity.sourceId,
+      );
+      final otherAccount = await repository.capture(
+        accountId: 'account-b',
+        eventSourceId: _sourceId('account-b', 'provider-b'),
+      );
+
+      expect(captured, hasLength(1));
+      expect(captured.single.item, identity);
+      expect(captured.single.selection, _matchesStoredSelection);
+      expect(otherAccount, isEmpty);
+    },
+  );
+
+  test('capture rejects absent and ambiguous scopes', () async {
+    final repository = LocationResolutionRepository(database);
+
+    await expectLater(
+      repository.capture(accountId: 'account-a'),
+      throwsArgumentError,
+    );
+    await expectLater(
+      repository.capture(
+        accountId: 'account-a',
+        davObjectId: 'object',
+        eventSourceId: _sourceId('account-a', 'provider-a'),
+      ),
+      throwsArgumentError,
+    );
+  });
+
+  test(
+    'restore follows one stable iCalendar identity and keeps provenance',
+    () async {
+      final repository = LocationResolutionRepository(database);
+      final sourceId = _sourceId('account-a', 'provider-a');
+      final old = _identity(
+        account: 'account-a',
+        source: sourceId,
+        event: _eventId('account-a', 'provider-a', 'event-a'),
+      );
+      await (database.update(database.calendarEvents)
+            ..where((row) => row.id.equals(old.itemId)))
+          .write(const CalendarEventsCompanion(icalUid: Value('uid-1')));
+      await repository.apply(old, 'Hall', LocationChange.replace(_selection));
+      final captured = await repository.capture(
+        accountId: 'account-a',
+        eventSourceId: sourceId,
+      );
+      await (database.delete(
+        database.calendarEvents,
+      )..where((row) => row.id.equals(old.itemId))).go();
+      await _event(calendars, 'account-a', 'provider-a', 'replacement', 'Hall');
+      final replacement = _identity(
+        account: 'account-a',
+        source: sourceId,
+        event: _eventId('account-a', 'provider-a', 'replacement'),
+      );
+      await (database.update(database.calendarEvents)
+            ..where((row) => row.id.equals(replacement.itemId)))
+          .write(const CalendarEventsCompanion(icalUid: Value('uid-1')));
+
+      await repository.restore(
+        captured,
+        accountId: 'account-a',
+        sourceId: sourceId,
+      );
+
+      expect(
+        await repository.load(replacement, 'Hall'),
+        _matchesStoredSelection,
+      );
+      expect(await repository.load(old, 'Hall'), isNull);
+    },
+  );
+
+  test('restore rejects a changed location snapshot', () async {
+    final repository = LocationResolutionRepository(database);
+    final sourceId = _sourceId('account-a', 'provider-a');
+    final old = _identity(
+      account: 'account-a',
+      source: sourceId,
+      event: _eventId('account-a', 'provider-a', 'event-a'),
+    );
+    await (database.update(database.calendarEvents)
+          ..where((row) => row.id.equals(old.itemId)))
+        .write(const CalendarEventsCompanion(icalUid: Value('uid-changed')));
+    await repository.apply(old, 'Hall', LocationChange.replace(_selection));
+    final captured = await repository.capture(
+      accountId: 'account-a',
+      eventSourceId: sourceId,
+    );
+    await (database.delete(
+      database.calendarEvents,
+    )..where((row) => row.id.equals(old.itemId))).go();
+    await _event(
+      calendars,
+      'account-a',
+      'provider-a',
+      'replacement',
+      'Different hall',
+    );
+    final replacement = _identity(
+      account: 'account-a',
+      source: sourceId,
+      event: _eventId('account-a', 'provider-a', 'replacement'),
+    );
+    await (database.update(database.calendarEvents)
+          ..where((row) => row.id.equals(replacement.itemId)))
+        .write(const CalendarEventsCompanion(icalUid: Value('uid-changed')));
+
+    await repository.restore(
+      captured,
+      accountId: 'account-a',
+      sourceId: sourceId,
+    );
+
+    expect(await repository.load(replacement, 'Different hall'), isNull);
+    expect(await database.select(database.locationResolutions).get(), isEmpty);
+  });
+
+  test(
+    'restore does not match replacement owners through null identity',
+    () async {
+      final repository = LocationResolutionRepository(database);
+      final sourceId = _sourceId('account-a', 'provider-a');
+      final old = _identity(
+        account: 'account-a',
+        source: sourceId,
+        event: _eventId('account-a', 'provider-a', 'event-a'),
+      );
+      await repository.apply(old, 'Hall', LocationChange.replace(_selection));
+      final captured = await repository.capture(
+        accountId: 'account-a',
+        eventSourceId: sourceId,
+      );
+      await (database.delete(
+        database.calendarEvents,
+      )..where((row) => row.id.equals(old.itemId))).go();
+      await _event(calendars, 'account-a', 'provider-a', 'replacement', 'Hall');
+      final replacement = _identity(
+        account: 'account-a',
+        source: sourceId,
+        event: _eventId('account-a', 'provider-a', 'replacement'),
+      );
+
+      await repository.restore(
+        captured,
+        accountId: 'account-a',
+        sourceId: sourceId,
+      );
+
+      expect(await repository.load(replacement, 'Hall'), isNull);
+      expect(
+        await database.select(database.locationResolutions).get(),
+        isEmpty,
+      );
+    },
+  );
+
+  test('DAV task supplement follows one replacement task owner', () async {
+    await _davScope(database);
+    const old = LocationItemIdentity(
+      kind: LocationItemKind.task,
+      accountId: 'dav-account',
+      sourceId: 'dav-task-list',
+      itemId: 'old-task',
+    );
+    await _task(
+      database,
+      id: old.itemId,
+      uid: 'task-uid',
+      location: 'Head office',
+    );
+    final repository = LocationResolutionRepository(database);
+    final imported = LocationResult(
+      label: '123 Resolved Avenue',
+      point: GeographicPoint(latitude: 48.42, longitude: -123.36),
+      source: 'legacy-import',
+      attribution: 'Original import attribution',
+    );
+    await repository.apply(
+      old,
+      'Head office',
+      LocationChange.replace(imported),
+    );
+
+    final captured = await repository.capture(
+      accountId: 'dav-account',
+      davObjectId: 'dav-object',
+    );
+    await (database.delete(
+      database.tasks,
+    )..where((row) => row.id.equals(old.itemId))).go();
+    await _task(
+      database,
+      id: 'replacement-task',
+      uid: 'task-uid',
+      location: 'Head office',
+    );
+    await repository.restore(
+      captured,
+      accountId: 'dav-account',
+      sourceId: 'dav-task-list',
+      davObjectId: 'dav-object',
+    );
+
+    const replacement = LocationItemIdentity(
+      kind: LocationItemKind.task,
+      accountId: 'dav-account',
+      sourceId: 'dav-task-list',
+      itemId: 'replacement-task',
+    );
+    expect(await repository.load(replacement, 'Head office'), imported);
+    final rows = await database.select(database.locationResolutions).get();
+    expect(rows, hasLength(1));
+    expect(rows.single.itemId, replacement.itemId);
+  });
+
+  test(
+    'recurrence restore keeps supplements on their exact occurrence',
+    () async {
+      final repository = LocationResolutionRepository(database);
+      final sourceId = _sourceId('account-a', 'provider-a');
+      final first = _identity(
+        account: 'account-a',
+        source: sourceId,
+        event: _eventId('account-a', 'provider-a', 'event-a'),
+      );
+      await _event(
+        calendars,
+        'account-a',
+        'provider-a',
+        'event-second',
+        'Hall',
+      );
+      final second = _identity(
+        account: 'account-a',
+        source: sourceId,
+        event: _eventId('account-a', 'provider-a', 'event-second'),
+      );
+      await _makeOccurrence(database, first.itemId, '20260901T100000Z');
+      await _makeOccurrence(database, second.itemId, '20260908T100000Z');
+      final firstPoint = LocationResult(
+        label: 'First occurrence',
+        point: GeographicPoint(latitude: 1, longitude: 2),
+        source: 'existing',
+      );
+      final secondPoint = LocationResult(
+        label: 'Second occurrence',
+        point: GeographicPoint(latitude: 3, longitude: 4),
+        source: 'existing',
+      );
+      await repository.apply(first, 'Hall', LocationChange.replace(firstPoint));
+      await repository.apply(
+        second,
+        'Hall',
+        LocationChange.replace(secondPoint),
+      );
+      final captured = await repository.capture(
+        accountId: 'account-a',
+        eventSourceId: sourceId,
+      );
+      await (database.delete(
+        database.calendarEvents,
+      )..where((row) => row.id.isIn([first.itemId, second.itemId]))).go();
+      await _event(
+        calendars,
+        'account-a',
+        'provider-a',
+        'replacement-first',
+        'Hall',
+      );
+      await _event(
+        calendars,
+        'account-a',
+        'provider-a',
+        'replacement-second',
+        'Hall',
+      );
+      final replacementFirst = _identity(
+        account: 'account-a',
+        source: sourceId,
+        event: _eventId('account-a', 'provider-a', 'replacement-first'),
+      );
+      final replacementSecond = _identity(
+        account: 'account-a',
+        source: sourceId,
+        event: _eventId('account-a', 'provider-a', 'replacement-second'),
+      );
+      await _makeOccurrence(
+        database,
+        replacementFirst.itemId,
+        '20260901T100000Z',
+      );
+      await _makeOccurrence(
+        database,
+        replacementSecond.itemId,
+        '20260908T100000Z',
+      );
+
+      await repository.restore(
+        captured,
+        accountId: 'account-a',
+        sourceId: sourceId,
+      );
+
+      expect(await repository.load(replacementFirst, 'Hall'), firstPoint);
+      expect(await repository.load(replacementSecond, 'Hall'), secondPoint);
+    },
+  );
 }
 
 final _selection = LocationResult(
@@ -364,3 +700,102 @@ Future<void> _event(
     rawJson: {'id': providerEventId, 'location': location},
   ),
 );
+
+Future<void> _davScope(AppDatabase database) async {
+  const now = '2026-09-01T00:00:00.000Z';
+  await database
+      .into(database.accounts)
+      .insert(
+        AccountsCompanion.insert(
+          id: 'dav-account',
+          provider: 'nextcloud',
+          authority: 'https://cloud.example.test',
+          providerAccountId: 'alex',
+          credentialKind: 'nextcloud_app_password',
+          authState: const Value('signed_in'),
+          createdAtUtc: now,
+          updatedAtUtc: now,
+        ),
+      );
+  await database
+      .into(database.davCollections)
+      .insert(
+        DavCollectionsCompanion.insert(
+          id: 'dav-collection',
+          accountId: 'dav-account',
+          hrefKey: '/calendars/alex/tasks/',
+          requestUri: 'https://cloud.example.test/calendars/alex/tasks/',
+          displayName: 'Tasks',
+          supportedComponentMask: const Value(2),
+          currentUserPrivilegesJson: const Value('["{DAV:}write"]'),
+          readOnly: const Value(false),
+          taskProjectionEnabled: const Value(true),
+          createdAtUtc: now,
+          updatedAtUtc: now,
+        ),
+      );
+  await database.taskListsDao.upsertTaskList(
+    TaskListsCompanion.insert(
+      accountId: 'dav-account',
+      id: 'dav-task-list',
+      davCollectionId: const Value('dav-collection'),
+      title: 'Tasks',
+      rawJson: '{}',
+      createdLocalAtUtc: now,
+      updatedLocalAtUtc: now,
+    ),
+  );
+  await database
+      .into(database.davObjects)
+      .insert(
+        DavObjectsCompanion.insert(
+          id: 'dav-object',
+          accountId: 'dav-account',
+          collectionId: 'dav-collection',
+          hrefKey: '/calendars/alex/tasks/task.ics',
+          requestUri:
+              'https://cloud.example.test/calendars/alex/tasks/task.ics',
+          rawIcsBody: 'BEGIN:VCALENDAR\r\nEND:VCALENDAR\r\n',
+          rawBodyHash: 'hash',
+          firstSeenAtUtc: now,
+          lastFetchedAtUtc: now,
+          lastChangedAtUtc: now,
+        ),
+      );
+}
+
+Future<void> _task(
+  AppDatabase database, {
+  required String id,
+  required String uid,
+  required String location,
+}) => database.tasksDao.upsertTask(
+  TasksCompanion.insert(
+    accountId: 'dav-account',
+    taskListId: 'dav-task-list',
+    id: id,
+    davCollectionId: const Value('dav-collection'),
+    davObjectId: const Value('dav-object'),
+    icalUid: Value(uid),
+    taskLocation: Value(location),
+    title: 'Task',
+    rawJson: '{}',
+    createdLocalAtUtc: '2026-09-01T00:00:00.000Z',
+    updatedLocalAtUtc: '2026-09-01T00:00:00.000Z',
+  ),
+);
+
+Future<void> _makeOccurrence(
+  AppDatabase database,
+  String eventId,
+  String occurrence,
+) =>
+    (database.update(
+      database.calendarEvents,
+    )..where((row) => row.id.equals(eventId))).write(
+      CalendarEventsCompanion(
+        icalUid: const Value('series-uid'),
+        providerRecurringEventId: const Value('series-master'),
+        occurrenceKey: Value(occurrence),
+      ),
+    );

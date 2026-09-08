@@ -44,6 +44,9 @@ and can be extracted, so use only native Desktop/public-client credentials.
 Never use server credentials or commit the JSON or generated `.snap` files.
 No mapping credential is required. BusyMax stores ordinary location text and
 hands a saved destination to an external application only when the user asks.
+Microsoft and iCalendar coordinates stay provider-native. An imported or copied
+point that Google Calendar cannot represent is retained locally for the exact
+saved event and is not synchronized to another installation through Google.
 
 Apple iCloud Calendar and Nextcloud do not use compile-time client secrets.
 Read [Apple iCloud setup](apple_icloud_setup.md) and [Nextcloud

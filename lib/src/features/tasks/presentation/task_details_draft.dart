@@ -531,7 +531,9 @@ class TaskDetailsDraft {
       locationPoint: locationPoint,
       locationChange:
           locationChange ??
-          ((location ?? this.location) != originalLocation
+          (location == null
+              ? this.locationChange
+              : location != originalLocation
               ? const LocationChange.clear()
               : const LocationChange.unchanged()),
       taskUrl: taskUrl ?? this.taskUrl,

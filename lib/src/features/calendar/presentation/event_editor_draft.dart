@@ -458,6 +458,7 @@ class EventEditorDraft {
     bool clearConference = false,
     bool clearRecurringMutationScope = false,
   }) {
+    final locationWasProvided = clearLocation || location != null;
     final candidateLocation = clearLocation ? null : location ?? this.location;
     final matchesOriginalLocation =
         (candidateLocation ?? '') == (originalLocation ?? '');
@@ -486,7 +487,9 @@ class EventEditorDraft {
       locationPoint: locationPoint,
       locationChange:
           locationChange ??
-          (!matchesOriginalLocation
+          (!locationWasProvided
+              ? this.locationChange
+              : !matchesOriginalLocation
               ? const LocationChange.clear()
               : const LocationChange.unchanged()),
       description: clearDescription ? null : description ?? this.description,
