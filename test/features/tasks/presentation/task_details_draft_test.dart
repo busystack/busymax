@@ -1,6 +1,8 @@
 import 'package:busymax/src/features/tasks/data/tasks_repository.dart';
 import 'package:busymax/src/features/tasks/presentation/task_details_draft.dart';
 import 'package:busymax/src/features/tasks/domain/task_capabilities.dart';
+import 'package:busymax/src/features/maps/domain/geographic_point.dart';
+import 'package:busymax/src/features/maps/domain/location_result.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
@@ -63,7 +65,101 @@ void main() {
 
     expect(draft.scheduleIssue, TaskScheduleIssue.mixedTimeModes);
   });
+
+  test('opening a located task preserves its point without dirty state', () {
+    final point = GeographicPoint(latitude: 0, longitude: -123);
+    final task = _taskWithLocation('Hall', point);
+    final draft = TaskDetailsDraft.fromTask(task, 'UTC');
+
+    expect(draft.location, 'Hall');
+    expect(draft.locationPoint, point);
+    expect(draft.locationChange, const LocationChange.unchanged());
+    expect(
+      draft.toPatch(
+        task,
+        nextcloudTaskCollectionCapabilities,
+        localTimeZone: 'UTC',
+      ),
+      isEmpty,
+    );
+  });
+
+  test('same-label pin replacement remains a saved creation change', () {
+    final task = _taskWithLocation(
+      'Hall',
+      GeographicPoint(latitude: 1, longitude: 2),
+    );
+    final selection = LocationResult(
+      label: 'Hall',
+      point: GeographicPoint(latitude: 3, longitude: 4),
+    );
+    final draft = TaskDetailsDraft.fromTask(
+      task,
+      'UTC',
+    ).copyWith(locationChange: LocationChange.replace(selection));
+
+    expect(draft.effectiveLocationPoint, selection.point);
+    expect(
+      draft.toPatch(
+        task,
+        nextcloudTaskCollectionCapabilities,
+        localTimeZone: 'UTC',
+      )['locationPoint'],
+      selection.point.toJson(),
+    );
+    expect(
+      draft
+          .toCreateInput(
+            nextcloudTaskCollectionCapabilities,
+            localTimeZone: 'UTC',
+          )
+          .locationChange,
+      LocationChange.replace(selection),
+    );
+  });
+
+  test(
+    'typing or clearing after selection explicitly invalidates its point',
+    () {
+      final selection = LocationResult(
+        label: 'Hall',
+        point: GeographicPoint(latitude: 3, longitude: 4),
+      );
+      final selected = TaskDetailsDraft.fromTask(
+        _taskWithLocation('Hall', null),
+        'UTC',
+      ).copyWith(locationChange: LocationChange.replace(selection));
+
+      final typed = selected.copyWith(location: 'Meeting room 3');
+      expect(typed.location, 'Meeting room 3');
+      expect(typed.locationChange, const LocationChange.clear());
+      expect(typed.effectiveLocationPoint, isNull);
+
+      final cleared = selected.copyWith(
+        location: '',
+        locationChange: const LocationChange.clear(),
+      );
+      expect(cleared.location, '');
+      expect(cleared.effectiveLocationPoint, isNull);
+    },
+  );
 }
+
+TaskEntity _taskWithLocation(String location, GeographicPoint? point) =>
+    TaskEntity(
+      accountId: 'account',
+      taskListId: 'inbox',
+      id: 'task-location',
+      title: 'Task',
+      status: 'needsAction',
+      taskLocation: location,
+      locationPoint: point,
+      localDirty: false,
+      pendingDelete: false,
+      pendingMove: false,
+      rawJson: '{}',
+      updatedLocalAtUtc: '2026-08-09T00:00:00.000Z',
+    );
 
 TaskEntity _task({required String due, required String start}) {
   return TaskEntity(

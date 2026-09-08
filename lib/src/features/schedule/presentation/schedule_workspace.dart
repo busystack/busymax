@@ -47,6 +47,10 @@ import '../../tasks/data/tasks_repository.dart';
 import '../../tasks/domain/task_checklist_item.dart';
 import '../../tasks/presentation/new_task_dialog.dart';
 import '../../tasks/presentation/task_details_pane.dart';
+import '../../maps/application/directions_launcher.dart';
+import '../../maps/domain/geographic_point.dart';
+import '../../maps/domain/location_result.dart';
+import '../../maps/presentation/linux_location_map_dialog.dart';
 import 'schedule_agenda_view.dart';
 import 'schedule_anchored_popover.dart';
 import 'schedule_create_menu.dart';
@@ -1576,8 +1580,68 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
         if (item is CalendarScheduleItem) {
           await _respondToInvitation(item, CalendarInvitationResponse.decline);
         }
+      case ScheduleItemDetailsAction.showMap:
+        await _showLocationMap(item);
+      case ScheduleItemDetailsAction.directions:
+        await _openLocationDirections(item);
     }
   }
+
+  Future<void> _showLocationMap(ScheduleItem item) {
+    final identity = _locationIdentity(item);
+    final location = _locationText(item);
+    return showLinuxLocationMapDialog(
+      context,
+      ref,
+      location: location,
+      nativePoint: _locationPoint(item),
+      locationChange: const LocationChange.unchanged(),
+      identity: identity,
+      headerBarService: ref.read(linuxHeaderBarServiceProvider),
+      onSelection: (selection) => ref
+          .read(locationResolutionRepositoryProvider)
+          .apply(identity, location, LocationChange.replace(selection)),
+    );
+  }
+
+  Future<void> _openLocationDirections(ScheduleItem item) async {
+    final identity = _locationIdentity(item);
+    final location = _locationText(item);
+    final remembered = _locationPoint(item) == null
+        ? await ref
+              .read(locationResolutionRepositoryProvider)
+              .load(identity, location)
+        : null;
+    final opened = await launchGoogleMapsDirections(
+      location: location,
+      point: _locationPoint(item) ?? remembered?.point,
+    );
+    if (!opened && mounted) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(context.l10n.mapsBrowserFailed)));
+    }
+  }
+
+  LocationItemIdentity _locationIdentity(ScheduleItem item) =>
+      LocationItemIdentity(
+        kind: item is CalendarScheduleItem
+            ? LocationItemKind.event
+            : LocationItemKind.task,
+        accountId: item.accountId,
+        sourceId: item.sourceId,
+        itemId: item.id,
+      );
+
+  String _locationText(ScheduleItem item) => switch (item) {
+    CalendarScheduleItem(:final location) => location ?? '',
+    TaskScheduleItem(:final location) => location ?? '',
+  };
+
+  GeographicPoint? _locationPoint(ScheduleItem item) => switch (item) {
+    CalendarScheduleItem(:final locationPoint) => locationPoint,
+    TaskScheduleItem(:final locationPoint) => locationPoint,
+  };
 
   Future<void> _editItem(
     ScheduleItem item,

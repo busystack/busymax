@@ -69,8 +69,15 @@ String localizedMonthLabel(
   DateTime month, {
   bool abbreviated = false,
 }) {
-  final label = (abbreviated ? DateFormat.LLL(locale) : DateFormat.LLLL(locale))
-      .format(month);
+  // The intl skeleton factories normalize LLL/LLLL to MMM/MMMM. Use an
+  // explicit marked pattern to retain CLDR's `L` context. Estonian calendar
+  // labels conventionally retain the full standalone month name here, so do
+  // not shorten it to intl's format-context `sept` value.
+  final label = _formatContextPattern(
+    abbreviated && _languageCode(locale) != 'et' ? 'LLL' : 'LLLL',
+    locale,
+    month,
+  );
   return _applyHeadingCase(label, locale, _titleCasedMonthLanguages);
 }
 
@@ -80,11 +87,10 @@ String localizedWeekdayLabel(
   DateTime day, {
   bool abbreviated = false,
 }) {
-  final label = _formatContextPattern(
-    abbreviated ? 'ccc' : 'cccc',
-    locale,
-    day,
-  );
+  var label = _formatContextPattern(abbreviated ? 'ccc' : 'cccc', locale, day);
+  if (abbreviated && _languageCode(locale) == 'vi') {
+    label = label.replaceFirst('Thứ ', 'Th ');
+  }
   return _applyHeadingCase(label, locale, _titleCasedDayLanguages);
 }
 

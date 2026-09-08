@@ -3,6 +3,8 @@ import 'package:busymax/src/calendar_providers/calendar_mutation.dart';
 
 import 'package:busymax/src/dav/dav_errors.dart';
 import 'package:busymax/src/dav/ical/ical_semantics.dart';
+import 'package:busymax/src/dav/ical/ical_recurrence.dart';
+import 'package:busymax/src/dav/ical/ical_document.dart';
 import 'package:busymax/src/dav/discovery/dav_discovery_models.dart';
 import 'package:busymax/src/dav/mutation/dav_mutation_patch.dart';
 import 'package:busymax/src/dav/storage/dav_object_repository.dart';
@@ -10,12 +12,14 @@ import 'package:busymax/src/db/app_database.dart';
 import 'package:busymax/src/features/calendar/data/calendar_repository.dart';
 import 'package:busymax/src/features/calendar/presentation/event_editor_draft.dart';
 import 'package:busymax/src/features/calendar/domain/event_timing_policy.dart';
+import 'package:busymax/src/features/maps/domain/geographic_point.dart';
+import 'package:busymax/src/features/maps/domain/location_result.dart';
 import 'package:busymax/src/core/time/provider_date_time.dart';
 import 'package:busymax/src/schedule/schedule_event_rescheduling.dart';
 import 'package:busymax/src/schedule/schedule_item.dart';
 import 'package:busymax/src/features/tasks/data/tasks_repository.dart';
 import 'package:busymax/src/providers/busy_provider.dart';
-import 'package:drift/drift.dart' hide isNull;
+import 'package:drift/drift.dart' hide isNotNull, isNull;
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -630,6 +634,288 @@ void main() {
     );
     expect(candidate, contains('SUMMARY:Edited exception'));
     expect(candidate, contains('X-SERIES-KEEP:opaque'));
+  });
+
+  test(
+    'clearing an existing located exception preserves an inheritance barrier',
+    () async {
+      final baseline = _recurringEventResource()
+          .replaceFirst(
+            'SUMMARY:Server series',
+            'SUMMARY:Server series\r\nLOCATION:Series room\r\nGEO:49.2827;-123.1207',
+          )
+          .replaceFirst(
+            'SUMMARY:Existing exception',
+            'SUMMARY:Existing exception\r\nLOCATION:Exception room\r\nGEO:48.4284;-123.3656',
+          );
+      await _commitObjects(objectRepository, [
+        _prepared(
+          href: '${_collectionHref}located-exception.ics',
+          etag: '"located"',
+          body: baseline,
+        ),
+      ]);
+      final row = (await database.select(database.calendarEvents).get())
+          .singleWhere((event) => event.recurrenceIdKey != null);
+      final detail = (await calendarRepository.loadEventDetail(row.id))!;
+
+      await calendarRepository.updateLocalEvent(
+        EventEditorDraft.fromEventDetail(detail).copyWith(
+          clearLocation: true,
+          recurringMutationScope: RecurringEventMutationScope.singleOccurrence,
+        ),
+      );
+
+      final operation = await database.select(database.pendingOps).getSingle();
+      final serialized = DavMutationPatch.fromJsonString(
+        operation.mutationPatchJson!,
+      ).applyTo(baseline, nowUtc: _now);
+      final document = IcalSemanticDocument.parse(serialized);
+      final exception = document.components.singleWhere(
+        (component) => component.recurrenceIdKey != null,
+      );
+      expect(
+        exception.documentComponent.firstProperty('LOCATION'),
+        isA<IcalProperty>(),
+      );
+      expect(exception.location, '');
+      expect(exception.documentComponent.firstProperty('GEO'), isNull);
+
+      final projected = IcalRecurrenceExpander().expand(
+        document,
+        rangeStartUtc: DateTime.utc(2026, 8, 9),
+        rangeEndUtc: DateTime.utc(2026, 8, 10),
+      );
+      expect(projected.single.location, '');
+      expect(projected.single.locationPoint, isNull);
+      expect(serialized, isNot(contains('LOCATION:Exception room')));
+      expect(
+        serialized.split('RECURRENCE-ID:20260809T090000Z').last,
+        isNot(contains('LOCATION:Series room')),
+      );
+    },
+  );
+
+  test(
+    'clearing a sparse existing exception blocks inherited location',
+    () async {
+      final baseline = _recurringEventResource().replaceFirst(
+        'SUMMARY:Server series',
+        'SUMMARY:Server series\r\nLOCATION:Series room\r\nGEO:49.2827;-123.1207',
+      );
+      await _commitObjects(objectRepository, [
+        _prepared(
+          href: '${_collectionHref}sparse-located-exception.ics',
+          etag: '"sparse-located"',
+          body: baseline,
+        ),
+      ]);
+      final row = (await database.select(database.calendarEvents).get())
+          .singleWhere((event) => event.recurrenceIdKey != null);
+      final detail = (await calendarRepository.loadEventDetail(row.id))!;
+      expect(detail.location, 'Series room');
+      expect(detail.locationPoint?.latitude, 49.2827);
+
+      await calendarRepository.updateLocalEvent(
+        EventEditorDraft.fromEventDetail(detail).copyWith(
+          clearLocation: true,
+          recurringMutationScope: RecurringEventMutationScope.singleOccurrence,
+        ),
+      );
+
+      final serialized = await _serializedPendingDavMutation(
+        database,
+        baseline,
+      );
+      final document = IcalSemanticDocument.parse(serialized);
+      final exception = document.components.singleWhere(
+        (component) => component.recurrenceIdKey != null,
+      );
+      expect(exception.documentComponent.firstProperty('LOCATION'), isNotNull);
+      expect(exception.location, '');
+      expect(exception.documentComponent.firstProperty('GEO'), isNull);
+      final projected = IcalRecurrenceExpander().expand(
+        document,
+        rangeStartUtc: DateTime.utc(2026, 8, 9),
+        rangeEndUtc: DateTime.utc(2026, 8, 10),
+      );
+      expect(projected.single.location, '');
+      expect(projected.single.locationPoint, isNull);
+    },
+  );
+
+  test(
+    'new occurrence clear creates an explicit inheritance boundary',
+    () async {
+      final baseline = _recurringEventResource().replaceFirst(
+        'SUMMARY:Server series',
+        'SUMMARY:Server series\r\nLOCATION:Series room\r\nGEO:49.2827;-123.1207',
+      );
+      await _commitObjects(objectRepository, [
+        _prepared(
+          href: '${_collectionHref}new-clear-exception.ics',
+          etag: '"new-clear"',
+          body: baseline,
+        ),
+      ]);
+      final row = (await database.select(database.calendarEvents).get())
+          .singleWhere(
+            (event) => event.occurrenceKey!.contains('2026-08-10T09:00:00'),
+          );
+      final detail = (await calendarRepository.loadEventDetail(row.id))!;
+
+      await calendarRepository.updateLocalEvent(
+        EventEditorDraft.fromEventDetail(detail).copyWith(
+          clearLocation: true,
+          recurringMutationScope: RecurringEventMutationScope.singleOccurrence,
+        ),
+      );
+
+      final document = IcalSemanticDocument.parse(
+        await _serializedPendingDavMutation(database, baseline),
+      );
+      final exception = document.components.singleWhere(
+        (component) => component.recurrenceId?.rawValue == '20260810T090000Z',
+      );
+      expect(exception.location, '');
+      expect(exception.documentComponent.firstProperty('LOCATION'), isNotNull);
+      expect(exception.documentComponent.firstProperty('GEO'), isNull);
+      final projected = IcalRecurrenceExpander().expand(
+        document,
+        rangeStartUtc: DateTime.utc(2026, 8, 10),
+        rangeEndUtc: DateTime.utc(2026, 8, 11),
+      );
+      expect(projected.single.location, '');
+      expect(projected.single.locationPoint, isNull);
+    },
+  );
+
+  test('this-and-future clear keeps an empty ranged LOCATION', () async {
+    final baseline = _recurringEventResource().replaceFirst(
+      'SUMMARY:Server series',
+      'SUMMARY:Server series\r\nLOCATION:Series room\r\nGEO:49.2827;-123.1207',
+    );
+    await _commitObjects(objectRepository, [
+      _prepared(
+        href: '${_collectionHref}range-clear-location.ics',
+        etag: '"range-clear"',
+        body: baseline,
+      ),
+    ]);
+    final row = (await database.select(database.calendarEvents).get())
+        .singleWhere(
+          (event) => event.occurrenceKey!.contains('2026-08-10T09:00:00'),
+        );
+    final detail = (await calendarRepository.loadEventDetail(row.id))!;
+
+    await calendarRepository.updateLocalEvent(
+      EventEditorDraft.fromEventDetail(detail).copyWith(
+        clearLocation: true,
+        recurringMutationScope: RecurringEventMutationScope.thisAndFuture,
+      ),
+    );
+
+    final document = IcalSemanticDocument.parse(
+      await _serializedPendingDavMutation(database, baseline),
+    );
+    final range = document.components.singleWhere(
+      (component) => component.recurrenceRange == 'THISANDFUTURE',
+    );
+    expect(range.location, '');
+    expect(range.documentComponent.firstProperty('LOCATION'), isNotNull);
+    expect(range.documentComponent.firstProperty('GEO'), isNull);
+  });
+
+  test('replacing an exception writes the new venue and raw GEO point', () async {
+    final baseline = _recurringEventResource()
+        .replaceFirst(
+          'SUMMARY:Server series',
+          'SUMMARY:Server series\r\nLOCATION:Series room\r\nGEO:49.2827;-123.1207',
+        )
+        .replaceFirst(
+          'SUMMARY:Existing exception',
+          'SUMMARY:Existing exception\r\nLOCATION:Old exception\r\nGEO:48.4284;-123.3656',
+        );
+    await _commitObjects(objectRepository, [
+      _prepared(
+        href: '${_collectionHref}replace-exception-location.ics',
+        etag: '"replace-location"',
+        body: baseline,
+      ),
+    ]);
+    final row = (await database.select(database.calendarEvents).get())
+        .singleWhere((event) => event.recurrenceIdKey != null);
+    final detail = (await calendarRepository.loadEventDetail(row.id))!;
+    final selection = LocationResult(
+      label: 'New exception',
+      point: GeographicPoint(latitude: 0, longitude: -77.0365),
+    );
+
+    await calendarRepository.updateLocalEvent(
+      EventEditorDraft.fromEventDetail(detail).copyWith(
+        location: selection.label,
+        locationChange: LocationChange.replace(selection),
+        recurringMutationScope: RecurringEventMutationScope.singleOccurrence,
+      ),
+    );
+
+    final serialized = await _serializedPendingDavMutation(database, baseline);
+    final document = IcalSemanticDocument.parse(serialized);
+    final exception = document.components.singleWhere(
+      (component) => component.recurrenceIdKey != null,
+    );
+    expect(exception.location, 'New exception');
+    expect(
+      exception.documentComponent.firstProperty('GEO')?.rawValue,
+      '0.0;-77.0365',
+    );
+    final projected = IcalRecurrenceExpander().expand(
+      document,
+      rangeStartUtc: DateTime.utc(2026, 8, 9),
+      rangeEndUtc: DateTime.utc(2026, 8, 10),
+    );
+    expect(projected.single.location, 'New exception');
+    expect(projected.single.locationPoint, selection.point);
+  });
+
+  test('timing-only exception edit preserves inherited location data', () async {
+    final baseline = _recurringEventResource().replaceFirst(
+      'SUMMARY:Server series',
+      'SUMMARY:Server series\r\nLOCATION:Series room\r\nGEO:49.2827;-123.1207',
+    );
+    await _commitObjects(objectRepository, [
+      _prepared(
+        href: '${_collectionHref}timing-preserves-location.ics',
+        etag: '"timing-location"',
+        body: baseline,
+      ),
+    ]);
+    final row = (await database.select(database.calendarEvents).get())
+        .singleWhere(
+          (event) => event.occurrenceKey!.contains('2026-08-10T09:00:00'),
+        );
+    final detail = (await calendarRepository.loadEventDetail(row.id))!;
+
+    await calendarRepository.updateLocalEvent(
+      EventEditorDraft.fromEventDetail(detail).copyWith(
+        start: DateTime.utc(2026, 8, 10, 13),
+        end: DateTime.utc(2026, 8, 10, 14),
+        recurringMutationScope: RecurringEventMutationScope.singleOccurrence,
+      ),
+      timingBaseline: EventTimingBaseline.fromDetail(detail),
+    );
+
+    final document = IcalSemanticDocument.parse(
+      await _serializedPendingDavMutation(database, baseline),
+    );
+    final projected = IcalRecurrenceExpander().expand(
+      document,
+      rangeStartUtc: DateTime.utc(2026, 8, 10),
+      rangeEndUtc: DateTime.utc(2026, 8, 11),
+    );
+    expect(projected.single.location, 'Series room');
+    expect(projected.single.locationPoint?.latitude, 49.2827);
+    expect(projected.single.locationPoint?.longitude, -123.1207);
   });
 
   test(
@@ -1500,6 +1786,16 @@ EventEditorDraft _draftForEvent(CalendarEvent event) =>
 
 String _createRaw(PendingOp operation) =>
     (jsonDecode(operation.requestJson) as Map)['rawIcs']! as String;
+
+Future<String> _serializedPendingDavMutation(
+  AppDatabase database,
+  String baseline,
+) async {
+  final operation = await database.select(database.pendingOps).getSingle();
+  return DavMutationPatch.fromJsonString(
+    operation.mutationPatchJson!,
+  ).applyTo(baseline, nowUtc: _now);
+}
 
 DavPreparedObject _prepared({
   required String href,

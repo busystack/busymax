@@ -593,7 +593,10 @@ IcalComponent _componentFromJson(Map<String, Object?> json) {
           group: child['group'] as String?,
           name: _requiredString(child, 'name').toUpperCase(),
           parameters: _parameters(child['parameters']),
-          rawValue: _requiredString(child, 'value'),
+          // Empty values are meaningful in iCalendar. In particular, an
+          // explicit empty LOCATION on a recurrence exception prevents the
+          // master value from being inherited.
+          rawValue: _requiredStringAllowEmpty(child, 'value'),
           originalPhysicalLines: const [],
           isDirty: true,
         ),
@@ -647,6 +650,12 @@ Map<String, Object?> _requiredMap(Map<String, Object?> json, String key) {
 String _requiredString(Map<String, Object?> json, String key) {
   final value = json[key];
   if (value is! String || value.isEmpty) throw _invalidPatch();
+  return value;
+}
+
+String _requiredStringAllowEmpty(Map<String, Object?> json, String key) {
+  final value = json[key];
+  if (value is! String) throw _invalidPatch();
   return value;
 }
 

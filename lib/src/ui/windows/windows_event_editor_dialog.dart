@@ -13,6 +13,7 @@ import '../../core/time/provider_date_time.dart';
 import '../../features/calendar/presentation/event_editor_draft.dart';
 import '../../features/recurrence/domain/event_recurrence_codec.dart';
 import '../../features/recurrence/domain/recurrence_rule.dart';
+import '../../features/maps/domain/location_result.dart';
 import '../../providers/busy_provider.dart';
 import '../common/busymax_glyph.dart';
 import 'windows_busymax_glyphs.dart';
@@ -21,6 +22,8 @@ import 'windows_guest_update_dialog.dart';
 import 'windows_recurrence_dialog.dart';
 import 'windows_time_zone_dialog.dart';
 import 'windows_nextcloud_scheduling_dialog.dart';
+import 'windows_location_autocomplete.dart';
+import 'windows_location_map_dialog.dart';
 
 Future<bool> showWindowsEventEditorDialog(
   BuildContext context,
@@ -141,6 +144,8 @@ Future<bool> showWindowsEventEditorDialog(
     originalDraft?.visibilityOrSensitivity,
     selectedSource.provider,
   );
+  var locationChange =
+      originalDraft?.locationChange ?? const LocationChange.unchanged();
   final initialSourceAccountId = selectedSource.accountId;
   final initialSourceId = selectedSource.id;
   final initialTitle = title.text;
@@ -169,6 +174,7 @@ Future<bool> showWindowsEventEditorDialog(
       title.text != initialTitle ||
       description.text != initialDescription ||
       location.text != initialLocation ||
+      locationChange.changed ||
       categories.text != initialCategories ||
       start != initialStartValue ||
       end != initialEndValue ||
@@ -746,7 +752,42 @@ Future<bool> showWindowsEventEditorDialog(
                   const SizedBox(height: 12),
                   InfoLabel(
                     label: l10n.location,
-                    child: TextBox(controller: location),
+                    child: WindowsLocationAutocomplete(
+                      key: ValueKey(
+                        'event-location-${originalDraft?.eventId ?? 'new'}-'
+                        '${selectedSource.accountId}-${selectedSource.id}',
+                      ),
+                      controller: location,
+                      client: ref.read(geoapifyClientProvider),
+                      enabled: !saving,
+                      previewAvailable: locationChange.changed
+                          ? locationChange.selection != null
+                          : originalDraft?.locationPoint != null,
+                      onChanged: (value, change) => setState(() {
+                        locationChange = change;
+                      }),
+                      onPreview: () => showWindowsLocationMapDialog(
+                        context,
+                        ref,
+                        location: location.text,
+                        nativePoint: originalDraft?.locationPoint,
+                        locationChange: locationChange,
+                        identity: originalDraft?.eventId == null
+                            ? null
+                            : LocationItemIdentity(
+                                kind: LocationItemKind.event,
+                                accountId: originalDraft!.accountId,
+                                sourceId: originalDraft.sourceId,
+                                itemId: originalDraft.eventId!,
+                              ),
+                        onSelection: (selection) async {
+                          setState(() {
+                            location.text = selection.label;
+                            locationChange = LocationChange.replace(selection);
+                          });
+                        },
+                      ),
+                    ),
                   ),
                   if (selectedSource.provider == BusyProvider.nextcloud &&
                       selectedSource.davCollectionId != null &&
@@ -859,6 +900,7 @@ Future<bool> showWindowsEventEditorDialog(
                                     start: effectiveStart,
                                     end: effectiveEnd,
                                     location: location.text.trim(),
+                                    locationChange: locationChange,
                                     description: description.text.trim(),
                                     startTimeZone: selectedTimeZone,
                                     endTimeZone: selectedTimeZone,

@@ -39,7 +39,8 @@ dart run build_runner build --delete-conflicting-outputs --force-jit
 flutter run -d windows -t lib/main_windows.dart `
   --dart-define=BUSYMAX_WINDOWS_AUMID=BusyStack.BusyMax.Development `
   --dart-define=GOOGLE_OAUTH_CLIENT_ID=<desktop-client-id> `
-  --dart-define=MICROSOFT_OAUTH_CLIENT_ID=<public-client-id>
+  --dart-define=MICROSOFT_OAUTH_CLIENT_ID=<public-client-id> `
+  --dart-define=GEOAPIFY_API_KEY=<geoapify-api-key>
 ```
 
 An unpackaged build accurately reports Windows StartupTask as unavailable. It

@@ -303,6 +303,7 @@ class _TaskDetailsEditorState extends State<TaskDetailsEditor> {
                     if (_supportsIcalFields)
                       IcalTaskFieldsEditor(
                         draft: draft,
+                        accountId: _editingTask.accountId,
                         capabilities: widget.capabilities,
                         enabled: _canWrite,
                         useNativeDatePicker: widget.useNativeDatePicker,

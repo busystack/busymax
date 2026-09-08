@@ -225,6 +225,10 @@ function Assert-BusyMaxStoreConfig {
           [string]$Config.publisher -ceq 'CN=BusyMax CI Package') {
         throw "Field 'identityName' and 'publisher' must not use the committed CI identity in ProductionStore mode."
       }
+      if ($null -eq $Config.PSObject.Properties['geoapifyApiKey'] -or
+          (Test-BusyMaxPlaceholder -Value ([string]$Config.geoapifyApiKey))) {
+        throw "Store configuration field 'geoapifyApiKey' is missing or still a placeholder in ProductionStore mode."
+      }
     }
     'LocalTestSigning' {
       if ($Config.production -ne $true) {
@@ -233,6 +237,10 @@ function Assert-BusyMaxStoreConfig {
       if ([string]$Config.identityName -ceq 'BusyStack.BusyMax.CI' -or
           [string]$Config.publisher -ceq 'CN=BusyMax CI Package') {
         throw "Field 'identityName' and 'publisher' must use the owner's Store identity, not the committed CI identity, in LocalTestSigning mode."
+      }
+      if ($null -eq $Config.PSObject.Properties['geoapifyApiKey'] -or
+          (Test-BusyMaxPlaceholder -Value ([string]$Config.geoapifyApiKey))) {
+        throw "Store configuration field 'geoapifyApiKey' is missing or still a placeholder in LocalTestSigning mode."
       }
     }
     'CiNonProduction' {

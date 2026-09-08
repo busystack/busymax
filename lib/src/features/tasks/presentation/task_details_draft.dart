@@ -443,6 +443,7 @@ class TaskDetailsDraft {
       dueUtc: dueDate == null ? null : DateTime.tryParse(dueDate!),
       categories: categories,
       fields: fields,
+      locationChange: locationChange,
     );
   }
 

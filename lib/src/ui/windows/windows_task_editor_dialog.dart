@@ -10,12 +10,15 @@ import '../../features/recurrence/domain/recurrence_rule.dart';
 import '../../features/task_lists/data/task_lists_repository.dart';
 import '../../features/tasks/data/tasks_repository.dart';
 import '../../features/tasks/domain/task_capabilities.dart';
+import '../../features/maps/domain/location_result.dart';
 import '../../providers/busy_provider.dart';
 import '../common/busymax_glyph.dart';
 import 'windows_busymax_glyphs.dart';
 import 'windows_recurrence_dialog.dart';
 import 'windows_task_create_fields.dart';
 import 'windows_time_zone_dialog.dart';
+import 'windows_location_autocomplete.dart';
+import 'windows_location_map_dialog.dart';
 
 Future<bool> showWindowsTaskEditorDialog(
   BuildContext context,
@@ -87,6 +90,7 @@ Future<bool> showWindowsTaskEditorDialog(
   var pinned = false;
   var hideSubtasks = false;
   var hideCompletedSubtasks = false;
+  var locationChange = const LocationChange.unchanged();
   var saving = false;
   var saved = false;
   var allowPop = false;
@@ -469,7 +473,33 @@ Future<bool> showWindowsTaskEditorDialog(
                     const SizedBox(height: 12),
                     InfoLabel(
                       label: l10n.location,
-                      child: TextBox(controller: location),
+                      child: WindowsLocationAutocomplete(
+                        key: ValueKey(
+                          'new-task-location-${selectedList.accountId}-'
+                          '${selectedList.id}',
+                        ),
+                        controller: location,
+                        client: ref.read(geoapifyClientProvider),
+                        enabled: !saving,
+                        previewAvailable: locationChange.selection != null,
+                        onChanged: (value, change) => setState(() {
+                          locationChange = change;
+                        }),
+                        onPreview: () => showWindowsLocationMapDialog(
+                          context,
+                          ref,
+                          location: location.text,
+                          locationChange: locationChange,
+                          onSelection: (selection) async {
+                            setState(() {
+                              location.text = selection.label;
+                              locationChange = LocationChange.replace(
+                                selection,
+                              );
+                            });
+                          },
+                        ),
+                      ),
                     ),
                   ],
                   if (capability.supportsUrl) ...[
@@ -614,6 +644,7 @@ Future<bool> showWindowsTaskEditorDialog(
                                   dueUtc: due?.toUtc(),
                                   categories: _categories(categories.text),
                                   fields: fields,
+                                  locationChange: locationChange,
                                 ),
                               );
                           saved = true;

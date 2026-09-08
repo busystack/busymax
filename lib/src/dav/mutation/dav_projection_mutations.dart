@@ -146,7 +146,19 @@ DavMutationPatch? buildDavEventUpdatePatch({
       DavPatchOperation.setText('DESCRIPTION', _nonEmpty(input.description)),
     );
   }
-  if ((current.location ?? '') != (input.location ?? '')) {
+  final clearsExceptionLocation =
+      target.recurrenceIdKey != null &&
+      input.locationChanged &&
+      _nonEmpty(input.location) == null;
+  if (clearsExceptionLocation) {
+    // A detached exception must retain an explicit empty LOCATION as an
+    // inheritance boundary. This also covers sparse exceptions whose raw
+    // component omitted LOCATION while their projection inherited the master.
+    if (current.documentComponent.firstProperty('LOCATION') == null ||
+        current.location != '') {
+      operations.add(DavPatchOperation.setText('LOCATION', ''));
+    }
+  } else if ((current.location ?? '') != (input.location ?? '')) {
     operations.add(
       DavPatchOperation.setText('LOCATION', _nonEmpty(input.location)),
     );

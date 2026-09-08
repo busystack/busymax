@@ -19,6 +19,9 @@ import '../../features/schedule/presentation/schedule_item_exporter.dart';
 import '../../features/task_lists/data/task_lists_repository.dart';
 import '../../schedule/schedule_filters.dart';
 import '../../schedule/schedule_item.dart';
+import '../../features/maps/application/directions_launcher.dart';
+import '../../features/maps/domain/geographic_point.dart';
+import '../../features/maps/domain/location_result.dart';
 import '../../schedule/schedule_event_rescheduling.dart';
 import '../../features/calendar/domain/event_timing_policy.dart';
 import '../../features/tasks/data/tasks_repository.dart';
@@ -35,6 +38,7 @@ import 'windows_event_editor_dialog.dart';
 import 'windows_guest_update_dialog.dart';
 import 'windows_schedule_source_pane.dart';
 import 'windows_task_details_dialog.dart';
+import 'windows_location_map_dialog.dart';
 import 'windows_task_editor_dialog.dart';
 
 class WindowsSchedulePage extends ConsumerStatefulWidget {
@@ -914,6 +918,22 @@ class _WindowsSchedulePageState extends ConsumerState<WindowsSchedulePage> {
           ),
         ),
         actions: [
+          if (_locationActionsAvailable(item))
+            Button(
+              onPressed: () {
+                Navigator.pop(dialogContext);
+                unawaited(_showLocationMap(item));
+              },
+              child: Text(l10n.mapsShow),
+            ),
+          if (_locationActionsAvailable(item))
+            Button(
+              onPressed: () {
+                Navigator.pop(dialogContext);
+                unawaited(_openLocationDirections(item));
+              },
+              child: Text(l10n.mapsDirections),
+            ),
           if (item.capabilities.canEdit)
             Button(
               onPressed: () {
@@ -955,6 +975,75 @@ class _WindowsSchedulePageState extends ConsumerState<WindowsSchedulePage> {
         ],
       ),
     );
+  }
+
+  Future<void> _showLocationMap(ScheduleItem item) {
+    final identity = _locationIdentity(item);
+    final location = _locationText(item);
+    return showWindowsLocationMapDialog(
+      context,
+      ref,
+      location: location,
+      nativePoint: _locationPoint(item),
+      locationChange: const LocationChange.unchanged(),
+      identity: identity,
+      onSelection: (selection) => ref
+          .read(locationResolutionRepositoryProvider)
+          .apply(identity, location, LocationChange.replace(selection)),
+    );
+  }
+
+  Future<void> _openLocationDirections(ScheduleItem item) async {
+    final identity = _locationIdentity(item);
+    final location = _locationText(item);
+    final remembered = _locationPoint(item) == null
+        ? await ref
+              .read(locationResolutionRepositoryProvider)
+              .load(identity, location)
+        : null;
+    final opened = await launchGoogleMapsDirections(
+      location: location,
+      point: _locationPoint(item) ?? remembered?.point,
+    );
+    if (!opened && mounted) {
+      unawaited(
+        displayInfoBar(
+          context,
+          builder: (context, close) => InfoBar(
+            title: Text(AppLocalizations.of(context).mapsBrowserFailed),
+            severity: InfoBarSeverity.error,
+          ),
+        ),
+      );
+    }
+  }
+
+  LocationItemIdentity _locationIdentity(ScheduleItem item) =>
+      LocationItemIdentity(
+        kind: item is CalendarScheduleItem
+            ? LocationItemKind.event
+            : LocationItemKind.task,
+        accountId: item.accountId,
+        sourceId: item.sourceId,
+        itemId: item.id,
+      );
+
+  String _locationText(ScheduleItem item) => switch (item) {
+    CalendarScheduleItem(:final location) => location ?? '',
+    TaskScheduleItem(:final location) => location ?? '',
+  };
+
+  GeographicPoint? _locationPoint(ScheduleItem item) => switch (item) {
+    CalendarScheduleItem(:final locationPoint) => locationPoint,
+    TaskScheduleItem(:final locationPoint) => locationPoint,
+  };
+
+  bool _locationActionsAvailable(ScheduleItem item) {
+    final supported =
+        item is CalendarScheduleItem ||
+        (item is TaskScheduleItem && item.provider == BusyProvider.nextcloud);
+    return supported &&
+        (_locationText(item).trim().isNotEmpty || _locationPoint(item) != null);
   }
 
   Future<void> _edit(ScheduleItem item) async {

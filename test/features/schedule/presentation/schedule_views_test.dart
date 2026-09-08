@@ -25,6 +25,7 @@ import 'package:busymax/src/features/schedule/presentation/mini_calendar.dart';
 import 'package:busymax/src/features/schedule/presentation/schedule_month_view.dart';
 import 'package:busymax/src/features/schedule/presentation/schedule_year_view.dart';
 import 'package:busymax/src/features/tasks/domain/task_checklist_item.dart';
+import 'package:busymax/src/features/maps/domain/geographic_point.dart';
 import 'package:busymax/src/platform/gtk_font_service.dart';
 import 'package:busymax/src/schedule/schedule_item.dart';
 import 'package:busymax/src/schedule/schedule_range.dart';
@@ -2046,6 +2047,116 @@ void main() {
     expect(find.byIcon(YaruIcons.window_close), findsOneWidget);
     expect(find.byIcon(Icons.edit_outlined), findsNothing);
     expect(find.byIcon(YaruIcons.trash), findsNothing);
+  });
+
+  testWidgets(
+    'read-only coordinate-only event exposes map and directions actions',
+    (tester) async {
+      final event = CalendarScheduleItem(
+        id: 'event:coordinate-only',
+        accountId: 'google:g',
+        provider: BusyProvider.google,
+        sourceId: 'calendar:shared',
+        providerCalendarId: 'shared',
+        title: 'Coordinate only',
+        allDay: false,
+        locationPoint: GeographicPoint(latitude: 0, longitude: 0),
+        capabilities: ScheduleItemCapabilities.readOnly,
+      );
+      Future<ScheduleItemDetailsAction?>? action;
+      await tester.pumpWidget(
+        localizedTestApp(
+          child: Scaffold(
+            body: Builder(
+              builder: (context) => TextButton(
+                onPressed: () {
+                  action = showScheduleItemDetailsPopover(
+                    context: context,
+                    anchorContext: context,
+                    item: event,
+                  );
+                },
+                child: const Text('Open details'),
+              ),
+            ),
+          ),
+        ),
+      );
+
+      await tester.tap(find.text('Open details'));
+      await tester.pumpAndSettle();
+      expect(find.text('Show map'), findsOneWidget);
+      expect(find.text('Directions in Google Maps'), findsOneWidget);
+      expect(find.byIcon(Icons.edit_outlined), findsNothing);
+      await tester.tap(find.text('Directions in Google Maps'));
+      await tester.pumpAndSettle();
+      expect(await action, ScheduleItemDetailsAction.directions);
+    },
+  );
+
+  testWidgets('map actions are limited to location-capable tasks', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1000, 1000);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    var task = TaskScheduleItem(
+      id: 'task:unsupported-location',
+      accountId: 'microsoft:m',
+      provider: BusyProvider.microsoft,
+      sourceId: 'tasks:inbox',
+      title: 'Unsupported stale location',
+      completed: false,
+      allDay: true,
+      location: 'Stale room',
+    );
+    late BuildContext anchor;
+    await tester.pumpWidget(
+      localizedTestApp(
+        child: Scaffold(
+          body: Builder(
+            builder: (context) {
+              anchor = context;
+              return const SizedBox.expand();
+            },
+          ),
+        ),
+      ),
+    );
+
+    var completion = showScheduleItemDetailsPopover(
+      context: anchor,
+      anchorContext: anchor,
+      item: task,
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('Show map'), findsNothing);
+    Navigator.of(anchor, rootNavigator: true).pop();
+    await tester.pumpAndSettle();
+    await completion;
+
+    task = TaskScheduleItem(
+      id: 'task:supported-location',
+      accountId: 'nextcloud:n',
+      provider: BusyProvider.nextcloud,
+      sourceId: 'tasks:calendar',
+      title: 'Supported task location',
+      completed: false,
+      allDay: true,
+      location: 'Meeting room 3',
+    );
+    completion = showScheduleItemDetailsPopover(
+      context: anchor,
+      anchorContext: anchor,
+      item: task,
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('Show map'), findsOneWidget);
+    expect(find.text('Directions in Google Maps'), findsOneWidget);
+    Navigator.of(anchor, rootNavigator: true).pop();
+    await tester.pumpAndSettle();
+    await completion;
   });
 
   testWidgets('details popover constrains long content without animation', (

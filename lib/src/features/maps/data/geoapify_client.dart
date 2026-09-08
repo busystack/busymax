@@ -87,10 +87,14 @@ final class GeoapifyClient {
     try {
       final response =
           await (() async {
-            final stream = await _client.send(
+            final send = _client.send(
               http.AbortableRequest('GET', uri, abortTrigger: token.future)
                 ..headers['Accept'] = 'application/json',
             );
+            final stream = await Future.any<http.StreamedResponse>([
+              send,
+              token.future.then((_) => throw const _LocationRequestCancelled()),
+            ]);
             if (stream.statusCode == 429) {
               final seconds =
                   int.tryParse(stream.headers['retry-after'] ?? '') ?? 60;
@@ -106,16 +110,7 @@ final class GeoapifyClient {
               token.cancel();
               throw const LocationLookupException(LocationLookupStatus.failed);
             }
-            final bytes = <int>[];
-            await for (final chunk in stream.stream) {
-              bytes.addAll(chunk);
-              if (bytes.length > 1024 * 1024) {
-                token.cancel();
-                throw const LocationLookupException(
-                  LocationLookupStatus.failed,
-                );
-              }
-            }
+            final bytes = await _readBoundedBody(stream.stream, token);
             return jsonDecode(utf8.decode(bytes));
           })().timeout(
             timeout,
@@ -135,10 +130,13 @@ final class GeoapifyClient {
           latitude: value['lat'],
           longitude: value['lon'],
         );
-        final label =
-            value['formatted']?.toString().trim() ??
-            value['name']?.toString().trim() ??
-            '';
+        final formatted = value['formatted']?.toString().trim();
+        final name = value['name']?.toString().trim();
+        final label = formatted?.isNotEmpty == true
+            ? formatted!
+            : name?.isNotEmpty == true
+            ? name!
+            : '';
         if (point == null || label.isEmpty) continue;
         final datasource = value['datasource'];
         final suppliedAttribution = datasource is Map
@@ -148,6 +146,8 @@ final class GeoapifyClient {
           LocationResult(
             label: label,
             point: point,
+            name: name?.isNotEmpty == true ? name : null,
+            formattedAddress: formatted?.isNotEmpty == true ? formatted : null,
             resultType: value['result_type']?.toString() ?? '',
             address: Map.unmodifiable({
               if (value['street'] != null)
@@ -175,8 +175,48 @@ final class GeoapifyClient {
       rethrow;
     } on http.RequestAbortedException {
       return const [];
+    } on _LocationRequestCancelled {
+      return const [];
     } on Object {
       throw const LocationLookupException(LocationLookupStatus.failed);
     }
   }
+
+  Future<List<int>> _readBoundedBody(
+    Stream<List<int>> stream,
+    LocationRequestCancellation token,
+  ) {
+    final completer = Completer<List<int>>();
+    final bytes = <int>[];
+    late final StreamSubscription<List<int>> subscription;
+
+    void fail(Object error, [StackTrace? stackTrace]) {
+      if (completer.isCompleted) return;
+      unawaited(subscription.cancel());
+      completer.completeError(error, stackTrace);
+    }
+
+    subscription = stream.listen(
+      (chunk) {
+        if (bytes.length + chunk.length > 1024 * 1024) {
+          fail(const LocationLookupException(LocationLookupStatus.failed));
+          return;
+        }
+        bytes.addAll(chunk);
+      },
+      onError: fail,
+      onDone: () {
+        if (!completer.isCompleted) completer.complete(bytes);
+      },
+      cancelOnError: true,
+    );
+    unawaited(
+      token.future.then((_) => fail(const _LocationRequestCancelled())),
+    );
+    return completer.future;
+  }
+}
+
+final class _LocationRequestCancelled implements Exception {
+  const _LocationRequestCancelled();
 }

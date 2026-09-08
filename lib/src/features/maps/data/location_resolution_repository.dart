@@ -24,7 +24,11 @@ final class LocationResolutionRepository {
     final row = await (database.select(
       database.locationResolutions,
     )..where((r) => _owner(r, item))).getSingleOrNull();
-    if (row == null || row.locationText != location) return null;
+    if (row == null ||
+        row.locationText != location ||
+        !await _current(item, location)) {
+      return null;
+    }
     final point = GeographicPoint.tryParse(
       latitude: row.latitude,
       longitude: row.longitude,
@@ -51,7 +55,7 @@ final class LocationResolutionRepository {
         database.locationResolutions,
       )..where((r) => _owner(r, item))).go();
       if (change.selection case final selection?) {
-        if (location.trim().isEmpty || !await _current(item, location)) return;
+        if (!await _current(item, location)) return;
         await database
             .into(database.locationResolutions)
             .insertOnConflictUpdate(

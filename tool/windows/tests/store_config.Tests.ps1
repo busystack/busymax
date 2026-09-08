@@ -17,6 +17,7 @@ BeforeAll {
       googleOAuthClientSecret = ''
       microsoftOAuthClientId = 'microsoft-owner-client-id'
       microsoftOAuthAuthorityTenant = 'common'
+      geoapifyApiKey = 'geoapify-owner-key'
       fakeData = $false
       developmentBackend = $false
     }
@@ -92,6 +93,13 @@ Describe 'BusyMax Store configuration validation modes' {
     $config.supportUrl = 'http://busystack.org/support'
     { Assert-BusyMaxStoreConfig -Config $config -Mode ProductionStore } |
       Should -Throw -ExpectedMessage "*supportUrl*ProductionStore*"
+  }
+
+  It 'requires Geoapify service access for production builds' {
+    $config = New-ValidConfig
+    $config.geoapifyApiKey = ''
+    { Assert-BusyMaxStoreConfig -Config $config -Mode ProductionStore } |
+      Should -Throw -ExpectedMessage "*geoapifyApiKey*ProductionStore*"
   }
 
   It 'rejects fake data and development backends' {

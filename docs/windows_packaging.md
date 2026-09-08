@@ -18,11 +18,18 @@ owner obtained for this product:
 - privacy-policy, support, and homepage HTTPS URLs;
 - Google desktop OAuth client ID/configuration;
 - Microsoft public client ID and authority tenant;
+- Geoapify API key for location search and map tiles;
 
 Do not commit the local file. Identity values are not secrets, but they must
 match the final product registration exactly. OAuth tokens, authorization
 codes, certificates, PFX files, and passwords must never enter configuration or
 the package.
+
+The Geoapify key is compiled into the desktop application and is extractable;
+obfuscation does not protect it. Configure service-side access restrictions,
+quota/budget limits, and usage monitoring for the release application. BusyMax
+shows an unconfigured maps state in non-production builds without this value,
+and ordinary users are not expected to obtain their own developer key.
 
 The product version remains in `pubspec.yaml`. `msixVersion` is independent and
 must have four numeric components, a first component of at least 1, a fourth

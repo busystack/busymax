@@ -10,6 +10,9 @@ import 'package:busymax/src/features/calendar/data/calendar_repository.dart';
 import 'package:busymax/src/features/calendar/presentation/event_editor_draft.dart';
 import 'package:busymax/src/features/calendar/data/calendar_event_detail.dart';
 import 'package:busymax/src/features/calendar/domain/event_timing_policy.dart';
+import 'package:busymax/src/features/maps/data/location_resolution_repository.dart';
+import 'package:busymax/src/features/maps/domain/geographic_point.dart';
+import 'package:busymax/src/features/maps/domain/location_result.dart';
 import 'package:busymax/src/core/time/provider_date_time.dart';
 import 'package:busymax/src/schedule/schedule_event_rescheduling.dart';
 import 'package:busymax/src/schedule/schedule_item.dart';
@@ -1787,6 +1790,51 @@ void main() {
       hasLength(pendingBefore.length),
     );
   });
+
+  test(
+    'same-text Google pin is local-only and leaves event and reminders untouched',
+    () async {
+      await _seedScheduledEvent(repository, database);
+      await database
+          .update(database.calendarEvents)
+          .write(const CalendarEventsCompanion(location: Value('Café & Hall')));
+      final before = await database.select(database.calendarEvents).getSingle();
+      final remindersBefore = await database
+          .select(database.notificationSchedule)
+          .get();
+      schedulerCalls = 0;
+      final detail = (await repository.loadEventDetail(before.id))!;
+      final point = GeographicPoint(latitude: 0, longitude: -122.42);
+      final selection = LocationResult(label: 'Café & Hall', point: point);
+
+      await repository.updateLocalEvent(
+        EventEditorDraft.fromEventDetail(
+          detail,
+        ).copyWith(locationChange: LocationChange.replace(selection)),
+      );
+
+      final after = await database.select(database.calendarEvents).getSingle();
+      expect(after, before);
+      expect(await database.select(database.pendingOps).get(), isEmpty);
+      expect(
+        await database.select(database.notificationSchedule).get(),
+        remindersBefore,
+      );
+      expect(schedulerCalls, 0);
+      expect(
+        await LocationResolutionRepository(database).load(
+          LocationItemIdentity(
+            kind: LocationItemKind.event,
+            accountId: after.accountId,
+            sourceId: after.calendarSourceId,
+            itemId: after.id,
+          ),
+          'Café & Hall',
+        ),
+        selection,
+      );
+    },
+  );
 }
 
 const _sourceId = 'google:g|google|calendar-1';

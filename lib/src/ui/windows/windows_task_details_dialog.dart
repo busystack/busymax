@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:fluent_ui/fluent_ui.dart';
@@ -11,12 +12,17 @@ import '../../features/tasks/domain/task_capabilities.dart';
 import '../../features/tasks/data/tasks_repository.dart';
 import '../../features/tasks/presentation/task_details_draft.dart';
 import '../../features/schedule/presentation/schedule_item_exporter.dart';
+import '../../features/maps/domain/location_result.dart';
+import '../../features/maps/application/directions_launcher.dart';
+import '../../features/maps/application/location_destination_resolver.dart';
 import '../../features/task_lists/data/task_lists_repository.dart';
 import '../../providers/busy_provider.dart';
 import '../../schedule/schedule_item.dart';
 import '../common/busymax_glyph.dart';
 import 'windows_busymax_glyphs.dart';
 import 'windows_time_zone_dialog.dart';
+import 'windows_location_autocomplete.dart';
+import 'windows_location_map_dialog.dart';
 
 Future<bool> showWindowsTaskDetailsDialog(
   BuildContext context,
@@ -103,6 +109,7 @@ Future<bool> showWindowsTaskDetailsDialog(
   var hideSubtasks = originalDraft.hideSubtasks;
   var hideCompletedSubtasks = originalDraft.hideCompletedSubtasks;
   var alarms = [...originalDraft.alarms];
+  var locationChange = originalDraft.locationChange;
   var busy = false;
   var changed = false;
   var allowPop = false;
@@ -141,6 +148,7 @@ Future<bool> showWindowsTaskDetailsDialog(
     completedDate: completedAt == null ? null : _dateOnly(completedAt!),
     completedTime: completedAt == null ? null : _timeOnly(completedAt!),
     location: location.text,
+    locationChange: locationChange,
     taskUrl: taskUrl.text.trim(),
     classification: classification,
     pinned: pinned,
@@ -167,6 +175,36 @@ Future<bool> showWindowsTaskDetailsDialog(
           WidgetsBinding.instance.addPostFrameCallback((_) {
             if (dialogContext.mounted) Navigator.pop(dialogContext);
           });
+        }
+
+        Future<void> openLocationDirections() async {
+          try {
+            final destination =
+                await LocationDestinationResolver(
+                  ref.read(locationResolutionRepositoryProvider),
+                ).knownDestination(
+                  location: location.text,
+                  change: locationChange,
+                  nativePoint: originalDraft.locationPoint,
+                  identity: LocationItemIdentity(
+                    kind: LocationItemKind.task,
+                    accountId: original.accountId,
+                    sourceId: original.taskListId,
+                    itemId: original.id,
+                  ),
+                );
+            final opened = await launchGoogleMapsDirections(
+              location: location.text,
+              point: destination?.point,
+            );
+            if (!opened && context.mounted) {
+              setState(() => error = l10n.mapsBrowserFailed);
+            }
+          } catch (_) {
+            if (context.mounted) {
+              setState(() => error = l10n.mapsBrowserFailed);
+            }
+          }
         }
 
         return PopScope<void>(
@@ -441,7 +479,117 @@ Future<bool> showWindowsTaskDetailsDialog(
                     const SizedBox(height: 12),
                     InfoLabel(
                       label: l10n.location,
-                      child: TextBox(controller: location, enabled: enabled),
+                      child: WindowsLocationAutocomplete(
+                        controller: location,
+                        client: ref.read(geoapifyClientProvider),
+                        enabled: enabled,
+                        previewAvailable: locationChange.changed
+                            ? locationChange.selection != null
+                            : originalDraft.locationPoint != null,
+                        onChanged: (value, change) => setState(() {
+                          locationChange = change;
+                        }),
+                        onPreview: () => showWindowsLocationMapDialog(
+                          context,
+                          ref,
+                          location: location.text,
+                          nativePoint: originalDraft.locationPoint,
+                          locationChange: locationChange,
+                          identity: LocationItemIdentity(
+                            kind: LocationItemKind.task,
+                            accountId: original.accountId,
+                            sourceId: original.taskListId,
+                            itemId: original.id,
+                          ),
+                          onSelection: enabled
+                              ? (selection) async {
+                                  setState(() {
+                                    location.text = selection.label;
+                                    locationChange = LocationChange.replace(
+                                      selection,
+                                    );
+                                  });
+                                }
+                              : (selection) => ref
+                                    .read(locationResolutionRepositoryProvider)
+                                    .apply(
+                                      LocationItemIdentity(
+                                        kind: LocationItemKind.task,
+                                        accountId: original.accountId,
+                                        sourceId: original.taskListId,
+                                        itemId: original.id,
+                                      ),
+                                      original.taskLocation ?? '',
+                                      LocationChange.replace(selection),
+                                    ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: [
+                        Button(
+                          onPressed:
+                              location.text.trim().isNotEmpty ||
+                                  (locationChange.changed
+                                      ? locationChange.selection != null
+                                      : originalDraft.locationPoint != null)
+                              ? () => showWindowsLocationMapDialog(
+                                  context,
+                                  ref,
+                                  location: location.text,
+                                  nativePoint: originalDraft.locationPoint,
+                                  locationChange: locationChange,
+                                  identity: LocationItemIdentity(
+                                    kind: LocationItemKind.task,
+                                    accountId: original.accountId,
+                                    sourceId: original.taskListId,
+                                    itemId: original.id,
+                                  ),
+                                  onSelection: enabled
+                                      ? (selection) async {
+                                          setState(() {
+                                            location.text = selection.label;
+                                            locationChange =
+                                                LocationChange.replace(
+                                                  selection,
+                                                );
+                                          });
+                                        }
+                                      : (selection) => ref
+                                            .read(
+                                              locationResolutionRepositoryProvider,
+                                            )
+                                            .apply(
+                                              LocationItemIdentity(
+                                                kind: LocationItemKind.task,
+                                                accountId: original.accountId,
+                                                sourceId: original.taskListId,
+                                                itemId: original.id,
+                                              ),
+                                              original.taskLocation ?? '',
+                                              LocationChange.replace(selection),
+                                            ),
+                                )
+                              : null,
+                          child: Text(l10n.mapsShow),
+                        ),
+                        Button(
+                          key: const ValueKey(
+                            'windows-task-location-directions',
+                          ),
+                          onPressed:
+                              location.text.trim().isNotEmpty ||
+                                  (locationChange.changed
+                                      ? locationChange.selection != null
+                                      : originalDraft.locationPoint != null)
+                              ? () => unawaited(openLocationDirections())
+                              : null,
+                          child: Text(l10n.mapsDirections),
+                        ),
+                      ],
                     ),
                   ],
                   if (capabilities.supportsUrl) ...[

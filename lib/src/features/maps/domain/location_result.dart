@@ -6,6 +6,8 @@ final class LocationResult {
   const LocationResult({
     required this.label,
     required this.point,
+    this.name,
+    this.formattedAddress,
     this.resultType = '',
     this.address = const {},
     this.attribution = 'Powered by Geoapify | © OpenStreetMap contributors',
@@ -13,6 +15,12 @@ final class LocationResult {
   });
   final String label;
   final GeographicPoint point;
+
+  /// Provider-supplied place name, kept distinct from the full address label.
+  final String? name;
+
+  /// Provider-supplied formatted address, when present.
+  final String? formattedAddress;
   final String resultType;
   final Map<String, String> address;
   final String source;
@@ -37,6 +45,8 @@ final class LocationResult {
       other is LocationResult &&
       label == other.label &&
       point == other.point &&
+      name == other.name &&
+      formattedAddress == other.formattedAddress &&
       source == other.source &&
       attribution == other.attribution &&
       resultType == other.resultType &&
@@ -45,6 +55,8 @@ final class LocationResult {
   int get hashCode => Object.hash(
     label,
     point,
+    name,
+    formattedAddress,
     source,
     attribution,
     resultType,

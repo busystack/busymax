@@ -108,12 +108,7 @@ Map<String, Object?> microsoftEventMutationToJson(
     if (_bodyPatch(mutation) != null) 'body': _bodyPatch(mutation),
     if (mutation.structuredLocation != null || mutation.location != null)
       'location':
-          mutation.structuredLocation ??
-          {
-            'displayName': mutation.location,
-            'address': const <String, Object?>{},
-            'coordinates': const <String, Object?>{},
-          },
+          mutation.structuredLocation ?? {'displayName': mutation.location},
     'isAllDay': mutation.allDay,
     if (_startDateTime(mutation) != null)
       'start': {

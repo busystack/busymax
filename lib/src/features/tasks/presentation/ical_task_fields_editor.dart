@@ -2,11 +2,13 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:yaru/yaru.dart';
 import 'package:busymax/l10n/generated/app_localizations.dart';
 
 import '../../../app/busymax_design.dart';
 import '../../../app/busymax_dialogs.dart';
+import '../../../app/app_bootstrap.dart';
 import '../../../dav/ical/ical_task_alarm.dart';
 import '../../../l10n/l10n.dart';
 import '../../../platform/linux_header_bar_service.dart';
@@ -15,9 +17,14 @@ import '../../recurrence/presentation/recurrence_editor.dart';
 import '../domain/task_capabilities.dart';
 import 'desktop_date_time_fields.dart';
 import 'task_details_draft.dart';
+import '../../maps/domain/location_result.dart';
+import '../../maps/application/directions_launcher.dart';
+import '../../maps/application/location_destination_resolver.dart';
+import '../../maps/presentation/linux_location_autocomplete.dart';
+import '../../maps/presentation/linux_location_map_dialog.dart';
 
 /// Native RFC 5545 VTODO fields exposed by Nextcloud Tasks.
-class IcalTaskFieldsEditor extends StatefulWidget {
+class IcalTaskFieldsEditor extends ConsumerStatefulWidget {
   const IcalTaskFieldsEditor({
     super.key,
     required this.draft,
@@ -27,6 +34,7 @@ class IcalTaskFieldsEditor extends StatefulWidget {
     this.useNativeDatePicker = false,
     this.dialogBarrierColor,
     this.headerBarService,
+    this.accountId,
   });
 
   final TaskDetailsDraft draft;
@@ -36,33 +44,25 @@ class IcalTaskFieldsEditor extends StatefulWidget {
   final bool useNativeDatePicker;
   final Color? dialogBarrierColor;
   final LinuxHeaderBarService? headerBarService;
+  final String? accountId;
 
   @override
-  State<IcalTaskFieldsEditor> createState() => _IcalTaskFieldsEditorState();
+  ConsumerState<IcalTaskFieldsEditor> createState() =>
+      _IcalTaskFieldsEditorState();
 }
 
-class _IcalTaskFieldsEditorState extends State<IcalTaskFieldsEditor> {
-  late final TextEditingController _locationController;
+class _IcalTaskFieldsEditorState extends ConsumerState<IcalTaskFieldsEditor> {
   late final TextEditingController _urlController;
 
   @override
   void initState() {
     super.initState();
-    _locationController = TextEditingController(text: widget.draft.location);
     _urlController = TextEditingController(text: widget.draft.taskUrl);
   }
 
   @override
   void didUpdateWidget(covariant IcalTaskFieldsEditor oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (_locationController.text != widget.draft.location) {
-      _locationController.value = TextEditingValue(
-        text: widget.draft.location,
-        selection: TextSelection.collapsed(
-          offset: widget.draft.location.length,
-        ),
-      );
-    }
     if (_urlController.text != widget.draft.taskUrl) {
       _urlController.value = TextEditingValue(
         text: widget.draft.taskUrl,
@@ -73,7 +73,6 @@ class _IcalTaskFieldsEditorState extends State<IcalTaskFieldsEditor> {
 
   @override
   void dispose() {
-    _locationController.dispose();
     _urlController.dispose();
     super.dispose();
   }
@@ -214,17 +213,33 @@ class _IcalTaskFieldsEditorState extends State<IcalTaskFieldsEditor> {
         if (widget.capabilities.supportsLocation)
           YaruListTile.square(
             leading: const Icon(Icons.place_outlined),
-            title: TextField(
-              key: const ValueKey('ical-task-location'),
-              controller: _locationController,
-              enabled: widget.enabled,
-              decoration: busyMaxGroupedTextFieldDecoration(
-                context,
-                labelText: l10n.location,
+            title: LinuxLocationAutocomplete(
+              key: ValueKey(
+                'ical-task-location-${widget.accountId ?? ''}-'
+                '${widget.draft.taskListId}-${widget.draft.taskId}',
               ),
-              onChanged: (value) =>
-                  widget.onChanged(widget.draft.copyWith(location: value)),
+              text: widget.draft.location,
+              labelText: l10n.location,
+              enabled: widget.enabled,
+              previewAvailable: widget.draft.locationChange.changed
+                  ? widget.draft.locationChange.selection != null
+                  : widget.draft.locationPoint != null,
+              onChanged: (value, change) => widget.onChanged(
+                widget.draft.copyWith(location: value, locationChange: change),
+              ),
+              onPreview: _previewLocation,
             ),
+          ),
+        if (widget.capabilities.supportsLocation &&
+            (widget.draft.location.trim().isNotEmpty ||
+                (widget.draft.locationChange.changed
+                    ? widget.draft.locationChange.selection != null
+                    : widget.draft.locationPoint != null)))
+          BusyMaxActionRow(
+            key: const ValueKey('ical-task-location-directions'),
+            title: l10n.mapsDirections,
+            leading: const Icon(Icons.directions_outlined),
+            onTap: () => unawaited(_openDirections()),
           ),
         if (widget.capabilities.supportsUrl)
           YaruListTile.square(
@@ -247,6 +262,86 @@ class _IcalTaskFieldsEditorState extends State<IcalTaskFieldsEditor> {
           ),
       ],
     );
+  }
+
+  Future<void> _previewLocation() {
+    final accountId = widget.accountId;
+    return showLinuxLocationMapDialog(
+      context,
+      ref,
+      location: widget.draft.location,
+      nativePoint: widget.draft.locationPoint,
+      locationChange: widget.draft.locationChange,
+      identity: accountId == null
+          ? null
+          : LocationItemIdentity(
+              kind: LocationItemKind.task,
+              accountId: accountId,
+              sourceId: widget.draft.taskListId,
+              itemId: widget.draft.taskId,
+            ),
+      headerBarService: widget.headerBarService,
+      onSelection: (selection) async {
+        if (!mounted) return;
+        if (widget.enabled) {
+          widget.onChanged(
+            widget.draft.copyWith(
+              location: selection.label,
+              locationChange: LocationChange.replace(selection),
+            ),
+          );
+          return;
+        }
+        if (_locationIdentity case final identity?) {
+          await ref
+              .read(locationResolutionRepositoryProvider)
+              .apply(
+                identity,
+                widget.draft.location,
+                LocationChange.replace(selection),
+              );
+        }
+      },
+    );
+  }
+
+  LocationItemIdentity? get _locationIdentity {
+    final accountId = widget.accountId;
+    if (accountId == null) return null;
+    return LocationItemIdentity(
+      kind: LocationItemKind.task,
+      accountId: accountId,
+      sourceId: widget.draft.taskListId,
+      itemId: widget.draft.taskId,
+    );
+  }
+
+  Future<void> _openDirections() async {
+    try {
+      final destination =
+          await LocationDestinationResolver(
+            ref.read(locationResolutionRepositoryProvider),
+          ).knownDestination(
+            location: widget.draft.location,
+            change: widget.draft.locationChange,
+            nativePoint: widget.draft.locationPoint,
+            identity: _locationIdentity,
+          );
+      final opened = await launchGoogleMapsDirections(
+        location: widget.draft.location,
+        point: destination?.point,
+      );
+      if (!opened && mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(context.l10n.mapsBrowserFailed)));
+      }
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(context.l10n.mapsBrowserFailed)));
+    }
   }
 
   Widget _sharingGroup() {

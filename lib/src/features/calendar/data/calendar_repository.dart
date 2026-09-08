@@ -27,6 +27,7 @@ import '../../../microsoft_calendar/microsoft_calendar_mapper.dart';
 import '../../accounts/domain/account_collection_creation_capabilities.dart';
 import '../../notifications/notification_schedule_service.dart';
 import '../../recurrence/domain/event_recurrence_codec.dart';
+import '../../maps/domain/geographic_point.dart';
 import '../domain/event_move_policy.dart';
 import '../domain/event_timing_policy.dart';
 import '../../maps/domain/location_result.dart';
@@ -1822,14 +1823,18 @@ class CalendarRepository {
     EventTimingBaseline? timingBaseline,
   }) async {
     if (timingBaseline == null) {
-      await _database.transaction(() async {
-        await _updateLocalEvent(
+      final eventChanged = await _database.transaction(() async {
+        final changed = await _updateLocalEvent(
           draft,
           guestUpdatePolicy: guestUpdatePolicy,
           deferNotifications: true,
         );
         await _saveMapSelection(draft);
+        return changed;
       });
+      // A remembered Google pin is local-only. It must not perturb calendar
+      // rows or cause the reminder schedule to be rebuilt.
+      if (!eventChanged) return;
       await _notificationScheduleService().rebuildUpcomingEventNotifications(
         draft.accountId,
       );
@@ -1880,7 +1885,7 @@ class CalendarRepository {
     }
   }
 
-  Future<void> _updateLocalEvent(
+  Future<bool> _updateLocalEvent(
     EventEditorDraft draft, {
     CalendarGuestUpdatePolicy guestUpdatePolicy =
         CalendarGuestUpdatePolicy.send,
@@ -1890,7 +1895,7 @@ class CalendarRepository {
     final eventId = draft.eventId;
     if (eventId == null) {
       await createLocalEvent(draft, guestUpdatePolicy: guestUpdatePolicy);
-      return;
+      return true;
     }
     final source = await (_database.select(
       _database.calendarSources,
@@ -1926,13 +1931,14 @@ class CalendarRepository {
         database: _database,
         operation: CalendarMutationOperation.deleteEvent,
       );
-      return _moveLocalEvent(
+      await _moveLocalEvent(
         originalSource: originalSource,
         destinationSource: source,
         existing: existing,
         draft: draft,
         guestUpdatePolicy: guestUpdatePolicy,
       );
+      return true;
     }
     if (source.provider != existing.provider ||
         source.accountId != existing.accountId ||
@@ -1943,13 +1949,14 @@ class CalendarRepository {
       );
     }
     if (source.davCollectionId != null) {
-      return _updateLocalDavEvent(
+      await _updateLocalDavEvent(
         source,
         existing,
         draft,
         timingOnly: timingOnly,
         deferNotifications: deferNotifications,
       );
+      return true;
     }
     final provider = BusyProviderCodec.requireStorageValue(source.provider);
     final recurringOccurrence = existing.providerRecurringEventId != null;
@@ -2025,7 +2032,7 @@ class CalendarRepository {
       }
     }
     if (!_eventRequestHasMutation(request)) {
-      return;
+      return false;
     }
     if (request.containsKey('allDay') &&
         !detailAllowsTimingEdit(CalendarEventDetail.fromRow(existing))) {
@@ -2107,11 +2114,12 @@ class CalendarRepository {
             ),
           );
     });
-    if (timingOnly || deferNotifications) return;
+    if (timingOnly || deferNotifications) return true;
     await _notificationScheduleService().rebuildUpcomingEventNotifications(
       draft.accountId,
     );
     await _onNotificationScheduleChanged?.call();
+    return true;
   }
 
   Future<void> _saveMapSelection(
@@ -2532,15 +2540,21 @@ class CalendarRepository {
             draft.attendees.isNotEmpty)) {
       throw schedulingDenied('DavMeetingCopyDeleteUnsupported');
     }
+    final effectiveSelection = await _eventMoveLocationSelection(
+      draft,
+      existing,
+    );
     final copyDraft = _eventCopyDraft(
       draft,
       existing: existing,
       sourceProvider: sourceProvider,
       destinationProvider: destinationProvider,
+      effectiveSelection: effectiveSelection,
     );
     final createOperationId = await createLocalEvent(
       copyDraft,
       guestUpdatePolicy: guestUpdatePolicy,
+      rebuildNotifications: false,
     );
     try {
       if (originalSource.davCollectionId != null) {
@@ -2582,6 +2596,7 @@ class CalendarRepository {
     required CalendarEvent existing,
     required BusyProvider sourceProvider,
     required BusyProvider destinationProvider,
+    required LocationResult? effectiveSelection,
   }) {
     final recurring = existing.providerRecurringEventId != null;
     final scope = draft.recurringMutationScope;
@@ -2661,6 +2676,12 @@ class CalendarRepository {
       startTimeZone: draft.startTimeZone,
       endTimeZone: draft.endTimeZone,
       location: draft.location,
+      locationPoint: effectiveSelection?.point,
+      locationChange: draft.locationChange.changed
+          ? draft.locationChange
+          : effectiveSelection == null
+          ? const LocationChange.unchanged()
+          : LocationChange.replace(effectiveSelection),
       description: draft.description,
       descriptionContentType: destinationProvider == BusyProvider.microsoft
           ? draft.descriptionContentType
@@ -2701,6 +2722,49 @@ class CalendarRepository {
           ? draft.allowNewTimeProposals
           : null,
       isOrganizer: true,
+    );
+  }
+
+  Future<LocationResult?> _eventMoveLocationSelection(
+    EventEditorDraft draft,
+    CalendarEvent existing,
+  ) async {
+    if (draft.locationChange.changed) {
+      return draft.locationChange.selection;
+    }
+    final point =
+        draft.locationPoint ??
+        GeographicPoint.tryParse(
+          latitude: existing.locationLatitude,
+          longitude: existing.locationLongitude,
+        );
+    if (point != null) {
+      final address = draft.originalDetail?.locationAddress;
+      return LocationResult(
+        label: (draft.location ?? '').trim().isEmpty
+            ? point.directionsValue
+            : draft.location!.trim(),
+        point: point,
+        resultType: 'provider',
+        address: address == null
+            ? const {}
+            : {
+                for (final entry in address.entries)
+                  if (entry.value case final String value when value.isNotEmpty)
+                    entry.key: value,
+              },
+        source: 'provider',
+        attribution: '',
+      );
+    }
+    return LocationResolutionRepository(_database).load(
+      LocationItemIdentity(
+        kind: LocationItemKind.event,
+        accountId: existing.accountId,
+        sourceId: existing.calendarSourceId,
+        itemId: existing.id,
+      ),
+      existing.location ?? '',
     );
   }
 
@@ -4929,15 +4993,15 @@ Map<String, Object?> _eventRequest(
   };
 }
 
-Map<String, Object?> _graphLocation(EventEditorDraft draft) => {
-  'displayName': draft.location ?? '',
-  'coordinates':
-      draft.locationChange.selection?.point.toJson() ??
-      const <String, Object?>{},
-  'address':
-      draft.locationChange.selection?.microsoftLocation['address'] ??
-      const <String, Object?>{},
-};
+Map<String, Object?> _graphLocation(EventEditorDraft draft) {
+  final selection = draft.locationChange.selection;
+  if (selection == null) {
+    // Updating Graph's singular location replaces its locations collection.
+    // Omitting stale nested objects is what clears their prior values.
+    return {'displayName': draft.location ?? ''};
+  }
+  return selection.microsoftLocation;
+}
 
 Object? _conferenceRequest(EventEditorDraft draft, BusyProvider provider) {
   if (!draft.createConference) return null;

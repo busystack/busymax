@@ -125,8 +125,14 @@ Then run BusyMax normally:
 flutter run -d linux -t lib/main_linux.dart \
   --dart-define=GOOGLE_OAUTH_CLIENT_ID=<google-client-id> \
   --dart-define=GOOGLE_OAUTH_CLIENT_SECRET=<google-secret-if-needed> \
-  --dart-define=MICROSOFT_OAUTH_CLIENT_ID=<microsoft-client-id>
+  --dart-define=MICROSOFT_OAUTH_CLIENT_ID=<microsoft-client-id> \
+  --dart-define=GEOAPIFY_API_KEY=<geoapify-api-key>
 ```
+
+The Geoapify key enables map search and tiles. It is embedded in the desktop
+binary and must be treated as extractable deployment configuration, with
+service-side quota and usage controls. Without it, BusyMax remains usable and
+shows the maps-unconfigured state. Users do not supply their own key.
 
 Use `tool/install_linux_dev_desktop.sh --uninstall` to remove the development
 launcher. Remove it before testing an installed Snap so the user-level launcher

@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:yaru/yaru.dart';
 
 import '../../../app/busymax_design.dart';
@@ -24,6 +25,9 @@ import 'event_editor_draft.dart';
 import '../domain/event_timing_policy.dart';
 import 'event_guest_delivery_dialog.dart';
 import '../../../dav/presentation/nextcloud_scheduling_dialog.dart';
+import '../../maps/domain/location_result.dart';
+import '../../maps/presentation/linux_location_autocomplete.dart';
+import '../../maps/presentation/linux_location_map_dialog.dart';
 
 Future<EventEditorDialogResult?> showBusyMaxEventEditorDialog(
   BuildContext context, {
@@ -291,7 +295,7 @@ bool _hasExternalGuests(
 typedef EventEditorDeleteCallback =
     void Function(String eventId, RecurringEventMutationScope? scope);
 
-class EventEditor extends StatefulWidget {
+class EventEditor extends ConsumerStatefulWidget {
   const EventEditor({
     super.key,
     required this.initialDraft,
@@ -314,10 +318,10 @@ class EventEditor extends StatefulWidget {
   final LinuxHeaderBarService? headerBarService;
 
   @override
-  State<EventEditor> createState() => _EventEditorState();
+  ConsumerState<EventEditor> createState() => _EventEditorState();
 }
 
-class _EventEditorState extends State<EventEditor> {
+class _EventEditorState extends ConsumerState<EventEditor> {
   late EventEditorDraft _draft;
   final _shortcutFocusNode = FocusNode(debugLabel: 'Event editor shortcuts');
   final _guestController = TextEditingController();
@@ -445,17 +449,26 @@ class _EventEditorState extends State<EventEditor> {
                   ),
                 ),
                 YaruListTile.square(
-                  title: TextFormField(
-                    initialValue: _draft.location,
-                    decoration: busyMaxGroupedTextFieldDecoration(
-                      context,
-                      labelText: l10n.location,
+                  title: LinuxLocationAutocomplete(
+                    key: ValueKey(
+                      'event-location-${_draft.eventId ?? 'new'}-'
+                      '${_draft.accountId}-${_draft.sourceId}',
                     ),
-                    onChanged: (value) {
+                    text: _draft.location ?? '',
+                    labelText: l10n.location,
+                    enabled: true,
+                    previewAvailable: _draft.locationChange.changed
+                        ? _draft.locationChange.selection != null
+                        : _draft.locationPoint != null,
+                    onChanged: (value, change) {
                       setState(() {
-                        _draft = _draft.copyWith(location: value);
+                        _draft = _draft.copyWith(
+                          location: value,
+                          locationChange: change,
+                        );
                       });
                     },
+                    onPreview: _previewLocation,
                   ),
                 ),
               ],
@@ -655,6 +668,35 @@ class _EventEditorState extends State<EventEditor> {
           ],
         ),
       ),
+    );
+  }
+
+  Future<void> _previewLocation() {
+    final eventId = _draft.eventId;
+    return showLinuxLocationMapDialog(
+      context,
+      ref,
+      location: _draft.location ?? '',
+      nativePoint: _draft.locationPoint,
+      locationChange: _draft.locationChange,
+      identity: eventId == null
+          ? null
+          : LocationItemIdentity(
+              kind: LocationItemKind.event,
+              accountId: _draft.accountId,
+              sourceId: _draft.sourceId,
+              itemId: eventId,
+            ),
+      headerBarService: widget.headerBarService,
+      onSelection: (selection) async {
+        if (!mounted) return;
+        setState(() {
+          _draft = _draft.copyWith(
+            location: selection.label,
+            locationChange: LocationChange.replace(selection),
+          );
+        });
+      },
     );
   }
 

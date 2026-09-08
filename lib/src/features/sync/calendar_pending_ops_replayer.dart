@@ -22,6 +22,8 @@ import '../recurrence/domain/recurrence_rule.dart';
 import 'pending_ops_replay_coordinator.dart';
 import 'collection_id_replacement.dart';
 
+const _microsoftLocationStateField = 'locationState';
+
 class CalendarPendingOpsReplayer {
   CalendarPendingOpsReplayer({
     required AppDatabase database,
@@ -481,7 +483,10 @@ class CalendarPendingOpsReplayer {
       return false;
     }
 
-    final acknowledgedFields = _eventMutationFields(_request(completedOp));
+    final acknowledgedFields = _eventMutationFields(
+      _request(completedOp),
+      _client.provider,
+    );
     final serverSnapshot = _semanticSnapshot(
       _client.provider,
       serverEvent.rawJson,
@@ -1246,7 +1251,12 @@ class CalendarPendingOpsReplayer {
       op.baselineRawJson ?? local.baselineRawJson ?? '{}',
     );
     final remote = _semanticSnapshot(_client.provider, current.rawJson);
-    final changed = _changedSemanticFields(request, baseline, remote);
+    final changed = _changedSemanticFields(
+      request,
+      baseline,
+      remote,
+      _client.provider,
+    );
     if (changed.isEmpty) {
       return;
     }
@@ -1283,9 +1293,10 @@ class CalendarPendingOpsReplayer {
     Map<String, Object?> request,
     Map<String, Object?> baseline,
     Map<String, Object?> remote,
+    BusyProvider provider,
   ) {
     final changed = <String>{};
-    for (final key in _eventMutationFields(request)) {
+    for (final key in _eventMutationFields(request, provider)) {
       if (!_deepEquals(baseline[key], remote[key])) {
         changed.add(key);
       }
@@ -1293,7 +1304,10 @@ class CalendarPendingOpsReplayer {
     return changed;
   }
 
-  Set<String> _eventMutationFields(Map<String, Object?> request) {
+  Set<String> _eventMutationFields(
+    Map<String, Object?> request,
+    BusyProvider provider,
+  ) {
     final clearFields = _eventClearFields(request);
     const metadataFields = {
       calendarEventClearFieldsKey,
@@ -1311,12 +1325,17 @@ class CalendarPendingOpsReplayer {
       _googleSplitMasterRawKey,
       _seriesResolvedRequestKey,
     };
-    return {
+    final fields = {
       for (final entry in request.entries)
         if (!metadataFields.contains(entry.key) &&
             (entry.value != null || clearFields.contains(entry.key)))
           entry.key,
     };
+    if (provider == BusyProvider.microsoft &&
+        (fields.remove('location') | fields.remove('structuredLocation'))) {
+      fields.add(_microsoftLocationStateField);
+    }
+    return fields;
   }
 
   Map<String, Object?> _eventBaselineSnapshot(
@@ -1373,6 +1392,7 @@ class CalendarPendingOpsReplayer {
       'descriptionContentType': bodyContentType,
       if (isHtmlContentType(bodyContentType)) 'descriptionHtml': bodyContent,
       'location': location['displayName'],
+      _microsoftLocationStateField: _microsoftLocationState(raw),
       'allDay': raw['isAllDay'],
       'start': start['dateTime'],
       'end': end['dateTime'],
@@ -1985,6 +2005,46 @@ List<String>? _stringList(Object? value) {
     return null;
   }
   return [for (final item in value) item.toString()];
+}
+
+/// A semantic snapshot of all Graph location data that updating the singular
+/// `location` property can replace. The provider-computed `locationType` is
+/// deliberately excluded because Graph documents it as read-only.
+Map<String, Object?> _microsoftLocationState(Map<String, Object?> raw) {
+  final collection =
+      <Map<String, Object?>>[
+        for (final value in raw['locations'] as List? ?? const [])
+          if (value is Map) _microsoftLocation(value),
+      ]..sort(
+        (first, second) => jsonEncode(
+          _normalize(first),
+        ).compareTo(jsonEncode(_normalize(second))),
+      );
+  return {
+    'location': raw['location'] is Map
+        ? _microsoftLocation(raw['location'] as Map)
+        : null,
+    'locations': collection,
+  };
+}
+
+Map<String, Object?> _microsoftLocation(Map value) => {
+  for (final entry in value.entries)
+    if (entry.key.toString() != 'locationType')
+      entry.key.toString(): _locationSemanticValue(entry.value),
+};
+
+Object? _locationSemanticValue(Object? value) {
+  if (value is Map) {
+    return {
+      for (final entry in value.entries)
+        entry.key.toString(): _locationSemanticValue(entry.value),
+    };
+  }
+  if (value is List) {
+    return [for (final item in value) _locationSemanticValue(item)];
+  }
+  return value;
 }
 
 bool _deepEquals(Object? first, Object? second) {

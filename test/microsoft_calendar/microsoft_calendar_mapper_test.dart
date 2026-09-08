@@ -177,4 +177,52 @@ void main() {
 
     expect(body['transactionId'], 'transaction-1');
   });
+
+  test(
+    'structured location replacement preserves supported writable fields',
+    () {
+      final body = microsoftEventMutationToJson(
+        const CalendarEventMutation(
+          structuredLocation: {
+            'displayName': 'Harbour room',
+            'coordinates': {'latitude': 49.28, 'longitude': -123.12},
+            'address': {'city': 'Vancouver'},
+          },
+        ),
+      );
+
+      expect(body['location'], {
+        'displayName': 'Harbour room',
+        'coordinates': {'latitude': 49.28, 'longitude': -123.12},
+        'address': {'city': 'Vancouver'},
+      });
+      expect((body['location'] as Map), isNot(contains('locationType')));
+    },
+  );
+
+  test('plain-text clear omits nested values that Graph must replace', () {
+    final body = microsoftEventMutationToJson(
+      const CalendarEventMutation(location: ''),
+    );
+
+    expect(body['location'], {'displayName': ''});
+    expect((body['location'] as Map), isNot(contains('coordinates')));
+    expect((body['location'] as Map), isNot(contains('address')));
+    expect((body['location'] as Map), isNot(contains('locationType')));
+  });
+
+  test('returned empty Graph location projects no stale point or address', () {
+    final projected = microsoftCalendarEventFromJson('calendar', {
+      'id': 'event',
+      'subject': 'Event',
+      'location': {'displayName': ''},
+      'locations': const [],
+      'start': {'dateTime': '2026-09-07T10:00:00', 'timeZone': 'UTC'},
+      'end': {'dateTime': '2026-09-07T11:00:00', 'timeZone': 'UTC'},
+    });
+
+    expect(projected.location, '');
+    expect(projected.locationPoint, isNull);
+    expect(projected.locationAddress, isNull);
+  });
 }

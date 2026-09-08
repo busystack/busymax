@@ -6,6 +6,7 @@ import '../../../app/busymax_design.dart';
 import '../../../calendar_providers/calendar_description.dart';
 import '../../../l10n/l10n.dart';
 import '../../../schedule/schedule_item.dart';
+import '../../../providers/busy_provider.dart';
 import '../../../schedule/schedule_projection.dart';
 import 'schedule_anchored_popover.dart';
 import 'schedule_event_block.dart';
@@ -18,6 +19,8 @@ enum ScheduleItemDetailsAction {
   acceptInvitation,
   tentativeInvitation,
   declineInvitation,
+  showMap,
+  directions,
 }
 
 Future<ScheduleItemDetailsAction?> showScheduleItemDetailsPopover({
@@ -132,6 +135,27 @@ class _ScheduleItemDetailsPopoverCard extends StatelessWidget {
                   when event.canRespondToInvitation) ...[
                 const SizedBox(height: BusyMaxSpacing.md),
                 _InvitationResponseActions(item: event),
+              ],
+              if (_locationActionsAvailable(item)) ...[
+                const SizedBox(height: BusyMaxSpacing.md),
+                Wrap(
+                  spacing: BusyMaxSpacing.sm,
+                  runSpacing: BusyMaxSpacing.sm,
+                  children: [
+                    BusyMaxPushButton.standard(
+                      onPressed: () => Navigator.of(
+                        context,
+                      ).pop(ScheduleItemDetailsAction.showMap),
+                      child: Text(context.l10n.mapsShow),
+                    ),
+                    BusyMaxPushButton.standard(
+                      onPressed: () => Navigator.of(
+                        context,
+                      ).pop(ScheduleItemDetailsAction.directions),
+                      child: Text(context.l10n.mapsDirections),
+                    ),
+                  ],
+                ),
               ],
               const SizedBox(height: BusyMaxSpacing.lg),
               _ScheduleItemDetails(item: item),
@@ -514,6 +538,7 @@ String _responseStatusLabel(BuildContext context, String? response) {
 
 List<Widget> _taskDetails(BuildContext context, TaskScheduleItem item) {
   final notes = item.notes?.trim();
+  final location = item.location?.trim();
   return [
     _ScheduleDetailRow(
       icon: item.completed ? YaruIcons.checkmark : Icons.radio_button_unchecked,
@@ -531,9 +556,29 @@ List<Widget> _taskDetails(BuildContext context, TaskScheduleItem item) {
         icon: Icons.sell_outlined,
         text: '${context.l10n.categories}: ${item.categories.join(', ')}',
       ),
+    if (location != null && location.isNotEmpty)
+      _ScheduleDetailRow(icon: Icons.place_outlined, text: location),
     if (notes != null && notes.isNotEmpty)
       _ScheduleDetailRow(icon: Icons.notes, text: notes),
   ];
+}
+
+String _locationText(ScheduleItem item) => switch (item) {
+  CalendarScheduleItem(:final location) => location ?? '',
+  TaskScheduleItem(:final location) => location ?? '',
+};
+
+Object? _locationPoint(ScheduleItem item) => switch (item) {
+  CalendarScheduleItem(:final locationPoint) => locationPoint,
+  TaskScheduleItem(:final locationPoint) => locationPoint,
+};
+
+bool _locationActionsAvailable(ScheduleItem item) {
+  final supported =
+      item is CalendarScheduleItem ||
+      (item is TaskScheduleItem && item.provider == BusyProvider.nextcloud);
+  return supported &&
+      (_locationText(item).trim().isNotEmpty || _locationPoint(item) != null);
 }
 
 String _reminderBeforeLabel(BuildContext context, int minutes) {
