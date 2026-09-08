@@ -55,6 +55,40 @@ void main() {
     expect(cleared.location, isNull);
     expect(cleared.effectiveLocationPoint, isNull);
   });
+
+  test(
+    'restoring the original location restores coordinates and clean state',
+    () {
+      final point = GeographicPoint(latitude: 49.2827, longitude: -123.1207);
+      final initial = _draft(location: 'Harbour Centre', point: point);
+
+      final changed = initial.copyWith(location: 'Meeting room 3');
+      final restored = changed.copyWith(location: 'Harbour Centre');
+
+      expect(changed.locationChange, const LocationChange.clear());
+      expect(changed.effectiveLocationPoint, isNull);
+      expect(restored.locationChange, const LocationChange.unchanged());
+      expect(restored.effectiveLocationPoint, point);
+      expect(restored, initial);
+    },
+  );
+
+  test('entering then clearing a new location restores the null baseline', () {
+    final initial = EventEditorDraft.newEvent(
+      accountId: 'account',
+      sourceId: 'source',
+      providerCalendarId: 'calendar',
+      start: DateTime.utc(2026, 9, 7, 10),
+      end: DateTime.utc(2026, 9, 7, 11),
+    );
+
+    final changed = initial.copyWith(location: 'Meeting room 3');
+    final restored = changed.copyWith(location: '');
+
+    expect(restored.location, isNull);
+    expect(restored.locationChange, const LocationChange.unchanged());
+    expect(restored, initial);
+  });
 }
 
 EventEditorDraft _draft({

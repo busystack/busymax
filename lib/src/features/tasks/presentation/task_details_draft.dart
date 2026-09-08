@@ -38,6 +38,7 @@ class TaskDetailsDraft {
     required this.completedDate,
     required this.completedTime,
     required this.location,
+    required this.originalLocation,
     this.locationPoint,
     this.locationChange = const LocationChange.unchanged(),
     required this.taskUrl,
@@ -100,6 +101,7 @@ class TaskDetailsDraft {
       completedDate: _localDatePart(task.completedUtc),
       completedTime: _localTimePart(task.completedUtc),
       location: task.taskLocation ?? '',
+      originalLocation: task.taskLocation ?? '',
       locationPoint: task.locationPoint,
       taskUrl: task.taskUrl ?? '',
       classification: _classificationValue(task.taskClassification),
@@ -133,6 +135,7 @@ class TaskDetailsDraft {
   final String? completedDate;
   final String? completedTime;
   final String location;
+  final String originalLocation;
   final GeographicPoint? locationPoint;
   final LocationChange locationChange;
   GeographicPoint? get effectiveLocationPoint =>
@@ -227,6 +230,7 @@ class TaskDetailsDraft {
         completedDate == other.completedDate &&
         completedTime == other.completedTime &&
         location == other.location &&
+        originalLocation == other.originalLocation &&
         locationPoint == other.locationPoint &&
         locationChange == other.locationChange &&
         taskUrl == other.taskUrl &&
@@ -523,12 +527,13 @@ class TaskDetailsDraft {
           ? this.completedTime
           : completedTime as String?,
       location: location ?? this.location,
+      originalLocation: originalLocation,
       locationPoint: locationPoint,
       locationChange:
           locationChange ??
-          (location != null && location != this.location
+          ((location ?? this.location) != originalLocation
               ? const LocationChange.clear()
-              : this.locationChange),
+              : const LocationChange.unchanged()),
       taskUrl: taskUrl ?? this.taskUrl,
       classification: classification ?? this.classification,
       pinned: pinned ?? this.pinned,

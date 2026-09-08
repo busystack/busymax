@@ -10,6 +10,7 @@ import '../../../app/busymax_dialogs.dart';
 import '../../../app/busymax_glyphs.dart';
 import '../../../google_tasks/api/google_tasks_json.dart';
 import '../../../l10n/l10n.dart';
+import '../../maps/domain/location_result.dart';
 import '../../../platform/linux_header_bar_service.dart';
 import 'package:busymax/src/features/tasks/domain/task_capabilities.dart';
 import '../../task_lists/data/task_lists_repository.dart';
@@ -303,7 +304,20 @@ class _TaskDetailsEditorState extends State<TaskDetailsEditor> {
                     if (_supportsIcalFields)
                       IcalTaskFieldsEditor(
                         draft: draft,
-                        accountId: _editingTask.accountId,
+                        savedLocation: widget.isCreate
+                            ? null
+                            : _editingTask.taskLocation ?? '',
+                        savedPoint: widget.isCreate
+                            ? null
+                            : _editingTask.locationPoint,
+                        savedIdentity: widget.isCreate
+                            ? null
+                            : LocationItemIdentity(
+                                kind: LocationItemKind.task,
+                                accountId: _editingTask.accountId,
+                                sourceId: _editingTask.taskListId,
+                                itemId: _editingTask.id,
+                              ),
                         capabilities: widget.capabilities,
                         enabled: _canWrite,
                         useNativeDatePicker: widget.useNativeDatePicker,

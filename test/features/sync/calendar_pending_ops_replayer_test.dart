@@ -1160,6 +1160,104 @@ void main() {
   });
 
   test(
+    'copy move repin never overwrites a same-label destination event',
+    () async {
+      await _insertMicrosoftAccountAndSource(database);
+      final repository = CalendarRepository(database: database);
+      final unrelatedId = await _insertEvent(
+        database,
+        providerEventId: 'unrelated-destination',
+      );
+      await (database.update(database.calendarEvents)
+            ..where((row) => row.id.equals(unrelatedId)))
+          .write(const CalendarEventsCompanion(location: Value('Shared hall')));
+      final unrelatedIdentity = LocationItemIdentity(
+        kind: LocationItemKind.event,
+        accountId: 'account',
+        sourceId: 'account|google|cal-1',
+        itemId: unrelatedId,
+      );
+      final unrelatedSelection = LocationResult(
+        label: 'Shared hall',
+        point: GeographicPoint(latitude: 1, longitude: 2),
+      );
+      await LocationResolutionRepository(database).apply(
+        unrelatedIdentity,
+        'Shared hall',
+        LocationChange.replace(unrelatedSelection),
+      );
+
+      const providerEventId = 'microsoft-source-event';
+      await repository.upsertEvent(
+        accountId: 'microsoft-account',
+        event: const CalendarEventDto(
+          provider: BusyProvider.microsoft,
+          providerCalendarId: 'ms-cal-1',
+          providerEventId: providerEventId,
+          title: 'Moved meeting',
+          location: 'Shared hall',
+          organizerJson: {'self': true},
+          startDateTime: '2026-06-08T09:00:00.000Z',
+          endDateTime: '2026-06-08T10:00:00.000Z',
+          updatedAtServer: '2026-06-08T00:00:00.000Z',
+          rawJson: {
+            'id': providerEventId,
+            'subject': 'Moved meeting',
+            'location': {'displayName': 'Shared hall'},
+          },
+        ),
+      );
+      final sourceId = CalendarRepository.eventId(
+        accountId: 'microsoft-account',
+        provider: BusyProvider.microsoft,
+        providerCalendarId: 'ms-cal-1',
+        providerEventId: providerEventId,
+      );
+      final detail = (await repository.loadEventDetail(sourceId))!;
+      final replacement = LocationResult(
+        label: 'Shared hall',
+        point: GeographicPoint(latitude: 3, longitude: 4),
+      );
+
+      await repository.updateLocalEvent(
+        EventEditorDraft.fromEventDetail(detail).copyWith(
+          accountId: 'account',
+          sourceId: 'account|google|cal-1',
+          providerCalendarId: 'cal-1',
+          locationChange: LocationChange.replace(replacement),
+        ),
+      );
+
+      expect(
+        await LocationResolutionRepository(
+          database,
+        ).load(unrelatedIdentity, 'Shared hall'),
+        unrelatedSelection,
+      );
+      final copied =
+          (await (database.select(database.calendarEvents)..where(
+                    (row) =>
+                        row.accountId.equals('account') &
+                        row.providerEventId.like('local:%'),
+                  ))
+                  .get())
+              .single;
+      expect(
+        await LocationResolutionRepository(database).load(
+          LocationItemIdentity(
+            kind: LocationItemKind.event,
+            accountId: copied.accountId,
+            sourceId: copied.calendarSourceId,
+            itemId: copied.id,
+          ),
+          'Shared hall',
+        ),
+        replacement,
+      );
+    },
+  );
+
+  test(
     'failed move setup rolls back its destination and keeps source selection',
     () async {
       await _insertMicrosoftAccountAndSource(database);

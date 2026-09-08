@@ -78,9 +78,6 @@ function Invoke-BusyMaxWindowsCompile {
     "--dart-define=MICROSOFT_OAUTH_AUTHORITY_TENANT=$($config.microsoftOAuthAuthorityTenant)",
     '--dart-define=BUSYMAX_FAKE_DATA=false'
   )
-  if (-not [string]::IsNullOrWhiteSpace($config.geoapifyApiKey)) {
-    $defines += "--dart-define=GEOAPIFY_API_KEY=$($config.geoapifyApiKey)"
-  }
   if (-not [string]::IsNullOrWhiteSpace($config.googleOAuthClientSecret)) {
     $defines += "--dart-define=GOOGLE_OAUTH_CLIENT_SECRET=$($config.googleOAuthClientSecret)"
   }

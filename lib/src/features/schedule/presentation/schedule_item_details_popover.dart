@@ -8,6 +8,8 @@ import '../../../l10n/l10n.dart';
 import '../../../schedule/schedule_item.dart';
 import '../../../providers/busy_provider.dart';
 import '../../../schedule/schedule_projection.dart';
+import '../../maps/application/external_location_launcher.dart';
+import '../../maps/domain/geographic_point.dart';
 import 'schedule_anchored_popover.dart';
 import 'schedule_event_block.dart';
 
@@ -19,8 +21,7 @@ enum ScheduleItemDetailsAction {
   acceptInvitation,
   tentativeInvitation,
   declineInvitation,
-  showMap,
-  directions,
+  openLocation,
 }
 
 Future<ScheduleItemDetailsAction?> showScheduleItemDetailsPopover({
@@ -135,27 +136,6 @@ class _ScheduleItemDetailsPopoverCard extends StatelessWidget {
                   when event.canRespondToInvitation) ...[
                 const SizedBox(height: BusyMaxSpacing.md),
                 _InvitationResponseActions(item: event),
-              ],
-              if (_locationActionsAvailable(item)) ...[
-                const SizedBox(height: BusyMaxSpacing.md),
-                Wrap(
-                  spacing: BusyMaxSpacing.sm,
-                  runSpacing: BusyMaxSpacing.sm,
-                  children: [
-                    BusyMaxPushButton.standard(
-                      onPressed: () => Navigator.of(
-                        context,
-                      ).pop(ScheduleItemDetailsAction.showMap),
-                      child: Text(context.l10n.mapsShow),
-                    ),
-                    BusyMaxPushButton.standard(
-                      onPressed: () => Navigator.of(
-                        context,
-                      ).pop(ScheduleItemDetailsAction.directions),
-                      child: Text(context.l10n.mapsDirections),
-                    ),
-                  ],
-                ),
               ],
               const SizedBox(height: BusyMaxSpacing.lg),
               _ScheduleItemDetails(item: item),
@@ -411,8 +391,74 @@ class _ScheduleDetailRichRow extends StatelessWidget {
   }
 }
 
+class _ScheduleLocationDetailRow extends StatelessWidget {
+  const _ScheduleLocationDetailRow({required this.item});
+
+  final ScheduleItem item;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final location = _locationText(item);
+    final point = _locationPoint(item);
+    final text = location.trim().isNotEmpty
+        ? location
+        : point?.directionsValue ?? '';
+    final action = BusyMaxPushButton.standard(
+      key: const ValueKey('saved-location-open'),
+      onPressed: () =>
+          Navigator.of(context).pop(ScheduleItemDetailsAction.openLocation),
+      child: Text(
+        completeHttpLocationUri(location) != null
+            ? context.l10n.openLink
+            : context.l10n.mapsShow,
+      ),
+    );
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Icon(
+          Icons.place_outlined,
+          size: BusyMaxSizes.iconSm,
+          color: colorScheme.onSurfaceVariant,
+        ),
+        const SizedBox(width: BusyMaxSpacing.sm),
+        Expanded(
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final locationText = SelectableText(
+                text,
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  color: colorScheme.onSurfaceVariant,
+                ),
+              );
+              if (constraints.maxWidth < 320) {
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    locationText,
+                    const SizedBox(height: BusyMaxSpacing.xs),
+                    action,
+                  ],
+                );
+              }
+              return Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(child: locationText),
+                  const SizedBox(width: BusyMaxSpacing.sm),
+                  action,
+                ],
+              );
+            },
+          ),
+        ),
+      ],
+    );
+  }
+}
+
 List<Widget> _eventDetails(BuildContext context, CalendarScheduleItem item) {
-  final location = item.location?.trim();
   final description = item.description?.trim();
   final organizer = _organizerName(item.organizer);
   final attendeeResponses = [
@@ -421,8 +467,10 @@ List<Widget> _eventDetails(BuildContext context, CalendarScheduleItem item) {
         _attendeeResponseLabel(context, attendee),
   ];
   return [
-    if (location != null && location.isNotEmpty)
-      _ScheduleDetailRow(icon: Icons.place_outlined, text: location),
+    if (_locationActionsAvailable(item))
+      _ScheduleLocationDetailRow(item: item)
+    else if (_locationText(item).trim().isNotEmpty)
+      _ScheduleDetailRow(icon: Icons.place_outlined, text: _locationText(item)),
     if (organizer != null)
       _ScheduleDetailRow(
         icon: Icons.person_outline,
@@ -538,7 +586,6 @@ String _responseStatusLabel(BuildContext context, String? response) {
 
 List<Widget> _taskDetails(BuildContext context, TaskScheduleItem item) {
   final notes = item.notes?.trim();
-  final location = item.location?.trim();
   return [
     _ScheduleDetailRow(
       icon: item.completed ? YaruIcons.checkmark : Icons.radio_button_unchecked,
@@ -556,8 +603,10 @@ List<Widget> _taskDetails(BuildContext context, TaskScheduleItem item) {
         icon: Icons.sell_outlined,
         text: '${context.l10n.categories}: ${item.categories.join(', ')}',
       ),
-    if (location != null && location.isNotEmpty)
-      _ScheduleDetailRow(icon: Icons.place_outlined, text: location),
+    if (_locationActionsAvailable(item))
+      _ScheduleLocationDetailRow(item: item)
+    else if (_locationText(item).trim().isNotEmpty)
+      _ScheduleDetailRow(icon: Icons.place_outlined, text: _locationText(item)),
     if (notes != null && notes.isNotEmpty)
       _ScheduleDetailRow(icon: Icons.notes, text: notes),
   ];
@@ -568,7 +617,7 @@ String _locationText(ScheduleItem item) => switch (item) {
   TaskScheduleItem(:final location) => location ?? '',
 };
 
-Object? _locationPoint(ScheduleItem item) => switch (item) {
+GeographicPoint? _locationPoint(ScheduleItem item) => switch (item) {
   CalendarScheduleItem(:final locationPoint) => locationPoint,
   TaskScheduleItem(:final locationPoint) => locationPoint,
 };

@@ -207,71 +207,14 @@ class AppLocalizationsVi extends AppLocalizations {
       'Không thể kết nối Nextcloud. Dữ liệu đệm và thay đổi đang chờ vẫn nguyên vẹn.';
 
   @override
-  String get mapsShow => 'Hiện bản đồ';
+  String get mapsShow => 'Hiển thị trên bản đồ';
 
   @override
-  String get mapsDirections => 'Chỉ đường trong Google Maps';
+  String get openLink => 'Mở liên kết';
 
   @override
-  String get mapsPrivacy =>
-      'Tìm địa điểm và bản đồ trực tuyến dùng Geoapify. Chỉ gửi nội dung tìm kiếm và vùng bản đồ.';
-
-  @override
-  String get mapsSearch => 'Tìm địa điểm';
-
-  @override
-  String get mapsLoading => 'Đang tìm địa điểm…';
-
-  @override
-  String get mapsEmpty =>
-      'Không có địa điểm phù hợp. Bạn có thể giữ vị trí dưới dạng văn bản.';
-
-  @override
-  String get mapsOffline =>
-      'Tìm địa điểm đang ngoại tuyến. Chỉ đường vẫn khả dụng.';
-
-  @override
-  String get mapsUnconfigured =>
-      'Bản đồ trực tuyến chưa được cấu hình trong bản dựng này. Chỉ đường vẫn khả dụng.';
-
-  @override
-  String get mapsRateLimited =>
-      'Dịch vụ địa điểm đang bận. Hãy chờ trước khi tìm lại.';
-
-  @override
-  String get mapsServiceError =>
-      'Không thể tìm địa điểm. Bạn vẫn có thể lưu vị trí dưới dạng văn bản.';
-
-  @override
-  String get mapsTilesFailed =>
-      'Không tải được một số ô bản đồ. Điểm đến và chỉ đường vẫn khả dụng.';
-
-  @override
-  String get mapsApproximate => 'Khu vực gần đúng';
-
-  @override
-  String get mapsZoomIn => 'Phóng to';
-
-  @override
-  String get mapsZoomOut => 'Thu nhỏ';
-
-  @override
-  String get mapsRecenter => 'Căn giữa điểm đến';
-
-  @override
-  String get mapsDestination => 'Điểm đến';
-
-  @override
-  String get mapsBrowserFailed => 'Không mở được trình duyệt.';
-
-  @override
-  String get mapsRememberFailed => 'Không lưu nhớ được vị trí trên bản đồ.';
-
-  @override
-  String get mapsSelected => 'Đã chọn vị trí trên bản đồ';
-
-  @override
-  String get mapsChoose => 'Chọn vị trí';
+  String get externalLocationOpenFailed =>
+      'Không thể mở vị trí trong ứng dụng bên ngoài.';
 
   @override
   String scheduleProposedRange(String start, String end) {

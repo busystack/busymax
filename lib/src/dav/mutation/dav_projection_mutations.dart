@@ -158,13 +158,15 @@ DavMutationPatch? buildDavEventUpdatePatch({
         current.location != '') {
       operations.add(DavPatchOperation.setText('LOCATION', ''));
     }
-  } else if ((current.location ?? '') != (input.location ?? '')) {
+  } else if ((target.recurrenceIdKey == null || input.locationChanged) &&
+      (current.location ?? '') != (input.location ?? '')) {
     operations.add(
       DavPatchOperation.setText('LOCATION', _nonEmpty(input.location)),
     );
   }
   if (input.locationChanged ||
-      (current.location ?? '') != (input.location ?? '')) {
+      (target.recurrenceIdKey == null &&
+          (current.location ?? '') != (input.location ?? ''))) {
     operations.add(
       DavPatchOperation.setRaw('GEO', input.locationPoint?.icalValue),
     );

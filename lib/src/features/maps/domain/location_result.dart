@@ -1,31 +1,21 @@
 import 'package:collection/collection.dart';
 import 'geographic_point.dart';
 
-/// A deliberately small projection, never the original search response.
+/// Coordinate and provider metadata retained for imports and provider writes.
 final class LocationResult {
   const LocationResult({
     required this.label,
     required this.point,
-    this.name,
-    this.formattedAddress,
-    this.resultType = '',
     this.address = const {},
-    this.attribution = 'Powered by Geoapify | © OpenStreetMap contributors',
-    this.source = 'geoapify',
+    this.attribution = '',
+    this.source = 'provider',
   });
   final String label;
   final GeographicPoint point;
 
-  /// Provider-supplied place name, kept distinct from the full address label.
-  final String? name;
-
-  /// Provider-supplied formatted address, when present.
-  final String? formattedAddress;
-  final String resultType;
   final Map<String, String> address;
   final String source;
   final String attribution;
-  bool get approximate => !{'building', 'amenity'}.contains(resultType);
   Map<String, Object?> get microsoftLocation => {
     'displayName': label,
     'coordinates': point.toJson(),
@@ -45,21 +35,15 @@ final class LocationResult {
       other is LocationResult &&
       label == other.label &&
       point == other.point &&
-      name == other.name &&
-      formattedAddress == other.formattedAddress &&
       source == other.source &&
       attribution == other.attribution &&
-      resultType == other.resultType &&
       const MapEquality<String, String>().equals(address, other.address);
   @override
   int get hashCode => Object.hash(
     label,
     point,
-    name,
-    formattedAddress,
     source,
     attribution,
-    resultType,
     const MapEquality<String, String>().hash(address),
   );
 }
@@ -104,11 +88,3 @@ final class LocationItemIdentity {
   @override
   int get hashCode => Object.hash(kind, accountId, sourceId, itemId);
 }
-
-Uri googleMapsDirectionsUri({
-  required String location,
-  GeographicPoint? point,
-}) => Uri.https('www.google.com', '/maps/dir/', {
-  'api': '1',
-  'destination': point?.directionsValue ?? location,
-});

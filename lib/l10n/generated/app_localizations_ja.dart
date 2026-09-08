@@ -199,65 +199,13 @@ class AppLocalizationsJa extends AppLocalizations {
       'Nextcloud に接続できません。キャッシュと保留中の変更はそのまま保持されます。';
 
   @override
-  String get mapsShow => '地図を表示';
+  String get mapsShow => '地図で表示';
 
   @override
-  String get mapsDirections => 'Google Maps で経路を表示';
+  String get openLink => 'リンクを開く';
 
   @override
-  String get mapsPrivacy =>
-      'オンラインの場所検索と地図は Geoapify を使用します。検索文字列と地図の範囲だけが送信されます。';
-
-  @override
-  String get mapsSearch => '場所を検索';
-
-  @override
-  String get mapsLoading => '場所を検索中…';
-
-  @override
-  String get mapsEmpty => '一致する場所はありません。場所をテキストのまま保持できます。';
-
-  @override
-  String get mapsOffline => '場所検索はオフラインです。経路表示は引き続き利用できます。';
-
-  @override
-  String get mapsUnconfigured => 'このビルドではオンライン地図が設定されていません。経路表示は引き続き利用できます。';
-
-  @override
-  String get mapsRateLimited => '場所サービスが混雑しています。しばらく待ってから検索してください。';
-
-  @override
-  String get mapsServiceError => '場所検索を利用できません。場所はテキストとして保存できます。';
-
-  @override
-  String get mapsTilesFailed => '一部の地図タイルを読み込めませんでした。目的地と経路は引き続き利用できます。';
-
-  @override
-  String get mapsApproximate => 'おおよその範囲';
-
-  @override
-  String get mapsZoomIn => '拡大';
-
-  @override
-  String get mapsZoomOut => '縮小';
-
-  @override
-  String get mapsRecenter => '目的地を中央に表示';
-
-  @override
-  String get mapsDestination => '目的地';
-
-  @override
-  String get mapsBrowserFailed => 'ブラウザーを開けませんでした。';
-
-  @override
-  String get mapsRememberFailed => '地図上の場所を記憶できませんでした。';
-
-  @override
-  String get mapsSelected => '地図上の場所を選択しました';
-
-  @override
-  String get mapsChoose => '場所を選択';
+  String get externalLocationOpenFailed => '外部アプリで場所を開けませんでした。';
 
   @override
   String scheduleProposedRange(String start, String end) {

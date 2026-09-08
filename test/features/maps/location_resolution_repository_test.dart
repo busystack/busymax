@@ -2,12 +2,15 @@ import 'package:busymax/src/calendar_providers/calendar_sync_dto.dart';
 import 'package:busymax/src/db/app_database.dart';
 import 'package:busymax/src/features/calendar/data/calendar_repository.dart';
 import 'package:busymax/src/features/maps/data/location_resolution_repository.dart';
+import 'package:busymax/src/features/maps/application/external_location_launcher.dart';
+import 'package:busymax/src/features/maps/application/location_destination_resolver.dart';
 import 'package:busymax/src/features/maps/domain/geographic_point.dart';
 import 'package:busymax/src/features/maps/domain/location_result.dart';
 import 'package:busymax/src/providers/busy_provider.dart';
 import 'package:drift/drift.dart' hide isNull;
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 void main() {
   late AppDatabase database;
@@ -53,6 +56,122 @@ void main() {
       );
     },
   );
+
+  test(
+    'saved resolver applies link, native, remembered, then text priority',
+    () async {
+      final identity = _identity(
+        account: 'account-a',
+        source: _sourceId('account-a', 'provider-a'),
+        event: _eventId('account-a', 'provider-a', 'event-a'),
+      );
+      final repository = LocationResolutionRepository(database);
+      await repository.apply(
+        identity,
+        'Hall',
+        LocationChange.replace(_selection),
+      );
+      final resolver = LocationDestinationResolver(repository);
+      final native = GeographicPoint(latitude: -1, longitude: 0);
+
+      final link = await resolver.resolveSaved(
+        location: 'https://intranet/room?q=A%26B#floor',
+        nativePoint: native,
+        identity: identity,
+      );
+      expect(link?.kind, ExternalLocationDestinationKind.link);
+      expect(link?.link?.fragment, 'floor');
+
+      final providerPoint = await resolver.resolveSaved(
+        location: 'Hall',
+        nativePoint: native,
+        identity: identity,
+      );
+      expect(providerPoint?.kind, ExternalLocationDestinationKind.coordinates);
+      expect(providerPoint?.point, native);
+
+      final remembered = await resolver.resolveSaved(
+        location: 'Hall',
+        identity: identity,
+      );
+      expect(remembered?.point, _selection.point);
+
+      final text = await resolver.resolveSaved(location: 'Unresolved room');
+      expect(text?.kind, ExternalLocationDestinationKind.text);
+      expect(text?.text, 'Unresolved room');
+      expect(await resolver.resolveSaved(location: '   '), isNull);
+    },
+  );
+
+  test(
+    'resolving and opening a saved location performs no database writes',
+    () async {
+      final identity = _identity(
+        account: 'account-a',
+        source: _sourceId('account-a', 'provider-a'),
+        event: _eventId('account-a', 'provider-a', 'event-a'),
+      );
+      final repository = LocationResolutionRepository(database);
+      await repository.apply(
+        identity,
+        'Hall',
+        LocationChange.replace(_selection),
+      );
+      final eventsBefore = await database.select(database.calendarEvents).get();
+      final resolutionsBefore = await database
+          .select(database.locationResolutions)
+          .get();
+      final pendingBefore = await database.select(database.pendingOps).get();
+      final launched = <Uri>[];
+
+      final destination = await LocationDestinationResolver(
+        repository,
+      ).resolveSaved(location: 'Hall', identity: identity);
+      final result = await ExternalLocationLauncher(
+        platform: () => ExternalLocationPlatform.windows,
+        launcher: (uri, {mode = LaunchMode.platformDefault}) async {
+          launched.add(uri);
+          return true;
+        },
+      ).open(destination);
+
+      expect(result, ExternalLocationLaunchResult.opened);
+      expect(launched, hasLength(1));
+      expect(
+        await database.select(database.calendarEvents).get(),
+        eventsBefore,
+      );
+      expect(
+        await database.select(database.locationResolutions).get(),
+        resolutionsBefore,
+      );
+      expect(await database.select(database.pendingOps).get(), pendingBefore);
+    },
+  );
+
+  test('remembered provenance remains explicit after restart', () async {
+    final identity = _identity(
+      account: 'account-a',
+      source: _sourceId('account-a', 'provider-a'),
+      event: _eventId('account-a', 'provider-a', 'event-a'),
+    );
+    final coarse = LocationResult(
+      label: 'Vancouver, BC, Canada',
+      point: GeographicPoint(latitude: 49.2827, longitude: -123.1207),
+      source: 'legacy-provider',
+      attribution: 'City result attribution',
+    );
+    await LocationResolutionRepository(
+      database,
+    ).apply(identity, 'Hall', LocationChange.replace(coarse));
+
+    final remembered = await LocationResolutionRepository(
+      database,
+    ).load(identity, 'Hall');
+
+    expect(remembered?.source, 'legacy-provider');
+    expect(remembered?.attribution, 'City result attribution');
+  });
 
   test('late result is rejected after location text changes', () async {
     final repository = LocationResolutionRepository(database);
@@ -155,7 +274,6 @@ void main() {
 final _selection = LocationResult(
   label: 'Resolved Hall',
   point: GeographicPoint(latitude: 0, longitude: -123.25),
-  resultType: 'building',
   source: 'geoapify',
   attribution: 'Geoapify attribution',
 );
@@ -168,8 +286,7 @@ final _matchesStoredSelection = isA<LocationResult>()
       (result) => result.attribution,
       'attribution',
       _selection.attribution,
-    )
-    .having((result) => result.resultType, 'missing type is honest', '');
+    );
 
 LocationItemIdentity _identity({
   required String account,

@@ -3,7 +3,6 @@ import 'dart:async';
 import 'package:drift/drift.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_map/flutter_map.dart';
 import '../dav/nextcloud/nextcloud_native_export.dart';
 import 'package:http/http.dart' as http;
 import 'package:uuid/uuid.dart';
@@ -69,9 +68,7 @@ import '../schedule/schedule_sidebar_order.dart';
 import '../webcal/webcal_http_client.dart';
 import '../webcal/webcal_subscription_service.dart';
 import 'app_settings.dart';
-import '../features/maps/data/geoapify_client.dart';
 import '../features/maps/data/location_resolution_repository.dart';
-import '../features/maps/data/map_tile_service.dart';
 
 export '../app/app_settings.dart';
 
@@ -79,23 +76,10 @@ final buildConfigProvider = Provider<BuildConfig>(
   (ref) => BuildConfig.fromEnvironment(),
 );
 
-final geoapifyClientProvider = Provider<GeoapifyClient>((ref) {
-  final client = http.Client();
-  ref.onDispose(client.close);
-  return GeoapifyClient(
-    client: client,
-    apiKey: ref.watch(buildConfigProvider).geoapifyApiKey,
-    canUseNetwork: ref.watch(networkConnectivityMonitorProvider).canUseNetwork,
-  );
-});
 final locationResolutionRepositoryProvider =
     Provider<LocationResolutionRepository>(
       (ref) => LocationResolutionRepository(ref.watch(databaseProvider)),
     );
-final mapTileCacheProvider = FutureProvider<MapCachingProvider>(
-  (ref) => createMapTileCache(),
-);
-
 final databaseProvider = Provider<AppDatabase>((ref) {
   final database = AppDatabase.open();
   ref.onDispose(database.close);

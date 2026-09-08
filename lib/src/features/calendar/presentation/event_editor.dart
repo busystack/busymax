@@ -18,6 +18,7 @@ import '../../recurrence/domain/event_recurrence_codec.dart';
 import '../../recurrence/domain/recurrence_rule.dart';
 import '../../recurrence/presentation/recurrence_editor.dart';
 import '../../tasks/presentation/desktop_date_time_fields.dart';
+import '../../maps/domain/location_result.dart';
 import '../data/calendar_repository.dart';
 import '../domain/event_move_policy.dart';
 import 'event_description_editor.dart';
@@ -25,9 +26,6 @@ import 'event_editor_draft.dart';
 import '../domain/event_timing_policy.dart';
 import 'event_guest_delivery_dialog.dart';
 import '../../../dav/presentation/nextcloud_scheduling_dialog.dart';
-import '../../maps/domain/location_result.dart';
-import '../../maps/presentation/linux_location_autocomplete.dart';
-import '../../maps/presentation/linux_location_map_dialog.dart';
 
 Future<EventEditorDialogResult?> showBusyMaxEventEditorDialog(
   BuildContext context, {
@@ -449,26 +447,24 @@ class _EventEditorState extends ConsumerState<EventEditor> {
                   ),
                 ),
                 YaruListTile.square(
-                  title: LinuxLocationAutocomplete(
-                    key: ValueKey(
-                      'event-location-${_draft.eventId ?? 'new'}-'
-                      '${_draft.accountId}-${_draft.sourceId}',
+                  title: TextFormField(
+                    key: const ValueKey('event-location-field'),
+                    initialValue: _draft.location ?? '',
+                    decoration: busyMaxGroupedTextFieldDecoration(
+                      context,
+                      labelText: l10n.location,
                     ),
-                    text: _draft.location ?? '',
-                    labelText: l10n.location,
-                    enabled: true,
-                    previewAvailable: _draft.locationChange.changed
-                        ? _draft.locationChange.selection != null
-                        : _draft.locationPoint != null,
-                    onChanged: (value, change) {
+                    onChanged: (value) {
+                      final original = widget.initialDraft.location ?? '';
                       setState(() {
                         _draft = _draft.copyWith(
                           location: value,
-                          locationChange: change,
+                          locationChange: value == original
+                              ? const LocationChange.unchanged()
+                              : const LocationChange.clear(),
                         );
                       });
                     },
-                    onPreview: _previewLocation,
                   ),
                 ),
               ],
@@ -668,35 +664,6 @@ class _EventEditorState extends ConsumerState<EventEditor> {
           ],
         ),
       ),
-    );
-  }
-
-  Future<void> _previewLocation() {
-    final eventId = _draft.eventId;
-    return showLinuxLocationMapDialog(
-      context,
-      ref,
-      location: _draft.location ?? '',
-      nativePoint: _draft.locationPoint,
-      locationChange: _draft.locationChange,
-      identity: eventId == null
-          ? null
-          : LocationItemIdentity(
-              kind: LocationItemKind.event,
-              accountId: _draft.accountId,
-              sourceId: _draft.sourceId,
-              itemId: eventId,
-            ),
-      headerBarService: widget.headerBarService,
-      onSelection: (selection) async {
-        if (!mounted) return;
-        setState(() {
-          _draft = _draft.copyWith(
-            location: selection.label,
-            locationChange: LocationChange.replace(selection),
-          );
-        });
-      },
     );
   }
 

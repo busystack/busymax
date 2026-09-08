@@ -146,6 +146,7 @@ class EventEditorDraft {
     this.startTimeZone,
     this.endTimeZone,
     this.location,
+    this.originalLocation,
     this.locationPoint,
     this.locationChange = const LocationChange.unchanged(),
     this.description,
@@ -323,6 +324,7 @@ class EventEditorDraft {
       startTimeZone: startTimeZone,
       endTimeZone: endTimeZone,
       location: location,
+      originalLocation: location,
       locationPoint: locationPoint,
       description: description,
       descriptionContentType: descriptionContentType,
@@ -360,6 +362,7 @@ class EventEditorDraft {
   final String? startTimeZone;
   final String? endTimeZone;
   final String? location;
+  final String? originalLocation;
   final GeographicPoint? locationPoint;
   final LocationChange locationChange;
   GeographicPoint? get effectiveLocationPoint =>
@@ -455,6 +458,12 @@ class EventEditorDraft {
     bool clearConference = false,
     bool clearRecurringMutationScope = false,
   }) {
+    final candidateLocation = clearLocation ? null : location ?? this.location;
+    final matchesOriginalLocation =
+        (candidateLocation ?? '') == (originalLocation ?? '');
+    final updatedLocation = matchesOriginalLocation
+        ? originalLocation
+        : candidateLocation;
     return EventEditorDraft(
       eventId: eventId,
       originalDetail: originalDetail,
@@ -472,13 +481,14 @@ class EventEditorDraft {
       end: end ?? this.end,
       startTimeZone: startTimeZone ?? this.startTimeZone,
       endTimeZone: endTimeZone ?? this.endTimeZone,
-      location: clearLocation ? null : location ?? this.location,
+      location: updatedLocation,
+      originalLocation: originalLocation,
       locationPoint: locationPoint,
       locationChange:
           locationChange ??
-          (clearLocation || (location != null && location != this.location)
+          (!matchesOriginalLocation
               ? const LocationChange.clear()
-              : this.locationChange),
+              : const LocationChange.unchanged()),
       description: clearDescription ? null : description ?? this.description,
       descriptionContentType: clearDescription
           ? null
@@ -535,6 +545,7 @@ class EventEditorDraft {
         other.startTimeZone == startTimeZone &&
         other.endTimeZone == endTimeZone &&
         other.location == location &&
+        other.originalLocation == originalLocation &&
         other.locationPoint == locationPoint &&
         other.locationChange == locationChange &&
         other.description == description &&
@@ -578,6 +589,7 @@ class EventEditorDraft {
     startTimeZone,
     endTimeZone,
     location,
+    originalLocation,
     locationPoint,
     locationChange,
     description,

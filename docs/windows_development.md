@@ -39,9 +39,12 @@ dart run build_runner build --delete-conflicting-outputs --force-jit
 flutter run -d windows -t lib/main_windows.dart `
   --dart-define=BUSYMAX_WINDOWS_AUMID=BusyStack.BusyMax.Development `
   --dart-define=GOOGLE_OAUTH_CLIENT_ID=<desktop-client-id> `
-  --dart-define=MICROSOFT_OAUTH_CLIENT_ID=<public-client-id> `
-  --dart-define=GEOAPIFY_API_KEY=<geoapify-api-key>
+  --dart-define=MICROSOFT_OAUTH_CLIENT_ID=<public-client-id>
 ```
+
+Location fields require no map-service configuration. Windows opens a saved
+location through the default browser using a Google Maps search URL, or opens a
+complete saved HTTP(S) link directly; BusyMax does not embed a map or geocoder.
 
 An unpackaged build accurately reports Windows StartupTask as unavailable. It
 does not create a registry or Startup-folder fallback. Windows notifications
@@ -96,22 +99,25 @@ pre-existing failures: one Nextcloud recurrence parse/serialize case and four
 account-add routing widget cases. This is a baseline record, not a waiver for
 CI; the release workflows require a fully passing current test suite.
 
-The Drift schema version was 13 and remains 13. Existing migrations, the Linux
-Snap configuration, and the Linux workflow remain in place.
+The Drift schema version at that baseline was 13. A later location-data
+migration established schema 14; removing embedded maps does not roll it back
+or delete its coordinate columns and `location_resolutions` records. Existing
+migrations, the Linux Snap configuration, and the Linux workflow remain in
+place.
 
 ## Current source-side validation
 
-On 2026-08-31, the post-port working tree was validated on Linux with Flutter
-3.44.4 and Dart 3.12.2:
+On 2026-09-08, the location-handoff cleanup was validated on Linux with the
+repository's pinned Flutter 3.44.4 toolchain:
 
 | Command | Result |
 | --- | --- |
 | `flutter gen-l10n` | Passed; every supported catalog generated. |
-| `dart run build_runner build --delete-conflicting-outputs` | Passed; generated Drift content remained consistent and the schema version remained 13. The pinned build runner reported that the legacy delete-conflicting option is ignored. |
-| `dart format --output=none --set-exit-if-changed .` | Passed; 459 files checked, zero changes required. |
+| `dart run build_runner build --delete-conflicting-outputs --force-jit` | Passed; generated Drift content remained consistent and the schema version remained 14. The pinned build runner reported that the legacy delete-conflicting option is ignored. |
+| `dart format --output=none --set-exit-if-changed .` | Passed; 522 files checked, zero changes required. |
 | `flutter analyze` | Passed; no issues found. |
 | `dart run tool/check_platform_boundaries.dart` | Passed. |
-| `flutter test --reporter compact` | Passed; 1,568 tests passed, 10 skipped, zero failed. |
+| `flutter test --reporter compact` | Passed; 1,896 tests passed, 10 skipped, zero failed. |
 | `flutter build linux --release -t lib/main_linux.dart` | Passed; produced `build/linux/x64/release/bundle/busymax`. |
 
 These results establish Linux and platform-neutral source health only. They do

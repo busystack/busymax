@@ -110,11 +110,12 @@ void main() {
     expect(redacted, isNot(contains('secret-two')));
   });
 
-  test('redacts map credentials, searches, coordinates, and destinations', () {
+  test('redacts historical map data and external handoff destinations', () {
     final redacted = redactForLog(
       'https://api.geoapify.com/v1/geocode/search?text=Caf%C3%A9%20%26%20Park&apiKey=geo-secret '
       'https://maps.geoapify.com/v1/tile/osm-bright/14/2620/6331@2x.png?apiKey=geo-secret '
-      'https://www.google.com/maps/dir/?api=1&destination=49.28%2C-123.12 '
+      'https://www.google.com/maps/search/?api=1&query=49.28%2C-123.12 '
+      'geo:49.28,-123.12 maps:q=Private%20address\n'
       'GEO:49.28;-123.12 latitude=49.28 longitude=-123.12 '
       '{"coordinates":{"latitude":49.28,"longitude":-123.12},'
       '"locationQuery":"Private address","geoapifyApiKey":"geo-secret"}',
@@ -132,6 +133,8 @@ void main() {
     }
     expect(redacted, contains('[REDACTED_MAP_REQUEST]'));
     expect(redacted, contains('[REDACTED_DESTINATION]'));
+    expect(redacted, contains('geo:[REDACTED_LOCATION]'));
+    expect(redacted, contains('maps:q=[REDACTED_LOCATION]'));
     expect(redacted, contains('GEO:[REDACTED]'));
   });
 }

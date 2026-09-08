@@ -190,64 +190,13 @@ class AppLocalizationsZh extends AppLocalizations {
   String get nextcloudServerUnavailable => '无法连接 Nextcloud。缓存项目和待处理更改保持不变。';
 
   @override
-  String get mapsShow => '显示地图';
+  String get mapsShow => '在地图上显示';
 
   @override
-  String get mapsDirections => '在 Google Maps 中查看路线';
+  String get openLink => '打开链接';
 
   @override
-  String get mapsPrivacy => '在线地点搜索和地图使用 Geoapify。只发送搜索文字和地图区域。';
-
-  @override
-  String get mapsSearch => '搜索地点';
-
-  @override
-  String get mapsLoading => '正在搜索地点…';
-
-  @override
-  String get mapsEmpty => '没有匹配的地点。您可以保留文字位置。';
-
-  @override
-  String get mapsOffline => '地点搜索处于离线状态。路线功能仍可用。';
-
-  @override
-  String get mapsUnconfigured => '此版本未配置在线地图。路线功能仍可用。';
-
-  @override
-  String get mapsRateLimited => '地点服务繁忙。请稍候再搜索。';
-
-  @override
-  String get mapsServiceError => '地点搜索不可用。您仍可将位置保存为文字。';
-
-  @override
-  String get mapsTilesFailed => '部分地图图块无法加载。目的地和路线仍可用。';
-
-  @override
-  String get mapsApproximate => '大致区域';
-
-  @override
-  String get mapsZoomIn => '放大';
-
-  @override
-  String get mapsZoomOut => '缩小';
-
-  @override
-  String get mapsRecenter => '重新居中目的地';
-
-  @override
-  String get mapsDestination => '目的地';
-
-  @override
-  String get mapsBrowserFailed => '无法打开浏览器。';
-
-  @override
-  String get mapsRememberFailed => '无法记住地图位置。';
-
-  @override
-  String get mapsSelected => '已选择地图位置';
-
-  @override
-  String get mapsChoose => '选择位置';
+  String get externalLocationOpenFailed => '无法在外部应用中打开该位置。';
 
   @override
   String scheduleProposedRange(String start, String end) {
@@ -3018,64 +2967,13 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
   String get nextcloudServerUnavailable => '无法连接 Nextcloud。缓存项目和待处理更改保持不变。';
 
   @override
-  String get mapsShow => '显示地图';
+  String get mapsShow => '在地图上显示';
 
   @override
-  String get mapsDirections => '在 Google Maps 中查看路线';
+  String get openLink => '打开链接';
 
   @override
-  String get mapsPrivacy => '在线地点搜索和地图使用 Geoapify。只发送搜索文字和地图区域。';
-
-  @override
-  String get mapsSearch => '搜索地点';
-
-  @override
-  String get mapsLoading => '正在搜索地点…';
-
-  @override
-  String get mapsEmpty => '没有匹配的地点。您可以保留文字位置。';
-
-  @override
-  String get mapsOffline => '地点搜索处于离线状态。路线功能仍可用。';
-
-  @override
-  String get mapsUnconfigured => '此版本未配置在线地图。路线功能仍可用。';
-
-  @override
-  String get mapsRateLimited => '地点服务繁忙。请稍候再搜索。';
-
-  @override
-  String get mapsServiceError => '地点搜索不可用。您仍可将位置保存为文字。';
-
-  @override
-  String get mapsTilesFailed => '部分地图图块无法加载。目的地和路线仍可用。';
-
-  @override
-  String get mapsApproximate => '大致区域';
-
-  @override
-  String get mapsZoomIn => '放大';
-
-  @override
-  String get mapsZoomOut => '缩小';
-
-  @override
-  String get mapsRecenter => '重新居中目的地';
-
-  @override
-  String get mapsDestination => '目的地';
-
-  @override
-  String get mapsBrowserFailed => '无法打开浏览器。';
-
-  @override
-  String get mapsRememberFailed => '无法记住地图位置。';
-
-  @override
-  String get mapsSelected => '已选择地图位置';
-
-  @override
-  String get mapsChoose => '选择位置';
+  String get externalLocationOpenFailed => '无法在外部应用中打开该位置。';
 
   @override
   String scheduleProposedRange(String start, String end) {
@@ -5846,64 +5744,13 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get nextcloudServerUnavailable => '無法連線至 Nextcloud。快取項目和待處理變更保持不變。';
 
   @override
-  String get mapsShow => '顯示地圖';
+  String get mapsShow => '在地圖上顯示';
 
   @override
-  String get mapsDirections => '在 Google Maps 中查看路線';
+  String get openLink => '開啟連結';
 
   @override
-  String get mapsPrivacy => '線上地點搜尋和地圖使用 Geoapify。只傳送搜尋文字和地圖區域。';
-
-  @override
-  String get mapsSearch => '搜尋地點';
-
-  @override
-  String get mapsLoading => '正在搜尋地點…';
-
-  @override
-  String get mapsEmpty => '沒有符合的地點。您可以保留文字位置。';
-
-  @override
-  String get mapsOffline => '地點搜尋處於離線狀態。路線功能仍可用。';
-
-  @override
-  String get mapsUnconfigured => '此版本未設定線上地圖。路線功能仍可用。';
-
-  @override
-  String get mapsRateLimited => '地點服務忙碌中。請稍候再搜尋。';
-
-  @override
-  String get mapsServiceError => '地點搜尋無法使用。您仍可將位置儲存為文字。';
-
-  @override
-  String get mapsTilesFailed => '部分地圖圖磚無法載入。目的地和路線仍可用。';
-
-  @override
-  String get mapsApproximate => '大致區域';
-
-  @override
-  String get mapsZoomIn => '放大地圖';
-
-  @override
-  String get mapsZoomOut => '縮小地圖';
-
-  @override
-  String get mapsRecenter => '重新置中目的地';
-
-  @override
-  String get mapsDestination => '目的地';
-
-  @override
-  String get mapsBrowserFailed => '無法開啟瀏覽器。';
-
-  @override
-  String get mapsRememberFailed => '無法記住地圖位置。';
-
-  @override
-  String get mapsSelected => '已選取地圖位置';
-
-  @override
-  String get mapsChoose => '選擇位置';
+  String get externalLocationOpenFailed => '無法在外部應用程式中開啟該位置。';
 
   @override
   String scheduleProposedRange(String start, String end) {

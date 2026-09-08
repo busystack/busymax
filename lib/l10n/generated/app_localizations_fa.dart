@@ -204,71 +204,13 @@ class AppLocalizationsFa extends AppLocalizations {
       'دسترسی به Nextcloud ممکن نیست. موارد ذخیره‌شده و تغییرات در انتظار دست‌نخورده‌اند.';
 
   @override
-  String get mapsShow => 'نمایش نقشه';
+  String get mapsShow => 'نمایش روی نقشه';
 
   @override
-  String get mapsDirections => 'مسیریابی در Google Maps';
+  String get openLink => 'باز کردن پیوند';
 
   @override
-  String get mapsPrivacy =>
-      'جست‌وجوی مکان و نقشه‌های برخط از Geoapify استفاده می‌کنند. فقط متن جست‌وجو و محدودهٔ نقشه فرستاده می‌شود.';
-
-  @override
-  String get mapsSearch => 'جست‌وجوی مکان‌ها';
-
-  @override
-  String get mapsLoading => 'در حال جست‌وجوی مکان‌ها…';
-
-  @override
-  String get mapsEmpty =>
-      'مکان مطابقی نیست. می‌توانید مکان را به‌صورت متن نگه دارید.';
-
-  @override
-  String get mapsOffline =>
-      'جست‌وجوی مکان آفلاین است. مسیریابی همچنان در دسترس است.';
-
-  @override
-  String get mapsUnconfigured =>
-      'نقشه‌های برخط در این نسخه پیکربندی نشده‌اند. مسیریابی همچنان در دسترس است.';
-
-  @override
-  String get mapsRateLimited =>
-      'سرویس مکان مشغول است. پیش از جست‌وجوی دوباره صبر کنید.';
-
-  @override
-  String get mapsServiceError =>
-      'جست‌وجوی مکان در دسترس نیست. همچنان می‌توانید مکان را به‌صورت متن ذخیره کنید.';
-
-  @override
-  String get mapsTilesFailed =>
-      'برخی کاشی‌های نقشه بارگیری نشدند. مقصد و مسیریابی همچنان در دسترس‌اند.';
-
-  @override
-  String get mapsApproximate => 'محدودهٔ تقریبی';
-
-  @override
-  String get mapsZoomIn => 'بزرگ‌نمایی';
-
-  @override
-  String get mapsZoomOut => 'کوچک‌نمایی';
-
-  @override
-  String get mapsRecenter => 'مرکز کردن مقصد';
-
-  @override
-  String get mapsDestination => 'مقصد';
-
-  @override
-  String get mapsBrowserFailed => 'مرورگر باز نشد.';
-
-  @override
-  String get mapsRememberFailed => 'مکان نقشه به خاطر سپرده نشد.';
-
-  @override
-  String get mapsSelected => 'مکان نقشه انتخاب شد';
-
-  @override
-  String get mapsChoose => 'انتخاب مکان';
+  String get externalLocationOpenFailed => 'مکان در برنامهٔ خارجی باز نشد.';
 
   @override
   String scheduleProposedRange(String start, String end) {

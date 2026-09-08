@@ -213,72 +213,14 @@ class AppLocalizationsFr extends AppLocalizations {
       'Nextcloud est inaccessible. Les éléments en cache et les modifications en attente restent inchangés.';
 
   @override
-  String get mapsShow => 'Afficher la carte';
+  String get mapsShow => 'Afficher sur la carte';
 
   @override
-  String get mapsDirections => 'Itinéraire dans Google Maps';
+  String get openLink => 'Ouvrir le lien';
 
   @override
-  String get mapsPrivacy =>
-      'La recherche de lieux et les cartes en ligne utilisent Geoapify. Seuls votre texte de recherche et la zone de la carte sont transmis.';
-
-  @override
-  String get mapsSearch => 'Rechercher des lieux';
-
-  @override
-  String get mapsLoading => 'Recherche de lieux…';
-
-  @override
-  String get mapsEmpty =>
-      'Aucun lieu correspondant. Vous pouvez conserver le lieu sous forme de texte.';
-
-  @override
-  String get mapsOffline =>
-      'La recherche de lieux est hors ligne. Les itinéraires restent disponibles.';
-
-  @override
-  String get mapsUnconfigured =>
-      'Les cartes en ligne ne sont pas configurées dans cette version. Les itinéraires restent disponibles.';
-
-  @override
-  String get mapsRateLimited =>
-      'Le service de localisation est occupé. Patientez avant une nouvelle recherche.';
-
-  @override
-  String get mapsServiceError =>
-      'La recherche de lieux est indisponible. Vous pouvez toujours enregistrer le lieu sous forme de texte.';
-
-  @override
-  String get mapsTilesFailed =>
-      'Certaines tuiles n’ont pas pu être chargées. La destination et les itinéraires restent disponibles.';
-
-  @override
-  String get mapsApproximate => 'Zone approximative';
-
-  @override
-  String get mapsZoomIn => 'Agrandir la carte';
-
-  @override
-  String get mapsZoomOut => 'Réduire la carte';
-
-  @override
-  String get mapsRecenter => 'Recentrer sur la destination';
-
-  @override
-  String get mapsDestination => 'Lieu de destination';
-
-  @override
-  String get mapsBrowserFailed => 'Impossible d’ouvrir le navigateur.';
-
-  @override
-  String get mapsRememberFailed =>
-      'Impossible de mémoriser le lieu de la carte.';
-
-  @override
-  String get mapsSelected => 'Lieu sélectionné sur la carte';
-
-  @override
-  String get mapsChoose => 'Choisir un lieu';
+  String get externalLocationOpenFailed =>
+      'Impossible d’ouvrir le lieu dans une application externe.';
 
   @override
   String scheduleProposedRange(String start, String end) {

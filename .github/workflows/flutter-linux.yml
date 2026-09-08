@@ -73,12 +73,10 @@ jobs:
           GOOGLE_OAUTH_CLIENT_ID: ${{ vars.GOOGLE_OAUTH_CLIENT_ID }}
           GOOGLE_OAUTH_CLIENT_SECRET: ${{ secrets.GOOGLE_OAUTH_CLIENT_SECRET }}
           MICROSOFT_OAUTH_CLIENT_ID: ${{ vars.MICROSOFT_OAUTH_CLIENT_ID }}
-          GEOAPIFY_API_KEY: ${{ secrets.GEOAPIFY_API_KEY }}
         run: |
           if [ -z "$GOOGLE_OAUTH_CLIENT_ID" ] ||
              [ -z "$GOOGLE_OAUTH_CLIENT_SECRET" ] ||
-             [ -z "$MICROSOFT_OAUTH_CLIENT_ID" ] ||
-             [ -z "$GEOAPIFY_API_KEY" ]; then
+             [ -z "$MICROSOFT_OAUTH_CLIENT_ID" ]; then
             echo '::error::Release provider configuration is incomplete.'
             exit 1
           fi
@@ -88,7 +86,6 @@ jobs:
           GOOGLE_OAUTH_CLIENT_ID: ${{ vars.GOOGLE_OAUTH_CLIENT_ID }}
           GOOGLE_OAUTH_CLIENT_SECRET: ${{ secrets.GOOGLE_OAUTH_CLIENT_SECRET }}
           MICROSOFT_OAUTH_CLIENT_ID: ${{ vars.MICROSOFT_OAUTH_CLIENT_ID }}
-          GEOAPIFY_API_KEY: ${{ secrets.GEOAPIFY_API_KEY }}
         run: |
           args=(--release)
           if [ -n "$GOOGLE_OAUTH_CLIENT_ID" ]; then
@@ -100,9 +97,6 @@ jobs:
           if [ -n "$MICROSOFT_OAUTH_CLIENT_ID" ]; then
             args+=("--dart-define=MICROSOFT_OAUTH_CLIENT_ID=$MICROSOFT_OAUTH_CLIENT_ID")
           fi
-          if [ -n "$GEOAPIFY_API_KEY" ]; then
-            args+=("--dart-define=GEOAPIFY_API_KEY=$GEOAPIFY_API_KEY")
-          fi
           flutter build linux -t lib/main_linux.dart "${args[@]}"
 
       - name: Verify release provider configuration
@@ -111,13 +105,11 @@ jobs:
           GOOGLE_OAUTH_CLIENT_ID: ${{ vars.GOOGLE_OAUTH_CLIENT_ID }}
           GOOGLE_OAUTH_CLIENT_SECRET: ${{ secrets.GOOGLE_OAUTH_CLIENT_SECRET }}
           MICROSOFT_OAUTH_CLIENT_ID: ${{ vars.MICROSOFT_OAUTH_CLIENT_ID }}
-          GEOAPIFY_API_KEY: ${{ secrets.GEOAPIFY_API_KEY }}
         run: |
           binary=build/linux/x64/release/bundle/lib/libapp.so
           grep -aFq -- "$GOOGLE_OAUTH_CLIENT_ID" "$binary"
           grep -aFq -- "$GOOGLE_OAUTH_CLIENT_SECRET" "$binary"
           grep -aFq -- "$MICROSOFT_OAUTH_CLIENT_ID" "$binary"
-          grep -aFq -- "$GEOAPIFY_API_KEY" "$binary"
 
       - name: Build strict Snap from the release bundle
         id: snapcraft

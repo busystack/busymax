@@ -208,71 +208,14 @@ class AppLocalizationsEn extends AppLocalizations {
       'Nextcloud could not be reached. Cached items and pending work are unchanged.';
 
   @override
-  String get mapsShow => 'Show map';
+  String get mapsShow => 'Show on map';
 
   @override
-  String get mapsDirections => 'Directions in Google Maps';
+  String get openLink => 'Open link';
 
   @override
-  String get mapsPrivacy =>
-      'Online location search and maps use Geoapify. Only your search text and map area are sent.';
-
-  @override
-  String get mapsSearch => 'Search locations';
-
-  @override
-  String get mapsLoading => 'Searching locations…';
-
-  @override
-  String get mapsEmpty =>
-      'No matching locations. You can keep the location as text.';
-
-  @override
-  String get mapsOffline =>
-      'Location search is offline. Directions are still available.';
-
-  @override
-  String get mapsUnconfigured =>
-      'Online maps are not configured in this build. Directions are still available.';
-
-  @override
-  String get mapsRateLimited =>
-      'Location service is busy. Please wait before searching again.';
-
-  @override
-  String get mapsServiceError =>
-      'Location search is unavailable. You can still save the location as text.';
-
-  @override
-  String get mapsTilesFailed =>
-      'Some map tiles could not be loaded. The destination and directions remain available.';
-
-  @override
-  String get mapsApproximate => 'Approximate area';
-
-  @override
-  String get mapsZoomIn => 'Zoom in';
-
-  @override
-  String get mapsZoomOut => 'Zoom out';
-
-  @override
-  String get mapsRecenter => 'Recenter destination';
-
-  @override
-  String get mapsDestination => 'Destination';
-
-  @override
-  String get mapsBrowserFailed => 'The browser could not be opened.';
-
-  @override
-  String get mapsRememberFailed => 'The map location could not be remembered.';
-
-  @override
-  String get mapsSelected => 'Map location selected';
-
-  @override
-  String get mapsChoose => 'Choose a location';
+  String get externalLocationOpenFailed =>
+      'The location could not be opened in an external application.';
 
   @override
   String scheduleProposedRange(String start, String end) {

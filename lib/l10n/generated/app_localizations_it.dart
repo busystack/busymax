@@ -210,72 +210,14 @@ class AppLocalizationsIt extends AppLocalizations {
       'Nextcloud non è raggiungibile. Gli elementi in cache e le modifiche in attesa restano invariati.';
 
   @override
-  String get mapsShow => 'Mostra mappa';
+  String get mapsShow => 'Mostra sulla mappa';
 
   @override
-  String get mapsDirections => 'Indicazioni in Google Maps';
+  String get openLink => 'Apri link';
 
   @override
-  String get mapsPrivacy =>
-      'La ricerca dei luoghi e le mappe online usano Geoapify. Vengono inviati solo il testo cercato e l’area della mappa.';
-
-  @override
-  String get mapsSearch => 'Cerca luoghi';
-
-  @override
-  String get mapsLoading => 'Ricerca dei luoghi…';
-
-  @override
-  String get mapsEmpty =>
-      'Nessun luogo corrispondente. Puoi conservare la posizione come testo.';
-
-  @override
-  String get mapsOffline =>
-      'La ricerca dei luoghi è offline. Le indicazioni restano disponibili.';
-
-  @override
-  String get mapsUnconfigured =>
-      'Le mappe online non sono configurate in questa versione. Le indicazioni restano disponibili.';
-
-  @override
-  String get mapsRateLimited =>
-      'Il servizio dei luoghi è occupato. Attendi prima di cercare di nuovo.';
-
-  @override
-  String get mapsServiceError =>
-      'La ricerca dei luoghi non è disponibile. Puoi comunque salvare la posizione come testo.';
-
-  @override
-  String get mapsTilesFailed =>
-      'Impossibile caricare alcune tessere della mappa. Destinazione e indicazioni restano disponibili.';
-
-  @override
-  String get mapsApproximate => 'Area approssimativa';
-
-  @override
-  String get mapsZoomIn => 'Ingrandisci';
-
-  @override
-  String get mapsZoomOut => 'Riduci';
-
-  @override
-  String get mapsRecenter => 'Ricentra destinazione';
-
-  @override
-  String get mapsDestination => 'Luogo di destinazione';
-
-  @override
-  String get mapsBrowserFailed => 'Impossibile aprire il browser.';
-
-  @override
-  String get mapsRememberFailed =>
-      'Impossibile memorizzare la posizione sulla mappa.';
-
-  @override
-  String get mapsSelected => 'Posizione selezionata sulla mappa';
-
-  @override
-  String get mapsChoose => 'Scegli una posizione';
+  String get externalLocationOpenFailed =>
+      'Non è stato possibile aprire il luogo in un’app esterna.';
 
   @override
   String scheduleProposedRange(String start, String end) {

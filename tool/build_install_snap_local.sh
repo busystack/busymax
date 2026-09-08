@@ -290,29 +290,11 @@ echo "Defines:  $DEFINE_ENTRY_COUNT build-time entries"
 if [[ "$DEFINE_ENTRY_COUNT" -eq 0 ]]; then
   cat >&2 <<'EOF'
 Warning: No build definitions were supplied.
-Google and Microsoft sign-in will be unavailable; Geoapify maps will also be unavailable in this local build.
+Google and Microsoft sign-in will be unavailable in this local build.
 Apple and Nextcloud remain available.
 To configure OAuth providers, rebuild with:
   ./tool/build_install_snap_local.sh --dart-define-from-file .snap-local/busymax-dart-defines.json
 EOF
-fi
-
-HAS_GEOAPIFY_CONFIG=0
-for define in "${DART_DEFINE_ARGS[@]}"; do
-  if [[ "$define" == --dart-define=GEOAPIFY_API_KEY=* &&
-        "$define" != --dart-define=GEOAPIFY_API_KEY= ]]; then
-    HAS_GEOAPIFY_CONFIG=1
-  fi
-done
-for define_file in "${DART_DEFINE_FILE_ARGS[@]}"; do
-  define_path="${define_file#--dart-define-from-file=}"
-  if [[ -f "$define_path" ]] &&
-     grep -Eq '"GEOAPIFY_API_KEY"[[:space:]]*:[[:space:]]*"[^"[:space:]][^"]*"' "$define_path"; then
-    HAS_GEOAPIFY_CONFIG=1
-  fi
-done
-if [[ "$HAS_GEOAPIFY_CONFIG" != "1" ]]; then
-  echo "Warning: GEOAPIFY_API_KEY is not configured; map search and tiles will show the unconfigured state." >&2
 fi
 
 if [[ "$SKIP_TESTS" != "1" ]]; then

@@ -5,22 +5,26 @@ import 'package:logging/logging.dart';
 
 String redactForLog(Object? value) {
   var text = value?.toString() ?? '';
-  // Map URLs contain deployment credentials and can reveal a user's searched
-  // destination or the area currently visible in the map. Keep the host useful
-  // for diagnostics without retaining location-bearing path/query data.
+  // Historical map-service data and current external handoff URIs can contain
+  // private destinations. Keep schemes and hosts useful without retaining the
+  // location-bearing values.
   text = text.replaceAllMapped(
     RegExp(
-      r'(https?://(?:api|maps)\.geoapify\.com)/(?:[^\s,}\]]+)',
+      r'(https?://(?:api|maps)\.geoapify\.com)/(?:[^\s}\]]+)',
       caseSensitive: false,
     ),
     (match) => '${match.group(1)}/[REDACTED_MAP_REQUEST]',
   );
   text = text.replaceAllMapped(
     RegExp(
-      r'(https?://(?:www\.)?google\.[^/\s]+/maps/dir/)(?:[^\s,}\]]*)',
+      r'(https?://(?:www\.)?google\.[^/\s]+/maps/(?:dir|search)/)(?:[^\s}\]]*)',
       caseSensitive: false,
     ),
     (match) => '${match.group(1)}[REDACTED_DESTINATION]',
+  );
+  text = text.replaceAllMapped(
+    RegExp(r'\b(geo:|maps:q=)[^\s]+', caseSensitive: false),
+    (match) => '${match.group(1)}[REDACTED_LOCATION]',
   );
   text = text.replaceAllMapped(
     RegExp(r'\b(Bearer|Basic)\s+[A-Za-z0-9._~+/=-]+', caseSensitive: false),
@@ -85,8 +89,9 @@ String redactForLog(Object? value) {
   );
   text = text.replaceAllMapped(
     RegExp(
-      r'\b(SUMMARY|DESCRIPTION|LOCATION|GEO|ATTENDEE|ORGANIZER|COMMENT|CONTACT|ATTACH|X-ALT-DESC)(?:;[^:\r\n]*)?:[^\r\n]*',
+      r'^(SUMMARY|DESCRIPTION|LOCATION|GEO|ATTENDEE|ORGANIZER|COMMENT|CONTACT|ATTACH|X-ALT-DESC)(?:;[^:\r\n]*)?:[^\r\n]*',
       caseSensitive: false,
+      multiLine: true,
     ),
     (match) => '${match.group(1)}:[REDACTED]',
   );

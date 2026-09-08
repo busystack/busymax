@@ -4,8 +4,8 @@ import '../../../db/app_database.dart';
 import '../domain/geographic_point.dart';
 import '../domain/location_result.dart';
 
-/// Stores only local map choices. Never touches owners, pending operations,
-/// notifications or synchronization timestamps.
+/// Preserves coordinates already associated with an exact saved item snapshot.
+/// Never touches owners, pending operations, notifications, or sync timestamps.
 final class LocationResolutionRepository {
   const LocationResolutionRepository(this.database);
   final AppDatabase database;

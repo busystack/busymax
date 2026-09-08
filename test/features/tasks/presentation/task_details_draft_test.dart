@@ -143,6 +143,31 @@ void main() {
       expect(cleared.effectiveLocationPoint, isNull);
     },
   );
+
+  test(
+    'restoring the original location restores coordinates and clean state',
+    () {
+      final point = GeographicPoint(latitude: 49.2827, longitude: -123.1207);
+      final task = _taskWithLocation('Harbour Centre', point);
+      final initial = TaskDetailsDraft.fromTask(task, 'UTC');
+
+      final changed = initial.copyWith(location: 'Meeting room 3');
+      final restored = changed.copyWith(location: 'Harbour Centre');
+
+      expect(changed.locationChange, const LocationChange.clear());
+      expect(changed.effectiveLocationPoint, isNull);
+      expect(restored.locationChange, const LocationChange.unchanged());
+      expect(restored.effectiveLocationPoint, point);
+      expect(
+        restored.toPatch(
+          task,
+          nextcloudTaskCollectionCapabilities,
+          localTimeZone: 'UTC',
+        ),
+        isEmpty,
+      );
+    },
+  );
 }
 
 TaskEntity _taskWithLocation(String location, GeographicPoint? point) =>

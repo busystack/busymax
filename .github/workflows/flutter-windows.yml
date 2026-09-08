@@ -38,8 +38,6 @@ jobs:
 
       - name: Create explicitly non-production CI identity
         shell: pwsh
-        env:
-          GEOAPIFY_API_KEY: ${{ secrets.GEOAPIFY_API_KEY }}
         run: |
           New-Item -ItemType Directory -Force -Path build/windows | Out-Null
           @{
@@ -56,7 +54,6 @@ jobs:
             googleOAuthClientSecret = ''
             microsoftOAuthClientId = 'busymax-ci-microsoft-client-id'
             microsoftOAuthAuthorityTenant = 'common'
-            geoapifyApiKey = [string]$env:GEOAPIFY_API_KEY
             fakeData = $false
             developmentBackend = $false
           } | ConvertTo-Json | Set-Content `

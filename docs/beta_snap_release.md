@@ -34,8 +34,7 @@ chmod 600 .snap-local/busymax-dart-defines.json
 {
   "GOOGLE_OAUTH_CLIENT_ID": "your-google-client-id",
   "GOOGLE_OAUTH_CLIENT_SECRET": "your-google-client-secret",
-  "MICROSOFT_OAUTH_CLIENT_ID": "your-microsoft-client-id",
-  "GEOAPIFY_API_KEY": "your-geoapify-api-key"
+  "MICROSOFT_OAUTH_CLIENT_ID": "your-microsoft-client-id"
 }
 ```
 
@@ -43,11 +42,8 @@ See [Google Setup](google_setup.md) and
 [Microsoft Setup](microsoft_setup.md). These values are embedded in the Snap
 and can be extracted, so use only native Desktop/public-client credentials.
 Never use server credentials or commit the JSON or generated `.snap` files.
-The Geoapify key enables address search and map tiles. Like the OAuth client
-configuration, it is embedded in the desktop binary and is extractable; Flutter
-obfuscation does not make it secret. Maintainers must configure Geoapify service
-access, attribution, quota/budget limits, and usage monitoring for release
-builds. Ordinary users are not asked to obtain developer keys.
+No mapping credential is required. BusyMax stores ordinary location text and
+hands a saved destination to an external application only when the user asks.
 
 Apple iCloud Calendar and Nextcloud do not use compile-time client secrets.
 Read [Apple iCloud setup](apple_icloud_setup.md) and [Nextcloud
@@ -75,10 +71,10 @@ without valid defines; reconnecting cannot fix it, so rebuild the package.
 The `Flutter Linux` GitHub workflow performs the release build and strict Snap
 packaging on pushes and pull requests targeting `main`. Pull requests build and
 install an unconfigured Snap for packaging validation, but do not upload it.
-Pushes to `main` require the two client IDs, Google Desktop client secret, and
-Geoapify key in GitHub Actions configuration, verify that the configured values
-reached the compiled binary, and upload the installable `busymax-snap` artifact.
-Missing provider/map configuration fails the workflow before the release build.
+Pushes to `main` require the two client IDs and Google Desktop client secret in
+GitHub Actions configuration, verify that those values reached the compiled
+binary, and upload the installable `busymax-snap` artifact. Missing provider
+configuration fails the workflow before the release build.
 
 For a local scaffold smoke build instead, first quit every running BusyMax
 instance, including its tray process and any development build:
@@ -134,14 +130,16 @@ snap run busymax
 
 Before upload, verify:
 
-- Location autocomplete and explicit lookup work without sending event titles,
-  descriptions, attendees, or account credentials; an omitted Geoapify key
-  produces the localized unconfigured state.
-- The map opens only on demand, shows attribution, survives tile/network
-  failure with its destination and directions action intact, and works after a
-  restart for remembered selections.
-- Search, maps, directions, editor save/cancel, theme changes, and the minimum
-  window size remain usable at 100%, 125%, 150%, and 200% display scaling.
+- Ordinary location text can be entered and saved without network requests or a
+  mapping key. No autocomplete list or embedded map is present.
+- **Show on map** opens the saved address or coordinates through the strict
+  Snap's registered external handler. Verify both an installed maps handler and
+  the Google Maps browser fallback, plus the failure message when neither route
+  can launch.
+- **Open link** appears only for a complete saved HTTP(S) location and preserves
+  its path, query, and fragment.
+- Location editing, external opening, editor save/cancel, theme changes, and the
+  minimum window size remain usable at 100%, 125%, 150%, and 200% scaling.
 - Desktop search shows one BusyMax launcher; the tray Agenda action opens the
   Agenda view in the main window.
 - Google and Microsoft sign-in complete successfully.

@@ -22,8 +22,6 @@ import 'windows_guest_update_dialog.dart';
 import 'windows_recurrence_dialog.dart';
 import 'windows_time_zone_dialog.dart';
 import 'windows_nextcloud_scheduling_dialog.dart';
-import 'windows_location_autocomplete.dart';
-import 'windows_location_map_dialog.dart';
 
 Future<bool> showWindowsEventEditorDialog(
   BuildContext context,
@@ -752,41 +750,15 @@ Future<bool> showWindowsEventEditorDialog(
                   const SizedBox(height: 12),
                   InfoLabel(
                     label: l10n.location,
-                    child: WindowsLocationAutocomplete(
-                      key: ValueKey(
-                        'event-location-${originalDraft?.eventId ?? 'new'}-'
-                        '${selectedSource.accountId}-${selectedSource.id}',
-                      ),
+                    child: TextBox(
+                      key: const ValueKey('windows-event-location-field'),
                       controller: location,
-                      client: ref.read(geoapifyClientProvider),
                       enabled: !saving,
-                      previewAvailable: locationChange.changed
-                          ? locationChange.selection != null
-                          : originalDraft?.locationPoint != null,
-                      onChanged: (value, change) => setState(() {
-                        locationChange = change;
+                      onChanged: (value) => setState(() {
+                        locationChange = value == initialLocation
+                            ? const LocationChange.unchanged()
+                            : const LocationChange.clear();
                       }),
-                      onPreview: () => showWindowsLocationMapDialog(
-                        context,
-                        ref,
-                        location: location.text,
-                        nativePoint: originalDraft?.locationPoint,
-                        locationChange: locationChange,
-                        identity: originalDraft?.eventId == null
-                            ? null
-                            : LocationItemIdentity(
-                                kind: LocationItemKind.event,
-                                accountId: originalDraft!.accountId,
-                                sourceId: originalDraft.sourceId,
-                                itemId: originalDraft.eventId!,
-                              ),
-                        onSelection: (selection) async {
-                          setState(() {
-                            location.text = selection.label;
-                            locationChange = LocationChange.replace(selection);
-                          });
-                        },
-                      ),
                     ),
                   ),
                   if (selectedSource.provider == BusyProvider.nextcloud &&

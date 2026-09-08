@@ -93,6 +93,95 @@ void main() {
     });
   });
 
+  test(
+    'reopens schema 14 with coordinates, remembered provenance, and pending work',
+    () async {
+      await database.close();
+      final directory = await Directory.systemTemp.createTemp(
+        'busymax-schema14-location-',
+      );
+      final file = File('${directory.path}/busymax.sqlite');
+      database = AppDatabase(NativeDatabase(file));
+      await _insertAccount(database);
+      await database
+          .into(database.calendarSources)
+          .insert(
+            CalendarSourcesCompanion.insert(
+              id: 'source',
+              accountId: 'account',
+              provider: 'google',
+              providerCalendarId: 'calendar',
+              summary: 'Calendar',
+              createdAtLocal: 1,
+              updatedAtLocal: 1,
+            ),
+          );
+      await database
+          .into(database.calendarEvents)
+          .insert(
+            CalendarEventsCompanion.insert(
+              id: 'event',
+              accountId: 'account',
+              calendarSourceId: 'source',
+              provider: 'google',
+              providerCalendarId: 'calendar',
+              providerEventId: 'event',
+              title: 'Located event',
+              location: const Value('Harbour Centre'),
+              locationLatitude: const Value(49.2827),
+              locationLongitude: const Value(-123.1207),
+              rawJson: const Value('{}'),
+              createdAtLocal: 1,
+              updatedAtLocal: 2,
+            ),
+          );
+      await database
+          .into(database.locationResolutions)
+          .insert(
+            LocationResolutionsCompanion.insert(
+              kind: 'event',
+              accountId: 'account',
+              sourceId: 'source',
+              itemId: 'event',
+              locationText: 'Harbour Centre',
+              label: 'Harbour Centre',
+              latitude: 49.2827,
+              longitude: -123.1207,
+              source: 'legacy-provider',
+              attribution: 'Existing provenance',
+            ),
+          );
+      await database
+          .into(database.pendingOps)
+          .insert(_pendingOp(id: 'pending', createdAtUtc: _now));
+      await database.close();
+
+      database = AppDatabase(NativeDatabase(file));
+      final version = await database
+          .customSelect('PRAGMA user_version')
+          .getSingle();
+      final event = await database.select(database.calendarEvents).getSingle();
+      final remembered = await database
+          .select(database.locationResolutions)
+          .getSingle();
+
+      expect(latestSchemaVersion, 14);
+      expect(version.read<int>('user_version'), 14);
+      expect(event.locationLatitude, 49.2827);
+      expect(event.locationLongitude, -123.1207);
+      expect(remembered.source, 'legacy-provider');
+      expect(remembered.attribution, 'Existing provenance');
+      expect(
+        (await database.select(database.pendingOps).getSingle()).id,
+        'pending',
+      );
+
+      await database.close();
+      database = AppDatabase(NativeDatabase.memory());
+      await directory.delete(recursive: true);
+    },
+  );
+
   test('schema 10 migration preserves accounts and enables WebCal', () async {
     await database.close();
     final tempDir = await Directory.systemTemp.createTemp(

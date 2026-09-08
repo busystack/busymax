@@ -199,67 +199,13 @@ class AppLocalizationsKo extends AppLocalizations {
       'Nextcloud에 연결하지 못했습니다. 캐시와 대기 중인 변경 내용은 유지됩니다.';
 
   @override
-  String get mapsShow => '지도 표시';
+  String get mapsShow => '지도에서 보기';
 
   @override
-  String get mapsDirections => 'Google Maps에서 길찾기';
+  String get openLink => '링크 열기';
 
   @override
-  String get mapsPrivacy =>
-      '온라인 장소 검색과 지도는 Geoapify를 사용합니다. 검색어와 지도 영역만 전송됩니다.';
-
-  @override
-  String get mapsSearch => '장소 검색';
-
-  @override
-  String get mapsLoading => '장소 검색 중…';
-
-  @override
-  String get mapsEmpty => '일치하는 장소가 없습니다. 위치를 텍스트로 유지할 수 있습니다.';
-
-  @override
-  String get mapsOffline => '장소 검색이 오프라인입니다. 길찾기는 계속 사용할 수 있습니다.';
-
-  @override
-  String get mapsUnconfigured =>
-      '이 빌드에는 온라인 지도가 설정되어 있지 않습니다. 길찾기는 계속 사용할 수 있습니다.';
-
-  @override
-  String get mapsRateLimited => '장소 서비스가 혼잡합니다. 잠시 기다린 후 다시 검색하세요.';
-
-  @override
-  String get mapsServiceError => '장소 검색을 사용할 수 없습니다. 위치를 텍스트로 저장할 수 있습니다.';
-
-  @override
-  String get mapsTilesFailed =>
-      '일부 지도 타일을 불러오지 못했습니다. 목적지와 길찾기는 계속 사용할 수 있습니다.';
-
-  @override
-  String get mapsApproximate => '대략적인 지역';
-
-  @override
-  String get mapsZoomIn => '확대';
-
-  @override
-  String get mapsZoomOut => '축소';
-
-  @override
-  String get mapsRecenter => '목적지 중심으로 이동';
-
-  @override
-  String get mapsDestination => '목적지';
-
-  @override
-  String get mapsBrowserFailed => '브라우저를 열지 못했습니다.';
-
-  @override
-  String get mapsRememberFailed => '지도 위치를 기억하지 못했습니다.';
-
-  @override
-  String get mapsSelected => '지도 위치를 선택했습니다';
-
-  @override
-  String get mapsChoose => '위치 선택';
+  String get externalLocationOpenFailed => '외부 앱에서 위치를 열 수 없습니다.';
 
   @override
   String scheduleProposedRange(String start, String end) {

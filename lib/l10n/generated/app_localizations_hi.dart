@@ -206,71 +206,14 @@ class AppLocalizationsHi extends AppLocalizations {
       'Nextcloud से संपर्क नहीं हो सका। कैश किए गए आइटम और लंबित काम सुरक्षित हैं।';
 
   @override
-  String get mapsShow => 'मानचित्र दिखाएँ';
+  String get mapsShow => 'मानचित्र पर दिखाएँ';
 
   @override
-  String get mapsDirections => 'Google Maps में दिशा-निर्देश';
+  String get openLink => 'लिंक खोलें';
 
   @override
-  String get mapsPrivacy =>
-      'ऑनलाइन स्थान खोज और मानचित्र Geoapify का उपयोग करते हैं। केवल खोज का पाठ और मानचित्र क्षेत्र भेजा जाता है।';
-
-  @override
-  String get mapsSearch => 'स्थान खोजें';
-
-  @override
-  String get mapsLoading => 'स्थान खोजे जा रहे हैं…';
-
-  @override
-  String get mapsEmpty =>
-      'कोई मेल खाता स्थान नहीं। आप स्थान को पाठ के रूप में रख सकते हैं।';
-
-  @override
-  String get mapsOffline =>
-      'स्थान खोज ऑफ़लाइन है। दिशा-निर्देश अभी भी उपलब्ध हैं।';
-
-  @override
-  String get mapsUnconfigured =>
-      'इस बिल्ड में ऑनलाइन मानचित्र कॉन्फ़िगर नहीं हैं। दिशा-निर्देश अभी भी उपलब्ध हैं।';
-
-  @override
-  String get mapsRateLimited =>
-      'स्थान सेवा व्यस्त है। फिर खोजने से पहले प्रतीक्षा करें।';
-
-  @override
-  String get mapsServiceError =>
-      'स्थान खोज उपलब्ध नहीं है। आप फिर भी स्थान को पाठ के रूप में सहेज सकते हैं।';
-
-  @override
-  String get mapsTilesFailed =>
-      'कुछ मानचित्र टाइल लोड नहीं हो सकीं। गंतव्य और दिशा-निर्देश उपलब्ध हैं।';
-
-  @override
-  String get mapsApproximate => 'अनुमानित क्षेत्र';
-
-  @override
-  String get mapsZoomIn => 'ज़ूम इन करें';
-
-  @override
-  String get mapsZoomOut => 'ज़ूम आउट करें';
-
-  @override
-  String get mapsRecenter => 'गंतव्य को केंद्र में लाएँ';
-
-  @override
-  String get mapsDestination => 'गंतव्य';
-
-  @override
-  String get mapsBrowserFailed => 'ब्राउज़र नहीं खोला जा सका।';
-
-  @override
-  String get mapsRememberFailed => 'मानचित्र का स्थान याद नहीं रखा जा सका।';
-
-  @override
-  String get mapsSelected => 'मानचित्र का स्थान चुना गया';
-
-  @override
-  String get mapsChoose => 'स्थान चुनें';
+  String get externalLocationOpenFailed =>
+      'स्थान को किसी बाहरी ऐप में नहीं खोला जा सका।';
 
   @override
   String scheduleProposedRange(String start, String end) {

@@ -19,7 +19,8 @@ import '../../features/schedule/presentation/schedule_item_exporter.dart';
 import '../../features/task_lists/data/task_lists_repository.dart';
 import '../../schedule/schedule_filters.dart';
 import '../../schedule/schedule_item.dart';
-import '../../features/maps/application/directions_launcher.dart';
+import '../../features/maps/application/external_location_launcher.dart';
+import '../../features/maps/application/location_destination_resolver.dart';
 import '../../features/maps/domain/geographic_point.dart';
 import '../../features/maps/domain/location_result.dart';
 import '../../schedule/schedule_event_rescheduling.dart';
@@ -38,7 +39,6 @@ import 'windows_event_editor_dialog.dart';
 import 'windows_guest_update_dialog.dart';
 import 'windows_schedule_source_pane.dart';
 import 'windows_task_details_dialog.dart';
-import 'windows_location_map_dialog.dart';
 import 'windows_task_editor_dialog.dart';
 
 class WindowsSchedulePage extends ConsumerStatefulWidget {
@@ -860,13 +860,20 @@ class _WindowsSchedulePageState extends ConsumerState<WindowsSchedulePage> {
                   time,
                   ?item.sourceName,
                   ?item.accountDisplayName,
-                  if (item case CalendarScheduleItem(:final location?))
-                    location,
                   if (item case CalendarScheduleItem(:final description?))
                     description,
                   if (item case TaskScheduleItem(:final notes?)) notes,
                 ].where((value) => value.trim().isNotEmpty).join('\n'),
               ),
+              if (_locationActionsAvailable(item)) ...[
+                const SizedBox(height: 12),
+                _buildLocationRow(dialogContext, item),
+              ] else if (item case CalendarScheduleItem(:final location?)) ...[
+                if (location.trim().isNotEmpty) ...[
+                  const SizedBox(height: 12),
+                  SelectableText(location),
+                ],
+              ],
               if (item is CalendarScheduleItem) ...[
                 if (item.canSendReply) Text(l10n.nextcloudAttendeeRestrictions),
                 if (item.organizer != null)
@@ -918,22 +925,6 @@ class _WindowsSchedulePageState extends ConsumerState<WindowsSchedulePage> {
           ),
         ),
         actions: [
-          if (_locationActionsAvailable(item))
-            Button(
-              onPressed: () {
-                Navigator.pop(dialogContext);
-                unawaited(_showLocationMap(item));
-              },
-              child: Text(l10n.mapsShow),
-            ),
-          if (_locationActionsAvailable(item))
-            Button(
-              onPressed: () {
-                Navigator.pop(dialogContext);
-                unawaited(_openLocationDirections(item));
-              },
-              child: Text(l10n.mapsDirections),
-            ),
           if (item.capabilities.canEdit)
             Button(
               onPressed: () {
@@ -977,40 +968,72 @@ class _WindowsSchedulePageState extends ConsumerState<WindowsSchedulePage> {
     );
   }
 
-  Future<void> _showLocationMap(ScheduleItem item) {
-    final identity = _locationIdentity(item);
+  Widget _buildLocationRow(BuildContext dialogContext, ScheduleItem item) {
     final location = _locationText(item);
-    return showWindowsLocationMapDialog(
-      context,
-      ref,
-      location: location,
-      nativePoint: _locationPoint(item),
-      locationChange: const LocationChange.unchanged(),
-      identity: identity,
-      onSelection: (selection) => ref
-          .read(locationResolutionRepositoryProvider)
-          .apply(identity, location, LocationChange.replace(selection)),
+    final point = _locationPoint(item);
+    final displayedLocation = location.trim().isNotEmpty
+        ? location
+        : point?.directionsValue ?? '';
+    final action = Button(
+      key: const ValueKey('windows-saved-location-open'),
+      onPressed: () {
+        Navigator.pop(dialogContext);
+        unawaited(_openSavedLocation(item));
+      },
+      child: Text(
+        completeHttpLocationUri(location) != null
+            ? AppLocalizations.of(dialogContext).openLink
+            : AppLocalizations.of(dialogContext).mapsShow,
+      ),
+    );
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final locationText = SelectableText(displayedLocation);
+        if (constraints.maxWidth < 320) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [locationText, const SizedBox(height: 8), action],
+          );
+        }
+        return Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(child: locationText),
+            const SizedBox(width: 8),
+            action,
+          ],
+        );
+      },
     );
   }
 
-  Future<void> _openLocationDirections(ScheduleItem item) async {
-    final identity = _locationIdentity(item);
-    final location = _locationText(item);
-    final remembered = _locationPoint(item) == null
-        ? await ref
-              .read(locationResolutionRepositoryProvider)
-              .load(identity, location)
-        : null;
-    final opened = await launchGoogleMapsDirections(
-      location: location,
-      point: _locationPoint(item) ?? remembered?.point,
-    );
-    if (!opened && mounted) {
+  Future<void> _openSavedLocation(ScheduleItem item) async {
+    try {
+      final identity = _locationIdentity(item);
+      final location = _locationText(item);
+      final destination =
+          await LocationDestinationResolver(
+            ref.read(locationResolutionRepositoryProvider),
+          ).resolveSaved(
+            location: location,
+            nativePoint: _locationPoint(item),
+            identity: identity,
+          );
+      final result = await ExternalLocationLauncher(
+        platform: () => ExternalLocationPlatform.windows,
+      ).open(destination);
+      if (result == ExternalLocationLaunchResult.opened) return;
+    } on Object {
+      // The external handoff is best-effort and never affects saved data.
+    }
+    if (mounted) {
       unawaited(
         displayInfoBar(
           context,
           builder: (context, close) => InfoBar(
-            title: Text(AppLocalizations.of(context).mapsBrowserFailed),
+            title: Text(
+              AppLocalizations.of(context).externalLocationOpenFailed,
+            ),
             severity: InfoBarSeverity.error,
           ),
         ),

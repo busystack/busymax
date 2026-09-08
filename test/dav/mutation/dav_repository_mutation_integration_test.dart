@@ -745,6 +745,61 @@ void main() {
   );
 
   test(
+    'title-only sparse exception edit keeps location inheritance live',
+    () async {
+      final baseline = _recurringEventResource().replaceFirst(
+        'SUMMARY:Server series',
+        'SUMMARY:Server series\r\nLOCATION:Series room\r\nGEO:49.2827;-123.1207',
+      );
+      await _commitObjects(objectRepository, [
+        _prepared(
+          href: '${_collectionHref}sparse-title-location.ics',
+          etag: '"sparse-title"',
+          body: baseline,
+        ),
+      ]);
+      final row = (await database.select(database.calendarEvents).get())
+          .singleWhere((event) => event.recurrenceIdKey != null);
+      final detail = (await calendarRepository.loadEventDetail(row.id))!;
+      expect(detail.location, 'Series room');
+
+      await calendarRepository.updateLocalEvent(
+        EventEditorDraft.fromEventDetail(detail).copyWith(
+          title: 'Renamed exception',
+          recurringMutationScope: RecurringEventMutationScope.singleOccurrence,
+        ),
+      );
+
+      final serialized = await _serializedPendingDavMutation(
+        database,
+        baseline,
+      );
+      final editedDocument = IcalSemanticDocument.parse(serialized);
+      final exception = editedDocument.components.singleWhere(
+        (component) => component.recurrenceIdKey != null,
+      );
+      expect(exception.summary, 'Renamed exception');
+      expect(exception.documentComponent.firstProperty('LOCATION'), isNull);
+      expect(exception.documentComponent.firstProperty('GEO'), isNull);
+
+      final masterChanged = serialized.replaceFirst(
+        'LOCATION:Series room\r\nGEO:49.2827;-123.1207',
+        'LOCATION:New series room\r\nGEO:48.4284;-123.3656',
+      );
+      final projected = IcalRecurrenceExpander().expand(
+        IcalSemanticDocument.parse(masterChanged),
+        rangeStartUtc: DateTime.utc(2026, 8, 9),
+        rangeEndUtc: DateTime.utc(2026, 8, 10),
+      );
+      expect(projected.single.location, 'New series room');
+      expect(
+        projected.single.locationPoint,
+        GeographicPoint(latitude: 48.4284, longitude: -123.3656),
+      );
+    },
+  );
+
+  test(
     'new occurrence clear creates an explicit inheritance boundary',
     () async {
       final baseline = _recurringEventResource().replaceFirst(

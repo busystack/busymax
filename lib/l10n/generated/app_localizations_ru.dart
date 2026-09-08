@@ -207,71 +207,14 @@ class AppLocalizationsRu extends AppLocalizations {
       'Nextcloud недоступен. Кэшированные элементы и ожидающие изменения сохранены.';
 
   @override
-  String get mapsShow => 'Показать карту';
+  String get mapsShow => 'Показать на карте';
 
   @override
-  String get mapsDirections => 'Маршрут в Google Maps';
+  String get openLink => 'Открыть ссылку';
 
   @override
-  String get mapsPrivacy =>
-      'Поиск мест и онлайн-карты используют Geoapify. Передаются только текст поиска и область карты.';
-
-  @override
-  String get mapsSearch => 'Поиск мест';
-
-  @override
-  String get mapsLoading => 'Поиск мест…';
-
-  @override
-  String get mapsEmpty =>
-      'Подходящих мест нет. Местоположение можно оставить текстом.';
-
-  @override
-  String get mapsOffline =>
-      'Поиск мест недоступен без сети. Маршруты по-прежнему доступны.';
-
-  @override
-  String get mapsUnconfigured =>
-      'Онлайн-карты не настроены в этой сборке. Маршруты по-прежнему доступны.';
-
-  @override
-  String get mapsRateLimited =>
-      'Сервис мест занят. Подождите перед новым поиском.';
-
-  @override
-  String get mapsServiceError =>
-      'Поиск мест недоступен. Местоположение по-прежнему можно сохранить текстом.';
-
-  @override
-  String get mapsTilesFailed =>
-      'Часть фрагментов карты не загрузилась. Пункт назначения и маршруты по-прежнему доступны.';
-
-  @override
-  String get mapsApproximate => 'Приблизительная область';
-
-  @override
-  String get mapsZoomIn => 'Приблизить';
-
-  @override
-  String get mapsZoomOut => 'Отдалить';
-
-  @override
-  String get mapsRecenter => 'Центрировать пункт назначения';
-
-  @override
-  String get mapsDestination => 'Пункт назначения';
-
-  @override
-  String get mapsBrowserFailed => 'Не удалось открыть браузер.';
-
-  @override
-  String get mapsRememberFailed => 'Не удалось запомнить место на карте.';
-
-  @override
-  String get mapsSelected => 'Место на карте выбрано';
-
-  @override
-  String get mapsChoose => 'Выбрать место';
+  String get externalLocationOpenFailed =>
+      'Не удалось открыть местоположение во внешнем приложении.';
 
   @override
   String scheduleProposedRange(String start, String end) {

@@ -1,33 +1,33 @@
 import '../data/location_resolution_repository.dart';
 import '../domain/geographic_point.dart';
 import '../domain/location_result.dart';
+import 'external_location_launcher.dart';
 
-/// Resolves only already-known destinations. Network lookup is an explicit UI
-/// action and remains separate so opening ordinary details never sends data.
+/// Resolves a destination strictly from the saved item snapshot.
+///
+/// This class performs no network lookup and makes no persistence writes.
 final class LocationDestinationResolver {
   const LocationDestinationResolver(this.repository);
 
   final LocationResolutionRepository repository;
 
-  Future<LocationResult?> knownDestination({
+  Future<ExternalLocationDestination?> resolveSaved({
     required String location,
-    required LocationChange change,
     GeographicPoint? nativePoint,
     LocationItemIdentity? identity,
   }) async {
-    if (change.changed) return change.selection;
+    final link = completeHttpLocationUri(location);
+    if (link != null) return ExternalLocationDestination.link(link);
     if (nativePoint != null) {
-      return LocationResult(
-        label: location.trim().isEmpty
-            ? nativePoint.directionsValue
-            : location.trim(),
-        point: nativePoint,
-        resultType: 'provider',
-        source: 'provider',
-        attribution: '',
-      );
+      return ExternalLocationDestination.coordinates(nativePoint);
     }
-    if (identity == null) return null;
-    return repository.load(identity, location);
+    if (identity != null) {
+      final remembered = await repository.load(identity, location);
+      if (remembered != null) {
+        return ExternalLocationDestination.coordinates(remembered.point);
+      }
+    }
+    if (location.trim().isEmpty) return null;
+    return ExternalLocationDestination.text(location);
   }
 }

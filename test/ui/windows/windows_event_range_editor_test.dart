@@ -90,6 +90,11 @@ void main() {
         }
         await tester.pumpAndSettle();
         expect(find.byType(ContentDialog), findsOneWidget);
+        expect(
+          find.byKey(const ValueKey('windows-event-location-field')),
+          findsOneWidget,
+        );
+        expect(find.text('Show on map'), findsNothing);
         final pickers = tester
             .widgetList<TimePicker>(find.byType(TimePicker))
             .toList();
@@ -103,6 +108,10 @@ void main() {
             find.byType(TextBox).first,
             'Midnight interval',
           );
+          await tester.enterText(
+            find.byKey(const ValueKey('windows-event-location-field')),
+            'Meeting room 3',
+          );
           await tester.pump();
         }
         await tester.tap(find.text(save ? 'Create' : 'Cancel').last);
@@ -114,6 +123,7 @@ void main() {
         final rows = await database.select(database.calendarEvents).get();
         expect(rows, hasLength(save ? 1 : 0));
         if (save) {
+          expect(rows.single.location, 'Meeting room 3');
           expect(
             providerDateTimeAsUtcInstant(
               rows.single.startDateTime,

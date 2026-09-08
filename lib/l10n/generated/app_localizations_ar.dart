@@ -205,69 +205,13 @@ class AppLocalizationsAr extends AppLocalizations {
       'تعذّر الوصول إلى Nextcloud. لم تتغير العناصر المخزّنة مؤقتًا ولا الأعمال المعلّقة.';
 
   @override
-  String get mapsShow => 'عرض الخريطة';
+  String get mapsShow => 'عرض على الخريطة';
 
   @override
-  String get mapsDirections => 'الاتجاهات في Google Maps';
+  String get openLink => 'فتح الرابط';
 
   @override
-  String get mapsPrivacy =>
-      'يستخدم البحث عن الأماكن والخرائط عبر الإنترنت خدمة Geoapify. يُرسل نص البحث ومنطقة الخريطة فقط.';
-
-  @override
-  String get mapsSearch => 'البحث عن أماكن';
-
-  @override
-  String get mapsLoading => 'جارٍ البحث عن أماكن…';
-
-  @override
-  String get mapsEmpty => 'لا توجد أماكن مطابقة. يمكنك الاحتفاظ بالموقع كنص.';
-
-  @override
-  String get mapsOffline =>
-      'البحث عن الأماكن غير متصل. الاتجاهات لا تزال متاحة.';
-
-  @override
-  String get mapsUnconfigured =>
-      'الخرائط عبر الإنترنت غير مهيأة في هذا الإصدار. الاتجاهات لا تزال متاحة.';
-
-  @override
-  String get mapsRateLimited => 'خدمة الأماكن مشغولة. انتظر قبل البحث مجددًا.';
-
-  @override
-  String get mapsServiceError =>
-      'البحث عن الأماكن غير متاح. لا يزال بإمكانك حفظ الموقع كنص.';
-
-  @override
-  String get mapsTilesFailed =>
-      'تعذّر تحميل بعض مربعات الخريطة. الوجهة والاتجاهات لا تزال متاحة.';
-
-  @override
-  String get mapsApproximate => 'منطقة تقريبية';
-
-  @override
-  String get mapsZoomIn => 'تكبير';
-
-  @override
-  String get mapsZoomOut => 'تصغير';
-
-  @override
-  String get mapsRecenter => 'توسيط الوجهة';
-
-  @override
-  String get mapsDestination => 'الوجهة';
-
-  @override
-  String get mapsBrowserFailed => 'تعذّر فتح المتصفح.';
-
-  @override
-  String get mapsRememberFailed => 'تعذّر تذكّر موقع الخريطة.';
-
-  @override
-  String get mapsSelected => 'تم اختيار موقع على الخريطة';
-
-  @override
-  String get mapsChoose => 'اختيار موقع';
+  String get externalLocationOpenFailed => 'تعذّر فتح الموقع في تطبيق خارجي.';
 
   @override
   String scheduleProposedRange(String start, String end) {

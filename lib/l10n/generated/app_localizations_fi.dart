@@ -207,71 +207,14 @@ class AppLocalizationsFi extends AppLocalizations {
       'Nextcloudiin ei saada yhteyttä. Välimuistin kohteet ja odottavat muutokset säilyvät ennallaan.';
 
   @override
-  String get mapsShow => 'Näytä kartta';
+  String get mapsShow => 'Näytä kartalla';
 
   @override
-  String get mapsDirections => 'Reittiohjeet Google Mapsissa';
+  String get openLink => 'Avaa linkki';
 
   @override
-  String get mapsPrivacy =>
-      'Verkon paikkahaku ja kartat käyttävät Geoapifya. Vain hakuteksti ja kartta-alue lähetetään.';
-
-  @override
-  String get mapsSearch => 'Etsi paikkoja';
-
-  @override
-  String get mapsLoading => 'Etsitään paikkoja…';
-
-  @override
-  String get mapsEmpty =>
-      'Vastaavia paikkoja ei löytynyt. Voit säilyttää sijainnin tekstinä.';
-
-  @override
-  String get mapsOffline =>
-      'Paikkahaku ei ole verkossa. Reittiohjeet ovat yhä käytettävissä.';
-
-  @override
-  String get mapsUnconfigured =>
-      'Verkkokarttoja ei ole määritetty tässä versiossa. Reittiohjeet ovat yhä käytettävissä.';
-
-  @override
-  String get mapsRateLimited =>
-      'Paikkapalvelu on varattu. Odota ennen uutta hakua.';
-
-  @override
-  String get mapsServiceError =>
-      'Paikkahaku ei ole käytettävissä. Voit silti tallentaa sijainnin tekstinä.';
-
-  @override
-  String get mapsTilesFailed =>
-      'Joitakin karttaruutuja ei voitu ladata. Kohde ja reittiohjeet säilyvät käytettävissä.';
-
-  @override
-  String get mapsApproximate => 'Likimääräinen alue';
-
-  @override
-  String get mapsZoomIn => 'Lähennä';
-
-  @override
-  String get mapsZoomOut => 'Loitonna';
-
-  @override
-  String get mapsRecenter => 'Keskitä kohteeseen';
-
-  @override
-  String get mapsDestination => 'Määränpää';
-
-  @override
-  String get mapsBrowserFailed => 'Selainta ei voitu avata.';
-
-  @override
-  String get mapsRememberFailed => 'Kartan sijaintia ei voitu muistaa.';
-
-  @override
-  String get mapsSelected => 'Karttasijainti valittu';
-
-  @override
-  String get mapsChoose => 'Valitse sijainti';
+  String get externalLocationOpenFailed =>
+      'Sijaintia ei voitu avata ulkoisessa sovelluksessa.';
 
   @override
   String scheduleProposedRange(String start, String end) {

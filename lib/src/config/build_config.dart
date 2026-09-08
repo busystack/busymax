@@ -11,7 +11,6 @@ class BuildConfig {
     this.microsoftGraphBaseUrl = 'https://graph.microsoft.com/v1.0',
     this.googleApiBaseUrl = 'https://www.googleapis.com',
     this.feedbackEndpoint = 'https://busystack.org/api/feedback',
-    this.geoapifyApiKey = '',
     this.privacyPolicyUrl = '',
     this.supportUrl = '',
     this.homepageUrl = 'https://busystack.org',
@@ -58,7 +57,6 @@ class BuildConfig {
         'BUSYSTACK_FEEDBACK_ENDPOINT',
         defaultValue: 'https://busystack.org/api/feedback',
       ),
-      geoapifyApiKey: const String.fromEnvironment('GEOAPIFY_API_KEY'),
       privacyPolicyUrl: const String.fromEnvironment(
         'BUSYMAX_PRIVACY_POLICY_URL',
       ),
@@ -107,7 +105,6 @@ class BuildConfig {
   final String microsoftGraphBaseUrl;
   final String googleApiBaseUrl;
   final String feedbackEndpoint;
-  final String geoapifyApiKey;
   final String privacyPolicyUrl;
   final String supportUrl;
   final String homepageUrl;

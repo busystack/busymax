@@ -209,72 +209,14 @@ class AppLocalizationsDe extends AppLocalizations {
       'Nextcloud ist nicht erreichbar. Zwischengespeicherte Elemente und ausstehende Änderungen bleiben unverändert.';
 
   @override
-  String get mapsShow => 'Karte anzeigen';
+  String get mapsShow => 'Auf Karte anzeigen';
 
   @override
-  String get mapsDirections => 'Route in Google Maps';
+  String get openLink => 'Link öffnen';
 
   @override
-  String get mapsPrivacy =>
-      'Die Online-Ortssuche und Karten verwenden Geoapify. Nur Ihr Suchtext und der Kartenausschnitt werden übertragen.';
-
-  @override
-  String get mapsSearch => 'Orte suchen';
-
-  @override
-  String get mapsLoading => 'Orte werden gesucht…';
-
-  @override
-  String get mapsEmpty =>
-      'Keine passenden Orte. Der Ort kann als Text beibehalten werden.';
-
-  @override
-  String get mapsOffline =>
-      'Die Ortssuche ist offline. Routen sind weiterhin verfügbar.';
-
-  @override
-  String get mapsUnconfigured =>
-      'Online-Karten sind in dieser Version nicht konfiguriert. Routen sind weiterhin verfügbar.';
-
-  @override
-  String get mapsRateLimited =>
-      'Der Ortsdienst ist ausgelastet. Warten Sie vor einer erneuten Suche.';
-
-  @override
-  String get mapsServiceError =>
-      'Die Ortssuche ist nicht verfügbar. Sie können den Ort weiterhin als Text speichern.';
-
-  @override
-  String get mapsTilesFailed =>
-      'Einige Kartenkacheln konnten nicht geladen werden. Ziel und Routen bleiben verfügbar.';
-
-  @override
-  String get mapsApproximate => 'Ungefähres Gebiet';
-
-  @override
-  String get mapsZoomIn => 'Vergrößern';
-
-  @override
-  String get mapsZoomOut => 'Verkleinern';
-
-  @override
-  String get mapsRecenter => 'Ziel zentrieren';
-
-  @override
-  String get mapsDestination => 'Zielort';
-
-  @override
-  String get mapsBrowserFailed => 'Der Browser konnte nicht geöffnet werden.';
-
-  @override
-  String get mapsRememberFailed =>
-      'Der Kartenort konnte nicht gespeichert werden.';
-
-  @override
-  String get mapsSelected => 'Kartenort ausgewählt';
-
-  @override
-  String get mapsChoose => 'Ort auswählen';
+  String get externalLocationOpenFailed =>
+      'Der Ort konnte nicht in einer externen Anwendung geöffnet werden.';
 
   @override
   String scheduleProposedRange(String start, String end) {

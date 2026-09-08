@@ -474,122 +474,20 @@ abstract class AppLocalizations {
   /// No description provided for @mapsShow.
   ///
   /// In en, this message translates to:
-  /// **'Show map'**
+  /// **'Show on map'**
   String get mapsShow;
 
-  /// No description provided for @mapsDirections.
+  /// No description provided for @openLink.
   ///
   /// In en, this message translates to:
-  /// **'Directions in Google Maps'**
-  String get mapsDirections;
+  /// **'Open link'**
+  String get openLink;
 
-  /// No description provided for @mapsPrivacy.
+  /// No description provided for @externalLocationOpenFailed.
   ///
   /// In en, this message translates to:
-  /// **'Online location search and maps use Geoapify. Only your search text and map area are sent.'**
-  String get mapsPrivacy;
-
-  /// No description provided for @mapsSearch.
-  ///
-  /// In en, this message translates to:
-  /// **'Search locations'**
-  String get mapsSearch;
-
-  /// No description provided for @mapsLoading.
-  ///
-  /// In en, this message translates to:
-  /// **'Searching locations…'**
-  String get mapsLoading;
-
-  /// No description provided for @mapsEmpty.
-  ///
-  /// In en, this message translates to:
-  /// **'No matching locations. You can keep the location as text.'**
-  String get mapsEmpty;
-
-  /// No description provided for @mapsOffline.
-  ///
-  /// In en, this message translates to:
-  /// **'Location search is offline. Directions are still available.'**
-  String get mapsOffline;
-
-  /// No description provided for @mapsUnconfigured.
-  ///
-  /// In en, this message translates to:
-  /// **'Online maps are not configured in this build. Directions are still available.'**
-  String get mapsUnconfigured;
-
-  /// No description provided for @mapsRateLimited.
-  ///
-  /// In en, this message translates to:
-  /// **'Location service is busy. Please wait before searching again.'**
-  String get mapsRateLimited;
-
-  /// No description provided for @mapsServiceError.
-  ///
-  /// In en, this message translates to:
-  /// **'Location search is unavailable. You can still save the location as text.'**
-  String get mapsServiceError;
-
-  /// No description provided for @mapsTilesFailed.
-  ///
-  /// In en, this message translates to:
-  /// **'Some map tiles could not be loaded. The destination and directions remain available.'**
-  String get mapsTilesFailed;
-
-  /// No description provided for @mapsApproximate.
-  ///
-  /// In en, this message translates to:
-  /// **'Approximate area'**
-  String get mapsApproximate;
-
-  /// No description provided for @mapsZoomIn.
-  ///
-  /// In en, this message translates to:
-  /// **'Zoom in'**
-  String get mapsZoomIn;
-
-  /// No description provided for @mapsZoomOut.
-  ///
-  /// In en, this message translates to:
-  /// **'Zoom out'**
-  String get mapsZoomOut;
-
-  /// No description provided for @mapsRecenter.
-  ///
-  /// In en, this message translates to:
-  /// **'Recenter destination'**
-  String get mapsRecenter;
-
-  /// No description provided for @mapsDestination.
-  ///
-  /// In en, this message translates to:
-  /// **'Destination'**
-  String get mapsDestination;
-
-  /// No description provided for @mapsBrowserFailed.
-  ///
-  /// In en, this message translates to:
-  /// **'The browser could not be opened.'**
-  String get mapsBrowserFailed;
-
-  /// No description provided for @mapsRememberFailed.
-  ///
-  /// In en, this message translates to:
-  /// **'The map location could not be remembered.'**
-  String get mapsRememberFailed;
-
-  /// No description provided for @mapsSelected.
-  ///
-  /// In en, this message translates to:
-  /// **'Map location selected'**
-  String get mapsSelected;
-
-  /// No description provided for @mapsChoose.
-  ///
-  /// In en, this message translates to:
-  /// **'Choose a location'**
-  String get mapsChoose;
+  /// **'The location could not be opened in an external application.'**
+  String get externalLocationOpenFailed;
 
   /// Proposed event interval while dragging.
   ///

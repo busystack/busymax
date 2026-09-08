@@ -206,71 +206,14 @@ class AppLocalizationsEt extends AppLocalizations {
       'Nextcloudiga ei saa ühendust. Vahemälu ja ootel muudatused jäävad alles.';
 
   @override
-  String get mapsShow => 'Näita kaarti';
+  String get mapsShow => 'Näita kaardil';
 
   @override
-  String get mapsDirections => 'Teekond Google Mapsis';
+  String get openLink => 'Ava link';
 
   @override
-  String get mapsPrivacy =>
-      'Veebipõhine kohaotsing ja kaardid kasutavad Geoapifyt. Saadetakse ainult otsingutekst ja kaardiala.';
-
-  @override
-  String get mapsSearch => 'Otsi kohti';
-
-  @override
-  String get mapsLoading => 'Kohtade otsimine…';
-
-  @override
-  String get mapsEmpty =>
-      'Sobivaid kohti pole. Võid asukoha tekstina alles jätta.';
-
-  @override
-  String get mapsOffline =>
-      'Kohaotsing on võrguühenduseta. Teekonnajuhised on endiselt saadaval.';
-
-  @override
-  String get mapsUnconfigured =>
-      'Veebikaarte pole selles versioonis seadistatud. Teekonnajuhised on endiselt saadaval.';
-
-  @override
-  String get mapsRateLimited =>
-      'Kohateenus on hõivatud. Oota enne uuesti otsimist.';
-
-  @override
-  String get mapsServiceError =>
-      'Kohaotsing pole saadaval. Asukoha saad endiselt tekstina salvestada.';
-
-  @override
-  String get mapsTilesFailed =>
-      'Mõnda kaardipaani ei saanud laadida. Sihtkoht ja teekonnajuhised on endiselt saadaval.';
-
-  @override
-  String get mapsApproximate => 'Ligikaudne ala';
-
-  @override
-  String get mapsZoomIn => 'Suurenda';
-
-  @override
-  String get mapsZoomOut => 'Vähenda';
-
-  @override
-  String get mapsRecenter => 'Keskenda sihtkoht';
-
-  @override
-  String get mapsDestination => 'Sihtkoht';
-
-  @override
-  String get mapsBrowserFailed => 'Brauserit ei saanud avada.';
-
-  @override
-  String get mapsRememberFailed => 'Kaardi asukohta ei saanud meelde jätta.';
-
-  @override
-  String get mapsSelected => 'Kaardiasukoht valitud';
-
-  @override
-  String get mapsChoose => 'Vali asukoht';
+  String get externalLocationOpenFailed =>
+      'Asukohta ei saanud välises rakenduses avada.';
 
   @override
   String scheduleProposedRange(String start, String end) {

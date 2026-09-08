@@ -217,72 +217,14 @@ class AppLocalizationsPl extends AppLocalizations {
       'Nie udało się połączyć z Nextcloud. Dane w pamięci podręcznej i oczekujące operacje pozostają bez zmian.';
 
   @override
-  String get mapsShow => 'Pokaż mapę';
+  String get mapsShow => 'Pokaż na mapie';
 
   @override
-  String get mapsDirections => 'Trasa w Mapach Google';
+  String get openLink => 'Otwórz link';
 
   @override
-  String get mapsPrivacy =>
-      'Wyszukiwanie lokalizacji online i mapy korzystają z Geoapify. Wysyłane są tylko tekst wyszukiwania i obszar mapy.';
-
-  @override
-  String get mapsSearch => 'Szukaj lokalizacji';
-
-  @override
-  String get mapsLoading => 'Wyszukiwanie lokalizacji…';
-
-  @override
-  String get mapsEmpty =>
-      'Brak pasujących lokalizacji. Możesz zachować lokalizację jako tekst.';
-
-  @override
-  String get mapsOffline =>
-      'Wyszukiwanie lokalizacji jest niedostępne offline. Wyznaczanie trasy jest nadal dostępne.';
-
-  @override
-  String get mapsUnconfigured =>
-      'Mapy online nie są skonfigurowane w tej kompilacji. Wyznaczanie trasy jest nadal dostępne.';
-
-  @override
-  String get mapsRateLimited =>
-      'Usługa lokalizacji jest przeciążona. Poczekaj przed ponownym wyszukiwaniem.';
-
-  @override
-  String get mapsServiceError =>
-      'Wyszukiwanie lokalizacji jest niedostępne. Nadal możesz zapisać lokalizację jako tekst.';
-
-  @override
-  String get mapsTilesFailed =>
-      'Nie udało się wczytać części mapy. Miejsce docelowe i wyznaczanie trasy pozostają dostępne.';
-
-  @override
-  String get mapsApproximate => 'Przybliżony obszar';
-
-  @override
-  String get mapsZoomIn => 'Przybliż';
-
-  @override
-  String get mapsZoomOut => 'Oddal';
-
-  @override
-  String get mapsRecenter => 'Wyśrodkuj na miejscu docelowym';
-
-  @override
-  String get mapsDestination => 'Miejsce docelowe';
-
-  @override
-  String get mapsBrowserFailed => 'Nie udało się otworzyć przeglądarki.';
-
-  @override
-  String get mapsRememberFailed =>
-      'Nie udało się zapamiętać lokalizacji na mapie.';
-
-  @override
-  String get mapsSelected => 'Wybrano lokalizację na mapie';
-
-  @override
-  String get mapsChoose => 'Wybierz lokalizację';
+  String get externalLocationOpenFailed =>
+      'Nie udało się otworzyć lokalizacji w aplikacji zewnętrznej.';
 
   @override
   String scheduleProposedRange(String start, String end) {

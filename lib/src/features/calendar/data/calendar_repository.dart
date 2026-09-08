@@ -1601,7 +1601,7 @@ class CalendarRepository {
       final operation = await (_database.select(
         _database.pendingOps,
       )..where((r) => r.id.equals(operationId))).getSingle();
-      await _saveMapSelection(draft, eventId: operation.eventId);
+      await _saveLocationResolution(draft, eventId: operation.eventId);
       return operationId;
     });
     if (rebuildNotifications) {
@@ -1824,15 +1824,17 @@ class CalendarRepository {
   }) async {
     if (timingBaseline == null) {
       final eventChanged = await _database.transaction(() async {
-        final changed = await _updateLocalEvent(
+        final result = await _updateLocalEvent(
           draft,
           guestUpdatePolicy: guestUpdatePolicy,
           deferNotifications: true,
         );
-        await _saveMapSelection(draft);
-        return changed;
+        if (!result.locationResolutionSaved) {
+          await _saveLocationResolution(draft);
+        }
+        return result.eventChanged;
       });
-      // A remembered Google pin is local-only. It must not perturb calendar
+      // Remembered coordinates are local-only. They must not perturb calendar
       // rows or cause the reminder schedule to be rebuilt.
       if (!eventChanged) return;
       await _notificationScheduleService().rebuildUpcomingEventNotifications(
@@ -1885,7 +1887,7 @@ class CalendarRepository {
     }
   }
 
-  Future<bool> _updateLocalEvent(
+  Future<({bool eventChanged, bool locationResolutionSaved})> _updateLocalEvent(
     EventEditorDraft draft, {
     CalendarGuestUpdatePolicy guestUpdatePolicy =
         CalendarGuestUpdatePolicy.send,
@@ -1895,7 +1897,7 @@ class CalendarRepository {
     final eventId = draft.eventId;
     if (eventId == null) {
       await createLocalEvent(draft, guestUpdatePolicy: guestUpdatePolicy);
-      return true;
+      return (eventChanged: true, locationResolutionSaved: true);
     }
     final source = await (_database.select(
       _database.calendarSources,
@@ -1931,14 +1933,17 @@ class CalendarRepository {
         database: _database,
         operation: CalendarMutationOperation.deleteEvent,
       );
-      await _moveLocalEvent(
+      final locationResolutionSaved = await _moveLocalEvent(
         originalSource: originalSource,
         destinationSource: source,
         existing: existing,
         draft: draft,
         guestUpdatePolicy: guestUpdatePolicy,
       );
-      return true;
+      return (
+        eventChanged: true,
+        locationResolutionSaved: locationResolutionSaved,
+      );
     }
     if (source.provider != existing.provider ||
         source.accountId != existing.accountId ||
@@ -1956,7 +1961,7 @@ class CalendarRepository {
         timingOnly: timingOnly,
         deferNotifications: deferNotifications,
       );
-      return true;
+      return (eventChanged: true, locationResolutionSaved: false);
     }
     final provider = BusyProviderCodec.requireStorageValue(source.provider);
     final recurringOccurrence = existing.providerRecurringEventId != null;
@@ -2032,7 +2037,7 @@ class CalendarRepository {
       }
     }
     if (!_eventRequestHasMutation(request)) {
-      return false;
+      return (eventChanged: false, locationResolutionSaved: false);
     }
     if (request.containsKey('allDay') &&
         !detailAllowsTimingEdit(CalendarEventDetail.fromRow(existing))) {
@@ -2114,72 +2119,36 @@ class CalendarRepository {
             ),
           );
     });
-    if (timingOnly || deferNotifications) return true;
+    if (timingOnly || deferNotifications) {
+      return (eventChanged: true, locationResolutionSaved: false);
+    }
     await _notificationScheduleService().rebuildUpcomingEventNotifications(
       draft.accountId,
     );
     await _onNotificationScheduleChanged?.call();
-    return true;
+    return (eventChanged: true, locationResolutionSaved: false);
   }
 
-  Future<void> _saveMapSelection(
+  Future<void> _saveLocationResolution(
     EventEditorDraft draft, {
     String? eventId,
   }) async {
     if (!draft.locationChange.changed) return;
-    final rows =
-        await (_database.select(_database.calendarEvents)..where(
-              (r) =>
-                  r.accountId.equals(draft.accountId) &
-                  r.calendarSourceId.equals(draft.sourceId) &
-                  r.isDeleted.equals(false),
-            ))
-            .get();
     final id = eventId ?? draft.eventId;
-    final original = draft.originalDetail;
-    CalendarEvent? selected;
-    for (final row in rows) {
-      if (row.id == id ||
-          (original?.icalUid != null &&
-              original?.providerRecurringEventId == null &&
-              row.icalUid == original!.icalUid)) {
-        selected = row;
-        break;
-      }
-    }
-    if (selected == null && original != null) {
-      for (final row in rows) {
-        if (row.icalUid == original.icalUid &&
-            row.occurrenceKey == original.occurrenceKey) {
-          selected = row;
-          break;
-        }
-      }
-    }
-    if (selected == null) return;
-    final scope = draft.recurringMutationScope;
-    for (final row in rows) {
-      final inSeries =
-          scope != null &&
-          scope != RecurringEventMutationScope.singleOccurrence &&
-          selected.providerRecurringEventId != null &&
-          row.providerRecurringEventId == selected.providerRecurringEventId &&
-          _seriesRowInScope(row, selected, scope);
-      if (row.id != selected.id && !inSeries) continue;
-      await LocationResolutionRepository(_database).apply(
-        LocationItemIdentity(
-          kind: LocationItemKind.event,
-          accountId: row.accountId,
-          sourceId: row.calendarSourceId,
-          itemId: row.id,
-        ),
-        draft.location ?? '',
-        draft.locationChange,
-      );
-    }
+    if (id == null) return;
+    await LocationResolutionRepository(_database).apply(
+      LocationItemIdentity(
+        kind: LocationItemKind.event,
+        accountId: draft.accountId,
+        sourceId: draft.sourceId,
+        itemId: id,
+      ),
+      draft.location ?? '',
+      draft.locationChange,
+    );
   }
 
-  Future<void> _moveLocalEvent({
+  Future<bool> _moveLocalEvent({
     required CalendarSource originalSource,
     required CalendarSource destinationSource,
     required CalendarEvent existing,
@@ -2238,6 +2207,7 @@ class CalendarRepository {
           draft: draft,
           guestUpdatePolicy: guestUpdatePolicy,
         );
+        return false;
       case CalendarEventMoveStrategy.davNative:
         await _moveLocalDavEvent(
           originalSource: originalSource,
@@ -2245,6 +2215,7 @@ class CalendarRepository {
           existing: existing,
           draft: draft,
         );
+        return false;
       case CalendarEventMoveStrategy.copyThenDelete:
         await _copyThenDeleteLocalEvent(
           originalSource: originalSource,
@@ -2255,6 +2226,10 @@ class CalendarRepository {
           destinationProvider: destinationProvider,
           guestUpdatePolicy: guestUpdatePolicy,
         );
+        // Destination creation already associated the selection with its real
+        // pending event identity. The source draft must never be used to find
+        // a different destination owner heuristically.
+        return true;
     }
   }
 
@@ -2745,7 +2720,6 @@ class CalendarRepository {
             ? point.directionsValue
             : draft.location!.trim(),
         point: point,
-        resultType: 'provider',
         address: address == null
             ? const {}
             : {

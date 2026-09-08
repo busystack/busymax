@@ -50,13 +50,10 @@ void main() {
   group('LocationResult', () {
     final point = GeographicPoint(latitude: 0, longitude: 0);
 
-    test('preserves formatted, named, type, and optional address data', () {
+    test('preserves provider coordinate and optional address data', () {
       final result = LocationResult(
         label: '1 Main Street, Example City',
-        name: 'Example Hall',
-        formattedAddress: '1 Main Street, Example City',
         point: point,
-        resultType: 'amenity',
         address: const {
           'street': '1 Main Street',
           'city': 'Example City',
@@ -64,9 +61,8 @@ void main() {
         },
       );
 
-      expect(result.name, 'Example Hall');
-      expect(result.formattedAddress, '1 Main Street, Example City');
-      expect(result.approximate, isFalse);
+      expect(result.source, 'provider');
+      expect(result.attribution, isEmpty);
       expect(result.microsoftLocation, {
         'displayName': result.label,
         'coordinates': {'latitude': 0.0, 'longitude': 0.0},
@@ -76,19 +72,6 @@ void main() {
           'postalCode': 'A1A 1A1',
         },
       });
-    });
-
-    test('marks area-level result types as approximate', () {
-      for (final type in ['city', 'street', 'postcode', 'state', 'country']) {
-        expect(
-          LocationResult(
-            label: type,
-            point: point,
-            resultType: type,
-          ).approximate,
-          isTrue,
-        );
-      }
     });
 
     test('same label with a different point is a distinct replacement', () {
@@ -103,24 +86,6 @@ void main() {
         LocationChange.replace(first),
         isNot(LocationChange.replace(second)),
       );
-    });
-  });
-
-  group('Google Maps directions URI', () {
-    test('prefers coordinates and leaves origin and travel mode absent', () {
-      final uri = googleMapsDirectionsUri(
-        location: 'ignored',
-        point: GeographicPoint(latitude: 0, longitude: -0.25),
-      );
-      expect(uri.queryParameters, {'api': '1', 'destination': '0.0,-0.25'});
-      expect(uri.queryParameters, isNot(contains('origin')));
-      expect(uri.queryParameters, isNot(contains('travelmode')));
-    });
-
-    test('encodes Unicode and reserved characters in text destinations', () {
-      final uri = googleMapsDirectionsUri(location: 'Café & Hall / 東京');
-      expect(uri.queryParameters['destination'], 'Café & Hall / 東京');
-      expect(uri.toString(), contains('Caf%C3%A9+%26+Hall+%2F+'));
     });
   });
 }

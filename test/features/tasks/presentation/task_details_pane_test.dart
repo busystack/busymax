@@ -19,6 +19,8 @@ import 'package:busymax/src/features/tasks/presentation/task_details_draft.dart'
 import 'package:busymax/src/features/tasks/presentation/desktop_date_time_fields.dart';
 import 'package:busymax/src/features/tasks/presentation/task_details_editor.dart';
 import 'package:busymax/src/features/tasks/presentation/task_details_pane.dart';
+import 'package:busymax/src/features/maps/domain/geographic_point.dart';
+import 'package:busymax/src/features/maps/domain/location_result.dart';
 import 'package:busymax/src/platform/native_dialog_service.dart';
 import 'package:busymax/src/platform/native_menu_service.dart';
 import 'package:busymax/src/providers/busy_provider.dart';
@@ -68,6 +70,95 @@ void main() {
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(_nativeMenuChannel, null);
   });
+
+  testWidgets(
+    'iCalendar task location is plain text and opens only the saved value',
+    (tester) async {
+      final point = GeographicPoint(latitude: 49.2827, longitude: -123.1207);
+      final task = TaskEntity(
+        accountId: 'nextcloud:n',
+        taskListId: 'list-1',
+        id: 'task-location',
+        title: 'Planning',
+        status: 'needsAction',
+        taskLocation: 'Harbour Centre',
+        locationPoint: point,
+        localDirty: false,
+        pendingDelete: false,
+        pendingMove: false,
+        rawJson: '{}',
+        updatedLocalAtUtc: '2026-09-08T00:00:00Z',
+      );
+      var draft = TaskDetailsDraft.fromTask(task, 'UTC');
+      const identity = LocationItemIdentity(
+        kind: LocationItemKind.task,
+        accountId: 'nextcloud:n',
+        sourceId: 'list-1',
+        itemId: 'task-location',
+      );
+
+      Future<void> pump({required bool saved, bool enabled = true}) {
+        return tester.pumpWidget(
+          localizedTestApp(
+            child: Scaffold(
+              body: SingleChildScrollView(
+                child: IcalTaskFieldsEditor(
+                  draft: draft,
+                  capabilities: nextcloudTaskCollectionCapabilities,
+                  enabled: enabled,
+                  savedLocation: saved ? 'Harbour Centre' : null,
+                  savedPoint: saved ? point : null,
+                  savedIdentity: saved ? identity : null,
+                  onChanged: (value) => draft = value,
+                ),
+              ),
+            ),
+          ),
+        );
+      }
+
+      await pump(saved: false);
+      expect(
+        find.byKey(const ValueKey('ical-task-location-field')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const ValueKey('ical-task-location-open')),
+        findsNothing,
+      );
+
+      await pump(saved: true, enabled: false);
+      expect(find.text('Show on map'), findsOneWidget);
+      expect(
+        find.byKey(const ValueKey('ical-task-location-open')),
+        findsOneWidget,
+      );
+
+      await pump(saved: true);
+      await tester.enterText(
+        find.byKey(const ValueKey('ical-task-location-field')),
+        'Meeting room 3',
+      );
+      await pump(saved: true);
+      expect(
+        find.byKey(const ValueKey('ical-task-location-open')),
+        findsNothing,
+      );
+      expect(draft.locationChange, const LocationChange.clear());
+
+      await tester.enterText(
+        find.byKey(const ValueKey('ical-task-location-field')),
+        'Harbour Centre',
+      );
+      await pump(saved: true);
+      expect(
+        find.byKey(const ValueKey('ical-task-location-open')),
+        findsOneWidget,
+      );
+      expect(draft.locationChange, const LocationChange.unchanged());
+      expect(draft.effectiveLocationPoint, point);
+    },
+  );
 
   testWidgets('Task Details header shows Cancel and Save', (tester) async {
     await _pumpDetails(tester, microsoftTaskCollectionCapabilities);

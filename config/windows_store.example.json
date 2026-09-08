@@ -12,7 +12,6 @@
   "googleOAuthClientSecret": "REPLACE_WITH_GOOGLE_DESKTOP_CLIENT_SECRET",
   "microsoftOAuthClientId": "REPLACE_WITH_MICROSOFT_PUBLIC_CLIENT_ID",
   "microsoftOAuthAuthorityTenant": "common",
-  "geoapifyApiKey": "REPLACE_WITH_GEOAPIFY_API_KEY",
   "fakeData": false,
   "developmentBackend": false
 }

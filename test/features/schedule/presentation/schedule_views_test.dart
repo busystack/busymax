@@ -2049,18 +2049,62 @@ void main() {
     expect(find.byIcon(YaruIcons.trash), findsNothing);
   });
 
+  testWidgets('read-only coordinate-only event exposes one location action', (
+    tester,
+  ) async {
+    final event = CalendarScheduleItem(
+      id: 'event:coordinate-only',
+      accountId: 'google:g',
+      provider: BusyProvider.google,
+      sourceId: 'calendar:shared',
+      providerCalendarId: 'shared',
+      title: 'Coordinate only',
+      allDay: false,
+      locationPoint: GeographicPoint(latitude: 0, longitude: 0),
+      capabilities: ScheduleItemCapabilities.readOnly,
+    );
+    Future<ScheduleItemDetailsAction?>? action;
+    await tester.pumpWidget(
+      localizedTestApp(
+        child: Scaffold(
+          body: Builder(
+            builder: (context) => TextButton(
+              onPressed: () {
+                action = showScheduleItemDetailsPopover(
+                  context: context,
+                  anchorContext: context,
+                  item: event,
+                );
+              },
+              child: const Text('Open details'),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.text('Open details'));
+    await tester.pumpAndSettle();
+    expect(find.text('Show on map'), findsOneWidget);
+    expect(find.byIcon(Icons.edit_outlined), findsNothing);
+    await tester.tap(find.text('Show on map'));
+    await tester.pumpAndSettle();
+    expect(await action, ScheduleItemDetailsAction.openLocation);
+  });
+
   testWidgets(
-    'read-only coordinate-only event exposes map and directions actions',
+    'complete HTTP location exposes Open link instead of map search',
     (tester) async {
       final event = CalendarScheduleItem(
-        id: 'event:coordinate-only',
+        id: 'event:link',
         accountId: 'google:g',
         provider: BusyProvider.google,
         sourceId: 'calendar:shared',
         providerCalendarId: 'shared',
-        title: 'Coordinate only',
+        title: 'Linked venue',
         allDay: false,
-        locationPoint: GeographicPoint(latitude: 0, longitude: 0),
+        location: ' https://intranet/room?a=1%202&b=two#desk ',
+        locationPoint: GeographicPoint(latitude: 49, longitude: -123),
         capabilities: ScheduleItemCapabilities.readOnly,
       );
       Future<ScheduleItemDetailsAction?>? action;
@@ -2085,16 +2129,15 @@ void main() {
 
       await tester.tap(find.text('Open details'));
       await tester.pumpAndSettle();
-      expect(find.text('Show map'), findsOneWidget);
-      expect(find.text('Directions in Google Maps'), findsOneWidget);
-      expect(find.byIcon(Icons.edit_outlined), findsNothing);
-      await tester.tap(find.text('Directions in Google Maps'));
+      expect(find.text('Open link'), findsOneWidget);
+      expect(find.text('Show on map'), findsNothing);
+      await tester.tap(find.text('Open link'));
       await tester.pumpAndSettle();
-      expect(await action, ScheduleItemDetailsAction.directions);
+      expect(await action, ScheduleItemDetailsAction.openLocation);
     },
   );
 
-  testWidgets('map actions are limited to location-capable tasks', (
+  testWidgets('location actions are limited to location-capable tasks', (
     tester,
   ) async {
     tester.view.physicalSize = const Size(1000, 1000);
@@ -2131,7 +2174,7 @@ void main() {
       item: task,
     );
     await tester.pumpAndSettle();
-    expect(find.text('Show map'), findsNothing);
+    expect(find.text('Show on map'), findsNothing);
     Navigator.of(anchor, rootNavigator: true).pop();
     await tester.pumpAndSettle();
     await completion;
@@ -2152,8 +2195,7 @@ void main() {
       item: task,
     );
     await tester.pumpAndSettle();
-    expect(find.text('Show map'), findsOneWidget);
-    expect(find.text('Directions in Google Maps'), findsOneWidget);
+    expect(find.text('Show on map'), findsOneWidget);
     Navigator.of(anchor, rootNavigator: true).pop();
     await tester.pumpAndSettle();
     await completion;
