@@ -1,10 +1,27 @@
 import 'dart:io';
 
+import 'package:flutter/services.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../domain/geographic_point.dart';
 
 typedef ExternalUriLauncher = Future<bool> Function(Uri uri, {LaunchMode mode});
+
+const _linuxExternalUriChannel = MethodChannel(
+  'io.busystack.busymax/external_uri_launcher',
+);
+
+Future<bool> _launchLinuxExternalUri(
+  Uri uri, {
+  LaunchMode mode = LaunchMode.externalApplication,
+}) async {
+  if (mode != LaunchMode.externalApplication) return false;
+  return await _linuxExternalUriChannel.invokeMethod<bool>(
+        'launch',
+        uri.toString(),
+      ) ??
+      false;
+}
 
 enum ExternalLocationPlatform { linux, windows }
 
@@ -51,12 +68,14 @@ final class ExternalLocationDestination {
 final class ExternalLocationLauncher {
   const ExternalLocationLauncher({
     this.launcher = launchUrl,
+    this.linuxLauncher = _launchLinuxExternalUri,
     this.platform = currentExternalLocationPlatform,
   });
 
   static const googleMapsUrlLimit = 2048;
 
   final ExternalUriLauncher launcher;
+  final ExternalUriLauncher linuxLauncher;
   final ExternalLocationPlatform Function() platform;
 
   Future<ExternalLocationLaunchResult> open(
@@ -70,14 +89,18 @@ final class ExternalLocationLauncher {
       if (completeHttpLocationUri(link.toString()) == null) {
         return ExternalLocationLaunchResult.noDestination;
       }
-      return await _launch(link)
+      return await _launch(
+            link,
+            useLinuxLauncher: platform() == ExternalLocationPlatform.linux,
+          )
           ? ExternalLocationLaunchResult.opened
           : ExternalLocationLaunchResult.failed;
     }
 
-    if (platform() == ExternalLocationPlatform.linux) {
+    final currentPlatform = platform();
+    if (currentPlatform == ExternalLocationPlatform.linux) {
       final nativeUri = linuxLocationUri(destination);
-      if (await _launch(nativeUri)) {
+      if (await _launch(nativeUri, useLinuxLauncher: true)) {
         return ExternalLocationLaunchResult.opened;
       }
     }
@@ -86,14 +109,20 @@ final class ExternalLocationLauncher {
     if (browserUri.toString().length > googleMapsUrlLimit) {
       return ExternalLocationLaunchResult.browserUrlTooLong;
     }
-    return await _launch(browserUri)
+    return await _launch(
+          browserUri,
+          useLinuxLauncher: currentPlatform == ExternalLocationPlatform.linux,
+        )
         ? ExternalLocationLaunchResult.opened
         : ExternalLocationLaunchResult.failed;
   }
 
-  Future<bool> _launch(Uri uri) async {
+  Future<bool> _launch(Uri uri, {required bool useLinuxLauncher}) async {
     try {
-      return await launcher(uri, mode: LaunchMode.externalApplication);
+      return await (useLinuxLauncher ? linuxLauncher : launcher)(
+        uri,
+        mode: LaunchMode.externalApplication,
+      );
     } on Object {
       return false;
     }

@@ -234,7 +234,7 @@ void main() {
       final launches = <Uri>[];
       final launcher = ExternalLocationLauncher(
         platform: () => ExternalLocationPlatform.linux,
-        launcher: (uri, {mode = LaunchMode.platformDefault}) async {
+        linuxLauncher: (uri, {mode = LaunchMode.platformDefault}) async {
           expect(mode, LaunchMode.externalApplication);
           launches.add(uri);
           return true;

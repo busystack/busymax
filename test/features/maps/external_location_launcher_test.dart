@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:busymax/src/features/maps/application/external_location_launcher.dart';
 import 'package:busymax/src/features/maps/domain/geographic_point.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -65,7 +67,7 @@ void main() {
       final calls = <Uri>[];
       final result = await ExternalLocationLauncher(
         platform: () => ExternalLocationPlatform.linux,
-        launcher: (uri, {mode = LaunchMode.platformDefault}) async {
+        linuxLauncher: (uri, {mode = LaunchMode.platformDefault}) async {
           calls.add(uri);
           expect(mode, LaunchMode.externalApplication);
           return true;
@@ -81,7 +83,7 @@ void main() {
       final result =
           await ExternalLocationLauncher(
             platform: () => ExternalLocationPlatform.linux,
-            launcher: (uri, {mode = LaunchMode.platformDefault}) async {
+            linuxLauncher: (uri, {mode = LaunchMode.platformDefault}) async {
               calls.add(uri);
               return calls.length == 2;
             },
@@ -102,7 +104,7 @@ void main() {
         final calls = <Uri>[];
         final result = await ExternalLocationLauncher(
           platform: () => ExternalLocationPlatform.linux,
-          launcher: (uri, {mode = LaunchMode.platformDefault}) async {
+          linuxLauncher: (uri, {mode = LaunchMode.platformDefault}) async {
             calls.add(uri);
             if (calls.length == 1) throw StateError('no native handler');
             return true;
@@ -112,6 +114,29 @@ void main() {
         expect(result, ExternalLocationLaunchResult.opened);
         expect(calls, hasLength(2));
         expect(calls.last.scheme, 'https');
+      },
+    );
+
+    test(
+      'Linux waits for native completion before deciding on fallback',
+      () async {
+        final nativeCompletion = Completer<bool>();
+        final calls = <Uri>[];
+        final opening = ExternalLocationLauncher(
+          platform: () => ExternalLocationPlatform.linux,
+          linuxLauncher: (uri, {mode = LaunchMode.platformDefault}) {
+            calls.add(uri);
+            if (calls.length == 1) return nativeCompletion.future;
+            return Future.value(true);
+          },
+        ).open(const ExternalLocationDestination.text('Main Hall'));
+
+        await Future<void>.delayed(Duration.zero);
+        expect(calls.map((uri) => uri.scheme), ['maps']);
+
+        nativeCompletion.complete(false);
+        expect(await opening, ExternalLocationLaunchResult.opened);
+        expect(calls.map((uri) => uri.scheme), ['maps', 'https']);
       },
     );
 
@@ -137,7 +162,7 @@ void main() {
       )!;
       final result = await ExternalLocationLauncher(
         platform: () => ExternalLocationPlatform.linux,
-        launcher: (uri, {mode = LaunchMode.platformDefault}) async {
+        linuxLauncher: (uri, {mode = LaunchMode.platformDefault}) async {
           calls.add(uri);
           return true;
         },

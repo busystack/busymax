@@ -54,7 +54,7 @@ void main() {
       final linuxCalls = <({Uri uri, LaunchMode mode})>[];
       final linuxLauncher = ExternalLocationLauncher(
         platform: () => ExternalLocationPlatform.linux,
-        launcher: (uri, {mode = LaunchMode.platformDefault}) async {
+        linuxLauncher: (uri, {mode = LaunchMode.platformDefault}) async {
           linuxCalls.add((uri: uri, mode: mode));
           return true;
         },
