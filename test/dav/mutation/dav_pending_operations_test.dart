@@ -3,16 +3,24 @@ import 'dart:math';
 
 import 'package:busymax/src/dav/dav_errors.dart';
 import 'package:busymax/src/dav/ical/ical_document.dart';
+import 'package:busymax/src/dav/ical/ical_semantics.dart';
 import 'package:busymax/src/dav/mutation/dav_conditional_mutation_service.dart';
 import 'package:busymax/src/dav/mutation/dav_mutation_patch.dart';
 import 'package:busymax/src/dav/mutation/dav_pending_operations.dart';
 import 'package:busymax/src/dav/storage/dav_object_repository.dart';
 import 'package:busymax/src/dav/sync/dav_collection_remote_client.dart';
 import 'package:busymax/src/db/app_database.dart';
+import 'package:busymax/src/features/maps/application/external_location_launcher.dart';
+import 'package:busymax/src/features/maps/application/location_destination_resolver.dart';
+import 'package:busymax/src/features/maps/data/location_resolution_repository.dart';
+import 'package:busymax/src/features/maps/domain/geographic_point.dart';
+import 'package:busymax/src/features/maps/domain/location_result.dart';
+import 'package:busymax/src/features/tasks/data/tasks_repository.dart';
 import 'package:busymax/src/providers/busy_provider.dart';
 import 'package:drift/drift.dart' hide isNull;
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 void main() {
   late AppDatabase database;
@@ -397,6 +405,25 @@ void main() {
       final source = await (database.select(
         database.davObjects,
       )..where((row) => row.hrefKey.equals(_eventHref))).getSingle();
+      final sourceEvent = await database
+          .select(database.calendarEvents)
+          .getSingle();
+      final remembered = LocationResult(
+        label: 'Original resolved room',
+        point: GeographicPoint(latitude: 49.2827, longitude: -123.1207),
+        source: 'legacy-import',
+        attribution: 'Original provider',
+      );
+      await LocationResolutionRepository(database).apply(
+        LocationItemIdentity(
+          kind: LocationItemKind.event,
+          accountId: 'account',
+          sourceId: sourceEvent.calendarSourceId,
+          itemId: sourceEvent.id,
+        ),
+        sourceEvent.location!,
+        LocationChange.replace(remembered),
+      );
 
       await queue.enqueueMove(
         accountId: 'account',
@@ -455,6 +482,481 @@ void main() {
       final event = await database.select(database.calendarEvents).getSingle();
       expect(event.calendarSourceId, 'dav-calendar-destination');
       expect(event.davCollectionId, 'destination');
+      final resolutions = await database
+          .select(database.locationResolutions)
+          .get();
+      expect(resolutions, hasLength(1));
+      expect(resolutions.single.sourceId, 'dav-calendar-destination');
+      expect(resolutions.single.itemId, event.id);
+      expect(resolutions.single.label, remembered.label);
+      expect(resolutions.single.source, remembered.source);
+      expect(resolutions.single.attribution, remembered.attribution);
+      expect(
+        await LocationResolutionRepository(database).load(
+          LocationItemIdentity(
+            kind: LocationItemKind.event,
+            accountId: 'account',
+            sourceId: event.calendarSourceId,
+            itemId: event.id,
+          ),
+          event.location!,
+        ),
+        remembered,
+      );
+    },
+  );
+
+  test(
+    'confirmed recurring event move restores only matching occurrence points',
+    () async {
+      await _seedDestination(database);
+      final recurring = _recurringEvent();
+      await objectRepository.commitConfirmedMutation(
+        accountId: 'account',
+        collectionId: 'collection',
+        provider: BusyProvider.nextcloud,
+        canonicalObject: _preparedMember(
+          href: _eventHref,
+          etag: '"recurring"',
+          body: recurring,
+        ),
+        completedAtUtc: _now,
+      );
+      const unrelatedHref = '/remote.php/dav/calendars/alex/home/unrelated.ics';
+      await _commitMembers(
+        objectRepository,
+        collectionId: 'destination',
+        objects: [
+          _preparedMember(
+            href: unrelatedHref,
+            etag: '"unrelated"',
+            body: _eventWithUid('Unrelated', 'unrelated@example.test'),
+          ),
+        ],
+      );
+
+      final sourceObject = await (database.select(
+        database.davObjects,
+      )..where((row) => row.hrefKey.equals(_eventHref))).getSingle();
+      final sourceEvents = await (database.select(
+        database.calendarEvents,
+      )..where((row) => row.davObjectId.equals(sourceObject.id))).get();
+      expect(sourceEvents, hasLength(2));
+      final originalPoints = <String, GeographicPoint>{};
+      for (var index = 0; index < sourceEvents.length; index += 1) {
+        final event = sourceEvents[index];
+        final point = GeographicPoint(
+          latitude: 49.0 + index,
+          longitude: -123.0 - index,
+        );
+        originalPoints[event.occurrenceKey!] = point;
+        await LocationResolutionRepository(database).apply(
+          LocationItemIdentity(
+            kind: LocationItemKind.event,
+            accountId: 'account',
+            sourceId: event.calendarSourceId,
+            itemId: event.id,
+          ),
+          event.location!,
+          LocationChange.replace(
+            LocationResult(
+              label: 'Occurrence $index',
+              point: point,
+              source: 'calendar-import',
+              attribution: 'Provider $index',
+            ),
+          ),
+        );
+      }
+      final unrelated = (await database.select(database.calendarEvents).get())
+          .singleWhere((event) => event.icalUid == 'unrelated@example.test');
+      final unrelatedPoint = GeographicPoint(latitude: 12.5, longitude: -77.25);
+      await LocationResolutionRepository(database).apply(
+        LocationItemIdentity(
+          kind: LocationItemKind.event,
+          accountId: 'account',
+          sourceId: unrelated.calendarSourceId,
+          itemId: unrelated.id,
+        ),
+        unrelated.location!,
+        LocationChange.replace(
+          LocationResult(
+            label: 'Unrelated point',
+            point: unrelatedPoint,
+            source: 'unrelated-source',
+          ),
+        ),
+      );
+
+      await queue.enqueueMove(
+        accountId: 'account',
+        sourceCollectionId: 'collection',
+        destinationCollectionId: 'destination',
+        objectId: sourceObject.id,
+        target: const IcalComponentKey(
+          componentType: 'VEVENT',
+          uid: 'series@example.test',
+        ),
+      );
+      const destinationHref = '/remote.php/dav/calendars/alex/home/event.ics';
+      final remote = _FakeMutationRemote(
+        move:
+            ({
+              required sourceUri,
+              required destinationUri,
+              required ifMatch,
+            }) async => _success,
+        fetcher: (href) async => _live(href, '"moved"', recurring),
+      );
+
+      final result = await _replayer(
+        database,
+        objectRepository,
+        remote,
+      ).replayDueOperations();
+
+      expect(result.appliedCount, 1);
+      final destinationObject =
+          await (database.select(database.davObjects)..where(
+                (row) =>
+                    row.collectionId.equals('destination') &
+                    row.hrefKey.equals(destinationHref),
+              ))
+              .getSingle();
+      final movedEvents = await (database.select(
+        database.calendarEvents,
+      )..where((row) => row.davObjectId.equals(destinationObject.id))).get();
+      expect(movedEvents, hasLength(2));
+      for (final event in movedEvents) {
+        final resolved = await LocationResolutionRepository(database).load(
+          LocationItemIdentity(
+            kind: LocationItemKind.event,
+            accountId: 'account',
+            sourceId: event.calendarSourceId,
+            itemId: event.id,
+          ),
+          event.location!,
+        );
+        expect(resolved?.point, originalPoints[event.occurrenceKey]);
+      }
+      expect(
+        (await LocationResolutionRepository(database).load(
+          LocationItemIdentity(
+            kind: LocationItemKind.event,
+            accountId: 'account',
+            sourceId: unrelated.calendarSourceId,
+            itemId: unrelated.id,
+          ),
+          unrelated.location!,
+        ))?.point,
+        unrelatedPoint,
+      );
+      final supplements = await database
+          .select(database.locationResolutions)
+          .get();
+      expect(supplements, hasLength(3));
+      expect(
+        supplements.where((row) => row.sourceId == 'dav-calendar-collection'),
+        isEmpty,
+      );
+    },
+  );
+
+  test(
+    'confirmed move restoration failure rolls back source replacement',
+    () async {
+      await _seedDestination(database);
+      final sourceObject = await (database.select(
+        database.davObjects,
+      )..where((row) => row.hrefKey.equals(_eventHref))).getSingle();
+      final sourceEvent = await database
+          .select(database.calendarEvents)
+          .getSingle();
+      final remembered = LocationResult(
+        label: 'Rollback room',
+        point: GeographicPoint(latitude: 48.4284, longitude: -123.3656),
+        source: 'rollback-import',
+        attribution: 'Kept provenance',
+      );
+      final sourceIdentity = LocationItemIdentity(
+        kind: LocationItemKind.event,
+        accountId: 'account',
+        sourceId: sourceEvent.calendarSourceId,
+        itemId: sourceEvent.id,
+      );
+      await LocationResolutionRepository(database).apply(
+        sourceIdentity,
+        sourceEvent.location!,
+        LocationChange.replace(remembered),
+      );
+      await queue.enqueueMove(
+        accountId: 'account',
+        sourceCollectionId: 'collection',
+        destinationCollectionId: 'destination',
+        objectId: sourceObject.id,
+        target: _target,
+      );
+      await database.customStatement('''
+      CREATE TRIGGER fail_confirmed_move_resolution
+      BEFORE INSERT ON location_resolutions
+      WHEN NEW.source_id = 'dav-calendar-destination'
+      BEGIN
+        SELECT RAISE(ABORT, 'forced destination restoration failure');
+      END
+    ''');
+      final remote = _FakeMutationRemote(
+        move:
+            ({
+              required sourceUri,
+              required destinationUri,
+              required ifMatch,
+            }) async => _success,
+        fetcher: (href) async => _live(href, '"moved"', _event('Baseline')),
+      );
+
+      final result = await _replayer(
+        database,
+        objectRepository,
+        remote,
+      ).replayDueOperations();
+
+      expect(result.appliedCount, 0);
+      expect(result.retryCount, 1);
+      expect(
+        (await (database.select(
+              database.davObjects,
+            )..where((row) => row.id.equals(sourceObject.id))).getSingle())
+            .serverDeleted,
+        isFalse,
+      );
+      expect(
+        await (database.select(
+          database.davObjects,
+        )..where((row) => row.collectionId.equals('destination'))).get(),
+        isEmpty,
+      );
+      expect(
+        await database.select(database.calendarEvents).get(),
+        hasLength(1),
+      );
+      expect(
+        await LocationResolutionRepository(
+          database,
+        ).load(sourceIdentity, sourceEvent.location!),
+        remembered,
+      );
+    },
+  );
+
+  test(
+    'recurring task move projects each component point before and after replay',
+    () async {
+      await _seedDestination(database);
+      const taskHref = '${_collectionHref}recurring-task.ics';
+      final recurringTask = _recurringTask();
+      await _commitMembers(
+        objectRepository,
+        collectionId: 'collection',
+        objects: [
+          _preparedMember(
+            href: taskHref,
+            etag: '"task-baseline"',
+            body: recurringTask,
+          ),
+        ],
+      );
+      final sourceObject = await (database.select(
+        database.davObjects,
+      )..where((row) => row.hrefKey.equals(taskHref))).getSingle();
+      final sourceTasks = await (database.select(
+        database.tasks,
+      )..where((row) => row.davObjectId.equals(sourceObject.id))).get();
+      final master = sourceTasks.singleWhere(
+        (task) => task.recurrenceIdKey == null,
+      );
+      final masterPoint = GeographicPoint(
+        latitude: 49.2827,
+        longitude: -123.1207,
+      );
+      final exceptionPoint = GeographicPoint(
+        latitude: 48.4284,
+        longitude: -123.3656,
+      );
+      await LocationResolutionRepository(database).apply(
+        LocationItemIdentity(
+          kind: LocationItemKind.task,
+          accountId: 'account',
+          sourceId: master.taskListId,
+          itemId: master.id,
+        ),
+        master.taskLocation!,
+        LocationChange.replace(
+          LocationResult(
+            label: 'Imported master point',
+            point: masterPoint,
+            source: 'calendar-import',
+            attribution: 'Original feed',
+          ),
+        ),
+      );
+
+      final beforeOpening = await _locationState(database);
+      final destination =
+          await LocationDestinationResolver(
+            LocationResolutionRepository(database),
+          ).resolveSaved(
+            location: master.taskLocation!,
+            identity: LocationItemIdentity(
+              kind: LocationItemKind.task,
+              accountId: 'account',
+              sourceId: master.taskListId,
+              itemId: master.id,
+            ),
+          );
+      final launched = <Uri>[];
+      final openResult = await ExternalLocationLauncher(
+        platform: () => ExternalLocationPlatform.windows,
+        launcher: (uri, {mode = LaunchMode.platformDefault}) async {
+          launched.add(uri);
+          return true;
+        },
+      ).open(destination);
+      expect(openResult, ExternalLocationLaunchResult.opened);
+      expect(
+        launched.single.queryParameters['query'],
+        masterPoint.directionsValue,
+      );
+      expect(await _locationState(database), beforeOpening);
+
+      final tasksRepository = TasksRepository(
+        database: database,
+        accountId: 'account',
+        nowUtc: () => _now,
+      );
+      await tasksRepository.moveTask(
+        TaskMoveInput(
+          sourceTaskListId: 'dav-task-list-collection',
+          taskId: master.id,
+          destinationTaskListId: 'dav-task-list-destination',
+        ),
+      );
+
+      Future<void> expectProjectedPoints(String objectId) async {
+        final tasks = await (database.select(
+          database.tasks,
+        )..where((row) => row.davObjectId.equals(objectId))).get();
+        expect(tasks, hasLength(4));
+        expect(
+          tasks.every((task) => task.taskListId == 'dav-task-list-destination'),
+          isTrue,
+        );
+        final movedMaster = tasks.singleWhere(
+          (task) => task.recurrenceIdKey == null,
+        );
+        expect(movedMaster.locationLatitude, masterPoint.latitude);
+        expect(movedMaster.locationLongitude, masterPoint.longitude);
+        final differentPoint = tasks.singleWhere(
+          (task) => task.title == 'Exception with point',
+        );
+        expect(differentPoint.locationLatitude, exceptionPoint.latitude);
+        expect(differentPoint.locationLongitude, exceptionPoint.longitude);
+        final differentLocation = tasks.singleWhere(
+          (task) => task.title == 'Exception without point',
+        );
+        expect(differentLocation.taskLocation, 'Remote office');
+        expect(differentLocation.locationLatitude, isNull);
+        expect(differentLocation.locationLongitude, isNull);
+        final inherited = tasks.singleWhere(
+          (task) => task.title == 'Inherited exception',
+        );
+        expect(inherited.taskLocation, 'Head office');
+        expect(inherited.locationLatitude, masterPoint.latitude);
+        expect(inherited.locationLongitude, masterPoint.longitude);
+      }
+
+      await expectProjectedPoints(sourceObject.id);
+      final pending = await database.select(database.pendingOps).getSingle();
+      expect(pending.operationType, 'dav.move');
+      final optimisticRaw = DavMutationPatch.fromJsonString(
+        pending.mutationPatchJson!,
+      ).applyTo(pending.baselineRawIcs!, nowUtc: _now);
+      final optimistic = IcalSemanticDocument.parse(optimisticRaw);
+      expect(
+        optimistic.components
+            .singleWhere((component) => component.recurrenceIdKey == null)
+            .locationPoint,
+        masterPoint,
+      );
+      expect(
+        optimistic.components
+            .singleWhere(
+              (component) => component.summary == 'Exception with point',
+            )
+            .locationPoint,
+        exceptionPoint,
+      );
+      expect(
+        optimistic.components
+            .singleWhere(
+              (component) => component.summary == 'Exception without point',
+            )
+            .locationPoint,
+        isNull,
+      );
+
+      var serverRaw = recurringTask;
+      final remote = _FakeMutationRemote(
+        move:
+            ({
+              required sourceUri,
+              required destinationUri,
+              required ifMatch,
+            }) async => _success,
+        put: ({required rawIcs, required ifMatch, required ifNoneMatch}) async {
+          serverRaw = rawIcs;
+          return _success;
+        },
+        fetcher: (href) async => _live(href, '"task-moved"', serverRaw),
+      );
+
+      final replay = await _replayer(
+        database,
+        objectRepository,
+        remote,
+      ).replayDueOperations();
+
+      expect(replay.appliedCount, 1);
+      final destinationObject =
+          await (database.select(database.davObjects)..where(
+                (row) =>
+                    row.collectionId.equals('destination') &
+                    row.hrefKey.equals(
+                      '/remote.php/dav/calendars/alex/home/recurring-task.ics',
+                    ),
+              ))
+              .getSingle();
+      await expectProjectedPoints(destinationObject.id);
+      final supplements = await database
+          .select(database.locationResolutions)
+          .get();
+      expect(supplements, hasLength(1));
+      expect(supplements.single.sourceId, 'dav-task-list-destination');
+      expect(supplements.single.source, 'calendar-import');
+      expect(supplements.single.attribution, 'Original feed');
+
+      await objectRepository.reprojectCollectionFromStored(
+        accountId: 'account',
+        collectionId: 'destination',
+        provider: BusyProvider.nextcloud,
+        projectionRangeStartUtc: DateTime.utc(2025),
+        projectionRangeEndUtc: DateTime.utc(2029),
+        completedAtUtc: _now,
+      );
+      await expectProjectedPoints(destinationObject.id);
+      expect(
+        await database.select(database.locationResolutions).get(),
+        hasLength(1),
+      );
     },
   );
 
@@ -614,6 +1116,53 @@ DavFetchedMember _live(String href, String etag, String body) =>
       rawIcsBody: body,
     );
 
+DavPreparedObject _preparedMember({
+  required String href,
+  required String etag,
+  required String body,
+}) => DavPreparedObject.parse(
+  hrefKey: href,
+  requestUri: Uri.parse('https://cloud.example.test$href'),
+  etag: etag,
+  contentType: 'text/calendar',
+  rawIcsBody: body,
+);
+
+Future<void> _commitMembers(
+  DavObjectRepository repository, {
+  required String collectionId,
+  required List<DavPreparedObject> objects,
+}) {
+  return repository.commit(
+    DavCollectionCommit(
+      accountId: 'account',
+      collectionId: collectionId,
+      provider: BusyProvider.nextcloud,
+      objects: objects,
+      deletedHrefKeys: const {},
+      completeMembership: false,
+      membershipHrefKeys: const {},
+      finalCursorKind: 'dav_sync_token',
+      finalCursorValue: 'token-1',
+      baselineGeneration: 1,
+      completedAtUtc: _now,
+      projectionRangeStartUtc: DateTime.utc(2025),
+      projectionRangeEndUtc: DateTime.utc(2029),
+    ),
+  );
+}
+
+Future<List<Map<String, Object?>>> _locationState(AppDatabase database) async {
+  final rows = <Map<String, Object?>>[];
+  for (final table in const ['tasks', 'location_resolutions', 'pending_ops']) {
+    final values = await database
+        .customSelect('SELECT * FROM $table ORDER BY 1')
+        .get();
+    rows.addAll(values.map((row) => {'table': table, ...row.data}));
+  }
+  return rows;
+}
+
 DavMutationPatch _patch(String property, String value) => DavMutationPatch(
   target: _target,
   scope: DavMutationScope.object,
@@ -771,6 +1320,63 @@ Future<void> _seedDestination(AppDatabase database) async {
 }
 
 String _event(String summary) => _eventWithUid(summary, 'event@example.test');
+
+String _recurringEvent() => '''BEGIN:VCALENDAR\r
+VERSION:2.0\r
+PRODID:-//BusyMax Test//EN\r
+BEGIN:VEVENT\r
+UID:series@example.test\r
+DTSTAMP:20260808T120000Z\r
+DTSTART:20260808T090000Z\r
+DTEND:20260808T100000Z\r
+RRULE:FREQ=DAILY;COUNT=2\r
+SUMMARY:Recurring event\r
+LOCATION:Baseline room\r
+END:VEVENT\r
+END:VCALENDAR\r
+''';
+
+String _recurringTask() => '''BEGIN:VCALENDAR\r
+VERSION:2.0\r
+PRODID:-//BusyMax Test//EN\r
+BEGIN:VTODO\r
+UID:recurring-task@example.test\r
+DTSTAMP:20260808T120000Z\r
+DTSTART:20260808T090000Z\r
+DUE:20260808T100000Z\r
+RRULE:FREQ=DAILY;COUNT=4\r
+SUMMARY:Master task\r
+LOCATION:Head office\r
+END:VTODO\r
+BEGIN:VTODO\r
+UID:recurring-task@example.test\r
+RECURRENCE-ID:20260809T090000Z\r
+DTSTAMP:20260808T120000Z\r
+DTSTART:20260809T090000Z\r
+DUE:20260809T100000Z\r
+SUMMARY:Exception with point\r
+LOCATION:Branch office\r
+GEO:48.4284;-123.3656\r
+END:VTODO\r
+BEGIN:VTODO\r
+UID:recurring-task@example.test\r
+RECURRENCE-ID:20260810T090000Z\r
+DTSTAMP:20260808T120000Z\r
+DTSTART:20260810T090000Z\r
+DUE:20260810T100000Z\r
+SUMMARY:Exception without point\r
+LOCATION:Remote office\r
+END:VTODO\r
+BEGIN:VTODO\r
+UID:recurring-task@example.test\r
+RECURRENCE-ID:20260811T090000Z\r
+DTSTAMP:20260808T120000Z\r
+DTSTART:20260811T090000Z\r
+DUE:20260811T100000Z\r
+SUMMARY:Inherited exception\r
+END:VTODO\r
+END:VCALENDAR\r
+''';
 
 String _task({
   required String uid,

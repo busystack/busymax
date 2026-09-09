@@ -1683,6 +1683,8 @@ class TasksRepository {
       throw StateError('The DAV task UID is unavailable.');
     }
     final objectId = task.davObjectId;
+    DavMutationPatch? postMovePatch;
+    String? candidateRawIcs;
     late final String operationId;
     if (objectId == null) {
       final create = await _pendingDavCreateForProjection(task.id);
@@ -1731,7 +1733,7 @@ class TasksRepository {
         collectionId: sourceList.davCollectionId!,
         objectId: objectId,
       );
-      final postMovePatch = fields.isEmpty
+      postMovePatch = fields.isEmpty
           ? null
           : buildDavTaskUpdatePatch(
               target: IcalComponentKey(componentType: 'VTODO', uid: uid),
@@ -1740,16 +1742,9 @@ class TasksRepository {
               parentUid: parentUid,
               nowUtc: _nowUtc,
             );
-      operationId = await queue.enqueueMove(
-        accountId: _accountId,
-        sourceCollectionId: sourceList.davCollectionId!,
-        destinationCollectionId: destinationList.davCollectionId!,
-        objectId: objectId,
-        target: IcalComponentKey(componentType: 'VTODO', uid: uid),
-        localProjectionId: task.id,
-        postMovePatch: postMovePatch,
-        dependsOnOperationId: dependency,
-      );
+      candidateRawIcs =
+          postMovePatch?.applyTo(editableRaw, nowUtc: _nowUtc().toUtc()) ??
+          editableRaw;
     }
 
     final now = _now();
@@ -1790,48 +1785,59 @@ class TasksRepository {
         ),
       );
     } else {
-      await (_database.update(_database.tasks)..where(
-            (row) =>
-                row.accountId.equals(_accountId) &
-                row.davObjectId.equals(objectId),
-          ))
-          .write(
-            TasksCompanion(
-              taskListId: Value(destinationList.id),
-              davCollectionId: Value(destinationList.davCollectionId),
-              locationLatitude: fields.containsKey('locationPoint')
-                  ? Value(
-                      GeographicPoint.fromJson(
-                        fields['locationPoint'],
-                      )?.latitude,
-                    )
-                  : const Value.absent(),
-              locationLongitude: fields.containsKey('locationPoint')
-                  ? Value(
-                      GeographicPoint.fromJson(
-                        fields['locationPoint'],
-                      )?.longitude,
-                    )
-                  : const Value.absent(),
-              parent: Value(parentId),
-              parentUid: Value(parentUid),
-              status: completeSubtree
-                  ? const Value('completed')
-                  : const Value.absent(),
-              providerStatus: completeSubtree
-                  ? const Value('COMPLETED')
-                  : const Value.absent(),
-              percentComplete: completeSubtree
-                  ? const Value(100)
-                  : const Value.absent(),
-              completedUtc: completeSubtree
-                  ? Value(task.completedUtc ?? now)
-                  : const Value.absent(),
-              pendingMove: const Value(true),
-              localDirty: const Value(true),
-              updatedLocalAtUtc: Value(now),
-            ),
-          );
+      final account = await (_database.select(
+        _database.accounts,
+      )..where((row) => row.id.equals(_accountId))).getSingle();
+      await _database.transaction(() async {
+        operationId = await queue.enqueueMove(
+          accountId: _accountId,
+          sourceCollectionId: sourceList.davCollectionId!,
+          destinationCollectionId: destinationList.davCollectionId!,
+          objectId: objectId,
+          target: IcalComponentKey(componentType: 'VTODO', uid: uid),
+          localProjectionId: task.id,
+          postMovePatch: postMovePatch,
+          dependsOnOperationId: dependency,
+        );
+        await DavObjectRepository(
+          database: _database,
+        ).projectLocalMutationCandidate(
+          accountId: _accountId,
+          collectionId: sourceList.davCollectionId!,
+          provider: BusyProviderCodec.requireStorageValue(account.provider),
+          objectId: objectId,
+          candidateRawIcs: candidateRawIcs!,
+          projectedAtUtc: _nowUtc(),
+        );
+        await (_database.update(_database.tasks)..where(
+              (row) =>
+                  row.accountId.equals(_accountId) &
+                  row.davObjectId.equals(objectId),
+            ))
+            .write(
+              TasksCompanion(
+                taskListId: Value(destinationList.id),
+                davCollectionId: Value(destinationList.davCollectionId),
+                parent: Value(parentId),
+                parentUid: Value(parentUid),
+                status: completeSubtree
+                    ? const Value('completed')
+                    : const Value.absent(),
+                providerStatus: completeSubtree
+                    ? const Value('COMPLETED')
+                    : const Value.absent(),
+                percentComplete: completeSubtree
+                    ? const Value(100)
+                    : const Value.absent(),
+                completedUtc: completeSubtree
+                    ? Value(task.completedUtc ?? now)
+                    : const Value.absent(),
+                pendingMove: const Value(true),
+                localDirty: const Value(true),
+                updatedLocalAtUtc: Value(now),
+              ),
+            );
+      });
     }
     return operationId;
   }

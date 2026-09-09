@@ -647,10 +647,17 @@ final class DavObjectRepository {
     );
     return _database.transaction(() async {
       final affected = <String>{};
+      final resolutions = LocationResolutionRepository(_database);
       final sourceObject = await objectByHref(
         sourceCollectionId,
         sourceHrefKey,
       );
+      final remembered = sourceObject == null
+          ? const <RememberedLocationSnapshot>[]
+          : await resolutions.capture(
+              accountId: accountId,
+              davObjectId: sourceObject.id,
+            );
       if (sourceObject != null) {
         await _markObjectDeleted(
           sourceObject,
@@ -666,6 +673,20 @@ final class DavObjectRepository {
         ignorePendingOperations: true,
       );
       affected.add(destinationObjectId);
+      await resolutions.restore(
+        remembered,
+        accountId: accountId,
+        sourceId:
+            canonicalDestinationObject
+                    .semantic
+                    .components
+                    .firstOrNull
+                    ?.componentType ==
+                'VTODO'
+            ? 'dav-task-list-$destinationCollectionId'
+            : 'dav-calendar-$destinationCollectionId',
+        davObjectId: destinationObjectId,
+      );
       await _resolveProjectedTaskParents(sourceCollectionId);
       await _resolveProjectedTaskParents(destinationCollectionId);
       return affected;
