@@ -6,6 +6,203 @@ import 'package:busymax/src/features/maps/domain/location_result.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  test('named provider wall fields stay together outside the host zone', () {
+    final task = _microsoftTask(
+      due: '2026-06-06T14:30:00',
+      dueZone: 'America/Vancouver',
+      start: '2026-06-04T07:00:00',
+      startZone: 'Pacific Standard Time',
+      reminder: '2026-06-05T09:15:00',
+      reminderZone: 'America/Vancouver',
+    );
+
+    final draft = TaskDetailsDraft.fromTask(task, 'Asia/Kathmandu');
+
+    expect(draft.dueDate, '2026-06-06');
+    expect(draft.microsoftDueTime, '14:30');
+    expect(draft.microsoftDueTimeZone, 'America/Vancouver');
+    expect(draft.microsoftStartDate, '2026-06-04');
+    expect(draft.microsoftStartTime, '07:00');
+    expect(draft.microsoftStartTimeZone, 'Pacific Standard Time');
+    expect(draft.microsoftReminderDate, '2026-06-05');
+    expect(draft.microsoftReminderTime, '09:15');
+    expect(draft.microsoftReminderTimeZone, 'America/Vancouver');
+    expect(
+      draft.toPatch(
+        task,
+        microsoftTaskCollectionCapabilities,
+        localTimeZone: 'Asia/Kathmandu',
+      ),
+      isEmpty,
+    );
+  });
+
+  test('UTC and offset values convert into the supplied editor zone', () {
+    final utcTask = _microsoftTask(
+      due: '2026-06-08T20:45:00',
+      dueZone: 'UTC',
+      start: '2026-06-08T23:30:00-07:00',
+      startZone: 'Pacific Standard Time',
+      reminder: '2026-06-08T18:15:00Z',
+      reminderZone: 'UTC',
+    );
+
+    final kathmandu = TaskDetailsDraft.fromTask(utcTask, 'Asia/Kathmandu');
+
+    expect(kathmandu.dueDate, '2026-06-09');
+    expect(kathmandu.microsoftDueTime, '02:30');
+    expect(kathmandu.microsoftDueTimeZone, 'Asia/Kathmandu');
+    expect(kathmandu.microsoftStartDate, '2026-06-09');
+    expect(kathmandu.microsoftStartTime, '12:15');
+    expect(kathmandu.microsoftStartTimeZone, 'Asia/Kathmandu');
+    expect(kathmandu.microsoftReminderDate, '2026-06-09');
+    expect(kathmandu.microsoftReminderTime, '00:00');
+    expect(kathmandu.microsoftReminderTimeZone, 'Asia/Kathmandu');
+    expect(
+      kathmandu.toPatch(
+        utcTask,
+        microsoftTaskCollectionCapabilities,
+        localTimeZone: 'Asia/Kathmandu',
+      ),
+      isEmpty,
+    );
+  });
+
+  test('date and timezone edits serialize the coherent editor value', () {
+    final task = _microsoftTask(
+      due: '2026-06-06T14:30:00',
+      dueZone: 'America/Vancouver',
+      start: '2026-06-04T07:00:00',
+      startZone: 'America/Vancouver',
+    );
+    final initial = TaskDetailsDraft.fromTask(task, 'UTC');
+
+    expect(
+      initial
+          .copyWith(title: 'Renamed')
+          .toPatch(
+            task,
+            microsoftTaskCollectionCapabilities,
+            localTimeZone: 'UTC',
+          ),
+      {'title': 'Renamed'},
+    );
+
+    final changedDate = initial.copyWith(dueDate: '2026-06-07');
+    expect(
+      changedDate.toPatch(
+        task,
+        microsoftTaskCollectionCapabilities,
+        localTimeZone: 'UTC',
+      )['microsoftDueDateTime'],
+      {'dateTime': '2026-06-07T14:30:00', 'timeZone': 'America/Vancouver'},
+    );
+
+    final changedZone = initial.copyWith(
+      microsoftStartTimeZone: 'America/Toronto',
+    );
+    expect(
+      changedZone.toPatch(
+        task,
+        microsoftTaskCollectionCapabilities,
+        localTimeZone: 'UTC',
+      ),
+      containsPair('microsoftStartTimeZone', 'America/Toronto'),
+    );
+  });
+
+  test('timed due date comes from the same converted instant as its clock', () {
+    final task = _microsoftTask(
+      due: '2026-06-08T01:30:00Z',
+      dueZone: 'UTC',
+      start: '2026-06-07T23:00:00Z',
+      startZone: 'UTC',
+      dueUtc: '2026-06-08',
+    );
+
+    final draft = TaskDetailsDraft.fromTask(task, 'America/Vancouver');
+
+    expect(draft.dueDate, '2026-06-07');
+    expect(draft.microsoftDueTime, '18:30');
+    expect(draft.microsoftDueTimeZone, 'America/Vancouver');
+    expect(
+      draft.toPatch(
+        task,
+        microsoftTaskCollectionCapabilities,
+        localTimeZone: 'America/Vancouver',
+      ),
+      isEmpty,
+    );
+  });
+
+  test('date-only due values stay date-only', () {
+    final task = _microsoftTask(
+      due: '2026-06-08',
+      dueZone: 'Pacific Standard Time',
+      start: '2026-06-08',
+      startZone: 'Pacific Standard Time',
+    );
+
+    final draft = TaskDetailsDraft.fromTask(task, 'Asia/Kathmandu');
+
+    expect(draft.dueDate, '2026-06-08');
+    expect(draft.microsoftDueTime, isNull);
+    expect(draft.microsoftStartDate, '2026-06-08');
+    expect(draft.microsoftStartTime, isNull);
+    expect(
+      draft.toPatch(
+        task,
+        microsoftTaskCollectionCapabilities,
+        localTimeZone: 'Asia/Kathmandu',
+      ),
+      isEmpty,
+    );
+  });
+
+  test('provider wall fields survive a daylight-saving gap unchanged', () {
+    final task = _microsoftTask(
+      due: '2026-03-08T02:30:00',
+      dueZone: 'America/Vancouver',
+      start: '2026-03-08T01:30:00',
+      startZone: 'America/Vancouver',
+    );
+
+    final draft = TaskDetailsDraft.fromTask(task, 'Asia/Tokyo');
+
+    expect(draft.dueDate, '2026-03-08');
+    expect(draft.microsoftDueTime, '02:30');
+    expect(draft.microsoftDueTimeZone, 'America/Vancouver');
+    expect(
+      draft.toPatch(
+        task,
+        microsoftTaskCollectionCapabilities,
+        localTimeZone: 'Asia/Tokyo',
+      ),
+      isEmpty,
+    );
+  });
+
+  test('Windows zones drive schedule validation and reminder references', () {
+    final task = _microsoftTask(
+      due: '2026-06-08T12:00:00',
+      dueZone: 'Eastern Standard Time',
+      start: '2026-06-08T10:00:00',
+      startZone: 'Pacific Standard Time',
+    );
+
+    final draft = TaskDetailsDraft.fromTask(task, 'Asia/Kathmandu');
+
+    expect(draft.scheduleIssue, TaskScheduleIssue.dueBeforeStart);
+    expect(
+      draft.reminderReferenceUtc(due: true, localTimeZone: 'Asia/Kathmandu'),
+      DateTime.utc(2026, 6, 8, 16),
+    );
+    expect(
+      draft.reminderReferenceUtc(due: false, localTimeZone: 'Asia/Kathmandu'),
+      DateTime.utc(2026, 6, 8, 17),
+    );
+  });
+
   test('Microsoft UTC reminder opens as local time without dirty draft', () {
     final task = TaskEntity(
       accountId: 'account',
@@ -22,12 +219,10 @@ void main() {
       rawJson: '{}',
       updatedLocalAtUtc: '2026-06-12T00:00:00.000Z',
     );
-    final localReminder = DateTime.utc(2026, 6, 12, 13, 2).toLocal();
-
     final draft = TaskDetailsDraft.fromTask(task, 'America/Vancouver');
 
-    expect(draft.microsoftReminderDate, _dateOnly(localReminder));
-    expect(draft.microsoftReminderTime, _timeOnly(localReminder));
+    expect(draft.microsoftReminderDate, '2026-06-12');
+    expect(draft.microsoftReminderTime, '06:02');
     expect(draft.microsoftReminderTimeZone, 'America/Vancouver');
     expect(
       draft.toPatch(
@@ -227,13 +422,31 @@ TaskEntity _task({required String due, required String start}) {
   );
 }
 
-String _dateOnly(DateTime value) {
-  return '${value.year.toString().padLeft(4, '0')}-'
-      '${value.month.toString().padLeft(2, '0')}-'
-      '${value.day.toString().padLeft(2, '0')}';
-}
-
-String _timeOnly(DateTime value) {
-  return '${value.hour.toString().padLeft(2, '0')}:'
-      '${value.minute.toString().padLeft(2, '0')}';
-}
+TaskEntity _microsoftTask({
+  required String due,
+  required String dueZone,
+  required String start,
+  required String startZone,
+  String? reminder,
+  String? reminderZone,
+  String? dueUtc,
+}) => TaskEntity(
+  accountId: 'microsoft:account',
+  taskListId: 'inbox',
+  id: 'task-time',
+  title: 'Task',
+  status: 'needsAction',
+  dueUtc: dueUtc ?? due.substring(0, 10),
+  microsoftDueDateTime: due,
+  microsoftDueTimeZone: dueZone,
+  microsoftStartDateTime: start,
+  microsoftStartTimeZone: startZone,
+  microsoftIsReminderOn: reminder != null,
+  microsoftReminderDateTime: reminder,
+  microsoftReminderTimeZone: reminderZone,
+  localDirty: false,
+  pendingDelete: false,
+  pendingMove: false,
+  rawJson: '{}',
+  updatedLocalAtUtc: '2026-06-01T00:00:00.000Z',
+);

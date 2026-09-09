@@ -30,6 +30,12 @@ void main() {
 
   test('Windows CI retains combined validation and all build stages', () {
     final workflow = _readWorkflow();
+    final buildScript = File(
+      'tool/windows/build_release.ps1',
+    ).readAsStringSync();
+    final prerequisiteScript = File(
+      'tool/windows/check_prerequisites.ps1',
+    ).readAsStringSync();
 
     for (final name in [
       'Verify x64 Windows build host',
@@ -74,6 +80,15 @@ void main() {
 
     final package = _stepBlock(workflow, 'Pack and inspect exact MSIX');
     expect(package, isNot(contains('github.event_name')));
+    expect(buildScript, contains('& flutter pub get --enforce-lockfile'));
+    expect(
+      buildScript,
+      contains('& git diff --exit-code -- lib/l10n/generated lib/src/db'),
+    );
+    expect(prerequisiteScript, contains('Get-Command flutter'));
+    expect(prerequisiteScript, contains('Get-Command dart'));
+    expect(prerequisiteScript, contains(r'if ($flutterBin -ne $dartBin)'));
+    expect(prerequisiteScript, contains("dartSdkVersion -ne '3.12.2'"));
   });
 
   test(

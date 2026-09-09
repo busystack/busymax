@@ -10,6 +10,11 @@ void main() {
 
     expect(workflow, contains('runs-on: ubuntu-24.04'));
     expect(workflow, contains("flutter-version: '3.44.4'"));
+    expect(workflow, contains('Verify pinned Flutter and bundled Dart'));
+    expect(workflow, contains(r'command -v flutter'));
+    expect(workflow, contains(r'command -v dart'));
+    expect(workflow, contains('"dartSdkVersion": "3.12.2"'));
+    expect(workflow, contains('flutter pub get --enforce-lockfile'));
     expect(workflow, contains('uses: snapcore/action-build@v1'));
     expect(workflow, contains('uses: actions/upload-artifact@v7'));
     expect(workflow, contains('Validate release provider configuration'));

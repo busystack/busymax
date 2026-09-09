@@ -1,10 +1,19 @@
+import 'dart:convert';
+
+import 'package:busymax/src/db/app_database.dart';
+import 'package:busymax/src/features/sync/pending_ops_replayer.dart';
+import 'package:busymax/src/features/tasks/data/tasks_repository.dart';
+import 'package:busymax/src/features/tasks/domain/task_capabilities.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:busymax/src/features/tasks/domain/task_remote_error.dart';
 import 'package:busymax/src/features/tasks/domain/task_remote_models.dart';
+import 'package:busymax/src/features/tasks/presentation/task_details_draft.dart';
 import 'package:busymax/src/microsoft_todo/api/microsoft_todo_api_client.dart';
 import 'package:busymax/src/microsoft_todo/api/microsoft_todo_api_error.dart';
 import 'package:busymax/src/microsoft_todo/api/microsoft_todo_api_models.dart';
 import 'package:busymax/src/microsoft_todo/api/microsoft_todo_task_remote_client.dart';
+import 'package:drift/drift.dart';
+import 'package:drift/native.dart';
 
 void main() {
   test(
@@ -149,6 +158,98 @@ void main() {
       'timeZone': 'America/Vancouver',
     });
   });
+
+  test(
+    'date-only editor change preserves task clock through provider mutation',
+    () async {
+      final database = AppDatabase(NativeDatabase.memory());
+      addTearDown(database.close);
+      const now = '2026-06-04T00:00:00.000Z';
+      await database
+          .into(database.accounts)
+          .insert(
+            AccountsCompanion.insert(
+              id: 'account',
+              provider: 'microsoft',
+              authority: 'https://login.microsoftonline.com/common',
+              providerAccountId: 'microsoft-account',
+              credentialKind: 'oauth',
+              createdAtUtc: now,
+              updatedAtUtc: now,
+            ),
+          );
+      await database.taskListsDao.upsertTaskList(
+        TaskListsCompanion.insert(
+          accountId: 'account',
+          id: 'list-1',
+          title: 'Tasks',
+          rawJson: '{}',
+          createdLocalAtUtc: now,
+          updatedLocalAtUtc: now,
+        ),
+      );
+      await database.tasksDao.upsertTask(
+        TasksCompanion.insert(
+          accountId: 'account',
+          taskListId: 'list-1',
+          id: 'task-1',
+          title: 'Task',
+          status: const Value('needsAction'),
+          dueUtc: const Value('2026-06-06'),
+          microsoftDueDateTime: const Value('2026-06-06T14:30:00'),
+          microsoftDueTimeZone: const Value('America/Vancouver'),
+          rawJson: jsonEncode({
+            'id': 'task-1',
+            'title': 'Task',
+            'dueDateTime': {
+              'dateTime': '2026-06-06T14:30:00',
+              'timeZone': 'America/Vancouver',
+            },
+          }),
+          createdLocalAtUtc: now,
+          updatedLocalAtUtc: now,
+        ),
+      );
+      final row = await database.select(database.tasks).getSingle();
+      final original = TaskEntity.fromRow(row);
+      final fields = TaskDetailsDraft.fromTask(original, 'UTC')
+          .copyWith(dueDate: '2026-06-07')
+          .toPatch(
+            original,
+            microsoftTaskCollectionCapabilities,
+            localTimeZone: 'UTC',
+          );
+      expect(fields['microsoftDueDateTime'], {
+        'dateTime': '2026-06-07T14:30:00',
+        'timeZone': 'America/Vancouver',
+      });
+
+      await TasksRepository(
+        database: database,
+        accountId: 'account',
+        nowUtc: () => DateTime.utc(2026, 6, 4),
+      ).patchTask('list-1', 'task-1', TaskPatchInput(fields));
+
+      final client = _FakeMicrosoftTodoApiClient();
+      final adapter = MicrosoftTodoTaskRemoteClient(
+        client: client,
+        defaultTimeZone: 'UTC',
+      );
+      expect(
+        await PendingOpsReplayer(
+          database: database,
+          apiClient: adapter,
+          accountId: 'account',
+          nowUtc: () => DateTime.utc(2026, 6, 4, 1),
+        ).replayDueOps(),
+        1,
+      );
+      expect(client.updatedTaskPatch['dueDateTime'], {
+        'dateTime': '2026-06-07T14:30:00',
+        'timeZone': 'America/Vancouver',
+      });
+    },
+  );
 
   test(
     'completedDateTime patch preserves Microsoft wall-clock timezone',

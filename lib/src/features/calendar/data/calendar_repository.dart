@@ -923,6 +923,14 @@ class CalendarRepository {
               updatedAtLocal: now,
             ),
           );
+      if (source.provider == BusyProvider.google && source.isDeleted) {
+        await LocationResolutionRepository(
+          _database,
+        ).removeGoogleSeriesSourcesForCalendar(
+          accountId: accountId,
+          sourceId: id,
+        );
+      }
     });
   }
 
@@ -970,6 +978,15 @@ class CalendarRepository {
             source.id,
       };
       if (missingSourceIds.isEmpty) return;
+
+      for (final sourceId in missingSourceIds) {
+        await LocationResolutionRepository(
+          _database,
+        ).removeGoogleSeriesSourcesForCalendar(
+          accountId: accountId,
+          sourceId: sourceId,
+        );
+      }
 
       final missingEventIds = {
         for (final event
@@ -1497,9 +1514,11 @@ class CalendarRepository {
       await _database
           .into(_database.calendarEvents)
           .insertOnConflictUpdate(eventRow);
+      await _reconcileGoogleSeriesMaster(id, event);
       return;
     }
 
+    var stored = false;
     await _database.transaction(() async {
       final localEvent = await (_database.select(
         _database.calendarEvents,
@@ -1525,7 +1544,27 @@ class CalendarRepository {
       await _database
           .into(_database.calendarEvents)
           .insertOnConflictUpdate(eventRow);
+      stored = true;
     });
+    if (stored) await _reconcileGoogleSeriesMaster(id, event);
+  }
+
+  Future<void> _reconcileGoogleSeriesMaster(
+    String eventId,
+    CalendarEventDto event,
+  ) async {
+    if (event.provider != BusyProvider.google ||
+        event.providerRecurringEventId != null) {
+      return;
+    }
+    final row = await (_database.select(
+      _database.calendarEvents,
+    )..where((candidate) => candidate.id.equals(eventId))).getSingleOrNull();
+    if (row != null) {
+      await LocationResolutionRepository(
+        _database,
+      ).reconcileGoogleSeriesMaster(row);
+    }
   }
 
   Future<void> saveSyncState({
@@ -2303,6 +2342,17 @@ class CalendarRepository {
             updatedAtLocal: Value(now),
           ),
         );
+        if (provider == BusyProvider.google &&
+            existing.providerRecurringEventId == null &&
+            existing.recurrenceJson != null) {
+          await LocationResolutionRepository(
+            _database,
+          ).removeGoogleSeriesSource(
+            accountId: existing.accountId,
+            sourceId: existing.calendarSourceId,
+            providerSeriesId: existing.providerEventId,
+          );
+        }
       }
       await _database
           .into(_database.pendingOps)
@@ -3091,6 +3141,13 @@ class CalendarRepository {
             : companion,
       );
     }
+    if (provider == BusyProvider.google && locationChanged) {
+      await LocationResolutionRepository(_database).removeGoogleSeriesSource(
+        accountId: existing.accountId,
+        sourceId: existing.calendarSourceId,
+        providerSeriesId: recurringEventId,
+      );
+    }
   }
 
   Future<void> _markCloudSeriesDeleted({
@@ -3122,6 +3179,14 @@ class CalendarRepository {
           syncStatus: const Value('pending'),
           updatedAtLocal: Value(now),
         ),
+      );
+    }
+    if (existing.provider == BusyProvider.google.storageValue &&
+        scope == RecurringEventMutationScope.entireSeries) {
+      await LocationResolutionRepository(_database).removeGoogleSeriesSource(
+        accountId: existing.accountId,
+        sourceId: existing.calendarSourceId,
+        providerSeriesId: recurringEventId,
       );
     }
   }
@@ -4290,54 +4355,9 @@ class CalendarRepository {
               .get();
       if (masters.isEmpty) return;
 
-      final masterProviderIds = {
-        for (final master in masters) master.providerEventId,
-      };
-      final occurrences =
-          await (_database.select(_database.calendarEvents)..where(
-                (row) =>
-                    row.accountId.equals(accountId) &
-                    row.calendarSourceId.equals(source) &
-                    row.provider.equals(BusyProvider.google.storageValue) &
-                    row.providerRecurringEventId.isIn(masterProviderIds) &
-                    row.isDeleted.equals(false),
-              ))
-              .get();
       final resolutions = LocationResolutionRepository(_database);
-      // Expanded Google sync replaces the series master with occurrence rows.
-      // Copy a valid saved point before tombstoning the master triggers its
-      // deletion; location equality is only a snapshot guard, never identity.
       for (final master in masters) {
-        final location = master.location ?? '';
-        final remembered = await resolutions.load(
-          LocationItemIdentity(
-            kind: LocationItemKind.event,
-            accountId: master.accountId,
-            sourceId: master.calendarSourceId,
-            itemId: master.id,
-          ),
-          location,
-        );
-        if (remembered == null) continue;
-        for (final occurrence in occurrences) {
-          if (occurrence.providerRecurringEventId != master.providerEventId ||
-              (occurrence.location ?? '') != location) {
-            continue;
-          }
-          final occurrenceIdentity = LocationItemIdentity(
-            kind: LocationItemKind.event,
-            accountId: occurrence.accountId,
-            sourceId: occurrence.calendarSourceId,
-            itemId: occurrence.id,
-          );
-          final existing = await resolutions.load(occurrenceIdentity, location);
-          if (existing != null) continue;
-          await resolutions.apply(
-            occurrenceIdentity,
-            location,
-            LocationChange.replace(remembered),
-          );
-        }
+        await resolutions.reconcileGoogleSeriesMaster(master);
       }
 
       await (_database.update(

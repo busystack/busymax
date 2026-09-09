@@ -46,7 +46,9 @@ No mapping credential is required. BusyMax stores ordinary location text and
 hands a saved destination to an external application only when the user asks.
 Microsoft and iCalendar coordinates stay provider-native. An imported or copied
 point that Google Calendar cannot represent is retained locally for the exact
-saved event and is not synchronized to another installation through Google.
+saved event or provider series and is not synchronized to another installation
+through Google. Series reuse remains scoped to the account, calendar, provider
+series identity, and matching location snapshot.
 
 Apple iCloud Calendar and Nextcloud do not use compile-time client secrets.
 Read [Apple iCloud setup](apple_icloud_setup.md) and [Nextcloud
@@ -59,10 +61,10 @@ default browser. Never put either credential in the defines file.
 From the repository root:
 
 ```bash
-flutter pub get
+flutter pub get --enforce-lockfile
 flutter analyze
 flutter test
-flutter build linux --release \
+flutter build linux --release -t lib/main_linux.dart \
   --dart-define-from-file=.snap-local/busymax-dart-defines.json
 snapcraft pack --use-lxd
 ```
@@ -167,9 +169,11 @@ Before upload, verify:
   notifications work under confinement.
 - Notifications and tray actions, including opening Agenda in the main window
   and Quit, work.
-- Upgrade a copy of data from the last released package and verify schema-5 to
-  schema-8 migration, existing provider credentials/cursors/pending
-  operations, DAV projections, and account removal/local cleanup.
+- Upgrade a copy of data from the last released package to candidate schema 14.
+  Also run the production-like schema-5 fixture through the complete supported
+  migration chain to schema 14, preserving provider credentials, cursors,
+  pending operations, DAV projections, supplemental locations, and account
+  removal/local cleanup.
 - `snap/snapcraft.yaml`, metainfo, and screenshots describe exactly the tested
   providers. Apple wording says iCloud Calendar, not Apple Reminders.
 

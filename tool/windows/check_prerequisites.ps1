@@ -24,9 +24,23 @@ if ($RequireWindows11) {
   Assert-BusyMaxWindows11ValidationHost -Build $hostBuild `
     -ProductType $hostProductType
 }
-$flutterVersion = (& flutter --version --machine | ConvertFrom-Json).frameworkVersion
+$flutterCommand = Get-Command flutter -CommandType Application `
+  -ErrorAction Stop
+$dartCommand = Get-Command dart -CommandType Application -ErrorAction Stop
+$flutterExecutable = $flutterCommand.Source
+$dartExecutable = $dartCommand.Source
+$flutterBin = [IO.Path]::GetFullPath((Split-Path -Parent $flutterExecutable))
+$dartBin = [IO.Path]::GetFullPath((Split-Path -Parent $dartExecutable))
+if ($flutterBin -ne $dartBin) {
+  throw "Dart must come from the selected Flutter SDK; found Flutter at $flutterExecutable and Dart at $dartExecutable."
+}
+$flutterInfo = & flutter --version --machine | ConvertFrom-Json
+$flutterVersion = $flutterInfo.frameworkVersion
 if ($flutterVersion -ne '3.44.4') {
   throw "BusyMax requires Flutter 3.44.4; found $flutterVersion."
+}
+if ($flutterInfo.dartSdkVersion -ne '3.12.2') {
+  throw "Flutter 3.44.4 must provide Dart 3.12.2; found $($flutterInfo.dartSdkVersion)."
 }
 $vswhere = Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio\Installer\vswhere.exe'
 if (-not (Test-Path -LiteralPath $vswhere)) {
@@ -63,6 +77,9 @@ $windowsVersion = Get-ItemProperty -LiteralPath `
   'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion'
 [pscustomobject]@{
   Flutter = $flutterVersion
+  FlutterExecutable = $flutterExecutable
+  Dart = $flutterInfo.dartSdkVersion
+  DartExecutable = $dartExecutable
   VisualStudio = $visualStudio
   VisualStudioDisplayName = $visualStudioDisplayName
   VisualStudioVersion = $visualStudioVersion

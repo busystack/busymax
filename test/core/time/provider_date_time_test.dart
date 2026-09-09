@@ -97,7 +97,7 @@ void main() {
   });
 
   test(
-    'IANA provider dateTime resolves for scheduling without changing wall-time display',
+    'IANA provider dateTime resolves for scheduling and host-local display',
     () {
       final expected = DateTime.utc(2026, 6, 8, 13, 2);
       expect(
@@ -109,7 +109,7 @@ void main() {
       );
       expect(
         providerDateTimeAsLocal('2026-06-08T06:02:00', 'America/Vancouver'),
-        DateTime(2026, 6, 8, 6, 2),
+        expected.toLocal(),
       );
       expect(
         providerDateTimeIsInstant('2026-06-08T06:02:00', 'America/Vancouver'),

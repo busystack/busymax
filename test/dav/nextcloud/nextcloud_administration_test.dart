@@ -2,6 +2,9 @@ import 'package:busymax/src/dav/dav_errors.dart';
 import 'package:busymax/src/dav/nextcloud/nextcloud_dav_context.dart';
 import 'package:busymax/src/dav/nextcloud/nextcloud_trash_service.dart';
 import 'package:busymax/src/dav/xml/dav_xml.dart';
+import 'package:busymax/src/db/app_database.dart';
+import 'package:busymax/src/features/calendar/data/calendar_repository.dart';
+import 'package:drift/drift.dart' hide isNull;
 import 'package:flutter_test/flutter_test.dart';
 
 import 'nextcloud_admin_fixture.dart';
@@ -110,6 +113,167 @@ void main() {
       expect(deletion.headers.containsKey('x-nc-caldav-no-trashbin'), isFalse);
     },
   );
+  test(
+    'incoming and source moves block mixed calendar/task collection deletion',
+    () async {
+      for (final (id, entityType, state, source, destination) in [
+        ('event-incoming', 'event', 'pending', 'bin', 'collection'),
+        ('task-incoming', 'task', 'retry', 'bin', 'collection'),
+        ('event-source', 'event', 'failed', 'collection', 'bin'),
+        ('task-source', 'task', 'auth_blocked', 'collection', 'bin'),
+        ('task-conflict', 'task', 'conflict', 'bin', 'collection'),
+      ]) {
+        await fixture.database
+            .into(fixture.database.pendingOps)
+            .insert(
+              PendingOpsCompanion.insert(
+                id: id,
+                accountId: 'account',
+                provider: const Value('nextcloud'),
+                entityType: entityType,
+                operation: 'move',
+                operationType: Value('$entityType.move'),
+                davCollectionId: Value(source),
+                destinationCollectionId: Value(destination),
+                requestJson: '{}',
+                state: Value(state),
+                createdAtUtc: '2026-09-05T12:00:00Z',
+                updatedAtUtc: '2026-09-05T12:00:00Z',
+              ),
+            );
+      }
+
+      await expectLater(
+        fixture.collections.remove('collection'),
+        throwsA(
+          isA<DavException>().having(
+            (error) => error.code,
+            'code',
+            'DavCollectionHasPendingChanges',
+          ),
+        ),
+      );
+      expect(fixture.requests.where((r) => r.method == 'DELETE'), isEmpty);
+    },
+  );
+  test(
+    'unrelated work does not block and supported discard enables deletion',
+    () async {
+      await fixture.database
+          .into(fixture.database.accounts)
+          .insert(
+            AccountsCompanion.insert(
+              id: 'other-account',
+              provider: 'nextcloud',
+              authority: 'https://other.example.test',
+              providerAccountId: 'other',
+              credentialKind: 'nextcloud_app_password',
+              createdAtUtc: '2026-09-05T12:00:00Z',
+              updatedAtUtc: '2026-09-05T12:00:00Z',
+            ),
+          );
+      for (final (id, account, source, destination) in [
+        ('other-account-op', 'other-account', 'bin', 'collection'),
+        ('other-collection-op', 'account', 'bin', 'bin'),
+      ]) {
+        await fixture.database
+            .into(fixture.database.pendingOps)
+            .insert(
+              PendingOpsCompanion.insert(
+                id: id,
+                accountId: account,
+                provider: const Value('nextcloud'),
+                entityType: 'event',
+                operation: 'move',
+                operationType: const Value('event.move'),
+                davCollectionId: Value(source),
+                destinationCollectionId: Value(destination),
+                requestJson: '{}',
+                createdAtUtc: '2026-09-05T12:00:00Z',
+                updatedAtUtc: '2026-09-05T12:00:00Z',
+              ),
+            );
+      }
+      await fixture.database
+          .into(fixture.database.pendingOps)
+          .insert(
+            PendingOpsCompanion.insert(
+              id: 'relevant',
+              accountId: 'account',
+              provider: const Value('nextcloud'),
+              entityType: 'task',
+              operation: 'move',
+              operationType: const Value('task.move'),
+              davCollectionId: const Value('bin'),
+              destinationCollectionId: const Value('collection'),
+              requestJson: '{}',
+              createdAtUtc: '2026-09-05T12:00:00Z',
+              updatedAtUtc: '2026-09-05T12:00:00Z',
+            ),
+          );
+
+      await expectLater(
+        fixture.collections.remove('collection'),
+        throwsA(isA<DavException>()),
+      );
+      await fixture.database.pendingOpsDao.deleteOp('relevant');
+
+      expect(
+        await fixture.collections.remove('collection'),
+        NextcloudMutationOutcome.committed,
+      );
+      expect(fixture.requests.where((r) => r.method == 'DELETE'), hasLength(1));
+    },
+  );
+  test('calendar removal entry point cannot bypass an incoming move', () async {
+    await fixture.database
+        .into(fixture.database.calendarSources)
+        .insert(
+          CalendarSourcesCompanion.insert(
+            id: 'calendar-source',
+            accountId: 'account',
+            provider: 'nextcloud',
+            providerCalendarId: 'work',
+            davCollectionId: const Value('collection'),
+            summary: 'Work',
+            createdAtLocal: 1,
+            updatedAtLocal: 1,
+          ),
+        );
+    await fixture.database
+        .into(fixture.database.pendingOps)
+        .insert(
+          PendingOpsCompanion.insert(
+            id: 'incoming-calendar-move',
+            accountId: 'account',
+            provider: const Value('nextcloud'),
+            entityType: 'event',
+            operation: 'move',
+            operationType: const Value('event.move'),
+            davCollectionId: const Value('bin'),
+            destinationCollectionId: const Value('collection'),
+            requestJson: '{}',
+            createdAtUtc: '2026-09-05T12:00:00Z',
+            updatedAtUtc: '2026-09-05T12:00:00Z',
+          ),
+        );
+    final repository = CalendarRepository(
+      database: fixture.database,
+      nextcloudCollections: (_) => fixture.collections,
+    );
+
+    await expectLater(
+      repository.deleteLocalSource('calendar-source'),
+      throwsA(
+        isA<DavException>().having(
+          (error) => error.code,
+          'code',
+          'DavCollectionHasPendingChanges',
+        ),
+      ),
+    );
+    expect(fixture.requests.where((r) => r.method == 'DELETE'), isEmpty);
+  });
   test(
     'user and group sharing uses resolved principals and ownCloud DAV XML',
     () async {

@@ -6,6 +6,8 @@ import '../../../db/app_database.dart';
 import '../domain/geographic_point.dart';
 import '../domain/location_result.dart';
 
+const googleSeriesLocationResolutionKind = 'googleSeries';
+
 /// Preserves coordinates already associated with an exact saved item snapshot.
 /// Never touches owners, pending operations, notifications, or sync timestamps.
 final class LocationResolutionRepository {
@@ -26,23 +28,50 @@ final class LocationResolutionRepository {
     final row = await (database.select(
       database.locationResolutions,
     )..where((r) => _owner(r, item))).getSingleOrNull();
-    if (row == null ||
-        row.locationText != location ||
-        !await _current(item, location)) {
+    if (row != null) {
+      if (row.locationText != location || !await _current(item, location)) {
+        return null;
+      }
+      return _selection(row);
+    }
+    return item.kind == LocationItemKind.event
+        ? _loadGoogleSeries(item, location)
+        : null;
+  }
+
+  Future<LocationResult?> _loadGoogleSeries(
+    LocationItemIdentity item,
+    String location,
+  ) async {
+    final event =
+        await (database.select(database.calendarEvents)..where(
+              (row) =>
+                  row.id.equals(item.itemId) &
+                  row.accountId.equals(item.accountId) &
+                  row.calendarSourceId.equals(item.sourceId) &
+                  row.provider.equals('google') &
+                  row.providerRecurringEventId.isNotNull() &
+                  row.isDeleted.equals(false) &
+                  row.isCancelled.equals(false),
+            ))
+            .getSingleOrNull();
+    final providerSeriesId = event?.providerRecurringEventId;
+    if (event == null ||
+        providerSeriesId == null ||
+        (event.location ?? '') != location) {
       return null;
     }
-    final point = GeographicPoint.tryParse(
-      latitude: row.latitude,
-      longitude: row.longitude,
-    );
-    return point == null
-        ? null
-        : LocationResult(
-            label: row.label,
-            point: point,
-            source: row.source,
-            attribution: row.attribution,
-          );
+    final row =
+        await (database.select(database.locationResolutions)..where(
+              (stored) =>
+                  stored.kind.equals(googleSeriesLocationResolutionKind) &
+                  stored.accountId.equals(item.accountId) &
+                  stored.sourceId.equals(item.sourceId) &
+                  stored.itemId.equals(providerSeriesId),
+            ))
+            .getSingleOrNull();
+    if (row == null || row.locationText != location) return null;
+    return _selection(row);
   }
 
   Future<void> apply(
@@ -118,6 +147,147 @@ final class LocationResolutionRepository {
       await apply(to, old.locationText, LocationChange.replace(result));
     }
   }
+
+  /// Promotes an exact supplemental point on a synchronized Google master to
+  /// provider-series identity before the display-only master is retired.
+  Future<void> reconcileGoogleSeriesMaster(CalendarEvent master) async {
+    if (master.provider != 'google' ||
+        master.providerRecurringEventId != null) {
+      return;
+    }
+    final providerSeriesId = master.providerEventId;
+    final seriesOwner = _googleSeriesOwner(
+      accountId: master.accountId,
+      sourceId: master.calendarSourceId,
+      providerSeriesId: providerSeriesId,
+    );
+    final existing = await (database.select(
+      database.locationResolutions,
+    )..where(seriesOwner)).getSingleOrNull();
+    if (master.isDeleted ||
+        master.isCancelled ||
+        master.recurrenceJson == null) {
+      if (existing != null) {
+        await (database.delete(
+          database.locationResolutions,
+        )..where(seriesOwner)).go();
+      }
+      return;
+    }
+    final location = master.location ?? '';
+    final exact = await load(
+      LocationItemIdentity(
+        kind: LocationItemKind.event,
+        accountId: master.accountId,
+        sourceId: master.calendarSourceId,
+        itemId: master.id,
+      ),
+      location,
+    );
+    if (exact == null) {
+      if (existing != null && existing.locationText != location) {
+        await (database.delete(
+          database.locationResolutions,
+        )..where(seriesOwner)).go();
+      }
+      return;
+    }
+    await database
+        .into(database.locationResolutions)
+        .insertOnConflictUpdate(
+          LocationResolutionsCompanion.insert(
+            kind: googleSeriesLocationResolutionKind,
+            accountId: master.accountId,
+            sourceId: master.calendarSourceId,
+            itemId: providerSeriesId,
+            locationText: location,
+            label: exact.label,
+            latitude: exact.point.latitude,
+            longitude: exact.point.longitude,
+            source: exact.source,
+            attribution: exact.attribution,
+          ),
+        );
+  }
+
+  Future<void> transferGoogleSeriesSource({
+    required String fromAccountId,
+    required String fromSourceId,
+    required String fromProviderSeriesId,
+    required String toAccountId,
+    required String toSourceId,
+    required String toProviderSeriesId,
+  }) async {
+    final fromOwner = _googleSeriesOwner(
+      accountId: fromAccountId,
+      sourceId: fromSourceId,
+      providerSeriesId: fromProviderSeriesId,
+    );
+    final existing = await (database.select(
+      database.locationResolutions,
+    )..where(fromOwner)).getSingleOrNull();
+    if (existing == null) return;
+    await database
+        .into(database.locationResolutions)
+        .insertOnConflictUpdate(
+          LocationResolutionsCompanion.insert(
+            kind: googleSeriesLocationResolutionKind,
+            accountId: toAccountId,
+            sourceId: toSourceId,
+            itemId: toProviderSeriesId,
+            locationText: existing.locationText,
+            label: existing.label,
+            latitude: existing.latitude,
+            longitude: existing.longitude,
+            source: existing.source,
+            attribution: existing.attribution,
+          ),
+        );
+    if (fromAccountId != toAccountId ||
+        fromSourceId != toSourceId ||
+        fromProviderSeriesId != toProviderSeriesId) {
+      await (database.delete(
+        database.locationResolutions,
+      )..where(fromOwner)).go();
+    }
+  }
+
+  Future<void> removeGoogleSeriesSource({
+    required String accountId,
+    required String sourceId,
+    required String providerSeriesId,
+  }) =>
+      (database.delete(database.locationResolutions)..where(
+            _googleSeriesOwner(
+              accountId: accountId,
+              sourceId: sourceId,
+              providerSeriesId: providerSeriesId,
+            ),
+          ))
+          .go();
+
+  Future<void> removeGoogleSeriesSourcesForCalendar({
+    required String accountId,
+    required String sourceId,
+  }) =>
+      (database.delete(database.locationResolutions)..where(
+            (row) =>
+                row.kind.equals(googleSeriesLocationResolutionKind) &
+                row.accountId.equals(accountId) &
+                row.sourceId.equals(sourceId),
+          ))
+          .go();
+
+  Expression<bool> Function($LocationResolutionsTable) _googleSeriesOwner({
+    required String accountId,
+    required String sourceId,
+    required String providerSeriesId,
+  }) =>
+      (row) =>
+          row.kind.equals(googleSeriesLocationResolutionKind) &
+          row.accountId.equals(accountId) &
+          row.sourceId.equals(sourceId) &
+          row.itemId.equals(providerSeriesId);
 
   Future<List<RememberedLocationSnapshot>> capture({
     required String accountId,

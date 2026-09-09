@@ -38,7 +38,7 @@ function Invoke-BusyMaxPesterTests {
 }
 
 function Invoke-BusyMaxSourceGeneration {
-  & flutter pub get
+  & flutter pub get --enforce-lockfile
   if ($LASTEXITCODE -ne 0) { throw 'Dependency resolution failed.' }
   & flutter gen-l10n
   if ($LASTEXITCODE -ne 0) { throw 'Localization generation failed.' }

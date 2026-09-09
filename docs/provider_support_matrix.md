@@ -90,6 +90,21 @@ Nextcloud-specific controls. These workflows have automated coverage, but
 still require the live-server verification listed in
 `nextcloud_interoperability.md` before a release claim.
 
+## Locations and external opening
+
+BusyMax keeps ordinary location text and opens a saved destination only after
+the user chooses **Show on map** or **Open link**. Linux first uses a registered
+maps handler and falls back to a browser; Windows uses the browser. Complete
+HTTP(S) location values open directly. There is no embedded map, geocoding,
+autocomplete, mapping account, or mapping credential.
+
+Microsoft structured coordinates and iCalendar `GEO` remain provider-native.
+For an imported or copied point that Google Calendar cannot represent, BusyMax
+stores only local supplemental data. Recurring-series data is scoped by
+account, calendar, actual provider series identity, and matching location
+snapshot; an occurrence-specific point has precedence. Ordinary native
+coordinate creation does not create a supplemental duplicate.
+
 ## Deliberate boundaries
 
 - Generic CalDAV account setup

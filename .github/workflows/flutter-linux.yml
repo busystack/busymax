@@ -43,8 +43,18 @@ jobs:
       - name: Enable Linux desktop
         run: flutter config --enable-linux-desktop
 
+      - name: Verify pinned Flutter and bundled Dart
+        run: |
+          flutter_executable="$(readlink -f "$(command -v flutter)")"
+          dart_executable="$(readlink -f "$(command -v dart)")"
+          test "$(dirname "$flutter_executable")" = "$(dirname "$dart_executable")"
+          flutter --version --machine | grep -F '"frameworkVersion": "3.44.4"'
+          flutter --version --machine | grep -F '"dartSdkVersion": "3.12.2"'
+          printf 'Flutter executable: %s\nDart executable: %s\n' \
+            "$flutter_executable" "$dart_executable"
+
       - name: Resolve dependencies
-        run: flutter pub get
+        run: flutter pub get --enforce-lockfile
 
       - name: Generate localizations
         run: flutter gen-l10n

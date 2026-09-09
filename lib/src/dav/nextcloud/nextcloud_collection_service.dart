@@ -218,7 +218,9 @@ final class NextcloudCollectionService {
     final pending =
         await (database.select(database.pendingOps)..where(
               (r) =>
-                  r.accountId.equals(accountId) & r.davCollectionId.equals(id),
+                  r.accountId.equals(accountId) &
+                  (r.davCollectionId.equals(id) |
+                      r.destinationCollectionId.equals(id)),
             ))
             .get();
     if (pending.isNotEmpty) {

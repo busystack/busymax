@@ -1083,6 +1083,23 @@ void main() {
   test(
     'recurring Google import keeps its supplemental point after create and expanded sync',
     () async {
+      await database.close();
+      final directory = await Directory.systemTemp.createTemp(
+        'busymax-google-series-location-',
+      );
+      final databaseFile = File('${directory.path}/busymax.sqlite');
+      database = AppDatabase(NativeDatabase(databaseFile));
+      await _insertAccount(database);
+      await CalendarRepository(database: database).upsertSource(
+        accountId: 'account',
+        source: const CalendarSourceDto(
+          provider: BusyProvider.google,
+          providerCalendarId: 'cal-1',
+          summary: 'Work',
+          timeZone: 'America/Vancouver',
+          dataOwner: 'me@example.com',
+        ),
+      );
       final repository = CalendarRepository(
         database: database,
         now: () => DateTime.utc(2026, 8, 29),
@@ -1156,10 +1173,23 @@ END:VEVENT
       final master = await database.select(database.calendarEvents).getSingle();
       expect(master.providerRecurringEventId, isNull);
       expect(master.recurrenceJson, isNotNull);
+      final confirmedResolutions = await database
+          .select(database.locationResolutions)
+          .get();
+      expect(confirmedResolutions, hasLength(2));
       expect(
-        (await database.select(database.locationResolutions).getSingle())
+        confirmedResolutions
+            .where((row) => row.kind == LocationItemKind.event.name)
+            .single
             .itemId,
         master.id,
+      );
+      expect(
+        confirmedResolutions
+            .where((row) => row.kind == googleSeriesLocationResolutionKind)
+            .single
+            .itemId,
+        master.providerEventId,
       );
 
       CalendarEventDto occurrence({
@@ -1193,10 +1223,6 @@ END:VEVENT
           id: 'import-instance-1',
           originalStart: '2026-08-30T16:00:00.000Z',
         ),
-        occurrence(
-          id: 'import-instance-2',
-          originalStart: '2026-09-06T16:00:00.000Z',
-        ),
       ];
       await CalendarSyncEngine(
         database: database,
@@ -1215,7 +1241,7 @@ END:VEVENT
             (event) => event.providerRecurringEventId == master.providerEventId,
           )
           .toList();
-      expect(instances, hasLength(2));
+      expect(instances, hasLength(1));
       expect(
         instances,
         everyElement(
@@ -1225,10 +1251,12 @@ END:VEVENT
       final rememberedBeforeResolution = await database
           .select(database.locationResolutions)
           .get();
-      expect(rememberedBeforeResolution, hasLength(2));
-      expect(rememberedBeforeResolution.map((row) => row.itemId).toSet(), {
-        for (final instance in instances) instance.id,
-      });
+      expect(rememberedBeforeResolution, hasLength(1));
+      expect(
+        rememberedBeforeResolution.single.kind,
+        googleSeriesLocationResolutionKind,
+      );
+      expect(rememberedBeforeResolution.single.itemId, master.providerEventId);
       expect(
         rememberedBeforeResolution,
         everyElement(
@@ -1266,7 +1294,50 @@ END:VEVENT
         await database.select(database.locationResolutions).get(),
         rememberedBeforeResolution,
       );
+
+      await database.close();
+      database = AppDatabase(NativeDatabase(databaseFile));
+      final reopenedResolver = LocationDestinationResolver(
+        LocationResolutionRepository(database),
+      );
+
+      client.syncEventsOverride = [
+        occurrence(
+          id: 'import-instance-later',
+          originalStart: '2026-09-06T16:00:00.000Z',
+        ),
+      ];
+      await CalendarSyncEngine(
+        database: database,
+        client: client,
+        accountId: 'account',
+        nowUtc: () => DateTime.utc(2026, 9, 5),
+      ).fullSync();
+      final later = (await database.select(database.calendarEvents).get())
+          .singleWhere(
+            (event) => event.providerEventId == 'import-instance-later',
+          );
+      expect(
+        (await reopenedResolver.resolveSaved(
+          location: later.location ?? '',
+          identity: LocationItemIdentity(
+            kind: LocationItemKind.event,
+            accountId: later.accountId,
+            sourceId: later.calendarSourceId,
+            itemId: later.id,
+          ),
+        ))?.point,
+        GeographicPoint(latitude: 49.2827, longitude: -123.1207),
+      );
+      expect(
+        await database.select(database.locationResolutions).get(),
+        rememberedBeforeResolution,
+      );
       expect(await database.select(database.pendingOps).get(), isEmpty);
+
+      await database.close();
+      database = AppDatabase(NativeDatabase.memory());
+      await directory.delete(recursive: true);
     },
   );
 

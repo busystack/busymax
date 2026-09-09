@@ -24,6 +24,12 @@ import 'collection_id_replacement.dart';
 
 const _microsoftLocationStateField = 'locationState';
 
+String? _googleSeriesId(CalendarEvent event) {
+  if (event.provider != BusyProvider.google.storageValue) return null;
+  return event.providerRecurringEventId ??
+      (event.recurrenceJson == null ? null : event.providerEventId);
+}
+
 class CalendarPendingOpsReplayer {
   CalendarPendingOpsReplayer({
     required AppDatabase database,
@@ -805,6 +811,11 @@ class CalendarPendingOpsReplayer {
         eventId: masterId,
         guestUpdatePolicy: _guestUpdatePolicy(request),
       );
+      await LocationResolutionRepository(_database).removeGoogleSeriesSource(
+        accountId: local.accountId,
+        sourceId: local.calendarSourceId,
+        providerSeriesId: masterId,
+      );
       await _markRecurringRowsSynced(op, local);
       return;
     }
@@ -942,7 +953,8 @@ class CalendarPendingOpsReplayer {
           _database.calendarEvents,
         )..where((r) => r.id.equals(serverEventId))).getSingle();
         if (old != null) {
-          await LocationResolutionRepository(_database).transfer(
+          final resolutions = LocationResolutionRepository(_database);
+          await resolutions.transfer(
             LocationItemIdentity(
               kind: LocationItemKind.event,
               accountId: old.accountId,
@@ -956,6 +968,22 @@ class CalendarPendingOpsReplayer {
               itemId: replacement.id,
             ),
           );
+          final oldSeriesId = _googleSeriesId(old);
+          final replacementSeriesId = _googleSeriesId(replacement);
+          if (oldSeriesId != null && replacementSeriesId != null) {
+            await resolutions.transferGoogleSeriesSource(
+              fromAccountId: old.accountId,
+              fromSourceId: old.calendarSourceId,
+              fromProviderSeriesId: oldSeriesId,
+              toAccountId: replacement.accountId,
+              toSourceId: replacement.calendarSourceId,
+              toProviderSeriesId: replacementSeriesId,
+            );
+          }
+          if (_operationType(op) == 'event.create' ||
+              old.providerRecurringEventId == null) {
+            await resolutions.reconcileGoogleSeriesMaster(replacement);
+          }
         }
       }
       await _removeMovedSeriesSourceRows(op);
@@ -1173,6 +1201,12 @@ class CalendarPendingOpsReplayer {
       if ((_operationType(op) == 'calendar.delete' ||
               _operationType(op) == 'calendar.remove') &&
           sourceId != null) {
+        await LocationResolutionRepository(
+          _database,
+        ).removeGoogleSeriesSourcesForCalendar(
+          accountId: op.accountId,
+          sourceId: sourceId,
+        );
         await (_database.update(
           _database.calendarSources,
         )..where((row) => row.id.equals(sourceId))).write(
@@ -1193,6 +1227,15 @@ class CalendarPendingOpsReplayer {
       )..where((row) => row.id.equals(eventId))).getSingleOrNull();
       final recurringEventId = local?.providerRecurringEventId;
       if (local != null && recurringEventId != null) {
+        if (scope == 'entireSeries') {
+          await LocationResolutionRepository(
+            _database,
+          ).removeGoogleSeriesSource(
+            accountId: local.accountId,
+            sourceId: local.calendarSourceId,
+            providerSeriesId: recurringEventId,
+          );
+        }
         await (_database.update(_database.calendarEvents)..where((row) {
               var predicate =
                   row.accountId.equals(local.accountId) &
@@ -1216,6 +1259,19 @@ class CalendarPendingOpsReplayer {
             );
         return;
       }
+    }
+    final local = await (_database.select(
+      _database.calendarEvents,
+    )..where((row) => row.id.equals(eventId))).getSingleOrNull();
+    if (local != null &&
+        local.provider == BusyProvider.google.storageValue &&
+        local.providerRecurringEventId == null &&
+        local.recurrenceJson != null) {
+      await LocationResolutionRepository(_database).removeGoogleSeriesSource(
+        accountId: local.accountId,
+        sourceId: local.calendarSourceId,
+        providerSeriesId: local.providerEventId,
+      );
     }
     await (_database.update(
       _database.calendarEvents,

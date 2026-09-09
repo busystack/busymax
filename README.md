@@ -137,10 +137,12 @@ HTTP(S) location is opened directly as **Open link**. BusyMax has no embedded
 map, address autocomplete, mapping account, or mapping API-key requirement.
 Provider-native coordinates remain in Microsoft structured locations and
 iCalendar `GEO`. When importing or copying a point into Google Calendar, which
-has only free-form location text in this workflow, BusyMax retains one local
-supplemental point for that exact saved event. That supplemental point is not
-uploaded through Google Calendar and therefore is not automatically available
-on another BusyMax installation.
+has only free-form location text in this workflow, BusyMax retains a local
+supplemental point for the exact saved event or provider series. A later
+recurring occurrence can reuse the series point only while its saved location
+still matches; an occurrence-specific point takes precedence. Supplemental
+points are not uploaded through Google Calendar and therefore are not
+automatically available on another BusyMax installation.
 
 Use `tool/install_linux_dev_desktop.sh --uninstall` to remove the development
 launcher. Remove it before testing an installed Snap so the user-level launcher

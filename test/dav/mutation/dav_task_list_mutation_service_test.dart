@@ -220,6 +220,58 @@ void main() {
     expect(refreshes, 1);
   });
 
+  test(
+    'task-list deletion entry point rejects an incoming task move',
+    () async {
+      await _seedCollection(
+        database,
+        id: 'source-collection',
+        member: 'source-tasks',
+        privileges: const ['{DAV:}write'],
+      );
+      await _seedCollection(database, privileges: const ['{DAV:}write']);
+      await database
+          .into(database.pendingOps)
+          .insert(
+            PendingOpsCompanion.insert(
+              id: 'incoming-task-move',
+              accountId: 'account',
+              provider: const Value('nextcloud'),
+              entityType: 'task',
+              operation: 'move',
+              operationType: const Value('task.move'),
+              davCollectionId: const Value('source-collection'),
+              destinationCollectionId: const Value('collection'),
+              requestJson: '{}',
+              createdAtUtc: '2026-08-09T12:00:00.000Z',
+              updatedAtUtc: '2026-08-09T12:00:00.000Z',
+            ),
+          );
+      var deletes = 0;
+      final service = _service(
+        database,
+        secrets,
+        MockClient((request) async {
+          if (request.method == 'PROPFIND') return _adminProbe(request);
+          if (request.method == 'DELETE') deletes += 1;
+          return http.Response('', HttpStatus.noContent);
+        }),
+      );
+
+      await expectLater(
+        service.deleteTaskList('collection'),
+        throwsA(
+          isA<DavException>().having(
+            (error) => error.code,
+            'code',
+            'DavCollectionHasPendingChanges',
+          ),
+        ),
+      );
+      expect(deletes, 0);
+    },
+  );
+
   test('parent unbind denial prevents collection DELETE', () async {
     await _seedCollection(
       database,
@@ -323,6 +375,8 @@ Future<void> _seedAccount(
 
 Future<void> _seedCollection(
   AppDatabase database, {
+  String id = 'collection',
+  String member = 'tasks',
   String ownerHref = '/remote.php/dav/principals/users/alex/',
   required List<String> privileges,
   bool readOnly = false,
@@ -332,11 +386,11 @@ Future<void> _seedCollection(
       .into(database.davCollections)
       .insert(
         DavCollectionsCompanion.insert(
-          id: 'collection',
+          id: id,
           accountId: 'account',
-          hrefKey: '/remote.php/dav/calendars/alex/tasks/',
+          hrefKey: '/remote.php/dav/calendars/alex/$member/',
           requestUri:
-              'https://cloud.example.test/remote.php/dav/calendars/alex/tasks/',
+              'https://cloud.example.test/remote.php/dav/calendars/alex/$member/',
           displayName: 'Tasks',
           supportedComponentMask: const Value(davComponentTodo),
           currentUserPrivilegesJson: Value(_jsonStrings(privileges)),

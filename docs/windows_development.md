@@ -33,7 +33,7 @@ Entrypoints are always explicit. The Windows application must never be built
 from the Linux default entrypoint.
 
 ```powershell
-flutter pub get
+flutter pub get --enforce-lockfile
 flutter gen-l10n
 dart run build_runner build --delete-conflicting-outputs --force-jit
 flutter run -d windows -t lib/main_windows.dart `
@@ -47,8 +47,9 @@ location through the default browser using a Google Maps search URL, or opens a
 complete saved HTTP(S) link directly; BusyMax does not embed a map or geocoder.
 Microsoft structured coordinates and iCalendar `GEO` remain native provider
 data. Local supplemental rows are authored only when an imported/copied Google
-event would otherwise lose its point; they are neither a search history nor a
-Google-synchronized extension.
+event or series would otherwise lose its point; they are neither a search
+history nor a Google-synchronized extension. Series reuse is account-,
+calendar-, provider-series-, and location-snapshot-scoped.
 
 An unpackaged build accurately reports Windows StartupTask as unavailable. It
 does not create a registry or Startup-folder fallback. Windows notifications
@@ -68,6 +69,7 @@ flutter build linux --release -t lib/main_linux.dart
 Run these before requesting Windows CI:
 
 ```powershell
+flutter pub get --enforce-lockfile
 flutter gen-l10n
 dart run build_runner build --delete-conflicting-outputs --force-jit
 dart format --set-exit-if-changed .
@@ -111,20 +113,23 @@ place.
 
 ## Current source-side validation
 
-On 2026-09-08, the location-handoff cleanup was validated on Linux with the
-repository's pinned Flutter 3.44.4 toolchain:
+On 2026-09-09, the PR 15 release-blocker fixes were validated on Linux with an
+isolated Flutter 3.44.4 SDK and its bundled Dart 3.12.2. The completion report
+records the final commit and exact executable paths:
 
 | Command | Result |
 | --- | --- |
-| `flutter pub get` | Passed; the lockfile was resolved with Flutter 3.44.4's SDK-pinned package versions. |
+| `flutter pub get --enforce-lockfile` | Passed; the Flutter 3.44.4 resolution matched the committed lockfile without changing it. |
 | `flutter gen-l10n` | Passed; every supported catalog generated. |
 | `dart run build_runner build --delete-conflicting-outputs --force-jit` | Passed; generated Drift content remained consistent and the schema version remained 14. The pinned build runner reported that the legacy delete-conflicting option is ignored. |
 | `dart format --output=none --set-exit-if-changed .` | Passed; 524 files checked, zero changes required. |
 | `flutter analyze` | Passed; no issues found. |
 | `dart run tool/check_platform_boundaries.dart` | Passed. |
-| `flutter test` | Passed; 1,913 tests passed, 10 skipped, zero failed. |
+| Focused regressions | Passed; 249 combined blocker/contract tests, plus 130 date/time tests under a UTC process timezone. |
+| `flutter test` | Passed; 1,935 tests passed, 10 credential-gated live tests skipped, zero failed. Machine report: `build/release-verification/flutter-tests.jsonl`. |
 | `flutter build linux --release -t lib/main_linux.dart` | Passed; produced `build/linux/x64/release/bundle/busymax`. |
-| `tool/build_install_snap_local.sh --no-run --skip-tests ...` | The current Snap packed and passed its payload, plugin, and desktop-file checks. Local installation was not completed because this host requires an interactive `sudo` credential. |
+| `snapcraft pack --use-lxd` | Passed using the canonical recipe; produced `busymax_0.2.0_amd64.snap`. The final SHA-256 is recorded in the completion report so the report identifies the artifact packed after the source commit. |
+| Isolated Snap install | The exact bytes installed in the disposable LXD QA container as strict, `devel`, amd64 0.2.0; required interfaces connected and exactly one BusyMax launcher was registered. A real desktop session is still required for tray, launch-handler, and visible-error checks. |
 
 These results establish Linux and platform-neutral source health only. They do
 not replace the Windows gates below, a Windows CI result, or installed-package

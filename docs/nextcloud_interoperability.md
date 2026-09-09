@@ -60,6 +60,28 @@ native import/export and restoration of returned event/task/calendar hrefs.
 They do not prove a real server's invitation delivery, federation, retention,
 Calendar app rendering or Tasks recurring-completion interoperability.
 
+For the 2026-09-09 release candidate, the complete Linux test run passed 1,935
+tests with zero failures. Ten live-provider tests were explicitly skipped
+because the opt-in credentials and disposable server configuration were not
+present. Focused administration coverage confirms that unresolved incoming
+calendar and task moves block deletion of their destination and source across
+pending, retry, failed, authentication-blocked, and conflict states, without a
+remote `DELETE`; unrelated accounts/collections remain removable and supported
+discard permits deletion afterward.
+
+## Live versions and result for this candidate
+
+| Component | Actually installed/tested version | Result |
+| --- | --- | --- |
+| Nextcloud Server | Not available in this environment | Not run |
+| Nextcloud Calendar | Not available in this environment | Not run |
+| Nextcloud Tasks | Not available in this environment | Not run |
+
+The source tags in the reference baseline are protocol references only. They
+must not be reported as tested versions. This candidate is not live-provider
+verified until the versioned results below are completed on the designated QA
+installation.
+
 ## Release verification gates
 
 Use disposable QA accounts and the configuration in

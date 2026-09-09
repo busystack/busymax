@@ -498,7 +498,11 @@ class CalendarEvents extends Table {
   Set<Column<Object>> get primaryKey => {id};
 }
 
-/// Locally remembered coordinates associated with exact saved item snapshots.
+/// Locally remembered coordinates associated with saved item snapshots.
+///
+/// Most rows use an exact event/task owner. Imported Google recurring events
+/// also use provider-series identity so their point survives retirement of the
+/// locally stored display master.
 class LocationResolutions extends Table {
   TextColumn get kind => text()();
   TextColumn get accountId =>

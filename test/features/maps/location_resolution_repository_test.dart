@@ -605,6 +605,264 @@ void main() {
       expect(await repository.load(replacementSecond, 'Hall'), secondPoint);
     },
   );
+
+  test(
+    'Google series source is scoped and respects occurrence exceptions',
+    () async {
+      const providerSeriesId = 'imported-series';
+      await calendars.upsertEvent(
+        accountId: 'account-a',
+        event: const CalendarEventDto(
+          provider: BusyProvider.google,
+          providerCalendarId: 'provider-a',
+          providerEventId: providerSeriesId,
+          title: 'Imported series',
+          location: 'Hall',
+          startDateTime: '2026-09-01T10:00:00.000Z',
+          endDateTime: '2026-09-01T11:00:00.000Z',
+          recurrenceJson: ['RRULE:FREQ=WEEKLY'],
+        ),
+      );
+      final masterId = _eventId('account-a', 'provider-a', providerSeriesId);
+      final repository = LocationResolutionRepository(database);
+      await repository.apply(
+        _identity(
+          account: 'account-a',
+          source: _sourceId('account-a', 'provider-a'),
+          event: masterId,
+        ),
+        'Hall',
+        LocationChange.replace(_selection),
+      );
+      final master = await (database.select(
+        database.calendarEvents,
+      )..where((row) => row.id.equals(masterId))).getSingle();
+      await repository.reconcileGoogleSeriesMaster(master);
+
+      Future<LocationItemIdentity> occurrence({
+        required String account,
+        required String calendar,
+        required String id,
+        required String location,
+        bool cancelled = false,
+        String start = '2026-09-08T10:00:00.000Z',
+        String originalStart = '2026-09-08T10:00:00.000Z',
+      }) async {
+        await calendars.upsertEvent(
+          accountId: account,
+          event: CalendarEventDto(
+            provider: BusyProvider.google,
+            providerCalendarId: calendar,
+            providerEventId: id,
+            providerRecurringEventId: providerSeriesId,
+            providerOriginalStartKey: originalStart,
+            title: 'Occurrence',
+            location: location,
+            startDateTime: start,
+            endDateTime: DateTime.parse(
+              start,
+            ).add(const Duration(hours: 1)).toIso8601String(),
+            isCancelled: cancelled,
+          ),
+        );
+        return _identity(
+          account: account,
+          source: _sourceId(account, calendar),
+          event: CalendarRepository.eventId(
+            accountId: account,
+            provider: BusyProvider.google,
+            providerCalendarId: calendar,
+            providerEventId: id,
+            providerOriginalStartKey: originalStart,
+          ),
+        );
+      }
+
+      final normal = await occurrence(
+        account: 'account-a',
+        calendar: 'provider-a',
+        id: 'normal',
+        location: 'Hall',
+      );
+      final moved = await occurrence(
+        account: 'account-a',
+        calendar: 'provider-a',
+        id: 'moved',
+        location: 'Hall',
+        start: '2026-09-10T10:00:00.000Z',
+        originalStart: '2026-09-15T10:00:00.000Z',
+      );
+      final changed = await occurrence(
+        account: 'account-a',
+        calendar: 'provider-a',
+        id: 'changed',
+        location: 'Other hall',
+      );
+      final cleared = await occurrence(
+        account: 'account-a',
+        calendar: 'provider-a',
+        id: 'cleared',
+        location: '',
+      );
+      final cancelled = await occurrence(
+        account: 'account-a',
+        calendar: 'provider-a',
+        id: 'cancelled',
+        location: 'Hall',
+        cancelled: true,
+      );
+      final otherAccount = await occurrence(
+        account: 'account-b',
+        calendar: 'provider-b',
+        id: 'other-account',
+        location: 'Hall',
+      );
+      final exact = await occurrence(
+        account: 'account-a',
+        calendar: 'provider-a',
+        id: 'exact',
+        location: 'Hall',
+      );
+      final exactSelection = LocationResult(
+        label: 'Occurrence exception',
+        point: GeographicPoint(latitude: 1, longitude: 2),
+        source: 'ical-exception',
+      );
+      await repository.apply(
+        exact,
+        'Hall',
+        LocationChange.replace(exactSelection),
+      );
+
+      expect(await repository.load(normal, 'Hall'), _matchesStoredSelection);
+      expect(await repository.load(moved, 'Hall'), _matchesStoredSelection);
+      expect(await repository.load(changed, 'Other hall'), isNull);
+      expect(await repository.load(cleared, ''), isNull);
+      expect(await repository.load(cancelled, 'Hall'), isNull);
+      expect(await repository.load(otherAccount, 'Hall'), isNull);
+      expect(await repository.load(exact, 'Hall'), exactSelection);
+
+      await (database.update(database.calendarEvents)
+            ..where((row) => row.id.equals(masterId)))
+          .write(const CalendarEventsCompanion(isDeleted: Value(true)));
+      expect(await repository.load(normal, 'Hall'), _matchesStoredSelection);
+
+      await calendars.upsertEvent(
+        accountId: 'account-a',
+        event: const CalendarEventDto(
+          provider: BusyProvider.google,
+          providerCalendarId: 'provider-a',
+          providerEventId: providerSeriesId,
+          title: 'Deleted series',
+          location: 'Hall',
+          isDeleted: true,
+        ),
+      );
+      expect(await repository.load(normal, 'Hall'), isNull);
+    },
+  );
+
+  test('coordinate-only Google series remains reachable', () async {
+    const providerSeriesId = 'coordinate-only-series';
+    await calendars.upsertEvent(
+      accountId: 'account-a',
+      event: const CalendarEventDto(
+        provider: BusyProvider.google,
+        providerCalendarId: 'provider-a',
+        providerEventId: providerSeriesId,
+        title: 'Coordinate-only import',
+        location: '',
+        startDateTime: '2026-09-01T10:00:00.000Z',
+        endDateTime: '2026-09-01T11:00:00.000Z',
+        recurrenceJson: ['RRULE:FREQ=WEEKLY'],
+      ),
+    );
+    final masterId = _eventId('account-a', 'provider-a', providerSeriesId);
+    final repository = LocationResolutionRepository(database);
+    await repository.apply(
+      _identity(
+        account: 'account-a',
+        source: _sourceId('account-a', 'provider-a'),
+        event: masterId,
+      ),
+      '',
+      LocationChange.replace(_selection),
+    );
+    await repository.reconcileGoogleSeriesMaster(
+      await (database.select(
+        database.calendarEvents,
+      )..where((row) => row.id.equals(masterId))).getSingle(),
+    );
+    await calendars.upsertEvent(
+      accountId: 'account-a',
+      event: const CalendarEventDto(
+        provider: BusyProvider.google,
+        providerCalendarId: 'provider-a',
+        providerEventId: 'coordinate-only-occurrence',
+        providerRecurringEventId: providerSeriesId,
+        providerOriginalStartKey: '2026-09-08T10:00:00.000Z',
+        title: 'Coordinate-only occurrence',
+        location: '',
+        startDateTime: '2026-09-08T10:00:00.000Z',
+        endDateTime: '2026-09-08T11:00:00.000Z',
+      ),
+    );
+    final occurrence = _identity(
+      account: 'account-a',
+      source: _sourceId('account-a', 'provider-a'),
+      event: CalendarRepository.eventId(
+        accountId: 'account-a',
+        provider: BusyProvider.google,
+        providerCalendarId: 'provider-a',
+        providerEventId: 'coordinate-only-occurrence',
+        providerOriginalStartKey: '2026-09-08T10:00:00.000Z',
+      ),
+    );
+
+    final destination = await LocationDestinationResolver(
+      repository,
+    ).resolveSaved(location: '', identity: occurrence);
+
+    expect(destination?.point, _selection.point);
+  });
+
+  test('provider-deleted Google calendar removes series metadata', () async {
+    final sourceId = _sourceId('account-a', 'provider-a');
+    await database
+        .into(database.locationResolutions)
+        .insert(
+          LocationResolutionsCompanion.insert(
+            kind: googleSeriesLocationResolutionKind,
+            accountId: 'account-a',
+            sourceId: sourceId,
+            itemId: 'series-to-remove',
+            locationText: 'Hall',
+            label: _selection.label,
+            latitude: _selection.point.latitude,
+            longitude: _selection.point.longitude,
+            source: _selection.source,
+            attribution: _selection.attribution,
+          ),
+        );
+
+    await calendars.upsertSource(
+      accountId: 'account-a',
+      source: const CalendarSourceDto(
+        provider: BusyProvider.google,
+        providerCalendarId: 'provider-a',
+        summary: 'Deleted remotely',
+        isDeleted: true,
+      ),
+    );
+
+    expect(
+      await (database.select(database.locationResolutions)..where(
+            (row) => row.kind.equals(googleSeriesLocationResolutionKind),
+          ))
+          .get(),
+      isEmpty,
+    );
+  });
 }
 
 final _selection = LocationResult(

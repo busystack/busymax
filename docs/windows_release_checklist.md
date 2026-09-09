@@ -14,8 +14,10 @@ the release candidate.
 - [ ] Linux release builds explicitly from `lib/main_linux.dart`; Snap checks
       remain green and Yaru/GTK behavior is unchanged.
 - [ ] Windows x64 release builds explicitly from `lib/main_windows.dart`.
-- [ ] CI creates only the explicitly non-production unsigned test MSIX and
-      uploads it and test reports as CI artifacts; no deployment job exists.
+- [ ] CI creates only the explicitly non-production unsigned test MSIX. Test
+      reports upload on every run; the MSIX and package evidence upload only
+      after a successful `main` push or manual run, not for pull requests. No
+      deployment job exists.
 - [ ] Manifest and package-content validators pass.
 - [ ] Executable runner, timezone, and tray native tests pass on Windows.
 - [ ] The packed MSIX is unpacked to a clean directory; the exact final
