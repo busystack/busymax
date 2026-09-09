@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:drift/drift.dart';
 
 import '../../../db/app_database.dart';
@@ -170,6 +172,7 @@ final class LocationResolutionRepository {
           event.providerRecurringEventId == null
               ? event.recurrenceIdKey
               : event.occurrenceKey,
+          projectionAnchorUtc: _eventProjectionAnchorUtc(event),
         ),
       );
     }
@@ -213,6 +216,41 @@ final class LocationResolutionRepository {
       }
     }
     return snapshots;
+  }
+
+  DateTime? _eventProjectionAnchorUtc(CalendarEvent event) {
+    final raw = event.rawJson;
+    if (raw != null && raw.isNotEmpty) {
+      try {
+        final decoded = jsonDecode(raw);
+        if (decoded is Map) {
+          final startUtc = decoded['startUtc'];
+          if (startUtc is String) {
+            final parsed = DateTime.tryParse(startUtc);
+            if (parsed != null) return parsed.toUtc();
+          }
+        }
+      } on FormatException {
+        // Fall through to the projected storage value.
+      }
+    }
+    final stored = event.startDateTime ?? event.startDate;
+    if (stored == null || stored.isEmpty) return null;
+    final parsed = DateTime.tryParse(stored);
+    if (parsed == null) return null;
+    if (parsed.isUtc) return parsed.toUtc();
+    // Floating and all-day values have no absolute instant. Treat their wall
+    // value as UTC; the replacement range adds a full-day safety margin.
+    return DateTime.utc(
+      parsed.year,
+      parsed.month,
+      parsed.day,
+      parsed.hour,
+      parsed.minute,
+      parsed.second,
+      parsed.millisecond,
+      parsed.microsecond,
+    );
   }
 
   Future<void> restore(
@@ -342,11 +380,13 @@ final class RememberedLocationSnapshot {
     this.location,
     this.selection,
     this.uid,
-    this.occurrence,
-  );
+    this.occurrence, {
+    this.projectionAnchorUtc,
+  });
   final LocationItemIdentity item;
   final String location;
   final LocationResult selection;
   final String? uid;
   final String? occurrence;
+  final DateTime? projectionAnchorUtc;
 }

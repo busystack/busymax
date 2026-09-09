@@ -658,6 +658,10 @@ final class DavObjectRepository {
               accountId: accountId,
               davObjectId: sourceObject.id,
             );
+      final effectiveDestinationContext = _includingRememberedLocationCoverage(
+        destinationContext,
+        remembered,
+      );
       if (sourceObject != null) {
         await _markObjectDeleted(
           sourceObject,
@@ -667,7 +671,7 @@ final class DavObjectRepository {
         affected.add(sourceObject.id);
       }
       final destinationObjectId = await _upsertPreparedObject(
-        commit: destinationContext,
+        commit: effectiveDestinationContext,
         collection: destination,
         prepared: canonicalDestinationObject,
         ignorePendingOperations: true,
@@ -1015,8 +1019,12 @@ final class DavObjectRepository {
       accountId: commit.accountId,
       davObjectId: objectId,
     );
+    final effectiveCommit = _includingRememberedLocationCoverage(
+      commit,
+      remembered,
+    );
     await _replaceProjectionsBody(
-      commit: commit,
+      commit: effectiveCommit,
       collection: collection,
       objectId: objectId,
       etag: etag,
@@ -1634,6 +1642,41 @@ final class DavObjectRepository {
       _database.tasks,
     )..where((row) => row.davObjectId.equals(objectId))).go();
   }
+}
+
+DavCollectionCommit _includingRememberedLocationCoverage(
+  DavCollectionCommit commit,
+  Iterable<RememberedLocationSnapshot> remembered,
+) {
+  var start = commit.projectionRangeStartUtc.toUtc();
+  var end = commit.projectionRangeEndUtc.toUtc();
+  const margin = Duration(days: 1);
+  for (final snapshot in remembered) {
+    final anchor = snapshot.projectionAnchorUtc?.toUtc();
+    if (anchor == null) continue;
+    if (!anchor.isAfter(start)) start = anchor.subtract(margin);
+    if (!anchor.isBefore(end)) end = anchor.add(margin);
+  }
+  if (start == commit.projectionRangeStartUtc.toUtc() &&
+      end == commit.projectionRangeEndUtc.toUtc()) {
+    return commit;
+  }
+  return DavCollectionCommit(
+    accountId: commit.accountId,
+    collectionId: commit.collectionId,
+    provider: commit.provider,
+    objects: commit.objects,
+    deletedHrefKeys: commit.deletedHrefKeys,
+    completeMembership: commit.completeMembership,
+    membershipHrefKeys: commit.membershipHrefKeys,
+    finalCursorKind: commit.finalCursorKind,
+    finalCursorValue: commit.finalCursorValue,
+    baselineGeneration: commit.baselineGeneration,
+    completedAtUtc: commit.completedAtUtc,
+    projectionRangeStartUtc: start,
+    projectionRangeEndUtc: end,
+    forceReprojection: commit.forceReprojection,
+  );
 }
 
 ({DateTime start, DateTime end}) _projectionRange(

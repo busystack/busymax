@@ -663,6 +663,258 @@ void main() {
   );
 
   test(
+    'confirmed event move preserves a supplement outside destination range',
+    () async {
+      await _seedDestination(database);
+      await _commitMembers(
+        objectRepository,
+        collectionId: 'destination',
+        objects: const [],
+        projectionRangeEndUtc: DateTime.utc(2027, 1),
+      );
+      final futureEvent = _futureEvent();
+      await objectRepository.commitConfirmedMutation(
+        accountId: 'account',
+        collectionId: 'collection',
+        provider: BusyProvider.nextcloud,
+        canonicalObject: _preparedMember(
+          href: _eventHref,
+          etag: '"future"',
+          body: futureEvent,
+        ),
+        completedAtUtc: _now,
+      );
+      final sourceObject = await (database.select(
+        database.davObjects,
+      )..where((row) => row.hrefKey.equals(_eventHref))).getSingle();
+      final sourceEvent = await (database.select(
+        database.calendarEvents,
+      )..where((row) => row.davObjectId.equals(sourceObject.id))).getSingle();
+      final remembered = LocationResult(
+        label: 'Imported future point',
+        point: GeographicPoint(latitude: 49.25, longitude: -123.1),
+        source: 'calendar-import',
+        attribution: 'Future calendar export',
+      );
+      await LocationResolutionRepository(database).apply(
+        LocationItemIdentity(
+          kind: LocationItemKind.event,
+          accountId: 'account',
+          sourceId: sourceEvent.calendarSourceId,
+          itemId: sourceEvent.id,
+        ),
+        sourceEvent.location!,
+        LocationChange.replace(remembered),
+      );
+      await queue.enqueueMove(
+        accountId: 'account',
+        sourceCollectionId: 'collection',
+        destinationCollectionId: 'destination',
+        objectId: sourceObject.id,
+        target: const IcalComponentKey(
+          componentType: 'VEVENT',
+          uid: 'future-event@example.test',
+        ),
+      );
+      final remote = _FakeMutationRemote(
+        move:
+            ({
+              required sourceUri,
+              required destinationUri,
+              required ifMatch,
+            }) async => _success,
+        fetcher: (href) async => _live(href, '"future-moved"', futureEvent),
+      );
+
+      final replay = await _replayer(
+        database,
+        objectRepository,
+        remote,
+      ).replayDueOperations();
+
+      expect(replay.appliedCount, 1);
+      final destinationObject =
+          await (database.select(database.davObjects)..where(
+                (row) =>
+                    row.collectionId.equals('destination') &
+                    row.serverDeleted.equals(false),
+              ))
+              .getSingle();
+      Future<void> expectRemembered() async {
+        final event =
+            await (database.select(
+                  database.calendarEvents,
+                )..where((row) => row.davObjectId.equals(destinationObject.id)))
+                .getSingle();
+        expect(event.startDateTime, startsWith('2028-06-15'));
+        expect(
+          await LocationResolutionRepository(database).load(
+            LocationItemIdentity(
+              kind: LocationItemKind.event,
+              accountId: 'account',
+              sourceId: event.calendarSourceId,
+              itemId: event.id,
+            ),
+            event.location!,
+          ),
+          remembered,
+        );
+      }
+
+      await expectRemembered();
+      await objectRepository.reprojectCollectionFromStored(
+        accountId: 'account',
+        collectionId: 'destination',
+        provider: BusyProvider.nextcloud,
+        projectionRangeStartUtc: DateTime.utc(2025),
+        projectionRangeEndUtc: DateTime.utc(2027, 1),
+        completedAtUtc: _now,
+      );
+      await expectRemembered();
+      final resolutions = await database
+          .select(database.locationResolutions)
+          .get();
+      expect(resolutions, hasLength(1));
+      expect(resolutions.single.sourceId, 'dav-calendar-destination');
+      expect(resolutions.single.source, remembered.source);
+      expect(resolutions.single.attribution, remembered.attribution);
+    },
+  );
+
+  test(
+    'confirmed recurring move retains supplements across projection ranges',
+    () async {
+      await _seedDestination(database);
+      await _commitMembers(
+        objectRepository,
+        collectionId: 'destination',
+        objects: const [],
+        projectionRangeEndUtc: DateTime.utc(2027, 1),
+      );
+      final recurring = _recurringEventAcrossRanges();
+      await objectRepository.commitConfirmedMutation(
+        accountId: 'account',
+        collectionId: 'collection',
+        provider: BusyProvider.nextcloud,
+        canonicalObject: _preparedMember(
+          href: _eventHref,
+          etag: '"range-series"',
+          body: recurring,
+        ),
+        completedAtUtc: _now,
+      );
+      final sourceObject = await (database.select(
+        database.davObjects,
+      )..where((row) => row.hrefKey.equals(_eventHref))).getSingle();
+      final sourceEvents = await (database.select(
+        database.calendarEvents,
+      )..where((row) => row.davObjectId.equals(sourceObject.id))).get();
+      expect(sourceEvents, hasLength(3));
+      final remembered = <String, LocationResult>{};
+      for (var index = 0; index < sourceEvents.length; index += 1) {
+        final event = sourceEvents[index];
+        final result = LocationResult(
+          label: 'Annual occurrence $index',
+          point: GeographicPoint(
+            latitude: 48.0 + index,
+            longitude: -122.0 - index,
+          ),
+          source: 'annual-import-$index',
+          attribution: 'Annual source $index',
+        );
+        remembered[event.occurrenceKey!] = result;
+        await LocationResolutionRepository(database).apply(
+          LocationItemIdentity(
+            kind: LocationItemKind.event,
+            accountId: 'account',
+            sourceId: event.calendarSourceId,
+            itemId: event.id,
+          ),
+          event.location!,
+          LocationChange.replace(result),
+        );
+      }
+      await queue.enqueueMove(
+        accountId: 'account',
+        sourceCollectionId: 'collection',
+        destinationCollectionId: 'destination',
+        objectId: sourceObject.id,
+        target: const IcalComponentKey(
+          componentType: 'VEVENT',
+          uid: 'annual-range@example.test',
+        ),
+      );
+      final remote = _FakeMutationRemote(
+        move:
+            ({
+              required sourceUri,
+              required destinationUri,
+              required ifMatch,
+            }) async => _success,
+        fetcher: (href) async => _live(href, '"range-moved"', recurring),
+      );
+
+      final replay = await _replayer(
+        database,
+        objectRepository,
+        remote,
+      ).replayDueOperations();
+
+      expect(replay.appliedCount, 1);
+      final destinationObject =
+          await (database.select(database.davObjects)..where(
+                (row) =>
+                    row.collectionId.equals('destination') &
+                    row.serverDeleted.equals(false),
+              ))
+              .getSingle();
+      Future<void> expectRememberedOccurrences() async {
+        final events = await (database.select(
+          database.calendarEvents,
+        )..where((row) => row.davObjectId.equals(destinationObject.id))).get();
+        expect(events, hasLength(3));
+        for (final event in events) {
+          expect(
+            await LocationResolutionRepository(database).load(
+              LocationItemIdentity(
+                kind: LocationItemKind.event,
+                accountId: 'account',
+                sourceId: event.calendarSourceId,
+                itemId: event.id,
+              ),
+              event.location!,
+            ),
+            remembered[event.occurrenceKey],
+          );
+        }
+      }
+
+      await expectRememberedOccurrences();
+      await objectRepository.reprojectCollectionFromStored(
+        accountId: 'account',
+        collectionId: 'destination',
+        provider: BusyProvider.nextcloud,
+        projectionRangeStartUtc: DateTime.utc(2025),
+        projectionRangeEndUtc: DateTime.utc(2027, 1),
+        completedAtUtc: _now,
+      );
+      await expectRememberedOccurrences();
+      final resolutions = await database
+          .select(database.locationResolutions)
+          .get();
+      expect(resolutions, hasLength(3));
+      expect(
+        resolutions.map((row) => row.source).toSet(),
+        remembered.values.map((value) => value.source).toSet(),
+      );
+      expect(
+        resolutions.map((row) => row.attribution).toSet(),
+        remembered.values.map((value) => value.attribution).toSet(),
+      );
+    },
+  );
+
+  test(
     'confirmed move restoration failure rolls back source replacement',
     () async {
       await _seedDestination(database);
@@ -1132,6 +1384,8 @@ Future<void> _commitMembers(
   DavObjectRepository repository, {
   required String collectionId,
   required List<DavPreparedObject> objects,
+  DateTime? projectionRangeStartUtc,
+  DateTime? projectionRangeEndUtc,
 }) {
   return repository.commit(
     DavCollectionCommit(
@@ -1146,8 +1400,8 @@ Future<void> _commitMembers(
       finalCursorValue: 'token-1',
       baselineGeneration: 1,
       completedAtUtc: _now,
-      projectionRangeStartUtc: DateTime.utc(2025),
-      projectionRangeEndUtc: DateTime.utc(2029),
+      projectionRangeStartUtc: projectionRangeStartUtc ?? DateTime.utc(2025),
+      projectionRangeEndUtc: projectionRangeEndUtc ?? DateTime.utc(2029),
     ),
   );
 }
@@ -1320,6 +1574,35 @@ Future<void> _seedDestination(AppDatabase database) async {
 }
 
 String _event(String summary) => _eventWithUid(summary, 'event@example.test');
+
+String _futureEvent() => '''BEGIN:VCALENDAR\r
+VERSION:2.0\r
+PRODID:-//BusyMax Test//EN\r
+BEGIN:VEVENT\r
+UID:future-event@example.test\r
+DTSTAMP:20260808T120000Z\r
+DTSTART:20280615T090000Z\r
+DTEND:20280615T100000Z\r
+SUMMARY:Future event\r
+LOCATION:Future office\r
+END:VEVENT\r
+END:VCALENDAR\r
+''';
+
+String _recurringEventAcrossRanges() => '''BEGIN:VCALENDAR\r
+VERSION:2.0\r
+PRODID:-//BusyMax Test//EN\r
+BEGIN:VEVENT\r
+UID:annual-range@example.test\r
+DTSTAMP:20260808T120000Z\r
+DTSTART:20260615T090000Z\r
+DTEND:20260615T100000Z\r
+RRULE:FREQ=YEARLY;COUNT=3\r
+SUMMARY:Annual range event\r
+LOCATION:Annual office\r
+END:VEVENT\r
+END:VCALENDAR\r
+''';
 
 String _recurringEvent() => '''BEGIN:VCALENDAR\r
 VERSION:2.0\r
