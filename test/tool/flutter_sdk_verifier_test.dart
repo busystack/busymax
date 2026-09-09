@@ -16,8 +16,11 @@ void main() {
     expect(report['flutterVersion'], '3.44.4');
     expect(report['dartVersion'], '3.12.2');
     expect(
-      File(report['dartExecutable']! as String).parent.path,
-      fixture.bundledDart.parent.path,
+      await FileSystemEntity.identical(
+        report['dartExecutable']! as String,
+        fixture.bundledDart.path,
+      ),
+      isTrue,
     );
   });
 
