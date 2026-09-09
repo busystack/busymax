@@ -23,6 +23,7 @@ import 'package:busymax/src/features/maps/domain/location_result.dart';
 import 'package:busymax/src/features/maps/data/location_resolution_repository.dart';
 import 'package:busymax/src/features/maps/application/location_destination_resolver.dart';
 import 'package:busymax/src/google_calendar/google_calendar_errors.dart';
+import 'package:busymax/src/ical/ical_import_service.dart';
 import 'package:busymax/src/microsoft_calendar/microsoft_calendar_errors.dart';
 import 'package:busymax/src/providers/busy_provider.dart';
 import 'package:drift/drift.dart' hide isNotNull, isNull;
@@ -1076,6 +1077,196 @@ void main() {
         'Native room',
       );
       expect(remembered?.point, GeographicPoint(latitude: 0, longitude: -123));
+    },
+  );
+
+  test(
+    'recurring Google import keeps its supplemental point after create and expanded sync',
+    () async {
+      final repository = CalendarRepository(
+        database: database,
+        now: () => DateTime.utc(2026, 8, 29),
+      );
+      final importService = IcalImportService(
+        database: database,
+        calendarRepository: repository,
+      );
+      final preview = importService.parsePreview(
+        utf8.encode(
+          _icalCalendar('''
+BEGIN:VEVENT
+UID:recurring-location-import
+DTSTART:20260830T160000Z
+DTEND:20260830T170000Z
+SUMMARY:Imported series
+LOCATION:Room 2
+GEO:49.2827;-123.1207
+RRULE:FREQ=WEEKLY;COUNT=2
+END:VEVENT
+'''),
+        ),
+      );
+
+      final report = await importService.importPreview(
+        preview: preview,
+        destination: (await importService.writableDestinations()).single,
+      );
+      expect(report.queued, 1);
+      expect(
+        await database.select(database.locationResolutions).get(),
+        hasLength(1),
+      );
+
+      client.createEventOverride = (calendarId, mutation) => CalendarEventDto(
+        provider: BusyProvider.google,
+        providerCalendarId: calendarId,
+        providerEventId: mutation.providerEventId!,
+        title: mutation.title!,
+        location: mutation.location,
+        startDateTime: mutation.startDateTime,
+        startTimeZone: mutation.startTimeZone,
+        endDateTime: mutation.endDateTime,
+        endTimeZone: mutation.endTimeZone,
+        recurrenceJson: mutation.recurrence,
+        rawJson: {
+          'id': mutation.providerEventId,
+          'summary': mutation.title,
+          'location': mutation.location,
+          'start': {
+            'dateTime': mutation.startDateTime,
+            'timeZone': mutation.startTimeZone,
+          },
+          'end': {
+            'dateTime': mutation.endDateTime,
+            'timeZone': mutation.endTimeZone,
+          },
+          'recurrence': mutation.recurrence,
+        },
+      );
+      expect(
+        await CalendarPendingOpsReplayer(
+          database: database,
+          client: client,
+          accountId: 'account',
+          nowUtc: () => DateTime.utc(2026, 8, 29),
+        ).replayDueOps(),
+        1,
+      );
+
+      final master = await database.select(database.calendarEvents).getSingle();
+      expect(master.providerRecurringEventId, isNull);
+      expect(master.recurrenceJson, isNotNull);
+      expect(
+        (await database.select(database.locationResolutions).getSingle())
+            .itemId,
+        master.id,
+      );
+
+      CalendarEventDto occurrence({
+        required String id,
+        required String originalStart,
+      }) => CalendarEventDto(
+        provider: BusyProvider.google,
+        providerCalendarId: 'cal-1',
+        providerEventId: id,
+        providerRecurringEventId: master.providerEventId,
+        providerOriginalStartKey: originalStart,
+        title: 'Imported series',
+        location: 'Room 2',
+        startDateTime: originalStart,
+        startTimeZone: 'UTC',
+        endDateTime: DateTime.parse(
+          originalStart,
+        ).add(const Duration(hours: 1)).toIso8601String(),
+        endTimeZone: 'UTC',
+        rawJson: {
+          'id': id,
+          'recurringEventId': master.providerEventId,
+          'originalStartTime': {'dateTime': originalStart},
+          'summary': 'Imported series',
+          'location': 'Room 2',
+        },
+      );
+
+      client.syncEventsOverride = [
+        occurrence(
+          id: 'import-instance-1',
+          originalStart: '2026-08-30T16:00:00.000Z',
+        ),
+        occurrence(
+          id: 'import-instance-2',
+          originalStart: '2026-09-06T16:00:00.000Z',
+        ),
+      ];
+      await CalendarSyncEngine(
+        database: database,
+        client: client,
+        accountId: 'account',
+        nowUtc: () => DateTime.utc(2026, 8, 29),
+      ).fullSync();
+
+      final events = await database.select(database.calendarEvents).get();
+      expect(
+        events.singleWhere((event) => event.id == master.id).isDeleted,
+        isTrue,
+      );
+      final instances = events
+          .where(
+            (event) => event.providerRecurringEventId == master.providerEventId,
+          )
+          .toList();
+      expect(instances, hasLength(2));
+      expect(
+        instances,
+        everyElement(
+          isNot(predicate<CalendarEvent>((event) => event.isDeleted)),
+        ),
+      );
+      final rememberedBeforeResolution = await database
+          .select(database.locationResolutions)
+          .get();
+      expect(rememberedBeforeResolution, hasLength(2));
+      expect(rememberedBeforeResolution.map((row) => row.itemId).toSet(), {
+        for (final instance in instances) instance.id,
+      });
+      expect(
+        rememberedBeforeResolution,
+        everyElement(
+          isA<LocationResolution>()
+              .having((row) => row.latitude, 'latitude', 49.2827)
+              .having((row) => row.longitude, 'longitude', -123.1207)
+              .having((row) => row.source, 'source', 'ical')
+              .having(
+                (row) => row.attribution,
+                'attribution',
+                'Imported iCalendar GEO',
+              ),
+        ),
+      );
+
+      final resolver = LocationDestinationResolver(
+        LocationResolutionRepository(database),
+      );
+      for (final instance in instances) {
+        final resolved = await resolver.resolveSaved(
+          location: instance.location ?? '',
+          identity: LocationItemIdentity(
+            kind: LocationItemKind.event,
+            accountId: instance.accountId,
+            sourceId: instance.calendarSourceId,
+            itemId: instance.id,
+          ),
+        );
+        expect(
+          resolved?.point,
+          GeographicPoint(latitude: 49.2827, longitude: -123.1207),
+        );
+      }
+      expect(
+        await database.select(database.locationResolutions).get(),
+        rememberedBeforeResolution,
+      );
+      expect(await database.select(database.pendingOps).get(), isEmpty);
     },
   );
 
@@ -3596,6 +3787,13 @@ Future<void> _enqueueEventOp(
 
 final _later = DateTime.utc(2026, 6, 9);
 
+String _icalCalendar(String components) =>
+    'BEGIN:VCALENDAR\r\n'
+    'VERSION:2.0\r\n'
+    'PRODID:-//BusyMax Test//EN\r\n'
+    '${components.trim().replaceAll('\n', '\r\n')}\r\n'
+    'END:VCALENDAR\r\n';
+
 class _FakeCalendarClient
     implements CloudCalendarClient, CalendarListManagementClient {
   final calls = <String>[];
@@ -3619,6 +3817,9 @@ class _FakeCalendarClient
   Completer<void>? calendarPatchGate;
   Object? createEventResponseError;
   Object? getEventError;
+  CalendarEventDto Function(String calendarId, CalendarEventMutation mutation)?
+  createEventOverride;
+  List<CalendarEventDto>? syncEventsOverride;
 
   int get distinctCreatedEventCount => _createdEventsByIdentity.length;
 
@@ -3669,15 +3870,17 @@ class _FakeCalendarClient
       return existing;
     }
     _createdCount += 1;
-    final event = _event(
-      provider == BusyProvider.google && identity != null
-          ? identity
-          : 'server-event-$_createdCount',
-      title: mutation.title ?? '',
-      providerCalendarId: calendarId,
-      startTimeZone: mutation.startTimeZone,
-      endTimeZone: mutation.endTimeZone,
-    );
+    final event =
+        createEventOverride?.call(calendarId, mutation) ??
+        _event(
+          provider == BusyProvider.google && identity != null
+              ? identity
+              : 'server-event-$_createdCount',
+          title: mutation.title ?? '',
+          providerCalendarId: calendarId,
+          startTimeZone: mutation.startTimeZone,
+          endTimeZone: mutation.endTimeZone,
+        );
     if (identity != null) {
       _createdEventsByIdentity[identity] = event;
     }
@@ -3814,11 +4017,13 @@ class _FakeCalendarClient
   }) async {
     calls.add('syncEvents:$calendarId');
     return CalendarSyncPageDto(
-      events: [
-        if (syncEvent case final event?) event,
-        if (_createdCount > 0)
-          _event('server-event-$_createdCount', title: 'Planning'),
-      ],
+      events:
+          syncEventsOverride ??
+          [
+            if (syncEvent case final event?) event,
+            if (_createdCount > 0)
+              _event('server-event-$_createdCount', title: 'Planning'),
+          ],
     );
   }
 

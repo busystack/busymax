@@ -4275,23 +4275,81 @@ class CalendarRepository {
       provider: BusyProvider.google,
       providerCalendarId: providerCalendarId,
     );
-    await (_database.update(_database.calendarEvents)..where(
-          (row) =>
-              row.accountId.equals(accountId) &
-              row.calendarSourceId.equals(source) &
-              row.provider.equals(BusyProvider.google.storageValue) &
-              row.providerEventId.isIn(providerRecurringEventIds) &
-              row.providerRecurringEventId.isNull() &
-              row.syncStatus.equals('synced') &
-              row.isDeleted.equals(false),
-        ))
-        .write(
-          CalendarEventsCompanion(
-            isDeleted: const Value(true),
-            syncStatus: const Value('synced'),
-            updatedAtLocal: Value(_now().millisecondsSinceEpoch),
+    await _database.transaction(() async {
+      final masters =
+          await (_database.select(_database.calendarEvents)..where(
+                (row) =>
+                    row.accountId.equals(accountId) &
+                    row.calendarSourceId.equals(source) &
+                    row.provider.equals(BusyProvider.google.storageValue) &
+                    row.providerEventId.isIn(providerRecurringEventIds) &
+                    row.providerRecurringEventId.isNull() &
+                    row.syncStatus.equals('synced') &
+                    row.isDeleted.equals(false),
+              ))
+              .get();
+      if (masters.isEmpty) return;
+
+      final masterProviderIds = {
+        for (final master in masters) master.providerEventId,
+      };
+      final occurrences =
+          await (_database.select(_database.calendarEvents)..where(
+                (row) =>
+                    row.accountId.equals(accountId) &
+                    row.calendarSourceId.equals(source) &
+                    row.provider.equals(BusyProvider.google.storageValue) &
+                    row.providerRecurringEventId.isIn(masterProviderIds) &
+                    row.isDeleted.equals(false),
+              ))
+              .get();
+      final resolutions = LocationResolutionRepository(_database);
+      // Expanded Google sync replaces the series master with occurrence rows.
+      // Copy a valid saved point before tombstoning the master triggers its
+      // deletion; location equality is only a snapshot guard, never identity.
+      for (final master in masters) {
+        final location = master.location ?? '';
+        final remembered = await resolutions.load(
+          LocationItemIdentity(
+            kind: LocationItemKind.event,
+            accountId: master.accountId,
+            sourceId: master.calendarSourceId,
+            itemId: master.id,
           ),
+          location,
         );
+        if (remembered == null) continue;
+        for (final occurrence in occurrences) {
+          if (occurrence.providerRecurringEventId != master.providerEventId ||
+              (occurrence.location ?? '') != location) {
+            continue;
+          }
+          final occurrenceIdentity = LocationItemIdentity(
+            kind: LocationItemKind.event,
+            accountId: occurrence.accountId,
+            sourceId: occurrence.calendarSourceId,
+            itemId: occurrence.id,
+          );
+          final existing = await resolutions.load(occurrenceIdentity, location);
+          if (existing != null) continue;
+          await resolutions.apply(
+            occurrenceIdentity,
+            location,
+            LocationChange.replace(remembered),
+          );
+        }
+      }
+
+      await (_database.update(
+        _database.calendarEvents,
+      )..where((row) => row.id.isIn(masters.map((master) => master.id)))).write(
+        CalendarEventsCompanion(
+          isDeleted: const Value(true),
+          syncStatus: const Value('synced'),
+          updatedAtLocal: Value(_now().millisecondsSinceEpoch),
+        ),
+      );
+    });
   }
 
   Future<SyncCursor?> syncState({
