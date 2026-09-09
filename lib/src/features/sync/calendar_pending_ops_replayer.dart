@@ -720,9 +720,24 @@ class CalendarPendingOpsReplayer {
       rule,
       calendarId: calendarId,
       masterId: masterId,
-      masterStart: masterStart,
       targetStart: targetStart,
+      savedFollowingCount: switch (request[_googleSplitFollowingCountKey]) {
+        final num value => value.toInt(),
+        _ => null,
+      },
     );
+    if (rule.count != null &&
+        !request.containsKey(_googleSplitFollowingCountKey)) {
+      request[_googleSplitFollowingCountKey] = followingRule.count;
+      await (_database.update(
+        _database.pendingOps,
+      )..where((row) => row.id.equals(op.id))).write(
+        PendingOpsCompanion(
+          requestJson: Value(jsonEncode(request)),
+          updatedAtUtc: Value(_nowUtc().toIso8601String()),
+        ),
+      );
+    }
 
     await _client.updateEvent(
       calendarId: calendarId,
@@ -880,24 +895,37 @@ class CalendarPendingOpsReplayer {
     RecurrenceRule rule, {
     required String calendarId,
     required String masterId,
-    required DateTime masterStart,
     required DateTime targetStart,
+    required int? savedFollowingCount,
   }) async {
     final count = rule.count;
     if (count == null) return rule;
-    final instances = await _client.listEventInstances(
-      calendarId: calendarId,
-      recurringEventId: masterId,
-      rangeStart: masterStart.subtract(const Duration(days: 1)),
-      rangeEnd: targetStart.add(const Duration(days: 1)),
-    );
-    final before = instances.where((instance) {
-      final original = DateTime.tryParse(
-        instance.providerOriginalStartKey ?? '',
+    if (savedFollowingCount case final saved?) {
+      if (saved < 1 || saved > count) {
+        throw StateError('The saved Google split count is invalid.');
+      }
+      return rule.copyWith(count: saved, untilRaw: null);
+    }
+    final instanceClient = _client;
+    if (instanceClient is! CompleteRecurringInstanceClient) {
+      throw StateError(
+        'The Google client cannot enumerate the complete recurring series.',
       );
-      return original != null && original.isBefore(targetStart);
-    }).length;
-    final remaining = count - before;
+    }
+    final instances = await (instanceClient as CompleteRecurringInstanceClient)
+        .listAllEventInstances(
+          calendarId: calendarId,
+          recurringEventId: masterId,
+        );
+    final precedingOriginalStarts = <String>{};
+    for (final instance in instances) {
+      final originalKey = instance.providerOriginalStartKey;
+      final original = DateTime.tryParse(originalKey ?? '');
+      if (original != null && original.isBefore(targetStart)) {
+        precedingOriginalStarts.add(originalKey!);
+      }
+    }
+    final remaining = count - precedingOriginalStarts.length;
     if (remaining < 1) {
       throw StateError('The target occurrence is outside the recurrence.');
     }
@@ -1400,6 +1428,7 @@ class CalendarPendingOpsReplayer {
       calendarEventCopyConfirmedKey,
       calendarEventCopyDestinationEventIdKey,
       _googleSplitMasterRawKey,
+      _googleSplitFollowingCountKey,
       _seriesResolvedRequestKey,
     };
     final fields = {
@@ -1836,6 +1865,7 @@ class _PendingOpBlocked {
 }
 
 const _googleSplitMasterRawKey = '_googleSplitMasterRaw';
+const _googleSplitFollowingCountKey = '_googleSplitFollowingCount';
 const _seriesResolvedRequestKey = '_seriesResolvedRequest';
 
 const _eventRequestMetadataFields = {
@@ -1847,6 +1877,7 @@ const _eventRequestMetadataFields = {
   calendarEventOriginalEndKey,
   calendarEventTimingBaselineKey,
   _googleSplitMasterRawKey,
+  _googleSplitFollowingCountKey,
   _seriesResolvedRequestKey,
 };
 

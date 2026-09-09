@@ -121,6 +121,45 @@ void main() {
     );
   });
 
+  test(
+    'complete recurring instance listing omits event-time bounds and paginates',
+    () async {
+      final requests = <http.Request>[];
+      final client = _client((request) {
+        requests.add(request);
+        if (request.url.queryParameters['pageToken'] == null) {
+          return _json({
+            'items': [_instance('instance-1', 1)],
+            'nextPageToken': 'page-2',
+          });
+        }
+        return _json({
+          'items': [_instance('instance-2', 8)],
+        });
+      });
+
+      final instances = await client.listAllEventInstances(
+        calendarId: 'calendar@example.com',
+        recurringEventId: 'series-1',
+      );
+
+      expect(instances.map((event) => event.providerEventId), [
+        'instance-1',
+        'instance-2',
+      ]);
+      expect(requests, hasLength(2));
+      expect(requests[0].url.queryParameters, {'showDeleted': 'true'});
+      expect(requests[1].url.queryParameters, {
+        'showDeleted': 'true',
+        'pageToken': 'page-2',
+      });
+      for (final request in requests) {
+        expect(request.url.queryParameters, isNot(contains('timeMin')));
+        expect(request.url.queryParameters, isNot(contains('timeMax')));
+      }
+    },
+  );
+
   test('event mutations always send an explicit guest update policy', () async {
     final requests = <http.Request>[];
     final client = _client((request) {

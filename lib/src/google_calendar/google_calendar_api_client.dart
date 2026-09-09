@@ -12,7 +12,10 @@ import 'google_calendar_mapper.dart';
 import 'google_calendar_models.dart';
 
 class GoogleCalendarApiClient
-    implements CloudCalendarClient, CalendarListManagementClient {
+    implements
+        CloudCalendarClient,
+        CompleteRecurringInstanceClient,
+        CalendarListManagementClient {
   GoogleCalendarApiClient({
     required http.Client httpClient,
     required Uri baseUri,
@@ -334,7 +337,29 @@ class GoogleCalendarApiClient
     required String recurringEventId,
     required DateTime rangeStart,
     required DateTime rangeEnd,
+  }) => _listEventInstances(
+    calendarId: calendarId,
+    recurringEventId: recurringEventId,
+    rangeStart: rangeStart,
+    rangeEnd: rangeEnd,
+  );
+
+  @override
+  Future<List<CalendarEventDto>> listAllEventInstances({
+    required String calendarId,
+    required String recurringEventId,
+  }) => _listEventInstances(
+    calendarId: calendarId,
+    recurringEventId: recurringEventId,
+  );
+
+  Future<List<CalendarEventDto>> _listEventInstances({
+    required String calendarId,
+    required String recurringEventId,
+    DateTime? rangeStart,
+    DateTime? rangeEnd,
   }) async {
+    assert((rangeStart == null) == (rangeEnd == null));
     final events = <CalendarEventDto>[];
     String? pageToken;
     do {
@@ -344,8 +369,8 @@ class GoogleCalendarApiClient
           '/calendar/v3/calendars/${_enc(calendarId)}/events/'
           '${_enc(recurringEventId)}/instances',
           query: _compactQuery({
-            'timeMin': _rfc3339(rangeStart),
-            'timeMax': _rfc3339(rangeEnd),
+            'timeMin': rangeStart == null ? null : _rfc3339(rangeStart),
+            'timeMax': rangeEnd == null ? null : _rfc3339(rangeEnd),
             'showDeleted': 'true',
             'pageToken': pageToken,
           }),

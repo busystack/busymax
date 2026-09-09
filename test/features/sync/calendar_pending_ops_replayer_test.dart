@@ -2314,7 +2314,7 @@ END:VEVENT
     expect(applied, 1);
     expect(client.calls, [
       'getEvent:cal-1:series-master',
-      'listEventInstances:cal-1:series-master',
+      'listAllEventInstances:cal-1:series-master',
       'updateEvent:cal-1:series-master:null',
       'createEvent:cal-1:New series title',
     ]);
@@ -2333,6 +2333,102 @@ END:VEVENT
     expect(split.providerRaw?['id'], 'series-master');
     expect(await database.select(database.pendingOps).get(), isEmpty);
   });
+
+  test(
+    'Google count split includes a moved earlier occurrence across retry',
+    () async {
+      final repository = CalendarRepository(database: database);
+      await _insertGoogleOccurrence(repository, day: 1);
+      final targetId = await _insertGoogleOccurrence(repository, day: 15);
+      final detail = (await repository.loadEventDetail(targetId))!;
+      await repository.updateLocalEvent(
+        EventEditorDraft.fromEventDetail(detail).copyWith(
+          title: 'New series title',
+          recurringMutationScope: RecurringEventMutationScope.thisAndFuture,
+        ),
+      );
+      final operation = await database.select(database.pendingOps).getSingle();
+      final splitSeriesId = operation.id.replaceAll('-', '').toLowerCase();
+      client
+        ..remoteEvent = _googleSeriesMaster()
+        ..eventInstances = [
+          _googleSeriesInstance(day: 1),
+          _googleSeriesInstance(
+            day: 8,
+            actualStart: DateTime.utc(2026, 7, 1, 9),
+          ),
+          _googleSeriesInstance(day: 15),
+          _googleSeriesInstance(day: 22),
+          _googleSeriesInstance(day: 29),
+        ]
+        ..createEventResponseError = StateError('response lost');
+
+      // Google applies these bounds to effective event times. The June 8
+      // occurrence is therefore absent even though its original identity is
+      // before the June 15 split.
+      final bounded = await client.listEventInstances(
+        calendarId: 'cal-1',
+        recurringEventId: 'series-master',
+        rangeStart: DateTime.utc(2026, 5, 31),
+        rangeEnd: DateTime.utc(2026, 6, 16),
+      );
+      expect(bounded.map((event) => event.providerOriginalStartKey), [
+        '2026-06-01T09:00:00.000Z',
+        '2026-06-15T09:00:00.000Z',
+      ]);
+      client.calls.clear();
+
+      expect(
+        await CalendarPendingOpsReplayer(
+          database: database,
+          client: client,
+          accountId: 'account',
+          nowUtc: () => DateTime.utc(2026, 6, 8),
+        ).replayDueOps(),
+        0,
+      );
+      expect(client.createdMutations.single.recurrence, const [
+        'RRULE:FREQ=WEEKLY;INTERVAL=1;BYDAY=MO;WKST=MO;COUNT=3',
+      ]);
+      client.eventInstances = const [];
+
+      expect(
+        await CalendarPendingOpsReplayer(
+          database: database,
+          client: client,
+          accountId: 'account',
+          nowUtc: () => DateTime.utc(2026, 6, 9),
+        ).replayDueOps(),
+        1,
+      );
+      expect(client.distinctCreatedEventCount, 1);
+      expect(client.createdMutations, hasLength(2));
+      expect(
+        client.createdMutations.map((mutation) => mutation.recurrence),
+        everyElement(
+          equals(const [
+            'RRULE:FREQ=WEEKLY;INTERVAL=1;BYDAY=MO;WKST=MO;COUNT=3',
+          ]),
+        ),
+      );
+      expect(
+        client.calls.where(
+          (call) => call == 'listAllEventInstances:cal-1:series-master',
+        ),
+        hasLength(1),
+      );
+      expect(_weeklyOccurrenceStarts(client.createdMutations.last), [
+        DateTime.utc(2026, 6, 15, 9),
+        DateTime.utc(2026, 6, 22, 9),
+        DateTime.utc(2026, 6, 29, 9),
+      ]);
+      expect(
+        client.createdMutations.map((mutation) => mutation.providerEventId),
+        everyElement(splitSeriesId),
+      );
+      expect(await database.select(database.pendingOps).get(), isEmpty);
+    },
+  );
 
   test(
     'Google following title/time split copies the series point once across retry and sync',
@@ -4111,10 +4207,12 @@ CalendarEventDto _googleSeriesInstance({
   String title = 'Base',
   String? location,
   int startHour = 9,
+  DateTime? actualStart,
 }) {
   final date = day.toString().padLeft(2, '0');
   final originalStart = '2026-06-${date}T09:00:00.000Z';
   final start =
+      actualStart?.toIso8601String() ??
       '2026-06-${date}T${startHour.toString().padLeft(2, '0')}:00:00.000Z';
   final end = DateTime.parse(
     start,
@@ -4142,6 +4240,22 @@ CalendarEventDto _googleSeriesInstance({
       'start': {'dateTime': start, 'timeZone': 'UTC'},
       'end': {'dateTime': end, 'timeZone': 'UTC'},
     },
+  );
+}
+
+List<DateTime> _weeklyOccurrenceStarts(CalendarEventMutation mutation) {
+  final recurrence = (mutation.recurrence as List?)
+      ?.map((value) => value.toString())
+      .firstWhere((value) => value.startsWith('RRULE:'), orElse: () => '');
+  final countMatch = RegExp(
+    r'(?:^|;)COUNT=(\d+)(?:;|$)',
+  ).firstMatch(recurrence ?? '');
+  final count = int.parse(countMatch!.group(1)!);
+  final start = DateTime.parse(mutation.startDateTime!);
+  return List.generate(
+    count,
+    (index) => start.add(Duration(days: 7 * index)),
+    growable: false,
   );
 }
 
@@ -4189,7 +4303,10 @@ String _icalCalendar(String components) =>
     'END:VCALENDAR\r\n';
 
 class _FakeCalendarClient
-    implements CloudCalendarClient, CalendarListManagementClient {
+    implements
+        CloudCalendarClient,
+        CompleteRecurringInstanceClient,
+        CalendarListManagementClient {
   final calls = <String>[];
   final createdMutations = <CalendarEventMutation>[];
   final updatedMutations = <CalendarEventMutation>[];
@@ -4514,6 +4631,28 @@ class _FakeCalendarClient
     required DateTime rangeEnd,
   }) async {
     calls.add('listEventInstances:$calendarId:$recurringEventId');
+    return eventInstances
+        .where((instance) {
+          final start = DateTime.tryParse(
+            instance.startDateTime ?? instance.startDate ?? '',
+          );
+          final end = DateTime.tryParse(
+            instance.endDateTime ?? instance.endDate ?? '',
+          );
+          return start != null &&
+              end != null &&
+              end.isAfter(rangeStart) &&
+              start.isBefore(rangeEnd);
+        })
+        .toList(growable: false);
+  }
+
+  @override
+  Future<List<CalendarEventDto>> listAllEventInstances({
+    required String calendarId,
+    required String recurringEventId,
+  }) async {
+    calls.add('listAllEventInstances:$calendarId:$recurringEventId');
     return eventInstances;
   }
 
