@@ -252,6 +252,63 @@ final class LocationResolutionRepository {
     }
   }
 
+  /// Copies a supplemental point when a provider split leaves both series
+  /// alive. The saved location snapshot must match the server-confirmed new
+  /// series location; the original series remains its own owner.
+  Future<void> copyGoogleSeriesSource({
+    required String accountId,
+    required String sourceId,
+    required String fromProviderSeriesId,
+    required String toProviderSeriesId,
+    required String expectedLocation,
+  }) async {
+    final existing =
+        await (database.select(database.locationResolutions)..where(
+              _googleSeriesOwner(
+                accountId: accountId,
+                sourceId: sourceId,
+                providerSeriesId: fromProviderSeriesId,
+              ),
+            ))
+            .getSingleOrNull();
+    if (existing == null || existing.locationText != expectedLocation) return;
+    await database
+        .into(database.locationResolutions)
+        .insertOnConflictUpdate(
+          LocationResolutionsCompanion.insert(
+            kind: googleSeriesLocationResolutionKind,
+            accountId: accountId,
+            sourceId: sourceId,
+            itemId: toProviderSeriesId,
+            locationText: existing.locationText,
+            label: existing.label,
+            latitude: existing.latitude,
+            longitude: existing.longitude,
+            source: existing.source,
+            attribution: existing.attribution,
+          ),
+        );
+  }
+
+  /// Invalidates a series point only after the provider confirms that the
+  /// series now has a different effective location.
+  Future<void> removeGoogleSeriesSourceUnlessLocationMatches({
+    required String accountId,
+    required String sourceId,
+    required String providerSeriesId,
+    required String expectedLocation,
+  }) =>
+      (database.delete(database.locationResolutions)..where(
+            (row) =>
+                _googleSeriesOwner(
+                  accountId: accountId,
+                  sourceId: sourceId,
+                  providerSeriesId: providerSeriesId,
+                )(row) &
+                row.locationText.equals(expectedLocation).not(),
+          ))
+          .go();
+
   Future<void> removeGoogleSeriesSource({
     required String accountId,
     required String sourceId,

@@ -2334,6 +2334,291 @@ END:VEVENT
     expect(await database.select(database.pendingOps).get(), isEmpty);
   });
 
+  test(
+    'Google following title/time split copies the series point once across retry and sync',
+    () async {
+      final repository = CalendarRepository(database: database);
+      final ids = <String>[];
+      for (final day in [1, 8, 15]) {
+        ids.add(
+          await _insertGoogleOccurrence(
+            repository,
+            day: day,
+            location: 'Room 2',
+          ),
+        );
+      }
+      await _insertGoogleSeriesResolution(database);
+      final detail = await repository.loadEventDetail(ids[1]);
+      await repository.updateLocalEvent(
+        EventEditorDraft.fromEventDetail(detail!).copyWith(
+          title: 'New series title',
+          start: DateTime.utc(2026, 6, 8, 10),
+          end: DateTime.utc(2026, 6, 8, 11),
+          recurringMutationScope: RecurringEventMutationScope.thisAndFuture,
+        ),
+      );
+      final operation = await database.select(database.pendingOps).getSingle();
+      final splitSeriesId = operation.id.replaceAll('-', '').toLowerCase();
+      client
+        ..remoteEvent = _googleSeriesMaster(location: 'Room 2')
+        ..eventInstances = [
+          _googleSeriesInstance(day: 1, location: 'Room 2'),
+          _googleSeriesInstance(day: 8, location: 'Room 2'),
+          _googleSeriesInstance(day: 15, location: 'Room 2'),
+        ]
+        ..createEventResponseError = StateError('response lost');
+
+      expect(
+        await CalendarPendingOpsReplayer(
+          database: database,
+          client: client,
+          accountId: 'account',
+          nowUtc: () => DateTime.utc(2026, 6, 8),
+        ).replayDueOps(),
+        0,
+      );
+      expect(
+        (await database.select(database.locationResolutions).get()).map(
+          (row) => row.itemId,
+        ),
+        ['series-master'],
+      );
+
+      expect(
+        await CalendarPendingOpsReplayer(
+          database: database,
+          client: client,
+          accountId: 'account',
+          nowUtc: () => DateTime.utc(2026, 6, 9),
+        ).replayDueOps(),
+        1,
+      );
+      expect(client.distinctCreatedEventCount, 1);
+      expect(
+        client.createdMutations.map((mutation) => mutation.providerEventId),
+        [splitSeriesId, splitSeriesId],
+      );
+      final seriesResolutions = await database
+          .select(database.locationResolutions)
+          .get();
+      expect(seriesResolutions, hasLength(2));
+      expect(seriesResolutions.map((row) => row.itemId).toSet(), {
+        'series-master',
+        splitSeriesId,
+      });
+      expect(
+        seriesResolutions,
+        everyElement(
+          isA<LocationResolution>()
+              .having((row) => row.locationText, 'location', 'Room 2')
+              .having((row) => row.latitude, 'latitude', 49.2827)
+              .having((row) => row.longitude, 'longitude', -123.1207)
+              .having((row) => row.source, 'source', 'ical')
+              .having(
+                (row) => row.attribution,
+                'attribution',
+                'Imported iCalendar GEO',
+              ),
+        ),
+      );
+
+      client.syncEventsOverride = [
+        _googleSeriesInstance(day: 1, location: 'Room 2'),
+        _googleSeriesInstance(
+          day: 8,
+          id: 'split-instance-08',
+          seriesId: splitSeriesId,
+          title: 'New series title',
+          location: 'Room 2',
+          startHour: 10,
+        ),
+        _googleSeriesInstance(
+          day: 15,
+          id: 'split-instance-15',
+          seriesId: splitSeriesId,
+          title: 'New series title',
+          location: 'Room 2',
+          startHour: 10,
+        ),
+      ];
+      await CalendarSyncEngine(
+        database: database,
+        client: client,
+        accountId: 'account',
+        nowUtc: () => DateTime.utc(2026, 6, 10),
+      ).fullSync();
+
+      final active = (await database.select(database.calendarEvents).get())
+          .where((event) => !event.isDeleted)
+          .toList();
+      expect(active, hasLength(3));
+      expect(active.map((event) => event.providerRecurringEventId).toSet(), {
+        'series-master',
+        splitSeriesId,
+      });
+      for (final event in active) {
+        final resolved = await LocationResolutionRepository(database).load(
+          LocationItemIdentity(
+            kind: LocationItemKind.event,
+            accountId: event.accountId,
+            sourceId: event.calendarSourceId,
+            itemId: event.id,
+          ),
+          event.location ?? '',
+        );
+        expect(
+          resolved,
+          isA<LocationResult>()
+              .having(
+                (result) => result.point,
+                'point',
+                GeographicPoint(latitude: 49.2827, longitude: -123.1207),
+              )
+              .having((result) => result.source, 'source', 'ical')
+              .having(
+                (result) => result.attribution,
+                'attribution',
+                'Imported iCalendar GEO',
+              ),
+        );
+      }
+      expect(
+        await CalendarPendingOpsReplayer(
+          database: database,
+          client: client,
+          accountId: 'account',
+          nowUtc: () => DateTime.utc(2026, 6, 11),
+        ).replayDueOps(),
+        0,
+      );
+      expect(
+        await database.select(database.locationResolutions).get(),
+        hasLength(2),
+      );
+    },
+  );
+
+  test(
+    'Google following location split keeps only the earlier series point',
+    () async {
+      final repository = CalendarRepository(database: database);
+      final ids = <String>[];
+      for (final day in [1, 8, 15]) {
+        ids.add(
+          await _insertGoogleOccurrence(
+            repository,
+            day: day,
+            location: 'Room 2',
+          ),
+        );
+      }
+      await _insertGoogleSeriesResolution(database);
+      final detail = await repository.loadEventDetail(ids[1]);
+      await repository.updateLocalEvent(
+        EventEditorDraft.fromEventDetail(detail!).copyWith(
+          location: 'New room',
+          recurringMutationScope: RecurringEventMutationScope.thisAndFuture,
+        ),
+      );
+      final operation = await database.select(database.pendingOps).getSingle();
+      final splitSeriesId = operation.id.replaceAll('-', '').toLowerCase();
+      expect(
+        (await database.select(database.locationResolutions).get())
+            .single
+            .itemId,
+        'series-master',
+      );
+      client
+        ..remoteEvent = _googleSeriesMaster(location: 'Room 2')
+        ..eventInstances = [
+          _googleSeriesInstance(day: 1, location: 'Room 2'),
+          _googleSeriesInstance(day: 8, location: 'Room 2'),
+          _googleSeriesInstance(day: 15, location: 'Room 2'),
+        ];
+
+      expect(
+        await CalendarPendingOpsReplayer(
+          database: database,
+          client: client,
+          accountId: 'account',
+          nowUtc: () => DateTime.utc(2026, 6, 8),
+        ).replayDueOps(),
+        1,
+      );
+      final resolutions = await database
+          .select(database.locationResolutions)
+          .get();
+      expect(resolutions, hasLength(1));
+      expect(resolutions.single.itemId, 'series-master');
+
+      client.syncEventsOverride = [
+        _googleSeriesInstance(day: 1, location: 'Room 2'),
+        _googleSeriesInstance(
+          day: 8,
+          id: 'new-room-instance-08',
+          seriesId: splitSeriesId,
+          location: 'New room',
+        ),
+        _googleSeriesInstance(
+          day: 15,
+          id: 'new-room-instance-15',
+          seriesId: splitSeriesId,
+          location: 'New room',
+        ),
+      ];
+      await CalendarSyncEngine(
+        database: database,
+        client: client,
+        accountId: 'account',
+        nowUtc: () => DateTime.utc(2026, 6, 10),
+      ).fullSync();
+
+      final active = (await database.select(database.calendarEvents).get())
+          .where((event) => !event.isDeleted)
+          .toList();
+      final earlier = active.singleWhere(
+        (event) => event.providerRecurringEventId == 'series-master',
+      );
+      final future = active.where(
+        (event) => event.providerRecurringEventId == splitSeriesId,
+      );
+      expect(future, hasLength(2));
+      expect(
+        await LocationResolutionRepository(database).load(
+          LocationItemIdentity(
+            kind: LocationItemKind.event,
+            accountId: earlier.accountId,
+            sourceId: earlier.calendarSourceId,
+            itemId: earlier.id,
+          ),
+          'Room 2',
+        ),
+        isNotNull,
+      );
+      for (final event in future) {
+        expect(
+          await LocationResolutionRepository(database).load(
+            LocationItemIdentity(
+              kind: LocationItemKind.event,
+              accountId: event.accountId,
+              sourceId: event.calendarSourceId,
+              itemId: event.id,
+            ),
+            'New room',
+          ),
+          isNull,
+        );
+      }
+      expect(
+        (await database.select(database.locationResolutions).get()).map(
+          (row) => row.itemId,
+        ),
+        ['series-master'],
+      );
+    },
+  );
+
   test('Google this-and-following delete trims the old series', () async {
     final repository = CalendarRepository(database: database);
     final ids = <String>[];
@@ -3727,6 +4012,7 @@ Future<String> _insertGoogleOccurrence(
   String? start,
   String? end,
   String timeZone = 'UTC',
+  String? location,
 }) async {
   final date = day.toString().padLeft(2, '0');
   start ??= '2026-06-${date}T09:00:00.000Z';
@@ -3741,6 +4027,7 @@ Future<String> _insertGoogleOccurrence(
       providerRecurringEventId: 'series-master',
       providerOriginalStartKey: start,
       title: 'Base',
+      location: location,
       organizerJson: const {'self': true},
       startDateTime: start,
       startTimeZone: timeZone,
@@ -3750,6 +4037,7 @@ Future<String> _insertGoogleOccurrence(
       rawJson: {
         'id': providerEventId,
         'summary': 'Base',
+        if (location != null) 'location': location,
         'recurringEventId': 'series-master',
         'originalStartTime': {'dateTime': start},
         'start': {'dateTime': start, 'timeZone': timeZone},
@@ -3767,10 +4055,28 @@ Future<String> _insertGoogleOccurrence(
   );
 }
 
+Future<void> _insertGoogleSeriesResolution(AppDatabase database) => database
+    .into(database.locationResolutions)
+    .insert(
+      LocationResolutionsCompanion.insert(
+        kind: googleSeriesLocationResolutionKind,
+        accountId: 'account',
+        sourceId: 'account|google|cal-1',
+        itemId: 'series-master',
+        locationText: 'Room 2',
+        label: 'Room 2',
+        latitude: 49.2827,
+        longitude: -123.1207,
+        source: 'ical',
+        attribution: 'Imported iCalendar GEO',
+      ),
+    );
+
 CalendarEventDto _googleSeriesMaster({
   String timeZone = 'UTC',
   String start = '2026-06-01T09:00:00.000Z',
   String end = '2026-06-01T10:00:00.000Z',
+  String? location,
 }) {
   const recurrence = ['RRULE:FREQ=WEEKLY;INTERVAL=1;BYDAY=MO;COUNT=5'];
   return CalendarEventDto(
@@ -3778,6 +4084,7 @@ CalendarEventDto _googleSeriesMaster({
     providerCalendarId: 'cal-1',
     providerEventId: 'series-master',
     title: 'Base',
+    location: location,
     organizerJson: {'self': true},
     startDateTime: start,
     startTimeZone: timeZone,
@@ -3788,6 +4095,7 @@ CalendarEventDto _googleSeriesMaster({
     rawJson: {
       'id': 'series-master',
       'summary': 'Base',
+      if (location != null) 'location': location,
       'start': {'dateTime': start, 'timeZone': timeZone},
       'end': {'dateTime': end, 'timeZone': timeZone},
       'recurrence': recurrence,
@@ -3796,26 +4104,41 @@ CalendarEventDto _googleSeriesMaster({
   );
 }
 
-CalendarEventDto _googleSeriesInstance({required int day}) {
+CalendarEventDto _googleSeriesInstance({
+  required int day,
+  String? id,
+  String seriesId = 'series-master',
+  String title = 'Base',
+  String? location,
+  int startHour = 9,
+}) {
   final date = day.toString().padLeft(2, '0');
-  final start = '2026-06-${date}T09:00:00.000Z';
-  final end = '2026-06-${date}T10:00:00.000Z';
+  final originalStart = '2026-06-${date}T09:00:00.000Z';
+  final start =
+      '2026-06-${date}T${startHour.toString().padLeft(2, '0')}:00:00.000Z';
+  final end = DateTime.parse(
+    start,
+  ).add(const Duration(hours: 1)).toIso8601String();
+  final eventId = id ?? 'instance-$date';
   return CalendarEventDto(
     provider: BusyProvider.google,
     providerCalendarId: 'cal-1',
-    providerEventId: 'instance-$date',
-    providerRecurringEventId: 'series-master',
-    providerOriginalStartKey: start,
-    title: 'Base',
+    providerEventId: eventId,
+    providerRecurringEventId: seriesId,
+    providerOriginalStartKey: originalStart,
+    title: title,
+    location: location,
     organizerJson: const {'self': true},
     startDateTime: start,
     startTimeZone: 'UTC',
     endDateTime: end,
     endTimeZone: 'UTC',
     rawJson: {
-      'id': 'instance-$date',
-      'recurringEventId': 'series-master',
-      'originalStartTime': {'dateTime': start},
+      'id': eventId,
+      'recurringEventId': seriesId,
+      'originalStartTime': {'dateTime': originalStart},
+      'summary': title,
+      if (location != null) 'location': location,
       'start': {'dateTime': start, 'timeZone': 'UTC'},
       'end': {'dateTime': end, 'timeZone': 'UTC'},
     },
@@ -3949,6 +4272,7 @@ class _FakeCalendarClient
               : 'server-event-$_createdCount',
           title: mutation.title ?? '',
           providerCalendarId: calendarId,
+          location: mutation.location,
           startTimeZone: mutation.startTimeZone,
           endTimeZone: mutation.endTimeZone,
         );
@@ -4025,11 +4349,11 @@ class _FakeCalendarClient
     calls.add('getEvent:$calendarId:$eventId');
     final error = getEventError;
     if (error != null) throw error;
-    final remote = remoteEvent;
-    if (remote != null) return remote;
     for (final created in _createdEventsByIdentity.values) {
       if (created.providerEventId == eventId) return created;
     }
+    final remote = remoteEvent;
+    if (remote != null) return remote;
     return _event(eventId, title: 'Base');
   }
 

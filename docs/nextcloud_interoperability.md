@@ -60,7 +60,7 @@ native import/export and restoration of returned event/task/calendar hrefs.
 They do not prove a real server's invitation delivery, federation, retention,
 Calendar app rendering or Tasks recurring-completion interoperability.
 
-For the 2026-09-09 release candidate, the complete Linux test run passed 1,935
+For the 2026-09-09 release candidate, the complete Linux test run passed 1,940
 tests with zero failures. Ten live-provider tests were explicitly skipped
 because the opt-in credentials and disposable server configuration were not
 present. Focused administration coverage confirms that unresolved incoming

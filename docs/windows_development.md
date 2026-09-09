@@ -27,6 +27,11 @@ flutter config --enable-windows-desktop
 .\tool\windows\check_prerequisites.ps1
 ```
 
+The prerequisite check selects the first `flutter` application on `PATH`,
+normalizes that path, and invokes the Dart executable under that SDK's
+`bin\cache\dart-sdk\bin`. It does not select an unrelated global Dart or
+require Flutter and Dart to have the same immediate parent directory.
+
 ## Entry points
 
 Entrypoints are always explicit. The Windows application must never be built
@@ -122,11 +127,11 @@ records the final commit and exact executable paths:
 | `flutter pub get --enforce-lockfile` | Passed; the Flutter 3.44.4 resolution matched the committed lockfile without changing it. |
 | `flutter gen-l10n` | Passed; every supported catalog generated. |
 | `dart run build_runner build --delete-conflicting-outputs --force-jit` | Passed; generated Drift content remained consistent and the schema version remained 14. The pinned build runner reported that the legacy delete-conflicting option is ignored. |
-| `dart format --output=none --set-exit-if-changed .` | Passed; 524 files checked, zero changes required. |
+| `dart format --output=none --set-exit-if-changed .` | Passed; 526 files checked, zero changes required. |
 | `flutter analyze` | Passed; no issues found. |
 | `dart run tool/check_platform_boundaries.dart` | Passed. |
-| Focused regressions | Passed; 249 combined blocker/contract tests, plus 130 date/time tests under a UTC process timezone. |
-| `flutter test` | Passed; 1,935 tests passed, 10 credential-gated live tests skipped, zero failed. Machine report: `build/release-verification/flutter-tests.jsonl`. |
+| Focused regressions | Passed; 254 combined blocker/contract tests, including executable Flutter SDK-layout and Google series-split coverage, plus 130 date/time tests under a UTC process timezone. |
+| `flutter test` | Passed; 1,940 tests passed, 10 credential-gated live tests skipped, zero failed. Machine report: `build/release-verification/flutter-tests.jsonl`. |
 | `flutter build linux --release -t lib/main_linux.dart` | Passed; produced `build/linux/x64/release/bundle/busymax`. |
 | `snapcraft pack --use-lxd` | Passed using the canonical recipe; produced `busymax_0.2.0_amd64.snap`. The final SHA-256 is recorded in the completion report so the report identifies the artifact packed after the source commit. |
 | Isolated Snap install | The exact bytes installed in the disposable LXD QA container as strict, `devel`, amd64 0.2.0; required interfaces connected and exactly one BusyMax launcher was registered. A real desktop session is still required for tray, launch-handler, and visible-error checks. |

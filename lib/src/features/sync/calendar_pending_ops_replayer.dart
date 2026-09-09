@@ -676,6 +676,16 @@ class CalendarPendingOpsReplayer {
         ),
         guestUpdatePolicy: _guestUpdatePolicy(request),
       );
+      if (request.containsKey('location')) {
+        await LocationResolutionRepository(
+          _database,
+        ).removeGoogleSeriesSourceUnlessLocationMatches(
+          accountId: _accountId,
+          sourceId: local.calendarSourceId,
+          providerSeriesId: masterId,
+          expectedLocation: request['location']?.toString() ?? '',
+        );
+      }
       await _markRecurringRowsSynced(op, local);
       return;
     }
@@ -757,8 +767,9 @@ class CalendarPendingOpsReplayer {
     }
     final providerRaw = {...originalMaster.rawJson}..remove('conferenceData');
     final splitEventId = op.id.replaceAll('-', '').toLowerCase();
+    late final CalendarEventDto splitEvent;
     try {
-      await _client.createEvent(
+      splitEvent = await _client.createEvent(
         calendarId: calendarId,
         mutation: _eventMutation(
           splitRequest,
@@ -770,8 +781,18 @@ class CalendarPendingOpsReplayer {
       );
     } on GoogleCalendarApiError catch (error) {
       if (error.statusCode != 409) rethrow;
-      await _client.getEvent(calendarId: calendarId, eventId: splitEventId);
+      splitEvent = await _client.getEvent(
+        calendarId: calendarId,
+        eventId: splitEventId,
+      );
     }
+    await LocationResolutionRepository(_database).copyGoogleSeriesSource(
+      accountId: _accountId,
+      sourceId: local.calendarSourceId,
+      fromProviderSeriesId: masterId,
+      toProviderSeriesId: splitEventId,
+      expectedLocation: splitEvent.location ?? '',
+    );
     await _markRecurringRowsSynced(op, local);
   }
 

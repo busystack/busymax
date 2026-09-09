@@ -86,9 +86,12 @@ void main() {
       contains('& git diff --exit-code -- lib/l10n/generated lib/src/db'),
     );
     expect(prerequisiteScript, contains('Get-Command flutter'));
-    expect(prerequisiteScript, contains('Get-Command dart'));
-    expect(prerequisiteScript, contains(r'if ($flutterBin -ne $dartBin)'));
-    expect(prerequisiteScript, contains("dartSdkVersion -ne '3.12.2'"));
+    expect(prerequisiteScript, contains('-All'));
+    expect(prerequisiteScript, contains("'cache\\dart-sdk\\bin\\dart.exe'"));
+    expect(prerequisiteScript, contains('verify_flutter_sdk.dart'));
+    expect(prerequisiteScript, contains("dartVersion -ne '3.12.2'"));
+    expect(prerequisiteScript, isNot(contains('Get-Command dart')));
+    expect(prerequisiteScript, isNot(contains(r'$flutterBin -ne $dartBin')));
   });
 
   test(

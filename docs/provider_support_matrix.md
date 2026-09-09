@@ -102,8 +102,10 @@ Microsoft structured coordinates and iCalendar `GEO` remain provider-native.
 For an imported or copied point that Google Calendar cannot represent, BusyMax
 stores only local supplemental data. Recurring-series data is scoped by
 account, calendar, actual provider series identity, and matching location
-snapshot; an occurrence-specific point has precedence. Ordinary native
-coordinate creation does not create a supplemental duplicate.
+snapshot; an occurrence-specific point has precedence. A Google **This and
+following** split retains the earlier series association and copies it to the
+new series only when the location is unchanged. Ordinary native-coordinate
+creation does not create a supplemental duplicate.
 
 ## Deliberate boundaries
 

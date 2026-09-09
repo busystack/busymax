@@ -141,6 +141,8 @@ has only free-form location text in this workflow, BusyMax retains a local
 supplemental point for the exact saved event or provider series. A later
 recurring occurrence can reuse the series point only while its saved location
 still matches; an occurrence-specific point takes precedence. Supplemental
+series data follows a Google **This and following** split only when the new
+series keeps that location; the earlier series retains its own association.
 points are not uploaded through Google Calendar and therefore are not
 automatically available on another BusyMax installation.
 

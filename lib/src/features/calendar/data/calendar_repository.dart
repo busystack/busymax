@@ -3141,7 +3141,9 @@ class CalendarRepository {
             : companion,
       );
     }
-    if (provider == BusyProvider.google && locationChanged) {
+    if (provider == BusyProvider.google &&
+        locationChanged &&
+        scope == RecurringEventMutationScope.entireSeries) {
       await LocationResolutionRepository(_database).removeGoogleSeriesSource(
         accountId: existing.accountId,
         sourceId: existing.calendarSourceId,
