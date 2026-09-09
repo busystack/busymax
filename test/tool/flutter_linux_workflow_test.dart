@@ -19,7 +19,46 @@ void main() {
     expect(workflow, contains('tool/verify_flutter_sdk.dart'));
     expect(workflow, contains('--expected-dart 3.12.2'));
     expect(workflow, isNot(contains(r'command -v dart')));
-    expect(workflow, contains('flutter pub get --enforce-lockfile'));
+    expect(
+      workflow,
+      contains(
+        r"printf 'BUSYMAX_FLUTTER_EXECUTABLE=%s\n' "
+        r'"$flutter_executable" >> "$GITHUB_ENV"',
+      ),
+    );
+    expect(
+      workflow,
+      contains(
+        r"printf 'BUSYMAX_DART_EXECUTABLE=%s\n' "
+        r'"$dart_executable" >> "$GITHUB_ENV"',
+      ),
+    );
+    expect(
+      workflow,
+      contains(r'"$BUSYMAX_FLUTTER_EXECUTABLE" pub get --enforce-lockfile'),
+    );
+    expect(workflow, contains(r'"$BUSYMAX_FLUTTER_EXECUTABLE" gen-l10n'));
+    expect(
+      workflow,
+      contains(r'"$BUSYMAX_DART_EXECUTABLE" run build_runner build'),
+    );
+    expect(workflow, contains(r'"$BUSYMAX_DART_EXECUTABLE" format'));
+    expect(
+      workflow,
+      contains(
+        r'"$BUSYMAX_DART_EXECUTABLE" run '
+        'tool/check_platform_boundaries.dart',
+      ),
+    );
+    expect(workflow, contains(r'"$BUSYMAX_FLUTTER_EXECUTABLE" analyze'));
+    expect(workflow, contains(r'"$BUSYMAX_FLUTTER_EXECUTABLE" test'));
+    expect(workflow, contains(r'"$BUSYMAX_FLUTTER_EXECUTABLE" build linux'));
+    expect(
+      workflow,
+      isNot(
+        matches(RegExp(r'^\s+(?:run:\s*)?(?:dart|flutter)\s', multiLine: true)),
+      ),
+    );
     expect(workflow, contains('uses: snapcore/action-build@v1'));
     expect(workflow, contains('uses: actions/upload-artifact@v7'));
     expect(workflow, contains('Validate release provider configuration'));

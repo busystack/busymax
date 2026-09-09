@@ -80,7 +80,36 @@ void main() {
 
     final package = _stepBlock(workflow, 'Pack and inspect exact MSIX');
     expect(package, isNot(contains('github.event_name')));
-    expect(buildScript, contains('& flutter pub get --enforce-lockfile'));
+    expect(
+      buildScript,
+      contains(r'$prerequisites = & "$PSScriptRoot/check_prerequisites.ps1"'),
+    );
+    expect(
+      buildScript,
+      contains(
+        r'$flutterExecutable = [string]$prerequisites.FlutterExecutable',
+      ),
+    );
+    expect(
+      buildScript,
+      contains(r'$dartExecutable = [string]$prerequisites.DartExecutable'),
+    );
+    expect(
+      buildScript,
+      contains(r'& $flutterExecutable pub get --enforce-lockfile'),
+    );
+    expect(buildScript, contains(r'& $flutterExecutable gen-l10n'));
+    expect(buildScript, contains(r'& $dartExecutable run build_runner build'));
+    expect(buildScript, contains(r'& $dartExecutable format'));
+    expect(
+      buildScript,
+      contains(r'& $dartExecutable run tool/check_platform_boundaries.dart'),
+    );
+    expect(buildScript, contains(r'& $flutterExecutable analyze'));
+    expect(buildScript, contains(r'& $flutterExecutable test --machine'));
+    expect(buildScript, contains(r'& $flutterExecutable build windows'));
+    expect(buildScript, isNot(matches(RegExp(r'&\s+dart\s'))));
+    expect(buildScript, isNot(matches(RegExp(r'&\s+flutter\s'))));
     expect(
       buildScript,
       contains('& git diff --exit-code -- lib/l10n/generated lib/src/db'),
