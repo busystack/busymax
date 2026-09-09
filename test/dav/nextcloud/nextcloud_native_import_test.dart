@@ -11,7 +11,9 @@ import 'package:busymax/src/dav/nextcloud/nextcloud_native_export.dart';
 import 'package:busymax/src/dav/storage/dav_object_repository.dart';
 import 'package:busymax/src/db/app_database.dart';
 import 'package:busymax/src/features/calendar/data/calendar_repository.dart';
+import 'package:busymax/src/features/calendar/presentation/event_editor_draft.dart';
 import 'package:busymax/src/features/accounts/domain/account_connection_state.dart';
+import 'package:busymax/src/features/tasks/data/tasks_repository.dart';
 import 'package:busymax/src/providers/busy_provider.dart';
 import 'package:drift/drift.dart' hide isNull;
 import 'package:flutter_test/flutter_test.dart';
@@ -90,6 +92,40 @@ void main() {
             ? NativeImportDuplicates.newCopies
             : NativeImportDuplicates.skip,
       );
+  Future<List<http.Request>> permanentlyRejectPendingCreate() async {
+    final requests = <http.Request>[];
+    final client = MockClient((request) async {
+      requests.add(request);
+      if (request.method != 'PUT') {
+        throw StateError('Unexpected ${request.method} request.');
+      }
+      return http.Response('', 415);
+    });
+    addTearDown(client.close);
+    final context = await fixture.collections.openContext();
+    final remote = DavMutationHttpClient(
+      transport: DavHttpTransport(
+        client: client,
+        profile: context.profile,
+        accountAuthority: context.authority,
+      ),
+      accountId: 'account',
+      collectionId: 'collection',
+      credential: context.credential,
+    );
+    final result = await DavPendingOperationsReplayer(
+      database: fixture.database,
+      accountId: 'account',
+      objectRepository: DavObjectRepository(database: fixture.database),
+      serviceFactory: ({required account, required collection}) async =>
+          DavConditionalMutationService(remoteClient: remote),
+      idFactory: () => 'rejected-create',
+      nowUtc: () => now,
+    ).replayDueOperations();
+    expect(result.appliedCount, 0);
+    expect(result.retryCount, 0);
+    return requests;
+  }
 
   test(
     'native preview groups types and recurrence sets without mutating input',
@@ -211,6 +247,136 @@ void main() {
       );
     },
   );
+  test(
+    'collection export retains an editor event after permanent create rejection',
+    () async {
+      final db = fixture.database;
+      await CalendarRepository(
+        database: db,
+        now: () => now,
+        localTimeZone: 'UTC',
+      ).createLocalEvent(
+        EventEditorDraft.newEvent(
+          accountId: 'account',
+          sourceId: 'dav-calendar-collection',
+          providerCalendarId: NextcloudAdminFixture.collection,
+          start: DateTime.utc(2026, 9, 6, 10),
+          end: DateTime.utc(2026, 9, 6, 11),
+        ).copyWith(
+          title: 'Locally retained event',
+          description: 'Must survive export',
+        ),
+      );
+      final queued = await db.select(db.pendingOps).getSingle();
+      final request = jsonDecode(queued.requestJson) as Map;
+      final uid = request['uid']! as String;
+      expect(queued.davObjectId, isNull);
+      expect(request.containsKey('suppressScheduling'), isFalse);
+
+      final providerRequests = await permanentlyRejectPendingCreate();
+      final failedBefore = await db.select(db.pendingOps).getSingle();
+      final eventBefore = await db.select(db.calendarEvents).getSingle();
+      expect(failedBefore.state, 'failed');
+      expect(failedBefore.lastErrorCode, 'DavMalformedResource');
+      expect(providerRequests, hasLength(1));
+
+      final snapshot = await NextcloudNativeExportService(
+        db,
+      ).collection('account', 'collection');
+
+      final resource = snapshot.single;
+      final component = IcalSemanticDocument.parse(
+        resource.rawIcs,
+      ).components.single;
+      expect(resource.uid, uid);
+      expect(resource.componentType, 'VEVENT');
+      expect(component.uid, uid);
+      expect(component.summary, 'Locally retained event');
+      expect(component.description, 'Must survive export');
+      expect(await db.select(db.pendingOps).getSingle(), failedBefore);
+      expect(await db.select(db.calendarEvents).getSingle(), eventBefore);
+      expect(await db.select(db.davObjects).get(), isEmpty);
+      expect(providerRequests, hasLength(1));
+    },
+  );
+  test(
+    'collection export retains an editor task after permanent create rejection',
+    () async {
+      final db = fixture.database;
+      await TasksRepository(
+        database: db,
+        accountId: 'account',
+        nowUtc: () => now,
+      ).createTask(
+        'dav-task-list-collection',
+        const TaskCreateInput(
+          title: 'Locally retained task',
+          notes: 'Must survive export',
+        ),
+      );
+      final queued = await db.select(db.pendingOps).getSingle();
+      final request = jsonDecode(queued.requestJson) as Map;
+      final uid = request['uid']! as String;
+      expect(queued.davObjectId, isNull);
+      expect(request.containsKey('suppressScheduling'), isFalse);
+
+      final providerRequests = await permanentlyRejectPendingCreate();
+      final failedBefore = await db.select(db.pendingOps).getSingle();
+      final taskBefore = await db.select(db.tasks).getSingle();
+      expect(failedBefore.state, 'failed');
+      expect(failedBefore.lastErrorCode, 'DavMalformedResource');
+      expect(providerRequests, hasLength(1));
+
+      final snapshot = await NextcloudNativeExportService(
+        db,
+      ).collection('account', 'collection');
+
+      final resource = snapshot.single;
+      final component = IcalSemanticDocument.parse(
+        resource.rawIcs,
+      ).components.single;
+      expect(resource.uid, uid);
+      expect(resource.componentType, 'VTODO');
+      expect(component.uid, uid);
+      expect(component.summary, 'Locally retained task');
+      expect(component.description, 'Must survive export');
+      expect(await db.select(db.pendingOps).getSingle(), failedBefore);
+      expect(await db.select(db.tasks).getSingle(), taskBefore);
+      expect(await db.select(db.davObjects).get(), isEmpty);
+      expect(providerRequests, hasLength(1));
+    },
+  );
+  test('collection export reports a malformed retained creation', () async {
+    final db = fixture.database;
+    await TasksRepository(
+      database: db,
+      accountId: 'account',
+      nowUtc: () => now,
+    ).createTask(
+      'dav-task-list-collection',
+      const TaskCreateInput(title: 'Corrupt retained task'),
+    );
+    final operation = await db.select(db.pendingOps).getSingle();
+    await (db.update(
+      db.pendingOps,
+    )..where((row) => row.id.equals(operation.id))).write(
+      const PendingOpsCompanion(
+        state: Value('failed'),
+        requestJson: Value('{"uid":"incomplete"}'),
+      ),
+    );
+
+    await expectLater(
+      NextcloudNativeExportService(db).collection('account', 'collection'),
+      throwsA(
+        isA<StateError>().having(
+          (error) => error.message,
+          'message',
+          contains(operation.id),
+        ),
+      ),
+    );
+  });
   test(
     'native task import rejects cycles and missing parents without orphan rows',
     () async {

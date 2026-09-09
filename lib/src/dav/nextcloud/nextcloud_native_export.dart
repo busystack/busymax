@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:drift/drift.dart';
 
 import '../../db/app_database.dart';
+import '../ical/ical_semantics.dart';
 import '../mutation/dav_pending_operations.dart';
 import '../storage/dav_collection_capabilities.dart';
 import 'nextcloud_native_import.dart';
@@ -41,6 +42,24 @@ final class NextcloudNativeExportService {
                     'conflict',
                     'auth_blocked',
                     'permission_blocked',
+                  ]),
+            ))
+            .get();
+    final unanchoredCreations =
+        await (database.select(database.pendingOps)..where(
+              (r) =>
+                  r.accountId.equals(accountId) &
+                  r.davCollectionId.equals(collectionId) &
+                  r.operationType.equals('dav.create') &
+                  r.davObjectId.isNull() &
+                  r.state.isIn(const [
+                    'pending',
+                    'retry',
+                    'in_progress',
+                    'conflict',
+                    'auth_blocked',
+                    'permission_blocked',
+                    'failed',
                   ]),
             ))
             .get();
@@ -85,21 +104,41 @@ final class NextcloudNativeExportService {
     }
     // Normal editor-created resources can have a projection but no raw-object
     // anchor until their first server PUT. They belong in the same export.
-    for (final op in operations.where(
-      (op) =>
-          op.operationType == 'dav.create' &&
-          op.davCollectionId == collectionId &&
-          op.davObjectId == null,
-    )) {
-      final request = jsonDecode(op.requestJson) as Map;
-      resources.add(
-        NativeImportResource(
-          request['uid'] as String,
-          request['componentType'] as String,
-          request['rawIcs'] as String,
-        ),
-      );
+    for (final op in unanchoredCreations) {
+      resources.add(_pendingCreationResource(op));
     }
     return List.unmodifiable(resources);
   });
+}
+
+NativeImportResource _pendingCreationResource(PendingOp operation) {
+  try {
+    final decoded = jsonDecode(operation.requestJson);
+    if (decoded is! Map) throw const FormatException();
+    final uid = decoded['uid'];
+    final componentType = decoded['componentType'];
+    final rawIcs = decoded['rawIcs'];
+    if (uid is! String ||
+        uid.trim().isEmpty ||
+        componentType is! String ||
+        componentType.trim().isEmpty ||
+        rawIcs is! String ||
+        rawIcs.trim().isEmpty) {
+      throw const FormatException();
+    }
+    final parsed = IcalSemanticDocument.parse(rawIcs);
+    if (parsed.primaryUid != uid ||
+        parsed.components.isEmpty ||
+        parsed.components.any(
+          (component) => component.componentType != componentType,
+        )) {
+      throw const FormatException();
+    }
+    return NativeImportResource(uid, componentType, rawIcs);
+  } on Object {
+    throw StateError(
+      'Pending local creation ${operation.id} could not be included in the '
+      'native export.',
+    );
+  }
 }
