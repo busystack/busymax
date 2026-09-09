@@ -1,5 +1,6 @@
-import 'dart:io';
+import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:busymax/src/core/auth/oauth_models.dart';
 import 'package:busymax/src/core/secrets/secret_store.dart';
@@ -283,6 +284,180 @@ void main() {
     skip: !Platform.isLinux,
   );
 
+  test(
+    'portal store serializes overlapping saves and active-account changes',
+    () async {
+      final storageFile = File('${tempDir.path}/oauth-tokens.v1.json');
+      final immediateFile = _ImmediateFile(storageFile);
+      final portal = _FirstPortalRequestGate(
+        const PortalSecret(bytes: _secretBytes, token: 'portal-token'),
+      );
+      final firstStore = PortalEncryptedSecretStore(
+        portalClient: portal,
+        storageFile: immediateFile,
+      );
+      final secondStore = PortalEncryptedSecretStore(
+        portalClient: portal,
+        storageFile: immediateFile,
+      );
+
+      final firstSave = firstStore.saveOAuthTokenSet(
+        'account-a',
+        BusyProvider.google,
+        _tokenSet(accessToken: 'access-a'),
+      );
+      await portal.firstRequestStarted.future;
+      final secondSave = secondStore.saveOAuthTokenSet(
+        'account-b',
+        BusyProvider.microsoft,
+        _tokenSet(accessToken: 'access-b'),
+      );
+      final activeAccountWrite = secondStore.setActiveAccountId('account-b');
+
+      await _drainMicrotasks();
+      final requestsBeforeRelease = portal.requests;
+      portal.releaseFirstRequest();
+      await Future.wait([firstSave, secondSave, activeAccountWrite]);
+
+      expect(requestsBeforeRelease, 1);
+      final reopened = PortalEncryptedSecretStore(
+        portalClient: _FakeSecretPortalClient(
+          const PortalSecret(bytes: _secretBytes, token: 'portal-token'),
+        ),
+        storageFile: storageFile,
+      );
+      expect(
+        (await reopened.readOAuthTokenSet(
+          'account-a',
+          BusyProvider.google,
+        ))?.accessToken,
+        'access-a',
+      );
+      expect(
+        (await reopened.readOAuthTokenSet(
+          'account-b',
+          BusyProvider.microsoft,
+        ))?.accessToken,
+        'access-b',
+      );
+      expect(await reopened.readActiveAccountId(), 'account-b');
+    },
+    skip: !Platform.isLinux,
+  );
+
+  test(
+    'portal store orders a delete after an overlapping save',
+    () async {
+      final storageFile = File('${tempDir.path}/oauth-tokens.v1.json');
+      final immediateFile = _ImmediateFile(storageFile);
+      final portal = _FirstPortalRequestGate(
+        const PortalSecret(bytes: _secretBytes, token: 'portal-token'),
+      );
+      final savingStore = PortalEncryptedSecretStore(
+        portalClient: portal,
+        storageFile: immediateFile,
+      );
+      final deletingStore = PortalEncryptedSecretStore(
+        portalClient: portal,
+        storageFile: immediateFile,
+      );
+
+      final save = savingStore.saveOAuthTokenSet(
+        'account-a',
+        BusyProvider.google,
+        _tokenSet(accessToken: 'access-a'),
+      );
+      await portal.firstRequestStarted.future;
+      var deleteCompleted = false;
+      final delete = deletingStore.deleteCredential('account-a');
+      unawaited(delete.then((_) => deleteCompleted = true));
+
+      await _drainMicrotasks();
+      final deleteWasSerialized = !deleteCompleted;
+      portal.releaseFirstRequest();
+      await Future.wait([save, delete]);
+
+      expect(deleteWasSerialized, isTrue);
+      final reopened = PortalEncryptedSecretStore(
+        portalClient: _FakeSecretPortalClient(
+          const PortalSecret(bytes: _secretBytes, token: 'portal-token'),
+        ),
+        storageFile: storageFile,
+      );
+      expect(
+        await reopened.readOAuthTokenSet('account-a', BusyProvider.google),
+        isNull,
+      );
+    },
+    skip: !Platform.isLinux,
+  );
+
+  test(
+    'portal store preserves the valid file when replacement fails',
+    () async {
+      final storageFile = File('${tempDir.path}/oauth-tokens.v1.json');
+      final portalSecret = const PortalSecret(
+        bytes: _secretBytes,
+        token: 'portal-token',
+      );
+      final initialStore = PortalEncryptedSecretStore(
+        portalClient: _FakeSecretPortalClient(portalSecret),
+        storageFile: storageFile,
+      );
+      await initialStore.saveOAuthTokenSet(
+        'account-a',
+        BusyProvider.google,
+        _tokenSet(accessToken: 'access-a'),
+      );
+
+      final failingStore = PortalEncryptedSecretStore(
+        portalClient: _FakeSecretPortalClient(portalSecret),
+        storageFile: _ImmediateFile(storageFile, failDirectoryCreate: true),
+      );
+      await expectLater(
+        failingStore.saveOAuthTokenSet(
+          'account-b',
+          BusyProvider.microsoft,
+          _tokenSet(accessToken: 'access-b'),
+        ),
+        throwsA(isA<SecretStoreException>()),
+      );
+
+      final recoveryStore = PortalEncryptedSecretStore(
+        portalClient: _FakeSecretPortalClient(portalSecret),
+        storageFile: storageFile,
+      );
+      await recoveryStore.saveOAuthTokenSet(
+        'account-c',
+        BusyProvider.microsoft,
+        _tokenSet(accessToken: 'access-c'),
+      );
+      final reopened = PortalEncryptedSecretStore(
+        portalClient: _FakeSecretPortalClient(portalSecret),
+        storageFile: storageFile,
+      );
+      expect(
+        (await reopened.readOAuthTokenSet(
+          'account-a',
+          BusyProvider.google,
+        ))?.accessToken,
+        'access-a',
+      );
+      expect(
+        await reopened.readOAuthTokenSet('account-b', BusyProvider.microsoft),
+        isNull,
+      );
+      expect(
+        (await reopened.readOAuthTokenSet(
+          'account-c',
+          BusyProvider.microsoft,
+        ))?.accessToken,
+        'access-c',
+      );
+    },
+    skip: !Platform.isLinux,
+  );
+
   test('portal encrypted token store maps portal failures', () async {
     final store = PortalEncryptedSecretStore(
       portalClient: _ThrowingSecretPortalClient(
@@ -362,9 +537,9 @@ const _secretBytes = <int>[
   32,
 ];
 
-OAuthTokenSet _tokenSet() {
+OAuthTokenSet _tokenSet({String accessToken = 'access-secret'}) {
   return OAuthTokenSet(
-    accessToken: 'access-secret',
+    accessToken: accessToken,
     refreshToken: 'refresh-secret',
     idToken: 'id-secret',
     expiresAtUtc: DateTime.utc(2026, 6, 4, 1),
@@ -390,6 +565,91 @@ class _ThrowingSecretPortalClient implements SecretPortalClient {
   @override
   Future<PortalSecret> retrieveSecret({String? token}) async {
     throw error;
+  }
+}
+
+class _FirstPortalRequestGate implements SecretPortalClient {
+  _FirstPortalRequestGate(this.secret);
+
+  final PortalSecret secret;
+  final firstRequestStarted = Completer<void>();
+  final _firstRequestRelease = Completer<void>();
+  var requests = 0;
+
+  @override
+  Future<PortalSecret> retrieveSecret({String? token}) async {
+    requests += 1;
+    if (requests == 1) {
+      firstRequestStarted.complete();
+      await _firstRequestRelease.future;
+    }
+    return secret;
+  }
+
+  void releaseFirstRequest() {
+    if (!_firstRequestRelease.isCompleted) {
+      _firstRequestRelease.complete();
+    }
+  }
+}
+
+final class _ImmediateFile implements File {
+  const _ImmediateFile(this._delegate, {this.failDirectoryCreate = false});
+
+  final File _delegate;
+  final bool failDirectoryCreate;
+
+  @override
+  File get absolute => _delegate.absolute;
+
+  @override
+  Future<bool> exists() => Future<bool>.value(_delegate.existsSync());
+
+  @override
+  Directory get parent =>
+      _ImmediateDirectory(_delegate.parent, failCreate: failDirectoryCreate);
+
+  @override
+  String get path => _delegate.path;
+
+  @override
+  Future<String> readAsString({Encoding encoding = utf8}) =>
+      Future<String>.value(_delegate.readAsStringSync(encoding: encoding));
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) =>
+      throw UnsupportedError('Unexpected File operation: $invocation');
+}
+
+final class _ImmediateDirectory implements Directory {
+  const _ImmediateDirectory(this._delegate, {required this.failCreate});
+
+  final Directory _delegate;
+  final bool failCreate;
+
+  @override
+  Future<Directory> create({bool recursive = false}) {
+    if (failCreate) {
+      throw FileSystemException(
+        'Injected encrypted-store replacement failure.',
+        path,
+      );
+    }
+    _delegate.createSync(recursive: recursive);
+    return Future<Directory>.value(this);
+  }
+
+  @override
+  String get path => _delegate.path;
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) =>
+      throw UnsupportedError('Unexpected Directory operation: $invocation');
+}
+
+Future<void> _drainMicrotasks() async {
+  for (var index = 0; index < 20; index += 1) {
+    await Future<void>.value();
   }
 }
 
