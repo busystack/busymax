@@ -329,15 +329,18 @@ final class DavAccountSyncEngine {
         failures.addAll(followUpResults.failures);
       }
 
-      if (affected.isNotEmpty || notificationProjectionsChanged) {
-        await _rebuildNotifications?.call(_accountId, affected);
-      }
       if (failures.isNotEmpty) {
+        if (affected.isNotEmpty || notificationProjectionsChanged) {
+          await _rebuildNotifications?.call(_accountId, affected);
+        }
         await _recordFailureState(failures.first, discoveryRepository);
         throw DavAccountSyncException(failures);
       }
       if (!replay.paused) {
         await _markSuccessful(full: full);
+      }
+      if (affected.isNotEmpty || notificationProjectionsChanged) {
+        await _rebuildNotifications?.call(_accountId, affected);
       }
       return DavAccountSyncResult(
         discoveryRefreshed: discoveryRefreshed,

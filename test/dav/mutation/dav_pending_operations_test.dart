@@ -7,6 +7,7 @@ import 'package:busymax/src/dav/ical/ical_document.dart';
 import 'package:busymax/src/dav/ical/ical_semantics.dart';
 import 'package:busymax/src/dav/ical/ical_task_alarm.dart';
 import 'package:busymax/src/dav/mutation/dav_conditional_mutation_service.dart';
+import 'package:busymax/src/dav/mutation/dav_conflict_repository.dart';
 import 'package:busymax/src/dav/mutation/dav_mutation_patch.dart';
 import 'package:busymax/src/dav/mutation/dav_pending_operations.dart';
 import 'package:busymax/src/dav/storage/dav_object_repository.dart';
@@ -179,6 +180,102 @@ void main() {
       _event('Baseline'),
     );
   });
+
+  test(
+    'Keep server preserves both identities after a MOVE destination collision',
+    () async {
+      await _seedDestination(database);
+      final sourceObject = await database
+          .select(database.davObjects)
+          .getSingle();
+      final sourceEvent = await database
+          .select(database.calendarEvents)
+          .getSingle();
+      const destinationHref = '/remote.php/dav/calendars/alex/home/event.ics';
+      final destinationRaw = _eventWithUid(
+        'Unrelated destination',
+        'destination-event@example.test',
+      );
+      await queue.enqueueMove(
+        accountId: 'account',
+        sourceCollectionId: 'collection',
+        destinationCollectionId: 'destination',
+        objectId: sourceObject.id,
+        localProjectionId: sourceEvent.id,
+        target: _target,
+      );
+      var moveRequests = 0;
+      final remote = _FakeMutationRemote(
+        move:
+            ({
+              required sourceUri,
+              required destinationUri,
+              required ifMatch,
+            }) async {
+              moveRequests += 1;
+              expect(sourceUri.path, _eventHref);
+              expect(destinationUri.path, destinationHref);
+              expect(ifMatch, 'W/"baseline"');
+              return _precondition;
+            },
+        fetcher: (href) async => href == destinationHref
+            ? _live(href, '"destination"', destinationRaw)
+            : _live(href, 'W/"baseline"', _event('Baseline')),
+      );
+
+      final replay = await _replayer(
+        database,
+        objectRepository,
+        remote,
+      ).replayDueOperations();
+
+      expect(replay.conflictCount, 1);
+      final conflict = await DavConflictRepository(
+        database: database,
+      ).watchUnresolved().first;
+      expect(conflict.single.conflictCode, 'DavConflictMoveDestinationExists');
+      expect(conflict.single.canKeepServer, isTrue);
+      expect(conflict.single.canReapplyLocal, isFalse);
+
+      await DavConflictResolutionService(
+        database: database,
+        objectRepository: objectRepository,
+        nowUtc: () => _now,
+      ).resolve(conflict.single.id, DavConflictResolution.keepServer);
+
+      expect(moveRequests, 1);
+      expect(await database.select(database.pendingOps).get(), isEmpty);
+      final source = await (database.select(
+        database.davObjects,
+      )..where((row) => row.collectionId.equals('collection'))).getSingle();
+      final destination = await (database.select(
+        database.davObjects,
+      )..where((row) => row.collectionId.equals('destination'))).getSingle();
+      expect(source.hrefKey, _eventHref);
+      expect(source.requestUri, 'https://cloud.example.test$_eventHref');
+      expect(source.primaryUid, 'event@example.test');
+      expect(source.rawIcsBody, _event('Baseline'));
+      expect(source.etag, 'W/"baseline"');
+      expect(destination.hrefKey, destinationHref);
+      expect(
+        destination.requestUri,
+        'https://cloud.example.test$destinationHref',
+      );
+      expect(destination.primaryUid, 'destination-event@example.test');
+      expect(destination.rawIcsBody, destinationRaw);
+      expect(destination.etag, '"destination"');
+      final events = await database.select(database.calendarEvents).get();
+      expect(events.map((event) => event.title).toSet(), {
+        'Baseline',
+        'Unrelated destination',
+      });
+      expect(
+        (await database.select(database.davConflictSnapshots).getSingle())
+            .resolution,
+        DavConflictResolution.keepServer.name,
+      );
+    },
+  );
 
   test('revoked credential pauses replay and preserves pending work', () async {
     final object = await database.select(database.davObjects).getSingle();

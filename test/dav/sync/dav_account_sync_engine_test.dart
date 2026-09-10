@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:busymax/src/app/app_settings.dart';
 import 'package:busymax/src/core/secrets/secret_store.dart';
 import 'package:busymax/src/dav/dav_errors.dart';
 import 'package:busymax/src/dav/dav_provider_profile.dart';
@@ -11,9 +12,11 @@ import 'package:busymax/src/dav/storage/dav_object_repository.dart';
 import 'package:busymax/src/dav/sync/dav_account_sync_engine.dart';
 import 'package:busymax/src/db/app_database.dart';
 import 'package:busymax/src/features/notifications/notification_schedule_service.dart';
+import 'package:busymax/src/features/notifications/desktop_notification_service.dart';
+import 'package:busymax/src/features/notifications/notification_scheduler.dart';
 import 'package:busymax/src/features/sync/pending_op_resolution_service.dart';
 import 'package:busymax/src/providers/busy_provider.dart';
-import 'package:drift/drift.dart';
+import 'package:drift/drift.dart' hide isNotNull, isNull;
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
@@ -603,6 +606,149 @@ void main() {
   );
 
   test(
+    'temporary DAV failure keeps cached reminders and recovery rebuilds after reconnect',
+    () async {
+      var clock = DateTime.utc(2026, 8, 8, 12);
+      final initialBody = _eventWithReminder(
+        'Cached appointment',
+        startUtc: DateTime.utc(2026, 8, 9, 9),
+      );
+      final repository = DavObjectRepository(
+        database: database,
+        idFactory: () => 'reminder-object',
+      );
+      await repository.commitConfirmedMutation(
+        accountId: 'account',
+        collectionId: 'collection',
+        provider: BusyProvider.nextcloud,
+        canonicalObject: _preparedMember(
+          href: _eventHref,
+          etag: '"reminder-1"',
+          body: initialBody,
+        ),
+        completedAtUtc: clock,
+      );
+      final scheduleService = NotificationScheduleService(
+        database: database,
+        nowUtc: () => clock,
+      );
+      await scheduleService.rebuildUpcomingNotifications('account');
+      var scheduled = await database
+          .select(database.notificationSchedule)
+          .getSingle();
+      expect(
+        scheduled.scheduledAtUtc,
+        DateTime.utc(2026, 8, 9, 8, 30).millisecondsSinceEpoch,
+      );
+
+      await expectLater(
+        DavAccountSyncEngine(
+          database: database,
+          secretStore: _UnavailableSecretStore(),
+          httpClient: MockClient((_) async => http.Response('', 500)),
+          accountId: 'account',
+          nowUtc: () => clock,
+        ).synchronize(),
+        throwsA(
+          isA<DavException>().having(
+            (error) => error.code,
+            'code',
+            'DavCredentialStoreUnavailable',
+          ),
+        ),
+      );
+      expect(
+        (await database.select(database.accounts).getSingle()).authState,
+        'temporarily_unavailable',
+      );
+      expect(
+        await database.select(database.notificationSchedule).get(),
+        hasLength(1),
+      );
+
+      clock = DateTime.utc(2026, 8, 9, 8, 30);
+      final notificationBackend = _ReminderRecordingBackend();
+      final scheduler = NotificationScheduler(
+        database: database,
+        notifications: DesktopNotificationService(
+          backend: notificationBackend,
+          settings: AppSettings.defaults(),
+          now: () => clock,
+        ),
+        nowUtc: () => clock,
+      );
+      await scheduler.checkNow();
+      scheduler.stop();
+      expect(notificationBackend.requests, hasLength(1));
+      expect(notificationBackend.requests.single.title, 'Cached appointment');
+      scheduled = await database
+          .select(database.notificationSchedule)
+          .getSingle();
+      expect(scheduled.sentAtUtc, isNotNull);
+
+      final recoveredBody = _eventWithReminder(
+        'Recovered appointment',
+        startUtc: DateTime.utc(2026, 8, 10, 9),
+      );
+      var syncReports = 0;
+      final recoveryClient = MockClient((request) async {
+        if (request.method == 'REPORT' &&
+            request.body.contains('sync-collection')) {
+          syncReports += 1;
+          return http.Response(
+            _syncResponse(
+              token: 'recovered-$syncReports',
+              etag: '"reminder-2"',
+            ),
+            207,
+          );
+        }
+        if (request.method == 'REPORT' &&
+            request.body.contains('calendar-multiget')) {
+          return http.Response(
+            _multigetResponse(recoveredBody, '"reminder-2"'),
+            207,
+          );
+        }
+        fail('Unexpected ${request.method} ${request.url}');
+      });
+      var rebuilds = 0;
+      await DavAccountSyncEngine(
+        database: database,
+        secretStore: secrets,
+        httpClient: recoveryClient,
+        accountId: 'account',
+        policy: const DavAccountSyncPolicy(
+          discoveryMaxAge: Duration(days: 30),
+          inventoryMaxAge: Duration(days: 30),
+        ),
+        nowUtc: () => clock,
+        rebuildNotifications: (accountId, _) async {
+          rebuilds += 1;
+          expect(
+            (await database.select(database.accounts).getSingle()).authState,
+            'signed_in',
+          );
+          await scheduleService.rebuildUpcomingNotifications(accountId);
+        },
+      ).synchronize();
+
+      expect(rebuilds, 1);
+      scheduled = await database
+          .select(database.notificationSchedule)
+          .getSingle();
+      expect(scheduled.title, 'Recovered appointment');
+      expect(
+        scheduled.scheduledAtUtc,
+        DateTime.utc(2026, 8, 10, 8, 30).millisecondsSinceEpoch,
+      );
+      expect(scheduled.sentAtUtc, isNull);
+      expect(scheduled.dismissedAtUtc, isNull);
+      expect(scheduled.snoozedUntilUtc, isNull);
+    },
+  );
+
+  test(
     'restart reconciles an in-progress MOVE after source synchronization',
     () async {
       final temporaryDirectory = await Directory.systemTemp.createTemp(
@@ -881,6 +1027,24 @@ final class _UnavailableSecretStore extends InMemorySecretStore {
   }
 }
 
+final class _ReminderRecordingBackend implements DesktopNotificationBackend {
+  final requests = <BusyMaxNotificationRequest>[];
+
+  @override
+  Future<void> notify(
+    BusyMaxNotificationRequest request, {
+    DesktopNotificationActionHandler? onAction,
+  }) async {
+    requests.add(request);
+  }
+
+  @override
+  Future<void> cancel(String stableId) async {}
+
+  @override
+  Future<void> close() async {}
+}
+
 const _collectionHref = '/cloud/remote.php/dav/calendars/alex/work/';
 const _destinationCollectionHref = '/cloud/remote.php/dav/calendars/alex/home/';
 const _eventHref = '${_collectionHref}event.ics';
@@ -1125,6 +1289,35 @@ SUMMARY:$summary\r
 END:VEVENT\r
 END:VCALENDAR\r
 ''';
+
+String _eventWithReminder(String summary, {required DateTime startUtc}) {
+  final start = _icalUtc(startUtc);
+  final end = _icalUtc(startUtc.add(const Duration(hours: 1)));
+  return '''BEGIN:VCALENDAR\r
+VERSION:2.0\r
+PRODID:-//BusyMax Test//EN\r
+BEGIN:VEVENT\r
+UID:event@example.test\r
+DTSTART:$start\r
+DTEND:$end\r
+SUMMARY:$summary\r
+BEGIN:VALARM\r
+ACTION:DISPLAY\r
+TRIGGER:-PT30M\r
+DESCRIPTION:$summary\r
+END:VALARM\r
+END:VEVENT\r
+END:VCALENDAR\r
+''';
+}
+
+String _icalUtc(DateTime value) {
+  final utc = value.toUtc();
+  String two(int part) => part.toString().padLeft(2, '0');
+  return '${utc.year.toString().padLeft(4, '0')}${two(utc.month)}'
+      '${two(utc.day)}T${two(utc.hour)}${two(utc.minute)}'
+      '${two(utc.second)}Z';
+}
 
 http.Response _discoveryMultistatus(String body) => http.Response(
   body,

@@ -22,6 +22,16 @@ const accountCachedAvailableStates = <String>[
   accountAuthStateUnsupportedServer,
 ];
 
+/// Account states whose cached content may continue to deliver local reminders.
+///
+/// A temporary transport outage does not invalidate the cached calendar data or
+/// the user's reminder choices. Authentication, permission, and compatibility
+/// failures still require explicit recovery before local reminders resume.
+const accountLocalReminderEligibleStates = <String>[
+  accountAuthStateSignedIn,
+  accountAuthStateTemporarilyUnavailable,
+];
+
 class AccountEntity {
   const AccountEntity({
     required this.id,

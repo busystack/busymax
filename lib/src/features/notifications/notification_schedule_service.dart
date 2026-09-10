@@ -184,7 +184,8 @@ class NotificationScheduleService {
       final account = await (_database.select(
         _database.accounts,
       )..where((row) => row.id.equals(accountId))).getSingleOrNull();
-      if (account?.authState != accountAuthStateSignedIn) {
+      if (account == null ||
+          !accountLocalReminderEligibleStates.contains(account.authState)) {
         await (_database.delete(_database.notificationSchedule)..where(
               (row) =>
                   row.accountId.equals(accountId) &

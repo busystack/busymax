@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../l10n/generated/app_localizations.dart';
 import '../../app/app_bootstrap.dart';
 import '../../core/logging/redacting_logger.dart';
+import '../../dav/mutation/dav_conflict_repository.dart';
 import '../../db/app_database.dart';
 import '../../google_tasks/api/google_tasks_api_surface.dart';
 import '../../google_tasks/api/tasks_discovery_revision.dart';
@@ -110,6 +111,10 @@ class _WindowsDiagnosticsDialog extends ConsumerWidget {
                 );
               },
             ),
+          if (accountId != null) ...[
+            const SizedBox(height: 16),
+            WindowsDavConflictReview(accountId: accountId),
+          ],
         ],
       ),
       actions: [
@@ -118,6 +123,159 @@ class _WindowsDiagnosticsDialog extends ConsumerWidget {
           child: Text(l10n.close),
         ),
       ],
+    );
+  }
+}
+
+/// Fluent conflict review used by Windows Diagnostics.
+///
+/// Generic pending-operation recovery intentionally cannot resolve DAV
+/// conflicts. Keeping this view on the shared conflict repository ensures the
+/// Windows composition exposes the same guarded choices as other platforms.
+class WindowsDavConflictReview extends ConsumerWidget {
+  const WindowsDavConflictReview({required this.accountId, super.key});
+
+  final String accountId;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = AppLocalizations.of(context);
+    final conflicts = ref.watch(davConflictsStreamProvider);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Text(
+          l10n.syncConflicts,
+          style: FluentTheme.of(context).typography.subtitle,
+        ),
+        const SizedBox(height: 8),
+        conflicts.when(
+          loading: () => const Align(
+            alignment: Alignment.centerLeft,
+            child: ProgressRing(),
+          ),
+          error: (_, _) => Text(l10n.conflictResolutionFailed),
+          data: (allConflicts) {
+            final accountConflicts = [
+              for (final conflict in allConflicts)
+                if (conflict.accountId == accountId) conflict,
+            ];
+            if (accountConflicts.isEmpty) {
+              return Text(l10n.noBlockedPendingOperations);
+            }
+            return Column(
+              children: [
+                for (final conflict in accountConflicts)
+                  ListTile(
+                    key: ValueKey('windows-dav-conflict-${conflict.id}'),
+                    leading: Icon(windowsBusyMaxGlyph(BusyMaxGlyph.warning)),
+                    title: Text(conflict.itemTitle),
+                    subtitle: Text(
+                      [
+                        '${conflict.collectionName} · '
+                            '${conflict.accountLabel}',
+                        l10n.localPendingEdit(conflict.localEditSummary),
+                      ].join('\n'),
+                    ),
+                    trailing: Button(
+                      key: ValueKey(
+                        'windows-review-dav-conflict-${conflict.id}',
+                      ),
+                      onPressed: () => _review(context, ref, conflict),
+                      child: Text(l10n.operationActions),
+                    ),
+                  ),
+              ],
+            );
+          },
+        ),
+      ],
+    );
+  }
+
+  Future<void> _review(
+    BuildContext context,
+    WidgetRef ref,
+    DavConflictEntity conflict,
+  ) async {
+    final l10n = AppLocalizations.of(context);
+    final resolution = await showDialog<DavConflictResolution>(
+      context: context,
+      builder: (dialogContext) => ContentDialog(
+        title: Text(l10n.syncConflicts),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(conflict.itemTitle),
+            const SizedBox(height: 8),
+            Text('${conflict.collectionName} · ${conflict.accountLabel}'),
+            const SizedBox(height: 4),
+            Text(l10n.localPendingEdit(conflict.localEditSummary)),
+          ],
+        ),
+        actions: [
+          Button(
+            key: const ValueKey('windows-cancel-dav-conflict'),
+            onPressed: () => Navigator.pop(dialogContext),
+            child: Text(l10n.cancel),
+          ),
+          if (conflict.canKeepServer)
+            Button(
+              key: const ValueKey('windows-keep-server-version'),
+              onPressed: () => Navigator.pop(
+                dialogContext,
+                DavConflictResolution.keepServer,
+              ),
+              child: Text(l10n.keepServerVersion),
+            ),
+          if (conflict.canReapplyLocal)
+            Button(
+              key: const ValueKey('windows-reapply-local-change'),
+              onPressed: () => Navigator.pop(
+                dialogContext,
+                DavConflictResolution.reapplyLocal,
+              ),
+              child: Text(l10n.reapplyLocalChange),
+            ),
+          if (conflict.canDuplicate)
+            FilledButton(
+              key: const ValueKey('windows-duplicate-local-item'),
+              onPressed: () => Navigator.pop(
+                dialogContext,
+                DavConflictResolution.duplicateLocal,
+              ),
+              child: Text(l10n.duplicateLocalItem),
+            ),
+        ],
+      ),
+    );
+    if (resolution == null || !context.mounted) return;
+    final service = ref.read(davConflictResolutionServiceProvider);
+    final sync = ref.read(accountSyncOperationsProvider);
+    try {
+      await service.resolve(conflict.id, resolution);
+      await sync.syncAccount(conflict.accountId, full: false);
+    } on Object catch (error) {
+      if (!context.mounted) return;
+      await _showResolutionFailure(context, error);
+    }
+  }
+
+  Future<void> _showResolutionFailure(BuildContext context, Object error) {
+    final l10n = AppLocalizations.of(context);
+    return showDialog<void>(
+      context: context,
+      builder: (dialogContext) => ContentDialog(
+        title: Text(l10n.conflictResolutionFailed),
+        content: Text(redactForLog('$error')),
+        actions: [
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: Text(l10n.close),
+          ),
+        ],
+      ),
     );
   }
 }
