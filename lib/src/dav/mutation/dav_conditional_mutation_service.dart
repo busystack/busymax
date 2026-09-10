@@ -770,7 +770,7 @@ final class DavConditionalMutationService {
     var expectedRawIcs = baselineRawIcs;
     DavFetchedMember? lastRemote;
     var reconcileBeforeMove = reconcileFirst;
-    var moveMayHaveCompleted = false;
+    var moveMayHaveCompleted = reconcileFirst;
     var attempt = 0;
     while (attempt < maximumConditionalAttempts) {
       if (!reconcileBeforeMove) {

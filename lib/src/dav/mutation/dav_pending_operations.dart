@@ -24,11 +24,13 @@ import 'dav_pending_operation_selection.dart';
 
 const davPendingOperationSchemaVersion = 1;
 const davPartialMoveRetryClassification = 'partial_move';
+const _davMoveMayHaveCompletedRequestKey = 'moveMayHaveCompleted';
 
 bool isDavPartiallyCompletedMove(PendingOp operation) =>
     operation.operationType == 'dav.move' &&
     (operation.retryClassification == davPartialMoveRetryClassification ||
-        operation.lastErrorCode == davPartialMoveFailureCode);
+        operation.lastErrorCode == davPartialMoveFailureCode ||
+        _requestMarksMoveMayHaveCompleted(operation.requestJson));
 
 const _davMutationPutRejectedMessage =
     'The DAV server could not update the object.';
@@ -424,7 +426,13 @@ final class DavPendingOperationQueue {
           );
         }
         final updated = await _database.pendingOpsDao
-            .retryFailedDavOperationNow(operation, _nowUtc().toUtc());
+            .retryFailedDavOperationNow(
+              operation,
+              _nowUtc().toUtc(),
+              requestJson: isDavPartiallyCompletedMove(operation)
+                  ? _markMoveMayHaveCompleted(operation.requestJson)
+                  : null,
+            );
         if (!updated) {
           throw StateError(
             'The DAV operation changed before it could be retried.',
@@ -1250,6 +1258,14 @@ final class DavPendingOperationsReplayer {
       _database.accounts,
     )..where((row) => row.id.equals(_accountId))).getSingle();
     final capabilities = collectionCapabilitiesFromStored(collection);
+    final partiallyCompletedMove = isDavPartiallyCompletedMove(op);
+    if (op.operationType == 'dav.move') {
+      await _requiredMoveSource(
+        op,
+        collection,
+        allowServerDeleted: partiallyCompletedMove,
+      );
+    }
     if (account.provider == 'nextcloud') {
       final policy = await NextcloudSchedulingPolicy.load(
         _database,
@@ -1271,15 +1287,15 @@ final class DavPendingOperationsReplayer {
         case 'dav.delete':
           policy.validateChange(baseline: _required(op.baselineRawIcs));
         case 'dav.move':
-          final source = await _requiredObject(op, collection);
           final destination = await _requiredDestinationCollection(op);
+          final baseline = _required(op.baselineRawIcs);
           policy.validateMoveTo(
             await NextcloudSchedulingPolicy.load(_database, destination),
-            source.rawIcsBody,
+            baseline,
             _decodeOptionalMovePatch(
                   op,
-                )?.applyTo(source.rawIcsBody, nowUtc: _nowUtc()) ??
-                source.rawIcsBody,
+                )?.applyTo(baseline, nowUtc: _nowUtc()) ??
+                baseline,
           );
       }
     }
@@ -1290,18 +1306,20 @@ final class DavPendingOperationsReplayer {
     final correlationId = _idFactory();
     final objectUri = op.operationType == 'dav.create'
         ? null
-        : await _requiredObjectUri(op, collection);
+        : await _requiredObjectUri(
+            op,
+            collection,
+            allowServerDeleted: partiallyCompletedMove,
+          );
     final destinationCollection = op.operationType == 'dav.move'
         ? await _requiredDestinationCollection(op)
-        : null;
-    final sourceObject = op.operationType == 'dav.move'
-        ? await _requiredObject(op, collection)
         : null;
     final reconcileFirst =
         op.attemptCount > 0 ||
         op.state == 'in_progress' ||
         op.retryClassification == 'manual_retry' ||
-        op.retryClassification == 'credential_replaced';
+        op.retryClassification == 'credential_replaced' ||
+        partiallyCompletedMove;
     return switch (op.operationType) {
       'dav.create' => service.create(
         collectionUri: Uri.parse(collection.requestUri),
@@ -1334,8 +1352,8 @@ final class DavPendingOperationsReplayer {
         sourceUri: objectUri!,
         destinationHrefKey: _required(op.destinationMemberHref),
         destinationUri: _moveDestinationRequestUri(op, destinationCollection!),
-        baselineEtag: _required(sourceObject!.etag),
-        baselineRawIcs: sourceObject.rawIcsBody,
+        baselineEtag: _required(op.baselineEtag),
+        baselineRawIcs: _required(op.baselineRawIcs),
         isEvent: _deleteIsEvent(op),
         sourceCapabilities: capabilities,
         destinationCapabilities: collectionCapabilitiesFromStored(
@@ -1659,7 +1677,8 @@ final class DavPendingOperationsReplayer {
     state: DavPendingState.failed,
     classification:
         op.operationType == 'dav.move' &&
-            error.code == davPartialMoveFailureCode
+            (error.code == davPartialMoveFailureCode ||
+                isDavPartiallyCompletedMove(op))
         ? davPartialMoveRetryClassification
         : 'permanent',
     error: error,
@@ -1683,6 +1702,9 @@ final class DavPendingOperationsReplayer {
     required DavException error,
   }) {
     final now = _nowUtc().toUtc().toIso8601String();
+    final preservePartialMove =
+        error.code == davPartialMoveFailureCode ||
+        isDavPartiallyCompletedMove(op);
     return (_database.update(
       _database.pendingOps,
     )..where((row) => row.id.equals(op.id))).write(
@@ -1692,6 +1714,9 @@ final class DavPendingOperationsReplayer {
         nextAttemptAtUtc: const Value('9999-12-31T23:59:59.999Z'),
         lastErrorCode: Value(error.code),
         lastErrorMessage: Value(error.safeMessage),
+        requestJson: preservePartialMove
+            ? Value(_markMoveMayHaveCompleted(op.requestJson))
+            : const Value.absent(),
         updatedAtUtc: Value(now),
       ),
     );
@@ -1705,6 +1730,9 @@ final class DavPendingOperationsReplayer {
         error.retryAfter ??
         Duration(seconds: exponentialSeconds, milliseconds: jitterMilliseconds);
     final now = _nowUtc().toUtc();
+    final preservePartialMove =
+        error.code == davPartialMoveFailureCode ||
+        isDavPartiallyCompletedMove(op);
     await (_database.update(
       _database.pendingOps,
     )..where((row) => row.id.equals(op.id))).write(
@@ -1715,6 +1743,9 @@ final class DavPendingOperationsReplayer {
         retryClassification: const Value('transient'),
         lastErrorCode: Value(error.code),
         lastErrorMessage: Value(error.safeMessage),
+        requestJson: preservePartialMove
+            ? Value(_markMoveMayHaveCompleted(op.requestJson))
+            : const Value.absent(),
         updatedAtUtc: Value(now.toIso8601String()),
       ),
     );
@@ -1799,8 +1830,9 @@ final class DavPendingOperationsReplayer {
 
   Future<DavObject> _requiredObject(
     PendingOp op,
-    DavCollection collection,
-  ) async {
+    DavCollection collection, {
+    bool allowServerDeleted = false,
+  }) async {
     final objectId = _required(op.davObjectId);
     final object = await (_database.select(
       _database.davObjects,
@@ -1809,17 +1841,52 @@ final class DavPendingOperationsReplayer {
         object.accountId != _accountId ||
         object.collectionId != collection.id ||
         object.hrefKey != op.davMemberHref ||
-        object.serverDeleted) {
+        (object.serverDeleted && !allowServerDeleted)) {
       throw _invalidPendingOperation();
     }
     return object;
   }
 
-  Future<Uri> _requiredObjectUri(PendingOp op, DavCollection collection) async {
+  Future<DavObject> _requiredMoveSource(
+    PendingOp op,
+    DavCollection collection, {
+    required bool allowServerDeleted,
+  }) async {
+    if (op.operationType != 'dav.move') throw _invalidPendingOperation();
+    final object = await _requiredObject(
+      op,
+      collection,
+      allowServerDeleted: allowServerDeleted,
+    );
+    final baseline = IcalSemanticDocument.parse(_required(op.baselineRawIcs));
+    final expectedComponentType = _deleteIsEvent(op) ? 'VEVENT' : 'VTODO';
+    if (baseline.primaryUid == null ||
+        baseline.components.isEmpty ||
+        baseline.components.any(
+          (component) =>
+              component.uid != baseline.primaryUid ||
+              component.componentType != expectedComponentType,
+        ) ||
+        object.primaryUid != baseline.primaryUid ||
+        object.dominantComponentType != expectedComponentType) {
+      throw _invalidPendingOperation();
+    }
+    return object;
+  }
+
+  Future<Uri> _requiredObjectUri(
+    PendingOp op,
+    DavCollection collection, {
+    bool allowServerDeleted = false,
+  }) async {
     final href = _required(op.davMemberHref);
     final collectionHref = _required(op.davCollectionHref);
     if (!href.startsWith(collectionHref)) throw _invalidPendingOperation();
-    final object = await _requiredObject(op, collection);
+    final object = await _requiredObject(
+      op,
+      collection,
+      allowServerDeleted: allowServerDeleted,
+    );
     // The canonical request URI is persisted with the raw baseline and avoids
     // reconstructing a potentially path-prefixed Nextcloud installation URL.
     final uri = Uri.tryParse(object.requestUri);
@@ -2055,6 +2122,26 @@ String _moveCandidateRaw(PendingOp op, DateTime nowUtc) {
   return patch == null
       ? baseline
       : patch.applyTo(baseline, nowUtc: nowUtc.toUtc());
+}
+
+bool _requestMarksMoveMayHaveCompleted(String source) {
+  try {
+    final decoded = jsonDecode(source);
+    return decoded is Map &&
+        decoded[_davMoveMayHaveCompletedRequestKey] == true;
+  } on Object {
+    return false;
+  }
+}
+
+String _markMoveMayHaveCompleted(String source) {
+  try {
+    final decoded = jsonDecode(source);
+    if (decoded is! Map) return source;
+    return jsonEncode({...decoded, _davMoveMayHaveCompletedRequestKey: true});
+  } on Object {
+    return source;
+  }
 }
 
 DavNewObject _decodeCreate(String source) {

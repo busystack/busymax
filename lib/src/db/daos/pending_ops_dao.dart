@@ -77,8 +77,9 @@ class PendingOpsDao extends DatabaseAccessor<AppDatabase>
   /// reconcile first, independently of the legacy attempt counter.
   Future<bool> retryFailedDavOperationNow(
     PendingOp snapshot,
-    DateTime nowUtc,
-  ) async {
+    DateTime nowUtc, {
+    String? requestJson,
+  }) async {
     final timestamp = nowUtc.toUtc().toIso8601String();
     final query = update(pendingOps)
       ..where(
@@ -96,6 +97,9 @@ class PendingOpsDao extends DatabaseAccessor<AppDatabase>
         lastErrorCode: const Value(null),
         lastErrorMessage: const Value(null),
         lastError: const Value(null),
+        requestJson: requestJson == null
+            ? const Value.absent()
+            : Value(requestJson),
         updatedAtUtc: Value(timestamp),
       ),
     );

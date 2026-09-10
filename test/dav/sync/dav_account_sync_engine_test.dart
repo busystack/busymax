@@ -6,9 +6,12 @@ import 'package:busymax/src/dav/dav_provider_profile.dart';
 import 'package:busymax/src/dav/ical/ical_document.dart';
 import 'package:busymax/src/dav/mutation/dav_mutation_patch.dart';
 import 'package:busymax/src/dav/mutation/dav_pending_operations.dart';
+import 'package:busymax/src/dav/storage/dav_object_repository.dart';
 import 'package:busymax/src/dav/sync/dav_account_sync_engine.dart';
 import 'package:busymax/src/db/app_database.dart';
 import 'package:busymax/src/features/notifications/notification_schedule_service.dart';
+import 'package:busymax/src/features/sync/pending_op_resolution_service.dart';
+import 'package:busymax/src/providers/busy_provider.dart';
 import 'package:drift/drift.dart';
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -234,6 +237,239 @@ void main() {
   );
 
   test(
+    'Diagnostics retry completes a remotely moved task after source sync deletion',
+    () async {
+      await _seedDestination(database);
+      const uid = 'partial-move-task@example.test';
+      const sourceHref = '${_collectionHref}partial-move-task.ics';
+      const destinationHref =
+          '${_destinationCollectionHref}partial-move-task.ics';
+      final sourceRaw = _taskWithParent(uid, 'Parented task');
+      final objectRepository = DavObjectRepository(
+        database: database,
+        idFactory: () => 'source-object',
+      );
+      await objectRepository.commitConfirmedMutation(
+        accountId: 'account',
+        collectionId: 'collection',
+        provider: BusyProvider.nextcloud,
+        canonicalObject: _preparedMember(
+          href: sourceHref,
+          etag: '"source-1"',
+          body: sourceRaw,
+        ),
+        completedAtUtc: _now,
+      );
+      final sourceObject = await (database.select(
+        database.davObjects,
+      )..where((row) => row.hrefKey.equals(sourceHref))).getSingle();
+      final sourceTask = await (database.select(
+        database.tasks,
+      )..where((row) => row.davObjectId.equals(sourceObject.id))).getSingle();
+      final operationId =
+          await DavPendingOperationQueue(
+            database: database,
+            idFactory: () => 'pending-partial-move',
+            nowUtc: () => _now,
+          ).enqueueMove(
+            accountId: 'account',
+            sourceCollectionId: 'collection',
+            destinationCollectionId: 'destination',
+            objectId: sourceObject.id,
+            localProjectionId: sourceTask.id,
+            target: const IcalComponentKey(componentType: 'VTODO', uid: uid),
+            postMovePatch: DavMutationPatch(
+              target: const IcalComponentKey(componentType: 'VTODO', uid: uid),
+              scope: DavMutationScope.object,
+              operations: [DavPatchOperation.setTaskParent(null)],
+            ),
+          );
+
+      var sourceExists = true;
+      String? destinationRaw;
+      var destinationEtag = '"destination-1"';
+      var moves = 0;
+      var destinationPatchPuts = 0;
+      var destinationGets = 0;
+      var token = 0;
+      final requests = <String>[];
+      addTearDown(() => printOnFailure(requests.join('\n')));
+      final client = MockClient((request) async {
+        requests.add('${request.method} ${request.url.path} ${request.body}');
+        if (request.method == 'OPTIONS') {
+          return http.Response(
+            '',
+            200,
+            headers: {'dav': '1, calendar-access, sync-collection'},
+          );
+        }
+        if (request.method == 'PROPFIND') {
+          if (request.body.contains('<d:current-user-principal/>')) {
+            return _discoveryMultistatus(_currentPrincipalResponse);
+          }
+          if (request.body.contains('<c:calendar-home-set/>')) {
+            return _discoveryMultistatus(_principalPropertiesResponse);
+          }
+          return _discoveryMultistatus(_twoCollectionInventoryResponse);
+        }
+        if (request.method == 'REPORT' &&
+            request.body.contains('sync-collection')) {
+          token += 1;
+          if (request.url.path == _collectionHref) {
+            return http.Response(
+              _syncMemberResponse(
+                token: 'source-$token',
+                href: sourceHref,
+                etag: sourceExists ? '"source-1"' : null,
+                deleted: !sourceExists,
+              ),
+              207,
+            );
+          }
+          if (request.url.path == _destinationCollectionHref) {
+            return http.Response(
+              _syncMemberResponse(
+                token: 'destination-$token',
+                href: destinationHref,
+                etag: destinationRaw == null ? null : destinationEtag,
+              ),
+              207,
+            );
+          }
+        }
+        if (request.method == 'REPORT' &&
+            request.body.contains('calendar-multiget')) {
+          if (request.url.path == _collectionHref && sourceExists) {
+            return http.Response(
+              _multigetMemberResponse(
+                href: sourceHref,
+                body: sourceRaw,
+                etag: '"source-1"',
+              ),
+              207,
+            );
+          }
+          if (request.url.path == _destinationCollectionHref &&
+              destinationRaw != null) {
+            return http.Response(
+              _multigetMemberResponse(
+                href: destinationHref,
+                body: destinationRaw!,
+                etag: destinationEtag,
+              ),
+              207,
+            );
+          }
+        }
+        if (request.method == 'MOVE') {
+          moves += 1;
+          expect(request.url.path, sourceHref);
+          expect(request.headers['destination'], endsWith(destinationHref));
+          expect(request.headers['if-match'], '"source-1"');
+          sourceExists = false;
+          destinationRaw = sourceRaw;
+          return http.Response('', 204);
+        }
+        if (request.method == 'GET') {
+          if (request.url.path == sourceHref && !sourceExists) {
+            return http.Response('', 404);
+          }
+          if (request.url.path == destinationHref && destinationRaw != null) {
+            destinationGets += 1;
+            if (destinationGets == 2) {
+              final synchronizedSource = await (database.select(
+                database.davObjects,
+              )..where((row) => row.id.equals(sourceObject.id))).getSingle();
+              expect(synchronizedSource.serverDeleted, isTrue);
+              expect(
+                (await database.pendingOpsDao.getOp(operationId))?.id,
+                operationId,
+              );
+            }
+            return http.Response(
+              destinationRaw!,
+              200,
+              headers: {
+                'etag': destinationEtag,
+                'content-type': 'text/calendar',
+              },
+            );
+          }
+        }
+        if (request.method == 'PUT' && request.url.path == destinationHref) {
+          destinationPatchPuts += 1;
+          expect(request.headers['if-match'], destinationEtag);
+          expect(request.body, isNot(contains('RELATED-TO')));
+          if (destinationPatchPuts == 1) {
+            return http.Response('Rejected', 415);
+          }
+          destinationRaw = request.body;
+          destinationEtag = '"destination-2"';
+          return http.Response('', 204);
+        }
+        fail('Unexpected ${request.method} ${request.url}');
+      });
+      var now = _now;
+      DavAccountSyncEngine engine() => DavAccountSyncEngine(
+        database: database,
+        secretStore: secrets,
+        httpClient: client,
+        accountId: 'account',
+        policy: const DavAccountSyncPolicy(
+          discoveryMaxAge: Duration(days: 30),
+          inventoryMaxAge: Duration(days: 30),
+          maximumConcurrentCollections: 1,
+        ),
+        correlationIdFactory: () => 'partial-move-recovery',
+        nowUtc: () => now,
+      );
+
+      final failedReplay = await engine().synchronize();
+      expect(failedReplay.pendingOperationsApplied, 0);
+      final failed = await database.pendingOpsDao.getOp(operationId);
+      expect(failed?.state, 'failed');
+      expect(failed?.retryClassification, davPartialMoveRetryClassification);
+      expect(isDavPartiallyCompletedMove(failed!), isTrue);
+      expect(moves, 1);
+      expect(destinationPatchPuts, 1);
+
+      now = now.add(const Duration(minutes: 1));
+      await PendingOpResolutionService(
+        database: database,
+        accountId: 'account',
+        syncCalendar: () async => fail('A task move must use task sync.'),
+        syncTasks: () async {
+          await engine().synchronize();
+        },
+        nowUtc: () => now,
+      ).retryNow(operationId);
+
+      expect(moves, 1);
+      expect(destinationPatchPuts, 2);
+      expect(destinationGets, 3);
+      expect(await database.pendingOpsDao.getOp(operationId), null);
+      expect(
+        (await (database.select(
+              database.davObjects,
+            )..where((row) => row.id.equals(sourceObject.id))).getSingle())
+            .serverDeleted,
+        isTrue,
+      );
+      final destinationObject = await (database.select(
+        database.davObjects,
+      )..where((row) => row.hrefKey.equals(destinationHref))).getSingle();
+      expect(destinationObject.collectionId, 'destination');
+      expect(destinationObject.serverDeleted, isFalse);
+      final tasks = await database.select(database.tasks).get();
+      expect(tasks, hasLength(1));
+      expect(tasks.single.davCollectionId, 'destination');
+      expect(tasks.single.taskListId, 'dav-task-list-destination');
+      expect(tasks.single.title, 'Parented task');
+      expect(tasks.single.parentUid, null);
+    },
+  );
+
+  test(
     'removed collection rebuilds reminders without object-level changes',
     () async {
       const eventId = 'nextcloud-event';
@@ -434,6 +670,7 @@ final class _UnavailableSecretStore extends InMemorySecretStore {
 }
 
 const _collectionHref = '/cloud/remote.php/dav/calendars/alex/work/';
+const _destinationCollectionHref = '/cloud/remote.php/dav/calendars/alex/home/';
 const _eventHref = '${_collectionHref}event.ics';
 final _now = DateTime.utc(2026, 8, 8, 12);
 
@@ -539,6 +776,108 @@ Future<void> _seed(AppDatabase database, InMemorySecretStore secrets) async {
       );
 }
 
+Future<void> _seedDestination(AppDatabase database) async {
+  const now = '2026-08-08T12:00:00.000Z';
+  await database
+      .into(database.davCollections)
+      .insert(
+        DavCollectionsCompanion.insert(
+          id: 'destination',
+          accountId: 'account',
+          hrefKey: _destinationCollectionHref,
+          requestUri: 'https://cloud.example.test$_destinationCollectionHref',
+          displayName: 'Home',
+          supportedComponentMask: const Value(3),
+          supportedReportsJson: Value(
+            jsonEncode([
+              '{DAV:}sync-collection',
+              '{urn:ietf:params:xml:ns:caldav}calendar-multiget',
+            ]),
+          ),
+          currentUserPrivilegesJson: Value(
+            jsonEncode(['{DAV:}read', '{DAV:}write']),
+          ),
+          readOnly: const Value(false),
+          eventProjectionEnabled: const Value(true),
+          taskProjectionEnabled: const Value(true),
+          lastInventoryAtUtc: const Value(now),
+          createdAtUtc: now,
+          updatedAtUtc: now,
+        ),
+      );
+  await database
+      .into(database.taskLists)
+      .insert(
+        TaskListsCompanion.insert(
+          accountId: 'account',
+          id: 'dav-task-list-destination',
+          davCollectionId: const Value('destination'),
+          title: 'Home',
+          rawJson: '{}',
+          createdLocalAtUtc: now,
+          updatedLocalAtUtc: now,
+        ),
+      );
+}
+
+DavPreparedObject _preparedMember({
+  required String href,
+  required String etag,
+  required String body,
+}) => DavPreparedObject.parse(
+  hrefKey: href,
+  requestUri: Uri.parse('https://cloud.example.test$href'),
+  etag: etag,
+  contentType: 'text/calendar',
+  rawIcsBody: body,
+  maximumResourceBytes: 1024 * 1024,
+);
+
+String _syncMemberResponse({
+  required String token,
+  required String href,
+  String? etag,
+  bool deleted = false,
+}) =>
+    '''<?xml version="1.0" encoding="utf-8"?>
+<d:multistatus xmlns:d="DAV:">
+  ${deleted
+        ? '''<d:response><d:href>$href</d:href>
+    <d:status>HTTP/1.1 404 Not Found</d:status></d:response>'''
+        : etag == null
+        ? ''
+        : '''<d:response>
+    <d:href>$href</d:href><d:propstat><d:prop><d:getetag>$etag</d:getetag></d:prop>
+      <d:status>HTTP/1.1 200 OK</d:status></d:propstat></d:response>'''}
+  <d:sync-token>$token</d:sync-token>
+</d:multistatus>''';
+
+String _multigetMemberResponse({
+  required String href,
+  required String body,
+  required String etag,
+}) =>
+    '''<?xml version="1.0" encoding="utf-8"?>
+<d:multistatus xmlns:d="DAV:" xmlns:c="urn:ietf:params:xml:ns:caldav">
+  <d:response><d:href>$href</d:href><d:propstat><d:prop>
+    <d:getetag>$etag</d:getetag>
+    <c:calendar-data content-type="text/calendar"><![CDATA[$body]]></c:calendar-data>
+  </d:prop><d:status>HTTP/1.1 200 OK</d:status></d:propstat></d:response>
+</d:multistatus>''';
+
+String _taskWithParent(String uid, String summary) =>
+    '''BEGIN:VCALENDAR\r
+VERSION:2.0\r
+PRODID:-//BusyMax Test//EN\r
+BEGIN:VTODO\r
+UID:$uid\r
+SUMMARY:$summary\r
+RELATED-TO:parent@example.test\r
+DUE:20260809T120000Z\r
+END:VTODO\r
+END:VCALENDAR\r
+''';
+
 String _syncResponse({required String token, String? etag}) =>
     '''<?xml version="1.0" encoding="utf-8"?>
 <d:multistatus xmlns:d="DAV:">
@@ -603,4 +942,27 @@ const _emptyInventoryResponse = '''<?xml version="1.0"?>
   <d:propstat><d:prop><d:resourcetype><d:collection/></d:resourcetype></d:prop>
   <d:status>HTTP/1.1 200 OK</d:status></d:propstat>
  </d:response>
+</d:multistatus>''';
+
+const _twoCollectionInventoryResponse =
+    '''<?xml version="1.0"?>
+<d:multistatus xmlns:d="DAV:" xmlns:c="urn:ietf:params:xml:ns:caldav">
+ <d:response><d:href>$_collectionHref</d:href><d:propstat><d:prop>
+  <d:resourcetype><d:collection/><c:calendar/></d:resourcetype>
+  <d:displayname>Work</d:displayname>
+  <d:current-user-privilege-set><d:privilege><d:read/></d:privilege>
+   <d:privilege><d:write/></d:privilege></d:current-user-privilege-set>
+  <c:supported-calendar-component-set><c:comp name="VEVENT"/><c:comp name="VTODO"/></c:supported-calendar-component-set>
+  <d:supported-report-set><d:supported-report><d:report><d:sync-collection/></d:report></d:supported-report>
+   <d:supported-report><d:report><c:calendar-multiget/></d:report></d:supported-report></d:supported-report-set>
+ </d:prop><d:status>HTTP/1.1 200 OK</d:status></d:propstat></d:response>
+ <d:response><d:href>$_destinationCollectionHref</d:href><d:propstat><d:prop>
+  <d:resourcetype><d:collection/><c:calendar/></d:resourcetype>
+  <d:displayname>Home</d:displayname>
+  <d:current-user-privilege-set><d:privilege><d:read/></d:privilege>
+   <d:privilege><d:write/></d:privilege></d:current-user-privilege-set>
+  <c:supported-calendar-component-set><c:comp name="VEVENT"/><c:comp name="VTODO"/></c:supported-calendar-component-set>
+  <d:supported-report-set><d:supported-report><d:report><d:sync-collection/></d:report></d:supported-report>
+   <d:supported-report><d:report><c:calendar-multiget/></d:report></d:supported-report></d:supported-report-set>
+ </d:prop><d:status>HTTP/1.1 200 OK</d:status></d:propstat></d:response>
 </d:multistatus>''';

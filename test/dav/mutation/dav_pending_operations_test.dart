@@ -1085,6 +1085,84 @@ void main() {
   );
 
   test(
+    'failed move reconciliation retains its partial remote outcome marker',
+    () async {
+      await _seedDestination(database);
+      final source = await (database.select(
+        database.davObjects,
+      )..where((row) => row.hrefKey.equals(_eventHref))).getSingle();
+      final operationId = await queue.enqueueMove(
+        accountId: 'account',
+        sourceCollectionId: 'collection',
+        destinationCollectionId: 'destination',
+        objectId: source.id,
+        target: _target,
+      );
+      await (database.update(
+        database.pendingOps,
+      )..where((row) => row.id.equals(operationId))).write(
+        PendingOpsCompanion(
+          state: const Value('failed'),
+          retryClassification: const Value(davPartialMoveRetryClassification),
+          nextAttemptAtUtc: const Value('9999-12-31T23:59:59.999Z'),
+          lastErrorCode: const Value(davPartialMoveFailureCode),
+          lastErrorMessage: const Value('The destination update was rejected.'),
+        ),
+      );
+
+      await queue.retryBlockedOperation(
+        accountId: 'account',
+        operationId: operationId,
+      );
+      final retried = await database.pendingOpsDao.getOp(operationId);
+      expect(retried?.state, 'retry');
+      expect(retried?.retryClassification, 'manual_retry');
+      expect(retried?.lastErrorCode, null);
+      expect(isDavPartiallyCompletedMove(retried!), isTrue);
+      expect(retried.requestJson, contains('moveMayHaveCompleted'));
+
+      await (database.update(database.davObjects)
+            ..where((row) => row.id.equals(source.id)))
+          .write(const DavObjectsCompanion(serverDeleted: Value(true)));
+      var moves = 0;
+      var fetches = 0;
+      final remote = _FakeMutationRemote(
+        move:
+            ({
+              required sourceUri,
+              required destinationUri,
+              required ifMatch,
+            }) async {
+              moves += 1;
+              return _success;
+            },
+        fetcher: (href) async {
+          fetches += 1;
+          throw const DavException(
+            kind: DavErrorKind.invalidCalendarData,
+            code: 'DavMalformedResource',
+            safeMessage: 'The destination resource could not be read.',
+          );
+        },
+      );
+
+      await _replayer(database, objectRepository, remote).replayDueOperations();
+
+      expect(moves, 0);
+      expect(fetches, 1);
+      final stillBlocked = await database.pendingOpsDao.getOp(operationId);
+      expect(stillBlocked?.state, 'failed');
+      expect(
+        stillBlocked?.retryClassification,
+        davPartialMoveRetryClassification,
+      );
+      expect(stillBlocked?.lastErrorCode, davPartialMoveFailureCode);
+      expect(isDavPartiallyCompletedMove(stillBlocked!), isTrue);
+      expect(stillBlocked.requestJson, contains('moveMayHaveCompleted'));
+    },
+  );
+
+  test(
     'confirmed recurring event move restores only matching occurrence points',
     () async {
       await _seedDestination(database);
