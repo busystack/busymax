@@ -20,6 +20,7 @@ import '../nextcloud/nextcloud_scheduling_policy.dart';
 import '../sync/dav_collection_remote_client.dart';
 import 'dav_conditional_mutation_service.dart';
 import 'dav_mutation_patch.dart';
+import 'dav_pending_operation_selection.dart';
 
 const davPendingOperationSchemaVersion = 1;
 
@@ -297,7 +298,7 @@ final class DavPendingOperationQueue {
     required String objectId,
   }) async {
     final context = await _objectContext(accountId, collectionId, objectId);
-    final operation = await _activeObjectOperation(objectId);
+    final operation = await _effectiveObjectOperation(objectId);
     if (operation?.operationType == 'dav.create') {
       return _decodeCreate(operation!.requestJson).rawIcs;
     }
@@ -394,6 +395,209 @@ final class DavPendingOperationQueue {
     if (operation == null) return false;
     await _database.pendingOpsDao.deleteOp(operation.id);
     return true;
+  }
+
+  /// Makes a Diagnostics retry eligible for the DAV replayer without
+  /// bypassing conflict, credential, permission, or unknown-outcome recovery.
+  Future<void> retryBlockedOperation({
+    required String accountId,
+    required String operationId,
+  }) async {
+    final operation = await _database.pendingOpsDao.getOp(operationId);
+    if (operation == null) return;
+    if (operation.accountId != accountId || !isDavPendingOperation(operation)) {
+      throw StateError('The DAV operation is not available for recovery.');
+    }
+    switch (operation.state) {
+      case 'failed':
+        if (operation.retryClassification != 'permanent') {
+          throw StateError(
+            'This DAV failure cannot be retried without reconciliation.',
+          );
+        }
+        final updated = await _database.pendingOpsDao
+            .retryFailedDavOperationNow(operation, _nowUtc().toUtc());
+        if (!updated) {
+          throw StateError(
+            'The DAV operation changed before it could be retried.',
+          );
+        }
+      case 'pending' || 'retry' || 'in_progress':
+        await _database.pendingOpsDao.retryNow(operation.id, _nowUtc().toUtc());
+      case 'conflict':
+        throw StateError(
+          'Resolve this DAV conflict from the conflict review before retrying.',
+        );
+      case 'auth_blocked':
+        throw StateError(
+          'Reconnect this DAV account before retrying its pending changes.',
+        );
+      case 'permission_blocked':
+        throw StateError(
+          'Refresh this DAV account after its permissions change before '
+          'retrying.',
+        );
+      default:
+        throw StateError('This DAV operation cannot be retried safely.');
+    }
+  }
+
+  /// Discards one recoverable DAV intent and its still-unattempted dependents,
+  /// removing local creations or restoring confirmed server projections.
+  Future<bool> discardBlockedOperation({
+    required String accountId,
+    required String operationId,
+  }) {
+    return _database.transaction(() async {
+      final selected = await _database.pendingOpsDao.getOp(operationId);
+      if (selected == null) return false;
+      if (selected.accountId != accountId || !isDavPendingOperation(selected)) {
+        throw StateError('The DAV operation is not available for recovery.');
+      }
+      _ensureDavDiscardable(selected);
+      final operations = await _davDependentClosure(selected);
+      for (final dependent in operations.skip(1)) {
+        if (!isDavPendingOperation(dependent) ||
+            dependent.state != DavPendingState.pending.storageValue ||
+            dependent.attemptCount != 0) {
+          throw StateError(
+            'A dependent DAV operation cannot be discarded safely.',
+          );
+        }
+      }
+
+      final createdObjectIds = {
+        for (final operation in operations)
+          if (operation.operationType == 'dav.create' &&
+              operation.davObjectId != null)
+            operation.davObjectId!,
+      };
+      final restoreObjectIds = {
+        for (final operation in operations)
+          if (operation.operationType != 'dav.create' &&
+              operation.davObjectId != null &&
+              !createdObjectIds.contains(operation.davObjectId))
+            operation.davObjectId!,
+      };
+      final operationIds = {for (final operation in operations) operation.id};
+      final now = _nowUtc().toUtc();
+      await (_database.delete(
+        _database.pendingOps,
+      )..where((row) => row.id.isIn(operationIds))).go();
+      for (final operation in operations.where(
+        (operation) => operation.operationType == 'dav.create',
+      )) {
+        if (operation.eventId != null) {
+          await (_database.delete(_database.calendarEvents)..where(
+                (row) =>
+                    row.accountId.equals(accountId) &
+                    row.id.equals(operation.eventId!),
+              ))
+              .go();
+        }
+        if (operation.taskId != null) {
+          await (_database.delete(_database.tasks)..where(
+                (row) =>
+                    row.accountId.equals(accountId) &
+                    row.id.equals(operation.taskId!),
+              ))
+              .go();
+        }
+      }
+      for (final objectId in createdObjectIds) {
+        final object = await (_database.select(
+          _database.davObjects,
+        )..where((row) => row.id.equals(objectId))).getSingleOrNull();
+        if (object == null ||
+            object.accountId != accountId ||
+            object.etag != null) {
+          throw StateError(
+            'A pending DAV creation cannot be discarded safely.',
+          );
+        }
+        await (_database.delete(
+          _database.calendarEvents,
+        )..where((row) => row.davObjectId.equals(objectId))).go();
+        await (_database.delete(
+          _database.tasks,
+        )..where((row) => row.davObjectId.equals(objectId))).go();
+        await (_database.delete(
+          _database.davObjects,
+        )..where((row) => row.id.equals(objectId))).go();
+      }
+      final repository = DavObjectRepository(database: _database);
+      for (final objectId in restoreObjectIds) {
+        await repository.restoreServerProjectionAfterDiscard(
+          accountId: accountId,
+          objectId: objectId,
+          restoredAtUtc: now,
+        );
+      }
+      return restoreObjectIds.isNotEmpty;
+    });
+  }
+
+  void _ensureDavDiscardable(PendingOp operation) {
+    if (operation.operationType == 'dav.create') {
+      if (!isDavCreateLocallyEditable(operation)) {
+        throw StateError(
+          'This DAV creation cannot be discarded until its outcome is known.',
+        );
+      }
+      return;
+    }
+    if (operation.state == DavPendingState.conflict.storageValue) {
+      throw StateError(
+        'Resolve this DAV conflict from the conflict review before discarding.',
+      );
+    }
+    if (operation.state == DavPendingState.inProgress.storageValue ||
+        operation.state == DavPendingState.retry.storageValue ||
+        operation.state == 'blocked') {
+      throw StateError(
+        'This DAV operation cannot be discarded until its outcome is known.',
+      );
+    }
+    if (operation.state == DavPendingState.pending.storageValue &&
+        operation.attemptCount != 0) {
+      throw StateError(
+        'This DAV operation cannot be discarded until its outcome is known.',
+      );
+    }
+    if (operation.state == DavPendingState.failed.storageValue &&
+        operation.retryClassification != 'permanent') {
+      throw StateError(
+        'This DAV failure cannot be discarded without reconciliation.',
+      );
+    }
+    if (operation.state != DavPendingState.pending.storageValue &&
+        operation.state != DavPendingState.failed.storageValue &&
+        operation.state != DavPendingState.authBlocked.storageValue &&
+        operation.state != DavPendingState.permissionBlocked.storageValue) {
+      throw StateError('This DAV operation cannot be discarded safely.');
+    }
+  }
+
+  Future<List<PendingOp>> _davDependentClosure(PendingOp selected) async {
+    final unresolved =
+        await (_database.select(_database.pendingOps)..where(
+              (row) =>
+                  row.accountId.equals(selected.accountId) &
+                  row.state.isIn(davUnresolvedPendingStates),
+            ))
+            .get();
+    final result = <PendingOp>[selected];
+    final ids = <String>{selected.id};
+    var index = 0;
+    while (index < result.length) {
+      final parent = result[index++].id;
+      for (final operation in unresolved) {
+        if (operation.dependsOnOpId == parent && ids.add(operation.id)) {
+          result.add(operation);
+        }
+      }
+    }
+    return result;
   }
 
   Future<String> enqueueDelete({
@@ -711,6 +915,13 @@ final class DavPendingOperationQueue {
         .getSingleOrNull();
   }
 
+  Future<PendingOp?> _effectiveObjectOperation(String objectId) async {
+    final operations = await (_database.select(
+      _database.pendingOps,
+    )..where((row) => row.davObjectId.equals(objectId))).get();
+    return effectiveDavPendingOperation(operations, objectId);
+  }
+
   Future<PendingOp?> _editableCreate({
     required String accountId,
     required String collectionId,
@@ -846,7 +1057,7 @@ final class DavPendingOperationsReplayer {
       )
       ..orderBy([(row) => OrderingTerm.asc(row.createdAtUtc)]);
     final operations = _dependencyOrder(
-      (await query.get()).where(_isDavOperation).toList(),
+      (await query.get()).where(isDavPendingOperation).toList(),
     );
     var applied = 0;
     var conflicts = 0;
@@ -857,7 +1068,7 @@ final class DavPendingOperationsReplayer {
 
     for (final listed in operations) {
       final op = await _database.pendingOpsDao.getOp(listed.id);
-      if (op == null || !_isDavOperation(op)) continue;
+      if (op == null || !isDavPendingOperation(op)) continue;
       if (op.dependsOnOpId != null && await _opExists(op.dependsOnOpId!)) {
         continue;
       }
@@ -1808,12 +2019,6 @@ bool _componentIsEvent(String componentType) =>
       'VTODO' => false,
       _ => throw _invalidPendingOperation(),
     };
-
-bool _isDavOperation(PendingOp op) =>
-    op.operationType == 'dav.create' ||
-    op.operationType == 'dav.update' ||
-    op.operationType == 'dav.delete' ||
-    op.operationType == 'dav.move';
 
 List<PendingOp> _dependencyOrder(List<PendingOp> source) {
   final remaining = [...source];

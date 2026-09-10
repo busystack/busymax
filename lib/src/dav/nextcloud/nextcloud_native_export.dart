@@ -4,6 +4,7 @@ import 'package:drift/drift.dart';
 
 import '../../db/app_database.dart';
 import '../ical/ical_semantics.dart';
+import '../mutation/dav_pending_operation_selection.dart';
 import '../mutation/dav_pending_operations.dart';
 import '../storage/dav_collection_capabilities.dart';
 import 'nextcloud_native_import.dart';
@@ -35,14 +36,7 @@ final class NextcloudNativeExportService {
         await (database.select(database.pendingOps)..where(
               (r) =>
                   r.accountId.equals(accountId) &
-                  r.state.isIn(const [
-                    'pending',
-                    'retry',
-                    'in_progress',
-                    'conflict',
-                    'auth_blocked',
-                    'permission_blocked',
-                  ]),
+                  r.state.isIn(davActivePendingStates),
             ))
             .get();
     final unanchoredCreations =
@@ -52,19 +46,16 @@ final class NextcloudNativeExportService {
                   r.davCollectionId.equals(collectionId) &
                   r.operationType.equals('dav.create') &
                   r.davObjectId.isNull() &
-                  r.state.isIn(const [
-                    'pending',
-                    'retry',
-                    'in_progress',
-                    'conflict',
-                    'auth_blocked',
-                    'permission_blocked',
-                    'failed',
-                  ]),
+                  r.state.isIn(davUnresolvedPendingStates),
             ))
             .get();
+    final effectiveByObject = <String, PendingOp>{};
+    for (final objectId in operations.map((op) => op.davObjectId).nonNulls) {
+      final effective = effectiveDavPendingOperation(operations, objectId);
+      if (effective != null) effectiveByObject[objectId] = effective;
+    }
     final movingIn = {
-      for (final op in operations)
+      for (final op in effectiveByObject.values)
         if (op.operationType == 'dav.move' &&
             op.destinationCollectionId == collectionId &&
             op.davObjectId != null)
@@ -81,9 +72,7 @@ final class NextcloudNativeExportService {
     final queue = DavPendingOperationQueue(database: database);
     final resources = <NativeImportResource>[];
     for (final object in objects) {
-      final operation = operations
-          .where((op) => op.davObjectId == object.id)
-          .firstOrNull;
+      final operation = effectiveByObject[object.id];
       if (operation?.operationType == 'dav.delete' ||
           (operation?.operationType == 'dav.move' &&
               operation?.destinationCollectionId != collectionId)) {

@@ -73,6 +73,35 @@ class PendingOpsDao extends DatabaseAccessor<AppDatabase>
     );
   }
 
+  /// Makes a permanently failed DAV operation replayable without weakening
+  /// conflict, authentication, permission, or unknown-outcome states.
+  Future<bool> retryFailedDavOperationNow(
+    PendingOp snapshot,
+    DateTime nowUtc,
+  ) async {
+    final timestamp = nowUtc.toUtc().toIso8601String();
+    final query = update(pendingOps)
+      ..where(
+        (row) =>
+            row.id.equals(snapshot.id) &
+            row.accountId.equals(snapshot.accountId) &
+            row.state.equals('failed') &
+            row.updatedAtUtc.equals(snapshot.updatedAtUtc),
+      );
+    final updated = await query.write(
+      PendingOpsCompanion(
+        state: const Value('retry'),
+        retryClassification: const Value('manual_retry'),
+        nextAttemptAtUtc: Value(timestamp),
+        lastErrorCode: const Value(null),
+        lastErrorMessage: const Value(null),
+        lastError: const Value(null),
+        updatedAtUtc: Value(timestamp),
+      ),
+    );
+    return updated == 1;
+  }
+
   Future<void> updateAttempt({
     required String id,
     required int attemptCount,

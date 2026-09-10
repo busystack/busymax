@@ -19,6 +19,8 @@ import 'package:drift/drift.dart' hide isNull;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
+import 'package:uuid/data.dart';
+import 'package:uuid/uuid.dart';
 
 import 'nextcloud_admin_fixture.dart';
 
@@ -245,6 +247,97 @@ void main() {
         ).collection('another-account', 'collection'),
         throwsStateError,
       );
+    },
+  );
+  test(
+    'collection export uses the final update then move task candidate',
+    () async {
+      final db = fixture.database;
+      await _seedDestinationTaskList(db, now);
+      const href = '${NextcloudAdminFixture.collection}moved-task.ics';
+      await DavObjectRepository(database: db).commit(
+        DavCollectionCommit(
+          accountId: 'account',
+          collectionId: 'collection',
+          provider: BusyProvider.nextcloud,
+          objects: [
+            DavPreparedObject.parse(
+              hrefKey: href,
+              requestUri: Uri.parse('${NextcloudAdminFixture.origin}$href'),
+              etag: '"task-baseline"',
+              contentType: 'text/calendar',
+              rawIcsBody: _movableTask,
+            ),
+          ],
+          deletedHrefKeys: const {},
+          completeMembership: false,
+          membershipHrefKeys: const {},
+          finalCursorKind: 'dav_sync_token',
+          finalCursorValue: 'token-1',
+          baselineGeneration: 1,
+          completedAtUtc: now,
+          projectionRangeStartUtc: DateTime.utc(2025),
+          projectionRangeEndUtc: DateTime.utc(2028),
+        ),
+      );
+      final repository = TasksRepository(
+        database: db,
+        accountId: 'account',
+        uuid: _SequenceUuid(const ['z-update-operation', 'a-move-operation']),
+        nowUtc: () => now,
+      );
+      final task = (await db.tasksDao.listTasks(
+        'account',
+        'dav-task-list-collection',
+      )).single;
+      expect(task.parentUid, 'parent@example.test');
+
+      await repository.updateTaskFull(
+        'dav-task-list-collection',
+        task.id,
+        const TaskPutInput({'title': 'Final offline title'}),
+      );
+      await repository.moveTask(
+        TaskMoveInput(
+          sourceTaskListId: 'dav-task-list-collection',
+          destinationTaskListId: 'dav-task-list-destination',
+          taskId: task.id,
+        ),
+      );
+      final operationsBefore = await db.select(db.pendingOps).get();
+      final update = operationsBefore.singleWhere(
+        (operation) => operation.operationType == 'dav.update',
+      );
+      final move = operationsBefore.singleWhere(
+        (operation) => operation.operationType == 'dav.move',
+      );
+      expect(move.dependsOnOpId, update.id);
+      expect(update.id, 'z-update-operation');
+      expect(move.id, 'a-move-operation');
+      expect(move.createdAtUtc, update.createdAtUtc);
+      final tasksBefore = await db.select(db.tasks).get();
+      final objectsBefore = await db.select(db.davObjects).get();
+
+      final source = await NextcloudNativeExportService(
+        db,
+      ).collection('account', 'collection');
+      final destination = await NextcloudNativeExportService(
+        db,
+      ).collection('account', 'destination');
+
+      expect(source, isEmpty);
+      final exported = destination.single;
+      final component = IcalSemanticDocument.parse(
+        exported.rawIcs,
+      ).components.single;
+      expect(exported.uid, 'moved-task@example.test');
+      expect(component.summary, 'Final offline title');
+      expect(component.parentUid, isNull);
+      expect(exported.rawIcs, isNot(contains('RELATED-TO')));
+      expect(await db.select(db.pendingOps).get(), operationsBefore);
+      expect(await db.select(db.tasks).get(), tasksBefore);
+      expect(await db.select(db.davObjects).get(), objectsBefore);
+      expect(fixture.requests, isEmpty);
     },
   );
   test(
@@ -580,6 +673,70 @@ void main() {
     },
   );
 }
+
+Future<void> _seedDestinationTaskList(
+  AppDatabase database,
+  DateTime now,
+) async {
+  const href = '${NextcloudAdminFixture.home}destination/';
+  final timestamp = now.toIso8601String();
+  await database
+      .into(database.davCollections)
+      .insert(
+        DavCollectionsCompanion.insert(
+          id: 'destination',
+          accountId: 'account',
+          hrefKey: href,
+          requestUri: '${NextcloudAdminFixture.origin}$href',
+          displayName: 'Destination',
+          supportedComponentMask: const Value(3),
+          currentUserPrivilegesJson: const Value('["{DAV:}all"]'),
+          readOnly: const Value(false),
+          eventProjectionEnabled: const Value(true),
+          taskProjectionEnabled: const Value(true),
+          createdAtUtc: timestamp,
+          updatedAtUtc: timestamp,
+        ),
+      );
+  await database
+      .into(database.taskLists)
+      .insert(
+        TaskListsCompanion.insert(
+          accountId: 'account',
+          id: 'dav-task-list-destination',
+          davCollectionId: const Value('destination'),
+          title: 'Destination',
+          rawJson: '{}',
+          createdLocalAtUtc: timestamp,
+          updatedLocalAtUtc: timestamp,
+        ),
+      );
+}
+
+final class _SequenceUuid extends Uuid {
+  _SequenceUuid(List<String> values) : _values = values.iterator;
+
+  final Iterator<String> _values;
+
+  @override
+  String v4({Map<String, dynamic>? options, V4Options? config}) {
+    if (!_values.moveNext()) throw StateError('No test UUID remains.');
+    return _values.current;
+  }
+}
+
+const _movableTask = '''BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//BusyMax Test//EN
+BEGIN:VTODO
+UID:moved-task@example.test
+DTSTAMP:20260905T120000Z
+SUMMARY:Original title
+DESCRIPTION:Move-specific fields must be exported
+RELATED-TO:parent@example.test
+END:VTODO
+END:VCALENDAR
+''';
 
 const _raw = '''BEGIN:VCALENDAR
 VERSION:2.0

@@ -15,6 +15,7 @@ import 'package:busymax/src/features/maps/application/location_destination_resol
 import 'package:busymax/src/features/maps/data/location_resolution_repository.dart';
 import 'package:busymax/src/features/maps/domain/geographic_point.dart';
 import 'package:busymax/src/features/maps/domain/location_result.dart';
+import 'package:busymax/src/features/sync/pending_op_resolution_service.dart';
 import 'package:busymax/src/features/tasks/data/tasks_repository.dart';
 import 'package:busymax/src/providers/busy_provider.dart';
 import 'package:drift/drift.dart' hide isNull;
@@ -290,6 +291,261 @@ void main() {
     expect(reported, hasLength(1));
     expect(reported.single.statusCode, 415);
   });
+
+  test(
+    'Diagnostics retry makes a failed DAV update perform a real replay',
+    () async {
+      final object = await database.select(database.davObjects).getSingle();
+      await queue.enqueueUpdate(
+        accountId: 'account',
+        collectionId: 'collection',
+        objectId: object.id,
+        patch: _patch('SUMMARY', 'Recovered update'),
+      );
+      var writes = 0;
+      String? sentCandidate;
+      final remote = _FakeMutationRemote(
+        put: ({required rawIcs, required ifMatch, required ifNoneMatch}) async {
+          writes += 1;
+          if (writes == 1) {
+            throw const DavException(
+              kind: DavErrorKind.invalidCalendarData,
+              code: 'DavMalformedResource',
+              safeMessage: 'The DAV server could not update the object.',
+              statusCode: 415,
+            );
+          }
+          sentCandidate = rawIcs;
+          return _success;
+        },
+        fetcher: (href) async => _live(href, '"recovered"', sentCandidate!),
+      );
+      final replayer = _replayer(database, objectRepository, remote);
+      await replayer.replayDueOperations();
+      final failed = await database.select(database.pendingOps).getSingle();
+      expect(failed.state, 'failed');
+      expect(
+        await database.pendingOpsDao.watchBlockedOps('account').first,
+        hasLength(1),
+      );
+
+      var calendarSyncs = 0;
+      final recovery = PendingOpResolutionService(
+        database: database,
+        accountId: 'account',
+        syncTasks: () async => fail('An event retry must not run task sync.'),
+        syncCalendar: () async {
+          calendarSyncs += 1;
+          final result = await replayer.replayDueOperations();
+          expect(result.appliedCount, 1);
+        },
+        nowUtc: () => _now,
+      );
+
+      await recovery.retryNow(failed.id);
+
+      expect(calendarSyncs, 1);
+      expect(writes, 2);
+      expect(await database.select(database.pendingOps).get(), isEmpty);
+      expect(
+        await database.pendingOpsDao.watchBlockedOps('account').first,
+        isEmpty,
+      );
+      expect(
+        (await database.select(database.calendarEvents).getSingle()).title,
+        'Recovered update',
+      );
+    },
+  );
+
+  test(
+    'Diagnostics leaves DAV conflicts blocked for conflict review',
+    () async {
+      final object = await database.select(database.davObjects).getSingle();
+      await queue.enqueueUpdate(
+        accountId: 'account',
+        collectionId: 'collection',
+        objectId: object.id,
+        patch: _patch('SUMMARY', 'Conflicting update'),
+      );
+      await database
+          .update(database.pendingOps)
+          .write(
+            const PendingOpsCompanion(
+              state: Value('conflict'),
+              retryClassification: Value('manual_conflict_resolution'),
+              nextAttemptAtUtc: Value('9999-12-31T23:59:59.999Z'),
+              lastErrorCode: Value('DavResourceConflict'),
+            ),
+          );
+      final before = await database.select(database.pendingOps).getSingle();
+      var syncs = 0;
+      final recovery = PendingOpResolutionService(
+        database: database,
+        accountId: 'account',
+        syncTasks: () async => syncs += 1,
+        syncCalendar: () async => syncs += 1,
+        nowUtc: () => _now,
+      );
+
+      await expectLater(
+        recovery.retryNow(before.id),
+        throwsA(
+          isA<StateError>().having(
+            (error) => error.message,
+            'message',
+            contains('conflict review'),
+          ),
+        ),
+      );
+
+      expect(await database.select(database.pendingOps).getSingle(), before);
+      expect(
+        await database.pendingOpsDao.watchBlockedOps('account').first,
+        hasLength(1),
+      );
+      expect(syncs, 0);
+    },
+  );
+
+  test('Diagnostics discard restores a failed DAV update baseline', () async {
+    final object = await database.select(database.davObjects).getSingle();
+    await queue.enqueueUpdate(
+      accountId: 'account',
+      collectionId: 'collection',
+      objectId: object.id,
+      patch: _patch('SUMMARY', 'Discard this update'),
+    );
+    final operation = await database.select(database.pendingOps).getSingle();
+    final candidate = DavMutationPatch.fromJsonString(
+      operation.mutationPatchJson!,
+    ).applyTo(operation.baselineRawIcs!, nowUtc: _now);
+    await objectRepository.projectLocalMutationCandidate(
+      accountId: 'account',
+      collectionId: 'collection',
+      provider: BusyProvider.nextcloud,
+      objectId: object.id,
+      candidateRawIcs: candidate,
+      projectedAtUtc: _now,
+    );
+    expect(
+      (await database.select(database.calendarEvents).getSingle()).title,
+      'Discard this update',
+    );
+    final remote = _FakeMutationRemote(
+      put: ({required rawIcs, required ifMatch, required ifNoneMatch}) async {
+        throw const DavException(
+          kind: DavErrorKind.invalidCalendarData,
+          code: 'DavMalformedResource',
+          safeMessage: 'The DAV server could not update the object.',
+          statusCode: 415,
+        );
+      },
+    );
+    await _replayer(database, objectRepository, remote).replayDueOperations();
+    expect(
+      (await database.select(database.pendingOps).getSingle()).state,
+      'failed',
+    );
+
+    var syncs = 0;
+    await PendingOpResolutionService(
+      database: database,
+      accountId: 'account',
+      syncTasks: () async => fail('An event discard must not sync tasks.'),
+      syncCalendar: () async => syncs += 1,
+      nowUtc: () => _now,
+    ).discard(operation.id);
+
+    expect(await database.select(database.pendingOps).get(), isEmpty);
+    final restored = await database.select(database.calendarEvents).getSingle();
+    expect(restored.title, 'Baseline');
+    expect(restored.syncStatus, 'synced');
+    expect(syncs, 1);
+  });
+
+  test(
+    'Diagnostics discard removes a rejected local DAV task and dependents',
+    () async {
+      final tasks = TasksRepository(
+        database: database,
+        accountId: 'account',
+        nowUtc: () => _now,
+      );
+      await tasks.createTask(
+        'dav-task-list-collection',
+        const TaskCreateInput(title: 'Rejected local task'),
+      );
+      final task = (await database.tasksDao.listTasks(
+        'account',
+        'dav-task-list-collection',
+      )).single;
+      final create = await database.select(database.pendingOps).getSingle();
+      expect(create.operationType, 'dav.create');
+      expect(create.taskListId, isNull);
+      expect(create.taskId, task.id);
+      final dependentId =
+          await DavPendingOperationQueue(
+            database: database,
+            idFactory: () => 'dependent-create',
+            nowUtc: () => _now,
+          ).enqueueCreate(
+            accountId: 'account',
+            collectionId: 'collection',
+            object: DavNewObject(
+              uid: 'dependent@example.test',
+              initialMemberName: 'dependent.ics',
+              rawIcs: _task(
+                uid: 'dependent@example.test',
+                start: 'DTSTART;VALUE=DATE:20260809',
+                due: 'DUE;VALUE=DATE:20260810',
+              ),
+              componentType: 'VTODO',
+            ),
+            dependsOnOperationId: create.id,
+          );
+      var writes = 0;
+      final remote = _FakeMutationRemote(
+        put: ({required rawIcs, required ifMatch, required ifNoneMatch}) async {
+          writes += 1;
+          throw const DavException(
+            kind: DavErrorKind.invalidCalendarData,
+            code: 'DavMalformedResource',
+            safeMessage: 'The DAV server could not update the object.',
+            statusCode: 415,
+          );
+        },
+      );
+      await _replayer(database, objectRepository, remote).replayDueOperations();
+      final failed = await database.pendingOpsDao.getOp(create.id);
+      expect(failed?.state, 'failed');
+      expect(
+        await database.pendingOpsDao.getOp(dependentId),
+        isNot(equals(null)),
+      );
+      expect(writes, 1);
+
+      var syncs = 0;
+      await PendingOpResolutionService(
+        database: database,
+        accountId: 'account',
+        syncTasks: () async => syncs += 1,
+        syncCalendar: () async => fail('A task discard must not sync events.'),
+        nowUtc: () => _now,
+      ).discard(create.id);
+
+      expect(await database.select(database.pendingOps).get(), isEmpty);
+      expect(
+        await database.tasksDao.listTasks(
+          'account',
+          'dav-task-list-collection',
+        ),
+        isEmpty,
+      );
+      expect(syncs, 0);
+      expect(writes, 1);
+    },
+  );
 
   test('queue rejects a VTODO due before its start', () async {
     await expectLater(

@@ -14,6 +14,7 @@ import '../ical/ical_recurrence.dart';
 import '../ical/ical_semantics.dart';
 import '../ical/ical_timezone.dart';
 import '../mutation/dav_mutation_patch.dart';
+import '../mutation/dav_pending_operation_selection.dart';
 import '../nextcloud/nextcloud_scheduling_policy.dart';
 import 'dav_collection_capabilities.dart';
 
@@ -442,6 +443,77 @@ final class DavObjectRepository {
       await _resolveProjectedTaskParents(collectionId);
       return {objectId};
     });
+  }
+
+  /// Restores one object's projections from its server-confirmed raw body.
+  ///
+  /// The pending overlay must already have been removed in the caller's
+  /// transaction so projection state cannot be restored from the discarded
+  /// candidate again.
+  Future<void> restoreServerProjectionAfterDiscard({
+    required String accountId,
+    required String objectId,
+    required DateTime restoredAtUtc,
+  }) async {
+    final account = await (_database.select(
+      _database.accounts,
+    )..where((row) => row.id.equals(accountId))).getSingleOrNull();
+    final object = await (_database.select(
+      _database.davObjects,
+    )..where((row) => row.id.equals(objectId))).getSingleOrNull();
+    final collection = object == null
+        ? null
+        : await (_database.select(_database.davCollections)
+                ..where((row) => row.id.equals(object.collectionId)))
+              .getSingleOrNull();
+    if (account == null ||
+        object == null ||
+        collection == null ||
+        object.accountId != accountId ||
+        collection.accountId != accountId ||
+        object.serverDeleted) {
+      throw const DavException(
+        kind: DavErrorKind.protocol,
+        code: 'DavDiscardBaselineUnavailable',
+        safeMessage: 'The DAV server baseline could not be restored.',
+      );
+    }
+    final now = restoredAtUtc.toUtc();
+    final range = _projectionRange(await cursor(collection.id), now);
+    final semantic = IcalSemanticDocument.parse(object.rawIcsBody);
+    final context = DavCollectionCommit(
+      accountId: accountId,
+      collectionId: collection.id,
+      provider: BusyProviderCodec.requireStorageValue(account.provider),
+      objects: const [],
+      deletedHrefKeys: const {},
+      completeMembership: false,
+      membershipHrefKeys: const {},
+      finalCursorKind: 'discard_restore',
+      finalCursorValue: '0',
+      baselineGeneration: object.baselineGeneration,
+      completedAtUtc: now,
+      projectionRangeStartUtc: range.start,
+      projectionRangeEndUtc: range.end,
+    );
+    final componentIds = await _replaceComponentIndex(object.id, semantic);
+    await _replaceProjections(
+      commit: context,
+      collection: collection,
+      objectId: object.id,
+      etag: object.etag,
+      semantic: semantic,
+      componentIds: componentIds,
+    );
+    await (_database.update(
+      _database.davObjects,
+    )..where((row) => row.id.equals(object.id))).write(
+      const DavObjectsCompanion(
+        lastParseStatus: Value('parsed'),
+        lastParseErrorCode: Value(null),
+      ),
+    );
+    await _resolveProjectedTaskParents(collection.id);
   }
 
   /// Gives a native import the same raw resource identity and bounded
@@ -1514,43 +1586,10 @@ final class DavObjectRepository {
   }
 
   Future<PendingOp?> _effectivePendingOperation(String objectId) async {
-    final operations =
-        await (_database.select(_database.pendingOps)
-              ..where(
-                (row) =>
-                    row.davObjectId.equals(objectId) &
-                    row.operationType.isIn(const [
-                      'dav.create',
-                      'dav.update',
-                      'dav.delete',
-                      'dav.move',
-                    ]) &
-                    row.state.isIn(const [
-                      'pending',
-                      'retry',
-                      'in_progress',
-                      'blocked',
-                      'conflict',
-                      'auth_blocked',
-                      'permission_blocked',
-                    ]),
-              )
-              ..orderBy([
-                (row) => OrderingTerm.asc(row.createdAtUtc),
-                (row) => OrderingTerm.asc(row.id),
-              ]))
-            .get();
-    if (operations.isEmpty) return null;
-    // A move can depend on an earlier queued update for the same object. Pick
-    // the terminal operation in that chain even when both were created in the
-    // same clock tick and UUID ordering carries no sequencing information.
-    final dependedOnIds = {
-      for (final operation in operations) operation.dependsOnOpId,
-    }..remove(null);
-    final terminal = operations
-        .where((operation) => !dependedOnIds.contains(operation.id))
-        .toList(growable: false);
-    return terminal.length == 1 ? terminal.single : operations.last;
+    final operations = await (_database.select(
+      _database.pendingOps,
+    )..where((row) => row.davObjectId.equals(objectId))).get();
+    return effectiveDavPendingOperation(operations, objectId);
   }
 
   String _pendingCandidateRaw(PendingOp operation, {required DateTime nowUtc}) {

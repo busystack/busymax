@@ -1,6 +1,8 @@
 import 'dart:convert';
 
 import '../../calendar_providers/cloud_calendar_client.dart';
+import '../../dav/mutation/dav_pending_operation_selection.dart';
+import '../../dav/mutation/dav_pending_operations.dart';
 import '../../db/app_database.dart';
 import '../calendar/data/calendar_repository.dart';
 import '../task_lists/data/task_lists_repository.dart';
@@ -36,13 +38,29 @@ class PendingOpResolutionService {
   Future<void> retryNow(String opId) async {
     final op = await _database.pendingOpsDao.getOp(opId);
     if (op == null) return;
-    await _database.pendingOpsDao.retryNow(opId, _nowUtc());
+    if (isDavPendingOperation(op)) {
+      await DavPendingOperationQueue(
+        database: _database,
+        nowUtc: _nowUtc,
+      ).retryBlockedOperation(accountId: _accountId, operationId: op.id);
+    } else {
+      await _database.pendingOpsDao.retryNow(opId, _nowUtc());
+    }
     await _syncAfterResolution(op);
   }
 
   Future<void> discard(String opId) async {
     final op = await _database.pendingOpsDao.getOp(opId);
     if (op == null) {
+      return;
+    }
+
+    if (isDavPendingOperation(op)) {
+      final syncAfterDiscard = await DavPendingOperationQueue(
+        database: _database,
+        nowUtc: _nowUtc,
+      ).discardBlockedOperation(accountId: _accountId, operationId: op.id);
+      if (syncAfterDiscard) await _syncAfterResolution(op);
       return;
     }
 
