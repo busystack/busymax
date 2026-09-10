@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:busymax/src/core/secrets/secret_store.dart';
 import 'package:busymax/src/dav/dav_errors.dart';
@@ -598,6 +599,217 @@ void main() {
         await database.select(database.notificationSchedule).get(),
         isEmpty,
       );
+    },
+  );
+
+  test(
+    'restart reconciles an in-progress MOVE after source synchronization',
+    () async {
+      final temporaryDirectory = await Directory.systemTemp.createTemp(
+        'busymax-dav-move-restart-',
+      );
+      final databaseFile = File('${temporaryDirectory.path}/busymax.sqlite');
+      final previousDatabaseWarningSetting =
+          driftRuntimeOptions.dontWarnAboutMultipleDatabases;
+      driftRuntimeOptions.dontWarnAboutMultipleDatabases = true;
+      var persistedDatabase = AppDatabase(NativeDatabase(databaseFile));
+      final persistedSecrets = InMemorySecretStore();
+      try {
+        await _seed(persistedDatabase, persistedSecrets);
+        await _seedDestination(persistedDatabase);
+        const uid = 'interrupted-move-task@example.test';
+        const sourceHref = '${_collectionHref}interrupted-move-task.ics';
+        const destinationHref =
+            '${_destinationCollectionHref}interrupted-move-task.ics';
+        final sourceRaw = _taskWithParent(uid, 'Interrupted move');
+        final repository = DavObjectRepository(
+          database: persistedDatabase,
+          idFactory: () => 'interrupted-source-object',
+        );
+        await repository.commitConfirmedMutation(
+          accountId: 'account',
+          collectionId: 'collection',
+          provider: BusyProvider.nextcloud,
+          canonicalObject: _preparedMember(
+            href: sourceHref,
+            etag: '"source-before-move"',
+            body: sourceRaw,
+          ),
+          completedAtUtc: _now,
+        );
+        final sourceObject = await (persistedDatabase.select(
+          persistedDatabase.davObjects,
+        )..where((row) => row.hrefKey.equals(sourceHref))).getSingle();
+        final sourceTask = await (persistedDatabase.select(
+          persistedDatabase.tasks,
+        )..where((row) => row.davObjectId.equals(sourceObject.id))).getSingle();
+        final operationId =
+            await DavPendingOperationQueue(
+              database: persistedDatabase,
+              idFactory: () => 'interrupted-move-operation',
+              nowUtc: () => _now,
+            ).enqueueMove(
+              accountId: 'account',
+              sourceCollectionId: 'collection',
+              destinationCollectionId: 'destination',
+              objectId: sourceObject.id,
+              localProjectionId: sourceTask.id,
+              target: const IcalComponentKey(componentType: 'VTODO', uid: uid),
+              postMovePatch: DavMutationPatch(
+                target: const IcalComponentKey(
+                  componentType: 'VTODO',
+                  uid: uid,
+                ),
+                scope: DavMutationScope.object,
+                operations: [DavPatchOperation.setTaskParent(null)],
+              ),
+            );
+        await (persistedDatabase.update(persistedDatabase.pendingOps)
+              ..where((row) => row.id.equals(operationId)))
+            .write(const PendingOpsCompanion(state: Value('in_progress')));
+        final interrupted = await persistedDatabase.pendingOpsDao.getOp(
+          operationId,
+        );
+        expect(interrupted?.state, 'in_progress');
+        expect(interrupted?.attemptCount, 0);
+        expect(
+          interrupted?.requestJson,
+          isNot(contains('moveMayHaveCompleted')),
+        );
+
+        await persistedDatabase.close();
+        persistedDatabase = AppDatabase(NativeDatabase(databaseFile));
+        var destinationRaw = sourceRaw;
+        var destinationEtag = '"destination-before-patch"';
+        var moves = 0;
+        var destinationPatchPuts = 0;
+        var token = 0;
+        var verifiedSynchronizedTombstone = false;
+        final requests = <String>[];
+        final client = MockClient((request) async {
+          requests.add('${request.method} ${request.url.path}');
+          if (request.method == 'OPTIONS') {
+            return http.Response(
+              '',
+              200,
+              headers: {'dav': '1, calendar-access, sync-collection'},
+            );
+          }
+          if (request.method == 'PROPFIND') {
+            if (request.body.contains('<d:current-user-principal/>')) {
+              return _discoveryMultistatus(_currentPrincipalResponse);
+            }
+            if (request.body.contains('<c:calendar-home-set/>')) {
+              return _discoveryMultistatus(_principalPropertiesResponse);
+            }
+            return _discoveryMultistatus(_twoCollectionInventoryResponse);
+          }
+          if (request.method == 'REPORT' &&
+              request.body.contains('sync-collection')) {
+            token += 1;
+            if (request.url.path == _collectionHref) {
+              return http.Response(
+                _syncMemberResponse(
+                  token: 'restart-source-$token',
+                  href: sourceHref,
+                  deleted: true,
+                ),
+                207,
+              );
+            }
+            if (request.url.path == _destinationCollectionHref) {
+              return http.Response(
+                _syncMemberResponse(
+                  token: 'restart-destination-$token',
+                  href: destinationHref,
+                  etag: destinationEtag,
+                ),
+                207,
+              );
+            }
+          }
+          if (request.method == 'REPORT' &&
+              request.body.contains('calendar-multiget') &&
+              request.url.path == _destinationCollectionHref) {
+            return http.Response(
+              _multigetMemberResponse(
+                href: destinationHref,
+                body: destinationRaw,
+                etag: destinationEtag,
+              ),
+              207,
+            );
+          }
+          if (request.method == 'MOVE') {
+            moves += 1;
+            return http.Response('', 412);
+          }
+          if (request.method == 'GET' && request.url.path == sourceHref) {
+            return http.Response('', 404);
+          }
+          if (request.method == 'GET' && request.url.path == destinationHref) {
+            if (!verifiedSynchronizedTombstone) {
+              final synchronizedSource = await (persistedDatabase.select(
+                persistedDatabase.davObjects,
+              )..where((row) => row.id.equals(sourceObject.id))).getSingle();
+              expect(synchronizedSource.serverDeleted, isTrue);
+              expect(
+                (await persistedDatabase.pendingOpsDao.getOp(operationId))?.id,
+                operationId,
+              );
+              verifiedSynchronizedTombstone = true;
+            }
+            return http.Response(
+              destinationRaw,
+              200,
+              headers: {
+                'etag': destinationEtag,
+                'content-type': 'text/calendar',
+              },
+            );
+          }
+          if (request.method == 'PUT' && request.url.path == destinationHref) {
+            destinationPatchPuts += 1;
+            expect(request.headers['if-match'], destinationEtag);
+            expect(request.body, isNot(contains('RELATED-TO')));
+            destinationRaw = request.body;
+            destinationEtag = '"destination-after-patch"';
+            return http.Response('', 204);
+          }
+          fail('Unexpected ${request.method} ${request.url}');
+        });
+
+        final result = await DavAccountSyncEngine(
+          database: persistedDatabase,
+          secretStore: persistedSecrets,
+          httpClient: client,
+          accountId: 'account',
+          policy: const DavAccountSyncPolicy(
+            discoveryMaxAge: Duration(days: 30),
+            inventoryMaxAge: Duration(days: 30),
+            maximumConcurrentCollections: 1,
+          ),
+          correlationIdFactory: () => 'restart-move-recovery',
+          nowUtc: () => _now.add(const Duration(minutes: 1)),
+        ).synchronize();
+
+        expect(result.pendingOperationsApplied, 1);
+        expect(verifiedSynchronizedTombstone, isTrue);
+        expect(moves, 0);
+        expect(destinationPatchPuts, 1);
+        expect(await persistedDatabase.pendingOpsDao.getOp(operationId), null);
+        final tasks = await persistedDatabase
+            .select(persistedDatabase.tasks)
+            .get();
+        expect(tasks, hasLength(1));
+        expect(tasks.single.taskListId, 'dav-task-list-destination');
+        expect(tasks.single.parentUid, null);
+      } finally {
+        await persistedDatabase.close();
+        await temporaryDirectory.delete(recursive: true);
+        driftRuntimeOptions.dontWarnAboutMultipleDatabases =
+            previousDatabaseWarningSetting;
+      }
     },
   );
 

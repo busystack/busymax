@@ -32,6 +32,17 @@ bool isDavPartiallyCompletedMove(PendingOp operation) =>
         operation.lastErrorCode == davPartialMoveFailureCode ||
         _requestMarksMoveMayHaveCompleted(operation.requestJson));
 
+bool _davOperationNeedsReconciliation(PendingOp operation) =>
+    operation.attemptCount > 0 ||
+    operation.state == DavPendingState.inProgress.storageValue ||
+    operation.retryClassification == 'manual_retry' ||
+    operation.retryClassification == 'credential_replaced' ||
+    isDavPartiallyCompletedMove(operation);
+
+bool _davMoveNeedsReconciliation(PendingOp operation) =>
+    operation.operationType == 'dav.move' &&
+    _davOperationNeedsReconciliation(operation);
+
 const _davMutationPutRejectedMessage =
     'The DAV server could not update the object.';
 
@@ -1258,12 +1269,14 @@ final class DavPendingOperationsReplayer {
       _database.accounts,
     )..where((row) => row.id.equals(_accountId))).getSingle();
     final capabilities = collectionCapabilitiesFromStored(collection);
-    final partiallyCompletedMove = isDavPartiallyCompletedMove(op);
+    final reconcileFirst = _davOperationNeedsReconciliation(op);
+    final allowDeletedMoveSource =
+        op.operationType == 'dav.move' && reconcileFirst;
     if (op.operationType == 'dav.move') {
       await _requiredMoveSource(
         op,
         collection,
-        allowServerDeleted: partiallyCompletedMove,
+        allowServerDeleted: allowDeletedMoveSource,
       );
     }
     if (account.provider == 'nextcloud') {
@@ -1309,17 +1322,11 @@ final class DavPendingOperationsReplayer {
         : await _requiredObjectUri(
             op,
             collection,
-            allowServerDeleted: partiallyCompletedMove,
+            allowServerDeleted: allowDeletedMoveSource,
           );
     final destinationCollection = op.operationType == 'dav.move'
         ? await _requiredDestinationCollection(op)
         : null;
-    final reconcileFirst =
-        op.attemptCount > 0 ||
-        op.state == 'in_progress' ||
-        op.retryClassification == 'manual_retry' ||
-        op.retryClassification == 'credential_replaced' ||
-        partiallyCompletedMove;
     return switch (op.operationType) {
       'dav.create' => service.create(
         collectionUri: Uri.parse(collection.requestUri),
@@ -1678,7 +1685,7 @@ final class DavPendingOperationsReplayer {
     classification:
         op.operationType == 'dav.move' &&
             (error.code == davPartialMoveFailureCode ||
-                isDavPartiallyCompletedMove(op))
+                _davMoveNeedsReconciliation(op))
         ? davPartialMoveRetryClassification
         : 'permanent',
     error: error,
@@ -1704,7 +1711,7 @@ final class DavPendingOperationsReplayer {
     final now = _nowUtc().toUtc().toIso8601String();
     final preservePartialMove =
         error.code == davPartialMoveFailureCode ||
-        isDavPartiallyCompletedMove(op);
+        _davMoveNeedsReconciliation(op);
     return (_database.update(
       _database.pendingOps,
     )..where((row) => row.id.equals(op.id))).write(
@@ -1732,7 +1739,7 @@ final class DavPendingOperationsReplayer {
     final now = _nowUtc().toUtc();
     final preservePartialMove =
         error.code == davPartialMoveFailureCode ||
-        isDavPartiallyCompletedMove(op);
+        _davMoveNeedsReconciliation(op);
     await (_database.update(
       _database.pendingOps,
     )..where((row) => row.id.equals(op.id))).write(
@@ -1759,6 +1766,9 @@ final class DavPendingOperationsReplayer {
       PendingOpsCompanion(
         state: Value(DavPendingState.inProgress.storageValue),
         nextAttemptAtUtc: const Value(null),
+        requestJson: op.operationType == 'dav.move'
+            ? Value(_markMoveMayHaveCompleted(op.requestJson))
+            : const Value.absent(),
         updatedAtUtc: Value(_nowUtc().toUtc().toIso8601String()),
       ),
     );

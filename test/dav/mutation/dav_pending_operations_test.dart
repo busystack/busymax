@@ -1163,6 +1163,101 @@ void main() {
   );
 
   test(
+    'move marker survives a local commit failure after remote success',
+    () async {
+      await _seedDestination(database);
+      final source = await (database.select(
+        database.davObjects,
+      )..where((row) => row.hrefKey.equals(_eventHref))).getSingle();
+      final operationId = await queue.enqueueMove(
+        accountId: 'account',
+        sourceCollectionId: 'collection',
+        destinationCollectionId: 'destination',
+        objectId: source.id,
+        target: _target,
+      );
+      await database.customStatement('''
+CREATE TRIGGER fail_confirmed_move_commit
+BEFORE UPDATE OF server_deleted ON dav_objects
+WHEN NEW.server_deleted = 1
+BEGIN
+  SELECT RAISE(ABORT, 'forced move commit failure');
+END
+''');
+      const destinationHref = '/remote.php/dav/calendars/alex/home/event.ics';
+      var remoteMoved = false;
+      var moves = 0;
+      final remote = _FakeMutationRemote(
+        move:
+            ({
+              required sourceUri,
+              required destinationUri,
+              required ifMatch,
+            }) async {
+              moves += 1;
+              remoteMoved = true;
+              return _success;
+            },
+        fetcher: (href) async {
+          if (href == destinationHref && remoteMoved) {
+            return _live(href, '"destination"', _event('Baseline'));
+          }
+          if (href == _eventHref && !remoteMoved) {
+            return _live(href, 'W/"baseline"', _event('Baseline'));
+          }
+          return _missing(href);
+        },
+      );
+
+      final firstReplay = await _replayer(
+        database,
+        objectRepository,
+        remote,
+      ).replayDueOperations();
+
+      expect(firstReplay.appliedCount, 0);
+      expect(firstReplay.retryCount, 1);
+      expect(moves, 1);
+      final awaitingLocalCommit = await database.pendingOpsDao.getOp(
+        operationId,
+      );
+      expect(awaitingLocalCommit?.state, 'retry');
+      expect(awaitingLocalCommit?.attemptCount, 1);
+      expect(isDavPartiallyCompletedMove(awaitingLocalCommit!), isTrue);
+      expect(awaitingLocalCommit.requestJson, contains('moveMayHaveCompleted'));
+      expect(
+        (await (database.select(
+          database.davObjects,
+        )..where((row) => row.id.equals(source.id))).getSingle()).serverDeleted,
+        isFalse,
+      );
+
+      await database.customStatement('DROP TRIGGER fail_confirmed_move_commit');
+      await (database.update(database.davObjects)
+            ..where((row) => row.id.equals(source.id)))
+          .write(const DavObjectsCompanion(serverDeleted: Value(true)));
+      await queue.retryBlockedOperation(
+        accountId: 'account',
+        operationId: operationId,
+      );
+      final secondReplay = await _replayer(
+        database,
+        objectRepository,
+        remote,
+      ).replayDueOperations();
+
+      expect(secondReplay.appliedCount, 1);
+      expect(moves, 1);
+      expect(await database.pendingOpsDao.getOp(operationId), null);
+      final destination = await (database.select(
+        database.davObjects,
+      )..where((row) => row.hrefKey.equals(destinationHref))).getSingle();
+      expect(destination.collectionId, 'destination');
+      expect(destination.serverDeleted, isFalse);
+    },
+  );
+
+  test(
     'confirmed recurring event move restores only matching occurrence points',
     () async {
       await _seedDestination(database);
