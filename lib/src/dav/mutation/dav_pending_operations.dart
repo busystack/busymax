@@ -23,6 +23,12 @@ import 'dav_mutation_patch.dart';
 import 'dav_pending_operation_selection.dart';
 
 const davPendingOperationSchemaVersion = 1;
+const davPartialMoveRetryClassification = 'partial_move';
+
+bool isDavPartiallyCompletedMove(PendingOp operation) =>
+    operation.operationType == 'dav.move' &&
+    (operation.retryClassification == davPartialMoveRetryClassification ||
+        operation.lastErrorCode == davPartialMoveFailureCode);
 
 const _davMutationPutRejectedMessage =
     'The DAV server could not update the object.';
@@ -410,7 +416,9 @@ final class DavPendingOperationQueue {
     }
     switch (operation.state) {
       case 'failed':
-        if (operation.retryClassification != 'permanent') {
+        if (operation.retryClassification != 'permanent' &&
+            operation.retryClassification !=
+                davPartialMoveRetryClassification) {
           throw StateError(
             'This DAV failure cannot be retried without reconciliation.',
           );
@@ -447,6 +455,7 @@ final class DavPendingOperationQueue {
   Future<bool> discardBlockedOperation({
     required String accountId,
     required String operationId,
+    DateTime? partialMoveReconciledAfterUtc,
   }) {
     return _database.transaction(() async {
       final selected = await _database.pendingOpsDao.getOp(operationId);
@@ -455,6 +464,12 @@ final class DavPendingOperationQueue {
         throw StateError('The DAV operation is not available for recovery.');
       }
       _ensureDavDiscardable(selected);
+      final partialMoveAtDestination = isDavPartiallyCompletedMove(selected)
+          ? await _reconciledPartialMoveIsAtDestination(
+              selected,
+              reconciledAfterUtc: partialMoveReconciledAfterUtc,
+            )
+          : false;
       final operations = await _davDependentClosure(selected);
       for (final dependent in operations.skip(1)) {
         if (!isDavPendingOperation(dependent) ||
@@ -476,6 +491,7 @@ final class DavPendingOperationQueue {
         for (final operation in operations)
           if (operation.operationType != 'dav.create' &&
               operation.davObjectId != null &&
+              !(partialMoveAtDestination && operation.id == selected.id) &&
               !createdObjectIds.contains(operation.davObjectId))
             operation.davObjectId!,
       };
@@ -565,7 +581,8 @@ final class DavPendingOperationQueue {
       );
     }
     if (operation.state == DavPendingState.failed.storageValue &&
-        operation.retryClassification != 'permanent') {
+        operation.retryClassification != 'permanent' &&
+        operation.retryClassification != davPartialMoveRetryClassification) {
       throw StateError(
         'This DAV failure cannot be discarded without reconciliation.',
       );
@@ -598,6 +615,82 @@ final class DavPendingOperationQueue {
       }
     }
     return result;
+  }
+
+  Future<bool> _reconciledPartialMoveIsAtDestination(
+    PendingOp operation, {
+    required DateTime? reconciledAfterUtc,
+  }) async {
+    final sourceCollectionId = operation.davCollectionId;
+    final destinationCollectionId = operation.destinationCollectionId;
+    final destinationHref = operation.destinationMemberHref;
+    final objectId = operation.davObjectId;
+    if (operation.operationType != 'dav.move' ||
+        sourceCollectionId == null ||
+        destinationCollectionId == null ||
+        destinationHref == null ||
+        objectId == null ||
+        reconciledAfterUtc == null) {
+      throw StateError(
+        'The partially completed DAV move must be synchronized before it can '
+        'be discarded.',
+      );
+    }
+    final cursors =
+        await (_database.select(_database.syncCursors)..where(
+              (row) =>
+                  row.accountId.equals(operation.accountId) &
+                  row.davCollectionId.isIn([
+                    sourceCollectionId,
+                    destinationCollectionId,
+                  ]) &
+                  row.transport.equals('caldav') &
+                  row.syncScopeKind.equals('collection'),
+            ))
+            .get();
+    final reconciledAt = reconciledAfterUtc.toUtc().millisecondsSinceEpoch;
+    final cursorByCollection = {
+      for (final cursor in cursors) cursor.davCollectionId: cursor,
+    };
+    if (cursorByCollection[sourceCollectionId]?.lastCompleteSyncAt == null ||
+        cursorByCollection[destinationCollectionId]?.lastCompleteSyncAt ==
+            null ||
+        cursorByCollection[sourceCollectionId]!.lastCompleteSyncAt! <
+            reconciledAt ||
+        cursorByCollection[destinationCollectionId]!.lastCompleteSyncAt! <
+            reconciledAt) {
+      throw StateError(
+        'The partially completed DAV move could not be reconciled.',
+      );
+    }
+    final source = await (_database.select(
+      _database.davObjects,
+    )..where((row) => row.id.equals(objectId))).getSingleOrNull();
+    final destination =
+        await (_database.select(_database.davObjects)..where(
+              (row) =>
+                  row.accountId.equals(operation.accountId) &
+                  row.collectionId.equals(destinationCollectionId) &
+                  row.hrefKey.equals(destinationHref) &
+                  row.serverDeleted.equals(false),
+            ))
+            .getSingleOrNull();
+    if (source != null && !source.serverDeleted && destination == null) {
+      return false;
+    }
+    if (source == null ||
+        !source.serverDeleted ||
+        destination == null ||
+        destination.etag == null ||
+        source.primaryUid == null ||
+        source.primaryUid != destination.primaryUid ||
+        source.dominantComponentType != destination.dominantComponentType) {
+      throw StateError(
+        'The partially completed DAV move remains ambiguous after '
+        'synchronization.',
+      );
+    }
+    return true;
   }
 
   Future<String> enqueueDelete({
@@ -1204,13 +1297,18 @@ final class DavPendingOperationsReplayer {
     final sourceObject = op.operationType == 'dav.move'
         ? await _requiredObject(op, collection)
         : null;
+    final reconcileFirst =
+        op.attemptCount > 0 ||
+        op.state == 'in_progress' ||
+        op.retryClassification == 'manual_retry' ||
+        op.retryClassification == 'credential_replaced';
     return switch (op.operationType) {
       'dav.create' => service.create(
         collectionUri: Uri.parse(collection.requestUri),
         object: _decodeCreate(op.requestJson),
         capabilities: capabilities,
         correlationId: correlationId,
-        reconcileFirst: op.attemptCount > 0 || op.state == 'in_progress',
+        reconcileFirst: reconcileFirst,
       ),
       'dav.update' => service.update(
         hrefKey: _required(op.davMemberHref),
@@ -1220,7 +1318,7 @@ final class DavPendingOperationsReplayer {
         patch: _decodePatch(op),
         capabilities: capabilities,
         correlationId: correlationId,
-        reconcileFirst: op.attemptCount > 0 || op.state == 'in_progress',
+        reconcileFirst: reconcileFirst,
       ),
       'dav.delete' => service.delete(
         hrefKey: _required(op.davMemberHref),
@@ -1245,6 +1343,7 @@ final class DavPendingOperationsReplayer {
         ),
         correlationId: correlationId,
         postMovePatch: _decodeOptionalMovePatch(op),
+        reconcileFirst: reconcileFirst,
       ),
       _ => throw _invalidPendingOperation(),
     };
@@ -1558,7 +1657,11 @@ final class DavPendingOperationsReplayer {
   Future<void> _markFailed(PendingOp op, DavException error) => _block(
     op,
     state: DavPendingState.failed,
-    classification: 'permanent',
+    classification:
+        op.operationType == 'dav.move' &&
+            error.code == davPartialMoveFailureCode
+        ? davPartialMoveRetryClassification
+        : 'permanent',
     error: error,
   );
 

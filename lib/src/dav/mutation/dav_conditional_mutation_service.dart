@@ -12,6 +12,8 @@ import 'dav_mutation_patch.dart';
 
 enum DavConditionalStatus { success, missing, preconditionFailed }
 
+const davPartialMoveFailureCode = 'DavMovePartiallyCompleted';
+
 final class DavConditionalResponse {
   const DavConditionalResponse({
     required this.status,
@@ -728,6 +730,7 @@ final class DavConditionalMutationService {
     required CollectionCapabilities destinationCapabilities,
     required String correlationId,
     DavMutationPatch? postMovePatch,
+    bool reconcileFirst = false,
   }) async {
     final canDelete = isEvent
         ? sourceCapabilities.canDeleteEvent
@@ -766,44 +769,64 @@ final class DavConditionalMutationService {
     var expectedEtag = baselineEtag;
     var expectedRawIcs = baselineRawIcs;
     DavFetchedMember? lastRemote;
-    for (var attempt = 0; attempt < maximumConditionalAttempts; attempt += 1) {
-      try {
-        final response = await _remoteClient.conditionalMove(
-          sourceUri: sourceUri,
-          destinationUri: destinationUri,
-          ifMatch: expectedEtag,
-          correlationId: correlationId,
-        );
-        if (response.status == DavConditionalStatus.success) {
-          final destination = await _remoteClient.fetch(
-            hrefKey: destinationHrefKey,
-            uri: destinationUri,
+    var reconcileBeforeMove = reconcileFirst;
+    var moveMayHaveCompleted = false;
+    var attempt = 0;
+    while (attempt < maximumConditionalAttempts) {
+      if (!reconcileBeforeMove) {
+        attempt += 1;
+        var moveSucceeded = false;
+        try {
+          final response = await _remoteClient.conditionalMove(
+            sourceUri: sourceUri,
+            destinationUri: destinationUri,
+            ifMatch: expectedEtag,
             correlationId: correlationId,
           );
-          if (!destination.missing &&
-              _sameIntendedObject(expectedRawIcs, destination.rawIcsBody!)) {
-            return await _finishMoveAtDestination(
-              destination,
-              postMovePatch: postMovePatch,
-              destinationCapabilities: destinationCapabilities,
+          if (response.status == DavConditionalStatus.success) {
+            moveSucceeded = true;
+            moveMayHaveCompleted = true;
+            final destination = await _remoteClient.fetch(
+              hrefKey: destinationHrefKey,
+              uri: destinationUri,
               correlationId: correlationId,
             );
+            if (!destination.missing &&
+                _sameIntendedObject(expectedRawIcs, destination.rawIcsBody!)) {
+              return await _finishMoveAtDestination(
+                destination,
+                postMovePatch: postMovePatch,
+                destinationCapabilities: destinationCapabilities,
+                correlationId: correlationId,
+              );
+            }
           }
+        } on DavException catch (error) {
+          if (moveSucceeded) throw _partialMoveFailure(error);
+          if (!_isUnknownOutcome(error)) rethrow;
+          moveMayHaveCompleted = true;
         }
-      } on DavException catch (error) {
-        if (!_isUnknownOutcome(error)) rethrow;
+      } else {
+        reconcileBeforeMove = false;
       }
 
-      final destination = await _remoteClient.fetch(
-        hrefKey: destinationHrefKey,
-        uri: destinationUri,
-        correlationId: correlationId,
-      );
-      final source = await _remoteClient.fetch(
-        hrefKey: sourceHrefKey,
-        uri: sourceUri,
-        correlationId: correlationId,
-      );
+      late final DavFetchedMember destination;
+      late final DavFetchedMember source;
+      try {
+        destination = await _remoteClient.fetch(
+          hrefKey: destinationHrefKey,
+          uri: destinationUri,
+          correlationId: correlationId,
+        );
+        source = await _remoteClient.fetch(
+          hrefKey: sourceHrefKey,
+          uri: sourceUri,
+          correlationId: correlationId,
+        );
+      } on DavException catch (error) {
+        if (moveMayHaveCompleted) throw _partialMoveFailure(error);
+        rethrow;
+      }
       lastRemote = destination.missing ? source : destination;
       if (source.missing) {
         if (destination.missing) {
@@ -869,6 +892,7 @@ final class DavConditionalMutationService {
           ),
         );
       }
+      moveMayHaveCompleted = false;
       expectedEtag = source.etag!;
       expectedRawIcs = source.rawIcsBody!;
     }
@@ -888,19 +912,23 @@ final class DavConditionalMutationService {
     required DavMutationPatch? postMovePatch,
     required CollectionCapabilities destinationCapabilities,
     required String correlationId,
-  }) {
+  }) async {
     if (postMovePatch == null) {
-      return Future.value(DavMutationResult.succeeded(destination));
+      return DavMutationResult.succeeded(destination);
     }
-    return update(
-      hrefKey: destination.hrefKey,
-      uri: destination.requestUri,
-      baselineEtag: destination.etag!,
-      baselineRawIcs: destination.rawIcsBody!,
-      patch: postMovePatch,
-      capabilities: destinationCapabilities,
-      correlationId: correlationId,
-    );
+    try {
+      return await update(
+        hrefKey: destination.hrefKey,
+        uri: destination.requestUri,
+        baselineEtag: destination.etag!,
+        baselineRawIcs: destination.rawIcsBody!,
+        patch: postMovePatch,
+        capabilities: destinationCapabilities,
+        correlationId: correlationId,
+      );
+    } on DavException catch (error) {
+      throw _partialMoveFailure(error);
+    }
   }
 
   Future<DavMutationResult> delete({
@@ -1104,6 +1132,19 @@ bool _sameResourceIdentity(String intended, String current) {
   } on DavException {
     return false;
   }
+}
+
+DavException _partialMoveFailure(DavException error) {
+  if (error.code == davPartialMoveFailureCode) return error;
+  return DavException(
+    kind: error.kind,
+    code: davPartialMoveFailureCode,
+    safeMessage: error.safeMessage,
+    statusCode: error.statusCode,
+    correlationId: error.correlationId,
+    retryAfter: error.retryAfter,
+    categoryOverride: error.category,
+  );
 }
 
 bool _isUnknownOutcome(DavException error) =>

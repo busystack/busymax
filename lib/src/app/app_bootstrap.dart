@@ -1066,6 +1066,8 @@ final pendingOpResolutionServiceProvider =
         syncCalendar: () => ref
             .read(accountSyncOperationsProvider)
             .syncCalendar(accountId, full: false),
+        onNotificationScheduleChanged: () =>
+            ref.read(notificationSchedulerProvider).checkNow(),
       );
     });
 

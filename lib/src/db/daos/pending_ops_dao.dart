@@ -73,8 +73,8 @@ class PendingOpsDao extends DatabaseAccessor<AppDatabase>
     );
   }
 
-  /// Makes a permanently failed DAV operation replayable without weakening
-  /// conflict, authentication, permission, or unknown-outcome states.
+  /// Makes a failed DAV operation replayable and records that replay must
+  /// reconcile first, independently of the legacy attempt counter.
   Future<bool> retryFailedDavOperationNow(
     PendingOp snapshot,
     DateTime nowUtc,

@@ -1,9 +1,11 @@
 import 'dart:convert';
 import 'dart:math';
 
+import 'package:busymax/src/app/app_settings.dart';
 import 'package:busymax/src/dav/dav_errors.dart';
 import 'package:busymax/src/dav/ical/ical_document.dart';
 import 'package:busymax/src/dav/ical/ical_semantics.dart';
+import 'package:busymax/src/dav/ical/ical_task_alarm.dart';
 import 'package:busymax/src/dav/mutation/dav_conditional_mutation_service.dart';
 import 'package:busymax/src/dav/mutation/dav_mutation_patch.dart';
 import 'package:busymax/src/dav/mutation/dav_pending_operations.dart';
@@ -15,6 +17,8 @@ import 'package:busymax/src/features/maps/application/location_destination_resol
 import 'package:busymax/src/features/maps/data/location_resolution_repository.dart';
 import 'package:busymax/src/features/maps/domain/geographic_point.dart';
 import 'package:busymax/src/features/maps/domain/location_result.dart';
+import 'package:busymax/src/features/notifications/desktop_notification_service.dart';
+import 'package:busymax/src/features/notifications/notification_scheduler.dart';
 import 'package:busymax/src/features/sync/pending_op_resolution_service.dart';
 import 'package:busymax/src/features/tasks/data/tasks_repository.dart';
 import 'package:busymax/src/providers/busy_provider.dart';
@@ -318,7 +322,9 @@ void main() {
           sentCandidate = rawIcs;
           return _success;
         },
-        fetcher: (href) async => _live(href, '"recovered"', sentCandidate!),
+        fetcher: (href) async => writes == 1
+            ? _live(href, 'W/"baseline"', _event('Baseline'))
+            : _live(href, '"recovered"', sentCandidate!),
       );
       final replayer = _replayer(database, objectRepository, remote);
       await replayer.replayDueOperations();
@@ -355,6 +361,96 @@ void main() {
         (await database.select(database.calendarEvents).getSingle()).title,
         'Recovered update',
       );
+    },
+  );
+
+  test(
+    'Diagnostics retry reconciles a created DAV resource before another PUT',
+    () async {
+      const uid = 'created-before-fetch-failure@example.test';
+      final raw = _eventWithUid('Created once', uid);
+      await queue.enqueueCreate(
+        accountId: 'account',
+        collectionId: 'collection',
+        object: DavNewObject(
+          uid: uid,
+          initialMemberName: 'created-before-fetch-failure.ics',
+          rawIcs: raw,
+          componentType: 'VEVENT',
+        ),
+      );
+      var puts = 0;
+      var fetches = 0;
+      var allocatedNames = 0;
+      final remote = _FakeMutationRemote(
+        put: ({required rawIcs, required ifMatch, required ifNoneMatch}) async {
+          puts += 1;
+          expect(ifMatch, isNull);
+          expect(ifNoneMatch, isTrue);
+          return _success;
+        },
+        fetcher: (href) async {
+          fetches += 1;
+          if (fetches == 1) {
+            throw const DavException(
+              kind: DavErrorKind.protocol,
+              code: 'DavMutationFetchMissingEtag',
+              safeMessage: 'The DAV object response omitted its ETag.',
+            );
+          }
+          return _live(href, '"created"', raw);
+        },
+      );
+      final replayer = DavPendingOperationsReplayer(
+        database: database,
+        accountId: 'account',
+        objectRepository: objectRepository,
+        serviceFactory: ({required account, required collection}) async =>
+            DavConditionalMutationService(
+              remoteClient: remote,
+              memberIdFactory: () {
+                allocatedNames += 1;
+                return 'unexpected-name';
+              },
+            ),
+        idFactory: () => 'create-recovery-correlation',
+        nowUtc: () => _now,
+        random: Random(1),
+      );
+
+      await replayer.replayDueOperations();
+      final failed = await database.select(database.pendingOps).getSingle();
+      expect(failed.state, 'failed');
+      expect(failed.attemptCount, 0);
+      expect(failed.lastErrorCode, 'DavMutationFetchMissingEtag');
+
+      await PendingOpResolutionService(
+        database: database,
+        accountId: 'account',
+        syncTasks: () async => fail('An event retry must not sync tasks.'),
+        syncCalendar: () async {
+          final retrying = await database.pendingOpsDao.getOp(failed.id);
+          expect(retrying?.attemptCount, 0);
+          expect(retrying?.retryClassification, 'manual_retry');
+          final result = await replayer.replayDueOperations();
+          expect(result.appliedCount, 1);
+        },
+        nowUtc: () => _now,
+      ).retryNow(failed.id);
+
+      expect(puts, 1);
+      expect(fetches, 2);
+      expect(allocatedNames, 0);
+      expect(await database.select(database.pendingOps).get(), isEmpty);
+      final created =
+          await (database.select(database.davObjects)..where(
+                (row) => row.hrefKey.equals(
+                  '${_collectionHref}created-before-fetch-failure.ics',
+                ),
+              ))
+              .getSingle();
+      expect(created.etag, '"created"');
+      expect(created.primaryUid, uid);
     },
   );
 
@@ -467,6 +563,18 @@ void main() {
   test(
     'Diagnostics discard removes a rejected local DAV task and dependents',
     () async {
+      var schedulerNow = _now;
+      final reminderAt = _now.add(const Duration(hours: 1));
+      final notificationBackend = _RecordingNotificationBackend();
+      final scheduler = NotificationScheduler(
+        database: database,
+        notifications: DesktopNotificationService(
+          backend: notificationBackend,
+          settings: AppSettings.defaults(),
+        ),
+        nowUtc: () => schedulerNow,
+      );
+      addTearDown(scheduler.stop);
       final tasks = TasksRepository(
         database: database,
         accountId: 'account',
@@ -474,7 +582,12 @@ void main() {
       );
       await tasks.createTask(
         'dav-task-list-collection',
-        const TaskCreateInput(title: 'Rejected local task'),
+        TaskCreateInput(
+          title: 'Rejected local task',
+          fields: {
+            'taskAlarms': [IcalTaskAlarm.displayAbsolute(reminderAt).toJson()],
+          },
+        ),
       );
       final task = (await database.tasksDao.listTasks(
         'account',
@@ -484,6 +597,10 @@ void main() {
       expect(create.operationType, 'dav.create');
       expect(create.taskListId, isNull);
       expect(create.taskId, task.id);
+      expect(
+        await database.select(database.notificationSchedule).get(),
+        hasLength(1),
+      );
       final dependentId =
           await DavPendingOperationQueue(
             database: database,
@@ -531,6 +648,7 @@ void main() {
         accountId: 'account',
         syncTasks: () async => syncs += 1,
         syncCalendar: () async => fail('A task discard must not sync events.'),
+        onNotificationScheduleChanged: scheduler.checkNow,
         nowUtc: () => _now,
       ).discard(create.id);
 
@@ -542,6 +660,13 @@ void main() {
         ),
         isEmpty,
       );
+      expect(
+        await database.select(database.notificationSchedule).get(),
+        isEmpty,
+      );
+      schedulerNow = reminderAt.add(const Duration(minutes: 1));
+      await scheduler.checkNow();
+      expect(notificationBackend.requests, isEmpty);
       expect(syncs, 0);
       expect(writes, 1);
     },
@@ -759,6 +884,203 @@ void main() {
         ),
         remembered,
       );
+    },
+  );
+
+  test(
+    'Diagnostics discard reconciles a move completed before its patch failed',
+    () async {
+      await _seedDestination(database);
+      const uid = 'partial-move-task@example.test';
+      const sourceHref = '${_collectionHref}partial-move-task.ics';
+      const destinationHref =
+          '/remote.php/dav/calendars/alex/home/partial-move-task.ics';
+      final sourceRaw = _taskWithParent(uid, 'Parented task');
+      await objectRepository.commitConfirmedMutation(
+        accountId: 'account',
+        collectionId: 'collection',
+        provider: BusyProvider.nextcloud,
+        canonicalObject: _preparedMember(
+          href: sourceHref,
+          etag: '"task-source"',
+          body: sourceRaw,
+        ),
+        completedAtUtc: _now,
+      );
+      final task = (await database.tasksDao.listTasks(
+        'account',
+        'dav-task-list-collection',
+      )).single;
+      expect(task.parentUid, 'parent@example.test');
+      await TasksRepository(
+        database: database,
+        accountId: 'account',
+        nowUtc: () => _now,
+      ).moveTask(
+        TaskMoveInput(
+          sourceTaskListId: 'dav-task-list-collection',
+          destinationTaskListId: 'dav-task-list-destination',
+          taskId: task.id,
+        ),
+      );
+      final locallyMoved = (await database.tasksDao.listTasks(
+        'account',
+        'dav-task-list-destination',
+      )).single;
+      expect(locallyMoved.parentUid, isNull);
+
+      var sourceExists = true;
+      String? destinationRaw;
+      var moves = 0;
+      var destinationPatchPuts = 0;
+      final remote = _FakeMutationRemote(
+        move:
+            ({
+              required sourceUri,
+              required destinationUri,
+              required ifMatch,
+            }) async {
+              moves += 1;
+              expect(sourceUri.path, sourceHref);
+              expect(destinationUri.path, destinationHref);
+              sourceExists = false;
+              destinationRaw = sourceRaw;
+              return _success;
+            },
+        put: ({required rawIcs, required ifMatch, required ifNoneMatch}) async {
+          destinationPatchPuts += 1;
+          expect(ifMatch, '"task-destination"');
+          expect(ifNoneMatch, isFalse);
+          expect(rawIcs, isNot(contains('RELATED-TO')));
+          throw const DavException(
+            kind: DavErrorKind.invalidCalendarData,
+            code: 'DavMalformedResource',
+            safeMessage: 'The DAV server rejected the destination task.',
+            statusCode: 415,
+          );
+        },
+        fetcher: (href) async {
+          if (href == sourceHref) {
+            return sourceExists
+                ? _live(href, '"task-source"', sourceRaw)
+                : _missing(href);
+          }
+          if (href == destinationHref && destinationRaw != null) {
+            return _live(href, '"task-destination"', destinationRaw!);
+          }
+          return _missing(href);
+        },
+      );
+      final replayer = _replayer(database, objectRepository, remote);
+      await replayer.replayDueOperations();
+      final failed = await database.select(database.pendingOps).getSingle();
+      expect(failed.operationType, 'dav.move');
+      expect(failed.state, 'failed');
+      expect(failed.retryClassification, davPartialMoveRetryClassification);
+      expect(failed.lastErrorCode, davPartialMoveFailureCode);
+      expect(moves, 1);
+      expect(destinationPatchPuts, 1);
+
+      await expectLater(
+        PendingOpResolutionService(
+          database: database,
+          accountId: 'account',
+          syncCalendar: () async => fail('A task move must use task sync.'),
+          syncTasks: () async => throw StateError('Synchronization failed.'),
+          nowUtc: () => _now,
+        ).discard(failed.id),
+        throwsA(isA<StateError>()),
+      );
+      expect(
+        (await database.pendingOpsDao.getOp(failed.id))?.retryClassification,
+        davPartialMoveRetryClassification,
+      );
+
+      final reconciledAt = _now.add(const Duration(minutes: 1));
+      var syncs = 0;
+      await PendingOpResolutionService(
+        database: database,
+        accountId: 'account',
+        syncCalendar: () async => fail('A task move must use task sync.'),
+        syncTasks: () async {
+          syncs += 1;
+          final retained = await database.pendingOpsDao.getOp(failed.id);
+          expect(
+            retained?.retryClassification,
+            davPartialMoveRetryClassification,
+          );
+          await objectRepository.commit(
+            DavCollectionCommit(
+              accountId: 'account',
+              collectionId: 'collection',
+              provider: BusyProvider.nextcloud,
+              objects: const [],
+              deletedHrefKeys: const {},
+              completeMembership: true,
+              membershipHrefKeys: const {_eventHref},
+              finalCursorKind: 'dav_sync_token',
+              finalCursorValue: 'source-after-partial-move',
+              baselineGeneration: 2,
+              completedAtUtc: reconciledAt,
+              projectionRangeStartUtc: DateTime.utc(2025),
+              projectionRangeEndUtc: DateTime.utc(2029),
+            ),
+          );
+          await objectRepository.commit(
+            DavCollectionCommit(
+              accountId: 'account',
+              collectionId: 'destination',
+              provider: BusyProvider.nextcloud,
+              objects: [
+                _preparedMember(
+                  href: destinationHref,
+                  etag: '"task-destination"',
+                  body: destinationRaw!,
+                ),
+              ],
+              deletedHrefKeys: const {},
+              completeMembership: true,
+              membershipHrefKeys: const {destinationHref},
+              finalCursorKind: 'dav_sync_token',
+              finalCursorValue: 'destination-after-partial-move',
+              baselineGeneration: 1,
+              completedAtUtc: reconciledAt,
+              projectionRangeStartUtc: DateTime.utc(2025),
+              projectionRangeEndUtc: DateTime.utc(2029),
+            ),
+          );
+        },
+        nowUtc: () => reconciledAt,
+      ).discard(failed.id);
+
+      expect(syncs, 1);
+      expect(moves, 1);
+      expect(destinationPatchPuts, 1);
+      expect(sourceExists, isFalse);
+      expect(destinationRaw, contains('RELATED-TO:parent@example.test'));
+      expect(await database.select(database.pendingOps).get(), isEmpty);
+      expect(
+        await database.tasksDao.listTasks(
+          'account',
+          'dav-task-list-collection',
+        ),
+        isEmpty,
+      );
+      final reconciledTask = (await database.tasksDao.listTasks(
+        'account',
+        'dav-task-list-destination',
+      )).single;
+      expect(reconciledTask.parentUid, 'parent@example.test');
+      expect(reconciledTask.title, 'Parented task');
+      final sourceObject = await (database.select(
+        database.davObjects,
+      )..where((row) => row.hrefKey.equals(sourceHref))).getSingle();
+      expect(sourceObject.serverDeleted, isTrue);
+      final destinationObject = await (database.select(
+        database.davObjects,
+      )..where((row) => row.hrefKey.equals(destinationHref))).getSingle();
+      expect(destinationObject.collectionId, 'destination');
+      expect(destinationObject.serverDeleted, isFalse);
     },
   );
 
@@ -1604,6 +1926,25 @@ final class _FakeMutationRemote implements DavMutationRemoteClient {
   }) => fetcher!(hrefKey);
 }
 
+final class _RecordingNotificationBackend
+    implements DesktopNotificationBackend {
+  final requests = <BusyMaxNotificationRequest>[];
+
+  @override
+  Future<void> notify(
+    BusyMaxNotificationRequest request, {
+    DesktopNotificationActionHandler? onAction,
+  }) async {
+    requests.add(request);
+  }
+
+  @override
+  Future<void> cancel(String stableId) async {}
+
+  @override
+  Future<void> close() async {}
+}
+
 const _success = DavConditionalResponse(
   status: DavConditionalStatus.success,
   statusCode: 204,
@@ -1623,6 +1964,11 @@ DavFetchedMember _live(String href, String etag, String body) =>
       contentType: 'text/calendar',
       rawIcsBody: body,
     );
+
+DavFetchedMember _missing(String href) => DavFetchedMember.missing(
+  hrefKey: href,
+  requestUri: Uri.parse('https://cloud.example.test$href'),
+);
 
 DavPreparedObject _preparedMember({
   required String href,
@@ -1931,6 +2277,20 @@ DTSTAMP:20260808T120000Z\r
 $start\r
 $due\r
 SUMMARY:Task\r
+END:VTODO\r
+END:VCALENDAR\r
+''';
+
+String _taskWithParent(String uid, String summary) =>
+    '''BEGIN:VCALENDAR\r
+VERSION:2.0\r
+PRODID:-//BusyMax Test//EN\r
+BEGIN:VTODO\r
+UID:$uid\r
+DTSTAMP:20260808T120000Z\r
+DUE:20260809T120000Z\r
+SUMMARY:$summary\r
+RELATED-TO:parent@example.test\r
 END:VTODO\r
 END:VCALENDAR\r
 ''';

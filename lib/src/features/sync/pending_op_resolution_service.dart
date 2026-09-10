@@ -5,6 +5,7 @@ import '../../dav/mutation/dav_pending_operation_selection.dart';
 import '../../dav/mutation/dav_pending_operations.dart';
 import '../../db/app_database.dart';
 import '../calendar/data/calendar_repository.dart';
+import '../notifications/notification_schedule_service.dart';
 import '../task_lists/data/task_lists_repository.dart';
 import '../tasks/data/tasks_repository.dart';
 import '../tasks/domain/task_remote_client.dart';
@@ -18,6 +19,7 @@ class PendingOpResolutionService {
     required String accountId,
     required Future<void> Function() syncTasks,
     required Future<void> Function() syncCalendar,
+    Future<void> Function()? onNotificationScheduleChanged,
     DateTime Function()? nowUtc,
   }) : _database = database,
        _apiClient = apiClient,
@@ -25,6 +27,7 @@ class PendingOpResolutionService {
        _accountId = accountId,
        _syncTasks = syncTasks,
        _syncCalendar = syncCalendar,
+       _onNotificationScheduleChanged = onNotificationScheduleChanged,
        _nowUtc = nowUtc ?? (() => DateTime.now().toUtc());
 
   final AppDatabase _database;
@@ -33,6 +36,7 @@ class PendingOpResolutionService {
   final String _accountId;
   final Future<void> Function() _syncTasks;
   final Future<void> Function() _syncCalendar;
+  final Future<void> Function()? _onNotificationScheduleChanged;
   final DateTime Function() _nowUtc;
 
   Future<void> retryNow(String opId) async {
@@ -56,11 +60,24 @@ class PendingOpResolutionService {
     }
 
     if (isDavPendingOperation(op)) {
-      final syncAfterDiscard = await DavPendingOperationQueue(
-        database: _database,
-        nowUtc: _nowUtc,
-      ).discardBlockedOperation(accountId: _accountId, operationId: op.id);
-      if (syncAfterDiscard) await _syncAfterResolution(op);
+      final partiallyCompletedMove = isDavPartiallyCompletedMove(op);
+      final reconciliationStartedAtUtc = partiallyCompletedMove
+          ? _nowUtc().toUtc()
+          : null;
+      if (partiallyCompletedMove) await _syncAfterResolution(op);
+      final syncAfterDiscard =
+          await DavPendingOperationQueue(
+            database: _database,
+            nowUtc: _nowUtc,
+          ).discardBlockedOperation(
+            accountId: _accountId,
+            operationId: op.id,
+            partialMoveReconciledAfterUtc: reconciliationStartedAtUtc,
+          );
+      await _rebuildNotificationSchedule();
+      if (syncAfterDiscard && !partiallyCompletedMove) {
+        await _syncAfterResolution(op);
+      }
       return;
     }
 
@@ -126,6 +143,14 @@ class PendingOpResolutionService {
       return;
     }
     await _syncTasks();
+  }
+
+  Future<void> _rebuildNotificationSchedule() async {
+    await NotificationScheduleService(
+      database: _database,
+      nowUtc: _nowUtc,
+    ).rebuildUpcomingNotifications(_accountId);
+    await _onNotificationScheduleChanged?.call();
   }
 
   TaskRemoteClient get _requiredTaskClient {
