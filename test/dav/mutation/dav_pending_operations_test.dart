@@ -457,7 +457,7 @@ void main() {
   );
 
   test(
-    'Keep server resolves a MOVE retry limit using the retained source',
+    'Keep server resolves exhausted source MOVE retries using the source',
     () async {
       await _seedDestination(database);
       final source = await database.select(database.davObjects).getSingle();
@@ -494,7 +494,7 @@ void main() {
       final conflict = await DavConflictRepository(
         database: database,
       ).watchUnresolved().first;
-      expect(conflict.single.conflictCode, 'DavConflictRetryLimitExceeded');
+      expect(conflict.single.conflictCode, 'DavConflictStaleMove');
       expect(conflict.single.canKeepServer, isTrue);
       expect(conflict.single.canDuplicate, isTrue);
 
@@ -514,6 +514,205 @@ void main() {
       expect(retained.hrefKey, _eventHref);
       expect(retained.etag, '"latest-source"');
       expect(retained.primaryUid, 'event@example.test');
+    },
+  );
+
+  test(
+    'post-MOVE overlapping update conflict keeps destination identity',
+    () async {
+      await _seedDestination(database);
+      final source = await database.select(database.davObjects).getSingle();
+      final operationId = await queue.enqueueMove(
+        accountId: 'account',
+        sourceCollectionId: 'collection',
+        destinationCollectionId: 'destination',
+        objectId: source.id,
+        target: _target,
+        postMovePatch: _patch('SUMMARY', 'Intended title'),
+      );
+      const destinationHref = '/remote.php/dav/calendars/alex/home/event.ics';
+      var sourceExists = true;
+      var destinationRaw = _event('Baseline');
+      var destinationEtag = '"moved"';
+      var moves = 0;
+      var puts = 0;
+      final remote = _FakeMutationRemote(
+        move:
+            ({
+              required sourceUri,
+              required destinationUri,
+              required ifMatch,
+            }) async {
+              moves += 1;
+              sourceExists = false;
+              return _success;
+            },
+        put: ({required rawIcs, required ifMatch, required ifNoneMatch}) async {
+          puts += 1;
+          expect(rawIcs, contains('SUMMARY:Intended title'));
+          destinationRaw = _event('Changed at destination');
+          destinationEtag = '"destination-overlap"';
+          return _precondition;
+        },
+        fetcher: (href) async {
+          if (href == destinationHref) {
+            return _live(href, destinationEtag, destinationRaw);
+          }
+          if (href == _eventHref && sourceExists) {
+            return _live(href, 'W/"baseline"', _event('Baseline'));
+          }
+          return _missing(href);
+        },
+      );
+
+      final replay = await _replayer(
+        database,
+        objectRepository,
+        remote,
+      ).replayDueOperations();
+
+      expect(replay.conflictCount, 1);
+      expect(moves, 1);
+      expect(puts, 1);
+      final conflict = await DavConflictRepository(
+        database: database,
+      ).watchUnresolved().first;
+      expect(conflict.single.conflictCode, 'DavConflictMoveDestinationChanged');
+      expect(conflict.single.canKeepServer, isTrue);
+      expect(conflict.single.canDuplicate, isTrue);
+
+      await DavConflictResolutionService(
+        database: database,
+        objectRepository: objectRepository,
+        nowUtc: () => _now,
+      ).resolve(conflict.single.id, DavConflictResolution.keepServer);
+
+      expect(moves, 1);
+      expect(puts, 1);
+      expect(await database.pendingOpsDao.getOp(operationId), isNull);
+      final sourceAfter = await (database.select(
+        database.davObjects,
+      )..where((row) => row.id.equals(source.id))).getSingle();
+      expect(sourceAfter.serverDeleted, isTrue);
+      expect(sourceAfter.hrefKey, _eventHref);
+      expect(sourceAfter.etag, isNot('"destination-overlap"'));
+      expect(sourceAfter.rawIcsBody, isNot(destinationRaw));
+      final destination = await (database.select(
+        database.davObjects,
+      )..where((row) => row.collectionId.equals('destination'))).getSingle();
+      expect(destination.hrefKey, destinationHref);
+      expect(
+        destination.requestUri,
+        'https://cloud.example.test$destinationHref',
+      );
+      expect(destination.etag, '"destination-overlap"');
+      expect(destination.rawIcsBody, destinationRaw);
+      expect(destination.primaryUid, 'event@example.test');
+      final events = await database.select(database.calendarEvents).get();
+      expect(events, hasLength(1));
+      expect(events.single.calendarSourceId, 'dav-calendar-destination');
+      expect(events.single.title, 'Changed at destination');
+    },
+  );
+
+  test(
+    'post-MOVE update retry exhaustion keeps destination identity',
+    () async {
+      await _seedDestination(database);
+      final source = await database.select(database.davObjects).getSingle();
+      final operationId = await queue.enqueueMove(
+        accountId: 'account',
+        sourceCollectionId: 'collection',
+        destinationCollectionId: 'destination',
+        objectId: source.id,
+        target: _target,
+        postMovePatch: _patch('SUMMARY', 'Intended title'),
+      );
+      const destinationHref = '/remote.php/dav/calendars/alex/home/event.ics';
+      var sourceExists = true;
+      var destinationRaw = _event('Baseline');
+      var destinationEtag = '"moved"';
+      var moves = 0;
+      var puts = 0;
+      final remote = _FakeMutationRemote(
+        move:
+            ({
+              required sourceUri,
+              required destinationUri,
+              required ifMatch,
+            }) async {
+              moves += 1;
+              sourceExists = false;
+              return _success;
+            },
+        put: ({required rawIcs, required ifMatch, required ifNoneMatch}) async {
+          puts += 1;
+          expect(rawIcs, contains('SUMMARY:Intended title'));
+          destinationRaw = _event('Baseline').replaceFirst(
+            'LOCATION:Baseline room',
+            'LOCATION:Remote room $puts',
+          );
+          destinationEtag = '"destination-$puts"';
+          return _precondition;
+        },
+        fetcher: (href) async {
+          if (href == destinationHref) {
+            return _live(href, destinationEtag, destinationRaw);
+          }
+          if (href == _eventHref && sourceExists) {
+            return _live(href, 'W/"baseline"', _event('Baseline'));
+          }
+          return _missing(href);
+        },
+      );
+
+      final replay = await _replayer(
+        database,
+        objectRepository,
+        remote,
+      ).replayDueOperations();
+
+      expect(replay.conflictCount, 1);
+      expect(moves, 1);
+      expect(puts, 3);
+      final conflict = await DavConflictRepository(
+        database: database,
+      ).watchUnresolved().first;
+      expect(conflict.single.conflictCode, 'DavConflictMoveDestinationChanged');
+      expect(conflict.single.canKeepServer, isTrue);
+      expect(conflict.single.canDuplicate, isTrue);
+
+      await DavConflictResolutionService(
+        database: database,
+        objectRepository: objectRepository,
+        nowUtc: () => _now,
+      ).resolve(conflict.single.id, DavConflictResolution.keepServer);
+
+      expect(moves, 1);
+      expect(puts, 3);
+      expect(await database.pendingOpsDao.getOp(operationId), isNull);
+      final sourceAfter = await (database.select(
+        database.davObjects,
+      )..where((row) => row.id.equals(source.id))).getSingle();
+      expect(sourceAfter.serverDeleted, isTrue);
+      expect(sourceAfter.hrefKey, _eventHref);
+      expect(sourceAfter.etag, isNot('"destination-3"'));
+      expect(sourceAfter.rawIcsBody, isNot(destinationRaw));
+      final destination = await (database.select(
+        database.davObjects,
+      )..where((row) => row.collectionId.equals('destination'))).getSingle();
+      expect(destination.hrefKey, destinationHref);
+      expect(
+        destination.requestUri,
+        'https://cloud.example.test$destinationHref',
+      );
+      expect(destination.etag, '"destination-3"');
+      expect(destination.rawIcsBody, contains('LOCATION:Remote room 3'));
+      expect(destination.primaryUid, 'event@example.test');
+      final events = await database.select(database.calendarEvents).get();
+      expect(events, hasLength(1));
+      expect(events.single.calendarSourceId, 'dav-calendar-destination');
+      expect(events.single.location, 'Remote room 3');
     },
   );
 

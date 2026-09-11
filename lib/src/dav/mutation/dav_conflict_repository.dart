@@ -820,8 +820,7 @@ _MoveConflictOutcome _moveConflictOutcome(
     return _MoveConflictOutcome.notMove;
   }
   return switch (conflictCode) {
-    'DavConflictStaleMove' ||
-    'DavConflictRetryLimitExceeded' => _MoveConflictOutcome.sourceRetained,
+    'DavConflictStaleMove' => _MoveConflictOutcome.sourceRetained,
     'DavConflictMoveDestinationExists' =>
       _MoveConflictOutcome.destinationCollision,
     'DavConflictMoveDestinationChanged' =>

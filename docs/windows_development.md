@@ -127,11 +127,11 @@ records the final commit and exact executable paths:
 | `flutter pub get --enforce-lockfile` | Passed; the Flutter 3.44.4 resolution matched the committed lockfile without changing it. |
 | `flutter gen-l10n` | Passed; every supported catalog generated. |
 | `dart run build_runner build --delete-conflicting-outputs --force-jit` | Passed; generated Drift content remained consistent and the schema version remained 14. The pinned build runner reported that the legacy delete-conflicting option is ignored. |
-| `dart format --output=none --set-exit-if-changed .` | Passed; 516 files checked, zero changes required. |
+| `dart format --output=none --set-exit-if-changed .` | Passed; 528 files checked, zero changes required. |
 | `flutter analyze` | Passed; no issues found. |
 | `dart run tool/check_platform_boundaries.dart` | Passed. |
-| Focused regressions | Passed; 105 targeted DAV mutation, account-sync, task-repository, and Windows conflict-review tests, including MOVE outcome and subtree-dependency recovery. |
-| `flutter test` | Passed; 1,969 tests passed, 10 credential-gated live tests skipped, zero failed. Machine report: `build/linux/test-results/flutter-tests.jsonl`. |
+| Focused regressions | Passed; 107 targeted DAV mutation, account-sync, task-repository, and Windows conflict-review tests, including destination-update MOVE identity, MOVE outcome, and subtree-dependency recovery. |
+| `flutter test` | Passed; 1,971 tests passed, 10 credential-gated live tests skipped, zero failed. Machine report: `build/linux/test-results/flutter-tests.jsonl`. |
 | `flutter build linux --release -t lib/main_linux.dart` | Passed; produced `build/linux/x64/release/bundle/busymax`. |
 | `snapcraft pack --use-lxd` | Passed using the canonical recipe; produced `busymax_0.2.0_amd64.snap`. The final SHA-256 is recorded in the completion report so the report identifies the artifact packed after the source commit. |
 | Isolated Snap install | Not rerun for the final candidate on this host; the developer's installed `0.1.7` Snap and normal profile were left untouched. The strict candidate still requires the isolated installed-package checks below. |

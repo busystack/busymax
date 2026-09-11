@@ -897,7 +897,7 @@ final class DavConditionalMutationService {
       expectedRawIcs = source.rawIcsBody!;
     }
     return DavMutationResult.conflict(
-      _retryLimitConflict(const {'MOVE'}),
+      _moveConflict('DavConflictStaleMove', const {'RESOURCE'}),
       remoteObject: lastRemote,
       localCandidateRawIcs: _moveCandidate(
         expectedRawIcs,
@@ -917,7 +917,7 @@ final class DavConditionalMutationService {
       return DavMutationResult.succeeded(destination);
     }
     try {
-      return await update(
+      final result = await update(
         hrefKey: destination.hrefKey,
         uri: destination.requestUri,
         baselineEtag: destination.etag!,
@@ -925,6 +925,19 @@ final class DavConditionalMutationService {
         patch: postMovePatch,
         capabilities: destinationCapabilities,
         correlationId: correlationId,
+      );
+      if (result.outcome == DavMutationOutcome.succeeded) return result;
+      final remote = result.conflictRemoteObject;
+      final moveConflictCode = remote == null || remote.missing
+          ? 'DavConflictMoveSourceRemoved'
+          : 'DavConflictMoveDestinationChanged';
+      return DavMutationResult.conflict(
+        _moveConflict(
+          moveConflictCode,
+          result.conflict?.remoteChangedProperties ?? const {'RESOURCE'},
+        ),
+        remoteObject: remote,
+        localCandidateRawIcs: result.localCandidateRawIcs,
       );
     } on DavException catch (error) {
       throw _partialMoveFailure(error);
