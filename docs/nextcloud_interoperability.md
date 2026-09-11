@@ -60,14 +60,17 @@ native import/export and restoration of returned event/task/calendar hrefs.
 They do not prove a real server's invitation delivery, federation, retention,
 Calendar app rendering or Tasks recurring-completion interoperability.
 
-For the 2026-09-09 release candidate, the complete Linux test run passed 1,940
-tests with zero failures. Ten live-provider tests were explicitly skipped
+For source revision `0ced525` on 2026-09-10, the complete Linux test run passed
+1,975 tests with zero failures. Ten live-provider tests were explicitly skipped
 because the opt-in credentials and disposable server configuration were not
 present. Focused administration coverage confirms that unresolved incoming
 calendar and task moves block deletion of their destination and source across
 pending, retry, failed, authentication-blocked, and conflict states, without a
 remote `DELETE`; unrelated accounts/collections remain removable and supported
-discard permits deletion afterward.
+discard permits deletion afterward. Focused export and conflict tests also
+confirm that retained failed event/task edits remain in native exports and that
+accepting an already-cached server version immediately restores the visible
+projection and its reminder schedule.
 
 ## Live versions and result for this candidate
 

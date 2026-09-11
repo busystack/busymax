@@ -118,9 +118,10 @@ place.
 
 ## Current source-side validation
 
-On 2026-09-10, the PR 15 release-blocker fixes were validated on Linux with an
-isolated Flutter 3.44.4 SDK and its bundled Dart 3.12.2. The completion report
-records the final commit and exact executable paths:
+On 2026-09-10, the PR 15 release-blocker fixes through source revision
+`0ced525` were validated on Linux with an isolated Flutter 3.44.4 SDK and its
+bundled Dart 3.12.2. The completion report records the final documentation
+revision and exact executable paths:
 
 | Command | Result |
 | --- | --- |
@@ -130,11 +131,11 @@ records the final commit and exact executable paths:
 | `dart format --output=none --set-exit-if-changed .` | Passed; 528 files checked, zero changes required. |
 | `flutter analyze` | Passed; no issues found. |
 | `dart run tool/check_platform_boundaries.dart` | Passed. |
-| Focused regressions | Passed; 107 targeted DAV mutation, account-sync, task-repository, and Windows conflict-review tests, including destination-update MOVE identity, MOVE outcome, and subtree-dependency recovery. |
-| `flutter test` | Passed; 1,971 tests passed, 10 credential-gated live tests skipped, zero failed. Machine report: `build/linux/test-results/flutter-tests.jsonl`. |
+| Focused regressions | Passed; 109 targeted DAV mutation, object-projection, account-sync, native import/export, provider-composition, Settings, and Windows conflict-review tests. Coverage includes destination-update MOVE identity and recovery, cached conflict acceptance, reminder rebuilding, failed retained edits in individual/collection export, and subtree dependencies. |
+| `flutter test --file-reporter json:build/linux/test-results/flutter-tests.jsonl` | Passed outside the filesystem sandbox so Flutter could create its required loopback test-device sockets; 1,975 tests passed, 10 credential-gated live tests skipped, zero failed. The CI workflow retains the same normal runner configuration without the additional file reporter. |
 | `flutter build linux --release -t lib/main_linux.dart` | Passed; produced `build/linux/x64/release/bundle/busymax`. |
 | `snapcraft pack --use-lxd` | Passed using the canonical recipe; produced `busymax_0.2.0_amd64.snap`. The final SHA-256 is recorded in the completion report so the report identifies the artifact packed after the source commit. |
-| Isolated Snap install | Attempted in disposable Ubuntu 24.04 LXD guests, including the exact final package bytes. Installation could not fetch `gnome-46-2404`, `mesa-2404`, and finally `gtk-common-themes` because the guests' Snap Store API requests timed out; the guests were removed and the developer's installed `0.1.7` Snap and normal profile were left untouched. The strict candidate still requires the isolated installed-package checks below. |
+| Isolated Snap install | Not repeated for source revision `0ced525`. Earlier disposable Ubuntu 24.04 LXD attempts could not fetch `gnome-46-2404`, `mesa-2404`, and `gtk-common-themes` because Snap Store API requests timed out; the developer's installed `0.1.7` Snap and normal profile were left untouched. The exact current strict candidate still requires the isolated installed-package checks below. |
 
 These results establish Linux and platform-neutral source health only. They do
 not replace the Windows gates below, a Windows CI result, or installed-package
