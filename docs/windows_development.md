@@ -119,28 +119,30 @@ place.
 
 ## Current source-side validation
 
-On 2026-09-10, the PR 15 release-blocker fixes through source revision
-`0ced525` were validated on Linux with an isolated Flutter 3.44.4 SDK and its
-bundled Dart 3.12.2. The completion report records the final documentation
-revision and exact executable paths:
+On 2026-09-10, the PR 15 release-blocker fixes and toolchain update through
+source revision `c2e0e29` were validated on Linux with
+`/home/albert/flutter-sdk/bin/flutter` 3.47.2 and its bundled
+`/home/albert/flutter-sdk/bin/cache/dart-sdk/bin/dart` 3.13.2. The completion
+report records the final documentation revision:
 
 | Command | Result |
 | --- | --- |
-| `flutter pub get --enforce-lockfile` | Passed; the Flutter 3.44.4 resolution matched the committed lockfile without changing it. |
+| SDK verifier | Passed; the selected Flutter executable, bundled Dart executable, normalized SDK roots, and exact 3.47.2/3.13.2 versions matched. |
+| `flutter pub get --enforce-lockfile` | Passed; the Flutter 3.47.2 resolution matched the committed lockfile without changing it. The same command, localization generation, and build-runner generation also left a clean checkout of `c2e0e29` unchanged. |
 | `flutter gen-l10n` | Passed; every supported catalog generated. |
-| `dart run build_runner build --delete-conflicting-outputs --force-jit` | Passed; generated Drift content remained consistent and the schema version remained 14. The pinned build runner reported that the legacy delete-conflicting option is ignored. |
+| `dart run build_runner build --delete-conflicting-outputs --force-jit` | Passed; generated Drift content remained consistent and the schema version remained 14. The pinned build runner reported that the legacy delete-conflicting option is ignored. Its analyzer supports BusyMax's Dart 3.12 language constraint; the generator also reports that the newer bundled Dart 3.13 language is not yet enabled for source analysis. |
 | `dart format --output=none --set-exit-if-changed .` | Passed; 528 files checked, zero changes required. |
 | `flutter analyze` | Passed; no issues found. |
 | `dart run tool/check_platform_boundaries.dart` | Passed. |
-| Focused regressions | Passed; 109 targeted DAV mutation, object-projection, account-sync, native import/export, provider-composition, Settings, and Windows conflict-review tests. Coverage includes destination-update MOVE identity and recovery, cached conflict acceptance, reminder rebuilding, failed retained edits in individual/collection export, and subtree dependencies. |
-| `flutter test --file-reporter json:build/linux/test-results/flutter-tests.jsonl` | Passed outside the filesystem sandbox so Flutter could create its required loopback test-device sockets; 1,975 tests passed, 10 credential-gated live tests skipped, zero failed. The CI workflow retains the same normal runner configuration without the additional file reporter. |
-| `flutter build linux --release -t lib/main_linux.dart` | Passed; produced `build/linux/x64/release/bundle/busymax`. |
-| `snapcraft pack --use-lxd` | Passed using the canonical recipe; produced `busymax_0.2.0_amd64.snap`. The final SHA-256 is recorded in the completion report so the report identifies the artifact packed after the source commit. |
-| Isolated Snap install | Not repeated for source revision `0ced525`. Earlier disposable Ubuntu 24.04 LXD attempts could not fetch `gnome-46-2404`, `mesa-2404`, and `gtk-common-themes` because Snap Store API requests timed out; the developer's installed `0.1.7` Snap and normal profile were left untouched. The exact current strict candidate still requires the isolated installed-package checks below. |
+| Toolchain/workflow regressions | Passed; 9 tests cover SDK selection, wrapper and bundled-executable layouts, use of the verified executables by later build steps, and both workflow contracts. |
+| `flutter test --concurrency=1 --reporter failures-only --file-reporter json:build/linux/test-results/flutter-tests-flutter-3.47.2.jsonl` | Passed; 1,975 tests passed, 10 credential-gated live tests skipped with explicit reasons, and zero failed. Report SHA-256: `05aa4c6c7104fe121dce048943412b4c38dba33b4b03437e20805613904e080b`. |
+| `flutter build linux --release -t lib/main_linux.dart` | Passed; produced `build/linux/x64/release/bundle/busymax`. The completion report records the rebuilt artifact's SHA-256. |
+| Snap packaging and installation | Not run for this revision by owner instruction. No Snap was built, installed, uploaded, or published as part of the toolchain update. |
 
 These results establish Linux and platform-neutral source health only. They do
-not replace the Windows gates below, a Windows CI result, or installed-package
-testing.
+not replace the Windows gates below, successful Linux and Windows workflow runs
+for the final revision, installed-package testing, or credential-gated live
+provider checks.
 
 ## Windows-only verification
 
