@@ -61,6 +61,18 @@ class PendingOpsDao extends DatabaseAccessor<AppDatabase>
     return query.watch();
   }
 
+  /// Watches recovery-blocked operations across every account.
+  ///
+  /// Diagnostics is application-wide: restricting it to the currently
+  /// selected account can hide the operation that is protecting a calendar or
+  /// task list from removal.
+  Stream<List<PendingOp>> watchAllBlockedOps() {
+    final query = select(pendingOps)
+      ..where((row) => row.nextAttemptAtUtc.isBiggerOrEqualValue('9999-12-31'))
+      ..orderBy([(row) => OrderingTerm.asc(row.createdAtUtc)]);
+    return query.watch();
+  }
+
   Future<void> retryNow(String id, DateTime nowUtc) {
     final query = update(pendingOps)..where((row) => row.id.equals(id));
     return query.write(

@@ -42,6 +42,7 @@ class PendingOpResolutionService {
   Future<void> retryNow(String opId) async {
     final op = await _database.pendingOpsDao.getOp(opId);
     if (op == null) return;
+    _requireOwnedOperation(op);
     if (isDavPendingOperation(op)) {
       await DavPendingOperationQueue(
         database: _database,
@@ -58,6 +59,7 @@ class PendingOpResolutionService {
     if (op == null) {
       return;
     }
+    _requireOwnedOperation(op);
 
     if (isDavPendingOperation(op)) {
       final partiallyCompletedMove = isDavPartiallyCompletedMove(op);
@@ -233,6 +235,12 @@ class PendingOpResolutionService {
 
   String _operationType(PendingOp op) {
     return op.operationType ?? '${op.entityType}.${op.operation}';
+  }
+
+  void _requireOwnedOperation(PendingOp op) {
+    if (op.accountId != _accountId) {
+      throw StateError('The pending operation belongs to another account.');
+    }
   }
 
   String _now() => _nowUtc().toIso8601String();

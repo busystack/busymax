@@ -22,9 +22,11 @@ class DiagnosticsPanel extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final methods = implementedGoogleTasksMethods.toList()..sort();
-    final accountId = ref.watch(activeAccountProvider);
     final database = ref.watch(databaseProvider);
-    final resolutionService = ref.watch(pendingOpResolutionServiceProvider);
+    final accounts = ref.watch(accountsStreamProvider).valueOrNull ?? const [];
+    final accountLabels = {
+      for (final account in accounts) account.id: account.selectorLabel,
+    };
     final settings = ref.watch(appSettingsControllerProvider);
     final l10n = context.l10n;
 
@@ -58,28 +60,32 @@ class DiagnosticsPanel extends ConsumerWidget {
         style: Theme.of(context).textTheme.titleMedium,
       ),
       const SizedBox(height: 8),
-      if (accountId == null)
-        Text(l10n.signInToInspectPendingOperations)
-      else
-        StreamBuilder<List<PendingOp>>(
-          stream: database.pendingOpsDao.watchBlockedOps(accountId),
-          builder: (context, snapshot) {
-            final ops = snapshot.data ?? const <PendingOp>[];
-            if (ops.isEmpty) {
-              return Text(l10n.noBlockedPendingOperations);
-            }
-            return YaruTileList(
-              children: [
-                for (final op in ops)
-                  _BlockedPendingOpTile(
-                    op: op,
-                    resolutionService: resolutionService,
-                    redactDetails: settings.redactTaskContentInDiagnostics,
-                  ),
-              ],
+      StreamBuilder<List<PendingOp>>(
+        stream: database.pendingOpsDao.watchAllBlockedOps(),
+        builder: (context, snapshot) {
+          final ops = snapshot.data ?? const <PendingOp>[];
+          if (ops.isEmpty) {
+            return Text(
+              accounts.isEmpty
+                  ? l10n.signInToInspectPendingOperations
+                  : l10n.noBlockedPendingOperations,
             );
-          },
-        ),
+          }
+          return YaruTileList(
+            children: [
+              for (final op in ops)
+                _BlockedPendingOpTile(
+                  op: op,
+                  accountLabel: accountLabels[op.accountId] ?? op.accountId,
+                  resolutionService: ref.watch(
+                    pendingOpResolutionServiceForAccountProvider(op.accountId),
+                  ),
+                  redactDetails: settings.redactTaskContentInDiagnostics,
+                ),
+            ],
+          );
+        },
+      ),
     ];
 
     if (!scrollable) {
@@ -101,12 +107,14 @@ enum _PendingOpAction { retry, discard }
 class _BlockedPendingOpTile extends StatelessWidget {
   const _BlockedPendingOpTile({
     required this.op,
+    required this.accountLabel,
     required this.resolutionService,
     required this.redactDetails,
   });
 
   final PendingOp op;
-  final PendingOpResolutionService? resolutionService;
+  final String accountLabel;
+  final PendingOpResolutionService resolutionService;
   final bool redactDetails;
 
   @override
@@ -123,6 +131,7 @@ class _BlockedPendingOpTile extends StatelessWidget {
       title: Text('${op.entityType}: ${op.operation}'),
       subtitle: Text(
         [
+          '${l10n.account}: $accountLabel',
           if (op.taskListId != null) l10n.pendingOpListId(op.taskListId!),
           if (op.taskId != null) l10n.pendingOpTaskId(op.taskId!),
           l10n.pendingOpAttempts(op.attemptCount),
@@ -167,11 +176,7 @@ class _BlockedPendingOpTile extends StatelessWidget {
 
   Future<void> _retryNow(BuildContext context) async {
     try {
-      final service = resolutionService;
-      if (service == null) {
-        return;
-      }
-      await service.retryNow(op.id);
+      await resolutionService.retryNow(op.id);
       if (!context.mounted) {
         return;
       }
@@ -200,11 +205,7 @@ class _BlockedPendingOpTile extends StatelessWidget {
     }
 
     try {
-      final service = resolutionService;
-      if (service == null) {
-        return;
-      }
-      await service.discard(op.id);
+      await resolutionService.discard(op.id);
       if (!context.mounted) {
         return;
       }

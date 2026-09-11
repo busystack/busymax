@@ -1052,15 +1052,11 @@ final pendingCalendarMutationSyncRequesterForAccountProvider =
       return requester;
     });
 
-final pendingOpResolutionServiceProvider =
-    Provider<PendingOpResolutionService?>((ref) {
-      final accountId = ref.watch(activeAccountProvider);
-      if (accountId == null) {
-        return null;
-      }
+final pendingOpResolutionServiceForAccountProvider =
+    Provider.family<PendingOpResolutionService, String>((ref, accountId) {
       return PendingOpResolutionService(
         database: ref.watch(databaseProvider),
-        apiClient: ref.watch(googleTasksApiClientProvider),
+        apiClient: ref.watch(taskRemoteApiClientForAccountProvider(accountId)),
         calendarClient: ref.watch(
           calendarRemoteApiClientForAccountProvider(accountId),
         ),
@@ -1074,6 +1070,15 @@ final pendingOpResolutionServiceProvider =
         onNotificationScheduleChanged: () =>
             ref.read(notificationSchedulerProvider).checkNow(),
       );
+    });
+
+final pendingOpResolutionServiceProvider =
+    Provider<PendingOpResolutionService?>((ref) {
+      final accountId = ref.watch(activeAccountProvider);
+      if (accountId == null) {
+        return null;
+      }
+      return ref.watch(pendingOpResolutionServiceForAccountProvider(accountId));
     });
 
 final syncSchedulerProvider = Provider<AllAccountsSyncScheduler>((ref) {

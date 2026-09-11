@@ -16,6 +16,93 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  testWidgets(
+    'Windows shows and retries a blocked operation from a non-active account',
+    (tester) async {
+      tester.view.physicalSize = const Size(1200, 900);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      final database = AppDatabase(NativeDatabase.memory());
+      addTearDown(database.close);
+      final sync = _RecordingSyncOperations();
+      await _seedAccount(
+        database,
+        id: 'active-google',
+        provider: BusyProvider.google,
+        displayName: 'Active Google',
+      );
+      await _seedAccount(
+        database,
+        id: 'blocked-nextcloud',
+        provider: BusyProvider.nextcloud,
+        displayName: 'Blocked Nextcloud',
+      );
+      await database
+          .into(database.pendingOps)
+          .insert(
+            PendingOpsCompanion.insert(
+              id: 'blocked-create',
+              accountId: 'blocked-nextcloud',
+              provider: const Value('nextcloud'),
+              entityType: 'task',
+              operation: 'create',
+              operationType: const Value('dav.create'),
+              taskId: const Value('local-task'),
+              requestJson: '{}',
+              state: const Value('failed'),
+              retryClassification: const Value('permanent'),
+              nextAttemptAtUtc: const Value('9999-12-31T23:59:59.999Z'),
+              lastErrorCode: const Value('DavMutationRejected'),
+              createdAtUtc: '2026-09-11T12:00:00.000Z',
+              updatedAtUtc: '2026-09-11T12:00:00.000Z',
+            ),
+          );
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            databaseProvider.overrideWithValue(database),
+            activeAccountProvider.overrideWithValue('active-google'),
+            accountSyncOperationsProvider.overrideWithValue(sync),
+          ],
+          child: const FluentApp(
+            localizationsDelegates: [AppLocalizations.delegate],
+            supportedLocales: AppLocalizations.supportedLocales,
+            home: ScaffoldPage(
+              content: WindowsBlockedPendingOperations(redactDetails: false),
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+
+      final row = find.byKey(
+        const ValueKey('windows-blocked-pending-op-blocked-create'),
+      );
+      expect(row, findsOneWidget);
+      expect(find.textContaining('Blocked Nextcloud'), findsOneWidget);
+      final menu = tester.widget<DropDownButton>(
+        find.descendant(of: row, matching: find.byType(DropDownButton)),
+      );
+      final retry = menu.items.whereType<MenuFlyoutItem>().singleWhere(
+        (item) => (item.text as Text).data == 'Retry',
+      );
+      retry.onPressed!();
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+
+      final operation = await database.pendingOpsDao.getOp('blocked-create');
+      expect(operation?.state, 'retry');
+      expect(sync.taskCalls, ['blocked-nextcloud']);
+      expect(sync.taskCalls, isNot(contains('active-google')));
+      await tester.pumpWidget(const SizedBox.shrink());
+      await tester.pump(const Duration(milliseconds: 1));
+      await tester.pump(const Duration(milliseconds: 1));
+    },
+  );
+
   for (final testCase in const [
     (
       resolution: DavConflictResolution.keepServer,
@@ -248,8 +335,37 @@ Future<void> _seedConflict(AppDatabase database) async {
   );
 }
 
+Future<void> _seedAccount(
+  AppDatabase database, {
+  required String id,
+  required BusyProvider provider,
+  required String displayName,
+}) {
+  const now = '2026-09-11T12:00:00.000Z';
+  return database
+      .into(database.accounts)
+      .insert(
+        AccountsCompanion.insert(
+          id: id,
+          provider: provider.storageValue,
+          authority: provider == BusyProvider.nextcloud
+              ? 'https://cloud.example.test'
+              : 'https://accounts.example.test',
+          providerAccountId: id,
+          credentialKind: provider == BusyProvider.nextcloud
+              ? 'nextcloud_app_password'
+              : 'oauth',
+          displayName: Value(displayName),
+          authState: const Value('signed_in'),
+          createdAtUtc: now,
+          updatedAtUtc: now,
+        ),
+      );
+}
+
 final class _RecordingSyncOperations implements AccountSyncOperations {
   final calls = <String>[];
+  final taskCalls = <String>[];
 
   @override
   Future<void> syncAccount(String accountId, {required bool full}) async {
@@ -260,7 +376,9 @@ final class _RecordingSyncOperations implements AccountSyncOperations {
   Future<void> syncCalendar(String accountId, {required bool full}) async {}
 
   @override
-  Future<void> syncTasks(String accountId, {required bool full}) async {}
+  Future<void> syncTasks(String accountId, {required bool full}) async {
+    taskCalls.add(accountId);
+  }
 }
 
 const _collectionHref = '/remote.php/dav/calendars/alex/work/';

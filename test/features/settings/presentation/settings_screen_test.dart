@@ -750,6 +750,7 @@ void main() {
 
     await tester.pumpWidget(const SizedBox());
     await tester.pump();
+    await tester.pump(const Duration(milliseconds: 1));
   });
 
   testWidgets('Settings uses single-pane navigation at narrow widths', (
