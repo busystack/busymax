@@ -198,6 +198,7 @@ class _WindowsScheduleSourcePaneState
                         source.id,
                       )),
                       icon: BusyMaxGlyph.calendar,
+                      iconColor: _calendarSourceColor(source),
                       title: source.summary,
                       checked: widget.visibleCalendarSourceIds.contains(
                         source.id,
@@ -793,9 +794,11 @@ class _VisibilityRow extends StatelessWidget {
     required this.checked,
     required this.onChanged,
     required this.menuItems,
+    this.iconColor,
   });
 
   final BusyMaxGlyph icon;
+  final Color? iconColor;
   final String title;
   final bool checked;
   final ValueChanged<bool> onChanged;
@@ -815,7 +818,7 @@ class _VisibilityRow extends StatelessWidget {
               onChanged: (value) => onChanged(value ?? false),
             ),
             const SizedBox(width: 8),
-            Icon(windowsBusyMaxGlyph(icon), size: 16),
+            Icon(windowsBusyMaxGlyph(icon), size: 16, color: iconColor),
             const SizedBox(width: 8),
             Expanded(
               child: Text(title, maxLines: 1, overflow: TextOverflow.ellipsis),
@@ -829,6 +832,15 @@ class _VisibilityRow extends StatelessWidget {
       ),
     );
   }
+}
+
+Color? _calendarSourceColor(CalendarSourceEntity source) {
+  final colorHex = calendarSourceBackgroundColorHex(
+    provider: source.provider,
+    backgroundColor: source.backgroundColor,
+    colorId: source.colorId,
+  );
+  return colorHex == null ? null : _colorFromHex(colorHex);
 }
 
 Color _colorFromHex(String source) {

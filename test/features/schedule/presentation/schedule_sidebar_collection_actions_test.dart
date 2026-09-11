@@ -17,6 +17,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:yaru/yaru.dart';
 
 import '../../../test_localized_app.dart';
 import '../../../support/memory_settings_store.dart';
@@ -38,6 +39,49 @@ void main() {
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(_nativeMenuChannel, null);
   });
+
+  testWidgets(
+    'source rows use type icons and task lists keep their actual titles',
+    (tester) async {
+      final account = _account(BusyProvider.google, id: 'account');
+      await _pumpSidebar(
+        tester,
+        [account],
+        calendarSources: [
+          _calendar(
+            account.id,
+            'calendar',
+            title: 'Work',
+            backgroundColor: '#123456',
+          ),
+        ],
+        taskLists: [_list(account.id, 'tasks', title: 'Work')],
+        networkAvailability: NetworkAvailability.offline,
+      );
+
+      final calendarRow = _row(('schedule-calendar', account.id, 'calendar'));
+      final taskListRow = _row(('schedule-task-list', account.id, 'tasks'));
+      final calendarIcon = tester.widget<Icon>(
+        find.descendant(
+          of: calendarRow,
+          matching: find.byIcon(YaruIcons.calendar),
+        ),
+      );
+
+      expect(calendarIcon.color, const Color(0xff123456));
+      expect(
+        find.descendant(
+          of: taskListRow,
+          matching: find.byIcon(YaruIcons.task_list),
+        ),
+        findsOneWidget,
+      );
+      expect(find.text('Work'), findsNWidgets(2));
+      expect(find.textContaining('Google Tasks ·'), findsNothing);
+      expect(find.text('Calendars'), findsNothing);
+      expect(find.text('Task lists'), findsNothing);
+    },
+  );
 
   testWidgets(
     'sidebar moves adjacent siblings locally and restores order after restart',
@@ -863,6 +907,7 @@ CalendarSourceEntity _calendar(
   String id, {
   String? title,
   BusyProvider provider = BusyProvider.google,
+  String? backgroundColor,
 }) => CalendarSourceEntity(
   id: id,
   accountId: accountId,
@@ -873,16 +918,18 @@ CalendarSourceEntity _calendar(
   hidden: false,
   readOnly: true,
   isDeleted: false,
+  backgroundColor: backgroundColor,
 );
 
-TaskListEntity _list(String accountId, String id) => TaskListEntity(
-  accountId: accountId,
-  id: id,
-  title: id,
-  localDirty: false,
-  pendingDelete: false,
-  rawJson: '{}',
-);
+TaskListEntity _list(String accountId, String id, {String? title}) =>
+    TaskListEntity(
+      accountId: accountId,
+      id: id,
+      title: title ?? id,
+      localDirty: false,
+      pendingDelete: false,
+      rawJson: '{}',
+    );
 
 final class _CalendarSourcesRepository implements CalendarRepository {
   const _CalendarSourcesRepository(this.sources);

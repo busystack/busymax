@@ -129,7 +129,8 @@ class _SourceRow extends ConsumerWidget {
     final capabilities = source.capabilities;
     return _CompactSourceRow(
       title: source.summary,
-      leading: _SourceDot(
+      leading: _SourceIcon(
+        icon: YaruIcons.calendar,
         seed: source.id,
         colorHex: calendarSourceBackgroundColorHex(
           provider: source.provider,
@@ -578,7 +579,11 @@ class _SubscriptionSourceRow extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     return _CompactSourceRow(
       title: '${source.summary} · ${context.l10n.readOnlySharedCollection}',
-      leading: _SourceDot(seed: source.id, colorHex: source.backgroundColor),
+      leading: _SourceIcon(
+        icon: YaruIcons.calendar,
+        seed: source.id,
+        colorHex: source.backgroundColor,
+      ),
       trailing: _SourceRowActions(
         visibilityButton: _SourceVisibilityButton(
           value: source.selected && !source.hidden,
@@ -932,9 +937,10 @@ class _AccountCalendarSources extends ConsumerWidget {
   }
 }
 
-class _SourceDot extends StatelessWidget {
-  const _SourceDot({this.seed, this.colorHex, this.color});
+class _SourceIcon extends StatelessWidget {
+  const _SourceIcon({required this.icon, this.seed, this.colorHex, this.color});
 
+  final IconData icon;
   final String? seed;
   final String? colorHex;
   final Color? color;
@@ -948,11 +954,7 @@ class _SourceDot extends StatelessWidget {
           seed ?? '',
           Theme.of(context).colorScheme.brightness,
         );
-    return Container(
-      width: 10,
-      height: 10,
-      decoration: BoxDecoration(color: resolvedColor, shape: BoxShape.circle),
-    );
+    return Icon(icon, size: 16, color: resolvedColor);
   }
 }
 
@@ -976,7 +978,10 @@ class _TaskListScheduleRow extends ConsumerWidget {
       list.accountId,
       list.id,
     );
-    final title = scheduleTaskListLabel(context, account, list);
+    final normalizedTitle = list.title.trim();
+    final title = normalizedTitle.isEmpty
+        ? context.l10n.sourceTaskList
+        : normalizedTitle;
     final davCapabilities = list.davCollectionId == null
         ? null
         : ref
@@ -1003,7 +1008,8 @@ class _TaskListScheduleRow extends ConsumerWidget {
     );
     return _CompactSourceRow(
       title: title,
-      leading: _SourceDot(
+      leading: _SourceIcon(
+        icon: YaruIcons.task_list,
         color: Theme.of(context).colorScheme.onSurfaceVariant,
       ),
       trailing: _SourceRowActions(
@@ -1110,28 +1116,6 @@ class _TaskListScheduleRow extends ConsumerWidget {
       ),
     );
   }
-}
-
-@visibleForTesting
-String scheduleTaskListLabel(
-  BuildContext context,
-  AccountEntity account,
-  TaskListEntity list,
-) {
-  final provider = switch (account.provider) {
-    BusyProvider.google => context.l10n.googleTasksProvider,
-    BusyProvider.microsoft => context.l10n.microsoftTodoProvider,
-    BusyProvider.appleICloud => context.l10n.appleICloudTasksProvider,
-    BusyProvider.nextcloud => context.l10n.nextcloudTasksProvider,
-    BusyProvider.webCal => 'WebCal',
-  };
-  final title = list.title.trim();
-  if (title.isEmpty ||
-      title.toLowerCase() == provider.toLowerCase() ||
-      title.toLowerCase() == account.provider.displayName.toLowerCase()) {
-    return provider;
-  }
-  return '$provider · $title';
 }
 
 Color? _colorFromHex(String? value) {

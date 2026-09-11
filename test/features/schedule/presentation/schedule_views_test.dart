@@ -4270,8 +4270,10 @@ void main() {
     expect(sidebar, isNot(contains('? context.l10n.hideFromSchedule')));
     expect(sidebar, isNot(contains(': context.l10n.showInSchedule')));
     expect(sidebar, contains('minHeight: BusyMaxSizes.sidebarRowHeight'));
-    expect(sidebar, contains('leading: _SourceDot'));
-    expect(sidebar, contains('class _SourceDot'));
+    expect(sidebar, contains('leading: _SourceIcon'));
+    expect(sidebar, contains('class _SourceIcon'));
+    expect(sidebar, contains('icon: YaruIcons.calendar'));
+    expect(sidebar, contains('icon: YaruIcons.task_list'));
     expect(sidebar, contains('YaruIcons.checkmark'));
     expect(sidebar, contains('busyMaxSubtleButtonBackground(context)'));
     expect(sidebar, isNot(contains('YaruIcons.checkbox')));

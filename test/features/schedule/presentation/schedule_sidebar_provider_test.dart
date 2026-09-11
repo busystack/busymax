@@ -1,50 +1,10 @@
 import 'package:busymax/src/features/accounts/data/accounts_repository.dart';
 import 'package:busymax/src/features/calendar/data/calendar_repository.dart';
 import 'package:busymax/src/features/schedule/presentation/schedule_sidebar.dart';
-import 'package:busymax/src/features/task_lists/data/task_lists_repository.dart';
 import 'package:busymax/src/providers/busy_provider.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import '../../../test_localized_app.dart';
-
 void main() {
-  testWidgets('sidebar task-list labels map every provider explicitly', (
-    tester,
-  ) async {
-    late List<String> labels;
-    await tester.pumpWidget(
-      localizedTestApp(
-        child: Builder(
-          builder: (context) {
-            labels = [
-              for (final entry in <(BusyProvider, String)>[
-                (BusyProvider.google, 'Google list'),
-                (BusyProvider.microsoft, 'Microsoft list'),
-                (BusyProvider.appleICloud, 'Apple list'),
-                (BusyProvider.nextcloud, 'Project Tasks'),
-              ])
-                scheduleTaskListLabel(
-                  context,
-                  _account(entry.$1),
-                  _taskList(_account(entry.$1).id, entry.$2),
-                ),
-            ];
-            return const SizedBox.shrink();
-          },
-        ),
-      ),
-    );
-
-    expect(labels, [
-      'Google Tasks · Google list',
-      'Microsoft To Do · Microsoft list',
-      'Apple iCloud · Apple list',
-      'Nextcloud Tasks · Project Tasks',
-    ]);
-    expect(labels.last, isNot(contains('Microsoft To Do')));
-  });
-
   test('provider links never fall through to a different provider', () {
     final google = _account(BusyProvider.google);
     final microsoft = _account(BusyProvider.microsoft);
@@ -115,17 +75,6 @@ AccountEntity _account(BusyProvider provider) {
     },
     providerAccountId: 'account',
     authState: accountAuthStateSignedIn,
-  );
-}
-
-TaskListEntity _taskList(String accountId, String title) {
-  return TaskListEntity(
-    accountId: accountId,
-    id: 'list',
-    title: title,
-    localDirty: false,
-    pendingDelete: false,
-    rawJson: '{}',
   );
 }
 

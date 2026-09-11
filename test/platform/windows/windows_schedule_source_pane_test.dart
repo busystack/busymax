@@ -6,6 +6,8 @@ import 'package:busymax/src/features/connectivity/network_connectivity_service.d
 import 'package:busymax/src/providers/busy_provider.dart';
 import 'package:busymax/src/schedule/schedule_sidebar_order.dart';
 import 'package:busymax/src/features/task_lists/data/task_lists_repository.dart';
+import 'package:busymax/src/ui/common/busymax_glyph.dart';
+import 'package:busymax/src/ui/windows/windows_busymax_glyphs.dart';
 import 'package:busymax/src/ui/windows/windows_schedule_source_pane.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:fluent_ui/fluent_ui.dart';
@@ -15,6 +17,50 @@ import 'package:flutter_test/flutter_test.dart';
 import '../../support/memory_settings_store.dart';
 
 void main() {
+  testWidgets(
+    'Fluent source rows use distinct type icons and actual collection titles',
+    (tester) async {
+      final store = MemorySettingsStore();
+      final account = _account('account', BusyProvider.google);
+      await _pumpPane(
+        tester,
+        store,
+        [account],
+        [
+          _calendar(
+            account.id,
+            'calendar',
+            title: 'Work',
+            backgroundColor: '#123456',
+          ),
+        ],
+        [_list(account.id, 'tasks', title: 'Work')],
+      );
+
+      final calendarRow = _row(('schedule-calendar', account.id, 'calendar'));
+      final taskListRow = _row(('schedule-task-list', account.id, 'tasks'));
+      final calendarIcon = tester.widget<Icon>(
+        find.descendant(
+          of: calendarRow,
+          matching: find.byIcon(windowsBusyMaxGlyph(BusyMaxGlyph.calendar)),
+        ),
+      );
+
+      expect(calendarIcon.color, const Color(0xff123456));
+      expect(
+        find.descendant(
+          of: taskListRow,
+          matching: find.byIcon(windowsBusyMaxGlyph(BusyMaxGlyph.task)),
+        ),
+        findsOneWidget,
+      );
+      expect(find.text('Work'), findsNWidgets(2));
+      expect(find.textContaining('Google Tasks ·'), findsNothing);
+      expect(find.text('Calendars'), findsNothing);
+      expect(find.text('Task lists'), findsNothing);
+    },
+  );
+
   testWidgets(
     'Fluent menus move siblings locally, retain state and persist across restart',
     (tester) async {
@@ -347,6 +393,7 @@ CalendarSourceEntity _calendar(
   String id, {
   String? title,
   bool hidden = false,
+  String? backgroundColor,
 }) => CalendarSourceEntity(
   id: id,
   accountId: accountId,
@@ -357,13 +404,15 @@ CalendarSourceEntity _calendar(
   hidden: hidden,
   readOnly: true,
   isDeleted: false,
+  backgroundColor: backgroundColor,
 );
 
-TaskListEntity _list(String accountId, String id) => TaskListEntity(
-  accountId: accountId,
-  id: id,
-  title: id,
-  localDirty: false,
-  pendingDelete: false,
-  rawJson: '{}',
-);
+TaskListEntity _list(String accountId, String id, {String? title}) =>
+    TaskListEntity(
+      accountId: accountId,
+      id: id,
+      title: title ?? id,
+      localDirty: false,
+      pendingDelete: false,
+      rawJson: '{}',
+    );
