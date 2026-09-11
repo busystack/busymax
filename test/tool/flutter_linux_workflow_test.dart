@@ -9,7 +9,7 @@ void main() {
     ).readAsStringSync();
 
     expect(workflow, contains('runs-on: ubuntu-24.04'));
-    expect(workflow, contains("flutter-version: '3.44.4'"));
+    expect(workflow, contains("flutter-version: '3.47.2'"));
     expect(workflow, contains('Verify pinned Flutter and bundled Dart'));
     expect(workflow, contains(r'command -v flutter'));
     expect(
@@ -17,7 +17,8 @@ void main() {
       contains(r'dart_executable="$flutter_bin/cache/dart-sdk/bin/dart"'),
     );
     expect(workflow, contains('tool/verify_flutter_sdk.dart'));
-    expect(workflow, contains('--expected-dart 3.12.2'));
+    expect(workflow, contains('--expected-flutter 3.47.2'));
+    expect(workflow, contains('--expected-dart 3.13.2'));
     expect(workflow, isNot(contains(r'command -v dart')));
     expect(
       workflow,

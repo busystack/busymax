@@ -7,7 +7,7 @@ the release candidate.
 
 ## Automated gates
 
-- [ ] Clean checkout uses Flutter 3.44.4.
+- [ ] Clean checkout uses Flutter 3.47.2 and its bundled Dart 3.13.2.
 - [ ] Localization and build-runner generation are committed and reproducible.
 - [ ] Formatting, analyzer, unit tests, widget tests, and platform-boundary
       checks pass on Linux and `windows-latest`.

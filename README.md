@@ -92,7 +92,7 @@ iCloud Calendar, and Nextcloud. Apple Reminders is not supported.
 ## Prerequisites
 
 - [Flutter SDK](https://docs.flutter.dev/install)
-- Flutter is pinned to 3.44.4 for both platforms.
+- Flutter is pinned to 3.47.2 for both platforms (bundled Dart 3.13.2).
 - GTK 3 and libhandy development packages (`libgtk-3-dev` and
   `libhandy-1-dev` on Ubuntu/Debian)
 - `GOOGLE_OAUTH_CLIENT_ID` and `GOOGLE_OAUTH_CLIENT_SECRET`; see

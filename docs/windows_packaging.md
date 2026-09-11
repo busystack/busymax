@@ -62,7 +62,8 @@ From a 64-bit Windows 11 PowerShell prompt:
   -ConfigPath config\windows_store.local.json
 ```
 
-The script checks Windows, Flutter 3.44.4, Visual Studio x64 C++ tools, and a
+The script checks Windows, Flutter 3.47.2 with bundled Dart 3.13.2, Visual
+Studio x64 C++ tools, and a
 Windows 11 SDK; resolves dependencies; generates localization and Drift code;
 checks committed generation, formatting, analysis, tests, architecture
 boundaries, PowerShell contracts, native runner/plugin tests, and release

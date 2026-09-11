@@ -2,7 +2,8 @@
 
 BusyMax supports Windows 11 24H2 (`10.0.26100.0`) or newer on x64. Windows 10,
 x86, ARM64, MSI, and EXE installers are intentionally outside the target.
-Flutter and Dart must come from the repository's pinned Flutter 3.44.4 SDK.
+Flutter and Dart must come from the repository's pinned Flutter 3.47.2 SDK,
+which bundles Dart 3.13.2.
 
 ## Prerequisites
 
@@ -10,7 +11,7 @@ Flutter and Dart must come from the repository's pinned Flutter 3.44.4 SDK.
   GitHub workflow uses `windows-latest`.
 - 64-bit Windows 11 24H2 or newer for installing, exercising, signing, and
   WACK-validating the release-equivalent package.
-- Flutter 3.44.4 with Windows desktop enabled.
+- Flutter 3.47.2 with Windows desktop enabled.
 - Visual Studio 2022 with **Desktop development with C++**, including the x64
   MSVC toolchain and CMake tools.
 - Windows SDK `10.0.26100.0` or newer.

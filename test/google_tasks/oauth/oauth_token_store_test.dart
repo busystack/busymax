@@ -345,52 +345,48 @@ void main() {
     skip: !Platform.isLinux,
   );
 
-  test(
-    'portal store orders a delete after an overlapping save',
-    () async {
-      final storageFile = File('${tempDir.path}/oauth-tokens.v1.json');
-      final immediateFile = _ImmediateFile(storageFile);
-      final portal = _FirstPortalRequestGate(
+  test('portal store orders a delete after an overlapping save', () async {
+    final storageFile = File('${tempDir.path}/oauth-tokens.v1.json');
+    final immediateFile = _ImmediateFile(storageFile);
+    final portal = _FirstPortalRequestGate(
+      const PortalSecret(bytes: _secretBytes, token: 'portal-token'),
+    );
+    final savingStore = PortalEncryptedSecretStore(
+      portalClient: portal,
+      storageFile: immediateFile,
+    );
+    final deletingStore = PortalEncryptedSecretStore(
+      portalClient: portal,
+      storageFile: immediateFile,
+    );
+
+    final save = savingStore.saveOAuthTokenSet(
+      'account-a',
+      BusyProvider.google,
+      _tokenSet(accessToken: 'access-a'),
+    );
+    await portal.firstRequestStarted.future;
+    var deleteCompleted = false;
+    final delete = deletingStore.deleteCredential('account-a');
+    unawaited(delete.then((_) => deleteCompleted = true));
+
+    await _drainMicrotasks();
+    final deleteWasSerialized = !deleteCompleted;
+    portal.releaseFirstRequest();
+    await Future.wait([save, delete]);
+
+    expect(deleteWasSerialized, isTrue);
+    final reopened = PortalEncryptedSecretStore(
+      portalClient: _FakeSecretPortalClient(
         const PortalSecret(bytes: _secretBytes, token: 'portal-token'),
-      );
-      final savingStore = PortalEncryptedSecretStore(
-        portalClient: portal,
-        storageFile: immediateFile,
-      );
-      final deletingStore = PortalEncryptedSecretStore(
-        portalClient: portal,
-        storageFile: immediateFile,
-      );
-
-      final save = savingStore.saveOAuthTokenSet(
-        'account-a',
-        BusyProvider.google,
-        _tokenSet(accessToken: 'access-a'),
-      );
-      await portal.firstRequestStarted.future;
-      var deleteCompleted = false;
-      final delete = deletingStore.deleteCredential('account-a');
-      unawaited(delete.then((_) => deleteCompleted = true));
-
-      await _drainMicrotasks();
-      final deleteWasSerialized = !deleteCompleted;
-      portal.releaseFirstRequest();
-      await Future.wait([save, delete]);
-
-      expect(deleteWasSerialized, isTrue);
-      final reopened = PortalEncryptedSecretStore(
-        portalClient: _FakeSecretPortalClient(
-          const PortalSecret(bytes: _secretBytes, token: 'portal-token'),
-        ),
-        storageFile: storageFile,
-      );
-      expect(
-        await reopened.readOAuthTokenSet('account-a', BusyProvider.google),
-        isNull,
-      );
-    },
-    skip: !Platform.isLinux,
-  );
+      ),
+      storageFile: storageFile,
+    );
+    expect(
+      await reopened.readOAuthTokenSet('account-a', BusyProvider.google),
+      isNull,
+    );
+  }, skip: !Platform.isLinux);
 
   test(
     'portal store preserves the valid file when replacement fails',

@@ -37,7 +37,7 @@ jobs:
         uses: subosito/flutter-action@v2
         with:
           channel: stable
-          flutter-version: '3.44.4'
+          flutter-version: '3.47.2'
           cache: true
 
       - name: Verify pinned Flutter and bundled Dart
@@ -49,8 +49,8 @@ jobs:
           "$dart_executable" tool/verify_flutter_sdk.dart \
             --flutter "$flutter_executable" \
             --dart "$dart_executable" \
-            --expected-flutter 3.44.4 \
-            --expected-dart 3.12.2
+            --expected-flutter 3.47.2 \
+            --expected-dart 3.13.2
           printf 'BUSYMAX_FLUTTER_EXECUTABLE=%s\n' "$flutter_executable" >> "$GITHUB_ENV"
           printf 'BUSYMAX_DART_EXECUTABLE=%s\n' "$dart_executable" >> "$GITHUB_ENV"
 

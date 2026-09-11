@@ -13,8 +13,8 @@ void main() {
     expect(result.exitCode, 0, reason: result.stderr.toString());
     final report = jsonDecode(result.stdout.toString());
     expect(report, isA<Map<String, Object?>>());
-    expect(report['flutterVersion'], '3.44.4');
-    expect(report['dartVersion'], '3.12.2');
+    expect(report['flutterVersion'], '3.47.2');
+    expect(report['dartVersion'], '3.13.2');
     expect(
       await FileSystemEntity.identical(
         report['dartExecutable']! as String,
@@ -48,7 +48,7 @@ void main() {
       expect(result.exitCode, 0, reason: result.stderr.toString());
       final report =
           jsonDecode(result.stdout.toString()) as Map<String, Object?>;
-      expect(report['dartVersion'], '3.12.2');
+      expect(report['dartVersion'], '3.13.2');
 
       final verifiedDart = report['dartExecutable']! as String;
       for (final arguments in [
@@ -83,7 +83,7 @@ void main() {
     final siblingDart = File(
       '${fixture.root.path}/bin/${_commandName('dart')}',
     );
-    await _writeExecutable(siblingDart, dartVersion: '3.12.2');
+    await _writeExecutable(siblingDart, dartVersion: '3.13.2');
 
     final result = await fixture.verify(dart: siblingDart);
 
@@ -112,8 +112,8 @@ final class _ToolchainFixture {
     final bundledDart = File(
       '${root.path}/bin/cache/dart-sdk/bin/${_commandName('dart')}',
     );
-    await _writeExecutable(flutter, flutterVersion: '3.44.4');
-    await _writeExecutable(bundledDart, dartVersion: '3.12.2');
+    await _writeExecutable(flutter, flutterVersion: '3.47.2');
+    await _writeExecutable(bundledDart, dartVersion: '3.13.2');
     return _ToolchainFixture(
       root: root,
       flutter: flutter,
@@ -133,9 +133,9 @@ final class _ToolchainFixture {
       '--dart',
       (dart ?? bundledDart).path,
       '--expected-flutter',
-      '3.44.4',
+      '3.47.2',
       '--expected-dart',
-      '3.12.2',
+      '3.13.2',
     ],
     environment: environment,
     runInShell: Platform.isWindows,
@@ -172,7 +172,7 @@ Future<void> _writeExecutable(
   if (Platform.isWindows) {
     final output = flutterVersion != null
         ? '{"frameworkVersion":"$flutterVersion",'
-              '"dartSdkVersion":"3.12.2"}'
+              '"dartSdkVersion":"3.13.2"}'
         : 'Dart SDK version: $dartVersion (stable) on "windows_x64"';
     await file.writeAsString(
       '@echo off\r\n'
@@ -184,7 +184,7 @@ Future<void> _writeExecutable(
   }
   final output = flutterVersion != null
       ? '{"frameworkVersion":"$flutterVersion",'
-            '"dartSdkVersion":"3.12.2"}'
+            '"dartSdkVersion":"3.13.2"}'
       : 'Dart SDK version: $dartVersion (stable) on "linux_x64"';
   await file.writeAsString(
     '#!/bin/sh\n'
