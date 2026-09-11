@@ -134,7 +134,7 @@ records the final commit and exact executable paths:
 | `flutter test` | Passed; 1,971 tests passed, 10 credential-gated live tests skipped, zero failed. Machine report: `build/linux/test-results/flutter-tests.jsonl`. |
 | `flutter build linux --release -t lib/main_linux.dart` | Passed; produced `build/linux/x64/release/bundle/busymax`. |
 | `snapcraft pack --use-lxd` | Passed using the canonical recipe; produced `busymax_0.2.0_amd64.snap`. The final SHA-256 is recorded in the completion report so the report identifies the artifact packed after the source commit. |
-| Isolated Snap install | Not rerun for the final candidate on this host; the developer's installed `0.1.7` Snap and normal profile were left untouched. The strict candidate still requires the isolated installed-package checks below. |
+| Isolated Snap install | Attempted with the exact candidate in a disposable Ubuntu 24.04 LXD guest. Installation could not fetch `gnome-46-2404` and then `mesa-2404` because the guest's Snap Store API requests timed out; the guest was removed and the developer's installed `0.1.7` Snap and normal profile were left untouched. The strict candidate still requires the isolated installed-package checks below. |
 
 These results establish Linux and platform-neutral source health only. They do
 not replace the Windows gates below, a Windows CI result, or installed-package
