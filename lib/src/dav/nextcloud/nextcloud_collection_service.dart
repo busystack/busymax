@@ -193,19 +193,38 @@ final class NextcloudCollectionService {
       final response = await context.send('PROPPATCH', target, xml: xml);
       _requirePropertySuccess(response, changes.keys.toSet(), context, target);
     } on DavException catch (error) {
-      if (!_uncertain(error)) rethrow;
-      try {
-        final actual = await load(id, context: context);
-        if (!changes.entries.every(
-          (e) => _matchesProperty(actual, e.key, e.value),
-        )) {
+      if (error.code == 'DavPropertyUpdateIncomplete') {
+        var confirmed = false;
+        try {
+          confirmed = await _propertiesMatch(id, changes, context: context);
+        } on Object {
+          // Preserve the precise incomplete-response error when the server's
+          // postcondition cannot be established.
+        }
+        if (!confirmed) rethrow;
+      } else {
+        if (!_uncertain(error)) rethrow;
+        try {
+          if (!await _propertiesMatch(id, changes, context: context)) {
+            throw nextcloudOperationError(409, 'DavCollectionOutcomeUnknown');
+          }
+        } on Object {
           throw nextcloudOperationError(409, 'DavCollectionOutcomeUnknown');
         }
-      } on Object {
-        throw nextcloudOperationError(409, 'DavCollectionOutcomeUnknown');
       }
     }
     return refreshResult();
+  }
+
+  Future<bool> _propertiesMatch(
+    String id,
+    Map<DavPropertyName, String> changes, {
+    required NextcloudDavContext context,
+  }) async {
+    final actual = await load(id, context: context);
+    return changes.entries.every(
+      (entry) => _matchesProperty(actual, entry.key, entry.value),
+    );
   }
 
   Future<NextcloudMutationOutcome> remove(String id) async {

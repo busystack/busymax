@@ -74,6 +74,50 @@ void main() {
     },
   );
   test(
+    'incomplete 207 accepts a rename only after exact property readback',
+    () async {
+      fixture.omitPropertyResults = true;
+
+      expect(
+        await fixture.collections.update('collection', {
+          const DavPropertyName(davNamespace, 'displayname'): 'Renamed',
+        }),
+        NextcloudMutationOutcome.committed,
+      );
+
+      expect(fixture.displayName, 'Renamed');
+      expect(fixture.refreshes, 1);
+      expect(
+        fixture.requests.where((request) => request.method == 'PROPPATCH'),
+        hasLength(1),
+      );
+      expect(
+        fixture.requests.where((request) => request.method == 'PROPFIND'),
+        isNotEmpty,
+      );
+    },
+  );
+  test('incomplete 207 still rejects an unapplied rename', () async {
+    fixture.omitPropertyResults = true;
+    fixture.applyPropertyChanges = false;
+
+    await expectLater(
+      fixture.collections.update('collection', {
+        const DavPropertyName(davNamespace, 'displayname'): 'Renamed',
+      }),
+      throwsA(
+        isA<DavException>().having(
+          (error) => error.code,
+          'code',
+          'DavPropertyUpdateIncomplete',
+        ),
+      ),
+    );
+
+    expect(fixture.displayName, 'Work');
+    expect(fixture.refreshes, 0);
+  });
+  test(
     'confirmed metadata write followed by refresh failure is not retried',
     () async {
       fixture.failRefresh = true;

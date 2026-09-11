@@ -37,6 +37,7 @@ class NextcloudAdminFixture {
       published = false;
   String? failedProperty;
   bool omitPropertyResults = false;
+  bool applyPropertyChanges = true;
   bool denyTrashObject = false, denySharing = false, ignoreSharing = false;
   String? deletedCollectionType;
   bool unexpectedTrashHref = false;
@@ -189,13 +190,15 @@ class NextcloudAdminFixture {
       final properties = document.descendantElements
           .firstWhere((e) => e.name.local == 'prop')
           .childElements;
-      if (omitPropertyResults) return multi(request.url.path, '');
       if (failedProperty != null) {
         return multi(request.url.path, '<a:$failedProperty/>', status: 403);
       }
-      for (final p in properties) {
-        if (p.name.local == 'displayname') displayName = p.innerText;
+      if (applyPropertyChanges) {
+        for (final p in properties) {
+          if (p.name.local == 'displayname') displayName = p.innerText;
+        }
       }
+      if (omitPropertyResults) return multi(request.url.path, '');
       return multi(
         request.url.path,
         properties.map((e) => '<${e.name.qualified}/>').join(),
