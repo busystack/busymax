@@ -277,6 +277,423 @@ void main() {
     },
   );
 
+  test(
+    'Keep server accepts a remotely changed MOVE destination under its identity',
+    () async {
+      await _seedDestination(database);
+      final source = await database.select(database.davObjects).getSingle();
+      final operationId = await queue.enqueueMove(
+        accountId: 'account',
+        sourceCollectionId: 'collection',
+        destinationCollectionId: 'destination',
+        objectId: source.id,
+        target: _target,
+        postMovePatch: _patch('SUMMARY', 'Intended title'),
+      );
+      const destinationHref = '/remote.php/dav/calendars/alex/home/event.ics';
+      var sourceExists = true;
+      String? destinationRaw;
+      var destinationEtag = '"moved"';
+      var moves = 0;
+      var puts = 0;
+      final remote = _FakeMutationRemote(
+        move:
+            ({
+              required sourceUri,
+              required destinationUri,
+              required ifMatch,
+            }) async {
+              moves += 1;
+              sourceExists = false;
+              destinationRaw = _event('Baseline');
+              return _success;
+            },
+        put: ({required rawIcs, required ifMatch, required ifNoneMatch}) async {
+          puts += 1;
+          expect(rawIcs, contains('SUMMARY:Intended title'));
+          throw const DavException(
+            kind: DavErrorKind.invalidCalendarData,
+            code: 'DavMalformedResource',
+            safeMessage: 'The destination patch was rejected.',
+            statusCode: 415,
+          );
+        },
+        fetcher: (href) async {
+          if (href == destinationHref && destinationRaw != null) {
+            return _live(href, destinationEtag, destinationRaw!);
+          }
+          if (href == _eventHref && sourceExists) {
+            return _live(href, 'W/"baseline"', _event('Baseline'));
+          }
+          return _missing(href);
+        },
+      );
+      final replayer = _replayer(database, objectRepository, remote);
+
+      await replayer.replayDueOperations();
+      final failed = await database.pendingOpsDao.getOp(operationId);
+      expect(failed?.state, 'failed');
+      expect(failed?.retryClassification, davPartialMoveRetryClassification);
+      expect(moves, 1);
+      expect(puts, 1);
+
+      destinationRaw = _event('Changed by another client');
+      destinationEtag = '"changed-remotely"';
+      await PendingOpResolutionService(
+        database: database,
+        accountId: 'account',
+        syncTasks: () async => fail('An event move must not sync tasks.'),
+        syncCalendar: () async {
+          final result = await replayer.replayDueOperations();
+          expect(result.conflictCount, 1);
+        },
+        nowUtc: () => _now,
+      ).retryNow(operationId);
+
+      final conflicts = await DavConflictRepository(
+        database: database,
+      ).watchUnresolved().first;
+      expect(conflicts, hasLength(1));
+      expect(
+        conflicts.single.conflictCode,
+        'DavConflictMoveDestinationChanged',
+      );
+      expect(conflicts.single.canKeepServer, isTrue);
+      expect(conflicts.single.canDuplicate, isTrue);
+
+      await DavConflictResolutionService(
+        database: database,
+        objectRepository: objectRepository,
+        nowUtc: () => _now,
+      ).resolve(conflicts.single.id, DavConflictResolution.keepServer);
+
+      expect(moves, 1);
+      expect(puts, 1);
+      expect(await database.pendingOpsDao.getOp(operationId), isNull);
+      final sourceAfter = await (database.select(
+        database.davObjects,
+      )..where((row) => row.id.equals(source.id))).getSingle();
+      expect(sourceAfter.serverDeleted, isTrue);
+      final destination = await (database.select(
+        database.davObjects,
+      )..where((row) => row.collectionId.equals('destination'))).getSingle();
+      expect(destination.hrefKey, destinationHref);
+      expect(
+        destination.requestUri,
+        'https://cloud.example.test$destinationHref',
+      );
+      expect(destination.primaryUid, 'event@example.test');
+      expect(destination.etag, '"changed-remotely"');
+      expect(destination.rawIcsBody, _event('Changed by another client'));
+      final events = await database.select(database.calendarEvents).get();
+      expect(events, hasLength(1));
+      expect(events.single.calendarSourceId, 'dav-calendar-destination');
+      expect(events.single.title, 'Changed by another client');
+    },
+  );
+
+  test(
+    'Keep server resolves a MOVE whose source and destination are absent',
+    () async {
+      await _seedDestination(database);
+      final source = await database.select(database.davObjects).getSingle();
+      final operationId = await queue.enqueueMove(
+        accountId: 'account',
+        sourceCollectionId: 'collection',
+        destinationCollectionId: 'destination',
+        objectId: source.id,
+        target: _target,
+      );
+      var moves = 0;
+      final remote = _FakeMutationRemote(
+        move:
+            ({
+              required sourceUri,
+              required destinationUri,
+              required ifMatch,
+            }) async {
+              moves += 1;
+              return _precondition;
+            },
+        fetcher: (href) async => _missing(href),
+      );
+
+      final result = await _replayer(
+        database,
+        objectRepository,
+        remote,
+      ).replayDueOperations();
+
+      expect(result.conflictCount, 1);
+      final conflict = await DavConflictRepository(
+        database: database,
+      ).watchUnresolved().first;
+      expect(conflict.single.conflictCode, 'DavConflictMoveSourceRemoved');
+      expect(conflict.single.canKeepServer, isTrue);
+      expect(conflict.single.canDuplicate, isTrue);
+
+      await DavConflictResolutionService(
+        database: database,
+        objectRepository: objectRepository,
+        nowUtc: () => _now,
+      ).resolve(conflict.single.id, DavConflictResolution.keepServer);
+
+      expect(moves, 1);
+      expect(await database.pendingOpsDao.getOp(operationId), isNull);
+      expect(
+        (await (database.select(
+          database.davObjects,
+        )..where((row) => row.id.equals(source.id))).getSingle()).serverDeleted,
+        isTrue,
+      );
+      expect(
+        await (database.select(
+          database.davObjects,
+        )..where((row) => row.collectionId.equals('destination'))).get(),
+        isEmpty,
+      );
+      expect(await database.select(database.calendarEvents).get(), isEmpty);
+    },
+  );
+
+  test(
+    'Keep server resolves a MOVE retry limit using the retained source',
+    () async {
+      await _seedDestination(database);
+      final source = await database.select(database.davObjects).getSingle();
+      final operationId = await queue.enqueueMove(
+        accountId: 'account',
+        sourceCollectionId: 'collection',
+        destinationCollectionId: 'destination',
+        objectId: source.id,
+        target: _target,
+      );
+      var moves = 0;
+      final remote = _FakeMutationRemote(
+        move:
+            ({
+              required sourceUri,
+              required destinationUri,
+              required ifMatch,
+            }) async {
+              moves += 1;
+              return _precondition;
+            },
+        fetcher: (href) async => href == _eventHref
+            ? _live(href, '"latest-source"', _event('Baseline'))
+            : _missing(href),
+      );
+
+      final result = await _replayer(
+        database,
+        objectRepository,
+        remote,
+      ).replayDueOperations();
+
+      expect(result.conflictCount, 1);
+      final conflict = await DavConflictRepository(
+        database: database,
+      ).watchUnresolved().first;
+      expect(conflict.single.conflictCode, 'DavConflictRetryLimitExceeded');
+      expect(conflict.single.canKeepServer, isTrue);
+      expect(conflict.single.canDuplicate, isTrue);
+
+      await DavConflictResolutionService(
+        database: database,
+        objectRepository: objectRepository,
+        nowUtc: () => _now,
+      ).resolve(conflict.single.id, DavConflictResolution.keepServer);
+
+      expect(moves, 3);
+      expect(await database.pendingOpsDao.getOp(operationId), isNull);
+      final retained = await (database.select(
+        database.davObjects,
+      )..where((row) => row.id.equals(source.id))).getSingle();
+      expect(retained.serverDeleted, isFalse);
+      expect(retained.collectionId, 'collection');
+      expect(retained.hrefKey, _eventHref);
+      expect(retained.etag, '"latest-source"');
+      expect(retained.primaryUid, 'event@example.test');
+    },
+  );
+
+  test(
+    'Keep server cancels an unattempted task subtree after child MOVE collision',
+    () async {
+      await _seedDestination(database);
+      const parentUid = 'parent@example.test';
+      const childUid = 'child@example.test';
+      const parentHref = '${_collectionHref}parent-task.ics';
+      const childHref = '${_collectionHref}child-task.ics';
+      const destinationChildHref =
+          '/remote.php/dav/calendars/alex/home/child-task.ics';
+      final parentRaw = _task(
+        uid: parentUid,
+        start: 'DTSTART:20260809T090000Z',
+        due: 'DUE:20260809T100000Z',
+      );
+      final childRaw = _taskWithParent(childUid, 'Child task');
+      await _commitMembers(
+        objectRepository,
+        collectionId: 'collection',
+        objects: [
+          _preparedMember(href: parentHref, etag: '"parent"', body: parentRaw),
+          _preparedMember(href: childHref, etag: '"child"', body: childRaw),
+        ],
+      );
+      final sourceTasks = await database.tasksDao.listTasks(
+        'account',
+        'dav-task-list-collection',
+      );
+      final parent = sourceTasks.singleWhere(
+        (task) => task.icalUid == parentUid,
+      );
+      final child = sourceTasks.singleWhere((task) => task.icalUid == childUid);
+      await TasksRepository(
+        database: database,
+        accountId: 'account',
+        nowUtc: () => _now,
+      ).moveTask(
+        TaskMoveInput(
+          sourceTaskListId: 'dav-task-list-collection',
+          destinationTaskListId: 'dav-task-list-destination',
+          taskId: parent.id,
+        ),
+      );
+      final operations = await database.select(database.pendingOps).get();
+      final childMove = operations.singleWhere(
+        (operation) => operation.taskId == child.id,
+      );
+      final parentMove = operations.singleWhere(
+        (operation) => operation.taskId == parent.id,
+      );
+      expect(parentMove.dependsOnOpId, childMove.id);
+      expect(parentMove.createdAtUtc, childMove.createdAtUtc);
+
+      final unrelatedRaw = _task(
+        uid: 'unrelated-destination@example.test',
+        start: 'DTSTART:20260810T090000Z',
+        due: 'DUE:20260810T100000Z',
+      );
+      var moves = 0;
+      final remote = _FakeMutationRemote(
+        move:
+            ({
+              required sourceUri,
+              required destinationUri,
+              required ifMatch,
+            }) async {
+              moves += 1;
+              expect(sourceUri.path, childHref);
+              expect(destinationUri.path, destinationChildHref);
+              return _precondition;
+            },
+        fetcher: (href) async {
+          if (href == destinationChildHref) {
+            return _live(href, '"unrelated"', unrelatedRaw);
+          }
+          if (href == childHref) {
+            return _live(href, '"child"', childRaw);
+          }
+          return _missing(href);
+        },
+      );
+      final replayer = _replayer(database, objectRepository, remote);
+      final firstReplay = await replayer.replayDueOperations();
+      expect(firstReplay.conflictCount, 1);
+      expect(moves, 1);
+      expect(
+        (await database.pendingOpsDao.getOp(childMove.id))?.state,
+        'conflict',
+      );
+      expect(
+        (await database.pendingOpsDao.getOp(parentMove.id))?.state,
+        'pending',
+      );
+
+      final conflict = await DavConflictRepository(
+        database: database,
+      ).watchUnresolved().first;
+      expect(conflict.single.conflictCode, 'DavConflictMoveDestinationExists');
+      final resolutionService = DavConflictResolutionService(
+        database: database,
+        objectRepository: objectRepository,
+        nowUtc: () => _now,
+      );
+      await (database.update(database.pendingOps)
+            ..where((row) => row.id.equals(parentMove.id)))
+          .write(const PendingOpsCompanion(attemptCount: Value(1)));
+      await expectLater(
+        resolutionService.resolve(
+          conflict.single.id,
+          DavConflictResolution.keepServer,
+        ),
+        throwsA(
+          isA<DavException>().having(
+            (error) => error.code,
+            'code',
+            'DavConflictResolutionUnavailable',
+          ),
+        ),
+      );
+      expect(await database.select(database.pendingOps).get(), hasLength(2));
+      expect(
+        await (database.select(
+          database.davObjects,
+        )..where((row) => row.collectionId.equals('destination'))).get(),
+        isEmpty,
+      );
+
+      await (database.update(database.pendingOps)
+            ..where((row) => row.id.equals(parentMove.id)))
+          .write(const PendingOpsCompanion(attemptCount: Value(0)));
+      await resolutionService.resolve(
+        conflict.single.id,
+        DavConflictResolution.keepServer,
+      );
+
+      expect(await database.select(database.pendingOps).get(), isEmpty);
+      final secondReplay = await replayer.replayDueOperations();
+      expect(secondReplay.appliedCount, 0);
+      expect(moves, 1);
+      final restoredSourceTasks = await database.tasksDao.listTasks(
+        'account',
+        'dav-task-list-collection',
+      );
+      expect(restoredSourceTasks.map((task) => task.icalUid).toSet(), {
+        parentUid,
+        childUid,
+      });
+      final restoredParent = restoredSourceTasks.singleWhere(
+        (task) => task.icalUid == parentUid,
+      );
+      final restoredChild = restoredSourceTasks.singleWhere(
+        (task) => task.icalUid == childUid,
+      );
+      expect(restoredChild.parent, restoredParent.id);
+      expect(restoredChild.parentUid, parentUid);
+      final destinationTasks = await database.tasksDao.listTasks(
+        'account',
+        'dav-task-list-destination',
+      );
+      expect(destinationTasks, hasLength(1));
+      expect(
+        destinationTasks.single.icalUid,
+        'unrelated-destination@example.test',
+      );
+      final destinationObject = await (database.select(
+        database.davObjects,
+      )..where((row) => row.hrefKey.equals(destinationChildHref))).getSingle();
+      expect(destinationObject.collectionId, 'destination');
+      expect(
+        destinationObject.primaryUid,
+        'unrelated-destination@example.test',
+      );
+      expect(destinationObject.etag, '"unrelated"');
+      expect(destinationObject.rawIcsBody, unrelatedRaw);
+    },
+  );
+
   test('revoked credential pauses replay and preserves pending work', () async {
     final object = await database.select(database.davObjects).getSingle();
     await queue.enqueueUpdate(

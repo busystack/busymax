@@ -123,83 +123,221 @@ final class DavConflictResolutionService {
 
   Future<void> _keepServer(String snapshotId) async {
     final context = await _context(snapshotId);
-    final moveIdentity = _moveRemoteIdentity(
+    final moveOutcome = _moveConflictOutcome(
       context.operation,
       context.snapshot.conflictCode,
     );
-    if (moveIdentity == _MoveRemoteIdentity.destination) {
-      await _resolveMoveDestinationCollision(
-        context,
-        DavConflictResolution.keepServer,
-      );
-      return;
+    switch (moveOutcome) {
+      case _MoveConflictOutcome.notMove:
+        await _adoptRemote(context, DavConflictResolution.keepServer);
+      case _MoveConflictOutcome.sourceRetained:
+        await _resolveChangedSourceMove(
+          context,
+          DavConflictResolution.keepServer,
+        );
+      case _MoveConflictOutcome.destinationCollision:
+        await _resolveMoveDestinationCollision(
+          context,
+          DavConflictResolution.keepServer,
+        );
+      case _MoveConflictOutcome.destinationChanged:
+        await _resolveCompletedMove(context, DavConflictResolution.keepServer);
+      case _MoveConflictOutcome.sourceRemoved:
+        await _resolveRemovedMove(context, DavConflictResolution.keepServer);
+      case _MoveConflictOutcome.unavailable:
+        throw _resolutionUnavailable();
     }
-    if (moveIdentity == _MoveRemoteIdentity.unavailable) {
-      throw _resolutionUnavailable();
-    }
-    await _adoptRemote(context, DavConflictResolution.keepServer);
   }
 
   Future<void> _resolveMoveDestinationCollision(
     _ResolutionContext context,
     DavConflictResolution resolution,
   ) async {
-    final snapshot = context.snapshot;
-    final operation = context.operation;
-    final source = context.object;
-    if (!_isMoveDestinationCollision(context) ||
-        source == null ||
-        source.accountId != snapshot.accountId ||
-        source.collectionId != context.collection.id ||
-        source.hrefKey != operation.davMemberHref ||
-        context.collection.accountId != snapshot.accountId ||
-        context.collection.hrefKey != operation.davCollectionHref ||
-        snapshot.remoteEtag == null ||
-        snapshot.remoteRawIcs.isEmpty) {
+    if (!_isMoveDestinationCollision(context)) {
       throw _resolutionUnavailable();
     }
-    final destinationId = operation.destinationCollectionId;
-    final destination = destinationId == null
-        ? null
-        : await (_database.select(
-            _database.davCollections,
-          )..where((row) => row.id.equals(destinationId))).getSingleOrNull();
-    if (destination == null ||
-        destination.accountId != snapshot.accountId ||
-        destination.deleted ||
-        destination.serverMissing ||
-        destination.hrefKey != operation.destinationCollectionHref) {
-      throw _resolutionUnavailable();
-    }
-    final destinationUri = _validatedMoveDestinationUri(operation, destination);
     final provider = BusyProviderCodec.requireStorageValue(
       context.account.provider,
     );
-    final canonicalDestination = DavPreparedObject.parse(
-      hrefKey: destinationUri.path,
-      requestUri: destinationUri,
-      etag: snapshot.remoteEtag,
-      contentType: source.contentType,
-      rawIcsBody: snapshot.remoteRawIcs,
-      maximumResourceBytes: destination.maximumResourceSize ?? 16 * 1024 * 1024,
+    final now = _nowUtc().toUtc();
+    await _database.transaction(() async {
+      final operation = await _currentConflictOperation(context);
+      final move = await _validatedMoveContext(
+        context,
+        operation,
+        requireRemote: true,
+      );
+      final dependents = await _unattemptedMoveDependents(operation);
+      final restoredSources = <DavObject>[move.source];
+      for (final dependent in dependents) {
+        restoredSources.add(await _validatedMoveSource(dependent));
+      }
+      await _objectRepository.commitConfirmedMutation(
+        accountId: context.snapshot.accountId,
+        collectionId: move.destination.id,
+        provider: provider,
+        canonicalObject: move.canonicalDestination,
+        completedAtUtc: now,
+      );
+      await (_database.delete(_database.pendingOps)..where(
+            (row) => row.id.isIn([
+              operation.id,
+              for (final dependent in dependents) dependent.id,
+            ]),
+          ))
+          .go();
+      for (final restoredSource in {
+        for (final object in restoredSources) object.id: object,
+      }.values) {
+        await _objectRepository.restoreServerProjectionAfterDiscard(
+          accountId: context.snapshot.accountId,
+          objectId: restoredSource.id,
+          restoredAtUtc: now,
+        );
+      }
+      await _markSnapshotResolved(
+        context.snapshot.id,
+        resolution,
+        now.toIso8601String(),
+      );
+    });
+  }
+
+  Future<void> _resolveChangedSourceMove(
+    _ResolutionContext context,
+    DavConflictResolution resolution,
+  ) async {
+    final provider = BusyProviderCodec.requireStorageValue(
+      context.account.provider,
     );
     final now = _nowUtc().toUtc();
     await _database.transaction(() async {
+      final operation = await _currentConflictOperation(context);
+      final canonical = await _validatedCanonicalSource(context, operation);
+      final dependents = await _unattemptedMoveDependents(operation);
+      final restoredSources = <DavObject>[];
+      for (final dependent in dependents) {
+        restoredSources.add(await _validatedMoveSource(dependent));
+      }
+      await (_database.delete(_database.pendingOps)..where(
+            (row) => row.id.isIn([
+              operation.id,
+              for (final dependent in dependents) dependent.id,
+            ]),
+          ))
+          .go();
       await _objectRepository.commitConfirmedMutation(
-        accountId: snapshot.accountId,
-        collectionId: destination.id,
+        accountId: context.snapshot.accountId,
+        collectionId: context.collection.id,
         provider: provider,
-        canonicalObject: canonicalDestination,
+        canonicalObject: canonical,
         completedAtUtc: now,
       );
+      for (final restoredSource in {
+        for (final object in restoredSources) object.id: object,
+      }.values) {
+        await _objectRepository.restoreServerProjectionAfterDiscard(
+          accountId: context.snapshot.accountId,
+          objectId: restoredSource.id,
+          restoredAtUtc: now,
+        );
+      }
+      await _markSnapshotResolved(
+        context.snapshot.id,
+        resolution,
+        now.toIso8601String(),
+      );
+    });
+  }
+
+  Future<void> _resolveCompletedMove(
+    _ResolutionContext context,
+    DavConflictResolution resolution,
+  ) async {
+    final provider = BusyProviderCodec.requireStorageValue(
+      context.account.provider,
+    );
+    final now = _nowUtc().toUtc();
+    await _database.transaction(() async {
+      final operation = await _currentConflictOperation(context);
+      final move = await _validatedMoveContext(
+        context,
+        operation,
+        requireRemote: true,
+      );
+      final canonical = move.canonicalDestination!;
+      final sameSourceIdentity = _hasObjectIdentity(canonical, move.source);
       await _database.pendingOpsDao.deleteOp(operation.id);
-      await _objectRepository.restoreServerProjectionAfterDiscard(
-        accountId: snapshot.accountId,
-        objectId: source.id,
-        restoredAtUtc: now,
+      if (sameSourceIdentity) {
+        await _objectRepository.commitConfirmedMove(
+          accountId: context.snapshot.accountId,
+          sourceCollectionId: context.collection.id,
+          destinationCollectionId: move.destination.id,
+          provider: provider,
+          sourceHrefKey: move.source.hrefKey,
+          canonicalDestinationObject: canonical,
+          completedAtUtc: now,
+        );
+      } else {
+        await _objectRepository.commitConfirmedMutation(
+          accountId: context.snapshot.accountId,
+          collectionId: move.destination.id,
+          provider: provider,
+          canonicalObject: canonical,
+          completedAtUtc: now,
+        );
+        await _objectRepository.commitConfirmedMutation(
+          accountId: context.snapshot.accountId,
+          collectionId: context.collection.id,
+          provider: provider,
+          deletedHrefKey: move.source.hrefKey,
+          completedAtUtc: now,
+        );
+      }
+      await _markSnapshotResolved(
+        context.snapshot.id,
+        resolution,
+        now.toIso8601String(),
+      );
+    });
+  }
+
+  Future<void> _resolveRemovedMove(
+    _ResolutionContext context,
+    DavConflictResolution resolution,
+  ) async {
+    if (context.snapshot.remoteEtag != null ||
+        context.snapshot.remoteRawIcs.isNotEmpty) {
+      throw _resolutionUnavailable();
+    }
+    final provider = BusyProviderCodec.requireStorageValue(
+      context.account.provider,
+    );
+    final now = _nowUtc().toUtc();
+    await _database.transaction(() async {
+      final operation = await _currentConflictOperation(context);
+      final move = await _validatedMoveContext(
+        context,
+        operation,
+        requireRemote: false,
+      );
+      await _database.pendingOpsDao.deleteOp(operation.id);
+      await _objectRepository.commitConfirmedMutation(
+        accountId: context.snapshot.accountId,
+        collectionId: context.collection.id,
+        provider: provider,
+        deletedHrefKey: move.source.hrefKey,
+        completedAtUtc: now,
+      );
+      await _objectRepository.commitConfirmedMutation(
+        accountId: context.snapshot.accountId,
+        collectionId: move.destination.id,
+        provider: provider,
+        deletedHrefKey: move.destinationUri.path,
+        completedAtUtc: now,
       );
       await _markSnapshotResolved(
-        snapshot.id,
+        context.snapshot.id,
         resolution,
         now.toIso8601String(),
       );
@@ -292,8 +430,11 @@ final class DavConflictResolutionService {
 
   Future<void> _duplicateLocal(String snapshotId) async {
     final context = await _context(snapshotId);
-    if (_moveRemoteIdentity(context.operation, context.snapshot.conflictCode) ==
-        _MoveRemoteIdentity.unavailable) {
+    final moveOutcome = _moveConflictOutcome(
+      context.operation,
+      context.snapshot.conflictCode,
+    );
+    if (moveOutcome == _MoveConflictOutcome.unavailable) {
       throw _resolutionUnavailable();
     }
     final local = context.snapshot.localCandidateRawIcs;
@@ -317,21 +458,251 @@ final class DavConflictResolutionService {
           componentType: componentType,
         ),
       );
-      if (_isMoveDestinationCollision(context)) {
-        await _resolveMoveDestinationCollision(
-          context,
-          DavConflictResolution.duplicateLocal,
-        );
-        return;
+      switch (moveOutcome) {
+        case _MoveConflictOutcome.destinationCollision:
+          await _resolveMoveDestinationCollision(
+            context,
+            DavConflictResolution.duplicateLocal,
+          );
+        case _MoveConflictOutcome.destinationChanged:
+          await _resolveCompletedMove(
+            context,
+            DavConflictResolution.duplicateLocal,
+          );
+        case _MoveConflictOutcome.sourceRemoved:
+          await _resolveRemovedMove(
+            context,
+            DavConflictResolution.duplicateLocal,
+          );
+        case _MoveConflictOutcome.sourceRetained:
+          await _resolveChangedSourceMove(
+            context,
+            DavConflictResolution.duplicateLocal,
+          );
+        case _MoveConflictOutcome.notMove:
+          if (context.snapshot.remoteEtag != null &&
+              context.snapshot.remoteRawIcs.isNotEmpty &&
+              context.object != null) {
+            await _adoptRemote(context, DavConflictResolution.duplicateLocal);
+          } else {
+            await _finish(context, DavConflictResolution.duplicateLocal);
+          }
+        case _MoveConflictOutcome.unavailable:
+          throw _resolutionUnavailable();
       }
-      if (context.snapshot.remoteEtag != null &&
-          context.snapshot.remoteRawIcs.isNotEmpty &&
-          context.object != null) {
-        await _adoptRemote(context, DavConflictResolution.duplicateLocal);
-        return;
-      }
-      await _finish(context, DavConflictResolution.duplicateLocal);
     });
+  }
+
+  Future<DavPreparedObject> _validatedCanonicalSource(
+    _ResolutionContext context,
+    PendingOp operation,
+  ) async {
+    if (_moveConflictOutcome(operation, context.snapshot.conflictCode) !=
+        _MoveConflictOutcome.sourceRetained) {
+      throw _resolutionUnavailable();
+    }
+    final source = await _validatedMoveSource(operation);
+    if (context.object?.id != source.id ||
+        context.snapshot.remoteEtag == null ||
+        context.snapshot.remoteRawIcs.isEmpty) {
+      throw _resolutionUnavailable();
+    }
+    final canonical = DavPreparedObject.parse(
+      hrefKey: source.hrefKey,
+      requestUri: Uri.parse(source.requestUri),
+      etag: context.snapshot.remoteEtag,
+      contentType: source.contentType,
+      rawIcsBody: context.snapshot.remoteRawIcs,
+      maximumResourceBytes:
+          context.collection.maximumResourceSize ?? 16 * 1024 * 1024,
+    );
+    if (!_hasObjectIdentity(canonical, source)) {
+      throw _resolutionUnavailable();
+    }
+    return canonical;
+  }
+
+  Future<_ValidatedMoveContext> _validatedMoveContext(
+    _ResolutionContext context,
+    PendingOp operation, {
+    required bool requireRemote,
+  }) async {
+    if (context.account.id != context.snapshot.accountId ||
+        operation.accountId != context.snapshot.accountId ||
+        context.collection.accountId != context.snapshot.accountId ||
+        context.collection.hrefKey != operation.davCollectionHref) {
+      throw _resolutionUnavailable();
+    }
+    final outcome = _moveConflictOutcome(
+      operation,
+      context.snapshot.conflictCode,
+    );
+    final allowServerDeleted =
+        outcome == _MoveConflictOutcome.destinationChanged ||
+        outcome == _MoveConflictOutcome.sourceRemoved;
+    final source = await _validatedMoveSource(
+      operation,
+      allowServerDeleted: allowServerDeleted,
+    );
+    if (context.object?.id != source.id ||
+        context.collection.id != source.collectionId) {
+      throw _resolutionUnavailable();
+    }
+    final destinationId = operation.destinationCollectionId;
+    final destination = destinationId == null
+        ? null
+        : await (_database.select(
+            _database.davCollections,
+          )..where((row) => row.id.equals(destinationId))).getSingleOrNull();
+    if (destination == null ||
+        destination.accountId != context.snapshot.accountId ||
+        destination.deleted ||
+        destination.serverMissing ||
+        destination.hrefKey != operation.destinationCollectionHref) {
+      throw _resolutionUnavailable();
+    }
+    final destinationUri = _validatedMoveDestinationUri(operation, destination);
+    DavPreparedObject? canonicalDestination;
+    if (requireRemote) {
+      if (context.snapshot.remoteEtag == null ||
+          context.snapshot.remoteRawIcs.isEmpty) {
+        throw _resolutionUnavailable();
+      }
+      canonicalDestination = DavPreparedObject.parse(
+        hrefKey: destinationUri.path,
+        requestUri: destinationUri,
+        etag: context.snapshot.remoteEtag,
+        contentType: source.contentType,
+        rawIcsBody: context.snapshot.remoteRawIcs,
+        maximumResourceBytes:
+            destination.maximumResourceSize ?? 16 * 1024 * 1024,
+      );
+    }
+    return _ValidatedMoveContext(
+      source: source,
+      destination: destination,
+      destinationUri: destinationUri,
+      canonicalDestination: canonicalDestination,
+    );
+  }
+
+  Future<PendingOp> _currentConflictOperation(
+    _ResolutionContext context,
+  ) async {
+    final current = await _database.pendingOpsDao.getOp(context.operation.id);
+    if (current == null ||
+        current.accountId != context.snapshot.accountId ||
+        current.state != 'conflict' ||
+        current.conflictState != 'unresolved' ||
+        current.conflictSnapshotId != context.snapshot.id ||
+        current.updatedAtUtc != context.operation.updatedAtUtc ||
+        current.requestJson != context.operation.requestJson ||
+        current.davCollectionId != context.operation.davCollectionId ||
+        current.davObjectId != context.operation.davObjectId ||
+        current.davMemberHref != context.operation.davMemberHref ||
+        current.destinationCollectionId !=
+            context.operation.destinationCollectionId ||
+        current.destinationMemberHref !=
+            context.operation.destinationMemberHref) {
+      throw _resolutionUnavailable();
+    }
+    return current;
+  }
+
+  Future<DavObject> _validatedMoveSource(
+    PendingOp operation, {
+    bool allowServerDeleted = false,
+  }) async {
+    final sourceCollectionId = operation.davCollectionId;
+    final sourceObjectId = operation.davObjectId;
+    final destinationCollectionId = operation.destinationCollectionId;
+    if (operation.operationType != 'dav.move' ||
+        operation.accountId.isEmpty ||
+        sourceCollectionId == null ||
+        sourceObjectId == null ||
+        destinationCollectionId == null ||
+        sourceCollectionId == destinationCollectionId ||
+        operation.davCollectionHref == null ||
+        operation.davMemberHref == null ||
+        operation.destinationCollectionHref == null ||
+        operation.destinationMemberHref == null ||
+        operation.baselineEtag == null ||
+        operation.baselineEtag!.isEmpty ||
+        operation.baselineRawIcs == null ||
+        operation.baselineRawIcs!.isEmpty) {
+      throw _resolutionUnavailable();
+    }
+    final sourceCollection = await (_database.select(
+      _database.davCollections,
+    )..where((row) => row.id.equals(sourceCollectionId))).getSingleOrNull();
+    final destination =
+        await (_database.select(_database.davCollections)
+              ..where((row) => row.id.equals(destinationCollectionId)))
+            .getSingleOrNull();
+    final source = await (_database.select(
+      _database.davObjects,
+    )..where((row) => row.id.equals(sourceObjectId))).getSingleOrNull();
+    if (sourceCollection == null ||
+        destination == null ||
+        source == null ||
+        sourceCollection.accountId != operation.accountId ||
+        destination.accountId != operation.accountId ||
+        source.accountId != operation.accountId ||
+        source.collectionId != sourceCollectionId ||
+        sourceCollection.hrefKey != operation.davCollectionHref ||
+        destination.hrefKey != operation.destinationCollectionHref ||
+        source.hrefKey != operation.davMemberHref ||
+        sourceCollection.deleted ||
+        sourceCollection.serverMissing ||
+        destination.deleted ||
+        destination.serverMissing ||
+        (source.serverDeleted && !allowServerDeleted) ||
+        !_isExactCollectionMember(source, sourceCollection)) {
+      throw _resolutionUnavailable();
+    }
+    _validatedMoveDestinationUri(operation, destination);
+    final baseline = _trySemantic(operation.baselineRawIcs!);
+    final target = _tryComponentIdentity(operation.targetComponentKey);
+    if (baseline == null ||
+        target == null ||
+        baseline.primaryUid != source.primaryUid ||
+        target.uid != source.primaryUid ||
+        target.componentType != source.dominantComponentType ||
+        baseline.components.any(
+          (component) =>
+              component.uid != source.primaryUid ||
+              component.componentType != source.dominantComponentType,
+        )) {
+      throw _resolutionUnavailable();
+    }
+    return source;
+  }
+
+  Future<List<PendingOp>> _unattemptedMoveDependents(PendingOp selected) async {
+    final accountOperations = await (_database.select(
+      _database.pendingOps,
+    )..where((row) => row.accountId.equals(selected.accountId))).get();
+    final dependents = <PendingOp>[];
+    final dependencyIds = <String>{selected.id};
+    var added = true;
+    while (added) {
+      added = false;
+      for (final operation in accountOperations) {
+        if (dependencyIds.contains(operation.id) ||
+            !dependencyIds.contains(operation.dependsOnOpId)) {
+          continue;
+        }
+        if (operation.operationType != 'dav.move' ||
+            operation.state != 'pending' ||
+            operation.attemptCount != 0) {
+          throw _resolutionUnavailable();
+        }
+        dependencyIds.add(operation.id);
+        dependents.add(operation);
+        added = true;
+      }
+    }
+    return dependents;
   }
 
   Future<_ResolutionContext> _context(String snapshotId) async {
@@ -418,25 +789,101 @@ final class _ResolutionContext {
   final DavObject? object;
 }
 
-enum _MoveRemoteIdentity { source, destination, unavailable }
+final class _ValidatedMoveContext {
+  const _ValidatedMoveContext({
+    required this.source,
+    required this.destination,
+    required this.destinationUri,
+    required this.canonicalDestination,
+  });
 
-_MoveRemoteIdentity _moveRemoteIdentity(
+  final DavObject source;
+  final DavCollection destination;
+  final Uri destinationUri;
+  final DavPreparedObject? canonicalDestination;
+}
+
+enum _MoveConflictOutcome {
+  notMove,
+  sourceRetained,
+  destinationCollision,
+  destinationChanged,
+  sourceRemoved,
+  unavailable,
+}
+
+_MoveConflictOutcome _moveConflictOutcome(
   PendingOp? operation,
   String conflictCode,
 ) {
   if (operation?.operationType != 'dav.move') {
-    return _MoveRemoteIdentity.source;
+    return _MoveConflictOutcome.notMove;
   }
   return switch (conflictCode) {
-    'DavConflictStaleMove' => _MoveRemoteIdentity.source,
-    'DavConflictMoveDestinationExists' => _MoveRemoteIdentity.destination,
-    _ => _MoveRemoteIdentity.unavailable,
+    'DavConflictStaleMove' ||
+    'DavConflictRetryLimitExceeded' => _MoveConflictOutcome.sourceRetained,
+    'DavConflictMoveDestinationExists' =>
+      _MoveConflictOutcome.destinationCollision,
+    'DavConflictMoveDestinationChanged' =>
+      _MoveConflictOutcome.destinationChanged,
+    'DavConflictMoveSourceRemoved' => _MoveConflictOutcome.sourceRemoved,
+    _ => _MoveConflictOutcome.unavailable,
   };
 }
 
 bool _isMoveDestinationCollision(_ResolutionContext context) =>
-    _moveRemoteIdentity(context.operation, context.snapshot.conflictCode) ==
-    _MoveRemoteIdentity.destination;
+    _moveConflictOutcome(context.operation, context.snapshot.conflictCode) ==
+    _MoveConflictOutcome.destinationCollision;
+
+bool _hasObjectIdentity(DavPreparedObject canonical, DavObject object) =>
+    canonical.semantic.primaryUid == object.primaryUid &&
+    canonical.semantic.components.every(
+      (component) =>
+          component.uid == object.primaryUid &&
+          component.componentType == object.dominantComponentType,
+    );
+
+({String componentType, String uid})? _tryComponentIdentity(String? source) {
+  if (source == null) return null;
+  try {
+    final decoded = jsonDecode(source);
+    if (decoded is! Map ||
+        decoded['componentType'] is! String ||
+        decoded['uid'] is! String) {
+      return null;
+    }
+    final componentType = (decoded['componentType']! as String).toUpperCase();
+    final uid = decoded['uid']! as String;
+    if ((componentType != 'VEVENT' && componentType != 'VTODO') ||
+        uid.isEmpty) {
+      return null;
+    }
+    return (componentType: componentType, uid: uid);
+  } on Object {
+    return null;
+  }
+}
+
+bool _isExactCollectionMember(DavObject object, DavCollection collection) {
+  final objectUri = Uri.tryParse(object.requestUri);
+  final collectionUri = Uri.tryParse(collection.requestUri);
+  if (objectUri == null || collectionUri == null) return false;
+  final collectionHref = collection.hrefKey.endsWith('/')
+      ? collection.hrefKey
+      : '${collection.hrefKey}/';
+  final relativeHref = object.hrefKey.startsWith(collectionHref)
+      ? object.hrefKey.substring(collectionHref.length)
+      : '';
+  return objectUri.scheme == collectionUri.scheme &&
+      objectUri.host == collectionUri.host &&
+      objectUri.port == collectionUri.port &&
+      objectUri.userInfo.isEmpty &&
+      !objectUri.hasQuery &&
+      !objectUri.hasFragment &&
+      objectUri.path == object.hrefKey &&
+      relativeHref.isNotEmpty &&
+      !relativeHref.contains('/');
+}
 
 Uri _validatedMoveDestinationUri(
   PendingOp operation,
@@ -493,12 +940,12 @@ DavConflictEntity _entity(
       : _tryPatch(operation!.mutationPatchJson!);
   final hasRemote =
       snapshot.remoteEtag != null && snapshot.remoteRawIcs.isNotEmpty;
-  final moveRemoteIdentity = _moveRemoteIdentity(
-    operation,
-    snapshot.conflictCode,
-  );
-  final remoteResolutionAvailable =
-      hasRemote && moveRemoteIdentity != _MoveRemoteIdentity.unavailable;
+  final moveOutcome = _moveConflictOutcome(operation, snapshot.conflictCode);
+  final keepServerAvailable = switch (moveOutcome) {
+    _MoveConflictOutcome.sourceRemoved => true,
+    _MoveConflictOutcome.unavailable => false,
+    _ => hasRemote,
+  };
   return DavConflictEntity(
     id: snapshot.id,
     accountId: snapshot.accountId,
@@ -512,7 +959,7 @@ DavConflictEntity _entity(
     remoteChangedAtUtc: _remoteChangedAt(remote),
     localEditSummary: _editSummary(operation, patch),
     conflictCode: snapshot.conflictCode,
-    canKeepServer: remoteResolutionAvailable,
+    canKeepServer: keepServerAvailable,
     canReapplyLocal:
         operation?.operationType == 'dav.update' &&
         snapshot.remoteEtag != null &&
@@ -520,7 +967,7 @@ DavConflictEntity _entity(
         patch != null,
     canDuplicate:
         snapshot.localCandidateRawIcs.isNotEmpty &&
-        moveRemoteIdentity != _MoveRemoteIdentity.unavailable,
+        moveOutcome != _MoveConflictOutcome.unavailable,
   );
 }
 
