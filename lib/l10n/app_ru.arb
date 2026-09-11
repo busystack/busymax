@@ -809,6 +809,7 @@
   "removeCalendarConfirmation": "Удалить «{title}» из вашего списка Google Календаря? Общий календарь и его события удалены не будут.",
   "calendarCannotRemove": "Этот календарь нельзя удалить или убрать из аккаунта.",
   "calendarPendingChangesPreventRemoval": "Дождитесь синхронизации ожидающих изменений этого календаря перед удалением или отключением.",
+  "taskListPendingChangesPreventRemoval": "Перед удалением списка синхронизируйте учётную запись или устраните заблокированные изменения этого списка задач в разделе «Диагностика».",
   "calendarSubscriptions": "Подписки на календари",
   "calendarSubscriptionsDescription": "Добавляйте календари только для чтения, обновляемые по защищённому URL WebCal.",
   "addCalendarSubscription": "Добавить подписку на календарь",

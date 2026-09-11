@@ -809,6 +809,7 @@
   "removeCalendarConfirmation": "هل تريد إزالة \"⁨{title}⁩\" من قائمة تقويم Google؟ لن يتم حذف التقويم المشترك أو أحداثه.",
   "calendarCannotRemove": "لا يمكن حذف هذا التقويم أو إزالته من هذا الحساب.",
   "calendarPendingChangesPreventRemoval": "انتظر حتى تنتهي مزامنة التغييرات المعلقة لهذا التقويم قبل حذفه أو إزالته.",
+  "taskListPendingChangesPreventRemoval": "زامِن الحساب، أو عالِج التغييرات المحظورة لقائمة المهام هذه في «التشخيصات»، قبل حذف القائمة أو إزالتها.",
   "calendarSubscriptions": "اشتراكات التقويم",
   "calendarSubscriptionsDescription": "أضف تقاويم للقراءة فقط يتم تحديثها من عنوان WebCal آمن.",
   "addCalendarSubscription": "إضافة اشتراك تقويم",

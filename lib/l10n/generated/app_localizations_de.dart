@@ -1241,6 +1241,10 @@ class AppLocalizationsDe extends AppLocalizations {
   }
 
   @override
+  String get taskListPendingChangesPreventRemoval =>
+      'Synchronisieren Sie das Konto oder beheben Sie die blockierten Änderungen dieser Aufgabenliste unter „Diagnose“, bevor Sie die Liste löschen oder entfernen.';
+
+  @override
   String get signInToViewTaskLists =>
       'Melden Sie sich an, um Aufgabenlisten zu sehen.';
 

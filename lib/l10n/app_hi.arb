@@ -809,6 +809,7 @@
   "removeCalendarConfirmation": "क्या \"{title}\" को आपकी Google Calendar सूची से हटाएँ? साझा कैलेंडर और उसके इवेंट नहीं मिटाए जाएँगे।",
   "calendarCannotRemove": "इस कैलेंडर को इस खाते से हटाया या मिटाया नहीं जा सकता।",
   "calendarPendingChangesPreventRemoval": "कैलेंडर हटाने से पहले उसके लंबित बदलावों का सिंक पूरा होने की प्रतीक्षा करें।",
+  "taskListPendingChangesPreventRemoval": "सूची को मिटाने या हटाने से पहले खाते को सिंक करें, या डायग्नोस्टिक्स में इस कार्य सूची के अवरुद्ध बदलावों का समाधान करें।",
   "calendarSubscriptions": "कैलेंडर सदस्यताएँ",
   "calendarSubscriptionsDescription": "सुरक्षित WebCal URL से रीफ़्रेश होने वाले केवल-पठन कैलेंडर जोड़ें।",
   "addCalendarSubscription": "कैलेंडर सदस्यता जोड़ें",

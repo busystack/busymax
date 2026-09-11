@@ -1258,6 +1258,10 @@ class AppLocalizationsFi extends AppLocalizations {
   }
 
   @override
+  String get taskListPendingChangesPreventRemoval =>
+      'Synkronoi tili tai ratkaise tämän tehtäväluettelon estetyt muutokset Diagnostiikassa ennen luettelon poistamista.';
+
+  @override
   String get signInToViewTaskLists =>
       'Kirjaudu sisään nähdäksesi tehtäväluettelot.';
 

@@ -2196,6 +2196,12 @@ abstract class AppLocalizations {
   /// **'Could not delete the task list: {error}'**
   String taskListDeleteFailed(String error);
 
+  /// No description provided for @taskListPendingChangesPreventRemoval.
+  ///
+  /// In en, this message translates to:
+  /// **'Synchronize the account, or resolve this task list’s blocked changes in Diagnostics, before deleting or removing the list.'**
+  String get taskListPendingChangesPreventRemoval;
+
   /// No description provided for @signInToViewTaskLists.
   ///
   /// In en, this message translates to:

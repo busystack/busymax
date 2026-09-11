@@ -1267,6 +1267,10 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
+  String get taskListPendingChangesPreventRemoval =>
+      'Synchronize the account, or resolve this task list’s blocked changes in Diagnostics, before deleting or removing the list.';
+
+  @override
   String get signInToViewTaskLists => 'Sign in to view task lists.';
 
   @override

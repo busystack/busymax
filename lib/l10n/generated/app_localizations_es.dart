@@ -1244,6 +1244,10 @@ class AppLocalizationsEs extends AppLocalizations {
   }
 
   @override
+  String get taskListPendingChangesPreventRemoval =>
+      'Sincroniza la cuenta o resuelve los cambios bloqueados de esta lista de tareas en Diagnóstico antes de eliminar o quitar la lista.';
+
+  @override
   String get signInToViewTaskLists =>
       'Inicia sesión para ver las listas de tareas.';
 

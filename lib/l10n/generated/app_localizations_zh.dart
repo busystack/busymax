@@ -1195,6 +1195,10 @@ class AppLocalizationsZh extends AppLocalizations {
   }
 
   @override
+  String get taskListPendingChangesPreventRemoval =>
+      '删除或移除此列表前，请同步账户，或在“诊断”中解决此任务列表被阻止的更改。';
+
+  @override
   String get signInToViewTaskLists => '登录以查看任务列表。';
 
   @override
@@ -3972,6 +3976,10 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
   }
 
   @override
+  String get taskListPendingChangesPreventRemoval =>
+      '删除或移除此列表前，请同步账户，或在“诊断”中解决此任务列表被阻止的更改。';
+
+  @override
   String get signInToViewTaskLists => '登录以查看任务列表。';
 
   @override
@@ -6747,6 +6755,10 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String taskListDeleteFailed(String error) {
     return '無法刪除任務列表：$error';
   }
+
+  @override
+  String get taskListPendingChangesPreventRemoval =>
+      '刪除或移除此清單前，請同步帳戶，或在「診斷」中解決此工作清單遭封鎖的變更。';
 
   @override
   String get signInToViewTaskLists => '登入以查看待辦清單。';

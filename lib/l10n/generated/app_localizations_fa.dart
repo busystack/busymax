@@ -1265,6 +1265,10 @@ class AppLocalizationsFa extends AppLocalizations {
   }
 
   @override
+  String get taskListPendingChangesPreventRemoval =>
+      'پیش از حذف یا برداشتن فهرست، حساب را همگام‌سازی کنید یا تغییرات مسدودشدهٔ این فهرست کار را در «عیب‌یابی» برطرف کنید.';
+
+  @override
   String get signInToViewTaskLists => 'برای دیدن فهرست‌های کار وارد شوید.';
 
   @override

@@ -1267,6 +1267,10 @@ class AppLocalizationsPt extends AppLocalizations {
   }
 
   @override
+  String get taskListPendingChangesPreventRemoval =>
+      'Synchronize the account, or resolve this task list’s blocked changes in Diagnostics, before deleting or removing the list.';
+
+  @override
   String get signInToViewTaskLists => 'Sign in to view task lists.';
 
   @override
@@ -4158,6 +4162,10 @@ class AppLocalizationsPtPt extends AppLocalizationsPt {
   String taskListDeleteFailed(String error) {
     return 'Não foi possível eliminar a lista de tarefas: $error';
   }
+
+  @override
+  String get taskListPendingChangesPreventRemoval =>
+      'Sincronize a conta ou resolva as alterações bloqueadas desta lista de tarefas em Diagnóstico antes de eliminar ou remover a lista.';
 
   @override
   String get signInToViewTaskLists =>

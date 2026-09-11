@@ -515,6 +515,7 @@
       }
     }
   },
+  "taskListPendingChangesPreventRemoval": "Synchronize the account, or resolve this task list’s blocked changes in Diagnostics, before deleting or removing the list.",
   "signInToViewTaskLists": "Sign in to view task lists.",
   "noTaskListsSynced": "No task lists synced yet.",
   "listActions": "List actions",

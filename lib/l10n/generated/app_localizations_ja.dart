@@ -1216,6 +1216,10 @@ class AppLocalizationsJa extends AppLocalizations {
   }
 
   @override
+  String get taskListPendingChangesPreventRemoval =>
+      'このリストを削除する前に、アカウントを同期するか、［診断］でこのタスクリストのブロックされた変更を解決してください。';
+
+  @override
   String get signInToViewTaskLists => 'タスクリストを表示するにはサインインしてください。';
 
   @override

@@ -872,6 +872,7 @@
   "removeCalendarConfirmation": "Retirer « {title} » de votre liste Google Agenda ? L’agenda partagé et ses événements ne seront pas supprimés.",
   "calendarCannotRemove": "Ce calendrier ne peut pas être supprimé ou retiré de ce compte.",
   "calendarPendingChangesPreventRemoval": "Attendez que les modifications en attente de ce calendrier aient fini de se synchroniser avant de le supprimer ou de le retirer.",
+  "taskListPendingChangesPreventRemoval": "Synchronisez le compte ou résolvez les modifications bloquées de cette liste de tâches dans Diagnostics avant de supprimer ou de retirer la liste.",
   "calendarSubscriptions": "Abonnements aux calendriers",
   "calendarSubscriptionsDescription": "Ajoutez des calendriers en lecture seule qui se mettent à jour depuis une URL WebCal sécurisée.",
   "addCalendarSubscription": "Ajouter un abonnement de calendrier",

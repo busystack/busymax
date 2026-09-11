@@ -809,6 +809,7 @@
   "removeCalendarConfirmation": "Remover \"{title}\" da sua lista do Google Calendar? O calendário partilhado e os respetivos eventos não serão eliminados.",
   "calendarCannotRemove": "Não é possível eliminar nem remover este calendário desta conta.",
   "calendarPendingChangesPreventRemoval": "Aguarde que as alterações pendentes deste calendário terminem de sincronizar antes de o eliminar ou remover.",
+  "taskListPendingChangesPreventRemoval": "Sincronize a conta ou resolva as alterações bloqueadas desta lista de tarefas em Diagnóstico antes de eliminar ou remover a lista.",
   "calendarSubscriptions": "Subscrições de calendários",
   "calendarSubscriptionsDescription": "Adicione calendários só de leitura que sejam atualizados a partir de um URL WebCal seguro.",
   "addCalendarSubscription": "Adicionar subscrição de calendário",

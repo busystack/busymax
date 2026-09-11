@@ -14,6 +14,7 @@ import '../../../app/busymax_design.dart';
 import '../../../app/busymax_glyphs.dart';
 import '../../../calendar_providers/calendar_colors.dart';
 import '../../../calendar_providers/calendar_provider_capabilities.dart';
+import '../../../dav/dav_errors.dart';
 import '../../../l10n/l10n.dart';
 import '../../../platform/linux_header_bar_provider.dart';
 import '../../../schedule/schedule_item.dart';
@@ -1645,8 +1646,10 @@ Future<void> _deleteCalendar(
   } on Object catch (error) {
     if (context.mounted) {
       final message =
-          error is CalendarMutationNotAllowed &&
-              error.reason == CalendarMutationDenialReason.pendingChanges
+          (error is CalendarMutationNotAllowed &&
+                  error.reason ==
+                      CalendarMutationDenialReason.pendingChanges) ||
+              isDavCollectionPendingChangesError(error)
           ? context.l10n.calendarPendingChangesPreventRemoval
           : context.l10n.calendarDeleteFailed(
               syncFailureMessage(
@@ -1745,12 +1748,15 @@ Future<void> _deleteTaskList(
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            context.l10n.taskListDeleteFailed(
-              syncFailureMessage(
-                error,
-                networkUnavailableMessage: context.l10n.networkOfflineTryAgain,
-              ),
-            ),
+            isDavCollectionPendingChangesError(error)
+                ? context.l10n.taskListPendingChangesPreventRemoval
+                : context.l10n.taskListDeleteFailed(
+                    syncFailureMessage(
+                      error,
+                      networkUnavailableMessage:
+                          context.l10n.networkOfflineTryAgain,
+                    ),
+                  ),
           ),
         ),
       );

@@ -1248,6 +1248,10 @@ class AppLocalizationsVi extends AppLocalizations {
   }
 
   @override
+  String get taskListPendingChangesPreventRemoval =>
+      'Hãy đồng bộ hóa tài khoản hoặc xử lý các thay đổi bị chặn của danh sách việc cần làm này trong mục Chẩn đoán trước khi xóa hoặc gỡ danh sách.';
+
+  @override
   String get signInToViewTaskLists => 'Đăng nhập để xem danh sách công việc.';
 
   @override

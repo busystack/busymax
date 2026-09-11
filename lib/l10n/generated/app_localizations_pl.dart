@@ -1293,6 +1293,10 @@ class AppLocalizationsPl extends AppLocalizations {
   }
 
   @override
+  String get taskListPendingChangesPreventRemoval =>
+      'Przed usunięciem listy zsynchronizuj konto lub rozwiąż zablokowane zmiany tej listy zadań w Diagnostyce.';
+
+  @override
   String get signInToViewTaskLists =>
       'Zaloguj się, aby wyświetlić listy zadań.';
 

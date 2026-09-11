@@ -9,6 +9,7 @@ import 'package:intl/intl.dart';
 import '../../../l10n/generated/app_localizations.dart';
 import '../../app/app_bootstrap.dart';
 import '../../calendar_providers/calendar_colors.dart';
+import '../../dav/dav_errors.dart';
 import '../../features/accounts/data/accounts_repository.dart';
 import '../../features/accounts/domain/account_collection_creation_capabilities.dart';
 import '../../features/calendar/data/calendar_collection_creation_service.dart';
@@ -564,6 +565,7 @@ class _WindowsScheduleSourcePaneState
     await _runCalendarMutation(
       source.accountId,
       () => ref.read(calendarRepositoryProvider).deleteLocalSource(source.id),
+      pendingChangesMessage: l10n.calendarPendingChangesPreventRemoval,
     );
   }
 
@@ -602,20 +604,25 @@ class _WindowsScheduleSourcePaneState
       () => ref
           .read(taskListsRepositoryForAccountProvider(list.accountId))
           .deleteTaskList(list.id),
+      pendingChangesMessage: l10n.taskListPendingChangesPreventRemoval,
     );
   }
 
   Future<void> _runCalendarMutation(
     String accountId,
-    Future<void> Function() operation,
-  ) => _runMutation(() async {
+    Future<void> Function() operation, {
+    String? pendingChangesMessage,
+  }) => _runMutation(() async {
     await operation();
     ref
         .read(pendingCalendarMutationSyncRequesterForAccountProvider(accountId))
         .request();
-  });
+  }, pendingChangesMessage: pendingChangesMessage);
 
-  Future<void> _runMutation(Future<void> Function() operation) async {
+  Future<void> _runMutation(
+    Future<void> Function() operation, {
+    String? pendingChangesMessage,
+  }) async {
     try {
       await operation();
       if (mounted) widget.onSourcesChanged();
@@ -625,9 +632,14 @@ class _WindowsScheduleSourcePaneState
           AppLocalizations.of(context).nextcloudRefreshPending,
         );
       }
-    } on Object {
+    } on Object catch (error) {
       if (mounted) {
-        await _showMessage(AppLocalizations.of(context).operationFailed);
+        await _showMessage(
+          pendingChangesMessage != null &&
+                  isDavCollectionPendingChangesError(error)
+              ? pendingChangesMessage
+              : AppLocalizations.of(context).operationFailed,
+        );
       }
     }
   }

@@ -1353,6 +1353,7 @@
   },
   "calendarCannotRemove": "Tego kalendarza nie można usunąć ani odłączyć od tego konta.",
   "calendarPendingChangesPreventRemoval": "Przed usunięciem lub odłączeniem kalendarza poczekaj na zakończenie synchronizacji jego oczekujących zmian.",
+  "taskListPendingChangesPreventRemoval": "Przed usunięciem listy zsynchronizuj konto lub rozwiąż zablokowane zmiany tej listy zadań w Diagnostyce.",
   "calendarSubscriptions": "Subskrypcje kalendarzy",
   "calendarSubscriptionsDescription": "Dodaj kalendarze tylko do odczytu, odświeżane z bezpiecznego adresu WebCal.",
   "addCalendarSubscription": "Dodaj subskrypcję kalendarza",

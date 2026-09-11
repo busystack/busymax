@@ -809,6 +809,7 @@
   "removeCalendarConfirmation": "Xóa “{title}” khỏi danh sách Google Calendar của bạn? Lịch dùng chung và các sự kiện trong đó sẽ không bị xóa.",
   "calendarCannotRemove": "Không thể xóa hoặc gỡ lịch này khỏi tài khoản.",
   "calendarPendingChangesPreventRemoval": "Hãy chờ các thay đổi đang chờ của lịch này đồng bộ xong trước khi xóa hoặc gỡ lịch.",
+  "taskListPendingChangesPreventRemoval": "Hãy đồng bộ hóa tài khoản hoặc xử lý các thay đổi bị chặn của danh sách việc cần làm này trong mục Chẩn đoán trước khi xóa hoặc gỡ danh sách.",
   "calendarSubscriptions": "Gói đăng ký lịch",
   "calendarSubscriptionsDescription": "Thêm lịch chỉ đọc được làm mới từ URL WebCal bảo mật.",
   "addCalendarSubscription": "Thêm gói đăng ký lịch",

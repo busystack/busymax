@@ -1219,6 +1219,10 @@ class AppLocalizationsKo extends AppLocalizations {
   }
 
   @override
+  String get taskListPendingChangesPreventRemoval =>
+      '목록을 삭제하거나 제거하기 전에 계정을 동기화하거나 진단에서 이 작업 목록의 차단된 변경 사항을 해결하세요.';
+
+  @override
   String get signInToViewTaskLists => '할 일 목록을 보려면 로그인하세요.';
 
   @override

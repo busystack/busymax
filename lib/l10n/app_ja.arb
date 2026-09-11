@@ -809,6 +809,7 @@
   "removeCalendarConfirmation": "「{title}」を Google カレンダーのリストから削除しますか？共有カレンダーとその予定は削除されません。",
   "calendarCannotRemove": "このカレンダーはこのアカウントから削除または解除できません。",
   "calendarPendingChangesPreventRemoval": "削除または解除する前に、このカレンダーの保留中の変更が同期されるまで待ってください。",
+  "taskListPendingChangesPreventRemoval": "このリストを削除する前に、アカウントを同期するか、［診断］でこのタスクリストのブロックされた変更を解決してください。",
   "calendarSubscriptions": "カレンダーの登録",
   "calendarSubscriptionsDescription": "安全な WebCal URL から更新される読み取り専用カレンダーを追加します。",
   "addCalendarSubscription": "カレンダー登録を追加",

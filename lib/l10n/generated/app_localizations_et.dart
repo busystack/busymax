@@ -1229,6 +1229,10 @@ class AppLocalizationsEt extends AppLocalizations {
   }
 
   @override
+  String get taskListPendingChangesPreventRemoval =>
+      'Enne loendi kustutamist või eemaldamist sünkroonige konto või lahendage selle ülesandeloendi blokeeritud muudatused jaotises Diagnostika.';
+
+  @override
   String get signInToViewTaskLists =>
       'Ülesandeloendite vaatamiseks logige sisse.';
 

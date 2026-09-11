@@ -1256,6 +1256,10 @@ class AppLocalizationsIt extends AppLocalizations {
   }
 
   @override
+  String get taskListPendingChangesPreventRemoval =>
+      'Sincronizza l’account oppure risolvi le modifiche bloccate di questo elenco di attività in Diagnostica prima di eliminare o rimuovere l’elenco.';
+
+  @override
   String get signInToViewTaskLists =>
       'Accedi per visualizzare gli elenchi di attività.';
 

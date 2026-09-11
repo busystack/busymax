@@ -878,6 +878,7 @@
   "removeCalendarConfirmation": "«⁨{title}⁩» از فهرست تقویم Google شما حذف شود؟ تقویم اشتراکی و رویدادهای آن حذف نخواهند شد.",
   "calendarCannotRemove": "این تقویم را نمی‌توان از این حساب حذف یا جدا کرد.",
   "calendarPendingChangesPreventRemoval": "پیش از حذف یا جدا کردن این تقویم، صبر کنید تغییرات در انتظار آن همگام شوند.",
+  "taskListPendingChangesPreventRemoval": "پیش از حذف یا برداشتن فهرست، حساب را همگام‌سازی کنید یا تغییرات مسدودشدهٔ این فهرست کار را در «عیب‌یابی» برطرف کنید.",
   "calendarSubscriptions": "اشتراک‌های تقویم",
   "calendarSubscriptionsDescription": "تقویم‌های فقط‌خواندنی را اضافه کنید که از یک URL امن WebCal تازه می‌شوند.",
   "addCalendarSubscription": "افزودن اشتراک تقویم",

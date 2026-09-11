@@ -1276,6 +1276,10 @@ class AppLocalizationsAr extends AppLocalizations {
   }
 
   @override
+  String get taskListPendingChangesPreventRemoval =>
+      'زامِن الحساب، أو عالِج التغييرات المحظورة لقائمة المهام هذه في «التشخيصات»، قبل حذف القائمة أو إزالتها.';
+
+  @override
   String get signInToViewTaskLists => 'سجّل الدخول لعرض قوائم المهام.';
 
   @override

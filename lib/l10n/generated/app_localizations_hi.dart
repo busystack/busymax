@@ -1250,6 +1250,10 @@ class AppLocalizationsHi extends AppLocalizations {
   }
 
   @override
+  String get taskListPendingChangesPreventRemoval =>
+      'सूची को मिटाने या हटाने से पहले खाते को सिंक करें, या डायग्नोस्टिक्स में इस कार्य सूची के अवरुद्ध बदलावों का समाधान करें।';
+
+  @override
   String get signInToViewTaskLists =>
       'कार्य सूचियाँ देखने के लिए साइन इन करें।';
 

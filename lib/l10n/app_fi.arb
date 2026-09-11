@@ -809,6 +809,7 @@
   "removeCalendarConfirmation": "Poistetaanko ”{title}” Google Kalenterin luettelostasi? Jaettua kalenteria tai sen tapahtumia ei poisteta.",
   "calendarCannotRemove": "Tätä kalenteria ei voi poistaa tai irrottaa tästä tilistä.",
   "calendarPendingChangesPreventRemoval": "Odota tämän kalenterin odottavien muutosten synkronointia ennen poistamista tai irrottamista.",
+  "taskListPendingChangesPreventRemoval": "Synkronoi tili tai ratkaise tämän tehtäväluettelon estetyt muutokset Diagnostiikassa ennen luettelon poistamista.",
   "calendarSubscriptions": "Kalenteritilaukset",
   "calendarSubscriptionsDescription": "Lisää vain luku -kalentereita, jotka päivittyvät suojatusta WebCal-URL-osoitteesta.",
   "addCalendarSubscription": "Lisää kalenteritilaus",

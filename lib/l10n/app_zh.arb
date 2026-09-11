@@ -809,6 +809,7 @@
   "removeCalendarConfirmation": "要从您的 Google 日历列表中移除“{title}”吗？共享日历及其日程不会被删除。",
   "calendarCannotRemove": "无法从此账户删除或移除此日历。",
   "calendarPendingChangesPreventRemoval": "请等待此日历的待处理更改完成同步，然后再删除或移除它。",
+  "taskListPendingChangesPreventRemoval": "删除或移除此列表前，请同步账户，或在“诊断”中解决此任务列表被阻止的更改。",
   "calendarSubscriptions": "日历订阅",
   "calendarSubscriptionsDescription": "添加从安全 WebCal URL 刷新的只读日历。",
   "addCalendarSubscription": "添加日历订阅",

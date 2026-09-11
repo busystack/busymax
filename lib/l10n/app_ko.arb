@@ -809,6 +809,7 @@
   "removeCalendarConfirmation": "Google Calendar 목록에서 \"{title}\"을(를) 삭제할까요? 공유 캘린더와 일정은 삭제되지 않습니다.",
   "calendarCannotRemove": "이 캘린더는 이 계정에서 삭제하거나 제거할 수 없습니다.",
   "calendarPendingChangesPreventRemoval": "삭제하거나 제거하기 전에 이 캘린더의 보류 중인 변경사항이 동기화될 때까지 기다리세요.",
+  "taskListPendingChangesPreventRemoval": "목록을 삭제하거나 제거하기 전에 계정을 동기화하거나 진단에서 이 작업 목록의 차단된 변경 사항을 해결하세요.",
   "calendarSubscriptions": "캘린더 구독",
   "calendarSubscriptionsDescription": "보안 WebCal URL에서 새로 고침되는 읽기 전용 캘린더를 추가하세요.",
   "addCalendarSubscription": "캘린더 구독 추가",

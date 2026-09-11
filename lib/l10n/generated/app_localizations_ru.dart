@@ -1262,6 +1262,10 @@ class AppLocalizationsRu extends AppLocalizations {
   }
 
   @override
+  String get taskListPendingChangesPreventRemoval =>
+      'Перед удалением списка синхронизируйте учётную запись или устраните заблокированные изменения этого списка задач в разделе «Диагностика».';
+
+  @override
   String get signInToViewTaskLists =>
       'Войдите, чтобы просмотреть списки задач.';
 

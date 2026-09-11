@@ -121,6 +121,22 @@ void main() {
       const Duration(hours: 24),
     );
   });
+
+  test('recognizes only the collection pending-changes deletion guard', () {
+    expect(
+      isDavCollectionPendingChangesError(
+        _error(DavErrorKind.conflict, 'DavCollectionHasPendingChanges'),
+      ),
+      isTrue,
+    );
+    expect(
+      isDavCollectionPendingChangesError(
+        _error(DavErrorKind.conflict, 'DavCollectionOutcomeUnknown'),
+      ),
+      isFalse,
+    );
+    expect(isDavCollectionPendingChangesError(StateError('failed')), isFalse);
+  });
 }
 
 DavException _error(DavErrorKind kind, String code) =>

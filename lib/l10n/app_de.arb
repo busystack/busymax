@@ -872,6 +872,7 @@
   "removeCalendarConfirmation": "„{title}“ aus Ihrer Google-Kalenderliste entfernen? Der freigegebene Kalender und seine Termine werden nicht gelöscht.",
   "calendarCannotRemove": "Dieser Kalender kann nicht gelöscht oder aus diesem Konto entfernt werden.",
   "calendarPendingChangesPreventRemoval": "Warten Sie, bis die ausstehenden Änderungen dieses Kalenders synchronisiert wurden, bevor Sie ihn löschen oder entfernen.",
+  "taskListPendingChangesPreventRemoval": "Synchronisieren Sie das Konto oder beheben Sie die blockierten Änderungen dieser Aufgabenliste unter „Diagnose“, bevor Sie die Liste löschen oder entfernen.",
   "calendarSubscriptions": "Kalenderabonnements",
   "calendarSubscriptionsDescription": "Fügen Sie schreibgeschützte Kalender hinzu, die über eine sichere WebCal-URL aktualisiert werden.",
   "addCalendarSubscription": "Kalenderabonnement hinzufügen",
