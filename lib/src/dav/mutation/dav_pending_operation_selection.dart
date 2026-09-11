@@ -29,6 +29,22 @@ bool isDavPendingOperation(PendingOp operation) =>
 PendingOp? effectiveDavPendingOperation(
   Iterable<PendingOp> source,
   String objectId,
+) => _effectiveDavOperation(source, objectId, davActivePendingStates);
+
+/// Selects the final retained local operation for native export.
+///
+/// Failed operations remain durable until the user explicitly resolves or
+/// discards them. They are therefore part of an export snapshot even though
+/// they are not eligible for automatic replay.
+PendingOp? effectiveDavExportOperation(
+  Iterable<PendingOp> source,
+  String objectId,
+) => _effectiveDavOperation(source, objectId, davUnresolvedPendingStates);
+
+PendingOp? _effectiveDavOperation(
+  Iterable<PendingOp> source,
+  String objectId,
+  List<String> states,
 ) {
   final operations =
       source
@@ -36,7 +52,7 @@ PendingOp? effectiveDavPendingOperation(
             (operation) =>
                 operation.davObjectId == objectId &&
                 isDavPendingOperation(operation) &&
-                davActivePendingStates.contains(operation.state),
+                states.contains(operation.state),
           )
           .toList(growable: false)
         ..sort((left, right) {

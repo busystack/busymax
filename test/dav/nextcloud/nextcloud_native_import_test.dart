@@ -94,7 +94,7 @@ void main() {
             ? NativeImportDuplicates.newCopies
             : NativeImportDuplicates.skip,
       );
-  Future<List<http.Request>> permanentlyRejectPendingCreate() async {
+  Future<List<http.Request>> permanentlyRejectPendingMutation() async {
     final requests = <http.Request>[];
     final client = MockClient((request) async {
       requests.add(request);
@@ -366,7 +366,7 @@ void main() {
       expect(queued.davObjectId, isNull);
       expect(request.containsKey('suppressScheduling'), isFalse);
 
-      final providerRequests = await permanentlyRejectPendingCreate();
+      final providerRequests = await permanentlyRejectPendingMutation();
       final failedBefore = await db.select(db.pendingOps).getSingle();
       final eventBefore = await db.select(db.calendarEvents).getSingle();
       expect(failedBefore.state, 'failed');
@@ -413,7 +413,7 @@ void main() {
       expect(queued.davObjectId, isNull);
       expect(request.containsKey('suppressScheduling'), isFalse);
 
-      final providerRequests = await permanentlyRejectPendingCreate();
+      final providerRequests = await permanentlyRejectPendingMutation();
       final failedBefore = await db.select(db.pendingOps).getSingle();
       final taskBefore = await db.select(db.tasks).getSingle();
       expect(failedBefore.state, 'failed');
@@ -470,6 +470,132 @@ void main() {
       ),
     );
   });
+  test(
+    'failed existing event edit remains in individual and collection export',
+    () async {
+      final db = fixture.database;
+      await _seedConfirmedResource(
+        db,
+        now,
+        href: _existingEventHref,
+        etag: '"event-server"',
+        rawIcs: _existingEvent,
+      );
+      final repository = CalendarRepository(
+        database: db,
+        now: () => now,
+        localTimeZone: 'UTC',
+      );
+      final event = await db.select(db.calendarEvents).getSingle();
+      final detail = await repository.loadEventDetail(event.id);
+      await repository.updateLocalEvent(
+        EventEditorDraft.fromEventDetail(
+          detail!,
+        ).copyWith(title: 'Retained local event edit'),
+      );
+
+      final providerRequests = await permanentlyRejectPendingMutation();
+      final operationBefore = await db.select(db.pendingOps).getSingle();
+      final eventBefore = await db.select(db.calendarEvents).getSingle();
+      final objectBefore = await db.select(db.davObjects).getSingle();
+      expect(operationBefore.state, 'failed');
+      expect(operationBefore.operationType, 'dav.update');
+      expect(eventBefore.title, 'Retained local event edit');
+      expect(providerRequests, hasLength(1));
+
+      final individual =
+          await DavPendingOperationQueue(
+            database: db,
+            nowUtc: () => now,
+          ).exportRawIcsForObject(
+            accountId: 'account',
+            collectionId: 'collection',
+            objectId: objectBefore.id,
+          );
+      final collection = await NextcloudNativeExportService(
+        db,
+      ).collection('account', 'collection');
+
+      expect(
+        IcalSemanticDocument.parse(individual).components.single.summary,
+        'Retained local event edit',
+      );
+      expect(collection, hasLength(1));
+      expect(collection.single.uid, 'existing-event@example.test');
+      expect(
+        IcalSemanticDocument.parse(
+          collection.single.rawIcs,
+        ).components.single.summary,
+        'Retained local event edit',
+      );
+      expect(await db.select(db.pendingOps).getSingle(), operationBefore);
+      expect(await db.select(db.calendarEvents).getSingle(), eventBefore);
+      expect(await db.select(db.davObjects).getSingle(), objectBefore);
+      expect(providerRequests, hasLength(1));
+    },
+  );
+  test(
+    'failed existing task edit remains in individual and collection export',
+    () async {
+      final db = fixture.database;
+      await _seedConfirmedResource(
+        db,
+        now,
+        href: _existingTaskHref,
+        etag: '"task-server"',
+        rawIcs: _existingTask,
+      );
+      final task = await db.select(db.tasks).getSingle();
+      await TasksRepository(
+        database: db,
+        accountId: 'account',
+        nowUtc: () => now,
+      ).updateTaskFull(
+        'dav-task-list-collection',
+        task.id,
+        const TaskPutInput({'title': 'Retained local task edit'}),
+      );
+
+      final providerRequests = await permanentlyRejectPendingMutation();
+      final operationBefore = await db.select(db.pendingOps).getSingle();
+      final taskBefore = await db.select(db.tasks).getSingle();
+      final objectBefore = await db.select(db.davObjects).getSingle();
+      expect(operationBefore.state, 'failed');
+      expect(operationBefore.operationType, 'dav.update');
+      expect(taskBefore.title, 'Retained local task edit');
+      expect(providerRequests, hasLength(1));
+
+      final individual =
+          await DavPendingOperationQueue(
+            database: db,
+            nowUtc: () => now,
+          ).exportRawIcsForObject(
+            accountId: 'account',
+            collectionId: 'collection',
+            objectId: objectBefore.id,
+          );
+      final collection = await NextcloudNativeExportService(
+        db,
+      ).collection('account', 'collection');
+
+      expect(
+        IcalSemanticDocument.parse(individual).components.single.summary,
+        'Retained local task edit',
+      );
+      expect(collection, hasLength(1));
+      expect(collection.single.uid, 'existing-task@example.test');
+      expect(
+        IcalSemanticDocument.parse(
+          collection.single.rawIcs,
+        ).components.single.summary,
+        'Retained local task edit',
+      );
+      expect(await db.select(db.pendingOps).getSingle(), operationBefore);
+      expect(await db.select(db.tasks).getSingle(), taskBefore);
+      expect(await db.select(db.davObjects).getSingle(), objectBefore);
+      expect(providerRequests, hasLength(1));
+    },
+  );
   test(
     'native task import rejects cycles and missing parents without orphan rows',
     () async {
@@ -674,6 +800,40 @@ void main() {
   );
 }
 
+Future<void> _seedConfirmedResource(
+  AppDatabase database,
+  DateTime now, {
+  required String href,
+  required String etag,
+  required String rawIcs,
+}) {
+  return DavObjectRepository(database: database).commit(
+    DavCollectionCommit(
+      accountId: 'account',
+      collectionId: 'collection',
+      provider: BusyProvider.nextcloud,
+      objects: [
+        DavPreparedObject.parse(
+          hrefKey: href,
+          requestUri: Uri.parse('${NextcloudAdminFixture.origin}$href'),
+          etag: etag,
+          contentType: 'text/calendar',
+          rawIcsBody: rawIcs,
+        ),
+      ],
+      deletedHrefKeys: const {},
+      completeMembership: false,
+      membershipHrefKeys: const {},
+      finalCursorKind: 'dav_sync_token',
+      finalCursorValue: 'token-1',
+      baselineGeneration: 1,
+      completedAtUtc: now,
+      projectionRangeStartUtc: DateTime.utc(2025),
+      projectionRangeEndUtc: DateTime.utc(2028),
+    ),
+  );
+}
+
 Future<void> _seedDestinationTaskList(
   AppDatabase database,
   DateTime now,
@@ -724,6 +884,34 @@ final class _SequenceUuid extends Uuid {
     return _values.current;
   }
 }
+
+const _existingEventHref =
+    '${NextcloudAdminFixture.collection}existing-event.ics';
+const _existingTaskHref =
+    '${NextcloudAdminFixture.collection}existing-task.ics';
+
+const _existingEvent = '''BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//BusyMax Test//EN
+BEGIN:VEVENT
+UID:existing-event@example.test
+DTSTART:20260906T100000Z
+DTEND:20260906T110000Z
+SUMMARY:Server event
+END:VEVENT
+END:VCALENDAR
+''';
+
+const _existingTask = '''BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//BusyMax Test//EN
+BEGIN:VTODO
+UID:existing-task@example.test
+DUE:20260906T120000Z
+SUMMARY:Server task
+END:VTODO
+END:VCALENDAR
+''';
 
 const _movableTask = '''BEGIN:VCALENDAR
 VERSION:2.0

@@ -36,7 +36,7 @@ final class NextcloudNativeExportService {
         await (database.select(database.pendingOps)..where(
               (r) =>
                   r.accountId.equals(accountId) &
-                  r.state.isIn(davActivePendingStates),
+                  r.state.isIn(davUnresolvedPendingStates),
             ))
             .get();
     final unanchoredCreations =
@@ -51,7 +51,7 @@ final class NextcloudNativeExportService {
             .get();
     final effectiveByObject = <String, PendingOp>{};
     for (final objectId in operations.map((op) => op.davObjectId).nonNulls) {
-      final effective = effectiveDavPendingOperation(operations, objectId);
+      final effective = effectiveDavExportOperation(operations, objectId);
       if (effective != null) effectiveByObject[objectId] = effective;
     }
     final movingIn = {

@@ -1011,7 +1011,8 @@ final class DavObjectRepository {
         (existing?.etag == null && prepared.etag != null) ||
         existing?.parserVersion != davRawObjectParserVersion ||
         existing?.serverDeleted == true ||
-        commit.forceReprojection) {
+        commit.forceReprojection ||
+        ignorePendingOperations) {
       final componentIds = await _replaceComponentIndex(
         objectId,
         prepared.semantic,

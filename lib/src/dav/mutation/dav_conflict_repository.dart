@@ -97,6 +97,8 @@ final class DavConflictResolutionService {
     required AppDatabase database,
     DavObjectRepository? objectRepository,
     DavPendingOperationQueue? pendingQueue,
+    Future<void> Function(String accountId, Set<String> objectIds)?
+    rebuildNotifications,
     String Function()? idFactory,
     DateTime Function()? nowUtc,
   }) : _database = database,
@@ -104,12 +106,14 @@ final class DavConflictResolutionService {
            objectRepository ?? DavObjectRepository(database: database),
        _pendingQueue =
            pendingQueue ?? DavPendingOperationQueue(database: database),
+       _rebuildNotifications = rebuildNotifications,
        _idFactory = idFactory ?? const Uuid().v4,
        _nowUtc = nowUtc ?? (() => DateTime.now().toUtc());
 
   final AppDatabase _database;
   final DavObjectRepository _objectRepository;
   final DavPendingOperationQueue _pendingQueue;
+  final Future<void> Function(String, Set<String>)? _rebuildNotifications;
   final String Function() _idFactory;
   final DateTime Function() _nowUtc;
 
@@ -380,7 +384,7 @@ final class DavConflictResolutionService {
         )) {
       throw _resolutionUnavailable();
     }
-    await _objectRepository.commitConfirmedMutation(
+    final changedObjectIds = await _objectRepository.commitConfirmedMutation(
       accountId: snapshot.accountId,
       collectionId: context.collection.id,
       provider: provider,
@@ -388,6 +392,9 @@ final class DavConflictResolutionService {
       completedAtUtc: _nowUtc(),
     );
     await _finish(context, resolution);
+    if (changedObjectIds.isNotEmpty) {
+      await _rebuildNotifications?.call(snapshot.accountId, changedObjectIds);
+    }
   }
 
   Future<void> _reapplyLocal(String snapshotId) async {

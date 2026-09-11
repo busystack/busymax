@@ -1031,7 +1031,7 @@ final class DavPendingOperationQueue {
     final operations = await (_database.select(
       _database.pendingOps,
     )..where((row) => row.davObjectId.equals(objectId))).get();
-    return effectiveDavPendingOperation(operations, objectId);
+    return effectiveDavExportOperation(operations, objectId);
   }
 
   Future<PendingOp?> _editableCreate({

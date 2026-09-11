@@ -6,6 +6,7 @@ import 'package:busymax/src/core/secrets/secret_store.dart';
 import 'package:busymax/src/dav/dav_errors.dart';
 import 'package:busymax/src/dav/dav_provider_profile.dart';
 import 'package:busymax/src/dav/ical/ical_document.dart';
+import 'package:busymax/src/dav/mutation/dav_conflict_repository.dart';
 import 'package:busymax/src/dav/mutation/dav_mutation_patch.dart';
 import 'package:busymax/src/dav/mutation/dav_pending_operations.dart';
 import 'package:busymax/src/dav/storage/dav_object_repository.dart';
@@ -14,7 +15,10 @@ import 'package:busymax/src/db/app_database.dart';
 import 'package:busymax/src/features/notifications/notification_schedule_service.dart';
 import 'package:busymax/src/features/notifications/desktop_notification_service.dart';
 import 'package:busymax/src/features/notifications/notification_scheduler.dart';
+import 'package:busymax/src/features/calendar/data/calendar_repository.dart';
+import 'package:busymax/src/features/calendar/presentation/event_editor_draft.dart';
 import 'package:busymax/src/features/sync/pending_op_resolution_service.dart';
+import 'package:busymax/src/features/tasks/data/tasks_repository.dart';
 import 'package:busymax/src/providers/busy_provider.dart';
 import 'package:drift/drift.dart' hide isNotNull, isNull;
 import 'package:drift/native.dart';
@@ -237,6 +241,210 @@ void main() {
         await database.select(database.davCollections).get(),
         hasLength(1),
       );
+    },
+  );
+
+  test(
+    'Keep server reprojects a cached event conflict before unchanged sync',
+    () async {
+      final initialStart = DateTime.utc(2026, 8, 9, 9);
+      final remoteStart = DateTime.utc(2026, 8, 9, 10);
+      final server = _ConflictSyncServer(
+        href: _eventHref,
+        body: _eventWithReminder('Server title', startUtc: initialStart),
+        etag: '"v1"',
+      );
+      final client = MockClient(server.handle);
+      addTearDown(client.close);
+
+      Future<void> rebuild(String accountId, Set<String> objectIds) async {
+        expect(accountId, 'account');
+        await NotificationScheduleService(
+          database: database,
+          nowUtc: () => _now,
+        ).rebuildUpcomingNotifications(accountId);
+      }
+
+      DavAccountSyncEngine engine() => _conflictSyncEngine(
+        database: database,
+        secrets: secrets,
+        client: client,
+        rebuildNotifications: rebuild,
+      );
+
+      await engine().synchronize();
+      final repository = CalendarRepository(
+        database: database,
+        now: () => _now,
+        localTimeZone: 'UTC',
+      );
+      final initial = await database
+          .select(database.calendarEvents)
+          .getSingle();
+      final detail = await repository.loadEventDetail(initial.id);
+      await repository.updateLocalEvent(
+        EventEditorDraft.fromEventDetail(
+          detail!,
+        ).copyWith(title: 'Local title'),
+      );
+      expect(
+        (await database.select(database.calendarEvents).getSingle()).title,
+        'Local title',
+      );
+
+      server.setRemote(
+        _eventWithReminder('Remote title', startUtc: remoteStart),
+        '"v2"',
+      );
+      final conflicted = await engine().synchronize();
+      expect(conflicted.conflictsCreated, 1);
+      final object = await database.select(database.davObjects).getSingle();
+      expect(object.rawIcsBody, contains('SUMMARY:Remote title'));
+      final projectedLocal = await database
+          .select(database.calendarEvents)
+          .getSingle();
+      expect(projectedLocal.title, 'Local title');
+      expect(projectedLocal.syncStatus, 'pending');
+
+      final conflict = await DavConflictRepository(
+        database: database,
+      ).watchUnresolved().first;
+      final rebuiltObjects = <String>{};
+      await DavConflictResolutionService(
+        database: database,
+        rebuildNotifications: (accountId, objectIds) async {
+          rebuiltObjects.addAll(objectIds);
+          await rebuild(accountId, objectIds);
+        },
+        nowUtc: () => _now,
+      ).resolve(conflict.single.id, DavConflictResolution.keepServer);
+
+      expect(rebuiltObjects, {object.id});
+      expect(await database.select(database.pendingOps).get(), isEmpty);
+      final accepted = await database
+          .select(database.calendarEvents)
+          .getSingle();
+      expect(accepted.title, 'Remote title');
+      expect(accepted.startDateTime, remoteStart.toIso8601String());
+      expect(accepted.syncStatus, 'synced');
+      final reminder = await database
+          .select(database.notificationSchedule)
+          .getSingle();
+      expect(reminder.title, 'Remote title');
+      expect(
+        reminder.scheduledAtUtc,
+        remoteStart
+            .subtract(const Duration(minutes: 30))
+            .millisecondsSinceEpoch,
+      );
+
+      await engine().synchronize();
+      final afterUnchangedSync = await database
+          .select(database.calendarEvents)
+          .getSingle();
+      expect(afterUnchangedSync.title, 'Remote title');
+      expect(afterUnchangedSync.syncStatus, 'synced');
+      expect(server.puts, 1);
+    },
+  );
+
+  test(
+    'Keep server reprojects a cached task conflict before unchanged sync',
+    () async {
+      final initialDue = DateTime.utc(2026, 8, 9, 12);
+      final remoteDue = DateTime.utc(2026, 8, 9, 14);
+      final server = _ConflictSyncServer(
+        href: _eventHref,
+        body: _taskWithReminder('Server task', dueUtc: initialDue),
+        etag: '"v1"',
+      );
+      final client = MockClient(server.handle);
+      addTearDown(client.close);
+
+      Future<void> rebuild(String accountId, Set<String> objectIds) async {
+        expect(accountId, 'account');
+        await NotificationScheduleService(
+          database: database,
+          nowUtc: () => _now,
+        ).rebuildUpcomingNotifications(accountId);
+      }
+
+      DavAccountSyncEngine engine() => _conflictSyncEngine(
+        database: database,
+        secrets: secrets,
+        client: client,
+        rebuildNotifications: rebuild,
+      );
+
+      await engine().synchronize();
+      final initialTasks = await database.select(database.tasks).get();
+      expect(initialTasks, hasLength(1));
+      final initial = initialTasks.single;
+      await TasksRepository(
+        database: database,
+        accountId: 'account',
+        nowUtc: () => _now,
+      ).updateTaskFull(
+        'dav-task-list-collection',
+        initial.id,
+        const TaskPutInput({'title': 'Local task'}),
+      );
+      expect(
+        (await database.select(database.tasks).getSingle()).title,
+        'Local task',
+      );
+
+      server.setRemote(
+        _taskWithReminder('Remote task', dueUtc: remoteDue),
+        '"v2"',
+      );
+      final conflicted = await engine().synchronize();
+      expect(conflicted.conflictsCreated, 1);
+      final object = await database.select(database.davObjects).getSingle();
+      expect(object.rawIcsBody, contains('SUMMARY:Remote task'));
+      final projectedLocal = await database.select(database.tasks).getSingle();
+      expect(projectedLocal.title, 'Local task');
+      expect(projectedLocal.localDirty, isTrue);
+
+      final conflict = await DavConflictRepository(
+        database: database,
+      ).watchUnresolved().first;
+      final rebuiltObjects = <String>{};
+      await DavConflictResolutionService(
+        database: database,
+        rebuildNotifications: (accountId, objectIds) async {
+          rebuiltObjects.addAll(objectIds);
+          await rebuild(accountId, objectIds);
+        },
+        nowUtc: () => _now,
+      ).resolve(conflict.single.id, DavConflictResolution.keepServer);
+
+      expect(rebuiltObjects, {object.id});
+      expect(await database.select(database.pendingOps).get(), isEmpty);
+      final accepted = await database.select(database.tasks).getSingle();
+      expect(accepted.title, 'Remote task');
+      expect(accepted.dueUtc, remoteDue.toIso8601String());
+      expect(accepted.localDirty, isFalse);
+      expect(accepted.pendingDelete, isFalse);
+      expect(accepted.pendingMove, isFalse);
+      final reminders = await database
+          .select(database.notificationSchedule)
+          .get();
+      expect(reminders, hasLength(1));
+      final reminder = reminders.single;
+      expect(reminder.title, 'Remote task');
+      expect(
+        reminder.scheduledAtUtc,
+        remoteDue.subtract(const Duration(minutes: 30)).millisecondsSinceEpoch,
+      );
+
+      await engine().synchronize();
+      final afterUnchangedSync = await database
+          .select(database.tasks)
+          .getSingle();
+      expect(afterUnchangedSync.title, 'Remote task');
+      expect(afterUnchangedSync.localDirty, isFalse);
+      expect(server.puts, 1);
     },
   );
 
@@ -1050,6 +1258,99 @@ const _destinationCollectionHref = '/cloud/remote.php/dav/calendars/alex/home/';
 const _eventHref = '${_collectionHref}event.ics';
 final _now = DateTime.utc(2026, 8, 8, 12);
 
+DavAccountSyncEngine _conflictSyncEngine({
+  required AppDatabase database,
+  required InMemorySecretStore secrets,
+  required http.Client client,
+  required Future<void> Function(
+    String accountId,
+    Set<String> affectedObjectIds,
+  )
+  rebuildNotifications,
+}) => DavAccountSyncEngine(
+  database: database,
+  secretStore: secrets,
+  httpClient: client,
+  accountId: 'account',
+  policy: const DavAccountSyncPolicy(
+    discoveryMaxAge: Duration(days: 30),
+    inventoryMaxAge: Duration(days: 30),
+  ),
+  rebuildNotifications: rebuildNotifications,
+  correlationIdFactory: () => 'cached-conflict',
+  nowUtc: () => _now,
+);
+
+final class _ConflictSyncServer {
+  _ConflictSyncServer({
+    required this.href,
+    required String body,
+    required String etag,
+  }) : _body = body,
+       _etag = etag;
+
+  final String href;
+  String _body;
+  String _etag;
+  int syncReports = 0;
+  int puts = 0;
+
+  void setRemote(String body, String etag) {
+    _body = body;
+    _etag = etag;
+  }
+
+  Future<http.Response> handle(http.Request request) async {
+    if (request.method == 'OPTIONS') {
+      return http.Response(
+        '',
+        200,
+        headers: {'dav': '1, calendar-access, sync-collection'},
+      );
+    }
+    if (request.method == 'PROPFIND') {
+      if (request.body.contains('<d:current-user-principal/>')) {
+        return _discoveryMultistatus(_currentPrincipalResponse);
+      }
+      if (request.body.contains('<c:calendar-home-set/>')) {
+        return _discoveryMultistatus(_principalPropertiesResponse);
+      }
+      return _discoveryMultistatus(_singleCollectionInventoryResponse);
+    }
+    if (request.method == 'REPORT' &&
+        request.body.contains('sync-collection')) {
+      syncReports += 1;
+      return http.Response(
+        _syncMemberResponse(
+          token: 'conflict-$syncReports',
+          href: href,
+          etag: _etag,
+        ),
+        207,
+      );
+    }
+    if (request.method == 'REPORT' &&
+        request.body.contains('calendar-multiget')) {
+      return http.Response(
+        _multigetMemberResponse(href: href, body: _body, etag: _etag),
+        207,
+      );
+    }
+    if (request.method == 'PUT' && request.url.path == href) {
+      puts += 1;
+      return http.Response('', 412);
+    }
+    if (request.method == 'GET' && request.url.path == href) {
+      return http.Response(
+        _body,
+        200,
+        headers: {'etag': _etag, 'content-type': 'text/calendar'},
+      );
+    }
+    fail('Unexpected ${request.method} ${request.url}');
+  }
+}
+
 Future<void> _seed(AppDatabase database, InMemorySecretStore secrets) async {
   const now = '2026-08-08T12:00:00.000Z';
   await database
@@ -1311,6 +1612,25 @@ END:VCALENDAR\r
 ''';
 }
 
+String _taskWithReminder(String summary, {required DateTime dueUtc}) {
+  final due = _icalUtc(dueUtc);
+  return '''BEGIN:VCALENDAR\r
+VERSION:2.0\r
+PRODID:-//BusyMax Test//EN\r
+BEGIN:VTODO\r
+UID:event@example.test\r
+DUE:$due\r
+SUMMARY:$summary\r
+BEGIN:VALARM\r
+ACTION:DISPLAY\r
+TRIGGER;RELATED=END:-PT30M\r
+DESCRIPTION:$summary\r
+END:VALARM\r
+END:VTODO\r
+END:VCALENDAR\r
+''';
+}
+
 String _icalUtc(DateTime value) {
   final utc = value.toUtc();
   String two(int part) => part.toString().padLeft(2, '0');
@@ -1347,6 +1667,20 @@ const _emptyInventoryResponse = '''<?xml version="1.0"?>
   <d:propstat><d:prop><d:resourcetype><d:collection/></d:resourcetype></d:prop>
   <d:status>HTTP/1.1 200 OK</d:status></d:propstat>
  </d:response>
+</d:multistatus>''';
+
+const _singleCollectionInventoryResponse =
+    '''<?xml version="1.0"?>
+<d:multistatus xmlns:d="DAV:" xmlns:c="urn:ietf:params:xml:ns:caldav">
+ <d:response><d:href>$_collectionHref</d:href><d:propstat><d:prop>
+  <d:resourcetype><d:collection/><c:calendar/></d:resourcetype>
+  <d:displayname>Work</d:displayname>
+  <d:current-user-privilege-set><d:privilege><d:read/></d:privilege>
+   <d:privilege><d:write/></d:privilege></d:current-user-privilege-set>
+  <c:supported-calendar-component-set><c:comp name="VEVENT"/><c:comp name="VTODO"/></c:supported-calendar-component-set>
+  <d:supported-report-set><d:supported-report><d:report><d:sync-collection/></d:report></d:supported-report>
+   <d:supported-report><d:report><c:calendar-multiget/></d:report></d:supported-report></d:supported-report-set>
+ </d:prop><d:status>HTTP/1.1 200 OK</d:status></d:propstat></d:response>
 </d:multistatus>''';
 
 const _twoCollectionInventoryResponse =

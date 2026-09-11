@@ -357,6 +357,11 @@ final davConflictResolutionServiceProvider =
       return DavConflictResolutionService(
         database: database,
         pendingQueue: DavPendingOperationQueue(database: database),
+        rebuildNotifications: (accountId, _) async {
+          await NotificationScheduleService(
+            database: database,
+          ).rebuildUpcomingNotifications(accountId);
+        },
       );
     });
 
