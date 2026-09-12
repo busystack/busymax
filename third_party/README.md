@@ -1,76 +1,39 @@
-# Third-Party Dependencies
+# Vendored dependencies
 
-This directory contains third-party source vendored into BusyMax. Direct Dart
-dependencies with security or licensing significance are also listed here.
+BusyMax overrides four packages with source under `third_party/`. Their
+upstream license files and notices remain authoritative and must stay intact.
 
-## xml
+| Package | Upstream/version | Local path | License | Why it is vendored |
+|---|---|---|---|---|
+| `flutter_timezone` | [tjarvstrand/flutter_timezone](https://github.com/tjarvstrand/flutter_timezone), 5.1.0 | [`third_party/flutter_timezone`](flutter_timezone/) | [Apache-2.0](flutter_timezone/LICENSE) | Keep the upstream Dart API and Windows plugin without registering another Linux timezone implementation |
+| `tray_manager` | [leanflutter/tray_manager](https://github.com/leanflutter/tray_manager), 0.5.3 | [`third_party/tray_manager`](tray_manager/) | [MIT](tray_manager/LICENSE) | Keep the upstream Dart API and Windows tray plugin while Linux continues to use BusyMax's XDG/DBus tray |
+| `yaru_window` | [ubuntu/yaru_window.dart](https://github.com/ubuntu/yaru_window.dart), 0.2.2 | [`third_party/yaru_window`](yaru_window/) | [MPL-2.0](yaru_window/LICENSE) | Restrict plugin registration to Linux so the Windows runner remains the sole Windows lifecycle owner |
+| `xdg_status_notifier_item` | [canonical/xdg_status_notifier_item.dart](https://github.com/canonical/xdg_status_notifier_item.dart), 0.0.1 | [`third_party/xdg_status_notifier_item`](xdg_status_notifier_item/) | [MPL-2.0](xdg_status_notifier_item/LICENSE) | Provide the Linux StatusNotifierItem and DBusMenu behavior BusyMax needs beyond the published package |
 
-- Package: `xml`
-- Pinned version: `6.6.1`
-- Source: https://github.com/renggli/dart-xml
-- License: MIT
-- Purpose: namespace-aware WebDAV/CalDAV XML parsing
-- Native/transitive review: pure Dart; no transitive native dependency is
-  introduced by this direct dependency.
+BusyMax-specific notes for the platform-scoped package copies are in:
 
-BusyMax applies its own parser limits and rejects DTD and entity declarations.
-DAV properties are identified by namespace URI and local name, not by prefix.
+- [flutter_timezone vendoring notes](flutter_timezone/README.busymax.md)
+- [tray_manager vendoring notes](tray_manager/README.busymax.md)
+- [yaru_window vendoring notes](yaru_window/README.busymax.md)
 
-## posix
+## XDG StatusNotifierItem changes
 
-- Package: `posix`
-- Pinned lockfile version: `6.5.0`
-- Source: https://github.com/onepub-dev/dart_posix
-- License: MIT
-- Purpose: apply restrictive `0700` directory and `0600` file modes to the
-  strict-Snap portal-encrypted credential store
-- Native/transitive review: Dart FFI calls the platform C library; BusyMax uses
-  only `chmod`, only on Linux/macOS, and maps failures to the typed
-  secret-store-unavailable state.
+The vendored XDG package keeps its upstream
+[README](xdg_status_notifier_item/README.md),
+[CHANGELOG](xdg_status_notifier_item/CHANGELOG.md), and
+[contribution guide](xdg_status_notifier_item/CONTRIBUTING.md) unchanged.
 
-The encrypted credential store repairs inherited permissions before reading
-and creates replacement files atomically. See
-[`docs/icalendar_data_model.md`](../docs/icalendar_data_model.md) for the
-CalDAV and iCalendar dependency decision.
+BusyMax's local patches:
 
-## xdg_status_notifier_item
+- widen the Dart SDK constraint for Dart 3;
+- export DBusMenu at the tray menu path and support explicit stable item IDs;
+- implement DBusMenu group-property and menu-object properties;
+- support both KDE and freedesktop StatusNotifierItem interfaces;
+- correct callback argument handling for coordinates, scroll deltas, and
+  orientation;
+- expose item/menu paths, `ItemIsMenu`, and diagnostic logging hooks;
+- emit standard title, icon, and tooltip update signals; and
+- correct the tooltip signature and expose accessible title/description text.
 
-- Package: `xdg_status_notifier_item`
-- Vendored path: `third_party/xdg_status_notifier_item`
-- Original pub.dev package: `xdg_status_notifier_item` version `0.0.1`
-- Original source: https://github.com/canonical/xdg_status_notifier_item.dart
-- License: Mozilla Public License 2.0 (`MPL-2.0`)
-
-BusyMax vendors this package because Linux tray support depends on
-StatusNotifierItem and DBusMenu behavior that is not available in the published
-`0.0.1` pub.dev release.
-
-The vendored package keeps its upstream `LICENSE` file in
-`third_party/xdg_status_notifier_item/LICENSE`. MPL-2.0 is compatible with
-including the package in BusyMax's Apache-2.0 larger work, provided the
-MPL-2.0-covered files and any modifications to those files remain available
-under MPL-2.0 and the license notices are preserved.
-
-BusyMax-specific patches currently include:
-
-- Widening the package SDK constraint to support Dart 3.
-- Exporting DBusMenu objects at the StatusNotifierItem menu path used by
-  BusyMax.
-- Supporting explicit, stable DBusMenu item IDs.
-- Adding DBusMenu `GetGroupProperties` support and menu object properties.
-- Supporting both `org.kde.StatusNotifierItem` and
-  `org.freedesktop.StatusNotifierItem` interfaces.
-- Fixing StatusNotifierItem callback argument handling for x/y, scroll delta,
-  and scroll orientation values.
-- Adding `ItemIsMenu`, custom menu path, object path accessors, and diagnostic
-  logging hooks used by BusyMax tray tests and runtime diagnostics.
-- Supporting runtime title, icon, and tooltip updates with the standard
-  StatusNotifierItem change signals.
-- Correcting the StatusNotifierItem tooltip signature and exposing its title
-  and description to desktop hosts and assistive technologies.
-
-### Maintenance
-
-- Upstream the StatusNotifierItem/DBusMenu fixes where practical, or replace
-  this vendored copy with a maintained pub.dev release once the required
-  behavior is available.
+MPL-2.0-covered source and local modifications remain under MPL-2.0. Preserve
+the package's upstream license and notices when redistributing it.

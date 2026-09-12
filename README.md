@@ -1,207 +1,117 @@
 # BusyMax
 
-BusyMax is a Linux and Windows desktop calendar and task manager built with
-Flutter.
+BusyMax is a beta calendar and task manager for Linux and Windows. It brings
+events, tasks, reminders, and day, week, month, year, and agenda views into one
+desktop application.
 
-It brings calendar events and tasks into a native-feeling desktop interface:
-Yaru with the existing GTK integrations on Linux, and Fluent UI with the native
-title bar on Windows 11. BusyMax connects directly to Google, Microsoft, Apple
-iCloud Calendar, and Nextcloud. Apple Reminders is not supported.
+Linux uses a Yaru/GTK desktop composition with XDG integrations. Windows uses
+a separate Fluent composition with a native Windows title bar, tray,
+notifications, and packaged startup integration. Provider capabilities differ;
+see the [provider support matrix](docs/provider_support_matrix.md) before
+relying on a particular task field or operation.
 
-[![busymax](https://snapcraft.io/busymax/badge.svg)](https://snapcraft.io/busymax)
-
-[![Get it from the Snap Store](https://snapcraft.io/en/dark/install.svg)](https://snapcraft.io/busymax)
-
-<p align="center">
-  <img src="docs/screenshots/main_window_month.png" alt="BusyMax month view" width="900">
-</p>
+[![Install BusyMax from the Snap Store](https://snapcraft.io/busymax/badge.svg)](https://snapcraft.io/busymax)
 
 <p align="center">
-  <sub>Month view with calendars, tasks, and event details.</sub>
+  <img src="docs/screenshots/main_window_month.png"
+       alt="BusyMax month view on Linux"
+       width="900">
 </p>
+
+<p align="center"><sub>Month view in the Linux desktop application.</sub></p>
 
 ## Highlights
 
-- First-class Linux Yaru and Windows 11 Fluent desktop applications.
-- Calendar views for day, week, month, year, and agenda planning.
-- Task creation with lists, start/due dates, reminders, repeat options,
-  subtasks, status, progress, priority, categories, location, and URL.
-- Nextcloud task-list creation/rename/delete, recursive task duplicate/delete,
-  raw iCalendar export, clear-completed, and cross-list subtree moves.
-- Event editing with calendar selection, time controls, repeat rules, and
-  reminders.
-- Ordinary event and supported-task location fields, with a saved destination
-  opened on demand in an external maps application or browser.
-- Tray shortcut for opening the main Agenda view.
-- Direct integrations with Google Calendar, Google Tasks, Microsoft Calendar,
-  Microsoft To Do, Apple iCloud Calendar, Nextcloud Calendar, and Nextcloud
-  Tasks.
-- Offline-first local cache, conditional DAV writes, recurrence exceptions,
-  alarms, and explicit conflict handling for CalDAV accounts.
+- Calendar and task planning in day, week, month, year, and agenda views.
+- Direct connections to Google, Microsoft, Apple iCloud Calendar, and
+  Nextcloud, plus read-only WebCal subscriptions.
+- Event and task editing that follows each provider's supported fields and the
+  permissions granted for a collection.
+- Local caching for offline viewing. Supported changes can be queued for some
+  providers; offline behavior is not identical across every integration.
+- Desktop reminders, tray actions, import/export, themes, keyboard navigation,
+  and localized interfaces.
 
-## Screenshots
+<details>
+<summary>More Linux screenshots</summary>
 
 <table>
   <tr>
-    <td width="50%">
-      <img src="docs/screenshots/main_window_week.png" alt="BusyMax week view">
-      <br>
-      <sub><b>Week view</b> with color-coded calendars and scheduled tasks.</sub>
-    </td>
-    <td width="50%">
-      <img src="docs/screenshots/main_window_day.png" alt="BusyMax day view">
-      <br>
-      <sub><b>Day view</b> for focused daily planning.</sub>
-    </td>
+    <td><img src="docs/screenshots/main_window_week.png" alt="BusyMax week view on Linux"><br><sub>Week view</sub></td>
+    <td><img src="docs/screenshots/main_window_day.png" alt="BusyMax day view on Linux"><br><sub>Day view</sub></td>
   </tr>
   <tr>
-    <td width="50%">
-      <img src="docs/screenshots/main_window_agenda.png" alt="BusyMax agenda view">
-      <br>
-      <sub><b>Agenda view</b> with upcoming events, tasks, and details.</sub>
-    </td>
-    <td width="50%">
-      <img src="docs/screenshots/main_window_new_task.png" alt="BusyMax new task editor">
-      <br>
-      <sub><b>Task creation</b> with lists, due dates, reminders, and repeat options.</sub>
-    </td>
+    <td><img src="docs/screenshots/main_window_agenda.png" alt="BusyMax agenda view on Linux"><br><sub>Agenda view</sub></td>
+    <td><img src="docs/screenshots/main_window_year.png" alt="BusyMax year view on Linux"><br><sub>Year view</sub></td>
+  </tr>
+  <tr>
+    <td><img src="docs/screenshots/main_window_new_task.png" alt="BusyMax task editor on Linux"><br><sub>Task editor</sub></td>
+    <td><img src="docs/screenshots/main_window_edit_event.png" alt="BusyMax event editor on Linux"><br><sub>Event editor</sub></td>
+  </tr>
+  <tr>
+    <td><img src="docs/screenshots/account_provider_selection.png" alt="BusyMax account provider selection on Linux"><br><sub>Account providers</sub></td>
   </tr>
 </table>
 
-<details>
-<summary>More screenshots</summary>
-
-<br>
-
-<p>
-  <img src="docs/screenshots/account_provider_selection.png"
-       alt="BusyMax account provider selection"
-       width="700">
-</p>
-
-<p>
-  <img src="docs/screenshots/main_window_year.png" alt="BusyMax year view" width="700">
-</p>
-
-<p>
-  <img src="docs/screenshots/main_window_edit_event.png" alt="BusyMax event editor" width="700">
-</p>
-
 </details>
 
-## Prerequisites
+## Installation and accounts
 
-- [Flutter SDK](https://docs.flutter.dev/install)
-- Flutter is pinned to 3.47.2 for both platforms (bundled Dart 3.13.2).
-- GTK 3 and libhandy development packages (`libgtk-3-dev` and
-  `libhandy-1-dev` on Ubuntu/Debian)
-- `GOOGLE_OAUTH_CLIENT_ID` and `GOOGLE_OAUTH_CLIENT_SECRET`; see
-  [Google setup](docs/google_setup.md)
-- `MICROSOFT_OAUTH_CLIENT_ID`, see [Microsoft Setup](docs/microsoft_setup.md)
+The public packaged release is the Linux beta in the
+[Snap Store](https://snapcraft.io/busymax). The repository does not document a
+public production Windows download or Store listing. Windows maintainers can
+build and install a test-signed package by following the
+[Windows packaging guide](docs/windows_packaging.md); unsigned CI packages are
+test artifacts, not ordinary user downloads.
 
-Apple and Nextcloud do not require compile-time client credentials:
+Packaged users do not need Flutter, Visual Studio, Linux development libraries,
+or their own OAuth registration. In a configured build:
 
-- [Apple iCloud Calendar setup](docs/apple_icloud_setup.md) requires two-factor
-  authentication and an Apple app-specific password.
-- [Nextcloud setup](docs/nextcloud_setup.md) requires an HTTPS server and
-  completes authorization in the default browser.
+- Google and Microsoft accounts connect through browser-based sign-in.
+- Apple iCloud Calendar uses an Apple app-specific password; Apple Reminders is
+  not supported. See [Connect Apple iCloud Calendar](docs/apple_icloud_setup.md).
+- Nextcloud authorizes BusyMax in the default browser and requires a compatible
+  HTTPS server. See [Connect Nextcloud Calendar and Tasks](docs/nextcloud_setup.md).
+- WebCal adds a read-only calendar subscription from a confirmed URL.
 
-Windows targets Windows 11 24H2 or newer on x64 only. See
-[Windows development](docs/windows_development.md) for Visual Studio and SDK
-requirements, exact development commands, and the source-side validation
-workflow.
+Developers who need to configure their own desktop OAuth applications should
+use the [Google OAuth registration guide](docs/google_setup.md) or
+[Microsoft OAuth registration guide](docs/microsoft_setup.md). Provider
+differences and limitations are summarized in the
+[provider support matrix](docs/provider_support_matrix.md).
 
-## Run locally on Linux
+## Documentation
 
-Register the development launcher once so GNOME can associate BusyMax's native
-Wayland windows with its desktop icon. The helper is idempotent and defaults to
-the Flutter debug bundle:
+Account, provider, and data information:
 
-```bash
-tool/install_linux_dev_desktop.sh
-```
-
-Then run BusyMax normally:
-
-```bash
-flutter run -d linux -t lib/main_linux.dart \
-  --dart-define=GOOGLE_OAUTH_CLIENT_ID=<google-client-id> \
-  --dart-define=GOOGLE_OAUTH_CLIENT_SECRET=<google-secret-if-needed> \
-  --dart-define=MICROSOFT_OAUTH_CLIENT_ID=<microsoft-client-id>
-```
-
-Locations are stored as ordinary calendar/task data. **Show on map** hands a
-saved address or point to the registered maps handler on Linux, with a Google
-Maps browser-search fallback, and to the default browser on Windows. A complete
-HTTP(S) location is opened directly as **Open link**. BusyMax has no embedded
-map, address autocomplete, mapping account, or mapping API-key requirement.
-Provider-native coordinates remain in Microsoft structured locations and
-iCalendar `GEO`. When importing or copying a point into Google Calendar, which
-has only free-form location text in this workflow, BusyMax retains a local
-supplemental point for the exact saved event or provider series. A later
-recurring occurrence can reuse the series point only while its saved location
-still matches; an occurrence-specific point takes precedence. Supplemental
-series data follows a Google **This and following** split only when the new
-series keeps that location; the earlier series retains its own association.
-points are not uploaded through Google Calendar and therefore are not
-automatically available on another BusyMax installation.
-
-Use `tool/install_linux_dev_desktop.sh --uninstall` to remove the development
-launcher. Remove it before testing an installed Snap so the user-level launcher
-does not take precedence; packaged Snaps register their own launcher.
-
-## Feedback submissions
-
-The native **Send feedback** form in the About dialog sends JSON to
-`POST https://busystack.org/api/feedback`. Every submission contains a new
-submission UUID, the application identifier `busymax`, the application version
-and build number, the runtime platform identifier, category, subject, message,
-and optional reply email. A successful response has this form:
-
-```json
-{ "id": "server-reference-id" }
-```
-
-The optional technical-details checkbox is off by default. When the user
-explicitly enables it, BusyMax adds only the operating-system version and
-application locale. BusyMax does not attach logs, account or calendar data,
-file names, screenshots, environment variables, tokens, or other diagnostics.
-
-For local website development, override the endpoint through the existing
-compile-time configuration mechanism:
-
-```bash
-flutter run -d linux \
-  --dart-define=BUSYSTACK_FEEDBACK_ENDPOINT=http://127.0.0.1:8090/api/feedback
-```
-
-The local Snap helper accepts the same value with
-`--dart-define BUSYSTACK_FEEDBACK_ENDPOINT=http://127.0.0.1:8090/api/feedback`.
-No API, CAPTCHA, or other private server credential is used by the desktop
-application.
-
-## Provider support
-
-The [provider capability matrix](docs/provider_support_matrix.md) lists the
-features and limitations of each integration. Maintainers can use the
-[live-provider test guide](docs/live_provider_testing.md) for opt-in Nextcloud
-and iCloud integration tests.
-
-## Build and publish the Snap
-
-See [Snap Build and Beta Release](docs/beta_snap_release.md) for OAuth build
-configuration, canonical Snapcraft packaging, local installation, artifact
-verification, Store review, and beta release instructions.
-
-## Windows architecture and packaging
-
-Windows uses the separate `lib/main_windows.dart` entrypoint and a Fluent UI
-composition. Linux continues to use `lib/main_linux.dart`, Yaru, GTK, the XDG
-tray, and the existing Snap package. The Windows Store MSIX workflow is local
-and CI-only; it never deploys an artifact.
-
-- [Windows architecture](docs/windows_architecture.md)
-- [Windows UI](docs/windows_ui.md)
-- [Windows packaging](docs/windows_packaging.md)
-- [Windows release checklist](docs/windows_release_checklist.md)
+- [Provider support matrix](docs/provider_support_matrix.md)
+- [Apple iCloud Calendar setup](docs/apple_icloud_setup.md)
+- [Nextcloud Calendar and Tasks setup](docs/nextcloud_setup.md)
 - [Privacy and data map](docs/privacy_data_map.md)
+
+Development and maintenance:
+
+- [Development setup for Linux and Windows](docs/development.md)
+- [Google developer OAuth registration](docs/google_setup.md) and
+  [Microsoft developer OAuth registration](docs/microsoft_setup.md)
+- [iCalendar and DAV data model](docs/icalendar_data_model.md)
+- [Live-provider testing](docs/live_provider_testing.md)
+- [Windows architecture](docs/windows_architecture.md)
+- [Snap beta release](docs/beta_snap_release.md)
+- [Windows packaging](docs/windows_packaging.md) and
+  [release checklist](docs/windows_release_checklist.md)
+- [Maintenance tools](tool/README.md) and
+  [vendored dependencies](third_party/README.md)
+
+## Support and feedback
+
+Report defects and request features in the
+[BusyMax issue tracker](https://github.com/busystack/busymax/issues). The
+in-app **Send feedback** action submits only the fields described in the
+[privacy and data map](docs/privacy_data_map.md); optional technical details are
+off by default.
+
+## License
+
+BusyMax is licensed under the [Apache License 2.0](LICENSE). See
+[NOTICE](NOTICE) for attribution and trademark information.

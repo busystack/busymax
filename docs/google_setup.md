@@ -1,43 +1,51 @@
-# Google OAuth setup
+# Google OAuth registration
 
-BusyMax requires a Google desktop OAuth client. Its client ID and client secret
-are supplied as `GOOGLE_OAUTH_CLIENT_ID` and
-`GOOGLE_OAUTH_CLIENT_SECRET` at build time.
+This guide is for developers and release maintainers who configure a BusyMax
+build. People installing an already configured package do not need to create a
+Google Cloud project.
 
-## Create a Google Cloud project
+BusyMax reads the Google desktop OAuth client ID and client secret from the
+compile-time settings `GOOGLE_OAUTH_CLIENT_ID` and
+`GOOGLE_OAUTH_CLIENT_SECRET`.
 
-1. Open the [Google Cloud Console](https://console.cloud.google.com/).
-2. Create or select a project.
-3. Enable the Google Tasks API and Google Calendar API.
+## Configure Google APIs and consent
 
-## Configure the consent screen
+1. Create or select a project in the
+   [Google Cloud console](https://console.cloud.google.com/).
+2. Enable the Google Tasks API and Google Calendar API.
+3. Open [Google Auth Platform](https://console.cloud.google.com/auth/), complete
+   the Branding, Audience, and Contact Information setup, and keep development
+   accounts under **Audience > Test users** while the app is in testing.
+4. Under **Data Access**, add the Google Tasks read/write scope
+   `https://www.googleapis.com/auth/tasks` and the Google Calendar read/write
+   scope `https://www.googleapis.com/auth/calendar`.
 
-1. Open [Google Auth Platform](https://console.cloud.google.com/auth/).
-2. Complete the initial setup with the application name, support email,
-   audience, and contact email.
-3. Under **Audience**, add development accounts as test users while the app is
-   in testing mode.
-4. Under **Data access**, add these scopes:
+BusyMax's runtime authorization request also contains the OpenID Connect scope
+strings `openid`, `email`, and `profile`. Google may show the last two in
+the console as `https://www.googleapis.com/auth/userinfo.email` and
+`https://www.googleapis.com/auth/userinfo.profile`. These identity scopes
+provide the account identity and display label; the Tasks and Calendar scopes
+authorize provider data access.
 
-   ```text
-   openid
-   https://www.googleapis.com/auth/userinfo.email
-   https://www.googleapis.com/auth/userinfo.profile
-   https://www.googleapis.com/auth/tasks
-   https://www.googleapis.com/auth/calendar
-   ```
-
-The identity scopes provide the stable account identity and display label. The
-Tasks and Calendar scopes allow BusyMax to synchronize and edit the
-corresponding data.
+Google documents the current console areas in
+[Get started with Google Auth Platform](https://support.google.com/cloud/answer/15544987)
+and the Tasks permission in
+[Choose Google Tasks API scopes](https://developers.google.com/workspace/tasks/auth).
 
 ## Create the desktop client
 
-1. Open **Clients** and select **Create client**.
+1. Open **Google Auth Platform > Clients** and select **Create client**.
 2. Choose **Desktop app** as the application type.
-3. Give the client a recognizable name.
-4. Store the client ID and client secret securely and provide them to the build
-   as `GOOGLE_OAUTH_CLIENT_ID` and `GOOGLE_OAUTH_CLIENT_SECRET`.
+3. Give the client a recognizable name and create it.
+4. Supply the resulting client ID and client secret to the BusyMax build.
 
-Use only credentials created for this desktop application. Do not commit them
-to the repository.
+BusyMax opens the system browser and listens on a temporary
+`http://127.0.0.1:<port>/` loopback callback. Do not configure a web
+application client or a hosted redirect endpoint for this flow.
+
+Desktop OAuth configuration is embedded in the application package and can be
+extracted; it is not a protected server-side secret. Use credentials dedicated
+to this desktop application, restrict access to the build configuration, and
+never commit credentials or generated credential files. Google's
+[OAuth client documentation](https://support.google.com/cloud/answer/15549257)
+describes desktop applications as public clients.

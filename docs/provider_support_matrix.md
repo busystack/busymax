@@ -1,118 +1,93 @@
-# Provider capabilities
+# Provider support matrix
 
-This document describes the capabilities exposed by the current source tree.
-Actual write access also depends on the permissions reported by each account
-and collection. Unknown capabilities fail closed; BusyMax does not infer write
-access from a provider name.
+This page is the central comparison of BusyMax's provider capabilities.
+Available actions also depend on account state and the permissions reported for
+a specific calendar or task list. A visible or enabled control is not evidence
+that a workflow has completed live-provider verification.
 
-| Provider | Calendars | Tasks | Authentication |
+## Services and authentication
+
+| Provider | Calendar service | Task service | Account connection |
 |---|---|---|---|
-| Google | Google Calendar | Google Tasks | OAuth desktop client |
-| Microsoft | Microsoft Calendar | Microsoft To Do | OAuth public client |
-| Apple iCloud | iCloud Calendar | Not supported; Apple Reminders is not supported | Apple app-specific password over HTTPS |
-| Nextcloud | `VEVENT` collections | `VTODO` collections | Login Flow v2 in the default browser |
-| WebCal | Read-only calendar subscriptions | Not supported | Subscription URL stored as a secret |
+| Google | Google Calendar | Google Tasks | Browser OAuth with a configured desktop client |
+| Microsoft | Microsoft Calendar | Microsoft To Do | Browser OAuth with a configured public client |
+| Apple | iCloud Calendar | Not supported | Apple Account email and app-specific password |
+| Nextcloud | CalDAV events | CalDAV tasks | Login Flow v2 in the default browser |
+| WebCal | Read-only subscription | Not supported | Confirmed subscription URL |
 
-## Collection creation
+Apple Reminders, generic CalDAV accounts, Nextcloud Deck, and Nextcloud Notes
+are not supported. Production connections require normal platform TLS
+validation; BusyMax has no HTTP or invalid-certificate mode. The loopback HTTP
+fixtures documented for live tests are test-only.
 
-| Capability | Google | Microsoft | Nextcloud | Apple iCloud | WebCal |
+## Event objects
+
+| Capability | Google | Microsoft | Apple iCloud | Nextcloud | WebCal |
 |---|---|---|---|---|---|
-| Create calendar | Yes | Yes | Yes | No | No |
-| Create task list | Yes | Yes | Yes | No | No |
+| View events | Yes | Yes | Yes | Yes | Yes |
+| Create, edit, delete | Supported | Supported | Writable calendars | Permission-dependent | No |
+| All-day and timed events | Yes | Yes | Yes | Yes | Preserved for display |
+| Recurrence and reminders | Yes | Yes | Preserved and editable subset | Preserved and editable subset | Read-only |
+| Attendee editing | Yes | Yes | No | Permission- and scheduling-dependent | No |
+| Free/busy workflow | Yes | No | No | Permission- and scheduling-dependent | No |
+| Attachments | Supported subset | No | Preserved when present | Preserved when present | Read-only |
 
-Nextcloud event calendars are created remotely with CalDAV `MKCALENDAR` and
-an event-only (`VEVENT`) component set. Nextcloud task lists continue to use
-their existing `VTODO` collection implementation. This is Nextcloud-specific;
-BusyMax does not claim generic CalDAV collection creation. Apple collection
-creation remains unsupported, and WebCal subscriptions remain read-only.
+DAV-backed events preserve data BusyMax does not edit, including recurrence
+exceptions, alarms, timezones, parameters, and provider extensions. See the
+[iCalendar and DAV data model](icalendar_data_model.md).
 
-## CalDAV synchronization
+## Task objects
 
-| Capability | Apple iCloud Calendar | Nextcloud Calendar | Nextcloud Tasks |
+| Capability | Google Tasks | Microsoft To Do | Nextcloud Tasks |
 |---|---|---|---|
-| Collection discovery | Supported | Supported | Supported |
-| Initial and incremental synchronization | Supported | Supported | Supported |
-| Offline object create, edit, delete, and replay | Writable collections | Writable collections | Writable collections |
-| Conditional ETag writes and explicit conflict handling | Supported | Supported | Supported |
-| All-day, floating, UTC, and `TZID` date-time values | Supported | Supported | Supported |
-| Recurrence rules and exceptions | Supported | Supported | Supported; see the editable subset below |
-| `VALARM` preservation | Supported | Supported | Supported |
-| Read-only and shared collections | Supported | Supported | Supported |
-| Collection creation | Not supported | Supported online through `MKCALENDAR` | Supported online when permitted |
-| Collection rename, delete, unshare, metadata, color, or order editing | Not supported | Supported online when permitted | Supported online when permitted |
-| Cross-list task moves | Not applicable | Not applicable | Supported between writable Nextcloud task collections |
-| Clear completed tasks | Not applicable | Not applicable | Supported |
-| Sharing, publishing, trash restoration, and native import/export | Not supported | Supported online when permitted | Supported online when permitted |
-| Invitation, scheduling identities, organizer/attendee changes, replies, free/busy, and scheduling inbox | Not supported | Supported when the advertised collection and scheduling permissions allow it | Not applicable |
-| HTTP-only or private-CA servers | Not supported | Not supported | Not supported |
+| Create, edit, complete, delete | Yes | Yes | Permission-dependent |
+| Due date | Date only | Date and time | Date or date-time |
+| Start date/time | No | Yes | Yes |
+| Reminder | No | Single provider reminder | Multiple iCalendar alarms |
+| Recurrence | No | Provider recurrence subset | BusyMax/Nextcloud editable subset |
+| Importance/categories | No | Yes | Yes |
+| Hierarchy | Yes | Yes | Yes |
+| Move between lists | Yes | Not exposed | Between writable Nextcloud lists |
+| Status/progress/completed time | Completion only | Provider completion state | iCalendar status, percentage, and completion time |
+| Location, URL, classification | No | No | Yes |
+| Advanced iCalendar fields | No | No | Priority, alarms, recurrence, pinning, and subtask visibility |
 
-## Nextcloud task data
+Google exposes assigned and hidden tasks from its API, but provider rules can
+limit which of those tasks BusyMax may change. Nextcloud recurrence rules or
+alarm forms outside BusyMax's editable subset remain preserved and read-only;
+detached task occurrences are not edited directly.
 
-BusyMax exposes the task data used by the official Nextcloud Tasks 0.18.1
-editor:
+## Collection administration
 
-- title, description, categories, start, due date, and all-day state;
-- status, completion percentage, completion date and time, and iCalendar
-  priority from 0 through 9;
-- location, URL, and `PUBLIC`, `CONFIDENTIAL`, or `PRIVATE` classification;
-- parent-child relationships, recursive subtasks, and Nextcloud's numeric task
-  order, including its `CREATED`-based fallback;
-- multiple reminders, including absolute and before-start/before-due triggers;
-- daily, weekly, monthly, and yearly recurrence with interval, supported
-  day/month selectors, count, or end date;
-- pinning and the Nextcloud subtask-visibility flags;
-- recursive duplication, raw iCalendar export, recursive deletion, moving a
-  subtree between lists, and deleting Nextcloud closed root task trees.
+Object editing and collection administration are separate capabilities.
 
-Completing a recurring task creates a completed recurrence instance and
-advances the master task when another occurrence exists. Recurrence rules that
-the editor cannot represent remain intact and read-only. BusyMax also preserves
-unknown properties, parameters, duplicate properties, unsupported alarm
-actions, sibling components, and time-zone definitions instead of rebuilding
-the resource from the visible fields.
+| Capability | Google | Microsoft | Apple iCloud | Nextcloud | WebCal |
+|---|---|---|---|---|---|
+| Create calendar | Yes | Yes | No | Online, with permission | No |
+| Rename/recolor/delete calendar | Yes | Yes | No | Online, property/owner permission-dependent | No |
+| Create task list | Yes | Yes | No | Online, with permission | No |
+| Rename/delete task list | Yes | Yes | No | Permission-dependent | No |
+| Share or publish collections | No | No | No | Advertised, permission-dependent | No |
+| Restore deleted objects/collections | No | No | No | Advertised, permission-dependent | No |
+| Native collection import/export | No | No | No | Supported subset | No |
 
-The parity reference is the official
-[Nextcloud Tasks 0.18.1 source](https://github.com/nextcloud/tasks/tree/v0.18.1).
-The wire format and DAV operations follow
-[RFC 5545](https://www.rfc-editor.org/rfc/rfc5545),
-[RFC 4791](https://www.rfc-editor.org/rfc/rfc4791),
-[RFC 4918](https://www.rfc-editor.org/rfc/rfc4918), and
-[RFC 5689](https://www.rfc-editor.org/rfc/rfc5689).
+Deleting an owned mixed Nextcloud collection removes both its events and tasks.
+Removing a received share removes the recipient's access. Nextcloud scheduling,
+sharing, publishing, trash, and native import/export behavior is described in
+[Nextcloud setup](nextcloud_setup.md) and the
+[technical reference](icalendar_data_model.md).
 
-## Nextcloud collaboration and administration
+## Offline and verification boundaries
 
-Nextcloud collections expose their server-advertised metadata, sharing and
-publishing controls, trash restoration, and native iCalendar import/export.
-Calendar collections additionally support scheduling identities, organizer and
-attendee changes, replies, free/busy, and scheduling-inbox workflows when the
-server grants the relevant capabilities. Linux and Windows present these
-Nextcloud-specific controls. These workflows have automated coverage, but
-still require the live-server verification listed in
-`nextcloud_interoperability.md` before a release claim.
+All providers cache calendar/task data locally for viewing. Queued offline
+changes are supported where the provider adapter and collection permissions
+allow them; collection administration and several Nextcloud collaboration
+operations require a live server. Conflicting DAV writes use conditional
+requests and can require user resolution.
 
-## Locations and external opening
-
-BusyMax keeps ordinary location text and opens a saved destination only after
-the user chooses **Show on map** or **Open link**. Linux first uses a registered
-maps handler and falls back to a browser; Windows uses the browser. Complete
-HTTP(S) location values open directly. There is no embedded map, geocoding,
-autocomplete, mapping account, or mapping credential.
-
-Microsoft structured coordinates and iCalendar `GEO` remain provider-native.
-For an imported or copied point that Google Calendar cannot represent, BusyMax
-stores only local supplemental data. Recurring-series data is scoped by
-account, calendar, actual provider series identity, and matching location
-snapshot; an occurrence-specific point has precedence. A Google **This and
-following** split retains the earlier series association and copies it to the
-new series only when the location is unchanged. Ordinary native-coordinate
-creation does not create a supplemental duplicate.
-
-## Deliberate boundaries
-
-- Generic CalDAV account setup
-- Apple Reminders
-- Nextcloud Deck or Notes
-- Editing an individual detached task occurrence directly; synchronized
-  exceptions are preserved, and recurring completion is handled on the master
-- EventKit or private Apple APIs
-- HTTP fallback or invalid-certificate exceptions
+Deterministic tests cover projections, provider adapters, DAV preservation,
+permission handling, mutation queues, conflicts, and UI state. Real account
+authorization, provider delivery, server/version interoperability, installed
+desktop integration, and permission changes still require the
+[live-provider test guide](live_provider_testing.md) and the applicable release
+checklist.
