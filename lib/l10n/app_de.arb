@@ -1,4 +1,8 @@
 {
+  "launchAtLoginReadFailed": "Der Status des Starts bei der Anmeldung konnte nicht ermittelt werden.",
+  "launchAtLoginUnavailable": "Der Start bei der Anmeldung ist auf diesem System nicht verfügbar.",
+  "windowsStartupEnabledByPolicy": "Der Autostart wurde von Ihrem Administrator aktiviert und kann hier nicht geändert werden.",
+  "settingsSaveFailed": "Die Einstellungen konnten nicht gespeichert werden. Ihre Änderungen können beim Neustart von BusyMax verloren gehen.",
   "nextcloudExportCollection": "Sammlungsressourcen exportieren",
   "nextcloudImportItems": "{count} Ereignis-/Aufgabenressourcen gefunden",
   "@nextcloudImportItems": {"placeholders": {"count": {"type": "int"}}},

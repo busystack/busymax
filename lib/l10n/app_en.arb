@@ -1,4 +1,8 @@
 {
+  "launchAtLoginReadFailed": "Could not determine the launch-at-login state.",
+  "launchAtLoginUnavailable": "Launch at login is unavailable on this system.",
+  "windowsStartupEnabledByPolicy": "Startup is enabled by your administrator and cannot be changed here.",
+  "settingsSaveFailed": "Could not save settings. Your changes may be lost when BusyMax restarts.",
   "nextcloudExportCollection": "Export collection resources",
   "nextcloudImportItems": "{count} event/task resources found",
   "@nextcloudImportItems": {"placeholders": {"count": {"type": "int"}}},

@@ -26,6 +26,7 @@ import 'package:busymax/src/core/auth/oauth_models.dart';
 import '../../../l10n/app_locale.dart';
 import '../../../l10n/l10n.dart';
 import '../../../platform/linux_header_bar_service.dart';
+import '../../../platform/common/desktop_services.dart';
 import '../../../platform/linux_header_bar_provider.dart';
 import '../../../webcal/webcal_subscription_service.dart';
 import '../../../webcal/webcal_uri.dart';
@@ -41,6 +42,7 @@ import '../../feedback/presentation/feedback_dialog.dart';
 import '../../sync/sync_auth_error.dart';
 import '../../tasks/presentation/desktop_date_time_fields.dart';
 import 'account_removal_dialog.dart';
+import 'launch_at_login_refresh.dart';
 
 final _settingsLogger = RedactingLogger(Logger('SettingsScreen'));
 const _systemLocaleTag = 'system';
@@ -64,10 +66,14 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   DavCancellationToken? _davCancellation;
   final _removingAccountIds = <String>{};
   final _busySubscriptionIds = <String>{};
+  late final LaunchAtLoginRefreshObserver _autostartRefresh;
 
   @override
   void initState() {
     super.initState();
+    _autostartRefresh = LaunchAtLoginRefreshObserver(
+      () => ref.invalidate(launchAtLoginStateProvider),
+    );
     _headerBarSession = ref.read(linuxHeaderBarServiceProvider).claimSession();
     _headerBarActions = _headerBarSession.actions.listen(
       _handleHeaderBarAction,
@@ -77,6 +83,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
 
   @override
   void dispose() {
+    _autostartRefresh.dispose();
     _davCancellation?.cancel();
     _headerBarSession.dispose();
     unawaited(_headerBarActions?.cancel());
@@ -106,7 +113,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         ref.watch(webCalSubscriptionsProvider).valueOrNull ?? const [];
     final config = ref.watch(buildConfigProvider);
     final settings = ref.watch(appSettingsControllerProvider);
-    final launchAtLogin = ref.watch(launchAtLoginEnabledProvider);
+    final launchAtLogin = ref.watch(launchAtLoginStateProvider);
+    final changingAutostart = ref.watch(launchAtLoginControllerProvider);
     final settingsController = ref.read(appSettingsControllerProvider.notifier);
     final themeController = ref.read(busyMaxThemeControllerProvider);
     final l10n = context.l10n;
@@ -238,14 +246,35 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 leading: const Icon(YaruIcons.window_minimize),
               ),
               BusyMaxSwitchRow(
+                key: const ValueKey('launch-at-login-switch'),
                 title: l10n.launchAtLogin,
-                subtitle: l10n.launchAtLoginDescription,
-                value: launchAtLogin.valueOrNull ?? false,
-                enabled: !launchAtLogin.isLoading,
+                subtitle: launchAtLogin.hasError
+                    ? l10n.launchAtLoginReadFailed
+                    : launchAtLogin.valueOrNull ==
+                          DesktopAutostartState.unavailable
+                    ? l10n.launchAtLoginUnavailable
+                    : l10n.launchAtLoginDescription,
+                value: launchAtLogin.valueOrNull?.isEnabled ?? false,
+                enabled:
+                    !changingAutostart &&
+                    !launchAtLogin.isLoading &&
+                    !launchAtLogin.hasError &&
+                    (launchAtLogin.valueOrNull?.canChange ?? false),
                 onChanged: (enabled) =>
                     unawaited(_setLaunchAtLogin(context, enabled)),
-                leading: const Icon(Icons.power_settings_new_outlined),
+                leading: changingAutostart || launchAtLogin.isLoading
+                    ? const SizedBox.square(
+                        dimension: 20,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.power_settings_new_outlined),
               ),
+              if (launchAtLogin.hasError)
+                BusyMaxActionRow(
+                  title: l10n.retry,
+                  enabled: !changingAutostart && !launchAtLogin.isLoading,
+                  onTap: () => ref.invalidate(launchAtLoginStateProvider),
+                ),
               BusyMaxComboRow<BusyMaxThemeModePreference>(
                 title: l10n.theme,
                 leading: const Icon(Icons.tune),
@@ -394,6 +423,17 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             children: [
               if (_showFallbackHeader)
                 _SettingsFallbackHeader(title: title, onBack: _goBack),
+              if (ref.watch(appSettingsPersistenceFailedProvider))
+                MaterialBanner(
+                  content: Text(l10n.settingsSaveFailed),
+                  actions: [
+                    TextButton(
+                      onPressed: () =>
+                          unawaited(settingsController.retrySave()),
+                      child: Text(l10n.retry),
+                    ),
+                  ],
+                ),
               if (!showSidebar)
                 Padding(
                   padding: const EdgeInsets.fromLTRB(
@@ -535,8 +575,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
 
   Future<void> _setLaunchAtLogin(BuildContext context, bool enabled) async {
     try {
-      await ref.read(linuxAutostartServiceProvider).setEnabled(enabled);
-      ref.invalidate(launchAtLoginEnabledProvider);
+      await ref
+          .read(launchAtLoginControllerProvider.notifier)
+          .setEnabled(enabled);
     } on Object catch (error) {
       _settingsLogger.warning(
         'Could not update launch-at-login setting: ${redactForLog(error)}',
@@ -630,6 +671,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
 
   void _selectPage(SettingsPage page) {
     if (_page != page) {
+      if (page == SettingsPage.system) {
+        ref.invalidate(launchAtLoginStateProvider);
+      }
       setState(() => _page = page);
     }
     final router = GoRouter.maybeOf(context);

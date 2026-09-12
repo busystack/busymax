@@ -38,10 +38,53 @@ import 'package:http/testing.dart';
 import 'package:ubuntu_localizations/ubuntu_localizations.dart';
 
 import '../../../test_localized_app.dart';
+import '../../../support/fake_autostart_service.dart';
+import '../../../support/memory_settings_store.dart';
+import 'package:busymax/src/platform/common/desktop_services.dart';
 
 const _nativeMenuChannel = MethodChannel(nativeMenuChannelName);
 
 void main() {
+  testWidgets('Settings reports unsaved preferences and retries persistence', (
+    tester,
+  ) async {
+    final store = FailingMemorySettingsStore();
+    final container = _container(
+      selectedAccountId: 'google:g',
+      authRepository: _FakeAuthRepository(),
+      accounts: const [_googleAccount],
+      settingsStore: store,
+    );
+    addTearDown(container.dispose);
+    await _pumpDefaultSettings(
+      tester,
+      container,
+      logicalSize: const Size(1000, 900),
+    );
+    final traySwitch = find.descendant(
+      of: find.ancestor(
+        of: find.text('Show tray icon'),
+        matching: find.byType(BusyMaxSwitchRow),
+      ),
+      matching: find.byType(YaruSwitch),
+    );
+    await tester.tap(traySwitch);
+    await tester.pumpAndSettle();
+    expect(
+      find.text(
+        'Could not save settings. Your changes may be lost when BusyMax restarts.',
+      ),
+      findsOneWidget,
+    );
+    expect(container.read(appSettingsControllerProvider).showTrayIcon, isFalse);
+    expect(store.value, isEmpty);
+    store.failSaves = false;
+    await tester.tap(find.text('Retry'));
+    await tester.pumpAndSettle();
+    expect(find.byType(MaterialBanner), findsNothing);
+    expect(store.value['showTrayIcon'], isFalse);
+  });
+
   setUp(() {
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(
@@ -90,6 +133,152 @@ void main() {
     expect(find.text('Theme'), findsOneWidget);
     expect(find.text('Add Google account'), findsNothing);
   });
+
+  testWidgets(
+    'launch at login toggles both ways through the real provider chain',
+    (tester) async {
+      final service = FakeAutostartService();
+      final container = _autostartContainer(service);
+      addTearDown(container.dispose);
+      expect(
+        await container.read(launchAtLoginEnabledProvider.future),
+        isFalse,
+      );
+      await _pumpDefaultSettings(
+        tester,
+        container,
+        logicalSize: const Size(1000, 900),
+      );
+
+      expect(_launchSwitch(tester).value, isFalse);
+      await tester.tap(_launchSwitchFinder);
+      await tester.pumpAndSettle();
+      expect(service.current, DesktopAutostartState.enabled);
+      expect(_launchSwitch(tester).value, isTrue);
+      expect(await container.read(launchAtLoginEnabledProvider.future), isTrue);
+
+      await tester.tap(_launchSwitchFinder);
+      await tester.pumpAndSettle();
+      expect(service.current, DesktopAutostartState.disabled);
+      expect(_launchSwitch(tester).value, isFalse);
+      expect(
+        await container.read(launchAtLoginEnabledProvider.future),
+        isFalse,
+      );
+      expect(service.writes, [true, false]);
+    },
+  );
+
+  testWidgets(
+    'launch at login blocks repeated clicks through write and readback',
+    (tester) async {
+      final service = FakeAutostartService();
+      final container = _autostartContainer(service);
+      addTearDown(container.dispose);
+      await _pumpDefaultSettings(
+        tester,
+        container,
+        logicalSize: const Size(1000, 900),
+      );
+      service.writeBarrier = Completer<void>();
+      await tester.tap(_launchSwitchFinder);
+      await tester.tap(_launchSwitchFinder);
+      await tester.pump();
+      expect(service.writes, [true]);
+      expect(_launchSwitch(tester).onChanged, isNull);
+      service.readBarrier = Completer<void>();
+      service.writeBarrier!.complete();
+      await tester.pump();
+      expect(container.read(launchAtLoginControllerProvider), isTrue);
+      expect(_launchSwitch(tester).onChanged, isNull);
+      service.readBarrier!.complete();
+      await tester.pumpAndSettle();
+      expect(_launchSwitch(tester).value, isTrue);
+      expect(_launchSwitch(tester).onChanged, isNotNull);
+    },
+  );
+
+  testWidgets(
+    'launch at login reports write failure and reads actual state again',
+    (tester) async {
+      final service = FakeAutostartService();
+      final container = _autostartContainer(service);
+      addTearDown(container.dispose);
+      await _pumpDefaultSettings(
+        tester,
+        container,
+        logicalSize: const Size(1000, 900),
+      );
+      final reads = service.reads;
+      service.writeError = StateError('write failed');
+      await tester.tap(_launchSwitchFinder);
+      await tester.pumpAndSettle();
+      expect(
+        find.text('Could not update the launch-at-login setting.'),
+        findsOneWidget,
+      );
+      expect(service.reads, greaterThan(reads));
+      expect(_launchSwitch(tester).value, isFalse);
+      expect(_launchSwitch(tester).onChanged, isNotNull);
+      service.writeError = null;
+      await tester.tap(_launchSwitchFinder);
+      await tester.pumpAndSettle();
+      expect(_launchSwitch(tester).value, isTrue);
+    },
+  );
+
+  testWidgets(
+    'launch at login distinguishes failed reads and unavailable state',
+    (tester) async {
+      final service = FakeAutostartService()
+        ..readError = StateError('read failed');
+      final container = _autostartContainer(service);
+      addTearDown(container.dispose);
+      await _pumpDefaultSettings(
+        tester,
+        container,
+        logicalSize: const Size(1000, 900),
+      );
+      expect(
+        find.text('Could not determine the launch-at-login state.'),
+        findsOneWidget,
+      );
+      expect(_launchSwitch(tester).onChanged, isNull);
+      service.readError = null;
+      service.current = DesktopAutostartState.unavailable;
+      await tester.tap(find.text('Retry'));
+      await tester.pumpAndSettle();
+      expect(
+        find.text('Launch at login is unavailable on this system.'),
+        findsOneWidget,
+      );
+      expect(_launchSwitch(tester).onChanged, isNull);
+      expect(service.writes, isEmpty);
+    },
+  );
+
+  testWidgets(
+    'launch at login refreshes external changes on resume and reopening',
+    (tester) async {
+      final service = FakeAutostartService();
+      final container = _autostartContainer(service);
+      addTearDown(container.dispose);
+      await _pumpDefaultSettings(
+        tester,
+        container,
+        logicalSize: const Size(1000, 900),
+      );
+      service.current = DesktopAutostartState.enabled;
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+      await tester.pumpAndSettle();
+      expect(_launchSwitch(tester).value, isTrue);
+      await tester.pumpWidget(const SizedBox());
+      service.current = DesktopAutostartState.disabled;
+      await _pumpDefaultSettings(tester, container);
+      expect(_launchSwitch(tester).value, isFalse);
+    },
+  );
 
   testWidgets('Settings inventories visible and provider-hidden calendars', (
     tester,
@@ -1163,9 +1352,13 @@ ProviderContainer _container({
   DavAccountOnboardingService? davOnboardingService,
   List<DavCollectionSettingsEntity> davCollections = const [],
   List<CalendarSourceEntity> calendarSources = const [],
+  DesktopAutostartService? autostartService,
+  LocalSettingsStore? settingsStore,
 }) {
   return ProviderContainer(
     overrides: [
+      if (autostartService != null)
+        desktopAutostartServiceProvider.overrideWithValue(autostartService),
       authRepositoryProvider.overrideWithValue(authRepository),
       if (davOnboardingService != null)
         davAccountOnboardingServiceProvider.overrideWithValue(
@@ -1189,7 +1382,9 @@ ProviderContainer _container({
       selectedAccountIdProvider.overrideWith((ref) => selectedAccountId),
       if (activeAccountIdOverride != _useDefaultActiveAccountId)
         activeAccountProvider.overrideWithValue(activeAccountIdOverride),
-      localSettingsStoreProvider.overrideWithValue(_MemorySettingsStore()),
+      localSettingsStoreProvider.overrideWithValue(
+        settingsStore ?? _MemorySettingsStore(),
+      ),
       buildConfigProvider.overrideWithValue(buildConfig),
       if (useFlutterHeader)
         linuxHeaderBarServiceProvider.overrideWith((ref) {
@@ -1202,6 +1397,22 @@ ProviderContainer _container({
 }
 
 const _useDefaultActiveAccountId = '__busymax_default_active_account__';
+
+ProviderContainer _autostartContainer(FakeAutostartService service) =>
+    _container(
+      selectedAccountId: 'google:g',
+      authRepository: _FakeAuthRepository(),
+      accounts: const [_googleAccount],
+      autostartService: service,
+    );
+
+final _launchSwitchFinder = find.descendant(
+  of: find.byKey(const ValueKey('launch-at-login-switch')),
+  matching: find.byType(YaruSwitch),
+);
+
+YaruSwitch _launchSwitch(WidgetTester tester) =>
+    tester.widget<YaruSwitch>(_launchSwitchFinder);
 
 NextcloudLoginFlowV2 _unusedNextcloudLoginFlow() => NextcloudLoginFlowV2(
   client: MockClient((_) async => http.Response('', 500)),

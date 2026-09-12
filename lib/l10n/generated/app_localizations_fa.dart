@@ -13,6 +13,22 @@ class AppLocalizationsFa extends AppLocalizations {
   AppLocalizationsFa([String locale = 'fa']) : super(locale);
 
   @override
+  String get launchAtLoginReadFailed =>
+      'وضعیت اجرای خودکار هنگام ورود مشخص نشد.';
+
+  @override
+  String get launchAtLoginUnavailable =>
+      'اجرای خودکار هنگام ورود در این سیستم در دسترس نیست.';
+
+  @override
+  String get windowsStartupEnabledByPolicy =>
+      'اجرای خودکار توسط مدیر فعال شده و از اینجا قابل تغییر نیست.';
+
+  @override
+  String get settingsSaveFailed =>
+      'تنظیمات ذخیره نشد. ممکن است تغییرات شما با راه‌اندازی دوبارهٔ BusyMax از بین برود.';
+
+  @override
   String get nextcloudExportCollection => 'برون‌بری منابع مجموعه';
 
   @override

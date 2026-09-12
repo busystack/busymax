@@ -13,6 +13,22 @@ class AppLocalizationsDe extends AppLocalizations {
   AppLocalizationsDe([String locale = 'de']) : super(locale);
 
   @override
+  String get launchAtLoginReadFailed =>
+      'Der Status des Starts bei der Anmeldung konnte nicht ermittelt werden.';
+
+  @override
+  String get launchAtLoginUnavailable =>
+      'Der Start bei der Anmeldung ist auf diesem System nicht verfügbar.';
+
+  @override
+  String get windowsStartupEnabledByPolicy =>
+      'Der Autostart wurde von Ihrem Administrator aktiviert und kann hier nicht geändert werden.';
+
+  @override
+  String get settingsSaveFailed =>
+      'Die Einstellungen konnten nicht gespeichert werden. Ihre Änderungen können beim Neustart von BusyMax verloren gehen.';
+
+  @override
   String get nextcloudExportCollection => 'Sammlungsressourcen exportieren';
 
   @override

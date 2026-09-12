@@ -1,4 +1,8 @@
 {
+  "launchAtLoginReadFailed": "No se pudo determinar el estado del inicio automático.",
+  "launchAtLoginUnavailable": "El inicio automático no está disponible en este sistema.",
+  "windowsStartupEnabledByPolicy": "Tu administrador ha activado el inicio automático y no se puede cambiar aquí.",
+  "settingsSaveFailed": "No se pudo guardar la configuración. Los cambios podrían perderse al reiniciar BusyMax.",
   "nextcloudExportCollection": "Exportar recursos de la colección",
   "nextcloudImportItems": "Se encontraron {count} recursos de eventos/tareas",
   "@nextcloudImportItems": {"placeholders": {"count": {"type": "int"}}},

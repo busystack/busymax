@@ -1,4 +1,8 @@
 {
+  "launchAtLoginReadFailed": "Sisselogimisel käivitamise olekut ei õnnestunud tuvastada.",
+  "launchAtLoginUnavailable": "Sisselogimisel käivitamine pole selles süsteemis saadaval.",
+  "windowsStartupEnabledByPolicy": "Administraator on automaatkäivituse lubanud ja seda ei saa siin muuta.",
+  "settingsSaveFailed": "Seadeid ei õnnestunud salvestada. Muudatused võivad BusyMaxi taaskäivitamisel kaduda.",
   "nextcloudExportCollection": "Ekspordi kogu ressursid",
   "nextcloudImportItems": "Leiti {count} sündmuse/ülesande ressurssi",
   "@nextcloudImportItems": {"placeholders": {"count": {"type": "int"}}},

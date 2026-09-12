@@ -21,11 +21,75 @@ final class LinuxAutostartService implements DesktopAutostartService {
 
   Future<bool> isEnabled() async {
     if (!_isLinux) return false;
-    return _autostartFile().exists();
+    final file = _autostartFile();
+    final String contents;
+    try {
+      contents = await file.readAsString();
+    } on FileSystemException catch (error) {
+      if (error.osError?.errorCode == 2) return false; // ENOENT
+      rethrow;
+    }
+    final entry = <String, String>{};
+    var inDesktopEntry = false;
+    for (final rawLine in contents.split('\n')) {
+      final line = rawLine.trim();
+      if (line.isEmpty || line.startsWith('#')) continue;
+      if (line.startsWith('[')) {
+        inDesktopEntry = line == '[Desktop Entry]';
+        continue;
+      }
+      final separator = line.indexOf('=');
+      if (inDesktopEntry && separator > 0) {
+        entry[line.substring(0, separator).trim()] = line
+            .substring(separator + 1)
+            .trim();
+      }
+    }
+    if (entry['Hidden'] == 'true' ||
+        entry['X-GNOME-Autostart-enabled'] == 'false' ||
+        entry['Type'] != 'Application' ||
+        (entry['Exec']?.isEmpty ?? true)) {
+      return false;
+    }
+    final desktops = (_environment['XDG_CURRENT_DESKTOP'] ?? '').split(':');
+    final onlyShowIn = entry['OnlyShowIn']?.split(';');
+    final notShowIn = entry['NotShowIn']?.split(';');
+    if (onlyShowIn != null &&
+        !desktops.any(
+          (desktop) => desktop.isNotEmpty && onlyShowIn.contains(desktop),
+        )) {
+      return false;
+    }
+    if (notShowIn != null &&
+        desktops.any(
+          (desktop) => desktop.isNotEmpty && notShowIn.contains(desktop),
+        )) {
+      return false;
+    }
+    final tryExec = entry['TryExec'];
+    if (tryExec != null && tryExec.isNotEmpty) {
+      final candidates = path.isAbsolute(tryExec)
+          ? [tryExec]
+          : tryExec.contains('/')
+          ? <String>[]
+          : (_environment['PATH'] ?? '')
+                .split(':')
+                .where((part) => part.isNotEmpty)
+                .map((directory) => path.join(directory, tryExec));
+      for (final candidate in candidates) {
+        final stat = await File(candidate).stat();
+        if (stat.type == FileSystemEntityType.file && stat.mode & 0x49 != 0) {
+          return true;
+        }
+      }
+      return false;
+    }
+    return true;
   }
 
   @override
   Future<DesktopAutostartState> state() async {
+    if (!_isLinux) return DesktopAutostartState.unavailable;
     return await isEnabled()
         ? DesktopAutostartState.enabled
         : DesktopAutostartState.disabled;
@@ -43,12 +107,16 @@ final class LinuxAutostartService implements DesktopAutostartService {
     }
 
     await file.parent.create(recursive: true);
-    final temporary = File('${file.path}.$pid.tmp');
+    final temporaryDirectory = await file.parent.createTemp(
+      '.busymax-autostart-',
+    );
+    final temporary = File(path.join(temporaryDirectory.path, 'entry.desktop'));
     try {
       await temporary.writeAsString(_desktopEntry());
       await temporary.rename(file.path);
     } finally {
       if (await temporary.exists()) await temporary.delete();
+      await temporaryDirectory.delete();
     }
   }
 

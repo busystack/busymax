@@ -13,6 +13,22 @@ class AppLocalizationsRu extends AppLocalizations {
   AppLocalizationsRu([String locale = 'ru']) : super(locale);
 
   @override
+  String get launchAtLoginReadFailed =>
+      'Не удалось определить состояние запуска при входе в систему.';
+
+  @override
+  String get launchAtLoginUnavailable =>
+      'Запуск при входе в систему недоступен в этой системе.';
+
+  @override
+  String get windowsStartupEnabledByPolicy =>
+      'Автозапуск включён администратором, и его нельзя изменить здесь.';
+
+  @override
+  String get settingsSaveFailed =>
+      'Не удалось сохранить настройки. Изменения могут быть потеряны при перезапуске BusyMax.';
+
+  @override
   String get nextcloudExportCollection => 'Экспортировать ресурсы коллекции';
 
   @override

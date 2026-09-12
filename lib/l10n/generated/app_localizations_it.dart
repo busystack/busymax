@@ -13,6 +13,22 @@ class AppLocalizationsIt extends AppLocalizations {
   AppLocalizationsIt([String locale = 'it']) : super(locale);
 
   @override
+  String get launchAtLoginReadFailed =>
+      'Impossibile determinare lo stato dell’avvio all’accesso.';
+
+  @override
+  String get launchAtLoginUnavailable =>
+      'L’avvio all’accesso non è disponibile su questo sistema.';
+
+  @override
+  String get windowsStartupEnabledByPolicy =>
+      'L’avvio automatico è attivato dall’amministratore e non può essere modificato qui.';
+
+  @override
+  String get settingsSaveFailed =>
+      'Impossibile salvare le impostazioni. Le modifiche potrebbero andare perse al riavvio di BusyMax.';
+
+  @override
   String get nextcloudExportCollection => 'Esporta risorse della raccolta';
 
   @override

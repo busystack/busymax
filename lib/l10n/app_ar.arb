@@ -1,4 +1,8 @@
 {
+  "launchAtLoginReadFailed": "تعذر تحديد حالة التشغيل عند تسجيل الدخول.",
+  "launchAtLoginUnavailable": "التشغيل عند تسجيل الدخول غير متاح على هذا النظام.",
+  "windowsStartupEnabledByPolicy": "فعّل المسؤول التشغيل عند بدء النظام ولا يمكن تغييره هنا.",
+  "settingsSaveFailed": "تعذر حفظ الإعدادات. قد تُفقد تغييراتك عند إعادة تشغيل BusyMax.",
   "nextcloudExportCollection": "تصدير موارد المجموعة",
   "nextcloudImportItems": "تم العثور على {count} من موارد الأحداث والمهام",
   "@nextcloudImportItems": {"placeholders": {"count": {"type": "int"}}},

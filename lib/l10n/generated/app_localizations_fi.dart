@@ -13,6 +13,22 @@ class AppLocalizationsFi extends AppLocalizations {
   AppLocalizationsFi([String locale = 'fi']) : super(locale);
 
   @override
+  String get launchAtLoginReadFailed =>
+      'Kirjautumisen yhteydessä käynnistymisen tilaa ei voitu selvittää.';
+
+  @override
+  String get launchAtLoginUnavailable =>
+      'Käynnistys kirjautumisen yhteydessä ei ole käytettävissä tässä järjestelmässä.';
+
+  @override
+  String get windowsStartupEnabledByPolicy =>
+      'Ylläpitäjä on ottanut automaattisen käynnistyksen käyttöön, eikä sitä voi muuttaa täällä.';
+
+  @override
+  String get settingsSaveFailed =>
+      'Asetuksia ei voitu tallentaa. Muutokset saattavat kadota, kun BusyMax käynnistetään uudelleen.';
+
+  @override
   String get nextcloudExportCollection => 'Vie kokoelman resurssit';
 
   @override

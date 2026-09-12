@@ -13,6 +13,22 @@ class AppLocalizationsEn extends AppLocalizations {
   AppLocalizationsEn([String locale = 'en']) : super(locale);
 
   @override
+  String get launchAtLoginReadFailed =>
+      'Could not determine the launch-at-login state.';
+
+  @override
+  String get launchAtLoginUnavailable =>
+      'Launch at login is unavailable on this system.';
+
+  @override
+  String get windowsStartupEnabledByPolicy =>
+      'Startup is enabled by your administrator and cannot be changed here.';
+
+  @override
+  String get settingsSaveFailed =>
+      'Could not save settings. Your changes may be lost when BusyMax restarts.';
+
+  @override
   String get nextcloudExportCollection => 'Export collection resources';
 
   @override

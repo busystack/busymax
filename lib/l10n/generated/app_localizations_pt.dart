@@ -13,6 +13,22 @@ class AppLocalizationsPt extends AppLocalizations {
   AppLocalizationsPt([String locale = 'pt']) : super(locale);
 
   @override
+  String get launchAtLoginReadFailed =>
+      'Could not determine the launch-at-login state.';
+
+  @override
+  String get launchAtLoginUnavailable =>
+      'Launch at login is unavailable on this system.';
+
+  @override
+  String get windowsStartupEnabledByPolicy =>
+      'Startup is enabled by your administrator and cannot be changed here.';
+
+  @override
+  String get settingsSaveFailed =>
+      'Could not save settings. Your changes may be lost when BusyMax restarts.';
+
+  @override
   String get nextcloudExportCollection => 'Export collection resources';
 
   @override
@@ -2919,6 +2935,22 @@ class AppLocalizationsPt extends AppLocalizations {
 /// The translations for Portuguese, as used in Portugal (`pt_PT`).
 class AppLocalizationsPtPt extends AppLocalizationsPt {
   AppLocalizationsPtPt() : super('pt_PT');
+
+  @override
+  String get launchAtLoginReadFailed =>
+      'Não foi possível determinar o estado do arranque ao iniciar sessão.';
+
+  @override
+  String get launchAtLoginUnavailable =>
+      'O arranque ao iniciar sessão não está disponível neste sistema.';
+
+  @override
+  String get windowsStartupEnabledByPolicy =>
+      'O arranque automático foi ativado pelo administrador e não pode ser alterado aqui.';
+
+  @override
+  String get settingsSaveFailed =>
+      'Não foi possível guardar as definições. As alterações poderão perder-se ao reiniciar o BusyMax.';
 
   @override
   String get nextcloudExportCollection => 'Exportar recursos da coleção';

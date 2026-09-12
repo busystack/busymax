@@ -1,4 +1,8 @@
 {
+  "launchAtLoginReadFailed": "Không thể xác định trạng thái khởi chạy khi đăng nhập.",
+  "launchAtLoginUnavailable": "Hệ thống này không hỗ trợ khởi chạy khi đăng nhập.",
+  "windowsStartupEnabledByPolicy": "Quản trị viên đã bật tự động khởi động và không thể thay đổi tại đây.",
+  "settingsSaveFailed": "Không thể lưu cài đặt. Các thay đổi có thể bị mất khi BusyMax khởi động lại.",
   "nextcloudExportCollection": "Xuất tài nguyên bộ sưu tập",
   "nextcloudImportItems": "Tìm thấy {count} tài nguyên sự kiện/công việc",
   "@nextcloudImportItems": {"placeholders": {"count": {"type": "int"}}},

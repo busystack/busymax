@@ -13,6 +13,22 @@ class AppLocalizationsEt extends AppLocalizations {
   AppLocalizationsEt([String locale = 'et']) : super(locale);
 
   @override
+  String get launchAtLoginReadFailed =>
+      'Sisselogimisel käivitamise olekut ei õnnestunud tuvastada.';
+
+  @override
+  String get launchAtLoginUnavailable =>
+      'Sisselogimisel käivitamine pole selles süsteemis saadaval.';
+
+  @override
+  String get windowsStartupEnabledByPolicy =>
+      'Administraator on automaatkäivituse lubanud ja seda ei saa siin muuta.';
+
+  @override
+  String get settingsSaveFailed =>
+      'Seadeid ei õnnestunud salvestada. Muudatused võivad BusyMaxi taaskäivitamisel kaduda.';
+
+  @override
   String get nextcloudExportCollection => 'Ekspordi kogu ressursid';
 
   @override

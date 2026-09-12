@@ -14,6 +14,7 @@ import '../../features/accounts/data/accounts_repository.dart';
 import '../../features/calendar/data/calendar_repository.dart';
 import '../../features/notifications/desktop_notification_backend.dart';
 import '../../features/sync/sync_auth_error.dart';
+import '../../features/settings/presentation/launch_at_login_refresh.dart';
 import '../../l10n/app_locale.dart';
 import '../../platform/common/desktop_services.dart';
 import '../../providers/busy_provider.dart';
@@ -30,15 +31,38 @@ const _busyMaxRepositoryUrl = 'https://github.com/busystack/busymax/';
 const _apacheLicenseUrl = 'https://www.apache.org/licenses/LICENSE-2.0';
 const _systemLocaleTag = 'system';
 
-class WindowsSettingsPage extends ConsumerWidget {
+class WindowsSettingsPage extends ConsumerStatefulWidget {
   const WindowsSettingsPage({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<WindowsSettingsPage> createState() =>
+      _WindowsSettingsPageState();
+}
+
+class _WindowsSettingsPageState extends ConsumerState<WindowsSettingsPage> {
+  late final LaunchAtLoginRefreshObserver _autostartRefresh;
+
+  @override
+  void initState() {
+    super.initState();
+    _autostartRefresh = LaunchAtLoginRefreshObserver(
+      () => ref.invalidate(launchAtLoginStateProvider),
+    );
+  }
+
+  @override
+  void dispose() {
+    _autostartRefresh.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     final settings = ref.watch(appSettingsControllerProvider);
     final controller = ref.read(appSettingsControllerProvider.notifier);
     final autostart = ref.watch(launchAtLoginStateProvider);
+    final changingAutostart = ref.watch(launchAtLoginControllerProvider);
     final accounts = ref.watch(accountManagementStreamProvider);
     final calendarSources = ref.watch(calendarSourcesStreamProvider);
     final subscriptions = ref.watch(webCalSubscriptionsProvider);
@@ -48,6 +72,19 @@ class WindowsSettingsPage extends ConsumerWidget {
     );
     return ScaffoldPage.scrollable(
       header: PageHeader(title: Text(l10n.settings)),
+      bottomBar: ref.watch(appSettingsPersistenceFailedProvider)
+          ? Padding(
+              padding: const EdgeInsets.all(16),
+              child: InfoBar(
+                title: Text(l10n.settingsSaveFailed),
+                severity: InfoBarSeverity.error,
+                action: Button(
+                  onPressed: () => unawaited(controller.retrySave()),
+                  child: Text(l10n.retry),
+                ),
+              ),
+            )
+          : null,
       children: [
         _SectionTitle(l10n.appearance),
         Card(
@@ -169,22 +206,25 @@ class WindowsSettingsPage extends ConsumerWidget {
                 icon: BusyMaxGlyph.sync,
                 title: l10n.launchAtLogin,
                 subtitle: _autostartDescription(l10n, autostart),
-                child: autostart.when(
-                  loading: () => const ProgressRing(),
-                  error: (_, _) =>
-                      Icon(windowsBusyMaxGlyph(BusyMaxGlyph.warning)),
-                  data: (state) => ToggleSwitch(
-                    checked: state == DesktopAutostartState.enabled,
-                    onChanged:
-                        state == DesktopAutostartState.disabledByUser ||
-                            state == DesktopAutostartState.disabledByPolicy ||
-                            state == DesktopAutostartState.unavailable
-                        ? null
-                        : (enabled) => unawaited(
-                            _setWindowsAutostart(context, ref, enabled),
-                          ),
-                  ),
-                ),
+                child: changingAutostart || autostart.isLoading
+                    ? const ProgressRing()
+                    : autostart.when(
+                        loading: () => const ProgressRing(),
+                        error: (_, _) => Button(
+                          onPressed: () =>
+                              ref.invalidate(launchAtLoginStateProvider),
+                          child: Text(l10n.retry),
+                        ),
+                        data: (state) => ToggleSwitch(
+                          key: const ValueKey('launch-at-login-switch'),
+                          checked: state.isEnabled,
+                          onChanged: !state.canChange
+                              ? null
+                              : (enabled) => unawaited(
+                                  _setWindowsAutostart(context, ref, enabled),
+                                ),
+                        ),
+                      ),
               ),
             ],
           ),
@@ -841,10 +881,10 @@ Future<void> _setWindowsAutostart(
   bool enabled,
 ) async {
   try {
-    await ref.read(desktopAutostartServiceProvider).setEnabled(enabled);
-    ref.invalidate(launchAtLoginStateProvider);
+    await ref
+        .read(launchAtLoginControllerProvider.notifier)
+        .setEnabled(enabled);
   } on Object {
-    ref.invalidate(launchAtLoginStateProvider);
     if (context.mounted) {
       await _showWindowsMessage(
         context,
@@ -1074,7 +1114,9 @@ String _autostartDescription(
   AppLocalizations l10n,
   AsyncValue<DesktopAutostartState> value,
 ) => value.maybeWhen(
+  error: (_, _) => l10n.launchAtLoginReadFailed,
   data: (state) => switch (state) {
+    DesktopAutostartState.enabledByPolicy => l10n.windowsStartupEnabledByPolicy,
     DesktopAutostartState.disabledByUser => l10n.windowsStartupDisabledByUser,
     DesktopAutostartState.disabledByPolicy =>
       l10n.windowsStartupDisabledByPolicy,

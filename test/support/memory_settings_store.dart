@@ -18,3 +18,13 @@ class MemorySettingsStore implements LocalSettingsStore {
     value = (jsonDecode(jsonEncode(json)) as Map).cast<String, Object?>();
   }
 }
+
+class FailingMemorySettingsStore extends MemorySettingsStore {
+  bool failSaves = true;
+
+  @override
+  Future<void> save(Map<String, Object?> json) async {
+    if (failSaves) throw StateError('settings store unavailable');
+    await super.save(json);
+  }
+}

@@ -1,4 +1,8 @@
 {
+  "launchAtLoginReadFailed": "ログイン時の起動状態を確認できませんでした。",
+  "launchAtLoginUnavailable": "このシステムではログイン時の起動を利用できません。",
+  "windowsStartupEnabledByPolicy": "管理者によって自動起動が有効になっているため、ここでは変更できません。",
+  "settingsSaveFailed": "設定を保存できませんでした。BusyMax を再起動すると変更が失われる可能性があります。",
   "nextcloudExportCollection": "コレクションのリソースをエクスポート",
   "nextcloudImportItems": "予定／タスクのリソースが {count} 件見つかりました",
   "@nextcloudImportItems": {"placeholders": {"count": {"type": "int"}}},

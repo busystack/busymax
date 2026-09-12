@@ -13,6 +13,22 @@ class AppLocalizationsFr extends AppLocalizations {
   AppLocalizationsFr([String locale = 'fr']) : super(locale);
 
   @override
+  String get launchAtLoginReadFailed =>
+      'Impossible de déterminer l’état du lancement à la connexion.';
+
+  @override
+  String get launchAtLoginUnavailable =>
+      'Le lancement à la connexion n’est pas disponible sur ce système.';
+
+  @override
+  String get windowsStartupEnabledByPolicy =>
+      'Le démarrage automatique est activé par votre administrateur et ne peut pas être modifié ici.';
+
+  @override
+  String get settingsSaveFailed =>
+      'Impossible d’enregistrer les paramètres. Vos modifications risquent d’être perdues au redémarrage de BusyMax.';
+
+  @override
   String get nextcloudExportCollection =>
       'Exporter les ressources de la collection';
 

@@ -8,6 +8,28 @@ import '../support/memory_settings_store.dart';
 
 void main() {
   test(
+    'save failure is reported without losing changes and retry clears it',
+    () async {
+      final store = _FailFirstSaveSettingsStore();
+      final failures = <bool>[];
+      final controller = AppSettingsController(
+        store,
+        onPersistenceChanged: failures.add,
+      );
+      addTearDown(controller.dispose);
+      await controller.ready;
+      await controller.setThemeModePreference(BusyMaxThemeModePreference.dark);
+      expect(failures, [true]);
+      expect(
+        controller.state.themeModePreference,
+        BusyMaxThemeModePreference.dark,
+      );
+      await controller.retrySave();
+      expect(failures, [true, false]);
+      expect(store.persisted['themeModePreference'], 'dark');
+    },
+  );
+  test(
     'sidebar snapshots wait for settings and preserve the first sequence',
     () async {
       final store = _DelayedLoadSettingsStore();

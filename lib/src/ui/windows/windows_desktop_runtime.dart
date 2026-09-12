@@ -6,6 +6,7 @@ import 'package:intl/intl.dart';
 
 import '../../../l10n/generated/app_localizations.dart';
 import '../../app/app_bootstrap.dart';
+import '../../app/desktop_startup_policy.dart';
 import '../../features/tray/domain/tray_presentation_formatter.dart';
 import '../../platform/common/desktop_services.dart';
 import '../../platform/windows/windows_tray_service.dart';
@@ -21,11 +22,14 @@ class WindowsDesktopRuntime extends ConsumerStatefulWidget {
   const WindowsDesktopRuntime({
     required this.child,
     required this.startMinimizedAtLaunch,
+    this.trayService,
     super.key,
   });
 
   final Widget child;
   final bool startMinimizedAtLaunch;
+  @visibleForTesting
+  final DesktopTrayService? trayService;
 
   @override
   ConsumerState<WindowsDesktopRuntime> createState() =>
@@ -33,12 +37,14 @@ class WindowsDesktopRuntime extends ConsumerStatefulWidget {
 }
 
 class _WindowsDesktopRuntimeState extends ConsumerState<WindowsDesktopRuntime> {
-  WindowsTrayService? _tray;
+  DesktopTrayService? _tray;
   BusyMaxTrayPresentationFormatter? _formatter;
   Timer? _refreshTimer;
   bool _configurationRunning = false;
   bool _configurationPending = false;
-  bool _startMinimizedHandled = false;
+  late final _startupPolicy = DesktopStartupPolicy(
+    startMinimizedAtLaunch: widget.startMinimizedAtLaunch,
+  );
   String? _localeTag;
 
   @override
@@ -98,41 +104,56 @@ class _WindowsDesktopRuntimeState extends ConsumerState<WindowsDesktopRuntime> {
     }
     _configurationRunning = true;
     try {
-      final needsTray =
-          settings.showTrayIcon ||
-          settings.runInBackgroundWhenClosed ||
-          settings.startMinimizedToTray ||
-          widget.startMinimizedAtLaunch;
+      await ref.read(appSettingsControllerProvider.notifier).ready;
+      if (!mounted) return;
+      settings = ref.read(appSettingsControllerProvider);
+      final needsTray = _startupPolicy.needsTray(settings);
+      final startMinimized = _startupPolicy.takeStartMinimized(settings);
       final window = ref.read(desktopWindowServiceProvider);
       if (!needsTray) {
         await window.setHideOnClose(false);
+        if (!await window.isWindowVisible()) await window.showWindow();
         await _tray?.stop();
         ref.read(desktopTrayDiagnosticProvider.notifier).state = null;
         _refreshTimer?.cancel();
         _refreshTimer = null;
         return;
       }
-      final tray = _tray ??= WindowsTrayService(
-        loadPresentation: () async {
-          final presentation = await ref
-              .read(trayPresentationServiceProvider)
-              .load();
-          return _formatter!.format(presentation);
-        },
-        onCommand: _handleCommand,
-        onUnavailable: (errorCode) async {
-          ref.read(desktopTrayDiagnosticProvider.notifier).state =
-              errorCode ?? 'tray-unavailable';
-          // Explorer recovery and native tray failures must never strand an
-          // otherwise healthy process with no reachable window.
-          await window.setHideOnClose(false);
-          await window.showWindow();
-        },
-      );
+      final tray = _tray ??=
+          widget.trayService ??
+          WindowsTrayService(
+            loadPresentation: () async {
+              final presentation = await ref
+                  .read(trayPresentationServiceProvider)
+                  .load();
+              return _formatter!.format(presentation);
+            },
+            onCommand: _handleCommand,
+            onUnavailable: (errorCode) async {
+              ref.read(desktopTrayDiagnosticProvider.notifier).state =
+                  errorCode ?? 'tray-unavailable';
+              // Explorer recovery and native tray failures must never strand an
+              // otherwise healthy process with no reachable window.
+              await window.setHideOnClose(false);
+              await window.showWindow();
+            },
+          );
       var available = tray.isAvailable || await tray.start();
       if (available) {
         await tray.refresh();
         available = tray.isAvailable;
+      }
+      if (!mounted) {
+        await tray.stop();
+        return;
+      }
+      settings = ref.read(appSettingsControllerProvider);
+      if (!_startupPolicy.needsTray(settings)) {
+        await window.setHideOnClose(false);
+        await window.showWindow();
+        await tray.stop();
+        _configurationPending = true;
+        return;
       }
       await window.setHideOnClose(
         shouldWindowsHideOnClose(
@@ -151,9 +172,7 @@ class _WindowsDesktopRuntimeState extends ConsumerState<WindowsDesktopRuntime> {
           unawaited(_configure(ref.read(appSettingsControllerProvider)));
         }
       });
-      if (!_startMinimizedHandled &&
-          (widget.startMinimizedAtLaunch || settings.startMinimizedToTray)) {
-        _startMinimizedHandled = true;
+      if (startMinimized) {
         if (available) {
           await window.hideWindow();
         } else {

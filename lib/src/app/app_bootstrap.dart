@@ -288,10 +288,39 @@ final launchAtLoginStateProvider = FutureProvider<DesktopAutostartState>(
 );
 
 final launchAtLoginEnabledProvider = FutureProvider<bool>(
-  (ref) async =>
-      await ref.watch(launchAtLoginStateProvider.future) ==
-      DesktopAutostartState.enabled,
+  (ref) async => (await ref.watch(launchAtLoginStateProvider.future)).isEnabled,
 );
+
+final launchAtLoginControllerProvider =
+    StateNotifierProvider<LaunchAtLoginController, bool>(
+      (ref) => LaunchAtLoginController(ref),
+    );
+
+/// Serializes changes across Settings instances, including the state readback.
+class LaunchAtLoginController extends StateNotifier<bool> {
+  LaunchAtLoginController(this._ref) : super(false);
+
+  final Ref _ref;
+
+  Future<void> setEnabled(bool enabled) async {
+    if (state) return;
+    state = true;
+    try {
+      await _ref.read(desktopAutostartServiceProvider).setEnabled(enabled);
+    } finally {
+      if (mounted) {
+        _ref.invalidate(launchAtLoginStateProvider);
+        try {
+          await _ref.read(launchAtLoginStateProvider.future);
+        } on Object {
+          // The read provider exposes this failure separately from write errors.
+        } finally {
+          if (mounted) state = false;
+        }
+      }
+    }
+  }
+}
 
 final desktopNavigationServiceProvider = Provider<DesktopNavigationService>((
   ref,

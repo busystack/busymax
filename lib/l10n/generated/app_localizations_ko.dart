@@ -13,6 +13,20 @@ class AppLocalizationsKo extends AppLocalizations {
   AppLocalizationsKo([String locale = 'ko']) : super(locale);
 
   @override
+  String get launchAtLoginReadFailed => '로그인 시 실행 상태를 확인할 수 없습니다.';
+
+  @override
+  String get launchAtLoginUnavailable => '이 시스템에서는 로그인 시 실행을 사용할 수 없습니다.';
+
+  @override
+  String get windowsStartupEnabledByPolicy =>
+      '관리자가 자동 시작을 활성화했으며 여기서는 변경할 수 없습니다.';
+
+  @override
+  String get settingsSaveFailed =>
+      '설정을 저장할 수 없습니다. BusyMax를 다시 시작하면 변경 사항이 사라질 수 있습니다.';
+
+  @override
   String get nextcloudExportCollection => '컬렉션 리소스 내보내기';
 
   @override

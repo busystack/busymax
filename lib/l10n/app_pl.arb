@@ -1,4 +1,8 @@
 {
+  "launchAtLoginReadFailed": "Nie udało się ustalić stanu uruchamiania przy logowaniu.",
+  "launchAtLoginUnavailable": "Uruchamianie przy logowaniu jest niedostępne w tym systemie.",
+  "windowsStartupEnabledByPolicy": "Administrator włączył automatyczne uruchamianie i nie można tego tutaj zmienić.",
+  "settingsSaveFailed": "Nie udało się zapisać ustawień. Zmiany mogą zostać utracone po ponownym uruchomieniu BusyMax.",
   "nextcloudExportCollection": "Eksportuj zasoby kolekcji",
   "nextcloudImportItems": "Liczba znalezionych zasobów wydarzeń i zadań: {count}",
   "@nextcloudImportItems": {

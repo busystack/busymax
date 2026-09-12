@@ -166,11 +166,16 @@ bool FlutterWindow::OnCreate() {
               std::shared_ptr<flutter::MethodResult<flutter::EncodableValue>>(
                   std::move(result));
           GetBusyMaxStartupTaskStateAsync(
-              [window, shared_result](std::string state) {
+              [window, shared_result](std::string state, std::string error) {
                 PostUiTask(
                     window,
-                    [shared_result, state = std::move(state)]() {
-                      shared_result->Success(flutter::EncodableValue(state));
+                    [shared_result, state = std::move(state),
+                     error = std::move(error)]() {
+                      if (error.empty()) {
+                        shared_result->Success(flutter::EncodableValue(state));
+                      } else {
+                        shared_result->Error("startup_task_failed", error);
+                      }
                     });
               });
           return;

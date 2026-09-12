@@ -13,6 +13,20 @@ class AppLocalizationsJa extends AppLocalizations {
   AppLocalizationsJa([String locale = 'ja']) : super(locale);
 
   @override
+  String get launchAtLoginReadFailed => 'ログイン時の起動状態を確認できませんでした。';
+
+  @override
+  String get launchAtLoginUnavailable => 'このシステムではログイン時の起動を利用できません。';
+
+  @override
+  String get windowsStartupEnabledByPolicy =>
+      '管理者によって自動起動が有効になっているため、ここでは変更できません。';
+
+  @override
+  String get settingsSaveFailed =>
+      '設定を保存できませんでした。BusyMax を再起動すると変更が失われる可能性があります。';
+
+  @override
   String get nextcloudExportCollection => 'コレクションのリソースをエクスポート';
 
   @override

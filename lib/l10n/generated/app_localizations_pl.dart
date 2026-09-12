@@ -13,6 +13,22 @@ class AppLocalizationsPl extends AppLocalizations {
   AppLocalizationsPl([String locale = 'pl']) : super(locale);
 
   @override
+  String get launchAtLoginReadFailed =>
+      'Nie udało się ustalić stanu uruchamiania przy logowaniu.';
+
+  @override
+  String get launchAtLoginUnavailable =>
+      'Uruchamianie przy logowaniu jest niedostępne w tym systemie.';
+
+  @override
+  String get windowsStartupEnabledByPolicy =>
+      'Administrator włączył automatyczne uruchamianie i nie można tego tutaj zmienić.';
+
+  @override
+  String get settingsSaveFailed =>
+      'Nie udało się zapisać ustawień. Zmiany mogą zostać utracone po ponownym uruchomieniu BusyMax.';
+
+  @override
   String get nextcloudExportCollection => 'Eksportuj zasoby kolekcji';
 
   @override

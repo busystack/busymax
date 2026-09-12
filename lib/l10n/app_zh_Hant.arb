@@ -1,4 +1,8 @@
 {
+  "launchAtLoginReadFailed": "無法確定登入時啟動的狀態。",
+  "launchAtLoginUnavailable": "此系統不支援登入時啟動。",
+  "windowsStartupEnabledByPolicy": "管理員已啟用自動啟動，無法在此變更。",
+  "settingsSaveFailed": "無法儲存設定。重新啟動 BusyMax 時，您的變更可能會遺失。",
   "nextcloudExportCollection": "匯出集合資源",
   "nextcloudImportItems": "找到 {count} 個事件／工作資源",
   "@nextcloudImportItems": {"placeholders": {"count": {"type": "int"}}},

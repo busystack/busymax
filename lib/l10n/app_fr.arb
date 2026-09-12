@@ -1,4 +1,8 @@
 {
+  "launchAtLoginReadFailed": "Impossible de déterminer l’état du lancement à la connexion.",
+  "launchAtLoginUnavailable": "Le lancement à la connexion n’est pas disponible sur ce système.",
+  "windowsStartupEnabledByPolicy": "Le démarrage automatique est activé par votre administrateur et ne peut pas être modifié ici.",
+  "settingsSaveFailed": "Impossible d’enregistrer les paramètres. Vos modifications risquent d’être perdues au redémarrage de BusyMax.",
   "nextcloudExportCollection": "Exporter les ressources de la collection",
   "nextcloudImportItems": "{count} ressources d’événements/tâches trouvées",
   "@nextcloudImportItems": {"placeholders": {"count": {"type": "int"}}},

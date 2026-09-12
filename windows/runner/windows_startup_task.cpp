@@ -21,6 +21,8 @@ std::string StateName(
   switch (state) {
     case State::Enabled:
       return "enabled";
+    case State::EnabledByPolicy:
+      return "enabledByPolicy";
     case State::Disabled:
       return "disabled";
     case State::DisabledByUser:
@@ -36,7 +38,7 @@ std::string StateName(
 
 void GetBusyMaxStartupTaskStateAsync(BusyMaxStartupTaskStateCallback callback) {
   if (!HasPackageIdentity()) {
-    callback("unavailable");
+    callback("unavailable", "");
     return;
   }
   try {
@@ -47,17 +49,17 @@ void GetBusyMaxStartupTaskStateAsync(BusyMaxStartupTaskStateCallback callback) {
             const auto& completed,
             winrt::Windows::Foundation::AsyncStatus status) mutable {
           if (status != winrt::Windows::Foundation::AsyncStatus::Completed) {
-            callback("unavailable");
+            callback("", "Windows StartupTask lookup failed.");
             return;
           }
           try {
-            callback(StateName(completed.GetResults().State()));
+            callback(StateName(completed.GetResults().State()), "");
           } catch (...) {
-            callback("unavailable");
+            callback("", "Windows StartupTask state read failed.");
           }
         });
   } catch (...) {
-    callback("unavailable");
+    callback("", "Windows StartupTask lookup failed.");
   }
 }
 
@@ -98,13 +100,12 @@ void SetBusyMaxStartupTaskEnabledAsync(
                   }
                   try {
                     const auto state = enabled_operation.GetResults();
+                    using State = winrt::Windows::ApplicationModel::StartupTaskState;
+                    const bool is_enabled = state == State::Enabled ||
+                                            state == State::EnabledByPolicy;
                     callback(
-                        state == winrt::Windows::ApplicationModel::
-                                     StartupTaskState::Enabled,
-                        state == winrt::Windows::ApplicationModel::
-                                     StartupTaskState::Enabled
-                            ? ""
-                            : "Windows did not enable the StartupTask.");
+                        is_enabled,
+                        is_enabled ? "" : "Windows did not enable the StartupTask.");
                   } catch (...) {
                     callback(false, "Windows StartupTask operation failed.");
                   }

@@ -4,7 +4,8 @@
 #include <functional>
 #include <string>
 
-using BusyMaxStartupTaskStateCallback = std::function<void(std::string)>;
+using BusyMaxStartupTaskStateCallback =
+    std::function<void(std::string, std::string)>;
 using BusyMaxStartupTaskChangeCallback =
     std::function<void(bool, std::string)>;
 

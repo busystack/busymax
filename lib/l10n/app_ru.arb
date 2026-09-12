@@ -1,4 +1,8 @@
 {
+  "launchAtLoginReadFailed": "Не удалось определить состояние запуска при входе в систему.",
+  "launchAtLoginUnavailable": "Запуск при входе в систему недоступен в этой системе.",
+  "windowsStartupEnabledByPolicy": "Автозапуск включён администратором, и его нельзя изменить здесь.",
+  "settingsSaveFailed": "Не удалось сохранить настройки. Изменения могут быть потеряны при перезапуске BusyMax.",
   "nextcloudExportCollection": "Экспортировать ресурсы коллекции",
   "nextcloudImportItems": "Найдено ресурсов событий/задач: {count}",
   "@nextcloudImportItems": {"placeholders": {"count": {"type": "int"}}},

@@ -13,6 +13,22 @@ class AppLocalizationsVi extends AppLocalizations {
   AppLocalizationsVi([String locale = 'vi']) : super(locale);
 
   @override
+  String get launchAtLoginReadFailed =>
+      'Không thể xác định trạng thái khởi chạy khi đăng nhập.';
+
+  @override
+  String get launchAtLoginUnavailable =>
+      'Hệ thống này không hỗ trợ khởi chạy khi đăng nhập.';
+
+  @override
+  String get windowsStartupEnabledByPolicy =>
+      'Quản trị viên đã bật tự động khởi động và không thể thay đổi tại đây.';
+
+  @override
+  String get settingsSaveFailed =>
+      'Không thể lưu cài đặt. Các thay đổi có thể bị mất khi BusyMax khởi động lại.';
+
+  @override
   String get nextcloudExportCollection => 'Xuất tài nguyên bộ sưu tập';
 
   @override

@@ -5,10 +5,12 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:logging/logging.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 
 import '../l10n/app_locale.dart';
+import '../core/logging/redacting_logger.dart';
 import '../schedule/schedule_sidebar_order.dart';
 import '../schedule/schedule_view_mode.dart';
 
@@ -360,8 +362,11 @@ class JsonFileLocalSettingsStore implements LocalSettingsStore {
 typedef _AppSettingsMutation = AppSettings Function(AppSettings current);
 
 class AppSettingsController extends StateNotifier<AppSettings> {
-  AppSettingsController(this._store, {AppSettings? initialSettings})
-    : super(initialSettings ?? AppSettings.defaults()) {
+  AppSettingsController(
+    this._store, {
+    AppSettings? initialSettings,
+    this.onPersistenceChanged,
+  }) : super(initialSettings ?? AppSettings.defaults()) {
     _persistenceState = state;
     if (initialSettings == null) {
       _loadFuture = _load();
@@ -373,6 +378,8 @@ class AppSettingsController extends StateNotifier<AppSettings> {
   }
 
   final LocalSettingsStore _store;
+  final void Function(bool failed)? onPersistenceChanged;
+  final _logger = RedactingLogger(Logger('AppSettings'));
   final List<_AppSettingsMutation> _mutationsDuringLoad =
       <_AppSettingsMutation>[];
   late AppSettings _persistenceState;
@@ -382,6 +389,8 @@ class AppSettingsController extends StateNotifier<AppSettings> {
   var _disposed = false;
 
   Future<void> get ready => _loadFuture;
+
+  Future<void> retrySave() => _mutate((settings) => settings);
 
   Future<void> registerSidebarIds(
     SidebarOrderSection section,
@@ -625,8 +634,10 @@ class AppSettingsController extends StateNotifier<AppSettings> {
     _persistenceState = next;
     try {
       await _store.save(next.toJson());
-    } on Object {
-      // Keep the in-memory preference even when local persistence is unavailable.
+      if (!_disposed) onPersistenceChanged?.call(false);
+    } on Object catch (error) {
+      _logger.warning('Could not save settings: ${redactForLog(error)}');
+      if (!_disposed) onPersistenceChanged?.call(true);
     }
   }
 
@@ -653,11 +664,18 @@ final localSettingsStoreProvider = Provider<LocalSettingsStore>(
 
 final initialAppSettingsProvider = Provider<AppSettings?>((ref) => null);
 
+final appSettingsPersistenceFailedProvider = StateProvider<bool>(
+  (ref) => false,
+);
+
 final appSettingsControllerProvider =
     StateNotifierProvider<AppSettingsController, AppSettings>((ref) {
       return AppSettingsController(
         ref.watch(localSettingsStoreProvider),
         initialSettings: ref.watch(initialAppSettingsProvider),
+        onPersistenceChanged: (failed) =>
+            ref.read(appSettingsPersistenceFailedProvider.notifier).state =
+                failed,
       );
     });
 

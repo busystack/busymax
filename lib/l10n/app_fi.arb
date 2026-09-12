@@ -1,4 +1,8 @@
 {
+  "launchAtLoginReadFailed": "Kirjautumisen yhteydessä käynnistymisen tilaa ei voitu selvittää.",
+  "launchAtLoginUnavailable": "Käynnistys kirjautumisen yhteydessä ei ole käytettävissä tässä järjestelmässä.",
+  "windowsStartupEnabledByPolicy": "Ylläpitäjä on ottanut automaattisen käynnistyksen käyttöön, eikä sitä voi muuttaa täällä.",
+  "settingsSaveFailed": "Asetuksia ei voitu tallentaa. Muutokset saattavat kadota, kun BusyMax käynnistetään uudelleen.",
   "nextcloudExportCollection": "Vie kokoelman resurssit",
   "nextcloudImportItems": "Löytyi {count} tapahtuma-/tehtäväresurssia",
   "@nextcloudImportItems": {"placeholders": {"count": {"type": "int"}}},

@@ -1902,6 +1902,148 @@ void main() {
     expect(windowService.hideWindowCalls, 1);
   });
 
+  for (final showTray in [true, false]) {
+    testWidgets(
+      'Linux minimized launch allows removing the tray (initial preference=$showTray)',
+      (tester) async {
+        final database = AppDatabase.memoryForTests();
+        addTearDown(database.close);
+        final window = _RecordingWindowService();
+        late _RecordingTrayService tray;
+        await tester.pumpWidget(
+          ProviderScope(
+            overrides: [
+              buildConfigProvider.overrideWithValue(_missingConfig),
+              databaseProvider.overrideWithValue(database),
+              localSettingsStoreProvider.overrideWithValue(
+                _MemorySettingsStore()
+                  ..json = {
+                    'showTrayIcon': showTray,
+                    'runInBackgroundWhenClosed': showTray,
+                  },
+              ),
+              desktopWindowServiceProvider.overrideWithValue(window),
+            ],
+            child: BusyMaxApp(
+              startMinimizedAtLaunch: true,
+              trayServiceFactory: (configuration) =>
+                  tray = _RecordingTrayService(configuration),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+        expect(window.hideWindowCalls, 1);
+        expect(tray.available, isTrue);
+        final container = ProviderScope.containerOf(
+          tester.element(find.byType(BusyMaxApp)),
+        );
+        final controller = container.read(
+          appSettingsControllerProvider.notifier,
+        );
+        await controller.setThemeModePreference(
+          BusyMaxThemeModePreference.dark,
+        );
+        await tester.pumpAndSettle();
+        expect(tray.available, isTrue);
+        if (!showTray) {
+          await controller.setShowTrayIcon(true);
+          await tester.pumpAndSettle();
+        }
+        await controller.setShowTrayIcon(false);
+        await tester.pumpAndSettle();
+        expect(tray.available, isFalse);
+        expect(window.visible, isTrue);
+        expect(window.hideOnClose, isFalse);
+        await controller.setStartMinimizedToTray(true);
+        await tester.pumpAndSettle();
+        expect(tray.available, isTrue);
+        expect(window.hideWindowCalls, 1);
+      },
+    );
+  }
+
+  testWidgets('Linux Start minimized only affects the next normal launch', (
+    tester,
+  ) async {
+    final database = AppDatabase.memoryForTests();
+    addTearDown(database.close);
+    final window = _RecordingWindowService();
+    late _RecordingTrayService tray;
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          buildConfigProvider.overrideWithValue(_missingConfig),
+          databaseProvider.overrideWithValue(database),
+          localSettingsStoreProvider.overrideWithValue(
+            _MemorySettingsStore()
+              ..json = {
+                'showTrayIcon': false,
+                'runInBackgroundWhenClosed': false,
+              },
+          ),
+          desktopWindowServiceProvider.overrideWithValue(window),
+        ],
+        child: BusyMaxApp(
+          trayServiceFactory: (configuration) =>
+              tray = _RecordingTrayService(configuration),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(BusyMaxApp)),
+    );
+    await container
+        .read(appSettingsControllerProvider.notifier)
+        .setStartMinimizedToTray(true);
+    await tester.pumpAndSettle();
+    expect(tray.available, isTrue);
+    expect(window.hideWindowCalls, 0);
+    expect(window.visible, isTrue);
+  });
+
+  testWidgets(
+    'Linux tray removal during delayed minimized startup keeps the window visible',
+    (tester) async {
+      final database = AppDatabase.memoryForTests();
+      addTearDown(database.close);
+      final window = _RecordingWindowService();
+      final startBarrier = Completer<void>();
+      late _RecordingTrayService tray;
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            buildConfigProvider.overrideWithValue(_missingConfig),
+            databaseProvider.overrideWithValue(database),
+            localSettingsStoreProvider.overrideWithValue(
+              _MemorySettingsStore(),
+            ),
+            desktopWindowServiceProvider.overrideWithValue(window),
+          ],
+          child: BusyMaxApp(
+            startMinimizedAtLaunch: true,
+            trayServiceFactory: (configuration) =>
+                tray = _RecordingTrayService(configuration)
+                  ..startBarrier = startBarrier,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      final container = ProviderScope.containerOf(
+        tester.element(find.byType(BusyMaxApp)),
+      );
+      await container
+          .read(appSettingsControllerProvider.notifier)
+          .setShowTrayIcon(false);
+      await tester.pump();
+      startBarrier.complete();
+      await tester.pumpAndSettle();
+      expect(tray.available, isFalse);
+      expect(window.hideWindowCalls, 0);
+      expect(window.visible, isTrue);
+    },
+  );
+
   testWidgets('tray Agenda opens the main window in Agenda mode', (
     tester,
   ) async {
@@ -2463,15 +2605,19 @@ class _RecordingWindowService extends LinuxWindowService {
   var hideWindowCalls = 0;
   var showWindowCalls = 0;
   var quitAppCalls = 0;
+  bool visible = true;
+  bool hideOnClose = false;
 
   @override
   Future<void> hideWindow() async {
     hideWindowCalls += 1;
+    visible = false;
   }
 
   @override
   Future<void> showWindow() async {
     showWindowCalls += 1;
+    visible = true;
   }
 
   @override
@@ -2480,7 +2626,12 @@ class _RecordingWindowService extends LinuxWindowService {
   }
 
   @override
-  Future<void> setHideOnClose(bool enabled) async {}
+  Future<void> setHideOnClose(bool enabled) async {
+    hideOnClose = enabled;
+  }
+
+  @override
+  Future<bool> isWindowVisible() async => visible;
 }
 
 class _RecordingTrayService extends BusyMaxTrayService {
@@ -2490,6 +2641,7 @@ class _RecordingTrayService extends BusyMaxTrayService {
   final BusyMaxTrayServiceConfiguration configuration;
 
   var startCalls = 0;
+  Completer<void>? startBarrier;
   var refreshCalls = 0;
   var _available = false;
   final offlineStates = <bool>[];
@@ -2500,6 +2652,7 @@ class _RecordingTrayService extends BusyMaxTrayService {
   @override
   Future<void> start() async {
     startCalls += 1;
+    await startBarrier?.future;
     _available = true;
     offlineStates.add(configuration.initialPresentation.offline);
   }

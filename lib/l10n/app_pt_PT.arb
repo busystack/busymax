@@ -1,4 +1,8 @@
 {
+  "launchAtLoginReadFailed": "Não foi possível determinar o estado do arranque ao iniciar sessão.",
+  "launchAtLoginUnavailable": "O arranque ao iniciar sessão não está disponível neste sistema.",
+  "windowsStartupEnabledByPolicy": "O arranque automático foi ativado pelo administrador e não pode ser alterado aqui.",
+  "settingsSaveFailed": "Não foi possível guardar as definições. As alterações poderão perder-se ao reiniciar o BusyMax.",
   "nextcloudExportCollection": "Exportar recursos da coleção",
   "nextcloudImportItems": "{count} recursos de eventos/tarefas encontrados",
   "@nextcloudImportItems": {"placeholders": {"count": {"type": "int"}}},

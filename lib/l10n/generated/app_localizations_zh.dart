@@ -13,6 +13,18 @@ class AppLocalizationsZh extends AppLocalizations {
   AppLocalizationsZh([String locale = 'zh']) : super(locale);
 
   @override
+  String get launchAtLoginReadFailed => '无法确定登录时启动的状态。';
+
+  @override
+  String get launchAtLoginUnavailable => '此系统不支持登录时启动。';
+
+  @override
+  String get windowsStartupEnabledByPolicy => '管理员已启用自动启动，无法在此更改。';
+
+  @override
+  String get settingsSaveFailed => '无法保存设置。重新启动 BusyMax 时，您的更改可能会丢失。';
+
+  @override
   String get nextcloudExportCollection => '导出集合资源';
 
   @override
@@ -2794,6 +2806,18 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
   AppLocalizationsZhHans() : super('zh_Hans');
 
   @override
+  String get launchAtLoginReadFailed => '无法确定登录时启动的状态。';
+
+  @override
+  String get launchAtLoginUnavailable => '此系统不支持登录时启动。';
+
+  @override
+  String get windowsStartupEnabledByPolicy => '管理员已启用自动启动，无法在此更改。';
+
+  @override
+  String get settingsSaveFailed => '无法保存设置。重新启动 BusyMax 时，您的更改可能会丢失。';
+
+  @override
   String get nextcloudExportCollection => '导出集合资源';
 
   @override
@@ -5573,6 +5597,18 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
 /// The translations for Chinese, using the Han script (`zh_Hant`).
 class AppLocalizationsZhHant extends AppLocalizationsZh {
   AppLocalizationsZhHant() : super('zh_Hant');
+
+  @override
+  String get launchAtLoginReadFailed => '無法確定登入時啟動的狀態。';
+
+  @override
+  String get launchAtLoginUnavailable => '此系統不支援登入時啟動。';
+
+  @override
+  String get windowsStartupEnabledByPolicy => '管理員已啟用自動啟動，無法在此變更。';
+
+  @override
+  String get settingsSaveFailed => '無法儲存設定。重新啟動 BusyMax 時，您的變更可能會遺失。';
 
   @override
   String get nextcloudExportCollection => '匯出集合資源';

@@ -13,6 +13,22 @@ class AppLocalizationsEs extends AppLocalizations {
   AppLocalizationsEs([String locale = 'es']) : super(locale);
 
   @override
+  String get launchAtLoginReadFailed =>
+      'No se pudo determinar el estado del inicio automático.';
+
+  @override
+  String get launchAtLoginUnavailable =>
+      'El inicio automático no está disponible en este sistema.';
+
+  @override
+  String get windowsStartupEnabledByPolicy =>
+      'Tu administrador ha activado el inicio automático y no se puede cambiar aquí.';
+
+  @override
+  String get settingsSaveFailed =>
+      'No se pudo guardar la configuración. Los cambios podrían perderse al reiniciar BusyMax.';
+
+  @override
   String get nextcloudExportCollection => 'Exportar recursos de la colección';
 
   @override

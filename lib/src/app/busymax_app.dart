@@ -16,6 +16,7 @@ import '../platform/common/desktop_services.dart';
 import '../l10n/locale_resolution.dart';
 import '../schedule/schedule_commands.dart';
 import 'app_bootstrap.dart';
+import 'desktop_startup_policy.dart';
 import 'app_router.dart';
 import 'busymax_keyboard_shortcuts_dialog.dart';
 import 'busymax_shortcuts.dart';
@@ -88,7 +89,11 @@ class _BusyMaxAppState extends ConsumerState<LinuxBusyMaxApp> {
   BusyMaxTrayService? _trayService;
   bool? _lastHideOnClose;
   bool? _lastTrayEnabled;
-  bool _startMinimizedHandled = false;
+  late final _startupPolicy = DesktopStartupPolicy(
+    startMinimizedAtLaunch: widget.startMinimizedAtLaunch,
+  );
+  bool _backgroundConfigurationRunning = false;
+  bool _backgroundConfigurationPending = false;
   bool _settingsReady = false;
   var _scheduleCommandSequence = 0;
   BusyMaxTrayPresentationFormatter? _trayPresentationFormatter;
@@ -400,44 +405,64 @@ class _BusyMaxAppState extends ConsumerState<LinuxBusyMaxApp> {
     if (!_settingsReady) {
       return;
     }
-
-    final windowService = ref.read(desktopWindowServiceProvider);
-    final trayEnabled =
-        settings.showTrayIcon ||
-        settings.runInBackgroundWhenClosed ||
-        settings.startMinimizedToTray ||
-        widget.startMinimizedAtLaunch;
-    _setHideOnClose(
-      windowService,
-      settings.runInBackgroundWhenClosed &&
-          trayEnabled &&
-          (_trayService?.available ?? false),
-    );
-    if (_trayService != null) {
-      unawaited(_trayService!.refreshPresentation());
-    }
-    if (_lastTrayEnabled == trayEnabled) {
+    if (_backgroundConfigurationRunning) {
+      _backgroundConfigurationPending = true;
       return;
     }
-    _lastTrayEnabled = trayEnabled;
-    final tray = _trayService ??= _createTrayService(
-      windowService: windowService,
-      formatter: trayFormatter,
-      settings: settings,
-    );
-    unawaited(tray.refreshPresentation());
-    if (trayEnabled) {
-      unawaited(
-        _startTray(
+    unawaited(_applyBackgroundServices(settings, trayFormatter));
+  }
+
+  Future<void> _applyBackgroundServices(
+    AppSettings settings,
+    BusyMaxTrayPresentationFormatter trayFormatter,
+  ) async {
+    _backgroundConfigurationRunning = true;
+    try {
+      final windowService = ref.read(desktopWindowServiceProvider);
+      final trayEnabled = _startupPolicy.needsTray(settings);
+      final startMinimized = _startupPolicy.takeStartMinimized(settings);
+      _setHideOnClose(
+        windowService,
+        settings.runInBackgroundWhenClosed &&
+            trayEnabled &&
+            (_trayService?.available ?? false),
+      );
+      if (_trayService != null) {
+        unawaited(_trayService!.refreshPresentation());
+      }
+      if (_lastTrayEnabled == trayEnabled) {
+        return;
+      }
+      _lastTrayEnabled = trayEnabled;
+      final tray = _trayService ??= _createTrayService(
+        windowService: windowService,
+        formatter: trayFormatter,
+        settings: settings,
+      );
+      unawaited(tray.refreshPresentation());
+      if (trayEnabled) {
+        await _startTray(
           tray,
           windowService,
-          startMinimizedToTray:
-              settings.startMinimizedToTray || widget.startMinimizedAtLaunch,
-        ),
-      );
-    } else {
-      _setHideOnClose(windowService, false);
-      unawaited(tray.stop());
+          startMinimizedToTray: startMinimized,
+        );
+      } else {
+        _setHideOnClose(windowService, false);
+        if (!await windowService.isWindowVisible()) {
+          await windowService.showWindow();
+        }
+        await tray.stop();
+      }
+    } finally {
+      _backgroundConfigurationRunning = false;
+      if (_backgroundConfigurationPending && mounted) {
+        _backgroundConfigurationPending = false;
+        _configureBackgroundServices(
+          ref,
+          ref.read(appSettingsControllerProvider),
+          trayFormatter,
+        );
+      }
     }
   }
 
@@ -582,13 +607,10 @@ class _BusyMaxAppState extends ConsumerState<LinuxBusyMaxApp> {
     }
 
     final latestSettings = ref.read(appSettingsControllerProvider);
-    final trayStillEnabled =
-        latestSettings.showTrayIcon ||
-        latestSettings.runInBackgroundWhenClosed ||
-        latestSettings.startMinimizedToTray ||
-        widget.startMinimizedAtLaunch;
+    final trayStillEnabled = _startupPolicy.needsTray(latestSettings);
     if (!trayStillEnabled) {
       _setHideOnClose(windowService, false);
+      await windowService.showWindow();
       await tray.stop();
       return;
     }
@@ -596,10 +618,9 @@ class _BusyMaxAppState extends ConsumerState<LinuxBusyMaxApp> {
       windowService,
       latestSettings.runInBackgroundWhenClosed && tray.available,
     );
-    if (!startMinimizedToTray || _startMinimizedHandled) {
+    if (!startMinimizedToTray) {
       return;
     }
-    _startMinimizedHandled = true;
     if (tray.available) {
       await windowService.hideWindow();
     } else {

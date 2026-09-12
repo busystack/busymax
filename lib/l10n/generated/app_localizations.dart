@@ -135,6 +135,30 @@ abstract class AppLocalizations {
     Locale.fromSubtags(languageCode: 'zh', scriptCode: 'Hant'),
   ];
 
+  /// No description provided for @launchAtLoginReadFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not determine the launch-at-login state.'**
+  String get launchAtLoginReadFailed;
+
+  /// No description provided for @launchAtLoginUnavailable.
+  ///
+  /// In en, this message translates to:
+  /// **'Launch at login is unavailable on this system.'**
+  String get launchAtLoginUnavailable;
+
+  /// No description provided for @windowsStartupEnabledByPolicy.
+  ///
+  /// In en, this message translates to:
+  /// **'Startup is enabled by your administrator and cannot be changed here.'**
+  String get windowsStartupEnabledByPolicy;
+
+  /// No description provided for @settingsSaveFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not save settings. Your changes may be lost when BusyMax restarts.'**
+  String get settingsSaveFailed;
+
   /// No description provided for @nextcloudExportCollection.
   ///
   /// In en, this message translates to:

@@ -1,4 +1,8 @@
 {
+  "launchAtLoginReadFailed": "وضعیت اجرای خودکار هنگام ورود مشخص نشد.",
+  "launchAtLoginUnavailable": "اجرای خودکار هنگام ورود در این سیستم در دسترس نیست.",
+  "windowsStartupEnabledByPolicy": "اجرای خودکار توسط مدیر فعال شده و از اینجا قابل تغییر نیست.",
+  "settingsSaveFailed": "تنظیمات ذخیره نشد. ممکن است تغییرات شما با راه‌اندازی دوبارهٔ BusyMax از بین برود.",
   "nextcloudExportCollection": "برون‌بری منابع مجموعه",
   "nextcloudImportItems": "{count} منبع رویداد/کار پیدا شد",
   "@nextcloudImportItems": {"placeholders": {"count": {"type": "int"}}},

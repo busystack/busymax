@@ -1,4 +1,8 @@
 {
+  "launchAtLoginReadFailed": "Impossibile determinare lo stato dell’avvio all’accesso.",
+  "launchAtLoginUnavailable": "L’avvio all’accesso non è disponibile su questo sistema.",
+  "windowsStartupEnabledByPolicy": "L’avvio automatico è attivato dall’amministratore e non può essere modificato qui.",
+  "settingsSaveFailed": "Impossibile salvare le impostazioni. Le modifiche potrebbero andare perse al riavvio di BusyMax.",
   "nextcloudExportCollection": "Esporta risorse della raccolta",
   "nextcloudImportItems": "Trovate {count} risorse di eventi/attività",
   "@nextcloudImportItems": {"placeholders": {"count": {"type": "int"}}},

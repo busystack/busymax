@@ -30,10 +30,21 @@ abstract interface class DesktopTrayService {
 
 enum DesktopAutostartState {
   enabled,
+  enabledByPolicy,
   disabled,
   disabledByUser,
   disabledByPolicy,
   unavailable,
+}
+
+extension DesktopAutostartStateX on DesktopAutostartState {
+  bool get isEnabled =>
+      this == DesktopAutostartState.enabled ||
+      this == DesktopAutostartState.enabledByPolicy;
+
+  bool get canChange =>
+      this == DesktopAutostartState.enabled ||
+      this == DesktopAutostartState.disabled;
 }
 
 abstract interface class DesktopAutostartService {

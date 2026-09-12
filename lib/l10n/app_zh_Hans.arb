@@ -1,4 +1,8 @@
 {
+  "launchAtLoginReadFailed": "无法确定登录时启动的状态。",
+  "launchAtLoginUnavailable": "此系统不支持登录时启动。",
+  "windowsStartupEnabledByPolicy": "管理员已启用自动启动，无法在此更改。",
+  "settingsSaveFailed": "无法保存设置。重新启动 BusyMax 时，您的更改可能会丢失。",
   "nextcloudExportCollection": "导出集合资源",
   "nextcloudImportItems": "找到 {count} 个事件/任务资源",
   "@nextcloudImportItems": {"placeholders": {"count": {"type": "int"}}},
