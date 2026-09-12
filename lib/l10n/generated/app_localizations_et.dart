@@ -1835,6 +1835,14 @@ class AppLocalizationsEt extends AppLocalizations {
       'See kordusreegel kasutab valikuid, mida see redaktor ei muuda.';
 
   @override
+  String get taskRecurrenceDestinationUnsupported =>
+      'See loend ei toeta seda kordusmustrit. Muuda mustrit või vali teine loend.';
+
+  @override
+  String get taskRecurrenceRequiresDate =>
+      'Selle kordusmustri kasutamiseks lisa algus- või tähtpäev või lülita kordamine välja.';
+
+  @override
   String recurrenceUnsupportedByProvider(String provider) {
     return 'Seda kordust ei saa teenusega $provider kasutada.';
   }

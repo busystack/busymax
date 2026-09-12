@@ -18,10 +18,24 @@ state-management library.
 Test paths are under `test/ui/windows/` unless otherwise noted. Existing editor,
 repository, native UI and calendar gesture suites are also included in validation.
 
+## Follow-up safety and recovery review
+
+The four follow-up issues required changes:
+
+| Finding | Change and regression evidence |
+| --- | --- |
+| Creation serializes recurrence while building | `TaskDetailsDraft.forCreation` retains the recurrence rule without provider encoding. Destination capability validation reports incompatible patterns or missing dates; serialization happens in the guarded save path. A visible warning lets users change the pattern or destination. Draft and dialog tests cover a monthly rule on days 1 and 15, switching to Microsoft and back, cancelling the correction, and explicitly removing repeat before saving. The dialog test supplies the complex rule at the recurrence editor's result boundary. |
+| Hidden fields still invalidate a new destination | URL and schedule validation follow destination capabilities. Tests switch an invalid Nextcloud URL to Google, return to confirm the URL is retained, and create the Google task. Draft tests also cover an inapplicable retained start date. |
+| Notes/description do not refresh dismissal protection | The Windows creation, task-details and event editors use a shared builder that listens to every editable text controller. Back-dismissal tests edit only notes or description, cancel the discard prompt, and verify that the text and dialog remain without writes. |
+| Removed scope remains active | Successfully loaded account/list data reconciles the stored filters before querying. Tests remove the selected account or list while Tasks remains open and verify both selector values and repository filters, plus tasks in the remaining account. A pending-refresh test verifies that loading alone does not clear scope. |
+| Retry leaves failed dependencies unchanged | Retry and Refresh invalidate failed account/list providers and refresh the task query. Tests independently fail the task query, list loading and account stream, then verify recovery. |
+
+The two new compatibility messages are included in all supported translations.
+
 ## Automated verification
 
-- `flutter test --no-pub`: 2,049 passed, 10 skipped. The skipped tests are
-  existing opt-in/live-environment checks.
+- `flutter test --no-pub`: 2,062 passed, 10 skipped after the follow-up fixes.
+  The skipped tests are existing opt-in/live-environment checks.
 - `flutter analyze --no-pub`: no issues.
 - `flutter build linux --debug --no-pub`: passed.
 - `git diff --check`: passed.

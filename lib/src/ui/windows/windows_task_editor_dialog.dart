@@ -11,6 +11,7 @@ import '../../features/task_lists/data/task_lists_repository.dart';
 import '../../features/tasks/domain/task_capabilities.dart';
 import '../../providers/busy_provider.dart';
 import '../common/busymax_glyph.dart';
+import '../common/editor_state_builder.dart';
 import 'windows_busymax_glyphs.dart';
 import 'windows_recurrence_dialog.dart';
 import '../../features/tasks/presentation/task_details_draft.dart';
@@ -155,7 +156,8 @@ Future<bool> showWindowsTaskEditorDialog(
   await showDialog<void>(
     context: context,
     barrierDismissible: false,
-    builder: (dialogContext) => StatefulBuilder(
+    builder: (dialogContext) => EditorStateBuilder(
+      textControllers: [title, notes, location, taskUrl, categories],
       builder: (context, setState) {
         final l10n = AppLocalizations.of(context);
         final capability =
@@ -165,8 +167,10 @@ Future<bool> showWindowsTaskEditorDialog(
             accountsById[selectedList.accountId]?.provider ??
             BusyProvider.google;
         final draft = currentDraft();
-        final validUrl = draft.hasValidTaskUrl;
-        final validSchedule = draft.scheduleIssue == TaskScheduleIssue.none;
+        final validUrl = draft.hasValidTaskUrlFor(capability);
+        final validSchedule =
+            draft.scheduleIssueFor(capability) == TaskScheduleIssue.none;
+        final recurrenceIssue = draft.recurrenceIssueFor(capability);
         void closeDialog() {
           setState(() => allowPop = true);
           WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -225,6 +229,38 @@ Future<bool> showWindowsTaskEditorDialog(
                             },
                     ),
                   ),
+                  if (recurrenceIssue != TaskRecurrenceIssue.none) ...[
+                    const SizedBox(height: 12),
+                    InfoBar(
+                      title: Text(
+                        recurrenceIssue == TaskRecurrenceIssue.missingDate
+                            ? l10n.taskRecurrenceRequiresDate
+                            : l10n.taskRecurrenceDestinationUnsupported,
+                      ),
+                      severity: InfoBarSeverity.warning,
+                      action: Button(
+                        onPressed: saving
+                            ? null
+                            : () async {
+                                final value = await showWindowsRecurrenceDialog(
+                                  context,
+                                  initial: recurrence,
+                                  baseDate: start ?? due ?? DateTime.now(),
+                                  allDay: scheduledAllDay,
+                                  timeZone: selectedTimeZone,
+                                  providerLabel: provider.displayName,
+                                  limits: EventRecurrenceCodec.limitsFor(
+                                    provider,
+                                  ),
+                                );
+                                if (value != null && context.mounted) {
+                                  setState(() => recurrence = value);
+                                }
+                              },
+                        child: Text(l10n.repeat),
+                      ),
+                    ),
+                  ],
                   if (capability.supportsDueDate) ...[
                     const SizedBox(height: 12),
                     _DateTimeField(
@@ -280,6 +316,13 @@ Future<bool> showWindowsTaskEditorDialog(
                           child: Text(selectedTimeZone),
                         ),
                       ),
+                    ),
+                  ],
+                  if (!validSchedule) ...[
+                    const SizedBox(height: 12),
+                    InfoBar(
+                      title: Text(l10n.taskDueBeforeStart),
+                      severity: InfoBarSeverity.warning,
                     ),
                   ],
                   const SizedBox(height: 12),
@@ -593,13 +636,6 @@ Future<bool> showWindowsTaskEditorDialog(
                                 title: Text(l10n.invalidTaskUrl),
                                 severity: InfoBarSeverity.warning,
                               ),
-                            if (!validSchedule) ...[
-                              const SizedBox(height: 8),
-                              InfoBar(
-                                title: Text(l10n.taskDueBeforeStart),
-                                severity: InfoBarSeverity.warning,
-                              ),
-                            ],
                           ],
                           if (capability.supportsClassification) ...[
                             const SizedBox(height: 12),
@@ -679,7 +715,8 @@ Future<bool> showWindowsTaskEditorDialog(
                     saving ||
                         title.text.trim().isEmpty ||
                         !validUrl ||
-                        !validSchedule
+                        !validSchedule ||
+                        recurrenceIssue != TaskRecurrenceIssue.none
                     ? null
                     : () async {
                         setState(() {

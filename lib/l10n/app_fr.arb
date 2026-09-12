@@ -1,4 +1,6 @@
 {
+  "taskRecurrenceDestinationUnsupported": "Cette liste ne prend pas en charge ce modèle de répétition. Modifiez le modèle ou choisissez une autre liste.",
+  "taskRecurrenceRequiresDate": "Ajoutez une date de début ou d’échéance pour utiliser ce modèle de répétition, ou désactivez la répétition.",
   "launchAtLoginReadFailed": "Impossible de déterminer l’état du lancement à la connexion.",
   "launchAtLoginUnavailable": "Le lancement à la connexion n’est pas disponible sur ce système.",
   "windowsStartupEnabledByPolicy": "Le démarrage automatique est activé par votre administrateur et ne peut pas être modifié ici.",

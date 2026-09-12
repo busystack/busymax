@@ -1870,6 +1870,14 @@ class AppLocalizationsFa extends AppLocalizations {
       'این قانون تکرار از گزینه‌هایی استفاده می‌کند که این ویرایشگر تغییر نمی‌دهد.';
 
   @override
+  String get taskRecurrenceDestinationUnsupported =>
+      'این فهرست از این الگوی تکرار پشتیبانی نمی‌کند. الگو را تغییر دهید یا فهرست دیگری انتخاب کنید.';
+
+  @override
+  String get taskRecurrenceRequiresDate =>
+      'برای استفاده از این الگوی تکرار، تاریخ شروع یا سررسید اضافه کنید یا تکرار را خاموش کنید.';
+
+  @override
   String recurrenceUnsupportedByProvider(String provider) {
     return 'این تکرار را نمی‌توان با ⁨$provider⁩ استفاده کرد.';
   }

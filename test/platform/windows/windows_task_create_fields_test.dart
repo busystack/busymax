@@ -6,6 +6,114 @@ import 'package:busymax/src/features/tasks/presentation/task_details_draft.dart'
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  test(
+    'creation retains incompatible recurrence until destination validation and save',
+    () {
+      final rule = RecurrenceRule.fromIcalendar(
+        rules: ['FREQ=MONTHLY;BYMONTHDAY=1,15'],
+      );
+      TaskDetailsDraft draft(BusyProvider provider) =>
+          TaskDetailsDraft.forCreation(
+            taskListId: 'list',
+            provider: provider,
+            timeZone: 'UTC',
+            title: 'Twice monthly',
+            due: DateTime(2026, 9, 1),
+            recurrence: rule,
+          );
+      final microsoft = draft(BusyProvider.microsoft);
+      expect(microsoft.creationRecurrence!.rule.byMonthDay, [1, 15]);
+      expect(
+        microsoft.recurrenceIssueFor(microsoftTaskCollectionCapabilities),
+        TaskRecurrenceIssue.unsupportedDestination,
+      );
+      expect(
+        () => microsoft.toCreateInput(
+          microsoftTaskCollectionCapabilities,
+          localTimeZone: 'UTC',
+        ),
+        throwsStateError,
+      );
+      final nextcloud = draft(BusyProvider.nextcloud);
+      expect(
+        nextcloud.recurrenceIssueFor(nextcloudTaskCollectionCapabilities),
+        TaskRecurrenceIssue.none,
+      );
+      expect(
+        (nextcloud
+                .toCreateInput(
+                  nextcloudTaskCollectionCapabilities,
+                  localTimeZone: 'UTC',
+                )
+                .fields['recurrence']
+            as Map)['rules'],
+        ['FREQ=MONTHLY;INTERVAL=1;BYMONTHDAY=1,15'],
+      );
+    },
+  );
+
+  test(
+    'hidden URL and start fields do not invalidate a Google destination',
+    () {
+      final draft = TaskDetailsDraft.forCreation(
+        taskListId: 'list',
+        provider: BusyProvider.google,
+        timeZone: 'UTC',
+        title: 'Task',
+        taskUrl: 'example.test',
+        start: DateTime(2026, 9, 2),
+        due: DateTime(2026, 9, 1),
+      );
+      expect(
+        draft.hasValidTaskUrlFor(nextcloudTaskCollectionCapabilities),
+        isFalse,
+      );
+      expect(
+        draft.scheduleIssueFor(nextcloudTaskCollectionCapabilities),
+        TaskScheduleIssue.dueBeforeStart,
+      );
+      expect(
+        draft.hasValidTaskUrlFor(googleTaskCollectionCapabilities),
+        isTrue,
+      );
+      expect(
+        draft.scheduleIssueFor(googleTaskCollectionCapabilities),
+        TaskScheduleIssue.none,
+      );
+      final input = draft.toCreateInput(
+        googleTaskCollectionCapabilities,
+        localTimeZone: 'UTC',
+      );
+      expect(input.fields, isNot(contains('taskUrl')));
+      expect(input.fields, isNot(contains('microsoftStartDateTime')));
+      expect(draft.taskUrl, 'example.test');
+      expect(draft.microsoftStartDate, '2026-09-02');
+    },
+  );
+
+  test(
+    'recurrence without an applicable date is actionable rather than dropped',
+    () {
+      final draft = TaskDetailsDraft.forCreation(
+        taskListId: 'list',
+        provider: BusyProvider.microsoft,
+        timeZone: 'UTC',
+        recurrence: RecurrenceRule.fromIcalendar(rules: ['FREQ=DAILY']),
+      );
+      expect(
+        draft.recurrenceIssueFor(microsoftTaskCollectionCapabilities),
+        TaskRecurrenceIssue.missingDate,
+      );
+      expect(
+        () => draft.toCreateInput(
+          microsoftTaskCollectionCapabilities,
+          localTimeZone: 'UTC',
+        ),
+        throwsStateError,
+      );
+    },
+  );
+
   test('all-day DAV tasks omit timed provider fields and keep every alarm', () {
     final fields = _fields(
       capability: nextcloudTaskCollectionCapabilities,

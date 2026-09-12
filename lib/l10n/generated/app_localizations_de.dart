@@ -1850,6 +1850,14 @@ class AppLocalizationsDe extends AppLocalizations {
       'Diese Wiederholungsregel verwendet Optionen, die dieser Editor nicht ändert.';
 
   @override
+  String get taskRecurrenceDestinationUnsupported =>
+      'Diese Liste unterstützt dieses Wiederholungsmuster nicht. Ändere das Muster oder wähle eine andere Liste.';
+
+  @override
+  String get taskRecurrenceRequiresDate =>
+      'Füge ein Start- oder Fälligkeitsdatum hinzu, um dieses Wiederholungsmuster zu verwenden, oder deaktiviere die Wiederholung.';
+
+  @override
   String recurrenceUnsupportedByProvider(String provider) {
     return 'Diese Wiederholung kann nicht mit $provider verwendet werden.';
   }

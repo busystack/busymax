@@ -3144,6 +3144,18 @@ abstract class AppLocalizations {
   /// **'This recurrence rule uses options that this editor does not change.'**
   String get unsupportedRecurrencePreserved;
 
+  /// No description provided for @taskRecurrenceDestinationUnsupported.
+  ///
+  /// In en, this message translates to:
+  /// **'This list cannot use this repeat pattern. Change the pattern or choose another list.'**
+  String get taskRecurrenceDestinationUnsupported;
+
+  /// No description provided for @taskRecurrenceRequiresDate.
+  ///
+  /// In en, this message translates to:
+  /// **'Add a start or due date to use this repeat pattern, or turn off repeat.'**
+  String get taskRecurrenceRequiresDate;
+
   /// No description provided for @recurrenceUnsupportedByProvider.
   ///
   /// In en, this message translates to:

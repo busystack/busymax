@@ -1815,6 +1815,14 @@ class AppLocalizationsKo extends AppLocalizations {
       '이 반복 규칙에는 이 편집기에서 변경하지 않는 옵션이 사용됩니다.';
 
   @override
+  String get taskRecurrenceDestinationUnsupported =>
+      '이 목록은 이 반복 패턴을 지원하지 않습니다. 패턴을 변경하거나 다른 목록을 선택하세요.';
+
+  @override
+  String get taskRecurrenceRequiresDate =>
+      '이 반복 패턴을 사용하려면 시작일 또는 마감일을 추가하거나 반복을 끄세요.';
+
+  @override
   String recurrenceUnsupportedByProvider(String provider) {
     return '이 반복은 $provider에서 사용할 수 없습니다.';
   }

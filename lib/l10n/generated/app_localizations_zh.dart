@@ -1787,6 +1787,13 @@ class AppLocalizationsZh extends AppLocalizations {
   String get unsupportedRecurrencePreserved => '此重复规则使用了编辑器不会更改的选项。';
 
   @override
+  String get taskRecurrenceDestinationUnsupported =>
+      '此列表不支持此重复模式。请更改模式或选择其他列表。';
+
+  @override
+  String get taskRecurrenceRequiresDate => '请添加开始日期或截止日期以使用此重复模式，或关闭重复。';
+
+  @override
   String recurrenceUnsupportedByProvider(String provider) {
     return '此重复规则不能用于 $provider。';
   }
@@ -4580,6 +4587,13 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
   String get unsupportedRecurrencePreserved => '此重复规则使用了编辑器不会更改的选项。';
 
   @override
+  String get taskRecurrenceDestinationUnsupported =>
+      '此列表不支持此重复模式。请更改模式或选择其他列表。';
+
+  @override
+  String get taskRecurrenceRequiresDate => '请添加开始日期或截止日期以使用此重复模式，或关闭重复。';
+
+  @override
   String recurrenceUnsupportedByProvider(String provider) {
     return '此重复规则不能用于 $provider。';
   }
@@ -7371,6 +7385,13 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get unsupportedRecurrencePreserved => '此重複規則使用了編輯器不會更改的選項。';
+
+  @override
+  String get taskRecurrenceDestinationUnsupported =>
+      '此清單不支援此重複模式。請變更模式或選擇其他清單。';
+
+  @override
+  String get taskRecurrenceRequiresDate => '請新增開始日期或截止日期以使用此重複模式，或關閉重複。';
 
   @override
   String recurrenceUnsupportedByProvider(String provider) {

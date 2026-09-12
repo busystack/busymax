@@ -20,6 +20,7 @@ import '../../features/task_lists/data/task_lists_repository.dart';
 import '../../providers/busy_provider.dart';
 import '../../schedule/schedule_item.dart';
 import '../common/busymax_glyph.dart';
+import '../common/editor_state_builder.dart';
 import 'windows_busymax_glyphs.dart';
 import 'windows_time_zone_dialog.dart';
 
@@ -176,11 +177,20 @@ Future<bool> showWindowsTaskDetailsDialog(
   );
   bool hasPendingEdits() =>
       !currentDraft().hasSameValues(originalDraft) ||
+      subtaskTitle.text.isNotEmpty ||
       (!capabilities.supportsTaskStatus && completed != task.completed);
   await showDialog<void>(
     context: context,
     barrierDismissible: false,
-    builder: (dialogContext) => StatefulBuilder(
+    builder: (dialogContext) => EditorStateBuilder(
+      textControllers: [
+        title,
+        notes,
+        categories,
+        location,
+        taskUrl,
+        subtaskTitle,
+      ],
       builder: (context, setState) {
         final l10n = AppLocalizations.of(context);
         final enabled = !busy && capabilities.canUpdateTasks;

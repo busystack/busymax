@@ -1853,6 +1853,14 @@ class AppLocalizationsVi extends AppLocalizations {
       'Quy tắc lặp lại này sử dụng các tùy chọn mà trình chỉnh sửa này không thay đổi.';
 
   @override
+  String get taskRecurrenceDestinationUnsupported =>
+      'Danh sách này không hỗ trợ kiểu lặp này. Hãy đổi kiểu lặp hoặc chọn danh sách khác.';
+
+  @override
+  String get taskRecurrenceRequiresDate =>
+      'Thêm ngày bắt đầu hoặc hạn chót để dùng kiểu lặp này, hoặc tắt lặp lại.';
+
+  @override
   String recurrenceUnsupportedByProvider(String provider) {
     return 'Không thể sử dụng kiểu lặp lại này với $provider.';
   }

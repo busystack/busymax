@@ -1,4 +1,6 @@
 {
+  "taskRecurrenceDestinationUnsupported": "لا يمكن استخدام نمط التكرار هذا في هذه القائمة. غيّر النمط أو اختر قائمة أخرى.",
+  "taskRecurrenceRequiresDate": "أضف تاريخ بدء أو استحقاق لاستخدام نمط التكرار هذا، أو أوقف التكرار.",
   "launchAtLoginReadFailed": "تعذر تحديد حالة التشغيل عند تسجيل الدخول.",
   "launchAtLoginUnavailable": "التشغيل عند تسجيل الدخول غير متاح على هذا النظام.",
   "windowsStartupEnabledByPolicy": "فعّل المسؤول التشغيل عند بدء النظام ولا يمكن تغييره هنا.",

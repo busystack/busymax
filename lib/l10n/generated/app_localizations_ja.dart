@@ -1811,6 +1811,14 @@ class AppLocalizationsJa extends AppLocalizations {
       'この繰り返しルールには、このエディターで変更されないオプションが含まれています。';
 
   @override
+  String get taskRecurrenceDestinationUnsupported =>
+      'このリストではこの繰り返しパターンを使用できません。パターンを変更するか、別のリストを選択してください。';
+
+  @override
+  String get taskRecurrenceRequiresDate =>
+      'この繰り返しパターンを使用するには、開始日または期限を追加するか、繰り返しをオフにしてください。';
+
+  @override
   String recurrenceUnsupportedByProvider(String provider) {
     return 'この繰り返しは $provider では使用できません。';
   }

@@ -1867,6 +1867,14 @@ class AppLocalizationsIt extends AppLocalizations {
       'Questa regola di ricorrenza usa opzioni che questo editor non modifica.';
 
   @override
+  String get taskRecurrenceDestinationUnsupported =>
+      'Questo elenco non supporta questo schema di ripetizione. Modifica lo schema o scegli un altro elenco.';
+
+  @override
+  String get taskRecurrenceRequiresDate =>
+      'Aggiungi una data di inizio o di scadenza per usare questo schema di ripetizione, oppure disattiva la ripetizione.';
+
+  @override
   String recurrenceUnsupportedByProvider(String provider) {
     return 'Questa ricorrenza non può essere usata con $provider.';
   }

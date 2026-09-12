@@ -1871,6 +1871,14 @@ class AppLocalizationsRu extends AppLocalizations {
       'Это правило повторения использует параметры, которые этот редактор не изменяет.';
 
   @override
+  String get taskRecurrenceDestinationUnsupported =>
+      'Этот список не поддерживает такой шаблон повторения. Измените шаблон или выберите другой список.';
+
+  @override
+  String get taskRecurrenceRequiresDate =>
+      'Добавьте дату начала или срок выполнения для этого шаблона либо отключите повторение.';
+
+  @override
   String recurrenceUnsupportedByProvider(String provider) {
     return 'Это повторение нельзя использовать с $provider.';
   }

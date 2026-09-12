@@ -1855,6 +1855,14 @@ class AppLocalizationsHi extends AppLocalizations {
       'यह दोहराव नियम ऐसे विकल्पों का उपयोग करता है जिन्हें यह संपादक नहीं बदलता।';
 
   @override
+  String get taskRecurrenceDestinationUnsupported =>
+      'यह सूची इस दोहराव पैटर्न का समर्थन नहीं करती। पैटर्न बदलें या दूसरी सूची चुनें।';
+
+  @override
+  String get taskRecurrenceRequiresDate =>
+      'इस दोहराव पैटर्न का उपयोग करने के लिए शुरू होने या नियत तिथि जोड़ें, या दोहराव बंद करें।';
+
+  @override
   String recurrenceUnsupportedByProvider(String provider) {
     return 'इस पुनरावृत्ति का उपयोग $provider के साथ नहीं किया जा सकता।';
   }

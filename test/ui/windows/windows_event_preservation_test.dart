@@ -20,6 +20,7 @@ void main() {
     'title only',
     'compatible move',
     'switch and return',
+    'description dismissal',
   ]) {
     testWidgets(
       '$scenario retains endpoint zones, recurrence, reminders and personal fields',
@@ -134,6 +135,28 @@ void main() {
               .join(' | '),
         );
         expect(find.text('America/Los_Angeles'), findsOneWidget);
+        if (scenario == 'description dismissal') {
+          final description = find.byWidgetPredicate(
+            (widget) => widget is TextBox && widget.maxLines == 4,
+          );
+          await tester.ensureVisible(description);
+          await tester.enterText(description, 'Keep this description');
+          await tester.pump();
+          await tester.binding.handlePopRoute();
+          await tester.pumpAndSettle();
+          expect(find.text('Discard changes?'), findsOneWidget);
+          await tester.tap(find.widgetWithText(Button, 'Cancel').last);
+          await tester.pumpAndSettle();
+          expect(find.text('Discard changes?'), findsNothing);
+          expect(
+            tester.widget<TextBox>(description).controller!.text,
+            'Keep this description',
+          );
+          expect(find.byType(ContentDialog), findsOneWidget);
+          expect(await db.select(db.pendingOps).get(), isEmpty);
+          expect(tester.takeException(), isNull);
+          return;
+        }
         if (scenario != 'title only') {
           await tester.tap(find.byType(ComboBox<CalendarSourceEntity>));
           await tester.pumpAndSettle();

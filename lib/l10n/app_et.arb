@@ -1,4 +1,6 @@
 {
+  "taskRecurrenceDestinationUnsupported": "See loend ei toeta seda kordusmustrit. Muuda mustrit või vali teine loend.",
+  "taskRecurrenceRequiresDate": "Selle kordusmustri kasutamiseks lisa algus- või tähtpäev või lülita kordamine välja.",
   "launchAtLoginReadFailed": "Sisselogimisel käivitamise olekut ei õnnestunud tuvastada.",
   "launchAtLoginUnavailable": "Sisselogimisel käivitamine pole selles süsteemis saadaval.",
   "windowsStartupEnabledByPolicy": "Administraator on automaatkäivituse lubanud ja seda ei saa siin muuta.",

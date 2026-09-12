@@ -71,6 +71,16 @@ class _WindowsTasksPageState extends ConsumerState<WindowsTasksPage> {
     _tasks = null;
   });
 
+  void _retry() {
+    if (ref.read(accountsStreamProvider).hasError) {
+      ref.invalidate(accountsStreamProvider);
+    }
+    if (ref.read(scheduleTaskListsProvider).hasError) {
+      ref.invalidate(scheduleTaskListsProvider);
+    }
+    _reload();
+  }
+
   Future<void> _manageLists() async {
     final collections = await ref
         .read(davSettingsRepositoryProvider)
@@ -184,6 +194,36 @@ class _WindowsTasksPageState extends ConsumerState<WindowsTasksPage> {
     final listsState = ref.watch(scheduleTaskListsProvider);
     final lists = listsState.valueOrNull ?? const [];
 
+    // Reconcile only authoritative results. Refreshing providers may still
+    // carry the previous data, and a loading/error state cannot prove removal.
+    final accountsLoaded =
+        !accountsState.isLoading &&
+        !accountsState.hasError &&
+        accountsState.hasValue;
+    final listsLoaded =
+        !listsState.isLoading && !listsState.hasError && listsState.hasValue;
+    final missingAccount =
+        accountsLoaded &&
+        _accountId != null &&
+        !accounts.any((a) => a.id == _accountId && a.isTaskCapable);
+    final missingList =
+        _listKey != null &&
+        ((accountsLoaded &&
+                !accounts.any(
+                  (a) => a.id == _listKey!.accountId && a.isTaskCapable,
+                )) ||
+            (listsLoaded &&
+                !lists.any(
+                  (l) =>
+                      l.accountId == _listKey!.accountId &&
+                      l.id == _listKey!.taskListId,
+                )));
+    if (missingAccount || missingList) {
+      if (missingAccount) _accountId = null;
+      if (missingList || missingAccount) _listKey = null;
+      _tasks = null;
+    }
+
     return CallbackShortcuts(
       bindings: {
         BusyMaxShortcutActivators.search: _searchFocusNode.requestFocus,
@@ -215,7 +255,7 @@ class _WindowsTasksPageState extends ConsumerState<WindowsTasksPage> {
               CommandBarButton(
                 icon: Icon(windowsBusyMaxGlyph(BusyMaxGlyph.refresh)),
                 label: Text(l10n.refresh),
-                onPressed: _reload,
+                onPressed: _retry,
               ),
             ],
           ),
@@ -344,7 +384,7 @@ class _WindowsTasksPageState extends ConsumerState<WindowsTasksPage> {
                         title: Text(l10n.scheduleUnavailable),
                         severity: InfoBarSeverity.error,
                         action: Button(
-                          onPressed: _reload,
+                          onPressed: _retry,
                           child: Text(l10n.retry),
                         ),
                       ),

@@ -1916,6 +1916,14 @@ class AppLocalizationsAr extends AppLocalizations {
       'تستخدم قاعدة التكرار هذه خيارات لا يغيّرها هذا المحرر.';
 
   @override
+  String get taskRecurrenceDestinationUnsupported =>
+      'لا يمكن استخدام نمط التكرار هذا في هذه القائمة. غيّر النمط أو اختر قائمة أخرى.';
+
+  @override
+  String get taskRecurrenceRequiresDate =>
+      'أضف تاريخ بدء أو استحقاق لاستخدام نمط التكرار هذا، أو أوقف التكرار.';
+
+  @override
   String recurrenceUnsupportedByProvider(String provider) {
     return 'لا يمكن استخدام هذا التكرار مع ⁨$provider⁩.';
   }

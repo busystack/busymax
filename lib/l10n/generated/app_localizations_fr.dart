@@ -1855,6 +1855,14 @@ class AppLocalizationsFr extends AppLocalizations {
       'Cette règle de récurrence utilise des options que cet éditeur ne modifie pas.';
 
   @override
+  String get taskRecurrenceDestinationUnsupported =>
+      'Cette liste ne prend pas en charge ce modèle de répétition. Modifiez le modèle ou choisissez une autre liste.';
+
+  @override
+  String get taskRecurrenceRequiresDate =>
+      'Ajoutez une date de début ou d’échéance pour utiliser ce modèle de répétition, ou désactivez la répétition.';
+
+  @override
   String recurrenceUnsupportedByProvider(String provider) {
     return 'Cette récurrence ne peut pas être utilisée avec $provider.';
   }

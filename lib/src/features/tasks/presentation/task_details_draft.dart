@@ -13,6 +13,8 @@ import '../data/tasks_repository.dart';
 
 enum TaskScheduleIssue { none, dueBeforeStart, mixedTimeModes }
 
+enum TaskRecurrenceIssue { none, unsupportedDestination, missingDate }
+
 class TaskDetailsDraft {
   const TaskDetailsDraft({
     required this.taskListId,
@@ -30,6 +32,7 @@ class TaskDetailsDraft {
     required this.microsoftReminderTime,
     required this.microsoftReminderTimeZone,
     required this.recurrenceJson,
+    this.creationRecurrence,
     required this.importance,
     required this.categories,
     required this.icalPriority,
@@ -95,19 +98,8 @@ class TaskDetailsDraft {
       microsoftReminderDate: date(reminder),
       microsoftReminderTime: time(reminder),
       microsoftReminderTimeZone: timeZone,
-      recurrenceJson: !recurrence.repeats || (start == null && due == null)
-          ? null
-          : provider == BusyProvider.nextcloud
-          ? recurrence.toJsonString()
-          : jsonEncode(
-              EventRecurrenceCodec.encode(
-                provider,
-                recurrence,
-                baseDate: start ?? due!,
-                allDay: scheduledAllDay,
-                timeZone: timeZone,
-              ),
-            ),
+      recurrenceJson: null,
+      creationRecurrence: (provider: provider, rule: recurrence),
       importance: importance,
       categories: categories,
       icalPriority: priority,
@@ -208,6 +200,10 @@ class TaskDetailsDraft {
   final String? microsoftReminderTime;
   final String? microsoftReminderTimeZone;
   final String? recurrenceJson;
+
+  /// Retain the user's rule until save, even when a new destination cannot
+  /// represent it. Constructing a draft must not serialize provider payloads.
+  final ({BusyProvider provider, RecurrenceRule rule})? creationRecurrence;
   final String importance;
   final List<String> categories;
   final int icalPriority;
@@ -235,6 +231,37 @@ class TaskDetailsDraft {
     final parsed = Uri.tryParse(value);
     return parsed != null && parsed.hasScheme;
   }
+
+  bool hasValidTaskUrlFor(TaskCollectionCapabilities capabilities) =>
+      !capabilities.supportsUrl || hasValidTaskUrl;
+
+  TaskScheduleIssue scheduleIssueFor(TaskCollectionCapabilities capabilities) =>
+      capabilities.supportsDueDate && capabilities.supportsStartDateTime
+      ? scheduleIssue
+      : TaskScheduleIssue.none;
+
+  TaskRecurrenceIssue recurrenceIssueFor(
+    TaskCollectionCapabilities capabilities,
+  ) {
+    final recurrence = creationRecurrence;
+    if (recurrence == null || !recurrence.rule.repeats) {
+      return TaskRecurrenceIssue.none;
+    }
+    if (!capabilities.supportsRecurrence ||
+        !EventRecurrenceCodec.canEncode(recurrence.provider, recurrence.rule)) {
+      return TaskRecurrenceIssue.unsupportedDestination;
+    }
+    if (_recurrenceBaseDate(capabilities) == null) {
+      return TaskRecurrenceIssue.missingDate;
+    }
+    return TaskRecurrenceIssue.none;
+  }
+
+  DateTime? _recurrenceBaseDate(TaskCollectionCapabilities capabilities) =>
+      (capabilities.supportsStartDateTime
+          ? DateTime.tryParse(microsoftStartDate ?? '')
+          : null) ??
+      (capabilities.supportsDueDate ? DateTime.tryParse(dueDate ?? '') : null);
 
   DateTime? reminderReferenceUtc({
     required bool due,
@@ -303,6 +330,7 @@ class TaskDetailsDraft {
         microsoftReminderTime == other.microsoftReminderTime &&
         microsoftReminderTimeZone == other.microsoftReminderTimeZone &&
         recurrenceJson == other.recurrenceJson &&
+        creationRecurrence == other.creationRecurrence &&
         importance == other.importance &&
         _sameStrings(categories, other.categories) &&
         icalPriority == other.icalPriority &&
@@ -493,6 +521,11 @@ class TaskDetailsDraft {
     TaskCollectionCapabilities capabilities, {
     required String localTimeZone,
   }) {
+    if (!hasValidTaskUrlFor(capabilities) ||
+        scheduleIssueFor(capabilities) != TaskScheduleIssue.none ||
+        recurrenceIssueFor(capabilities) != TaskRecurrenceIssue.none) {
+      throw StateError('The task draft is not valid for this destination.');
+    }
     final baseline = TaskEntity(
       accountId: '',
       taskListId: taskListId,
@@ -513,6 +546,21 @@ class TaskDetailsDraft {
     );
     final trimmedTitle = title.trim();
     fields['title'] = trimmedTitle;
+    final recurrence = creationRecurrence;
+    if (recurrence != null && recurrence.rule.repeats) {
+      fields['recurrence'] = recurrence.provider == BusyProvider.nextcloud
+          ? jsonDecode(recurrence.rule.toJsonString())
+          : EventRecurrenceCodec.encode(
+              recurrence.provider,
+              recurrence.rule,
+              baseDate: _recurrenceBaseDate(capabilities)!,
+              allDay: microsoftStartTime == null && microsoftDueTime == null,
+              timeZone:
+                  microsoftStartTimeZone ??
+                  microsoftDueTimeZone ??
+                  localTimeZone,
+            );
+    }
 
     return TaskCreateInput(
       title: trimmedTitle,
@@ -586,6 +634,7 @@ class TaskDetailsDraft {
       recurrenceJson: recurrenceJson == _unchanged
           ? this.recurrenceJson
           : recurrenceJson as String?,
+      creationRecurrence: creationRecurrence,
       importance: importance ?? this.importance,
       categories: categories ?? this.categories,
       icalPriority: icalPriority ?? this.icalPriority,

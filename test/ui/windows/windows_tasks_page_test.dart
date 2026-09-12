@@ -202,12 +202,175 @@ void main() {
     await _until(tester, find.text('No tasks yet'));
     await tester.pumpWidget(const SizedBox.shrink());
   });
+
+  for (final removeAccount in [false, true]) {
+    testWidgets(
+      'removing the selected ${removeAccount ? 'account' : 'list'} reconciles scope',
+      (tester) async {
+        final db = AppDatabase.memoryForTests();
+        addTearDown(() async {
+          await tester.pumpWidget(const SizedBox.shrink());
+          await db.close();
+        });
+        await _account(db, 'personal');
+        await _account(db, 'work');
+        await _task(db, 'one', 'Personal task');
+        await _task(db, 'two', 'Work task', account: 'work');
+        final repository = _ControlledRepository(db);
+        await _mount(tester, db, repository: repository);
+        await _until(tester, find.text('Work task'));
+        if (removeAccount) {
+          await tester.tap(find.byType(ComboBox<String>));
+          await tester.pumpAndSettle();
+          await tester.tap(find.text('Google · work@example.test').last);
+          await tester.pumpAndSettle();
+        }
+        await tester.tap(find.byType(ComboBox<ScheduleTaskListKey>));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Google · work@example.test · Tasks').last);
+        await tester.pumpAndSettle();
+        expect(find.text('Personal task'), findsNothing);
+
+        if (removeAccount) {
+          await (db.delete(
+            db.accounts,
+          )..where((row) => row.id.equals('work'))).go();
+        } else {
+          await (db.delete(
+            db.taskLists,
+          )..where((row) => row.accountId.equals('work'))).go();
+        }
+        await _until(tester, find.text('Personal task'));
+        expect(
+          tester.widget<ComboBox<String>>(find.byType(ComboBox<String>)).value,
+          isNull,
+        );
+        expect(
+          tester
+              .widget<ComboBox<ScheduleTaskListKey>>(
+                find.byType(ComboBox<ScheduleTaskListKey>),
+              )
+              .value,
+          isNull,
+        );
+        expect(repository.lastFilters!.accountIds, isEmpty);
+        expect(repository.lastFilters!.taskListKeys, isEmpty);
+        expect(repository.lastFilters!.taskListFilterActive, isFalse);
+      },
+    );
+  }
+
+  testWidgets('list scope survives a pending refresh', (tester) async {
+    final db = AppDatabase.memoryForTests();
+    addTearDown(() async {
+      await tester.pumpWidget(const SizedBox.shrink());
+      await db.close();
+    });
+    await _account(db, 'personal');
+    await _account(db, 'work');
+    await _task(db, 'one', 'Personal task');
+    await _task(db, 'two', 'Work task', account: 'work');
+    final lists = _ControlledListsRepository(db, 'work');
+    final repository = _ControlledRepository(db);
+    await _mount(tester, db, repository: repository, listsRepository: lists);
+    await _until(tester, find.text('Work task'));
+    await tester.tap(find.byType(ComboBox<ScheduleTaskListKey>));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Google · work@example.test · Tasks').last);
+    await tester.pumpAndSettle();
+    lists.pending = Completer<List<TaskListEntity>>();
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(WindowsTasksPage)),
+    );
+    container.invalidate(scheduleTaskListsProvider);
+    await tester.pump();
+    expect(container.read(scheduleTaskListsProvider).isLoading, isTrue);
+    expect(
+      tester
+          .widget<ComboBox<ScheduleTaskListKey>>(
+            find.byType(ComboBox<ScheduleTaskListKey>),
+          )
+          .value
+          ?.accountId,
+      'work',
+    );
+    expect(find.text('Personal task'), findsNothing);
+    expect(repository.lastFilters!.taskListKeys.single.accountId, 'work');
+    lists.pending!.complete(await lists.loadNormally());
+    await tester.pumpAndSettle();
+    expect(
+      tester
+          .widget<ComboBox<ScheduleTaskListKey>>(
+            find.byType(ComboBox<ScheduleTaskListKey>),
+          )
+          .value
+          ?.accountId,
+      'work',
+    );
+  });
+
+  testWidgets('Retry reloads a failed list dependency and recovers', (
+    tester,
+  ) async {
+    final db = AppDatabase.memoryForTests();
+    addTearDown(() async {
+      await tester.pumpWidget(const SizedBox.shrink());
+      await db.close();
+    });
+    await _account(db, 'personal');
+    await _task(db, 'one', 'Existing task');
+    final lists = _ControlledListsRepository(db, 'personal')..fail = true;
+    await _mount(tester, db, listsRepository: lists);
+    await _until(tester, find.text('Retry'));
+    final attempts = lists.loads;
+    lists.fail = false;
+    await tester.tap(find.text('Retry'));
+    await _until(tester, find.text('Existing task'));
+    expect(lists.loads, greaterThan(attempts));
+    expect(find.text('Retry'), findsNothing);
+    final filter = tester.widget<ComboBox<ScheduleTaskListKey>>(
+      find.byType(ComboBox<ScheduleTaskListKey>),
+    );
+    expect(
+      filter.items!.any((item) => item.value?.accountId == 'personal'),
+      isTrue,
+    );
+  });
+
+  testWidgets('Retry resubscribes to a failed account stream', (tester) async {
+    final db = AppDatabase.memoryForTests();
+    addTearDown(() async {
+      await tester.pumpWidget(const SizedBox.shrink());
+      await db.close();
+    });
+    await _account(db, 'personal');
+    await _task(db, 'one', 'Existing task');
+    var fail = true;
+    var subscriptions = 0;
+    Stream<List<AccountEntity>> loadAccounts() {
+      subscriptions++;
+      return fail
+          ? Stream.error(StateError('accounts unavailable'))
+          : AccountsRepository(database: db).watchAccounts();
+    }
+
+    await _mount(tester, db, accountsStream: loadAccounts);
+    await _until(tester, find.text('Retry'));
+    final attempts = subscriptions;
+    fail = false;
+    await tester.tap(find.text('Retry'));
+    await _until(tester, find.text('Existing task'));
+    expect(subscriptions, greaterThan(attempts));
+    expect(find.text('Retry'), findsNothing);
+  });
 }
 
 Future<void> _mount(
   WidgetTester tester,
   AppDatabase db, {
   ScheduleRepository? repository,
+  _ControlledListsRepository? listsRepository,
+  Stream<List<AccountEntity>> Function()? accountsStream,
 }) async {
   tester.view.reset();
   tester.view.physicalSize = const Size(1280, 800);
@@ -216,6 +379,8 @@ Future<void> _mount(
   await tester.pumpWidget(
     ProviderScope(
       overrides: [
+        if (accountsStream != null)
+          accountsStreamProvider.overrideWith((ref) => accountsStream()),
         databaseProvider.overrideWithValue(db),
         localTimeZoneProvider.overrideWithValue('UTC'),
         accountsRepositoryProvider.overrideWithValue(
@@ -225,7 +390,9 @@ Future<void> _mount(
           repository ?? ScheduleRepository(db),
         ),
         taskListsRepositoryForAccountProvider.overrideWith(
-          (ref, id) => TaskListsRepository(database: db, accountId: id),
+          (ref, id) => listsRepository?.accountId == id
+              ? listsRepository!
+              : TaskListsRepository(database: db, accountId: id),
         ),
         tasksRepositoryForAccountProvider.overrideWith(
           (ref, id) => TasksRepository(database: db, accountId: id),
@@ -300,13 +467,34 @@ class _ControlledRepository extends ScheduleRepository {
   var loads = 0;
   var fail = false;
   Completer<List<TaskScheduleItem>>? pending;
+  ScheduleFilters? lastFilters;
   @override
   Future<List<TaskScheduleItem>> listAllTasks({
     ScheduleFilters filters = const ScheduleFilters(),
   }) {
     loads++;
+    lastFilters = filters;
     if (fail) return Future.error(StateError('load failed'));
     return pending?.future ?? super.listAllTasks(filters: filters);
+  }
+}
+
+class _ControlledListsRepository extends TaskListsRepository {
+  _ControlledListsRepository(AppDatabase db, this.accountId)
+    : super(database: db, accountId: accountId);
+
+  final String accountId;
+  var fail = false;
+  var loads = 0;
+  Completer<List<TaskListEntity>>? pending;
+
+  Future<List<TaskListEntity>> loadNormally() => super.listTaskLists();
+
+  @override
+  Future<List<TaskListEntity>> listTaskLists() {
+    loads++;
+    if (fail) return Future.error(StateError('lists unavailable'));
+    return pending?.future ?? loadNormally();
   }
 }
 

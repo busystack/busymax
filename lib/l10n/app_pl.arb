@@ -1,4 +1,6 @@
 {
+  "taskRecurrenceDestinationUnsupported": "Ta lista nie obsługuje tego wzorca powtarzania. Zmień wzorzec lub wybierz inną listę.",
+  "taskRecurrenceRequiresDate": "Dodaj datę rozpoczęcia lub termin wykonania, aby użyć tego wzorca, albo wyłącz powtarzanie.",
   "launchAtLoginReadFailed": "Nie udało się ustalić stanu uruchamiania przy logowaniu.",
   "launchAtLoginUnavailable": "Uruchamianie przy logowaniu jest niedostępne w tym systemie.",
   "windowsStartupEnabledByPolicy": "Administrator włączył automatyczne uruchamianie i nie można tego tutaj zmienić.",

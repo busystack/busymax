@@ -1864,6 +1864,14 @@ class AppLocalizationsFi extends AppLocalizations {
       'Tämä toistosääntö käyttää asetuksia, joita tämä muokkain ei muuta.';
 
   @override
+  String get taskRecurrenceDestinationUnsupported =>
+      'Tämä lista ei tue tätä toistomallia. Muuta mallia tai valitse toinen lista.';
+
+  @override
+  String get taskRecurrenceRequiresDate =>
+      'Lisää alkamis- tai määräpäivä käyttääksesi tätä toistomallia tai poista toisto käytöstä.';
+
+  @override
   String recurrenceUnsupportedByProvider(String provider) {
     return 'Tätä toistoa ei voi käyttää palvelussa $provider.';
   }

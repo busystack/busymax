@@ -1,4 +1,6 @@
 {
+  "taskRecurrenceDestinationUnsupported": "Questo elenco non supporta questo schema di ripetizione. Modifica lo schema o scegli un altro elenco.",
+  "taskRecurrenceRequiresDate": "Aggiungi una data di inizio o di scadenza per usare questo schema di ripetizione, oppure disattiva la ripetizione.",
   "launchAtLoginReadFailed": "Impossibile determinare lo stato dell’avvio all’accesso.",
   "launchAtLoginUnavailable": "L’avvio all’accesso non è disponibile su questo sistema.",
   "windowsStartupEnabledByPolicy": "L’avvio automatico è attivato dall’amministratore e non può essere modificato qui.",

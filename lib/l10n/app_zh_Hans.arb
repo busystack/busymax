@@ -1,4 +1,6 @@
 {
+  "taskRecurrenceDestinationUnsupported": "此列表不支持此重复模式。请更改模式或选择其他列表。",
+  "taskRecurrenceRequiresDate": "请添加开始日期或截止日期以使用此重复模式，或关闭重复。",
   "launchAtLoginReadFailed": "无法确定登录时启动的状态。",
   "launchAtLoginUnavailable": "此系统不支持登录时启动。",
   "windowsStartupEnabledByPolicy": "管理员已启用自动启动，无法在此更改。",

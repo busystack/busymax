@@ -1869,6 +1869,14 @@ class AppLocalizationsEn extends AppLocalizations {
       'This recurrence rule uses options that this editor does not change.';
 
   @override
+  String get taskRecurrenceDestinationUnsupported =>
+      'This list cannot use this repeat pattern. Change the pattern or choose another list.';
+
+  @override
+  String get taskRecurrenceRequiresDate =>
+      'Add a start or due date to use this repeat pattern, or turn off repeat.';
+
+  @override
   String recurrenceUnsupportedByProvider(String provider) {
     return 'This recurrence cannot be used with $provider.';
   }

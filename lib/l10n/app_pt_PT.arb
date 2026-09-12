@@ -1,4 +1,6 @@
 {
+  "taskRecurrenceDestinationUnsupported": "Esta lista não suporta este padrão de repetição. Altere o padrão ou escolha outra lista.",
+  "taskRecurrenceRequiresDate": "Adicione uma data de início ou de conclusão para usar este padrão, ou desative a repetição.",
   "launchAtLoginReadFailed": "Não foi possível determinar o estado do arranque ao iniciar sessão.",
   "launchAtLoginUnavailable": "O arranque ao iniciar sessão não está disponível neste sistema.",
   "windowsStartupEnabledByPolicy": "O arranque automático foi ativado pelo administrador e não pode ser alterado aqui.",

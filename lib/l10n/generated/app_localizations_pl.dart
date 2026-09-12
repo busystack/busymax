@@ -1995,6 +1995,14 @@ class AppLocalizationsPl extends AppLocalizations {
       'Ta reguła powtarzania korzysta z opcji, których ten edytor nie zmienia.';
 
   @override
+  String get taskRecurrenceDestinationUnsupported =>
+      'Ta lista nie obsługuje tego wzorca powtarzania. Zmień wzorzec lub wybierz inną listę.';
+
+  @override
+  String get taskRecurrenceRequiresDate =>
+      'Dodaj datę rozpoczęcia lub termin wykonania, aby użyć tego wzorca, albo wyłącz powtarzanie.';
+
+  @override
   String recurrenceUnsupportedByProvider(String provider) {
     return 'Tego powtarzania nie można użyć u dostawcy $provider.';
   }

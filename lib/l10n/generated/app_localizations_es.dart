@@ -1855,6 +1855,14 @@ class AppLocalizationsEs extends AppLocalizations {
       'Esta regla de repetición usa opciones que este editor no modifica.';
 
   @override
+  String get taskRecurrenceDestinationUnsupported =>
+      'Esta lista no admite este patrón de repetición. Cambia el patrón o elige otra lista.';
+
+  @override
+  String get taskRecurrenceRequiresDate =>
+      'Añade una fecha de inicio o de vencimiento para usar este patrón, o desactiva la repetición.';
+
+  @override
   String recurrenceUnsupportedByProvider(String provider) {
     return 'Esta repetición no se puede usar con $provider.';
   }

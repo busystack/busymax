@@ -17,6 +17,7 @@ import '../../features/recurrence/domain/recurrence_rule.dart';
 import '../../features/maps/domain/location_result.dart';
 import '../../providers/busy_provider.dart';
 import '../common/busymax_glyph.dart';
+import '../common/editor_state_builder.dart';
 import 'windows_busymax_glyphs.dart';
 import 'windows_event_reminders.dart';
 import 'windows_guest_update_dialog.dart';
@@ -174,6 +175,7 @@ Future<bool> showWindowsEventEditorDialog(
       selectedSource.id != originalSelectedSourceId ||
       title.text != initialTitle ||
       description.text != initialDescription ||
+      guestEmail.text.isNotEmpty ||
       location.text != initialLocation ||
       locationChange.changed ||
       categories.text != initialCategories ||
@@ -197,7 +199,8 @@ Future<bool> showWindowsEventEditorDialog(
   await showDialog<void>(
     context: context,
     barrierDismissible: false,
-    builder: (dialogContext) => StatefulBuilder(
+    builder: (dialogContext) => EditorStateBuilder(
+      textControllers: [title, description, location, guestEmail, categories],
       builder: (context, setState) {
         final l10n = AppLocalizations.of(context);
         final validEnd =

@@ -1,4 +1,6 @@
 {
+  "taskRecurrenceDestinationUnsupported": "此清單不支援此重複模式。請變更模式或選擇其他清單。",
+  "taskRecurrenceRequiresDate": "請新增開始日期或截止日期以使用此重複模式，或關閉重複。",
   "launchAtLoginReadFailed": "無法確定登入時啟動的狀態。",
   "launchAtLoginUnavailable": "此系統不支援登入時啟動。",
   "windowsStartupEnabledByPolicy": "管理員已啟用自動啟動，無法在此變更。",
