@@ -4,6 +4,8 @@ import 'package:busymax/src/features/accounts/data/accounts_repository.dart';
 import 'package:busymax/src/features/calendar/data/calendar_repository.dart';
 import 'package:busymax/src/features/calendar/presentation/event_editor.dart';
 import 'package:busymax/src/features/calendar/presentation/event_editor_draft.dart';
+import 'package:busymax/src/features/maps/domain/geographic_point.dart';
+import 'package:busymax/src/features/maps/domain/location_result.dart';
 import 'package:busymax/src/features/recurrence/domain/event_recurrence_codec.dart';
 import 'package:busymax/src/features/recurrence/domain/recurrence_rule.dart';
 import 'package:busymax/src/features/recurrence/presentation/recurrence_editor.dart';
@@ -40,6 +42,50 @@ void main() {
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(_nativeMenuChannel, null);
   });
+
+  testWidgets(
+    'event location is an ordinary text field and restoring it keeps its point',
+    (tester) async {
+      final point = GeographicPoint(latitude: 49.2827, longitude: -123.1207);
+      EventEditorDraft? saved;
+      await tester.pumpWidget(
+        localizedTestApp(
+          child: Scaffold(
+            body: EventEditor(
+              initialDraft: EventEditorDraft.existing(
+                eventId: 'event-location',
+                accountId: 'account',
+                sourceId: 'source',
+                providerCalendarId: 'cal-1',
+                title: 'Planning',
+                allDay: false,
+                start: DateTime.utc(2026, 6, 8, 9),
+                end: DateTime.utc(2026, 6, 8, 10),
+                location: 'Harbour Centre',
+                locationPoint: point,
+              ),
+              sources: _sources,
+              onCancel: () {},
+              onSave: (draft) => saved = draft,
+            ),
+          ),
+        ),
+      );
+
+      final location = find.byKey(const ValueKey('event-location-field'));
+      expect(location, findsOneWidget);
+      expect(tester.widget(location), isA<TextFormField>());
+      expect(find.text('Show on map'), findsNothing);
+
+      await tester.enterText(location, 'Meeting room 3');
+      await tester.enterText(location, 'Harbour Centre');
+      await tester.tap(_headerButtonFinder('Save'));
+      await tester.pump();
+
+      expect(saved?.locationChange, const LocationChange.unchanged());
+      expect(saved?.effectiveLocationPoint, point);
+    },
+  );
 
   testWidgets(
     'missing calendar source is surfaced without a provider fallback',

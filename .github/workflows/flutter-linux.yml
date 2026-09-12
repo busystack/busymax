@@ -6,6 +6,10 @@ on:
   push:
     branches: [main]
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build:
     runs-on: ubuntu-24.04
@@ -33,35 +37,54 @@ jobs:
         uses: subosito/flutter-action@v2
         with:
           channel: stable
-          flutter-version: '3.44.4'
+          flutter-version: '3.47.2'
           cache: true
 
+      - name: Verify pinned Flutter and bundled Dart
+        run: |
+          flutter_executable="$(readlink -f "$(command -v flutter)")"
+          flutter_bin="$(dirname "$flutter_executable")"
+          dart_executable="$flutter_bin/cache/dart-sdk/bin/dart"
+          test -x "$dart_executable"
+          "$dart_executable" tool/verify_flutter_sdk.dart \
+            --flutter "$flutter_executable" \
+            --dart "$dart_executable" \
+            --expected-flutter 3.47.2 \
+            --expected-dart 3.13.2
+          printf 'BUSYMAX_FLUTTER_EXECUTABLE=%s\n' "$flutter_executable" >> "$GITHUB_ENV"
+          printf 'BUSYMAX_DART_EXECUTABLE=%s\n' "$dart_executable" >> "$GITHUB_ENV"
+
       - name: Enable Linux desktop
-        run: flutter config --enable-linux-desktop
+        run: '"$BUSYMAX_FLUTTER_EXECUTABLE" config --enable-linux-desktop'
 
       - name: Resolve dependencies
-        run: flutter pub get
+        run: '"$BUSYMAX_FLUTTER_EXECUTABLE" pub get --enforce-lockfile'
 
       - name: Generate localizations
-        run: flutter gen-l10n
+        run: '"$BUSYMAX_FLUTTER_EXECUTABLE" gen-l10n'
 
       - name: Generate Drift code
-        run: dart run build_runner build --delete-conflicting-outputs --force-jit
+        run: >-
+          "$BUSYMAX_DART_EXECUTABLE" run build_runner build
+          --delete-conflicting-outputs --force-jit
 
       - name: Verify generated files are committed
         run: git diff --exit-code
 
       - name: Check formatting
-        run: dart format --output=none --set-exit-if-changed .
+        run: >-
+          "$BUSYMAX_DART_EXECUTABLE" format
+          --output=none --set-exit-if-changed .
 
       - name: Analyze
-        run: flutter analyze
+        run: '"$BUSYMAX_FLUTTER_EXECUTABLE" analyze'
 
       - name: Check platform boundaries
-        run: dart run tool/check_platform_boundaries.dart
+        run: >-
+          "$BUSYMAX_DART_EXECUTABLE" run tool/check_platform_boundaries.dart
 
       - name: Test
-        run: flutter test
+        run: '"$BUSYMAX_FLUTTER_EXECUTABLE" test'
 
       - name: Validate release provider configuration
         if: github.event_name == 'push'
@@ -93,7 +116,8 @@ jobs:
           if [ -n "$MICROSOFT_OAUTH_CLIENT_ID" ]; then
             args+=("--dart-define=MICROSOFT_OAUTH_CLIENT_ID=$MICROSOFT_OAUTH_CLIENT_ID")
           fi
-          flutter build linux -t lib/main_linux.dart "${args[@]}"
+          "$BUSYMAX_FLUTTER_EXECUTABLE" build linux \
+            -t lib/main_linux.dart "${args[@]}"
 
       - name: Verify release provider configuration
         if: github.event_name == 'push'
@@ -118,6 +142,7 @@ jobs:
           name: busymax-snap
           path: ${{ steps.snapcraft.outputs.snap }}
           if-no-files-found: error
+          retention-days: 7
 
       - name: Install strict Snap
         run: >-
@@ -128,4 +153,5 @@ jobs:
         run: |
           LC_ALL=C snap info --verbose busymax |
             grep -Eq '^[[:space:]]*confinement:[[:space:]]+strict$'
+          # shellcheck disable=SC2016
           snap run --shell busymax -c 'test -x "$SNAP/busymax"'

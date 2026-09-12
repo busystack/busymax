@@ -81,6 +81,7 @@ DTEND:20260830T170000Z
 SUMMARY:Imported series
 DESCRIPTION:Description
 LOCATION:Room 2
+GEO:0;-123.12
 RRULE:FREQ=WEEKLY;INTERVAL=2;COUNT=4;BYDAY=SU
 CATEGORIES:One,Two
 CLASS:PRIVATE
@@ -109,6 +110,11 @@ END:VEVENT
       expect(notificationRebuilds, 1);
       final event = await database.select(database.calendarEvents).getSingle();
       expect(event.title, 'Imported series');
+      expect(event.location, 'Room 2');
+      // Google has no native coordinate extension; the imported point remains
+      // associated locally below instead of being invented in its payload.
+      expect(event.locationLatitude, isNull);
+      expect(event.locationLongitude, isNull);
       expect(event.attendeesJson, isNull);
       expect(event.organizerJson, '{"self":true}');
       expect(event.organizerJson, isNot(contains('organizer@example.test')));
@@ -126,6 +132,12 @@ END:VEVENT
             .icalUid,
         'recurring-import',
       );
+      final remembered = await database
+          .select(database.locationResolutions)
+          .getSingle();
+      expect(remembered.latitude, 0);
+      expect(remembered.longitude, -123.12);
+      expect(remembered.source, 'ical');
 
       final repeated = await importService.importPreview(
         preview: preview,

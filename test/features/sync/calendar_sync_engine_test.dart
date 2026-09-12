@@ -461,6 +461,46 @@ void main() {
   );
 
   test(
+    'Google full sync tombstones calendars absent from the calendar list',
+    () async {
+      const source = CalendarSourceDto(
+        provider: BusyProvider.google,
+        providerCalendarId: 'cal-deleted',
+        summary: 'Deleted in Google Calendar',
+      );
+      await _insertAccount(database, provider: BusyProvider.google);
+      await _insertSource(database, source);
+      final eventId = await _insertEvent(
+        database,
+        provider: BusyProvider.google,
+        providerCalendarId: source.providerCalendarId,
+      );
+
+      await CalendarSyncEngine(
+        database: database,
+        client: _FakeCalendarClient(
+          provider: BusyProvider.google,
+          calendars: const [],
+          pages: const [],
+        ),
+        accountId: 'account',
+        nowUtc: () => DateTime.utc(2026, 7, 10),
+      ).fullSync();
+
+      final storedSource =
+          await (database.select(database.calendarSources)
+                ..where((row) => row.id.equals('account|google|cal-deleted')))
+              .getSingle();
+      final storedEvent = await (database.select(
+        database.calendarEvents,
+      )..where((row) => row.id.equals(eventId))).getSingle();
+      expect(storedSource.isDeleted, isTrue);
+      expect(storedSource.hidden, isTrue);
+      expect(storedEvent.isDeleted, isTrue);
+    },
+  );
+
+  test(
     'Microsoft incremental reconciliation preserves a queued calendar create',
     () async {
       const missingSource = CalendarSourceDto(

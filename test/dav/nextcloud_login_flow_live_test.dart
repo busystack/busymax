@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'support/nextcloud_live_versions.dart';
 
 import 'package:busymax/src/core/secrets/secret_store.dart';
 import 'package:busymax/src/dav/auth/nextcloud_app_password_revoker.dart';
@@ -44,6 +45,7 @@ void main() {
         flowClient.close();
         flowHttpClient.close(force: true);
       });
+      await recordNextcloudLiveVersions(flowClient, server);
       final browser = await _HeadlessLoginFlowBrowser.start(
         username: username,
         appPassword: bootstrapAppPassword,

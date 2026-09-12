@@ -94,6 +94,14 @@ Describe 'BusyMax Store configuration validation modes' {
       Should -Throw -ExpectedMessage "*supportUrl*ProductionStore*"
   }
 
+  It 'accepts production and local-test configurations without map credentials' {
+    $config = New-ValidConfig
+    { Assert-BusyMaxStoreConfig -Config $config -Mode ProductionStore } |
+      Should -Not -Throw
+    { Assert-BusyMaxStoreConfig -Config $config -Mode LocalTestSigning } |
+      Should -Not -Throw
+  }
+
   It 'rejects fake data and development backends' {
     $fake = New-ValidConfig
     $fake.fakeData = $true

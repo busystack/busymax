@@ -6,6 +6,7 @@ class CalendarMutation {
     this.backgroundColor,
     this.foregroundColor,
     this.colorId,
+    this.hidden,
   });
 
   final String? summary;
@@ -14,6 +15,7 @@ class CalendarMutation {
   final String? backgroundColor;
   final String? foregroundColor;
   final String? colorId;
+  final bool? hidden;
 }
 
 const calendarMutationScopeKey = '_calendarMutationScope';
@@ -30,6 +32,8 @@ const calendarEventRecurringScopeKey = '_recurringScope';
 const calendarEventTargetProviderIdKey = '_targetProviderEventId';
 const calendarEventOriginalStartKey = '_originalStart';
 const calendarEventOriginalEndKey = '_originalEnd';
+// Occurrence identity stays in _originalStart; each edit has its own interval.
+const calendarEventTimingBaselineKey = '_timingBaseline';
 const calendarEventDestinationCalendarIdKey = '_destinationCalendarId';
 const calendarEventDestinationSourceIdKey = '_destinationSourceId';
 const calendarEventCopyConfirmationRequiredKey = '_copyConfirmationRequired';
@@ -48,6 +52,7 @@ class CalendarEventMutation {
     this.descriptionContentType,
     this.descriptionHtml,
     this.location,
+    this.structuredLocation,
     this.allDay,
     this.startDate,
     this.startDateTime,
@@ -80,6 +85,9 @@ class CalendarEventMutation {
   final String? descriptionContentType;
   final String? descriptionHtml;
   final String? location;
+
+  /// Explicit Graph replacement. Null means leave structured location intact.
+  final Map<String, Object?>? structuredLocation;
   final bool? allDay;
   final String? startDate;
   final String? startDateTime;

@@ -2,6 +2,16 @@ import 'dart:io';
 import 'dart:ui' as ui;
 
 import 'package:busymax/src/app/busymax_design.dart';
+import 'package:busymax/l10n/generated/app_localizations.dart';
+import 'package:busymax/src/app/app_bootstrap.dart';
+import 'package:busymax/src/features/calendar/data/calendar_repository.dart';
+import 'package:busymax/src/schedule/schedule_repository.dart';
+import 'package:busymax/src/schedule/schedule_filters.dart';
+import 'package:busymax/src/schedule/schedule_view_mode.dart';
+import 'package:busymax/src/ui/windows/windows_schedule_page.dart';
+import 'package:fluent_ui/fluent_ui.dart' as fluent;
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:intl/intl.dart';
 import 'package:busymax/src/app/busymax_yaru_theme.dart';
 import 'package:busymax/src/features/schedule/presentation/calendar_day_semantics.dart';
 import 'package:busymax/src/features/schedule/presentation/schedule_agenda_view.dart';
@@ -15,6 +25,7 @@ import 'package:busymax/src/features/schedule/presentation/mini_calendar.dart';
 import 'package:busymax/src/features/schedule/presentation/schedule_month_view.dart';
 import 'package:busymax/src/features/schedule/presentation/schedule_year_view.dart';
 import 'package:busymax/src/features/tasks/domain/task_checklist_item.dart';
+import 'package:busymax/src/features/maps/domain/geographic_point.dart';
 import 'package:busymax/src/platform/gtk_font_service.dart';
 import 'package:busymax/src/schedule/schedule_item.dart';
 import 'package:busymax/src/schedule/schedule_range.dart';
@@ -28,8 +39,266 @@ import 'package:infinite_calendar_view/infinite_calendar_view.dart' as icv;
 import 'package:yaru/yaru.dart';
 
 import '../../../test_localized_app.dart';
+import '../../../support/memory_settings_store.dart';
+import '../../../support/schedule_planner_gesture_suite.dart';
+import '../../../support/schedule_date_gesture_suite.dart';
+
+Widget _emptyPlanner(DateTime day, {required int days}) => ScheduleDayWeekView(
+  range: days == 1 ? ScheduleRange.day(day) : ScheduleRange.week(day),
+  selectedDate: day,
+  daysShowed: days,
+  items: const [],
+  onDaySelected: (_) {},
+  onEmptySlot: (_) {},
+  onItemSelected: (_, _, [_]) {},
+  onTaskCompletionChanged: (_, _) {},
+);
+
+class _EmptyCalendarSources implements CalendarRepository {
+  @override
+  Stream<List<CalendarSourceEntity>> watchSourcesForAccounts(
+    List<String> accountIds,
+  ) => Stream.value(const []);
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
+
+class _TestScheduleItems implements ScheduleRepository {
+  @override
+  Future<List<ScheduleItem>> listItems({
+    required ScheduleRange range,
+    ScheduleFilters filters = const ScheduleFilters(),
+  }) async => _itemsFor(DateTime.now());
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
 
 void main() {
+  scheduleDateGestureTests(
+    'Linux',
+    (scenario) => localizedTestApp(
+      child: Scaffold(
+        body: ScheduleMonthView(
+          range: ScheduleRange.month(PlannerGestureScenario.day),
+          selectedDate: PlannerGestureScenario.day,
+          items: scenario.items,
+          firstWeekday: DateTime.monday,
+          onDaySelected: (_) {},
+          onCreateAtDay: (_, {anchorContext}) {},
+          onItemSelected: (_, item, [_]) => scenario.opened.add(item),
+          onTaskCompletionChanged: (_, value) => scenario.completed.add(value),
+          onReschedule: scenario.save,
+        ),
+      ),
+    ),
+  );
+  schedulePlannerGestureTests(
+    'Linux',
+    (scenario) => localizedTestApp(
+      child: Scaffold(
+        body: Directionality(
+          textDirection: scenario.rtl
+              ? ui.TextDirection.rtl
+              : ui.TextDirection.ltr,
+          child: ScheduleDayWeekView(
+            range: scenario.days == 1
+                ? ScheduleRange.day(PlannerGestureScenario.day)
+                : ScheduleRange.week(PlannerGestureScenario.day),
+            selectedDate: PlannerGestureScenario.day,
+            daysShowed: scenario.days,
+            items: scenario.items,
+            onDaySelected: (_) {},
+            onEmptySlot: scenario.clicks.add,
+            onRangeCreated: scenario.selections.add,
+            onReschedule: scenario.save,
+            onItemSelected: (_, item, [_]) => scenario.opened.add(item),
+            onTaskCompletionChanged: (_, value) =>
+                scenario.completed.add(value),
+          ),
+        ),
+      ),
+    ),
+  );
+  for (final use24Hours in [false, true]) {
+    testWidgets(
+      'planner current-time and ruler labels retain minutes (24h=$use24Hours)',
+      (tester) async {
+        final day = DateTime(2026, 9, 5);
+        await tester.pumpWidget(
+          localizedTestApp(
+            alwaysUse24HourFormat: use24Hours,
+            child: Scaffold(body: _emptyPlanner(day, days: 1)),
+          ),
+        );
+        await tester.pumpAndSettle();
+        final planner = tester.widget<icv.EventsPlanner>(
+          find.byType(icv.EventsPlanner),
+        );
+        final painter =
+            planner.timesIndicatorsParam.timesIndicatorsCustomPainter!(0.9)
+                as icv.HoursPainter;
+        for (final minute in [37, 30, 0]) {
+          final text = painter.textPainterBuilder!(
+            TimeOfDay(hour: 14, minute: minute),
+            Colors.black,
+          );
+          final suffix = minute.toString().padLeft(2, '0');
+          expect(
+            text.text!.toPlainText(),
+            use24Hours ? '14:$suffix' : '2:$suffix PM',
+          );
+          text.dispose();
+        }
+      },
+    );
+  }
+
+  for (final brightness in [Brightness.light, Brightness.dark]) {
+    for (final accent in [const Color(0xFFE95464), const Color(0xFF3465A4)]) {
+      testWidgets('Linux today badge follows $brightness and accent $accent', (
+        tester,
+      ) async {
+        final today = DateTime.now();
+        final selected = DateTime(
+          today.year,
+          today.month,
+          today.day + (today.weekday == DateTime.sunday ? -1 : 1),
+        );
+        final theme = BusyMaxYaruTheme.build(
+          brightness: brightness,
+          accentColor: accent,
+        );
+        await tester.pumpWidget(
+          localizedTestApp(
+            theme: theme,
+            child: Scaffold(body: _emptyPlanner(selected, days: 7)),
+          ),
+        );
+        await tester.pumpAndSettle();
+        final todayText = find.descendant(
+          of: find.byType(icv.EventsPlanner),
+          matching: find.text('${today.day}'),
+        );
+        final badge = find
+            .ancestor(
+              of: todayText,
+              matching: find.byWidgetPredicate(
+                (widget) =>
+                    widget is Container && widget.constraints?.maxWidth == 28,
+              ),
+            )
+            .first;
+        final container = tester.widget<Container>(badge);
+        final colorScheme = Theme.of(tester.element(badge)).colorScheme;
+        expect(
+          (container.decoration! as BoxDecoration).color,
+          colorScheme.primary,
+        );
+        expect(container.constraints?.maxHeight, 24);
+        expect(
+          tester.widget<Text>(todayText).style?.color,
+          colorScheme.onPrimary,
+        );
+        final otherText = find.descendant(
+          of: find.byType(icv.EventsPlanner),
+          matching: find.text('${selected.day}'),
+        );
+        final otherBadge = find
+            .ancestor(
+              of: otherText,
+              matching: find.byWidgetPredicate(
+                (widget) =>
+                    widget is Container && widget.constraints?.maxWidth == 28,
+              ),
+            )
+            .first;
+        expect(
+          (tester.widget<Container>(otherBadge).decoration! as BoxDecoration)
+              .color,
+          isNull,
+        );
+      });
+    }
+
+    for (final accent in [fluent.Colors.blue, fluent.Colors.purple]) {
+      testWidgets(
+        'Windows today header follows $brightness and accent $accent',
+        (tester) async {
+          tester.view.physicalSize = const Size(1500, 900);
+          tester.view.devicePixelRatio = 1;
+          addTearDown(tester.view.resetPhysicalSize);
+          addTearDown(tester.view.resetDevicePixelRatio);
+          final store = MemorySettingsStore();
+          final today = DateTime.now();
+          final label = DateFormat.MMMEd('en').format(today);
+          await tester.pumpWidget(
+            ProviderScope(
+              overrides: [
+                localSettingsStoreProvider.overrideWithValue(store),
+                initialAppSettingsProvider.overrideWithValue(
+                  AppSettings.defaults(),
+                ),
+                accountsStreamProvider.overrideWith(
+                  (ref) => Stream.value(const []),
+                ),
+                calendarRepositoryProvider.overrideWithValue(
+                  _EmptyCalendarSources(),
+                ),
+                scheduleRepositoryProvider.overrideWithValue(
+                  _TestScheduleItems(),
+                ),
+              ],
+              child: fluent.FluentApp(
+                theme: fluent.FluentThemeData(
+                  brightness: brightness,
+                  accentColor: accent,
+                ),
+                localizationsDelegates: const [AppLocalizations.delegate],
+                supportedLocales: AppLocalizations.supportedLocales,
+                home: const WindowsSchedulePage(),
+              ),
+            ),
+          );
+          await tester.pumpAndSettle();
+          final header = find.ancestor(
+            of: find.text(label),
+            matching: find.byType(fluent.FilledButton),
+          );
+          expect(header, findsOneWidget);
+          final button = tester.widget<fluent.FilledButton>(header);
+          final context = tester.element(header);
+          final theme = fluent.FluentTheme.of(context);
+          expect(
+            button.defaultStyleOf(context).backgroundColor!.resolve({}),
+            accent.defaultBrushFor(brightness),
+          );
+          expect(
+            button.defaultStyleOf(context).foregroundColor!.resolve({}),
+            theme.resources.textOnAccentFillColorPrimary,
+          );
+          expect(
+            find.byType(fluent.HyperlinkButton).hitTestable(),
+            findsNWidgets(6),
+          );
+          await tester.tap(header);
+          await tester.pumpAndSettle();
+          expect(
+            AppSettings.fromJson(store.value).scheduleViewMode,
+            ScheduleViewMode.day,
+          );
+          expect(
+            tester
+                .widget<icv.EventsPlanner>(find.byType(icv.EventsPlanner))
+                .daysShowed,
+            1,
+          );
+          expect(find.byType(fluent.HyperlinkButton), findsNothing);
+          expect(tester.takeException(), isNull);
+        },
+      );
+    }
+  }
+
   test('day and week modes use separate planner state identities', () {
     final workspace = File(
       'lib/src/features/schedule/presentation/schedule_workspace.dart',
@@ -771,8 +1040,11 @@ void main() {
     expect(source, contains('fullDayEventsBuilder: (events, width)'));
     expect(source, contains("ValueKey('schedule-all-day-scroll')"));
     expect(source, contains("ValueKey('schedule-all-day-resize-handle')"));
-    expect(source, contains('final displayEnd = _endOfDay('));
-    expect(source, contains('endTime: displayEnd'));
+    final adapters = File(
+      'lib/src/ui/common/schedule/schedule_planner_events.dart',
+    ).readAsStringSync();
+    expect(adapters, contains('final displayEnd = _endOfDay('));
+    expect(adapters, contains('endTime: displayEnd'));
     expect(source, contains('final visibleStart = _plannerStartDate(widget);'));
     expect(source, contains('final visibleRange = ScheduleRange('));
     expect(
@@ -1775,6 +2047,158 @@ void main() {
     expect(find.byIcon(YaruIcons.window_close), findsOneWidget);
     expect(find.byIcon(Icons.edit_outlined), findsNothing);
     expect(find.byIcon(YaruIcons.trash), findsNothing);
+  });
+
+  testWidgets('read-only coordinate-only event exposes one location action', (
+    tester,
+  ) async {
+    final event = CalendarScheduleItem(
+      id: 'event:coordinate-only',
+      accountId: 'google:g',
+      provider: BusyProvider.google,
+      sourceId: 'calendar:shared',
+      providerCalendarId: 'shared',
+      title: 'Coordinate only',
+      allDay: false,
+      locationPoint: GeographicPoint(latitude: 0, longitude: 0),
+      capabilities: ScheduleItemCapabilities.readOnly,
+    );
+    Future<ScheduleItemDetailsAction?>? action;
+    await tester.pumpWidget(
+      localizedTestApp(
+        child: Scaffold(
+          body: Builder(
+            builder: (context) => TextButton(
+              onPressed: () {
+                action = showScheduleItemDetailsPopover(
+                  context: context,
+                  anchorContext: context,
+                  item: event,
+                );
+              },
+              child: const Text('Open details'),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.text('Open details'));
+    await tester.pumpAndSettle();
+    expect(find.text('Show on map'), findsOneWidget);
+    expect(find.byIcon(Icons.edit_outlined), findsNothing);
+    await tester.tap(find.text('Show on map'));
+    await tester.pumpAndSettle();
+    expect(await action, ScheduleItemDetailsAction.openLocation);
+  });
+
+  testWidgets(
+    'complete HTTP location exposes Open link instead of map search',
+    (tester) async {
+      final event = CalendarScheduleItem(
+        id: 'event:link',
+        accountId: 'google:g',
+        provider: BusyProvider.google,
+        sourceId: 'calendar:shared',
+        providerCalendarId: 'shared',
+        title: 'Linked venue',
+        allDay: false,
+        location: ' https://intranet/room?a=1%202&b=two#desk ',
+        locationPoint: GeographicPoint(latitude: 49, longitude: -123),
+        capabilities: ScheduleItemCapabilities.readOnly,
+      );
+      Future<ScheduleItemDetailsAction?>? action;
+      await tester.pumpWidget(
+        localizedTestApp(
+          child: Scaffold(
+            body: Builder(
+              builder: (context) => TextButton(
+                onPressed: () {
+                  action = showScheduleItemDetailsPopover(
+                    context: context,
+                    anchorContext: context,
+                    item: event,
+                  );
+                },
+                child: const Text('Open details'),
+              ),
+            ),
+          ),
+        ),
+      );
+
+      await tester.tap(find.text('Open details'));
+      await tester.pumpAndSettle();
+      expect(find.text('Open link'), findsOneWidget);
+      expect(find.text('Show on map'), findsNothing);
+      await tester.tap(find.text('Open link'));
+      await tester.pumpAndSettle();
+      expect(await action, ScheduleItemDetailsAction.openLocation);
+    },
+  );
+
+  testWidgets('location actions are limited to location-capable tasks', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1000, 1000);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    var task = TaskScheduleItem(
+      id: 'task:unsupported-location',
+      accountId: 'microsoft:m',
+      provider: BusyProvider.microsoft,
+      sourceId: 'tasks:inbox',
+      title: 'Unsupported stale location',
+      completed: false,
+      allDay: true,
+      location: 'Stale room',
+    );
+    late BuildContext anchor;
+    await tester.pumpWidget(
+      localizedTestApp(
+        child: Scaffold(
+          body: Builder(
+            builder: (context) {
+              anchor = context;
+              return const SizedBox.expand();
+            },
+          ),
+        ),
+      ),
+    );
+
+    var completion = showScheduleItemDetailsPopover(
+      context: anchor,
+      anchorContext: anchor,
+      item: task,
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('Show on map'), findsNothing);
+    Navigator.of(anchor, rootNavigator: true).pop();
+    await tester.pumpAndSettle();
+    await completion;
+
+    task = TaskScheduleItem(
+      id: 'task:supported-location',
+      accountId: 'nextcloud:n',
+      provider: BusyProvider.nextcloud,
+      sourceId: 'tasks:calendar',
+      title: 'Supported task location',
+      completed: false,
+      allDay: true,
+      location: 'Meeting room 3',
+    );
+    completion = showScheduleItemDetailsPopover(
+      context: anchor,
+      anchorContext: anchor,
+      item: task,
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('Show on map'), findsOneWidget);
+    Navigator.of(anchor, rootNavigator: true).pop();
+    await tester.pumpAndSettle();
+    await completion;
   });
 
   testWidgets('details popover constrains long content without animation', (
@@ -3846,8 +4270,10 @@ void main() {
     expect(sidebar, isNot(contains('? context.l10n.hideFromSchedule')));
     expect(sidebar, isNot(contains(': context.l10n.showInSchedule')));
     expect(sidebar, contains('minHeight: BusyMaxSizes.sidebarRowHeight'));
-    expect(sidebar, contains('leading: _SourceDot'));
-    expect(sidebar, contains('class _SourceDot'));
+    expect(sidebar, contains('leading: _SourceIcon'));
+    expect(sidebar, contains('class _SourceIcon'));
+    expect(sidebar, contains('icon: YaruIcons.calendar'));
+    expect(sidebar, contains('icon: YaruIcons.task_list'));
     expect(sidebar, contains('YaruIcons.checkmark'));
     expect(sidebar, contains('busyMaxSubtleButtonBackground(context)'));
     expect(sidebar, isNot(contains('YaruIcons.checkbox')));
@@ -4026,7 +4452,7 @@ void main() {
       ).readAsStringSync();
 
       expect(source, contains('_hasRenderedFullDayEvents(context, widget)'));
-      expect(source, contains('_ScheduleIcvEvent.fromItem(context, item)'));
+      expect(source, contains('SchedulePlannerEvents.fromItem('));
       expect(source, contains('_fullDayEventIntersectsRange'));
       expect(source, isNot(contains('_allDayItemIntersectsRange')));
       expect(source, contains('textAlign: TextAlign.center'));

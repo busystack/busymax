@@ -219,7 +219,7 @@ final class FakeDavServer {
       return;
     }
     final path = request.uri.path;
-    if (path == '$installationPath/.well-known/caldav') {
+    if (path == '/.well-known/caldav') {
       if (redirectWellKnown) {
         await _respond(
           request,

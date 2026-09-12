@@ -8,7 +8,15 @@ param(
 )
 
 . "$PSScriptRoot/common.ps1"
-& "$PSScriptRoot/check_prerequisites.ps1" | Out-Host
+$prerequisites = & "$PSScriptRoot/check_prerequisites.ps1"
+$prerequisites | Format-List | Out-Host
+$flutterExecutable = [string]$prerequisites.FlutterExecutable
+$dartExecutable = [string]$prerequisites.DartExecutable
+if ([string]::IsNullOrWhiteSpace($flutterExecutable) -or
+    [string]::IsNullOrWhiteSpace($dartExecutable)) {
+  throw 'Windows prerequisite validation did not return the Flutter ' +
+    'toolchain paths.'
+}
 $identity = & "$PSScriptRoot/validate_release_config.ps1" `
   -ConfigPath $ConfigPath -Ci:$Ci
 $config = Get-BusyMaxStoreConfig -Path $ConfigPath
@@ -38,29 +46,30 @@ function Invoke-BusyMaxPesterTests {
 }
 
 function Invoke-BusyMaxSourceGeneration {
-  & flutter pub get
+  & $flutterExecutable pub get --enforce-lockfile
   if ($LASTEXITCODE -ne 0) { throw 'Dependency resolution failed.' }
-  & flutter gen-l10n
+  & $flutterExecutable gen-l10n
   if ($LASTEXITCODE -ne 0) { throw 'Localization generation failed.' }
-  & dart run build_runner build --delete-conflicting-outputs --force-jit
+  & $dartExecutable run build_runner build `
+    --delete-conflicting-outputs --force-jit
   if ($LASTEXITCODE -ne 0) { throw 'Code generation failed.' }
   & git diff --exit-code -- lib/l10n/generated lib/src/db
   if ($LASTEXITCODE -ne 0) { throw 'Generated files are not committed.' }
 }
 
 function Invoke-BusyMaxStaticAnalysis {
-  & dart format --output=none --set-exit-if-changed .
+  & $dartExecutable format --output=none --set-exit-if-changed .
   if ($LASTEXITCODE -ne 0) { throw 'Formatting check failed.' }
-  & flutter analyze
+  & $flutterExecutable analyze
   if ($LASTEXITCODE -ne 0) { throw 'Flutter analysis failed.' }
-  & dart run tool/check_platform_boundaries.dart
+  & $dartExecutable run tool/check_platform_boundaries.dart
   if ($LASTEXITCODE -ne 0) { throw 'Platform boundary validation failed.' }
 }
 
 function Invoke-BusyMaxFlutterTests {
   New-Item -ItemType Directory -Force `
     -Path 'build\windows\test-results' | Out-Null
-  & flutter test --machine | Tee-Object `
+  & $flutterExecutable test --machine | Tee-Object `
     -FilePath 'build\windows\test-results\flutter-tests.jsonl'
   if ($LASTEXITCODE -ne 0) { throw 'Flutter tests failed.' }
 }
@@ -83,7 +92,8 @@ function Invoke-BusyMaxWindowsCompile {
   }
   New-Item -ItemType Directory -Force `
     -Path 'build\windows\test-results' | Out-Null
-  & flutter build windows --release -t lib/main_windows.dart @defines 2>&1 |
+  & $flutterExecutable build windows --release `
+    -t lib/main_windows.dart @defines 2>&1 |
     Tee-Object -FilePath 'build\windows\test-results\windows-build.log'
   $compileExitCode = $LASTEXITCODE
   if ($compileExitCode -ne 0) {

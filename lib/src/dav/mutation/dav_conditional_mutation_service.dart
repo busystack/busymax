@@ -12,6 +12,8 @@ import 'dav_mutation_patch.dart';
 
 enum DavConditionalStatus { success, missing, preconditionFailed }
 
+const davPartialMoveFailureCode = 'DavMovePartiallyCompleted';
+
 final class DavConditionalResponse {
   const DavConditionalResponse({
     required this.status,
@@ -53,24 +55,44 @@ abstract interface class DavMutationRemoteClient {
   });
 }
 
-final class DavMutationHttpClient implements DavMutationRemoteClient {
+/// An explicitly scoped request policy, never a transport-wide header. Normal
+/// edits and other providers continue to use their existing scheduling path.
+abstract interface class DavSilentMutationRemoteClient {
+  DavMutationRemoteClient withoutScheduling();
+}
+
+final class DavMutationHttpClient
+    implements DavMutationRemoteClient, DavSilentMutationRemoteClient {
   DavMutationHttpClient({
     required DavHttpTransport transport,
     required String accountId,
     required String collectionId,
     required DavBasicCredential credential,
     DavXmlParser xmlParser = const DavXmlParser(),
+    bool suppressScheduling = false,
   }) : _transport = transport,
        _accountId = accountId,
        _collectionId = collectionId,
        _credential = credential,
-       _xmlParser = xmlParser;
+       _xmlParser = xmlParser,
+       _suppressScheduling = suppressScheduling;
 
   final DavHttpTransport _transport;
   final String _accountId;
   final String _collectionId;
   final DavBasicCredential _credential;
   final DavXmlParser _xmlParser;
+  final bool _suppressScheduling;
+
+  @override
+  DavMutationRemoteClient withoutScheduling() => DavMutationHttpClient(
+    transport: _transport,
+    accountId: _accountId,
+    collectionId: _collectionId,
+    credential: _credential,
+    xmlParser: _xmlParser,
+    suppressScheduling: true,
+  );
 
   @override
   Future<DavConditionalResponse> conditionalPut({
@@ -96,6 +118,7 @@ final class DavMutationHttpClient implements DavMutationRemoteClient {
         headers: {
           if (ifNoneMatch) 'if-none-match': '*',
           if (ifMatch != null) 'if-match': ifMatch,
+          if (_suppressScheduling) 'x-nc-scheduling': 'false',
         },
       ),
       credential: _credential,
@@ -336,12 +359,14 @@ final class DavNewObject {
     required this.initialMemberName,
     required this.rawIcs,
     required this.componentType,
+    this.suppressScheduling = false,
   });
 
   final String uid;
   final String initialMemberName;
   final String rawIcs;
   final String componentType;
+  final bool suppressScheduling;
 }
 
 final class DavNewObjectFactory {
@@ -436,6 +461,8 @@ final class DavConditionalMutationService {
     String Function()? memberIdFactory,
     DateTime Function()? nowUtc,
     this.maximumConditionalAttempts = 3,
+    this.implicitScheduling = false,
+    this.schedulingValidator,
   }) : _remoteClient = remoteClient,
        _conflictAnalyzer = conflictAnalyzer,
        _memberIdFactory = memberIdFactory ?? const Uuid().v4,
@@ -446,12 +473,27 @@ final class DavConditionalMutationService {
   final String Function() _memberIdFactory;
   final DateTime Function() _nowUtc;
   final int maximumConditionalAttempts;
+  final bool implicitScheduling;
+  final void Function({String? baseline, String? candidate})?
+  schedulingValidator;
+
+  bool _sameIntendedObject(String intended, String current) =>
+      _sameSemanticObject(intended, current, scheduling: implicitScheduling);
+
+  bool _matchesCreatedCanonical(String intended, String canonical) =>
+      _sameIntendedObject(intended, canonical) ||
+      _sameServerNormalizedCreate(
+        intended,
+        canonical,
+        scheduling: implicitScheduling,
+      );
 
   Future<DavMutationResult> create({
     required Uri collectionUri,
     required DavNewObject object,
     required CollectionCapabilities capabilities,
     required String correlationId,
+    bool reconcileFirst = false,
   }) async {
     final allowed = object.componentType == 'VEVENT'
         ? capabilities.canCreateEvent
@@ -459,12 +501,46 @@ final class DavConditionalMutationService {
         ? capabilities.canCreateTask
         : false;
     if (!allowed) throw _readOnlyError(correlationId);
+    if (!object.suppressScheduling) {
+      schedulingValidator?.call(candidate: object.rawIcs);
+    }
+    final remote = object.suppressScheduling
+        ? (_remoteClient is DavSilentMutationRemoteClient
+              ? (_remoteClient as DavSilentMutationRemoteClient)
+                    .withoutScheduling()
+              : throw const DavException(
+                  kind: DavErrorKind.unsupportedComponent,
+                  code: 'DavSilentImportUnsupported',
+                  safeMessage:
+                      'This transport cannot suppress scheduling for an import.',
+                ))
+        : _remoteClient;
     var memberName = object.initialMemberName;
+    if (reconcileFirst) {
+      final uri = _memberUri(collectionUri, memberName);
+      final existing = await remote.fetch(
+        hrefKey: uri.path,
+        uri: uri,
+        correlationId: correlationId,
+      );
+      if (!existing.missing) {
+        if (_matchesCreatedCanonical(object.rawIcs, existing.rawIcsBody!)) {
+          return DavMutationResult.succeeded(existing);
+        }
+        // An uncertain create must not allocate a second name or send another
+        // invitation after finding a different resource at its original href.
+        return DavMutationResult.conflict(
+          _retryLimitConflict(const {'CREATE'}),
+          remoteObject: existing,
+          localCandidateRawIcs: object.rawIcs,
+        );
+      }
+    }
     for (var attempt = 0; attempt < maximumConditionalAttempts; attempt += 1) {
       final uri = _memberUri(collectionUri, memberName);
       final hrefKey = uri.path;
       try {
-        final response = await _remoteClient.conditionalPut(
+        final response = await remote.conditionalPut(
           uri: uri,
           rawIcs: object.rawIcs,
           correlationId: correlationId,
@@ -475,27 +551,44 @@ final class DavConditionalMutationService {
           continue;
         }
         if (response.status == DavConditionalStatus.missing) continue;
-        final canonical = await _remoteClient.fetch(
+        final canonical = await remote.fetch(
           hrefKey: hrefKey,
           uri: uri,
           correlationId: correlationId,
         );
         if (!canonical.missing &&
-            _sameIntendedObject(object.rawIcs, canonical.rawIcsBody!)) {
+            (_matchesCreatedCanonical(object.rawIcs, canonical.rawIcsBody!) ||
+                (implicitScheduling &&
+                    _sameResourceIdentity(
+                      object.rawIcs,
+                      canonical.rawIcsBody!,
+                    )))) {
           return DavMutationResult.succeeded(canonical);
         }
+        // A successful PUT is not a filename collision. If the canonical
+        // resource disappeared or changed identity, preserve an explicit
+        // conflict; never create another meeting to compensate.
+        return DavMutationResult.conflict(
+          _retryLimitConflict(const {'CREATE'}),
+          remoteObject: canonical,
+          localCandidateRawIcs: object.rawIcs,
+        );
       } on DavException catch (error) {
         if (!_isUnknownOutcome(error)) rethrow;
-        final resolved = await _remoteClient.fetch(
+        final resolved = await remote.fetch(
           hrefKey: hrefKey,
           uri: uri,
           correlationId: correlationId,
         );
         if (!resolved.missing) {
-          if (_sameIntendedObject(object.rawIcs, resolved.rawIcsBody!)) {
+          if (_matchesCreatedCanonical(object.rawIcs, resolved.rawIcsBody!)) {
             return DavMutationResult.succeeded(resolved);
           }
-          memberName = '${_memberIdFactory()}.ics';
+          return DavMutationResult.conflict(
+            _retryLimitConflict(const {'CREATE'}),
+            remoteObject: resolved,
+            localCandidateRawIcs: object.rawIcs,
+          );
         }
       }
     }
@@ -515,6 +608,7 @@ final class DavConditionalMutationService {
     required DavMutationPatch patch,
     required CollectionCapabilities capabilities,
     required String correlationId,
+    bool reconcileFirst = false,
   }) async {
     final event = patch.target.componentType.toUpperCase() == 'VEVENT';
     if (baselineEtag.isEmpty ||
@@ -525,7 +619,44 @@ final class DavConditionalMutationService {
     var comparisonBaseline = baselineRawIcs;
     var candidate = patch.applyTo(baselineRawIcs, nowUtc: _nowUtc());
     DavFetchedMember? lastCurrent;
+    if (reconcileFirst) {
+      final current = await _remoteClient.fetch(
+        hrefKey: hrefKey,
+        uri: uri,
+        correlationId: correlationId,
+      );
+      if (current.missing) {
+        return DavMutationResult.conflict(
+          _resourceMissingConflict(patch.changedProperties),
+          remoteObject: current,
+          localCandidateRawIcs: candidate,
+        );
+      }
+      if (_sameIntendedObject(candidate, current.rawIcsBody!)) {
+        return DavMutationResult.succeeded(current);
+      }
+      final analysis = _conflictAnalyzer.analyzeUpdate(
+        baselineRawIcs: baselineRawIcs,
+        currentRemoteRawIcs: current.rawIcsBody!,
+        localPatch: patch,
+        nowUtc: _nowUtc(),
+      );
+      if (!analysis.canRetryWithRemoteEtag) {
+        return DavMutationResult.conflict(
+          analysis,
+          remoteObject: current,
+          localCandidateRawIcs: candidate,
+        );
+      }
+      expectedEtag = current.etag!;
+      comparisonBaseline = current.rawIcsBody!;
+      candidate = analysis.mergedRawIcs!;
+    }
     for (var attempt = 0; attempt < maximumConditionalAttempts; attempt += 1) {
+      schedulingValidator?.call(
+        baseline: comparisonBaseline,
+        candidate: candidate,
+      );
       try {
         final response = await _remoteClient.conditionalPut(
           uri: uri,
@@ -599,6 +730,7 @@ final class DavConditionalMutationService {
     required CollectionCapabilities destinationCapabilities,
     required String correlationId,
     DavMutationPatch? postMovePatch,
+    bool reconcileFirst = false,
   }) async {
     final canDelete = isEvent
         ? sourceCapabilities.canDeleteEvent
@@ -637,44 +769,64 @@ final class DavConditionalMutationService {
     var expectedEtag = baselineEtag;
     var expectedRawIcs = baselineRawIcs;
     DavFetchedMember? lastRemote;
-    for (var attempt = 0; attempt < maximumConditionalAttempts; attempt += 1) {
-      try {
-        final response = await _remoteClient.conditionalMove(
-          sourceUri: sourceUri,
-          destinationUri: destinationUri,
-          ifMatch: expectedEtag,
-          correlationId: correlationId,
-        );
-        if (response.status == DavConditionalStatus.success) {
-          final destination = await _remoteClient.fetch(
-            hrefKey: destinationHrefKey,
-            uri: destinationUri,
+    var reconcileBeforeMove = reconcileFirst;
+    var moveMayHaveCompleted = reconcileFirst;
+    var attempt = 0;
+    while (attempt < maximumConditionalAttempts) {
+      if (!reconcileBeforeMove) {
+        attempt += 1;
+        var moveSucceeded = false;
+        try {
+          final response = await _remoteClient.conditionalMove(
+            sourceUri: sourceUri,
+            destinationUri: destinationUri,
+            ifMatch: expectedEtag,
             correlationId: correlationId,
           );
-          if (!destination.missing &&
-              _sameIntendedObject(expectedRawIcs, destination.rawIcsBody!)) {
-            return _finishMoveAtDestination(
-              destination,
-              postMovePatch: postMovePatch,
-              destinationCapabilities: destinationCapabilities,
+          if (response.status == DavConditionalStatus.success) {
+            moveSucceeded = true;
+            moveMayHaveCompleted = true;
+            final destination = await _remoteClient.fetch(
+              hrefKey: destinationHrefKey,
+              uri: destinationUri,
               correlationId: correlationId,
             );
+            if (!destination.missing &&
+                _sameIntendedObject(expectedRawIcs, destination.rawIcsBody!)) {
+              return await _finishMoveAtDestination(
+                destination,
+                postMovePatch: postMovePatch,
+                destinationCapabilities: destinationCapabilities,
+                correlationId: correlationId,
+              );
+            }
           }
+        } on DavException catch (error) {
+          if (moveSucceeded) throw _partialMoveFailure(error);
+          if (!_isUnknownOutcome(error)) rethrow;
+          moveMayHaveCompleted = true;
         }
-      } on DavException catch (error) {
-        if (!_isUnknownOutcome(error)) rethrow;
+      } else {
+        reconcileBeforeMove = false;
       }
 
-      final destination = await _remoteClient.fetch(
-        hrefKey: destinationHrefKey,
-        uri: destinationUri,
-        correlationId: correlationId,
-      );
-      final source = await _remoteClient.fetch(
-        hrefKey: sourceHrefKey,
-        uri: sourceUri,
-        correlationId: correlationId,
-      );
+      late final DavFetchedMember destination;
+      late final DavFetchedMember source;
+      try {
+        destination = await _remoteClient.fetch(
+          hrefKey: destinationHrefKey,
+          uri: destinationUri,
+          correlationId: correlationId,
+        );
+        source = await _remoteClient.fetch(
+          hrefKey: sourceHrefKey,
+          uri: sourceUri,
+          correlationId: correlationId,
+        );
+      } on DavException catch (error) {
+        if (moveMayHaveCompleted) throw _partialMoveFailure(error);
+        rethrow;
+      }
       lastRemote = destination.missing ? source : destination;
       if (source.missing) {
         if (destination.missing) {
@@ -740,11 +892,12 @@ final class DavConditionalMutationService {
           ),
         );
       }
+      moveMayHaveCompleted = false;
       expectedEtag = source.etag!;
       expectedRawIcs = source.rawIcsBody!;
     }
     return DavMutationResult.conflict(
-      _retryLimitConflict(const {'MOVE'}),
+      _moveConflict('DavConflictStaleMove', const {'RESOURCE'}),
       remoteObject: lastRemote,
       localCandidateRawIcs: _moveCandidate(
         expectedRawIcs,
@@ -759,19 +912,36 @@ final class DavConditionalMutationService {
     required DavMutationPatch? postMovePatch,
     required CollectionCapabilities destinationCapabilities,
     required String correlationId,
-  }) {
+  }) async {
     if (postMovePatch == null) {
-      return Future.value(DavMutationResult.succeeded(destination));
+      return DavMutationResult.succeeded(destination);
     }
-    return update(
-      hrefKey: destination.hrefKey,
-      uri: destination.requestUri,
-      baselineEtag: destination.etag!,
-      baselineRawIcs: destination.rawIcsBody!,
-      patch: postMovePatch,
-      capabilities: destinationCapabilities,
-      correlationId: correlationId,
-    );
+    try {
+      final result = await update(
+        hrefKey: destination.hrefKey,
+        uri: destination.requestUri,
+        baselineEtag: destination.etag!,
+        baselineRawIcs: destination.rawIcsBody!,
+        patch: postMovePatch,
+        capabilities: destinationCapabilities,
+        correlationId: correlationId,
+      );
+      if (result.outcome == DavMutationOutcome.succeeded) return result;
+      final remote = result.conflictRemoteObject;
+      final moveConflictCode = remote == null || remote.missing
+          ? 'DavConflictMoveSourceRemoved'
+          : 'DavConflictMoveDestinationChanged';
+      return DavMutationResult.conflict(
+        _moveConflict(
+          moveConflictCode,
+          result.conflict?.remoteChangedProperties ?? const {'RESOURCE'},
+        ),
+        remoteObject: remote,
+        localCandidateRawIcs: result.localCandidateRawIcs,
+      );
+    } on DavException catch (error) {
+      throw _partialMoveFailure(error);
+    }
   }
 
   Future<DavMutationResult> delete({
@@ -793,6 +963,7 @@ final class DavConditionalMutationService {
     var comparisonBaseline = baselineRawIcs;
     DavFetchedMember? lastCurrent;
     for (var attempt = 0; attempt < maximumConditionalAttempts; attempt += 1) {
+      schedulingValidator?.call(baseline: comparisonBaseline);
       try {
         final response = await _remoteClient.conditionalDelete(
           uri: uri,
@@ -860,15 +1031,133 @@ Uri _memberUri(Uri collectionUri, String memberName) {
   return base.resolve(memberName);
 }
 
-bool _sameIntendedObject(String intended, String current) {
+bool _sameSemanticObject(
+  String intended,
+  String current, {
+  bool scheduling = false,
+}) {
   try {
-    final intendedSemantic = IcalSemanticDocument.parse(intended);
-    final currentSemantic = IcalSemanticDocument.parse(current);
+    String normalized(String raw) {
+      if (!scheduling) return raw;
+      final document = IcalDocument.parse(raw);
+      for (final component in document.calendarComponents) {
+        for (final property in component.properties.where(
+          (p) => p.name == 'ATTENDEE' || p.name == 'ORGANIZER',
+        )) {
+          if (property.parameters.any((p) => p.name == 'SCHEDULE-STATUS')) {
+            property.parameters.removeWhere((p) => p.name == 'SCHEDULE-STATUS');
+            property.isDirty = true;
+          }
+        }
+      }
+      return document.serialize();
+    }
+
+    final intendedSemantic = IcalSemanticDocument.parse(normalized(intended));
+    final currentSemantic = IcalSemanticDocument.parse(normalized(current));
     return intendedSemantic.primaryUid == currentSemantic.primaryUid &&
         intendedSemantic.semanticHash == currentSemantic.semanticHash;
   } on DavException {
     return false;
   }
+}
+
+/// CalDAV servers are allowed to store a representation that differs from the
+/// submitted resource.  For an uncertain create, accept only a resource with
+/// the same component identity whose remaining differences are explicitly
+/// server-owned metadata; a UID match by itself is not sufficient.
+bool _sameServerNormalizedCreate(
+  String intended,
+  String canonical, {
+  required bool scheduling,
+}) {
+  if (!_sameResourceIdentity(intended, canonical)) return false;
+  try {
+    return _sameSemanticObject(
+      _withoutServerManagedCreateFields(intended, scheduling: scheduling),
+      _withoutServerManagedCreateFields(canonical, scheduling: scheduling),
+    );
+  } on DavException {
+    return false;
+  }
+}
+
+String _withoutServerManagedCreateFields(
+  String raw, {
+  required bool scheduling,
+}) {
+  final document = IcalDocument.parse(raw);
+
+  void normalize(IcalComponent component) {
+    final before = component.children.length;
+    component.children.removeWhere(
+      (child) =>
+          child is IcalProperty &&
+          const {
+            'DTSTAMP',
+            'LAST-MODIFIED',
+            'CREATED',
+            'SEQUENCE',
+          }.contains(child.name),
+    );
+    if (component.children.length != before) {
+      component.structurallyDirty = true;
+    }
+    for (final property in component.properties) {
+      if (!scheduling ||
+          (property.name != 'ATTENDEE' && property.name != 'ORGANIZER')) {
+        continue;
+      }
+      if (property.parameters.any(
+        (parameter) =>
+            parameter.name == 'SCHEDULE-STATUS' ||
+            parameter.name == 'SCHEDULE-AGENT',
+      )) {
+        property.parameters.removeWhere(
+          (parameter) =>
+              parameter.name == 'SCHEDULE-STATUS' ||
+              parameter.name == 'SCHEDULE-AGENT',
+        );
+        property.isDirty = true;
+      }
+    }
+    for (final child in component.components) {
+      normalize(child);
+    }
+  }
+
+  normalize(document.root);
+  return document.serialize();
+}
+
+bool _sameResourceIdentity(String intended, String current) {
+  try {
+    final a = IcalSemanticDocument.parse(intended);
+    final b = IcalSemanticDocument.parse(current);
+    return a.primaryUid != null &&
+        a.primaryUid == b.primaryUid &&
+        b.components.isNotEmpty &&
+        b.components.every(
+          (c) =>
+              c.uid == a.primaryUid &&
+              c.componentType == a.components.first.componentType,
+        );
+  } on DavException {
+    return false;
+  }
+}
+
+DavException _partialMoveFailure(DavException error) {
+  if (error.code == davPartialMoveFailureCode) return error;
+  return DavException(
+    kind: error.kind,
+    code: davPartialMoveFailureCode,
+    safeMessage: error.safeMessage,
+    statusCode: error.statusCode,
+    correlationId: error.correlationId,
+    retryAfter: error.retryAfter,
+    categoryOverride: error.category,
+  );
 }
 
 bool _isUnknownOutcome(DavException error) =>

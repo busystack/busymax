@@ -1,4 +1,6 @@
 import '../../../core/time/provider_date_time.dart';
+import '../../maps/domain/geographic_point.dart';
+import '../../maps/domain/location_result.dart';
 import '../../../providers/busy_provider.dart';
 import '../data/calendar_event_detail.dart';
 
@@ -22,6 +24,34 @@ class EventAttendeeDraft {
   });
 
   factory EventAttendeeDraft.fromJson(Map<String, Object?> json) {
+    if (json['value'] case final String address) {
+      final parameters = {
+        for (final p in json['parameters'] as List? ?? const [])
+          if (p is Map && p['values'] is List)
+            p['name']: (p['values'] as List).firstOrNull?.toString(),
+      };
+      String decoded(String value) {
+        try {
+          return Uri.decodeComponent(value);
+        } on FormatException {
+          return value;
+        }
+      }
+
+      return EventAttendeeDraft(
+        email: address.toLowerCase().startsWith('mailto:')
+            ? decoded(address.substring(7))
+            : address,
+        displayName: parameters['CN'],
+        optional: parameters['ROLE'] == 'OPT-PARTICIPANT',
+        self: json['self'] == true,
+        organizer: json['organizer'] == true,
+        responseStatus:
+            json['responseStatus']?.toString() ??
+            parameters['PARTSTAT'] ??
+            'NEEDS-ACTION',
+      );
+    }
     final emailAddress = switch (json['emailAddress']) {
       final Map value => value.cast<String, Object?>(),
       _ => const <String, Object?>{},
@@ -116,6 +146,9 @@ class EventEditorDraft {
     this.startTimeZone,
     this.endTimeZone,
     this.location,
+    this.originalLocation,
+    this.locationPoint,
+    this.locationChange = const LocationChange.unchanged(),
     this.description,
     this.descriptionContentType,
     this.descriptionHtml,
@@ -172,9 +205,8 @@ class EventEditorDraft {
     final isOrganizer = switch (detail.provider) {
       BusyProvider.google => _jsonBool(organizer?['self']),
       BusyProvider.microsoft => _jsonBool(raw['isOrganizer']),
-      BusyProvider.appleICloud ||
-      BusyProvider.nextcloud ||
-      BusyProvider.webCal => null,
+      BusyProvider.nextcloud => _jsonBool(raw['isOrganizer']),
+      BusyProvider.appleICloud || BusyProvider.webCal => null,
     };
     final hideAttendees = switch (detail.provider) {
       BusyProvider.google =>
@@ -212,6 +244,7 @@ class EventEditorDraft {
       startTimeZone: detail.startTimeZone,
       endTimeZone: detail.endTimeZone,
       location: detail.location,
+      locationPoint: detail.locationPoint,
       description: detail.description,
       descriptionContentType: descriptionContentType,
       descriptionHtml: descriptionHtml,
@@ -231,10 +264,11 @@ class EventEditorDraft {
       hideAttendees: hideAttendees,
       allowNewTimeProposals: _jsonBool(raw['allowNewTimeProposals']),
       isOrganizer: isOrganizer,
-      canManageAttendees:
-          detail.provider != BusyProvider.google ||
-          isOrganizer == true ||
-          detail.guestsCanInviteOthers,
+      canManageAttendees: detail.provider == BusyProvider.nextcloud
+          ? raw['canManageAttendees'] == true
+          : detail.provider != BusyProvider.google ||
+                isOrganizer == true ||
+                detail.guestsCanInviteOthers,
     );
   }
 
@@ -249,6 +283,7 @@ class EventEditorDraft {
     DateTime? start,
     DateTime? end,
     String? location,
+    GeographicPoint? locationPoint,
     String? providerRecurringEventId,
     String? eventType,
     RecurringEventMutationScope? recurringMutationScope,
@@ -289,6 +324,8 @@ class EventEditorDraft {
       startTimeZone: startTimeZone,
       endTimeZone: endTimeZone,
       location: location,
+      originalLocation: location,
+      locationPoint: locationPoint,
       description: description,
       descriptionContentType: descriptionContentType,
       descriptionHtml: descriptionHtml,
@@ -325,6 +362,11 @@ class EventEditorDraft {
   final String? startTimeZone;
   final String? endTimeZone;
   final String? location;
+  final String? originalLocation;
+  final GeographicPoint? locationPoint;
+  final LocationChange locationChange;
+  GeographicPoint? get effectiveLocationPoint =>
+      locationChange.changed ? locationChange.selection?.point : locationPoint;
   final String? description;
   final String? descriptionContentType;
   final String? descriptionHtml;
@@ -371,6 +413,7 @@ class EventEditorDraft {
   }
 
   EventEditorDraft copyWith({
+    LocationChange? locationChange,
     String? accountId,
     String? sourceId,
     String? providerCalendarId,
@@ -415,6 +458,13 @@ class EventEditorDraft {
     bool clearConference = false,
     bool clearRecurringMutationScope = false,
   }) {
+    final locationWasProvided = clearLocation || location != null;
+    final candidateLocation = clearLocation ? null : location ?? this.location;
+    final matchesOriginalLocation =
+        (candidateLocation ?? '') == (originalLocation ?? '');
+    final updatedLocation = matchesOriginalLocation
+        ? originalLocation
+        : candidateLocation;
     return EventEditorDraft(
       eventId: eventId,
       originalDetail: originalDetail,
@@ -432,7 +482,16 @@ class EventEditorDraft {
       end: end ?? this.end,
       startTimeZone: startTimeZone ?? this.startTimeZone,
       endTimeZone: endTimeZone ?? this.endTimeZone,
-      location: clearLocation ? null : location ?? this.location,
+      location: updatedLocation,
+      originalLocation: originalLocation,
+      locationPoint: locationPoint,
+      locationChange:
+          locationChange ??
+          (!locationWasProvided
+              ? this.locationChange
+              : !matchesOriginalLocation
+              ? const LocationChange.clear()
+              : const LocationChange.unchanged()),
       description: clearDescription ? null : description ?? this.description,
       descriptionContentType: clearDescription
           ? null
@@ -489,6 +548,9 @@ class EventEditorDraft {
         other.startTimeZone == startTimeZone &&
         other.endTimeZone == endTimeZone &&
         other.location == location &&
+        other.originalLocation == originalLocation &&
+        other.locationPoint == locationPoint &&
+        other.locationChange == locationChange &&
         other.description == description &&
         other.descriptionContentType == descriptionContentType &&
         other.descriptionHtml == descriptionHtml &&
@@ -530,6 +592,9 @@ class EventEditorDraft {
     startTimeZone,
     endTimeZone,
     location,
+    originalLocation,
+    locationPoint,
+    locationChange,
     description,
     descriptionContentType,
     descriptionHtml,

@@ -1,5 +1,7 @@
 import 'package:busymax/src/providers/busy_provider.dart';
+import '../features/calendar/domain/event_timing_policy.dart';
 import '../features/tasks/domain/task_checklist_item.dart';
+import '../features/maps/domain/geographic_point.dart';
 
 enum ScheduleItemKind { calendarEvent, task, localReminder }
 
@@ -50,8 +52,10 @@ class CalendarScheduleItem implements ScheduleItem {
     required this.allDay,
     this.start,
     this.providerRecurringEventId,
+    this.timingBaseline,
     this.end,
     this.location,
+    this.locationPoint,
     this.description,
     this.descriptionContentType,
     this.descriptionHtml,
@@ -62,6 +66,9 @@ class CalendarScheduleItem implements ScheduleItem {
     this.guestsCanModify,
     this.locked = false,
     this.currentUserResponse,
+    this.canSendReply = false,
+    this.timingEditable = true,
+    this.isFederated = false,
     this.colorHex,
     this.categories = const [],
     this.reminderMinutesBeforeStart = const [],
@@ -81,6 +88,23 @@ class CalendarScheduleItem implements ScheduleItem {
   final String sourceId;
   final String providerCalendarId;
   final String? providerRecurringEventId;
+  final EventTimingBaseline? timingBaseline;
+
+  bool get canReschedule =>
+      timingEditable &&
+      start != null &&
+      end != null &&
+      end!.isAfter(start!) &&
+      canEditEventTiming(
+        provider: provider,
+        canEdit: capabilities.canEdit,
+        isOrganizer: provider == BusyProvider.nextcloud && attendees.isEmpty
+            ? null
+            : isOrganizer,
+        locked: locked,
+        guestsCanModify: guestsCanModify,
+        isFederated: isFederated,
+      );
   @override
   final String title;
   @override
@@ -90,6 +114,7 @@ class CalendarScheduleItem implements ScheduleItem {
   @override
   final bool allDay;
   final String? location;
+  final GeographicPoint? locationPoint;
   final String? description;
   final String? descriptionContentType;
   final String? descriptionHtml;
@@ -116,8 +141,20 @@ class CalendarScheduleItem implements ScheduleItem {
   bool get canRespondToInvitation {
     return isOrganizer == false &&
         currentUserResponse != null &&
-        (provider == BusyProvider.google || provider == BusyProvider.microsoft);
+        (provider == BusyProvider.google ||
+            provider == BusyProvider.microsoft ||
+            (provider == BusyProvider.nextcloud && canSendReply));
   }
+
+  final bool canSendReply;
+  final bool timingEditable;
+  final bool isFederated;
+
+  bool get isNextcloudMeeting =>
+      provider == BusyProvider.nextcloud &&
+      !isFederated &&
+      attendees.isNotEmpty;
+  bool get isNextcloudAttendee => isNextcloudMeeting && isOrganizer == false;
 
   @override
   ScheduleItemKind get kind => ScheduleItemKind.calendarEvent;
@@ -135,6 +172,8 @@ class TaskScheduleItem implements ScheduleItem {
     this.start,
     this.end,
     this.notes,
+    this.location,
+    this.locationPoint,
     this.categories = const [],
     this.reminder,
     this.parentId,
@@ -166,6 +205,8 @@ class TaskScheduleItem implements ScheduleItem {
   final bool allDay;
   final bool completed;
   final String? notes;
+  final String? location;
+  final GeographicPoint? locationPoint;
   @override
   final List<String> categories;
   final DateTime? reminder;

@@ -21,7 +21,7 @@ void main() {
     await database.close();
   });
 
-  test('opens schema version 13 and creates required indexes', () async {
+  test('opens the latest schema and creates required indexes', () async {
     final version = await database
         .customSelect('PRAGMA user_version')
         .getSingle();
@@ -45,7 +45,7 @@ void main() {
         .customSelect('PRAGMA table_info(web_cal_subscriptions)')
         .get();
 
-    expect(version.data['user_version'], 13);
+    expect(version.data['user_version'], latestSchemaVersion);
     expect(
       taskColumns.map((row) => row.read<String>('name')),
       contains('microsoft_checklist_items_json'),
@@ -93,6 +93,95 @@ void main() {
     });
   });
 
+  test(
+    'reopens schema 14 with coordinates, remembered provenance, and pending work',
+    () async {
+      await database.close();
+      final directory = await Directory.systemTemp.createTemp(
+        'busymax-schema14-location-',
+      );
+      final file = File('${directory.path}/busymax.sqlite');
+      database = AppDatabase(NativeDatabase(file));
+      await _insertAccount(database);
+      await database
+          .into(database.calendarSources)
+          .insert(
+            CalendarSourcesCompanion.insert(
+              id: 'source',
+              accountId: 'account',
+              provider: 'google',
+              providerCalendarId: 'calendar',
+              summary: 'Calendar',
+              createdAtLocal: 1,
+              updatedAtLocal: 1,
+            ),
+          );
+      await database
+          .into(database.calendarEvents)
+          .insert(
+            CalendarEventsCompanion.insert(
+              id: 'event',
+              accountId: 'account',
+              calendarSourceId: 'source',
+              provider: 'google',
+              providerCalendarId: 'calendar',
+              providerEventId: 'event',
+              title: 'Located event',
+              location: const Value('Harbour Centre'),
+              locationLatitude: const Value(49.2827),
+              locationLongitude: const Value(-123.1207),
+              rawJson: const Value('{}'),
+              createdAtLocal: 1,
+              updatedAtLocal: 2,
+            ),
+          );
+      await database
+          .into(database.locationResolutions)
+          .insert(
+            LocationResolutionsCompanion.insert(
+              kind: 'event',
+              accountId: 'account',
+              sourceId: 'source',
+              itemId: 'event',
+              locationText: 'Harbour Centre',
+              label: 'Harbour Centre',
+              latitude: 49.2827,
+              longitude: -123.1207,
+              source: 'legacy-provider',
+              attribution: 'Existing provenance',
+            ),
+          );
+      await database
+          .into(database.pendingOps)
+          .insert(_pendingOp(id: 'pending', createdAtUtc: _now));
+      await database.close();
+
+      database = AppDatabase(NativeDatabase(file));
+      final version = await database
+          .customSelect('PRAGMA user_version')
+          .getSingle();
+      final event = await database.select(database.calendarEvents).getSingle();
+      final remembered = await database
+          .select(database.locationResolutions)
+          .getSingle();
+
+      expect(latestSchemaVersion, 14);
+      expect(version.read<int>('user_version'), 14);
+      expect(event.locationLatitude, 49.2827);
+      expect(event.locationLongitude, -123.1207);
+      expect(remembered.source, 'legacy-provider');
+      expect(remembered.attribution, 'Existing provenance');
+      expect(
+        (await database.select(database.pendingOps).getSingle()).id,
+        'pending',
+      );
+
+      await database.close();
+      database = AppDatabase(NativeDatabase.memory());
+      await directory.delete(recursive: true);
+    },
+  );
+
   test('schema 10 migration preserves accounts and enables WebCal', () async {
     await database.close();
     final tempDir = await Directory.systemTemp.createTemp(
@@ -120,7 +209,7 @@ void main() {
     expect(
       (await database.customSelect('PRAGMA user_version').getSingle())
           .read<int>('user_version'),
-      13,
+      latestSchemaVersion,
     );
 
     await database
@@ -149,6 +238,97 @@ void main() {
     database = AppDatabase(NativeDatabase.memory());
     await tempDir.delete(recursive: true);
   });
+
+  test(
+    'schema 13 migration reprojects coordinates without changing pending work',
+    () async {
+      await database.close();
+      final directory = await Directory.systemTemp.createTemp(
+        'busymax-db-v13-',
+      );
+      final file = File('${directory.path}/busymax.sqlite');
+      database = AppDatabase(NativeDatabase(file));
+      await _insertAccount(database);
+      await database.into(database.taskLists).insert(_taskList(id: 'list-1'));
+      await database
+          .into(database.tasks)
+          .insert(_task(id: 'task', position: '1'));
+      await database
+          .into(database.pendingOps)
+          .insert(_pendingOp(id: 'pending', createdAtUtc: _now));
+      await database
+          .into(database.calendarSources)
+          .insert(
+            CalendarSourcesCompanion.insert(
+              id: 'source',
+              accountId: 'account',
+              provider: 'microsoft',
+              providerCalendarId: 'calendar',
+              summary: 'Calendar',
+              createdAtLocal: 1,
+              updatedAtLocal: 1,
+            ),
+          );
+      await database
+          .into(database.calendarEvents)
+          .insert(
+            CalendarEventsCompanion.insert(
+              id: 'event',
+              accountId: 'account',
+              calendarSourceId: 'source',
+              provider: 'microsoft',
+              providerCalendarId: 'calendar',
+              providerEventId: 'event',
+              title: 'Existing',
+              location: const Value('Zero coordinates'),
+              rawJson: const Value(
+                '{"location":{"displayName":"Zero coordinates","coordinates":{"latitude":0,"longitude":0}}}',
+              ),
+              createdAtLocal: 1,
+              updatedAtLocal: 2,
+              syncStatus: const Value('pending'),
+            ),
+          );
+      final pending = await database.select(database.pendingOps).getSingle();
+      await database.close();
+      final raw = sqlite3.sqlite3.open(file.path);
+      try {
+        for (final kind in ['event', 'task']) {
+          for (final action in ['delete', 'invalidate', 'identity']) {
+            raw.execute('DROP TRIGGER location_${kind}_$action');
+          }
+        }
+        raw.execute('DROP TABLE location_resolutions');
+        for (final table in ['calendar_events', 'tasks']) {
+          for (final name in ['location_latitude', 'location_longitude']) {
+            raw.execute('ALTER TABLE $table DROP COLUMN $name');
+          }
+        }
+        raw.execute('PRAGMA user_version = 13');
+      } finally {
+        raw.close();
+      }
+      database = AppDatabase(NativeDatabase(file));
+      final event = await database.select(database.calendarEvents).getSingle();
+      expect(event.locationLatitude, 0);
+      expect(event.locationLongitude, 0);
+      expect(event.updatedAtLocal, 2);
+      expect(event.syncStatus, 'pending');
+      expect(await database.select(database.pendingOps).getSingle(), pending);
+      expect(
+        await database.select(database.locationResolutions).get(),
+        isEmpty,
+      );
+      expect(await database.select(database.tasks).get(), hasLength(1));
+      expect(
+        await database.customSelect('PRAGMA foreign_key_check').get(),
+        isEmpty,
+      );
+      await database.close();
+      database = AppDatabase(NativeDatabase.memory());
+      await directory.delete(recursive: true);
+    },
+  );
 
   test(
     'schema 11 migration enables task-list reminders without data loss',
@@ -181,7 +361,7 @@ void main() {
         database.taskLists,
       )..where((row) => row.id.equals('list-1'))).getSingle();
 
-      expect(version.read<int>('user_version'), 13);
+      expect(version.read<int>('user_version'), latestSchemaVersion);
       expect(list.title, 'Existing list');
       expect(list.remindersEnabled, isTrue);
       expect(
@@ -230,7 +410,7 @@ void main() {
       expect(
         (await database.customSelect('PRAGMA user_version').getSingle())
             .read<int>('user_version'),
-        13,
+        latestSchemaVersion,
       );
       expect(
         columns.map((row) => row.read<String>('name')),
@@ -350,7 +530,7 @@ void main() {
         database.calendarSources,
       )..where((row) => row.id.equals('calendar'))).getSingle();
 
-      expect(version.read<int>('user_version'), 13);
+      expect(version.read<int>('user_version'), latestSchemaVersion);
       expect(
         columns.map((row) => row.read<String>('name')),
         containsAll(['data_owner', 'is_removable']),
@@ -550,7 +730,7 @@ void main() {
       final version = await database
           .customSelect('PRAGMA user_version')
           .getSingle();
-      expect(version.read<int>('user_version'), 13);
+      expect(version.read<int>('user_version'), latestSchemaVersion);
 
       final accounts = await database.select(database.accounts).get();
       expect(accounts, hasLength(2));
@@ -751,7 +931,7 @@ void main() {
           .getSingle();
       final op = await database.pendingOpsDao.getOp('op-1');
 
-      expect(version.data['user_version'], 13);
+      expect(version.data['user_version'], latestSchemaVersion);
       expect(op, isNot(equals(null)));
       expect(op!.baselineRawJson, equals(null));
 

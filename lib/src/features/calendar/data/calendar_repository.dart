@@ -8,10 +8,15 @@ import '../../../calendar_providers/calendar_colors.dart';
 import '../../../calendar_providers/calendar_create_identity.dart';
 import '../../../calendar_providers/calendar_mutation.dart';
 import '../../../calendar_providers/calendar_provider_capabilities.dart';
+import '../../../dav/storage/dav_collection_capabilities.dart';
+import '../../../dav/nextcloud/nextcloud_collection_service.dart';
+import '../../../dav/nextcloud/nextcloud_dav_context.dart';
+import '../../../dav/xml/dav_xml.dart';
 import '../../../calendar_providers/calendar_sync_dto.dart';
 import '../../../core/time/provider_date_time.dart';
 import '../../../dav/ical/ical_document.dart';
 import '../../../dav/ical/ical_semantics.dart';
+import '../../../dav/ical/ical_timezone.dart';
 import '../../../dav/mutation/dav_mutation_patch.dart';
 import '../../../dav/mutation/dav_pending_operations.dart';
 import '../../../dav/mutation/dav_projection_mutations.dart';
@@ -22,9 +27,15 @@ import '../../../microsoft_calendar/microsoft_calendar_mapper.dart';
 import '../../accounts/domain/account_collection_creation_capabilities.dart';
 import '../../notifications/notification_schedule_service.dart';
 import '../../recurrence/domain/event_recurrence_codec.dart';
+import '../../maps/domain/geographic_point.dart';
 import '../domain/event_move_policy.dart';
+import '../domain/event_timing_policy.dart';
+import '../../maps/domain/location_result.dart';
+import '../../maps/data/location_resolution_repository.dart';
 import '../presentation/event_editor_draft.dart';
 import 'calendar_event_detail.dart';
+import '../../../dav/nextcloud/nextcloud_scheduling_policy.dart';
+import '../../../dav/nextcloud/nextcloud_meeting_mutations.dart';
 
 typedef CalendarEventRecoveryFetcher =
     Future<CalendarEventDto> Function({
@@ -57,10 +68,12 @@ class CalendarSourceEntity {
     this.pendingCreate = false,
     this.davCollectionId,
     this.allowedConferenceSolutions = const [],
+    this.davEffectivePermissions = const {},
   });
 
   factory CalendarSourceEntity.fromRow(
     CalendarSource row, {
+    DavCollection? davCollection,
     String? authenticatedAccountEmail,
     bool pendingCreate = false,
   }) {
@@ -88,6 +101,11 @@ class CalendarSourceEntity {
       pendingCreate: pendingCreate,
       davCollectionId: row.davCollectionId,
       allowedConferenceSolutions: _conferenceSolutions(row.rawJson),
+      davEffectivePermissions: row.provider == 'nextcloud'
+          ? (davCollection == null
+                ? _jsonMap(row.rawJson)
+                : davSourcePermissionProjection(davCollection))
+          : const {},
     );
   }
 
@@ -114,6 +132,7 @@ class CalendarSourceEntity {
   final bool pendingCreate;
   final String? davCollectionId;
   final List<String> allowedConferenceSolutions;
+  final Map<String, Object?> davEffectivePermissions;
 
   CalendarSourceCapabilities get capabilities =>
       CalendarSourceCapabilities.fromSource(this);
@@ -152,6 +171,7 @@ class CalendarSourceCapabilities {
     required this.canRenameCalendar,
     required this.canDeleteCalendar,
     required this.canChangeCalendarColor,
+    required this.canChangeProviderVisibility,
     required this.renameMode,
     required this.removalMode,
   });
@@ -160,7 +180,25 @@ class CalendarSourceCapabilities {
     final available = !source.isDeleted;
     final writable = !source.readOnly && available;
     final management = calendarManagementCapabilities(source.provider);
+    final dav = source.davEffectivePermissions;
+    final davMetadataWritable = available && dav['canWriteProperties'] == true;
+    final parentPrivileges = (dav['parentPrivileges'] as List? ?? [])
+        .whereType<String>()
+        .toSet();
+    final davRemovable = available && davPrivilege(parentPrivileges, 'unbind');
+    final receivedShare =
+        dav['delegated'] != true &&
+        dav['ownerHref'] != null &&
+        dav['principalHref'] != null &&
+        Uri.parse(
+              dav['ownerHref']! as String,
+            ).path.replaceFirst(RegExp(r'/+$'), '') !=
+            Uri.parse(
+              dav['principalHref']! as String,
+            ).path.replaceFirst(RegExp(r'/+$'), '');
     final renameMode = switch (source.provider) {
+      BusyProvider.nextcloud when davMetadataWritable =>
+        CalendarRenameMode.global,
       BusyProvider.google || BusyProvider.microsoft
           when available && source.pendingCreate =>
         CalendarRenameMode.global,
@@ -172,6 +210,10 @@ class CalendarSourceCapabilities {
       _ => CalendarRenameMode.unavailable,
     };
     final removalMode = switch (source.provider) {
+      BusyProvider.nextcloud when davRemovable =>
+        receivedShare
+            ? CalendarRemovalMode.removeFromList
+            : CalendarRemovalMode.delete,
       BusyProvider.google || BusyProvider.microsoft
           when available && source.pendingCreate =>
         CalendarRemovalMode.delete,
@@ -194,9 +236,17 @@ class CalendarSourceCapabilities {
       _ => CalendarRemovalMode.unavailable,
     };
     return CalendarSourceCapabilities(
-      canCreateEvents: writable,
-      canEditEvents: writable,
-      canDeleteEvents: writable,
+      canCreateEvents: source.provider == BusyProvider.nextcloud
+          ? available &&
+                source.davEffectivePermissions['canCreateEvents'] == true
+          : writable,
+      canEditEvents: source.provider == BusyProvider.nextcloud
+          ? available && source.davEffectivePermissions['canEditEvents'] == true
+          : writable,
+      canDeleteEvents: source.provider == BusyProvider.nextcloud
+          ? available &&
+                source.davEffectivePermissions['canDeleteEvents'] == true
+          : writable,
       canRenameCalendar:
           management.supportsRename &&
           renameMode != CalendarRenameMode.unavailable,
@@ -205,7 +255,15 @@ class CalendarSourceCapabilities {
           removalMode == CalendarRemovalMode.delete,
       canChangeCalendarColor:
           management.supportsColor &&
-          (source.provider == BusyProvider.google ? available : writable),
+          (source.provider == BusyProvider.nextcloud
+              ? davMetadataWritable
+              : source.provider == BusyProvider.google
+              ? available
+              : writable),
+      canChangeProviderVisibility:
+          source.provider == BusyProvider.google &&
+          available &&
+          !source.primaryCalendar,
       renameMode: renameMode,
       removalMode: removalMode,
     );
@@ -218,6 +276,7 @@ class CalendarSourceCapabilities {
     canRenameCalendar: false,
     canDeleteCalendar: false,
     canChangeCalendarColor: false,
+    canChangeProviderVisibility: false,
     renameMode: CalendarRenameMode.unavailable,
     removalMode: CalendarRemovalMode.unavailable,
   );
@@ -228,6 +287,7 @@ class CalendarSourceCapabilities {
   final bool canRenameCalendar;
   final bool canDeleteCalendar;
   final bool canChangeCalendarColor;
+  final bool canChangeProviderVisibility;
   final CalendarRenameMode renameMode;
   final CalendarRemovalMode removalMode;
 
@@ -242,6 +302,7 @@ enum CalendarMutationOperation {
   deleteEvent,
   renameCalendar,
   changeCalendarColor,
+  changeProviderVisibility,
   deleteCalendar,
   removeCalendar,
 }
@@ -282,15 +343,19 @@ List<CalendarSourceEntity> writableCalendarSources(
 class CalendarRepository {
   CalendarRepository({
     required AppDatabase database,
+    NextcloudCollectionService Function(String accountId)? nextcloudCollections,
     DateTime Function()? now,
     String? localTimeZone,
     Future<void> Function()? onNotificationScheduleChanged,
   }) : _database = database,
+       _nextcloudCollections = nextcloudCollections,
        _now = now ?? DateTime.now,
        _localTimeZone = localTimeZone,
        _onNotificationScheduleChanged = onNotificationScheduleChanged;
 
   final AppDatabase _database;
+  final NextcloudCollectionService Function(String accountId)?
+  _nextcloudCollections;
   final DateTime Function() _now;
   final String? _localTimeZone;
   final Future<void> Function()? _onNotificationScheduleChanged;
@@ -302,6 +367,12 @@ class CalendarRepository {
       return Stream.value(const []);
     }
     final query = _database.select(_database.calendarSources).join([
+      leftOuterJoin(
+        _database.davCollections,
+        _database.davCollections.id.equalsExp(
+          _database.calendarSources.davCollectionId,
+        ),
+      ),
       innerJoin(
         _database.accounts,
         _database.accounts.id.equalsExp(_database.calendarSources.accountId),
@@ -328,6 +399,7 @@ class CalendarRepository {
         for (final result in rows)
           CalendarSourceEntity.fromRow(
             result.readTable(_database.calendarSources),
+            davCollection: result.readTableOrNull(_database.davCollections),
             authenticatedAccountEmail: result
                 .readTable(_database.accounts)
                 .email,
@@ -344,6 +416,12 @@ class CalendarRepository {
       return const [];
     }
     final query = _database.select(_database.calendarSources).join([
+      leftOuterJoin(
+        _database.davCollections,
+        _database.davCollections.id.equalsExp(
+          _database.calendarSources.davCollectionId,
+        ),
+      ),
       innerJoin(
         _database.accounts,
         _database.accounts.id.equalsExp(_database.calendarSources.accountId),
@@ -368,6 +446,7 @@ class CalendarRepository {
       for (final result in rows)
         CalendarSourceEntity.fromRow(
           result.readTable(_database.calendarSources),
+          davCollection: result.readTableOrNull(_database.davCollections),
           authenticatedAccountEmail: result.readTable(_database.accounts).email,
           pendingCreate: result.readTableOrNull(_database.pendingOps) != null,
         ),
@@ -381,15 +460,70 @@ class CalendarRepository {
     return row == null ? null : CalendarEventDetail.fromRow(row);
   }
 
+  Future<String?> nativeEventExport(String eventId) async {
+    final detail = await loadEventDetail(eventId);
+    if (detail == null) throw StateError('The event is no longer available.');
+    if (detail.davCollectionId == null) return null;
+    final document = detail.davObjectId == null
+        ? await loadEventTimeZoneDocument(detail)
+        : await DavPendingOperationQueue(
+            database: _database,
+            nowUtc: () => _now().toUtc(),
+          ).exportRawIcsForObject(
+            accountId: detail.accountId,
+            collectionId: detail.davCollectionId!,
+            objectId: detail.davObjectId!,
+          );
+    if (document == null) {
+      throw StateError('The authoritative calendar resource is unavailable.');
+    }
+    return document;
+  }
+
+  /// Uses the editable document, including queued local changes and its
+  /// embedded VTIMEZONE rules, rather than a provider or machine-zone guess.
+  Future<String?> loadEventTimeZoneDocument(CalendarEventDetail detail) async {
+    final collectionId = detail.davCollectionId;
+    if (collectionId == null) return null;
+    if (detail.davObjectId == null) {
+      final create = await _pendingDavCreateForProjection(detail.id);
+      return create == null ? null : _pendingCreateRawIcs(create);
+    }
+    return DavPendingOperationQueue(
+      database: _database,
+      nowUtc: () => _now().toUtc(),
+    ).editableRawIcsForObject(
+      accountId: detail.accountId,
+      collectionId: collectionId,
+      objectId: detail.davObjectId!,
+    );
+  }
+
   Future<CalendarSourceEntity> _sourceEntity(CalendarSource source) async {
     final account = await (_database.select(
       _database.accounts,
     )..where((row) => row.id.equals(source.accountId))).getSingle();
     return CalendarSourceEntity.fromRow(
       source,
+      davCollection: source.davCollectionId == null
+          ? null
+          : await (_database.select(_database.davCollections)
+                  ..where((r) => r.id.equals(source.davCollectionId!)))
+                .getSingleOrNull(),
       authenticatedAccountEmail: account.email,
       pendingCreate: await _pendingCalendarCreate(source.id) != null,
     );
+  }
+
+  NextcloudCollectionService _requiredNextcloudCollections(
+    CalendarSource source,
+  ) {
+    if (_nextcloudCollections == null || source.davCollectionId == null) {
+      throw UnsupportedError(
+        'Nextcloud collection administration is unavailable.',
+      );
+    }
+    return _nextcloudCollections(source.accountId);
   }
 
   Future<void> setSourceSelected(String sourceId, bool selected) async {
@@ -419,6 +553,42 @@ class CalendarRepository {
       source.accountId,
     );
     await _onNotificationScheduleChanged?.call();
+  }
+
+  Future<void> setSourceProviderHidden(String sourceId, bool hidden) async {
+    final source = await (_database.select(
+      _database.calendarSources,
+    )..where((row) => row.id.equals(sourceId))).getSingle();
+    final entity = await _sourceEntity(source);
+    _requireCalendarSourceCapability(
+      source,
+      operation: CalendarMutationOperation.changeProviderVisibility,
+      allowed: entity.capabilities.canChangeProviderVisibility,
+    );
+    if (source.hidden == hidden) return;
+
+    final now = _now();
+    final nowUtc = now.toUtc().toIso8601String();
+    final createOp = await _pendingCalendarCreate(source.id);
+    await _database.transaction(() async {
+      await (_database.update(
+        _database.calendarSources,
+      )..where((row) => row.id.equals(sourceId))).write(
+        CalendarSourcesCompanion(
+          hidden: Value(hidden),
+          updatedAtLocal: Value(now.millisecondsSinceEpoch),
+        ),
+      );
+      await _enqueueOrMergeCalendarPatch(
+        source,
+        request: {
+          'hidden': hidden,
+          calendarMutationScopeKey: calendarMutationScopePersonal,
+        },
+        nowUtc: nowUtc,
+        dependsOnOpId: createOp?.id,
+      );
+    });
   }
 
   Future<String> createLocalSource({
@@ -503,6 +673,16 @@ class CalendarRepository {
       allowed: entity.capabilities.canRenameCalendar,
     );
     final title = summary.trim();
+    if (entity.provider == BusyProvider.nextcloud) {
+      final result = await _requiredNextcloudCollections(source).update(
+        source.davCollectionId!,
+        {const DavPropertyName(davNamespace, 'displayname'): title},
+      );
+      if (result == NextcloudMutationOutcome.refreshPending) {
+        throw const NextcloudRefreshPending();
+      }
+      return;
+    }
     if (title.isEmpty) {
       throw ArgumentError.value(summary, 'summary', 'Calendar title is empty.');
     }
@@ -563,6 +743,17 @@ class CalendarRepository {
           candidate.backgroundColor.toLowerCase() ==
               choice.backgroundColor.toLowerCase(),
     );
+    if (entity.provider == BusyProvider.nextcloud && supportedChoice) {
+      final result = await _requiredNextcloudCollections(source)
+          .update(source.davCollectionId!, {
+            const DavPropertyName(appleIcalNamespace, 'calendar-color'):
+                choice.backgroundColor,
+          });
+      if (result == NextcloudMutationOutcome.refreshPending) {
+        throw const NextcloudRefreshPending();
+      }
+      return;
+    }
     if (!supportedChoice) {
       throw ArgumentError.value(
         choice.providerValue,
@@ -622,6 +813,15 @@ class CalendarRepository {
       _database.calendarSources,
     )..where((row) => row.id.equals(sourceId))).getSingle();
     final entity = await _sourceEntity(source);
+    if (entity.provider == BusyProvider.nextcloud) {
+      final result = await _requiredNextcloudCollections(
+        source,
+      ).remove(source.davCollectionId!);
+      if (result == NextcloudMutationOutcome.refreshPending) {
+        throw const NextcloudRefreshPending();
+      }
+      return;
+    }
     final removalMode = entity.capabilities.removalMode;
     final createOp = await _pendingCalendarCreate(source.id);
     _requireCalendarSourceCapability(
@@ -716,6 +916,7 @@ class CalendarRepository {
           pendingPatchFields.contains('backgroundColor') ||
           pendingPatchFields.contains('foregroundColor') ||
           pendingPatchFields.contains('colorId');
+      final preservePendingHidden = pendingPatchFields.contains('hidden');
       final preservePendingRemoval =
           existing != null && await _hasActiveCalendarRemoval(existing.id);
       final isDeleted = preservePendingRemoval || source.isDeleted;
@@ -738,7 +939,10 @@ class CalendarRepository {
               primaryCalendar: Value(source.primaryCalendar),
               selected: Value(existing?.selected ?? source.selected),
               remindersEnabled: Value(existing?.remindersEnabled ?? true),
-              hidden: Value(isDeleted || source.hidden),
+              hidden: Value(
+                isDeleted ||
+                    (preservePendingHidden ? existing!.hidden : source.hidden),
+              ),
               readOnly: Value(source.readOnly),
               backgroundColor: Value(
                 preservePendingColor
@@ -767,6 +971,14 @@ class CalendarRepository {
               updatedAtLocal: now,
             ),
           );
+      if (source.provider == BusyProvider.google && source.isDeleted) {
+        await LocationResolutionRepository(
+          _database,
+        ).removeGoogleSeriesSourcesForCalendar(
+          accountId: accountId,
+          sourceId: id,
+        );
+      }
     });
   }
 
@@ -814,6 +1026,15 @@ class CalendarRepository {
             source.id,
       };
       if (missingSourceIds.isEmpty) return;
+
+      for (final sourceId in missingSourceIds) {
+        await LocationResolutionRepository(
+          _database,
+        ).removeGoogleSeriesSourcesForCalendar(
+          accountId: accountId,
+          sourceId: sourceId,
+        );
+      }
 
       final missingEventIds = {
         for (final event
@@ -1200,7 +1421,8 @@ class CalendarRepository {
         request.containsKey('backgroundColor') ||
         request.containsKey('foregroundColor') ||
         request.containsKey('colorId');
-    if (!changesSummary && !changesColor) return;
+    final changesHidden = request.containsKey('hidden');
+    if (!changesSummary && !changesColor && !changesHidden) return;
     final provider = BusyProviderCodec.requireStorageValue(source.provider);
     final baselineSummary = switch (provider) {
       BusyProvider.google =>
@@ -1262,6 +1484,13 @@ class CalendarRepository {
                     : baselineColorId,
               )
             : const Value.absent(),
+        hidden: changesHidden
+            ? Value(
+                previous['hidden'] is bool
+                    ? previous['hidden']! as bool
+                    : baseline['hidden'] == true,
+              )
+            : const Value.absent(),
         updatedAtLocal: Value(_now().millisecondsSinceEpoch),
       ),
     );
@@ -1304,6 +1533,8 @@ class CalendarRepository {
       title: event.title,
       description: Value(event.description),
       location: Value(event.location),
+      locationLatitude: Value(event.locationPoint?.latitude),
+      locationLongitude: Value(event.locationPoint?.longitude),
       allDay: Value(event.allDay),
       startDate: Value(event.startDate),
       startDateTime: Value(event.startDateTime),
@@ -1339,9 +1570,11 @@ class CalendarRepository {
       await _database
           .into(_database.calendarEvents)
           .insertOnConflictUpdate(eventRow);
+      await _reconcileGoogleSeriesMaster(id, event);
       return;
     }
 
+    var stored = false;
     await _database.transaction(() async {
       final localEvent = await (_database.select(
         _database.calendarEvents,
@@ -1367,7 +1600,27 @@ class CalendarRepository {
       await _database
           .into(_database.calendarEvents)
           .insertOnConflictUpdate(eventRow);
+      stored = true;
     });
+    if (stored) await _reconcileGoogleSeriesMaster(id, event);
+  }
+
+  Future<void> _reconcileGoogleSeriesMaster(
+    String eventId,
+    CalendarEventDto event,
+  ) async {
+    if (event.provider != BusyProvider.google ||
+        event.providerRecurringEventId != null) {
+      return;
+    }
+    final row = await (_database.select(
+      _database.calendarEvents,
+    )..where((candidate) => candidate.id.equals(eventId))).getSingleOrNull();
+    if (row != null) {
+      await LocationResolutionRepository(
+        _database,
+      ).reconcileGoogleSeriesMaster(row);
+    }
   }
 
   Future<void> saveSyncState({
@@ -1434,11 +1687,32 @@ class CalendarRepository {
         CalendarGuestUpdatePolicy.send,
     bool rebuildNotifications = true,
   }) async {
+    final operationId = await _createLocalEvent(
+      draft,
+      guestUpdatePolicy: guestUpdatePolicy,
+      rebuildNotifications: false,
+    );
+    if (rebuildNotifications) {
+      await _notificationScheduleService().rebuildUpcomingEventNotifications(
+        draft.accountId,
+      );
+      await _onNotificationScheduleChanged?.call();
+    }
+    return operationId;
+  }
+
+  Future<String> _createLocalEvent(
+    EventEditorDraft draft, {
+    CalendarGuestUpdatePolicy guestUpdatePolicy =
+        CalendarGuestUpdatePolicy.send,
+    bool rebuildNotifications = true,
+  }) async {
     final source = await (_database.select(
       _database.calendarSources,
     )..where((row) => row.id.equals(draft.sourceId))).getSingle();
-    _requireWritableSource(
+    await _requireWritableSource(
       source,
+      database: _database,
       operation: CalendarMutationOperation.createEvent,
     );
     if (source.accountId != draft.accountId ||
@@ -1515,6 +1789,16 @@ class CalendarRepository {
               title: draft.title.trim(),
               description: Value(draft.description),
               location: Value(draft.location),
+              locationLatitude: Value(
+                provider == BusyProvider.microsoft
+                    ? draft.effectiveLocationPoint?.latitude
+                    : null,
+              ),
+              locationLongitude: Value(
+                provider == BusyProvider.microsoft
+                    ? draft.effectiveLocationPoint?.longitude
+                    : null,
+              ),
               allDay: Value(draft.allDay),
               startDate: Value(draft.allDay ? _date(draft.start) : null),
               startDateTime: Value(
@@ -1566,6 +1850,19 @@ class CalendarRepository {
               updatedAtUtc: DateTime.now().toUtc().toIso8601String(),
             ),
           );
+      final selection = draft.locationChange.selection;
+      if (provider == BusyProvider.google && selection != null) {
+        await LocationResolutionRepository(_database).apply(
+          LocationItemIdentity(
+            kind: LocationItemKind.event,
+            accountId: draft.accountId,
+            sourceId: draft.sourceId,
+            itemId: id,
+          ),
+          draft.location ?? '',
+          LocationChange.replace(selection),
+        );
+      }
     });
     if (rebuildNotifications) {
       await _notificationScheduleService().rebuildUpcomingEventNotifications(
@@ -1624,11 +1921,82 @@ class CalendarRepository {
     EventEditorDraft draft, {
     CalendarGuestUpdatePolicy guestUpdatePolicy =
         CalendarGuestUpdatePolicy.send,
+    EventTimingBaseline? timingBaseline,
+  }) async {
+    if (timingBaseline == null) {
+      final eventChanged = await _database.transaction(() async {
+        return _updateLocalEvent(
+          draft,
+          guestUpdatePolicy: guestUpdatePolicy,
+          deferNotifications: true,
+        );
+      });
+      if (!eventChanged) return;
+      await _notificationScheduleService().rebuildUpcomingEventNotifications(
+        draft.accountId,
+      );
+      await _onNotificationScheduleChanged?.call();
+      return;
+    }
+    // Compare and change timing in the same transaction. Rebase unrelated
+    // fields on the latest detail, including provider-only and HTML content.
+    await _database.transaction(() async {
+      final latest = draft.eventId == null
+          ? null
+          : await loadEventDetail(draft.eventId!);
+      if (latest == null || !timingBaseline.matches(latest)) {
+        throw const StaleEventTiming();
+      }
+      if (!detailAllowsTimingEdit(latest) ||
+          latest.accountId != draft.accountId ||
+          latest.sourceId != draft.sourceId ||
+          latest.allDay != draft.allDay ||
+          latest.providerCalendarId != draft.providerCalendarId) {
+        throw CalendarMutationNotAllowed(
+          operation: CalendarMutationOperation.editEvent,
+          sourceId: draft.sourceId,
+        );
+      }
+      if (draft.start == null ||
+          draft.end == null ||
+          !draft.end!.isAfter(draft.start!)) {
+        throw ArgumentError('An event interval must be positive.');
+      }
+      await _updateLocalEvent(
+        EventEditorDraft.fromEventDetail(latest).copyWith(
+          start: draft.start,
+          end: draft.end,
+          recurringMutationScope: draft.recurringMutationScope,
+        ),
+        guestUpdatePolicy: guestUpdatePolicy,
+        timingOnly: true,
+      );
+    });
+    try {
+      await _notificationScheduleService().rebuildUpcomingEventNotifications(
+        draft.accountId,
+      );
+      await _onNotificationScheduleChanged?.call();
+    } catch (error) {
+      throw EventNotificationRefreshFailure(error);
+    }
+  }
+
+  Future<bool> _updateLocalEvent(
+    EventEditorDraft draft, {
+    CalendarGuestUpdatePolicy guestUpdatePolicy =
+        CalendarGuestUpdatePolicy.send,
+    bool timingOnly = false,
+    bool deferNotifications = false,
   }) async {
     final eventId = draft.eventId;
     if (eventId == null) {
-      await createLocalEvent(draft, guestUpdatePolicy: guestUpdatePolicy);
-      return;
+      await createLocalEvent(
+        draft,
+        guestUpdatePolicy: guestUpdatePolicy,
+        rebuildNotifications: false,
+      );
+      return true;
     }
     final source = await (_database.select(
       _database.calendarSources,
@@ -1642,8 +2010,9 @@ class CalendarRepository {
     _requireFullEventEditingAllowed(existing);
     _requireAttendeeManagementAllowed(existing, draft);
     final editBaseline = _eventEditBaseline(draft, existing);
-    _requireWritableSource(
+    await _requireWritableSource(
       source,
+      database: _database,
       operation: CalendarMutationOperation.editEvent,
     );
     if (source.accountId != draft.accountId ||
@@ -1658,17 +2027,19 @@ class CalendarRepository {
         draft.sourceId != existing.calendarSourceId ||
         draft.providerCalendarId != existing.providerCalendarId;
     if (sourceChanged) {
-      _requireWritableSource(
+      await _requireWritableSource(
         originalSource,
+        database: _database,
         operation: CalendarMutationOperation.deleteEvent,
       );
-      return _moveLocalEvent(
+      await _moveLocalEvent(
         originalSource: originalSource,
         destinationSource: source,
         existing: existing,
         draft: draft,
         guestUpdatePolicy: guestUpdatePolicy,
       );
+      return true;
     }
     if (source.provider != existing.provider ||
         source.accountId != existing.accountId ||
@@ -1679,7 +2050,14 @@ class CalendarRepository {
       );
     }
     if (source.davCollectionId != null) {
-      return _updateLocalDavEvent(source, existing, draft);
+      await _updateLocalDavEvent(
+        source,
+        existing,
+        draft,
+        timingOnly: timingOnly,
+        deferNotifications: deferNotifications,
+      );
+      return true;
     }
     final provider = BusyProviderCodec.requireStorageValue(source.provider);
     final recurringOccurrence = existing.providerRecurringEventId != null;
@@ -1732,8 +2110,37 @@ class CalendarRepository {
       conference: conferenceRequest,
       guestUpdatePolicy: guestUpdatePolicy,
     );
+    if (timingOnly) {
+      request.removeWhere(
+        (key, _) => !{
+          'allDay',
+          'start',
+          'end',
+          'startTimeZone',
+          'endTimeZone',
+          calendarEventGuestUpdatePolicyKey,
+        }.contains(key),
+      );
+      // TZDateTime emits compact offsets; provider wire timestamps use RFC3339.
+      for (final key in ['start', 'end']) {
+        final value = request[key];
+        if (value is String) {
+          request[key] = value.replaceFirstMapped(
+            RegExp(r'([+-]\d{2})(\d{2})$'),
+            (match) => '${match[1]}:${match[2]}',
+          );
+        }
+      }
+    }
     if (!_eventRequestHasMutation(request)) {
-      return;
+      return false;
+    }
+    if (request.containsKey('allDay') &&
+        !detailAllowsTimingEdit(CalendarEventDetail.fromRow(existing))) {
+      throw CalendarMutationNotAllowed(
+        operation: CalendarMutationOperation.editEvent,
+        sourceId: source.id,
+      );
     }
     if (recurringOccurrence) {
       request[calendarEventRecurringScopeKey] = recurringScope!.name;
@@ -1743,6 +2150,9 @@ class CalendarRepository {
         request[calendarEventOriginalStartKey] =
             existing.providerOriginalStartKey ?? _storedEventStart(existing);
         request[calendarEventOriginalEndKey] = _storedEventEnd(existing);
+        request[calendarEventTimingBaselineKey] = _storedEventTimingBaseline(
+          existing,
+        );
       }
     }
     final requestJson = jsonEncode(request);
@@ -1750,6 +2160,7 @@ class CalendarRepository {
       final predecessor = await _latestPendingEventEdit(
         accountId: draft.accountId,
         eventId: eventId,
+        seriesEvent: seriesMutation ? existing : null,
       );
       final projection = _eventPatchProjection(
         draft: draft,
@@ -1771,6 +2182,7 @@ class CalendarRepository {
           startTimeZone: startTimeZone,
           endTimeZone: endTimeZone,
           now: now,
+          timingOnly: timingOnly,
         );
       } else {
         await (_database.update(
@@ -1803,10 +2215,14 @@ class CalendarRepository {
             ),
           );
     });
+    if (timingOnly || deferNotifications) {
+      return true;
+    }
     await _notificationScheduleService().rebuildUpcomingEventNotifications(
       draft.accountId,
     );
     await _onNotificationScheduleChanged?.call();
+    return true;
   }
 
   Future<void> _moveLocalEvent({
@@ -1868,6 +2284,7 @@ class CalendarRepository {
           draft: draft,
           guestUpdatePolicy: guestUpdatePolicy,
         );
+        return;
       case CalendarEventMoveStrategy.davNative:
         await _moveLocalDavEvent(
           originalSource: originalSource,
@@ -1875,6 +2292,7 @@ class CalendarRepository {
           existing: existing,
           draft: draft,
         );
+        return;
       case CalendarEventMoveStrategy.copyThenDelete:
         await _copyThenDeleteLocalEvent(
           originalSource: originalSource,
@@ -1885,6 +2303,7 @@ class CalendarRepository {
           destinationProvider: destinationProvider,
           guestUpdatePolicy: guestUpdatePolicy,
         );
+        return;
     }
   }
 
@@ -1947,6 +2366,9 @@ class CalendarRepository {
       patchRequest[calendarEventOriginalStartKey] =
           existing.providerOriginalStartKey ?? _storedEventStart(existing);
       patchRequest[calendarEventOriginalEndKey] = _storedEventEnd(existing);
+      patchRequest[calendarEventTimingBaselineKey] = _storedEventTimingBaseline(
+        existing,
+      );
     }
     final moveOperationId = const Uuid().v4();
     final patchOperationId = const Uuid().v4();
@@ -1976,6 +2398,17 @@ class CalendarRepository {
             updatedAtLocal: Value(now),
           ),
         );
+        if (provider == BusyProvider.google &&
+            existing.providerRecurringEventId == null &&
+            existing.recurrenceJson != null) {
+          await LocationResolutionRepository(
+            _database,
+          ).removeGoogleSeriesSource(
+            accountId: existing.accountId,
+            sourceId: existing.calendarSourceId,
+            providerSeriesId: existing.providerEventId,
+          );
+        }
       }
       await _database
           .into(_database.pendingOps)
@@ -2041,7 +2474,12 @@ class CalendarRepository {
     required CalendarEvent existing,
     required EventEditorDraft draft,
   }) async {
-    _requireDavSchedulingUnchanged(draft, creating: false);
+    final scheduling = await _davSchedulingPolicy(originalSource);
+    _requireDavSchedulingUnchanged(
+      draft,
+      creating: false,
+      scheduling: scheduling,
+    );
     final sourceCollectionId = originalSource.davCollectionId;
     final destinationCollectionId = destinationSource.davCollectionId;
     final objectId = existing.davObjectId;
@@ -2088,6 +2526,8 @@ class CalendarRepository {
       end: end,
       startTimeZone: startTimeZone,
       endTimeZone: endTimeZone,
+      scheduling: scheduling,
+      nowUtc: _now().toUtc(),
     );
     if (recurring) {
       input = _seriesDavEventInput(
@@ -2154,15 +2594,27 @@ class CalendarRepository {
     required BusyProvider destinationProvider,
     required CalendarGuestUpdatePolicy guestUpdatePolicy,
   }) async {
+    if ((sourceProvider == BusyProvider.nextcloud ||
+            destinationProvider == BusyProvider.nextcloud) &&
+        (_jsonMapList(existing.attendeesJson).isNotEmpty ||
+            draft.attendees.isNotEmpty)) {
+      throw schedulingDenied('DavMeetingCopyDeleteUnsupported');
+    }
+    final effectiveSelection = await _eventMoveLocationSelection(
+      draft,
+      existing,
+    );
     final copyDraft = _eventCopyDraft(
       draft,
       existing: existing,
       sourceProvider: sourceProvider,
       destinationProvider: destinationProvider,
+      effectiveSelection: effectiveSelection,
     );
     final createOperationId = await createLocalEvent(
       copyDraft,
       guestUpdatePolicy: guestUpdatePolicy,
+      rebuildNotifications: false,
     );
     try {
       if (originalSource.davCollectionId != null) {
@@ -2204,6 +2656,7 @@ class CalendarRepository {
     required CalendarEvent existing,
     required BusyProvider sourceProvider,
     required BusyProvider destinationProvider,
+    required LocationResult? effectiveSelection,
   }) {
     final recurring = existing.providerRecurringEventId != null;
     final scope = draft.recurringMutationScope;
@@ -2283,6 +2736,12 @@ class CalendarRepository {
       startTimeZone: draft.startTimeZone,
       endTimeZone: draft.endTimeZone,
       location: draft.location,
+      locationPoint: effectiveSelection?.point,
+      locationChange: draft.locationChange.changed
+          ? draft.locationChange
+          : effectiveSelection == null
+          ? const LocationChange.unchanged()
+          : LocationChange.replace(effectiveSelection),
       description: draft.description,
       descriptionContentType: destinationProvider == BusyProvider.microsoft
           ? draft.descriptionContentType
@@ -2323,6 +2782,48 @@ class CalendarRepository {
           ? draft.allowNewTimeProposals
           : null,
       isOrganizer: true,
+    );
+  }
+
+  Future<LocationResult?> _eventMoveLocationSelection(
+    EventEditorDraft draft,
+    CalendarEvent existing,
+  ) async {
+    if (draft.locationChange.changed) {
+      return draft.locationChange.selection;
+    }
+    final point =
+        draft.locationPoint ??
+        GeographicPoint.tryParse(
+          latitude: existing.locationLatitude,
+          longitude: existing.locationLongitude,
+        );
+    if (point != null) {
+      final address = draft.originalDetail?.locationAddress;
+      return LocationResult(
+        label: (draft.location ?? '').trim().isEmpty
+            ? point.directionsValue
+            : draft.location!.trim(),
+        point: point,
+        address: address == null
+            ? const {}
+            : {
+                for (final entry in address.entries)
+                  if (entry.value case final String value when value.isNotEmpty)
+                    entry.key: value,
+              },
+        source: 'provider',
+        attribution: '',
+      );
+    }
+    return LocationResolutionRepository(_database).load(
+      LocationItemIdentity(
+        kind: LocationItemKind.event,
+        accountId: existing.accountId,
+        sourceId: existing.calendarSourceId,
+        itemId: existing.id,
+      ),
+      existing.location ?? '',
     );
   }
 
@@ -2526,6 +3027,7 @@ class CalendarRepository {
     required String? startTimeZone,
     required String? endTimeZone,
     required int now,
+    bool timingOnly = false,
   }) async {
     final recurringEventId = existing.providerRecurringEventId;
     if (recurringEventId == null) {
@@ -2541,23 +3043,27 @@ class CalendarRepository {
                   row.isDeleted.equals(false),
             ))
             .get();
-    final existingStart = _storedEventStartDateTime(existing);
-    final existingEnd = _storedEventEndDateTime(existing);
+    DateTime? wall(DateTime? value) =>
+        value == null ? null : providerCivilDateTime(value);
+    final existingStart = wall(_storedEventStartDateTime(existing));
+    final existingEnd = wall(_storedEventEndDateTime(existing));
     final startChanged =
-        draft.allDay != existing.allDay || draft.start != existingStart;
+        draft.allDay != existing.allDay || wall(draft.start) != existingStart;
     final endChanged =
-        draft.allDay != existing.allDay || draft.end != existingEnd;
+        draft.allDay != existing.allDay || wall(draft.end) != existingEnd;
     final startDelta =
         startChanged && draft.start != null && existingStart != null
-        ? draft.start!.difference(existingStart)
+        ? wall(draft.start)!.difference(existingStart)
         : Duration.zero;
     final endDelta = endChanged && draft.end != null && existingEnd != null
-        ? draft.end!.difference(existingEnd)
+        ? wall(draft.end)!.difference(existingEnd)
         : Duration.zero;
     final raw = _jsonMap(existing.rawJson);
     final descriptionChanged =
         (draft.description ?? '') != (existing.description ?? '');
-    final locationChanged = (draft.location ?? '') != (existing.location ?? '');
+    final locationChanged =
+        (draft.location ?? '') != (existing.location ?? '') ||
+        (provider == BusyProvider.microsoft && draft.locationChange.changed);
     final remindersChanged = !_sameJsonValue(
       _decodeStoredJson(existing.remindersJson),
       draft.reminders,
@@ -2578,6 +3084,7 @@ class CalendarRepository {
     final newTimeProposalsChanged =
         draft.allowNewTimeProposals != raw['allowNewTimeProposals'];
     final rawChanged =
+        (provider == BusyProvider.microsoft && draft.locationChange.changed) ||
         importanceChanged ||
         responseRequestedChanged ||
         hideAttendeesChanged ||
@@ -2585,8 +3092,8 @@ class CalendarRepository {
 
     for (final row in rows) {
       if (!_seriesRowInScope(row, existing, scope)) continue;
-      final rowStart = _storedEventStartDateTime(row);
-      final rowEnd = _storedEventEndDateTime(row);
+      final rowStart = wall(_storedEventStartDateTime(row));
+      final rowEnd = wall(_storedEventEndDateTime(row));
       final shiftedStart = startChanged && rowStart != null
           ? rowStart.add(startDelta)
           : rowStart;
@@ -2603,6 +3110,12 @@ class CalendarRepository {
         location: locationChanged
             ? Value(draft.location)
             : const Value.absent(),
+        locationLatitude: locationChanged && provider == BusyProvider.microsoft
+            ? Value(draft.effectiveLocationPoint?.latitude)
+            : const Value.absent(),
+        locationLongitude: locationChanged && provider == BusyProvider.microsoft
+            ? Value(draft.effectiveLocationPoint?.longitude)
+            : const Value.absent(),
         allDay: startChanged || endChanged
             ? Value(draft.allDay)
             : const Value.absent(),
@@ -2610,7 +3123,11 @@ class CalendarRepository {
             ? Value(draft.allDay ? _date(shiftedStart) : null)
             : const Value.absent(),
         startDateTime: startChanged
-            ? Value(draft.allDay ? null : shiftedStart?.toIso8601String())
+            ? Value(
+                draft.allDay || shiftedStart == null
+                    ? null
+                    : providerWallTimeIso8601String(shiftedStart),
+              )
             : const Value.absent(),
         startTimeZone:
             startChanged || draft.startTimeZone != existing.startTimeZone
@@ -2620,7 +3137,11 @@ class CalendarRepository {
             ? Value(draft.allDay ? _date(shiftedEnd) : null)
             : const Value.absent(),
         endDateTime: endChanged
-            ? Value(draft.allDay ? null : shiftedEnd?.toIso8601String())
+            ? Value(
+                draft.allDay || shiftedEnd == null
+                    ? null
+                    : providerWallTimeIso8601String(shiftedEnd),
+              )
             : const Value.absent(),
         endTimeZone: endChanged || draft.endTimeZone != existing.endTimeZone
             ? Value(draft.allDay ? null : endTimeZone)
@@ -2660,7 +3181,30 @@ class CalendarRepository {
       );
       await (_database.update(
         _database.calendarEvents,
-      )..where((table) => table.id.equals(row.id))).write(companion);
+      )..where((table) => table.id.equals(row.id))).write(
+        timingOnly
+            ? CalendarEventsCompanion(
+                allDay: companion.allDay,
+                startDate: companion.startDate,
+                startDateTime: companion.startDateTime,
+                startTimeZone: companion.startTimeZone,
+                endDate: companion.endDate,
+                endDateTime: companion.endDateTime,
+                endTimeZone: companion.endTimeZone,
+                updatedAtLocal: companion.updatedAtLocal,
+                syncStatus: companion.syncStatus,
+              )
+            : companion,
+      );
+    }
+    if (provider == BusyProvider.google &&
+        locationChanged &&
+        scope == RecurringEventMutationScope.entireSeries) {
+      await LocationResolutionRepository(_database).removeGoogleSeriesSource(
+        accountId: existing.accountId,
+        sourceId: existing.calendarSourceId,
+        providerSeriesId: recurringEventId,
+      );
     }
   }
 
@@ -2695,18 +3239,47 @@ class CalendarRepository {
         ),
       );
     }
+    if (existing.provider == BusyProvider.google.storageValue &&
+        scope == RecurringEventMutationScope.entireSeries) {
+      await LocationResolutionRepository(_database).removeGoogleSeriesSource(
+        accountId: existing.accountId,
+        sourceId: existing.calendarSourceId,
+        providerSeriesId: recurringEventId,
+      );
+    }
   }
 
   Future<PendingOp?> _latestPendingEventEdit({
     required String accountId,
     required String eventId,
+    CalendarEvent? seriesEvent,
   }) async {
+    final eventIds = {eventId};
+    if (seriesEvent != null) {
+      final rows =
+          await (_database.select(_database.calendarEvents)..where(
+                (row) =>
+                    row.accountId.equals(accountId) &
+                    row.provider.equals(seriesEvent.provider) &
+                    row.providerCalendarId.equals(
+                      seriesEvent.providerCalendarId,
+                    ) &
+                    (row.providerRecurringEventId.equals(
+                          seriesEvent.providerRecurringEventId!,
+                        ) |
+                        row.providerEventId.equals(
+                          seriesEvent.providerRecurringEventId!,
+                        )),
+              ))
+              .get();
+      eventIds.addAll(rows.map((row) => row.id));
+    }
     final query = _database.select(_database.pendingOps)
       ..where(
         (row) =>
             row.accountId.equals(accountId) &
             row.entityType.equals('event') &
-            row.eventId.equals(eventId) &
+            row.eventId.isIn(eventIds) &
             (row.operationType.equals('event.patch') |
                 (row.operationType.isNull() & row.operation.equals('patch'))),
       )
@@ -2739,8 +3312,9 @@ class CalendarRepository {
     final source = await (_database.select(
       _database.calendarSources,
     )..where((row) => row.id.equals(existing.calendarSourceId))).getSingle();
-    _requireWritableSource(
+    await _requireWritableSource(
       source,
+      database: _database,
       operation: CalendarMutationOperation.deleteEvent,
     );
     if (source.davCollectionId != null) {
@@ -2831,11 +3405,22 @@ class CalendarRepository {
     String eventId,
     CalendarInvitationResponse response, {
     bool sendResponse = true,
+    RecurringEventMutationScope? recurringScope,
   }) async {
     final existing = await (_database.select(
       _database.calendarEvents,
     )..where((row) => row.id.equals(eventId))).getSingle();
     final provider = BusyProviderCodec.requireStorageValue(existing.provider);
+    if (provider == BusyProvider.nextcloud) {
+      if (!sendResponse) {
+        throw UnsupportedError('Nextcloud replies use server scheduling.');
+      }
+      return _respondToLocalDavEvent(
+        existing,
+        response,
+        recurringScope: recurringScope,
+      );
+    }
     if (provider != BusyProvider.google && provider != BusyProvider.microsoft) {
       throw UnsupportedError(
         '${provider.displayName} invitation responses are not supported.',
@@ -2916,12 +3501,104 @@ class CalendarRepository {
     return existing.accountId;
   }
 
+  Future<String> _respondToLocalDavEvent(
+    CalendarEvent existing,
+    CalendarInvitationResponse response, {
+    RecurringEventMutationScope? recurringScope,
+  }) async {
+    if (existing.isDeleted || existing.isCancelled) {
+      throw StateError('The meeting is no longer available.');
+    }
+    final source =
+        await (_database.select(_database.calendarSources)..where(
+              (r) =>
+                  r.id.equals(existing.calendarSourceId) &
+                  r.accountId.equals(existing.accountId),
+            ))
+            .getSingle();
+    await _requireWritableSource(
+      source,
+      database: _database,
+      operation: CalendarMutationOperation.editEvent,
+    );
+    final policy = await _davSchedulingPolicy(source);
+    final objectId = existing.davObjectId;
+    final uid = existing.icalUid;
+    if (policy == null ||
+        objectId == null ||
+        uid == null ||
+        source.davCollectionId == null) {
+      throw schedulingDenied('DavAttendeeResponseUnavailable');
+    }
+    final recurring = existing.providerRecurringEventId != null;
+    if (recurring &&
+        (recurringScope == null ||
+            recurringScope == RecurringEventMutationScope.thisAndFuture)) {
+      throw UnsupportedError(
+        'Choose this occurrence or the entire series for a reply.',
+      );
+    }
+    final queue = DavPendingOperationQueue(
+      database: _database,
+      nowUtc: () => _now().toUtc(),
+    );
+    await _database.transaction(() async {
+      final baseline = await queue.editableRawIcsForObject(
+        accountId: existing.accountId,
+        collectionId: source.davCollectionId!,
+        objectId: objectId,
+      );
+      final DavMutationPatch patch;
+      try {
+        patch = buildNextcloudResponsePatch(
+          baselineRawIcs: baseline,
+          uid: uid,
+          policy: policy,
+          participationStatus: switch (response) {
+            CalendarInvitationResponse.accept => 'ACCEPTED',
+            CalendarInvitationResponse.tentative => 'TENTATIVE',
+            CalendarInvitationResponse.decline => 'DECLINED',
+          },
+          nowUtc: _now().toUtc(),
+          occurrenceKey: recurring ? existing.occurrenceKey : null,
+          entireSeries:
+              recurringScope == RecurringEventMutationScope.entireSeries,
+        );
+      } on NextcloudResponseUnchanged {
+        return;
+      }
+      await queue.enqueueUpdate(
+        accountId: existing.accountId,
+        collectionId: source.davCollectionId!,
+        objectId: objectId,
+        patch: patch,
+      );
+      await DavObjectRepository(
+        database: _database,
+      ).projectLocalMutationCandidate(
+        accountId: existing.accountId,
+        collectionId: source.davCollectionId!,
+        provider: BusyProvider.nextcloud,
+        objectId: objectId,
+        candidateRawIcs: patch.applyTo(baseline, nowUtc: _now().toUtc()),
+        projectedAtUtc: _now().toUtc(),
+      );
+    });
+    await _rebuildEventNotificationsFor({existing.accountId});
+    return existing.accountId;
+  }
+
   Future<String> _createLocalDavEvent(
     CalendarSource source,
     EventEditorDraft draft, {
     required bool rebuildNotifications,
   }) async {
-    _requireDavSchedulingUnchanged(draft, creating: true);
+    final scheduling = await _davSchedulingPolicy(source);
+    _requireDavSchedulingUnchanged(
+      draft,
+      creating: true,
+      scheduling: scheduling,
+    );
     final start = draft.start;
     final end = draft.end;
     final collectionId = source.davCollectionId;
@@ -2951,16 +3628,37 @@ class CalendarRepository {
         end: end,
         startTimeZone: startTimeZone,
         endTimeZone: endTimeZone,
+        scheduling: scheduling,
+        nowUtc: _now().toUtc(),
       ),
       nowUtc: () => _now().toUtc(),
     );
     final projectionId = 'dav-local-event-${const Uuid().v4()}';
     final now = _now();
     final nowMillis = now.millisecondsSinceEpoch;
+    final native = IcalSemanticDocument.parse(object.rawIcs).components.single;
+    final participants = [
+      for (final raw in native.attendees)
+        scheduling == null
+            ? raw
+            : nextcloudParticipantProjection(raw, scheduling),
+    ];
+    final organizer = native.organizers.firstOrNull;
+    final projectedOrganizer = organizer == null || scheduling == null
+        ? organizer
+        : nextcloudParticipantProjection(organizer, scheduling);
     final projectionJson = jsonEncode({
       'transport': 'caldav',
       'uid': object.uid,
       'localPendingCreate': true,
+      if (scheduling != null) ...{
+        'isOrganizer': projectedOrganizer == null
+            ? null
+            : projectedOrganizer['self'],
+        'canManageAttendees': scheduling.canInvite,
+        'attendees': participants,
+        'organizer': projectedOrganizer,
+      },
     });
     late final String operationId;
     await _database.transaction(() async {
@@ -2983,6 +3681,8 @@ class CalendarRepository {
               title: draft.title.trim(),
               description: Value(draft.description),
               location: Value(draft.location),
+              locationLatitude: Value(draft.effectiveLocationPoint?.latitude),
+              locationLongitude: Value(draft.effectiveLocationPoint?.longitude),
               allDay: Value(draft.allDay),
               startDate: Value(draft.allDay ? _date(start) : null),
               startDateTime: Value(
@@ -2994,7 +3694,14 @@ class CalendarRepository {
               endTimeZone: Value(endTimeZone),
               recurrenceJson: Value(_json(draft.recurrence)),
               remindersJson: Value(_json(draft.reminders)),
-              attendeesJson: const Value(null),
+              attendeesJson: Value(
+                participants.isEmpty ? null : jsonEncode(participants),
+              ),
+              organizerJson: Value(
+                projectedOrganizer == null
+                    ? null
+                    : jsonEncode(projectedOrganizer),
+              ),
               categoriesJson: Value(_json(draft.categories)),
               visibility: Value(draft.visibilityOrSensitivity),
               transparencyOrShowAs: Value(draft.showAs),
@@ -3029,9 +3736,16 @@ class CalendarRepository {
   Future<void> _updateLocalDavEvent(
     CalendarSource source,
     CalendarEvent existing,
-    EventEditorDraft draft,
-  ) async {
-    _requireDavSchedulingUnchanged(draft, creating: false);
+    EventEditorDraft draft, {
+    bool timingOnly = false,
+    bool deferNotifications = false,
+  }) async {
+    final scheduling = await _davSchedulingPolicy(source);
+    _requireDavSchedulingUnchanged(
+      draft,
+      creating: false,
+      scheduling: scheduling,
+    );
     final collectionId = source.davCollectionId;
     final uid = existing.icalUid;
     final start = draft.start;
@@ -3046,23 +3760,25 @@ class CalendarRepository {
         'A supported recurring-event editing scope is required.',
       );
     }
-    final startTimeZone = _effectiveStartTimeZone(
-      draft,
-      source.timeZone,
-      _localTimeZone,
-    );
-    final endTimeZone = _effectiveEndTimeZone(
-      draft,
-      source.timeZone,
-      startTimeZone,
-      _localTimeZone,
-    );
+    final startTimeZone = timingOnly
+        ? existing.startTimeZone
+        : _effectiveStartTimeZone(draft, source.timeZone, _localTimeZone);
+    final endTimeZone = timingOnly
+        ? existing.endTimeZone
+        : _effectiveEndTimeZone(
+            draft,
+            source.timeZone,
+            startTimeZone,
+            _localTimeZone,
+          );
     var input = _davEventInput(
       draft,
       start: start,
       end: end,
       startTimeZone: startTimeZone,
       endTimeZone: endTimeZone,
+      scheduling: scheduling,
+      nowUtc: _now().toUtc(),
     );
     final target = IcalComponentKey(
       componentType: 'VEVENT',
@@ -3100,6 +3816,7 @@ class CalendarRepository {
         target: IcalComponentKey(componentType: 'VEVENT', uid: uid),
         baselineRawIcs: baselineRawIcs,
         input: input,
+        timingOnly: timingOnly,
       );
     } else if (recurringScope == RecurringEventMutationScope.thisAndFuture ||
         (recurringScope == RecurringEventMutationScope.singleOccurrence &&
@@ -3115,6 +3832,7 @@ class CalendarRepository {
         occurrenceKey: occurrenceKey,
         baselineRawIcs: baselineRawIcs,
         input: input,
+        timingOnly: timingOnly,
         thisAndFuture:
             recurringScope == RecurringEventMutationScope.thisAndFuture,
         nowUtc: () => _now().toUtc(),
@@ -3124,9 +3842,24 @@ class CalendarRepository {
         target: target,
         baselineRawIcs: baselineRawIcs,
         input: input,
+        timingOnly: timingOnly,
       );
     }
     if (patch == null) return;
+    if (scheduling != null &&
+        input.attendeesChanged &&
+        (recurringScope == RecurringEventMutationScope.entireSeries ||
+            recurringScope == RecurringEventMutationScope.thisAndFuture)) {
+      patch = nextcloudSeriesGuestPatch(
+        initial: patch,
+        baselineRawIcs: baselineRawIcs,
+        attendees: input.attendees,
+        nowUtc: _now().toUtc(),
+        entireSeries:
+            recurringScope == RecurringEventMutationScope.entireSeries,
+        fromRecurrenceKey: patch.target.recurrenceIdKey,
+      );
+    }
     final candidate = patch.applyTo(baselineRawIcs, nowUtc: _now().toUtc());
 
     await _database.transaction(() async {
@@ -3170,6 +3903,7 @@ class CalendarRepository {
         );
       }
     });
+    if (timingOnly || deferNotifications) return;
     await _notificationScheduleService().rebuildUpcomingEventNotifications(
       existing.accountId,
     );
@@ -3187,6 +3921,16 @@ class CalendarRepository {
       throw StateError('The DAV event projection is incomplete.');
     }
     final recurring = existing.providerRecurringEventId != null;
+    final scheduling = await _davSchedulingPolicy(source);
+    if (recurringScope == RecurringEventMutationScope.singleOccurrence &&
+        scheduling?.canReply == true &&
+        _jsonMap(existing.rawJson)['isOrganizer'] == false) {
+      return _respondToLocalDavEvent(
+        existing,
+        CalendarInvitationResponse.decline,
+        recurringScope: recurringScope,
+      );
+    }
     if (recurring && recurringScope == null) {
       throw UnsupportedError(
         'A supported recurring-event deletion scope is required.',
@@ -3244,6 +3988,9 @@ class CalendarRepository {
           uid: uid,
           occurrenceKey: occurrenceKey,
           baselineRawIcs: editableRawIcs,
+          schedulingOrganizer:
+              scheduling?.canInvite == true &&
+              _jsonMap(existing.rawJson)['isOrganizer'] == true,
           thisAndFuture:
               recurringScope == RecurringEventMutationScope.thisAndFuture,
           nowUtc: () => _now().toUtc(),
@@ -3361,6 +4108,22 @@ class CalendarRepository {
     return existing.accountId;
   }
 
+  Future<NextcloudSchedulingPolicy?> _davSchedulingPolicy(
+    CalendarSource source,
+  ) async {
+    if (source.provider != 'nextcloud' || source.davCollectionId == null) {
+      return null;
+    }
+    final collection =
+        await (_database.select(_database.davCollections)..where(
+              (r) =>
+                  r.id.equals(source.davCollectionId!) &
+                  r.accountId.equals(source.accountId),
+            ))
+            .getSingle();
+    return NextcloudSchedulingPolicy.load(_database, collection);
+  }
+
   Future<PendingOp?> _pendingDavCreateForProjection(String projectionId) {
     return (_database.select(_database.pendingOps)
           ..where(
@@ -3387,6 +4150,12 @@ class CalendarRepository {
         title: Value(draft.title.trim()),
         description: Value(draft.description),
         location: Value(draft.location),
+        locationLatitude: draft.locationChange.changed
+            ? Value(draft.effectiveLocationPoint?.latitude)
+            : const Value.absent(),
+        locationLongitude: draft.locationChange.changed
+            ? Value(draft.effectiveLocationPoint?.longitude)
+            : const Value.absent(),
         allDay: Value(draft.allDay),
         startDate: Value(draft.allDay ? _date(draft.start) : null),
         startDateTime: Value(
@@ -3400,6 +4169,14 @@ class CalendarRepository {
             ? Value(_json(draft.recurrence))
             : const Value.absent(),
         remindersJson: Value(_json(draft.reminders)),
+        attendeesJson: draft.attendeesChanged
+            ? Value(
+                _json([
+                  for (final attendee in draft.attendees)
+                    attendee.toGoogleJson(),
+                ]),
+              )
+            : const Value.absent(),
         categoriesJson: draft.categoriesChanged
             ? Value(_json(draft.categories))
             : const Value.absent(),
@@ -3448,6 +4225,7 @@ class CalendarRepository {
       'backgroundColor',
       'foregroundColor',
       'colorId',
+      'hidden',
     };
     return {
       for (final operation in operations)
@@ -3621,23 +4399,36 @@ class CalendarRepository {
       provider: BusyProvider.google,
       providerCalendarId: providerCalendarId,
     );
-    await (_database.update(_database.calendarEvents)..where(
-          (row) =>
-              row.accountId.equals(accountId) &
-              row.calendarSourceId.equals(source) &
-              row.provider.equals(BusyProvider.google.storageValue) &
-              row.providerEventId.isIn(providerRecurringEventIds) &
-              row.providerRecurringEventId.isNull() &
-              row.syncStatus.equals('synced') &
-              row.isDeleted.equals(false),
-        ))
-        .write(
-          CalendarEventsCompanion(
-            isDeleted: const Value(true),
-            syncStatus: const Value('synced'),
-            updatedAtLocal: Value(_now().millisecondsSinceEpoch),
-          ),
-        );
+    await _database.transaction(() async {
+      final masters =
+          await (_database.select(_database.calendarEvents)..where(
+                (row) =>
+                    row.accountId.equals(accountId) &
+                    row.calendarSourceId.equals(source) &
+                    row.provider.equals(BusyProvider.google.storageValue) &
+                    row.providerEventId.isIn(providerRecurringEventIds) &
+                    row.providerRecurringEventId.isNull() &
+                    row.syncStatus.equals('synced') &
+                    row.isDeleted.equals(false),
+              ))
+              .get();
+      if (masters.isEmpty) return;
+
+      final resolutions = LocationResolutionRepository(_database);
+      for (final master in masters) {
+        await resolutions.reconcileGoogleSeriesMaster(master);
+      }
+
+      await (_database.update(
+        _database.calendarEvents,
+      )..where((row) => row.id.isIn(masters.map((master) => master.id)))).write(
+        CalendarEventsCompanion(
+          isDeleted: const Value(true),
+          syncStatus: const Value('synced'),
+          updatedAtLocal: Value(_now().millisecondsSinceEpoch),
+        ),
+      );
+    });
   }
 
   Future<SyncCursor?> syncState({
@@ -3696,11 +4487,31 @@ class CalendarRepository {
   }
 }
 
-void _requireWritableSource(
+Future<void> _requireWritableSource(
   CalendarSource source, {
+  required AppDatabase database,
   required CalendarMutationOperation operation,
-}) {
-  if (!source.readOnly && !source.isDeleted) {
+}) async {
+  final collection = source.davCollectionId == null
+      ? null
+      : await (database.select(database.davCollections)..where(
+              (r) =>
+                  r.accountId.equals(source.accountId) &
+                  r.id.equals(source.davCollectionId!),
+            ))
+            .getSingleOrNull();
+  final capabilities = CalendarSourceEntity.fromRow(
+    source,
+    davCollection: collection,
+  ).capabilities;
+  final allowed = switch (operation) {
+    CalendarMutationOperation.createEvent => capabilities.canCreateEvents,
+    CalendarMutationOperation.editEvent ||
+    CalendarMutationOperation.moveEvent => capabilities.canEditEvents,
+    CalendarMutationOperation.deleteEvent => capabilities.canDeleteEvents,
+    _ => false,
+  };
+  if (allowed) {
     return;
   }
   throw CalendarMutationNotAllowed(operation: operation, sourceId: source.id);
@@ -3778,6 +4589,9 @@ Map<String, Object?> _calendarPatchRequestWithPreviousValues(
     previous['foregroundColor'] = source.foregroundColor;
     previous['colorId'] = source.colorId;
   }
+  if (request.containsKey('hidden')) {
+    previous['hidden'] = source.hidden;
+  }
   if (previous.isNotEmpty) {
     queued[calendarPatchPreviousValuesKey] = previous;
   }
@@ -3796,16 +4610,18 @@ bool _calendarRemovalPreviousHidden(PendingOp op) {
 void _requireDavSchedulingUnchanged(
   EventEditorDraft draft, {
   required bool creating,
+  NextcloudSchedulingPolicy? scheduling,
 }) {
   final changesAttendees = creating
       ? draft.attendees.isNotEmpty
       : draft.attendeesChanged;
-  if (changesAttendees ||
+  if ((changesAttendees &&
+          (scheduling?.canInvite != true || draft.isOrganizer == false)) ||
       draft.createConference ||
       (creating && draft.conference != null)) {
     throw UnsupportedError(
-      'DAV attendee and scheduling mutations are disabled until scheduling '
-      'inbox/outbox interoperability is available.',
+      'This DAV calendar does not authorize the requested attendee changes '
+      'or support creating conferencing data.',
     );
   }
 }
@@ -3816,8 +4632,16 @@ DavEventMutationInput _davEventInput(
   required DateTime end,
   required String? startTimeZone,
   required String? endTimeZone,
+  NextcloudSchedulingPolicy? scheduling,
+  DateTime? nowUtc,
 }) {
   return DavEventMutationInput(
+    attendees: draft.attendees,
+    attendeesChanged: draft.attendeesChanged,
+    organizerAddress: scheduling?.organizerAddress,
+    schedulingOrganizer:
+        scheduling?.canInvite == true && draft.isOrganizer != false,
+    mutationAtUtc: nowUtc,
     title: draft.title,
     allDay: draft.allDay,
     start: start,
@@ -3826,6 +4650,8 @@ DavEventMutationInput _davEventInput(
     endTimeZone: endTimeZone,
     description: draft.description,
     location: draft.location,
+    locationPoint: draft.effectiveLocationPoint,
+    locationChanged: draft.locationChange.changed,
     recurrence: draft.recurrence,
     recurrenceChanged: draft.recurrenceChanged,
     reminders: draft.reminders,
@@ -3858,23 +4684,44 @@ DavEventMutationInput _seriesDavEventInput({
   final masterEnd = master.end == null
       ? masterStart.add(master.duration?.duration ?? const Duration(hours: 1))
       : _editableIcalTemporal(master.end!);
-  final projectedStart = DateTime.tryParse(
+  var projectedStart = DateTime.tryParse(
     existing.allDay ? existing.startDate ?? '' : existing.startDateTime ?? '',
   );
-  final projectedEnd = DateTime.tryParse(
+  var projectedEnd = DateTime.tryParse(
     existing.allDay ? existing.endDate ?? '' : existing.endDateTime ?? '',
   );
   if (projectedStart == null || projectedEnd == null) {
     throw StateError('The DAV occurrence projection is incomplete.');
   }
-  final startChanged = desired.start != projectedStart;
-  final endChanged = desired.end != projectedEnd;
+  final resolver = IcalTimeZoneResolver.fromDocument(semantic);
+  if (!existing.allDay) {
+    if (existing.startTimeZone case final zone?) {
+      projectedStart = resolver.fromUtc(
+        providerDateTimeAsUtcInstant(existing.startDateTime, zone)!,
+        zone,
+      );
+    }
+    if (existing.endTimeZone case final zone?) {
+      projectedEnd = resolver.fromUtc(
+        providerDateTimeAsUtcInstant(existing.endDateTime, zone)!,
+        zone,
+      );
+    }
+  }
+  final startDelta = providerCivilDateTime(
+    desired.start,
+  ).difference(providerCivilDateTime(projectedStart));
+  final endDelta = providerCivilDateTime(
+    desired.end,
+  ).difference(providerCivilDateTime(projectedEnd));
+  final startChanged = startDelta != Duration.zero;
+  final endChanged = endDelta != Duration.zero;
   final allDayChanged = desired.allDay != existing.allDay;
   final seriesStart = startChanged
-      ? masterStart.add(desired.start.difference(projectedStart))
+      ? providerCivilDateTime(masterStart).add(startDelta)
       : masterStart;
   final seriesEnd = endChanged
-      ? masterEnd.add(desired.end.difference(projectedEnd))
+      ? providerCivilDateTime(masterEnd).add(endDelta)
       : masterEnd;
   final masterTimeZone = _icalTimeZone(master.start!);
   final masterEndTimeZone = master.end == null
@@ -3899,8 +4746,17 @@ DavEventMutationInput _seriesDavEventInput({
     location: (desired.location ?? '') != (existing.location ?? '')
         ? desired.location
         : master.location,
+    locationPoint: desired.locationChanged
+        ? desired.locationPoint
+        : master.locationPoint,
+    locationChanged: desired.locationChanged,
     recurrence: desired.recurrence,
     recurrenceChanged: desired.recurrenceChanged,
+    attendees: desired.attendees,
+    attendeesChanged: desired.attendeesChanged,
+    organizerAddress: desired.organizerAddress,
+    schedulingOrganizer: desired.schedulingOrganizer,
+    mutationAtUtc: desired.mutationAtUtc,
     reminders: desired.reminders,
     categories: desired.categories,
     categoriesChanged: desired.categoriesChanged,
@@ -4007,7 +4863,8 @@ CalendarEventsCompanion _eventPatchProjection({
       request.containsKey('importance') ||
           request.containsKey('responseRequested') ||
           request.containsKey('hideAttendees') ||
-          request.containsKey('allowNewTimeProposals'),
+          request.containsKey('allowNewTimeProposals') ||
+          request.containsKey('structuredLocation'),
     BusyProvider.appleICloud ||
     BusyProvider.nextcloud ||
     BusyProvider.webCal => false,
@@ -4021,6 +4878,12 @@ CalendarEventsCompanion _eventPatchProjection({
         : const Value.absent(),
     location: request.containsKey('location')
         ? Value(draft.location)
+        : const Value.absent(),
+    locationLatitude: request.containsKey('structuredLocation')
+        ? Value(draft.locationChange.selection?.point.latitude)
+        : const Value.absent(),
+    locationLongitude: request.containsKey('structuredLocation')
+        ? Value(draft.locationChange.selection?.point.longitude)
         : const Value.absent(),
     allDay: rangeChanged ? Value(draft.allDay) : const Value.absent(),
     startDate: rangeChanged
@@ -4113,6 +4976,10 @@ Map<String, Object?> _eventDeltaRequest(
   if ((draft.location ?? '') != (original.location ?? '')) {
     result['location'] = draft.location ?? '';
   }
+  if (provider == BusyProvider.microsoft &&
+      (draft.locationChange.changed || result.containsKey('location'))) {
+    result['structuredLocation'] = _graphLocation(draft);
+  }
   final rangeChanged =
       draft.allDay != original.allDay ||
       draft.start != _eventDetailStartDateTime(original) ||
@@ -4186,6 +5053,9 @@ Map<String, Object?> _eventRequest(
     'descriptionContentType': draft.descriptionContentType,
     'descriptionHtml': draft.descriptionHtml,
     'location': draft.location,
+    if (provider == BusyProvider.microsoft &&
+        (isCreate || draft.locationChange.changed))
+      'structuredLocation': _graphLocation(draft),
     'allDay': draft.allDay,
     'start': draft.start?.toIso8601String(),
     'end': draft.end?.toIso8601String(),
@@ -4214,6 +5084,14 @@ Map<String, Object?> _eventRequest(
     calendarEventGuestUpdatePolicyKey: guestUpdatePolicy.name,
     if (clearFields.isNotEmpty) calendarEventClearFieldsKey: clearFields,
   };
+}
+
+Map<String, Object?> _graphLocation(EventEditorDraft draft) {
+  final selection = draft.locationChange.selection;
+  return microsoftStructuredLocation(
+    displayName: draft.location ?? '',
+    details: selection,
+  );
 }
 
 Object? _conferenceRequest(EventEditorDraft draft, BusyProvider provider) {
@@ -4331,6 +5209,10 @@ Map<String, Object?> _optimisticEventRaw(
   String? existingJson,
 }) {
   final raw = {..._jsonMap(existingJson)};
+  if (provider == BusyProvider.microsoft && draft.locationChange.changed) {
+    raw['location'] = _graphLocation(draft);
+    raw['locations'] = [_graphLocation(draft)];
+  }
   switch (provider) {
     case BusyProvider.google:
       if (draft.hideAttendees case final hidden?) {
@@ -4367,6 +5249,11 @@ Map<String, Object?> _optimisticEventRawForPatch(
   String? existingJson,
 }) {
   final raw = {..._jsonMap(existingJson)};
+  if (provider == BusyProvider.microsoft &&
+      request.containsKey('structuredLocation')) {
+    raw['location'] = request['structuredLocation'];
+    raw['locations'] = [request['structuredLocation']];
+  }
   switch (provider) {
     case BusyProvider.google:
       if (request.containsKey('hideAttendees')) {
@@ -4531,10 +5418,17 @@ String? _storedEventEnd(CalendarEvent event) =>
     event.allDay ? event.endDate : event.endDateTime;
 
 DateTime? _storedEventStartDateTime(CalendarEvent event) =>
-    providerDateTimeAsWallTime(_storedEventStart(event), event.startTimeZone);
+    providerDateTimeAsCivilTime(_storedEventStart(event), event.startTimeZone);
 
 DateTime? _storedEventEndDateTime(CalendarEvent event) =>
-    providerDateTimeAsWallTime(_storedEventEnd(event), event.endTimeZone);
+    providerDateTimeAsCivilTime(_storedEventEnd(event), event.endTimeZone);
+
+Map<String, Object?> _storedEventTimingBaseline(CalendarEvent event) => {
+  'start': _storedEventStart(event),
+  'end': _storedEventEnd(event),
+  'startTimeZone': event.startTimeZone,
+  'endTimeZone': event.endTimeZone,
+};
 
 bool _seriesRowInScope(
   CalendarEvent row,
@@ -4552,16 +5446,10 @@ bool _seriesRowInScope(
 }
 
 bool _googleEventCanSplit(CalendarEvent event) {
-  final eventType = event.eventType;
-  if (eventType != null && eventType.isNotEmpty && eventType != 'default') {
-    return false;
-  }
-  final conference = _decodeStoredJson(event.conferenceJson);
-  if (conference == null) return true;
-  if (conference is! Map || conference.isEmpty) return conference is Map;
-  final solution = conference['conferenceSolution'];
-  final key = solution is Map ? solution['key'] : null;
-  return key is Map && key['type']?.toString() == 'hangoutsMeet';
+  return googleEventCanSplit(
+    eventType: event.eventType,
+    conference: _decodeStoredJson(event.conferenceJson),
+  );
 }
 
 DateTime? _seriesOriginalStart(CalendarEvent event) {
@@ -4590,6 +5478,7 @@ bool _eventRequestHasMutation(Map<String, Object?> request) {
     calendarEventTargetProviderIdKey,
     calendarEventOriginalStartKey,
     calendarEventOriginalEndKey,
+    calendarEventTimingBaselineKey,
     calendarEventDestinationCalendarIdKey,
     calendarEventDestinationSourceIdKey,
   };

@@ -1,4 +1,5 @@
 import 'dart:convert';
+import '../../features/maps/data/location_resolution_repository.dart';
 
 import 'package:crypto/crypto.dart';
 import 'package:drift/drift.dart';
@@ -12,10 +13,44 @@ import '../ical/ical_document.dart';
 import '../ical/ical_recurrence.dart';
 import '../ical/ical_semantics.dart';
 import '../ical/ical_timezone.dart';
+import '../mutation/dav_mutation_patch.dart';
+import '../mutation/dav_pending_operation_selection.dart';
+import '../nextcloud/nextcloud_scheduling_policy.dart';
+import 'dav_collection_capabilities.dart';
 
 const davRawObjectParserVersion = 1;
-const davProjectionVersion = 2;
+const davProjectionVersion = 5;
 const davSyncStateSchemaVersion = 1;
+
+Map<String, Object?> nextcloudParticipantProjection(
+  Map<String, Object?> raw,
+  NextcloudSchedulingPolicy policy,
+) {
+  final address = raw['value']?.toString() ?? '';
+  final parameters = {
+    for (final p in raw['parameters'] as List? ?? const [])
+      if (p is Map && p['values'] is List)
+        p['name']: (p['values'] as List).firstOrNull?.toString(),
+  };
+  final normalized = normalizeCalendarAddress(address);
+  return {
+    ...raw,
+    'email': normalized.startsWith('mailto:')
+        ? normalized.substring(7)
+        : address,
+    'displayName': parameters['CN'],
+    'optional': parameters['ROLE'] == 'OPT-PARTICIPANT',
+    'self': policy.ownsAddress(address),
+    'responseStatus': switch (parameters['PARTSTAT']) {
+      'ACCEPTED' => 'accepted',
+      'TENTATIVE' => 'tentative',
+      'DECLINED' => 'declined',
+      _ => 'needsAction',
+    },
+    if (parameters['SCHEDULE-STATUS'] != null)
+      'scheduleStatus': parameters['SCHEDULE-STATUS'],
+  };
+}
 
 final class DavPreparedObject {
   const DavPreparedObject._({
@@ -215,9 +250,10 @@ final class DavObjectRepository {
         );
   }
 
-  /// Rebuilds the bounded occurrence/task projections entirely from the raw
-  /// local baseline. Advancing the UI horizon never requires a server-wide
-  /// download and does not alter the durable transport cursor.
+  /// Rebuilds bounded occurrence/task projections from the effective local
+  /// resource, including durable pending create/update/move overlays.
+  /// Advancing the UI horizon never requires a server-wide download and does
+  /// not alter the durable transport cursor or pending operation.
   Future<Set<String>> reprojectCollectionFromStored({
     required String accountId,
     required String collectionId,
@@ -245,13 +281,19 @@ final class DavObjectRepository {
     final now = (completedAtUtc ?? DateTime.now()).toUtc();
     return _database.transaction(() async {
       final affected = <String>{};
+      var completelyCovered = true;
       for (final object in objects) {
-        if (await _hasActivePendingOperation(object.id)) continue;
-        final componentIds = await _replaceComponentIndex(
-          object.id,
-          parsed[object.id]!,
-        );
-        await _replaceProjections(
+        final pending = await _effectivePendingOperation(object.id);
+        // A pending whole-resource delete is already absent from the effective
+        // local calendar at every date, so it needs no new occurrence rows.
+        if (pending?.operationType == 'dav.delete') continue;
+        final semantic = pending == null
+            ? parsed[object.id]!
+            : IcalSemanticDocument.parse(
+                _pendingCandidateRaw(pending, nowUtc: now),
+              );
+        final componentIds = await _replaceComponentIndex(object.id, semantic);
+        final projected = await _replaceProjectionsSafely(
           commit: DavCollectionCommit(
             accountId: accountId,
             collectionId: collectionId,
@@ -270,9 +312,16 @@ final class DavObjectRepository {
           collection: collection,
           objectId: object.id,
           etag: object.etag,
-          semantic: parsed[object.id]!,
+          semantic: semantic,
           componentIds: componentIds,
         );
+        if (!projected) {
+          completelyCovered = false;
+          continue;
+        }
+        if (pending != null) {
+          await _restorePendingProjectionState(pending, now);
+        }
         affected.add(object.id);
       }
       await _resolveProjectedTaskParents(collectionId);
@@ -281,16 +330,21 @@ final class DavObjectRepository {
           _database.syncCursors,
         )..where((row) => row.id.equals(cursorState.id))).write(
           SyncCursorsCompanion(
+            // Successful objects now contain rows for the requested window.
+            // If any sibling failed, retaining the old claim would describe
+            // rows that were just replaced and could suppress a later repair.
             stateJson: Value(
-              jsonEncode({
-                'projectionRangeStartUtc': projectionRangeStartUtc
-                    .toUtc()
-                    .toIso8601String(),
-                'projectionRangeEndUtc': projectionRangeEndUtc
-                    .toUtc()
-                    .toIso8601String(),
-                'projectionVersion': davProjectionVersion,
-              }),
+              completelyCovered
+                  ? jsonEncode({
+                      'projectionRangeStartUtc': projectionRangeStartUtc
+                          .toUtc()
+                          .toIso8601String(),
+                      'projectionRangeEndUtc': projectionRangeEndUtc
+                          .toUtc()
+                          .toIso8601String(),
+                      'projectionVersion': davProjectionVersion,
+                    })
+                  : null,
             ),
           ),
         );
@@ -362,7 +416,7 @@ final class DavObjectRepository {
     );
     return _database.transaction(() async {
       final componentIds = await _replaceComponentIndex(objectId, semantic);
-      await _replaceProjections(
+      await _replaceProjectionsSafely(
         commit: context,
         collection: collection,
         objectId: objectId,
@@ -389,6 +443,135 @@ final class DavObjectRepository {
       await _resolveProjectedTaskParents(collectionId);
       return {objectId};
     });
+  }
+
+  /// Restores one object's projections from its server-confirmed raw body.
+  ///
+  /// The pending overlay must already have been removed in the caller's
+  /// transaction so projection state cannot be restored from the discarded
+  /// candidate again.
+  Future<void> restoreServerProjectionAfterDiscard({
+    required String accountId,
+    required String objectId,
+    required DateTime restoredAtUtc,
+  }) async {
+    final account = await (_database.select(
+      _database.accounts,
+    )..where((row) => row.id.equals(accountId))).getSingleOrNull();
+    final object = await (_database.select(
+      _database.davObjects,
+    )..where((row) => row.id.equals(objectId))).getSingleOrNull();
+    final collection = object == null
+        ? null
+        : await (_database.select(_database.davCollections)
+                ..where((row) => row.id.equals(object.collectionId)))
+              .getSingleOrNull();
+    if (account == null ||
+        object == null ||
+        collection == null ||
+        object.accountId != accountId ||
+        collection.accountId != accountId ||
+        object.serverDeleted) {
+      throw const DavException(
+        kind: DavErrorKind.protocol,
+        code: 'DavDiscardBaselineUnavailable',
+        safeMessage: 'The DAV server baseline could not be restored.',
+      );
+    }
+    final now = restoredAtUtc.toUtc();
+    final range = _projectionRange(await cursor(collection.id), now);
+    final semantic = IcalSemanticDocument.parse(object.rawIcsBody);
+    final context = DavCollectionCommit(
+      accountId: accountId,
+      collectionId: collection.id,
+      provider: BusyProviderCodec.requireStorageValue(account.provider),
+      objects: const [],
+      deletedHrefKeys: const {},
+      completeMembership: false,
+      membershipHrefKeys: const {},
+      finalCursorKind: 'discard_restore',
+      finalCursorValue: '0',
+      baselineGeneration: object.baselineGeneration,
+      completedAtUtc: now,
+      projectionRangeStartUtc: range.start,
+      projectionRangeEndUtc: range.end,
+    );
+    final componentIds = await _replaceComponentIndex(object.id, semantic);
+    await _replaceProjections(
+      commit: context,
+      collection: collection,
+      objectId: object.id,
+      etag: object.etag,
+      semantic: semantic,
+      componentIds: componentIds,
+    );
+    await (_database.update(
+      _database.davObjects,
+    )..where((row) => row.id.equals(object.id))).write(
+      const DavObjectsCompanion(
+        lastParseStatus: Value('parsed'),
+        lastParseErrorCode: Value(null),
+      ),
+    );
+    await _resolveProjectedTaskParents(collection.id);
+  }
+
+  /// Gives a native import the same raw resource identity and bounded
+  /// projection used by synchronization. A null ETag is explicitly unconfirmed;
+  /// the caller must attach its conditional create in the same transaction.
+  Future<String> projectPendingImport({
+    required String accountId,
+    required String collectionId,
+    required DavPreparedObject object,
+    required DateTime nowUtc,
+  }) async {
+    if (object.etag != null ||
+        await objectByHref(collectionId, object.hrefKey) != null) {
+      throw ArgumentError(
+        'A pending import must be a new unconfirmed resource.',
+      );
+    }
+    final collection = await (_database.select(
+      _database.davCollections,
+    )..where((r) => r.id.equals(collectionId))).getSingle();
+    final account = await (_database.select(
+      _database.accounts,
+    )..where((r) => r.id.equals(accountId))).getSingle();
+    if (collection.accountId != accountId ||
+        account.provider != BusyProvider.nextcloud.storageValue) {
+      throw ArgumentError('Invalid native import destination.');
+    }
+    final range = _projectionRange(await cursor(collectionId), nowUtc);
+    final context = DavCollectionCommit(
+      accountId: accountId,
+      collectionId: collectionId,
+      provider: BusyProvider.nextcloud,
+      objects: const [],
+      deletedHrefKeys: const {},
+      completeMembership: false,
+      membershipHrefKeys: const {},
+      finalCursorKind: 'snapshot_generation',
+      finalCursorValue: '0',
+      baselineGeneration: 0,
+      completedAtUtc: nowUtc,
+      projectionRangeStartUtc: range.start,
+      projectionRangeEndUtc: range.end,
+    );
+    final id = await _upsertPreparedObject(
+      commit: context,
+      collection: collection,
+      prepared: object,
+    );
+    await (_database.update(_database.calendarEvents)
+          ..where((r) => r.davObjectId.equals(id)))
+        .write(const CalendarEventsCompanion(syncStatus: Value('pending')));
+    await (_database.update(
+      _database.tasks,
+    )..where((r) => r.davObjectId.equals(id))).write(
+      const TasksCompanion(localDirty: Value(true), localCreated: Value(true)),
+    );
+    await _resolveProjectedTaskParents(collectionId);
+    return id;
   }
 
   /// Stores the server-confirmed representation from a conditional mutation
@@ -536,9 +719,20 @@ final class DavObjectRepository {
     );
     return _database.transaction(() async {
       final affected = <String>{};
+      final resolutions = LocationResolutionRepository(_database);
       final sourceObject = await objectByHref(
         sourceCollectionId,
         sourceHrefKey,
+      );
+      final remembered = sourceObject == null
+          ? const <RememberedLocationSnapshot>[]
+          : await resolutions.capture(
+              accountId: accountId,
+              davObjectId: sourceObject.id,
+            );
+      final effectiveDestinationContext = _includingRememberedLocationCoverage(
+        destinationContext,
+        remembered,
       );
       if (sourceObject != null) {
         await _markObjectDeleted(
@@ -549,12 +743,26 @@ final class DavObjectRepository {
         affected.add(sourceObject.id);
       }
       final destinationObjectId = await _upsertPreparedObject(
-        commit: destinationContext,
+        commit: effectiveDestinationContext,
         collection: destination,
         prepared: canonicalDestinationObject,
         ignorePendingOperations: true,
       );
       affected.add(destinationObjectId);
+      await resolutions.restore(
+        remembered,
+        accountId: accountId,
+        sourceId:
+            canonicalDestinationObject
+                    .semantic
+                    .components
+                    .firstOrNull
+                    ?.componentType ==
+                'VTODO'
+            ? 'dav-task-list-$destinationCollectionId'
+            : 'dav-calendar-$destinationCollectionId',
+        davObjectId: destinationObjectId,
+      );
       await _resolveProjectedTaskParents(sourceCollectionId);
       await _resolveProjectedTaskParents(destinationCollectionId);
       return affected;
@@ -635,16 +843,24 @@ final class DavObjectRepository {
                 ))
                 .get();
         for (final object in live) {
-          if (changedObjectIds.contains(object.id) ||
-              await _hasActivePendingOperation(object.id)) {
-            continue;
-          }
-          final semantic = IcalSemanticDocument.parse(object.rawIcsBody);
+          final pending = await _effectivePendingOperation(object.id);
+          if (changedObjectIds.contains(object.id) && pending == null) continue;
+          // A whole-resource delete is absent throughout the effective local
+          // calendar, so it is already covered without occurrence rows.
+          if (pending?.operationType == 'dav.delete') continue;
+          final semantic = pending == null
+              ? IcalSemanticDocument.parse(object.rawIcsBody)
+              : IcalSemanticDocument.parse(
+                  _pendingCandidateRaw(
+                    pending,
+                    nowUtc: commit.completedAtUtc.toUtc(),
+                  ),
+                );
           final componentIds = await _replaceComponentIndex(
             object.id,
             semantic,
           );
-          await _replaceProjections(
+          final projected = await _replaceProjectionsSafely(
             commit: commit,
             collection: collection,
             objectId: object.id,
@@ -652,6 +868,12 @@ final class DavObjectRepository {
             semantic: semantic,
             componentIds: componentIds,
           );
+          if (projected && pending != null) {
+            await _restorePendingProjectionState(
+              pending,
+              commit.completedAtUtc.toUtc(),
+            );
+          }
           changedObjectIds.add(object.id);
         }
       }
@@ -660,6 +882,16 @@ final class DavObjectRepository {
 
       final completed = commit.completedAtUtc.toUtc();
       final cursorId = 'dav-sync-${commit.collectionId}';
+      final failedProjection =
+          await (_database.select(_database.davObjects)
+                ..where(
+                  (row) =>
+                      row.collectionId.equals(commit.collectionId) &
+                      row.serverDeleted.equals(false) &
+                      row.lastParseStatus.equals('projection_failed'),
+                )
+                ..limit(1))
+              .getSingleOrNull();
       await _database
           .into(_database.syncCursors)
           .insertOnConflictUpdate(
@@ -678,16 +910,21 @@ final class DavObjectRepository {
               lastCompleteSyncAt: Value(completed.millisecondsSinceEpoch),
               lastFailureCode: const Value(null),
               stateSchemaVersion: const Value(davSyncStateSchemaVersion),
+              // The opaque transport token can advance independently, but a
+              // partial projection must not advertise a complete date range.
               stateJson: Value(
-                jsonEncode({
-                  'projectionRangeStartUtc': commit.projectionRangeStartUtc
-                      .toUtc()
-                      .toIso8601String(),
-                  'projectionRangeEndUtc': commit.projectionRangeEndUtc
-                      .toUtc()
-                      .toIso8601String(),
-                  'projectionVersion': davProjectionVersion,
-                }),
+                failedProjection == null
+                    ? jsonEncode({
+                        'projectionRangeStartUtc': commit
+                            .projectionRangeStartUtc
+                            .toUtc()
+                            .toIso8601String(),
+                        'projectionRangeEndUtc': commit.projectionRangeEndUtc
+                            .toUtc()
+                            .toIso8601String(),
+                        'projectionVersion': davProjectionVersion,
+                      })
+                    : null,
               ),
             ),
           );
@@ -771,16 +1008,18 @@ final class DavObjectRepository {
 
     if (rawChanged ||
         semanticChanged ||
+        (existing?.etag == null && prepared.etag != null) ||
         existing?.parserVersion != davRawObjectParserVersion ||
         existing?.serverDeleted == true ||
-        commit.forceReprojection) {
+        commit.forceReprojection ||
+        ignorePendingOperations) {
       final componentIds = await _replaceComponentIndex(
         objectId,
         prepared.semantic,
       );
       if (ignorePendingOperations ||
           !await _hasActivePendingOperation(objectId)) {
-        await _replaceProjections(
+        await _replaceProjectionsSafely(
           commit: commit,
           collection: collection,
           objectId: objectId,
@@ -848,6 +1087,87 @@ final class DavObjectRepository {
     required IcalSemanticDocument semantic,
     required Map<String, String> componentIds,
   }) async {
+    final resolutions = LocationResolutionRepository(_database);
+    final remembered = await resolutions.capture(
+      accountId: commit.accountId,
+      davObjectId: objectId,
+    );
+    final effectiveCommit = _includingRememberedLocationCoverage(
+      commit,
+      remembered,
+    );
+    await _replaceProjectionsBody(
+      commit: effectiveCommit,
+      collection: collection,
+      objectId: objectId,
+      etag: etag,
+      semantic: semantic,
+      componentIds: componentIds,
+    );
+    await resolutions.restore(
+      remembered,
+      accountId: commit.accountId,
+      sourceId: semantic.components.firstOrNull?.componentType == 'VTODO'
+          ? 'dav-task-list-${commit.collectionId}'
+          : 'dav-calendar-${commit.collectionId}',
+      davObjectId: objectId,
+    );
+  }
+
+  /// Keep a fetched resource and advance the collection cursor even when a
+  /// resource-specific recurrence or time-zone projection cannot be rendered.
+  /// The raw iCalendar body remains available for a later reprojection.
+  Future<bool> _replaceProjectionsSafely({
+    required DavCollectionCommit commit,
+    required DavCollection collection,
+    required String objectId,
+    required String? etag,
+    required IcalSemanticDocument semantic,
+    required Map<String, String> componentIds,
+  }) async {
+    try {
+      await _replaceProjections(
+        commit: commit,
+        collection: collection,
+        objectId: objectId,
+        etag: etag,
+        semantic: semantic,
+        componentIds: componentIds,
+      );
+      await (_database.update(
+        _database.davObjects,
+      )..where((row) => row.id.equals(objectId))).write(
+        const DavObjectsCompanion(
+          lastParseStatus: Value('parsed'),
+          lastParseErrorCode: Value(null),
+        ),
+      );
+      return true;
+    } on DavException catch (error) {
+      if (!_isResourceProjectionFailure(error)) rethrow;
+      // A failure can happen after some occurrence rows have been written.
+      // Remove those partial rows before retaining the raw baseline.
+      await _deleteProjections(objectId);
+      await (_database.update(
+        _database.davObjects,
+      )..where((row) => row.id.equals(objectId))).write(
+        DavObjectsCompanion(
+          lastParseStatus: const Value('projection_failed'),
+          lastParseErrorCode: Value(error.code),
+        ),
+      );
+      return false;
+    }
+  }
+
+  Future<void> _replaceProjectionsBody({
+    required DavCollectionCommit commit,
+    required DavCollection collection,
+    required String objectId,
+    required String? etag,
+    required IcalSemanticDocument semantic,
+    required Map<String, String> componentIds,
+  }) async {
     await _deleteProjections(objectId);
     if (semantic.components.isEmpty) return;
     final componentType = semantic.components.first.componentType;
@@ -882,6 +1202,9 @@ final class DavObjectRepository {
     required IcalSemanticDocument semantic,
     required Map<String, String> componentIds,
   }) async {
+    final scheduling = commit.provider == BusyProvider.nextcloud
+        ? await NextcloudSchedulingPolicy.load(_database, collection)
+        : null;
     final sourceId = 'dav-calendar-${commit.collectionId}';
     final source = await (_database.select(
       _database.calendarSources,
@@ -904,6 +1227,55 @@ final class DavObjectRepository {
         );
     final now = commit.completedAtUtc.toUtc().millisecondsSinceEpoch;
     for (final projected in projections) {
+      final attendees = scheduling == null
+          ? projected.attendeesJson
+          : jsonEncode([
+              for (final raw
+                  in (jsonDecode(projected.attendeesJson) as List)
+                      .whereType<Map>())
+                nextcloudParticipantProjection(
+                  Map<String, Object?>.from(raw),
+                  scheduling,
+                ),
+            ]);
+      final organizer = scheduling == null || projected.organizerJson == null
+          ? projected.organizerJson
+          : jsonEncode(
+              nextcloudParticipantProjection(
+                Map<String, Object?>.from(
+                  jsonDecode(projected.organizerJson!) as Map,
+                ),
+                scheduling,
+              ),
+            );
+      final organizerAddress = organizer == null
+          ? null
+          : (jsonDecode(organizer) as Map)['value']?.toString();
+      final ownOrganizer =
+          scheduling == null ||
+              organizerAddress == null ||
+              scheduling.addresses.isEmpty
+          ? null
+          : scheduling.ownsAddress(organizerAddress);
+      final selfAttendee = (jsonDecode(attendees) as List).whereType<Map>().any(
+        (a) => a['self'] == true,
+      );
+      final rawProjection = scheduling == null
+          ? projected.rawJson
+          : jsonEncode({
+              ...Map<String, Object?>.from(
+                jsonDecode(projected.rawJson) as Map,
+              ),
+              'isOrganizer': ownOrganizer,
+              'canManageAttendees':
+                  scheduling.canInvite &&
+                  (organizerAddress == null || ownOrganizer == true),
+              'canRespond':
+                  scheduling.canReply &&
+                  selfAttendee &&
+                  collectionCapabilitiesFromStored(collection).canUpdateEvent,
+              'federated': scheduling.federated,
+            });
       final componentId =
           componentIds[_componentKey(
             'VEVENT',
@@ -942,6 +1314,8 @@ final class DavObjectRepository {
               title: projected.title,
               description: Value(projected.description),
               location: Value(projected.location),
+              locationLatitude: Value(projected.locationPoint?.latitude),
+              locationLongitude: Value(projected.locationPoint?.longitude),
               allDay: Value(projected.allDay),
               startDate: Value(projected.startDate),
               startDateTime: Value(projected.startDateTime),
@@ -951,9 +1325,9 @@ final class DavObjectRepository {
               endTimeZone: Value(projected.endTimeZone),
               recurrenceJson: Value(projected.recurrenceJson),
               remindersJson: Value(projected.remindersJson),
-              attendeesJson: Value(projected.attendeesJson),
+              attendeesJson: Value(attendees),
               categoriesJson: Value(projected.categoriesJson),
-              organizerJson: Value(projected.organizerJson),
+              organizerJson: Value(organizer),
               colorHex: Value(collection.color),
               visibility: Value(projected.visibility),
               transparencyOrShowAs: Value(projected.transparency),
@@ -961,13 +1335,13 @@ final class DavObjectRepository {
               attachmentsJson: Value(projected.attachmentsJson),
               isCancelled: Value(projected.cancelled),
               isDeleted: const Value(false),
-              rawJson: Value(projected.rawJson),
+              rawJson: Value(rawProjection),
               createdAtServer: Value(projected.createdAtServer),
               updatedAtServer: Value(projected.updatedAtServer),
               createdAtLocal: now,
               updatedAtLocal: now,
               syncStatus: const Value('synced'),
-              baselineRawJson: Value(projected.rawJson),
+              baselineRawJson: Value(rawProjection),
             ),
           );
     }
@@ -1077,7 +1451,13 @@ final class DavObjectRepository {
               percentComplete: Value(
                 component.percentComplete ?? master.percentComplete,
               ),
-              taskLocation: Value(component.location ?? master.location),
+              taskLocation: Value(effectiveIcalLocation([component, master])),
+              locationLatitude: Value(
+                effectiveIcalLocationPoint([component, master])?.latitude,
+              ),
+              locationLongitude: Value(
+                effectiveIcalLocationPoint([component, master])?.longitude,
+              ),
               taskUrl: Value(component.url ?? master.url),
               taskClassification: Value(
                 component.classification ?? master.classification,
@@ -1149,6 +1529,13 @@ final class DavObjectRepository {
     DavCollectionCommit commit, {
     bool ignorePendingOperations = false,
   }) async {
+    // An entirely local resource cannot be a server tombstone merely because
+    // an inventory doesn't list it yet. Keep its pending create and projection.
+    if (!ignorePendingOperations &&
+        object.etag == null &&
+        await _hasActivePendingOperation(object.id)) {
+      return;
+    }
     final now = commit.completedAtUtc.toUtc().toIso8601String();
     await (_database.update(
       _database.davObjects,
@@ -1196,22 +1583,95 @@ final class DavObjectRepository {
   }
 
   Future<bool> _hasActivePendingOperation(String objectId) async {
-    final pending =
-        await (_database.select(_database.pendingOps)..where(
-              (row) =>
-                  row.davObjectId.equals(objectId) &
-                  row.state.isIn(const [
-                    'pending',
-                    'retry',
-                    'in_progress',
-                    'blocked',
-                    'conflict',
-                    'auth_blocked',
-                    'permission_blocked',
-                  ]),
-            ))
-            .getSingleOrNull();
-    return pending != null;
+    return await _effectivePendingOperation(objectId) != null;
+  }
+
+  Future<PendingOp?> _effectivePendingOperation(String objectId) async {
+    final operations = await (_database.select(
+      _database.pendingOps,
+    )..where((row) => row.davObjectId.equals(objectId))).get();
+    return effectiveDavPendingOperation(operations, objectId);
+  }
+
+  String _pendingCandidateRaw(PendingOp operation, {required DateTime nowUtc}) {
+    try {
+      if (operation.operationType == 'dav.create') {
+        final request = jsonDecode(operation.requestJson);
+        final rawIcs = request is Map ? request['rawIcs'] : null;
+        if (rawIcs is String && rawIcs.isNotEmpty) return rawIcs;
+      } else if (operation.operationType == 'dav.update') {
+        final baseline = operation.baselineRawIcs;
+        final patch = operation.mutationPatchJson;
+        if (baseline != null && patch != null) {
+          return DavMutationPatch.fromJsonString(
+            patch,
+          ).applyTo(baseline, nowUtc: nowUtc);
+        }
+      } else if (operation.operationType == 'dav.move') {
+        final baseline = operation.baselineRawIcs;
+        if (baseline != null) {
+          final patch = operation.mutationPatchJson;
+          return patch == null
+              ? baseline
+              : DavMutationPatch.fromJsonString(
+                  patch,
+                ).applyTo(baseline, nowUtc: nowUtc);
+        }
+      }
+    } on DavException {
+      rethrow;
+    } on Object {
+      // Convert malformed durable state into the same safe protocol error as
+      // other invalid pending-operation payloads.
+    }
+    throw const DavException(
+      kind: DavErrorKind.protocol,
+      code: 'DavPendingProjectionCandidateInvalid',
+      safeMessage: 'A pending DAV change could not be projected.',
+    );
+  }
+
+  Future<void> _restorePendingProjectionState(
+    PendingOp operation,
+    DateTime nowUtc,
+  ) async {
+    final objectId = operation.davObjectId!;
+    final eventStatus = operation.state == 'conflict' ? 'conflict' : 'pending';
+    var eventChanges = CalendarEventsCompanion(
+      syncStatus: Value(eventStatus),
+      updatedAtLocal: Value(nowUtc.millisecondsSinceEpoch),
+    );
+    var taskChanges = TasksCompanion(
+      localDirty: const Value(true),
+      localCreated: Value(operation.operationType == 'dav.create'),
+      pendingMove: Value(operation.operationType == 'dav.move'),
+      updatedLocalAtUtc: Value(nowUtc.toIso8601String()),
+    );
+    if (operation.operationType == 'dav.move' &&
+        operation.destinationCollectionId != null) {
+      final destination =
+          await (_database.select(_database.davCollections)..where(
+                (row) => row.id.equals(operation.destinationCollectionId!),
+              ))
+              .getSingleOrNull();
+      if (destination != null) {
+        eventChanges = eventChanges.copyWith(
+          calendarSourceId: Value('dav-calendar-${destination.id}'),
+          providerCalendarId: Value(destination.hrefKey),
+          davCollectionId: Value(destination.id),
+        );
+        taskChanges = taskChanges.copyWith(
+          taskListId: Value('dav-task-list-${destination.id}'),
+          davCollectionId: Value(destination.id),
+        );
+      }
+    }
+    await (_database.update(
+      _database.calendarEvents,
+    )..where((row) => row.davObjectId.equals(objectId))).write(eventChanges);
+    await (_database.update(
+      _database.tasks,
+    )..where((row) => row.davObjectId.equals(objectId))).write(taskChanges);
   }
 
   Future<void> _deleteProjections(String objectId) async {
@@ -1222,6 +1682,41 @@ final class DavObjectRepository {
       _database.tasks,
     )..where((row) => row.davObjectId.equals(objectId))).go();
   }
+}
+
+DavCollectionCommit _includingRememberedLocationCoverage(
+  DavCollectionCommit commit,
+  Iterable<RememberedLocationSnapshot> remembered,
+) {
+  var start = commit.projectionRangeStartUtc.toUtc();
+  var end = commit.projectionRangeEndUtc.toUtc();
+  const margin = Duration(days: 1);
+  for (final snapshot in remembered) {
+    final anchor = snapshot.projectionAnchorUtc?.toUtc();
+    if (anchor == null) continue;
+    if (!anchor.isAfter(start)) start = anchor.subtract(margin);
+    if (!anchor.isBefore(end)) end = anchor.add(margin);
+  }
+  if (start == commit.projectionRangeStartUtc.toUtc() &&
+      end == commit.projectionRangeEndUtc.toUtc()) {
+    return commit;
+  }
+  return DavCollectionCommit(
+    accountId: commit.accountId,
+    collectionId: commit.collectionId,
+    provider: commit.provider,
+    objects: commit.objects,
+    deletedHrefKeys: commit.deletedHrefKeys,
+    completeMembership: commit.completeMembership,
+    membershipHrefKeys: commit.membershipHrefKeys,
+    finalCursorKind: commit.finalCursorKind,
+    finalCursorValue: commit.finalCursorValue,
+    baselineGeneration: commit.baselineGeneration,
+    completedAtUtc: commit.completedAtUtc,
+    projectionRangeStartUtc: start,
+    projectionRangeEndUtc: end,
+    forceReprojection: commit.forceReprojection,
+  );
 }
 
 ({DateTime start, DateTime end}) _projectionRange(
@@ -1248,6 +1743,13 @@ final class DavObjectRepository {
     return fallback;
   }
 }
+
+bool _isResourceProjectionFailure(DavException error) => switch (error.kind) {
+  DavErrorKind.invalidCalendarData ||
+  DavErrorKind.unsupportedComponent ||
+  DavErrorKind.limitExceeded => true,
+  _ => false,
+};
 
 bool _hrefIsMemberOf(String memberHref, String collectionHref) {
   final prefix = collectionHref.endsWith('/')

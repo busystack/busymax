@@ -24,11 +24,21 @@ class PortalEncryptedSecretStore implements SecretStore {
   }) : _portalClient = portalClient ?? XdgSecretPortalClient(),
        _storageFile = storageFile ?? _defaultStorageFile(),
        _logger =
-           logger ?? RedactingLogger(Logger('PortalEncryptedSecretStore'));
+           logger ?? RedactingLogger(Logger('PortalEncryptedSecretStore')) {
+    final normalizedPath = p.normalize(_storageFile.absolute.path);
+    final mutationKey = Platform.isWindows
+        ? normalizedPath.toLowerCase()
+        : normalizedPath;
+    _mutationQueue = _mutationQueues.putIfAbsent(
+      mutationKey,
+      _SerializedMutationQueue.new,
+    );
+  }
 
   final SecretPortalClient _portalClient;
   final File _storageFile;
   final RedactingLogger _logger;
+  late final _SerializedMutationQueue _mutationQueue;
   final AesGcm _cipher = AesGcm.with256bits();
   final Hkdf _kdf = Hkdf(hmac: Hmac.sha256(), outputLength: 32);
   PortalSecret? _cachedSecret;
@@ -38,6 +48,7 @@ class PortalEncryptedSecretStore implements SecretStore {
   static const _legacyActiveAccountKey =
       SecureSecretStore.legacyActiveAccountKey;
   static const _kdfInfo = 'io.busystack.busymax.oauth-token-store.v1';
+  static final _mutationQueues = <String, _SerializedMutationQueue>{};
 
   @override
   Future<String?> readActiveAccountId() async {
@@ -45,19 +56,25 @@ class PortalEncryptedSecretStore implements SecretStore {
     if (current != null) {
       return current;
     }
-    final legacy = await _read(_legacyActiveAccountKey);
-    if (legacy == null) {
-      return null;
-    }
-    await _write(_activeAccountKey, legacy);
-    if (await _read(_activeAccountKey) != legacy) {
-      throw const SecretStoreException(
-        'SecretStoreMigrationVerificationFailed',
-        'The active account secret migration could not be verified.',
-      );
-    }
-    await _delete(_legacyActiveAccountKey);
-    return legacy;
+    return _mutationQueue.run(() async {
+      final lockedCurrent = await _read(_activeAccountKey);
+      if (lockedCurrent != null) {
+        return lockedCurrent;
+      }
+      final legacy = await _read(_legacyActiveAccountKey);
+      if (legacy == null) {
+        return null;
+      }
+      await _writeWithoutLock(_activeAccountKey, legacy);
+      if (await _read(_activeAccountKey) != legacy) {
+        throw const SecretStoreException(
+          'SecretStoreMigrationVerificationFailed',
+          'The active account secret migration could not be verified.',
+        );
+      }
+      await _deleteWithoutLock(_legacyActiveAccountKey);
+      return legacy;
+    });
   }
 
   @override
@@ -70,11 +87,8 @@ class PortalEncryptedSecretStore implements SecretStore {
   }
 
   @override
-  Future<void> saveCredential(String accountId, SecretRecord credential) async {
-    final values = await _readAll('write');
-    values[_credentialKey(accountId)] = jsonEncode(credential.toJson());
-    await _writeAll(values, 'write');
-  }
+  Future<void> saveCredential(String accountId, SecretRecord credential) =>
+      _write(_credentialKey(accountId), jsonEncode(credential.toJson()));
 
   @override
   Future<void> setActiveAccountId(String accountId) {
@@ -82,13 +96,8 @@ class PortalEncryptedSecretStore implements SecretStore {
   }
 
   @override
-  Future<void> deleteCredential(String accountId) async {
-    final values = await _readAll('delete');
-    if (values.remove(_credentialKey(accountId)) == null) {
-      return;
-    }
-    await _writeAll(values, 'delete');
-  }
+  Future<void> deleteCredential(String accountId) =>
+      _delete(_credentialKey(accountId));
 
   @override
   Future<bool> migrateLegacyOAuthCredential(
@@ -98,44 +107,46 @@ class PortalEncryptedSecretStore implements SecretStore {
     if (provider != BusyProvider.google && provider != BusyProvider.microsoft) {
       return false;
     }
-    final values = await _readAll('migrate');
-    if (values.containsKey(_credentialKey(accountId))) {
-      return false;
-    }
-    final accessToken = values[_legacyKey(accountId, 'access_token')];
-    final expiresAt = values[_legacyKey(accountId, 'expires_at_utc')];
-    if (accessToken == null || expiresAt == null) {
-      return false;
-    }
-    final record = OAuthSecretRecord(
-      provider: provider,
-      tokenSet: OAuthTokenSet(
-        accessToken: accessToken,
-        refreshToken: values[_legacyKey(accountId, 'refresh_token')],
-        idToken: values[_legacyKey(accountId, 'id_token')],
-        expiresAtUtc: DateTime.parse(expiresAt).toUtc(),
-        tokenType: values[_legacyKey(accountId, 'token_type')] ?? 'Bearer',
-        scopes: (values[_legacyKey(accountId, 'scope')] ?? '')
-            .split(RegExp(r'\s+'))
-            .where((scope) => scope.isNotEmpty)
-            .toSet(),
-      ),
-    );
-    values[_credentialKey(accountId)] = jsonEncode(record.toJson());
-    await _writeAll(values, 'migrate-write');
-    final verified = await readOAuthTokenSet(accountId, provider);
-    if (verified == null || verified.accessToken != accessToken) {
-      throw const SecretStoreException(
-        'SecretStoreMigrationVerificationFailed',
-        'The OAuth credential migration could not be verified.',
+    return _mutationQueue.run(() async {
+      final values = await _readAll('migrate');
+      if (values.containsKey(_credentialKey(accountId))) {
+        return false;
+      }
+      final accessToken = values[_legacyKey(accountId, 'access_token')];
+      final expiresAt = values[_legacyKey(accountId, 'expires_at_utc')];
+      if (accessToken == null || expiresAt == null) {
+        return false;
+      }
+      final record = OAuthSecretRecord(
+        provider: provider,
+        tokenSet: OAuthTokenSet(
+          accessToken: accessToken,
+          refreshToken: values[_legacyKey(accountId, 'refresh_token')],
+          idToken: values[_legacyKey(accountId, 'id_token')],
+          expiresAtUtc: DateTime.parse(expiresAt).toUtc(),
+          tokenType: values[_legacyKey(accountId, 'token_type')] ?? 'Bearer',
+          scopes: (values[_legacyKey(accountId, 'scope')] ?? '')
+              .split(RegExp(r'\s+'))
+              .where((scope) => scope.isNotEmpty)
+              .toSet(),
+        ),
       );
-    }
-    final migrated = await _readAll('migrate-delete');
-    for (final name in _legacyOAuthFieldNames) {
-      migrated.remove(_legacyKey(accountId, name));
-    }
-    await _writeAll(migrated, 'migrate-delete');
-    return true;
+      values[_credentialKey(accountId)] = jsonEncode(record.toJson());
+      await _writeAll(values, 'migrate-write');
+      final verified = await readOAuthTokenSet(accountId, provider);
+      if (verified == null || verified.accessToken != accessToken) {
+        throw const SecretStoreException(
+          'SecretStoreMigrationVerificationFailed',
+          'The OAuth credential migration could not be verified.',
+        );
+      }
+      final migrated = await _readAll('migrate-delete');
+      for (final name in _legacyOAuthFieldNames) {
+        migrated.remove(_legacyKey(accountId, name));
+      }
+      await _writeAll(migrated, 'migrate-delete');
+      return true;
+    });
   }
 
   @override
@@ -149,12 +160,20 @@ class PortalEncryptedSecretStore implements SecretStore {
   }
 
   Future<void> _write(String key, String value) async {
+    await _mutationQueue.run(() => _writeWithoutLock(key, value));
+  }
+
+  Future<void> _writeWithoutLock(String key, String value) async {
     final values = await _readAll('write');
     values[key] = value;
     await _writeAll(values, 'write');
   }
 
   Future<void> _delete(String key) async {
+    await _mutationQueue.run(() => _deleteWithoutLock(key));
+  }
+
+  Future<void> _deleteWithoutLock(String key) async {
     final values = await _readAll('delete');
     if (!values.containsKey(key)) {
       return;
@@ -197,6 +216,7 @@ class PortalEncryptedSecretStore implements SecretStore {
 
   Future<void> _writeAll(Map<String, String> values, String operation) async {
     _logRuntime();
+    File? tempFile;
     try {
       await _storageFile.parent.create(recursive: true);
       _restrictPermissions(_storageFile.parent.path, '700');
@@ -226,28 +246,27 @@ class PortalEncryptedSecretStore implements SecretStore {
         if (secret.token != null && secret.token!.isNotEmpty)
           'portal_token': secret.token,
       };
-      final tempFile = File('${_storageFile.path}.tmp');
-      final tempType = await FileSystemEntity.type(
-        tempFile.path,
-        followLinks: false,
-      );
-      if (tempType == FileSystemEntityType.notFound) {
-        await tempFile.create(exclusive: true);
-      } else if (tempType != FileSystemEntityType.file) {
-        throw FileSystemException(
-          'The encrypted credential temporary path is not a regular file.',
-          tempFile.path,
-        );
-      }
+      tempFile = File('${_storageFile.path}.tmp.${_requestToken()}');
+      await tempFile.create(exclusive: true);
       _restrictPermissions(tempFile.path, '600');
       await tempFile.writeAsString(jsonEncode(envelope), flush: true);
       await tempFile.rename(_storageFile.path);
-      _restrictPermissions(_storageFile.path, '600');
     } on Object catch (error) {
       if (error is SecretStoreException) {
         rethrow;
       }
       throw _storageException(operation, error);
+    } finally {
+      final abandonedTempFile = tempFile;
+      if (abandonedTempFile != null) {
+        try {
+          if (await abandonedTempFile.exists()) {
+            await abandonedTempFile.delete();
+          }
+        } on FileSystemException {
+          // The valid destination remains authoritative when cleanup fails.
+        }
+      }
     }
   }
 
@@ -611,6 +630,25 @@ String _secretBackendLabel() {
     return 'file';
   }
   return '<set>';
+}
+
+final class _SerializedMutationQueue {
+  Future<void> _tail = Future<void>.value();
+
+  Future<T> run<T>(Future<T> Function() mutation) {
+    final predecessor = _tail;
+    final released = Completer<void>();
+    _tail = released.future;
+
+    return () async {
+      await predecessor;
+      try {
+        return await mutation();
+      } finally {
+        released.complete();
+      }
+    }();
+  }
 }
 
 String _sanitize(Object? value) {

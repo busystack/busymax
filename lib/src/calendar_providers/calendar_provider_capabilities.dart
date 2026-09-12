@@ -85,6 +85,14 @@ const microsoftCalendarProviderCapabilities = CalendarProviderCapabilities(
 CalendarManagementCapabilities calendarManagementCapabilities(
   BusyProvider provider,
 ) {
+  if (provider == BusyProvider.nextcloud) {
+    return const CalendarManagementCapabilities(
+      supportsCreate: true,
+      supportsRename: true,
+      supportsDelete: true,
+      supportsColor: true,
+    );
+  }
   final cloudCapabilities = switch (provider) {
     BusyProvider.google => googleCalendarProviderCapabilities,
     BusyProvider.microsoft => microsoftCalendarProviderCapabilities,

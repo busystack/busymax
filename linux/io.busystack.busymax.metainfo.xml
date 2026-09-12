@@ -15,6 +15,7 @@
   <name xml:lang="it">BusyMax</name>
   <name xml:lang="ja">BusyMax</name>
   <name xml:lang="ko">BusyMax</name>
+  <name xml:lang="pl">BusyMax</name>
   <name xml:lang="pt-PT">BusyMax</name>
   <name xml:lang="ru">BusyMax</name>
   <name xml:lang="vi">BusyMax</name>
@@ -33,6 +34,7 @@
   <summary xml:lang="it">Gestore di calendari e attività</summary>
   <summary xml:lang="ja">カレンダー・タスク管理アプリ</summary>
   <summary xml:lang="ko">캘린더와 할 일 관리</summary>
+  <summary xml:lang="pl">Kalendarz i menedżer zadań</summary>
   <summary xml:lang="pt-PT">Gestor de calendário e tarefas</summary>
   <summary xml:lang="ru">Календарь и планировщик задач</summary>
   <summary xml:lang="vi">Trình quản lý lịch và công việc</summary>
@@ -52,6 +54,7 @@
     <p xml:lang="it">BusyMax è un gestore di calendari e attività per desktop Linux che riunisce eventi, attività, promemoria e programmi giornalieri in un unico spazio di lavoro.</p>
     <p xml:lang="ja">BusyMax は、予定、タスク、リマインダー、毎日のスケジュールを一つのワークスペースで管理できる Linux デスクトップ向けのカレンダー・タスク管理アプリです。</p>
     <p xml:lang="ko">BusyMax는 일정, 할 일, 미리 알림, 일일 계획을 하나의 작업 공간에서 관리할 수 있는 Linux 데스크톱용 캘린더 및 할 일 관리 앱입니다.</p>
+    <p xml:lang="pl">BusyMax to kalendarz i menedżer zadań dla środowiska graficznego Linux. Umożliwia planowanie wydarzeń, zadań, przypomnień i codziennych harmonogramów w jednym interfejsie dopasowanym do systemu.</p>
     <p xml:lang="pt-PT">BusyMax é um gestor de calendário e tarefas para o ambiente de trabalho Linux que reúne eventos, tarefas, lembretes e agendas diárias num único espaço de trabalho.</p>
     <p xml:lang="ru">BusyMax — календарь и планировщик задач для Linux. В одном приложении можно управлять событиями, задачами, напоминаниями и распорядком дня.</p>
     <p xml:lang="vi">BusyMax là trình quản lý lịch và công việc cho máy tính Linux, giúp lập kế hoạch sự kiện, công việc, lời nhắc và lịch trình hằng ngày trong một không gian làm việc.</p>
@@ -59,8 +62,11 @@
     <p xml:lang="zh-Hans">BusyMax 是一款面向 Linux 桌面的日历与任务管理工具，可在一个工作区中规划日程、任务、提醒和每日安排。</p>
     <p xml:lang="zh-Hant">BusyMax 是一款適用於 Linux 桌面的行事曆與待辦事項管理工具，可在同一個工作區中規劃活動、待辦事項、提醒與每日行程。</p>
     <p>BusyMax connects directly to Google Calendar and Google Tasks, Microsoft Calendar and Microsoft To Do, Apple iCloud Calendar, and Nextcloud Calendar and Nextcloud Tasks.</p>
+    <p xml:lang="pl">BusyMax łączy się bezpośrednio z Kalendarzem Google i Zadaniami Google, Kalendarzem Microsoft i Microsoft To Do, Kalendarzem Apple iCloud oraz Kalendarzem Nextcloud i Zadaniami Nextcloud.</p>
     <p>Apple iCloud Calendar uses an app-specific password. Nextcloud authorization opens in the default browser. Apple Reminders is not supported.</p>
+    <p xml:lang="pl">Kalendarz Apple iCloud wymaga hasła aplikacji. Autoryzacja Nextcloud odbywa się w domyślnej przeglądarce. Aplikacja Przypomnienia Apple nie jest obsługiwana.</p>
     <p>This beta release is intended for early Ubuntu App Center and Snap Store testing.</p>
+    <p xml:lang="pl">Ta wersja beta jest przeznaczona do wstępnych testów w Centrum aplikacji Ubuntu i Snap Store.</p>
   </description>
   <developer id="io.busystack">
     <name>BusyStack</name>
@@ -94,6 +100,11 @@
   </screenshots>
   <content_rating type="oars-1.1" />
   <releases>
+    <release version="0.2.0" date="2026-09-05" type="development">
+      <description>
+        <p>Beta maintenance release.</p>
+      </description>
+    </release>
     <release version="0.1.7" date="2026-08-29" type="development">
       <description>
         <p>Beta maintenance release.</p>

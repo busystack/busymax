@@ -1,8 +1,50 @@
 import 'package:busymax/src/app/app_settings.dart';
+import 'package:busymax/src/schedule/schedule_sidebar_order.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  test('sidebar order defaults, serialization and copyWith are immutable', () {
+    expect(AppSettings.defaults().sidebarOrder.accountIds, isEmpty);
+    expect(AppSettings.fromJson(const {}).sidebarOrder.accountIds, isEmpty);
+    final ids = ['b', 'a', 'b'];
+    final calendars = {
+      'a': ['second', 'first'],
+    };
+    final order = ScheduleSidebarOrder(
+      accountIds: ids,
+      calendarSourceIdsByAccount: calendars,
+      taskListIdsByAccount: const {
+        'b': ['tasks'],
+      },
+      subscriptionSourceIds: const ['feed-2', 'feed-1'],
+    );
+    ids.clear();
+    calendars['a']!.clear();
+    expect(order.accountIds, ['b', 'a']);
+    expect(order.calendarSourceIdsByAccount['a'], ['second', 'first']);
+    expect(() => order.accountIds.add('c'), throwsUnsupportedError);
+    expect(
+      () => order.calendarSourceIdsByAccount['a']!.clear(),
+      throwsUnsupportedError,
+    );
+    expect(() => order.taskListIdsByAccount.clear(), throwsUnsupportedError);
+    final settings = AppSettings.defaults().copyWith(sidebarOrder: order);
+    expect(
+      AppSettings.fromJson(settings.toJson()).sidebarOrder.toJson(),
+      order.toJson(),
+    );
+    expect(settings.copyWith(notifyConflicts: false).sidebarOrder, same(order));
+    final malformed = AppSettings.fromJson(const {
+      'sidebarOrder': {
+        'accountIds': [null, 1, 'a', 'a'],
+        'taskListIdsByAccount': false,
+      },
+    });
+    expect(malformed.sidebarOrder.accountIds, ['a']);
+    expect(malformed.sidebarOrder.taskListIdsByAccount, isEmpty);
+  });
+
   test('language defaults to the complete system locale preference list', () {
     final settings = AppSettings.defaults();
 

@@ -179,22 +179,24 @@ String recurrenceRuleSummary(
       summary = '$summary${l10n.repeatSummarySeparator}$monthDaysSummary';
     }
   } else if (recurrence.bySetPosition case final position?) {
-    final days = _localizedOrdinalDaySummary(context, recurrence.byDay);
+    final ordinalPosition = _ordinalPositionKey(position);
+    final days = _localizedOrdinalDaySummary(
+      context,
+      recurrence.byDay,
+      ordinalPosition,
+    );
     if (recurrence.frequency == RecurrenceFrequency.yearly &&
         recurrence.byMonth.isNotEmpty) {
       final month = _localizedYearlyMonth(context, recurrence.byMonth.single);
       summary = l10n.repeatYearlyOnOrdinalSummary(
         summary,
         month,
-        _ordinalPositionKey(position),
+        ordinalPosition,
         days,
       );
       yearlyMonthPlacedInSummary = true;
     } else {
-      final ordinalSummary = l10n.repeatOnOrdinalSummary(
-        _ordinalPositionKey(position),
-        days,
-      );
+      final ordinalSummary = l10n.repeatOnOrdinalSummary(ordinalPosition, days);
       summary = '$summary${l10n.repeatSummarySeparator}$ordinalSummary';
     }
   }
@@ -851,16 +853,23 @@ String _localizedOrdinalDayChoice(BuildContext context, List<String> days) {
   );
 }
 
-String _localizedOrdinalDaySummary(BuildContext context, List<String> days) {
+String _localizedOrdinalDaySummary(
+  BuildContext context,
+  List<String> days,
+  String ordinalPosition,
+) {
   final dayKey = _ordinalDayChoiceKey(days);
+  final ordinalDayKey = Localizations.localeOf(context).languageCode == 'pl'
+      ? '$ordinalPosition$dayKey'
+      : dayKey;
   if (days.length == 1) {
     return context.l10n.repeatOrdinalDaySummary(
-      dayKey,
+      ordinalDayKey,
       _localizedInlineWeekday(context, days.single),
     );
   }
   if (dayKey == 'day' || dayKey == 'weekday' || dayKey == 'weekend') {
-    return context.l10n.repeatOrdinalDaySummary(dayKey, '');
+    return context.l10n.repeatOrdinalDaySummary(ordinalDayKey, '');
   }
   final dayValues = days
       .map((day) => _localizedInlineWeekday(context, day))
@@ -870,7 +879,7 @@ String _localizedOrdinalDaySummary(BuildContext context, List<String> days) {
     pair: context.l10n.repeatWeekdayListPair,
     start: context.l10n.repeatWeekdayListStart,
   );
-  return context.l10n.repeatOrdinalDaySummary(dayKey, localizedDays);
+  return context.l10n.repeatOrdinalDaySummary(ordinalDayKey, localizedDays);
 }
 
 String _localizedWeeklyDaySummary(BuildContext context, String day) {

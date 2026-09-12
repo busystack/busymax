@@ -13,6 +13,234 @@ class AppLocalizationsEn extends AppLocalizations {
   AppLocalizationsEn([String locale = 'en']) : super(locale);
 
   @override
+  String get nextcloudExportCollection => 'Export collection resources';
+
+  @override
+  String nextcloudImportItems(int count) {
+    return '$count event/task resources found';
+  }
+
+  @override
+  String get nextcloudSchedulingInbox => 'Scheduling inbox';
+
+  @override
+  String get nextcloudInboxExplanation =>
+      'Nextcloud processes these messages into your calendars. Acknowledging a message removes only the inbox message, not the event.';
+
+  @override
+  String get nextcloudInboxEmpty => 'No scheduling messages.';
+
+  @override
+  String get nextcloudAcknowledge => 'Acknowledge message';
+
+  @override
+  String get nextcloudAcknowledgeConfirm =>
+      'Remove this scheduling message from the inbox? The calendar event will be kept.';
+
+  @override
+  String get nextcloudGuestAvailability => 'Check guest availability';
+
+  @override
+  String nextcloudTrashRetention(int days) {
+    return 'Server trash retention: $days days';
+  }
+
+  @override
+  String get nextcloudCancelMeeting => 'Cancel meeting';
+
+  @override
+  String get nextcloudDeclineAndRemove => 'Decline and remove invitation';
+
+  @override
+  String get nextcloudDeclineRemovalWarning =>
+      'Removing this invitation sends a decline when synchronized. It does not cancel the organizer’s meeting.';
+
+  @override
+  String get nextcloudAvailabilityUnknown => 'Availability unknown';
+
+  @override
+  String get nextcloudAvailabilityFree =>
+      'No busy periods reported for this interval';
+
+  @override
+  String get nextcloudAvailabilityBusy => 'Busy periods';
+
+  @override
+  String get nextcloudSchedulingPending =>
+      'Nextcloud will send meeting updates when this change synchronizes. Saving locally does not confirm delivery.';
+
+  @override
+  String get nextcloudAttendeeRestrictions =>
+      'Only the organizer or an authorized delegate can change meeting details. You can respond to this invitation from its details.';
+
+  @override
+  String get nextcloudMeetingMoveUnsupported =>
+      'This meeting cannot be moved by copying and deleting it. Use a calendar under the same scheduling identity.';
+
+  @override
+  String get nextcloudSchedulingStatus => 'Server scheduling status';
+
+  @override
+  String get nextcloudImportFollowUp =>
+      'The imported resources were saved locally. Reminder refresh is pending; do not import them again.';
+
+  @override
+  String get nextcloudNativeImport =>
+      'Import complete event and task resources without sending invitations. Existing UIDs are skipped unless you choose new copies. Unsupported resources are reported individually.';
+
+  @override
+  String get nextcloudImportMethod =>
+      'This file contains scheduling messages. Import stores their content and removes METHOD; it does not process an invitation or reply.';
+
+  @override
+  String get nextcloudImportCopies =>
+      'Import as new copies with new identities';
+
+  @override
+  String get nextcloudCollectionSettings => 'Collection settings';
+
+  @override
+  String get nextcloudSharing => 'Sharing';
+
+  @override
+  String get nextcloudOwned => 'Owned';
+
+  @override
+  String get nextcloudShared => 'Shared';
+
+  @override
+  String get nextcloudDelegated => 'Delegated';
+
+  @override
+  String get nextcloudSubscription => 'Subscription';
+
+  @override
+  String get nextcloudDeleted => 'Deleted';
+
+  @override
+  String get nextcloudMetadataEditable =>
+      'Calendar contents are read-only; collection properties can be changed.';
+
+  @override
+  String get nextcloudServerOrder =>
+      'Server order (separate from sidebar order)';
+
+  @override
+  String get nextcloudCalendarEnabled => 'Enabled on the server';
+
+  @override
+  String get nextcloudAvailability => 'Include this collection in availability';
+
+  @override
+  String get nextcloudCalendarTimezone =>
+      'Calendar timezone (VTIMEZONE document)';
+
+  @override
+  String get nextcloudRefreshPending =>
+      'The change was saved on Nextcloud. Refresh is pending; do not repeat the change.';
+
+  @override
+  String get nextcloudOutcomeUnknown =>
+      'The server outcome could not be confirmed. Refresh before trying again.';
+
+  @override
+  String get nextcloudRemoveShared => 'Remove shared calendar/list';
+
+  @override
+  String get nextcloudRemoveMixed =>
+      'This collection contains events and tasks. Deleting it removes both its events and tasks.';
+
+  @override
+  String get nextcloudReadAccess => 'Read-only';
+
+  @override
+  String get nextcloudWriteAccess => 'Read and write';
+
+  @override
+  String get nextcloudRecipientSearch => 'Find people or groups';
+
+  @override
+  String get nextcloudNoRecipients => 'No matching people or groups.';
+
+  @override
+  String get nextcloudRevokeShare => 'Revoke access';
+
+  @override
+  String get nextcloudPublish => 'Publish link';
+
+  @override
+  String get nextcloudUnpublish => 'Stop publishing';
+
+  @override
+  String get nextcloudPublishWarning =>
+      'Anyone with the published link may be able to read this calendar. Publish it?';
+
+  @override
+  String get nextcloudTrash => 'Deleted calendars and tasks';
+
+  @override
+  String get nextcloudTrashEmpty => 'No deleted calendar items.';
+
+  @override
+  String get nextcloudRestore => 'Restore';
+
+  @override
+  String get nextcloudPermanentDelete => 'Permanently delete';
+
+  @override
+  String get nextcloudPermanentDeleteWarning =>
+      'Permanently delete this item? It cannot be restored from Nextcloud\'s calendar trash.';
+
+  @override
+  String get nextcloudOperationDenied =>
+      'Nextcloud did not allow this operation.';
+
+  @override
+  String get nextcloudUnsupported =>
+      'The server does not support this operation.';
+
+  @override
+  String get nextcloudPendingChanges =>
+      'Save or discard collection changes before closing.';
+
+  @override
+  String get nextcloudServerUnavailable =>
+      'Nextcloud could not be reached. Cached items and pending work are unchanged.';
+
+  @override
+  String get mapsShow => 'Show on map';
+
+  @override
+  String get openLink => 'Open link';
+
+  @override
+  String get externalLocationOpenFailed =>
+      'The location could not be opened in an external application.';
+
+  @override
+  String scheduleProposedRange(String start, String end) {
+    return '$start – $end';
+  }
+
+  @override
+  String get scheduleRescheduleFailed =>
+      'The event could not be rescheduled. Its stored time has not been changed.';
+
+  @override
+  String get scheduleRescheduleStale =>
+      'This event changed while you were dragging. Please try again.';
+
+  @override
+  String get scheduleRescheduleNotificationsFailed =>
+      'The new time was saved, but reminders could not be refreshed.';
+
+  @override
+  String get moveUp => 'Move up';
+
+  @override
+  String get moveDown => 'Move down';
+
+  @override
   String get windowsSupport => 'Support';
 
   @override
@@ -1037,6 +1265,10 @@ class AppLocalizationsEn extends AppLocalizations {
   String taskListDeleteFailed(String error) {
     return 'Could not delete the task list: $error';
   }
+
+  @override
+  String get taskListPendingChangesPreventRemoval =>
+      'Synchronize the account, or resolve this task list’s blocked changes in Diagnostics, before deleting or removing the list.';
 
   @override
   String get signInToViewTaskLists => 'Sign in to view task lists.';

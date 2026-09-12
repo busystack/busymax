@@ -13,6 +13,232 @@ class AppLocalizationsHi extends AppLocalizations {
   AppLocalizationsHi([String locale = 'hi']) : super(locale);
 
   @override
+  String get nextcloudExportCollection => 'संग्रह के संसाधन निर्यात करें';
+
+  @override
+  String nextcloudImportItems(int count) {
+    return '$count इवेंट/कार्य संसाधन मिले';
+  }
+
+  @override
+  String get nextcloudSchedulingInbox => 'निमंत्रण इनबॉक्स';
+
+  @override
+  String get nextcloudInboxExplanation =>
+      'Nextcloud इन संदेशों को आपके कैलेंडर में संसाधित करता है। पुष्टि करने पर केवल संदेश हटता है, इवेंट नहीं।';
+
+  @override
+  String get nextcloudInboxEmpty => 'कोई शेड्यूलिंग संदेश नहीं।';
+
+  @override
+  String get nextcloudAcknowledge => 'संदेश की प्राप्ति स्वीकारें';
+
+  @override
+  String get nextcloudAcknowledgeConfirm =>
+      'यह संदेश इनबॉक्स से हटाएँ? कैलेंडर इवेंट बना रहेगा।';
+
+  @override
+  String get nextcloudGuestAvailability => 'अतिथियों की उपलब्धता जाँचें';
+
+  @override
+  String nextcloudTrashRetention(int days) {
+    return 'सर्वर के कूड़ेदान में रखने की अवधि: $days दिन';
+  }
+
+  @override
+  String get nextcloudCancelMeeting => 'मीटिंग रद्द करें';
+
+  @override
+  String get nextcloudDeclineAndRemove => 'निमंत्रण अस्वीकार करके हटाएँ';
+
+  @override
+  String get nextcloudDeclineRemovalWarning =>
+      'सिंक होने पर अस्वीकृति भेजी जाएगी। आयोजक की मीटिंग रद्द नहीं होगी।';
+
+  @override
+  String get nextcloudAvailabilityUnknown => 'उपलब्धता अज्ञात';
+
+  @override
+  String get nextcloudAvailabilityFree =>
+      'इस अंतराल में व्यस्त समय की सूचना नहीं मिली';
+
+  @override
+  String get nextcloudAvailabilityBusy => 'व्यस्त समय';
+
+  @override
+  String get nextcloudSchedulingPending =>
+      'Nextcloud सिंक होने पर मीटिंग के अपडेट भेजेगा। स्थानीय रूप से सहेजना डिलीवरी की पुष्टि नहीं है।';
+
+  @override
+  String get nextcloudAttendeeRestrictions =>
+      'केवल आयोजक या अधिकृत प्रतिनिधि मीटिंग के विवरण बदल सकता है। निमंत्रण के विवरण से उत्तर दिया जा सकता है।';
+
+  @override
+  String get nextcloudMeetingMoveUnsupported =>
+      'इस मीटिंग को कॉपी करके हटाने के तरीके से स्थानांतरित नहीं किया जा सकता। उसी शेड्यूलिंग पहचान वाला कैलेंडर इस्तेमाल करें।';
+
+  @override
+  String get nextcloudSchedulingStatus => 'सर्वर की शेड्यूलिंग स्थिति';
+
+  @override
+  String get nextcloudImportFollowUp =>
+      'आयातित संसाधन स्थानीय रूप से सहेजे गए। रिमाइंडर रीफ़्रेश होना बाकी है; दोबारा आयात न करें।';
+
+  @override
+  String get nextcloudNativeImport =>
+      'निमंत्रण भेजे बिना पूर्ण इवेंट और कार्य आयात करें। नई प्रतियाँ न चुनने पर मौजूदा UID छोड़ दिए जाते हैं। असमर्थित संसाधनों की अलग-अलग सूचना दी जाती है।';
+
+  @override
+  String get nextcloudImportMethod =>
+      'इस फ़ाइल में शेड्यूलिंग संदेश हैं। आयात सामग्री सहेजता है और METHOD हटाता है; निमंत्रण या उत्तर संसाधित नहीं करता।';
+
+  @override
+  String get nextcloudImportCopies =>
+      'नई पहचान वाली नई प्रतियों के रूप में आयात करें';
+
+  @override
+  String get nextcloudCollectionSettings => 'संग्रह की सेटिंग';
+
+  @override
+  String get nextcloudSharing => 'साझा करना';
+
+  @override
+  String get nextcloudOwned => 'स्वयं का';
+
+  @override
+  String get nextcloudShared => 'साझा किया गया';
+
+  @override
+  String get nextcloudDelegated => 'प्रत्यायोजित';
+
+  @override
+  String get nextcloudSubscription => 'सदस्यता';
+
+  @override
+  String get nextcloudDeleted => 'हटाया गया';
+
+  @override
+  String get nextcloudMetadataEditable =>
+      'कैलेंडर सामग्री केवल पढ़ने योग्य है; संग्रह के गुण बदले जा सकते हैं।';
+
+  @override
+  String get nextcloudServerOrder => 'सर्वर का क्रम (साइडबार के क्रम से अलग)';
+
+  @override
+  String get nextcloudCalendarEnabled => 'सर्वर पर सक्षम';
+
+  @override
+  String get nextcloudAvailability => 'इस संग्रह को उपलब्धता में शामिल करें';
+
+  @override
+  String get nextcloudCalendarTimezone =>
+      'कैलेंडर का समय क्षेत्र (VTIMEZONE दस्तावेज़)';
+
+  @override
+  String get nextcloudRefreshPending =>
+      'बदलाव Nextcloud पर सहेजा गया। रीफ़्रेश होना बाकी है; बदलाव न दोहराएँ।';
+
+  @override
+  String get nextcloudOutcomeUnknown =>
+      'सर्वर के परिणाम की पुष्टि नहीं हो सकी। फिर कोशिश करने से पहले रीफ़्रेश करें।';
+
+  @override
+  String get nextcloudRemoveShared => 'साझा कैलेंडर/सूची हटाएँ';
+
+  @override
+  String get nextcloudRemoveMixed =>
+      'इस संग्रह में इवेंट और कार्य हैं। इसे हटाने से दोनों हटेंगे।';
+
+  @override
+  String get nextcloudReadAccess => 'केवल पढ़ें';
+
+  @override
+  String get nextcloudWriteAccess => 'पढ़ें और लिखें';
+
+  @override
+  String get nextcloudRecipientSearch => 'लोग या समूह खोजें';
+
+  @override
+  String get nextcloudNoRecipients => 'कोई मेल खाता व्यक्ति या समूह नहीं।';
+
+  @override
+  String get nextcloudRevokeShare => 'पहुँच रद्द करें';
+
+  @override
+  String get nextcloudPublish => 'लिंक प्रकाशित करें';
+
+  @override
+  String get nextcloudUnpublish => 'प्रकाशन बंद करें';
+
+  @override
+  String get nextcloudPublishWarning =>
+      'प्रकाशित लिंक वाला कोई भी व्यक्ति यह कैलेंडर पढ़ सकता है। प्रकाशित करें?';
+
+  @override
+  String get nextcloudTrash => 'हटाए गए कैलेंडर और कार्य';
+
+  @override
+  String get nextcloudTrashEmpty => 'कैलेंडर का कोई हटाया गया आइटम नहीं।';
+
+  @override
+  String get nextcloudRestore => 'पुनर्स्थापित करें';
+
+  @override
+  String get nextcloudPermanentDelete => 'हमेशा के लिए हटाएँ';
+
+  @override
+  String get nextcloudPermanentDeleteWarning =>
+      'यह आइटम हमेशा के लिए हटाएँ? इसे Nextcloud के कैलेंडर कूड़ेदान से पुनर्स्थापित नहीं किया जा सकेगा।';
+
+  @override
+  String get nextcloudOperationDenied =>
+      'Nextcloud ने इस कार्रवाई की अनुमति नहीं दी।';
+
+  @override
+  String get nextcloudUnsupported => 'सर्वर इस कार्रवाई का समर्थन नहीं करता।';
+
+  @override
+  String get nextcloudPendingChanges =>
+      'बंद करने से पहले संग्रह के बदलाव सहेजें या छोड़ें।';
+
+  @override
+  String get nextcloudServerUnavailable =>
+      'Nextcloud से संपर्क नहीं हो सका। कैश किए गए आइटम और लंबित काम सुरक्षित हैं।';
+
+  @override
+  String get mapsShow => 'मानचित्र पर दिखाएँ';
+
+  @override
+  String get openLink => 'लिंक खोलें';
+
+  @override
+  String get externalLocationOpenFailed =>
+      'स्थान को किसी बाहरी ऐप में नहीं खोला जा सका।';
+
+  @override
+  String scheduleProposedRange(String start, String end) {
+    return '$start – $end';
+  }
+
+  @override
+  String get scheduleRescheduleFailed =>
+      'इवेंट का समय नहीं बदला जा सका। उसका सहेजा गया समय नहीं बदला है।';
+
+  @override
+  String get scheduleRescheduleStale =>
+      'खींचते समय यह इवेंट बदल गया। कृपया फिर से कोशिश करें।';
+
+  @override
+  String get scheduleRescheduleNotificationsFailed =>
+      'नया समय सहेज लिया गया, लेकिन रिमाइंडर अपडेट नहीं हो सके।';
+
+  @override
+  String get moveUp => 'ऊपर ले जाएँ';
+
+  @override
+  String get moveDown => 'नीचे ले जाएँ';
+
+  @override
   String get windowsSupport => 'सहायता';
 
   @override
@@ -1022,6 +1248,10 @@ class AppLocalizationsHi extends AppLocalizations {
   String taskListDeleteFailed(String error) {
     return 'कार्य सूची हटाई नहीं जा सकी: $error';
   }
+
+  @override
+  String get taskListPendingChangesPreventRemoval =>
+      'सूची को मिटाने या हटाने से पहले खाते को सिंक करें, या डायग्नोस्टिक्स में इस कार्य सूची के अवरुद्ध बदलावों का समाधान करें।';
 
   @override
   String get signInToViewTaskLists =>

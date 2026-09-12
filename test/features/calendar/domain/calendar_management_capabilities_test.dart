@@ -4,8 +4,12 @@ import 'package:busymax/src/providers/busy_provider.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  test('Google and Microsoft expose cloud calendar management', () {
-    for (final provider in [BusyProvider.google, BusyProvider.microsoft]) {
+  test('cloud calendars and Nextcloud expose collection management', () {
+    for (final provider in [
+      BusyProvider.google,
+      BusyProvider.microsoft,
+      BusyProvider.nextcloud,
+    ]) {
       final capabilities = calendarManagementCapabilities(provider);
       expect(capabilities.supportsCreate, isTrue);
       expect(capabilities.supportsRename, isTrue);
@@ -14,8 +18,8 @@ void main() {
     }
   });
 
-  test('DAV calendar collection management is disabled', () {
-    for (final provider in [BusyProvider.appleICloud, BusyProvider.nextcloud]) {
+  test('Apple calendar collection management stays disabled', () {
+    for (final provider in [BusyProvider.appleICloud]) {
       final capabilities = calendarManagementCapabilities(provider);
       expect(capabilities.supportsCreate, isFalse);
       expect(capabilities.supportsRename, isFalse);
@@ -25,7 +29,7 @@ void main() {
   });
 
   test(
-    'DAV source actions remain disabled even when the source is writable',
+    'Nextcloud actions fail closed without effective discovery capabilities',
     () {
       const source = CalendarSourceEntity(
         id: 'dav-calendar',
@@ -39,7 +43,7 @@ void main() {
         isDeleted: false,
       );
 
-      expect(source.capabilities.canCreateEvents, isTrue);
+      expect(source.capabilities.canCreateEvents, isFalse);
       expect(source.capabilities.canRenameCalendar, isFalse);
       expect(source.capabilities.canDeleteCalendar, isFalse);
       expect(source.capabilities.canChangeCalendarColor, isFalse);

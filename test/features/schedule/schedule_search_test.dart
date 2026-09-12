@@ -271,8 +271,11 @@ void main() {
       ),
     );
 
+    final expectedStart = DateTime.utc(2026, 6, 11, 11, 20).toLocal();
+    final expectedEnd = DateTime.utc(2026, 6, 11, 11, 50).toLocal();
+
     final items = await ScheduleRepository(database).listItems(
-      range: ScheduleRange.day(DateTime(2026, 6, 11)),
+      range: ScheduleRange.day(expectedStart),
       filters: const ScheduleFilters(
         accountIds: {'account'},
         includeTasks: false,
@@ -282,8 +285,8 @@ void main() {
     expect(items, hasLength(1));
     final event = items.single as CalendarScheduleItem;
     expect(event.providerRecurringEventId, 'series-master');
-    expect(event.start, DateTime(2026, 6, 11, 4, 20));
-    expect(event.end, DateTime(2026, 6, 11, 4, 50));
+    expect(event.start, expectedStart);
+    expect(event.end, expectedEnd);
   });
 
   test('Google RFC3339 offsets convert to local display time', () async {

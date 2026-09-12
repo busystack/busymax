@@ -1,7 +1,6 @@
 import 'dart:convert';
-
-import 'package:timezone/data/latest_all.dart' as time_zone_data;
-import 'package:timezone/timezone.dart' as time_zone;
+import '../../maps/domain/geographic_point.dart';
+import '../../maps/domain/location_result.dart';
 
 import '../../../core/time/provider_date_time.dart';
 import '../../../dav/ical/ical_task_alarm.dart';
@@ -36,6 +35,9 @@ class TaskDetailsDraft {
     required this.completedDate,
     required this.completedTime,
     required this.location,
+    required this.originalLocation,
+    this.locationPoint,
+    this.locationChange = const LocationChange.unchanged(),
     required this.taskUrl,
     required this.classification,
     required this.pinned,
@@ -45,48 +47,36 @@ class TaskDetailsDraft {
   });
 
   factory TaskDetailsDraft.fromTask(TaskEntity task, String localTimeZone) {
+    final due = _editableProviderDateTime(
+      task.microsoftDueDateTime,
+      task.microsoftDueTimeZone,
+      localTimeZone,
+    );
+    final start = _editableProviderDateTime(
+      task.microsoftStartDateTime,
+      task.microsoftStartTimeZone,
+      localTimeZone,
+    );
+    final reminder = _editableProviderDateTime(
+      task.microsoftReminderDateTime,
+      task.microsoftReminderTimeZone,
+      localTimeZone,
+    );
     return TaskDetailsDraft(
       taskListId: task.taskListId,
       taskId: task.id,
       title: task.title,
       notes: task.notes ?? '',
-      dueDate: _dateOnly(task.dueUtc),
-      microsoftDueTime: _providerTimePart(
-        task.microsoftDueDateTime,
-        task.microsoftDueTimeZone,
-      ),
-      microsoftDueTimeZone: _editorTimeZone(
-        task.microsoftDueDateTime,
-        task.microsoftDueTimeZone,
-        localTimeZone,
-      ),
-      microsoftStartDate: _providerDatePart(
-        task.microsoftStartDateTime,
-        task.microsoftStartTimeZone,
-      ),
-      microsoftStartTime: _providerTimePart(
-        task.microsoftStartDateTime,
-        task.microsoftStartTimeZone,
-      ),
-      microsoftStartTimeZone: _editorTimeZone(
-        task.microsoftStartDateTime,
-        task.microsoftStartTimeZone,
-        localTimeZone,
-      ),
+      dueDate: due.date ?? _dateOnly(task.dueUtc),
+      microsoftDueTime: due.time,
+      microsoftDueTimeZone: due.timeZone,
+      microsoftStartDate: start.date,
+      microsoftStartTime: start.time,
+      microsoftStartTimeZone: start.timeZone,
       microsoftReminderEnabled: task.microsoftIsReminderOn ?? false,
-      microsoftReminderDate: _providerDatePart(
-        task.microsoftReminderDateTime,
-        task.microsoftReminderTimeZone,
-      ),
-      microsoftReminderTime: _providerTimePart(
-        task.microsoftReminderDateTime,
-        task.microsoftReminderTimeZone,
-      ),
-      microsoftReminderTimeZone: _editorTimeZone(
-        task.microsoftReminderDateTime,
-        task.microsoftReminderTimeZone,
-        localTimeZone,
-      ),
+      microsoftReminderDate: reminder.date,
+      microsoftReminderTime: reminder.time,
+      microsoftReminderTimeZone: reminder.timeZone,
       recurrenceJson: task.recurrenceJson,
       importance: _importanceValue(task.importance),
       categories: _categories(task.categoriesJson),
@@ -96,6 +86,8 @@ class TaskDetailsDraft {
       completedDate: _localDatePart(task.completedUtc),
       completedTime: _localTimePart(task.completedUtc),
       location: task.taskLocation ?? '',
+      originalLocation: task.taskLocation ?? '',
+      locationPoint: task.locationPoint,
       taskUrl: task.taskUrl ?? '',
       classification: _classificationValue(task.taskClassification),
       pinned: task.taskPinned ?? false,
@@ -128,6 +120,11 @@ class TaskDetailsDraft {
   final String? completedDate;
   final String? completedTime;
   final String location;
+  final String originalLocation;
+  final GeographicPoint? locationPoint;
+  final LocationChange locationChange;
+  GeographicPoint? get effectiveLocationPoint =>
+      locationChange.changed ? locationChange.selection?.point : locationPoint;
   final String taskUrl;
   final String classification;
   final bool pinned;
@@ -218,6 +215,9 @@ class TaskDetailsDraft {
         completedDate == other.completedDate &&
         completedTime == other.completedTime &&
         location == other.location &&
+        originalLocation == other.originalLocation &&
+        locationPoint == other.locationPoint &&
+        locationChange == other.locationChange &&
         taskUrl == other.taskUrl &&
         classification == other.classification &&
         pinned == other.pinned &&
@@ -251,23 +251,19 @@ class TaskDetailsDraft {
       fields['notes'] = notes;
     }
 
-    final originalDueDate = _dateOnly(original.dueUtc);
+    final originalDue = _editableProviderDateTime(
+      original.microsoftDueDateTime,
+      original.microsoftDueTimeZone,
+      localTimeZone,
+    );
+    final originalDueDate = originalDue.date ?? _dateOnly(original.dueUtc);
     final dueChanged = dueDate != originalDueDate;
     if (dueChanged) {
       fields['due'] = dueDate;
     }
     if (capabilities.supportsDueTime) {
-      final originalDueTime = _providerTimePart(
-        original.microsoftDueDateTime,
-        original.microsoftDueTimeZone,
-      );
-      final originalDueZone = _editorTimeZone(
-        original.microsoftDueDateTime,
-        original.microsoftDueTimeZone,
-        localTimeZone,
-      );
-      final dueTimeChanged = microsoftDueTime != originalDueTime;
-      final dueZoneChanged = microsoftDueTimeZone != originalDueZone;
+      final dueTimeChanged = microsoftDueTime != originalDue.time;
+      final dueZoneChanged = microsoftDueTimeZone != originalDue.timeZone;
       if (dueChanged || dueTimeChanged || dueZoneChanged) {
         final date = dueDate;
         if (date == null || date.isEmpty) {
@@ -286,8 +282,11 @@ class TaskDetailsDraft {
     if (capabilities.supportsStartDateTime) {
       _putDateTimePatch(
         fields,
-        originalDateTime: original.microsoftStartDateTime,
-        originalTimeZone: original.microsoftStartTimeZone ?? localTimeZone,
+        original: _editableProviderDateTime(
+          original.microsoftStartDateTime,
+          original.microsoftStartTimeZone,
+          localTimeZone,
+        ),
         date: microsoftStartDate,
         time: microsoftStartTime,
         timeZone: microsoftStartTimeZone ?? localTimeZone,
@@ -298,24 +297,17 @@ class TaskDetailsDraft {
 
     if (capabilities.supportsReminderDateTime) {
       final originalEnabled = original.microsoftIsReminderOn ?? false;
+      final originalReminder = _editableProviderDateTime(
+        original.microsoftReminderDateTime,
+        original.microsoftReminderTimeZone,
+        localTimeZone,
+      );
       final reminderChanged =
           microsoftReminderEnabled != originalEnabled ||
-          microsoftReminderDate !=
-              _providerDatePart(
-                original.microsoftReminderDateTime,
-                original.microsoftReminderTimeZone,
-              ) ||
-          microsoftReminderTime !=
-              _providerTimePart(
-                original.microsoftReminderDateTime,
-                original.microsoftReminderTimeZone,
-              ) ||
+          microsoftReminderDate != originalReminder.date ||
+          microsoftReminderTime != originalReminder.time ||
           (microsoftReminderTimeZone ?? localTimeZone) !=
-              _editorTimeZone(
-                original.microsoftReminderDateTime,
-                original.microsoftReminderTimeZone,
-                localTimeZone,
-              );
+              originalReminder.timeZone;
       if (reminderChanged) {
         fields['microsoftIsReminderOn'] = microsoftReminderEnabled;
         if (!microsoftReminderEnabled) {
@@ -368,6 +360,9 @@ class TaskDetailsDraft {
     if (capabilities.supportsLocation &&
         location != (original.taskLocation ?? '')) {
       fields['location'] = location;
+    }
+    if (capabilities.supportsLocation && locationChange.changed) {
+      fields['locationPoint'] = locationChange.selection?.point.toJson();
     }
     if (capabilities.supportsUrl && taskUrl != (original.taskUrl ?? '')) {
       fields['taskUrl'] = taskUrl;
@@ -429,10 +424,12 @@ class TaskDetailsDraft {
       dueUtc: dueDate == null ? null : DateTime.tryParse(dueDate!),
       categories: categories,
       fields: fields,
+      locationChange: locationChange,
     );
   }
 
   TaskDetailsDraft copyWith({
+    LocationChange? locationChange,
     String? taskListId,
     String? title,
     String? notes,
@@ -507,6 +504,15 @@ class TaskDetailsDraft {
           ? this.completedTime
           : completedTime as String?,
       location: location ?? this.location,
+      originalLocation: originalLocation,
+      locationPoint: locationPoint,
+      locationChange:
+          locationChange ??
+          (location == null
+              ? this.locationChange
+              : location != originalLocation
+              ? const LocationChange.clear()
+              : const LocationChange.unchanged()),
       taskUrl: taskUrl ?? this.taskUrl,
       classification: classification ?? this.classification,
       pinned: pinned ?? this.pinned,
@@ -520,8 +526,6 @@ class TaskDetailsDraft {
 
 const _unchanged = Object();
 
-var _taskScheduleTimeZonesInitialized = false;
-
 DateTime _dateOnlyValue(DateTime value) =>
     DateTime.utc(value.year, value.month, value.day);
 
@@ -533,38 +537,95 @@ DateTime? _taskScheduleInstant(DateTime date, String time, String? timeZoneId) {
   final hour = int.tryParse(parts[0]);
   final minute = int.tryParse(parts[1]);
   final second = parts.length > 2 ? int.tryParse(parts[2]) ?? 0 : 0;
-  if (hour == null || minute == null) {
+  if (hour == null ||
+      minute == null ||
+      hour < 0 ||
+      hour > 23 ||
+      minute < 0 ||
+      minute > 59 ||
+      second < 0 ||
+      second > 59) {
     return null;
   }
-  if (!_taskScheduleTimeZonesInitialized) {
-    time_zone_data.initializeTimeZones();
-    _taskScheduleTimeZonesInitialized = true;
-  }
-  final requestedZone = timeZoneId?.trim();
-  final normalizedZone = requestedZone == null || requestedZone.isEmpty
-      ? 'Etc/UTC'
-      : requestedZone == 'UTC'
-      ? 'Etc/UTC'
-      : requestedZone;
   try {
-    return time_zone.TZDateTime(
-      time_zone.getLocation(normalizedZone),
-      date.year,
-      date.month,
-      date.day,
-      hour,
-      minute,
-      second,
-    ).toUtc();
-  } on time_zone.LocationNotFoundException {
-    return DateTime.utc(date.year, date.month, date.day, hour, minute, second);
+    return providerWallTimeToInstant(
+      providerCivilDateTime(
+        DateTime.utc(date.year, date.month, date.day, hour, minute, second),
+      ),
+      timeZoneId,
+    );
+  } on UnsupportedError {
+    return null;
   }
+}
+
+final class _EditableProviderDateTime {
+  const _EditableProviderDateTime({
+    required this.date,
+    required this.time,
+    required this.timeZone,
+  });
+
+  final String? date;
+  final String? time;
+  final String timeZone;
+}
+
+_EditableProviderDateTime _editableProviderDateTime(
+  String? value,
+  String? providerTimeZone,
+  String localTimeZone,
+) {
+  final editorTimeZone = _editorTimeZone(
+    value,
+    providerTimeZone,
+    localTimeZone,
+  );
+  if (value == null || value.isEmpty) {
+    return _EditableProviderDateTime(
+      date: null,
+      time: null,
+      timeZone: editorTimeZone,
+    );
+  }
+  if (!value.contains('T')) {
+    return _EditableProviderDateTime(
+      date: _datePart(value),
+      time: null,
+      timeZone: editorTimeZone,
+    );
+  }
+  final DateTime? wall;
+  if (providerDateTimeIsInstant(value, providerTimeZone)) {
+    final instant = providerDateTimeAsUtcInstant(value, providerTimeZone);
+    wall = instant == null
+        ? null
+        : providerInstantInTimeZone(instant, editorTimeZone);
+  } else {
+    wall = providerDateTimeAsCivilTime(value, providerTimeZone);
+  }
+  if (wall == null) {
+    return _EditableProviderDateTime(
+      date: _datePart(value),
+      time: _timePart(value),
+      timeZone: editorTimeZone,
+    );
+  }
+  return _EditableProviderDateTime(
+    date:
+        '${wall.year.toString().padLeft(4, '0')}-'
+        '${wall.month.toString().padLeft(2, '0')}-'
+        '${wall.day.toString().padLeft(2, '0')}',
+    time:
+        '${wall.hour.toString().padLeft(2, '0')}:'
+        '${wall.minute.toString().padLeft(2, '0')}',
+    timeZone: editorTimeZone,
+  );
 }
 
 void _putDateTimePatch(
   Map<String, Object?> fields, {
-  required String? originalDateTime,
-  required String originalTimeZone,
+  required _EditableProviderDateTime original,
   required String? date,
   required String? time,
   required String timeZone,
@@ -572,9 +633,9 @@ void _putDateTimePatch(
   required String timeZoneField,
 }) {
   final changed =
-      date != _providerDatePart(originalDateTime, originalTimeZone) ||
-      time != _providerTimePart(originalDateTime, originalTimeZone) ||
-      timeZone != _editorTimeZone(originalDateTime, originalTimeZone, timeZone);
+      date != original.date ||
+      time != original.time ||
+      timeZone != original.timeZone;
   if (!changed) {
     return;
   }
@@ -618,26 +679,6 @@ String? _timePart(String? value) {
     return null;
   }
   return time.substring(0, 5);
-}
-
-String? _providerDatePart(String? value, String? timeZone) {
-  final parsed = providerDateTimeAsLocal(value, timeZone);
-  if (parsed == null) {
-    return _datePart(value);
-  }
-  return encodeGoogleDateOnly(parsed);
-}
-
-String? _providerTimePart(String? value, String? timeZone) {
-  if (value == null || !value.contains('T')) {
-    return null;
-  }
-  final parsed = providerDateTimeAsLocal(value, timeZone);
-  if (parsed == null) {
-    return _timePart(value);
-  }
-  return '${parsed.hour.toString().padLeft(2, '0')}:'
-      '${parsed.minute.toString().padLeft(2, '0')}';
 }
 
 String _editorTimeZone(

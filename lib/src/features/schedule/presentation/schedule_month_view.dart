@@ -10,6 +10,8 @@ import '../../../l10n/localized_formatters.dart';
 import '../../../schedule/schedule_item.dart';
 import '../../../schedule/schedule_projection.dart';
 import '../../../schedule/schedule_range.dart';
+import '../../../ui/common/schedule/schedule_interactions.dart';
+import '../../../ui/common/schedule/schedule_preview_label.dart';
 import 'calendar_day_semantics.dart';
 import 'schedule_item_chip.dart';
 import 'schedule_item_selection.dart';
@@ -29,6 +31,7 @@ class ScheduleMonthView extends StatelessWidget {
     required this.onCreateAtDay,
     required this.onItemSelected,
     required this.onTaskCompletionChanged,
+    this.onReschedule,
   });
 
   final ScheduleRange range;
@@ -37,6 +40,7 @@ class ScheduleMonthView extends StatelessWidget {
   final int firstWeekday;
   final ValueChanged<DateTime> onDaySelected;
   final ScheduleDayCreateCallback onCreateAtDay;
+  final ScheduleRescheduleCallback? onReschedule;
   final ScheduleItemSelectionCallback onItemSelected;
   final void Function(TaskScheduleItem item, bool completed)
   onTaskCompletionChanged;
@@ -51,83 +55,91 @@ class ScheduleMonthView extends StatelessWidget {
     final workspaceColor = BusyMaxSurfaceColors.of(context).window;
     final border = busyMaxCalendarGridColor(context);
 
-    return Column(
-      children: [
-        ColoredBox(
-          color: workspaceColor,
-          child: SizedBox(
-            height: 34,
-            child: Row(
-              children: [
-                for (final weekday in _weekdays(firstWeekday))
-                  Expanded(
-                    child: Center(
-                      child: Text(
-                        localizedWeekdayLabel(
-                          Localizations.localeOf(context).toLanguageTag(),
-                          _weekdayDate(weekday),
-                          abbreviated: true,
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: theme.textTheme.labelMedium?.copyWith(
-                          color: theme.colorScheme.onSurfaceVariant,
-                          fontWeight: FontWeight.w600,
+    return ScheduleInteractionRegion(
+      onReschedule: onReschedule,
+      previewColor: theme.colorScheme.primary,
+      previewBuilder: (context, interval, allDay) => Text(
+        schedulePreviewLabel(context, interval, allDay),
+        style: theme.textTheme.labelSmall,
+      ),
+      child: Column(
+        children: [
+          ColoredBox(
+            color: workspaceColor,
+            child: SizedBox(
+              height: 34,
+              child: Row(
+                children: [
+                  for (final weekday in _weekdays(firstWeekday))
+                    Expanded(
+                      child: Center(
+                        child: Text(
+                          localizedWeekdayLabel(
+                            Localizations.localeOf(context).toLanguageTag(),
+                            _weekdayDate(weekday),
+                            abbreviated: true,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: theme.textTheme.labelMedium?.copyWith(
+                            color: theme.colorScheme.onSurfaceVariant,
+                            fontWeight: FontWeight.w600,
+                          ),
                         ),
                       ),
                     ),
-                  ),
-              ],
+                ],
+              ),
             ),
           ),
-        ),
-        Expanded(
-          child: LayoutBuilder(
-            builder: (context, constraints) {
-              final cellHeight = constraints.maxHeight / rows;
-              return GridView.builder(
-                physics: const NeverScrollableScrollPhysics(),
-                gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                  crossAxisCount: DateTime.daysPerWeek,
-                  mainAxisExtent: cellHeight,
-                ),
-                itemCount: days.length,
-                itemBuilder: (context, index) {
-                  final day = days[index];
-                  final column = index % DateTime.daysPerWeek;
-                  final row = index ~/ DateTime.daysPerWeek;
-                  return DecoratedBox(
-                    position: DecorationPosition.foreground,
-                    decoration: BoxDecoration(
-                      border: Border(
-                        top: BorderSide(color: border),
-                        left: BorderSide(color: border),
-                        right: column == DateTime.daysPerWeek - 1
-                            ? BorderSide(color: border)
-                            : BorderSide.none,
-                        bottom: row == rows - 1
-                            ? BorderSide(color: border)
-                            : BorderSide.none,
+          Expanded(
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                final cellHeight = constraints.maxHeight / rows;
+                return GridView.builder(
+                  physics: const NeverScrollableScrollPhysics(),
+                  gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: DateTime.daysPerWeek,
+                    mainAxisExtent: cellHeight,
+                  ),
+                  itemCount: days.length,
+                  itemBuilder: (context, index) {
+                    final day = days[index];
+                    final column = index % DateTime.daysPerWeek;
+                    final row = index ~/ DateTime.daysPerWeek;
+                    return DecoratedBox(
+                      position: DecorationPosition.foreground,
+                      decoration: BoxDecoration(
+                        border: Border(
+                          top: BorderSide(color: border),
+                          left: BorderSide(color: border),
+                          right: column == DateTime.daysPerWeek - 1
+                              ? BorderSide(color: border)
+                              : BorderSide.none,
+                          bottom: row == rows - 1
+                              ? BorderSide(color: border)
+                              : BorderSide.none,
+                        ),
                       ),
-                    ),
-                    child: _MonthDayCell(
-                      day: day,
-                      inCurrentMonth: day.month == month.month,
-                      selected: DateUtils.isSameDay(day, selectedDate),
-                      items: grouped[day] ?? const [],
-                      onSelect: () => onDaySelected(day),
-                      onCreate: (anchorContext) =>
-                          onCreateAtDay(day, anchorContext: anchorContext),
-                      onItemSelected: onItemSelected,
-                      onTaskCompletionChanged: onTaskCompletionChanged,
-                    ),
-                  );
-                },
-              );
-            },
+                      child: _MonthDayCell(
+                        day: day,
+                        inCurrentMonth: day.month == month.month,
+                        selected: DateUtils.isSameDay(day, selectedDate),
+                        items: grouped[day] ?? const [],
+                        onSelect: () => onDaySelected(day),
+                        onCreate: (anchorContext) =>
+                            onCreateAtDay(day, anchorContext: anchorContext),
+                        onItemSelected: onItemSelected,
+                        onTaskCompletionChanged: onTaskCompletionChanged,
+                      ),
+                    );
+                  },
+                );
+              },
+            ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 }
@@ -160,151 +172,162 @@ class _MonthDayCell extends StatelessWidget {
     final workspaceColor = surfaceColors.window;
     final today = DateUtils.isSameDay(day, DateTime.now());
 
-    return BusyMaxCalendarDaySemantics(
-      day: day,
-      selected: selected,
-      onTap: onSelect,
-      child: Material(
-        color: selected
-            ? Color.alphaBlend(surfaceColors.control, workspaceColor)
-            : workspaceColor,
-        child: InkWell(
-          onTap: onSelect,
-          onDoubleTap: () => onCreate(context),
-          excludeFromSemantics: true,
-          child: LayoutBuilder(
-            builder: (context, constraints) {
-              const headerHeight = 24.0;
-              const itemHeight = 22.0;
-              const moreHeight = 24.0;
-              const itemGap = BusyMaxSpacing.xs;
-              final contentHeight = math.max(
-                0.0,
-                constraints.maxHeight - BusyMaxSpacing.xs * 2,
-              );
-              final availableRowsHeight = math.max(
-                0.0,
-                contentHeight - headerHeight - itemGap,
-              );
-              final rowSlots = (availableRowsHeight / (itemHeight + itemGap))
-                  .floor();
-              final needsOverflowRow = items.length > rowSlots;
-              final visibleCount = needsOverflowRow
-                  ? math.max(0, rowSlots - 1)
-                  : math.min(items.length, rowSlots);
-              final visible = items.take(visibleCount).toList();
-              final overflow = items.length - visible.length;
-              final showOverflow =
-                  overflow > 0 && availableRowsHeight >= moreHeight;
+    return ScheduleDateTarget(
+      date: day,
+      child: BusyMaxCalendarDaySemantics(
+        day: day,
+        selected: selected,
+        onTap: onSelect,
+        child: Material(
+          color: selected
+              ? Color.alphaBlend(surfaceColors.control, workspaceColor)
+              : workspaceColor,
+          child: InkWell(
+            onTap: onSelect,
+            onDoubleTap: () => onCreate(context),
+            excludeFromSemantics: true,
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                const headerHeight = 24.0;
+                const itemHeight = 22.0;
+                const moreHeight = 24.0;
+                const itemGap = BusyMaxSpacing.xs;
+                final contentHeight = math.max(
+                  0.0,
+                  constraints.maxHeight - BusyMaxSpacing.xs * 2,
+                );
+                final availableRowsHeight = math.max(
+                  0.0,
+                  contentHeight - headerHeight - itemGap,
+                );
+                final rowSlots = (availableRowsHeight / (itemHeight + itemGap))
+                    .floor();
+                final needsOverflowRow = items.length > rowSlots;
+                final visibleCount = needsOverflowRow
+                    ? math.max(0, rowSlots - 1)
+                    : math.min(items.length, rowSlots);
+                final visible = items.take(visibleCount).toList();
+                final overflow = items.length - visible.length;
+                final showOverflow =
+                    overflow > 0 && availableRowsHeight >= moreHeight;
 
-              if (contentHeight < headerHeight + itemGap) {
+                if (contentHeight < headerHeight + itemGap) {
+                  return Padding(
+                    padding: const EdgeInsets.all(BusyMaxSpacing.xs),
+                    child: Align(
+                      alignment: AlignmentDirectional.topStart,
+                      child: SizedBox(
+                        width: 26,
+                        height: contentHeight,
+                        child: FittedBox(
+                          fit: BoxFit.scaleDown,
+                          alignment: AlignmentDirectional.topStart,
+                          child: _MonthDayNumber(
+                            day: day,
+                            selected: selected,
+                            today: today,
+                            inCurrentMonth: inCurrentMonth,
+                          ),
+                        ),
+                      ),
+                    ),
+                  );
+                }
+
                 return Padding(
                   padding: const EdgeInsets.all(BusyMaxSpacing.xs),
-                  child: Align(
-                    alignment: AlignmentDirectional.topStart,
-                    child: SizedBox(
-                      width: 26,
-                      height: contentHeight,
-                      child: FittedBox(
-                        fit: BoxFit.scaleDown,
-                        alignment: AlignmentDirectional.topStart,
-                        child: _MonthDayNumber(
-                          day: day,
-                          selected: selected,
-                          today: today,
-                          inCurrentMonth: inCurrentMonth,
-                        ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Row(
+                        children: [
+                          _MonthDayNumber(
+                            day: day,
+                            selected: selected,
+                            today: today,
+                            inCurrentMonth: inCurrentMonth,
+                          ),
+                          const Spacer(),
+                          if (selected)
+                            Builder(
+                              builder: (anchorContext) => SizedBox.square(
+                                dimension: 24,
+                                child: YaruIconButton(
+                                  tooltip: context.l10n.create,
+                                  icon: const Icon(YaruIcons.plus, size: 16),
+                                  onPressed: () => onCreate(anchorContext),
+                                ),
+                              ),
+                            ),
+                        ],
                       ),
-                    ),
+                      const SizedBox(height: BusyMaxSpacing.xs),
+                      for (final item in visible)
+                        Padding(
+                          padding: const EdgeInsets.only(
+                            bottom: BusyMaxSpacing.xs,
+                          ),
+                          child: ScheduleEventInteraction(
+                            key: ValueKey(
+                              'month-${item.accountId}-${item.sourceId}-${item.id}-$day',
+                            ),
+                            item: item,
+                            representedDate: day,
+                            dateOnly: true,
+                            child: ScheduleItemChip(
+                              item: item,
+                              height: itemHeight,
+                              compact: true,
+                              onTap: (context, [globalPosition]) =>
+                                  onItemSelected(context, item, globalPosition),
+                              onTaskCompletionChanged: item is TaskScheduleItem
+                                  ? (completed) =>
+                                        onTaskCompletionChanged(item, completed)
+                                  : null,
+                            ),
+                          ),
+                        ),
+                      if (showOverflow)
+                        Align(
+                          alignment: AlignmentDirectional.centerStart,
+                          child: Builder(
+                            builder: (anchorContext) => TextButton(
+                              style: TextButton.styleFrom(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 6,
+                                ),
+                                minimumSize: const Size(0, moreHeight),
+                                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                              ),
+                              onPressed: () async {
+                                final selection = await showScheduleMorePopover(
+                                  context: context,
+                                  anchorContext: anchorContext,
+                                  day: day,
+                                  items: items,
+                                  onTaskCompletionChanged:
+                                      onTaskCompletionChanged,
+                                );
+                                if (selection == null ||
+                                    !context.mounted ||
+                                    !anchorContext.mounted) {
+                                  return;
+                                }
+                                onItemSelected(
+                                  anchorContext,
+                                  selection.item,
+                                  selection.anchorPoint,
+                                );
+                              },
+                              child: Text(context.l10n.moreItems(overflow)),
+                            ),
+                          ),
+                        ),
+                    ],
                   ),
                 );
-              }
-
-              return Padding(
-                padding: const EdgeInsets.all(BusyMaxSpacing.xs),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    Row(
-                      children: [
-                        _MonthDayNumber(
-                          day: day,
-                          selected: selected,
-                          today: today,
-                          inCurrentMonth: inCurrentMonth,
-                        ),
-                        const Spacer(),
-                        if (selected)
-                          Builder(
-                            builder: (anchorContext) => SizedBox.square(
-                              dimension: 24,
-                              child: YaruIconButton(
-                                tooltip: context.l10n.create,
-                                icon: const Icon(YaruIcons.plus, size: 16),
-                                onPressed: () => onCreate(anchorContext),
-                              ),
-                            ),
-                          ),
-                      ],
-                    ),
-                    const SizedBox(height: BusyMaxSpacing.xs),
-                    for (final item in visible)
-                      Padding(
-                        padding: const EdgeInsets.only(
-                          bottom: BusyMaxSpacing.xs,
-                        ),
-                        child: ScheduleItemChip(
-                          item: item,
-                          height: itemHeight,
-                          compact: true,
-                          onTap: (context, [globalPosition]) =>
-                              onItemSelected(context, item, globalPosition),
-                          onTaskCompletionChanged: item is TaskScheduleItem
-                              ? (completed) =>
-                                    onTaskCompletionChanged(item, completed)
-                              : null,
-                        ),
-                      ),
-                    if (showOverflow)
-                      Align(
-                        alignment: AlignmentDirectional.centerStart,
-                        child: Builder(
-                          builder: (anchorContext) => TextButton(
-                            style: TextButton.styleFrom(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 6,
-                              ),
-                              minimumSize: const Size(0, moreHeight),
-                              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                            ),
-                            onPressed: () async {
-                              final selection = await showScheduleMorePopover(
-                                context: context,
-                                anchorContext: anchorContext,
-                                day: day,
-                                items: items,
-                                onTaskCompletionChanged:
-                                    onTaskCompletionChanged,
-                              );
-                              if (selection == null ||
-                                  !context.mounted ||
-                                  !anchorContext.mounted) {
-                                return;
-                              }
-                              onItemSelected(
-                                anchorContext,
-                                selection.item,
-                                selection.anchorPoint,
-                              );
-                            },
-                            child: Text(context.l10n.moreItems(overflow)),
-                          ),
-                        ),
-                      ),
-                  ],
-                ),
-              );
-            },
+              },
+            ),
           ),
         ),
       ),

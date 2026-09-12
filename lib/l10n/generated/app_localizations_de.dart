@@ -13,6 +13,235 @@ class AppLocalizationsDe extends AppLocalizations {
   AppLocalizationsDe([String locale = 'de']) : super(locale);
 
   @override
+  String get nextcloudExportCollection => 'Sammlungsressourcen exportieren';
+
+  @override
+  String nextcloudImportItems(int count) {
+    return '$count Ereignis-/Aufgabenressourcen gefunden';
+  }
+
+  @override
+  String get nextcloudSchedulingInbox => 'Einladungsposteingang';
+
+  @override
+  String get nextcloudInboxExplanation =>
+      'Nextcloud verarbeitet diese Nachrichten in Ihren Kalendern. Eine Bestätigung entfernt nur die Nachricht, nicht den Termin.';
+
+  @override
+  String get nextcloudInboxEmpty => 'Keine Planungsnachrichten.';
+
+  @override
+  String get nextcloudAcknowledge => 'Nachricht bestätigen';
+
+  @override
+  String get nextcloudAcknowledgeConfirm =>
+      'Diese Nachricht aus dem Posteingang entfernen? Der Termin bleibt erhalten.';
+
+  @override
+  String get nextcloudGuestAvailability => 'Verfügbarkeit der Gäste prüfen';
+
+  @override
+  String nextcloudTrashRetention(int days) {
+    return 'Aufbewahrung im Server-Papierkorb: $days Tage';
+  }
+
+  @override
+  String get nextcloudCancelMeeting => 'Besprechung absagen';
+
+  @override
+  String get nextcloudDeclineAndRemove => 'Einladung ablehnen und entfernen';
+
+  @override
+  String get nextcloudDeclineRemovalWarning =>
+      'Beim Synchronisieren wird eine Absage gesendet. Die Besprechung des Organisators wird nicht abgesagt.';
+
+  @override
+  String get nextcloudAvailabilityUnknown => 'Verfügbarkeit unbekannt';
+
+  @override
+  String get nextcloudAvailabilityFree =>
+      'Für diesen Zeitraum wurden keine Belegtzeiten gemeldet';
+
+  @override
+  String get nextcloudAvailabilityBusy => 'Belegte Zeiträume';
+
+  @override
+  String get nextcloudSchedulingPending =>
+      'Nextcloud sendet Besprechungsänderungen bei der Synchronisierung. Lokales Speichern bestätigt keine Zustellung.';
+
+  @override
+  String get nextcloudAttendeeRestrictions =>
+      'Nur der Organisator oder ein berechtigter Stellvertreter kann Besprechungsdetails ändern. Sie können in den Details auf die Einladung antworten.';
+
+  @override
+  String get nextcloudMeetingMoveUnsupported =>
+      'Diese Besprechung kann nicht durch Kopieren und Löschen verschoben werden. Verwenden Sie einen Kalender derselben Planungsidentität.';
+
+  @override
+  String get nextcloudSchedulingStatus => 'Planungsstatus des Servers';
+
+  @override
+  String get nextcloudImportFollowUp =>
+      'Die importierten Ressourcen wurden lokal gespeichert. Die Erinnerungsaktualisierung steht aus; importieren Sie sie nicht erneut.';
+
+  @override
+  String get nextcloudNativeImport =>
+      'Vollständige Termine und Aufgaben ohne Einladungsversand importieren. Vorhandene UIDs werden übersprungen, außer bei neuen Kopien. Nicht unterstützte Ressourcen werden einzeln gemeldet.';
+
+  @override
+  String get nextcloudImportMethod =>
+      'Diese Datei enthält Planungsnachrichten. Der Import speichert deren Inhalt und entfernt METHOD; Einladungen und Antworten werden nicht verarbeitet.';
+
+  @override
+  String get nextcloudImportCopies =>
+      'Als neue Kopien mit neuen Identitäten importieren';
+
+  @override
+  String get nextcloudCollectionSettings => 'Sammlungseinstellungen';
+
+  @override
+  String get nextcloudSharing => 'Freigabe';
+
+  @override
+  String get nextcloudOwned => 'Eigene Sammlung';
+
+  @override
+  String get nextcloudShared => 'Freigegeben';
+
+  @override
+  String get nextcloudDelegated => 'Delegiert';
+
+  @override
+  String get nextcloudSubscription => 'Abonniert';
+
+  @override
+  String get nextcloudDeleted => 'Gelöscht';
+
+  @override
+  String get nextcloudMetadataEditable =>
+      'Kalenderinhalte sind schreibgeschützt; Sammlungseigenschaften können geändert werden.';
+
+  @override
+  String get nextcloudServerOrder =>
+      'Serverreihenfolge (unabhängig von der Seitenleiste)';
+
+  @override
+  String get nextcloudCalendarEnabled => 'Auf dem Server aktiviert';
+
+  @override
+  String get nextcloudAvailability =>
+      'Diese Sammlung bei der Verfügbarkeit berücksichtigen';
+
+  @override
+  String get nextcloudCalendarTimezone =>
+      'Kalenderzeitzone (VTIMEZONE-Dokument)';
+
+  @override
+  String get nextcloudRefreshPending =>
+      'Die Änderung wurde auf Nextcloud gespeichert. Die Aktualisierung steht aus; wiederholen Sie die Änderung nicht.';
+
+  @override
+  String get nextcloudOutcomeUnknown =>
+      'Das Serverergebnis konnte nicht bestätigt werden. Aktualisieren Sie vor einem neuen Versuch.';
+
+  @override
+  String get nextcloudRemoveShared => 'Freigegebenen Kalender/Liste entfernen';
+
+  @override
+  String get nextcloudRemoveMixed =>
+      'Diese Sammlung enthält Termine und Aufgaben. Beim Löschen werden beide entfernt.';
+
+  @override
+  String get nextcloudReadAccess => 'Nur lesen';
+
+  @override
+  String get nextcloudWriteAccess => 'Lesen und schreiben';
+
+  @override
+  String get nextcloudRecipientSearch => 'Personen oder Gruppen suchen';
+
+  @override
+  String get nextcloudNoRecipients => 'Keine passenden Personen oder Gruppen.';
+
+  @override
+  String get nextcloudRevokeShare => 'Zugriff widerrufen';
+
+  @override
+  String get nextcloudPublish => 'Link veröffentlichen';
+
+  @override
+  String get nextcloudUnpublish => 'Veröffentlichung beenden';
+
+  @override
+  String get nextcloudPublishWarning =>
+      'Jeder mit dem veröffentlichten Link kann diesen Kalender möglicherweise lesen. Veröffentlichen?';
+
+  @override
+  String get nextcloudTrash => 'Gelöschte Kalender und Aufgaben';
+
+  @override
+  String get nextcloudTrashEmpty => 'Keine gelöschten Kalenderelemente.';
+
+  @override
+  String get nextcloudRestore => 'Wiederherstellen';
+
+  @override
+  String get nextcloudPermanentDelete => 'Endgültig löschen';
+
+  @override
+  String get nextcloudPermanentDeleteWarning =>
+      'Dieses Element endgültig löschen? Es kann nicht aus dem Nextcloud-Kalenderpapierkorb wiederhergestellt werden.';
+
+  @override
+  String get nextcloudOperationDenied =>
+      'Nextcloud hat diesen Vorgang nicht erlaubt.';
+
+  @override
+  String get nextcloudUnsupported =>
+      'Der Server unterstützt diesen Vorgang nicht.';
+
+  @override
+  String get nextcloudPendingChanges =>
+      'Sammlungsänderungen vor dem Schließen speichern oder verwerfen.';
+
+  @override
+  String get nextcloudServerUnavailable =>
+      'Nextcloud ist nicht erreichbar. Zwischengespeicherte Elemente und ausstehende Änderungen bleiben unverändert.';
+
+  @override
+  String get mapsShow => 'Auf Karte anzeigen';
+
+  @override
+  String get openLink => 'Link öffnen';
+
+  @override
+  String get externalLocationOpenFailed =>
+      'Der Ort konnte nicht in einer externen Anwendung geöffnet werden.';
+
+  @override
+  String scheduleProposedRange(String start, String end) {
+    return '$start – $end';
+  }
+
+  @override
+  String get scheduleRescheduleFailed =>
+      'Der Termin konnte nicht verschoben werden. Seine gespeicherte Zeit wurde nicht geändert.';
+
+  @override
+  String get scheduleRescheduleStale =>
+      'Dieser Termin wurde während des Ziehens geändert. Bitte versuche es erneut.';
+
+  @override
+  String get scheduleRescheduleNotificationsFailed =>
+      'Die neue Zeit wurde gespeichert, aber die Erinnerungen konnten nicht aktualisiert werden.';
+
+  @override
+  String get moveUp => 'Nach oben verschieben';
+
+  @override
+  String get moveDown => 'Nach unten verschieben';
+
+  @override
   String get windowsSupport => 'Hilfe';
 
   @override
@@ -1010,6 +1239,10 @@ class AppLocalizationsDe extends AppLocalizations {
   String taskListDeleteFailed(String error) {
     return 'Aufgabenliste konnte nicht gelöscht werden: $error';
   }
+
+  @override
+  String get taskListPendingChangesPreventRemoval =>
+      'Synchronisieren Sie das Konto oder beheben Sie die blockierten Änderungen dieser Aufgabenliste unter „Diagnose“, bevor Sie die Liste löschen oder entfernen.';
 
   @override
   String get signInToViewTaskLists =>

@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'windows_nextcloud_dialogs.dart';
 
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter/foundation.dart';
@@ -10,7 +11,9 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../../l10n/generated/app_localizations.dart';
 import '../../app/app_bootstrap.dart';
 import '../../features/accounts/data/accounts_repository.dart';
+import '../../features/calendar/data/calendar_repository.dart';
 import '../../features/notifications/desktop_notification_backend.dart';
+import '../../features/sync/sync_auth_error.dart';
 import '../../l10n/app_locale.dart';
 import '../../platform/common/desktop_services.dart';
 import '../../providers/busy_provider.dart';
@@ -37,6 +40,7 @@ class WindowsSettingsPage extends ConsumerWidget {
     final controller = ref.read(appSettingsControllerProvider.notifier);
     final autostart = ref.watch(launchAtLoginStateProvider);
     final accounts = ref.watch(accountManagementStreamProvider);
+    final calendarSources = ref.watch(calendarSourcesStreamProvider);
     final subscriptions = ref.watch(webCalSubscriptionsProvider);
     final config = ref.watch(buildConfigProvider);
     final notificationReadiness = ref.watch(
@@ -336,15 +340,27 @@ class WindowsSettingsPage extends ConsumerWidget {
                 for (var index = 0; index < values.length; index++) ...[
                   ListTile(
                     leading: Icon(windowsBusyMaxGlyph(BusyMaxGlyph.account)),
-                    title: Text(
-                      values[index].displayName ??
-                          values[index].email ??
-                          values[index].id,
+                    title: Semantics(
+                      header: true,
+                      child: Text(
+                        values[index].displayName ??
+                            values[index].email ??
+                            values[index].id,
+                        style: FluentTheme.of(context).typography.bodyStrong,
+                      ),
                     ),
                     subtitle: Text(values[index].provider.storageValue),
                     trailing: DropDownButton(
                       title: Icon(windowsBusyMaxGlyph(BusyMaxGlyph.more)),
                       items: [
+                        if (values[index].provider == BusyProvider.nextcloud)
+                          MenuFlyoutItem(
+                            text: Text(l10n.nextcloudTrash),
+                            onPressed: () => showWindowsNextcloudTrashDialog(
+                              context,
+                              accountId: values[index].id,
+                            ),
+                          ),
                         MenuFlyoutItem(
                           leading: Icon(
                             windowsBusyMaxGlyph(BusyMaxGlyph.delete),
@@ -357,6 +373,51 @@ class WindowsSettingsPage extends ConsumerWidget {
                       ],
                     ),
                   ),
+                  if (values[index].calendarsEnabled &&
+                      (values[index].provider == BusyProvider.google ||
+                          values[index].provider ==
+                              BusyProvider.microsoft)) ...[
+                    const Divider(),
+                    _WindowsAccountCalendars(
+                      sources: [
+                        for (final source
+                            in calendarSources.valueOrNull ?? const [])
+                          if (source.accountId == values[index].id) source,
+                      ],
+                      onSelected: (source, selected) => unawaited(
+                        ref
+                            .read(calendarRepositoryProvider)
+                            .setSourceSelected(source.id, selected),
+                      ),
+                      onProviderVisibilityChanged: (source, visible) =>
+                          unawaited(
+                            _setWindowsCalendarProviderVisibility(
+                              context,
+                              ref,
+                              source,
+                              visible,
+                            ),
+                          ),
+                    ),
+                  ],
+                  if (values[index].provider == BusyProvider.nextcloud)
+                    for (final collection
+                        in ref
+                                .watch(davCollectionsStreamProvider)
+                                .valueOrNull ??
+                            const [])
+                      if (collection.accountId == values[index].id &&
+                          (collection.supportsEvents ||
+                              collection.supportsTasks))
+                        ListTile(
+                          title: Text(collection.name),
+                          subtitle: Text(l10n.nextcloudCollectionSettings),
+                          onPressed: () => showWindowsNextcloudCollectionDialog(
+                            context,
+                            accountId: collection.accountId,
+                            collectionId: collection.id,
+                          ),
+                        ),
                   if (index != values.length - 1) const Divider(),
                 ],
               ],
@@ -523,6 +584,198 @@ class WindowsSettingsPage extends ConsumerWidget {
   }
 }
 
+class _WindowsAccountCalendars extends StatelessWidget {
+  const _WindowsAccountCalendars({
+    required this.sources,
+    required this.onSelected,
+    required this.onProviderVisibilityChanged,
+  });
+
+  final List<CalendarSourceEntity> sources;
+  final void Function(CalendarSourceEntity source, bool selected) onSelected;
+  final void Function(CalendarSourceEntity source, bool visible)
+  onProviderVisibilityChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final showsProviderVisibility = sources.any(
+      (source) => source.capabilities.canChangeProviderVisibility,
+    );
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Semantics(
+            header: true,
+            child: Text(
+              l10n.calendars,
+              style: FluentTheme.of(
+                context,
+              ).typography.caption?.copyWith(fontWeight: FontWeight.w600),
+            ),
+          ),
+          const SizedBox(height: 8),
+          if (sources.isEmpty)
+            Text(l10n.noCalendarsSynced)
+          else ...[
+            _WindowsCalendarSettingsColumnHeader(
+              showsProviderVisibility: showsProviderVisibility,
+            ),
+            for (final source in sources) ...[
+              _WindowsCalendarSettingsRow(
+                key: ValueKey('settings-calendar-${source.id}'),
+                source: source,
+                showsProviderVisibility: showsProviderVisibility,
+                onSelected: onSelected,
+                onProviderVisibilityChanged: onProviderVisibilityChanged,
+              ),
+              if (source != sources.last) const Divider(),
+            ],
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+const _windowsCalendarSettingsColumnWidth = 92.0;
+
+class _WindowsCalendarSettingsColumnHeader extends StatelessWidget {
+  const _WindowsCalendarSettingsColumnHeader({
+    required this.showsProviderVisibility,
+  });
+
+  final bool showsProviderVisibility;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final style = FluentTheme.of(
+      context,
+    ).typography.caption?.copyWith(fontWeight: FontWeight.w600);
+    return Padding(
+      padding: const EdgeInsets.only(top: 8, bottom: 4),
+      child: Row(
+        children: [
+          const Expanded(child: SizedBox()),
+          _WindowsCalendarSettingsColumnLabel(
+            key: const ValueKey('settings-calendar-column-schedule'),
+            label: l10n.scheduleSettings,
+            style: style,
+          ),
+          if (showsProviderVisibility)
+            _WindowsCalendarSettingsColumnLabel(
+              key: const ValueKey('settings-calendar-column-provider'),
+              label: l10n.googleProvider,
+              style: style,
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _WindowsCalendarSettingsColumnLabel extends StatelessWidget {
+  const _WindowsCalendarSettingsColumnLabel({
+    super.key,
+    required this.label,
+    required this.style,
+  });
+
+  final String label;
+  final TextStyle? style;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: _windowsCalendarSettingsColumnWidth,
+      child: Text(
+        label,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        textAlign: TextAlign.center,
+        style: style,
+      ),
+    );
+  }
+}
+
+class _WindowsCalendarSettingsRow extends StatelessWidget {
+  const _WindowsCalendarSettingsRow({
+    super.key,
+    required this.source,
+    required this.showsProviderVisibility,
+    required this.onSelected,
+    required this.onProviderVisibilityChanged,
+  });
+
+  final CalendarSourceEntity source;
+  final bool showsProviderVisibility;
+  final void Function(CalendarSourceEntity source, bool selected) onSelected;
+  final void Function(CalendarSourceEntity source, bool visible)
+  onProviderVisibilityChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final canChangeProviderVisibility =
+        source.capabilities.canChangeProviderVisibility;
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 6),
+      child: Row(
+        children: [
+          Icon(windowsBusyMaxGlyph(BusyMaxGlyph.calendar), size: 16),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              source.summary,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+          _WindowsCalendarSettingsSwitchCell(
+            child: ToggleSwitch(
+              key: ValueKey('settings-calendar-schedule-${source.id}'),
+              checked: source.selected && !source.hidden,
+              onChanged: source.hidden
+                  ? null
+                  : (selected) => onSelected(source, selected),
+              semanticLabel: l10n.showInSchedule,
+            ),
+          ),
+          if (showsProviderVisibility)
+            _WindowsCalendarSettingsSwitchCell(
+              child: ToggleSwitch(
+                key: ValueKey('settings-calendar-provider-${source.id}'),
+                checked: !source.hidden,
+                onChanged: canChangeProviderVisibility
+                    ? (visible) => onProviderVisibilityChanged(source, visible)
+                    : null,
+                semanticLabel: l10n.visibility,
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _WindowsCalendarSettingsSwitchCell extends StatelessWidget {
+  const _WindowsCalendarSettingsSwitchCell({required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: _windowsCalendarSettingsColumnWidth,
+      child: Center(child: child),
+    );
+  }
+}
+
 class WindowsNotificationReadinessInfoBar extends StatelessWidget {
   const WindowsNotificationReadinessInfoBar({
     required this.readiness,
@@ -546,6 +799,39 @@ class WindowsNotificationReadinessInfoBar extends StatelessWidget {
       ),
       severity: unpackaged ? InfoBarSeverity.warning : InfoBarSeverity.error,
     );
+  }
+}
+
+Future<void> _setWindowsCalendarProviderVisibility(
+  BuildContext context,
+  WidgetRef ref,
+  CalendarSourceEntity source,
+  bool visible,
+) async {
+  try {
+    await ref
+        .read(calendarRepositoryProvider)
+        .setSourceProviderHidden(source.id, !visible);
+    ref
+        .read(
+          pendingCalendarMutationSyncRequesterForAccountProvider(
+            source.accountId,
+          ),
+        )
+        .request();
+  } on Object catch (error) {
+    if (context.mounted) {
+      final l10n = AppLocalizations.of(context);
+      await _showWindowsMessage(
+        context,
+        l10n.calendarUpdateFailed(
+          syncFailureMessage(
+            error,
+            networkUnavailableMessage: l10n.networkOfflineTryAgain,
+          ),
+        ),
+      );
+    }
   }
 }
 
@@ -829,7 +1115,10 @@ class _SectionTitle extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Padding(
     padding: const EdgeInsetsDirectional.only(bottom: 8),
-    child: Text(text, style: FluentTheme.of(context).typography.subtitle),
+    child: Semantics(
+      header: true,
+      child: Text(text, style: FluentTheme.of(context).typography.subtitle),
+    ),
   );
 }
 

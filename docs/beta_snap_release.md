@@ -42,6 +42,13 @@ See [Google Setup](google_setup.md) and
 [Microsoft Setup](microsoft_setup.md). These values are embedded in the Snap
 and can be extracted, so use only native Desktop/public-client credentials.
 Never use server credentials or commit the JSON or generated `.snap` files.
+No mapping credential is required. BusyMax stores ordinary location text and
+hands a saved destination to an external application only when the user asks.
+Microsoft and iCalendar coordinates stay provider-native. An imported or copied
+point that Google Calendar cannot represent is retained locally for the exact
+saved event or provider series and is not synchronized to another installation
+through Google. Series reuse remains scoped to the account, calendar, provider
+series identity, and matching location snapshot.
 
 Apple iCloud Calendar and Nextcloud do not use compile-time client secrets.
 Read [Apple iCloud setup](apple_icloud_setup.md) and [Nextcloud
@@ -54,10 +61,10 @@ default browser. Never put either credential in the defines file.
 From the repository root:
 
 ```bash
-flutter pub get
+flutter pub get --enforce-lockfile
 flutter analyze
 flutter test
-flutter build linux --release \
+flutter build linux --release -t lib/main_linux.dart \
   --dart-define-from-file=.snap-local/busymax-dart-defines.json
 snapcraft pack --use-lxd
 ```
@@ -70,7 +77,7 @@ The `Flutter Linux` GitHub workflow performs the release build and strict Snap
 packaging on pushes and pull requests targeting `main`. Pull requests build and
 install an unconfigured Snap for packaging validation, but do not upload it.
 Pushes to `main` require the two client IDs and Google Desktop client secret in
-GitHub Actions configuration, verify that all three values reached the compiled
+GitHub Actions configuration, verify that those values reached the compiled
 binary, and upload the installable `busymax-snap` artifact. Missing provider
 configuration fails the workflow before the release build.
 
@@ -128,6 +135,16 @@ snap run busymax
 
 Before upload, verify:
 
+- Ordinary location text can be entered and saved without network requests or a
+  mapping key. No autocomplete list or embedded map is present.
+- **Show on map** opens the saved address or coordinates through the strict
+  Snap's registered external handler. Verify both an installed maps handler and
+  the Google Maps browser fallback, plus the failure message when neither route
+  can launch.
+- **Open link** appears only for a complete saved HTTP(S) location and preserves
+  its path, query, and fragment.
+- Location editing, external opening, editor save/cancel, theme changes, and the
+  minimum window size remain usable at 100%, 125%, 150%, and 200% scaling.
 - Desktop search shows one BusyMax launcher; the tray Agenda action opens the
   Agenda view in the main window.
 - Google and Microsoft sign-in complete successfully.
@@ -152,9 +169,11 @@ Before upload, verify:
   notifications work under confinement.
 - Notifications and tray actions, including opening Agenda in the main window
   and Quit, work.
-- Upgrade a copy of data from the last released package and verify schema-5 to
-  schema-8 migration, existing provider credentials/cursors/pending
-  operations, DAV projections, and account removal/local cleanup.
+- Upgrade a copy of data from the last released package to candidate schema 14.
+  Also run the production-like schema-5 fixture through the complete supported
+  migration chain to schema 14, preserving provider credentials, cursors,
+  pending operations, DAV projections, supplemental locations, and account
+  removal/local cleanup.
 - `snap/snapcraft.yaml`, metainfo, and screenshots describe exactly the tested
   providers. Apple wording says iCloud Calendar, not Apple Reminders.
 

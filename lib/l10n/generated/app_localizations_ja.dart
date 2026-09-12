@@ -13,6 +13,222 @@ class AppLocalizationsJa extends AppLocalizations {
   AppLocalizationsJa([String locale = 'ja']) : super(locale);
 
   @override
+  String get nextcloudExportCollection => 'コレクションのリソースをエクスポート';
+
+  @override
+  String nextcloudImportItems(int count) {
+    return '予定／タスクのリソースが $count 件見つかりました';
+  }
+
+  @override
+  String get nextcloudSchedulingInbox => '招待の受信トレイ';
+
+  @override
+  String get nextcloudInboxExplanation =>
+      'Nextcloud はこれらのメッセージをカレンダーに反映します。確認するとメッセージだけが削除され、予定は残ります。';
+
+  @override
+  String get nextcloudInboxEmpty => '日程調整メッセージはありません。';
+
+  @override
+  String get nextcloudAcknowledge => 'メッセージを確認';
+
+  @override
+  String get nextcloudAcknowledgeConfirm => 'このメッセージを受信トレイから削除しますか？予定は保持されます。';
+
+  @override
+  String get nextcloudGuestAvailability => '参加者の空き時間を確認';
+
+  @override
+  String nextcloudTrashRetention(int days) {
+    return 'サーバーのごみ箱の保存期間：$days 日';
+  }
+
+  @override
+  String get nextcloudCancelMeeting => '会議をキャンセル';
+
+  @override
+  String get nextcloudDeclineAndRemove => '招待を辞退して削除';
+
+  @override
+  String get nextcloudDeclineRemovalWarning =>
+      '同期時に辞退の返信を送信します。主催者の会議はキャンセルされません。';
+
+  @override
+  String get nextcloudAvailabilityUnknown => '空き状況は不明';
+
+  @override
+  String get nextcloudAvailabilityFree => 'この時間帯の予定ありの期間は報告されていません';
+
+  @override
+  String get nextcloudAvailabilityBusy => '予定ありの時間帯';
+
+  @override
+  String get nextcloudSchedulingPending =>
+      'Nextcloud は同期時に会議の更新を送信します。ローカル保存は配信の確認ではありません。';
+
+  @override
+  String get nextcloudAttendeeRestrictions =>
+      '会議の詳細を変更できるのは主催者または権限のある代理人だけです。招待の詳細から返信できます。';
+
+  @override
+  String get nextcloudMeetingMoveUnsupported =>
+      'コピーして削除する方法ではこの会議を移動できません。同じ日程調整の主体に属するカレンダーを使用してください。';
+
+  @override
+  String get nextcloudSchedulingStatus => 'サーバーの日程調整状態';
+
+  @override
+  String get nextcloudImportFollowUp =>
+      'インポートしたリソースはローカルに保存されました。リマインダーの更新待ちです。再インポートしないでください。';
+
+  @override
+  String get nextcloudNativeImport =>
+      '招待を送信せずに予定とタスクを完全なリソースとしてインポートします。新しいコピーを選ばない限り既存の UID はスキップされます。非対応のリソースは個別に報告されます。';
+
+  @override
+  String get nextcloudImportMethod =>
+      'このファイルには日程調整メッセージが含まれます。インポートは内容を保存して METHOD を削除しますが、招待や返信を処理しません。';
+
+  @override
+  String get nextcloudImportCopies => '新しい識別子を持つ新規コピーとしてインポート';
+
+  @override
+  String get nextcloudCollectionSettings => 'コレクション設定';
+
+  @override
+  String get nextcloudSharing => '共有設定';
+
+  @override
+  String get nextcloudOwned => '所有';
+
+  @override
+  String get nextcloudShared => '共有済み';
+
+  @override
+  String get nextcloudDelegated => '委任';
+
+  @override
+  String get nextcloudSubscription => '購読';
+
+  @override
+  String get nextcloudDeleted => '削除済み';
+
+  @override
+  String get nextcloudMetadataEditable =>
+      'カレンダーの内容は読み取り専用ですが、コレクションのプロパティは変更できます。';
+
+  @override
+  String get nextcloudServerOrder => 'サーバー上の順序（サイドバーの順序とは別）';
+
+  @override
+  String get nextcloudCalendarEnabled => 'サーバーで有効';
+
+  @override
+  String get nextcloudAvailability => 'このコレクションを空き状況に含める';
+
+  @override
+  String get nextcloudCalendarTimezone => 'カレンダーのタイムゾーン（VTIMEZONE 文書）';
+
+  @override
+  String get nextcloudRefreshPending =>
+      '変更は Nextcloud に保存されました。再読み込み待ちです。同じ変更を繰り返さないでください。';
+
+  @override
+  String get nextcloudOutcomeUnknown =>
+      'サーバーの結果を確認できませんでした。再読み込みしてから再試行してください。';
+
+  @override
+  String get nextcloudRemoveShared => '共有カレンダー／リストを削除';
+
+  @override
+  String get nextcloudRemoveMixed => 'このコレクションには予定とタスクが含まれます。削除すると両方が削除されます。';
+
+  @override
+  String get nextcloudReadAccess => '読み取り専用';
+
+  @override
+  String get nextcloudWriteAccess => '読み取りと書き込み';
+
+  @override
+  String get nextcloudRecipientSearch => 'ユーザーまたはグループを検索';
+
+  @override
+  String get nextcloudNoRecipients => '一致するユーザーやグループはありません。';
+
+  @override
+  String get nextcloudRevokeShare => 'アクセスを取り消す';
+
+  @override
+  String get nextcloudPublish => 'リンクを公開';
+
+  @override
+  String get nextcloudUnpublish => '公開を停止';
+
+  @override
+  String get nextcloudPublishWarning =>
+      '公開リンクを知る人がこのカレンダーを閲覧できる可能性があります。公開しますか？';
+
+  @override
+  String get nextcloudTrash => '削除したカレンダーとタスク';
+
+  @override
+  String get nextcloudTrashEmpty => '削除したカレンダー項目はありません。';
+
+  @override
+  String get nextcloudRestore => '復元';
+
+  @override
+  String get nextcloudPermanentDelete => '完全に削除';
+
+  @override
+  String get nextcloudPermanentDeleteWarning =>
+      'この項目を完全に削除しますか？Nextcloud のカレンダーのごみ箱からは復元できなくなります。';
+
+  @override
+  String get nextcloudOperationDenied => 'Nextcloud はこの操作を許可しませんでした。';
+
+  @override
+  String get nextcloudUnsupported => 'サーバーはこの操作に対応していません。';
+
+  @override
+  String get nextcloudPendingChanges => '閉じる前にコレクションの変更を保存または破棄してください。';
+
+  @override
+  String get nextcloudServerUnavailable =>
+      'Nextcloud に接続できません。キャッシュと保留中の変更はそのまま保持されます。';
+
+  @override
+  String get mapsShow => '地図で表示';
+
+  @override
+  String get openLink => 'リンクを開く';
+
+  @override
+  String get externalLocationOpenFailed => '外部アプリで場所を開けませんでした。';
+
+  @override
+  String scheduleProposedRange(String start, String end) {
+    return '$start – $end';
+  }
+
+  @override
+  String get scheduleRescheduleFailed => '予定の日時を変更できませんでした。保存済みの日時は変更されていません。';
+
+  @override
+  String get scheduleRescheduleStale => 'ドラッグ中にこの予定が変更されました。もう一度お試しください。';
+
+  @override
+  String get scheduleRescheduleNotificationsFailed =>
+      '新しい日時は保存されましたが、リマインダーを更新できませんでした。';
+
+  @override
+  String get moveUp => '上に移動';
+
+  @override
+  String get moveDown => '下に移動';
+
+  @override
   String get windowsSupport => 'サポート';
 
   @override
@@ -998,6 +1214,10 @@ class AppLocalizationsJa extends AppLocalizations {
   String taskListDeleteFailed(String error) {
     return 'タスクリストを削除できませんでした: $error';
   }
+
+  @override
+  String get taskListPendingChangesPreventRemoval =>
+      'このリストを削除する前に、アカウントを同期するか、［診断］でこのタスクリストのブロックされた変更を解決してください。';
 
   @override
   String get signInToViewTaskLists => 'タスクリストを表示するにはサインインしてください。';

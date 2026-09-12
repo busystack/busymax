@@ -13,6 +13,229 @@ class AppLocalizationsFa extends AppLocalizations {
   AppLocalizationsFa([String locale = 'fa']) : super(locale);
 
   @override
+  String get nextcloudExportCollection => 'برون‌بری منابع مجموعه';
+
+  @override
+  String nextcloudImportItems(int count) {
+    return '$count منبع رویداد/کار پیدا شد';
+  }
+
+  @override
+  String get nextcloudSchedulingInbox => 'صندوق ورودی دعوت‌ها';
+
+  @override
+  String get nextcloudInboxExplanation =>
+      'Nextcloud این پیام‌ها را در تقویم‌ها پردازش می‌کند. تأیید دریافت فقط پیام را حذف می‌کند، نه رویداد را.';
+
+  @override
+  String get nextcloudInboxEmpty => 'پیام زمان‌بندی وجود ندارد.';
+
+  @override
+  String get nextcloudAcknowledge => 'تأیید دریافت پیام';
+
+  @override
+  String get nextcloudAcknowledgeConfirm =>
+      'این پیام از صندوق ورودی حذف شود؟ رویداد تقویم حفظ می‌شود.';
+
+  @override
+  String get nextcloudGuestAvailability => 'بررسی زمان آزاد مهمانان';
+
+  @override
+  String nextcloudTrashRetention(int days) {
+    return 'مدت نگهداری در زباله‌دان سرور: $days روز';
+  }
+
+  @override
+  String get nextcloudCancelMeeting => 'لغو جلسه';
+
+  @override
+  String get nextcloudDeclineAndRemove => 'رد و حذف دعوت';
+
+  @override
+  String get nextcloudDeclineRemovalWarning =>
+      'هنگام همگام‌سازی پاسخ رد ارسال می‌شود. جلسهٔ برگزارکننده لغو نمی‌شود.';
+
+  @override
+  String get nextcloudAvailabilityUnknown => 'وضعیت زمان آزاد نامشخص';
+
+  @override
+  String get nextcloudAvailabilityFree =>
+      'برای این بازه زمان مشغولی گزارش نشده است';
+
+  @override
+  String get nextcloudAvailabilityBusy => 'بازه‌های مشغول';
+
+  @override
+  String get nextcloudSchedulingPending =>
+      'Nextcloud به‌روزرسانی جلسه را هنگام همگام‌سازی می‌فرستد. ذخیرهٔ محلی تأیید تحویل نیست.';
+
+  @override
+  String get nextcloudAttendeeRestrictions =>
+      'فقط برگزارکننده یا نمایندهٔ مجاز می‌تواند جزئیات جلسه را تغییر دهد. از جزئیات دعوت می‌توانید پاسخ دهید.';
+
+  @override
+  String get nextcloudMeetingMoveUnsupported =>
+      'این جلسه را نمی‌توان با کپی و حذف جابه‌جا کرد. از تقویمی با همان هویت زمان‌بندی استفاده کنید.';
+
+  @override
+  String get nextcloudSchedulingStatus => 'وضعیت زمان‌بندی سرور';
+
+  @override
+  String get nextcloudImportFollowUp =>
+      'منابع واردشده محلی ذخیره شدند. تازه‌سازی یادآورها در انتظار است؛ دوباره وارد نکنید.';
+
+  @override
+  String get nextcloudNativeImport =>
+      'رویدادها و کارها را کامل و بدون ارسال دعوت وارد کنید. UIDهای موجود رد می‌شوند مگر نسخه‌های جدید را انتخاب کنید. منابع پشتیبانی‌نشده جداگانه گزارش می‌شوند.';
+
+  @override
+  String get nextcloudImportMethod =>
+      'این پرونده پیام زمان‌بندی دارد. درون‌ریزی محتوا را ذخیره و METHOD را حذف می‌کند؛ دعوت یا پاسخ را پردازش نمی‌کند.';
+
+  @override
+  String get nextcloudImportCopies =>
+      'درون‌ریزی نسخه‌های جدید با هویت‌های جدید';
+
+  @override
+  String get nextcloudCollectionSettings => 'تنظیمات مجموعه';
+
+  @override
+  String get nextcloudSharing => 'اشتراک‌گذاری';
+
+  @override
+  String get nextcloudOwned => 'متعلق به شما';
+
+  @override
+  String get nextcloudShared => 'اشتراکی';
+
+  @override
+  String get nextcloudDelegated => 'واگذارشده';
+
+  @override
+  String get nextcloudSubscription => 'اشتراک';
+
+  @override
+  String get nextcloudDeleted => 'حذف‌شده';
+
+  @override
+  String get nextcloudMetadataEditable =>
+      'محتوای تقویم فقط خواندنی است؛ ویژگی‌های مجموعه قابل تغییرند.';
+
+  @override
+  String get nextcloudServerOrder => 'ترتیب سرور (جدا از ترتیب نوار کناری)';
+
+  @override
+  String get nextcloudCalendarEnabled => 'فعال در سرور';
+
+  @override
+  String get nextcloudAvailability => 'لحاظ کردن این مجموعه در زمان آزاد';
+
+  @override
+  String get nextcloudCalendarTimezone => 'منطقهٔ زمانی تقویم (سند VTIMEZONE)';
+
+  @override
+  String get nextcloudRefreshPending =>
+      'تغییر در Nextcloud ذخیره شد. تازه‌سازی در انتظار است؛ تغییر را تکرار نکنید.';
+
+  @override
+  String get nextcloudOutcomeUnknown =>
+      'نتیجهٔ سرور تأیید نشد. پیش از تلاش دوباره تازه‌سازی کنید.';
+
+  @override
+  String get nextcloudRemoveShared => 'حذف تقویم/فهرست اشتراکی';
+
+  @override
+  String get nextcloudRemoveMixed =>
+      'این مجموعه رویداد و کار دارد. حذف آن هر دو را حذف می‌کند.';
+
+  @override
+  String get nextcloudReadAccess => 'فقط خواندن';
+
+  @override
+  String get nextcloudWriteAccess => 'خواندن و نوشتن';
+
+  @override
+  String get nextcloudRecipientSearch => 'یافتن افراد یا گروه‌ها';
+
+  @override
+  String get nextcloudNoRecipients => 'فرد یا گروه مطابقی وجود ندارد.';
+
+  @override
+  String get nextcloudRevokeShare => 'لغو دسترسی';
+
+  @override
+  String get nextcloudPublish => 'انتشار پیوند';
+
+  @override
+  String get nextcloudUnpublish => 'توقف انتشار';
+
+  @override
+  String get nextcloudPublishWarning =>
+      'هر کس پیوند منتشرشده را داشته باشد ممکن است بتواند این تقویم را بخواند. منتشر شود؟';
+
+  @override
+  String get nextcloudTrash => 'تقویم‌ها و کارهای حذف‌شده';
+
+  @override
+  String get nextcloudTrashEmpty => 'مورد حذف‌شده‌ای در تقویم نیست.';
+
+  @override
+  String get nextcloudRestore => 'بازیابی';
+
+  @override
+  String get nextcloudPermanentDelete => 'حذف همیشگی';
+
+  @override
+  String get nextcloudPermanentDeleteWarning =>
+      'این مورد برای همیشه حذف شود؟ دیگر از زباله‌دان تقویم Nextcloud بازیابی نمی‌شود.';
+
+  @override
+  String get nextcloudOperationDenied => 'Nextcloud این عملیات را مجاز ندانست.';
+
+  @override
+  String get nextcloudUnsupported => 'سرور از این عملیات پشتیبانی نمی‌کند.';
+
+  @override
+  String get nextcloudPendingChanges =>
+      'پیش از بستن، تغییرات مجموعه را ذخیره یا دور بیندازید.';
+
+  @override
+  String get nextcloudServerUnavailable =>
+      'دسترسی به Nextcloud ممکن نیست. موارد ذخیره‌شده و تغییرات در انتظار دست‌نخورده‌اند.';
+
+  @override
+  String get mapsShow => 'نمایش روی نقشه';
+
+  @override
+  String get openLink => 'باز کردن پیوند';
+
+  @override
+  String get externalLocationOpenFailed => 'مکان در برنامهٔ خارجی باز نشد.';
+
+  @override
+  String scheduleProposedRange(String start, String end) {
+    return '⁨$start⁩ – ⁨$end⁩';
+  }
+
+  @override
+  String get scheduleRescheduleFailed =>
+      'تغییر زمان رویداد ممکن نشد. زمان ذخیره‌شده تغییر نکرده است.';
+
+  @override
+  String get scheduleRescheduleStale =>
+      'این رویداد هنگام کشیدن تغییر کرد. لطفاً دوباره تلاش کنید.';
+
+  @override
+  String get scheduleRescheduleNotificationsFailed =>
+      'زمان جدید ذخیره شد، اما یادآوری‌ها به‌روز نشدند.';
+
+  @override
+  String get moveUp => 'انتقال به بالا';
+
+  @override
+  String get moveDown => 'انتقال به پایین';
+
+  @override
   String get windowsSupport => 'پشتیبانی';
 
   @override
@@ -1040,6 +1263,10 @@ class AppLocalizationsFa extends AppLocalizations {
   String taskListDeleteFailed(String error) {
     return 'حذف فهرست کار ممکن نیست: ⁨$error⁩';
   }
+
+  @override
+  String get taskListPendingChangesPreventRemoval =>
+      'پیش از حذف یا برداشتن فهرست، حساب را همگام‌سازی کنید یا تغییرات مسدودشدهٔ این فهرست کار را در «عیب‌یابی» برطرف کنید.';
 
   @override
   String get signInToViewTaskLists => 'برای دیدن فهرست‌های کار وارد شوید.';

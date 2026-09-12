@@ -13,6 +13,233 @@ class AppLocalizationsFi extends AppLocalizations {
   AppLocalizationsFi([String locale = 'fi']) : super(locale);
 
   @override
+  String get nextcloudExportCollection => 'Vie kokoelman resurssit';
+
+  @override
+  String nextcloudImportItems(int count) {
+    return 'Löytyi $count tapahtuma-/tehtäväresurssia';
+  }
+
+  @override
+  String get nextcloudSchedulingInbox => 'Kutsujen saapuneet';
+
+  @override
+  String get nextcloudInboxExplanation =>
+      'Nextcloud käsittelee nämä viestit kalentereihisi. Kuittaus poistaa vain viestin, ei tapahtumaa.';
+
+  @override
+  String get nextcloudInboxEmpty => 'Ei ajoitusviestejä.';
+
+  @override
+  String get nextcloudAcknowledge => 'Kuittaa viesti';
+
+  @override
+  String get nextcloudAcknowledgeConfirm =>
+      'Poistetaanko tämä viesti saapuneista? Kalenteritapahtuma säilytetään.';
+
+  @override
+  String get nextcloudGuestAvailability => 'Tarkista vieraiden saatavuus';
+
+  @override
+  String nextcloudTrashRetention(int days) {
+    return 'Palvelimen roskakorin säilytysaika: $days päivää';
+  }
+
+  @override
+  String get nextcloudCancelMeeting => 'Peru kokous';
+
+  @override
+  String get nextcloudDeclineAndRemove => 'Hylkää ja poista kutsu';
+
+  @override
+  String get nextcloudDeclineRemovalWarning =>
+      'Poisto lähettää hylkäyksen synkronoinnissa. Se ei peru järjestäjän kokousta.';
+
+  @override
+  String get nextcloudAvailabilityUnknown => 'Saatavuus tuntematon';
+
+  @override
+  String get nextcloudAvailabilityFree =>
+      'Tälle aikavälille ei ilmoitettu varattuja aikoja';
+
+  @override
+  String get nextcloudAvailabilityBusy => 'Varatut ajat';
+
+  @override
+  String get nextcloudSchedulingPending =>
+      'Nextcloud lähettää kokouspäivitykset synkronoinnissa. Paikallinen tallennus ei vahvista toimitusta.';
+
+  @override
+  String get nextcloudAttendeeRestrictions =>
+      'Vain järjestäjä tai valtuutettu edustaja voi muuttaa kokouksen tietoja. Voit vastata kutsuun sen tiedoista.';
+
+  @override
+  String get nextcloudMeetingMoveUnsupported =>
+      'Kokousta ei voi siirtää kopioimalla ja poistamalla. Käytä saman ajoitusidentiteetin kalenteria.';
+
+  @override
+  String get nextcloudSchedulingStatus => 'Palvelimen ajoitustila';
+
+  @override
+  String get nextcloudImportFollowUp =>
+      'Tuodut resurssit tallennettiin paikallisesti. Muistutusten päivitys odottaa; älä tuo niitä uudelleen.';
+
+  @override
+  String get nextcloudNativeImport =>
+      'Tuo täydelliset tapahtumat ja tehtävät lähettämättä kutsuja. Olemassa olevat UID:t ohitetaan, ellet valitse uusia kopioita. Tukemattomat resurssit ilmoitetaan erikseen.';
+
+  @override
+  String get nextcloudImportMethod =>
+      'Tiedosto sisältää ajoitusviestejä. Tuonti tallentaa sisällön ja poistaa METHOD-kentän; se ei käsittele kutsua tai vastausta.';
+
+  @override
+  String get nextcloudImportCopies =>
+      'Tuo uusina kopioina uusilla tunnisteilla';
+
+  @override
+  String get nextcloudCollectionSettings => 'Kokoelman asetukset';
+
+  @override
+  String get nextcloudSharing => 'Jakaminen';
+
+  @override
+  String get nextcloudOwned => 'Oma';
+
+  @override
+  String get nextcloudShared => 'Jaettu';
+
+  @override
+  String get nextcloudDelegated => 'Valtuutettu';
+
+  @override
+  String get nextcloudSubscription => 'Tilaus';
+
+  @override
+  String get nextcloudDeleted => 'Poistettu';
+
+  @override
+  String get nextcloudMetadataEditable =>
+      'Kalenterin sisältö on vain luettavissa; kokoelman ominaisuuksia voi muuttaa.';
+
+  @override
+  String get nextcloudServerOrder =>
+      'Palvelinjärjestys (erillinen sivupalkin järjestyksestä)';
+
+  @override
+  String get nextcloudCalendarEnabled => 'Käytössä palvelimella';
+
+  @override
+  String get nextcloudAvailability => 'Huomioi kokoelma saatavuudessa';
+
+  @override
+  String get nextcloudCalendarTimezone =>
+      'Kalenterin aikavyöhyke (VTIMEZONE-asiakirja)';
+
+  @override
+  String get nextcloudRefreshPending =>
+      'Muutos tallennettiin Nextcloudiin. Päivitys odottaa; älä toista muutosta.';
+
+  @override
+  String get nextcloudOutcomeUnknown =>
+      'Palvelimen tulosta ei voitu vahvistaa. Päivitä ennen uutta yritystä.';
+
+  @override
+  String get nextcloudRemoveShared => 'Poista jaettu kalenteri/luettelo';
+
+  @override
+  String get nextcloudRemoveMixed =>
+      'Kokoelma sisältää tapahtumia ja tehtäviä. Poistaminen poistaa molemmat.';
+
+  @override
+  String get nextcloudReadAccess => 'Vain luku';
+
+  @override
+  String get nextcloudWriteAccess => 'Luku ja kirjoitus';
+
+  @override
+  String get nextcloudRecipientSearch => 'Etsi henkilöitä tai ryhmiä';
+
+  @override
+  String get nextcloudNoRecipients =>
+      'Vastaavia henkilöitä tai ryhmiä ei löytynyt.';
+
+  @override
+  String get nextcloudRevokeShare => 'Peru käyttöoikeus';
+
+  @override
+  String get nextcloudPublish => 'Julkaise linkki';
+
+  @override
+  String get nextcloudUnpublish => 'Lopeta julkaiseminen';
+
+  @override
+  String get nextcloudPublishWarning =>
+      'Julkaistun linkin saaneet saattavat voida lukea kalenteria. Julkaistaanko?';
+
+  @override
+  String get nextcloudTrash => 'Poistetut kalenterit ja tehtävät';
+
+  @override
+  String get nextcloudTrashEmpty => 'Ei poistettuja kalenterikohteita.';
+
+  @override
+  String get nextcloudRestore => 'Palauta';
+
+  @override
+  String get nextcloudPermanentDelete => 'Poista pysyvästi';
+
+  @override
+  String get nextcloudPermanentDeleteWarning =>
+      'Poistetaanko kohde pysyvästi? Sitä ei voi palauttaa Nextcloudin kalenteriroskakorista.';
+
+  @override
+  String get nextcloudOperationDenied => 'Nextcloud ei sallinut toimintoa.';
+
+  @override
+  String get nextcloudUnsupported => 'Palvelin ei tue toimintoa.';
+
+  @override
+  String get nextcloudPendingChanges =>
+      'Tallenna tai hylkää kokoelman muutokset ennen sulkemista.';
+
+  @override
+  String get nextcloudServerUnavailable =>
+      'Nextcloudiin ei saada yhteyttä. Välimuistin kohteet ja odottavat muutokset säilyvät ennallaan.';
+
+  @override
+  String get mapsShow => 'Näytä kartalla';
+
+  @override
+  String get openLink => 'Avaa linkki';
+
+  @override
+  String get externalLocationOpenFailed =>
+      'Sijaintia ei voitu avata ulkoisessa sovelluksessa.';
+
+  @override
+  String scheduleProposedRange(String start, String end) {
+    return '$start – $end';
+  }
+
+  @override
+  String get scheduleRescheduleFailed =>
+      'Tapahtumaa ei voitu siirtää. Sen tallennettu aika ei muuttunut.';
+
+  @override
+  String get scheduleRescheduleStale =>
+      'Tapahtuma muuttui vetämisen aikana. Yritä uudelleen.';
+
+  @override
+  String get scheduleRescheduleNotificationsFailed =>
+      'Uusi aika tallennettiin, mutta muistutuksia ei voitu päivittää.';
+
+  @override
+  String get moveUp => 'Siirrä ylös';
+
+  @override
+  String get moveDown => 'Siirrä alas';
+
+  @override
   String get windowsSupport => 'Tuki';
 
   @override
@@ -1029,6 +1256,10 @@ class AppLocalizationsFi extends AppLocalizations {
   String taskListDeleteFailed(String error) {
     return 'Tehtäväluettelon poistaminen epäonnistui: $error';
   }
+
+  @override
+  String get taskListPendingChangesPreventRemoval =>
+      'Synkronoi tili tai ratkaise tämän tehtäväluettelon estetyt muutokset Diagnostiikassa ennen luettelon poistamista.';
 
   @override
   String get signInToViewTaskLists =>

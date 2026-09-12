@@ -86,6 +86,7 @@ void main() {
       'appTitle',
       'apacheLicenseName',
       'dateTimeDisplay',
+      'scheduleProposedRange', // Locale-formatted endpoints with punctuation only.
       'etag',
       'formatBoldShortLabel',
       'formatItalicShortLabel',
@@ -209,6 +210,7 @@ void main() {
       'it': 'Gestore di calendari e attività',
       'ja': 'カレンダー・タスク管理アプリ',
       'ko': '캘린더와 할 일 관리',
+      'pl': 'Kalendarz i menedżer zadań',
       'pt_PT': 'Gestor de calendário e tarefas',
       'ru': 'Календарь и планировщик задач',
       'vi': 'Trình quản lý lịch và công việc',
@@ -788,6 +790,13 @@ void main() {
         '매년 9월과 10월의 15일',
         '매년 9월과 10월의 1일과 15일',
         '매년 9월의 첫 번째 월요일',
+      ],
+      'pl': [
+        'Co rok, 15 wrz',
+        'Co rok, 1 i 15 wrz',
+        'Co rok, 15 wrz i paź',
+        'Co rok, 1 i 15 wrz i paź',
+        'Co rok, w pierwszy poniedziałek wrz',
       ],
       'pt-PT': [
         'Anualmente no dia 15 de set.',
@@ -1550,11 +1559,11 @@ Iterable<String> _scanIcuPlaceholders(String value) sync* {
         yield name;
       }
 
-      final selectMatch = RegExp(
-        r'^\s*[A-Za-z][A-Za-z0-9_]*\s*,\s*select\s*,',
+      final optionsMatch = RegExp(
+        r'^\s*[A-Za-z][A-Za-z0-9_]*\s*,\s*(?:select|plural|selectordinal)\s*,',
       ).firstMatch(body);
-      if (selectMatch != null) {
-        yield* _scanIcuSelectOptions(body.substring(selectMatch.end));
+      if (optionsMatch != null) {
+        yield* _scanIcuOptions(body.substring(optionsMatch.end));
       } else if (remainder.startsWith(',')) {
         yield* _scanIcuPlaceholders(body.substring(nameMatch.end));
       }
@@ -1566,7 +1575,7 @@ Iterable<String> _scanIcuPlaceholders(String value) sync* {
   }
 }
 
-Iterable<String> _scanIcuSelectOptions(String value) sync* {
+Iterable<String> _scanIcuOptions(String value) sync* {
   for (var index = 0; index < value.length;) {
     while (index < value.length && value[index].trim().isEmpty) {
       index += 1;
@@ -1574,7 +1583,7 @@ Iterable<String> _scanIcuSelectOptions(String value) sync* {
     if (index >= value.length) return;
 
     final optionMatch = RegExp(
-      r'[A-Za-z][A-Za-z0-9_]*',
+      r'(?:[A-Za-z][A-Za-z0-9_]*|=[0-9]+)',
     ).matchAsPrefix(value, index);
     if (optionMatch == null) return;
     index = optionMatch.end;

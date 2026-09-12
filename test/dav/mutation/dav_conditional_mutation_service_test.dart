@@ -14,6 +14,104 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 
 void main() {
+  test(
+    'implicit scheduling adopts a confirmed server-modified meeting exactly once',
+    () async {
+      var puts = 0;
+      final intended = _event('Meeting').replaceFirst(
+        'END:VEVENT',
+        'ORGANIZER:mailto:owner@example.test\r\nATTENDEE;PARTSTAT=NEEDS-ACTION:mailto:guest@example.test\r\nEND:VEVENT',
+      );
+      final canonical = intended.replaceFirst(
+        'PARTSTAT=NEEDS-ACTION',
+        'PARTSTAT=ACCEPTED;SCHEDULE-STATUS=1.2',
+      );
+      final remote = _FakeMutationRemote(
+        put:
+            ({
+              required uri,
+              required rawIcs,
+              required ifMatch,
+              required ifNoneMatch,
+            }) async {
+              puts++;
+              return _success;
+            },
+        fetcher: (href, uri) async =>
+            _live(href, uri, '"scheduled"', canonical),
+      );
+      final result =
+          await DavConditionalMutationService(
+            remoteClient: remote,
+            implicitScheduling: true,
+          ).create(
+            collectionUri: _collectionUri,
+            object: DavNewObject(
+              uid: 'event@example.test',
+              initialMemberName: 'meeting.ics',
+              rawIcs: intended,
+              componentType: 'VEVENT',
+            ),
+            capabilities: _writable,
+            correlationId: 'meeting',
+          );
+      expect(puts, 1);
+      expect(result.canonicalObject?.rawIcsBody, canonical);
+      expect(result.canonicalObject?.etag, '"scheduled"');
+    },
+  );
+
+  test(
+    'restart reconciles scheduling status without resending a meeting update',
+    () async {
+      var puts = 0;
+      final baseline = _event('Meeting').replaceFirst(
+        'END:VEVENT',
+        'ORGANIZER:mailto:owner@example.test\r\nATTENDEE:mailto:guest@example.test\r\nEND:VEVENT',
+      );
+      final canonical = baseline
+          .replaceFirst('SUMMARY:Meeting', 'SUMMARY:Updated')
+          .replaceFirst('ATTENDEE:', 'ATTENDEE;SCHEDULE-STATUS=1.2:');
+      final remote = _FakeMutationRemote(
+        put:
+            ({
+              required uri,
+              required rawIcs,
+              required ifMatch,
+              required ifNoneMatch,
+            }) async {
+              puts++;
+              return _success;
+            },
+        fetcher: (href, uri) async =>
+            _live(href, uri, '"scheduled"', canonical),
+      );
+      final result =
+          await DavConditionalMutationService(
+            remoteClient: remote,
+            implicitScheduling: true,
+          ).update(
+            hrefKey: _collectionUri.resolve('meeting.ics').path,
+            uri: _collectionUri.resolve('meeting.ics'),
+            baselineEtag: '"old"',
+            baselineRawIcs: baseline,
+            patch: DavMutationPatch(
+              target: const IcalComponentKey(
+                componentType: 'VEVENT',
+                uid: 'event@example.test',
+              ),
+              scope: DavMutationScope.object,
+              operations: [DavPatchOperation.setText('SUMMARY', 'Updated')],
+            ),
+            capabilities: _writable,
+            correlationId: 'restart',
+            reconcileFirst: true,
+          );
+      expect(puts, 0);
+      expect(result.outcome, DavMutationOutcome.succeeded);
+      expect(result.canonicalObject?.rawIcsBody, canonical);
+    },
+  );
   test('new resource factory uses distinct opaque filename and RFC UID', () {
     final ids = ['uid-value', 'filename-value'];
     final factory = DavNewObjectFactory(
@@ -120,6 +218,91 @@ void main() {
 
       expect(result.outcome, DavMutationOutcome.succeeded);
       expect(puts, 1);
+    },
+  );
+
+  test(
+    'replay adopts server-managed create normalization without a second PUT',
+    () async {
+      var puts = 0;
+      final intended = _event('Created');
+      final canonical = intended.replaceFirst(
+        'SUMMARY:Created',
+        'DTSTAMP:20260808T120000Z\r\n'
+            'LAST-MODIFIED:20260808T120001Z\r\n'
+            'SEQUENCE:1\r\n'
+            'SUMMARY:Created',
+      );
+      final remote = _FakeMutationRemote(
+        put:
+            ({
+              required uri,
+              required rawIcs,
+              required ifMatch,
+              required ifNoneMatch,
+            }) async {
+              puts += 1;
+              return _success;
+            },
+        fetcher: (href, uri) async => _live(href, uri, '"server"', canonical),
+      );
+
+      final result = await DavConditionalMutationService(remoteClient: remote)
+          .create(
+            collectionUri: _collectionUri,
+            object: DavNewObject(
+              uid: 'event@example.test',
+              initialMemberName: 'new.ics',
+              rawIcs: intended,
+              componentType: 'VEVENT',
+            ),
+            capabilities: _writable,
+            correlationId: 'replay-normalized-create',
+            reconcileFirst: true,
+          );
+
+      expect(result.outcome, DavMutationOutcome.succeeded);
+      expect(result.canonicalObject?.rawIcsBody, canonical);
+      expect(puts, 0);
+    },
+  );
+
+  test(
+    'replay does not adopt a same-UID create with changed user content',
+    () async {
+      var puts = 0;
+      final intended = _event('Created');
+      final remote = _FakeMutationRemote(
+        put:
+            ({
+              required uri,
+              required rawIcs,
+              required ifMatch,
+              required ifNoneMatch,
+            }) async {
+              puts += 1;
+              return _success;
+            },
+        fetcher: (href, uri) async =>
+            _live(href, uri, '"server"', _event('Other')),
+      );
+
+      final result = await DavConditionalMutationService(remoteClient: remote)
+          .create(
+            collectionUri: _collectionUri,
+            object: DavNewObject(
+              uid: 'event@example.test',
+              initialMemberName: 'new.ics',
+              rawIcs: intended,
+              componentType: 'VEVENT',
+            ),
+            capabilities: _writable,
+            correlationId: 'replay-content-conflict',
+            reconcileFirst: true,
+          );
+
+      expect(result.outcome, DavMutationOutcome.conflict);
+      expect(puts, 0);
     },
   );
 

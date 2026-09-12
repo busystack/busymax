@@ -13,6 +13,233 @@ class AppLocalizationsRu extends AppLocalizations {
   AppLocalizationsRu([String locale = 'ru']) : super(locale);
 
   @override
+  String get nextcloudExportCollection => 'Экспортировать ресурсы коллекции';
+
+  @override
+  String nextcloudImportItems(int count) {
+    return 'Найдено ресурсов событий/задач: $count';
+  }
+
+  @override
+  String get nextcloudSchedulingInbox => 'Входящие приглашения';
+
+  @override
+  String get nextcloudInboxExplanation =>
+      'Nextcloud обрабатывает эти сообщения в ваших календарях. Подтверждение удаляет только сообщение, но не событие.';
+
+  @override
+  String get nextcloudInboxEmpty => 'Сообщений планирования нет.';
+
+  @override
+  String get nextcloudAcknowledge => 'Подтвердить получение';
+
+  @override
+  String get nextcloudAcknowledgeConfirm =>
+      'Удалить это сообщение из входящих? Событие останется в календаре.';
+
+  @override
+  String get nextcloudGuestAvailability => 'Проверить доступность участников';
+
+  @override
+  String nextcloudTrashRetention(int days) {
+    return 'Хранение в корзине сервера: $days дн.';
+  }
+
+  @override
+  String get nextcloudCancelMeeting => 'Отменить встречу';
+
+  @override
+  String get nextcloudDeclineAndRemove => 'Отклонить и удалить приглашение';
+
+  @override
+  String get nextcloudDeclineRemovalWarning =>
+      'При синхронизации будет отправлен отказ. Встреча организатора не отменяется.';
+
+  @override
+  String get nextcloudAvailabilityUnknown => 'Доступность неизвестна';
+
+  @override
+  String get nextcloudAvailabilityFree =>
+      'Для этого интервала занятое время не указано';
+
+  @override
+  String get nextcloudAvailabilityBusy => 'Периоды занятости';
+
+  @override
+  String get nextcloudSchedulingPending =>
+      'Nextcloud отправит обновления при синхронизации. Локальное сохранение не подтверждает доставку.';
+
+  @override
+  String get nextcloudAttendeeRestrictions =>
+      'Изменять встречу может только организатор или уполномоченный представитель. Ответить на приглашение можно в его сведениях.';
+
+  @override
+  String get nextcloudMeetingMoveUnsupported =>
+      'Эту встречу нельзя переместить копированием и удалением. Используйте календарь с той же учётной идентичностью планирования.';
+
+  @override
+  String get nextcloudSchedulingStatus => 'Статус планирования на сервере';
+
+  @override
+  String get nextcloudImportFollowUp =>
+      'Импортированные ресурсы сохранены локально. Обновление напоминаний ожидается; не импортируйте их повторно.';
+
+  @override
+  String get nextcloudNativeImport =>
+      'Импортировать полные события и задачи без отправки приглашений. Существующие UID пропускаются, если не выбраны новые копии. Неподдерживаемые ресурсы указываются отдельно.';
+
+  @override
+  String get nextcloudImportMethod =>
+      'Файл содержит сообщения планирования. Импорт сохраняет содержимое и удаляет METHOD, но не обрабатывает приглашения и ответы.';
+
+  @override
+  String get nextcloudImportCopies =>
+      'Импортировать новые копии с новыми идентификаторами';
+
+  @override
+  String get nextcloudCollectionSettings => 'Настройки коллекции';
+
+  @override
+  String get nextcloudSharing => 'Общий доступ';
+
+  @override
+  String get nextcloudOwned => 'Собственная';
+
+  @override
+  String get nextcloudShared => 'Общая';
+
+  @override
+  String get nextcloudDelegated => 'Делегированная';
+
+  @override
+  String get nextcloudSubscription => 'Подписка';
+
+  @override
+  String get nextcloudDeleted => 'Удалённая';
+
+  @override
+  String get nextcloudMetadataEditable =>
+      'Содержимое календаря доступно только для чтения; свойства коллекции можно изменять.';
+
+  @override
+  String get nextcloudServerOrder =>
+      'Порядок на сервере (отдельно от боковой панели)';
+
+  @override
+  String get nextcloudCalendarEnabled => 'Включена на сервере';
+
+  @override
+  String get nextcloudAvailability =>
+      'Учитывать коллекцию при проверке доступности';
+
+  @override
+  String get nextcloudCalendarTimezone =>
+      'Часовой пояс календаря (документ VTIMEZONE)';
+
+  @override
+  String get nextcloudRefreshPending =>
+      'Изменение сохранено в Nextcloud. Обновление ожидается; не повторяйте изменение.';
+
+  @override
+  String get nextcloudOutcomeUnknown =>
+      'Результат на сервере не подтверждён. Обновите данные перед повторной попыткой.';
+
+  @override
+  String get nextcloudRemoveShared => 'Удалить общий календарь/список';
+
+  @override
+  String get nextcloudRemoveMixed =>
+      'Коллекция содержит события и задачи. При её удалении будут удалены и те и другие.';
+
+  @override
+  String get nextcloudReadAccess => 'Только чтение';
+
+  @override
+  String get nextcloudWriteAccess => 'Чтение и запись';
+
+  @override
+  String get nextcloudRecipientSearch => 'Найти людей или группы';
+
+  @override
+  String get nextcloudNoRecipients => 'Подходящих людей или групп нет.';
+
+  @override
+  String get nextcloudRevokeShare => 'Отозвать доступ';
+
+  @override
+  String get nextcloudPublish => 'Опубликовать ссылку';
+
+  @override
+  String get nextcloudUnpublish => 'Прекратить публикацию';
+
+  @override
+  String get nextcloudPublishWarning =>
+      'Любой обладатель опубликованной ссылки может получить доступ к календарю. Опубликовать?';
+
+  @override
+  String get nextcloudTrash => 'Удалённые календари и задачи';
+
+  @override
+  String get nextcloudTrashEmpty => 'Удалённых элементов календаря нет.';
+
+  @override
+  String get nextcloudRestore => 'Восстановить';
+
+  @override
+  String get nextcloudPermanentDelete => 'Удалить навсегда';
+
+  @override
+  String get nextcloudPermanentDeleteWarning =>
+      'Удалить элемент навсегда? Его нельзя будет восстановить из корзины календарей Nextcloud.';
+
+  @override
+  String get nextcloudOperationDenied => 'Nextcloud не разрешил эту операцию.';
+
+  @override
+  String get nextcloudUnsupported => 'Сервер не поддерживает эту операцию.';
+
+  @override
+  String get nextcloudPendingChanges =>
+      'Сохраните или отмените изменения коллекции перед закрытием.';
+
+  @override
+  String get nextcloudServerUnavailable =>
+      'Nextcloud недоступен. Кэшированные элементы и ожидающие изменения сохранены.';
+
+  @override
+  String get mapsShow => 'Показать на карте';
+
+  @override
+  String get openLink => 'Открыть ссылку';
+
+  @override
+  String get externalLocationOpenFailed =>
+      'Не удалось открыть местоположение во внешнем приложении.';
+
+  @override
+  String scheduleProposedRange(String start, String end) {
+    return '$start – $end';
+  }
+
+  @override
+  String get scheduleRescheduleFailed =>
+      'Не удалось перенести событие. Его сохранённое время не изменилось.';
+
+  @override
+  String get scheduleRescheduleStale =>
+      'Событие изменилось во время перетаскивания. Повторите попытку.';
+
+  @override
+  String get scheduleRescheduleNotificationsFailed =>
+      'Новое время сохранено, но обновить напоминания не удалось.';
+
+  @override
+  String get moveUp => 'Переместить вверх';
+
+  @override
+  String get moveDown => 'Переместить вниз';
+
+  @override
   String get windowsSupport => 'Поддержка';
 
   @override
@@ -1033,6 +1260,10 @@ class AppLocalizationsRu extends AppLocalizations {
   String taskListDeleteFailed(String error) {
     return 'Не удалось удалить список задач: $error';
   }
+
+  @override
+  String get taskListPendingChangesPreventRemoval =>
+      'Перед удалением списка синхронизируйте учётную запись или устраните заблокированные изменения этого списка задач в разделе «Диагностика».';
 
   @override
   String get signInToViewTaskLists =>

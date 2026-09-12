@@ -151,6 +151,7 @@ void main() {
       database,
       secrets,
       MockClient((incoming) async {
+        if (incoming.method == 'PROPFIND') return _adminProbe(incoming);
         request = incoming;
         return http.Response(_successfulProppatch, 207);
       }),
@@ -172,7 +173,11 @@ void main() {
     final service = _service(
       database,
       secrets,
-      MockClient((_) async => http.Response(_forbiddenProppatch, 207)),
+      MockClient(
+        (request) async => request.method == 'PROPFIND'
+            ? _adminProbe(request)
+            : http.Response(_forbiddenProppatch, 207),
+      ),
       refresh: () async => refreshes += 1,
     );
 
@@ -200,6 +205,9 @@ void main() {
       database,
       secrets,
       MockClient((incoming) async {
+        if (incoming.method == 'PROPFIND') {
+          return _adminProbe(incoming, shared: true);
+        }
         request = incoming;
         return http.Response('', HttpStatus.noContent);
       }),
@@ -212,7 +220,59 @@ void main() {
     expect(refreshes, 1);
   });
 
-  test('read-only owned collection is rejected before DELETE', () async {
+  test(
+    'task-list deletion entry point rejects an incoming task move',
+    () async {
+      await _seedCollection(
+        database,
+        id: 'source-collection',
+        member: 'source-tasks',
+        privileges: const ['{DAV:}write'],
+      );
+      await _seedCollection(database, privileges: const ['{DAV:}write']);
+      await database
+          .into(database.pendingOps)
+          .insert(
+            PendingOpsCompanion.insert(
+              id: 'incoming-task-move',
+              accountId: 'account',
+              provider: const Value('nextcloud'),
+              entityType: 'task',
+              operation: 'move',
+              operationType: const Value('task.move'),
+              davCollectionId: const Value('source-collection'),
+              destinationCollectionId: const Value('collection'),
+              requestJson: '{}',
+              createdAtUtc: '2026-08-09T12:00:00.000Z',
+              updatedAtUtc: '2026-08-09T12:00:00.000Z',
+            ),
+          );
+      var deletes = 0;
+      final service = _service(
+        database,
+        secrets,
+        MockClient((request) async {
+          if (request.method == 'PROPFIND') return _adminProbe(request);
+          if (request.method == 'DELETE') deletes += 1;
+          return http.Response('', HttpStatus.noContent);
+        }),
+      );
+
+      await expectLater(
+        service.deleteTaskList('collection'),
+        throwsA(
+          isA<DavException>().having(
+            (error) => error.code,
+            'code',
+            'DavCollectionHasPendingChanges',
+          ),
+        ),
+      );
+      expect(deletes, 0);
+    },
+  );
+
+  test('parent unbind denial prevents collection DELETE', () async {
     await _seedCollection(
       database,
       privileges: const ['{DAV:}read'],
@@ -222,7 +282,10 @@ void main() {
     final service = _service(
       database,
       secrets,
-      MockClient((_) async {
+      MockClient((request) async {
+        if (request.method == 'PROPFIND') {
+          return _adminProbe(request, parentWritable: false);
+        }
         requests += 1;
         return http.Response('', HttpStatus.noContent);
       }),
@@ -234,13 +297,22 @@ void main() {
         isA<DavException>().having(
           (error) => error.code,
           'code',
-          'DavCollectionReadOnly',
+          'DavCollectionRemovalDenied',
         ),
       ),
     );
     expect(requests, 0);
   });
 }
+
+http.Response _adminProbe(
+  http.Request request, {
+  bool shared = false,
+  bool parentWritable = true,
+}) => http.Response(
+  '<d:multistatus xmlns:d="DAV:" xmlns:c="urn:ietf:params:xml:ns:caldav"><d:response><d:href>${request.url.path}</d:href><d:propstat><d:prop><d:resourcetype><d:collection/><c:calendar/></d:resourcetype><d:owner><d:href>/remote.php/dav/principals/users/${shared ? 'bob' : 'alex'}/</d:href></d:owner><d:current-user-privilege-set><d:privilege><d:read/></d:privilege><d:privilege><d:write-properties/></d:privilege>${parentWritable ? '<d:privilege><d:unbind/></d:privilege>' : ''}</d:current-user-privilege-set></d:prop><d:status>HTTP/1.1 200 OK</d:status></d:propstat></d:response></d:multistatus>',
+  207,
+);
 
 DavTaskListMutationService _service(
   AppDatabase database,
@@ -303,6 +375,8 @@ Future<void> _seedAccount(
 
 Future<void> _seedCollection(
   AppDatabase database, {
+  String id = 'collection',
+  String member = 'tasks',
   String ownerHref = '/remote.php/dav/principals/users/alex/',
   required List<String> privileges,
   bool readOnly = false,
@@ -312,11 +386,11 @@ Future<void> _seedCollection(
       .into(database.davCollections)
       .insert(
         DavCollectionsCompanion.insert(
-          id: 'collection',
+          id: id,
           accountId: 'account',
-          hrefKey: '/remote.php/dav/calendars/alex/tasks/',
+          hrefKey: '/remote.php/dav/calendars/alex/$member/',
           requestUri:
-              'https://cloud.example.test/remote.php/dav/calendars/alex/tasks/',
+              'https://cloud.example.test/remote.php/dav/calendars/alex/$member/',
           displayName: 'Tasks',
           supportedComponentMask: const Value(davComponentTodo),
           currentUserPrivilegesJson: Value(_jsonStrings(privileges)),

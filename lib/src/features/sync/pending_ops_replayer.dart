@@ -8,6 +8,7 @@ import '../tasks/domain/task_remote_client.dart';
 import '../tasks/domain/task_remote_error.dart';
 import '../tasks/domain/task_remote_models.dart';
 import 'conflict_detector.dart';
+import 'collection_id_replacement.dart';
 import 'pending_ops_replay_coordinator.dart';
 import '../task_lists/data/task_lists_repository.dart';
 import '../tasks/data/tasks_repository.dart';
@@ -19,12 +20,14 @@ class PendingOpsReplayer {
     required TaskRemoteClient apiClient,
     required String accountId,
     Future<void> Function(String summary)? onConflictBlocked,
+    CollectionIdReplacement? onTaskListIdReplaced,
     Random? random,
     DateTime Function()? nowUtc,
   }) : _database = database,
        _apiClient = apiClient,
        _accountId = accountId,
        _onConflictBlocked = onConflictBlocked,
+       _onTaskListIdReplaced = onTaskListIdReplaced,
        _random = random ?? Random.secure(),
        _nowUtc = nowUtc ?? (() => DateTime.now().toUtc());
 
@@ -32,6 +35,7 @@ class PendingOpsReplayer {
   final TaskRemoteClient _apiClient;
   final String _accountId;
   final Future<void> Function(String summary)? _onConflictBlocked;
+  final CollectionIdReplacement? _onTaskListIdReplaced;
   final Random _random;
   final DateTime Function() _nowUtc;
 
@@ -172,6 +176,7 @@ class PendingOpsReplayer {
       );
       await _database.taskListsDao.deleteTaskList(_accountId, tempId);
     });
+    await notifyCollectionIdReplacement(_onTaskListIdReplaced, tempId, dto.id);
   }
 
   Future<void> _patchTaskList(PendingOp op) async {

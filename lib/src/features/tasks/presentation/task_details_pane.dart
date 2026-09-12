@@ -13,6 +13,7 @@ import 'package:busymax/src/providers/busy_provider.dart';
 import 'package:busymax/src/features/tasks/domain/task_capabilities.dart';
 import '../../accounts/data/accounts_repository.dart';
 import '../../schedule/presentation/schedule_item_exporter.dart';
+import '../../maps/application/external_location_launcher.dart';
 import '../../sync/sync_auth_error.dart';
 import '../../task_lists/data/task_lists_repository.dart';
 import '../data/tasks_repository.dart';
@@ -38,6 +39,7 @@ class TaskDetailsPane extends ConsumerStatefulWidget {
     this.onTaskSwitchCancelled,
     this.onDirtyChanged,
     this.dialogBarrierColor,
+    this.externalLocationLauncher = const ExternalLocationLauncher(),
   });
 
   final String accountId;
@@ -50,6 +52,7 @@ class TaskDetailsPane extends ConsumerStatefulWidget {
   final ValueChanged<TaskEntity>? onTaskSwitchCancelled;
   final ValueChanged<bool>? onDirtyChanged;
   final Color? dialogBarrierColor;
+  final ExternalLocationLauncher externalLocationLauncher;
 
   @override
   ConsumerState<TaskDetailsPane> createState() => _TaskDetailsPaneState();
@@ -324,7 +327,7 @@ class _TaskDetailsPaneState extends ConsumerState<TaskDetailsPane> {
       await repository.patchTask(
         task.taskListId,
         task.id,
-        TaskPatchInput(patch),
+        TaskPatchInput(patch, locationChange: draft.locationChange),
       );
       mutated = true;
     }
@@ -388,6 +391,7 @@ class _TaskDetailsPaneState extends ConsumerState<TaskDetailsPane> {
       onSaved: () => widget.onClose?.call(),
       onTaskSwitchCancelled: widget.onTaskSwitchCancelled,
       onDirtyChanged: _setEditorDirty,
+      externalLocationLauncher: widget.externalLocationLauncher,
       dialogBarrierColor: widget.dialogBarrierColor,
       headerBarService: ref.read(linuxHeaderBarServiceProvider),
     );

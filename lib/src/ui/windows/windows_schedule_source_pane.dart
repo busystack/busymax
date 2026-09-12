@@ -1,4 +1,6 @@
 import 'dart:async';
+import 'windows_nextcloud_dialogs.dart';
+import '../../dav/nextcloud/nextcloud_dav_context.dart';
 
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -7,13 +9,17 @@ import 'package:intl/intl.dart';
 import '../../../l10n/generated/app_localizations.dart';
 import '../../app/app_bootstrap.dart';
 import '../../calendar_providers/calendar_colors.dart';
+import '../../dav/dav_errors.dart';
 import '../../features/accounts/data/accounts_repository.dart';
 import '../../features/accounts/domain/account_collection_creation_capabilities.dart';
 import '../../features/calendar/data/calendar_collection_creation_service.dart';
 import '../../features/calendar/data/calendar_repository.dart';
+import '../../features/connectivity/network_connectivity_service.dart';
 import '../../features/task_lists/data/task_lists_repository.dart';
 import '../../providers/busy_provider.dart';
 import '../../schedule/schedule_filters.dart';
+import '../../schedule/schedule_sidebar_order.dart';
+import '../../schedule/schedule_sidebar_sources.dart';
 import '../common/busymax_glyph.dart';
 import 'windows_busymax_glyphs.dart';
 
@@ -52,6 +58,53 @@ class WindowsScheduleSourcePane extends ConsumerStatefulWidget {
 
 class _WindowsScheduleSourcePaneState
     extends ConsumerState<WindowsScheduleSourcePane> {
+  final _snapshots = StreamController<WindowsScheduleSourcePane>();
+  late final StreamSubscription<WindowsScheduleSourcePane> _snapshotListener;
+
+  @override
+  void initState() {
+    super.initState();
+    _snapshotListener = _snapshots.stream.listen(_registerSnapshot);
+    _snapshots.add(widget);
+  }
+
+  void _registerSnapshot(WindowsScheduleSourcePane snapshot) {
+    final controller = ref.read(appSettingsControllerProvider.notifier);
+    unawaited(
+      controller.registerSidebarIds(
+        SidebarOrderSection.accounts,
+        snapshot.accounts.map((account) => account.id),
+      ),
+    );
+    for (final account in snapshot.accounts) {
+      unawaited(
+        controller.registerSidebarIds(
+          SidebarOrderSection.calendars,
+          snapshot.calendarSources
+              .where((source) => source.accountId == account.id)
+              .map((source) => source.id),
+          accountId: account.id,
+        ),
+      );
+      unawaited(
+        controller.registerSidebarIds(
+          SidebarOrderSection.taskLists,
+          snapshot.taskLists
+              .where((list) => list.accountId == account.id)
+              .map((list) => list.id),
+          accountId: account.id,
+        ),
+      );
+    }
+  }
+
+  @override
+  void dispose() {
+    unawaited(_snapshotListener.cancel());
+    unawaited(_snapshots.close());
+    super.dispose();
+  }
+
   late DateTime _displayedMonth = DateTime(
     widget.selectedDate.year,
     widget.selectedDate.month,
@@ -60,6 +113,7 @@ class _WindowsScheduleSourcePaneState
   @override
   void didUpdateWidget(covariant WindowsScheduleSourcePane oldWidget) {
     super.didUpdateWidget(oldWidget);
+    _snapshots.add(widget);
     if (oldWidget.selectedDate.year != widget.selectedDate.year ||
         oldWidget.selectedDate.month != widget.selectedDate.month) {
       _displayedMonth = DateTime(
@@ -73,6 +127,13 @@ class _WindowsScheduleSourcePaneState
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     final locale = Localizations.localeOf(context).toLanguageTag();
+    final order = ref.watch(appSettingsControllerProvider).sidebarOrder;
+    final accounts = order.apply(
+      SidebarOrderSection.accounts,
+      widget.accounts,
+      (account) => account.id,
+    );
+    final accountIds = accounts.map((account) => account.id).toList();
     return ColoredBox(
       color: FluentTheme.of(context).cardColor,
       child: Column(
@@ -103,9 +164,22 @@ class _WindowsScheduleSourcePaneState
             child: ListView(
               padding: const EdgeInsets.symmetric(vertical: 8),
               children: [
-                for (final account in widget.accounts) ...[
+                for (final account in accounts) ...[
                   _AccountHeader(
+                    online:
+                        (ref.watch(networkAvailabilityProvider).valueOrNull ??
+                            ref
+                                .read(networkConnectivityMonitorProvider)
+                                .availability) !=
+                        NetworkAvailability.offline,
+                    key: ValueKey(('schedule-account', account.id)),
                     account: account,
+                    movementItems: _movementItems(
+                      context,
+                      SidebarOrderSection.accounts,
+                      account.id,
+                      accountIds,
+                    ),
                     capabilities: AccountCollectionCreationCapabilities.resolve(
                       account: account,
                       networkAvailability:
@@ -117,14 +191,15 @@ class _WindowsScheduleSourcePaneState
                     onCreateCalendar: () => unawaited(_createCalendar(account)),
                     onCreateTaskList: () => unawaited(_createTaskList(account)),
                   ),
-                  for (final source in widget.calendarSources.where(
-                    (source) =>
-                        source.accountId == account.id &&
-                        !source.hidden &&
-                        !source.isDeleted,
-                  ))
+                  for (final source in _calendarsFor(account.id))
                     _VisibilityRow(
+                      key: ValueKey((
+                        'schedule-calendar',
+                        account.id,
+                        source.id,
+                      )),
                       icon: BusyMaxGlyph.calendar,
+                      iconColor: _calendarSourceColor(source),
                       title: source.summary,
                       checked: widget.visibleCalendarSourceIds.contains(
                         source.id,
@@ -133,11 +208,13 @@ class _WindowsScheduleSourcePaneState
                           widget.onCalendarVisibilityChanged(source, value),
                       menuItems: _calendarMenuItems(context, source),
                     ),
-                  for (final list in widget.taskLists.where(
-                    (list) =>
-                        list.accountId == account.id && !list.pendingDelete,
-                  ))
+                  for (final list in _taskListsFor(account.id))
                     _VisibilityRow(
+                      key: ValueKey((
+                        'schedule-task-list',
+                        account.id,
+                        list.id,
+                      )),
                       icon: BusyMaxGlyph.task,
                       title: list.title,
                       checked: widget.visibleTaskListKeys.contains(
@@ -164,12 +241,87 @@ class _WindowsScheduleSourcePaneState
     );
   }
 
+  List<CalendarSourceEntity> _calendarsFor(String accountId) => ref
+      .read(appSettingsControllerProvider)
+      .sidebarOrder
+      .apply(
+        SidebarOrderSection.calendars,
+        calendarSourcesShownInSidebar(
+          widget.calendarSources,
+          accountId: accountId,
+        ),
+        (source) => source.id,
+        accountId: accountId,
+      );
+
+  List<TaskListEntity> _taskListsFor(String accountId) => ref
+      .read(appSettingsControllerProvider)
+      .sidebarOrder
+      .apply(
+        SidebarOrderSection.taskLists,
+        widget.taskLists.where(
+          (list) => list.accountId == accountId && !list.pendingDelete,
+        ),
+        (list) => list.id,
+        accountId: accountId,
+      );
+
+  List<MenuFlyoutItem> _movementItems(
+    BuildContext context,
+    SidebarOrderSection section,
+    String id,
+    List<String> siblings, {
+    String? accountId,
+  }) {
+    final order = ref.read(appSettingsControllerProvider).sidebarOrder;
+    final l10n = AppLocalizations.of(context);
+    return [
+      for (final offset in [-1, 1])
+        MenuFlyoutItem(
+          leading: Icon(offset == -1 ? FluentIcons.up : FluentIcons.down),
+          text: Text(offset == -1 ? l10n.moveUp : l10n.moveDown),
+          onPressed: order.canMove(id, offset, siblings)
+              ? () => unawaited(
+                  ref
+                      .read(appSettingsControllerProvider.notifier)
+                      .moveSidebarItem(
+                        section,
+                        id,
+                        offset,
+                        siblings,
+                        accountId: accountId,
+                      ),
+                )
+              : null,
+        ),
+    ];
+  }
+
   List<MenuFlyoutItem> _calendarMenuItems(
     BuildContext context,
     CalendarSourceEntity source,
   ) {
     final l10n = AppLocalizations.of(context);
     return [
+      if (source.provider == BusyProvider.nextcloud &&
+          source.davCollectionId != null)
+        MenuFlyoutItem(
+          text: Text(l10n.nextcloudCollectionSettings),
+          onPressed: () => unawaited(
+            showWindowsNextcloudCollectionDialog(
+              context,
+              accountId: source.accountId,
+              collectionId: source.davCollectionId!,
+            ),
+          ),
+        ),
+      ..._movementItems(
+        context,
+        SidebarOrderSection.calendars,
+        source.id,
+        _calendarsFor(source.accountId).map((source) => source.id).toList(),
+        accountId: source.accountId,
+      ),
       MenuFlyoutItem(
         leading: Icon(windowsBusyMaxGlyph(BusyMaxGlyph.reminder)),
         text: Text(
@@ -196,7 +348,9 @@ class _WindowsScheduleSourcePaneState
         leading: Icon(windowsBusyMaxGlyph(BusyMaxGlyph.delete)),
         text: Text(
           source.capabilities.removalMode == CalendarRemovalMode.removeFromList
-              ? l10n.removeFromMyCalendars
+              ? (source.provider == BusyProvider.nextcloud
+                    ? l10n.nextcloudRemoveShared
+                    : l10n.removeFromMyCalendars)
               : l10n.delete,
         ),
         onPressed: source.capabilities.canRemoveCalendar
@@ -233,6 +387,25 @@ class _WindowsScheduleSourcePaneState
         ? davCapabilities?.supportsListDelete ?? false
         : true;
     return [
+      if (account.provider == BusyProvider.nextcloud &&
+          list.davCollectionId != null)
+        MenuFlyoutItem(
+          text: Text(l10n.nextcloudCollectionSettings),
+          onPressed: () => unawaited(
+            showWindowsNextcloudCollectionDialog(
+              context,
+              accountId: list.accountId,
+              collectionId: list.davCollectionId!,
+            ),
+          ),
+        ),
+      ..._movementItems(
+        context,
+        SidebarOrderSection.taskLists,
+        list.id,
+        _taskListsFor(account.id).map((list) => list.id).toList(),
+        accountId: account.id,
+      ),
       MenuFlyoutItem(
         leading: Icon(windowsBusyMaxGlyph(BusyMaxGlyph.reminder)),
         text: Text(
@@ -248,7 +421,13 @@ class _WindowsScheduleSourcePaneState
       ),
       MenuFlyoutItem(
         leading: Icon(windowsBusyMaxGlyph(BusyMaxGlyph.delete)),
-        text: Text(list.isShared == true ? l10n.unshare : l10n.deleteList),
+        text: Text(
+          list.isShared == true
+              ? (list.davCollectionId != null
+                    ? l10n.nextcloudRemoveShared
+                    : l10n.unshare)
+              : l10n.deleteList,
+        ),
         onPressed: canDelete ? () => unawaited(_deleteTaskList(list)) : null,
       ),
     ];
@@ -369,9 +548,16 @@ class _WindowsScheduleSourcePaneState
     final removeFromList =
         source.capabilities.removalMode == CalendarRemovalMode.removeFromList;
     final confirmed = await _confirm(
-      title: removeFromList ? l10n.removeFromMyCalendars : l10n.delete,
+      title: removeFromList
+          ? (source.provider == BusyProvider.nextcloud
+                ? l10n.nextcloudRemoveShared
+                : l10n.removeFromMyCalendars)
+          : l10n.delete,
       message: removeFromList
           ? l10n.removeCalendarConfirmation(source.summary)
+          : source.provider == BusyProvider.nextcloud &&
+                source.davEffectivePermissions['supportedComponentMask'] == 3
+          ? l10n.nextcloudRemoveMixed
           : l10n.deleteCalendarConfirmation(source.summary),
       actionLabel: removeFromList ? l10n.removeAction : l10n.delete,
     );
@@ -379,6 +565,7 @@ class _WindowsScheduleSourcePaneState
     await _runCalendarMutation(
       source.accountId,
       () => ref.read(calendarRepositoryProvider).deleteLocalSource(source.id),
+      pendingChangesMessage: l10n.calendarPendingChangesPreventRemoval,
     );
   }
 
@@ -400,9 +587,15 @@ class _WindowsScheduleSourcePaneState
   Future<void> _deleteTaskList(TaskListEntity list) async {
     final l10n = AppLocalizations.of(context);
     final confirmed = await _confirm(
-      title: list.isShared == true ? l10n.unshare : l10n.deleteList,
+      title: list.isShared == true
+          ? (list.davCollectionId != null
+                ? l10n.nextcloudRemoveShared
+                : l10n.unshare)
+          : l10n.deleteList,
       message: list.isShared == true
           ? l10n.unshareTaskListConfirmation(list.title)
+          : list.isMixedDavCollection
+          ? l10n.nextcloudRemoveMixed
           : l10n.deleteTaskListConfirmation(list.title),
       actionLabel: list.isShared == true ? l10n.unshare : l10n.delete,
     );
@@ -411,26 +604,42 @@ class _WindowsScheduleSourcePaneState
       () => ref
           .read(taskListsRepositoryForAccountProvider(list.accountId))
           .deleteTaskList(list.id),
+      pendingChangesMessage: l10n.taskListPendingChangesPreventRemoval,
     );
   }
 
   Future<void> _runCalendarMutation(
     String accountId,
-    Future<void> Function() operation,
-  ) => _runMutation(() async {
+    Future<void> Function() operation, {
+    String? pendingChangesMessage,
+  }) => _runMutation(() async {
     await operation();
     ref
         .read(pendingCalendarMutationSyncRequesterForAccountProvider(accountId))
         .request();
-  });
+  }, pendingChangesMessage: pendingChangesMessage);
 
-  Future<void> _runMutation(Future<void> Function() operation) async {
+  Future<void> _runMutation(
+    Future<void> Function() operation, {
+    String? pendingChangesMessage,
+  }) async {
     try {
       await operation();
       if (mounted) widget.onSourcesChanged();
-    } on Object {
+    } on NextcloudRefreshPending {
       if (mounted) {
-        await _showMessage(AppLocalizations.of(context).operationFailed);
+        await _showMessage(
+          AppLocalizations.of(context).nextcloudRefreshPending,
+        );
+      }
+    } on Object catch (error) {
+      if (mounted) {
+        await _showMessage(
+          pendingChangesMessage != null &&
+                  isDavCollectionPendingChangesError(error)
+              ? pendingChangesMessage
+              : AppLocalizations.of(context).operationFailed,
+        );
       }
     }
   }
@@ -508,16 +717,21 @@ class _WindowsScheduleSourcePaneState
 
 class _AccountHeader extends StatelessWidget {
   const _AccountHeader({
+    super.key,
     required this.account,
     required this.capabilities,
     required this.onCreateCalendar,
     required this.onCreateTaskList,
+    required this.movementItems,
+    required this.online,
   });
 
   final AccountEntity account;
   final AccountCollectionCreationCapabilities capabilities;
   final VoidCallback onCreateCalendar;
   final VoidCallback onCreateTaskList;
+  final List<MenuFlyoutItem> movementItems;
+  final bool online;
 
   @override
   Widget build(BuildContext context) => Padding(
@@ -532,28 +746,40 @@ class _AccountHeader extends StatelessWidget {
             style: FluentTheme.of(context).typography.caption,
           ),
         ),
-        if (capabilities.hasActions)
-          DropDownButton(
-            title: Icon(windowsBusyMaxGlyph(BusyMaxGlyph.add), size: 16),
-            items: [
-              if (capabilities.supportsCalendarCreation)
-                MenuFlyoutItem(
-                  leading: Icon(windowsBusyMaxGlyph(BusyMaxGlyph.calendar)),
-                  text: Text(AppLocalizations.of(context).newCalendar),
-                  onPressed: capabilities.calendarActionEnabled
-                      ? onCreateCalendar
-                      : null,
-                ),
-              if (capabilities.supportsTaskListCreation)
-                MenuFlyoutItem(
-                  leading: Icon(windowsBusyMaxGlyph(BusyMaxGlyph.task)),
-                  text: Text(AppLocalizations.of(context).newTaskList),
-                  onPressed: capabilities.taskListActionEnabled
-                      ? onCreateTaskList
-                      : null,
-                ),
-            ],
-          ),
+        DropDownButton(
+          title: Icon(windowsBusyMaxGlyph(BusyMaxGlyph.more), size: 16),
+          items: [
+            ...movementItems,
+            if (account.provider == BusyProvider.nextcloud)
+              MenuFlyoutItem(
+                text: Text(AppLocalizations.of(context).nextcloudTrash),
+                onPressed: !online
+                    ? null
+                    : () => unawaited(
+                        showWindowsNextcloudTrashDialog(
+                          context,
+                          accountId: account.id,
+                        ),
+                      ),
+              ),
+            if (capabilities.supportsCalendarCreation)
+              MenuFlyoutItem(
+                leading: Icon(windowsBusyMaxGlyph(BusyMaxGlyph.calendar)),
+                text: Text(AppLocalizations.of(context).newCalendar),
+                onPressed: capabilities.calendarActionEnabled
+                    ? onCreateCalendar
+                    : null,
+              ),
+            if (capabilities.supportsTaskListCreation)
+              MenuFlyoutItem(
+                leading: Icon(windowsBusyMaxGlyph(BusyMaxGlyph.task)),
+                text: Text(AppLocalizations.of(context).newTaskList),
+                onPressed: capabilities.taskListActionEnabled
+                    ? onCreateTaskList
+                    : null,
+              ),
+          ],
+        ),
       ],
     ),
   );
@@ -561,14 +787,17 @@ class _AccountHeader extends StatelessWidget {
 
 class _VisibilityRow extends StatelessWidget {
   const _VisibilityRow({
+    super.key,
     required this.icon,
     required this.title,
     required this.checked,
     required this.onChanged,
     required this.menuItems,
+    this.iconColor,
   });
 
   final BusyMaxGlyph icon;
+  final Color? iconColor;
   final String title;
   final bool checked;
   final ValueChanged<bool> onChanged;
@@ -588,7 +817,7 @@ class _VisibilityRow extends StatelessWidget {
               onChanged: (value) => onChanged(value ?? false),
             ),
             const SizedBox(width: 8),
-            Icon(windowsBusyMaxGlyph(icon), size: 16),
+            Icon(windowsBusyMaxGlyph(icon), size: 16, color: iconColor),
             const SizedBox(width: 8),
             Expanded(
               child: Text(title, maxLines: 1, overflow: TextOverflow.ellipsis),
@@ -602,6 +831,15 @@ class _VisibilityRow extends StatelessWidget {
       ),
     );
   }
+}
+
+Color? _calendarSourceColor(CalendarSourceEntity source) {
+  final colorHex = calendarSourceBackgroundColorHex(
+    provider: source.provider,
+    backgroundColor: source.backgroundColor,
+    colorId: source.colorId,
+  );
+  return colorHex == null ? null : _colorFromHex(colorHex);
 }
 
 Color _colorFromHex(String source) {

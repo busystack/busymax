@@ -24,6 +24,13 @@ match the final product registration exactly. OAuth tokens, authorization
 codes, certificates, PFX files, and passwords must never enter configuration or
 the package.
 
+No mapping credential is a build input. Saved locations are handed to the
+default browser as Google Maps searches, while complete HTTP(S) location values
+are opened directly. No embedded map or address-search service is packaged.
+Provider-native coordinates remain calendar data. Supplemental points retained
+for otherwise-lossy Google imports/copies stay in the local database and are not
+embedded in a Google event or package configuration.
+
 The product version remains in `pubspec.yaml`. `msixVersion` is independent and
 must have four numeric components, a first component of at least 1, a fourth
 component of 0, and components no greater than 65535. If a previous version is
@@ -55,7 +62,8 @@ From a 64-bit Windows 11 PowerShell prompt:
   -ConfigPath config\windows_store.local.json
 ```
 
-The script checks Windows, Flutter 3.44.4, Visual Studio x64 C++ tools, and a
+The script checks Windows, Flutter 3.47.2 with bundled Dart 3.13.2, Visual
+Studio x64 C++ tools, and a
 Windows 11 SDK; resolves dependencies; generates localization and Drift code;
 checks committed generation, formatting, analysis, tests, architecture
 boundaries, PowerShell contracts, native runner/plugin tests, and release

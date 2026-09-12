@@ -43,7 +43,7 @@ Future<void> showIcsImportFlow(
         account.id: account.selectorLabel,
     };
     if (!context.mounted) return;
-    final destination = await showBusyMaxModalDialog<CalendarSourceEntity>(
+    final selection = await showBusyMaxModalDialog<IcalImportSelection>(
       context,
       headerBarService: ref.read(linuxHeaderBarServiceProvider),
       barrierDismissible: false,
@@ -53,10 +53,13 @@ Future<void> showIcsImportFlow(
         accountLabels: accountLabels,
       ),
     );
-    if (destination == null || !context.mounted) return;
+    if (selection == null || !context.mounted) return;
     final report = await service.importPreview(
       preview: preview,
-      destination: destination,
+      destination: selection.destination,
+      nativeDuplicates: selection.duplicatePolicy,
+      normalizeNativeSchedulingMethod:
+          selection.destination.provider == BusyProvider.nextcloud,
     );
     if (!context.mounted) return;
     await showBusyMaxModalDialog<void>(
@@ -94,6 +97,7 @@ class _IcalImportPreviewDialog extends StatefulWidget {
 
 class _IcalImportPreviewDialogState extends State<_IcalImportPreviewDialog> {
   CalendarSourceEntity? _destination;
+  bool _newCopies = false;
 
   @override
   void initState() {
@@ -104,7 +108,10 @@ class _IcalImportPreviewDialogState extends State<_IcalImportPreviewDialog> {
   @override
   Widget build(BuildContext context) {
     final l10n = context.l10n;
-    final omitted = widget.preview.fieldsThatWillBeOmitted.toList()..sort();
+    final native = _destination?.provider == BusyProvider.nextcloud;
+    final omitted = native
+        ? <String>[]
+        : (widget.preview.fieldsThatWillBeOmitted.toList()..sort());
     return BusyMaxDialogShell(
       title: l10n.importIcsPreview,
       maxWidth: BusyMaxSizes.compactDetailsWidth,
@@ -117,12 +124,31 @@ class _IcalImportPreviewDialogState extends State<_IcalImportPreviewDialog> {
           key: const ValueKey('confirm-ics-import'),
           onPressed: _destination == null
               ? null
-              : () => Navigator.of(context).pop(_destination),
+              : () => Navigator.of(context).pop(
+                  IcalImportSelection(_destination!, newCopies: _newCopies),
+                ),
           child: Text(l10n.importIcsConfirm),
         ),
       ],
       children: [
-        Text(l10n.importEventsFound(widget.preview.eventCount)),
+        Text(
+          native
+              ? l10n.nextcloudImportItems(
+                  widget.preview.nativePreview.resources.length,
+                )
+              : l10n.importEventsFound(widget.preview.eventCount),
+        ),
+        if (native) ...[
+          Text(l10n.nextcloudNativeImport),
+          if (widget.preview.nativePreview.schedulingMethod != null)
+            Text(l10n.nextcloudImportMethod),
+          CheckboxListTile(
+            contentPadding: EdgeInsets.zero,
+            title: Text(l10n.nextcloudImportCopies),
+            value: _newCopies,
+            onChanged: (value) => setState(() => _newCopies = value == true),
+          ),
+        ],
         if (widget.preview.invalidEventCount > 0)
           Text(l10n.importInvalidEvents(widget.preview.invalidEventCount)),
         if (omitted.isNotEmpty)
@@ -169,6 +195,7 @@ class _IcalImportReportDialog extends StatelessWidget {
         Text(
           [
             l10n.importQueued(report.queued),
+            if (report.followUpPending) l10n.nextcloudImportFollowUp,
             l10n.importDuplicatesSkipped(report.duplicatesSkipped),
             l10n.importUnsupportedSets(report.unsupportedRecurrenceSets.length),
             ...unsupported,

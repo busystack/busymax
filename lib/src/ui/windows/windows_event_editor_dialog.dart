@@ -7,9 +7,13 @@ import '../../calendar_providers/calendar_mutation.dart';
 import '../../features/accounts/data/accounts_repository.dart';
 import '../../features/calendar/data/calendar_repository.dart';
 import '../../features/calendar/domain/event_move_policy.dart';
+import '../../features/calendar/domain/event_timing_policy.dart';
+import '../../schedule/schedule_event_rescheduling.dart';
+import '../../core/time/provider_date_time.dart';
 import '../../features/calendar/presentation/event_editor_draft.dart';
 import '../../features/recurrence/domain/event_recurrence_codec.dart';
 import '../../features/recurrence/domain/recurrence_rule.dart';
+import '../../features/maps/domain/location_result.dart';
 import '../../providers/busy_provider.dart';
 import '../common/busymax_glyph.dart';
 import 'windows_busymax_glyphs.dart';
@@ -17,12 +21,14 @@ import 'windows_event_reminders.dart';
 import 'windows_guest_update_dialog.dart';
 import 'windows_recurrence_dialog.dart';
 import 'windows_time_zone_dialog.dart';
+import 'windows_nextcloud_scheduling_dialog.dart';
 
 Future<bool> showWindowsEventEditorDialog(
   BuildContext context,
   WidgetRef ref, {
   String? eventId,
   DateTime? initialStart,
+  ScheduleInterval? initialInterval,
 }) async {
   final repository = ref.read(calendarRepositoryProvider);
   final detail = eventId == null
@@ -86,6 +92,7 @@ Future<bool> showWindowsEventEditorDialog(
         );
   var start =
       originalDraft?.start ??
+      initialInterval?.start ??
       requestedStart ??
       DateTime.now().add(const Duration(hours: 1));
   start = DateTime(
@@ -95,10 +102,18 @@ Future<bool> showWindowsEventEditorDialog(
     start.hour,
     start.minute,
   );
-  var end = originalDraft?.end ?? start.add(const Duration(hours: 1));
+  var end =
+      originalDraft?.end ??
+      initialInterval?.end ??
+      start.add(const Duration(hours: 1));
   var allDay = originalDraft?.allDay ?? false;
-  var selectedTimeZone =
-      selectedSource.timeZone ?? ref.read(localTimeZoneProvider) ?? 'Etc/UTC';
+  var selectedTimeZone = initialInterval != null
+      ? ref.read(localTimeZoneProvider)
+      : selectedSource.timeZone ?? ref.read(localTimeZoneProvider) ?? 'Etc/UTC';
+  if (originalDraft == null && initialInterval != null) {
+    start = providerInstantInTimeZone(initialInterval.start, selectedTimeZone);
+    end = providerInstantInTimeZone(initialInterval.end, selectedTimeZone);
+  }
   var recurrence = EventRecurrenceCodec.decode(
     selectedSource.provider,
     originalDraft?.recurrence,
@@ -127,6 +142,8 @@ Future<bool> showWindowsEventEditorDialog(
     originalDraft?.visibilityOrSensitivity,
     selectedSource.provider,
   );
+  var locationChange =
+      originalDraft?.locationChange ?? const LocationChange.unchanged();
   final initialSourceAccountId = selectedSource.accountId;
   final initialSourceId = selectedSource.id;
   final initialTitle = title.text;
@@ -155,6 +172,7 @@ Future<bool> showWindowsEventEditorDialog(
       title.text != initialTitle ||
       description.text != initialDescription ||
       location.text != initialLocation ||
+      locationChange.changed ||
       categories.text != initialCategories ||
       start != initialStartValue ||
       end != initialEndValue ||
@@ -605,6 +623,10 @@ Future<bool> showWindowsEventEditorDialog(
                             : l10n.addTeamsMeeting,
                       ),
                     ),
+                  ],
+                  if (selectedSource.provider == BusyProvider.google ||
+                      selectedSource.provider == BusyProvider.microsoft ||
+                      selectedSource.provider == BusyProvider.nextcloud) ...[
                     const SizedBox(height: 12),
                     InfoLabel(
                       label: l10n.guests,
@@ -619,6 +641,11 @@ Future<bool> showWindowsEventEditorDialog(
                                   !saving &&
                                   !attendee.self &&
                                   !attendee.organizer &&
+                                  (selectedSource.provider !=
+                                          BusyProvider.nextcloud ||
+                                      selectedSource
+                                              .davEffectivePermissions['canInvite'] ==
+                                          true) &&
                                   (originalDraft?.canManageAttendees ?? true),
                               onOptionalChanged: (optional) => setState(() {
                                 attendees = [
@@ -645,7 +672,12 @@ Future<bool> showWindowsEventEditorDialog(
                                 attendeesChanged = true;
                               }),
                             ),
-                          if (originalDraft?.canManageAttendees ?? true)
+                          if ((originalDraft?.canManageAttendees ?? true) &&
+                              (selectedSource.provider !=
+                                      BusyProvider.nextcloud ||
+                                  selectedSource
+                                          .davEffectivePermissions['canInvite'] ==
+                                      true))
                             _WindowsAddGuestRow(
                               controller: guestEmail,
                               label: l10n.addGuest,
@@ -685,6 +717,9 @@ Future<bool> showWindowsEventEditorDialog(
                         ],
                       ),
                     ),
+                  ],
+                  if (selectedSource.provider == BusyProvider.google ||
+                      selectedSource.provider == BusyProvider.microsoft) ...[
                     const SizedBox(height: 8),
                     ToggleSwitch(
                       checked: responseRequested,
@@ -715,8 +750,55 @@ Future<bool> showWindowsEventEditorDialog(
                   const SizedBox(height: 12),
                   InfoLabel(
                     label: l10n.location,
-                    child: TextBox(controller: location),
+                    child: TextBox(
+                      key: const ValueKey('windows-event-location-field'),
+                      controller: location,
+                      enabled: !saving,
+                      onChanged: (value) => setState(() {
+                        locationChange = value == initialLocation
+                            ? const LocationChange.unchanged()
+                            : const LocationChange.clear();
+                      }),
+                    ),
                   ),
+                  if (selectedSource.provider == BusyProvider.nextcloud &&
+                      selectedSource.davCollectionId != null &&
+                      selectedSource
+                              .davEffectivePermissions['canQueryFreeBusy'] ==
+                          true &&
+                      attendees.isNotEmpty)
+                    Button(
+                      onPressed: saving
+                          ? null
+                          : () => showWindowsNextcloudSchedulingDialog(
+                              context,
+                              accountId: selectedSource.accountId,
+                              collectionId: selectedSource.davCollectionId!,
+                              draft:
+                                  (originalDraft ??
+                                          EventEditorDraft.newEvent(
+                                            accountId: selectedSource.accountId,
+                                            sourceId: selectedSource.id,
+                                            providerCalendarId: selectedSource
+                                                .providerCalendarId,
+                                            start: start,
+                                            end: end,
+                                          ))
+                                      .copyWith(
+                                        accountId: selectedSource.accountId,
+                                        sourceId: selectedSource.id,
+                                        providerCalendarId:
+                                            selectedSource.providerCalendarId,
+                                        start: start,
+                                        end: end,
+                                        allDay: allDay,
+                                        startTimeZone: selectedTimeZone,
+                                        endTimeZone: selectedTimeZone,
+                                        attendees: attendees,
+                                      ),
+                            ),
+                      child: Text(l10n.nextcloudGuestAvailability),
+                    ),
                   const SizedBox(height: 12),
                   InfoLabel(
                     label: l10n.description,
@@ -789,7 +871,12 @@ Future<bool> showWindowsEventEditorDialog(
                                     allDay: allDay,
                                     start: effectiveStart,
                                     end: effectiveEnd,
-                                    location: location.text.trim(),
+                                    location:
+                                        locationChange.changed ||
+                                            originalDraft == null
+                                        ? location.text
+                                        : originalDraft.location,
+                                    locationChange: locationChange,
                                     description: description.text.trim(),
                                     startTimeZone: selectedTimeZone,
                                     endTimeZone: selectedTimeZone,
@@ -833,9 +920,12 @@ Future<bool> showWindowsEventEditorDialog(
                                   );
                           if (originalDraft?.providerRecurringEventId != null) {
                             final scope =
-                                await _chooseRecurringEventMutationScope(
+                                await showWindowsRecurringEventMutationScope(
                                   dialogContext,
                                   selectedSource.provider,
+                                  supportsFollowingOverride: detail == null
+                                      ? null
+                                      : eventSupportsThisAndFollowing(detail),
                                 );
                             if (scope == null) {
                               if (dialogContext.mounted) {
@@ -908,11 +998,14 @@ Future<bool> showWindowsEventEditorDialog(
                           final guestProvider =
                               selectedSource.provider == BusyProvider.google ||
                                   selectedSource.provider ==
-                                      BusyProvider.microsoft
+                                      BusyProvider.microsoft ||
+                                  selectedSource.provider ==
+                                      BusyProvider.nextcloud
                               ? selectedSource.provider
                               : moveSource?.provider;
                           if ((guestProvider == BusyProvider.google ||
-                                  guestProvider == BusyProvider.microsoft) &&
+                                  guestProvider == BusyProvider.microsoft ||
+                                  guestProvider == BusyProvider.nextcloud) &&
                               draft.isOrganizer == true &&
                               _hasExternalGuests(
                                 draft.attendees,
@@ -1228,12 +1321,15 @@ Future<bool> _confirmDiscardEventChanges(BuildContext context) async {
       false;
 }
 
-Future<RecurringEventMutationScope?> _chooseRecurringEventMutationScope(
+Future<RecurringEventMutationScope?> showWindowsRecurringEventMutationScope(
   BuildContext context,
-  BusyProvider provider,
-) {
+  BusyProvider provider, {
+  bool? supportsFollowingOverride,
+}) {
   final l10n = AppLocalizations.of(context);
-  final supportsFollowing = supportsThisAndFollowingEventMutation(provider);
+  final supportsFollowing =
+      supportsFollowingOverride ??
+      supportsThisAndFollowingEventMutation(provider);
   return showDialog<RecurringEventMutationScope>(
     context: context,
     barrierDismissible: false,

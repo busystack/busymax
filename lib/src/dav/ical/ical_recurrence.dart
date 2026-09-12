@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 
 import '../dav_errors.dart';
+import '../../features/maps/domain/geographic_point.dart';
 import 'ical_document.dart';
 import 'ical_semantics.dart';
 import 'ical_timezone.dart';
@@ -58,7 +59,35 @@ final class IcalOccurrence {
       inheritedOverride?.description ??
       master.description;
   String? get location =>
-      override?.location ?? inheritedOverride?.location ?? master.location;
+      effectiveIcalLocation([override, inheritedOverride, master]);
+  GeographicPoint? get locationPoint =>
+      effectiveIcalLocationPoint([override, inheritedOverride, master]);
+}
+
+String? effectiveIcalLocation(Iterable<IcalSemanticComponent?> components) {
+  for (final component in components) {
+    if (component?.documentComponent.firstProperty('LOCATION') != null) {
+      return component!.location;
+    }
+  }
+  return null;
+}
+
+/// An explicit LOCATION is an inheritance boundary, including an empty value.
+/// A different venue must never inherit an old master's coordinates.
+GeographicPoint? effectiveIcalLocationPoint(
+  Iterable<IcalSemanticComponent?> components,
+) {
+  for (final component in components) {
+    if (component == null) continue;
+    if (component.documentComponent.firstProperty('GEO') != null) {
+      return component.locationPoint;
+    }
+    if (component.documentComponent.firstProperty('LOCATION') != null) {
+      return null;
+    }
+  }
+  return null;
 }
 
 /// Expands an RFC 5545 recurrence set from its authoritative resource.
@@ -139,28 +168,6 @@ final class IcalRecurrenceExpander {
     final anchor = master.start ?? master.due;
     if (anchor == null) return const [];
 
-    final starts = <String, IcalTemporalValue>{
-      _temporalIdentity(anchor): anchor,
-    };
-    for (final ruleText in master.recurrenceRules) {
-      final rule = _RecurrenceRule.parse(
-        ruleText,
-        anchor: anchor,
-        maximumValues: limits.maximumRuleValues,
-      );
-      _addRuleStarts(starts, rule, anchor, rangeEnd, timeZoneResolver);
-    }
-    for (final property in master.documentComponent.propertiesNamed('RDATE')) {
-      for (final value in _parseDateList(property, anchor)) {
-        starts[_temporalIdentity(value)] = value;
-      }
-    }
-    for (final property in master.documentComponent.propertiesNamed('EXDATE')) {
-      for (final value in _parseDateList(property, anchor)) {
-        starts.remove(_temporalIdentity(value));
-      }
-    }
-
     final overrides = <String, IcalSemanticComponent>{};
     for (final component in document.components) {
       final recurrenceId = component.recurrenceId;
@@ -175,9 +182,6 @@ final class IcalRecurrenceExpander {
         );
       }
       overrides[key] = component;
-      // Retain detached exceptions even when a malformed or changed server
-      // rule no longer generates their original RECURRENCE-ID.
-      starts.putIfAbsent(key, () => recurrenceId);
     }
 
     final rangeOverrides =
@@ -186,10 +190,108 @@ final class IcalRecurrenceExpander {
             .toList(growable: false)
           ..sort((left, right) => _compareRecurrenceIds(left, right));
 
-    if (starts.length > limits.maximumOccurrences) {
-      throw _occurrenceLimitError();
-    }
     final masterDuration = _componentDuration(master, timeZoneResolver);
+    final candidateBounds = _candidateProjectionBounds(
+      rangeStart,
+      rangeEnd,
+      masterDuration,
+      rangeOverrides,
+      timeZoneResolver,
+    );
+    final starts = <String, IcalTemporalValue>{};
+    final excludedStartKeys = {
+      for (final property in master.documentComponent.propertiesNamed('EXDATE'))
+        for (final value in _parseDateList(property, anchor))
+          _temporalIdentity(value),
+    };
+    void retainIfRelevant(IcalTemporalValue value) {
+      final key = _temporalIdentity(value);
+      if (excludedStartKeys.contains(key)) return;
+      final exception = overrides[key];
+      final inheritedOverride = exception == null
+          ? _rangeOverrideFor(value, rangeOverrides)
+          : null;
+      final effectiveStart =
+          exception?.start ??
+          exception?.due ??
+          _rangeAdjustedStart(value, inheritedOverride) ??
+          value;
+      final effectiveEnd = exception != null
+          ? _occurrenceEnd(
+              exception,
+              effectiveStart,
+              masterDuration,
+              timeZoneResolver,
+            )
+          : _rangeOccurrenceEnd(
+              inheritedOverride,
+              effectiveStart,
+              masterDuration,
+              timeZoneResolver,
+            );
+      if (_overlaps(
+        effectiveStart,
+        effectiveEnd,
+        rangeStart,
+        rangeEnd,
+        timeZoneResolver,
+      )) {
+        starts[key] = value;
+        if (starts.length > limits.maximumOccurrences) {
+          throw _occurrenceLimitError();
+        }
+      }
+    }
+
+    retainIfRelevant(anchor);
+    for (final ruleText in master.recurrenceRules) {
+      final rule = _RecurrenceRule.parse(
+        ruleText,
+        anchor: anchor,
+        maximumValues: limits.maximumRuleValues,
+      );
+      _addRuleStarts(
+        starts,
+        rule,
+        anchor,
+        candidateBounds.start,
+        candidateBounds.end,
+        timeZoneResolver,
+        retainIfRelevant,
+      );
+    }
+    for (final property in master.documentComponent.propertiesNamed('RDATE')) {
+      for (final value in _parseDateList(property, anchor)) {
+        retainIfRelevant(value);
+      }
+    }
+    for (final entry in overrides.entries) {
+      final exception = entry.value;
+      final effectiveStart =
+          exception.start ?? exception.due ?? exception.recurrenceId!;
+      final effectiveEnd = _occurrenceEnd(
+        exception,
+        effectiveStart,
+        masterDuration,
+        timeZoneResolver,
+      );
+      if (!excludedStartKeys.contains(entry.key) &&
+          _overlaps(
+            effectiveStart,
+            effectiveEnd,
+            rangeStart,
+            rangeEnd,
+            timeZoneResolver,
+          )) {
+        // Retain detached exceptions even when a malformed or changed server
+        // rule no longer generates their original RECURRENCE-ID.
+        starts.putIfAbsent(entry.key, () => exception.recurrenceId!);
+        if (starts.length > limits.maximumOccurrences) {
+          throw _occurrenceLimitError();
+        }
+      }
+    }
+
     final result = <IcalOccurrence>[];
     for (final entry in starts.entries) {
       final originalStart = entry.value;
@@ -203,7 +305,12 @@ final class IcalRecurrenceExpander {
           _rangeAdjustedStart(originalStart, inheritedOverride) ??
           originalStart;
       final effectiveEnd = exception != null
-          ? _occurrenceEnd(exception, effectiveStart, masterDuration)
+          ? _occurrenceEnd(
+              exception,
+              effectiveStart,
+              masterDuration,
+              timeZoneResolver,
+            )
           : _rangeOccurrenceEnd(
               inheritedOverride,
               effectiveStart,
@@ -247,17 +354,27 @@ final class IcalRecurrenceExpander {
     Map<String, IcalTemporalValue> starts,
     _RecurrenceRule rule,
     IcalTemporalValue anchor,
-    DateTime rangeEndUtc,
+    DateTime candidateRangeStartUtc,
+    DateTime candidateRangeEndUtc,
     IcalTimeZoneResolver timeZoneResolver,
+    void Function(IcalTemporalValue value) retainIfRelevant,
   ) {
     var generatedForCount = 0;
     var reachedEnd = false;
-    for (var period = 0; period < limits.maximumPeriods; period += 1) {
+    for (
+      var period = rule.firstProjectionPeriod(
+        candidateRangeStartUtc,
+        anchor,
+        timeZoneResolver,
+      );
+      period < limits.maximumPeriods;
+      period += 1
+    ) {
       final candidates = rule.candidatesForPeriod(anchor.localValue, period);
       if (candidates.isEmpty &&
           rule.periodStartsAfter(
             period,
-            rangeEndUtc,
+            candidateRangeEndUtc,
             anchor,
             timeZoneResolver,
           )) {
@@ -277,15 +394,12 @@ final class IcalRecurrenceExpander {
           reachedEnd = true;
           break;
         }
-        starts[_temporalIdentity(value)] = value;
-        if (starts.length > limits.maximumOccurrences) {
-          throw _occurrenceLimitError();
-        }
+        retainIfRelevant(value);
       }
       if (reachedEnd) break;
       if (rule.periodStartsAfter(
         period + 1,
-        rangeEndUtc,
+        candidateRangeEndUtc,
         anchor,
         timeZoneResolver,
       )) {
@@ -496,6 +610,41 @@ final class _RecurrenceRule {
       _withWallValue(anchor, wall),
       resolver: timeZoneResolver,
     ).isAfter(rangeEndUtc);
+  }
+
+  /// For unbounded rules, periods before the caller's duration- and
+  /// range-adjustment-aware candidate bound cannot contribute an occurrence.
+  /// One extra interval is retained only as a calendar/DST rounding guard.
+  int firstProjectionPeriod(
+    DateTime rangeStartUtc,
+    IcalTemporalValue anchor,
+    IcalTimeZoneResolver timeZoneResolver,
+  ) {
+    if (count != null) return 0;
+    final localRangeStart = switch (anchor.kind) {
+      IcalTemporalKind.tzidDateTime => timeZoneResolver.fromUtc(
+        rangeStartUtc,
+        anchor.timeZoneId!,
+      ),
+      _ => rangeStartUtc,
+    };
+    final wallStart = _wallDateTime(anchor.localValue);
+    final wallEnd = _wallDateTime(localRangeStart);
+    final difference = wallEnd.difference(wallStart);
+    final units = switch (frequency) {
+      _Frequency.secondly => difference.inSeconds,
+      _Frequency.minutely => difference.inMinutes,
+      _Frequency.hourly => difference.inHours,
+      _Frequency.daily => difference.inDays,
+      _Frequency.weekly => difference.inDays ~/ DateTime.daysPerWeek,
+      _Frequency.monthly =>
+        (wallEnd.year - wallStart.year) * DateTime.monthsPerYear +
+            wallEnd.month -
+            wallStart.month,
+      _Frequency.yearly => wallEnd.year - wallStart.year,
+    };
+    if (units <= 0) return 0;
+    return math.max(0, units ~/ interval - 1);
   }
 
   DateTime _periodAnchor(DateTime start, int period) => switch (frequency) {
@@ -755,13 +904,17 @@ IcalTemporalValue _parseTemporalToken(
   )!;
 }
 
-IcalTemporalValue _withWallValue(IcalTemporalValue prototype, DateTime wall) =>
-    IcalTemporalValue(
-      rawValue: _formatWallValue(wall, prototype.kind),
-      kind: prototype.kind,
-      localValue: wall,
-      timeZoneId: prototype.timeZoneId,
-    );
+IcalTemporalValue _withWallValue(
+  IcalTemporalValue prototype,
+  DateTime wall, {
+  DateTime? resolvedUtc,
+}) => IcalTemporalValue(
+  rawValue: _formatWallValue(wall, prototype.kind),
+  kind: prototype.kind,
+  localValue: wall,
+  timeZoneId: prototype.timeZoneId,
+  resolvedUtc: resolvedUtc,
+);
 
 String _formatWallValue(DateTime value, IcalTemporalKind kind) {
   String two(int number) => number.toString().padLeft(2, '0');
@@ -783,35 +936,130 @@ String _temporalIdentity(IcalTemporalValue value) => switch (value.kind) {
   IcalTemporalKind.tzidDateTime => 'TZID=${value.timeZoneId}:${value.rawValue}',
 };
 
-Duration _componentDuration(
+/// Recurrence duration keeps iCalendar's civil-day and exact-time forms
+/// distinct.  PnD/PnW advances a TZID value on the civil calendar, whereas
+/// PTnH/PTnM/PTnS advances its UTC instant.  Flattening both into Duration
+/// makes an event change length at a daylight-saving transition.
+final class _OccurrenceDuration {
+  const _OccurrenceDuration._({
+    required this.calendarDays,
+    required this.exact,
+  });
+
+  factory _OccurrenceDuration.fromIcal(IcalDuration duration) {
+    final sign = duration.negative ? -1 : 1;
+    return _OccurrenceDuration._(
+      calendarDays: sign * (duration.weeks * 7 + duration.days),
+      exact: Duration(
+        hours: sign * duration.hours,
+        minutes: sign * duration.minutes,
+        seconds: sign * duration.seconds,
+      ),
+    );
+  }
+
+  factory _OccurrenceDuration.exact(Duration duration) =>
+      _OccurrenceDuration._(calendarDays: 0, exact: duration);
+
+  final int calendarDays;
+  final Duration exact;
+
+  bool get isZero => calendarDays == 0 && exact == Duration.zero;
+}
+
+({DateTime start, DateTime end}) _candidateProjectionBounds(
+  DateTime rangeStartUtc,
+  DateTime rangeEndUtc,
+  _OccurrenceDuration masterDuration,
+  List<IcalSemanticComponent> rangeOverrides,
+  IcalTimeZoneResolver timeZoneResolver,
+) {
+  var maximumDuration = _positiveProjectionSpan(masterDuration);
+  var maximumForwardShift = Duration.zero;
+  var maximumBackwardShift = Duration.zero;
+  for (final override in rangeOverrides) {
+    final recurrenceId = override.recurrenceId!;
+    final effectiveStart = override.start ?? override.due;
+    if (effectiveStart != null) {
+      final shift = _wallDateTime(
+        effectiveStart.localValue,
+      ).difference(_wallDateTime(recurrenceId.localValue));
+      if (!shift.isNegative && shift.compareTo(maximumForwardShift) > 0) {
+        maximumForwardShift = shift;
+      } else if (shift.isNegative) {
+        final magnitude = Duration(microseconds: -shift.inMicroseconds);
+        if (magnitude.compareTo(maximumBackwardShift) > 0) {
+          maximumBackwardShift = magnitude;
+        }
+      }
+    }
+    if (override.duration != null || override.end != null) {
+      final span = _positiveProjectionSpan(
+        _componentDuration(override, timeZoneResolver),
+      );
+      if (span.compareTo(maximumDuration) > 0) maximumDuration = span;
+    }
+  }
+  return (
+    start: rangeStartUtc.subtract(maximumDuration + maximumForwardShift),
+    end: rangeEndUtc.add(maximumBackwardShift),
+  );
+}
+
+Duration _positiveProjectionSpan(_OccurrenceDuration duration) {
+  final exact = duration.exact.isNegative ? Duration.zero : duration.exact;
+  if (duration.calendarDays <= 0) return exact;
+  // Civil days can be longer than 24 hours at an offset transition. The
+  // additional day is a conservative bound while final inclusion still uses
+  // the exact effective occurrence interval.
+  return Duration(days: duration.calendarDays + 1) + exact;
+}
+
+_OccurrenceDuration _componentDuration(
   IcalSemanticComponent component,
   IcalTimeZoneResolver timeZoneResolver,
 ) {
-  if (component.duration != null) return component.duration!.duration;
+  if (component.duration != null) {
+    return _OccurrenceDuration.fromIcal(component.duration!);
+  }
   final start = component.start ?? component.due;
   final end = component.end;
-  if (start == null || end == null) return Duration.zero;
-  if (start.kind == IcalTemporalKind.tzidDateTime &&
-      end.kind == IcalTemporalKind.tzidDateTime &&
-      start.timeZoneId == end.timeZoneId) {
-    return end.localValue.difference(start.localValue);
+  if (start == null || end == null) {
+    return _OccurrenceDuration.exact(Duration.zero);
   }
-  return icalTemporalToUtc(
-    end,
-    resolver: timeZoneResolver,
-  ).difference(icalTemporalToUtc(start, resolver: timeZoneResolver));
+  if (start.kind == IcalTemporalKind.date &&
+      end.kind == IcalTemporalKind.date) {
+    return _OccurrenceDuration._(
+      calendarDays: end.localValue.difference(start.localValue).inDays,
+      exact: Duration.zero,
+    );
+  }
+  if (start.kind == IcalTemporalKind.floatingDateTime &&
+      end.kind == IcalTemporalKind.floatingDateTime) {
+    return _OccurrenceDuration.exact(
+      end.localValue.difference(start.localValue),
+    );
+  }
+  return _OccurrenceDuration.exact(
+    icalTemporalToUtc(
+      end,
+      resolver: timeZoneResolver,
+    ).difference(icalTemporalToUtc(start, resolver: timeZoneResolver)),
+  );
 }
 
 IcalTemporalValue? _occurrenceEnd(
   IcalSemanticComponent? exception,
   IcalTemporalValue start,
-  Duration masterDuration,
+  _OccurrenceDuration masterDuration,
+  IcalTimeZoneResolver timeZoneResolver,
 ) {
   final explicitEnd = exception?.end;
   if (explicitEnd != null) return explicitEnd;
-  final duration = exception?.duration?.duration ?? masterDuration;
-  if (duration == Duration.zero) return null;
-  return _withWallValue(start, start.localValue.add(duration));
+  final duration = exception?.duration == null
+      ? masterDuration
+      : _OccurrenceDuration.fromIcal(exception!.duration!);
+  return _applyDuration(start, duration, timeZoneResolver);
 }
 
 int _compareRecurrenceIds(
@@ -852,7 +1100,7 @@ IcalTemporalValue? _rangeAdjustedStart(
 IcalTemporalValue? _rangeOccurrenceEnd(
   IcalSemanticComponent? rangeOverride,
   IcalTemporalValue start,
-  Duration masterDuration,
+  _OccurrenceDuration masterDuration,
   IcalTimeZoneResolver timeZoneResolver,
 ) {
   final hasRangeDuration =
@@ -860,8 +1108,32 @@ IcalTemporalValue? _rangeOccurrenceEnd(
   final duration = hasRangeDuration
       ? _componentDuration(rangeOverride!, timeZoneResolver)
       : masterDuration;
-  if (duration == Duration.zero) return null;
-  return _withWallValue(start, start.localValue.add(duration));
+  return _applyDuration(start, duration, timeZoneResolver);
+}
+
+IcalTemporalValue? _applyDuration(
+  IcalTemporalValue start,
+  _OccurrenceDuration duration,
+  IcalTimeZoneResolver timeZoneResolver,
+) {
+  if (duration.isZero) return null;
+  var value = start;
+  if (duration.calendarDays != 0) {
+    value = _withWallValue(
+      value,
+      _wallDateTime(
+        value.localValue,
+      ).add(Duration(days: duration.calendarDays)),
+    );
+  }
+  if (duration.exact == Duration.zero) return value;
+  if (value.kind == IcalTemporalKind.tzidDateTime) {
+    final timeZoneId = value.timeZoneId!;
+    final resolvedUtc = timeZoneResolver.toUtc(value).add(duration.exact);
+    final local = timeZoneResolver.fromUtc(resolvedUtc, timeZoneId);
+    return _withWallValue(value, local, resolvedUtc: resolvedUtc);
+  }
+  return _withWallValue(value, value.localValue.add(duration.exact));
 }
 
 DateTime _wallDateTime(DateTime value) => DateTime.utc(

@@ -429,11 +429,9 @@ void main() {
 
     final release = releaseBusyMaxModalBarrier(service);
     await tester.pump();
-    expect(
-      transitions,
-      [(visible: true, shadeDepth: 1)],
-      reason: 'the native hide must wait for the in-flight native show',
-    );
+    expect(transitions, [
+      (visible: true, shadeDepth: 1),
+    ], reason: 'the native hide must wait for the in-flight native show');
 
     firstUpdate.complete();
     await Future.wait([acquire, release]);
@@ -454,11 +452,10 @@ void main() {
       acquireBusyMaxModalBarrier(service),
       throwsA(isA<StateError>()),
     );
-    expect(
-      service.transitions,
-      [(visible: true, shadeDepth: 1), (visible: false, shadeDepth: 0)],
-      reason: 'a failed native show requires a best-effort native rollback',
-    );
+    expect(service.transitions, [
+      (visible: true, shadeDepth: 1),
+      (visible: false, shadeDepth: 0),
+    ], reason: 'a failed native show requires a best-effort native rollback');
 
     await acquireBusyMaxModalBarrier(service);
     await releaseBusyMaxModalBarrier(service);

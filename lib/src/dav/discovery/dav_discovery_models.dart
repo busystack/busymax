@@ -1,7 +1,7 @@
 import '../../providers/busy_provider.dart';
 import '../../providers/provider_capabilities.dart';
 
-const davCapabilitiesSchemaVersion = 1;
+const davCapabilitiesSchemaVersion = 2;
 const davComponentEvent = 1 << 0;
 const davComponentTodo = 1 << 1;
 const davComponentTimezone = 1 << 2;
@@ -18,7 +18,73 @@ enum DavCollectionKind {
   schedulingInbox,
   schedulingOutbox,
   notifications,
+  trashBin,
+  deletedCalendar,
   unsupported,
+}
+
+/// Each discovered identity retains its own home and scheduling context.
+/// Delegation never replaces the authenticated principal or invents a path.
+final class DavPrincipalContext {
+  const DavPrincipalContext({
+    required this.principalHref,
+    required this.calendarHomeHref,
+    this.calendarUserAddresses = const [],
+    this.scheduleInboxHref,
+    this.scheduleOutboxHref,
+    this.scheduleDefaultCalendarHref,
+    this.homePrivileges = const {},
+    this.outboxPrivileges = const {},
+    this.delegated = false,
+  });
+  final Uri principalHref;
+  final Uri calendarHomeHref;
+  final List<Uri> calendarUserAddresses;
+  final Uri? scheduleInboxHref;
+  final Uri? scheduleOutboxHref;
+  final Uri? scheduleDefaultCalendarHref;
+  final Set<String> homePrivileges;
+  final Set<String> outboxPrivileges;
+  final bool delegated;
+  Map<String, Object?> toJson() => {
+    'principalHref': principalHref.toString(),
+    'calendarHomeHref': calendarHomeHref.toString(),
+    'calendarUserAddresses': calendarUserAddresses
+        .map((v) => v.toString())
+        .toList(),
+    'scheduleInboxHref': scheduleInboxHref?.toString(),
+    'scheduleOutboxHref': scheduleOutboxHref?.toString(),
+    'scheduleDefaultCalendarHref': scheduleDefaultCalendarHref?.toString(),
+    'homePrivileges': homePrivileges.toList()..sort(),
+    'outboxPrivileges': outboxPrivileges.toList()..sort(),
+    'delegated': delegated,
+  };
+  factory DavPrincipalContext.fromJson(Map<String, Object?> value) =>
+      DavPrincipalContext(
+        principalHref: Uri.parse(value['principalHref']! as String),
+        calendarHomeHref: Uri.parse(value['calendarHomeHref']! as String),
+        calendarUserAddresses: (value['calendarUserAddresses'] as List? ?? [])
+            .cast<String>()
+            .map(Uri.parse)
+            .toList(),
+        scheduleInboxHref: value['scheduleInboxHref'] is String
+            ? Uri.parse(value['scheduleInboxHref']! as String)
+            : null,
+        scheduleOutboxHref: value['scheduleOutboxHref'] is String
+            ? Uri.parse(value['scheduleOutboxHref']! as String)
+            : null,
+        scheduleDefaultCalendarHref:
+            value['scheduleDefaultCalendarHref'] is String
+            ? Uri.parse(value['scheduleDefaultCalendarHref']! as String)
+            : null,
+        homePrivileges: (value['homePrivileges'] as List? ?? [])
+            .cast<String>()
+            .toSet(),
+        outboxPrivileges: (value['outboxPrivileges'] as List? ?? [])
+            .cast<String>()
+            .toSet(),
+        delegated: value['delegated'] == true,
+      );
 }
 
 final class DavServiceDiscovery {
@@ -34,6 +100,7 @@ final class DavServiceDiscovery {
     required this.discoveredAtUtc,
     required this.lastValidatedAtUtc,
     required this.providerProfileVersion,
+    this.principalContexts = const [],
   });
 
   final Uri canonicalServiceUri;
@@ -47,6 +114,7 @@ final class DavServiceDiscovery {
   final DateTime discoveredAtUtc;
   final DateTime lastValidatedAtUtc;
   final int providerProfileVersion;
+  final List<DavPrincipalContext> principalContexts;
 }
 
 final class DavCollectionDiscovery {
@@ -75,6 +143,10 @@ final class DavCollectionDiscovery {
     required this.kind,
     required this.eventProjectionEnabled,
     required this.taskProjectionEnabled,
+    this.principalHref,
+    this.calendarHomeHref,
+    this.delegated = false,
+    this.parentPrivileges = const {},
   });
 
   final String hrefKey;
@@ -101,6 +173,10 @@ final class DavCollectionDiscovery {
   final DavCollectionKind kind;
   final bool eventProjectionEnabled;
   final bool taskProjectionEnabled;
+  final Uri? principalHref;
+  final Uri? calendarHomeHref;
+  final bool delegated;
+  final Set<String> parentPrivileges;
 }
 
 final class DavDiscoveryResult {

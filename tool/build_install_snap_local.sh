@@ -289,7 +289,7 @@ DEFINE_ENTRY_COUNT=$((${#DART_DEFINE_ARGS[@]} + ${#DART_DEFINE_FILE_ARGS[@]}))
 echo "Defines:  $DEFINE_ENTRY_COUNT build-time entries"
 if [[ "$DEFINE_ENTRY_COUNT" -eq 0 ]]; then
   cat >&2 <<'EOF'
-Warning: No OAuth build definitions were supplied.
+Warning: No build definitions were supplied.
 Google and Microsoft sign-in will be unavailable in this local build.
 Apple and Nextcloud remain available.
 To configure OAuth providers, rebuild with:
@@ -307,7 +307,8 @@ else
 fi
 
 echo "== Build Flutter Linux release =="
-flutter build linux --release "${DART_DEFINE_ARGS[@]}" "${DART_DEFINE_FILE_ARGS[@]}"
+flutter build linux --release -t lib/main_linux.dart \
+  "${DART_DEFINE_ARGS[@]}" "${DART_DEFINE_FILE_ARGS[@]}"
 
 test -f "$BUNDLE_DIR/$BINARY_NAME" || fail "missing built binary: $BUNDLE_DIR/$BINARY_NAME"
 

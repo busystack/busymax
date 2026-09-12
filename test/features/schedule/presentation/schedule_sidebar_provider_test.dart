@@ -1,50 +1,11 @@
 import 'package:busymax/src/features/accounts/data/accounts_repository.dart';
 import 'package:busymax/src/features/calendar/data/calendar_repository.dart';
 import 'package:busymax/src/features/schedule/presentation/schedule_sidebar.dart';
-import 'package:busymax/src/features/task_lists/data/task_lists_repository.dart';
 import 'package:busymax/src/providers/busy_provider.dart';
-import 'package:flutter/material.dart';
+import 'package:busymax/src/schedule/schedule_sidebar_sources.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import '../../../test_localized_app.dart';
-
 void main() {
-  testWidgets('sidebar task-list labels map every provider explicitly', (
-    tester,
-  ) async {
-    late List<String> labels;
-    await tester.pumpWidget(
-      localizedTestApp(
-        child: Builder(
-          builder: (context) {
-            labels = [
-              for (final entry in <(BusyProvider, String)>[
-                (BusyProvider.google, 'Google list'),
-                (BusyProvider.microsoft, 'Microsoft list'),
-                (BusyProvider.appleICloud, 'Apple list'),
-                (BusyProvider.nextcloud, 'Project Tasks'),
-              ])
-                scheduleTaskListLabel(
-                  context,
-                  _account(entry.$1),
-                  _taskList(_account(entry.$1).id, entry.$2),
-                ),
-            ];
-            return const SizedBox.shrink();
-          },
-        ),
-      ),
-    );
-
-    expect(labels, [
-      'Google Tasks · Google list',
-      'Microsoft To Do · Microsoft list',
-      'Apple iCloud · Apple list',
-      'Nextcloud Tasks · Project Tasks',
-    ]);
-    expect(labels.last, isNot(contains('Microsoft To Do')));
-  });
-
   test('provider links never fall through to a different provider', () {
     final google = _account(BusyProvider.google);
     final microsoft = _account(BusyProvider.microsoft);
@@ -99,6 +60,20 @@ void main() {
     expect(scheduleCalendarProviderWebUri(nextcloud, mismatchedSource), isNull);
     expect(scheduleTaskProviderWebUri(unsafeAccount), isNull);
   });
+
+  test('desktop sidebars exclude provider-hidden and deleted calendars', () {
+    final google = _account(BusyProvider.google);
+    final microsoft = _account(BusyProvider.microsoft);
+
+    final shown = calendarSourcesShownInSidebar([
+      _calendarSource(google, id: 'visible'),
+      _calendarSource(google, id: 'hidden', hidden: true),
+      _calendarSource(google, id: 'deleted', isDeleted: true),
+      _calendarSource(microsoft, id: 'other-account'),
+    ], accountId: google.id);
+
+    expect(shown.map((source) => source.id), ['visible']);
+  });
 }
 
 AccountEntity _account(BusyProvider provider) {
@@ -118,30 +93,22 @@ AccountEntity _account(BusyProvider provider) {
   );
 }
 
-TaskListEntity _taskList(String accountId, String title) {
-  return TaskListEntity(
-    accountId: accountId,
-    id: 'list',
-    title: title,
-    localDirty: false,
-    pendingDelete: false,
-    rawJson: '{}',
-  );
-}
-
 CalendarSourceEntity _calendarSource(
   AccountEntity account, {
+  String id = 'source',
   String providerCalendarId = 'calendar',
+  bool hidden = false,
+  bool isDeleted = false,
 }) {
   return CalendarSourceEntity(
-    id: 'source',
+    id: id,
     accountId: account.id,
     provider: account.provider,
     providerCalendarId: providerCalendarId,
     summary: 'Calendar',
     selected: true,
-    hidden: false,
+    hidden: hidden,
     readOnly: false,
-    isDeleted: false,
+    isDeleted: isDeleted,
   );
 }

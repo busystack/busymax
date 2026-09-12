@@ -1,4 +1,5 @@
 import 'dart:convert';
+import '../features/maps/domain/geographic_point.dart';
 
 import 'package:drift/drift.dart';
 
@@ -8,6 +9,8 @@ import '../core/time/provider_date_time.dart';
 import '../dav/storage/dav_collection_capabilities.dart';
 import '../db/app_database.dart';
 import '../features/accounts/data/accounts_repository.dart';
+import '../features/calendar/data/calendar_event_detail.dart';
+import '../features/calendar/domain/event_timing_policy.dart';
 import '../features/tasks/domain/task_checklist_item.dart';
 import 'package:busymax/src/providers/busy_provider.dart';
 import 'schedule_filters.dart';
@@ -382,6 +385,12 @@ class ScheduleRepository {
     final query =
         _database.select(_database.calendarEvents).join([
             leftOuterJoin(
+              _database.davCollections,
+              _database.davCollections.id.equalsExp(
+                _database.calendarEvents.davCollectionId,
+              ),
+            ),
+            leftOuterJoin(
               _database.calendarSources,
               _database.calendarSources.id.equalsExp(
                 _database.calendarEvents.calendarSourceId,
@@ -418,6 +427,13 @@ class ScheduleRepository {
       final isOrganizer = _eventIsOrganizer(provider, organizer, raw);
       final sourceWritable =
           source != null && !source.readOnly && !source.isDeleted;
+      final collection = row.readTableOrNull(_database.davCollections);
+      final scheduling =
+          _jsonMapFromString(collection?.safeDisplayMetadataJson) ??
+          const <String, Object?>{};
+      final davCapabilities = collection == null
+          ? null
+          : collectionCapabilitiesFromStored(collection);
       if (!searching && !_intersects(range, start, end)) {
         continue;
       }
@@ -429,11 +445,18 @@ class ScheduleRepository {
           sourceId: event.calendarSourceId,
           providerCalendarId: event.providerCalendarId,
           providerRecurringEventId: event.providerRecurringEventId,
+          timingBaseline: EventTimingBaseline.fromDetail(
+            CalendarEventDetail.fromRow(event),
+          ),
           title: event.title,
           allDay: event.allDay,
           start: start,
           end: end,
           location: event.location,
+          locationPoint: GeographicPoint.tryParse(
+            latitude: event.locationLatitude,
+            longitude: event.locationLongitude,
+          ),
           description: event.description,
           descriptionContentType: descriptionBody.contentType,
           descriptionHtml: descriptionBody.html,
@@ -441,6 +464,18 @@ class ScheduleRepository {
           organizer: organizer,
           joinMeetingUrl: _eventJoinMeetingUrl(provider, conference, raw),
           isOrganizer: isOrganizer,
+          isFederated:
+              provider == BusyProvider.nextcloud &&
+              scheduling['federated'] == true,
+          canSendReply:
+              provider == BusyProvider.nextcloud &&
+              scheduling['canReply'] == true &&
+              collectionCapabilitiesFromStored(collection!).canUpdateEvent,
+          timingEditable:
+              provider != BusyProvider.nextcloud ||
+              attendees.isEmpty ||
+              (isOrganizer == true && scheduling['canInvite'] == true) ||
+              scheduling['federated'] == true,
           guestsCanModify: provider == BusyProvider.google
               ? raw['guestsCanModify'] == true
               : null,
@@ -468,9 +503,20 @@ class ScheduleRepository {
           accountEmail: accountEmails[event.accountId],
           capabilities: ScheduleItemCapabilities(
             canEdit:
-                sourceWritable &&
-                _eventAllowsFullEditing(provider, isOrganizer, raw),
-            canDelete: sourceWritable,
+                (provider == BusyProvider.nextcloud
+                    ? davCapabilities?.canUpdateEvent == true &&
+                          source?.isDeleted == false
+                    : sourceWritable) &&
+                _eventAllowsFullEditing(
+                  provider,
+                  isOrganizer,
+                  raw,
+                  attendees.isNotEmpty,
+                ),
+            canDelete: provider == BusyProvider.nextcloud
+                ? davCapabilities?.canDeleteEvent == true &&
+                      source?.isDeleted == false
+                : sourceWritable,
           ),
         ),
       );
@@ -702,6 +748,11 @@ class ScheduleRepository {
       start: start,
       end: _taskEnd(task, provider),
       notes: task.notes ?? task.bodyContent,
+      location: task.taskLocation,
+      locationPoint: GeographicPoint.tryParse(
+        latitude: task.locationLatitude,
+        longitude: task.locationLongitude,
+      ),
       categories: _stringListFromJson(task.categoriesJson),
       reminder: task.microsoftIsReminderOn == true
           ? providerDateTimeAsLocal(
@@ -1226,10 +1277,9 @@ bool? _eventIsOrganizer(
 ) {
   return switch (provider) {
     BusyProvider.google => organizer?['self'] as bool?,
-    BusyProvider.microsoft => raw['isOrganizer'] as bool?,
-    BusyProvider.appleICloud ||
-    BusyProvider.nextcloud ||
-    BusyProvider.webCal => null,
+    BusyProvider.microsoft ||
+    BusyProvider.nextcloud => raw['isOrganizer'] as bool?,
+    BusyProvider.appleICloud || BusyProvider.webCal => null,
   };
 }
 
@@ -1237,8 +1287,15 @@ bool _eventAllowsFullEditing(
   BusyProvider provider,
   bool? isOrganizer,
   Map<String, Object?> raw,
+  bool hasAttendees,
 ) {
   if (provider == BusyProvider.webCal) return false;
+  if (provider == BusyProvider.nextcloud &&
+      hasAttendees &&
+      isOrganizer == false &&
+      raw['federated'] != true) {
+    return false;
+  }
   if (provider != BusyProvider.google) return true;
   return raw['locked'] != true &&
       (isOrganizer == true || raw['guestsCanModify'] == true);
@@ -1249,7 +1306,7 @@ String? _eventCurrentUserResponse(
   List<Map<String, Object?>> attendees,
   Map<String, Object?> raw,
 ) {
-  if (provider == BusyProvider.google) {
+  if (provider == BusyProvider.google || provider == BusyProvider.nextcloud) {
     for (final attendee in attendees) {
       if (attendee['self'] == true) {
         return attendee['responseStatus']?.toString();

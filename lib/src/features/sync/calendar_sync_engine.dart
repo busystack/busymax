@@ -5,6 +5,7 @@ import 'package:busymax/src/providers/busy_provider.dart';
 import '../calendar/data/calendar_repository.dart';
 import '../notifications/notification_schedule_service.dart';
 import 'calendar_pending_ops_replayer.dart';
+import 'collection_id_replacement.dart';
 
 // Google sync tokens are bound to their request shape. Bump this marker when
 // changing token-compatible event-list parameters so old cursors are rebased.
@@ -17,12 +18,14 @@ class CalendarSyncEngine {
     required String accountId,
     DateTime Function()? nowUtc,
     Future<void> Function(String summary)? onConflictBlocked,
+    CollectionIdReplacement? onCalendarSourceIdReplaced,
     Future<void> Function()? onNotificationScheduleChanged,
   }) : _repository = CalendarRepository(database: database, now: nowUtc),
        _database = database,
        _client = client,
        _accountId = accountId,
        _onConflictBlocked = onConflictBlocked,
+       _onCalendarSourceIdReplaced = onCalendarSourceIdReplaced,
        _onNotificationScheduleChanged = onNotificationScheduleChanged,
        _nowUtc = nowUtc ?? (() => DateTime.now().toUtc());
 
@@ -31,6 +34,7 @@ class CalendarSyncEngine {
   final CloudCalendarClient _client;
   final String _accountId;
   final Future<void> Function(String summary)? _onConflictBlocked;
+  final CollectionIdReplacement? _onCalendarSourceIdReplaced;
   final Future<void> Function()? _onNotificationScheduleChanged;
   final DateTime Function() _nowUtc;
 
@@ -118,12 +122,12 @@ class CalendarSyncEngine {
 
   Future<List<CalendarSourceDto>> _refreshCalendarSources() async {
     // listCalendars() returns only after every page has been retrieved, so an
-    // absent Microsoft calendar can be treated as a provider-side deletion.
+    // absent cloud calendar can be treated as a provider-side deletion.
     final calendars = await _client.listCalendars();
     for (final calendar in calendars) {
       await _repository.upsertSource(accountId: _accountId, source: calendar);
     }
-    if (provider == BusyProvider.microsoft) {
+    if (provider == BusyProvider.google || provider == BusyProvider.microsoft) {
       await _repository.reconcileProviderSourceSnapshot(
         accountId: _accountId,
         provider: provider,
@@ -273,6 +277,7 @@ class CalendarSyncEngine {
       accountId: _accountId,
       nowUtc: _nowUtc,
       onConflictBlocked: _onConflictBlocked,
+      onCalendarSourceIdReplaced: _onCalendarSourceIdReplaced,
     ).replayDueOps();
   }
 }

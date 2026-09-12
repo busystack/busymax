@@ -1,0 +1,1727 @@
+{
+  "nextcloudExportCollection": "Eksportuj zasoby kolekcji",
+  "nextcloudImportItems": "Liczba znalezionych zasobów wydarzeń i zadań: {count}",
+  "@nextcloudImportItems": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "nextcloudSchedulingInbox": "Skrzynka wiadomości dotyczących spotkań",
+  "nextcloudInboxExplanation": "Nextcloud uwzględnia te wiadomości w Twoich kalendarzach. Potwierdzenie wiadomości usuwa tylko wiadomość ze skrzynki, a nie wydarzenie.",
+  "nextcloudInboxEmpty": "Brak wiadomości dotyczących spotkań.",
+  "nextcloudAcknowledge": "Potwierdź wiadomość",
+  "nextcloudAcknowledgeConfirm": "Usunąć tę wiadomość dotyczącą spotkania ze skrzynki? Wydarzenie w kalendarzu zostanie zachowane.",
+  "nextcloudGuestAvailability": "Sprawdź dostępność uczestników",
+  "nextcloudTrashRetention": "Okres przechowywania w koszu serwera: {days, plural, one{{days} dzień} few{{days} dni} many{{days} dni} other{{days} dnia}}",
+  "@nextcloudTrashRetention": {
+    "placeholders": {
+      "days": {
+        "type": "int"
+      }
+    }
+  },
+  "nextcloudCancelMeeting": "Odwołaj spotkanie",
+  "nextcloudDeclineAndRemove": "Odrzuć i usuń zaproszenie",
+  "nextcloudDeclineRemovalWarning": "Usunięcie tego zaproszenia spowoduje wysłanie odmowy podczas synchronizacji. Nie odwoła spotkania organizatora.",
+  "nextcloudAvailabilityUnknown": "Dostępność nieznana",
+  "nextcloudAvailabilityFree": "Nie zgłoszono zajętych terminów w tym przedziale",
+  "nextcloudAvailabilityBusy": "Zajęte terminy",
+  "nextcloudSchedulingPending": "Nextcloud wyśle aktualizacje spotkania po zsynchronizowaniu tej zmiany. Zapis lokalny nie potwierdza dostarczenia.",
+  "nextcloudAttendeeRestrictions": "Tylko organizator lub upoważniony pełnomocnik może zmieniać szczegóły spotkania. Możesz odpowiedzieć na zaproszenie w jego szczegółach.",
+  "nextcloudMeetingMoveUnsupported": "Tego spotkania nie można przenieść przez skopiowanie i usunięcie. Użyj kalendarza powiązanego z tą samą tożsamością używaną do planowania spotkań.",
+  "nextcloudSchedulingStatus": "Stan obsługi spotkania na serwerze",
+  "nextcloudImportFollowUp": "Zaimportowane zasoby zapisano lokalnie. Odświeżenie przypomnień oczekuje na wykonanie; nie importuj zasobów ponownie.",
+  "nextcloudNativeImport": "Importuj kompletne zasoby wydarzeń i zadań bez wysyłania zaproszeń. Istniejące identyfikatory UID są pomijane, chyba że wybierzesz nowe kopie. Nieobsługiwane zasoby są zgłaszane osobno.",
+  "nextcloudImportMethod": "Ten plik zawiera wiadomości dotyczące spotkań. Import zapisuje ich treść i usuwa METHOD; nie przetwarza zaproszenia ani odpowiedzi.",
+  "nextcloudImportCopies": "Importuj jako nowe kopie z nowymi identyfikatorami",
+  "nextcloudCollectionSettings": "Ustawienia kolekcji",
+  "nextcloudSharing": "Udostępnianie",
+  "nextcloudOwned": "Własna",
+  "nextcloudShared": "Udostępniona",
+  "nextcloudDelegated": "Delegowana",
+  "nextcloudSubscription": "Subskrypcja",
+  "nextcloudDeleted": "Usunięta",
+  "nextcloudMetadataEditable": "Zawartość kalendarza jest tylko do odczytu; można zmieniać właściwości kolekcji.",
+  "nextcloudServerOrder": "Kolejność na serwerze (niezależna od kolejności w panelu bocznym)",
+  "nextcloudCalendarEnabled": "Włączona na serwerze",
+  "nextcloudAvailability": "Uwzględniaj tę kolekcję przy określaniu dostępności",
+  "nextcloudCalendarTimezone": "Strefa czasowa kalendarza (dokument VTIMEZONE)",
+  "nextcloudRefreshPending": "Zmianę zapisano w Nextcloud. Odświeżenie oczekuje na wykonanie; nie powtarzaj zmiany.",
+  "nextcloudOutcomeUnknown": "Nie udało się potwierdzić wyniku operacji na serwerze. Odśwież przed ponowną próbą.",
+  "nextcloudRemoveShared": "Usuń udostępniony kalendarz lub listę",
+  "nextcloudRemoveMixed": "Ta kolekcja zawiera wydarzenia i zadania. Jej usunięcie spowoduje usunięcie zarówno wydarzeń, jak i zadań.",
+  "nextcloudReadAccess": "Tylko do odczytu",
+  "nextcloudWriteAccess": "Odczyt i zapis",
+  "nextcloudRecipientSearch": "Znajdź osoby lub grupy",
+  "nextcloudNoRecipients": "Brak pasujących osób lub grup.",
+  "nextcloudRevokeShare": "Odbierz dostęp",
+  "nextcloudPublish": "Opublikuj link",
+  "nextcloudUnpublish": "Zakończ publikowanie",
+  "nextcloudPublishWarning": "Każda osoba mająca opublikowany link może mieć możliwość odczytania tego kalendarza. Opublikować go?",
+  "nextcloudTrash": "Usunięte kalendarze i zadania",
+  "nextcloudTrashEmpty": "Brak usuniętych elementów kalendarza.",
+  "nextcloudRestore": "Przywróć",
+  "nextcloudPermanentDelete": "Usuń trwale",
+  "nextcloudPermanentDeleteWarning": "Trwale usunąć ten element? Nie będzie można go przywrócić z kosza kalendarza Nextcloud.",
+  "nextcloudOperationDenied": "Nextcloud nie zezwolił na tę operację.",
+  "nextcloudUnsupported": "Serwer nie obsługuje tej operacji.",
+  "nextcloudPendingChanges": "Przed zamknięciem zapisz lub odrzuć zmiany w kolekcji.",
+  "nextcloudServerUnavailable": "Nie udało się połączyć z Nextcloud. Dane w pamięci podręcznej i oczekujące operacje pozostają bez zmian.",
+  "mapsShow": "Pokaż na mapie",
+  "openLink": "Otwórz link",
+  "externalLocationOpenFailed": "Nie udało się otworzyć lokalizacji w aplikacji zewnętrznej.",
+  "scheduleProposedRange": "{start} – {end}",
+  "@scheduleProposedRange": {
+    "description": "Proposed event interval while dragging.",
+    "placeholders": {
+      "start": {
+        "type": "String"
+      },
+      "end": {
+        "type": "String"
+      }
+    }
+  },
+  "scheduleRescheduleFailed": "Nie udało się zmienić terminu wydarzenia. Zapisany termin nie został zmieniony.",
+  "scheduleRescheduleStale": "To wydarzenie zmieniło się podczas przeciągania. Spróbuj ponownie.",
+  "scheduleRescheduleNotificationsFailed": "Nowy termin zapisano, ale nie udało się odświeżyć przypomnień.",
+  "moveUp": "Przenieś w górę",
+  "moveDown": "Przenieś w dół",
+  "@@locale": "pl",
+  "windowsSupport": "Pomoc techniczna",
+  "windowsThirdPartyLicenses": "Licencje innych firm",
+  "windowsSearch": "Szukaj",
+  "windowsStartupDisabledByUser": "Wyłączone przez użytkownika w ustawieniach systemu Windows.",
+  "windowsStartupDisabledByPolicy": "Wyłączone przez zasady systemu Windows.",
+  "windowsStartupUnavailable": "Dostępne po zainstalowaniu BusyMax z pakietu MSIX.",
+  "windowsReminderExitNotice": "Przypomnienia przestają działać po całkowitym zamknięciu BusyMax. Aby je otrzymywać, pozostaw aplikację uruchomioną w tle.",
+  "windowsProductVersionLabel": "Wersja produktu",
+  "windowsPackageVersionLabel": "Wersja pakietu Windows",
+  "windowsUnpackaged": "Bez pakietu instalacyjnego",
+  "windowsAgendaLoadMore": "Wczytaj więcej elementów planu dnia",
+  "repeatWeeklyDaySummary": "{dayKey, select, MO{w poniedziałek} TU{we wtorek} WE{w środę} TH{w czwartek} FR{w piątek} SA{w sobotę} SU{w niedzielę} other{{day}}}",
+  "@repeatWeeklyDaySummary": {
+    "description": "Sentence-form weekday used inside a weekly recurrence summary. {dayKey} is MO through SU; {day} is the locale-formatted fallback.",
+    "placeholders": {
+      "dayKey": {
+        "type": "String"
+      },
+      "day": {
+        "type": "String"
+      }
+    }
+  },
+  "repeatOnTwoMonthDaysSummary": "w dniach {first} i {second} miesiąca",
+  "@repeatOnTwoMonthDaysSummary": {
+    "description": "Sentence fragment for a monthly recurrence on exactly two dates.",
+    "placeholders": {
+      "first": {
+        "type": "String"
+      },
+      "second": {
+        "type": "String"
+      }
+    }
+  },
+  "repeatYearlyOnTwoMonthDaysSummary": "{frequency}, {firstDay} i {secondDay} {month}",
+  "@repeatYearlyOnTwoMonthDaysSummary": {
+    "description": "Complete yearly recurrence summary for exactly two dates in one month.",
+    "placeholders": {
+      "frequency": {
+        "type": "String"
+      },
+      "month": {
+        "type": "String"
+      },
+      "firstDay": {
+        "type": "String"
+      },
+      "secondDay": {
+        "type": "String"
+      }
+    }
+  },
+  "repeatYearlyInTwoMonthsOnMonthDaySummary": "{frequency}, {day} {firstMonth} i {secondMonth}",
+  "@repeatYearlyInTwoMonthsOnMonthDaySummary": {
+    "description": "Complete yearly recurrence summary for one date in exactly two months.",
+    "placeholders": {
+      "frequency": {
+        "type": "String"
+      },
+      "firstMonth": {
+        "type": "String"
+      },
+      "secondMonth": {
+        "type": "String"
+      },
+      "day": {
+        "type": "String"
+      }
+    }
+  },
+  "repeatYearlyInTwoMonthsOnTwoMonthDaysSummary": "{frequency}, {firstDay} i {secondDay} {firstMonth} i {secondMonth}",
+  "@repeatYearlyInTwoMonthsOnTwoMonthDaysSummary": {
+    "description": "Complete yearly recurrence summary for exactly two dates in exactly two months.",
+    "placeholders": {
+      "frequency": {
+        "type": "String"
+      },
+      "firstMonth": {
+        "type": "String"
+      },
+      "secondMonth": {
+        "type": "String"
+      },
+      "firstDay": {
+        "type": "String"
+      },
+      "secondDay": {
+        "type": "String"
+      }
+    }
+  },
+  "repeatYearlyInTwoMonthsOnMonthDaysSummary": "{frequency}, {days} {firstMonth} i {secondMonth}",
+  "@repeatYearlyInTwoMonthsOnMonthDaysSummary": {
+    "description": "Complete yearly recurrence summary for three or more dates in exactly two months.",
+    "placeholders": {
+      "frequency": {
+        "type": "String"
+      },
+      "firstMonth": {
+        "type": "String"
+      },
+      "secondMonth": {
+        "type": "String"
+      },
+      "days": {
+        "type": "String"
+      }
+    }
+  },
+  "appTitle": "BusyMax",
+  "connectGoogleAccount": "Połącz konta Google, Microsoft, Kalendarza Apple iCloud lub Nextcloud.",
+  "@connectGoogleAccount": {
+    "description": "Shown in account onboarding and settings; names the supported account providers."
+  },
+  "googlePermissionsConsentNotice": "Na ekranie uprawnień Google zaznacz uprawnienia do Kalendarza i Zadań.",
+  "googlePermissionsRequiredRetry": "Wymagane są uprawnienia do Kalendarza Google i Zadań Google. Spróbuj ponownie i zaznacz oba pola wyboru.",
+  "finishSetup": "Zakończ konfigurację",
+  "continueSetup": "Kontynuuj",
+  "onboardingSetupTitle": "Skonfiguruj BusyMax",
+  "onboardingAccountsStepTitle": "Połącz konta",
+  "onboardingAccountsStepDescription": "Dodaj wszystkie konta, których chcesz używać. BusyMax synchronizuje obsługiwane kalendarze, wydarzenia, listy zadań i zadania z każdego konta.",
+  "@onboardingAccountsStepDescription": {
+    "description": "Onboarding explanation of the account data BusyMax synchronizes."
+  },
+  "onboardingPreferencesStepTitle": "Wybierz ustawienia systemowe",
+  "onboardingPreferencesStepDescription": "Przed otwarciem harmonogramu skonfiguruj działanie aplikacji na pulpicie, przypomnienia, szczegółowość powiadomień i wygląd.",
+  "signInWithGoogle": "Zaloguj się przez Google",
+  "signInWithMicrosoft": "Zaloguj się przez Microsoft",
+  "googleTasksProvider": "Zadania Google",
+  "microsoftTodoProvider": "Microsoft To Do",
+  "providerNotConfigured": "Ten dostawca nie jest skonfigurowany.",
+  "waitingForGoogleSignIn": "Oczekiwanie na logowanie przez Google…",
+  "waitingForMicrosoftSignIn": "Oczekiwanie na logowanie przez Microsoft…",
+  "microsoftSignInNotConfigured": "Logowanie przez Microsoft nie jest skonfigurowane. Ustaw MICROSOFT_OAUTH_CLIENT_ID.",
+  "cancel": "Anuluj",
+  "close": "Zamknij",
+  "exit": "Zakończ",
+  "options": "Opcje",
+  "hide": "Ukryj",
+  "show": "Pokaż",
+  "export": "Eksportuj",
+  "save": "Zapisz",
+  "settings": "Ustawienia",
+  "all": "Wszystkie",
+  "calendarEvents": "Wydarzenia",
+  "calendarTasks": "Zadania",
+  "calendar": "Kalendarz",
+  "calendars": "Kalendarze",
+  "newCalendar": "Nowy kalendarz",
+  "calendarColor": "Kolor kalendarza",
+  "calendarColorOption": "Kolor {number}",
+  "@calendarColorOption": {
+    "placeholders": {
+      "number": {
+        "type": "int",
+        "format": "decimalPattern"
+      }
+    }
+  },
+  "calendarManagementUnsupported": "Ten dostawca nie obsługuje zarządzania kalendarzami w BusyMax.",
+  "primaryCalendarCannotDelete": "Nie można usunąć kalendarza głównego.",
+  "calendarCreateFailed": "Nie udało się utworzyć kalendarza: {error}",
+  "@calendarCreateFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "calendarCreatedRefreshPending": "Kalendarz został utworzony, ale BusyMax nie mógł odświeżyć konta. Pojawi się po następnej synchronizacji.",
+  "calendarUpdateFailed": "Nie udało się zaktualizować kalendarza: {error}",
+  "@calendarUpdateFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "calendarDeleteFailed": "Nie udało się usunąć kalendarza: {error}",
+  "@calendarDeleteFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "newEvent": "Nowe wydarzenie",
+  "refreshCalendar": "Odśwież kalendarz",
+  "openInProvider": "Otwórz u dostawcy",
+  "hideFromSchedule": "Ukryj w harmonogramie",
+  "showInSchedule": "Pokaż w harmonogramie",
+  "noCalendarsSynced": "Nie zsynchronizowano jeszcze żadnych kalendarzy.",
+  "allDay": "Cały dzień",
+  "moreItems": "+{count} więcej",
+  "@moreItems": {
+    "placeholders": {
+      "count": {
+        "type": "int",
+        "format": "decimalPattern"
+      }
+    }
+  },
+  "noEventsOrTasks": "Brak wydarzeń i zadań",
+  "scheduleLoading": "Wczytywanie harmonogramu…",
+  "scheduleUnavailable": "Harmonogram niedostępny",
+  "scheduleNoSources": "Brak widocznych kalendarzy i list zadań",
+  "scheduleNoSourcesDescription": "Wybierz w ustawieniach, co ma być widoczne, a następnie odśwież.",
+  "scheduleSignInRequired": "Połącz konto",
+  "scheduleSignInDescription": "Zaloguj się, aby synchronizować kalendarze i zadania.",
+  "scheduleNoSearchResults": "Brak pasujących wydarzeń i zadań",
+  "scheduleNoSearchResultsDescription": "Zmień wyszukiwane hasło lub wyczyść bieżące filtry.",
+  "refresh": "Odśwież",
+  "trayOpenBusyMax": "Otwórz BusyMax",
+  "trayShowBusyMax": "Pokaż BusyMax",
+  "trayNewEvent": "Nowe wydarzenie…",
+  "trayNewTask": "Nowe zadanie…",
+  "trayToday": "Dzisiaj",
+  "trayAllDay": "Cały dzień",
+  "trayNow": "Teraz",
+  "trayCalendarEvent": "Wydarzenie w kalendarzu",
+  "trayUntitledEvent": "Wydarzenie bez tytułu",
+  "trayNothingElseToday": "Na dzisiaj to wszystko",
+  "trayTasksDueToday": "{count, plural, one{{count} zadanie na dzisiaj} few{{count} zadania na dzisiaj} many{{count} zadań na dzisiaj} other{{count} zadania na dzisiaj}}",
+  "@trayTasksDueToday": {
+    "placeholders": {
+      "count": {
+        "type": "int",
+        "format": "decimalPattern"
+      }
+    }
+  },
+  "trayOpenTodayAgenda": "Otwórz dzisiejszy plan dnia",
+  "traySyncNow": "Synchronizuj teraz",
+  "traySyncing": "Synchronizowanie…",
+  "trayNotConnected": "Brak połączenia",
+  "trayNotYetSynced": "Jeszcze nie zsynchronizowano",
+  "trayLastSyncedJustNow": "Ostatnia synchronizacja: przed chwilą",
+  "trayLastSyncedMinutesAgo": "{count, plural, one{Ostatnia synchronizacja: {count} minutę temu} few{Ostatnia synchronizacja: {count} minuty temu} many{Ostatnia synchronizacja: {count} minut temu} other{Ostatnia synchronizacja: {count} minuty temu}}",
+  "@trayLastSyncedMinutesAgo": {
+    "placeholders": {
+      "count": {
+        "type": "int",
+        "format": "decimalPattern"
+      }
+    }
+  },
+  "trayLastSyncedHoursAgo": "{count, plural, one{Ostatnia synchronizacja: {count} godzinę temu} few{Ostatnia synchronizacja: {count} godziny temu} many{Ostatnia synchronizacja: {count} godzin temu} other{Ostatnia synchronizacja: {count} godziny temu}}",
+  "@trayLastSyncedHoursAgo": {
+    "placeholders": {
+      "count": {
+        "type": "int",
+        "format": "decimalPattern"
+      }
+    }
+  },
+  "trayLastSyncedDaysAgo": "{count, plural, one{Ostatnia synchronizacja: {count} dzień temu} few{Ostatnia synchronizacja: {count} dni temu} many{Ostatnia synchronizacja: {count} dni temu} other{Ostatnia synchronizacja: {count} dnia temu}}",
+  "@trayLastSyncedDaysAgo": {
+    "placeholders": {
+      "count": {
+        "type": "int",
+        "format": "decimalPattern"
+      }
+    }
+  },
+  "traySettings": "Ustawienia",
+  "trayQuitBusyMax": "Zakończ BusyMax",
+  "agendaLoadMoreOverdue": "Wczytaj więcej zaległych zadań",
+  "agendaLoadMoreNoDate": "Wczytaj więcej zadań bez daty",
+  "viewDay": "Dzień",
+  "viewWeek": "Tydzień",
+  "viewMonth": "Miesiąc",
+  "viewYear": "Rok",
+  "viewAgenda": "Plan dnia",
+  "scheduleSettings": "Harmonogram",
+  "scheduleDisplaySettings": "Wyświetlanie harmonogramu",
+  "scheduleDisplayHoursDescription": "Widoki dnia i tygodnia otwierają się w tym zakresie godzin. Wcześniejsze i późniejsze elementy rozszerzają zakres w razie potrzeby.",
+  "scheduleDayStartsAt": "Początek dnia",
+  "scheduleDayEndsAt": "Koniec dnia",
+  "sourceCalendar": "Kalendarz",
+  "sourceTaskList": "Lista zadań",
+  "createChoiceTitle": "Utwórz",
+  "createEventAtTime": "Wydarzenie",
+  "createTaskAtDate": "Zadanie",
+  "editEvent": "Edytuj wydarzenie",
+  "eventTitle": "Tytuł wydarzenia",
+  "location": "Lokalizacja",
+  "timeSlot": "Przedział czasowy",
+  "startDateTime": "Data i godzina rozpoczęcia",
+  "endDateTime": "Data i godzina zakończenia",
+  "doesNotRepeat": "Nie powtarza się",
+  "defaultReminder": "Domyślne przypomnienie",
+  "guests": "Uczestnicy",
+  "noGuests": "Brak uczestników",
+  "attendeeRequired": "Wymagany",
+  "attendeeOptional": "Opcjonalny",
+  "meetingSection": "Spotkanie",
+  "addGoogleMeet": "Dodaj Google Meet",
+  "addTeamsMeeting": "Dodaj spotkanie Microsoft Teams",
+  "onlineMeetingAdded": "Dodano spotkanie online",
+  "requestResponses": "Poproś o odpowiedź",
+  "requestResponsesDescription": "Poproś uczestników o odpowiedź na zaproszenie.",
+  "hideGuestList": "Ukryj listę uczestników",
+  "hideGuestListDescription": "Uczestnicy nie widzą, kto jeszcze został zaproszony.",
+  "allowNewTimeProposals": "Zezwalaj na proponowanie innego terminu",
+  "allowNewTimeProposalsDescription": "Uczestnicy mogą zaproponować inny termin spotkania.",
+  "notifyGuestsTitle": "Powiadomić uczestników?",
+  "notifyGuestsSaveMessage": "To spotkanie ma uczestników. Wysłać zaproszenia lub aktualizacje wydarzenia po zapisaniu?",
+  "notifyGuestsDeleteMessage": "To spotkanie ma uczestników. Wysłać powiadomienie o odwołaniu po usunięciu?",
+  "sendUpdates": "Wyślij aktualizacje",
+  "sendCancellation": "Wyślij powiadomienie o odwołaniu",
+  "doNotSend": "Nie wysyłaj",
+  "microsoftNotifyGuestsSaveTitle": "Zapisać spotkanie?",
+  "microsoftNotifyGuestsSaveMessage": "Microsoft wyśle uczestnikom zaproszenia lub aktualizacje wydarzenia.",
+  "microsoftNotifyGuestsDeleteTitle": "Usunąć spotkanie?",
+  "microsoftNotifyGuestsDeleteMessage": "Microsoft wyśle uczestnikom powiadomienie o odwołaniu.",
+  "organizer": "Organizator",
+  "yourResponse": "Twoja odpowiedź",
+  "guestResponses": "Odpowiedzi uczestników",
+  "respond": "Odpowiedz",
+  "acceptInvitation": "Zaakceptuj",
+  "tentativeInvitation": "Zaakceptuj wstępnie",
+  "declineInvitation": "Odrzuć",
+  "joinMeeting": "Dołącz do spotkania",
+  "responseAccepted": "Zaakceptowano",
+  "responseTentative": "Wstępnie zaakceptowano",
+  "responseDeclined": "Odrzucono",
+  "responseNeedsAction": "Oczekiwanie na odpowiedź",
+  "responseNotResponded": "Brak odpowiedzi",
+  "responseOrganizer": "Organizator",
+  "invitationResponseFailed": "Nie udało się wysłać odpowiedzi: {error}",
+  "@invitationResponseFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "joinMeetingFailed": "Nie udało się otworzyć linku do spotkania.",
+  "description": "Opis",
+  "availabilityShowAs": "Dostępność / Pokaż jako",
+  "busy": "Zajęty",
+  "visibility": "Widoczność",
+  "defaultVisibility": "Domyślna widoczność",
+  "conference": "Konferencja",
+  "noConference": "Brak konferencji",
+  "providerCalendar": "Kalendarz u dostawcy",
+  "formatBoldShortLabel": "B",
+  "formatBoldTooltip": "Pogrubienie",
+  "formatItalicShortLabel": "I",
+  "formatItalicTooltip": "Kursywa",
+  "formatUnderlineShortLabel": "U",
+  "formatUnderlineTooltip": "Podkreślenie",
+  "reminderMinutesBefore": "{minutes, plural, one{{minutes} minutę wcześniej} few{{minutes} minuty wcześniej} many{{minutes} minut wcześniej} other{{minutes} minuty wcześniej}}",
+  "@reminderMinutesBefore": {
+    "placeholders": {
+      "minutes": {
+        "type": "int",
+        "format": "decimalPattern"
+      }
+    }
+  },
+  "reminderAtStart": "W momencie rozpoczęcia",
+  "reminderHoursBefore": "{hours, plural, one{{hours} godzinę wcześniej} few{{hours} godziny wcześniej} many{{hours} godzin wcześniej} other{{hours} godziny wcześniej}}",
+  "@reminderHoursBefore": {
+    "placeholders": {
+      "hours": {
+        "type": "int",
+        "format": "decimalPattern"
+      }
+    }
+  },
+  "reminderDaysBefore": "{days, plural, one{{days} dzień wcześniej} few{{days} dni wcześniej} many{{days} dni wcześniej} other{{days} dnia wcześniej}}",
+  "@reminderDaysBefore": {
+    "placeholders": {
+      "days": {
+        "type": "int",
+        "format": "decimalPattern"
+      }
+    }
+  },
+  "availabilityFree": "Wolny",
+  "availabilityTentative": "Wstępnie zajęty",
+  "availabilityOutOfOffice": "Poza biurem",
+  "availabilityWorkingElsewhere": "Praca w innym miejscu",
+  "visibilityDefault": "Domyślna",
+  "visibilityPublic": "Publiczna",
+  "visibilityPrivate": "Prywatna",
+  "visibilityConfidential": "Poufna",
+  "sensitivityNormal": "Zwykła",
+  "sensitivityPersonal": "Osobista",
+  "tasks": "Zadania",
+  "allTasks": "Wszystkie zadania",
+  "tasksInList": "Zadania na liście {title}",
+  "@tasksInList": {
+    "placeholders": {
+      "title": {
+        "type": "String"
+      }
+    }
+  },
+  "taskLists": "Listy zadań",
+  "navigation": "Nawigacja",
+  "mainMenu": "Menu główne",
+  "keyboardShortcuts": "Skróty klawiszowe",
+  "shortcutGroupGeneral": "Ogólne",
+  "shortcutKeyboardShortcutsDescription": "Pokaż tę listę skrótów",
+  "shortcutGroupNavigation": "Nawigacja",
+  "shortcutNextPeriod": "Następny okres",
+  "shortcutNextPeriodDescription": "Następny tydzień w widoku tygodnia, następny miesiąc w widoku miesiąca itd.",
+  "shortcutPreviousPeriod": "Poprzedni okres",
+  "shortcutPreviousPeriodDescription": "Poprzedni tydzień w widoku tygodnia, poprzedni miesiąc w widoku miesiąca itd.",
+  "shortcutJumpToToday": "Przejdź do dzisiaj",
+  "shortcutGroupView": "Widok",
+  "shortcutDayView": "Widok dnia",
+  "shortcutWeekView": "Widok tygodnia",
+  "shortcutMonthView": "Widok miesiąca",
+  "shortcutYearView": "Widok roku",
+  "shortcutAgendaView": "Widok planu dnia",
+  "shortcutGroupCreateAndEdit": "Tworzenie i edycja",
+  "shortcutSaveItem": "Zapisz wydarzenie lub zadanie",
+  "shortcutDeleteItem": "Usuń wydarzenie lub zadanie",
+  "shortcutGroupTaskEditing": "Edycja zadań",
+  "shortcutCancelEditing": "Anuluj edycję",
+  "shortcutCancelEditingDescription": "Zamknij edycję lub szczegóły zadania",
+  "aboutBusyMax": "O BusyMax",
+  "aboutBusyMaxDescription": "Kalendarz i zadania",
+  "license": "Licencja",
+  "apacheLicenseName": "Apache License 2.0",
+  "website": "Strona internetowa",
+  "sourceCode": "Kod źródłowy",
+  "reportAnIssue": "Zgłoś problem",
+  "sendFeedback": "Wyślij opinię",
+  "feedbackSubmit": "Wyślij",
+  "feedbackCategory": "Kategoria",
+  "feedbackSelectCategory": "Wybierz kategorię",
+  "feedbackCategoryProblem": "Problem lub błąd",
+  "feedbackCategoryFeature": "Propozycja funkcji",
+  "feedbackCategoryPrivacySecurity": "Kwestia prywatności lub bezpieczeństwa",
+  "feedbackCategoryUsability": "Problem z obsługą",
+  "feedbackCategoryOther": "Inne",
+  "feedbackSubject": "Temat",
+  "feedbackDetailedMessage": "Szczegółowy opis",
+  "feedbackReplyEmail": "Adres e-mail do odpowiedzi (opcjonalnie)",
+  "feedbackIncludeTechnicalDetails": "Dołącz informacje techniczne",
+  "feedbackTechnicalDetailsDisclosure": "Dodaje tylko nazwę i wersję systemu operacyjnego oraz język aplikacji. Nie dołącza dzienników, danych kont, nazw plików ani innych danych diagnostycznych.",
+  "feedbackCategoryRequired": "Wybierz kategorię.",
+  "feedbackSubjectLengthError": "Temat musi mieć od 3 do 120 znaków.",
+  "feedbackMessageLengthError": "Wiadomość musi mieć od 10 do 5000 znaków.",
+  "feedbackInvalidEmail": "Wpisz prawidłowy adres e-mail.",
+  "feedbackConnectionError": "Nie udało się połączyć z BusyStack. Sprawdź połączenie i spróbuj ponownie.",
+  "feedbackTimeoutError": "Upłynął limit czasu żądania. Twoja opinia nie została usunięta; spróbuj ponownie.",
+  "feedbackRateLimitedError": "Z tej sieci wysłano zbyt wiele opinii. Poczekaj i spróbuj ponownie.",
+  "feedbackRejectedError": "Serwer odrzucił zgłoszenie. Sprawdź pola i spróbuj ponownie.",
+  "feedbackServerError": "BusyStack nie może teraz przyjąć Twojej opinii. Jej treść nie została usunięta; spróbuj ponownie.",
+  "feedbackSuccess": "Wysłano opinię. Numer zgłoszenia: {id}",
+  "@feedbackSuccess": {
+    "placeholders": {
+      "id": {
+        "type": "String"
+      }
+    }
+  },
+  "toggleSidebar": "Pokaż lub ukryj panel boczny",
+  "showSidebar": "Pokaż panel boczny",
+  "hideSidebar": "Ukryj panel boczny",
+  "accounts": "Konta",
+  "currentAccount": "Bieżące konto",
+  "switchAccount": "Przełącz konto",
+  "addGoogleAccount": "Dodaj konto Google",
+  "addMicrosoftAccount": "Dodaj konto Microsoft",
+  "googleProvider": "Google",
+  "microsoftProvider": "Microsoft",
+  "signedInAccount": "Zalogowano",
+  "removeAccount": "Usuń konto…",
+  "removingAccount": "Usuwanie konta…",
+  "removeAccountDescription": "Zatrzymaj synchronizację i usuń dane tego konta z urządzenia.",
+  "removeAccountTitle": "Usunąć konto {account} z BusyMax?",
+  "@removeAccountTitle": {
+    "placeholders": {
+      "account": {
+        "type": "String"
+      }
+    }
+  },
+  "removeAccountConfirmation": "Spowoduje to usunięcie z tego urządzenia zapisanych w pamięci podręcznej zadań, kalendarzy, wydarzeń, przypomnień i oczekujących zmian offline. Niezsynchronizowane zmiany zostaną utracone. Kopie kalendarzy, wydarzeń, list zadań i zadań u dostawcy nie zostaną usunięte.",
+  "revokeGoogleAccess": "Odbierz również BusyMax dostęp do tego konta Google",
+  "revokeGoogleAccessDescription": "Przed ponownym połączeniem trzeba będzie jeszcze raz przyznać dostęp.",
+  "removeAccountAction": "Usuń konto",
+  "removeAccountFailed": "Nie udało się zakończyć usuwania konta. Spróbuj ponownie.",
+  "accountRemovedGoogleRevokeFailed": "Konto usunięto z tego urządzenia, ale BusyMax nie mógł odebrać dostępu do Google. Możesz go odebrać w ustawieniach konta Google.",
+  "newTaskList": "Nowa lista zadań",
+  "taskListCreateFailed": "Nie udało się utworzyć listy zadań: {error}",
+  "@taskListCreateFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "taskListRenameFailed": "Nie udało się zmienić nazwy listy zadań: {error}",
+  "@taskListRenameFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "taskListDeleteFailed": "Nie udało się usunąć listy zadań: {error}",
+  "@taskListDeleteFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "signInToViewTaskLists": "Zaloguj się, aby wyświetlić listy zadań.",
+  "noTaskListsSynced": "Nie zsynchronizowano jeszcze żadnych list zadań.",
+  "listActions": "Działania na liście",
+  "rename": "Zmień nazwę",
+  "delete": "Usuń",
+  "renameList": "Zmień nazwę listy",
+  "deleteList": "Usuń listę",
+  "unshare": "Cofnij udostępnienie",
+  "readOnlyTaskListCannotRename": "Ta lista zadań jest tylko do odczytu i nie można zmienić jej nazwy.",
+  "taskListCannotDelete": "Nie masz uprawnień do usunięcia tej listy zadań.",
+  "builtInMicrosoftList": "Wbudowana",
+  "builtInMicrosoftListCannotRenameDelete": "Nie można zmieniać nazw ani usuwać wbudowanych list Microsoft To Do.",
+  "deleteListConfirmation": "Usunąć „{title}” z Zadań Google?",
+  "@deleteListConfirmation": {
+    "placeholders": {
+      "title": {
+        "type": "String"
+      }
+    }
+  },
+  "deleteTaskListConfirmation": "Usunąć „{title}” wraz ze wszystkimi zadaniami?",
+  "@deleteTaskListConfirmation": {
+    "placeholders": {
+      "title": {
+        "type": "String"
+      }
+    }
+  },
+  "unshareTaskListConfirmation": "Cofnąć udostępnienie „{title}” temu kontu?",
+  "@unshareTaskListConfirmation": {
+    "placeholders": {
+      "title": {
+        "type": "String"
+      }
+    }
+  },
+  "deleteEvent": "Usuń wydarzenie",
+  "title": "Tytuł",
+  "create": "Utwórz",
+  "newTask": "Nowe zadanie",
+  "clearCompleted": "Wyczyść ukończone",
+  "refreshList": "Odśwież listę",
+  "refreshAll": "Odśwież wszystko",
+  "listRefreshed": "Odświeżono listę.",
+  "allTasksRefreshed": "Odświeżono wszystkie konta.",
+  "exportedFile": "Wyeksportowano do {path}",
+  "@exportedFile": {
+    "placeholders": {
+      "path": {
+        "type": "String"
+      }
+    }
+  },
+  "exportFailed": "Eksport nie powiódł się: {error}",
+  "@exportFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "refreshFailed": "Odświeżanie nie powiodło się: {error}",
+  "@refreshFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "selectOrCreateTaskList": "Wybierz lub utwórz listę zadań, aby rozpocząć.",
+  "signInToViewTasks": "Zaloguj się, aby wyświetlić zadania.",
+  "noTasks": "Brak zadań.",
+  "noTasksYet": "Nie ma jeszcze zadań",
+  "noTasksYetMessage": "Utwórz zadanie lub odśwież konta, aby rozpocząć.",
+  "noTasksInList": "Brak zadań na tej liście.",
+  "overdue": "Zaległe",
+  "today": "Dzisiaj",
+  "tomorrow": "Jutro",
+  "upcoming": "Nadchodzące",
+  "noDate": "Bez daty",
+  "completed": "Ukończone",
+  "duePrefix": "Termin: {date}",
+  "@duePrefix": {
+    "placeholders": {
+      "date": {
+        "type": "String"
+      }
+    }
+  },
+  "dateTimeDisplay": "{date} · {time}",
+  "@dateTimeDisplay": {
+    "placeholders": {
+      "date": {
+        "type": "String"
+      },
+      "time": {
+        "type": "String"
+      }
+    }
+  },
+  "taskDetails": "Szczegóły zadania",
+  "editTask": "Edytuj zadanie",
+  "noTaskSelected": "Nie wybrano zadania.",
+  "noTaskSelectedHelper": "Wybierz zadanie, aby wyświetlić i edytować szczegóły.",
+  "taskUnavailable": "Zadanie niedostępne.",
+  "signInToEditTasks": "Zaloguj się, aby edytować zadania.",
+  "refreshTask": "Odśwież zadanie",
+  "primarySection": "Podstawowe",
+  "statusSection": "Stan",
+  "openStatus": "Otwarte",
+  "doneStatus": "Wykonane",
+  "taskStatus": "Stan",
+  "taskStatusNone": "Brak stanu",
+  "taskStatusNeedsAction": "Wymaga działania",
+  "taskStatusInProcess": "W toku",
+  "taskStatusCompleted": "Ukończone",
+  "taskStatusCancelled": "Anulowane",
+  "completionPercent": "Ukończono {percent}%",
+  "@completionPercent": {
+    "placeholders": {
+      "percent": {
+        "type": "int",
+        "format": "decimalPattern"
+      }
+    }
+  },
+  "completionDate": "Data ukończenia",
+  "priority": "Priorytet",
+  "priorityNone": "Brak priorytetu",
+  "priorityHighValue": "Priorytet {priority} · Wysoki",
+  "@priorityHighValue": {
+    "placeholders": {
+      "priority": {
+        "type": "int",
+        "format": "decimalPattern"
+      }
+    }
+  },
+  "priorityMediumValue": "Priorytet {priority} · Średni",
+  "@priorityMediumValue": {
+    "placeholders": {
+      "priority": {
+        "type": "int",
+        "format": "decimalPattern"
+      }
+    }
+  },
+  "priorityLowValue": "Priorytet {priority} · Niski",
+  "@priorityLowValue": {
+    "placeholders": {
+      "priority": {
+        "type": "int",
+        "format": "decimalPattern"
+      }
+    }
+  },
+  "taskUrl": "URL",
+  "invalidTaskUrl": "Wpisz bezwzględny adres URL, łącznie ze schematem.",
+  "classification": "Klasyfikacja",
+  "classificationPublic": "Po udostępnieniu pokazuj całe zadanie",
+  "classificationConfidential": "Po udostępnieniu pokazuj tylko zajęty termin",
+  "classificationPrivate": "Po udostępnieniu ukrywaj to zadanie",
+  "pinTask": "Przypnij zadanie",
+  "notes": "Notatki",
+  "dueDate": "Termin wykonania",
+  "clearDueDate": "Wyczyść termin wykonania",
+  "dueTime": "Godzina wykonania",
+  "startDate": "Data rozpoczęcia",
+  "startTime": "Godzina rozpoczęcia",
+  "endDate": "Data zakończenia",
+  "endTime": "Godzina zakończenia",
+  "reminderDate": "Data przypomnienia",
+  "reminderTime": "Godzina przypomnienia",
+  "reminder": "Przypomnienie",
+  "addReminder": "Dodaj przypomnienie",
+  "reminders": "Przypomnienia",
+  "noReminders": "Brak przypomnień",
+  "editReminder": "Edytuj przypomnienie",
+  "beforeTaskStarts": "Przed rozpoczęciem zadania",
+  "beforeTaskDue": "Przed terminem wykonania zadania",
+  "@beforeTaskDue": {
+    "description": "Reminder timing relative to the task's due time/deadline, not task completion."
+  },
+  "afterTaskStarts": "Po rozpoczęciu zadania",
+  "afterTaskDue": "Po terminie wykonania zadania",
+  "relativeToTaskStart": "Względem daty rozpoczęcia zadania",
+  "relativeToTaskDue": "Względem terminu wykonania zadania",
+  "reminderTimeOfDay": "Pora dnia",
+  "absoluteReminder": "W określonym dniu i o określonej godzinie",
+  "reminderAmount": "Liczba jednostek",
+  "reminderUnit": "Jednostka",
+  "reminderUnitSeconds": "Sekundy",
+  "reminderUnitMinutes": "Minuty",
+  "reminderUnitHours": "Godziny",
+  "reminderUnitDays": "Dni",
+  "reminderUnitWeeks": "Tygodnie",
+  "reminderAtTaskStart": "W momencie rozpoczęcia zadania",
+  "reminderAtTaskDue": "W terminie wykonania zadania",
+  "unsupportedReminder": "Ten typ przypomnienia jest zachowywany, ale nie można edytować jego terminu.",
+  "relatedRemindersTitle": "Zachować powiązane przypomnienia?",
+  "relatedRemindersDescription": "Liczba przypomnień powiązanych z tą datą: {count}. Zachować je z obecną datą i godziną?",
+  "@relatedRemindersDescription": {
+    "placeholders": {
+      "count": {
+        "type": "int",
+        "format": "decimalPattern"
+      }
+    }
+  },
+  "discardRelatedReminders": "Usuń przypomnienia",
+  "keepRelatedReminders": "Zachowaj przypomnienia",
+  "addGuest": "Dodaj uczestnika",
+  "addGuestEmail": "Dodaj adres e-mail uczestnika",
+  "removeReminder": "Usuń przypomnienie",
+  "off": "Wyłączone",
+  "repeat": "Powtarzanie",
+  "repeatNone": "Bez powtarzania",
+  "noneValue": "Brak",
+  "repeatDaily": "Codziennie",
+  "repeatWeekly": "Co tydzień",
+  "repeatMonthly": "Co miesiąc",
+  "repeatYearly": "Co rok",
+  "repeatEvery": "Odstęp",
+  "@repeatEvery": {
+    "description": "Standalone label for the numeric interval used by daily, weekly, monthly, and yearly recurrence."
+  },
+  "repeatOn": "Powtarzaj w dniach",
+  "@repeatOn": {
+    "description": "Recurrence editor label introducing the selected weekdays, month days, or ordinal weekday."
+  },
+  "repeatEnd": "Koniec powtarzania",
+  "repeatNever": "Nigdy",
+  "repeatUntil": "W określonym dniu",
+  "repeatAfter": "Po określonej liczbie wystąpień",
+  "repeatCount": "Liczba wystąpień",
+  "repeatDayOfMonth": "Dni miesiąca",
+  "repeatMonths": "Miesiące",
+  "repeatOrdinal": "Kolejność dnia tygodnia",
+  "repeatSpecificDays": "Wybrane dni",
+  "repeatFirst": "Pierwszy",
+  "repeatSecond": "Drugi",
+  "repeatThird": "Trzeci",
+  "repeatFourth": "Czwarty",
+  "repeatFifth": "Piąty",
+  "repeatSecondToLast": "Przedostatni",
+  "repeatLast": "Ostatni",
+  "repeatAnyDay": "Dzień",
+  "repeatWeekday": "Dzień roboczy",
+  "repeatWeekendDay": "Dzień weekendu",
+  "repeatOrdinalDaySummary": "{dayKey, select, firstMO{w pierwszy poniedziałek} firstTU{w pierwszy wtorek} firstWE{w pierwszą środę} firstTH{w pierwszy czwartek} firstFR{w pierwszy piątek} firstSA{w pierwszą sobotę} firstSU{w pierwszą niedzielę} firstday{w pierwszy dzień} firstweekday{w pierwszy dzień roboczy} firstweekend{w pierwszy dzień weekendu} secondMO{w drugi poniedziałek} secondTU{w drugi wtorek} secondWE{w drugą środę} secondTH{w drugi czwartek} secondFR{w drugi piątek} secondSA{w drugą sobotę} secondSU{w drugą niedzielę} secondday{w drugi dzień} secondweekday{w drugi dzień roboczy} secondweekend{w drugi dzień weekendu} thirdMO{w trzeci poniedziałek} thirdTU{w trzeci wtorek} thirdWE{w trzecią środę} thirdTH{w trzeci czwartek} thirdFR{w trzeci piątek} thirdSA{w trzecią sobotę} thirdSU{w trzecią niedzielę} thirdday{w trzeci dzień} thirdweekday{w trzeci dzień roboczy} thirdweekend{w trzeci dzień weekendu} fourthMO{w czwarty poniedziałek} fourthTU{w czwarty wtorek} fourthWE{w czwartą środę} fourthTH{w czwarty czwartek} fourthFR{w czwarty piątek} fourthSA{w czwartą sobotę} fourthSU{w czwartą niedzielę} fourthday{w czwarty dzień} fourthweekday{w czwarty dzień roboczy} fourthweekend{w czwarty dzień weekendu} fifthMO{w piąty poniedziałek} fifthTU{w piąty wtorek} fifthWE{w piątą środę} fifthTH{w piąty czwartek} fifthFR{w piąty piątek} fifthSA{w piątą sobotę} fifthSU{w piątą niedzielę} fifthday{w piąty dzień} fifthweekday{w piąty dzień roboczy} fifthweekend{w piąty dzień weekendu} secondToLastMO{w przedostatni poniedziałek} secondToLastTU{w przedostatni wtorek} secondToLastWE{w przedostatnią środę} secondToLastTH{w przedostatni czwartek} secondToLastFR{w przedostatni piątek} secondToLastSA{w przedostatnią sobotę} secondToLastSU{w przedostatnią niedzielę} secondToLastday{w przedostatni dzień} secondToLastweekday{w przedostatni dzień roboczy} secondToLastweekend{w przedostatni dzień weekendu} lastMO{w ostatni poniedziałek} lastTU{w ostatni wtorek} lastWE{w ostatnią środę} lastTH{w ostatni czwartek} lastFR{w ostatni piątek} lastSA{w ostatnią sobotę} lastSU{w ostatnią niedzielę} lastday{w ostatni dzień} lastweekday{w ostatni dzień roboczy} lastweekend{w ostatni dzień weekendu} other{w {day}}}",
+  "@repeatOrdinalDaySummary": {
+    "description": "Sentence-form day label used inside ordinal recurrence summaries. {dayKey} is MO through SU, day, weekday, or weekend; {day} is the locale-formatted weekday fallback.",
+    "placeholders": {
+      "dayKey": {
+        "type": "String"
+      },
+      "day": {
+        "type": "String"
+      }
+    }
+  },
+  "repeatEveryDays": "{count, plural, one{Codziennie} few{Co {count} dni} many{Co {count} dni} other{Co {count} dnia}}",
+  "@repeatEveryDays": {
+    "placeholders": {
+      "count": {
+        "type": "int",
+        "format": "decimalPattern"
+      }
+    }
+  },
+  "repeatEveryWeeks": "{count, plural, one{Co tydzień} few{Co {count} tygodnie} many{Co {count} tygodni} other{Co {count} tygodnia}}",
+  "@repeatEveryWeeks": {
+    "placeholders": {
+      "count": {
+        "type": "int",
+        "format": "decimalPattern"
+      }
+    }
+  },
+  "repeatEveryMonths": "{count, plural, one{Co miesiąc} few{Co {count} miesiące} many{Co {count} miesięcy} other{Co {count} miesiąca}}",
+  "@repeatEveryMonths": {
+    "placeholders": {
+      "count": {
+        "type": "int",
+        "format": "decimalPattern"
+      }
+    }
+  },
+  "repeatEveryYears": "{count, plural, one{Co rok} few{Co {count} lata} many{Co {count} lat} other{Co {count} roku}}",
+  "@repeatEveryYears": {
+    "placeholders": {
+      "count": {
+        "type": "int",
+        "format": "decimalPattern"
+      }
+    }
+  },
+  "repeatOnDaysSummary": "{days}",
+  "@repeatOnDaysSummary": {
+    "description": "Sentence fragment appended to a recurrence summary; {days} is a localized list of weekdays.",
+    "placeholders": {
+      "days": {
+        "type": "String"
+      }
+    }
+  },
+  "repeatOnMonthDaysSummary": "{days}. dnia miesiąca",
+  "@repeatOnMonthDaysSummary": {
+    "description": "Sentence fragment appended to a recurrence summary; {days} is a localized list of day-of-month numbers.",
+    "placeholders": {
+      "days": {
+        "type": "String"
+      }
+    }
+  },
+  "repeatOnOrdinalSummary": "{position, select, first{{days}} second{{days}} third{{days}} fourth{{days}} fifth{{days}} secondToLast{{days}} last{{days}} other{{days}}}",
+  "@repeatOnOrdinalSummary": {
+    "description": "Complete sentence fragment for ordinal recurrence. {position} is one of first, second, third, fourth, fifth, secondToLast, or last; {days} is a localized weekday.",
+    "placeholders": {
+      "position": {
+        "type": "String"
+      },
+      "days": {
+        "type": "String"
+      }
+    }
+  },
+  "repeatInMonthsSummary": "w miesiącach: {months}",
+  "@repeatInMonthsSummary": {
+    "description": "Sentence fragment for selected recurrence months; {months} is a localized list of month names.",
+    "placeholders": {
+      "months": {
+        "type": "String"
+      }
+    }
+  },
+  "repeatTimesSummary": "{count, plural, one{{count} raz} few{{count} razy} many{{count} razy} other{{count} raza}}",
+  "@repeatTimesSummary": {
+    "description": "Sentence fragment summarizing a finite recurrence count.",
+    "placeholders": {
+      "count": {
+        "type": "int",
+        "format": "decimalPattern"
+      }
+    }
+  },
+  "repeatUntilSummary": "do {date}",
+  "@repeatUntilSummary": {
+    "description": "Sentence fragment for the recurrence end date.",
+    "placeholders": {
+      "date": {
+        "type": "String"
+      }
+    }
+  },
+  "unsupportedRecurrencePreserved": "Ta reguła powtarzania korzysta z opcji, których ten edytor nie zmienia.",
+  "recurrenceUnsupportedByProvider": "Tego powtarzania nie można użyć u dostawcy {provider}.",
+  "@recurrenceUnsupportedByProvider": {
+    "placeholders": {
+      "provider": {
+        "type": "String"
+      }
+    }
+  },
+  "importance": "Ważność",
+  "importanceLow": "Niska",
+  "importanceNormal": "Zwykła",
+  "importanceHigh": "Wysoka",
+  "categories": "Kategorie",
+  "scheduleSection": "Harmonogram",
+  "dueGroup": "Termin wykonania",
+  "startGroup": "Rozpoczęcie",
+  "reminderGroup": "Przypomnienie",
+  "organizationSection": "Organizacja",
+  "actionsSection": "Działania",
+  "advancedSection": "Zaawansowane",
+  "addCategory": "Dodaj kategorię",
+  "list": "Lista",
+  "microsoftMoveUnsupported": "W tej wersji przenoszenie między listami nie jest obsługiwane dla kont Microsoft To Do.",
+  "createSubtask": "Utwórz podzadanie",
+  "subtasks": "Podzadania",
+  "duplicateTask": "Duplikuj zadanie",
+  "taskDuplicated": "Zduplikowano zadanie.",
+  "taskDuplicateFailed": "Nie udało się zduplikować zadania: {error}",
+  "@taskDuplicateFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "hideSubtasks": "Ukryj podzadania",
+  "hideClosedSubtasks": "Ukryj zamknięte podzadania",
+  "moveToTop": "Przenieś na początek",
+  "deleteTask": "Usuń zadanie",
+  "newSubtask": "Nowe podzadanie",
+  "deleteTaskConfirmation": "Usunąć „{title}”?",
+  "@deleteTaskConfirmation": {
+    "placeholders": {
+      "title": {
+        "type": "String"
+      }
+    }
+  },
+  "metadata": "Metadane",
+  "id": "ID",
+  "etag": "ETag",
+  "updated": "Zaktualizowano",
+  "parent": "Element nadrzędny",
+  "@parent": {
+    "description": "Metadata label for the immediate parent task of a subtask."
+  },
+  "position": "Pozycja",
+  "webLink": "Link internetowy",
+  "assignment": "Przypisanie",
+  "localState": "Stan lokalny",
+  "pendingSync": "Oczekuje na synchronizację",
+  "synced": "Zsynchronizowano",
+  "account": "Konto",
+  "sync": "Synchronizuj",
+  "forceFullResync": "Wymuś pełną synchronizację",
+  "@forceFullResync": {
+    "description": "Troubleshooting action that forces a complete resynchronization of every connected account."
+  },
+  "forceFullResyncDescription": "Ponownie wczytaj wszystkie dane z każdego połączonego konta. Używaj tej opcji wyłącznie do rozwiązywania problemów z synchronizacją.",
+  "@forceFullResyncDescription": {
+    "description": "Explanation shown above the force-full-resync troubleshooting action in Diagnostics."
+  },
+  "runInBackgroundWhenClosed": "Kontynuuj działanie po zamknięciu okna",
+  "showTrayIcon": "Pokaż ikonę w zasobniku systemowym",
+  "startMinimizedToTray": "Uruchamiaj zminimalizowane do zasobnika systemowego",
+  "launchAtLogin": "Uruchamiaj przy logowaniu",
+  "launchAtLoginDescription": "Uruchamiaj BusyMax w tle, aby przypomnienia działały po zalogowaniu do systemu.",
+  "launchAtLoginFailed": "Nie udało się zmienić ustawienia uruchamiania przy logowaniu.",
+  "requiresTrayIcon": "Wymaga ikony w zasobniku systemowym.",
+  "syncComplete": "Synchronizacja zakończona.",
+  "syncFailed": "Synchronizacja nie powiodła się: {error}",
+  "@syncFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "notifySyncFailures": "Powiadomienia o błędach synchronizacji",
+  "notifyConflicts": "Powiadomienia o konfliktach",
+  "notifyDueToday": "Powiadomienia o zadaniach na dzisiaj",
+  "eventReminders": "Przypomnienia o wydarzeniach",
+  "onState": "Włączone",
+  "taskReminders": "Przypomnienia o zadaniach",
+  "notificationDetailLevel": "Szczegółowość powiadomień",
+  "notificationDetailPrivate": "Prywatne",
+  "notificationDetailNormal": "Zwykłe",
+  "quietHours": "Godziny ciszy",
+  "quietHoursDescription": "Wstrzymaj powiadomienia w tym okresie.",
+  "quietHoursStart": "Początek godzin ciszy",
+  "quietHoursEnd": "Koniec godzin ciszy",
+  "notifications": "Powiadomienia",
+  "windowsNotificationsUnavailable": "Powiadomienia systemu Windows są niedostępne",
+  "windowsNotificationsUnpackaged": "Ta wersja deweloperska bez pakietu instalacyjnego nie może korzystać z powiadomień systemu Windows. Zainstaluj pakiet MSIX z podpisem testowym, aby przetestować przypomnienia.",
+  "windowsNotificationsInstalledFailure": "BusyMax nie mógł zainicjować powiadomień systemu Windows. Przypomnienia nie będą wyświetlane do czasu rozwiązania tego problemu z instalacją.",
+  "appearance": "Wygląd",
+  "theme": "Motyw",
+  "themeSystem": "Systemowy",
+  "settingsSystem": "System",
+  "@settingsSystem": {
+    "description": "Standalone noun used for the System section in the Settings sidebar and page heading."
+  },
+  "themeLight": "Jasny",
+  "themeDark": "Ciemny",
+  "themeFamily": "Rodzina motywów",
+  "themeFamilyYaru": "Natywny Ubuntu (Yaru)",
+  "localization": "Język i region",
+  "currentLocale": "Język aplikacji",
+  "privacy": "Prywatność",
+  "redactTaskContentInDiagnostics": "Ukrywaj treść zadań w danych diagnostycznych",
+  "developerDiagnostics": "Diagnostyka dla deweloperów",
+  "diagnostics": "Diagnostyka",
+  "apiInspectorDisabled": "Pokaż inspektor API",
+  "googleTasksApi": "API Zadań Google",
+  "discoveryRevision": "Wersja dokumentu discovery: {revision}",
+  "@discoveryRevision": {
+    "placeholders": {
+      "revision": {
+        "type": "String"
+      }
+    }
+  },
+  "implementedMethods": "Zaimplementowane metody",
+  "supportsTasksScopes": "Obsługuje zakresy uprawnień tasks i tasks.readonly",
+  "requiresTasksScope": "Wymaga zakresu uprawnień tasks",
+  "blockedPendingOperations": "Zablokowane operacje oczekujące",
+  "signInToInspectPendingOperations": "Zaloguj się, aby sprawdzić oczekujące operacje.",
+  "noBlockedPendingOperations": "Brak zablokowanych operacji oczekujących.",
+  "operationActions": "Działania na operacji",
+  "pendingOpListId": "lista={id}",
+  "@pendingOpListId": {
+    "placeholders": {
+      "id": {
+        "type": "String"
+      }
+    }
+  },
+  "pendingOpTaskId": "zadanie={id}",
+  "@pendingOpTaskId": {
+    "placeholders": {
+      "id": {
+        "type": "String"
+      }
+    }
+  },
+  "pendingOpAttempts": "próby={count}",
+  "@pendingOpAttempts": {
+    "placeholders": {
+      "count": {
+        "type": "int",
+        "format": "decimalPattern"
+      }
+    }
+  },
+  "retry": "Ponów",
+  "discard": "Odrzuć",
+  "discardChangesAction": "Odrzuć zmiany",
+  "@discardChangesAction": {
+    "description": "Destructive confirmation button that throws away unsaved edits. Translate it distinctly from Cancel."
+  },
+  "discardChanges": "Odrzucić zmiany?",
+  "discardChangesConfirmation": "Niezapisane zmiany w tym zadaniu zostaną utracone.",
+  "retryCompleted": "Ponowienie zakończone.",
+  "discardPendingOperation": "Odrzucić oczekującą operację?",
+  "discardPendingOperationConfirmation": "Spowoduje to usunięcie zablokowanej operacji lokalnej. Następna synchronizacja odświeży dane z Zadań Google.",
+  "pendingOperationDiscarded": "Odrzucono oczekującą operację.",
+  "syncFailureNotificationTitle": "Synchronizacja BusyMax nie powiodła się",
+  "syncFailureNotificationBody": "Synchronizacja w tle nie powiodła się. {message}",
+  "@syncFailureNotificationBody": {
+    "placeholders": {
+      "message": {
+        "type": "String"
+      }
+    }
+  },
+  "conflictNotificationTitle": "Konflikt synchronizacji BusyMax",
+  "conflictNotificationBody": "Oczekująca zmiana lokalna została zablokowana. {summary}",
+  "@conflictNotificationBody": {
+    "placeholders": {
+      "summary": {
+        "type": "String"
+      }
+    }
+  },
+  "dueTodayNotificationTitle": "Zadania na dzisiaj",
+  "dueTodayNotificationBody": "{count, plural, =0{Brak zadań z terminem na dzisiaj.} one{{count} zadanie ma termin na dzisiaj.} few{{count} zadania mają termin na dzisiaj.} many{{count} zadań ma termin na dzisiaj.} other{{count} zadania ma termin na dzisiaj.}}",
+  "@dueTodayNotificationBody": {
+    "placeholders": {
+      "count": {
+        "type": "int",
+        "format": "decimalPattern"
+      }
+    }
+  },
+  "eventReminderNotificationTitle": "Przypomnienie o wydarzeniu",
+  "taskReminderNotificationTitle": "Przypomnienie o zadaniu",
+  "eventReminderNotificationBody": "Wydarzenie wkrótce się rozpocznie.",
+  "taskReminderNotificationBody": "Zbliża się termin wykonania zadania.",
+  "notificationOpenAction": "Otwórz",
+  "notificationSnoozeAction": "Przypomnij za 10 minut",
+  "notificationDismissAction": "Zamknij",
+  "@notificationDismissAction": {
+    "description": "Non-destructive action that closes or dismisses a desktop notification. Translate distinctly from reject, discard, or cancel."
+  },
+  "notificationDetailsHidden": "Szczegóły są ukryte przez ustawienia prywatności.",
+  "previousMonth": "Poprzedni miesiąc",
+  "nextMonth": "Następny miesiąc",
+  "openMonthView": "Otwórz widok miesiąca",
+  "previousYear": "Poprzedni rok",
+  "nextYear": "Następny rok",
+  "openYearView": "Otwórz widok roku",
+  "weekNumberTooltip": "Tydzień {number}",
+  "@weekNumberTooltip": {
+    "placeholders": {
+      "number": {
+        "type": "int",
+        "format": "decimalPattern"
+      }
+    }
+  },
+  "resizeAllDayPanel": "Zmień rozmiar panelu wydarzeń całodniowych",
+  "scheduleItemCount": "{count, plural, one{{count} element} few{{count} elementy} many{{count} elementów} other{{count} elementu}}",
+  "@scheduleItemCount": {
+    "placeholders": {
+      "count": {
+        "type": "int",
+        "format": "decimalPattern"
+      }
+    }
+  },
+  "readOnlyCalendar": "Ten kalendarz jest tylko do odczytu.",
+  "selectTimeZone": "Wybierz strefę czasową",
+  "searchLocations": "Szukaj lokalizacji",
+  "noLocationsFound": "Nie znaleziono lokalizacji",
+  "requiredField": "To pole jest wymagane.",
+  "providerConnectionDescription": "Połącz kalendarze i zadania od jednego z tych dostawców.",
+  "appleICloudProvider": "Kalendarz Apple iCloud",
+  "nextcloudProvider": "Nextcloud",
+  "appleICloudTasksProvider": "Apple iCloud",
+  "nextcloudTasksProvider": "Zadania Nextcloud",
+  "addAppleICloudAccount": "Dodaj konto Kalendarza Apple iCloud",
+  "addNextcloudAccount": "Dodaj konto Nextcloud",
+  "waitingForAppleICloud": "Łączenie z Apple iCloud…",
+  "waitingForNextcloud": "Oczekiwanie na autoryzację Nextcloud…",
+  "connectAppleICloudTitle": "Połącz Kalendarz Apple iCloud",
+  "appleAccountEmail": "Adres e-mail konta Apple",
+  "appleAppSpecificPassword": "Hasło aplikacji",
+  "appleAppSpecificPasswordHelp": "Utwórz hasło aplikacji po włączeniu uwierzytelniania dwupoziomowego na koncie Apple.",
+  "appleAppSpecificPasswordResetWarning": "Zresetowanie hasła konta Apple unieważnia hasła aplikacji.",
+  "connectNextcloudTitle": "Połącz Nextcloud",
+  "nextcloudServerUrl": "Adres serwera Nextcloud lub CalDAV",
+  "nextcloudServerUrlHelp": "Wpisz adres URL serwera Nextcloud lub wklej główny adres CalDAV skopiowany z Nextcloud.",
+  "nextcloudBrowserAuthorizationHelp": "BusyMax otworzy przeglądarkę. Zatwierdź tam dostęp, a następnie wróć do BusyMax.",
+  "connectAccountAction": "Połącz",
+  "cancelAccountConnection": "Anuluj łączenie",
+  "nextcloudAccountRemovedRevokeFailed": "Konto usunięto lokalnie, ale nie udało się unieważnić jego hasła aplikacji Nextcloud.",
+  "davCachedOfflineNotice": "Dane kalendarzy i zadań są zapisywane lokalnie, aby można było korzystać z nich offline.",
+  "davReauthenticationRequired": "Połącz to konto ponownie, aby wznowić synchronizację.",
+  "davTemporarilyUnavailable": "To konto jest tymczasowo niedostępne.",
+  "davPermissionChanged": "Uprawnienia na serwerze uległy zmianie. Oczekujące zmiany zostały wstrzymane.",
+  "davUnsupportedServer": "Ten serwer lub profil dostawcy nie jest obsługiwany.",
+  "collectionSettings": "Kalendarze i listy zadań",
+  "calendarContent": "Wydarzenia w kalendarzu",
+  "taskContent": "Zadania",
+  "readOnlySharedCollection": "Tylko do odczytu",
+  "pendingLocally": "Oczekuje lokalnie",
+  "conflictBlocked": "Zablokowane przez konflikt",
+  "authenticationBlocked": "Zablokowane do ponownego połączenia",
+  "operationFailed": "Operacja nie powiodła się",
+  "keepServerVersion": "Zachowaj wersję z serwera",
+  "reapplyLocalChange": "Sprawdź i ponownie zastosuj zmianę lokalną",
+  "duplicateLocalItem": "Duplikuj jako nowy element",
+  "davConnectionState": "Stan połączenia",
+  "davConnected": "Połączono",
+  "davConnecting": "Łączenie…",
+  "davSignedOut": "Wylogowano",
+  "davLastSuccessfulSync": "Ostatnia udana synchronizacja: {time}",
+  "@davLastSuccessfulSync": {
+    "placeholders": {
+      "time": {
+        "type": "String"
+      }
+    }
+  },
+  "davNeverSynced": "Jeszcze nie zsynchronizowano",
+  "refreshCollections": "Odśwież kalendarze i listy zadań",
+  "nextcloudServerHost": "Serwer: {host}",
+  "@nextcloudServerHost": {
+    "placeholders": {
+      "host": {
+        "type": "String"
+      }
+    }
+  },
+  "collectionSupportsEvents": "Kalendarz wydarzeń",
+  "collectionSupportsTasks": "Lista zadań",
+  "collectionSupportsEventsAndTasks": "Wydarzenia i zadania",
+  "writableCollection": "Możliwy zapis",
+  "sharedCollection": "Udostępniona",
+  "collectionLastSynced": "Ostatnia synchronizacja: {time}",
+  "@collectionLastSynced": {
+    "placeholders": {
+      "time": {
+        "type": "String"
+      }
+    }
+  },
+  "collectionSyncError": "Problem z synchronizacją: {code}",
+  "@collectionSyncError": {
+    "placeholders": {
+      "code": {
+        "type": "String"
+      }
+    }
+  },
+  "syncConflicts": "Konflikty synchronizacji",
+  "remoteChangedAt": "Zmieniono na serwerze: {time}",
+  "@remoteChangedAt": {
+    "placeholders": {
+      "time": {
+        "type": "String"
+      }
+    }
+  },
+  "localPendingEdit": "Zmiana lokalna: {summary}",
+  "@localPendingEdit": {
+    "placeholders": {
+      "summary": {
+        "type": "String"
+      }
+    }
+  },
+  "conflictResolutionFailed": "Nie udało się rozwiązać konfliktu.",
+  "recurringEventScope": "Zakres wydarzenia cyklicznego",
+  "entireSeries": "Cała seria",
+  "singleOccurrence": "To wydarzenie",
+  "thisAndFollowingEvents": "To i kolejne wydarzenia",
+  "thisAndFutureUnavailable": "Ten dostawca nie obsługuje tej opcji.",
+  "thisAndFutureMoveUnavailable": "Nie można bezpiecznie przenieść tego i kolejnych wydarzeń. Wybierz to wydarzenie lub całą serię.",
+  "entireSeriesMoveUnavailable": "Reguła powtarzania nie jest dostępna lokalnie. Zamiast tego przenieś to wydarzenie.",
+  "copyEventAndDeleteOriginal": "Skopiować wydarzenie i usunąć oryginał?",
+  "copyEventMoveWarning": "BusyMax nie może przenieść tego wydarzenia bezpośrednio z {source} do {destination}. Najpierw utworzy kopię, a oryginał usunie dopiero po jej pomyślnym utworzeniu. Identyfikatory wydarzenia zmienią się; odpowiedzi uczestników mogą zostać zresetowane, a zaproszenia lub powiadomienia o odwołaniu mogą zostać wysłane. Linki do konferencji, załączniki, przypomnienia, pola specyficzne dla dostawcy i wyjątki powtarzania mogą nie zostać przeniesione.",
+  "@copyEventMoveWarning": {
+    "placeholders": {
+      "source": {
+        "type": "String"
+      },
+      "destination": {
+        "type": "String"
+      }
+    }
+  },
+  "copyAndDelete": "Skopiuj i usuń",
+  "chooseRecurringEventScope": "Wybierz, czy zmiana dotyczy całej serii, tylko tego wystąpienia, czy tego i kolejnych wydarzeń.",
+  "@chooseRecurringEventScope": {
+    "description": "Explains the three recurring-event scope choices: entire series, one occurrence, or this and following events."
+  },
+  "taskDueBeforeStart": "Termin wykonania nie może być wcześniejszy niż rozpoczęcie.",
+  "taskStartDueTimeModeMismatch": "Ustaw godziny rozpoczęcia i wykonania albo ustaw zadanie jako całodniowe.",
+  "deleteCalendarConfirmation": "Usunąć „{title}”?",
+  "@deleteCalendarConfirmation": {
+    "placeholders": {
+      "title": {
+        "type": "String"
+      }
+    }
+  },
+  "setCustomCalendarName": "Ustaw własną nazwę",
+  "setAction": "Ustaw",
+  "removeFromMyCalendars": "Usuń z moich kalendarzy",
+  "removeAction": "Usuń",
+  "removeCalendarConfirmation": "Usunąć „{title}” z listy Kalendarza Google? Udostępniony kalendarz i jego wydarzenia nie zostaną usunięte.",
+  "@removeCalendarConfirmation": {
+    "placeholders": {
+      "title": {
+        "type": "String"
+      }
+    }
+  },
+  "calendarCannotRemove": "Tego kalendarza nie można usunąć ani odłączyć od tego konta.",
+  "calendarPendingChangesPreventRemoval": "Przed usunięciem lub odłączeniem kalendarza poczekaj na zakończenie synchronizacji jego oczekujących zmian.",
+  "taskListPendingChangesPreventRemoval": "Przed usunięciem listy zsynchronizuj konto lub rozwiąż zablokowane zmiany tej listy zadań w Diagnostyce.",
+  "calendarSubscriptions": "Subskrypcje kalendarzy",
+  "calendarSubscriptionsDescription": "Dodaj kalendarze tylko do odczytu, odświeżane z bezpiecznego adresu WebCal.",
+  "addCalendarSubscription": "Dodaj subskrypcję kalendarza",
+  "subscriptionName": "Nazwa lokalna",
+  "subscriptionUrl": "Adres URL subskrypcji",
+  "subscriptionUrlHelp": "Wpisz adres HTTPS lub webcal. BusyMax przechowuje pełny adres URL w bezpiecznym magazynie.",
+  "subscriptionUrlInvalid": "Wpisz prawidłowy adres HTTPS lub webcal bez danych użytkownika ani fragmentu.",
+  "subscriptionColor": "Kolor lokalny",
+  "subscriptionColorHelp": "Użyj sześciocyfrowego kodu koloru, np. #3584E4.",
+  "subscriptionColorInvalid": "Wpisz sześciocyfrowy szesnastkowy kod koloru.",
+  "subscriptionRefreshMode": "Częstotliwość odświeżania",
+  "subscriptionAutomatic": "Automatycznie",
+  "subscriptionHourly": "Co godzinę",
+  "subscriptionSixHours": "Co sześć godzin",
+  "subscriptionDaily": "Codziennie",
+  "subscriptionSafeOrigin": "Źródło: {origin}",
+  "@subscriptionSafeOrigin": {
+    "placeholders": {
+      "origin": {
+        "type": "String"
+      }
+    }
+  },
+  "subscriptionSafeOriginUnavailable": "Wpisz prawidłowy adres URL, aby wyświetlić jego źródło bez ujawniania poufnych danych.",
+  "subscriptionReadOnly": "Subskrypcja tylko do odczytu",
+  "subscriptionNeverRefreshed": "Jeszcze nie odświeżono",
+  "subscriptionLastRefresh": "Ostatnie udane odświeżenie: {time}",
+  "@subscriptionLastRefresh": {
+    "placeholders": {
+      "time": {
+        "type": "String"
+      }
+    }
+  },
+  "subscriptionNextRefresh": "Następne odświeżenie: {time}",
+  "@subscriptionNextRefresh": {
+    "placeholders": {
+      "time": {
+        "type": "String"
+      }
+    }
+  },
+  "subscriptionStatusHealthy": "Aktualne",
+  "subscriptionStatusIssue": "Problem z odświeżaniem: {code}",
+  "@subscriptionStatusIssue": {
+    "placeholders": {
+      "code": {
+        "type": "String"
+      }
+    }
+  },
+  "refreshNow": "Odśwież teraz",
+  "unsubscribe": "Anuluj subskrypcję",
+  "unsubscribeCalendarTitle": "Anulować subskrypcję „{name}”?",
+  "@unsubscribeCalendarTitle": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "unsubscribeCalendarConfirmation": "Spowoduje to usunięcie lokalnej subskrypcji i jej wydarzeń z pamięci podręcznej. Opublikowany kalendarz nie zostanie zmieniony.",
+  "addSubscriptionAction": "Dodaj subskrypcję",
+  "subscriptionOperationFailed": "Subskrypcja kalendarza nie powiodła się: {error}",
+  "@subscriptionOperationFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "subscriptions": "Subskrypcje",
+  "calendarImport": "Import kalendarza",
+  "calendarImportDescription": "Wybierz plik, sprawdź jego wydarzenia, a następnie wybierz kalendarz docelowy z możliwością zapisu.",
+  "importIcsFile": "Importuj plik .ics",
+  "importIcsPreview": "Importuj wydarzenia kalendarza",
+  "importEventsFound": "Zestawy wydarzeń możliwe do zaimportowania: {count}",
+  "@importEventsFound": {
+    "placeholders": {
+      "count": {
+        "type": "int",
+        "format": "decimalPattern"
+      }
+    }
+  },
+  "importInvalidEvents": "Nieprawidłowe wydarzenia: {count}",
+  "@importInvalidEvents": {
+    "placeholders": {
+      "count": {
+        "type": "int",
+        "format": "decimalPattern"
+      }
+    }
+  },
+  "importFieldsOmitted": "Celowo pominięto: {fields}",
+  "@importFieldsOmitted": {
+    "placeholders": {
+      "fields": {
+        "type": "String"
+      }
+    }
+  },
+  "noWritableCalendars": "Brak dostępnego kalendarza docelowego z możliwością zapisu.",
+  "importDestinationCalendar": "Kalendarz docelowy",
+  "importIcsConfirm": "Importuj wydarzenia",
+  "importIcsComplete": "Import zakończony",
+  "importQueued": "Zaimportowano lub dodano do kolejki: {count}",
+  "@importQueued": {
+    "placeholders": {
+      "count": {
+        "type": "int",
+        "format": "decimalPattern"
+      }
+    }
+  },
+  "importDuplicatesSkipped": "Pominięte duplikaty: {count}",
+  "@importDuplicatesSkipped": {
+    "placeholders": {
+      "count": {
+        "type": "int",
+        "format": "decimalPattern"
+      }
+    }
+  },
+  "importUnsupportedSets": "Nieobsługiwane zestawy powtarzania: {count}",
+  "@importUnsupportedSets": {
+    "placeholders": {
+      "count": {
+        "type": "int",
+        "format": "decimalPattern"
+      }
+    }
+  },
+  "importIcsFailed": "Nie udało się zaimportować pliku kalendarza: {error}",
+  "@importIcsFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "networkOffline": "Brak połączenia",
+  "networkOfflineDescription": "Zmiany zostaną zsynchronizowane po przywróceniu połączenia.",
+  "networkOfflineTryAgain": "Brak połączenia. Połącz się z internetem i spróbuj ponownie.",
+  "repeatOnMonthDaysSummaryMultiple": "w dniach {days} miesiąca",
+  "@repeatOnMonthDaysSummaryMultiple": {
+    "description": "Sentence fragment for recurrence on multiple days of the month; {days} is a localized list of day numbers.",
+    "placeholders": {
+      "days": {
+        "type": "String"
+      }
+    }
+  },
+  "repeatSummarySeparator": " ",
+  "@repeatSummarySeparator": {
+    "description": "Separator inserted between the base recurrence frequency and a following day or ordinal phrase."
+  },
+  "repeatMonthDayValue": "{day}",
+  "@repeatMonthDayValue": {
+    "description": "Localized day-of-month value used when composing a list of recurrence days.",
+    "placeholders": {
+      "day": {
+        "type": "String"
+      }
+    }
+  },
+  "repeatWeekdayListPair": "{first} i {second}",
+  "@repeatWeekdayListPair": {
+    "description": "Joins the final two weekday names in a recurrence summary.",
+    "placeholders": {
+      "first": {
+        "type": "String"
+      },
+      "second": {
+        "type": "String"
+      }
+    }
+  },
+  "repeatWeekdayListStart": "{first}, {rest}",
+  "@repeatWeekdayListStart": {
+    "description": "Prepends a weekday name to an already localized recurrence weekday list.",
+    "placeholders": {
+      "first": {
+        "type": "String"
+      },
+      "rest": {
+        "type": "String"
+      }
+    }
+  },
+  "repeatMonthDayListPair": "{first} i {second}",
+  "@repeatMonthDayListPair": {
+    "description": "Joins the final two day-of-month values in a monthly recurrence summary.",
+    "placeholders": {
+      "first": {
+        "type": "String"
+      },
+      "second": {
+        "type": "String"
+      }
+    }
+  },
+  "repeatMonthDayListStart": "{first}, {rest}",
+  "@repeatMonthDayListStart": {
+    "description": "Prepends a day-of-month value to an already localized monthly recurrence day list.",
+    "placeholders": {
+      "first": {
+        "type": "String"
+      },
+      "rest": {
+        "type": "String"
+      }
+    }
+  },
+  "repeatYearlyMonthValue": "{monthKey, select, other{{month}}}",
+  "@repeatYearlyMonthValue": {
+    "description": "Month value used in yearly recurrence sentences. Locales may select an inflected form with {monthKey}; {month} is the CLDR abbreviated month fallback.",
+    "placeholders": {
+      "month": {
+        "type": "String"
+      },
+      "monthKey": {
+        "type": "String"
+      }
+    }
+  },
+  "repeatYearlyMonthDayListPair": "{first} i {second}",
+  "@repeatYearlyMonthDayListPair": {
+    "description": "Joins the final two localized day-of-month values in a yearly recurrence summary.",
+    "placeholders": {
+      "first": {
+        "type": "String"
+      },
+      "second": {
+        "type": "String"
+      }
+    }
+  },
+  "repeatYearlyMonthDayListStart": "{first}, {rest}",
+  "@repeatYearlyMonthDayListStart": {
+    "description": "Prepends a localized day-of-month value to an already localized yearly recurrence day list.",
+    "placeholders": {
+      "first": {
+        "type": "String"
+      },
+      "rest": {
+        "type": "String"
+      }
+    }
+  },
+  "repeatYearlyMonthListPair": "{first} i {second}",
+  "@repeatYearlyMonthListPair": {
+    "description": "Joins the final two localized month names in a yearly recurrence summary.",
+    "placeholders": {
+      "first": {
+        "type": "String"
+      },
+      "second": {
+        "type": "String"
+      }
+    }
+  },
+  "repeatYearlyMonthListStart": "{first}, {rest}",
+  "@repeatYearlyMonthListStart": {
+    "description": "Prepends a localized month name to an already localized yearly recurrence month list.",
+    "placeholders": {
+      "first": {
+        "type": "String"
+      },
+      "rest": {
+        "type": "String"
+      }
+    }
+  },
+  "repeatYearlyOnMonthDaySummary": "{frequency}, {day} {month}",
+  "@repeatYearlyOnMonthDaySummary": {
+    "description": "Complete yearly recurrence summary for one day in one month.",
+    "placeholders": {
+      "frequency": {
+        "type": "String"
+      },
+      "month": {
+        "type": "String"
+      },
+      "day": {
+        "type": "String"
+      }
+    }
+  },
+  "repeatYearlyOnMonthDaysSummary": "{frequency}, {days} {month}",
+  "@repeatYearlyOnMonthDaysSummary": {
+    "description": "Complete yearly recurrence summary for multiple days in one month.",
+    "placeholders": {
+      "frequency": {
+        "type": "String"
+      },
+      "month": {
+        "type": "String"
+      },
+      "days": {
+        "type": "String"
+      }
+    }
+  },
+  "repeatYearlyInMonthsOnMonthDaySummary": "{frequency}, {day} {months}",
+  "@repeatYearlyInMonthsOnMonthDaySummary": {
+    "description": "Complete yearly recurrence summary for one day in multiple months.",
+    "placeholders": {
+      "frequency": {
+        "type": "String"
+      },
+      "months": {
+        "type": "String"
+      },
+      "day": {
+        "type": "String"
+      }
+    }
+  },
+  "repeatYearlyInMonthsOnMonthDaysSummary": "{frequency}, {days} {months}",
+  "@repeatYearlyInMonthsOnMonthDaysSummary": {
+    "description": "Complete yearly recurrence summary for multiple days in multiple months.",
+    "placeholders": {
+      "frequency": {
+        "type": "String"
+      },
+      "months": {
+        "type": "String"
+      },
+      "days": {
+        "type": "String"
+      }
+    }
+  },
+  "repeatYearlyOnOrdinalSummary": "{frequency}, {position, select, first{{days} {month}} second{{days} {month}} third{{days} {month}} fourth{{days} {month}} fifth{{days} {month}} secondToLast{{days} {month}} last{{days} {month}} other{{days} {month}}}",
+  "@repeatYearlyOnOrdinalSummary": {
+    "description": "Complete yearly ordinal recurrence summary; {position} selects the ordinal wording and placeholders may be reordered by locale.",
+    "placeholders": {
+      "frequency": {
+        "type": "String"
+      },
+      "month": {
+        "type": "String"
+      },
+      "position": {
+        "type": "String"
+      },
+      "days": {
+        "type": "String"
+      }
+    }
+  },
+  "repeatYearlyInMonthsOnOrdinalSummary": "{frequency}, {position, select, first{1. {days} w miesiącach: {months}} second{2. {days} w miesiącach: {months}} third{3. {days} w miesiącach: {months}} fourth{4. {days} w miesiącach: {months}} fifth{5. {days} w miesiącach: {months}} secondToLast{{days} (przedostatnie wystąpienie w miesiącach: {months})} last{{days} (ostatnie wystąpienie w miesiącach: {months})} other{{days} w miesiącach: {months}}}",
+  "@repeatYearlyInMonthsOnOrdinalSummary": {
+    "description": "Complete yearly ordinal-weekday recurrence summary for multiple months.",
+    "placeholders": {
+      "frequency": {
+        "type": "String"
+      },
+      "months": {
+        "type": "String"
+      },
+      "position": {
+        "type": "String"
+      },
+      "days": {
+        "type": "String"
+      }
+    }
+  }
+}

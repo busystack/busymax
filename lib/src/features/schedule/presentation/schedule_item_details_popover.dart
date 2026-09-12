@@ -7,6 +7,8 @@ import '../../../calendar_providers/calendar_description.dart';
 import '../../../l10n/l10n.dart';
 import '../../../schedule/schedule_item.dart';
 import '../../../schedule/schedule_projection.dart';
+import '../../maps/application/external_location_launcher.dart';
+import '../application/saved_schedule_location.dart';
 import 'schedule_anchored_popover.dart';
 import 'schedule_event_block.dart';
 
@@ -18,14 +20,18 @@ enum ScheduleItemDetailsAction {
   acceptInvitation,
   tentativeInvitation,
   declineInvitation,
+  openLocation,
 }
 
 Future<ScheduleItemDetailsAction?> showScheduleItemDetailsPopover({
   required BuildContext context,
   required BuildContext anchorContext,
   required ScheduleItem item,
+  ExternalLocationDestination? locationDestination,
+  Future<ExternalLocationDestination?>? locationDestinationFuture,
   Offset? anchorPoint,
 }) {
+  final supportsLocationOpening = scheduleItemSupportsLocationOpening(item);
   return showScheduleAnchoredPopover<ScheduleItemDetailsAction>(
     context: context,
     anchorContext: anchorContext,
@@ -34,6 +40,13 @@ Future<ScheduleItemDetailsAction?> showScheduleItemDetailsPopover({
     builder: (context, arrowSide, arrowAlignment) {
       return _ScheduleItemDetailsPopoverCard(
         item: item,
+        locationDestination: supportsLocationOpening
+            ? locationDestination ??
+                  projectedScheduleItemLocationDestination(item)
+            : null,
+        locationDestinationFuture: supportsLocationOpening
+            ? locationDestinationFuture
+            : null,
         arrowSide: arrowSide,
         arrowAlignment: arrowAlignment,
       );
@@ -44,11 +57,15 @@ Future<ScheduleItemDetailsAction?> showScheduleItemDetailsPopover({
 class _ScheduleItemDetailsPopoverCard extends StatelessWidget {
   const _ScheduleItemDetailsPopoverCard({
     required this.item,
+    required this.locationDestination,
+    required this.locationDestinationFuture,
     required this.arrowSide,
     required this.arrowAlignment,
   });
 
   final ScheduleItem item;
+  final ExternalLocationDestination? locationDestination;
+  final Future<ExternalLocationDestination?>? locationDestinationFuture;
   final BusyMaxPopoverArrowSide arrowSide;
   final double arrowAlignment;
 
@@ -134,7 +151,11 @@ class _ScheduleItemDetailsPopoverCard extends StatelessWidget {
                 _InvitationResponseActions(item: event),
               ],
               const SizedBox(height: BusyMaxSpacing.lg),
-              _ScheduleItemDetails(item: item),
+              _ScheduleItemDetails(
+                item: item,
+                locationDestination: locationDestination,
+                locationDestinationFuture: locationDestinationFuture,
+              ),
             ],
           ),
         ),
@@ -235,7 +256,13 @@ class _PopoverActions extends StatelessWidget {
       if (item.capabilities.canDelete)
         BusyMaxPopoverIconButton(
           icon: YaruIcons.trash,
-          tooltip: context.l10n.delete,
+          tooltip: switch (item) {
+            CalendarScheduleItem(isNextcloudAttendee: true) =>
+              context.l10n.nextcloudDeclineAndRemove,
+            CalendarScheduleItem(isNextcloudMeeting: true, isOrganizer: true) =>
+              context.l10n.nextcloudCancelMeeting,
+            _ => context.l10n.delete,
+          },
           destructive: true,
           onPressed: () =>
               Navigator.of(context).pop(ScheduleItemDetailsAction.delete),
@@ -259,12 +286,34 @@ class _PopoverActions extends StatelessWidget {
 }
 
 class _ScheduleItemDetails extends StatelessWidget {
-  const _ScheduleItemDetails({required this.item});
+  const _ScheduleItemDetails({
+    required this.item,
+    required this.locationDestination,
+    required this.locationDestinationFuture,
+  });
 
   final ScheduleItem item;
+  final ExternalLocationDestination? locationDestination;
+  final Future<ExternalLocationDestination?>? locationDestinationFuture;
 
   @override
   Widget build(BuildContext context) {
+    return FutureBuilder<ExternalLocationDestination?>(
+      future: locationDestinationFuture,
+      initialData: locationDestination,
+      builder: (context, snapshot) => _details(
+        context,
+        snapshot.connectionState == ConnectionState.done
+            ? snapshot.data
+            : locationDestination,
+      ),
+    );
+  }
+
+  Widget _details(
+    BuildContext context,
+    ExternalLocationDestination? destination,
+  ) {
     final details = <Widget>[
       _ScheduleDetailRow(
         icon: Icons.schedule,
@@ -279,9 +328,9 @@ class _ScheduleItemDetails extends StatelessWidget {
       if (_accountLabel(item) case final account? when account.isNotEmpty)
         _ScheduleDetailRow(icon: Icons.person_outline, text: account),
       if (item is CalendarScheduleItem)
-        ..._eventDetails(context, item as CalendarScheduleItem),
+        ..._eventDetails(context, item as CalendarScheduleItem, destination),
       if (item is TaskScheduleItem)
-        ..._taskDetails(context, item as TaskScheduleItem),
+        ..._taskDetails(context, item as TaskScheduleItem, destination),
     ];
 
     return Column(
@@ -381,8 +430,78 @@ class _ScheduleDetailRichRow extends StatelessWidget {
   }
 }
 
-List<Widget> _eventDetails(BuildContext context, CalendarScheduleItem item) {
-  final location = item.location?.trim();
+class _ScheduleLocationDetailRow extends StatelessWidget {
+  const _ScheduleLocationDetailRow({
+    required this.item,
+    required this.destination,
+  });
+
+  final ScheduleItem item;
+  final ExternalLocationDestination destination;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final text = savedScheduleLocationDisplayText(item, destination);
+    final action = BusyMaxPushButton.standard(
+      key: const ValueKey('saved-location-open'),
+      onPressed: () =>
+          Navigator.of(context).pop(ScheduleItemDetailsAction.openLocation),
+      child: Text(
+        destination.kind == ExternalLocationDestinationKind.link
+            ? context.l10n.openLink
+            : context.l10n.mapsShow,
+      ),
+    );
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Icon(
+          Icons.place_outlined,
+          size: BusyMaxSizes.iconSm,
+          color: colorScheme.onSurfaceVariant,
+        ),
+        const SizedBox(width: BusyMaxSpacing.sm),
+        Expanded(
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final locationText = SelectableText(
+                text,
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  color: colorScheme.onSurfaceVariant,
+                ),
+              );
+              if (constraints.maxWidth < 320) {
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    locationText,
+                    const SizedBox(height: BusyMaxSpacing.xs),
+                    action,
+                  ],
+                );
+              }
+              return Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(child: locationText),
+                  const SizedBox(width: BusyMaxSpacing.sm),
+                  action,
+                ],
+              );
+            },
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+List<Widget> _eventDetails(
+  BuildContext context,
+  CalendarScheduleItem item,
+  ExternalLocationDestination? locationDestination,
+) {
   final description = item.description?.trim();
   final organizer = _organizerName(item.organizer);
   final attendeeResponses = [
@@ -391,8 +510,13 @@ List<Widget> _eventDetails(BuildContext context, CalendarScheduleItem item) {
         _attendeeResponseLabel(context, attendee),
   ];
   return [
-    if (location != null && location.isNotEmpty)
-      _ScheduleDetailRow(icon: Icons.place_outlined, text: location),
+    if (locationDestination != null)
+      _ScheduleLocationDetailRow(item: item, destination: locationDestination)
+    else if (scheduleItemLocationText(item).trim().isNotEmpty)
+      _ScheduleDetailRow(
+        icon: Icons.place_outlined,
+        text: scheduleItemLocationText(item),
+      ),
     if (organizer != null)
       _ScheduleDetailRow(
         icon: Icons.person_outline,
@@ -405,6 +529,20 @@ List<Widget> _eventDetails(BuildContext context, CalendarScheduleItem item) {
             '${context.l10n.yourResponse}: '
             '${_responseStatusLabel(context, response)}',
       ),
+    if (item.canSendReply)
+      _ScheduleDetailRow(
+        icon: Icons.info_outline,
+        text: context.l10n.nextcloudAttendeeRestrictions,
+        maxLines: null,
+      ),
+    for (final attendee in item.attendees)
+      if (attendee['scheduleStatus'] != null)
+        _ScheduleDetailRow(
+          icon: Icons.mark_email_read_outlined,
+          text:
+              '${context.l10n.nextcloudSchedulingStatus}: ${attendee['email'] ?? ''} · ${attendee['scheduleStatus']}',
+          maxLines: null,
+        ),
     if (attendeeResponses.isNotEmpty)
       _ScheduleDetailRow(
         icon: Icons.groups_outlined,
@@ -492,7 +630,11 @@ String _responseStatusLabel(BuildContext context, String? response) {
   };
 }
 
-List<Widget> _taskDetails(BuildContext context, TaskScheduleItem item) {
+List<Widget> _taskDetails(
+  BuildContext context,
+  TaskScheduleItem item,
+  ExternalLocationDestination? locationDestination,
+) {
   final notes = item.notes?.trim();
   return [
     _ScheduleDetailRow(
@@ -510,6 +652,13 @@ List<Widget> _taskDetails(BuildContext context, TaskScheduleItem item) {
       _ScheduleDetailRow(
         icon: Icons.sell_outlined,
         text: '${context.l10n.categories}: ${item.categories.join(', ')}',
+      ),
+    if (locationDestination != null)
+      _ScheduleLocationDetailRow(item: item, destination: locationDestination)
+    else if (scheduleItemLocationText(item).trim().isNotEmpty)
+      _ScheduleDetailRow(
+        icon: Icons.place_outlined,
+        text: scheduleItemLocationText(item),
       ),
     if (notes != null && notes.isNotEmpty)
       _ScheduleDetailRow(icon: Icons.notes, text: notes),

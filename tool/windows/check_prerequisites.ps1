@@ -24,9 +24,36 @@ if ($RequireWindows11) {
   Assert-BusyMaxWindows11ValidationHost -Build $hostBuild `
     -ProductType $hostProductType
 }
-$flutterVersion = (& flutter --version --machine | ConvertFrom-Json).frameworkVersion
-if ($flutterVersion -ne '3.44.4') {
-  throw "BusyMax requires Flutter 3.44.4; found $flutterVersion."
+$flutterCommands = @(Get-Command flutter -CommandType Application -All `
+  -ErrorAction Stop)
+if ($flutterCommands.Count -eq 0) {
+  throw 'Flutter was not found on PATH.'
+}
+$flutterExecutable = [IO.Path]::GetFullPath($flutterCommands[0].Source)
+$flutterBin = [IO.Path]::GetFullPath((Split-Path -Parent $flutterExecutable))
+$dartExecutable = [IO.Path]::GetFullPath((Join-Path $flutterBin `
+  'cache\dart-sdk\bin\dart.exe'))
+if (-not (Test-Path -LiteralPath $dartExecutable -PathType Leaf)) {
+  throw "The selected Flutter SDK has no bundled Dart executable at $dartExecutable."
+}
+$toolchainVerifier = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot `
+  '..\verify_flutter_sdk.dart'))
+$toolchainJson = & $dartExecutable $toolchainVerifier `
+  --flutter $flutterExecutable `
+  --dart $dartExecutable `
+  --expected-flutter 3.47.2 `
+  --expected-dart 3.13.2
+if ($LASTEXITCODE -ne 0) {
+  throw 'Flutter SDK verification failed.'
+}
+$toolchain = $toolchainJson | ConvertFrom-Json
+$flutterVersion = [string]$toolchain.flutterVersion
+$dartVersion = [string]$toolchain.dartVersion
+if ($flutterVersion -ne '3.47.2') {
+  throw "BusyMax requires Flutter 3.47.2; found $flutterVersion."
+}
+if ($dartVersion -ne '3.13.2') {
+  throw "Flutter 3.47.2 must provide Dart 3.13.2; found $dartVersion."
 }
 $vswhere = Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio\Installer\vswhere.exe'
 if (-not (Test-Path -LiteralPath $vswhere)) {
@@ -63,6 +90,9 @@ $windowsVersion = Get-ItemProperty -LiteralPath `
   'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion'
 [pscustomobject]@{
   Flutter = $flutterVersion
+  FlutterExecutable = $flutterExecutable
+  Dart = $dartVersion
+  DartExecutable = $dartExecutable
   VisualStudio = $visualStudio
   VisualStudioDisplayName = $visualStudioDisplayName
   VisualStudioVersion = $visualStudioVersion

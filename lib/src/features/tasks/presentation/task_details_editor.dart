@@ -10,6 +10,8 @@ import '../../../app/busymax_dialogs.dart';
 import '../../../app/busymax_glyphs.dart';
 import '../../../google_tasks/api/google_tasks_json.dart';
 import '../../../l10n/l10n.dart';
+import '../../maps/domain/location_result.dart';
+import '../../maps/application/external_location_launcher.dart';
 import '../../../platform/linux_header_bar_service.dart';
 import 'package:busymax/src/features/tasks/domain/task_capabilities.dart';
 import '../../task_lists/data/task_lists_repository.dart';
@@ -61,6 +63,7 @@ class TaskDetailsEditor extends StatefulWidget {
     this.headerBarService,
     this.canSaveDraft,
     this.isCreate = false,
+    this.externalLocationLauncher = const ExternalLocationLauncher(),
   });
 
   final TaskEntity task;
@@ -110,6 +113,7 @@ class TaskDetailsEditor extends StatefulWidget {
   final LinuxHeaderBarService? headerBarService;
   final bool Function(TaskDetailsDraft draft)? canSaveDraft;
   final bool isCreate;
+  final ExternalLocationLauncher externalLocationLauncher;
 
   @override
   State<TaskDetailsEditor> createState() => _TaskDetailsEditorState();
@@ -303,6 +307,22 @@ class _TaskDetailsEditorState extends State<TaskDetailsEditor> {
                     if (_supportsIcalFields)
                       IcalTaskFieldsEditor(
                         draft: draft,
+                        savedLocation: widget.isCreate
+                            ? null
+                            : _editingTask.taskLocation ?? '',
+                        savedPoint: widget.isCreate
+                            ? null
+                            : _editingTask.locationPoint,
+                        savedIdentity: widget.isCreate
+                            ? null
+                            : LocationItemIdentity(
+                                kind: LocationItemKind.task,
+                                accountId: _editingTask.accountId,
+                                sourceId: _editingTask.taskListId,
+                                itemId: _editingTask.id,
+                              ),
+                        externalLocationLauncher:
+                            widget.externalLocationLauncher,
                         capabilities: widget.capabilities,
                         enabled: _canWrite,
                         useNativeDatePicker: widget.useNativeDatePicker,

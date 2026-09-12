@@ -7,6 +7,7 @@ import '../../db/app_database.dart';
 import '../../providers/busy_provider.dart';
 import '../dav_provider_profile.dart';
 import 'dav_discovery_models.dart';
+import '../nextcloud/nextcloud_scheduling_policy.dart';
 
 final class DavDiscoveryRepository {
   DavDiscoveryRepository({
@@ -45,6 +46,9 @@ final class DavDiscoveryRepository {
               capabilitiesJson: Value(
                 jsonEncode({
                   'hasPrincipal': service.capabilities.hasPrincipal,
+                  'principalContexts': service.principalContexts
+                      .map((context) => context.toJson())
+                      .toList(),
                   'hasCalendarHome': service.capabilities.hasCalendarHome,
                   'hasSchedulingInbox': service.capabilities.hasSchedulingInbox,
                   'hasSchedulingOutbox':
@@ -106,9 +110,14 @@ final class DavDiscoveryRepository {
                 ),
                 ownerHref: Value(discovered.ownerHref),
                 safeDisplayMetadataJson: Value(
-                  discovered.safeDisplayMetadata.isEmpty
-                      ? null
-                      : jsonEncode(discovered.safeDisplayMetadata),
+                  jsonEncode({
+                    ...discovered.safeDisplayMetadata,
+                    'principalHref': discovered.principalHref?.toString(),
+                    'calendarHomeHref': discovered.calendarHomeHref?.toString(),
+                    'delegated': discovered.delegated,
+                    'parentPrivileges': discovered.parentPrivileges.toList()
+                      ..sort(),
+                  }),
                 ),
                 color: Value(discovered.color),
                 sortOrder: Value(discovered.sortOrder),
@@ -136,6 +145,29 @@ final class DavDiscoveryRepository {
                 updatedAtUtc: now,
               ),
             );
+        if (result.provider == BusyProvider.nextcloud) {
+          final stored = await (_database.select(
+            _database.davCollections,
+          )..where((r) => r.id.equals(id))).getSingle();
+          final policy = await NextcloudSchedulingPolicy.load(
+            _database,
+            stored,
+          );
+          await (_database.update(
+            _database.davCollections,
+          )..where((r) => r.id.equals(id))).write(
+            DavCollectionsCompanion(
+              safeDisplayMetadataJson: Value(
+                jsonEncode({
+                  ...Map<String, Object?>.from(
+                    jsonDecode(stored.safeDisplayMetadataJson ?? '{}') as Map,
+                  ),
+                  ...policy.projection,
+                }),
+              ),
+            ),
+          );
+        }
         await _upsertProjections(
           result: result,
           collectionId: id,
@@ -274,7 +306,7 @@ final class DavDiscoveryRepository {
     if (collection.taskProjectionEnabled) {
       final shared = _differentPrincipal(
         collection.ownerHref,
-        result.service.principalHref.toString(),
+        (collection.principalHref ?? result.service.principalHref).toString(),
       );
       await _database
           .into(_database.taskLists)
@@ -341,6 +373,16 @@ String _projectionMetadata(DavCollectionDiscovery collection) => jsonEncode({
   'kind': collection.kind.name,
   'supportedComponentMask': collection.supportedComponentMask,
   'readOnly': collection.capabilities.isReadOnly,
+  'canRead': collection.capabilities.canRead,
+  'canCreateEvents': collection.capabilities.canCreateEvent,
+  'canEditEvents': collection.capabilities.canUpdateEvent,
+  'canDeleteEvents': collection.capabilities.canDeleteEvent,
+  'canWriteProperties': collection.capabilities.canWriteProperties,
+  'ownerHref': collection.ownerHref,
+  'principalHref': collection.principalHref?.toString(),
+  'calendarHomeHref': collection.calendarHomeHref?.toString(),
+  'delegated': collection.delegated,
+  'parentPrivileges': collection.parentPrivileges.toList()..sort(),
 });
 
 bool _differentPrincipal(String? ownerHref, String principalHref) {

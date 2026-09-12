@@ -30,6 +30,8 @@ iCloud Calendar, and Nextcloud. Apple Reminders is not supported.
   raw iCalendar export, clear-completed, and cross-list subtree moves.
 - Event editing with calendar selection, time controls, repeat rules, and
   reminders.
+- Ordinary event and supported-task location fields, with a saved destination
+  opened on demand in an external maps application or browser.
 - Tray shortcut for opening the main Agenda view.
 - Direct integrations with Google Calendar, Google Tasks, Microsoft Calendar,
   Microsoft To Do, Apple iCloud Calendar, Nextcloud Calendar, and Nextcloud
@@ -90,7 +92,7 @@ iCloud Calendar, and Nextcloud. Apple Reminders is not supported.
 ## Prerequisites
 
 - [Flutter SDK](https://docs.flutter.dev/install)
-- Flutter is pinned to 3.44.4 for both platforms.
+- Flutter is pinned to 3.47.2 for both platforms (bundled Dart 3.13.2).
 - GTK 3 and libhandy development packages (`libgtk-3-dev` and
   `libhandy-1-dev` on Ubuntu/Debian)
 - `GOOGLE_OAUTH_CLIENT_ID` and `GOOGLE_OAUTH_CLIENT_SECRET`; see
@@ -127,6 +129,22 @@ flutter run -d linux -t lib/main_linux.dart \
   --dart-define=GOOGLE_OAUTH_CLIENT_SECRET=<google-secret-if-needed> \
   --dart-define=MICROSOFT_OAUTH_CLIENT_ID=<microsoft-client-id>
 ```
+
+Locations are stored as ordinary calendar/task data. **Show on map** hands a
+saved address or point to the registered maps handler on Linux, with a Google
+Maps browser-search fallback, and to the default browser on Windows. A complete
+HTTP(S) location is opened directly as **Open link**. BusyMax has no embedded
+map, address autocomplete, mapping account, or mapping API-key requirement.
+Provider-native coordinates remain in Microsoft structured locations and
+iCalendar `GEO`. When importing or copying a point into Google Calendar, which
+has only free-form location text in this workflow, BusyMax retains a local
+supplemental point for the exact saved event or provider series. A later
+recurring occurrence can reuse the series point only while its saved location
+still matches; an occurrence-specific point takes precedence. Supplemental
+series data follows a Google **This and following** split only when the new
+series keeps that location; the earlier series retains its own association.
+points are not uploaded through Google Calendar and therefore are not
+automatically available on another BusyMax installation.
 
 Use `tool/install_linux_dev_desktop.sh --uninstall` to remove the development
 launcher. Remove it before testing an installed Snap so the user-level launcher

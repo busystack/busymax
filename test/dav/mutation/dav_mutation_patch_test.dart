@@ -481,10 +481,11 @@ END:VCALENDAR\r
   });
 
   test('one-occurrence edit adds an in-resource detached exception', () {
+    final baseline = _baselineEvent.replaceFirst('COUNT=2', 'COUNT=3');
     final patch = buildDavEventOccurrenceExceptionPatch(
       uid: 'event@example.test',
       occurrenceKey: 'TZID=America/Vancouver:20260817T090000',
-      baselineRawIcs: _baselineEvent,
+      baselineRawIcs: baseline,
       input: DavEventMutationInput(
         title: 'Only this occurrence',
         allDay: false,
@@ -492,6 +493,7 @@ END:VCALENDAR\r
         end: DateTime(2026, 8, 17, 15),
         startTimeZone: 'America/Vancouver',
         endTimeZone: 'America/Vancouver',
+        remindersChanged: true,
         reminders: const {
           'overrides': [
             {'minutes': 15},
@@ -502,7 +504,7 @@ END:VCALENDAR\r
       nowUtc: () => DateTime.utc(2026, 8, 8, 12),
     );
     final candidate = patch.applyTo(
-      _baselineEvent,
+      baseline,
       nowUtc: DateTime.utc(2026, 8, 8, 12),
     );
     final semantic = IcalSemanticDocument.parse(candidate);
@@ -514,16 +516,19 @@ END:VCALENDAR\r
     expect(patch.scope, DavMutationScope.occurrence);
     expect(added.summary, 'Only this occurrence');
     expect(added.start?.rawValue, '20260817T140000');
-    expect(added.alarms, hasLength(2));
-    expect(candidate, contains('RRULE:FREQ=WEEKLY;COUNT=2'));
+    // Two edited display reminders plus the preserved opaque audio alarm.
+    expect(added.alarms, hasLength(3));
+    expect(candidate, contains('X-ALARM-UNKNOWN:keep'));
+    expect(candidate, contains('RRULE:FREQ=WEEKLY;COUNT=3'));
     expect(candidate, contains('X-UNKNOWN;X-PARAM="a,b":keep-me'));
   });
 
   test('this-and-following edit writes an RFC 5545 range exception', () {
+    final baseline = _baselineEvent.replaceFirst('COUNT=2', 'COUNT=3');
     final patch = buildDavEventOccurrenceExceptionPatch(
       uid: 'event@example.test',
       occurrenceKey: 'TZID=America/Vancouver:20260817T090000',
-      baselineRawIcs: _baselineEvent,
+      baselineRawIcs: baseline,
       input: DavEventMutationInput(
         title: 'Following occurrences',
         allDay: false,
@@ -536,7 +541,7 @@ END:VCALENDAR\r
       nowUtc: () => DateTime.utc(2026, 8, 8, 12),
     );
     final candidate = patch.applyTo(
-      _baselineEvent,
+      baseline,
       nowUtc: DateTime.utc(2026, 8, 8, 12),
     );
     final range = IcalSemanticDocument.parse(
@@ -762,6 +767,18 @@ PRODID:-//BusyMax Test//EN\r
 BEGIN:VTIMEZONE\r
 TZID:America/Vancouver\r
 X-LIC-LOCATION:America/Vancouver\r
+BEGIN:STANDARD\r
+DTSTART:19701101T020000\r
+TZOFFSETFROM:-0700\r
+TZOFFSETTO:-0800\r
+RRULE:FREQ=YEARLY;BYMONTH=11;BYDAY=1SU\r
+END:STANDARD\r
+BEGIN:DAYLIGHT\r
+DTSTART:19700308T020000\r
+TZOFFSETFROM:-0800\r
+TZOFFSETTO:-0700\r
+RRULE:FREQ=YEARLY;BYMONTH=3;BYDAY=2SU\r
+END:DAYLIGHT\r
 END:VTIMEZONE\r
 BEGIN:VEVENT\r
 UID:event@example.test\r

@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:drift/drift.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../dav/nextcloud/nextcloud_native_export.dart';
 import 'package:http/http.dart' as http;
 import 'package:uuid/uuid.dart';
 
@@ -20,7 +21,12 @@ import '../dav/mutation/dav_calendar_collection_mutation_service.dart';
 import '../dav/mutation/dav_pending_operations.dart';
 import '../dav/mutation/dav_task_list_mutation_service.dart';
 import '../dav/sync/dav_account_sync_engine.dart';
+import '../dav/storage/dav_projection_coverage_service.dart';
 import '../dav/storage/dav_settings_repository.dart';
+import '../dav/nextcloud/nextcloud_collection_service.dart';
+import '../dav/nextcloud/nextcloud_sharing_service.dart';
+import '../dav/nextcloud/nextcloud_trash_service.dart';
+import '../dav/nextcloud/nextcloud_scheduling_service.dart';
 import '../features/calendar/data/calendar_repository.dart';
 import '../features/calendar/data/calendar_collection_creation_service.dart';
 import '../ical/ical_import_service.dart';
@@ -58,9 +64,11 @@ import 'package:busymax/src/providers/busy_provider.dart';
 import 'package:busymax/src/features/tasks/domain/task_capabilities.dart';
 import '../schedule/schedule_commands.dart';
 import '../schedule/schedule_repository.dart';
+import '../schedule/schedule_sidebar_order.dart';
 import '../webcal/webcal_http_client.dart';
 import '../webcal/webcal_subscription_service.dart';
 import 'app_settings.dart';
+import '../features/maps/data/location_resolution_repository.dart';
 
 export '../app/app_settings.dart';
 
@@ -68,6 +76,10 @@ final buildConfigProvider = Provider<BuildConfig>(
   (ref) => BuildConfig.fromEnvironment(),
 );
 
+final locationResolutionRepositoryProvider =
+    Provider<LocationResolutionRepository>(
+      (ref) => LocationResolutionRepository(ref.watch(databaseProvider)),
+    );
 final databaseProvider = Provider<AppDatabase>((ref) {
   final database = AppDatabase.open();
   ref.onDispose(database.close);
@@ -345,6 +357,11 @@ final davConflictResolutionServiceProvider =
       return DavConflictResolutionService(
         database: database,
         pendingQueue: DavPendingOperationQueue(database: database),
+        rebuildNotifications: (accountId, _) async {
+          await NotificationScheduleService(
+            database: database,
+          ).rebuildUpcomingNotifications(accountId);
+        },
       );
     });
 
@@ -539,6 +556,14 @@ final syncEngineForAccountFactoryProvider =
           apiClient: apiClient,
           accountId: accountId,
           fullRefreshOnly: provider == BusyProvider.microsoft,
+          onTaskListIdReplaced: (oldId, newId) => ref
+              .read(appSettingsControllerProvider.notifier)
+              .replaceSidebarId(
+                SidebarOrderSection.taskLists,
+                oldId,
+                newId,
+                accountId: accountId,
+              ),
           onConflictBlocked: ref
               .read(desktopNotificationServiceProvider)
               .notifyConflict,
@@ -571,6 +596,14 @@ final calendarSyncEngineForAccountFactoryProvider =
           database: ref.read(databaseProvider),
           client: client,
           accountId: accountId,
+          onCalendarSourceIdReplaced: (oldId, newId) => ref
+              .read(appSettingsControllerProvider.notifier)
+              .replaceSidebarId(
+                SidebarOrderSection.calendars,
+                oldId,
+                newId,
+                accountId: accountId,
+              ),
           onConflictBlocked: ref
               .read(desktopNotificationServiceProvider)
               .notifyConflict,
@@ -718,10 +751,22 @@ final calendarRepositoryProvider = Provider<CalendarRepository>((ref) {
   return CalendarRepository(
     database: ref.watch(databaseProvider),
     localTimeZone: ref.watch(localTimeZoneProvider),
+    nextcloudCollections: (accountId) =>
+        ref.read(nextcloudCollectionServiceProvider(accountId)),
     onNotificationScheduleChanged: () =>
         ref.read(notificationSchedulerProvider).checkNow(),
   );
 });
+
+final calendarSourcesStreamProvider =
+    StreamProvider<List<CalendarSourceEntity>>((ref) {
+      final accounts =
+          ref.watch(accountManagementStreamProvider).valueOrNull ?? const [];
+      return ref.watch(calendarRepositoryProvider).watchSourcesForAccounts([
+        for (final account in accounts)
+          if (account.calendarsEnabled) account.id,
+      ]);
+    });
 
 final webCalHttpTransportProvider = Provider<WebCalHttpTransport>(
   (ref) => IoWebCalHttpTransport(),
@@ -748,18 +793,45 @@ final icalImportServiceProvider = Provider<IcalImportService>((ref) {
   return IcalImportService(
     database: ref.watch(databaseProvider),
     calendarRepository: ref.watch(calendarRepositoryProvider),
+    onNativeImported: (accountId) async {
+      try {
+        await NotificationScheduleService(
+          database: ref.read(databaseProvider),
+        ).rebuildUpcomingNotifications(accountId);
+        await ref.read(notificationSchedulerProvider).checkNow();
+      } finally {
+        ref
+            .read(
+              pendingCalendarMutationSyncRequesterForAccountProvider(accountId),
+            )
+            .request();
+      }
+    },
   );
 });
+
+final davProjectionCoverageServiceProvider =
+    Provider<DavProjectionCoverageService>((ref) {
+      return DavProjectionCoverageService(
+        database: ref.watch(databaseProvider),
+      );
+    });
 
 final scheduleRepositoryProvider = Provider<ScheduleRepository>((ref) {
   return ScheduleRepository(
     ref.watch(databaseProvider),
-    ensureProjectionCoverage: (range) => ref
-        .read(webCalSubscriptionServiceProvider)
-        .ensureProjectionCoverage(
-          rangeStartUtc: range.start.toUtc(),
-          rangeEndUtc: range.end.toUtc(),
-        ),
+    ensureProjectionCoverage: (range) async {
+      final start = range.start.toUtc();
+      final end = range.end.toUtc();
+      await Future.wait([
+        ref
+            .read(webCalSubscriptionServiceProvider)
+            .ensureProjectionCoverage(rangeStartUtc: start, rangeEndUtc: end),
+        ref
+            .read(davProjectionCoverageServiceProvider)
+            .ensureProjectionCoverage(rangeStartUtc: start, rangeEndUtc: end),
+      ]);
+    },
   );
 });
 
@@ -795,6 +867,45 @@ final davTaskListMutationClientForAccountProvider =
             .requireNetwork,
       );
     });
+
+final nextcloudCollectionServiceProvider =
+    Provider.family<NextcloudCollectionService, String>(
+      (ref, accountId) => NextcloudCollectionService(
+        database: ref.watch(databaseProvider),
+        secrets: ref.watch(secretStoreProvider),
+        client: ref.watch(baseHttpClientProvider),
+        accountId: accountId,
+        requireNetwork: ref
+            .watch(networkConnectivityMonitorProvider)
+            .requireNetwork,
+        refresh: () => ref
+            .read(accountSyncOperationsProvider)
+            .syncAccount(accountId, full: true),
+      ),
+    );
+final nextcloudNativeExportServiceProvider =
+    Provider<NextcloudNativeExportService>(
+      (ref) => NextcloudNativeExportService(ref.watch(databaseProvider)),
+    );
+final nextcloudSharingServiceProvider =
+    Provider.family<NextcloudSharingService, String>(
+      (ref, accountId) => NextcloudSharingService(
+        ref.watch(nextcloudCollectionServiceProvider(accountId)),
+      ),
+    );
+final nextcloudTrashServiceProvider =
+    Provider.family<NextcloudTrashService, String>(
+      (ref, accountId) => NextcloudTrashService(
+        ref.watch(nextcloudCollectionServiceProvider(accountId)),
+      ),
+    );
+
+final nextcloudSchedulingServiceProvider =
+    Provider.family<NextcloudSchedulingService, String>(
+      (ref, accountId) => NextcloudSchedulingService(
+        ref.watch(nextcloudCollectionServiceProvider(accountId)),
+      ),
+    );
 
 final davCalendarCollectionMutationClientForAccountProvider =
     Provider.family<DavCalendarCollectionMutationClient, String>((
@@ -951,15 +1062,11 @@ final pendingCalendarMutationSyncRequesterForAccountProvider =
       return requester;
     });
 
-final pendingOpResolutionServiceProvider =
-    Provider<PendingOpResolutionService?>((ref) {
-      final accountId = ref.watch(activeAccountProvider);
-      if (accountId == null) {
-        return null;
-      }
+final pendingOpResolutionServiceForAccountProvider =
+    Provider.family<PendingOpResolutionService, String>((ref, accountId) {
       return PendingOpResolutionService(
         database: ref.watch(databaseProvider),
-        apiClient: ref.watch(googleTasksApiClientProvider),
+        apiClient: ref.watch(taskRemoteApiClientForAccountProvider(accountId)),
         calendarClient: ref.watch(
           calendarRemoteApiClientForAccountProvider(accountId),
         ),
@@ -970,7 +1077,18 @@ final pendingOpResolutionServiceProvider =
         syncCalendar: () => ref
             .read(accountSyncOperationsProvider)
             .syncCalendar(accountId, full: false),
+        onNotificationScheduleChanged: () =>
+            ref.read(notificationSchedulerProvider).checkNow(),
       );
+    });
+
+final pendingOpResolutionServiceProvider =
+    Provider<PendingOpResolutionService?>((ref) {
+      final accountId = ref.watch(activeAccountProvider);
+      if (accountId == null) {
+        return null;
+      }
+      return ref.watch(pendingOpResolutionServiceForAccountProvider(accountId));
     });
 
 final syncSchedulerProvider = Provider<AllAccountsSyncScheduler>((ref) {

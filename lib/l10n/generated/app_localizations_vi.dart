@@ -13,6 +13,233 @@ class AppLocalizationsVi extends AppLocalizations {
   AppLocalizationsVi([String locale = 'vi']) : super(locale);
 
   @override
+  String get nextcloudExportCollection => 'Xuất tài nguyên bộ sưu tập';
+
+  @override
+  String nextcloudImportItems(int count) {
+    return 'Tìm thấy $count tài nguyên sự kiện/công việc';
+  }
+
+  @override
+  String get nextcloudSchedulingInbox => 'Hộp thư lời mời';
+
+  @override
+  String get nextcloudInboxExplanation =>
+      'Nextcloud xử lý các thư này vào lịch của bạn. Xác nhận chỉ xóa thư, không xóa sự kiện.';
+
+  @override
+  String get nextcloudInboxEmpty => 'Không có thư lập lịch.';
+
+  @override
+  String get nextcloudAcknowledge => 'Xác nhận thư';
+
+  @override
+  String get nextcloudAcknowledgeConfirm =>
+      'Xóa thư này khỏi hộp thư đến? Sự kiện lịch sẽ được giữ lại.';
+
+  @override
+  String get nextcloudGuestAvailability => 'Kiểm tra thời gian rảnh của khách';
+
+  @override
+  String nextcloudTrashRetention(int days) {
+    return 'Thời gian lưu trong thùng rác máy chủ: $days ngày';
+  }
+
+  @override
+  String get nextcloudCancelMeeting => 'Hủy cuộc họp';
+
+  @override
+  String get nextcloudDeclineAndRemove => 'Từ chối và xóa lời mời';
+
+  @override
+  String get nextcloudDeclineRemovalWarning =>
+      'Việc xóa sẽ gửi lời từ chối khi đồng bộ. Cuộc họp của người tổ chức không bị hủy.';
+
+  @override
+  String get nextcloudAvailabilityUnknown => 'Chưa rõ thời gian rảnh';
+
+  @override
+  String get nextcloudAvailabilityFree =>
+      'Không có khoảng bận nào được báo trong thời gian này';
+
+  @override
+  String get nextcloudAvailabilityBusy => 'Các khoảng bận';
+
+  @override
+  String get nextcloudSchedulingPending =>
+      'Nextcloud sẽ gửi cập nhật cuộc họp khi đồng bộ. Lưu cục bộ không xác nhận đã gửi đến người nhận.';
+
+  @override
+  String get nextcloudAttendeeRestrictions =>
+      'Chỉ người tổ chức hoặc đại diện được ủy quyền mới được sửa chi tiết. Bạn có thể trả lời lời mời trong phần chi tiết.';
+
+  @override
+  String get nextcloudMeetingMoveUnsupported =>
+      'Không thể chuyển cuộc họp bằng cách sao chép rồi xóa. Hãy dùng lịch thuộc cùng danh tính lập lịch.';
+
+  @override
+  String get nextcloudSchedulingStatus => 'Trạng thái lập lịch trên máy chủ';
+
+  @override
+  String get nextcloudImportFollowUp =>
+      'Tài nguyên nhập đã được lưu cục bộ. Đang chờ cập nhật lời nhắc; không nhập lại.';
+
+  @override
+  String get nextcloudNativeImport =>
+      'Nhập đầy đủ sự kiện và công việc mà không gửi lời mời. Bỏ qua UID đã có trừ khi chọn bản sao mới. Tài nguyên không hỗ trợ được báo riêng.';
+
+  @override
+  String get nextcloudImportMethod =>
+      'Tệp chứa thư lập lịch. Nhập sẽ lưu nội dung và loại bỏ METHOD; không xử lý lời mời hay phản hồi.';
+
+  @override
+  String get nextcloudImportCopies =>
+      'Nhập thành bản sao mới với danh tính mới';
+
+  @override
+  String get nextcloudCollectionSettings => 'Cài đặt bộ sưu tập';
+
+  @override
+  String get nextcloudSharing => 'Chia sẻ';
+
+  @override
+  String get nextcloudOwned => 'Sở hữu';
+
+  @override
+  String get nextcloudShared => 'Được chia sẻ';
+
+  @override
+  String get nextcloudDelegated => 'Được ủy quyền';
+
+  @override
+  String get nextcloudSubscription => 'Đăng ký';
+
+  @override
+  String get nextcloudDeleted => 'Đã xóa';
+
+  @override
+  String get nextcloudMetadataEditable =>
+      'Nội dung lịch chỉ đọc; vẫn có thể đổi thuộc tính bộ sưu tập.';
+
+  @override
+  String get nextcloudServerOrder =>
+      'Thứ tự trên máy chủ (tách biệt với thanh bên)';
+
+  @override
+  String get nextcloudCalendarEnabled => 'Bật trên máy chủ';
+
+  @override
+  String get nextcloudAvailability =>
+      'Tính bộ sưu tập này khi kiểm tra thời gian rảnh';
+
+  @override
+  String get nextcloudCalendarTimezone => 'Múi giờ lịch (tài liệu VTIMEZONE)';
+
+  @override
+  String get nextcloudRefreshPending =>
+      'Đã lưu thay đổi trên Nextcloud. Đang chờ làm mới; không lặp lại thay đổi.';
+
+  @override
+  String get nextcloudOutcomeUnknown =>
+      'Không thể xác nhận kết quả trên máy chủ. Làm mới trước khi thử lại.';
+
+  @override
+  String get nextcloudRemoveShared => 'Gỡ lịch/danh sách được chia sẻ';
+
+  @override
+  String get nextcloudRemoveMixed =>
+      'Bộ sưu tập có sự kiện và công việc. Xóa bộ sưu tập sẽ xóa cả hai.';
+
+  @override
+  String get nextcloudReadAccess => 'Chỉ đọc';
+
+  @override
+  String get nextcloudWriteAccess => 'Đọc và ghi';
+
+  @override
+  String get nextcloudRecipientSearch => 'Tìm người hoặc nhóm';
+
+  @override
+  String get nextcloudNoRecipients => 'Không có người hoặc nhóm phù hợp.';
+
+  @override
+  String get nextcloudRevokeShare => 'Thu hồi quyền truy cập';
+
+  @override
+  String get nextcloudPublish => 'Công bố liên kết';
+
+  @override
+  String get nextcloudUnpublish => 'Ngừng công bố';
+
+  @override
+  String get nextcloudPublishWarning =>
+      'Bất kỳ ai có liên kết được công bố đều có thể đọc lịch này. Công bố?';
+
+  @override
+  String get nextcloudTrash => 'Lịch và công việc đã xóa';
+
+  @override
+  String get nextcloudTrashEmpty => 'Không có mục lịch đã xóa.';
+
+  @override
+  String get nextcloudRestore => 'Khôi phục';
+
+  @override
+  String get nextcloudPermanentDelete => 'Xóa vĩnh viễn';
+
+  @override
+  String get nextcloudPermanentDeleteWarning =>
+      'Xóa vĩnh viễn mục này? Không thể khôi phục từ thùng rác lịch của Nextcloud.';
+
+  @override
+  String get nextcloudOperationDenied =>
+      'Nextcloud không cho phép thao tác này.';
+
+  @override
+  String get nextcloudUnsupported => 'Máy chủ không hỗ trợ thao tác này.';
+
+  @override
+  String get nextcloudPendingChanges =>
+      'Lưu hoặc bỏ thay đổi bộ sưu tập trước khi đóng.';
+
+  @override
+  String get nextcloudServerUnavailable =>
+      'Không thể kết nối Nextcloud. Dữ liệu đệm và thay đổi đang chờ vẫn nguyên vẹn.';
+
+  @override
+  String get mapsShow => 'Hiển thị trên bản đồ';
+
+  @override
+  String get openLink => 'Mở liên kết';
+
+  @override
+  String get externalLocationOpenFailed =>
+      'Không thể mở vị trí trong ứng dụng bên ngoài.';
+
+  @override
+  String scheduleProposedRange(String start, String end) {
+    return '$start – $end';
+  }
+
+  @override
+  String get scheduleRescheduleFailed =>
+      'Không thể đổi lịch sự kiện. Thời gian đã lưu không thay đổi.';
+
+  @override
+  String get scheduleRescheduleStale =>
+      'Sự kiện này đã thay đổi trong khi bạn kéo. Vui lòng thử lại.';
+
+  @override
+  String get scheduleRescheduleNotificationsFailed =>
+      'Đã lưu thời gian mới nhưng không thể cập nhật lời nhắc.';
+
+  @override
+  String get moveUp => 'Di chuyển lên';
+
+  @override
+  String get moveDown => 'Di chuyển xuống';
+
+  @override
   String get windowsSupport => 'Hỗ trợ';
 
   @override
@@ -1019,6 +1246,10 @@ class AppLocalizationsVi extends AppLocalizations {
   String taskListDeleteFailed(String error) {
     return 'Không thể xóa danh sách công việc: $error';
   }
+
+  @override
+  String get taskListPendingChangesPreventRemoval =>
+      'Hãy đồng bộ hóa tài khoản hoặc xử lý các thay đổi bị chặn của danh sách việc cần làm này trong mục Chẩn đoán trước khi xóa hoặc gỡ danh sách.';
 
   @override
   String get signInToViewTaskLists => 'Đăng nhập để xem danh sách công việc.';

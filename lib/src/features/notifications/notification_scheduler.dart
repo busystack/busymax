@@ -90,14 +90,14 @@ class NotificationScheduler {
 
   Future<void> _checkDueNotifications() async {
     final now = _nowUtc().millisecondsSinceEpoch;
-    final signedInAccountIds = await _signedInAccountIds();
-    if (signedInAccountIds.isEmpty) {
+    final reminderEligibleAccountIds = await _reminderEligibleAccountIds();
+    if (reminderEligibleAccountIds.isEmpty) {
       return;
     }
     final rows =
         await (_database.select(_database.notificationSchedule)..where(
               (row) =>
-                  row.accountId.isIn(signedInAccountIds) &
+                  row.accountId.isIn(reminderEligibleAccountIds) &
                   row.sentAtUtc.isNull() &
                   row.dismissedAtUtc.isNull() &
                   ((row.snoozedUntilUtc.isNull() &
@@ -115,7 +115,7 @@ class NotificationScheduler {
           _effectiveDueAtUtc(row) > now) {
         continue;
       }
-      if (!await _isAccountSignedIn(row.accountId)) {
+      if (!await _isAccountReminderEligible(row.accountId)) {
         continue;
       }
       final ReminderDeliveryResult result;
@@ -166,14 +166,14 @@ class NotificationScheduler {
     _dueTimer?.cancel();
     _dueTimer = null;
 
-    final signedInAccountIds = await _signedInAccountIds();
-    if (signedInAccountIds.isEmpty) {
+    final reminderEligibleAccountIds = await _reminderEligibleAccountIds();
+    if (reminderEligibleAccountIds.isEmpty) {
       return;
     }
     final pending =
         await (_database.select(_database.notificationSchedule)..where(
               (row) =>
-                  row.accountId.isIn(signedInAccountIds) &
+                  row.accountId.isIn(reminderEligibleAccountIds) &
                   row.sentAtUtc.isNull() &
                   row.dismissedAtUtc.isNull(),
             ))
@@ -301,19 +301,21 @@ class NotificationScheduler {
     await _handleReminderAction(row, parsedAction);
   }
 
-  Future<List<String>> _signedInAccountIds() async {
-    final accounts = await (_database.select(
-      _database.accounts,
-    )..where((row) => row.authState.equals(accountAuthStateSignedIn))).get();
+  Future<List<String>> _reminderEligibleAccountIds() async {
+    final accounts =
+        await (_database.select(_database.accounts)..where(
+              (row) => row.authState.isIn(accountLocalReminderEligibleStates),
+            ))
+            .get();
     return [for (final account in accounts) account.id];
   }
 
-  Future<bool> _isAccountSignedIn(String accountId) async {
+  Future<bool> _isAccountReminderEligible(String accountId) async {
     final account =
         await (_database.select(_database.accounts)..where(
               (row) =>
                   row.id.equals(accountId) &
-                  row.authState.equals(accountAuthStateSignedIn),
+                  row.authState.isIn(accountLocalReminderEligibleStates),
             ))
             .getSingleOrNull();
     return account != null;

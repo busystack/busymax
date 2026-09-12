@@ -6,6 +6,7 @@ import '../dav/ical/ical_recurrence.dart';
 import '../dav/ical/ical_semantics.dart';
 import '../dav/ical/ical_timezone.dart';
 import 'ical_ingestion.dart';
+import '../features/maps/domain/geographic_point.dart';
 
 const sharedIcalEventProjectionVersion = 1;
 
@@ -17,6 +18,7 @@ final class ProjectedIcalEvent {
     required this.title,
     required this.description,
     required this.location,
+    this.locationPoint,
     required this.allDay,
     required this.startDate,
     required this.startDateTime,
@@ -47,6 +49,7 @@ final class ProjectedIcalEvent {
   final String title;
   final String? description;
   final String? location;
+  final GeographicPoint? locationPoint;
   final bool allDay;
   final String? startDate;
   final String? startDateTime;
@@ -156,6 +159,7 @@ ProjectedIcalEvent _projectOccurrence(
     title: occurrence.summary ?? '',
     description: occurrence.description,
     location: occurrence.location,
+    locationPoint: occurrence.locationPoint,
     allDay: allDay,
     startDate: allDay ? _storageTemporal(occurrence.start) : null,
     startDateTime: allDay ? null : _storageTemporal(occurrence.start),

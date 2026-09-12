@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:crypto/crypto.dart';
 
 import '../dav_errors.dart';
+import '../../features/maps/domain/geographic_point.dart';
 import 'ical_document.dart';
 
 enum IcalTemporalKind { date, floatingDateTime, utcDateTime, tzidDateTime }
@@ -13,12 +14,18 @@ final class IcalTemporalValue {
     required this.kind,
     required this.localValue,
     required this.timeZoneId,
+    this.resolvedUtc,
   });
 
   final String rawValue;
   final IcalTemporalKind kind;
   final DateTime localValue;
   final String? timeZoneId;
+
+  /// The exact instant represented by a value calculated from another
+  /// temporal value. Authored TZID values leave this null so ambiguous wall
+  /// times continue to use RFC 5545's first-occurrence interpretation.
+  final DateTime? resolvedUtc;
 
   bool get isDate => kind == IcalTemporalKind.date;
 
@@ -169,6 +176,9 @@ final class IcalSemanticComponent {
   final String? summary;
   final String? description;
   final String? location;
+  GeographicPoint? get locationPoint => GeographicPoint.fromIcal(
+    documentComponent.firstProperty('GEO')?.rawValue,
+  );
   final String? url;
   final String? status;
   final String? classification;

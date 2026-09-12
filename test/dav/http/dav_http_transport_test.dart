@@ -87,6 +87,41 @@ void main() {
   );
 
   test(
+    'allows Nextcloud root well-known discovery only until its installation redirect',
+    () async {
+      final requested = <http.Request>[];
+      final transport = _nextcloudTransport(
+        MockClient((request) async {
+          requested.add(request);
+          if (requested.length == 1) {
+            return http.Response(
+              '',
+              302,
+              headers: {
+                'location':
+                    'https://cloud.example.test/nextcloud/remote.php/dav/',
+              },
+            );
+          }
+          return http.Response('', 200);
+        }),
+      );
+
+      final response = await transport.send(
+        _propfind(Uri.parse('https://cloud.example.test/.well-known/caldav')),
+        credential: credential,
+      );
+
+      expect(response.requestUri.path, '/nextcloud/remote.php/dav/');
+      expect(requested, hasLength(2));
+      expect(
+        requested.map((request) => request.headers['authorization']),
+        everyElement(startsWith('Basic ')),
+      );
+    },
+  );
+
+  test(
     'allows approved iCloud shards but rejects look-alike domains',
     () async {
       final requested = <Uri>[];

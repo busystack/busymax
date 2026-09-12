@@ -2,6 +2,7 @@
 
 #include <flutter_linux/flutter_linux.h>
 #include <gdk-pixbuf/gdk-pixbuf.h>
+#include <gio/gio.h>
 #include <handy.h>
 #include <pango/pango.h>
 #include <algorithm>
@@ -20,6 +21,8 @@ constexpr char kHeaderBarChannel[] = "io.busystack.busymax/headerbar";
 constexpr char kGtkSettingsChannel[] = "io.busystack.busymax/gtk_settings";
 constexpr char kExternalCalendarOpenChannel[] =
     "io.busystack.busymax/external_calendar_open";
+constexpr char kExternalUriLauncherChannel[] =
+    "io.busystack.busymax/external_uri_launcher";
 constexpr char kGtkFontSettingsEventChannel[] =
     "io.busystack.busymax/gtk_font_settings";
 constexpr char kGtkThemeColorsEventChannel[] =
@@ -101,6 +104,7 @@ struct _MyApplication {
   FlMethodChannel* header_bar_channel;
   FlMethodChannel* gtk_settings_channel;
   FlMethodChannel* external_calendar_open_channel;
+  FlMethodChannel* external_uri_launcher_channel;
   GQueue* pending_external_opens;
   gboolean external_calendar_open_ready;
   FlEventChannel* gtk_font_settings_event_channel;
@@ -211,6 +215,10 @@ struct _MyApplication {
 struct PendingExternalOpen {
   gchar* kind;
   gchar* value;
+};
+
+struct PendingExternalUriLaunch {
+  FlMethodCall* method_call;
 };
 
 static void pending_external_open_free(gpointer data) {
@@ -4957,6 +4965,64 @@ static void register_external_calendar_open_channel(MyApplication* self,
       external_calendar_open_method_call_cb, self, nullptr);
 }
 
+static gboolean is_supported_external_uri(const gchar* uri) {
+  if (uri == nullptr || uri[0] == '\0') return FALSE;
+  g_autofree gchar* scheme = g_uri_parse_scheme(uri);
+  if (scheme == nullptr) return FALSE;
+  return g_ascii_strcasecmp(scheme, "geo") == 0 ||
+         g_ascii_strcasecmp(scheme, "maps") == 0 ||
+         g_ascii_strcasecmp(scheme, "http") == 0 ||
+         g_ascii_strcasecmp(scheme, "https") == 0;
+}
+
+static void external_uri_launch_finished_cb(GObject*, GAsyncResult* result,
+                                            gpointer user_data) {
+  auto* pending = static_cast<PendingExternalUriLaunch*>(user_data);
+  g_autoptr(GError) error = nullptr;
+  const gboolean launched =
+      g_app_info_launch_default_for_uri_finish(result, &error);
+  g_autoptr(FlValue) response = fl_value_new_bool(launched);
+  fl_method_call_respond_success(pending->method_call, response, nullptr);
+  g_clear_object(&pending->method_call);
+  g_free(pending);
+}
+
+static void external_uri_launcher_method_call_cb(FlMethodChannel*,
+                                                 FlMethodCall* method_call,
+                                                 gpointer) {
+  const gchar* method = fl_method_call_get_name(method_call);
+  if (g_strcmp0(method, "launch") != 0) {
+    fl_method_call_respond_not_implemented(method_call, nullptr);
+    return;
+  }
+  FlValue* args = fl_method_call_get_args(method_call);
+  if (args == nullptr || fl_value_get_type(args) != FL_VALUE_TYPE_STRING ||
+      !is_supported_external_uri(fl_value_get_string(args))) {
+    fl_method_call_respond_error(
+        method_call, "invalid-arguments",
+        "Only generated map URIs and validated HTTP(S) links can be opened.",
+        nullptr, nullptr);
+    return;
+  }
+
+  auto* pending = g_new0(PendingExternalUriLaunch, 1);
+  pending->method_call = FL_METHOD_CALL(g_object_ref(method_call));
+  g_app_info_launch_default_for_uri_async(
+      fl_value_get_string(args), nullptr, nullptr,
+      external_uri_launch_finished_cb, pending);
+}
+
+static void register_external_uri_launcher_channel(MyApplication* self,
+                                                   FlView* view) {
+  g_autoptr(FlStandardMethodCodec) codec = fl_standard_method_codec_new();
+  self->external_uri_launcher_channel = fl_method_channel_new(
+      fl_engine_get_binary_messenger(fl_view_get_engine(view)),
+      kExternalUriLauncherChannel, FL_METHOD_CODEC(codec));
+  fl_method_channel_set_method_call_handler(
+      self->external_uri_launcher_channel,
+      external_uri_launcher_method_call_cb, self, nullptr);
+}
+
 static void queue_external_calendar_open(MyApplication* self,
                                          const gchar* kind,
                                          const gchar* value) {
@@ -5063,6 +5129,7 @@ static void my_application_activate(GApplication* application) {
   register_native_dialogs(self, view, window);
   register_native_menus(self, view);
   register_external_calendar_open_channel(self, view);
+  register_external_uri_launcher_channel(self, view);
   register_window_channel(self, view);
   register_header_bar_channel(self, view);
   register_gtk_settings_channel(self, view);
@@ -5166,6 +5233,7 @@ static void my_application_dispose(GObject* object) {
   g_clear_object(&self->header_bar_channel);
   g_clear_object(&self->gtk_settings_channel);
   g_clear_object(&self->external_calendar_open_channel);
+  g_clear_object(&self->external_uri_launcher_channel);
   disconnect_gtk_font_settings_signal(self);
   g_clear_object(&self->gtk_font_settings_event_channel);
   g_clear_object(&self->gtk_theme_colors_event_channel);
@@ -5282,6 +5350,7 @@ static void my_application_init(MyApplication* self) {
   self->header_bar_channel = nullptr;
   self->gtk_settings_channel = nullptr;
   self->external_calendar_open_channel = nullptr;
+  self->external_uri_launcher_channel = nullptr;
   self->pending_external_opens = g_queue_new();
   self->external_calendar_open_ready = FALSE;
   self->gtk_font_settings_event_channel = nullptr;

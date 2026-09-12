@@ -21,6 +21,7 @@ import 'package:busymax/src/db/app_database.dart';
 import 'package:busymax/src/features/accounts/data/accounts_repository.dart';
 import 'package:busymax/src/features/accounts/domain/account_connection_state.dart';
 import 'package:busymax/src/features/auth/data/auth_repository.dart';
+import 'package:busymax/src/features/calendar/data/calendar_repository.dart';
 import 'package:busymax/src/features/settings/presentation/settings_screen.dart';
 import 'package:busymax/src/features/sync/sync_auth_error.dart';
 import 'package:busymax/src/platform/gtk_font_service.dart';
@@ -88,6 +89,161 @@ void main() {
     );
     expect(find.text('Theme'), findsOneWidget);
     expect(find.text('Add Google account'), findsNothing);
+  });
+
+  testWidgets('Settings inventories visible and provider-hidden calendars', (
+    tester,
+  ) async {
+    final container = _container(
+      selectedAccountId: 'google:g',
+      authRepository: _FakeAuthRepository(),
+      accounts: const [_googleAccount],
+      calendarSources: const [
+        CalendarSourceEntity(
+          id: 'visible',
+          accountId: 'google:g',
+          provider: BusyProvider.google,
+          providerCalendarId: 'visible@example.com',
+          summary: 'Visible calendar',
+          selected: true,
+          hidden: false,
+          readOnly: false,
+          isDeleted: false,
+        ),
+        CalendarSourceEntity(
+          id: 'hidden',
+          accountId: 'google:g',
+          provider: BusyProvider.google,
+          providerCalendarId: 'hidden@example.com',
+          summary: 'Hidden calendar',
+          selected: true,
+          hidden: true,
+          readOnly: false,
+          isDeleted: false,
+        ),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    await _pumpSettings(tester, container, logicalSize: const Size(1000, 700));
+
+    expect(find.text('Visible calendar'), findsOneWidget);
+    expect(find.text('Hidden calendar'), findsOneWidget);
+    final visibleSchedule = tester.widget<YaruSwitch>(
+      find.byKey(const ValueKey('settings-calendar-schedule-visible')),
+    );
+    final hiddenSchedule = tester.widget<YaruSwitch>(
+      find.byKey(const ValueKey('settings-calendar-schedule-hidden')),
+    );
+    final hiddenProvider = tester.widget<YaruSwitch>(
+      find.byKey(const ValueKey('settings-calendar-provider-hidden')),
+    );
+    final visibleProvider = tester.widget<YaruSwitch>(
+      find.byKey(const ValueKey('settings-calendar-provider-visible')),
+    );
+    expect(visibleSchedule.value, isTrue);
+    expect(visibleSchedule.onChanged, isNotNull);
+    expect(hiddenSchedule.value, isFalse);
+    expect(hiddenSchedule.onChanged, isNull);
+    expect(hiddenProvider.value, isFalse);
+    expect(hiddenProvider.onChanged, isNotNull);
+    expect(visibleProvider.value, isTrue);
+    expect(visibleProvider.onChanged, isNotNull);
+    expect(find.text('Visibility'), findsNothing);
+    expect(
+      tester
+          .getCenter(
+            find.byKey(const ValueKey('settings-calendar-column-schedule')),
+          )
+          .dx,
+      closeTo(
+        tester
+            .getCenter(
+              find.byKey(const ValueKey('settings-calendar-schedule-visible')),
+            )
+            .dx,
+        0.01,
+      ),
+    );
+    expect(
+      tester
+          .getCenter(
+            find.byKey(const ValueKey('settings-calendar-column-provider')),
+          )
+          .dx,
+      closeTo(
+        tester
+            .getCenter(
+              find.byKey(const ValueKey('settings-calendar-provider-visible')),
+            )
+            .dx,
+        0.01,
+      ),
+    );
+
+    final pageHeading = tester.widget<Text>(
+      find.byKey(const ValueKey('settings-page-heading')),
+    );
+    final accountHeading = tester.widget<Text>(
+      find.byKey(const ValueKey('settings-account-heading-google:g')),
+    );
+    final calendarHeading = tester.widget<Text>(find.text('Calendars'));
+    expect(
+      pageHeading.style!.fontSize,
+      greaterThan(accountHeading.style!.fontSize!),
+    );
+    expect(
+      accountHeading.style!.fontSize,
+      greaterThan(calendarHeading.style!.fontSize!),
+    );
+    expect(
+      tester.getTopLeft(find.text('Calendars')).dx,
+      closeTo(
+        tester
+            .getTopLeft(
+              find.byKey(const ValueKey('settings-account-heading-google:g')),
+            )
+            .dx,
+        0.01,
+      ),
+    );
+  });
+
+  testWidgets('Every Settings page uses a primary page heading', (
+    tester,
+  ) async {
+    final container = _container(
+      selectedAccountId: 'google:g',
+      authRepository: _FakeAuthRepository(),
+      accounts: const [_googleAccount],
+    );
+    addTearDown(container.dispose);
+
+    await _pumpSettings(tester, container, logicalSize: const Size(1000, 700));
+
+    const expectedTitles = <SettingsPage, String>{
+      SettingsPage.system: 'System',
+      SettingsPage.accounts: 'Accounts',
+      SettingsPage.schedule: 'Schedule',
+      SettingsPage.notifications: 'Notifications',
+      SettingsPage.privacy: 'Privacy',
+      SettingsPage.diagnostics: 'Diagnostics',
+    };
+    for (final entry in expectedTitles.entries) {
+      await tester.tap(
+        find.byKey(ValueKey('settings-navigation-${entry.key.name}')),
+      );
+      await tester.pumpAndSettle();
+      final heading = tester.widget<Text>(
+        find.byKey(const ValueKey('settings-page-heading')),
+      );
+      expect(heading.data, entry.value);
+      expect(heading.style?.fontWeight, FontWeight.w600);
+    }
+
+    await tester.pumpWidget(const SizedBox());
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 1));
   });
 
   testWidgets('Settings fallback header uses the semantic title style', (
@@ -467,6 +623,14 @@ void main() {
       expect(find.text('Personal'), findsOneWidget);
       expect(find.text('NCC Task List'), findsOneWidget);
       expect(
+        find.byKey(const ValueKey('dav-collection-settings-personal-calendar')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const ValueKey('dav-collection-settings-task-list')),
+        findsOneWidget,
+      );
+      expect(
         find.text('Task list · Read-only · Sync issue: CalDavUnavailable'),
         findsOneWidget,
       );
@@ -742,6 +906,7 @@ void main() {
 
     await tester.pumpWidget(const SizedBox());
     await tester.pump();
+    await tester.pump(const Duration(milliseconds: 1));
   });
 
   testWidgets('Settings uses single-pane navigation at narrow widths', (
@@ -997,6 +1162,7 @@ ProviderContainer _container({
   bool useFlutterHeader = false,
   DavAccountOnboardingService? davOnboardingService,
   List<DavCollectionSettingsEntity> davCollections = const [],
+  List<CalendarSourceEntity> calendarSources = const [],
 }) {
   return ProviderContainer(
     overrides: [
@@ -1015,7 +1181,11 @@ ProviderContainer _container({
       davCollectionsStreamProvider.overrideWith(
         (ref) => Stream.value(davCollections),
       ),
+      calendarSourcesStreamProvider.overrideWith(
+        (ref) => Stream.value(calendarSources),
+      ),
       davConflictsStreamProvider.overrideWith((ref) => Stream.value(const [])),
+      webCalSubscriptionsProvider.overrideWith((ref) => Stream.value(const [])),
       selectedAccountIdProvider.overrideWith((ref) => selectedAccountId),
       if (activeAccountIdOverride != _useDefaultActiveAccountId)
         activeAccountProvider.overrideWithValue(activeAccountIdOverride),

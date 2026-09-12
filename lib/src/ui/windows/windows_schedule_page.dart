@@ -1,4 +1,5 @@
 import 'dart:async';
+import '../../providers/busy_provider.dart';
 import 'dart:math' as math;
 
 import 'package:fluent_ui/fluent_ui.dart';
@@ -18,6 +19,14 @@ import '../../features/schedule/presentation/schedule_item_exporter.dart';
 import '../../features/task_lists/data/task_lists_repository.dart';
 import '../../schedule/schedule_filters.dart';
 import '../../schedule/schedule_item.dart';
+import '../../features/maps/application/external_location_launcher.dart';
+import '../../features/schedule/application/saved_schedule_location.dart';
+import '../../schedule/schedule_event_rescheduling.dart';
+import '../../features/calendar/domain/event_timing_policy.dart';
+import '../../features/tasks/data/tasks_repository.dart';
+import '../common/schedule/schedule_interactions.dart';
+import '../common/schedule/schedule_preview_label.dart';
+import 'windows_schedule_day_week_view.dart';
 import '../../schedule/schedule_range.dart';
 import '../../schedule/schedule_source_visibility.dart';
 import '../../schedule/schedule_view_mode.dart';
@@ -31,7 +40,9 @@ import 'windows_task_details_dialog.dart';
 import 'windows_task_editor_dialog.dart';
 
 class WindowsSchedulePage extends ConsumerStatefulWidget {
-  const WindowsSchedulePage({super.key});
+  const WindowsSchedulePage({super.key, this.externalLocationLauncher});
+
+  final ExternalLocationLauncher? externalLocationLauncher;
 
   @override
   ConsumerState<WindowsSchedulePage> createState() =>
@@ -366,7 +377,8 @@ class _WindowsSchedulePageState extends ConsumerState<WindowsSchedulePage> {
                           ),
                           builder: (context, snapshot) {
                             if (snapshot.connectionState !=
-                                ConnectionState.done) {
+                                    ConnectionState.done &&
+                                !snapshot.hasData) {
                               return const Center(child: ProgressRing());
                             }
                             if (snapshot.hasError) {
@@ -383,6 +395,7 @@ class _WindowsSchedulePageState extends ConsumerState<WindowsSchedulePage> {
                             }
                             final items = snapshot.data ?? const [];
                             if (items.isEmpty &&
+                                _query.isNotEmpty &&
                                 _mode != ScheduleViewMode.agenda) {
                               return _WindowsScheduleEmptyState(
                                 searching: _query.isNotEmpty,
@@ -404,6 +417,23 @@ class _WindowsSchedulePageState extends ConsumerState<WindowsSchedulePage> {
                                   ? _openMonth
                                   : _openDay,
                               onLoadMoreAgenda: _loadMoreAgenda,
+                              onVisibleDateChanged: _selectDate,
+                              onEmptySlot: (start) =>
+                                  unawaited(_createEvent(start: start)),
+                              onRangeCreated:
+                                  writableCalendarSources(sources).isEmpty
+                                  ? null
+                                  : (interval) => unawaited(
+                                      _createEvent(interval: interval),
+                                    ),
+                              onReschedule: _rescheduleEvent,
+                              onTaskCompletionChanged: _setTaskCompleted,
+                              dayStartMinute: ref
+                                  .read(appSettingsControllerProvider)
+                                  .scheduleDayStartMinute,
+                              dayEndMinute: ref
+                                  .read(appSettingsControllerProvider)
+                                  .scheduleDayEndMinute,
                             );
                           },
                         ),
@@ -419,13 +449,90 @@ class _WindowsSchedulePageState extends ConsumerState<WindowsSchedulePage> {
     );
   }
 
-  Future<void> _createEvent() async {
+  Future<void> _createEvent({
+    DateTime? start,
+    ScheduleInterval? interval,
+  }) async {
     final changed = await showWindowsEventEditorDialog(
       context,
       ref,
-      initialStart: _selectedDate,
+      initialStart: start ?? _selectedDate,
+      initialInterval: interval,
     );
     if (changed && mounted) _reload();
+  }
+
+  Future<void> _rescheduleEvent(
+    ScheduleRescheduleRequest request,
+    bool Function() isActive,
+  ) async {
+    final l10n = AppLocalizations.of(context);
+    try {
+      final result = await ScheduleReschedulingCoordinator(
+        repository: ref.read(calendarRepositoryProvider),
+        chooseScope: (detail, following) =>
+            showWindowsRecurringEventMutationScope(
+              context,
+              detail.provider,
+              supportsFollowingOverride: following,
+            ),
+        chooseGuestUpdates: (_) => showWindowsGuestUpdateDialog(
+          context,
+          provider: request.item.provider,
+          action: WindowsGuestUpdateAction.save,
+        ),
+        requestSync: (accountId) async => ref
+            .read(
+              pendingCalendarMutationSyncRequesterForAccountProvider(accountId),
+            )
+            .request(),
+      ).commit(request, isActive: () => mounted && isActive());
+      if (!mounted) return;
+      _reload();
+      if (result == ScheduleRescheduleResult.savedWithNotificationFailure) {
+        unawaited(
+          displayInfoBar(
+            context,
+            builder: (context, close) => InfoBar(
+              title: Text(l10n.scheduleRescheduleNotificationsFailed),
+              severity: InfoBarSeverity.warning,
+            ),
+          ),
+        );
+      }
+    } catch (error) {
+      if (!mounted) return;
+      _reload();
+      unawaited(
+        displayInfoBar(
+          context,
+          builder: (context, close) => InfoBar(
+            title: Text(
+              error is StaleEventTiming
+                  ? l10n.scheduleRescheduleStale
+                  : l10n.scheduleRescheduleFailed,
+            ),
+            severity: InfoBarSeverity.error,
+          ),
+        ),
+      );
+    }
+  }
+
+  Future<void> _setTaskCompleted(TaskScheduleItem item, bool completed) async {
+    await ref
+        .read(tasksRepositoryForAccountProvider(item.accountId))
+        .patchTask(
+          item.sourceId,
+          item.id,
+          TaskPatchInput({
+            'status': completed ? 'completed' : 'needsAction',
+            'completed': completed
+                ? DateTime.now().toUtc().toIso8601String()
+                : null,
+          }),
+        );
+    if (mounted) _reload();
   }
 
   Future<void> _createTask() async {
@@ -735,7 +842,12 @@ class _WindowsSchedulePageState extends ConsumerState<WindowsSchedulePage> {
     );
   }
 
-  Future<void> _showItemDetails(ScheduleItem item) {
+  Future<void> _showItemDetails(ScheduleItem item) async {
+    final locationDestination = await resolveSavedScheduleLocation(
+      item: item,
+      repository: ref.read(locationResolutionRepositoryProvider),
+    );
+    if (!mounted) return;
     final l10n = AppLocalizations.of(context);
     final locale = Localizations.localeOf(context).toLanguageTag();
     final time = _itemDateLabel(item, locale);
@@ -743,16 +855,79 @@ class _WindowsSchedulePageState extends ConsumerState<WindowsSchedulePage> {
       context: context,
       builder: (dialogContext) => ContentDialog(
         title: Text(item.title),
-        content: Text(
-          [
-            time,
-            ?item.sourceName,
-            ?item.accountDisplayName,
-            if (item case CalendarScheduleItem(:final location?)) location,
-            if (item case CalendarScheduleItem(:final description?))
-              description,
-            if (item case TaskScheduleItem(:final notes?)) notes,
-          ].where((value) => value.trim().isNotEmpty).join('\n'),
+        content: SingleChildScrollView(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              SelectableText(
+                [
+                  time,
+                  ?item.sourceName,
+                  ?item.accountDisplayName,
+                  if (item case CalendarScheduleItem(:final description?))
+                    description,
+                  if (item case TaskScheduleItem(:final notes?)) notes,
+                ].where((value) => value.trim().isNotEmpty).join('\n'),
+              ),
+              if (locationDestination != null) ...[
+                const SizedBox(height: 12),
+                _buildLocationRow(dialogContext, item, locationDestination),
+              ] else if (item case CalendarScheduleItem(:final location?)) ...[
+                if (location.trim().isNotEmpty) ...[
+                  const SizedBox(height: 12),
+                  SelectableText(location),
+                ],
+              ],
+              if (item is CalendarScheduleItem) ...[
+                if (item.canSendReply) Text(l10n.nextcloudAttendeeRestrictions),
+                if (item.organizer != null)
+                  SelectableText(
+                    '${l10n.organizer}: ${item.organizer!['displayName'] ?? item.organizer!['email'] ?? item.organizer!['value'] ?? ''}',
+                  ),
+                for (final attendee in item.attendees) ...[
+                  SelectableText(
+                    '${attendee['displayName'] ?? attendee['email'] ?? attendee['value'] ?? ''} · ${attendee['responseStatus'] ?? ''}',
+                  ),
+                  if (attendee['scheduleStatus'] != null)
+                    SelectableText(
+                      '${l10n.nextcloudSchedulingStatus}: ${attendee['scheduleStatus']}',
+                    ),
+                ],
+                if (item.canRespondToInvitation) ...[
+                  if (item.provider == BusyProvider.nextcloud)
+                    Text(l10n.nextcloudSchedulingPending),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      for (final (response, label) in [
+                        (
+                          CalendarInvitationResponse.accept,
+                          l10n.acceptInvitation,
+                        ),
+                        (
+                          CalendarInvitationResponse.tentative,
+                          l10n.tentativeInvitation,
+                        ),
+                        (
+                          CalendarInvitationResponse.decline,
+                          l10n.declineInvitation,
+                        ),
+                      ])
+                        Button(
+                          onPressed: () {
+                            Navigator.pop(dialogContext);
+                            unawaited(_respondToInvitation(item, response));
+                          },
+                          child: Text(label),
+                        ),
+                    ],
+                  ),
+                ],
+              ],
+            ],
+          ),
         ),
         actions: [
           if (item.capabilities.canEdit)
@@ -771,7 +946,16 @@ class _WindowsSchedulePageState extends ConsumerState<WindowsSchedulePage> {
                 Navigator.pop(dialogContext);
                 unawaited(_delete(item));
               },
-              child: Text(l10n.delete),
+              child: Text(switch (item) {
+                CalendarScheduleItem(isNextcloudAttendee: true) =>
+                  l10n.nextcloudDeclineAndRemove,
+                CalendarScheduleItem(
+                  isNextcloudMeeting: true,
+                  isOrganizer: true,
+                ) =>
+                  l10n.nextcloudCancelMeeting,
+                _ => l10n.delete,
+              }),
             ),
           Button(
             onPressed: () {
@@ -787,6 +971,77 @@ class _WindowsSchedulePageState extends ConsumerState<WindowsSchedulePage> {
         ],
       ),
     );
+  }
+
+  Widget _buildLocationRow(
+    BuildContext dialogContext,
+    ScheduleItem item,
+    ExternalLocationDestination destination,
+  ) {
+    final displayedLocation = savedScheduleLocationDisplayText(
+      item,
+      destination,
+    );
+    final action = Button(
+      key: const ValueKey('windows-saved-location-open'),
+      onPressed: () {
+        Navigator.pop(dialogContext);
+        unawaited(_openSavedLocation(destination));
+      },
+      child: Text(
+        destination.kind == ExternalLocationDestinationKind.link
+            ? AppLocalizations.of(dialogContext).openLink
+            : AppLocalizations.of(dialogContext).mapsShow,
+      ),
+    );
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final locationText = SelectableText(displayedLocation);
+        if (constraints.maxWidth < 320) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [locationText, const SizedBox(height: 8), action],
+          );
+        }
+        return Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(child: locationText),
+            const SizedBox(width: 8),
+            action,
+          ],
+        );
+      },
+    );
+  }
+
+  Future<void> _openSavedLocation(
+    ExternalLocationDestination destination,
+  ) async {
+    try {
+      final launcher =
+          widget.externalLocationLauncher ??
+          ExternalLocationLauncher(
+            platform: () => ExternalLocationPlatform.windows,
+          );
+      final result = await launcher.open(destination);
+      if (result == ExternalLocationLaunchResult.opened) return;
+    } on Object {
+      // The external handoff is best-effort and never affects saved data.
+    }
+    if (mounted) {
+      unawaited(
+        displayInfoBar(
+          context,
+          builder: (context, close) => InfoBar(
+            title: Text(
+              AppLocalizations.of(context).externalLocationOpenFailed,
+            ),
+            severity: InfoBarSeverity.error,
+          ),
+        ),
+      );
+    }
   }
 
   Future<void> _edit(ScheduleItem item) async {
@@ -807,10 +1062,68 @@ class _WindowsSchedulePageState extends ConsumerState<WindowsSchedulePage> {
     if (changed && mounted) _reload();
   }
 
+  Future<void> _respondToInvitation(
+    CalendarScheduleItem item,
+    CalendarInvitationResponse response,
+  ) async {
+    if (!item.canRespondToInvitation) return;
+    final l10n = AppLocalizations.of(context);
+    try {
+      RecurringEventMutationScope? scope;
+      if (item.provider == BusyProvider.nextcloud &&
+          item.providerRecurringEventId != null) {
+        scope = await showWindowsRecurringEventMutationScope(
+          context,
+          item.provider,
+          supportsFollowingOverride: false,
+        );
+        if (scope == null || !mounted) return;
+      }
+      final accountId = await ref
+          .read(calendarRepositoryProvider)
+          .respondToLocalEvent(item.id, response, recurringScope: scope);
+      ref
+          .read(
+            pendingCalendarMutationSyncRequesterForAccountProvider(accountId),
+          )
+          .request();
+      if (mounted) _reload();
+    } on Object {
+      if (!mounted) return;
+      await showDialog<void>(
+        context: context,
+        builder: (dialogContext) => ContentDialog(
+          content: InfoBar(
+            title: Text(l10n.operationFailed),
+            severity: InfoBarSeverity.error,
+          ),
+          actions: [
+            FilledButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: Text(l10n.close),
+            ),
+          ],
+        ),
+      );
+    }
+  }
+
   Future<void> _export(ScheduleItem item) async {
     final l10n = AppLocalizations.of(context);
     try {
-      final file = await exportScheduleItemWithSaveDialog(item);
+      final rawICalendar = item is CalendarScheduleItem
+          ? await ref
+                .read(calendarRepositoryProvider)
+                .nativeEventExport(item.id)
+          : item is TaskScheduleItem && item.provider == BusyProvider.nextcloud
+          ? await ref
+                .read(tasksRepositoryForAccountProvider(item.accountId))
+                .nativeTaskExport(item.sourceId, item.id)
+          : null;
+      final file = await exportScheduleItemWithSaveDialog(
+        item,
+        rawICalendar: rawICalendar,
+      );
       if (file == null || !mounted) return;
       await showDialog<void>(
         context: context,
@@ -847,6 +1160,7 @@ class _WindowsSchedulePageState extends ConsumerState<WindowsSchedulePage> {
   }
 
   Future<void> _delete(ScheduleItem item) async {
+    if (!item.capabilities.canDelete) return;
     final l10n = AppLocalizations.of(context);
     RecurringEventMutationScope? scope;
     if (item is CalendarScheduleItem && item.providerRecurringEventId != null) {
@@ -867,7 +1181,8 @@ class _WindowsSchedulePageState extends ConsumerState<WindowsSchedulePage> {
               ),
               child: Text(l10n.singleOccurrence),
             ),
-            if (supportsThisAndFollowingEventMutation(item.provider))
+            if (supportsThisAndFollowingEventMutation(item.provider) &&
+                !item.isNextcloudAttendee)
               Button(
                 onPressed: () => Navigator.pop(
                   context,
@@ -901,15 +1216,24 @@ class _WindowsSchedulePageState extends ConsumerState<WindowsSchedulePage> {
       );
       if (choice == null) return;
       guestUpdatePolicy = choice;
-    } else if (scope == null) {
+    } else if (scope == null ||
+        (item is CalendarScheduleItem && item.isNextcloudAttendee)) {
       if (!mounted) return;
       final confirmed = await showDialog<bool>(
         context: context,
         builder: (context) => ContentDialog(
           title: Text(
-            item is TaskScheduleItem ? l10n.deleteTask : l10n.deleteEvent,
+            item is CalendarScheduleItem && item.isNextcloudAttendee
+                ? l10n.nextcloudDeclineAndRemove
+                : item is TaskScheduleItem
+                ? l10n.deleteTask
+                : l10n.deleteEvent,
           ),
-          content: Text(item.title),
+          content: Text(
+            item is CalendarScheduleItem && item.isNextcloudAttendee
+                ? l10n.nextcloudDeclineRemovalWarning
+                : item.title,
+          ),
           actions: [
             Button(
               onPressed: () => Navigator.pop(context, false),
@@ -927,13 +1251,20 @@ class _WindowsSchedulePageState extends ConsumerState<WindowsSchedulePage> {
     try {
       switch (item) {
         case CalendarScheduleItem():
-          await ref
+          final accountId = await ref
               .read(calendarRepositoryProvider)
               .deleteLocalEvent(
                 item.id,
                 recurringScope: scope,
                 guestUpdatePolicy: guestUpdatePolicy,
               );
+          ref
+              .read(
+                pendingCalendarMutationSyncRequesterForAccountProvider(
+                  accountId,
+                ),
+              )
+              .request();
         case TaskScheduleItem():
           await ref
               .read(tasksRepositoryForAccountProvider(item.accountId))
@@ -1005,6 +1336,13 @@ class _ScheduleModeView extends StatelessWidget {
     required this.onOpen,
     required this.onSelectDate,
     required this.onLoadMoreAgenda,
+    required this.onVisibleDateChanged,
+    required this.onEmptySlot,
+    required this.onRangeCreated,
+    required this.onReschedule,
+    required this.onTaskCompletionChanged,
+    required this.dayStartMinute,
+    required this.dayEndMinute,
   });
 
   final ScheduleViewMode mode;
@@ -1015,23 +1353,33 @@ class _ScheduleModeView extends StatelessWidget {
   final ValueChanged<ScheduleItem> onOpen;
   final ValueChanged<DateTime> onSelectDate;
   final VoidCallback onLoadMoreAgenda;
+  final ValueChanged<DateTime> onVisibleDateChanged;
+  final ValueChanged<DateTime> onEmptySlot;
+  final ValueChanged<ScheduleInterval>? onRangeCreated;
+  final ScheduleRescheduleCallback onReschedule;
+  final void Function(TaskScheduleItem, bool) onTaskCompletionChanged;
+  final int dayStartMinute;
+  final int dayEndMinute;
 
   @override
   Widget build(BuildContext context) => switch (mode) {
-    ScheduleViewMode.day => _AgendaList(
+    ScheduleViewMode.day || ScheduleViewMode.week => WindowsScheduleDayWeekView(
+      key: ValueKey('windows-${mode.name}-planner'),
+      initialDate: mode == ScheduleViewMode.day ? selectedDate : range.start,
+      daysShowed: mode == ScheduleViewMode.day ? 1 : 7,
       items: items,
-      locale: locale,
-      onOpen: onOpen,
-      groupByDate: false,
-    ),
-    ScheduleViewMode.week => _WeekView(
-      range: range,
-      items: items,
-      locale: locale,
       onOpen: onOpen,
       onSelectDate: onSelectDate,
+      onVisibleDateChanged: onVisibleDateChanged,
+      onEmptySlot: onEmptySlot,
+      onRangeCreated: onRangeCreated,
+      onReschedule: onReschedule,
+      onTaskCompletionChanged: onTaskCompletionChanged,
+      dayStartMinute: dayStartMinute,
+      dayEndMinute: dayEndMinute,
     ),
-    ScheduleViewMode.month => _MonthView(
+    ScheduleViewMode.month => WindowsScheduleMonthView(
+      onReschedule: onReschedule,
       selectedDate: selectedDate,
       range: range,
       items: items,
@@ -1139,79 +1487,11 @@ class _AgendaList extends StatelessWidget {
   }
 }
 
-class _WeekView extends StatelessWidget {
-  const _WeekView({
-    required this.range,
-    required this.items,
-    required this.locale,
-    required this.onOpen,
-    required this.onSelectDate,
-  });
-
-  final ScheduleRange range;
-  final List<ScheduleItem> items;
-  final String locale;
-  final ValueChanged<ScheduleItem> onOpen;
-  final ValueChanged<DateTime> onSelectDate;
-
-  @override
-  Widget build(BuildContext context) {
-    final days = [
-      for (var offset = 0; offset < 7; offset += 1)
-        DateTime(range.start.year, range.start.month, range.start.day + offset),
-    ];
-    return LayoutBuilder(
-      builder: (context, constraints) => SingleChildScrollView(
-        scrollDirection: Axis.horizontal,
-        child: SizedBox(
-          width: math.max(constraints.maxWidth, 840),
-          height: constraints.maxHeight,
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              for (final day in days)
-                Expanded(
-                  child: Padding(
-                    padding: const EdgeInsetsDirectional.fromSTEB(3, 0, 3, 12),
-                    child: Card(
-                      child: Column(
-                        children: [
-                          HyperlinkButton(
-                            onPressed: () => onSelectDate(day),
-                            child: Text(DateFormat.MMMEd(locale).format(day)),
-                          ),
-                          const Divider(),
-                          Expanded(
-                            child: ListView(
-                              padding: const EdgeInsets.all(6),
-                              children: [
-                                for (final item in items.where(
-                                  (item) => _itemOccursOn(item, day),
-                                ))
-                                  _CompactScheduleItem(
-                                    item: item,
-                                    locale: locale,
-                                    onPressed: () => onOpen(item),
-                                  ),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _MonthView extends StatelessWidget {
-  const _MonthView({
+class WindowsScheduleMonthView extends StatelessWidget {
+  const WindowsScheduleMonthView({
+    super.key,
     required this.selectedDate,
+    required this.onReschedule,
     required this.range,
     required this.items,
     required this.locale,
@@ -1220,6 +1500,7 @@ class _MonthView extends StatelessWidget {
   });
 
   final DateTime selectedDate;
+  final ScheduleRescheduleCallback onReschedule;
   final ScheduleRange range;
   final List<ScheduleItem> items;
   final String locale;
@@ -1234,74 +1515,99 @@ class _MonthView extends StatelessWidget {
       days.add(cursor);
       cursor = DateTime(cursor.year, cursor.month, cursor.day + 1);
     }
-    return Column(
-      children: [
-        Padding(
-          padding: const EdgeInsetsDirectional.fromSTEB(16, 0, 16, 4),
-          child: Row(
-            children: [
-              for (var index = 0; index < 7; index += 1)
-                Expanded(
-                  child: Center(
-                    child: Text(
-                      DateFormat.E(locale).format(DateTime(2026, 1, 5 + index)),
-                      style: FluentTheme.of(context).typography.caption,
+    return ScheduleInteractionRegion(
+      onReschedule: onReschedule,
+      previewColor: FluentTheme.of(
+        context,
+      ).accentColor.defaultBrushFor(FluentTheme.of(context).brightness),
+      previewBuilder: (context, interval, allDay) => Text(
+        schedulePreviewLabel(context, interval, allDay),
+        style: FluentTheme.of(context).typography.caption,
+      ),
+      child: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsetsDirectional.fromSTEB(16, 0, 16, 4),
+            child: Row(
+              children: [
+                for (var index = 0; index < 7; index += 1)
+                  Expanded(
+                    child: Center(
+                      child: Text(
+                        DateFormat.E(
+                          locale,
+                        ).format(DateTime(2026, 1, 5 + index)),
+                        style: FluentTheme.of(context).typography.caption,
+                      ),
                     ),
                   ),
-                ),
-            ],
-          ),
-        ),
-        Expanded(
-          child: GridView.builder(
-            padding: const EdgeInsetsDirectional.fromSTEB(16, 0, 16, 16),
-            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: 7,
-              childAspectRatio: days.length > 35 ? 1.0 : 0.82,
+              ],
             ),
-            itemCount: days.length,
-            itemBuilder: (context, index) {
-              final day = days[index];
-              final dayItems = items
-                  .where((item) => _itemOccursOn(item, day))
-                  .toList();
-              return Card(
-                child: Padding(
-                  padding: const EdgeInsets.all(5),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      HyperlinkButton(
-                        onPressed: () => onSelectDate(day),
-                        child: Text(
-                          '${day.day}',
-                          style: day.month == selectedDate.month
-                              ? null
-                              : TextStyle(
-                                  color: FluentTheme.of(context).inactiveColor,
-                                ),
-                        ),
-                      ),
-                      for (final item in dayItems.take(2))
-                        _CompactScheduleItem(
-                          item: item,
-                          locale: locale,
-                          onPressed: () => onOpen(item),
-                        ),
-                      if (dayItems.length > 2)
-                        Text(
-                          '+${dayItems.length - 2}',
-                          textAlign: TextAlign.center,
-                          style: FluentTheme.of(context).typography.caption,
-                        ),
-                    ],
-                  ),
-                ),
-              );
-            },
           ),
-        ),
-      ],
+          Expanded(
+            child: GridView.builder(
+              padding: const EdgeInsetsDirectional.fromSTEB(16, 0, 16, 16),
+              gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: 7,
+                childAspectRatio: days.length > 35 ? 1.0 : 0.82,
+              ),
+              itemCount: days.length,
+              itemBuilder: (context, index) {
+                final day = days[index];
+                final dayItems = items
+                    .where((item) => _itemOccursOn(item, day))
+                    .toList();
+                return ScheduleDateTarget(
+                  date: day,
+                  child: Card(
+                    child: Padding(
+                      padding: const EdgeInsets.all(5),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          HyperlinkButton(
+                            onPressed: () => onSelectDate(day),
+                            child: Text(
+                              '${day.day}',
+                              style: day.month == selectedDate.month
+                                  ? null
+                                  : TextStyle(
+                                      color: FluentTheme.of(
+                                        context,
+                                      ).inactiveColor,
+                                    ),
+                            ),
+                          ),
+                          for (final item in dayItems.take(2))
+                            ScheduleEventInteraction(
+                              key: ValueKey(
+                                'windows-month-${item.accountId}-${item.sourceId}-${item.id}-$day',
+                              ),
+                              item: item,
+                              representedDate: day,
+                              dateOnly: true,
+                              child: _CompactScheduleItem(
+                                item: item,
+                                locale: locale,
+                                onPressed: () => onOpen(item),
+                              ),
+                            ),
+                          if (dayItems.length > 2)
+                            Text(
+                              '+${dayItems.length - 2}',
+                              textAlign: TextAlign.center,
+                              style: FluentTheme.of(context).typography.caption,
+                            ),
+                        ],
+                      ),
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

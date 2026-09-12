@@ -36,6 +36,7 @@ part 'daos/tasks_dao.dart';
     CalendarColors,
     ScheduleItemOverrides,
     NotificationSchedule,
+    LocationResolutions,
   ],
   daos: [TaskListsDao, TasksDao, PendingOpsDao, SyncRunsDao],
 )

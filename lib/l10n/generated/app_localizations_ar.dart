@@ -13,6 +13,230 @@ class AppLocalizationsAr extends AppLocalizations {
   AppLocalizationsAr([String locale = 'ar']) : super(locale);
 
   @override
+  String get nextcloudExportCollection => 'تصدير موارد المجموعة';
+
+  @override
+  String nextcloudImportItems(int count) {
+    return 'تم العثور على $count من موارد الأحداث والمهام';
+  }
+
+  @override
+  String get nextcloudSchedulingInbox => 'صندوق وارد الدعوات';
+
+  @override
+  String get nextcloudInboxExplanation =>
+      'يعالج Nextcloud هذه الرسائل في تقاويمك. يؤدي الإقرار إلى إزالة الرسالة فقط، وليس الحدث.';
+
+  @override
+  String get nextcloudInboxEmpty => 'لا توجد رسائل جدولة.';
+
+  @override
+  String get nextcloudAcknowledge => 'الإقرار بالرسالة';
+
+  @override
+  String get nextcloudAcknowledgeConfirm =>
+      'إزالة هذه الرسالة من صندوق الوارد؟ سيُحتفظ بحدث التقويم.';
+
+  @override
+  String get nextcloudGuestAvailability => 'التحقق من توفر المدعوين';
+
+  @override
+  String nextcloudTrashRetention(int days) {
+    return 'مدة الاحتفاظ في مهملات الخادم: $days يومًا';
+  }
+
+  @override
+  String get nextcloudCancelMeeting => 'إلغاء الاجتماع';
+
+  @override
+  String get nextcloudDeclineAndRemove => 'رفض الدعوة وإزالتها';
+
+  @override
+  String get nextcloudDeclineRemovalWarning =>
+      'ستُرسل رسالة رفض عند المزامنة. لن يُلغى اجتماع المنظّم.';
+
+  @override
+  String get nextcloudAvailabilityUnknown => 'التوفر غير معروف';
+
+  @override
+  String get nextcloudAvailabilityFree =>
+      'لم يُبلّغ عن فترات انشغال في هذا النطاق';
+
+  @override
+  String get nextcloudAvailabilityBusy => 'فترات الانشغال';
+
+  @override
+  String get nextcloudSchedulingPending =>
+      'سيرسل Nextcloud تحديثات الاجتماع عند المزامنة. الحفظ المحلي لا يؤكد التسليم.';
+
+  @override
+  String get nextcloudAttendeeRestrictions =>
+      'لا يمكن تغيير تفاصيل الاجتماع إلا للمنظّم أو المفوّض المخوّل. يمكنك الرد على الدعوة من تفاصيلها.';
+
+  @override
+  String get nextcloudMeetingMoveUnsupported =>
+      'لا يمكن نقل هذا الاجتماع بالنسخ والحذف. استخدم تقويمًا له هوية الجدولة نفسها.';
+
+  @override
+  String get nextcloudSchedulingStatus => 'حالة الجدولة لدى الخادم';
+
+  @override
+  String get nextcloudImportFollowUp =>
+      'حُفظت الموارد المستوردة محليًا. تحديث التذكيرات معلّق؛ لا تستوردها مجددًا.';
+
+  @override
+  String get nextcloudNativeImport =>
+      'استيراد موارد الأحداث والمهام كاملةً دون إرسال دعوات. تُتخطى معرّفات UID الموجودة ما لم تختر نسخًا جديدة. يُبلّغ عن الموارد غير المدعومة كلٌّ على حدة.';
+
+  @override
+  String get nextcloudImportMethod =>
+      'يحتوي الملف على رسائل جدولة. يحفظ الاستيراد المحتوى ويزيل METHOD؛ ولا يعالج دعوة أو ردًا.';
+
+  @override
+  String get nextcloudImportCopies => 'استيراد نسخ جديدة بهويات جديدة';
+
+  @override
+  String get nextcloudCollectionSettings => 'إعدادات المجموعة';
+
+  @override
+  String get nextcloudSharing => 'المشاركة';
+
+  @override
+  String get nextcloudOwned => 'مملوكة';
+
+  @override
+  String get nextcloudShared => 'مشتركة';
+
+  @override
+  String get nextcloudDelegated => 'مفوّضة';
+
+  @override
+  String get nextcloudSubscription => 'اشتراك';
+
+  @override
+  String get nextcloudDeleted => 'محذوفة';
+
+  @override
+  String get nextcloudMetadataEditable =>
+      'محتوى التقويم للقراءة فقط؛ يمكن تغيير خصائص المجموعة.';
+
+  @override
+  String get nextcloudServerOrder =>
+      'ترتيب الخادم (منفصل عن ترتيب الشريط الجانبي)';
+
+  @override
+  String get nextcloudCalendarEnabled => 'مفعّلة على الخادم';
+
+  @override
+  String get nextcloudAvailability => 'تضمين هذه المجموعة في التوفر';
+
+  @override
+  String get nextcloudCalendarTimezone =>
+      'المنطقة الزمنية للتقويم (مستند VTIMEZONE)';
+
+  @override
+  String get nextcloudRefreshPending =>
+      'حُفظ التغيير في Nextcloud. التحديث معلّق؛ لا تكرر التغيير.';
+
+  @override
+  String get nextcloudOutcomeUnknown =>
+      'تعذّر تأكيد النتيجة لدى الخادم. حدّث قبل المحاولة مجددًا.';
+
+  @override
+  String get nextcloudRemoveShared => 'إزالة التقويم أو القائمة المشتركة';
+
+  @override
+  String get nextcloudRemoveMixed =>
+      'تحتوي هذه المجموعة على أحداث ومهام. يؤدي حذفها إلى إزالة كليهما.';
+
+  @override
+  String get nextcloudReadAccess => 'للقراءة فقط';
+
+  @override
+  String get nextcloudWriteAccess => 'قراءة وكتابة';
+
+  @override
+  String get nextcloudRecipientSearch => 'البحث عن أشخاص أو مجموعات';
+
+  @override
+  String get nextcloudNoRecipients => 'لا توجد أشخاص أو مجموعات مطابقة.';
+
+  @override
+  String get nextcloudRevokeShare => 'إلغاء صلاحية الوصول';
+
+  @override
+  String get nextcloudPublish => 'نشر الرابط';
+
+  @override
+  String get nextcloudUnpublish => 'إيقاف النشر';
+
+  @override
+  String get nextcloudPublishWarning =>
+      'قد يتمكن أي شخص يملك الرابط المنشور من قراءة هذا التقويم. هل تريد نشره؟';
+
+  @override
+  String get nextcloudTrash => 'التقاويم والمهام المحذوفة';
+
+  @override
+  String get nextcloudTrashEmpty => 'لا توجد عناصر تقويم محذوفة.';
+
+  @override
+  String get nextcloudRestore => 'استعادة';
+
+  @override
+  String get nextcloudPermanentDelete => 'حذف نهائي';
+
+  @override
+  String get nextcloudPermanentDeleteWarning =>
+      'حذف هذا العنصر نهائيًا؟ لن يمكن استعادته من مهملات تقويم Nextcloud.';
+
+  @override
+  String get nextcloudOperationDenied => 'لم يسمح Nextcloud بهذه العملية.';
+
+  @override
+  String get nextcloudUnsupported => 'الخادم لا يدعم هذه العملية.';
+
+  @override
+  String get nextcloudPendingChanges =>
+      'احفظ تغييرات المجموعة أو تجاهلها قبل الإغلاق.';
+
+  @override
+  String get nextcloudServerUnavailable =>
+      'تعذّر الوصول إلى Nextcloud. لم تتغير العناصر المخزّنة مؤقتًا ولا الأعمال المعلّقة.';
+
+  @override
+  String get mapsShow => 'عرض على الخريطة';
+
+  @override
+  String get openLink => 'فتح الرابط';
+
+  @override
+  String get externalLocationOpenFailed => 'تعذّر فتح الموقع في تطبيق خارجي.';
+
+  @override
+  String scheduleProposedRange(String start, String end) {
+    return '⁨$start⁩ – ⁨$end⁩';
+  }
+
+  @override
+  String get scheduleRescheduleFailed =>
+      'تعذّر تغيير موعد الحدث. لم يتغيّر وقته المحفوظ.';
+
+  @override
+  String get scheduleRescheduleStale =>
+      'تغيّر هذا الحدث أثناء السحب. يُرجى المحاولة مجددًا.';
+
+  @override
+  String get scheduleRescheduleNotificationsFailed =>
+      'تم حفظ الوقت الجديد، لكن تعذّر تحديث التذكيرات.';
+
+  @override
+  String get moveUp => 'نقل لأعلى';
+
+  @override
+  String get moveDown => 'نقل لأسفل';
+
+  @override
   String get windowsSupport => 'الدعم';
 
   @override
@@ -1050,6 +1274,10 @@ class AppLocalizationsAr extends AppLocalizations {
   String taskListDeleteFailed(String error) {
     return 'تعذّر حذف قائمة المهام: ⁨$error⁩';
   }
+
+  @override
+  String get taskListPendingChangesPreventRemoval =>
+      'زامِن الحساب، أو عالِج التغييرات المحظورة لقائمة المهام هذه في «التشخيصات»، قبل حذف القائمة أو إزالتها.';
 
   @override
   String get signInToViewTaskLists => 'سجّل الدخول لعرض قوائم المهام.';

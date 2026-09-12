@@ -59,6 +59,18 @@ class TaskListEntity {
   final bool? isOwner;
   final bool? isShared;
   final String? davCollectionId;
+  bool get isMixedDavCollection {
+    if (davCollectionId == null) return false;
+    Object? metadata;
+    try {
+      metadata = jsonDecode(rawJson);
+    } on FormatException {
+      return false;
+    }
+    return metadata is Map &&
+        metadata['supportedComponentMask'] is int &&
+        (metadata['supportedComponentMask'] as int) & 3 == 3;
+  }
 
   bool get isMicrosoftBuiltIn =>
       providerListKind == 'defaultList' || providerListKind == 'flaggedEmails';

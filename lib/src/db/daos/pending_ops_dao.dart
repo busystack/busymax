@@ -61,6 +61,18 @@ class PendingOpsDao extends DatabaseAccessor<AppDatabase>
     return query.watch();
   }
 
+  /// Watches recovery-blocked operations across every account.
+  ///
+  /// Diagnostics is application-wide: restricting it to the currently
+  /// selected account can hide the operation that is protecting a calendar or
+  /// task list from removal.
+  Stream<List<PendingOp>> watchAllBlockedOps() {
+    final query = select(pendingOps)
+      ..where((row) => row.nextAttemptAtUtc.isBiggerOrEqualValue('9999-12-31'))
+      ..orderBy([(row) => OrderingTerm.asc(row.createdAtUtc)]);
+    return query.watch();
+  }
+
   Future<void> retryNow(String id, DateTime nowUtc) {
     final query = update(pendingOps)..where((row) => row.id.equals(id));
     return query.write(
@@ -71,6 +83,39 @@ class PendingOpsDao extends DatabaseAccessor<AppDatabase>
         updatedAtUtc: Value(nowUtc.toIso8601String()),
       ),
     );
+  }
+
+  /// Makes a failed DAV operation replayable and records that replay must
+  /// reconcile first, independently of the legacy attempt counter.
+  Future<bool> retryFailedDavOperationNow(
+    PendingOp snapshot,
+    DateTime nowUtc, {
+    String? requestJson,
+  }) async {
+    final timestamp = nowUtc.toUtc().toIso8601String();
+    final query = update(pendingOps)
+      ..where(
+        (row) =>
+            row.id.equals(snapshot.id) &
+            row.accountId.equals(snapshot.accountId) &
+            row.state.equals('failed') &
+            row.updatedAtUtc.equals(snapshot.updatedAtUtc),
+      );
+    final updated = await query.write(
+      PendingOpsCompanion(
+        state: const Value('retry'),
+        retryClassification: const Value('manual_retry'),
+        nextAttemptAtUtc: Value(timestamp),
+        lastErrorCode: const Value(null),
+        lastErrorMessage: const Value(null),
+        lastError: const Value(null),
+        requestJson: requestJson == null
+            ? const Value.absent()
+            : Value(requestJson),
+        updatedAtUtc: Value(timestamp),
+      ),
+    );
+    return updated == 1;
   }
 
   Future<void> updateAttempt({

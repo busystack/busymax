@@ -1,4 +1,6 @@
 import 'dart:convert';
+import '../maps/data/location_resolution_repository.dart';
+import '../maps/domain/location_result.dart';
 import 'dart:math';
 
 import 'package:drift/drift.dart';
@@ -18,6 +20,15 @@ import '../calendar/data/calendar_repository.dart';
 import '../recurrence/domain/event_recurrence_codec.dart';
 import '../recurrence/domain/recurrence_rule.dart';
 import 'pending_ops_replay_coordinator.dart';
+import 'collection_id_replacement.dart';
+
+const _microsoftLocationStateField = 'locationState';
+
+String? _googleSeriesId(CalendarEvent event) {
+  if (event.provider != BusyProvider.google.storageValue) return null;
+  return event.providerRecurringEventId ??
+      (event.recurrenceJson == null ? null : event.providerEventId);
+}
 
 class CalendarPendingOpsReplayer {
   CalendarPendingOpsReplayer({
@@ -26,12 +37,14 @@ class CalendarPendingOpsReplayer {
     required String accountId,
     DateTime Function()? nowUtc,
     Future<void> Function(String summary)? onConflictBlocked,
+    CollectionIdReplacement? onCalendarSourceIdReplaced,
     Random? random,
   }) : _database = database,
        _client = client,
        _accountId = accountId,
        _nowUtc = nowUtc ?? (() => DateTime.now().toUtc()),
        _onConflictBlocked = onConflictBlocked,
+       _onCalendarSourceIdReplaced = onCalendarSourceIdReplaced,
        _random = random ?? Random.secure(),
        _repository = CalendarRepository(database: database, now: nowUtc);
 
@@ -40,6 +53,7 @@ class CalendarPendingOpsReplayer {
   final String _accountId;
   final DateTime Function() _nowUtc;
   final Future<void> Function(String summary)? _onConflictBlocked;
+  final CollectionIdReplacement? _onCalendarSourceIdReplaced;
   final Random _random;
   final CalendarRepository _repository;
 
@@ -185,7 +199,8 @@ class CalendarPendingOpsReplayer {
             request['summary'] == null &&
             (request['backgroundColor'] != null ||
                 request['foregroundColor'] != null ||
-                request['colorId'] != null));
+                request['colorId'] != null ||
+                request['hidden'] is bool));
     await _requireCalendarPatchAllowed(op, personal: personal);
     final mutation = _calendarMutation(request);
     final source = personal
@@ -448,7 +463,7 @@ class CalendarPendingOpsReplayer {
     );
     if (recurringScope == 'entireSeries') {
       await _repository.upsertEvent(accountId: _accountId, event: event);
-      await _markRecurringRowsSynced(local);
+      await _markRecurringRowsSynced(op, local);
       return;
     }
     await _database.transaction(() async {
@@ -475,7 +490,10 @@ class CalendarPendingOpsReplayer {
       return false;
     }
 
-    final acknowledgedFields = _eventMutationFields(_request(completedOp));
+    final acknowledgedFields = _eventMutationFields(
+      _request(completedOp),
+      _client.provider,
+    );
     final serverSnapshot = _semanticSnapshot(
       _client.provider,
       serverEvent.rawJson,
@@ -659,7 +677,17 @@ class CalendarPendingOpsReplayer {
         ),
         guestUpdatePolicy: _guestUpdatePolicy(request),
       );
-      await _markRecurringRowsSynced(local);
+      if (request.containsKey('location')) {
+        await LocationResolutionRepository(
+          _database,
+        ).removeGoogleSeriesSourceUnlessLocationMatches(
+          accountId: _accountId,
+          sourceId: local.calendarSourceId,
+          providerSeriesId: masterId,
+          expectedLocation: request['location']?.toString() ?? '',
+        );
+      }
+      await _markRecurringRowsSynced(op, local);
       return;
     }
 
@@ -693,9 +721,24 @@ class CalendarPendingOpsReplayer {
       rule,
       calendarId: calendarId,
       masterId: masterId,
-      masterStart: masterStart,
       targetStart: targetStart,
+      savedFollowingCount: switch (request[_googleSplitFollowingCountKey]) {
+        final num value => value.toInt(),
+        _ => null,
+      },
     );
+    if (rule.count != null &&
+        !request.containsKey(_googleSplitFollowingCountKey)) {
+      request[_googleSplitFollowingCountKey] = followingRule.count;
+      await (_database.update(
+        _database.pendingOps,
+      )..where((row) => row.id.equals(op.id))).write(
+        PendingOpsCompanion(
+          requestJson: Value(jsonEncode(request)),
+          updatedAtUtc: Value(_nowUtc().toIso8601String()),
+        ),
+      );
+    }
 
     await _client.updateEvent(
       calendarId: calendarId,
@@ -740,8 +783,9 @@ class CalendarPendingOpsReplayer {
     }
     final providerRaw = {...originalMaster.rawJson}..remove('conferenceData');
     final splitEventId = op.id.replaceAll('-', '').toLowerCase();
+    late final CalendarEventDto splitEvent;
     try {
-      await _client.createEvent(
+      splitEvent = await _client.createEvent(
         calendarId: calendarId,
         mutation: _eventMutation(
           splitRequest,
@@ -753,9 +797,19 @@ class CalendarPendingOpsReplayer {
       );
     } on GoogleCalendarApiError catch (error) {
       if (error.statusCode != 409) rethrow;
-      await _client.getEvent(calendarId: calendarId, eventId: splitEventId);
+      splitEvent = await _client.getEvent(
+        calendarId: calendarId,
+        eventId: splitEventId,
+      );
     }
-    await _markRecurringRowsSynced(local);
+    await LocationResolutionRepository(_database).copyGoogleSeriesSource(
+      accountId: _accountId,
+      sourceId: local.calendarSourceId,
+      fromProviderSeriesId: masterId,
+      toProviderSeriesId: splitEventId,
+      expectedLocation: splitEvent.location ?? '',
+    );
+    await _markRecurringRowsSynced(op, local);
   }
 
   Future<void> _deleteGoogleFollowingEvents(
@@ -794,7 +848,12 @@ class CalendarPendingOpsReplayer {
         eventId: masterId,
         guestUpdatePolicy: _guestUpdatePolicy(request),
       );
-      await _markRecurringRowsSynced(local);
+      await LocationResolutionRepository(_database).removeGoogleSeriesSource(
+        accountId: local.accountId,
+        sourceId: local.calendarSourceId,
+        providerSeriesId: masterId,
+      );
+      await _markRecurringRowsSynced(op, local);
       return;
     }
     final rule = EventRecurrenceCodec.decode(
@@ -830,54 +889,94 @@ class CalendarPendingOpsReplayer {
       ),
       guestUpdatePolicy: _guestUpdatePolicy(request),
     );
-    await _markRecurringRowsSynced(local);
+    await _markRecurringRowsSynced(op, local);
   }
 
   Future<RecurrenceRule> _followingGoogleRule(
     RecurrenceRule rule, {
     required String calendarId,
     required String masterId,
-    required DateTime masterStart,
     required DateTime targetStart,
+    required int? savedFollowingCount,
   }) async {
     final count = rule.count;
     if (count == null) return rule;
-    final instances = await _client.listEventInstances(
-      calendarId: calendarId,
-      recurringEventId: masterId,
-      rangeStart: masterStart.subtract(const Duration(days: 1)),
-      rangeEnd: targetStart.add(const Duration(days: 1)),
-    );
-    final before = instances.where((instance) {
-      final original = DateTime.tryParse(
-        instance.providerOriginalStartKey ?? '',
+    if (savedFollowingCount case final saved?) {
+      if (saved < 1 || saved > count) {
+        throw StateError('The saved Google split count is invalid.');
+      }
+      return rule.copyWith(count: saved, untilRaw: null);
+    }
+    final instanceClient = _client;
+    if (instanceClient is! CompleteRecurringInstanceClient) {
+      throw StateError(
+        'The Google client cannot enumerate the complete recurring series.',
       );
-      return original != null && original.isBefore(targetStart);
-    }).length;
-    final remaining = count - before;
+    }
+    final instances = await (instanceClient as CompleteRecurringInstanceClient)
+        .listAllEventInstances(
+          calendarId: calendarId,
+          recurringEventId: masterId,
+        );
+    final precedingOriginalStarts = <String>{};
+    for (final instance in instances) {
+      final originalKey = instance.providerOriginalStartKey;
+      final original = DateTime.tryParse(originalKey ?? '');
+      if (original != null && original.isBefore(targetStart)) {
+        precedingOriginalStarts.add(originalKey!);
+      }
+    }
+    final remaining = count - precedingOriginalStarts.length;
     if (remaining < 1) {
       throw StateError('The target occurrence is outside the recurrence.');
     }
     return rule.copyWith(count: remaining, untilRaw: null);
   }
 
-  Future<void> _markRecurringRowsSynced(CalendarEvent local) async {
-    final recurringEventId = local.providerRecurringEventId;
-    if (recurringEventId == null) return;
-    await (_database.update(_database.calendarEvents)..where(
-          (row) =>
-              row.accountId.equals(local.accountId) &
-              row.provider.equals(local.provider) &
-              row.providerCalendarId.equals(local.providerCalendarId) &
-              row.providerRecurringEventId.equals(recurringEventId) &
-              row.syncStatus.equals('pending'),
-        ))
-        .write(
-          CalendarEventsCompanion(
-            syncStatus: const Value('synced'),
-            updatedAtLocal: Value(_nowUtc().millisecondsSinceEpoch),
-          ),
-        );
+  Future<void> _markRecurringRowsSynced(
+    PendingOp completedOp,
+    CalendarEvent local,
+  ) async {
+    await _database.transaction(() async {
+      final recurringEventId = local.providerRecurringEventId;
+      if (recurringEventId == null) return;
+      final remaining =
+          await (_database.select(_database.pendingOps)..where(
+                (row) =>
+                    row.accountId.equals(local.accountId) &
+                    row.provider.equals(local.provider) &
+                    row.providerCalendarId.equals(local.providerCalendarId) &
+                    row.entityType.equals('event') &
+                    row.id.equals(completedOp.id).not(),
+              ))
+              .get();
+      // A later series edit owns the optimistic projection until it is acknowledged.
+      if (remaining.any(
+        (op) =>
+            _request(op)[calendarEventTargetProviderIdKey] == recurringEventId,
+      )) {
+        return;
+      }
+      final pendingEventIds = remaining
+          .map((op) => op.eventId)
+          .whereType<String>()
+          .toSet();
+      await (_database.update(_database.calendarEvents)..where(
+            (row) =>
+                row.accountId.equals(local.accountId) &
+                row.provider.equals(local.provider) &
+                row.providerCalendarId.equals(local.providerCalendarId) &
+                row.providerRecurringEventId.equals(recurringEventId) &
+                row.syncStatus.equals('pending') &
+                row.id.isNotIn(pendingEventIds),
+          ))
+          .write(
+            CalendarEventsCompanion(
+              syncStatus: const Value('synced'),
+              updatedAtLocal: Value(_nowUtc().millisecondsSinceEpoch),
+            ),
+          );
+    });
   }
 
   Future<void> _replaceLocalEvent(
@@ -896,6 +995,47 @@ class CalendarPendingOpsReplayer {
 
     await _database.transaction(() async {
       await _repository.upsertEvent(accountId: _accountId, event: serverEvent);
+      if (tempEventId != null) {
+        final old = await (_database.select(
+          _database.calendarEvents,
+        )..where((r) => r.id.equals(tempEventId))).getSingleOrNull();
+        final replacement = await (_database.select(
+          _database.calendarEvents,
+        )..where((r) => r.id.equals(serverEventId))).getSingle();
+        if (old != null) {
+          final resolutions = LocationResolutionRepository(_database);
+          await resolutions.transfer(
+            LocationItemIdentity(
+              kind: LocationItemKind.event,
+              accountId: old.accountId,
+              sourceId: old.calendarSourceId,
+              itemId: old.id,
+            ),
+            LocationItemIdentity(
+              kind: LocationItemKind.event,
+              accountId: replacement.accountId,
+              sourceId: replacement.calendarSourceId,
+              itemId: replacement.id,
+            ),
+          );
+          final oldSeriesId = _googleSeriesId(old);
+          final replacementSeriesId = _googleSeriesId(replacement);
+          if (oldSeriesId != null && replacementSeriesId != null) {
+            await resolutions.transferGoogleSeriesSource(
+              fromAccountId: old.accountId,
+              fromSourceId: old.calendarSourceId,
+              fromProviderSeriesId: oldSeriesId,
+              toAccountId: replacement.accountId,
+              toSourceId: replacement.calendarSourceId,
+              toProviderSeriesId: replacementSeriesId,
+            );
+          }
+          if (_operationType(op) == 'event.create' ||
+              old.providerRecurringEventId == null) {
+            await resolutions.reconcileGoogleSeriesMaster(replacement);
+          }
+        }
+      }
       await _removeMovedSeriesSourceRows(op);
       await _confirmDependentCopyDeletes(op, serverEventId);
       if (tempEventId != null && tempEventId != serverEventId) {
@@ -1014,6 +1154,13 @@ class CalendarPendingOpsReplayer {
         )..where((row) => row.id.equals(temporarySourceId))).go();
       }
     });
+    if (temporarySourceId != null) {
+      await notifyCollectionIdReplacement(
+        _onCalendarSourceIdReplaced,
+        temporarySourceId,
+        serverSourceId,
+      );
+    }
   }
 
   Future<void> _rewriteCalendarPendingReferences({
@@ -1104,6 +1251,12 @@ class CalendarPendingOpsReplayer {
       if ((_operationType(op) == 'calendar.delete' ||
               _operationType(op) == 'calendar.remove') &&
           sourceId != null) {
+        await LocationResolutionRepository(
+          _database,
+        ).removeGoogleSeriesSourcesForCalendar(
+          accountId: op.accountId,
+          sourceId: sourceId,
+        );
         await (_database.update(
           _database.calendarSources,
         )..where((row) => row.id.equals(sourceId))).write(
@@ -1124,6 +1277,15 @@ class CalendarPendingOpsReplayer {
       )..where((row) => row.id.equals(eventId))).getSingleOrNull();
       final recurringEventId = local?.providerRecurringEventId;
       if (local != null && recurringEventId != null) {
+        if (scope == 'entireSeries') {
+          await LocationResolutionRepository(
+            _database,
+          ).removeGoogleSeriesSource(
+            accountId: local.accountId,
+            sourceId: local.calendarSourceId,
+            providerSeriesId: recurringEventId,
+          );
+        }
         await (_database.update(_database.calendarEvents)..where((row) {
               var predicate =
                   row.accountId.equals(local.accountId) &
@@ -1147,6 +1309,19 @@ class CalendarPendingOpsReplayer {
             );
         return;
       }
+    }
+    final local = await (_database.select(
+      _database.calendarEvents,
+    )..where((row) => row.id.equals(eventId))).getSingleOrNull();
+    if (local != null &&
+        local.provider == BusyProvider.google.storageValue &&
+        local.providerRecurringEventId == null &&
+        local.recurrenceJson != null) {
+      await LocationResolutionRepository(_database).removeGoogleSeriesSource(
+        accountId: local.accountId,
+        sourceId: local.calendarSourceId,
+        providerSeriesId: local.providerEventId,
+      );
     }
     await (_database.update(
       _database.calendarEvents,
@@ -1182,7 +1357,12 @@ class CalendarPendingOpsReplayer {
       op.baselineRawJson ?? local.baselineRawJson ?? '{}',
     );
     final remote = _semanticSnapshot(_client.provider, current.rawJson);
-    final changed = _changedSemanticFields(request, baseline, remote);
+    final changed = _changedSemanticFields(
+      request,
+      baseline,
+      remote,
+      _client.provider,
+    );
     if (changed.isEmpty) {
       return;
     }
@@ -1219,9 +1399,10 @@ class CalendarPendingOpsReplayer {
     Map<String, Object?> request,
     Map<String, Object?> baseline,
     Map<String, Object?> remote,
+    BusyProvider provider,
   ) {
     final changed = <String>{};
-    for (final key in _eventMutationFields(request)) {
+    for (final key in _eventMutationFields(request, provider)) {
       if (!_deepEquals(baseline[key], remote[key])) {
         changed.add(key);
       }
@@ -1229,7 +1410,10 @@ class CalendarPendingOpsReplayer {
     return changed;
   }
 
-  Set<String> _eventMutationFields(Map<String, Object?> request) {
+  Set<String> _eventMutationFields(
+    Map<String, Object?> request,
+    BusyProvider provider,
+  ) {
     final clearFields = _eventClearFields(request);
     const metadataFields = {
       calendarEventClearFieldsKey,
@@ -1238,20 +1422,27 @@ class CalendarPendingOpsReplayer {
       calendarEventTargetProviderIdKey,
       calendarEventOriginalStartKey,
       calendarEventOriginalEndKey,
+      calendarEventTimingBaselineKey,
       calendarEventDestinationCalendarIdKey,
       calendarEventDestinationSourceIdKey,
       calendarEventCopyConfirmationRequiredKey,
       calendarEventCopyConfirmedKey,
       calendarEventCopyDestinationEventIdKey,
       _googleSplitMasterRawKey,
+      _googleSplitFollowingCountKey,
       _seriesResolvedRequestKey,
     };
-    return {
+    final fields = {
       for (final entry in request.entries)
         if (!metadataFields.contains(entry.key) &&
             (entry.value != null || clearFields.contains(entry.key)))
           entry.key,
     };
+    if (provider == BusyProvider.microsoft &&
+        (fields.remove('location') | fields.remove('structuredLocation'))) {
+      fields.add(_microsoftLocationStateField);
+    }
+    return fields;
   }
 
   Map<String, Object?> _eventBaselineSnapshot(
@@ -1308,6 +1499,7 @@ class CalendarPendingOpsReplayer {
       'descriptionContentType': bodyContentType,
       if (isHtmlContentType(bodyContentType)) 'descriptionHtml': bodyContent,
       'location': location['displayName'],
+      _microsoftLocationStateField: _microsoftLocationState(raw),
       'allDay': raw['isAllDay'],
       'start': start['dateTime'],
       'end': end['dateTime'],
@@ -1360,6 +1552,9 @@ class CalendarPendingOpsReplayer {
       descriptionContentType: request['descriptionContentType']?.toString(),
       descriptionHtml: request['descriptionHtml']?.toString(),
       location: request['location']?.toString(),
+      structuredLocation: request['structuredLocation'] is Map
+          ? Map<String, Object?>.from(request['structuredLocation'] as Map)
+          : null,
       allDay: request['allDay'] as bool?,
       startDate: allDay ? _dateFromIso(start) : null,
       startDateTime: allDay ? null : start,
@@ -1446,6 +1641,7 @@ class CalendarPendingOpsReplayer {
       backgroundColor: request['backgroundColor']?.toString(),
       foregroundColor: request['foregroundColor']?.toString(),
       colorId: request['colorId']?.toString(),
+      hidden: request['hidden'] is bool ? request['hidden']! as bool : null,
     );
   }
 
@@ -1671,6 +1867,7 @@ class _PendingOpBlocked {
 }
 
 const _googleSplitMasterRawKey = '_googleSplitMasterRaw';
+const _googleSplitFollowingCountKey = '_googleSplitFollowingCount';
 const _seriesResolvedRequestKey = '_seriesResolvedRequest';
 
 const _eventRequestMetadataFields = {
@@ -1680,7 +1877,9 @@ const _eventRequestMetadataFields = {
   calendarEventTargetProviderIdKey,
   calendarEventOriginalStartKey,
   calendarEventOriginalEndKey,
+  calendarEventTimingBaselineKey,
   _googleSplitMasterRawKey,
+  _googleSplitFollowingCountKey,
   _seriesResolvedRequestKey,
 };
 
@@ -1690,55 +1889,66 @@ Map<String, Object?> _seriesRequestForMaster(
   required BusyProvider provider,
 }) {
   final result = {...request};
+  final baseline = request[calendarEventTimingBaselineKey];
+  final timing = baseline is Map ? baseline : null;
   if (request.containsKey('start')) {
     final timeZone = request['startTimeZone']?.toString();
-    final masterStart = providerDateTimeAsWallTime(
+    final masterStart = providerDateTimeAsCivilTime(
       master.allDay ? master.startDate : master.startDateTime,
       master.startTimeZone,
     );
-    final originalStart = providerDateTimeAsWallTime(
-      request[calendarEventOriginalStartKey]?.toString(),
+    final originalStart = providerDateTimeAsCivilTime(
+      (timing?['start'] ?? request[calendarEventOriginalStartKey])?.toString(),
+      timing == null ? timeZone : timing['startTimeZone']?.toString(),
+    );
+    final desiredStart = providerDateTimeAsCivilTime(
+      request['start']?.toString(),
       timeZone,
     );
-    final desiredStart = DateTime.tryParse(request['start']?.toString() ?? '');
     if (masterStart == null || originalStart == null || desiredStart == null) {
       throw StateError('The recurring series start could not be adjusted.');
     }
-    result['start'] = _naiveWallTime(masterStart)
-        .add(
-          _naiveWallTime(
-            desiredStart,
-          ).difference(_naiveWallTime(originalStart)),
-        )
-        .toIso8601String();
+    result['start'] = providerWallTimeIso8601String(
+      _naiveWallTime(masterStart).add(
+        _naiveWallTime(desiredStart).difference(_naiveWallTime(originalStart)),
+      ),
+    );
   }
   if (request.containsKey('end')) {
     final timeZone = request['endTimeZone']?.toString();
-    final masterEnd = providerDateTimeAsWallTime(
+    final masterEnd = providerDateTimeAsCivilTime(
       master.allDay ? master.endDate : master.endDateTime,
       master.endTimeZone,
     );
-    final originalEnd = providerDateTimeAsWallTime(
-      request[calendarEventOriginalEndKey]?.toString(),
+    final originalEnd = providerDateTimeAsCivilTime(
+      (timing?['end'] ?? request[calendarEventOriginalEndKey])?.toString(),
+      timing == null ? timeZone : timing['endTimeZone']?.toString(),
+    );
+    final desiredEnd = providerDateTimeAsCivilTime(
+      request['end']?.toString(),
       timeZone,
     );
-    final desiredEnd = DateTime.tryParse(request['end']?.toString() ?? '');
     if (masterEnd == null || originalEnd == null || desiredEnd == null) {
       throw StateError('The recurring series end could not be adjusted.');
     }
-    result['end'] = _naiveWallTime(masterEnd)
-        .add(_naiveWallTime(desiredEnd).difference(_naiveWallTime(originalEnd)))
-        .toIso8601String();
+    result['end'] = providerWallTimeIso8601String(
+      _naiveWallTime(
+        masterEnd,
+      ).add(_naiveWallTime(desiredEnd).difference(_naiveWallTime(originalEnd))),
+    );
   }
   if (request.containsKey('start') && master.recurrenceJson != null) {
-    final adjustedStart = DateTime.tryParse(result['start']?.toString() ?? '');
+    final adjustedStart = providerDateTimeAsCivilTime(
+      result['start']?.toString(),
+      request['startTimeZone']?.toString(),
+    );
     if (adjustedStart == null) {
       throw StateError('The recurring series start could not be adjusted.');
     }
     result[calendarEventRecurrenceField] = _reanchorSeriesRecurrence(
       provider,
       master.recurrenceJson!,
-      originalStart: providerDateTimeAsWallTime(
+      originalStart: providerDateTimeAsCivilTime(
         master.allDay ? master.startDate : master.startDateTime,
         master.startTimeZone,
       ),
@@ -1804,16 +2014,7 @@ String _isoDate(DateTime value) =>
     '${value.month.toString().padLeft(2, '0')}-'
     '${value.day.toString().padLeft(2, '0')}';
 
-DateTime _naiveWallTime(DateTime value) => DateTime(
-  value.year,
-  value.month,
-  value.day,
-  value.hour,
-  value.minute,
-  value.second,
-  value.millisecond,
-  value.microsecond,
-);
+DateTime _naiveWallTime(DateTime value) => providerCivilDateTime(value);
 
 DateTime _requiredDateTime(Object? value, String field) {
   final parsed = DateTime.tryParse(value?.toString() ?? '');
@@ -1914,6 +2115,46 @@ List<String>? _stringList(Object? value) {
     return null;
   }
   return [for (final item in value) item.toString()];
+}
+
+/// A semantic snapshot of all Graph location data that updating the singular
+/// `location` property can replace. The provider-computed `locationType` is
+/// deliberately excluded because Graph documents it as read-only.
+Map<String, Object?> _microsoftLocationState(Map<String, Object?> raw) {
+  final collection =
+      <Map<String, Object?>>[
+        for (final value in raw['locations'] as List? ?? const [])
+          if (value is Map) _microsoftLocation(value),
+      ]..sort(
+        (first, second) => jsonEncode(
+          _normalize(first),
+        ).compareTo(jsonEncode(_normalize(second))),
+      );
+  return {
+    'location': raw['location'] is Map
+        ? _microsoftLocation(raw['location'] as Map)
+        : null,
+    'locations': collection,
+  };
+}
+
+Map<String, Object?> _microsoftLocation(Map value) => {
+  for (final entry in value.entries)
+    if (entry.key.toString() != 'locationType')
+      entry.key.toString(): _locationSemanticValue(entry.value),
+};
+
+Object? _locationSemanticValue(Object? value) {
+  if (value is Map) {
+    return {
+      for (final entry in value.entries)
+        entry.key.toString(): _locationSemanticValue(entry.value),
+    };
+  }
+  if (value is List) {
+    return [for (final item in value) _locationSemanticValue(item)];
+  }
+  return value;
 }
 
 bool _deepEquals(Object? first, Object? second) {

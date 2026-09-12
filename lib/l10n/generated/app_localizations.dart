@@ -21,6 +21,7 @@ import 'app_localizations_hi.dart';
 import 'app_localizations_it.dart';
 import 'app_localizations_ja.dart';
 import 'app_localizations_ko.dart';
+import 'app_localizations_pl.dart';
 import 'app_localizations_pt.dart';
 import 'app_localizations_ru.dart';
 import 'app_localizations_vi.dart';
@@ -124,6 +125,7 @@ abstract class AppLocalizations {
     Locale('it'),
     Locale('ja'),
     Locale('ko'),
+    Locale('pl'),
     Locale('pt'),
     Locale('pt', 'PT'),
     Locale('ru'),
@@ -132,6 +134,396 @@ abstract class AppLocalizations {
     Locale.fromSubtags(languageCode: 'zh', scriptCode: 'Hans'),
     Locale.fromSubtags(languageCode: 'zh', scriptCode: 'Hant'),
   ];
+
+  /// No description provided for @nextcloudExportCollection.
+  ///
+  /// In en, this message translates to:
+  /// **'Export collection resources'**
+  String get nextcloudExportCollection;
+
+  /// No description provided for @nextcloudImportItems.
+  ///
+  /// In en, this message translates to:
+  /// **'{count} event/task resources found'**
+  String nextcloudImportItems(int count);
+
+  /// No description provided for @nextcloudSchedulingInbox.
+  ///
+  /// In en, this message translates to:
+  /// **'Scheduling inbox'**
+  String get nextcloudSchedulingInbox;
+
+  /// No description provided for @nextcloudInboxExplanation.
+  ///
+  /// In en, this message translates to:
+  /// **'Nextcloud processes these messages into your calendars. Acknowledging a message removes only the inbox message, not the event.'**
+  String get nextcloudInboxExplanation;
+
+  /// No description provided for @nextcloudInboxEmpty.
+  ///
+  /// In en, this message translates to:
+  /// **'No scheduling messages.'**
+  String get nextcloudInboxEmpty;
+
+  /// No description provided for @nextcloudAcknowledge.
+  ///
+  /// In en, this message translates to:
+  /// **'Acknowledge message'**
+  String get nextcloudAcknowledge;
+
+  /// No description provided for @nextcloudAcknowledgeConfirm.
+  ///
+  /// In en, this message translates to:
+  /// **'Remove this scheduling message from the inbox? The calendar event will be kept.'**
+  String get nextcloudAcknowledgeConfirm;
+
+  /// No description provided for @nextcloudGuestAvailability.
+  ///
+  /// In en, this message translates to:
+  /// **'Check guest availability'**
+  String get nextcloudGuestAvailability;
+
+  /// No description provided for @nextcloudTrashRetention.
+  ///
+  /// In en, this message translates to:
+  /// **'Server trash retention: {days} days'**
+  String nextcloudTrashRetention(int days);
+
+  /// No description provided for @nextcloudCancelMeeting.
+  ///
+  /// In en, this message translates to:
+  /// **'Cancel meeting'**
+  String get nextcloudCancelMeeting;
+
+  /// No description provided for @nextcloudDeclineAndRemove.
+  ///
+  /// In en, this message translates to:
+  /// **'Decline and remove invitation'**
+  String get nextcloudDeclineAndRemove;
+
+  /// No description provided for @nextcloudDeclineRemovalWarning.
+  ///
+  /// In en, this message translates to:
+  /// **'Removing this invitation sends a decline when synchronized. It does not cancel the organizer’s meeting.'**
+  String get nextcloudDeclineRemovalWarning;
+
+  /// No description provided for @nextcloudAvailabilityUnknown.
+  ///
+  /// In en, this message translates to:
+  /// **'Availability unknown'**
+  String get nextcloudAvailabilityUnknown;
+
+  /// No description provided for @nextcloudAvailabilityFree.
+  ///
+  /// In en, this message translates to:
+  /// **'No busy periods reported for this interval'**
+  String get nextcloudAvailabilityFree;
+
+  /// No description provided for @nextcloudAvailabilityBusy.
+  ///
+  /// In en, this message translates to:
+  /// **'Busy periods'**
+  String get nextcloudAvailabilityBusy;
+
+  /// No description provided for @nextcloudSchedulingPending.
+  ///
+  /// In en, this message translates to:
+  /// **'Nextcloud will send meeting updates when this change synchronizes. Saving locally does not confirm delivery.'**
+  String get nextcloudSchedulingPending;
+
+  /// No description provided for @nextcloudAttendeeRestrictions.
+  ///
+  /// In en, this message translates to:
+  /// **'Only the organizer or an authorized delegate can change meeting details. You can respond to this invitation from its details.'**
+  String get nextcloudAttendeeRestrictions;
+
+  /// No description provided for @nextcloudMeetingMoveUnsupported.
+  ///
+  /// In en, this message translates to:
+  /// **'This meeting cannot be moved by copying and deleting it. Use a calendar under the same scheduling identity.'**
+  String get nextcloudMeetingMoveUnsupported;
+
+  /// No description provided for @nextcloudSchedulingStatus.
+  ///
+  /// In en, this message translates to:
+  /// **'Server scheduling status'**
+  String get nextcloudSchedulingStatus;
+
+  /// No description provided for @nextcloudImportFollowUp.
+  ///
+  /// In en, this message translates to:
+  /// **'The imported resources were saved locally. Reminder refresh is pending; do not import them again.'**
+  String get nextcloudImportFollowUp;
+
+  /// No description provided for @nextcloudNativeImport.
+  ///
+  /// In en, this message translates to:
+  /// **'Import complete event and task resources without sending invitations. Existing UIDs are skipped unless you choose new copies. Unsupported resources are reported individually.'**
+  String get nextcloudNativeImport;
+
+  /// No description provided for @nextcloudImportMethod.
+  ///
+  /// In en, this message translates to:
+  /// **'This file contains scheduling messages. Import stores their content and removes METHOD; it does not process an invitation or reply.'**
+  String get nextcloudImportMethod;
+
+  /// No description provided for @nextcloudImportCopies.
+  ///
+  /// In en, this message translates to:
+  /// **'Import as new copies with new identities'**
+  String get nextcloudImportCopies;
+
+  /// No description provided for @nextcloudCollectionSettings.
+  ///
+  /// In en, this message translates to:
+  /// **'Collection settings'**
+  String get nextcloudCollectionSettings;
+
+  /// No description provided for @nextcloudSharing.
+  ///
+  /// In en, this message translates to:
+  /// **'Sharing'**
+  String get nextcloudSharing;
+
+  /// No description provided for @nextcloudOwned.
+  ///
+  /// In en, this message translates to:
+  /// **'Owned'**
+  String get nextcloudOwned;
+
+  /// No description provided for @nextcloudShared.
+  ///
+  /// In en, this message translates to:
+  /// **'Shared'**
+  String get nextcloudShared;
+
+  /// No description provided for @nextcloudDelegated.
+  ///
+  /// In en, this message translates to:
+  /// **'Delegated'**
+  String get nextcloudDelegated;
+
+  /// No description provided for @nextcloudSubscription.
+  ///
+  /// In en, this message translates to:
+  /// **'Subscription'**
+  String get nextcloudSubscription;
+
+  /// No description provided for @nextcloudDeleted.
+  ///
+  /// In en, this message translates to:
+  /// **'Deleted'**
+  String get nextcloudDeleted;
+
+  /// No description provided for @nextcloudMetadataEditable.
+  ///
+  /// In en, this message translates to:
+  /// **'Calendar contents are read-only; collection properties can be changed.'**
+  String get nextcloudMetadataEditable;
+
+  /// No description provided for @nextcloudServerOrder.
+  ///
+  /// In en, this message translates to:
+  /// **'Server order (separate from sidebar order)'**
+  String get nextcloudServerOrder;
+
+  /// No description provided for @nextcloudCalendarEnabled.
+  ///
+  /// In en, this message translates to:
+  /// **'Enabled on the server'**
+  String get nextcloudCalendarEnabled;
+
+  /// No description provided for @nextcloudAvailability.
+  ///
+  /// In en, this message translates to:
+  /// **'Include this collection in availability'**
+  String get nextcloudAvailability;
+
+  /// No description provided for @nextcloudCalendarTimezone.
+  ///
+  /// In en, this message translates to:
+  /// **'Calendar timezone (VTIMEZONE document)'**
+  String get nextcloudCalendarTimezone;
+
+  /// No description provided for @nextcloudRefreshPending.
+  ///
+  /// In en, this message translates to:
+  /// **'The change was saved on Nextcloud. Refresh is pending; do not repeat the change.'**
+  String get nextcloudRefreshPending;
+
+  /// No description provided for @nextcloudOutcomeUnknown.
+  ///
+  /// In en, this message translates to:
+  /// **'The server outcome could not be confirmed. Refresh before trying again.'**
+  String get nextcloudOutcomeUnknown;
+
+  /// No description provided for @nextcloudRemoveShared.
+  ///
+  /// In en, this message translates to:
+  /// **'Remove shared calendar/list'**
+  String get nextcloudRemoveShared;
+
+  /// No description provided for @nextcloudRemoveMixed.
+  ///
+  /// In en, this message translates to:
+  /// **'This collection contains events and tasks. Deleting it removes both its events and tasks.'**
+  String get nextcloudRemoveMixed;
+
+  /// No description provided for @nextcloudReadAccess.
+  ///
+  /// In en, this message translates to:
+  /// **'Read-only'**
+  String get nextcloudReadAccess;
+
+  /// No description provided for @nextcloudWriteAccess.
+  ///
+  /// In en, this message translates to:
+  /// **'Read and write'**
+  String get nextcloudWriteAccess;
+
+  /// No description provided for @nextcloudRecipientSearch.
+  ///
+  /// In en, this message translates to:
+  /// **'Find people or groups'**
+  String get nextcloudRecipientSearch;
+
+  /// No description provided for @nextcloudNoRecipients.
+  ///
+  /// In en, this message translates to:
+  /// **'No matching people or groups.'**
+  String get nextcloudNoRecipients;
+
+  /// No description provided for @nextcloudRevokeShare.
+  ///
+  /// In en, this message translates to:
+  /// **'Revoke access'**
+  String get nextcloudRevokeShare;
+
+  /// No description provided for @nextcloudPublish.
+  ///
+  /// In en, this message translates to:
+  /// **'Publish link'**
+  String get nextcloudPublish;
+
+  /// No description provided for @nextcloudUnpublish.
+  ///
+  /// In en, this message translates to:
+  /// **'Stop publishing'**
+  String get nextcloudUnpublish;
+
+  /// No description provided for @nextcloudPublishWarning.
+  ///
+  /// In en, this message translates to:
+  /// **'Anyone with the published link may be able to read this calendar. Publish it?'**
+  String get nextcloudPublishWarning;
+
+  /// No description provided for @nextcloudTrash.
+  ///
+  /// In en, this message translates to:
+  /// **'Deleted calendars and tasks'**
+  String get nextcloudTrash;
+
+  /// No description provided for @nextcloudTrashEmpty.
+  ///
+  /// In en, this message translates to:
+  /// **'No deleted calendar items.'**
+  String get nextcloudTrashEmpty;
+
+  /// No description provided for @nextcloudRestore.
+  ///
+  /// In en, this message translates to:
+  /// **'Restore'**
+  String get nextcloudRestore;
+
+  /// No description provided for @nextcloudPermanentDelete.
+  ///
+  /// In en, this message translates to:
+  /// **'Permanently delete'**
+  String get nextcloudPermanentDelete;
+
+  /// No description provided for @nextcloudPermanentDeleteWarning.
+  ///
+  /// In en, this message translates to:
+  /// **'Permanently delete this item? It cannot be restored from Nextcloud\'s calendar trash.'**
+  String get nextcloudPermanentDeleteWarning;
+
+  /// No description provided for @nextcloudOperationDenied.
+  ///
+  /// In en, this message translates to:
+  /// **'Nextcloud did not allow this operation.'**
+  String get nextcloudOperationDenied;
+
+  /// No description provided for @nextcloudUnsupported.
+  ///
+  /// In en, this message translates to:
+  /// **'The server does not support this operation.'**
+  String get nextcloudUnsupported;
+
+  /// No description provided for @nextcloudPendingChanges.
+  ///
+  /// In en, this message translates to:
+  /// **'Save or discard collection changes before closing.'**
+  String get nextcloudPendingChanges;
+
+  /// No description provided for @nextcloudServerUnavailable.
+  ///
+  /// In en, this message translates to:
+  /// **'Nextcloud could not be reached. Cached items and pending work are unchanged.'**
+  String get nextcloudServerUnavailable;
+
+  /// No description provided for @mapsShow.
+  ///
+  /// In en, this message translates to:
+  /// **'Show on map'**
+  String get mapsShow;
+
+  /// No description provided for @openLink.
+  ///
+  /// In en, this message translates to:
+  /// **'Open link'**
+  String get openLink;
+
+  /// No description provided for @externalLocationOpenFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'The location could not be opened in an external application.'**
+  String get externalLocationOpenFailed;
+
+  /// Proposed event interval while dragging.
+  ///
+  /// In en, this message translates to:
+  /// **'{start} – {end}'**
+  String scheduleProposedRange(String start, String end);
+
+  /// No description provided for @scheduleRescheduleFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'The event could not be rescheduled. Its stored time has not been changed.'**
+  String get scheduleRescheduleFailed;
+
+  /// No description provided for @scheduleRescheduleStale.
+  ///
+  /// In en, this message translates to:
+  /// **'This event changed while you were dragging. Please try again.'**
+  String get scheduleRescheduleStale;
+
+  /// No description provided for @scheduleRescheduleNotificationsFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'The new time was saved, but reminders could not be refreshed.'**
+  String get scheduleRescheduleNotificationsFailed;
+
+  /// No description provided for @moveUp.
+  ///
+  /// In en, this message translates to:
+  /// **'Move up'**
+  String get moveUp;
+
+  /// No description provided for @moveDown.
+  ///
+  /// In en, this message translates to:
+  /// **'Move down'**
+  String get moveDown;
 
   /// No description provided for @windowsSupport.
   ///
@@ -1803,6 +2195,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Could not delete the task list: {error}'**
   String taskListDeleteFailed(String error);
+
+  /// No description provided for @taskListPendingChangesPreventRemoval.
+  ///
+  /// In en, this message translates to:
+  /// **'Synchronize the account, or resolve this task list’s blocked changes in Diagnostics, before deleting or removing the list.'**
+  String get taskListPendingChangesPreventRemoval;
 
   /// No description provided for @signInToViewTaskLists.
   ///
@@ -4422,6 +4820,7 @@ class _AppLocalizationsDelegate
     'it',
     'ja',
     'ko',
+    'pl',
     'pt',
     'ru',
     'vi',
@@ -4485,6 +4884,8 @@ AppLocalizations lookupAppLocalizations(Locale locale) {
       return AppLocalizationsJa();
     case 'ko':
       return AppLocalizationsKo();
+    case 'pl':
+      return AppLocalizationsPl();
     case 'pt':
       return AppLocalizationsPt();
     case 'ru':

@@ -1,4 +1,5 @@
 import 'package:busymax/src/providers/busy_provider.dart';
+import '../features/maps/domain/geographic_point.dart';
 
 class CalendarSourceDto {
   const CalendarSourceDto({
@@ -52,6 +53,8 @@ class CalendarEventDto {
     this.status,
     this.description,
     this.location,
+    this.locationPoint,
+    this.locationAddress,
     this.allDay = false,
     this.startDate,
     this.startDateTime,
@@ -90,6 +93,8 @@ class CalendarEventDto {
   final String title;
   final String? description;
   final String? location;
+  final GeographicPoint? locationPoint;
+  final Map<String, Object?>? locationAddress;
   final bool allDay;
   final String? startDate;
   final String? startDateTime;

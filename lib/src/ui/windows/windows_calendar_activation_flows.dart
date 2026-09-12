@@ -1,4 +1,5 @@
 import 'dart:io';
+import '../../providers/busy_provider.dart';
 
 import 'package:file_selector/file_selector.dart';
 import 'package:fluent_ui/fluent_ui.dart';
@@ -35,7 +36,7 @@ Future<void> showWindowsIcsImportFlow(
     final preview = service.parsePreview(await selected.readAsBytes());
     final destinations = await service.writableDestinations();
     if (!context.mounted) return;
-    final destination = await showDialog<CalendarSourceEntity>(
+    final selection = await showDialog<IcalImportSelection>(
       context: context,
       barrierDismissible: false,
       builder: (context) => _WindowsIcsPreviewDialog(
@@ -43,10 +44,13 @@ Future<void> showWindowsIcsImportFlow(
         destinations: destinations,
       ),
     );
-    if (destination == null || !context.mounted) return;
+    if (selection == null || !context.mounted) return;
     final report = await service.importPreview(
       preview: preview,
-      destination: destination,
+      destination: selection.destination,
+      nativeDuplicates: selection.duplicatePolicy,
+      normalizeNativeSchedulingMethod:
+          selection.destination.provider == BusyProvider.nextcloud,
     );
     if (!context.mounted) return;
     await showDialog<void>(
@@ -96,6 +100,7 @@ class _WindowsIcsPreviewDialog extends StatefulWidget {
 
 class _WindowsIcsPreviewDialogState extends State<_WindowsIcsPreviewDialog> {
   CalendarSourceEntity? _destination;
+  bool _newCopies = false;
 
   @override
   void initState() {
@@ -106,14 +111,39 @@ class _WindowsIcsPreviewDialogState extends State<_WindowsIcsPreviewDialog> {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    final omitted = widget.preview.fieldsThatWillBeOmitted.toList()..sort();
+    final native = _destination?.provider == BusyProvider.nextcloud;
+    final omitted = native
+        ? <String>[]
+        : (widget.preview.fieldsThatWillBeOmitted.toList()..sort());
     return ContentDialog(
       title: Text(l10n.importIcsPreview),
       content: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Text(l10n.importEventsFound(widget.preview.eventCount)),
+          Text(
+            native
+                ? l10n.nextcloudImportItems(
+                    widget.preview.nativePreview.resources.length,
+                  )
+                : l10n.importEventsFound(widget.preview.eventCount),
+          ),
+          if (native) ...[
+            Text(l10n.nextcloudNativeImport),
+            if (widget.preview.nativePreview.schedulingMethod != null)
+              Text(l10n.nextcloudImportMethod),
+            LayoutBuilder(
+              builder: (context, constraints) => Checkbox(
+                content: SizedBox(
+                  width: constraints.maxWidth - 36,
+                  child: Text(l10n.nextcloudImportCopies),
+                ),
+                checked: _newCopies,
+                onChanged: (value) =>
+                    setState(() => _newCopies = value == true),
+              ),
+            ),
+          ],
           if (widget.preview.invalidEventCount > 0)
             Text(l10n.importInvalidEvents(widget.preview.invalidEventCount)),
           if (omitted.isNotEmpty)
@@ -147,7 +177,10 @@ class _WindowsIcsPreviewDialogState extends State<_WindowsIcsPreviewDialog> {
         FilledButton(
           onPressed: _destination == null
               ? null
-              : () => Navigator.pop(context, _destination),
+              : () => Navigator.pop(
+                  context,
+                  IcalImportSelection(_destination!, newCopies: _newCopies),
+                ),
           child: Text(l10n.importIcsConfirm),
         ),
       ],
@@ -169,8 +202,11 @@ class _WindowsIcsReportDialog extends StatelessWidget {
       content: Text(
         [
           l10n.importQueued(report.queued),
+          if (report.followUpPending) l10n.nextcloudImportFollowUp,
           l10n.importDuplicatesSkipped(report.duplicatesSkipped),
           l10n.importUnsupportedSets(report.unsupportedRecurrenceSets.length),
+          for (final item in report.unsupportedRecurrenceSets)
+            '${item.uid}: ${item.reason}',
           l10n.importInvalidEvents(report.invalidEvents),
           if (omitted.isNotEmpty) l10n.importFieldsOmitted(omitted.join(', ')),
         ].join('\n'),

@@ -102,6 +102,9 @@ final class DavException implements Exception {
       'statusCode: $statusCode, correlationId: $correlationId)';
 }
 
+bool isDavCollectionPendingChangesError(Object error) =>
+    error is DavException && error.code == 'DavCollectionHasPendingChanges';
+
 DavErrorDisposition classifyDavError({
   required DavErrorKind kind,
   required String code,

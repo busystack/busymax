@@ -87,6 +87,18 @@ abstract interface class CloudCalendarClient {
   });
 }
 
+/// Optional provider capability for reading every instance of a finite series.
+///
+/// Unlike [CloudCalendarClient.listEventInstances], this must not filter by an
+/// instance's effective event time. Callers use the stable original occurrence
+/// identity when an exception has been rescheduled outside its original window.
+abstract interface class CompleteRecurringInstanceClient {
+  Future<List<CalendarEventDto>> listAllEventInstances({
+    required String calendarId,
+    required String recurringEventId,
+  });
+}
+
 /// User-specific calendar-list operations supported by providers that expose
 /// calendar metadata separately from the signed-in user's personalization.
 abstract interface class CalendarListManagementClient {

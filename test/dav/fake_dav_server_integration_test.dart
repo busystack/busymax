@@ -121,6 +121,12 @@ void main() {
     );
     expect(
       reports
+          .where((request) => request.body.contains('sync-collection'))
+          .every((request) => request.depth == '0'),
+      isTrue,
+    );
+    expect(
+      reports
           .singleWhere((request) => request.body.contains('calendar-multiget'))
           .depth,
       '1',

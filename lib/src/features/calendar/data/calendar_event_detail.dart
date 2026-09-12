@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import '../../../db/app_database.dart';
 import '../../../providers/busy_provider.dart';
+import '../../maps/domain/geographic_point.dart';
 
 /// Authoritative event state loaded from the local calendar event store.
 ///
@@ -30,6 +31,7 @@ final class CalendarEventDetail {
     required this.title,
     required this.description,
     required this.location,
+    this.locationPoint,
     required this.allDay,
     required this.startDate,
     required this.startDateTime,
@@ -89,6 +91,10 @@ final class CalendarEventDetail {
       title: row.title,
       description: row.description,
       location: row.location,
+      locationPoint: GeographicPoint.tryParse(
+        latitude: row.locationLatitude,
+        longitude: row.locationLongitude,
+      ),
       allDay: row.allDay,
       startDate: row.startDate,
       startDateTime: row.startDateTime,
@@ -145,6 +151,14 @@ final class CalendarEventDetail {
   final String title;
   final String? description;
   final String? location;
+  final GeographicPoint? locationPoint;
+  Map<String, Object?>? get locationAddress {
+    final data = raw;
+    final location = data is Map ? data['location'] : null;
+    final address = location is Map ? location['address'] : null;
+    return address is Map ? Map<String, Object?>.from(address) : null;
+  }
+
   final bool allDay;
   final String? startDate;
   final String? startDateTime;

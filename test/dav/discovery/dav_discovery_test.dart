@@ -1,4 +1,6 @@
 import 'package:busymax/src/dav/dav_provider_profile.dart';
+import 'package:busymax/src/dav/dav_errors.dart';
+import 'package:busymax/src/dav/storage/dav_collection_capabilities.dart';
 import 'package:busymax/src/dav/discovery/dav_discovery_models.dart';
 import 'package:busymax/src/dav/discovery/dav_discovery_repository.dart';
 import 'package:busymax/src/dav/discovery/dav_discovery_service.dart';
@@ -12,6 +14,149 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 
 void main() {
+  test(
+    'subscribed-only resources use advertised cache without content writes',
+    () async {
+      final requests = <http.Request>[];
+      final result = await _discoverFixture(
+        inventory: _inventoryResponse
+            .replaceAll('<c:calendar/><cs:subscribed/>', '<cs:subscribed/>')
+            .replaceAll(
+              '<d:privilege><d:read/></d:privilege></d:current-user-privilege-set>',
+              '<d:privilege><d:all/></d:privilege></d:current-user-privilege-set>',
+            ),
+        features: 'calendar-access, nc-calendar-webcal-cache',
+        requests: requests,
+      );
+      final subscribed = result.collections.singleWhere(
+        (c) => c.kind == DavCollectionKind.subscribedCalendar,
+      );
+      expect(subscribed.eventProjectionEnabled, isTrue);
+      expect(subscribed.capabilities.canWriteProperties, isTrue);
+      expect(subscribed.capabilities.canCreateEvent, isFalse);
+      expect(subscribed.capabilities.canDeleteEvent, isFalse);
+      expect(subscribed.capabilities.canUpdateEvent, isFalse);
+      expect(requests.first.headers['x-nc-caldav-webcal-caching'], isNull);
+      expect(
+        requests
+            .skip(1)
+            .every((r) => r.headers['x-nc-caldav-webcal-caching'] == 'On'),
+        isTrue,
+      );
+      expect(requests.every((r) => r.url.host == 'cloud.example.test'), isTrue);
+    },
+  );
+
+  test(
+    'write does not imply read and bind/unbind do not imply content write',
+    () async {
+      final result = await _discoverFixture(
+        inventory: _inventoryResponse.replaceAll(
+          '<d:privilege><d:read/></d:privilege><d:privilege><d:write-content/></d:privilege>',
+          '<d:privilege><d:write-properties/></d:privilege>',
+        ),
+      );
+      final work = result.collections.first;
+      expect(work.eventProjectionEnabled, isFalse);
+      expect(work.capabilities.canRead, isFalse);
+      expect(work.capabilities.canCreateEvent, isTrue);
+      expect(work.capabilities.canDeleteEvent, isTrue);
+      expect(work.capabilities.canUpdateEvent, isFalse);
+      expect(work.capabilities.canWriteProperties, isTrue);
+      final writeOnly = await _discoverFixture(
+        inventory: _inventoryResponse.replaceAll(
+          '<d:privilege><d:read/></d:privilege><d:privilege><d:write-content/></d:privilege>',
+          '<d:privilege><d:write/></d:privilege>',
+        ),
+      );
+      expect(writeOnly.collections.first.capabilities.canRead, isFalse);
+    },
+  );
+
+  test(
+    'failed inventory member is not interpreted as a removed source',
+    () async {
+      await expectLater(
+        _discoverFixture(
+          inventory: _inventoryResponse.replaceFirst(
+            '</d:multistatus>',
+            '<d:response><d:href>/nextcloud/remote.php/dav/calendars/alex/denied/</d:href><d:status>HTTP/1.1 403 Forbidden</d:status></d:response></d:multistatus>',
+          ),
+        ),
+        throwsA(
+          isA<DavException>().having(
+            (e) => e.code,
+            'code',
+            'DavIncompleteInventory',
+          ),
+        ),
+      );
+    },
+  );
+
+  test(
+    'delegation keeps the own context and uses returned principal hrefs',
+    () async {
+      final requests = <http.Request>[];
+      final result = await _discoverFixture(
+        features: 'calendar-access, calendar-proxy',
+        requests: requests,
+        delegated: true,
+      );
+      expect(result.service.principalHref.path, endsWith('/alex/'));
+      expect(result.service.principalContexts, hasLength(2));
+      expect(result.service.principalContexts.last.delegated, isTrue);
+      expect(
+        result.service.principalContexts.last.calendarUserAddresses.single
+            .toString(),
+        'mailto:delegate@example.test',
+      );
+      expect(result.collections.where((c) => c.delegated), hasLength(3));
+      expect(requests[4].url.path, endsWith('/principals/users/delegate/'));
+      expect(requests[5].url.path, endsWith('/calendars/delegate/'));
+    },
+  );
+
+  test('stored metadata permission survives content read-only state', () async {
+    final db = AppDatabase(NativeDatabase.memory());
+    addTearDown(db.close);
+    await db
+        .into(db.accounts)
+        .insert(
+          AccountsCompanion.insert(
+            id: 'account',
+            provider: 'nextcloud',
+            authority: 'https://cloud.example.test/nextcloud',
+            providerAccountId: 'alex',
+            credentialKind: 'nextcloud_app_password',
+            createdAtUtc: 'now',
+            updatedAtUtc: 'now',
+          ),
+        );
+    final discovered = await _discoverFixture(
+      inventory: _inventoryResponse.replaceAll(
+        '<d:privilege><d:write-content/></d:privilege>',
+        '<d:privilege><d:write-properties/></d:privilege>',
+      ),
+    );
+    await DavDiscoveryRepository(
+      database: db,
+    ).commitSuccessfulInventory(discovered);
+    final collection = (await db.select(db.davCollections).get()).firstWhere(
+      (c) => c.displayName == 'Work & Team',
+    );
+    expect(collection.readOnly, isTrue);
+    final policy = collectionCapabilitiesFromStored(collection);
+    expect(policy.canWriteProperties, isTrue);
+    expect(policy.canUpdateEvent, isFalse);
+    expect(policy.canCreateEvent, isTrue);
+    expect(policy.canDeleteEvent, isTrue);
+    // Collection-level all/write privileges do not grant scheduling outbox
+    // authority. The matching principal/outbox policy is required separately.
+    expect(policy.canSendInvitations, isFalse);
+    expect(policy.canSendReplies, isFalse);
+    expect(policy.canSchedule, isFalse);
+  });
   test(
     'discovers principal, home, mixed collections, ACLs, and safe HREFs',
     () async {
@@ -74,6 +219,7 @@ void main() {
         'PROPFIND',
         'PROPFIND',
       ]);
+      expect(requests.first.url.path, '/.well-known/caldav');
       expect(requests[1].headers['depth'], '0');
       expect(requests[2].headers['depth'], '0');
       expect(requests[3].headers['depth'], '1');
@@ -207,6 +353,53 @@ http.Response _multistatus(String body) => http.Response(
   207,
   headers: {'content-type': 'application/xml; charset=utf-8'},
 );
+
+Future<DavDiscoveryResult> _discoverFixture({
+  String inventory = _inventoryResponse,
+  String features = 'calendar-access',
+  List<http.Request>? requests,
+  bool delegated = false,
+}) {
+  var index = 0;
+  final client = MockClient((request) async {
+    requests?.add(request);
+    return switch (index++) {
+      0 => http.Response('', 200, headers: {'dav': features}),
+      1 => _multistatus(_currentPrincipalResponse),
+      2 => _multistatus(
+        delegated
+            ? _principalPropertiesResponse.replaceFirst(
+                '</d:prop>',
+                '<cs:calendar-proxy-read-for xmlns:cs="http://calendarserver.org/ns/"><d:href>/nextcloud/remote.php/dav/principals/users/delegate/</d:href></cs:calendar-proxy-read-for></d:prop>',
+              )
+            : _principalPropertiesResponse,
+      ),
+      3 => _multistatus(inventory),
+      4 => _multistatus(
+        _principalPropertiesResponse.replaceAll('alex', 'delegate'),
+      ),
+      5 => _multistatus(_inventoryResponse.replaceAll('alex', 'delegate')),
+      _ => throw StateError('Unexpected discovery request'),
+    };
+  });
+  addTearDown(client.close);
+  final authority = Uri.parse('https://cloud.example.test/nextcloud');
+  final profile = davProviderProfile(
+    BusyProvider.nextcloud,
+    nextcloudServer: authority,
+  );
+  return DavDiscoveryService(
+    transport: DavHttpTransport(
+      client: client,
+      profile: profile,
+      accountAuthority: authority,
+    ),
+    profile: profile,
+    accountAuthority: authority,
+    accountId: 'account',
+    credential: DavBasicCredential(username: 'alex', password: 'test-only'),
+  ).discover(correlationId: 'discovery-fixture');
+}
 
 DavDiscoveryResult _repositoryDiscoveryResult() {
   final now = DateTime.utc(2026, 8, 8, 12);

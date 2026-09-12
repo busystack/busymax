@@ -1,9 +1,32 @@
 import 'package:busymax/src/calendar_providers/calendar_description.dart';
 import 'package:busymax/src/calendar_providers/calendar_mutation.dart';
+import 'package:busymax/src/features/maps/domain/geographic_point.dart';
+import 'package:busymax/src/features/maps/domain/location_result.dart';
 import 'package:busymax/src/microsoft_calendar/microsoft_calendar_mapper.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  test(
+    'Microsoft timing patches serialize zoned endpoints as Graph wall times',
+    () {
+      final body = microsoftEventMutationToJson(
+        const CalendarEventMutation(
+          startDateTime: '2026-06-08T09:15:00.000-07:00',
+          startTimeZone: 'America/Vancouver',
+          endDateTime: '2026-06-09T02:45:00.000+09:00',
+          endTimeZone: 'Asia/Tokyo',
+        ),
+      );
+      expect(body['start'], {
+        'dateTime': '2026-06-08T09:15:00.000',
+        'timeZone': 'America/Vancouver',
+      });
+      expect(body['end'], {
+        'dateTime': '2026-06-09T02:45:00.000',
+        'timeZone': 'Asia/Tokyo',
+      });
+    },
+  );
   test('Microsoft calendar source uses explicit hex color when available', () {
     final source = microsoftCalendarSourceFromJson({
       'id': 'cal-1',
@@ -155,5 +178,89 @@ void main() {
     );
 
     expect(body['transactionId'], 'transaction-1');
+  });
+
+  test(
+    'structured location replacement preserves supported writable fields',
+    () {
+      final body = microsoftEventMutationToJson(
+        const CalendarEventMutation(
+          structuredLocation: {
+            'displayName': 'Harbour room',
+            'coordinates': {'latitude': 49.28, 'longitude': -123.12},
+            'address': {'city': 'Vancouver'},
+          },
+        ),
+      );
+
+      expect(body['location'], {
+        'displayName': 'Harbour room',
+        'coordinates': {'latitude': 49.28, 'longitude': -123.12},
+        'address': {'city': 'Vancouver'},
+      });
+      expect((body['location'] as Map), isNot(contains('locationType')));
+    },
+  );
+
+  test(
+    'structured location uses intended text instead of remembered label',
+    () {
+      final location = microsoftStructuredLocation(
+        displayName: 'Head office',
+        details: LocationResult(
+          label: '123 Long Resolved Address',
+          point: GeographicPoint(latitude: 49.28, longitude: -123.12),
+          address: {'city': 'Vancouver'},
+        ),
+      );
+
+      expect(location, {
+        'displayName': 'Head office',
+        'coordinates': {'latitude': 49.28, 'longitude': -123.12},
+        'address': {'city': 'Vancouver'},
+      });
+      expect(location, isNot(contains('locationType')));
+    },
+  );
+
+  test('structured location omits unavailable address metadata', () {
+    final location = microsoftStructuredLocation(
+      displayName: 'Coordinate-only destination',
+      details: LocationResult(
+        label: 'Imported point',
+        point: GeographicPoint(latitude: 0, longitude: -123.12),
+      ),
+    );
+
+    expect(location, {
+      'displayName': 'Coordinate-only destination',
+      'coordinates': {'latitude': 0.0, 'longitude': -123.12},
+    });
+  });
+
+  test('plain-text clear omits nested values that Graph must replace', () {
+    final body = microsoftEventMutationToJson(
+      const CalendarEventMutation(location: ''),
+    );
+
+    expect(body['location'], {'displayName': ''});
+    expect((body['location'] as Map), isNot(contains('coordinates')));
+    expect((body['location'] as Map), isNot(contains('address')));
+    expect((body['location'] as Map), isNot(contains('locationType')));
+  });
+
+  test('returned empty Graph location projects no stale point or address', () {
+    final projected = microsoftCalendarEventFromJson('calendar', {
+      'id': 'event',
+      'subject': 'Event',
+      'location': {'displayName': ''},
+      'locations': const [],
+      'start': {'dateTime': '2026-09-07T10:00:00', 'timeZone': 'UTC'},
+      'end': {'dateTime': '2026-09-07T11:00:00', 'timeZone': 'UTC'},
+    });
+
+    expect(projected.location, '');
+    expect(projected.locationPoint, isNull);
+    expect(projected.locationAddress, isNull);
   });
 }

@@ -2,7 +2,11 @@ import 'dart:convert';
 
 import 'package:busymax/src/dav/dav_errors.dart';
 import 'package:busymax/src/dav/http/dav_http_transport.dart';
+import 'package:busymax/src/dav/ical/ical_document.dart';
+import 'package:busymax/src/dav/mutation/dav_mutation_patch.dart';
+import 'package:busymax/src/dav/mutation/dav_pending_operations.dart';
 import 'package:busymax/src/dav/storage/dav_object_repository.dart';
+import 'package:busymax/src/dav/storage/dav_projection_coverage_service.dart';
 import 'package:busymax/src/dav/sync/dav_collection_remote_client.dart';
 import 'package:busymax/src/dav/sync/dav_sync_engine.dart';
 import 'package:busymax/src/db/app_database.dart';
@@ -388,6 +392,147 @@ void main() {
       expect(cursor.lastFailureCode, isNot(contains('not iCalendar')));
     },
   );
+
+  test(
+    'sync reprojects a conflicted series before claiming current coverage',
+    () async {
+      await _seedCollection(database, syncCollection: true);
+      final baseline = _ongoingWeeklyEvent;
+      await _runInitial(database, repository, {
+        'weekly.ics': ('"weekly"', baseline),
+      }, token: 'baseline-token');
+      final object = await database.select(database.davObjects).getSingle();
+      final patch = DavMutationPatch(
+        target: const IcalComponentKey(
+          componentType: 'VEVENT',
+          uid: 'ongoing-weekly@example.test',
+        ),
+        scope: DavMutationScope.recurrenceMaster,
+        operations: [
+          DavPatchOperation.setRaw('DTSTART', '20260803T110000Z'),
+          DavPatchOperation.setRaw('DTEND', '20260803T120000Z'),
+        ],
+      );
+      await DavPendingOperationQueue(
+        database: database,
+        idFactory: () => 'pending-series-edit',
+        nowUtc: () => DateTime.utc(2026, 8, 8, 12),
+      ).enqueueUpdate(
+        accountId: 'account',
+        collectionId: 'collection',
+        objectId: object.id,
+        patch: patch,
+      );
+      await repository.projectLocalMutationCandidate(
+        accountId: 'account',
+        collectionId: 'collection',
+        provider: BusyProvider.nextcloud,
+        objectId: object.id,
+        candidateRawIcs: patch.applyTo(
+          baseline,
+          nowUtc: DateTime.utc(2026, 8, 8, 12),
+        ),
+        projectedAtUtc: DateTime.utc(2026, 8, 8, 12),
+      );
+      await DavProjectionCoverageService(
+        database: database,
+        objectRepository: repository,
+        nowUtc: () => DateTime.utc(2026, 8, 8, 12),
+      ).ensureProjectionCoverage(
+        rangeStartUtc: DateTime.utc(2030, 1),
+        rangeEndUtc: DateTime.utc(2030, 2),
+      );
+      final futureEvents =
+          (await database.select(database.calendarEvents).get())
+              .where(
+                (event) => event.startDateTime?.startsWith('2030-01') ?? false,
+              )
+              .toList();
+      expect(futureEvents, isNotEmpty);
+      expect(
+        futureEvents.every(
+          (event) =>
+              event.startDateTime!.contains('T11:00:00') &&
+              event.syncStatus == 'pending',
+        ),
+        isTrue,
+      );
+
+      await database
+          .update(database.pendingOps)
+          .write(const PendingOpsCompanion(state: Value('conflict')));
+      final operationBeforeSync = await database
+          .select(database.pendingOps)
+          .getSingle();
+      final remote = _FakeRemoteClient(
+        sync: (token) async {
+          expect(token, 'baseline-token');
+          return const DavSyncPage(
+            changedMembers: [],
+            deletedHrefKeys: {},
+            nextSyncToken: 'next-token',
+            truncated: false,
+          );
+        },
+        fetch: (_) async => const [],
+      );
+
+      await _engine(
+        database,
+        repository,
+        remote,
+      ).synchronize(correlationId: 'pending-force-reprojection');
+
+      final currentEvents =
+          (await database.select(database.calendarEvents).get())
+              .where(
+                (event) => event.startDateTime?.startsWith('2026-08') ?? false,
+              )
+              .toList();
+      expect(currentEvents, isNotEmpty);
+      expect(
+        currentEvents.every(
+          (event) =>
+              event.startDateTime!.contains('T11:00:00') &&
+              event.syncStatus == 'conflict',
+        ),
+        isTrue,
+      );
+      final currentCount = currentEvents.length;
+      await DavProjectionCoverageService(
+        database: database,
+        objectRepository: repository,
+        nowUtc: () => DateTime.utc(2026, 8, 8, 12),
+      ).ensureProjectionCoverage(
+        rangeStartUtc: DateTime.utc(2026, 8),
+        rangeEndUtc: DateTime.utc(2026, 9),
+      );
+
+      final eventsAfterReturn =
+          (await database.select(database.calendarEvents).get())
+              .where(
+                (event) => event.startDateTime?.startsWith('2026-08') ?? false,
+              )
+              .toList();
+      expect(eventsAfterReturn, hasLength(currentCount));
+      expect(
+        eventsAfterReturn.every((event) => event.syncStatus == 'conflict'),
+        isTrue,
+      );
+      expect(
+        await database.select(database.pendingOps).getSingle(),
+        operationBeforeSync,
+      );
+      final objectAfter = await database
+          .select(database.davObjects)
+          .getSingle();
+      expect(objectAfter.rawIcsBody, baseline);
+      expect(objectAfter.etag, '"weekly"');
+      final cursor = await database.select(database.syncCursors).getSingle();
+      expect(cursor.cursorValue, 'next-token');
+      expect(cursor.stateJson, contains('"projectionVersion":5'));
+    },
+  );
 }
 
 final class _FakeRemoteClient implements DavCollectionRemoteClient {
@@ -506,6 +651,19 @@ END:VEVENT\r
 END:VCALENDAR\r
 ''';
 
+const _ongoingWeeklyEvent = '''BEGIN:VCALENDAR\r
+VERSION:2.0\r
+PRODID:-//BusyMax Test//EN\r
+BEGIN:VEVENT\r
+UID:ongoing-weekly@example.test\r
+DTSTART:20260803T090000Z\r
+DTEND:20260803T100000Z\r
+RRULE:FREQ=WEEKLY\r
+SUMMARY:Ongoing weekly\r
+END:VEVENT\r
+END:VCALENDAR\r
+''';
+
 Future<void> _seedCollection(
   AppDatabase database, {
   required bool syncCollection,
@@ -541,6 +699,7 @@ Future<void> _seedCollection(
           displayName: 'Work',
           supportedReportsJson: Value(jsonEncode(reports)),
           supportedComponentMask: const Value(3),
+          currentUserPrivilegesJson: Value(jsonEncode(['{DAV:}write'])),
           readOnly: const Value(false),
           eventProjectionEnabled: const Value(true),
           taskProjectionEnabled: const Value(true),

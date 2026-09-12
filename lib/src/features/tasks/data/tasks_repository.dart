@@ -1,4 +1,7 @@
 import 'dart:convert';
+import '../../maps/domain/geographic_point.dart';
+import '../../maps/domain/location_result.dart';
+import '../../maps/data/location_resolution_repository.dart';
 
 import 'package:collection/collection.dart';
 import 'package:drift/drift.dart';
@@ -113,6 +116,7 @@ class TaskEntity {
     this.icalPriority,
     this.percentComplete,
     this.taskLocation,
+    this.locationPoint,
     this.taskUrl,
     this.taskClassification,
     this.taskPinned,
@@ -174,6 +178,10 @@ class TaskEntity {
       icalPriority: row.icalPriority,
       percentComplete: row.percentComplete,
       taskLocation: row.taskLocation,
+      locationPoint: GeographicPoint.tryParse(
+        latitude: row.locationLatitude,
+        longitude: row.locationLongitude,
+      ),
       taskUrl: row.taskUrl,
       taskClassification: row.taskClassification,
       taskPinned: row.taskPinned,
@@ -237,6 +245,7 @@ class TaskEntity {
   final int? icalPriority;
   final int? percentComplete;
   final String? taskLocation;
+  final GeographicPoint? locationPoint;
   final String? taskUrl;
   final String? taskClassification;
   final bool? taskPinned;
@@ -289,6 +298,7 @@ class TaskCreateInput {
     this.fields = const {},
     this.parentTaskId,
     this.previousSiblingTaskId,
+    this.locationChange = const LocationChange.unchanged(),
   });
 
   final String title;
@@ -299,6 +309,7 @@ class TaskCreateInput {
   final Map<String, Object?> fields;
   final String? parentTaskId;
   final String? previousSiblingTaskId;
+  final LocationChange locationChange;
 
   Map<String, Object?> toFields() {
     final trimmedCategories = [
@@ -312,14 +323,20 @@ class TaskCreateInput {
       if (dueUtc != null) 'due': dueUtc,
       if (trimmedCategories.isNotEmpty) 'categories': trimmedCategories,
       ...fields,
+      if (locationChange.changed)
+        'locationPoint': locationChange.selection?.point.toJson(),
     };
   }
 }
 
 class TaskPatchInput {
-  const TaskPatchInput(this.fields);
+  const TaskPatchInput(
+    this.fields, {
+    this.locationChange = const LocationChange.unchanged(),
+  });
 
   final Map<String, Object?> fields;
+  final LocationChange locationChange;
 }
 
 class TaskPutInput {
@@ -548,6 +565,11 @@ class TasksRepository {
     if (taskList.davCollectionId != null) {
       return _createDavTask(taskList, input);
     }
+    if (input.locationChange.changed) {
+      throw UnsupportedError(
+        'This task collection does not support locations.',
+      );
+    }
     final now = _now();
     final localId = 'local-task-${_uuid.v4()}';
     final fields = input.toFields();
@@ -768,7 +790,18 @@ class TasksRepository {
   ) async {
     final taskList = await _requiredTaskList(taskListId);
     if (taskList.davCollectionId != null) {
-      return _updateDavTaskWithHierarchy(taskList, taskId, input.fields);
+      final fields = {
+        ...input.fields,
+        if (input.locationChange.changed)
+          'locationPoint': input.locationChange.selection?.point.toJson(),
+      };
+      await _updateDavTaskWithHierarchy(taskList, taskId, fields);
+      return;
+    }
+    if (input.locationChange.changed) {
+      throw UnsupportedError(
+        'This task collection does not support locations.',
+      );
     }
     final now = _now();
     await _database.transaction(() async {
@@ -957,7 +990,7 @@ class TasksRepository {
       database: _database,
       idFactory: _uuid.v4,
       nowUtc: _nowUtc,
-    ).editableRawIcsForObject(
+    ).exportRawIcsForObject(
       accountId: _accountId,
       collectionId: taskList.davCollectionId!,
       objectId: objectId,
@@ -1063,9 +1096,40 @@ class TasksRepository {
             collectionId: collectionId,
             objectId: source.davObjectId!,
           );
+    var copySourceRaw = sourceRaw;
+    if (GeographicPoint.tryParse(
+          latitude: source.locationLatitude,
+          longitude: source.locationLongitude,
+        ) ==
+        null) {
+      final remembered = await LocationResolutionRepository(_database).load(
+        LocationItemIdentity(
+          kind: LocationItemKind.task,
+          accountId: _accountId,
+          sourceId: source.taskListId,
+          itemId: source.id,
+        ),
+        source.taskLocation ?? '',
+      );
+      if (remembered != null) {
+        final patch = buildDavTaskUpdatePatch(
+          target: IcalComponentKey(
+            componentType: 'VTODO',
+            uid: sourceUid,
+            recurrenceIdKey: source.recurrenceIdKey,
+          ),
+          baselineRawIcs: sourceRaw,
+          fields: {'locationPoint': remembered.point.toJson()},
+          nowUtc: _nowUtc,
+        );
+        if (patch != null) {
+          copySourceRaw = patch.applyTo(sourceRaw, nowUtc: _nowUtc());
+        }
+      }
+    }
     final newUid = _uuid.v4();
     final duplicatedRaw = _duplicateDavTaskResource(
-      sourceRaw,
+      copySourceRaw,
       sourceUid: sourceUid,
       newUid: newUid,
       parentUid: parentUid,
@@ -1095,6 +1159,8 @@ class TasksRepository {
           icalPriority: Value(source.icalPriority),
           percentComplete: Value(source.percentComplete),
           taskLocation: Value(source.taskLocation),
+          locationLatitude: Value(duplicatedMaster.locationPoint?.latitude),
+          locationLongitude: Value(duplicatedMaster.locationPoint?.longitude),
           taskUrl: Value(source.taskUrl),
           taskClassification: Value(source.taskClassification),
           taskPinned: Value(source.taskPinned),
@@ -1594,11 +1660,31 @@ class TasksRepository {
       if (task.parentUid != parentUid) 'parentUid': parentUid,
       if (completeSubtree && !_davTaskCompleted(task)) 'percentComplete': 100,
     };
+    if (GeographicPoint.tryParse(
+          latitude: task.locationLatitude,
+          longitude: task.locationLongitude,
+        ) ==
+        null) {
+      final remembered = await LocationResolutionRepository(_database).load(
+        LocationItemIdentity(
+          kind: LocationItemKind.task,
+          accountId: _accountId,
+          sourceId: sourceList.id,
+          itemId: task.id,
+        ),
+        task.taskLocation ?? '',
+      );
+      if (remembered != null) {
+        fields['locationPoint'] = remembered.point.toJson();
+      }
+    }
     final uid = task.icalUid;
     if (uid == null || uid.isEmpty) {
       throw StateError('The DAV task UID is unavailable.');
     }
     final objectId = task.davObjectId;
+    DavMutationPatch? postMovePatch;
+    String? candidateRawIcs;
     late final String operationId;
     if (objectId == null) {
       final create = await _pendingDavCreateForProjection(task.id);
@@ -1647,7 +1733,7 @@ class TasksRepository {
         collectionId: sourceList.davCollectionId!,
         objectId: objectId,
       );
-      final postMovePatch = fields.isEmpty
+      postMovePatch = fields.isEmpty
           ? null
           : buildDavTaskUpdatePatch(
               target: IcalComponentKey(componentType: 'VTODO', uid: uid),
@@ -1656,16 +1742,9 @@ class TasksRepository {
               parentUid: parentUid,
               nowUtc: _nowUtc,
             );
-      operationId = await queue.enqueueMove(
-        accountId: _accountId,
-        sourceCollectionId: sourceList.davCollectionId!,
-        destinationCollectionId: destinationList.davCollectionId!,
-        objectId: objectId,
-        target: IcalComponentKey(componentType: 'VTODO', uid: uid),
-        localProjectionId: task.id,
-        postMovePatch: postMovePatch,
-        dependsOnOperationId: dependency,
-      );
+      candidateRawIcs =
+          postMovePatch?.applyTo(editableRaw, nowUtc: _nowUtc().toUtc()) ??
+          editableRaw;
     }
 
     final now = _now();
@@ -1676,6 +1755,16 @@ class TasksRepository {
         TasksCompanion(
           taskListId: Value(destinationList.id),
           davCollectionId: Value(destinationList.davCollectionId),
+          locationLatitude: fields.containsKey('locationPoint')
+              ? Value(
+                  GeographicPoint.fromJson(fields['locationPoint'])?.latitude,
+                )
+              : const Value.absent(),
+          locationLongitude: fields.containsKey('locationPoint')
+              ? Value(
+                  GeographicPoint.fromJson(fields['locationPoint'])?.longitude,
+                )
+              : const Value.absent(),
           parent: Value(parentId),
           parentUid: Value(parentUid),
           status: completeSubtree
@@ -1696,34 +1785,59 @@ class TasksRepository {
         ),
       );
     } else {
-      await (_database.update(_database.tasks)..where(
-            (row) =>
-                row.accountId.equals(_accountId) &
-                row.davObjectId.equals(objectId),
-          ))
-          .write(
-            TasksCompanion(
-              taskListId: Value(destinationList.id),
-              davCollectionId: Value(destinationList.davCollectionId),
-              parent: Value(parentId),
-              parentUid: Value(parentUid),
-              status: completeSubtree
-                  ? const Value('completed')
-                  : const Value.absent(),
-              providerStatus: completeSubtree
-                  ? const Value('COMPLETED')
-                  : const Value.absent(),
-              percentComplete: completeSubtree
-                  ? const Value(100)
-                  : const Value.absent(),
-              completedUtc: completeSubtree
-                  ? Value(task.completedUtc ?? now)
-                  : const Value.absent(),
-              pendingMove: const Value(true),
-              localDirty: const Value(true),
-              updatedLocalAtUtc: Value(now),
-            ),
-          );
+      final account = await (_database.select(
+        _database.accounts,
+      )..where((row) => row.id.equals(_accountId))).getSingle();
+      await _database.transaction(() async {
+        operationId = await queue.enqueueMove(
+          accountId: _accountId,
+          sourceCollectionId: sourceList.davCollectionId!,
+          destinationCollectionId: destinationList.davCollectionId!,
+          objectId: objectId,
+          target: IcalComponentKey(componentType: 'VTODO', uid: uid),
+          localProjectionId: task.id,
+          postMovePatch: postMovePatch,
+          dependsOnOperationId: dependency,
+        );
+        await DavObjectRepository(
+          database: _database,
+        ).projectLocalMutationCandidate(
+          accountId: _accountId,
+          collectionId: sourceList.davCollectionId!,
+          provider: BusyProviderCodec.requireStorageValue(account.provider),
+          objectId: objectId,
+          candidateRawIcs: candidateRawIcs!,
+          projectedAtUtc: _nowUtc(),
+        );
+        await (_database.update(_database.tasks)..where(
+              (row) =>
+                  row.accountId.equals(_accountId) &
+                  row.davObjectId.equals(objectId),
+            ))
+            .write(
+              TasksCompanion(
+                taskListId: Value(destinationList.id),
+                davCollectionId: Value(destinationList.davCollectionId),
+                parent: Value(parentId),
+                parentUid: Value(parentUid),
+                status: completeSubtree
+                    ? const Value('completed')
+                    : const Value.absent(),
+                providerStatus: completeSubtree
+                    ? const Value('COMPLETED')
+                    : const Value.absent(),
+                percentComplete: completeSubtree
+                    ? const Value(100)
+                    : const Value.absent(),
+                completedUtc: completeSubtree
+                    ? Value(task.completedUtc ?? now)
+                    : const Value.absent(),
+                pendingMove: const Value(true),
+                localDirty: const Value(true),
+                updatedLocalAtUtc: Value(now),
+              ),
+            );
+      });
     }
     return operationId;
   }
@@ -2169,6 +2283,18 @@ class TasksRepository {
             : const Value.absent(),
         taskLocation: fields.containsKey('location')
             ? Value(_trimmedOrNull(fields['location']))
+            : const Value.absent(),
+        locationLatitude:
+            fields.containsKey('locationPoint') ||
+                fields.containsKey('location')
+            ? Value(GeographicPoint.fromJson(fields['locationPoint'])?.latitude)
+            : const Value.absent(),
+        locationLongitude:
+            fields.containsKey('locationPoint') ||
+                fields.containsKey('location')
+            ? Value(
+                GeographicPoint.fromJson(fields['locationPoint'])?.longitude,
+              )
             : const Value.absent(),
         taskUrl: fields.containsKey('taskUrl')
             ? Value(_trimmedOrNull(fields['taskUrl']))

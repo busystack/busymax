@@ -442,6 +442,49 @@ void main() {
     expect(await database.select(database.notificationSchedule).get(), isEmpty);
   });
 
+  test(
+    'temporary unavailability preserves reminder delivery lifecycle',
+    () async {
+      await _upsertEvent(
+        database,
+        accountId: 'microsoft:m',
+        provider: BusyProvider.microsoft,
+        remindersJson: {'isReminderOn': true, 'reminderMinutesBeforeStart': 10},
+      );
+      await service.rebuildUpcomingEventNotifications('microsoft:m');
+      await (database.update(
+        database.accounts,
+      )..where((row) => row.id.equals('microsoft:m'))).write(
+        const AccountsCompanion(authState: Value('temporarily_unavailable')),
+      );
+
+      for (final lifecycle in const [
+        (sent: 101, dismissed: null, snoozed: null),
+        (sent: null, dismissed: 202, snoozed: null),
+        (sent: null, dismissed: null, snoozed: 303),
+      ]) {
+        await database
+            .update(database.notificationSchedule)
+            .write(
+              NotificationScheduleCompanion(
+                sentAtUtc: Value(lifecycle.sent),
+                dismissedAtUtc: Value(lifecycle.dismissed),
+                snoozedUntilUtc: Value(lifecycle.snoozed),
+              ),
+            );
+
+        await service.rebuildUpcomingEventNotifications('microsoft:m');
+
+        final row = await database
+            .select(database.notificationSchedule)
+            .getSingle();
+        expect(row.sentAtUtc, lifecycle.sent);
+        expect(row.dismissedAtUtc, lifecycle.dismissed);
+        expect(row.snoozedUntilUtc, lifecycle.snoozed);
+      }
+    },
+  );
+
   test('missed event reminder after event start is not scheduled', () async {
     service = NotificationScheduleService(
       database: database,

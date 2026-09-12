@@ -2,7 +2,33 @@ import '../calendar_providers/calendar_colors.dart';
 import '../calendar_providers/calendar_mutation.dart';
 import '../calendar_providers/calendar_description.dart';
 import '../calendar_providers/calendar_sync_dto.dart';
+import '../core/time/provider_date_time.dart';
+import '../features/maps/domain/geographic_point.dart';
+import '../features/maps/domain/location_result.dart';
 import 'package:busymax/src/providers/busy_provider.dart';
+
+Map<String, Object?> microsoftStructuredLocation({
+  required String displayName,
+  LocationResult? details,
+}) {
+  final address = <String, String>{
+    if (details != null)
+      for (final key in [
+        'street',
+        'city',
+        'state',
+        'postalCode',
+        'countryOrRegion',
+      ])
+        if (details.address[key]?.isNotEmpty == true)
+          key: details.address[key]!,
+  };
+  return {
+    'displayName': displayName,
+    if (details != null) 'coordinates': details.point.toJson(),
+    if (address.isNotEmpty) 'address': address,
+  };
+}
 
 CalendarSourceDto microsoftCalendarSourceFromJson(Map<String, Object?> json) {
   final canEdit = json['canEdit'];
@@ -55,6 +81,10 @@ CalendarEventDto microsoftCalendarEventFromJson(
       contentType: body['contentType']?.toString(),
     ).text,
     location: location['displayName']?.toString(),
+    locationPoint: GeographicPoint.fromJson(location['coordinates']),
+    locationAddress: location['address'] is Map
+        ? Map<String, Object?>.from(location['address'] as Map)
+        : null,
     allDay: isAllDay,
     startDate: isAllDay ? _dateOnly(start['dateTime']) : null,
     startDateTime: start['dateTime']?.toString(),
@@ -100,8 +130,9 @@ Map<String, Object?> microsoftEventMutationToJson(
   final result = _compact({
     'subject': mutation.title,
     if (_bodyPatch(mutation) != null) 'body': _bodyPatch(mutation),
-    if (mutation.location != null)
-      'location': {'displayName': mutation.location},
+    if (mutation.structuredLocation != null || mutation.location != null)
+      'location':
+          mutation.structuredLocation ?? {'displayName': mutation.location},
     'isAllDay': mutation.allDay,
     if (_startDateTime(mutation) != null)
       'start': {
@@ -171,14 +202,25 @@ String? _startDateTime(CalendarEventMutation mutation) {
   if (mutation.allDay == true && mutation.startDate != null) {
     return '${mutation.startDate}T00:00:00.0000000';
   }
-  return mutation.startDateTime;
+  return _graphWallTime(mutation.startDateTime, mutation.startTimeZone);
 }
 
 String? _endDateTime(CalendarEventMutation mutation) {
   if (mutation.allDay == true && mutation.endDate != null) {
     return '${mutation.endDate}T00:00:00.0000000';
   }
-  return mutation.endDateTime;
+  return _graphWallTime(
+    mutation.endDateTime,
+    mutation.endTimeZone ?? mutation.startTimeZone,
+  );
+}
+
+String? _graphWallTime(String? value, String? zone) {
+  if (value == null || !RegExp(r'[+-]\d{2}:?\d{2}$').hasMatch(value)) {
+    return value;
+  }
+  final wall = providerDateTimeAsWallTime(value, zone);
+  return wall == null ? value : providerWallTimeIso8601String(wall);
 }
 
 Map<String, Object?> _mapValue(Object? value) {

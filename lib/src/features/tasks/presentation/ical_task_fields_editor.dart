@@ -2,11 +2,13 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:yaru/yaru.dart';
 import 'package:busymax/l10n/generated/app_localizations.dart';
 
 import '../../../app/busymax_design.dart';
 import '../../../app/busymax_dialogs.dart';
+import '../../../app/app_bootstrap.dart';
 import '../../../dav/ical/ical_task_alarm.dart';
 import '../../../l10n/l10n.dart';
 import '../../../platform/linux_header_bar_service.dart';
@@ -15,9 +17,13 @@ import '../../recurrence/presentation/recurrence_editor.dart';
 import '../domain/task_capabilities.dart';
 import 'desktop_date_time_fields.dart';
 import 'task_details_draft.dart';
+import '../../maps/application/external_location_launcher.dart';
+import '../../maps/application/location_destination_resolver.dart';
+import '../../maps/domain/geographic_point.dart';
+import '../../maps/domain/location_result.dart';
 
 /// Native RFC 5545 VTODO fields exposed by Nextcloud Tasks.
-class IcalTaskFieldsEditor extends StatefulWidget {
+class IcalTaskFieldsEditor extends ConsumerStatefulWidget {
   const IcalTaskFieldsEditor({
     super.key,
     required this.draft,
@@ -27,6 +33,10 @@ class IcalTaskFieldsEditor extends StatefulWidget {
     this.useNativeDatePicker = false,
     this.dialogBarrierColor,
     this.headerBarService,
+    this.savedLocation,
+    this.savedPoint,
+    this.savedIdentity,
+    this.externalLocationLauncher = const ExternalLocationLauncher(),
   });
 
   final TaskDetailsDraft draft;
@@ -36,25 +46,39 @@ class IcalTaskFieldsEditor extends StatefulWidget {
   final bool useNativeDatePicker;
   final Color? dialogBarrierColor;
   final LinuxHeaderBarService? headerBarService;
+  final String? savedLocation;
+  final GeographicPoint? savedPoint;
+  final LocationItemIdentity? savedIdentity;
+  final ExternalLocationLauncher externalLocationLauncher;
 
   @override
-  State<IcalTaskFieldsEditor> createState() => _IcalTaskFieldsEditorState();
+  ConsumerState<IcalTaskFieldsEditor> createState() =>
+      _IcalTaskFieldsEditorState();
 }
 
-class _IcalTaskFieldsEditorState extends State<IcalTaskFieldsEditor> {
-  late final TextEditingController _locationController;
+class _IcalTaskFieldsEditorState extends ConsumerState<IcalTaskFieldsEditor> {
   late final TextEditingController _urlController;
+  late final TextEditingController _locationController;
+  ExternalLocationDestination? _savedDestination;
+  var _savedDestinationGeneration = 0;
 
   @override
   void initState() {
     super.initState();
-    _locationController = TextEditingController(text: widget.draft.location);
     _urlController = TextEditingController(text: widget.draft.taskUrl);
+    _locationController = TextEditingController(text: widget.draft.location);
+    _resolveSavedDestination();
   }
 
   @override
   void didUpdateWidget(covariant IcalTaskFieldsEditor oldWidget) {
     super.didUpdateWidget(oldWidget);
+    if (_urlController.text != widget.draft.taskUrl) {
+      _urlController.value = TextEditingValue(
+        text: widget.draft.taskUrl,
+        selection: TextSelection.collapsed(offset: widget.draft.taskUrl.length),
+      );
+    }
     if (_locationController.text != widget.draft.location) {
       _locationController.value = TextEditingValue(
         text: widget.draft.location,
@@ -63,18 +87,17 @@ class _IcalTaskFieldsEditorState extends State<IcalTaskFieldsEditor> {
         ),
       );
     }
-    if (_urlController.text != widget.draft.taskUrl) {
-      _urlController.value = TextEditingValue(
-        text: widget.draft.taskUrl,
-        selection: TextSelection.collapsed(offset: widget.draft.taskUrl.length),
-      );
+    if (oldWidget.savedIdentity != widget.savedIdentity ||
+        oldWidget.savedLocation != widget.savedLocation ||
+        oldWidget.savedPoint != widget.savedPoint) {
+      _resolveSavedDestination();
     }
   }
 
   @override
   void dispose() {
-    _locationController.dispose();
     _urlController.dispose();
+    _locationController.dispose();
     super.dispose();
   }
 
@@ -215,16 +238,32 @@ class _IcalTaskFieldsEditorState extends State<IcalTaskFieldsEditor> {
           YaruListTile.square(
             leading: const Icon(Icons.place_outlined),
             title: TextField(
-              key: const ValueKey('ical-task-location'),
+              key: const ValueKey('ical-task-location-field'),
               controller: _locationController,
               enabled: widget.enabled,
               decoration: busyMaxGroupedTextFieldDecoration(
                 context,
                 labelText: l10n.location,
               ),
-              onChanged: (value) =>
-                  widget.onChanged(widget.draft.copyWith(location: value)),
+              onChanged: (value) => widget.onChanged(
+                widget.draft.copyWith(
+                  location: value,
+                  locationChange: value == (widget.savedLocation ?? '')
+                      ? const LocationChange.unchanged()
+                      : const LocationChange.clear(),
+                ),
+              ),
             ),
+          ),
+        if (_canOpenSavedLocation)
+          BusyMaxActionRow(
+            key: const ValueKey('ical-task-location-open'),
+            title:
+                _savedDestination!.kind == ExternalLocationDestinationKind.link
+                ? l10n.openLink
+                : l10n.mapsShow,
+            leading: const Icon(Icons.map_outlined),
+            onTap: () => unawaited(_openSavedLocation()),
           ),
         if (widget.capabilities.supportsUrl)
           YaruListTile.square(
@@ -247,6 +286,55 @@ class _IcalTaskFieldsEditorState extends State<IcalTaskFieldsEditor> {
           ),
       ],
     );
+  }
+
+  bool get _canOpenSavedLocation =>
+      widget.savedIdentity != null &&
+      widget.draft.location == widget.savedLocation &&
+      _savedDestination != null;
+
+  void _resolveSavedDestination() {
+    final generation = ++_savedDestinationGeneration;
+    final identity = widget.savedIdentity;
+    _savedDestination = null;
+    if (!widget.capabilities.supportsLocation || identity == null) {
+      return;
+    }
+    final location = widget.savedLocation ?? '';
+    final link = completeHttpLocationUri(location);
+    if (link != null) {
+      _savedDestination = ExternalLocationDestination.link(link);
+      return;
+    }
+    final point = widget.savedPoint;
+    if (point != null) {
+      _savedDestination = ExternalLocationDestination.coordinates(point);
+      return;
+    }
+    LocationDestinationResolver(
+      ref.read(locationResolutionRepositoryProvider),
+    ).resolveSaved(location: location, identity: identity).then((destination) {
+      if (!mounted || generation != _savedDestinationGeneration) return;
+      setState(() => _savedDestination = destination);
+    });
+  }
+
+  Future<void> _openSavedLocation() async {
+    final destination = _savedDestination;
+    if (destination == null) return;
+    try {
+      final result = await widget.externalLocationLauncher.open(destination);
+      if (result != ExternalLocationLaunchResult.opened && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(context.l10n.externalLocationOpenFailed)),
+        );
+      }
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(context.l10n.externalLocationOpenFailed)),
+      );
+    }
   }
 
   Widget _sharingGroup() {

@@ -469,7 +469,12 @@ Future<bool> showWindowsTaskEditorDialog(
                     const SizedBox(height: 12),
                     InfoLabel(
                       label: l10n.location,
-                      child: TextBox(controller: location),
+                      child: TextBox(
+                        key: const ValueKey('windows-new-task-location-field'),
+                        controller: location,
+                        enabled: !saving,
+                        onChanged: (_) => setState(() {}),
+                      ),
                     ),
                   ],
                   if (capability.supportsUrl) ...[

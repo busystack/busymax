@@ -1,4 +1,6 @@
 import 'dart:async';
+import '../../../dav/presentation/nextcloud_collection_dialog.dart';
+import '../../../dav/nextcloud/nextcloud_dav_context.dart';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -12,15 +14,19 @@ import '../../../app/busymax_design.dart';
 import '../../../app/busymax_glyphs.dart';
 import '../../../calendar_providers/calendar_colors.dart';
 import '../../../calendar_providers/calendar_provider_capabilities.dart';
+import '../../../dav/dav_errors.dart';
 import '../../../l10n/l10n.dart';
 import '../../../platform/linux_header_bar_provider.dart';
 import '../../../schedule/schedule_item.dart';
 import '../../../schedule/schedule_projection.dart';
+import '../../../schedule/schedule_sidebar_order.dart';
+import '../../../schedule/schedule_sidebar_sources.dart';
 import '../../../webcal/webcal_subscription_service.dart';
 import '../../accounts/data/accounts_repository.dart';
 import '../../accounts/domain/account_collection_creation_capabilities.dart';
 import '../../calendar/data/calendar_collection_creation_service.dart';
 import '../../calendar/data/calendar_repository.dart';
+import '../../connectivity/network_connectivity_service.dart';
 import '../../calendar/presentation/calendar_color_dialog.dart';
 import '../../sync/sync_auth_error.dart';
 import '../../task_lists/data/task_lists_repository.dart';
@@ -50,7 +56,20 @@ class ScheduleSidebar extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final accounts = ref.watch(accountsStreamProvider).valueOrNull ?? const [];
+    ref.watch(sidebarOrderRegistrationProvider);
+    final accounts = ref
+        .watch(appSettingsControllerProvider)
+        .sidebarOrder
+        .apply(
+          SidebarOrderSection.accounts,
+          ref.watch(accountsStreamProvider).valueOrNull ??
+              const <AccountEntity>[],
+          (account) => account.id,
+        );
+    final siblingIds = [
+      for (final account in accounts)
+        if (!account.isSubscription) account.id,
+    ];
     return BusyMaxSidebarSurface(
       child: Column(
         children: [
@@ -74,6 +93,7 @@ class ScheduleSidebar extends ConsumerWidget {
                   _AccountSourcesGroup(
                     key: ValueKey(('schedule-account', account.id)),
                     account: account,
+                    siblingIds: siblingIds,
                   ),
                 if (accounts.any((account) => account.isSubscription))
                   _SubscriptionSourcesGroup(
@@ -92,10 +112,16 @@ class ScheduleSidebar extends ConsumerWidget {
 }
 
 class _SourceRow extends ConsumerWidget {
-  const _SourceRow({super.key, required this.account, required this.source});
+  const _SourceRow({
+    super.key,
+    required this.account,
+    required this.source,
+    required this.siblingIds,
+  });
 
   final AccountEntity account;
   final CalendarSourceEntity source;
+  final List<String> siblingIds;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -103,7 +129,8 @@ class _SourceRow extends ConsumerWidget {
     final capabilities = source.capabilities;
     return _CompactSourceRow(
       title: source.summary,
-      leading: _SourceDot(
+      leading: _SourceIcon(
+        icon: YaruIcons.calendar,
         seed: source.id,
         colorHex: calendarSourceBackgroundColorHex(
           provider: source.provider,
@@ -127,6 +154,15 @@ class _SourceRow extends ConsumerWidget {
           highlightWhenOpen: false,
           onSelected: (value) {
             switch (value) {
+              case 'move-up' || 'move-down':
+                _moveSidebarItem(
+                  ref,
+                  SidebarOrderSection.calendars,
+                  source.id,
+                  value,
+                  siblingIds,
+                  accountId: account.id,
+                );
               case 'refresh':
                 unawaited(_refreshCalendarSource(context, ref, source));
               case 'open':
@@ -137,6 +173,14 @@ class _SourceRow extends ConsumerWidget {
                 unawaited(_setCalendarRemindersEnabled(context, ref, source));
               case 'color':
                 unawaited(_changeCalendarColor(context, ref, source));
+              case 'collection-settings':
+                unawaited(
+                  showLinuxNextcloudCollectionDialog(
+                    context,
+                    accountId: source.accountId,
+                    collectionId: source.davCollectionId!,
+                  ),
+                );
               case 'rename':
                 unawaited(_renameCalendar(context, ref, source));
               case 'delete':
@@ -144,6 +188,14 @@ class _SourceRow extends ConsumerWidget {
             }
           },
           entries: [
+            if (source.provider == BusyProvider.nextcloud &&
+                source.davCollectionId != null)
+              BusyMaxMenuEntry(
+                value: 'collection-settings',
+                label: context.l10n.nextcloudCollectionSettings,
+                icon: Icons.settings_outlined,
+              ),
+            ..._movementEntries(context, source.id, siblingIds),
             BusyMaxMenuEntry(
               value: 'refresh',
               label: context.l10n.refreshCalendar,
@@ -184,7 +236,9 @@ class _SourceRow extends ConsumerWidget {
               value: 'delete',
               label:
                   capabilities.removalMode == CalendarRemovalMode.removeFromList
-                  ? context.l10n.removeFromMyCalendars
+                  ? (source.provider == BusyProvider.nextcloud
+                        ? context.l10n.nextcloudRemoveShared
+                        : context.l10n.removeFromMyCalendars)
                   : context.l10n.delete,
               icon: YaruIcons.trash,
               enabled: capabilities.canRemoveCalendar,
@@ -304,9 +358,14 @@ class _SourceVisibilityButton extends StatelessWidget {
 }
 
 class _AccountSourcesGroup extends ConsumerStatefulWidget {
-  const _AccountSourcesGroup({super.key, required this.account});
+  const _AccountSourcesGroup({
+    super.key,
+    required this.account,
+    required this.siblingIds,
+  });
 
   final AccountEntity account;
+  final List<String> siblingIds;
 
   @override
   ConsumerState<_AccountSourcesGroup> createState() =>
@@ -339,6 +398,21 @@ class _AccountSourcesGroupState extends ConsumerState<_AccountSourcesGroup> {
       taskListCreationRunning: _creatingTaskList,
     );
     final headerActions = <_AccountHeaderCollectionAction>[
+      if (account.provider == BusyProvider.nextcloud)
+        _AccountHeaderCollectionAction(
+          action: AccountHeaderCollectionAction.trash,
+          enabled: networkAvailability != NetworkAvailability.offline,
+        ),
+      _AccountHeaderCollectionAction(
+        action: AccountHeaderCollectionAction.moveUp,
+        enabled: widget.siblingIds.indexOf(account.id) > 0,
+      ),
+      _AccountHeaderCollectionAction(
+        action: AccountHeaderCollectionAction.moveDown,
+        enabled:
+            widget.siblingIds.indexOf(account.id) <
+            widget.siblingIds.length - 1,
+      ),
       if (capabilities.supportsCalendarCreation)
         _AccountHeaderCollectionAction(
           action: AccountHeaderCollectionAction.newCalendar,
@@ -362,12 +436,20 @@ class _AccountSourcesGroupState extends ConsumerState<_AccountSourcesGroup> {
         ),
         if (_expanded) ...[
           _AccountCalendarSources(account: account),
-          StreamBuilder<List<TaskListEntity>>(
-            stream: ref
-                .watch(taskListsRepositoryForAccountProvider(account.id))
-                .watchTaskLists(),
-            builder: (context, snapshot) {
-              final lists = snapshot.data ?? const <TaskListEntity>[];
+          Builder(
+            builder: (context) {
+              final lists = ref
+                  .watch(appSettingsControllerProvider)
+                  .sidebarOrder
+                  .apply(
+                    SidebarOrderSection.taskLists,
+                    ref
+                            .watch(sidebarTaskListsProvider(account.id))
+                            .valueOrNull ??
+                        const <TaskListEntity>[],
+                    (list) => list.id,
+                    accountId: account.id,
+                  );
               if (lists.isEmpty) {
                 return BusyMaxActionRow(title: context.l10n.noTaskListsSynced);
               }
@@ -382,6 +464,7 @@ class _AccountSourcesGroupState extends ConsumerState<_AccountSourcesGroup> {
                       )),
                       account: account,
                       list: list,
+                      siblingIds: lists.map((list) => list.id).toList(),
                     ),
                 ],
               );
@@ -400,6 +483,22 @@ class _AccountSourcesGroupState extends ConsumerState<_AccountSourcesGroup> {
     AccountHeaderCollectionAction action,
   ) async {
     switch (action) {
+      case AccountHeaderCollectionAction.trash:
+        await showLinuxNextcloudTrashDialog(
+          context,
+          accountId: widget.account.id,
+        );
+      case AccountHeaderCollectionAction.moveUp:
+      case AccountHeaderCollectionAction.moveDown:
+        _moveSidebarItem(
+          ref,
+          SidebarOrderSection.accounts,
+          widget.account.id,
+          action == AccountHeaderCollectionAction.moveUp
+              ? 'move-up'
+              : 'move-down',
+          widget.siblingIds,
+        );
       case AccountHeaderCollectionAction.newCalendar:
         if (_creatingCalendar) return;
         setState(() => _creatingCalendar = true);
@@ -427,7 +526,15 @@ class _SubscriptionSourcesGroup extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final accountById = {for (final account in accounts) account.id: account};
+    final sources = ref
+        .watch(appSettingsControllerProvider)
+        .sidebarOrder
+        .apply(
+          SidebarOrderSection.subscriptions,
+          ref.watch(sidebarSubscriptionSourcesProvider).valueOrNull ??
+              const <CalendarSourceEntity>[],
+          (source) => source.id,
+        );
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -443,23 +550,15 @@ class _SubscriptionSourcesGroup extends ConsumerWidget {
             style: Theme.of(context).textTheme.labelLarge,
           ),
         ),
-        StreamBuilder<List<CalendarSourceEntity>>(
-          stream: ref
-              .watch(calendarRepositoryProvider)
-              .watchSourcesForAccounts(accountById.keys.toList()),
-          builder: (context, snapshot) {
-            final sources = (snapshot.data ?? const <CalendarSourceEntity>[])
-                .where((source) => source.provider == BusyProvider.webCal);
-            return Column(
-              children: [
-                for (final source in sources)
-                  _SubscriptionSourceRow(
-                    key: ValueKey(('subscription-source', source.id)),
-                    source: source,
-                  ),
-              ],
-            );
-          },
+        Column(
+          children: [
+            for (final source in sources)
+              _SubscriptionSourceRow(
+                key: ValueKey(('subscription-source', source.id)),
+                source: source,
+                siblingIds: sources.map((source) => source.id).toList(),
+              ),
+          ],
         ),
       ],
     );
@@ -467,15 +566,24 @@ class _SubscriptionSourcesGroup extends ConsumerWidget {
 }
 
 class _SubscriptionSourceRow extends ConsumerWidget {
-  const _SubscriptionSourceRow({super.key, required this.source});
+  const _SubscriptionSourceRow({
+    super.key,
+    required this.source,
+    required this.siblingIds,
+  });
 
   final CalendarSourceEntity source;
+  final List<String> siblingIds;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     return _CompactSourceRow(
       title: '${source.summary} · ${context.l10n.readOnlySharedCollection}',
-      leading: _SourceDot(seed: source.id, colorHex: source.backgroundColor),
+      leading: _SourceIcon(
+        icon: YaruIcons.calendar,
+        seed: source.id,
+        colorHex: source.backgroundColor,
+      ),
       trailing: _SourceRowActions(
         visibilityButton: _SourceVisibilityButton(
           value: source.selected && !source.hidden,
@@ -485,10 +593,19 @@ class _SubscriptionSourceRow extends ConsumerWidget {
               .setSourceSelected(source.id, value),
         ),
         menuButton: BusyMaxMenuButton<String>(
+          key: ValueKey(('subscription-options', source.id)),
           tooltip: context.l10n.options,
           highlightWhenOpen: false,
           onSelected: (value) {
             switch (value) {
+              case 'move-up' || 'move-down':
+                _moveSidebarItem(
+                  ref,
+                  SidebarOrderSection.subscriptions,
+                  source.id,
+                  value,
+                  siblingIds,
+                );
               case 'refresh':
                 unawaited(_refreshSubscriptionSource(context, ref, source));
               case 'rename':
@@ -500,6 +617,7 @@ class _SubscriptionSourceRow extends ConsumerWidget {
             }
           },
           entries: [
+            ..._movementEntries(context, source.id, siblingIds),
             BusyMaxMenuEntry(
               value: 'refresh',
               label: context.l10n.refreshNow,
@@ -645,12 +763,25 @@ class _AccountHeaderRow extends StatelessWidget {
                   BusyMaxMenuEntry(
                     value: item.action,
                     label: switch (item.action) {
+                      AccountHeaderCollectionAction.trash =>
+                        context.l10n.nextcloudTrash,
                       AccountHeaderCollectionAction.newCalendar =>
                         '${context.l10n.newCalendar}…',
                       AccountHeaderCollectionAction.newTaskList =>
                         '${context.l10n.newTaskList}…',
+                      AccountHeaderCollectionAction.moveUp =>
+                        context.l10n.moveUp,
+                      AccountHeaderCollectionAction.moveDown =>
+                        context.l10n.moveDown,
                     },
-                    icon: YaruIcons.plus,
+                    icon: switch (item.action) {
+                      AccountHeaderCollectionAction.trash => YaruIcons.trash,
+                      AccountHeaderCollectionAction.moveUp =>
+                        Icons.arrow_upward,
+                      AccountHeaderCollectionAction.moveDown =>
+                        Icons.arrow_downward,
+                      _ => YaruIcons.plus,
+                    },
                     enabled: item.enabled,
                   ),
               ],
@@ -777,39 +908,41 @@ class _AccountCalendarSources extends ConsumerWidget {
       );
     }
 
-    return StreamBuilder<List<CalendarSourceEntity>>(
-      stream: ref.watch(calendarRepositoryProvider).watchSourcesForAccounts([
-        account.id,
-      ]),
-      builder: (context, snapshot) {
-        final sources = snapshot.data ?? const <CalendarSourceEntity>[];
-        return Column(
-          children: [
-            if (sources.isEmpty)
-              BusyMaxActionRow(
-                title: context.l10n.noCalendarsSynced,
-                leading: const Icon(YaruIcons.calendar),
-              ),
-            for (final source in sources)
-              _SourceRow(
-                key: ValueKey((
-                  'schedule-calendar',
-                  source.accountId,
-                  source.id,
-                )),
-                account: account,
-                source: source,
-              ),
-          ],
+    final sources = ref
+        .watch(appSettingsControllerProvider)
+        .sidebarOrder
+        .apply(
+          SidebarOrderSection.calendars,
+          calendarSourcesShownInSidebar(
+            ref.watch(sidebarCalendarSourcesProvider(account.id)).valueOrNull ??
+                const <CalendarSourceEntity>[],
+          ),
+          (source) => source.id,
+          accountId: account.id,
         );
-      },
+    return Column(
+      children: [
+        if (sources.isEmpty)
+          BusyMaxActionRow(
+            title: context.l10n.noCalendarsSynced,
+            leading: const Icon(YaruIcons.calendar),
+          ),
+        for (final source in sources)
+          _SourceRow(
+            key: ValueKey(('schedule-calendar', source.accountId, source.id)),
+            account: account,
+            source: source,
+            siblingIds: sources.map((source) => source.id).toList(),
+          ),
+      ],
     );
   }
 }
 
-class _SourceDot extends StatelessWidget {
-  const _SourceDot({this.seed, this.colorHex, this.color});
+class _SourceIcon extends StatelessWidget {
+  const _SourceIcon({required this.icon, this.seed, this.colorHex, this.color});
 
+  final IconData icon;
   final String? seed;
   final String? colorHex;
   final Color? color;
@@ -823,11 +956,7 @@ class _SourceDot extends StatelessWidget {
           seed ?? '',
           Theme.of(context).colorScheme.brightness,
         );
-    return Container(
-      width: 10,
-      height: 10,
-      decoration: BoxDecoration(color: resolvedColor, shape: BoxShape.circle),
-    );
+    return Icon(icon, size: 16, color: resolvedColor);
   }
 }
 
@@ -836,10 +965,12 @@ class _TaskListScheduleRow extends ConsumerWidget {
     super.key,
     required this.account,
     required this.list,
+    required this.siblingIds,
   });
 
   final AccountEntity account;
   final TaskListEntity list;
+  final List<String> siblingIds;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -849,7 +980,10 @@ class _TaskListScheduleRow extends ConsumerWidget {
       list.accountId,
       list.id,
     );
-    final title = scheduleTaskListLabel(context, account, list);
+    final normalizedTitle = list.title.trim();
+    final title = normalizedTitle.isEmpty
+        ? context.l10n.sourceTaskList
+        : normalizedTitle;
     final davCapabilities = list.davCollectionId == null
         ? null
         : ref
@@ -876,7 +1010,8 @@ class _TaskListScheduleRow extends ConsumerWidget {
     );
     return _CompactSourceRow(
       title: title,
-      leading: _SourceDot(
+      leading: _SourceIcon(
+        icon: YaruIcons.task_list,
         color: Theme.of(context).colorScheme.onSurfaceVariant,
       ),
       trailing: _SourceRowActions(
@@ -899,6 +1034,15 @@ class _TaskListScheduleRow extends ConsumerWidget {
           highlightWhenOpen: false,
           onSelected: (value) {
             switch (value) {
+              case 'move-up' || 'move-down':
+                _moveSidebarItem(
+                  ref,
+                  SidebarOrderSection.taskLists,
+                  list.id,
+                  value,
+                  siblingIds,
+                  accountId: account.id,
+                );
               case 'refresh':
                 unawaited(_refreshTaskListAccount(context, ref, account.id));
               case 'open':
@@ -909,11 +1053,27 @@ class _TaskListScheduleRow extends ConsumerWidget {
                 unawaited(_setTaskListRemindersEnabled(context, ref, list));
               case 'rename':
                 unawaited(_renameTaskList(context, ref, list));
+              case 'collection-settings':
+                unawaited(
+                  showLinuxNextcloudCollectionDialog(
+                    context,
+                    accountId: list.accountId,
+                    collectionId: list.davCollectionId!,
+                  ),
+                );
               case 'delete':
                 unawaited(_deleteTaskList(context, ref, list));
             }
           },
           entries: [
+            ..._movementEntries(context, list.id, siblingIds),
+            if (account.provider == BusyProvider.nextcloud &&
+                list.davCollectionId != null)
+              BusyMaxMenuEntry(
+                value: 'collection-settings',
+                label: context.l10n.nextcloudCollectionSettings,
+                icon: Icons.settings_outlined,
+              ),
             BusyMaxMenuEntry(
               value: 'refresh',
               label: context.l10n.refreshList,
@@ -958,28 +1118,6 @@ class _TaskListScheduleRow extends ConsumerWidget {
       ),
     );
   }
-}
-
-@visibleForTesting
-String scheduleTaskListLabel(
-  BuildContext context,
-  AccountEntity account,
-  TaskListEntity list,
-) {
-  final provider = switch (account.provider) {
-    BusyProvider.google => context.l10n.googleTasksProvider,
-    BusyProvider.microsoft => context.l10n.microsoftTodoProvider,
-    BusyProvider.appleICloud => context.l10n.appleICloudTasksProvider,
-    BusyProvider.nextcloud => context.l10n.nextcloudTasksProvider,
-    BusyProvider.webCal => 'WebCal',
-  };
-  final title = list.title.trim();
-  if (title.isEmpty ||
-      title.toLowerCase() == provider.toLowerCase() ||
-      title.toLowerCase() == account.provider.displayName.toLowerCase()) {
-    return provider;
-  }
-  return '$provider · $title';
 }
 
 Color? _colorFromHex(String? value) {
@@ -1197,7 +1335,54 @@ String? _calendarDeleteRestriction(
   return context.l10n.calendarCannotRemove;
 }
 
-enum AccountHeaderCollectionAction { newCalendar, newTaskList }
+enum AccountHeaderCollectionAction {
+  trash,
+  newCalendar,
+  newTaskList,
+  moveUp,
+  moveDown,
+}
+
+List<BusyMaxMenuEntry<String>> _movementEntries(
+  BuildContext context,
+  String id,
+  List<String> siblings,
+) => [
+  BusyMaxMenuEntry(
+    value: 'move-up',
+    label: context.l10n.moveUp,
+    icon: Icons.arrow_upward,
+    enabled: siblings.indexOf(id) > 0,
+  ),
+  BusyMaxMenuEntry(
+    value: 'move-down',
+    label: context.l10n.moveDown,
+    icon: Icons.arrow_downward,
+    enabled:
+        siblings.contains(id) && siblings.indexOf(id) < siblings.length - 1,
+  ),
+];
+
+void _moveSidebarItem(
+  WidgetRef ref,
+  SidebarOrderSection section,
+  String id,
+  String action,
+  List<String> siblings, {
+  String? accountId,
+}) {
+  unawaited(
+    ref
+        .read(appSettingsControllerProvider.notifier)
+        .moveSidebarItem(
+          section,
+          id,
+          action == 'move-up' ? -1 : 1,
+          siblings,
+          accountId: accountId,
+        ),
+  );
+}
 
 final class _AccountHeaderCollectionAction {
   const _AccountHeaderCollectionAction({
@@ -1333,6 +1518,13 @@ Future<void> _changeCalendarColor(
         .read(calendarRepositoryProvider)
         .setSourceColor(source.id, choice);
     _requestCalendarMutationSync(ref, source.accountId);
+  } on NextcloudRefreshPending {
+    if (context.mounted) {
+      _showCalendarMutationFailure(
+        context,
+        context.l10n.nextcloudRefreshPending,
+      );
+    }
   } on Object catch (error) {
     if (context.mounted) {
       _showCalendarMutationFailure(
@@ -1376,6 +1568,13 @@ Future<void> _renameCalendar(
         .read(calendarRepositoryProvider)
         .renameLocalSource(source.id, title.trim());
     _requestCalendarMutationSync(ref, source.accountId);
+  } on NextcloudRefreshPending {
+    if (context.mounted) {
+      _showCalendarMutationFailure(
+        context,
+        context.l10n.nextcloudRefreshPending,
+      );
+    }
   } on Object catch (error) {
     if (context.mounted) {
       _showCalendarMutationFailure(
@@ -1401,10 +1600,15 @@ Future<void> _deleteCalendar(
   final confirmed = await showBusyMaxConfirm(
     context,
     title: removeFromList
-        ? context.l10n.removeFromMyCalendars
+        ? (source.provider == BusyProvider.nextcloud
+              ? context.l10n.nextcloudRemoveShared
+              : context.l10n.removeFromMyCalendars)
         : context.l10n.delete,
     message: removeFromList
         ? context.l10n.removeCalendarConfirmation(source.summary)
+        : source.provider == BusyProvider.nextcloud &&
+              source.davEffectivePermissions['supportedComponentMask'] == 3
+        ? context.l10n.nextcloudRemoveMixed
         : context.l10n.deleteCalendarConfirmation(source.summary),
     confirmLabel: removeFromList
         ? context.l10n.removeAction
@@ -1418,11 +1622,20 @@ Future<void> _deleteCalendar(
   try {
     await ref.read(calendarRepositoryProvider).deleteLocalSource(source.id);
     _requestCalendarMutationSync(ref, source.accountId);
+  } on NextcloudRefreshPending {
+    if (context.mounted) {
+      _showCalendarMutationFailure(
+        context,
+        context.l10n.nextcloudRefreshPending,
+      );
+    }
   } on Object catch (error) {
     if (context.mounted) {
       final message =
-          error is CalendarMutationNotAllowed &&
-              error.reason == CalendarMutationDenialReason.pendingChanges
+          (error is CalendarMutationNotAllowed &&
+                  error.reason ==
+                      CalendarMutationDenialReason.pendingChanges) ||
+              isDavCollectionPendingChangesError(error)
           ? context.l10n.calendarPendingChangesPreventRemoval
           : context.l10n.calendarDeleteFailed(
               syncFailureMessage(
@@ -1494,10 +1707,14 @@ Future<void> _deleteTaskList(
   final confirmed = await showBusyMaxConfirm(
     context,
     title: list.isShared == true
-        ? context.l10n.unshare
+        ? (list.davCollectionId != null
+              ? context.l10n.nextcloudRemoveShared
+              : context.l10n.unshare)
         : context.l10n.deleteList,
     message: list.isShared == true
         ? context.l10n.unshareTaskListConfirmation(list.title)
+        : list.isMixedDavCollection
+        ? context.l10n.nextcloudRemoveMixed
         : context.l10n.deleteTaskListConfirmation(list.title),
     confirmLabel: list.isShared == true
         ? context.l10n.unshare
@@ -1517,12 +1734,15 @@ Future<void> _deleteTaskList(
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            context.l10n.taskListDeleteFailed(
-              syncFailureMessage(
-                error,
-                networkUnavailableMessage: context.l10n.networkOfflineTryAgain,
-              ),
-            ),
+            isDavCollectionPendingChangesError(error)
+                ? context.l10n.taskListPendingChangesPreventRemoval
+                : context.l10n.taskListDeleteFailed(
+                    syncFailureMessage(
+                      error,
+                      networkUnavailableMessage:
+                          context.l10n.networkOfflineTryAgain,
+                    ),
+                  ),
           ),
         ),
       );

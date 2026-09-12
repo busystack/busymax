@@ -13,6 +13,232 @@ class AppLocalizationsEt extends AppLocalizations {
   AppLocalizationsEt([String locale = 'et']) : super(locale);
 
   @override
+  String get nextcloudExportCollection => 'Ekspordi kogu ressursid';
+
+  @override
+  String nextcloudImportItems(int count) {
+    return 'Leiti $count sündmuse/ülesande ressurssi';
+  }
+
+  @override
+  String get nextcloudSchedulingInbox => 'Kutsete postkast';
+
+  @override
+  String get nextcloudInboxExplanation =>
+      'Nextcloud töötleb need sõnumid sinu kalendritesse. Kinnitamine eemaldab ainult sõnumi, mitte sündmuse.';
+
+  @override
+  String get nextcloudInboxEmpty => 'Ajastussõnumeid pole.';
+
+  @override
+  String get nextcloudAcknowledge => 'Kinnita sõnumi kättesaamine';
+
+  @override
+  String get nextcloudAcknowledgeConfirm =>
+      'Kas eemaldada see sõnum postkastist? Kalendrisündmus säilib.';
+
+  @override
+  String get nextcloudGuestAvailability => 'Kontrolli külaliste saadavust';
+
+  @override
+  String nextcloudTrashRetention(int days) {
+    return 'Serveri prügikasti säilitusaeg: $days päeva';
+  }
+
+  @override
+  String get nextcloudCancelMeeting => 'Tühista koosolek';
+
+  @override
+  String get nextcloudDeclineAndRemove => 'Keeldu ja eemalda kutse';
+
+  @override
+  String get nextcloudDeclineRemovalWarning =>
+      'Eemaldamine saadab sünkroonimisel keeldumise. See ei tühista korraldaja koosolekut.';
+
+  @override
+  String get nextcloudAvailabilityUnknown => 'Saadavus teadmata';
+
+  @override
+  String get nextcloudAvailabilityFree =>
+      'Selles ajavahemikus hõivatud aegu ei teatatud';
+
+  @override
+  String get nextcloudAvailabilityBusy => 'Hõivatud ajad';
+
+  @override
+  String get nextcloudSchedulingPending =>
+      'Nextcloud saadab koosoleku uuendused sünkroonimisel. Kohalik salvestamine ei kinnita kohaletoimetamist.';
+
+  @override
+  String get nextcloudAttendeeRestrictions =>
+      'Koosoleku andmeid saab muuta ainult korraldaja või volitatud esindaja. Kutsele saad vastata selle üksikasjades.';
+
+  @override
+  String get nextcloudMeetingMoveUnsupported =>
+      'Koosolekut ei saa teisaldada kopeerimise ja kustutamisega. Kasuta sama ajastusidentiteediga kalendrit.';
+
+  @override
+  String get nextcloudSchedulingStatus => 'Serveri ajastusolek';
+
+  @override
+  String get nextcloudImportFollowUp =>
+      'Imporditud ressursid salvestati kohalikult. Meeldetuletuste uuendamine on ootel; ära impordi uuesti.';
+
+  @override
+  String get nextcloudNativeImport =>
+      'Impordi täielikud sündmused ja ülesanded kutseid saatmata. Olemasolevad UID-d jäetakse vahele, kui sa ei vali uusi koopiaid. Toetamata ressursid teatatakse eraldi.';
+
+  @override
+  String get nextcloudImportMethod =>
+      'Fail sisaldab ajastussõnumeid. Import salvestab sisu ja eemaldab METHOD-välja; see ei töötle kutseid ega vastuseid.';
+
+  @override
+  String get nextcloudImportCopies =>
+      'Impordi uute koopiatena uute identiteetidega';
+
+  @override
+  String get nextcloudCollectionSettings => 'Kogu seaded';
+
+  @override
+  String get nextcloudSharing => 'Jagamine';
+
+  @override
+  String get nextcloudOwned => 'Enda oma';
+
+  @override
+  String get nextcloudShared => 'Jagatud';
+
+  @override
+  String get nextcloudDelegated => 'Delegeeritud';
+
+  @override
+  String get nextcloudSubscription => 'Tellimus';
+
+  @override
+  String get nextcloudDeleted => 'Kustutatud';
+
+  @override
+  String get nextcloudMetadataEditable =>
+      'Kalendri sisu on kirjutuskaitstud; kogu omadusi saab muuta.';
+
+  @override
+  String get nextcloudServerOrder =>
+      'Serveri järjestus (külgriba järjestusest eraldi)';
+
+  @override
+  String get nextcloudCalendarEnabled => 'Serveris lubatud';
+
+  @override
+  String get nextcloudAvailability => 'Arvesta kogu saadavuse määramisel';
+
+  @override
+  String get nextcloudCalendarTimezone =>
+      'Kalendri ajavöönd (VTIMEZONE-dokument)';
+
+  @override
+  String get nextcloudRefreshPending =>
+      'Muudatus salvestati Nextcloudi. Värskendamine on ootel; ära korda muudatust.';
+
+  @override
+  String get nextcloudOutcomeUnknown =>
+      'Serveri tulemust ei saanud kinnitada. Värskenda enne uuesti proovimist.';
+
+  @override
+  String get nextcloudRemoveShared => 'Eemalda jagatud kalender/loend';
+
+  @override
+  String get nextcloudRemoveMixed =>
+      'Kogu sisaldab sündmusi ja ülesandeid. Kustutamine eemaldab mõlemad.';
+
+  @override
+  String get nextcloudReadAccess => 'Ainult lugemine';
+
+  @override
+  String get nextcloudWriteAccess => 'Lugemine ja kirjutamine';
+
+  @override
+  String get nextcloudRecipientSearch => 'Otsi inimesi või rühmi';
+
+  @override
+  String get nextcloudNoRecipients => 'Sobivaid inimesi ega rühmi pole.';
+
+  @override
+  String get nextcloudRevokeShare => 'Tühista juurdepääs';
+
+  @override
+  String get nextcloudPublish => 'Avalda link';
+
+  @override
+  String get nextcloudUnpublish => 'Lõpeta avaldamine';
+
+  @override
+  String get nextcloudPublishWarning =>
+      'Avaldatud lingiga inimesed võivad saada kalendrit lugeda. Kas avaldada?';
+
+  @override
+  String get nextcloudTrash => 'Kustutatud kalendrid ja ülesanded';
+
+  @override
+  String get nextcloudTrashEmpty => 'Kustutatud kalendrikirjeid pole.';
+
+  @override
+  String get nextcloudRestore => 'Taasta';
+
+  @override
+  String get nextcloudPermanentDelete => 'Kustuta jäädavalt';
+
+  @override
+  String get nextcloudPermanentDeleteWarning =>
+      'Kas kustutada jäädavalt? Seda ei saa Nextcloudi kalendriprügikastist taastada.';
+
+  @override
+  String get nextcloudOperationDenied => 'Nextcloud ei lubanud seda toimingut.';
+
+  @override
+  String get nextcloudUnsupported => 'Server ei toeta seda toimingut.';
+
+  @override
+  String get nextcloudPendingChanges =>
+      'Enne sulgemist salvesta või hülga kogu muudatused.';
+
+  @override
+  String get nextcloudServerUnavailable =>
+      'Nextcloudiga ei saa ühendust. Vahemälu ja ootel muudatused jäävad alles.';
+
+  @override
+  String get mapsShow => 'Näita kaardil';
+
+  @override
+  String get openLink => 'Ava link';
+
+  @override
+  String get externalLocationOpenFailed =>
+      'Asukohta ei saanud välises rakenduses avada.';
+
+  @override
+  String scheduleProposedRange(String start, String end) {
+    return '$start – $end';
+  }
+
+  @override
+  String get scheduleRescheduleFailed =>
+      'Sündmuse aega ei saanud muuta. Salvestatud aeg jäi muutmata.';
+
+  @override
+  String get scheduleRescheduleStale =>
+      'Sündmus muutus lohistamise ajal. Palun proovi uuesti.';
+
+  @override
+  String get scheduleRescheduleNotificationsFailed =>
+      'Uus aeg salvestati, kuid meeldetuletusi ei saanud värskendada.';
+
+  @override
+  String get moveUp => 'Liiguta üles';
+
+  @override
+  String get moveDown => 'Liiguta alla';
+
+  @override
   String get windowsSupport => 'Tugi';
 
   @override
@@ -1001,6 +1227,10 @@ class AppLocalizationsEt extends AppLocalizations {
   String taskListDeleteFailed(String error) {
     return 'Ülesandeloendi kustutamine ebaõnnestus: $error';
   }
+
+  @override
+  String get taskListPendingChangesPreventRemoval =>
+      'Enne loendi kustutamist või eemaldamist sünkroonige konto või lahendage selle ülesandeloendi blokeeritud muudatused jaotises Diagnostika.';
 
   @override
   String get signInToViewTaskLists =>

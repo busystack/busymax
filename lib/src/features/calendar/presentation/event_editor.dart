@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:yaru/yaru.dart';
 
 import '../../../app/busymax_design.dart';
@@ -17,11 +18,14 @@ import '../../recurrence/domain/event_recurrence_codec.dart';
 import '../../recurrence/domain/recurrence_rule.dart';
 import '../../recurrence/presentation/recurrence_editor.dart';
 import '../../tasks/presentation/desktop_date_time_fields.dart';
+import '../../maps/domain/location_result.dart';
 import '../data/calendar_repository.dart';
 import '../domain/event_move_policy.dart';
 import 'event_description_editor.dart';
 import 'event_editor_draft.dart';
+import '../domain/event_timing_policy.dart';
 import 'event_guest_delivery_dialog.dart';
+import '../../../dav/presentation/nextcloud_scheduling_dialog.dart';
 
 Future<EventEditorDialogResult?> showBusyMaxEventEditorDialog(
   BuildContext context, {
@@ -164,7 +168,8 @@ BusyProvider? _guestDeliveryProvider(
 ) {
   final destination = _providerForDraft(draft, sources);
   if (destination == BusyProvider.google ||
-      destination == BusyProvider.microsoft) {
+      destination == BusyProvider.microsoft ||
+      destination == BusyProvider.nextcloud) {
     return destination;
   }
   final source = move?.source.provider;
@@ -288,7 +293,7 @@ bool _hasExternalGuests(
 typedef EventEditorDeleteCallback =
     void Function(String eventId, RecurringEventMutationScope? scope);
 
-class EventEditor extends StatefulWidget {
+class EventEditor extends ConsumerStatefulWidget {
   const EventEditor({
     super.key,
     required this.initialDraft,
@@ -311,10 +316,10 @@ class EventEditor extends StatefulWidget {
   final LinuxHeaderBarService? headerBarService;
 
   @override
-  State<EventEditor> createState() => _EventEditorState();
+  ConsumerState<EventEditor> createState() => _EventEditorState();
 }
 
-class _EventEditorState extends State<EventEditor> {
+class _EventEditorState extends ConsumerState<EventEditor> {
   late EventEditorDraft _draft;
   final _shortcutFocusNode = FocusNode(debugLabel: 'Event editor shortcuts');
   final _guestController = TextEditingController();
@@ -388,7 +393,8 @@ class _EventEditorState extends State<EventEditor> {
     final provider = currentSource.provider;
     final schedulingReadOnly =
         provider == BusyProvider.appleICloud ||
-        provider == BusyProvider.nextcloud;
+        (provider == BusyProvider.nextcloud &&
+            currentSource.davEffectivePermissions['canInvite'] != true);
     final recurringOccurrence = _draft.providerRecurringEventId != null;
     final timeFieldsValid = _draft.allDay || (_startTimeValid && _endTimeValid);
     final recurringScopeValid =
@@ -442,14 +448,21 @@ class _EventEditorState extends State<EventEditor> {
                 ),
                 YaruListTile.square(
                   title: TextFormField(
-                    initialValue: _draft.location,
+                    key: const ValueKey('event-location-field'),
+                    initialValue: _draft.location ?? '',
                     decoration: busyMaxGroupedTextFieldDecoration(
                       context,
                       labelText: l10n.location,
                     ),
                     onChanged: (value) {
+                      final original = widget.initialDraft.location ?? '';
                       setState(() {
-                        _draft = _draft.copyWith(location: value);
+                        _draft = _draft.copyWith(
+                          location: value,
+                          locationChange: value == original
+                              ? const LocationChange.unchanged()
+                              : const LocationChange.clear(),
+                        );
                       });
                     },
                   ),
@@ -557,6 +570,20 @@ class _EventEditorState extends State<EventEditor> {
                   readOnly: schedulingReadOnly || !_draft.canManageAttendees,
                 ),
               ),
+            if (provider == BusyProvider.nextcloud &&
+                currentSource.davCollectionId != null &&
+                currentSource.davEffectivePermissions['canQueryFreeBusy'] ==
+                    true &&
+                _draft.attendees.isNotEmpty)
+              TextButton(
+                onPressed: () => showLinuxNextcloudSchedulingDialog(
+                  context,
+                  accountId: currentSource!.accountId,
+                  collectionId: currentSource.davCollectionId!,
+                  draft: _draft,
+                ),
+                child: Text(l10n.nextcloudGuestAvailability),
+              ),
             if ((provider == BusyProvider.google ||
                     provider == BusyProvider.microsoft) &&
                 _draft.isOrganizer != false)
@@ -565,7 +592,9 @@ class _EventEditorState extends State<EventEditor> {
                 filled: true,
                 children: _meetingRows(provider, currentSource),
               ),
-            if (provider == BusyProvider.microsoft || schedulingReadOnly)
+            if (provider == BusyProvider.microsoft ||
+                provider == BusyProvider.nextcloud ||
+                schedulingReadOnly)
               BusyMaxGroupedList(
                 title: l10n.organizationSection,
                 filled: true,
@@ -1063,7 +1092,9 @@ class _EventEditorState extends State<EventEditor> {
   ) {
     if (!_isMovingTo(destination)) {
       return scope != RecurringEventMutationScope.thisAndFuture ||
-          supportsThisAndFollowingEventMutation(destination.provider);
+          (draft.originalDetail == null
+              ? supportsThisAndFollowingEventMutation(destination.provider)
+              : eventSupportsThisAndFollowing(draft.originalDetail!));
     }
     if (scope == RecurringEventMutationScope.singleOccurrence) return true;
     if (scope == RecurringEventMutationScope.thisAndFuture) return false;
