@@ -99,6 +99,7 @@ Map<String, Object?> googleCalendarListMutationToJson(
     'backgroundColor': mutation.backgroundColor,
     'foregroundColor': mutation.foregroundColor,
     'colorId': mutation.colorId,
+    'hidden': mutation.hidden,
   });
 }
 

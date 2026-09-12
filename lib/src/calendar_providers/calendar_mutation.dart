@@ -6,6 +6,7 @@ class CalendarMutation {
     this.backgroundColor,
     this.foregroundColor,
     this.colorId,
+    this.hidden,
   });
 
   final String? summary;
@@ -14,6 +15,7 @@ class CalendarMutation {
   final String? backgroundColor;
   final String? foregroundColor;
   final String? colorId;
+  final bool? hidden;
 }
 
 const calendarMutationScopeKey = '_calendarMutationScope';

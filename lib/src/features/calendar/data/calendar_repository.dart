@@ -171,6 +171,7 @@ class CalendarSourceCapabilities {
     required this.canRenameCalendar,
     required this.canDeleteCalendar,
     required this.canChangeCalendarColor,
+    required this.canChangeProviderVisibility,
     required this.renameMode,
     required this.removalMode,
   });
@@ -259,6 +260,10 @@ class CalendarSourceCapabilities {
               : source.provider == BusyProvider.google
               ? available
               : writable),
+      canChangeProviderVisibility:
+          source.provider == BusyProvider.google &&
+          available &&
+          !source.primaryCalendar,
       renameMode: renameMode,
       removalMode: removalMode,
     );
@@ -271,6 +276,7 @@ class CalendarSourceCapabilities {
     canRenameCalendar: false,
     canDeleteCalendar: false,
     canChangeCalendarColor: false,
+    canChangeProviderVisibility: false,
     renameMode: CalendarRenameMode.unavailable,
     removalMode: CalendarRemovalMode.unavailable,
   );
@@ -281,6 +287,7 @@ class CalendarSourceCapabilities {
   final bool canRenameCalendar;
   final bool canDeleteCalendar;
   final bool canChangeCalendarColor;
+  final bool canChangeProviderVisibility;
   final CalendarRenameMode renameMode;
   final CalendarRemovalMode removalMode;
 
@@ -295,6 +302,7 @@ enum CalendarMutationOperation {
   deleteEvent,
   renameCalendar,
   changeCalendarColor,
+  changeProviderVisibility,
   deleteCalendar,
   removeCalendar,
 }
@@ -545,6 +553,42 @@ class CalendarRepository {
       source.accountId,
     );
     await _onNotificationScheduleChanged?.call();
+  }
+
+  Future<void> setSourceProviderHidden(String sourceId, bool hidden) async {
+    final source = await (_database.select(
+      _database.calendarSources,
+    )..where((row) => row.id.equals(sourceId))).getSingle();
+    final entity = await _sourceEntity(source);
+    _requireCalendarSourceCapability(
+      source,
+      operation: CalendarMutationOperation.changeProviderVisibility,
+      allowed: entity.capabilities.canChangeProviderVisibility,
+    );
+    if (source.hidden == hidden) return;
+
+    final now = _now();
+    final nowUtc = now.toUtc().toIso8601String();
+    final createOp = await _pendingCalendarCreate(source.id);
+    await _database.transaction(() async {
+      await (_database.update(
+        _database.calendarSources,
+      )..where((row) => row.id.equals(sourceId))).write(
+        CalendarSourcesCompanion(
+          hidden: Value(hidden),
+          updatedAtLocal: Value(now.millisecondsSinceEpoch),
+        ),
+      );
+      await _enqueueOrMergeCalendarPatch(
+        source,
+        request: {
+          'hidden': hidden,
+          calendarMutationScopeKey: calendarMutationScopePersonal,
+        },
+        nowUtc: nowUtc,
+        dependsOnOpId: createOp?.id,
+      );
+    });
   }
 
   Future<String> createLocalSource({
@@ -872,6 +916,7 @@ class CalendarRepository {
           pendingPatchFields.contains('backgroundColor') ||
           pendingPatchFields.contains('foregroundColor') ||
           pendingPatchFields.contains('colorId');
+      final preservePendingHidden = pendingPatchFields.contains('hidden');
       final preservePendingRemoval =
           existing != null && await _hasActiveCalendarRemoval(existing.id);
       final isDeleted = preservePendingRemoval || source.isDeleted;
@@ -894,7 +939,10 @@ class CalendarRepository {
               primaryCalendar: Value(source.primaryCalendar),
               selected: Value(existing?.selected ?? source.selected),
               remindersEnabled: Value(existing?.remindersEnabled ?? true),
-              hidden: Value(isDeleted || source.hidden),
+              hidden: Value(
+                isDeleted ||
+                    (preservePendingHidden ? existing!.hidden : source.hidden),
+              ),
               readOnly: Value(source.readOnly),
               backgroundColor: Value(
                 preservePendingColor
@@ -1373,7 +1421,8 @@ class CalendarRepository {
         request.containsKey('backgroundColor') ||
         request.containsKey('foregroundColor') ||
         request.containsKey('colorId');
-    if (!changesSummary && !changesColor) return;
+    final changesHidden = request.containsKey('hidden');
+    if (!changesSummary && !changesColor && !changesHidden) return;
     final provider = BusyProviderCodec.requireStorageValue(source.provider);
     final baselineSummary = switch (provider) {
       BusyProvider.google =>
@@ -1433,6 +1482,13 @@ class CalendarRepository {
                 previous.containsKey('colorId')
                     ? previous['colorId']?.toString()
                     : baselineColorId,
+              )
+            : const Value.absent(),
+        hidden: changesHidden
+            ? Value(
+                previous['hidden'] is bool
+                    ? previous['hidden']! as bool
+                    : baseline['hidden'] == true,
               )
             : const Value.absent(),
         updatedAtLocal: Value(_now().millisecondsSinceEpoch),
@@ -4169,6 +4225,7 @@ class CalendarRepository {
       'backgroundColor',
       'foregroundColor',
       'colorId',
+      'hidden',
     };
     return {
       for (final operation in operations)
@@ -4531,6 +4588,9 @@ Map<String, Object?> _calendarPatchRequestWithPreviousValues(
     previous['backgroundColor'] = source.backgroundColor;
     previous['foregroundColor'] = source.foregroundColor;
     previous['colorId'] = source.colorId;
+  }
+  if (request.containsKey('hidden')) {
+    previous['hidden'] = source.hidden;
   }
   if (previous.isNotEmpty) {
     queued[calendarPatchPreviousValuesKey] = previous;

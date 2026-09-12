@@ -30,6 +30,13 @@ void main() {
     expect(source.readOnly, isTrue);
   });
 
+  test('Google calendar-list visibility is writable independently', () {
+    expect(
+      googleCalendarListMutationToJson(const CalendarMutation(hidden: false)),
+      {'hidden': false},
+    );
+  });
+
   test('Google guest visibility maps from the shared hide-attendees field', () {
     expect(
       googleEventMutationToJson(

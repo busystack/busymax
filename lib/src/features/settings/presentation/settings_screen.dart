@@ -33,6 +33,7 @@ import 'package:busymax/src/providers/busy_provider.dart';
 import '../../accounts/data/accounts_repository.dart';
 import '../../accounts/domain/account_connection_state.dart';
 import '../../auth/data/auth_repository.dart';
+import '../../calendar/data/calendar_repository.dart';
 import '../../calendar/presentation/ical_import_flow.dart';
 import '../../connectivity/network_connectivity_service.dart';
 import '../../diagnostics/presentation/diagnostics_screen.dart';
@@ -99,6 +100,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         ref.watch(davCollectionsStreamProvider).valueOrNull ?? const [];
     final davConflicts =
         ref.watch(davConflictsStreamProvider).valueOrNull ?? const [];
+    final calendarSources =
+        ref.watch(calendarSourcesStreamProvider).valueOrNull ?? const [];
     final subscriptions =
         ref.watch(webCalSubscriptionsProvider).valueOrNull ?? const [];
     final config = ref.watch(buildConfigProvider);
@@ -128,6 +131,14 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         onRemoveAccount: (account) =>
             unawaited(_removeAccount(context, ref, account)),
         davCollections: davCollections,
+        calendarSources: calendarSources,
+        onCalendarSelected: (source, selected) => unawaited(
+          ref
+              .read(calendarRepositoryProvider)
+              .setSourceSelected(source.id, selected),
+        ),
+        onCalendarProviderVisibilityChanged: (source, visible) =>
+            unawaited(_setCalendarProviderVisibility(source, visible)),
         davConflicts: davConflicts,
         onRefreshCollections: (account) =>
             unawaited(_refreshCollections(account)),
@@ -890,6 +901,37 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     }
   }
 
+  Future<void> _setCalendarProviderVisibility(
+    CalendarSourceEntity source,
+    bool visible,
+  ) async {
+    try {
+      await ref
+          .read(calendarRepositoryProvider)
+          .setSourceProviderHidden(source.id, !visible);
+      ref
+          .read(
+            pendingCalendarMutationSyncRequesterForAccountProvider(
+              source.accountId,
+            ),
+          )
+          .request();
+    } on Object catch (error) {
+      _settingsLogger.warning('Calendar provider visibility failed: $error');
+      if (mounted) {
+        _showMessage(
+          context,
+          context.l10n.calendarUpdateFailed(
+            syncFailureMessage(
+              error,
+              networkUnavailableMessage: context.l10n.networkOfflineTryAgain,
+            ),
+          ),
+        );
+      }
+    }
+  }
+
   Future<void> _resolveConflict(
     DavConflictEntity conflict,
     DavConflictResolution resolution,
@@ -1120,6 +1162,9 @@ class _AccountManagementSection extends StatelessWidget {
     required this.removingAccountIds,
     required this.onRemoveAccount,
     required this.davCollections,
+    required this.calendarSources,
+    required this.onCalendarSelected,
+    required this.onCalendarProviderVisibilityChanged,
     required this.davConflicts,
     required this.onRefreshCollections,
     required this.onEventsSelected,
@@ -1148,6 +1193,11 @@ class _AccountManagementSection extends StatelessWidget {
   final Set<String> removingAccountIds;
   final void Function(AccountEntity account) onRemoveAccount;
   final List<DavCollectionSettingsEntity> davCollections;
+  final List<CalendarSourceEntity> calendarSources;
+  final void Function(CalendarSourceEntity source, bool selected)
+  onCalendarSelected;
+  final void Function(CalendarSourceEntity source, bool visible)
+  onCalendarProviderVisibilityChanged;
   final List<DavConflictEntity> davConflicts;
   final void Function(AccountEntity account) onRefreshCollections;
   final void Function(DavCollectionSettingsEntity collection, bool selected)
@@ -1240,6 +1290,17 @@ class _AccountManagementSection extends StatelessWidget {
                 : null,
             onRemoveAccount: () => onRemoveAccount(account),
           ),
+          if (account.calendarsEnabled &&
+              (account.provider == BusyProvider.google ||
+                  account.provider == BusyProvider.microsoft))
+            _CalendarSettingsCard(
+              sources: [
+                for (final source in calendarSources)
+                  if (source.accountId == account.id) source,
+              ],
+              onSelected: onCalendarSelected,
+              onProviderVisibilityChanged: onCalendarProviderVisibilityChanged,
+            ),
           if (account.provider == BusyProvider.appleICloud ||
               account.provider == BusyProvider.nextcloud)
             _DavCollectionsCard(
@@ -1279,6 +1340,70 @@ class _AccountManagementSection extends StatelessWidget {
           onUnsubscribe: onUnsubscribe,
         ),
       ],
+    );
+  }
+}
+
+class _CalendarSettingsCard extends StatelessWidget {
+  const _CalendarSettingsCard({
+    required this.sources,
+    required this.onSelected,
+    required this.onProviderVisibilityChanged,
+  });
+
+  final List<CalendarSourceEntity> sources;
+  final void Function(CalendarSourceEntity source, bool selected) onSelected;
+  final void Function(CalendarSourceEntity source, bool visible)
+  onProviderVisibilityChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = context.l10n;
+    return BusyMaxGroupedList(
+      title: l10n.calendars,
+      description: l10n.calendarSettingsDescription,
+      filled: true,
+      children: sources.isEmpty
+          ? [
+              BusyMaxActionRow(
+                title: l10n.noCalendarsSynced,
+                leading: const Icon(YaruIcons.calendar),
+              ),
+            ]
+          : [
+              for (final source in sources) ...[
+                BusyMaxSwitchRow(
+                  key: ValueKey('settings-calendar-schedule-${source.id}'),
+                  title: source.summary,
+                  subtitle: source.hidden
+                      ? l10n.googleHiddenCalendarScheduleHelp
+                      : source.readOnly
+                      ? l10n.readOnlySharedCollection
+                      : null,
+                  value: source.selected && !source.hidden,
+                  enabled: !source.hidden,
+                  onChanged: (selected) => onSelected(source, selected),
+                  leading: const Icon(YaruIcons.calendar),
+                ),
+                if (source.capabilities.canChangeProviderVisibility)
+                  Padding(
+                    padding: const EdgeInsetsDirectional.only(
+                      start: BusyMaxSpacing.xxl,
+                    ),
+                    child: BusyMaxSwitchRow(
+                      key: ValueKey('settings-calendar-provider-${source.id}'),
+                      title: l10n.showInGoogleCalendarList,
+                      subtitle: source.hidden
+                          ? l10n.hiddenInGoogleCalendar
+                          : null,
+                      value: !source.hidden,
+                      onChanged: (visible) =>
+                          onProviderVisibilityChanged(source, visible),
+                      leading: const Icon(YaruIcons.eye),
+                    ),
+                  ),
+              ],
+            ],
     );
   }
 }

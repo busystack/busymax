@@ -3532,6 +3532,35 @@ END:VEVENT
     },
   );
 
+  test('Google visibility patch updates the CalendarList entry', () async {
+    await database.pendingOpsDao.enqueue(
+      PendingOpsCompanion.insert(
+        id: 'op-calendar-visibility-patch',
+        accountId: 'account',
+        provider: const Value('google'),
+        entityType: 'calendar',
+        operation: 'patch',
+        operationType: const Value('calendar.patch'),
+        calendarSourceId: const Value('account|google|cal-1'),
+        providerCalendarId: const Value('cal-1'),
+        requestJson: '{"hidden":false,"_calendarMutationScope":"personal"}',
+        createdAtUtc: '2026-06-08T00:00:00.000Z',
+        updatedAtUtc: '2026-06-08T00:00:00.000Z',
+      ),
+    );
+
+    final applied = await CalendarPendingOpsReplayer(
+      database: database,
+      client: client,
+      accountId: 'account',
+      nowUtc: () => DateTime.utc(2026, 6, 8),
+    ).replayDueOps();
+
+    expect(applied, 1);
+    expect(client.calls, ['updateCalendarListEntry:cal-1:null']);
+    expect(client.calendarMutations.single.hidden, isFalse);
+  });
+
   test(
     'calendar create remaps dependent event work to the server id',
     () async {

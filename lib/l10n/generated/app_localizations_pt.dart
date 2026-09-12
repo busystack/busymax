@@ -443,6 +443,20 @@ class AppLocalizationsPt extends AppLocalizations {
   String get calendars => 'Calendars';
 
   @override
+  String get calendarSettingsDescription =>
+      'Manage every calendar in this account. Google Calendar list visibility and BusyMax schedule visibility are separate.';
+
+  @override
+  String get showInGoogleCalendarList => 'Show in Google Calendar list';
+
+  @override
+  String get hiddenInGoogleCalendar => 'Hidden in Google Calendar';
+
+  @override
+  String get googleHiddenCalendarScheduleHelp =>
+      'Show this calendar in Google Calendar before showing it in the BusyMax schedule.';
+
+  @override
   String get newCalendar => 'New calendar';
 
   @override
@@ -3353,6 +3367,20 @@ class AppLocalizationsPtPt extends AppLocalizationsPt {
 
   @override
   String get calendars => 'Calendários';
+
+  @override
+  String get calendarSettingsDescription =>
+      'Faça a gestão de todos os calendários desta conta. A visibilidade na lista do Google Calendar e no horário do BusyMax é controlada separadamente.';
+
+  @override
+  String get showInGoogleCalendarList => 'Mostrar na lista do Google Calendar';
+
+  @override
+  String get hiddenInGoogleCalendar => 'Oculto no Google Calendar';
+
+  @override
+  String get googleHiddenCalendarScheduleHelp =>
+      'Mostre primeiro este calendário no Google Calendar antes de o mostrar no horário do BusyMax.';
 
   @override
   String get newCalendar => 'Novo calendário';

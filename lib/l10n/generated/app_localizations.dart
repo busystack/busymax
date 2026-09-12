@@ -846,6 +846,30 @@ abstract class AppLocalizations {
   /// **'Calendars'**
   String get calendars;
 
+  /// No description provided for @calendarSettingsDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Manage every calendar in this account. Google Calendar list visibility and BusyMax schedule visibility are separate.'**
+  String get calendarSettingsDescription;
+
+  /// No description provided for @showInGoogleCalendarList.
+  ///
+  /// In en, this message translates to:
+  /// **'Show in Google Calendar list'**
+  String get showInGoogleCalendarList;
+
+  /// No description provided for @hiddenInGoogleCalendar.
+  ///
+  /// In en, this message translates to:
+  /// **'Hidden in Google Calendar'**
+  String get hiddenInGoogleCalendar;
+
+  /// No description provided for @googleHiddenCalendarScheduleHelp.
+  ///
+  /// In en, this message translates to:
+  /// **'Show this calendar in Google Calendar before showing it in the BusyMax schedule.'**
+  String get googleHiddenCalendarScheduleHelp;
+
   /// No description provided for @newCalendar.
   ///
   /// In en, this message translates to:

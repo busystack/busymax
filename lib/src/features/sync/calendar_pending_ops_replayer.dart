@@ -199,7 +199,8 @@ class CalendarPendingOpsReplayer {
             request['summary'] == null &&
             (request['backgroundColor'] != null ||
                 request['foregroundColor'] != null ||
-                request['colorId'] != null));
+                request['colorId'] != null ||
+                request['hidden'] is bool));
     await _requireCalendarPatchAllowed(op, personal: personal);
     final mutation = _calendarMutation(request);
     final source = personal
@@ -1640,6 +1641,7 @@ class CalendarPendingOpsReplayer {
       backgroundColor: request['backgroundColor']?.toString(),
       foregroundColor: request['foregroundColor']?.toString(),
       colorId: request['colorId']?.toString(),
+      hidden: request['hidden'] is bool ? request['hidden']! as bool : null,
     );
   }
 

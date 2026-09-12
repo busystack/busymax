@@ -445,6 +445,20 @@ class AppLocalizationsDe extends AppLocalizations {
   String get calendars => 'Kalender';
 
   @override
+  String get calendarSettingsDescription =>
+      'Verwalten Sie alle Kalender dieses Kontos. Die Sichtbarkeit in der Google-Kalenderliste und im BusyMax-Zeitplan wird getrennt gesteuert.';
+
+  @override
+  String get showInGoogleCalendarList => 'In der Google-Kalenderliste anzeigen';
+
+  @override
+  String get hiddenInGoogleCalendar => 'In Google Kalender ausgeblendet';
+
+  @override
+  String get googleHiddenCalendarScheduleHelp =>
+      'Zeigen Sie diesen Kalender zuerst in Google Kalender an, bevor Sie ihn im BusyMax-Zeitplan anzeigen.';
+
+  @override
   String get newCalendar => 'Neuer Kalender';
 
   @override

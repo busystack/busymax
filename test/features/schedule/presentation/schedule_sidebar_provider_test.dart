@@ -2,6 +2,7 @@ import 'package:busymax/src/features/accounts/data/accounts_repository.dart';
 import 'package:busymax/src/features/calendar/data/calendar_repository.dart';
 import 'package:busymax/src/features/schedule/presentation/schedule_sidebar.dart';
 import 'package:busymax/src/providers/busy_provider.dart';
+import 'package:busymax/src/schedule/schedule_sidebar_sources.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
@@ -59,6 +60,20 @@ void main() {
     expect(scheduleCalendarProviderWebUri(nextcloud, mismatchedSource), isNull);
     expect(scheduleTaskProviderWebUri(unsafeAccount), isNull);
   });
+
+  test('desktop sidebars exclude provider-hidden and deleted calendars', () {
+    final google = _account(BusyProvider.google);
+    final microsoft = _account(BusyProvider.microsoft);
+
+    final shown = calendarSourcesShownInSidebar([
+      _calendarSource(google, id: 'visible'),
+      _calendarSource(google, id: 'hidden', hidden: true),
+      _calendarSource(google, id: 'deleted', isDeleted: true),
+      _calendarSource(microsoft, id: 'other-account'),
+    ], accountId: google.id);
+
+    expect(shown.map((source) => source.id), ['visible']);
+  });
 }
 
 AccountEntity _account(BusyProvider provider) {
@@ -80,17 +95,20 @@ AccountEntity _account(BusyProvider provider) {
 
 CalendarSourceEntity _calendarSource(
   AccountEntity account, {
+  String id = 'source',
   String providerCalendarId = 'calendar',
+  bool hidden = false,
+  bool isDeleted = false,
 }) {
   return CalendarSourceEntity(
-    id: 'source',
+    id: id,
     accountId: account.id,
     provider: account.provider,
     providerCalendarId: providerCalendarId,
     summary: 'Calendar',
     selected: true,
-    hidden: false,
+    hidden: hidden,
     readOnly: false,
-    isDeleted: false,
+    isDeleted: isDeleted,
   );
 }

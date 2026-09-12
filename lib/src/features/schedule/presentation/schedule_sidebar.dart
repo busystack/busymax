@@ -913,8 +913,10 @@ class _AccountCalendarSources extends ConsumerWidget {
         .sidebarOrder
         .apply(
           SidebarOrderSection.calendars,
-          ref.watch(sidebarCalendarSourcesProvider(account.id)).valueOrNull ??
-              const <CalendarSourceEntity>[],
+          calendarSourcesShownInSidebar(
+            ref.watch(sidebarCalendarSourcesProvider(account.id)).valueOrNull ??
+                const <CalendarSourceEntity>[],
+          ),
           (source) => source.id,
           accountId: account.id,
         );

@@ -21,6 +21,7 @@ import 'package:busymax/src/db/app_database.dart';
 import 'package:busymax/src/features/accounts/data/accounts_repository.dart';
 import 'package:busymax/src/features/accounts/domain/account_connection_state.dart';
 import 'package:busymax/src/features/auth/data/auth_repository.dart';
+import 'package:busymax/src/features/calendar/data/calendar_repository.dart';
 import 'package:busymax/src/features/settings/presentation/settings_screen.dart';
 import 'package:busymax/src/features/sync/sync_auth_error.dart';
 import 'package:busymax/src/platform/gtk_font_service.dart';
@@ -88,6 +89,62 @@ void main() {
     );
     expect(find.text('Theme'), findsOneWidget);
     expect(find.text('Add Google account'), findsNothing);
+  });
+
+  testWidgets('Settings inventories visible and provider-hidden calendars', (
+    tester,
+  ) async {
+    final container = _container(
+      selectedAccountId: 'google:g',
+      authRepository: _FakeAuthRepository(),
+      accounts: const [_googleAccount],
+      calendarSources: const [
+        CalendarSourceEntity(
+          id: 'visible',
+          accountId: 'google:g',
+          provider: BusyProvider.google,
+          providerCalendarId: 'visible@example.com',
+          summary: 'Visible calendar',
+          selected: true,
+          hidden: false,
+          readOnly: false,
+          isDeleted: false,
+        ),
+        CalendarSourceEntity(
+          id: 'hidden',
+          accountId: 'google:g',
+          provider: BusyProvider.google,
+          providerCalendarId: 'hidden@example.com',
+          summary: 'Hidden calendar',
+          selected: true,
+          hidden: true,
+          readOnly: false,
+          isDeleted: false,
+        ),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    await _pumpSettings(tester, container);
+
+    expect(find.text('Visible calendar'), findsOneWidget);
+    expect(find.text('Hidden calendar'), findsOneWidget);
+    expect(find.text('Show in Google Calendar list'), findsNWidgets(2));
+    final visibleSchedule = tester.widget<BusyMaxSwitchRow>(
+      find.byKey(const ValueKey('settings-calendar-schedule-visible')),
+    );
+    final hiddenSchedule = tester.widget<BusyMaxSwitchRow>(
+      find.byKey(const ValueKey('settings-calendar-schedule-hidden')),
+    );
+    final hiddenProvider = tester.widget<BusyMaxSwitchRow>(
+      find.byKey(const ValueKey('settings-calendar-provider-hidden')),
+    );
+    expect(visibleSchedule.value, isTrue);
+    expect(visibleSchedule.enabled, isTrue);
+    expect(hiddenSchedule.value, isFalse);
+    expect(hiddenSchedule.enabled, isFalse);
+    expect(hiddenProvider.value, isFalse);
+    expect(hiddenProvider.enabled, isTrue);
   });
 
   testWidgets('Settings fallback header uses the semantic title style', (
@@ -1006,6 +1063,7 @@ ProviderContainer _container({
   bool useFlutterHeader = false,
   DavAccountOnboardingService? davOnboardingService,
   List<DavCollectionSettingsEntity> davCollections = const [],
+  List<CalendarSourceEntity> calendarSources = const [],
 }) {
   return ProviderContainer(
     overrides: [
@@ -1023,6 +1081,9 @@ ProviderContainer _container({
       ),
       davCollectionsStreamProvider.overrideWith(
         (ref) => Stream.value(davCollections),
+      ),
+      calendarSourcesStreamProvider.overrideWith(
+        (ref) => Stream.value(calendarSources),
       ),
       davConflictsStreamProvider.overrideWith((ref) => Stream.value(const [])),
       webCalSubscriptionsProvider.overrideWith((ref) => Stream.value(const [])),

@@ -1677,6 +1677,38 @@ void main() {
     expect(source.hidden, isFalse);
   });
 
+  test(
+    'Google provider visibility is optimistic and queued personally',
+    () async {
+      await _upsertSource(repository);
+
+      await repository.setSourceProviderHidden(_sourceId, true);
+
+      var source = await database.select(database.calendarSources).getSingle();
+      final operation = await database.select(database.pendingOps).getSingle();
+      final request = jsonDecode(operation.requestJson) as Map<String, Object?>;
+      expect(source.hidden, isTrue);
+      expect(operation.operationType, 'calendar.patch');
+      expect(request['hidden'], isTrue);
+      expect(request[calendarMutationScopeKey], calendarMutationScopePersonal);
+      expect(request[calendarPatchPreviousValuesKey], {'hidden': false});
+
+      await repository.upsertSource(
+        accountId: 'google:g',
+        source: const CalendarSourceDto(
+          provider: BusyProvider.google,
+          providerCalendarId: 'calendar-1',
+          summary: 'Calendar',
+          hidden: false,
+          dataOwner: 'me@example.com',
+        ),
+      );
+
+      source = await database.select(database.calendarSources).getSingle();
+      expect(source.hidden, isTrue);
+    },
+  );
+
   test('deselecting a source leaves its reminders enabled', () async {
     await _seedScheduledEvent(repository, database);
     schedulerCalls = 0;

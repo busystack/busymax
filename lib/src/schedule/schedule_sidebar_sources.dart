@@ -31,6 +31,22 @@ final sidebarSubscriptionSourcesProvider =
       ]);
     });
 
+/// Calendar sources that belong in a desktop schedule sidebar.
+///
+/// Provider-hidden sources remain cached so they can reappear if the provider
+/// makes them visible again, but they are not actionable schedule sources and
+/// must not be presented as locally togglable rows.
+List<CalendarSourceEntity> calendarSourcesShownInSidebar(
+  Iterable<CalendarSourceEntity> sources, {
+  String? accountId,
+}) => [
+  for (final source in sources)
+    if ((accountId == null || source.accountId == accountId) &&
+        !source.hidden &&
+        !source.isDeleted)
+      source,
+];
+
 /// Kept alive by the sidebar, independently of expanded or visible rows.
 final sidebarOrderRegistrationProvider = Provider.autoDispose<void>((ref) {
   final controller = ref.watch(appSettingsControllerProvider.notifier);

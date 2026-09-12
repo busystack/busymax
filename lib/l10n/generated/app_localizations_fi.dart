@@ -445,6 +445,20 @@ class AppLocalizationsFi extends AppLocalizations {
   String get calendars => 'Kalenterit';
 
   @override
+  String get calendarSettingsDescription =>
+      'Hallitse kaikkia tämän tilin kalentereita. Näkyvyyttä Google Kalenterin luettelossa ja BusyMaxin aikataulussa hallitaan erikseen.';
+
+  @override
+  String get showInGoogleCalendarList => 'Näytä Google Kalenterin luettelossa';
+
+  @override
+  String get hiddenInGoogleCalendar => 'Piilotettu Google Kalenterissa';
+
+  @override
+  String get googleHiddenCalendarScheduleHelp =>
+      'Näytä tämä kalenteri ensin Google Kalenterissa ja sitten BusyMaxin aikataulussa.';
+
+  @override
   String get newCalendar => 'Uusi kalenteri';
 
   @override

@@ -439,6 +439,20 @@ class AppLocalizationsFa extends AppLocalizations {
   String get calendars => 'تقویم‌ها';
 
   @override
+  String get calendarSettingsDescription =>
+      'همهٔ تقویم‌های این حساب را مدیریت کنید. نمایش در فهرست Google Calendar و برنامهٔ BusyMax جداگانه کنترل می‌شوند.';
+
+  @override
+  String get showInGoogleCalendarList => 'نمایش در فهرست Google Calendar';
+
+  @override
+  String get hiddenInGoogleCalendar => 'پنهان در Google Calendar';
+
+  @override
+  String get googleHiddenCalendarScheduleHelp =>
+      'پیش از نمایش این تقویم در برنامهٔ BusyMax، آن را در Google Calendar نمایش دهید.';
+
+  @override
   String get newCalendar => 'تقویم جدید';
 
   @override

@@ -122,12 +122,12 @@ class CalendarSyncEngine {
 
   Future<List<CalendarSourceDto>> _refreshCalendarSources() async {
     // listCalendars() returns only after every page has been retrieved, so an
-    // absent Microsoft calendar can be treated as a provider-side deletion.
+    // absent cloud calendar can be treated as a provider-side deletion.
     final calendars = await _client.listCalendars();
     for (final calendar in calendars) {
       await _repository.upsertSource(accountId: _accountId, source: calendar);
     }
-    if (provider == BusyProvider.microsoft) {
+    if (provider == BusyProvider.google || provider == BusyProvider.microsoft) {
       await _repository.reconcileProviderSourceSnapshot(
         accountId: _accountId,
         provider: provider,

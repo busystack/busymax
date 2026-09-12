@@ -443,6 +443,21 @@ class AppLocalizationsVi extends AppLocalizations {
   String get calendars => 'Lịch';
 
   @override
+  String get calendarSettingsDescription =>
+      'Quản lý mọi lịch trong tài khoản này. Khả năng hiển thị trong danh sách Google Calendar và lịch biểu BusyMax được điều khiển riêng biệt.';
+
+  @override
+  String get showInGoogleCalendarList =>
+      'Hiển thị trong danh sách Google Calendar';
+
+  @override
+  String get hiddenInGoogleCalendar => 'Đã ẩn trong Google Calendar';
+
+  @override
+  String get googleHiddenCalendarScheduleHelp =>
+      'Hãy hiển thị lịch này trong Google Calendar trước khi hiển thị trong lịch biểu BusyMax.';
+
+  @override
   String get newCalendar => 'Lịch mới';
 
   @override

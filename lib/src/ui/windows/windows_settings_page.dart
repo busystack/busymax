@@ -11,7 +11,9 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../../l10n/generated/app_localizations.dart';
 import '../../app/app_bootstrap.dart';
 import '../../features/accounts/data/accounts_repository.dart';
+import '../../features/calendar/data/calendar_repository.dart';
 import '../../features/notifications/desktop_notification_backend.dart';
+import '../../features/sync/sync_auth_error.dart';
 import '../../l10n/app_locale.dart';
 import '../../platform/common/desktop_services.dart';
 import '../../providers/busy_provider.dart';
@@ -38,6 +40,7 @@ class WindowsSettingsPage extends ConsumerWidget {
     final controller = ref.read(appSettingsControllerProvider.notifier);
     final autostart = ref.watch(launchAtLoginStateProvider);
     final accounts = ref.watch(accountManagementStreamProvider);
+    final calendarSources = ref.watch(calendarSourcesStreamProvider);
     final subscriptions = ref.watch(webCalSubscriptionsProvider);
     final config = ref.watch(buildConfigProvider);
     final notificationReadiness = ref.watch(
@@ -366,6 +369,33 @@ class WindowsSettingsPage extends ConsumerWidget {
                       ],
                     ),
                   ),
+                  if (values[index].calendarsEnabled &&
+                      (values[index].provider == BusyProvider.google ||
+                          values[index].provider ==
+                              BusyProvider.microsoft)) ...[
+                    const Divider(),
+                    _WindowsAccountCalendars(
+                      sources: [
+                        for (final source
+                            in calendarSources.valueOrNull ?? const [])
+                          if (source.accountId == values[index].id) source,
+                      ],
+                      onSelected: (source, selected) => unawaited(
+                        ref
+                            .read(calendarRepositoryProvider)
+                            .setSourceSelected(source.id, selected),
+                      ),
+                      onProviderVisibilityChanged: (source, visible) =>
+                          unawaited(
+                            _setWindowsCalendarProviderVisibility(
+                              context,
+                              ref,
+                              source,
+                              visible,
+                            ),
+                          ),
+                    ),
+                  ],
                   if (values[index].provider == BusyProvider.nextcloud)
                     for (final collection
                         in ref
@@ -550,6 +580,124 @@ class WindowsSettingsPage extends ConsumerWidget {
   }
 }
 
+class _WindowsAccountCalendars extends StatelessWidget {
+  const _WindowsAccountCalendars({
+    required this.sources,
+    required this.onSelected,
+    required this.onProviderVisibilityChanged,
+  });
+
+  final List<CalendarSourceEntity> sources;
+  final void Function(CalendarSourceEntity source, bool selected) onSelected;
+  final void Function(CalendarSourceEntity source, bool visible)
+  onProviderVisibilityChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(
+            l10n.calendars,
+            style: FluentTheme.of(context).typography.bodyStrong,
+          ),
+          const SizedBox(height: 2),
+          Text(
+            l10n.calendarSettingsDescription,
+            style: FluentTheme.of(context).typography.caption,
+          ),
+          const SizedBox(height: 8),
+          if (sources.isEmpty)
+            Text(l10n.noCalendarsSynced)
+          else
+            for (final source in sources) ...[
+              _WindowsCalendarSettingsItem(
+                key: ValueKey('settings-calendar-${source.id}'),
+                source: source,
+                onSelected: onSelected,
+                onProviderVisibilityChanged: onProviderVisibilityChanged,
+              ),
+              if (source != sources.last) const SizedBox(height: 4),
+            ],
+        ],
+      ),
+    );
+  }
+}
+
+class _WindowsCalendarSettingsItem extends StatelessWidget {
+  const _WindowsCalendarSettingsItem({
+    super.key,
+    required this.source,
+    required this.onSelected,
+    required this.onProviderVisibilityChanged,
+  });
+
+  final CalendarSourceEntity source;
+  final void Function(CalendarSourceEntity source, bool selected) onSelected;
+  final void Function(CalendarSourceEntity source, bool visible)
+  onProviderVisibilityChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    return Expander(
+      header: Row(
+        children: [
+          Icon(windowsBusyMaxGlyph(BusyMaxGlyph.calendar)),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(source.summary),
+                if (source.hidden)
+                  Text(
+                    l10n.hiddenInGoogleCalendar,
+                    style: FluentTheme.of(context).typography.caption,
+                  ),
+              ],
+            ),
+          ),
+        ],
+      ),
+      content: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          ToggleSwitch(
+            key: ValueKey('settings-calendar-schedule-${source.id}'),
+            checked: source.selected && !source.hidden,
+            onChanged: source.hidden
+                ? null
+                : (selected) => onSelected(source, selected),
+            content: Text(l10n.showInSchedule),
+          ),
+          if (source.hidden) ...[
+            const SizedBox(height: 4),
+            Text(
+              l10n.googleHiddenCalendarScheduleHelp,
+              style: FluentTheme.of(context).typography.caption,
+            ),
+          ],
+          if (source.capabilities.canChangeProviderVisibility) ...[
+            const SizedBox(height: 12),
+            ToggleSwitch(
+              key: ValueKey('settings-calendar-provider-${source.id}'),
+              checked: !source.hidden,
+              onChanged: (visible) =>
+                  onProviderVisibilityChanged(source, visible),
+              content: Text(l10n.showInGoogleCalendarList),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
 class WindowsNotificationReadinessInfoBar extends StatelessWidget {
   const WindowsNotificationReadinessInfoBar({
     required this.readiness,
@@ -573,6 +721,39 @@ class WindowsNotificationReadinessInfoBar extends StatelessWidget {
       ),
       severity: unpackaged ? InfoBarSeverity.warning : InfoBarSeverity.error,
     );
+  }
+}
+
+Future<void> _setWindowsCalendarProviderVisibility(
+  BuildContext context,
+  WidgetRef ref,
+  CalendarSourceEntity source,
+  bool visible,
+) async {
+  try {
+    await ref
+        .read(calendarRepositoryProvider)
+        .setSourceProviderHidden(source.id, !visible);
+    ref
+        .read(
+          pendingCalendarMutationSyncRequesterForAccountProvider(
+            source.accountId,
+          ),
+        )
+        .request();
+  } on Object catch (error) {
+    if (context.mounted) {
+      final l10n = AppLocalizations.of(context);
+      await _showWindowsMessage(
+        context,
+        l10n.calendarUpdateFailed(
+          syncFailureMessage(
+            error,
+            networkUnavailableMessage: l10n.networkOfflineTryAgain,
+          ),
+        ),
+      );
+    }
   }
 }
 

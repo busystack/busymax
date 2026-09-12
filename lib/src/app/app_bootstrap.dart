@@ -758,6 +758,16 @@ final calendarRepositoryProvider = Provider<CalendarRepository>((ref) {
   );
 });
 
+final calendarSourcesStreamProvider =
+    StreamProvider<List<CalendarSourceEntity>>((ref) {
+      final accounts =
+          ref.watch(accountManagementStreamProvider).valueOrNull ?? const [];
+      return ref.watch(calendarRepositoryProvider).watchSourcesForAccounts([
+        for (final account in accounts)
+          if (account.calendarsEnabled) account.id,
+      ]);
+    });
+
 final webCalHttpTransportProvider = Provider<WebCalHttpTransport>(
   (ref) => IoWebCalHttpTransport(),
 );

@@ -442,6 +442,20 @@ class AppLocalizationsEt extends AppLocalizations {
   String get calendars => 'Kalendrid';
 
   @override
+  String get calendarSettingsDescription =>
+      'Halda kõiki selle konto kalendreid. Nähtavust Google Calendari loendis ja BusyMaxi ajakavas juhitakse eraldi.';
+
+  @override
+  String get showInGoogleCalendarList => 'Kuva Google Calendari loendis';
+
+  @override
+  String get hiddenInGoogleCalendar => 'Google Calendaris peidetud';
+
+  @override
+  String get googleHiddenCalendarScheduleHelp =>
+      'Kuva see kalender esmalt Google Calendaris ja seejärel BusyMaxi ajakavas.';
+
+  @override
   String get newCalendar => 'Uus kalender';
 
   @override

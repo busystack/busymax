@@ -19,6 +19,7 @@ import '../../features/task_lists/data/task_lists_repository.dart';
 import '../../providers/busy_provider.dart';
 import '../../schedule/schedule_filters.dart';
 import '../../schedule/schedule_sidebar_order.dart';
+import '../../schedule/schedule_sidebar_sources.dart';
 import '../common/busymax_glyph.dart';
 import 'windows_busymax_glyphs.dart';
 
@@ -245,11 +246,9 @@ class _WindowsScheduleSourcePaneState
       .sidebarOrder
       .apply(
         SidebarOrderSection.calendars,
-        widget.calendarSources.where(
-          (source) =>
-              source.accountId == accountId &&
-              !source.hidden &&
-              !source.isDeleted,
+        calendarSourcesShownInSidebar(
+          widget.calendarSources,
+          accountId: accountId,
         ),
         (source) => source.id,
         accountId: accountId,

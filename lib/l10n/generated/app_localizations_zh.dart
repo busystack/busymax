@@ -418,6 +418,20 @@ class AppLocalizationsZh extends AppLocalizations {
   String get calendars => '日历';
 
   @override
+  String get calendarSettingsDescription =>
+      '管理此账号中的所有日历。Google 日历列表和 BusyMax 日程中的显示状态分别控制。';
+
+  @override
+  String get showInGoogleCalendarList => '在 Google 日历列表中显示';
+
+  @override
+  String get hiddenInGoogleCalendar => '已在 Google 日历中隐藏';
+
+  @override
+  String get googleHiddenCalendarScheduleHelp =>
+      '请先在 Google 日历中显示此日历，然后再将其显示在 BusyMax 日程中。';
+
+  @override
   String get newCalendar => '新建日历';
 
   @override
@@ -3199,6 +3213,20 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
   String get calendars => '日历';
 
   @override
+  String get calendarSettingsDescription =>
+      '管理此账号中的所有日历。Google 日历列表和 BusyMax 日程中的显示状态分别控制。';
+
+  @override
+  String get showInGoogleCalendarList => '在 Google 日历列表中显示';
+
+  @override
+  String get hiddenInGoogleCalendar => '已在 Google 日历中隐藏';
+
+  @override
+  String get googleHiddenCalendarScheduleHelp =>
+      '请先在 Google 日历中显示此日历，然后再将其显示在 BusyMax 日程中。';
+
+  @override
   String get newCalendar => '新建日历';
 
   @override
@@ -5978,6 +6006,20 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get calendars => '行事曆';
+
+  @override
+  String get calendarSettingsDescription =>
+      '管理此帳戶中的所有行事曆。Google 日曆清單和 BusyMax 行程中的顯示狀態會分開控制。';
+
+  @override
+  String get showInGoogleCalendarList => '在 Google 日曆清單中顯示';
+
+  @override
+  String get hiddenInGoogleCalendar => '已在 Google 日曆中隱藏';
+
+  @override
+  String get googleHiddenCalendarScheduleHelp =>
+      '請先在 Google 日曆中顯示此行事曆，然後再將其顯示於 BusyMax 行程中。';
 
   @override
   String get newCalendar => '新增行事曆';
