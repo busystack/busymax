@@ -146,6 +146,7 @@ void main() {
           widget.title is Text &&
           (widget.title! as Text).data == 'Parent',
     );
+    await tester.ensureVisible(parentRow);
     await tester.tap(parentRow);
     await tester.pumpAndSettle();
     expect(find.text('Discard changes?'), findsOneWidget);
@@ -154,6 +155,7 @@ void main() {
     await tester.tap(find.widgetWithText(Button, 'Cancel').last);
     await tester.pumpAndSettle();
     expect(find.text('Discard changes?'), findsNothing);
+    await tester.ensureVisible(parentRow);
     await tester.tap(parentRow);
     await tester.pumpAndSettle();
     await tester.tap(find.widgetWithText(FilledButton, 'Discard').last);

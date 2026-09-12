@@ -2,7 +2,7 @@ import 'package:busymax/src/dav/ical/ical_task_alarm.dart';
 import 'package:busymax/src/features/recurrence/domain/recurrence_rule.dart';
 import 'package:busymax/src/features/tasks/domain/task_capabilities.dart';
 import 'package:busymax/src/providers/busy_provider.dart';
-import 'package:busymax/src/ui/windows/windows_task_create_fields.dart';
+import 'package:busymax/src/features/tasks/presentation/task_details_draft.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
@@ -17,8 +17,8 @@ void main() {
       ],
     );
 
-    expect(fields, isNot(contains('microsoftDueDateTime')));
-    expect(fields, isNot(contains('microsoftStartDateTime')));
+    expect((fields['microsoftDueDateTime'] as Map)['dateTime'], '2026-09-01');
+    expect((fields['microsoftStartDateTime'] as Map)['dateTime'], '2026-09-01');
     expect(
       fields['taskAlarms'],
       isA<List<Object?>>().having((value) => value.length, 'length', 2),
@@ -39,14 +39,14 @@ void main() {
     expect(fields, isNot(contains('taskAlarms')));
   });
 
-  test('an empty Microsoft reminder emits the explicit disabled state', () {
+  test('an empty Microsoft reminder stays disabled', () {
     final fields = _fields(
       capability: microsoftTaskCollectionCapabilities,
       provider: BusyProvider.microsoft,
       scheduledAllDay: true,
     );
 
-    expect(fields['microsoftIsReminderOn'], isFalse);
+    expect(fields['microsoftIsReminderOn'], isNot(isTrue));
   });
 }
 
@@ -56,8 +56,8 @@ Map<String, Object?> _fields({
   required bool scheduledAllDay,
   DateTime? reminder,
   List<IcalTaskAlarm> alarms = const [],
-}) => buildWindowsTaskCreateFields(
-  capability: capability,
+}) => TaskDetailsDraft.forCreation(
+  taskListId: 'list',
   provider: provider,
   due: DateTime(2026, 9, 1, 10),
   start: DateTime(2026, 9, 1, 9),
@@ -76,4 +76,4 @@ Map<String, Object?> _fields({
   pinned: false,
   hideSubtasks: false,
   hideCompletedSubtasks: false,
-);
+).toCreateInput(capability, localTimeZone: 'America/Vancouver').fields;

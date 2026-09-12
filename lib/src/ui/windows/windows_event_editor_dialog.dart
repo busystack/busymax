@@ -1,3 +1,4 @@
+import '../../features/calendar/domain/event_property_policy.dart';
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -29,6 +30,8 @@ Future<bool> showWindowsEventEditorDialog(
   String? eventId,
   DateTime? initialStart,
   ScheduleInterval? initialInterval,
+  String? initialAccountId,
+  String? initialSourceId,
 }) async {
   final repository = ref.read(calendarRepositoryProvider);
   final detail = eventId == null
@@ -75,8 +78,8 @@ Future<bool> showWindowsEventEditorDialog(
   );
   var selectedSource = sources.firstWhere(
     (source) =>
-        source.id == originalDraft?.sourceId &&
-        source.accountId == originalDraft?.accountId,
+        source.id == (originalDraft?.sourceId ?? initialSourceId) &&
+        source.accountId == (originalDraft?.accountId ?? initialAccountId),
     orElse: () => sources.first,
   );
   final requestedStart = initialStart == null
@@ -95,21 +98,20 @@ Future<bool> showWindowsEventEditorDialog(
       initialInterval?.start ??
       requestedStart ??
       DateTime.now().add(const Duration(hours: 1));
-  start = DateTime(
-    start.year,
-    start.month,
-    start.day,
-    start.hour,
-    start.minute,
-  );
   var end =
       originalDraft?.end ??
       initialInterval?.end ??
       start.add(const Duration(hours: 1));
   var allDay = originalDraft?.allDay ?? false;
-  var selectedTimeZone = initialInterval != null
+  final defaultTimeZone = initialInterval != null
       ? ref.read(localTimeZoneProvider)
-      : selectedSource.timeZone ?? ref.read(localTimeZoneProvider) ?? 'Etc/UTC';
+      : selectedSource.timeZone ?? ref.read(localTimeZoneProvider);
+  var selectedTimeZone = originalDraft == null
+      ? defaultTimeZone
+      : originalDraft.startTimeZone;
+  var endTimeZone = originalDraft == null
+      ? defaultTimeZone
+      : originalDraft.endTimeZone;
   if (originalDraft == null && initialInterval != null) {
     start = providerInstantInTimeZone(initialInterval.start, selectedTimeZone);
     end = providerInstantInTimeZone(initialInterval.end, selectedTimeZone);
@@ -134,18 +136,18 @@ Future<bool> showWindowsEventEditorDialog(
   var hideAttendees = originalDraft?.hideAttendees ?? false;
   var allowNewTimeProposals = originalDraft?.allowNewTimeProposals ?? true;
   var importance = originalDraft?.importance ?? 'normal';
-  var showAs = _showAsForProvider(
+  var showAs = eventShowAsForProvider(
     originalDraft?.showAs,
     selectedSource.provider,
   );
-  var visibility = _visibilityForProvider(
+  var visibility = eventVisibilityForProvider(
     originalDraft?.visibilityOrSensitivity,
     selectedSource.provider,
   );
   var locationChange =
       originalDraft?.locationChange ?? const LocationChange.unchanged();
   final initialSourceAccountId = selectedSource.accountId;
-  final initialSourceId = selectedSource.id;
+  final originalSelectedSourceId = selectedSource.id;
   final initialTitle = title.text;
   final initialDescription = description.text;
   final initialLocation = location.text;
@@ -154,6 +156,7 @@ Future<bool> showWindowsEventEditorDialog(
   final initialEndValue = end;
   final initialAllDay = allDay;
   final initialTimeZone = selectedTimeZone;
+  final initialEndTimeZone = endTimeZone;
   final initialOnlineMeeting = onlineMeeting;
   final initialResponseRequested = responseRequested;
   final initialHideAttendees = hideAttendees;
@@ -168,7 +171,7 @@ Future<bool> showWindowsEventEditorDialog(
   String? error;
   bool hasPendingEdits() =>
       selectedSource.accountId != initialSourceAccountId ||
-      selectedSource.id != initialSourceId ||
+      selectedSource.id != originalSelectedSourceId ||
       title.text != initialTitle ||
       description.text != initialDescription ||
       location.text != initialLocation ||
@@ -178,6 +181,7 @@ Future<bool> showWindowsEventEditorDialog(
       end != initialEndValue ||
       allDay != initialAllDay ||
       selectedTimeZone != initialTimeZone ||
+      endTimeZone != initialEndTimeZone ||
       recurrenceChanged ||
       remindersChanged ||
       attendeesChanged ||
@@ -196,13 +200,21 @@ Future<bool> showWindowsEventEditorDialog(
     builder: (dialogContext) => StatefulBuilder(
       builder: (context, setState) {
         final l10n = AppLocalizations.of(context);
-        final validEnd = allDay
-            ? DateTime(
-                end.year,
-                end.month,
-                end.day,
-              ).isAfter(DateTime(start.year, start.month, start.day))
-            : end.isAfter(start);
+        final validEnd =
+            EventEditorDraft.newEvent(
+                  accountId: selectedSource.accountId,
+                  sourceId: selectedSource.id,
+                  providerCalendarId: selectedSource.providerCalendarId,
+                  start: start,
+                  end: end,
+                )
+                .copyWith(
+                  title: title.text,
+                  allDay: allDay,
+                  startTimeZone: selectedTimeZone,
+                  endTimeZone: endTimeZone,
+                )
+                .canSave;
         void closeDialog() {
           setState(() => allowPop = true);
           WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -244,7 +256,7 @@ Future<bool> showWindowsEventEditorDialog(
                         for (final source in sources)
                           ComboBoxItem(
                             value: source,
-                            child: Text(source.summary),
+                            child: Text(_calendarSourceLabel(source, accounts)),
                           ),
                       ],
                       onChanged: saving
@@ -253,28 +265,8 @@ Future<bool> showWindowsEventEditorDialog(
                               if (source != null) {
                                 setState(() {
                                   selectedSource = source;
-                                  selectedTimeZone =
-                                      source.timeZone ??
-                                      ref.read(localTimeZoneProvider) ??
-                                      'Etc/UTC';
-                                  recurrence = const RecurrenceRule.none();
-                                  reminderMinutes = const [];
-                                  recurrenceChanged = true;
-                                  remindersChanged = true;
-                                  showAs = _showAsForProvider(
-                                    null,
-                                    source.provider,
-                                  );
-                                  visibility = _visibilityForProvider(
-                                    null,
-                                    source.provider,
-                                  );
-                                  importance = 'normal';
-                                  onlineMeeting = false;
-                                  if (source.provider == BusyProvider.google) {
-                                    categories.clear();
-                                    categoriesChanged = true;
-                                  }
+                                  // Destination conversion belongs to the shared save
+                                  // policy. Keep the editable data intact while browsing.
                                 });
                               }
                             },
@@ -372,14 +364,16 @@ Future<bool> showWindowsEventEditorDialog(
                   ),
                   const SizedBox(height: 12),
                   InfoLabel(
-                    label: l10n.selectTimeZone,
+                    label: '${l10n.startDateTime} · ${l10n.selectTimeZone}',
                     child: Button(
                       onPressed: saving
                           ? null
                           : () async {
                               final result = await showWindowsTimeZoneDialog(
                                 context,
-                                selectedTimeZone: selectedTimeZone,
+                                selectedTimeZone:
+                                    selectedTimeZone ??
+                                    ref.read(localTimeZoneProvider),
                               );
                               if (result != null) {
                                 setState(() => selectedTimeZone = result);
@@ -387,226 +381,327 @@ Future<bool> showWindowsEventEditorDialog(
                             },
                       child: Align(
                         alignment: AlignmentDirectional.centerStart,
-                        child: Text(selectedTimeZone),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  InfoLabel(
-                    label: l10n.reminder,
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        for (
-                          var index = 0;
-                          index < reminderMinutes.length;
-                          index += 1
-                        )
-                          Padding(
-                            padding: const EdgeInsets.only(bottom: 8),
-                            child: Row(
-                              children: [
-                                Expanded(
-                                  child: ComboBox<int>(
-                                    isExpanded: true,
-                                    value: reminderMinutes[index],
-                                    items: [
-                                      for (final minutes
-                                          in windowsEventReminderValuesFor(
-                                            reminderMinutes[index],
-                                          ))
-                                        ComboBoxItem(
-                                          value: minutes,
-                                          child: Text(
-                                            _reminderLabel(l10n, minutes),
-                                          ),
-                                        ),
-                                    ],
-                                    onChanged: saving
-                                        ? null
-                                        : (value) {
-                                            if (value == null) return;
-                                            setState(() {
-                                              reminderMinutes =
-                                                  normalizeWindowsEventReminderMinutes(
-                                                    [
-                                                      ...reminderMinutes.take(
-                                                        index,
-                                                      ),
-                                                      value,
-                                                      ...reminderMinutes.skip(
-                                                        index + 1,
-                                                      ),
-                                                    ],
-                                                  );
-                                              remindersChanged = true;
-                                            });
-                                          },
-                                  ),
-                                ),
-                                const SizedBox(width: 8),
-                                IconButton(
-                                  icon: Icon(
-                                    windowsBusyMaxGlyph(BusyMaxGlyph.delete),
-                                  ),
-                                  onPressed: saving
-                                      ? null
-                                      : () => setState(() {
-                                          reminderMinutes = [
-                                            ...reminderMinutes.take(index),
-                                            ...reminderMinutes.skip(index + 1),
-                                          ];
-                                          remindersChanged = true;
-                                        }),
-                                ),
-                              ],
-                            ),
-                          ),
-                        if (reminderMinutes.isEmpty ||
-                            (selectedSource.provider !=
-                                    BusyProvider.microsoft &&
-                                reminderMinutes.length <
-                                    windowsEventReminderMinuteOptions.length))
-                          Button(
-                            onPressed: saving
-                                ? null
-                                : () => setState(() {
-                                    reminderMinutes = [
-                                      ...reminderMinutes,
-                                      nextWindowsEventReminderMinute(
-                                        reminderMinutes,
-                                      ),
-                                    ];
-                                    remindersChanged = true;
-                                  }),
-                            child: Text(l10n.addReminder),
-                          ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  InfoLabel(
-                    label: l10n.repeat,
-                    child: Button(
-                      onPressed: saving
-                          ? null
-                          : () async {
-                              final result = await showWindowsRecurrenceDialog(
-                                context,
-                                initial: recurrence,
-                                baseDate: start,
-                                allDay: allDay,
-                                timeZone: selectedTimeZone,
-                                providerLabel:
-                                    selectedSource.provider.displayName,
-                                limits: EventRecurrenceCodec.limitsFor(
-                                  selectedSource.provider,
-                                ),
-                              );
-                              if (result != null) {
-                                setState(() {
-                                  recurrence = result;
-                                  recurrenceChanged = true;
-                                });
-                              }
-                            },
-                      child: Align(
-                        alignment: AlignmentDirectional.centerStart,
                         child: Text(
-                          _recurrenceLabel(l10n, recurrence.frequency),
+                          selectedTimeZone ?? ref.read(localTimeZoneProvider),
                         ),
                       ),
                     ),
                   ),
                   const SizedBox(height: 12),
                   InfoLabel(
-                    label: l10n.availabilityShowAs,
-                    child: ComboBox<String>(
-                      isExpanded: true,
-                      value: showAs,
-                      items: [
-                        for (final value in _showAsValues(
-                          selectedSource.provider,
-                        ))
-                          ComboBoxItem(
-                            value: value,
-                            child: Text(_availabilityLabel(l10n, value)),
-                          ),
-                      ],
-                      onChanged: saving
+                    label: '${l10n.endDateTime} · ${l10n.selectTimeZone}',
+                    child: Button(
+                      onPressed: saving
                           ? null
-                          : (value) {
-                              if (value != null) setState(() => showAs = value);
+                          : () async {
+                              final result = await showWindowsTimeZoneDialog(
+                                context,
+                                selectedTimeZone:
+                                    endTimeZone ??
+                                    ref.read(localTimeZoneProvider),
+                              );
+                              if (result != null) {
+                                setState(() => endTimeZone = result);
+                              }
                             },
+                      child: Align(
+                        alignment: AlignmentDirectional.centerStart,
+                        child: Text(
+                          endTimeZone ?? ref.read(localTimeZoneProvider),
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  const SizedBox(height: 12),
+                  InfoLabel(
+                    label: l10n.location,
+                    child: TextBox(
+                      key: const ValueKey('windows-event-location-field'),
+                      controller: location,
+                      enabled: !saving,
+                      onChanged: (value) => setState(() {
+                        locationChange = value == initialLocation
+                            ? const LocationChange.unchanged()
+                            : const LocationChange.clear();
+                      }),
                     ),
                   ),
                   const SizedBox(height: 12),
                   InfoLabel(
-                    label: l10n.visibility,
-                    child: ComboBox<String>(
-                      isExpanded: true,
-                      value: visibility,
-                      items: [
-                        for (final value in _visibilityValues(
-                          selectedSource.provider,
-                        ))
-                          ComboBoxItem(
-                            value: value,
-                            child: Text(_visibilityLabel(l10n, value)),
+                    label: l10n.description,
+                    child: TextBox(controller: description, maxLines: 4),
+                  ),
+                  Expander(
+                    header: Text('${l10n.reminder} · ${l10n.repeat}'),
+                    initiallyExpanded:
+                        originalDraft?.reminders != null ||
+                        originalDraft?.recurrence != null,
+                    content: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        InfoLabel(
+                          label: l10n.reminder,
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              for (
+                                var index = 0;
+                                index < reminderMinutes.length;
+                                index += 1
+                              )
+                                Padding(
+                                  padding: const EdgeInsets.only(bottom: 8),
+                                  child: Row(
+                                    children: [
+                                      Expanded(
+                                        child: ComboBox<int>(
+                                          isExpanded: true,
+                                          value: reminderMinutes[index],
+                                          items: [
+                                            for (final minutes
+                                                in windowsEventReminderValuesFor(
+                                                  reminderMinutes[index],
+                                                ))
+                                              ComboBoxItem(
+                                                value: minutes,
+                                                child: Text(
+                                                  _reminderLabel(l10n, minutes),
+                                                ),
+                                              ),
+                                          ],
+                                          onChanged: saving
+                                              ? null
+                                              : (value) {
+                                                  if (value == null) return;
+                                                  setState(() {
+                                                    reminderMinutes =
+                                                        normalizeWindowsEventReminderMinutes(
+                                                          [
+                                                            ...reminderMinutes
+                                                                .take(index),
+                                                            value,
+                                                            ...reminderMinutes
+                                                                .skip(
+                                                                  index + 1,
+                                                                ),
+                                                          ],
+                                                        );
+                                                    remindersChanged = true;
+                                                  });
+                                                },
+                                        ),
+                                      ),
+                                      const SizedBox(width: 8),
+                                      IconButton(
+                                        icon: Icon(
+                                          windowsBusyMaxGlyph(
+                                            BusyMaxGlyph.delete,
+                                          ),
+                                        ),
+                                        onPressed: saving
+                                            ? null
+                                            : () => setState(() {
+                                                reminderMinutes = [
+                                                  ...reminderMinutes.take(
+                                                    index,
+                                                  ),
+                                                  ...reminderMinutes.skip(
+                                                    index + 1,
+                                                  ),
+                                                ];
+                                                remindersChanged = true;
+                                              }),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              if (reminderMinutes.isEmpty ||
+                                  (selectedSource.provider !=
+                                          BusyProvider.microsoft &&
+                                      reminderMinutes.length <
+                                          windowsEventReminderMinuteOptions
+                                              .length))
+                                Button(
+                                  onPressed: saving
+                                      ? null
+                                      : () => setState(() {
+                                          reminderMinutes = [
+                                            ...reminderMinutes,
+                                            nextWindowsEventReminderMinute(
+                                              reminderMinutes,
+                                            ),
+                                          ];
+                                          remindersChanged = true;
+                                        }),
+                                  child: Text(l10n.addReminder),
+                                ),
+                            ],
                           ),
+                        ),
+                        const SizedBox(height: 12),
+                        InfoLabel(
+                          label: l10n.repeat,
+                          child: Button(
+                            onPressed: saving
+                                ? null
+                                : () async {
+                                    final result =
+                                        await showWindowsRecurrenceDialog(
+                                          context,
+                                          initial: recurrence,
+                                          baseDate: start,
+                                          allDay: allDay,
+                                          timeZone:
+                                              selectedTimeZone ??
+                                              ref.read(localTimeZoneProvider),
+                                          providerLabel: selectedSource
+                                              .provider
+                                              .displayName,
+                                          limits:
+                                              EventRecurrenceCodec.limitsFor(
+                                                selectedSource.provider,
+                                              ),
+                                        );
+                                    if (result != null) {
+                                      setState(() {
+                                        recurrence = result;
+                                        recurrenceChanged = true;
+                                      });
+                                    }
+                                  },
+                            child: Align(
+                              alignment: AlignmentDirectional.centerStart,
+                              child: Text(
+                                _recurrenceLabel(l10n, recurrence.frequency),
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 12),
                       ],
-                      onChanged: saving
-                          ? null
-                          : (value) {
-                              if (value != null) {
-                                setState(() => visibility = value);
-                              }
-                            },
                     ),
                   ),
-                  if (selectedSource.provider == BusyProvider.microsoft) ...[
-                    const SizedBox(height: 12),
-                    InfoLabel(
-                      label: l10n.importance,
-                      child: ComboBox<String>(
-                        isExpanded: true,
-                        value: importance,
-                        items: [
-                          ComboBoxItem(
-                            value: 'low',
-                            child: Text(l10n.importanceLow),
+                  const SizedBox(height: 12),
+                  Expander(
+                    header: Text(l10n.organizationSection),
+                    initiallyExpanded:
+                        (originalDraft?.categories.isNotEmpty ?? false) ||
+                        (originalDraft?.importance != null &&
+                            originalDraft?.importance != 'normal') ||
+                        showAs !=
+                            eventShowAsForProvider(
+                              null,
+                              selectedSource.provider,
+                            ) ||
+                        visibility !=
+                            eventVisibilityForProvider(
+                              null,
+                              selectedSource.provider,
+                            ),
+                    content: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        InfoLabel(
+                          label: l10n.availabilityShowAs,
+                          child: ComboBox<String>(
+                            isExpanded: true,
+                            value: eventShowAsForProvider(
+                              showAs,
+                              selectedSource.provider,
+                            ),
+                            items: [
+                              for (final value in _showAsValues(
+                                selectedSource.provider,
+                              ))
+                                ComboBoxItem(
+                                  value: value,
+                                  child: Text(_availabilityLabel(l10n, value)),
+                                ),
+                            ],
+                            onChanged: saving
+                                ? null
+                                : (value) {
+                                    if (value != null) {
+                                      setState(() => showAs = value);
+                                    }
+                                  },
                           ),
-                          ComboBoxItem(
-                            value: 'normal',
-                            child: Text(l10n.importanceNormal),
+                        ),
+                        const SizedBox(height: 12),
+                        InfoLabel(
+                          label: l10n.visibility,
+                          child: ComboBox<String>(
+                            isExpanded: true,
+                            value: eventVisibilityForProvider(
+                              visibility,
+                              selectedSource.provider,
+                            ),
+                            items: [
+                              for (final value in _visibilityValues(
+                                selectedSource.provider,
+                              ))
+                                ComboBoxItem(
+                                  value: value,
+                                  child: Text(_visibilityLabel(l10n, value)),
+                                ),
+                            ],
+                            onChanged: saving
+                                ? null
+                                : (value) {
+                                    if (value != null) {
+                                      setState(() => visibility = value);
+                                    }
+                                  },
                           ),
-                          ComboBoxItem(
-                            value: 'high',
-                            child: Text(l10n.importanceHigh),
+                        ),
+                        if (selectedSource.provider ==
+                            BusyProvider.microsoft) ...[
+                          const SizedBox(height: 12),
+                          InfoLabel(
+                            label: l10n.importance,
+                            child: ComboBox<String>(
+                              isExpanded: true,
+                              value: importance,
+                              items: [
+                                ComboBoxItem(
+                                  value: 'low',
+                                  child: Text(l10n.importanceLow),
+                                ),
+                                ComboBoxItem(
+                                  value: 'normal',
+                                  child: Text(l10n.importanceNormal),
+                                ),
+                                ComboBoxItem(
+                                  value: 'high',
+                                  child: Text(l10n.importanceHigh),
+                                ),
+                              ],
+                              onChanged: saving
+                                  ? null
+                                  : (value) {
+                                      if (value != null) {
+                                        setState(() => importance = value);
+                                      }
+                                    },
+                            ),
                           ),
                         ],
-                        onChanged: saving
-                            ? null
-                            : (value) {
-                                if (value != null) {
-                                  setState(() => importance = value);
-                                }
-                              },
-                      ),
+                        if (selectedSource.provider != BusyProvider.google) ...[
+                          const SizedBox(height: 12),
+                          InfoLabel(
+                            label: l10n.categories,
+                            child: TextBox(
+                              controller: categories,
+                              enabled: !saving,
+                              onChanged: (_) =>
+                                  setState(() => categoriesChanged = true),
+                            ),
+                          ),
+                        ],
+                      ],
                     ),
-                  ],
-                  if (selectedSource.provider != BusyProvider.google) ...[
-                    const SizedBox(height: 12),
-                    InfoLabel(
-                      label: l10n.categories,
-                      child: TextBox(
-                        controller: categories,
-                        enabled: !saving,
-                        onChanged: (_) =>
-                            setState(() => categoriesChanged = true),
-                      ),
-                    ),
-                  ],
+                  ),
                   if (selectedSource.provider == BusyProvider.google ||
                       selectedSource.provider == BusyProvider.microsoft) ...[
                     const SizedBox(height: 16),
@@ -747,20 +842,6 @@ Future<bool> showWindowsEventEditorDialog(
                       content: Text(l10n.allowNewTimeProposals),
                     ),
                   ],
-                  const SizedBox(height: 12),
-                  InfoLabel(
-                    label: l10n.location,
-                    child: TextBox(
-                      key: const ValueKey('windows-event-location-field'),
-                      controller: location,
-                      enabled: !saving,
-                      onChanged: (value) => setState(() {
-                        locationChange = value == initialLocation
-                            ? const LocationChange.unchanged()
-                            : const LocationChange.clear();
-                      }),
-                    ),
-                  ),
                   if (selectedSource.provider == BusyProvider.nextcloud &&
                       selectedSource.davCollectionId != null &&
                       selectedSource
@@ -793,17 +874,12 @@ Future<bool> showWindowsEventEditorDialog(
                                         end: end,
                                         allDay: allDay,
                                         startTimeZone: selectedTimeZone,
-                                        endTimeZone: selectedTimeZone,
+                                        endTimeZone: endTimeZone,
                                         attendees: attendees,
                                       ),
                             ),
                       child: Text(l10n.nextcloudGuestAvailability),
                     ),
-                  const SizedBox(height: 12),
-                  InfoLabel(
-                    label: l10n.description,
-                    child: TextBox(controller: description, maxLines: 4),
-                  ),
                   if (error != null) ...[
                     const SizedBox(height: 12),
                     InfoBar(
@@ -845,7 +921,7 @@ Future<bool> showWindowsEventEditorDialog(
                           final encodedRecurrence =
                               recurrenceChanged && recurrence.repeats
                               ? EventRecurrenceCodec.encode(
-                                  selectedSource.provider,
+                                  detail?.provider ?? selectedSource.provider,
                                   recurrence,
                                   baseDate: start,
                                   allDay: allDay,
@@ -879,7 +955,7 @@ Future<bool> showWindowsEventEditorDialog(
                                     locationChange: locationChange,
                                     description: description.text.trim(),
                                     startTimeZone: selectedTimeZone,
-                                    endTimeZone: selectedTimeZone,
+                                    endTimeZone: endTimeZone,
                                     recurrence: recurrenceChanged
                                         ? encodedRecurrence
                                         : null,
@@ -889,7 +965,8 @@ Future<bool> showWindowsEventEditorDialog(
                                         !recurrence.repeats,
                                     reminders: remindersChanged
                                         ? encodeWindowsEventReminderPayload(
-                                            selectedSource.provider,
+                                            detail?.provider ??
+                                                selectedSource.provider,
                                             reminderMinutes,
                                           )
                                         : null,
@@ -903,8 +980,16 @@ Future<bool> showWindowsEventEditorDialog(
                                             BusyProvider.microsoft
                                         ? importance
                                         : null,
-                                    showAs: showAs,
-                                    visibilityOrSensitivity: visibility,
+                                    showAs:
+                                        showAs != initialShowAs ||
+                                            originalDraft == null
+                                        ? showAs
+                                        : null,
+                                    visibilityOrSensitivity:
+                                        visibility != initialVisibility ||
+                                            originalDraft == null
+                                        ? visibility
+                                        : null,
                                     categories: categoriesChanged
                                         ? _categories(categories.text)
                                         : null,
@@ -913,10 +998,23 @@ Future<bool> showWindowsEventEditorDialog(
                                         onlineMeeting &&
                                         originalDraft?.conference == null,
                                     clearConference: !onlineMeeting,
-                                    responseRequested: responseRequested,
-                                    hideAttendees: hideAttendees,
+                                    responseRequested:
+                                        responseRequested !=
+                                                initialResponseRequested ||
+                                            originalDraft == null
+                                        ? responseRequested
+                                        : null,
+                                    hideAttendees:
+                                        hideAttendees != initialHideAttendees ||
+                                            originalDraft == null
+                                        ? hideAttendees
+                                        : null,
                                     allowNewTimeProposals:
-                                        allowNewTimeProposals,
+                                        allowNewTimeProposals !=
+                                                initialAllowNewTimeProposals ||
+                                            originalDraft == null
+                                        ? allowNewTimeProposals
+                                        : null,
                                   );
                           if (originalDraft?.providerRecurringEventId != null) {
                             final scope =
@@ -1226,21 +1324,6 @@ List<String> _showAsValues(BusyProvider provider) =>
     ? const ['free', 'tentative', 'busy', 'oof', 'workingElsewhere']
     : const ['opaque', 'transparent'];
 
-String _showAsForProvider(String? value, BusyProvider provider) {
-  if (provider == BusyProvider.microsoft) {
-    return switch (value) {
-      'free' || 'tentative' || 'busy' || 'oof' || 'workingElsewhere' => value!,
-      'transparent' => 'free',
-      _ => 'busy',
-    };
-  }
-  return switch (value) {
-    'opaque' || 'transparent' => value!,
-    'free' => 'transparent',
-    _ => 'opaque',
-  };
-}
-
 String _availabilityLabel(AppLocalizations l10n, String value) =>
     switch (value) {
       'opaque' || 'busy' => l10n.busy,
@@ -1255,20 +1338,6 @@ List<String> _visibilityValues(BusyProvider provider) =>
     provider == BusyProvider.microsoft
     ? const ['normal', 'personal', 'private', 'confidential']
     : const ['default', 'public', 'private', 'confidential'];
-
-String _visibilityForProvider(String? value, BusyProvider provider) {
-  if (provider == BusyProvider.microsoft) {
-    return switch (value) {
-      'normal' || 'personal' || 'private' || 'confidential' => value!,
-      _ => 'normal',
-    };
-  }
-  return switch (value) {
-    'default' || 'public' || 'private' || 'confidential' => value!,
-    'personal' => 'private',
-    _ => 'default',
-  };
-}
 
 String _visibilityLabel(AppLocalizations l10n, String value) => switch (value) {
   'default' => l10n.visibilityDefault,

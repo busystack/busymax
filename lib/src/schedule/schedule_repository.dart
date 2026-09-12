@@ -28,6 +28,26 @@ class ScheduleRepository {
   final AppDatabase _database;
   final Future<void> Function(ScheduleRange range)? _ensureProjectionCoverage;
 
+  /// Invalidates presentation queries after committed local or sync writes.
+  /// Include joined metadata as well as items: permissions, source names and
+  /// account availability can change without an item's identity changing.
+  Stream<void> watchChanges() => _database
+      .tableUpdates(
+        TableUpdateQuery.onAllTables([
+          _database.accounts,
+          _database.tasks,
+          _database.taskLists,
+          _database.calendarEvents,
+          _database.calendarSources,
+          _database.calendarEventAttendees,
+          _database.calendarEventReminders,
+          _database.calendarColors,
+          _database.davCollections,
+          _database.scheduleItemOverrides,
+        ]),
+      )
+      .map((_) {});
+
   Future<ScheduleTaskTarget?> findTaskTarget({
     required String accountId,
     required String taskListId,

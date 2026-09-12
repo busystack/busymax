@@ -1,3 +1,4 @@
+import '../../schedule/schedule_commands.dart';
 import 'dart:async';
 
 import 'package:fluent_ui/fluent_ui.dart';
@@ -213,6 +214,12 @@ class _WindowsDesktopRuntimeState extends ConsumerState<WindowsDesktopRuntime> {
         if (context.mounted) await showWindowsTaskEditorDialog(context, ref);
       case WindowsTrayCommand.today:
         await window.showWindow();
+        ref
+            .read(scheduleWorkspaceCommandProvider.notifier)
+            .state = ScheduleWorkspaceCommand(
+          ScheduleWorkspaceCommandKind.today,
+          DateTime.now().microsecondsSinceEpoch,
+        );
         ref
             .read(desktopNavigationServiceProvider)
             .open(DesktopNavigationDestination.schedule);

@@ -1,5 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'schedule_item.dart';
+
 enum ScheduleWorkspaceCommandKind {
   today,
   agenda,
@@ -26,6 +28,18 @@ class ScheduleWorkspaceCommand {
   final String? accountId;
   final String? sourceId;
   final String? itemId;
+
+  /// Full identity avoids opening a similarly named item in another account.
+  bool matchesItem(ScheduleItem item) =>
+      accountId == item.accountId &&
+      sourceId == item.sourceId &&
+      itemId == item.id &&
+      switch (kind) {
+        ScheduleWorkspaceCommandKind.openCalendarEvent =>
+          item is CalendarScheduleItem,
+        ScheduleWorkspaceCommandKind.openTask => item is TaskScheduleItem,
+        _ => false,
+      };
 }
 
 final scheduleWorkspaceCommandProvider =

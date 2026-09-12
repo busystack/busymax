@@ -50,7 +50,14 @@ class WindowsScheduleDayWeekView extends StatefulWidget {
 class _WindowsScheduleDayWeekViewState
     extends State<WindowsScheduleDayWeekView> {
   final _events = icv.EventsController();
-  final _planner = GlobalKey<icv.EventsPlannerState>();
+  var _planner = GlobalKey<icv.EventsPlannerState>();
+  late DateTime _plannerOrigin;
+  @override
+  void initState() {
+    super.initState();
+    _plannerOrigin = widget.initialDate;
+  }
+
   final _interaction = GlobalKey<ScheduleInteractionRegionState>();
   double _heightPerMinute = .9;
   double _allDayHeight = 82;
@@ -65,6 +72,13 @@ class _WindowsScheduleDayWeekViewState
     super.didUpdateWidget(oldWidget);
     _reload();
     if (!_sameDay(oldWidget.initialDate, widget.initialDate)) {
+      // The planner bounds scrolling around its original date. Recenter it for
+      // distant navigation (including Today after opening an old notification).
+      if (widget.initialDate.difference(_plannerOrigin).inDays.abs() > 700) {
+        _planner = GlobalKey<icv.EventsPlannerState>();
+        _plannerOrigin = widget.initialDate;
+        return;
+      }
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted && !(_interaction.currentState?.active ?? false)) {
           _planner.currentState?.jumpToDate(widget.initialDate);
@@ -104,6 +118,7 @@ class _WindowsScheduleDayWeekViewState
     final hasAllDay = widget.items.any((item) => item.allDay);
     final bar = hasAllDay ? _allDayHeight : 0.0;
     final header = widget.daysShowed == 1 ? 0.0 : 50.0;
+    final plannerKey = _planner;
     final planner = icv.EventsPlanner(
       key: _planner,
       controller: _events,
@@ -117,7 +132,9 @@ class _WindowsScheduleDayWeekViewState
       initialVerticalScrollOffset: widget.dayStartMinute * _heightPerMinute,
       daySeparationWidth: 1,
       dayEventsArranger: const SchedulePlannerEventArranger(),
-      onDayChange: widget.onVisibleDateChanged,
+      onDayChange: (date) {
+        if (plannerKey == _planner) widget.onVisibleDateChanged(date);
+      },
       daysHeaderParam: icv.DaysHeaderParam(
         daysHeaderHeight: header,
         daysHeaderColor: background,

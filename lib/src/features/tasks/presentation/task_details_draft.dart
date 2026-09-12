@@ -1,4 +1,7 @@
 import 'dart:convert';
+import '../../../providers/busy_provider.dart';
+import '../../recurrence/domain/event_recurrence_codec.dart';
+import '../../recurrence/domain/recurrence_rule.dart';
 import '../../maps/domain/geographic_point.dart';
 import '../../maps/domain/location_result.dart';
 
@@ -45,6 +48,99 @@ class TaskDetailsDraft {
     required this.hideCompletedSubtasks,
     required this.alarms,
   });
+
+  /// Creation uses the same validation and capability-aware serializer as edits.
+  factory TaskDetailsDraft.forCreation({
+    required String taskListId,
+    required BusyProvider provider,
+    required String timeZone,
+    String title = '',
+    String notes = '',
+    DateTime? due,
+    DateTime? start,
+    DateTime? reminder,
+    bool scheduledAllDay = true,
+    List<IcalTaskAlarm> alarms = const [],
+    RecurrenceRule recurrence = const RecurrenceRule.none(),
+    String importance = 'normal',
+    String status = '',
+    int priority = 0,
+    int progress = 0,
+    String location = '',
+    String taskUrl = '',
+    String classification = 'PUBLIC',
+    bool pinned = false,
+    bool hideSubtasks = false,
+    bool hideCompletedSubtasks = false,
+    List<String> categories = const [],
+  }) {
+    String? date(DateTime? value) => value == null
+        ? null
+        : providerWallTimeIso8601String(value).substring(0, 10);
+    String? time(DateTime? value) => value == null
+        ? null
+        : providerWallTimeIso8601String(value).substring(11, 16);
+    return TaskDetailsDraft(
+      taskListId: taskListId,
+      taskId: '',
+      title: title,
+      notes: notes,
+      dueDate: date(due),
+      microsoftDueTime: scheduledAllDay ? null : time(due),
+      microsoftDueTimeZone: timeZone,
+      microsoftStartDate: date(start),
+      microsoftStartTime: scheduledAllDay ? null : time(start),
+      microsoftStartTimeZone: timeZone,
+      microsoftReminderEnabled: reminder != null,
+      microsoftReminderDate: date(reminder),
+      microsoftReminderTime: time(reminder),
+      microsoftReminderTimeZone: timeZone,
+      recurrenceJson: !recurrence.repeats || (start == null && due == null)
+          ? null
+          : provider == BusyProvider.nextcloud
+          ? recurrence.toJsonString()
+          : jsonEncode(
+              EventRecurrenceCodec.encode(
+                provider,
+                recurrence,
+                baseDate: start ?? due!,
+                allDay: scheduledAllDay,
+                timeZone: timeZone,
+              ),
+            ),
+      importance: importance,
+      categories: categories,
+      icalPriority: priority,
+      percentComplete: progress,
+      taskStatus: status.isEmpty ? null : status,
+      completedDate: null,
+      completedTime: null,
+      location: location,
+      originalLocation: '',
+      taskUrl: taskUrl,
+      classification: classification,
+      pinned: pinned,
+      hideSubtasks: hideSubtasks,
+      hideCompletedSubtasks: hideCompletedSubtasks,
+      alarms: alarms,
+    );
+  }
+
+  bool get hasDetailedProgress =>
+      (taskStatus != null && taskStatus != 'NEEDS-ACTION') ||
+      percentComplete != 0 ||
+      completedDate != null;
+
+  bool get hasProviderOptions =>
+      icalPriority != 0 ||
+      importance != 'normal' ||
+      categories.isNotEmpty ||
+      location.isNotEmpty ||
+      taskUrl.isNotEmpty ||
+      classification != 'PUBLIC' ||
+      pinned ||
+      hideSubtasks ||
+      hideCompletedSubtasks;
 
   factory TaskDetailsDraft.fromTask(TaskEntity task, String localTimeZone) {
     final due = _editableProviderDateTime(

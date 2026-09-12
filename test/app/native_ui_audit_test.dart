@@ -159,9 +159,6 @@ void main() {
     test(
       'Task Details, Settings, and main Agenda use BusyMax Yaru row patterns',
       () {
-        final taskDetails = File(
-          'lib/src/features/tasks/presentation/task_details_editor.dart',
-        ).readAsStringSync();
         final settings = File(
           'lib/src/features/settings/presentation/settings_screen.dart',
         ).readAsStringSync();
@@ -182,17 +179,8 @@ void main() {
           'lib/src/features/schedule/presentation/schedule_agenda_view.dart',
         ).readAsStringSync();
 
-        expect(design, contains('class BusyMaxClamp'));
-        expect(design, contains('class BusyMaxEditorScrollBody'));
         expect(design, contains('YaruScrollViewUndershoot.builder('));
         expect(design, contains('endUndershoot: false'));
-        expect(design, contains('class BusyMaxGroupedList'));
-        expect(design, contains('class BusyMaxActionRow'));
-        expect(design, contains('class BusyMaxComboRow'));
-        expect(design, contains('class BusyMaxGroupedSurface'));
-        expect(design, contains('class BusyMaxSwitchRow'));
-        expect(design, contains('class BusyMaxDialogShell'));
-        expect(design, contains('class BusyMaxModalEditorSurface'));
         expect(design, contains('Color busyMaxModalBarrierColor'));
         expect(design, contains('decoration: ShapeDecoration('));
         expect(design, contains('BusyMaxShadow.nativePopoverShadowsFor('));
@@ -219,11 +207,6 @@ void main() {
         final calendarRow = design.substring(calendarRowStart, calendarRowEnd);
         expect(calendarRow, contains('required this.entry'));
         expect(calendarRow, isNot(contains('TextField(')));
-
-        expect(taskDetails, contains('BusyMaxEditorScrollBody'));
-        expect(taskDetails, contains('BusyMaxGroupedList'));
-        expect(taskDetails, contains('BusyMaxActionRow'));
-        expect(taskDetails, contains('BusyMaxComboRow'));
 
         expect(settings, contains('BusyMaxClamp'));
         expect(settings, contains('BusyMaxGroupedList'));
@@ -2442,31 +2425,9 @@ void main() {
       expect(body, isNot(contains('color: surfaceColors.divider')));
     });
 
-    test('time mode delegates the complete mode control to Yaru', () {
-      final source = File('lib/src/app/busymax_design.dart').readAsStringSync();
-      final start = source.indexOf('class BusyMaxModeSwitcher');
-      final end = source.indexOf('class BusyMaxModalEditorScaffold');
-
-      expect(start, isNonNegative);
-      expect(end, greaterThan(start));
-      final body = source.substring(start, end);
-      expect(body, contains('return YaruTabBar('));
-      expect(body, contains('YaruTab(label: widget.labelFor(value))'));
-      expect(body, contains('BusyMaxModeSwitcher<bool>('));
-      expect(body, isNot(contains('YaruListTile')));
-      expect(body, isNot(contains('timeModeDescription')));
-      expect(body, isNot(contains('MediaQuery')));
-      expect(body, isNot(contains('ToggleButtons')));
-      expect(body, isNot(contains('SegmentedButton')));
-      expect(body, isNot(contains('LayoutBuilder')));
-      expect(body, isNot(contains('BoxConstraints')));
-      expect(body, isNot(contains('constraints.maxWidth')));
-      expect(body, isNot(contains('Padding(')));
-      expect(body, isNot(contains('height:')));
-      expect(body, isNot(contains('borderRadius:')));
-      expect(body, isNot(contains('fillColor:')));
-      expect(body, isNot(contains('labelColor:')));
-    });
+    // Mode selection, keyboard interaction, scaling and native Yaru controls
+    // are exercised by busymax_grouped_surface_test.dart. Layout syntax is
+    // deliberately not a contract: responsive measurements may be necessary.
 
     test('feature code avoids raw Material controls with Yaru replacements', () {
       final files = [

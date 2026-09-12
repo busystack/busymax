@@ -846,6 +846,30 @@ final davProjectionCoverageServiceProvider =
       );
     });
 
+/// One invalidation source for all presentations, including background sync.
+final scheduleDataRevisionProvider = StreamProvider<int>((ref) async* {
+  final changes = ref.watch(scheduleRepositoryProvider).watchChanges();
+  var revision = 0;
+  yield revision;
+  await for (final _ in changes) {
+    yield ++revision;
+  }
+});
+
+final scheduleTaskListsProvider = FutureProvider<List<TaskListEntity>>((
+  ref,
+) async {
+  ref.watch(scheduleDataRevisionProvider);
+  final accounts = await ref.watch(accountsStreamProvider.future);
+  final groups = await Future.wait([
+    for (final account in accounts.where((account) => account.isTaskCapable))
+      ref
+          .watch(taskListsRepositoryForAccountProvider(account.id))
+          .listTaskLists(),
+  ]);
+  return [for (final group in groups) ...group];
+});
+
 final scheduleRepositoryProvider = Provider<ScheduleRepository>((ref) {
   return ScheduleRepository(
     ref.watch(databaseProvider),

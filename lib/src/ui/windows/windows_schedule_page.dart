@@ -18,6 +18,8 @@ import '../../features/calendar/presentation/event_editor_draft.dart';
 import '../../features/schedule/presentation/schedule_item_exporter.dart';
 import '../../features/task_lists/data/task_lists_repository.dart';
 import '../../schedule/schedule_filters.dart';
+import '../../schedule/schedule_commands.dart';
+import '../../schedule/schedule_projection.dart';
 import '../../schedule/schedule_item.dart';
 import '../../features/maps/application/external_location_launcher.dart';
 import '../../features/schedule/application/saved_schedule_location.dart';
@@ -63,18 +65,114 @@ class _WindowsSchedulePageState extends ConsumerState<WindowsSchedulePage> {
   String? _itemsKey;
   Future<List<ScheduleItem>>? _itemsFuture;
   var _sourcePaneCollapsed = false;
+  Timer? _searchDebounce;
+  ScheduleWorkspaceCommand? _pendingCommand;
+  bool _resolvingCommand = false;
+  bool _commandRefreshPending = false;
+  CalendarSourceEntity? _creationCalendar;
+  ScheduleTaskListKey? _creationTaskList;
 
   @override
   void initState() {
     super.initState();
     _mode = ref.read(appSettingsControllerProvider).scheduleViewMode;
+    ref.listenManual(scheduleDataRevisionProvider, (previous, next) {
+      if (!next.hasValue || !mounted) return;
+      _reload();
+      unawaited(_revealPendingCommand());
+    });
+    ref.listenManual(scheduleWorkspaceCommandProvider, (previous, command) {
+      if (command == null) return;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted || ref.read(scheduleWorkspaceCommandProvider) != command) {
+          return;
+        }
+        ref.read(scheduleWorkspaceCommandProvider.notifier).state = null;
+        _pendingCommand = null;
+        switch (command.kind) {
+          case ScheduleWorkspaceCommandKind.today:
+            _openDay(DateTime.now());
+          case ScheduleWorkspaceCommandKind.agenda:
+            _selectDate(command.date ?? DateTime.now());
+            _setMode(ScheduleViewMode.agenda);
+          case ScheduleWorkspaceCommandKind.newEvent:
+            unawaited(_createEvent(start: command.date));
+          case ScheduleWorkspaceCommandKind.newTask:
+            unawaited(_createTask());
+          case ScheduleWorkspaceCommandKind.openDate:
+            _openDay(command.date ?? DateTime.now());
+          case ScheduleWorkspaceCommandKind.openCalendarEvent:
+          case ScheduleWorkspaceCommandKind.openTask:
+            _searchDebounce?.cancel();
+            _searchController.clear();
+            _query = '';
+            _openDay(command.date ?? DateTime.now());
+            _pendingCommand = command;
+            unawaited(_revealPendingCommand());
+        }
+      });
+    }, fireImmediately: true);
   }
 
   @override
   void dispose() {
+    _searchDebounce?.cancel();
     _searchController.dispose();
     _searchFocusNode.dispose();
     super.dispose();
+  }
+
+  Future<void> _revealPendingCommand() async {
+    final command = _pendingCommand;
+    if (command == null) return;
+    if (_resolvingCommand) {
+      _commandRefreshPending = true;
+      return;
+    }
+    _commandRefreshPending = false;
+    _resolvingCommand = true;
+    try {
+      final repository = ref.read(scheduleRepositoryProvider);
+      final filters = ScheduleFilters(
+        accountIds: {if (command.accountId != null) command.accountId!},
+        showCompletedTasks: true,
+        showNoDateTasks: true,
+      );
+      final items = command.kind == ScheduleWorkspaceCommandKind.openTask
+          ? await repository.listAllTasks(filters: filters)
+          : await repository.listItems(
+              range: ScheduleRange.day(command.date ?? DateTime.now()),
+              filters: filters,
+            );
+      if (!mounted || _pendingCommand != command) return;
+      final item = items.where(command.matchesItem).firstOrNull;
+      if (item == null) return; // Keep pending while initial sync supplies it.
+      _pendingCommand = null;
+      await _showItemDetails(item);
+    } on Object catch (_) {
+      if (mounted) {
+        unawaited(
+          displayInfoBar(
+            context,
+            builder: (context, close) => InfoBar(
+              title: Text(AppLocalizations.of(context).scheduleUnavailable),
+              severity: InfoBarSeverity.error,
+              action: Button(
+                onPressed: () => unawaited(_revealPendingCommand()),
+                child: Text(AppLocalizations.of(context).retry),
+              ),
+            ),
+          ),
+        );
+      }
+    } finally {
+      _resolvingCommand = false;
+      if (mounted &&
+          _pendingCommand != null &&
+          (_pendingCommand != command || _commandRefreshPending)) {
+        unawaited(_revealPendingCommand());
+      }
+    }
   }
 
   void _reload() {
@@ -159,6 +257,12 @@ class _WindowsSchedulePageState extends ConsumerState<WindowsSchedulePage> {
     required List<TaskListEntity> taskLists,
     required ScheduleSourceVisibility visibility,
   }) {
+    _creationCalendar = writableCalendarSources(sources)
+        .where(
+          (source) => visibility.visibleCalendarSourceIds.contains(source.id),
+        )
+        .firstOrNull;
+    _creationTaskList = visibility.visibleTaskListKeys.firstOrNull;
     final l10n = AppLocalizations.of(context);
     final locale = Localizations.localeOf(context).toLanguageTag();
     final range = _rangeForMode();
@@ -358,8 +462,15 @@ class _WindowsSchedulePageState extends ConsumerState<WindowsSchedulePage> {
                                   ),
                                 ),
                                 onChanged: (value) {
-                                  _query = value;
-                                  _reload();
+                                  _searchDebounce?.cancel();
+                                  _searchDebounce = Timer(
+                                    const Duration(milliseconds: 250),
+                                    () {
+                                      if (!mounted) return;
+                                      _query = value;
+                                      _reload();
+                                    },
+                                  );
                                 },
                               ),
                             ),
@@ -413,9 +524,7 @@ class _WindowsSchedulePageState extends ConsumerState<WindowsSchedulePage> {
                               items: items,
                               locale: locale,
                               onOpen: _showItemDetails,
-                              onSelectDate: _mode == ScheduleViewMode.year
-                                  ? _openMonth
-                                  : _openDay,
+                              onSelectDate: _openDay,
                               onLoadMoreAgenda: _loadMoreAgenda,
                               onVisibleDateChanged: _selectDate,
                               onEmptySlot: (start) =>
@@ -458,6 +567,8 @@ class _WindowsSchedulePageState extends ConsumerState<WindowsSchedulePage> {
       ref,
       initialStart: start ?? _selectedDate,
       initialInterval: interval,
+      initialAccountId: _creationCalendar?.accountId,
+      initialSourceId: _creationCalendar?.id,
     );
     if (changed && mounted) _reload();
   }
@@ -536,7 +647,13 @@ class _WindowsSchedulePageState extends ConsumerState<WindowsSchedulePage> {
   }
 
   Future<void> _createTask() async {
-    final changed = await showWindowsTaskEditorDialog(context, ref);
+    final changed = await showWindowsTaskEditorDialog(
+      context,
+      ref,
+      initialDate: _selectedDate,
+      initialAccountId: _creationTaskList?.accountId,
+      initialTaskListId: _creationTaskList?.taskListId,
+    );
     if (changed && mounted) _reload();
   }
 
@@ -544,6 +661,7 @@ class _WindowsSchedulePageState extends ConsumerState<WindowsSchedulePage> {
 
   void _dismissSearch() {
     if (!_searchFocusNode.hasFocus && _query.isEmpty) return;
+    _searchDebounce?.cancel();
     _searchController.clear();
     _query = '';
     _searchFocusNode.unfocus();
@@ -667,11 +785,11 @@ class _WindowsSchedulePageState extends ConsumerState<WindowsSchedulePage> {
     ScheduleViewMode.month => ScheduleRange.month(_selectedDate),
     ScheduleViewMode.year => ScheduleRange.year(_selectedDate),
     ScheduleViewMode.agenda => ScheduleRange(
-      start: _dateOnly(DateTime.now()),
+      start: _dateOnly(_selectedDate),
       end: DateTime(
-        DateTime.now().year,
-        DateTime.now().month,
-        DateTime.now().day + _agendaDays,
+        _selectedDate.year,
+        _selectedDate.month,
+        _selectedDate.day + _agendaDays,
       ),
     ),
   };
@@ -700,11 +818,6 @@ class _WindowsSchedulePageState extends ConsumerState<WindowsSchedulePage> {
   void _openDay(DateTime date) {
     _selectDate(date);
     _setMode(ScheduleViewMode.day);
-  }
-
-  void _openMonth(DateTime date) {
-    _selectDate(DateTime(date.year, date.month));
-    _setMode(ScheduleViewMode.month);
   }
 
   void _movePeriod(int direction) {
@@ -1387,7 +1500,7 @@ class _ScheduleModeView extends StatelessWidget {
       onOpen: onOpen,
       onSelectDate: onSelectDate,
     ),
-    ScheduleViewMode.year => _YearView(
+    ScheduleViewMode.year => WindowsScheduleYearView(
       selectedDate: selectedDate,
       items: items,
       locale: locale,
@@ -1545,63 +1658,97 @@ class WindowsScheduleMonthView extends StatelessWidget {
             ),
           ),
           Expanded(
-            child: GridView.builder(
-              padding: const EdgeInsetsDirectional.fromSTEB(16, 0, 16, 16),
-              gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: 7,
-                childAspectRatio: days.length > 35 ? 1.0 : 0.82,
-              ),
-              itemCount: days.length,
-              itemBuilder: (context, index) {
-                final day = days[index];
-                final dayItems = items
-                    .where((item) => _itemOccursOn(item, day))
-                    .toList();
-                return ScheduleDateTarget(
-                  date: day,
-                  child: Card(
-                    child: Padding(
-                      padding: const EdgeInsets.all(5),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          HyperlinkButton(
-                            onPressed: () => onSelectDate(day),
-                            child: Text(
-                              '${day.day}',
-                              style: day.month == selectedDate.month
-                                  ? null
-                                  : TextStyle(
-                                      color: FluentTheme.of(
-                                        context,
-                                      ).inactiveColor,
-                                    ),
-                            ),
-                          ),
-                          for (final item in dayItems.take(2))
-                            ScheduleEventInteraction(
-                              key: ValueKey(
-                                'windows-month-${item.accountId}-${item.sourceId}-${item.id}-$day',
-                              ),
-                              item: item,
-                              representedDate: day,
-                              dateOnly: true,
-                              child: _CompactScheduleItem(
-                                item: item,
-                                locale: locale,
-                                onPressed: () => onOpen(item),
-                              ),
-                            ),
-                          if (dayItems.length > 2)
-                            Text(
-                              '+${dayItems.length - 2}',
-                              textAlign: TextAlign.center,
-                              style: FluentTheme.of(context).typography.caption,
-                            ),
-                        ],
-                      ),
-                    ),
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                final scale = MediaQuery.textScalerOf(context).scale(1);
+                final rowHeight = 30.0 * scale;
+                final headingHeight = 32.0 * scale;
+                final cellHeight = math.max(
+                  headingHeight + rowHeight + 10,
+                  (constraints.maxHeight - 16) / (days.length / 7),
+                );
+                return GridView.builder(
+                  padding: const EdgeInsetsDirectional.fromSTEB(16, 0, 16, 16),
+                  gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: 7,
+                    mainAxisExtent: cellHeight,
                   ),
+                  itemCount: days.length,
+                  itemBuilder: (context, index) {
+                    final day = days[index];
+                    final dayItems = items
+                        .where((item) => _itemOccursOn(item, day))
+                        .toList();
+                    final capacity = math.max(
+                      0,
+                      ((cellHeight - headingHeight - 10) / rowHeight).floor(),
+                    );
+                    final visibleCount = dayItems.length > capacity
+                        ? math.max(0, capacity - 1)
+                        : capacity;
+                    return ScheduleDateTarget(
+                      date: day,
+                      child: Card(
+                        padding: const EdgeInsets.all(4),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            SizedBox(
+                              height: headingHeight,
+                              child: HyperlinkButton(
+                                onPressed: () => onSelectDate(day),
+                                child: Text(
+                                  '${day.day}',
+                                  style: day.month == selectedDate.month
+                                      ? null
+                                      : TextStyle(
+                                          color: FluentTheme.of(
+                                            context,
+                                          ).inactiveColor,
+                                        ),
+                                ),
+                              ),
+                            ),
+                            for (final item in dayItems.take(visibleCount))
+                              SizedBox(
+                                height: rowHeight,
+                                child: ScheduleEventInteraction(
+                                  key: ValueKey(
+                                    'windows-month-${item.accountId}-${item.sourceId}-${item.id}-$day',
+                                  ),
+                                  item: item,
+                                  representedDate: day,
+                                  dateOnly: true,
+                                  child: _CompactScheduleItem(
+                                    item: item,
+                                    locale: locale,
+                                    onPressed: () => onOpen(item),
+                                  ),
+                                ),
+                              ),
+                            if (dayItems.length > visibleCount)
+                              SizedBox(
+                                height: rowHeight,
+                                child: Tooltip(
+                                  message:
+                                      '${DateFormat.yMMMMEEEEd(locale).format(day)} · ${AppLocalizations.of(context).scheduleItemCount(dayItems.length)}',
+                                  child: Button(
+                                    key: ValueKey(
+                                      'month-overflow-${day.year}-${day.month}-${day.day}',
+                                    ),
+                                    onPressed: () =>
+                                        _showDayItems(context, day, dayItems),
+                                    child: Text(
+                                      '+${dayItems.length - visibleCount}',
+                                    ),
+                                  ),
+                                ),
+                              ),
+                          ],
+                        ),
+                      ),
+                    );
+                  },
                 );
               },
             ),
@@ -1610,10 +1757,51 @@ class WindowsScheduleMonthView extends StatelessWidget {
       ),
     );
   }
+
+  Future<void> _showDayItems(
+    BuildContext context,
+    DateTime day,
+    List<ScheduleItem> dayItems,
+  ) => showDialog<void>(
+    context: context,
+    builder: (dialogContext) => ContentDialog(
+      title: Text(DateFormat.yMMMMEEEEd(locale).format(day)),
+      content: SizedBox(
+        height: math.min(420, MediaQuery.sizeOf(context).height * .55),
+        child: ListView(
+          children: [
+            for (final item in dayItems)
+              _CompactScheduleItem(
+                item: item,
+                locale: locale,
+                onPressed: () {
+                  Navigator.pop(dialogContext);
+                  onOpen(item);
+                },
+              ),
+          ],
+        ),
+      ),
+      actions: [
+        Button(
+          onPressed: () {
+            Navigator.pop(dialogContext);
+            onSelectDate(day);
+          },
+          child: Text(AppLocalizations.of(context).viewDay),
+        ),
+        FilledButton(
+          onPressed: () => Navigator.pop(dialogContext),
+          child: Text(AppLocalizations.of(context).close),
+        ),
+      ],
+    ),
+  );
 }
 
-class _YearView extends StatelessWidget {
-  const _YearView({
+class WindowsScheduleYearView extends StatelessWidget {
+  const WindowsScheduleYearView({
+    super.key,
     required this.selectedDate,
     required this.items,
     required this.locale,
@@ -1627,35 +1815,135 @@ class _YearView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final scale = MediaQuery.textScalerOf(context).scale(1);
     return LayoutBuilder(
       builder: (context, constraints) => GridView.builder(
         padding: const EdgeInsetsDirectional.fromSTEB(20, 0, 20, 20),
         gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-          crossAxisCount: constraints.maxWidth >= 900 ? 4 : 3,
-          childAspectRatio: 1.45,
+          crossAxisCount: math.max(
+            1,
+            ((constraints.maxWidth - 40) / (260 * scale)).floor(),
+          ),
+          mainAxisExtent: 300 * scale,
           mainAxisSpacing: 10,
           crossAxisSpacing: 10,
         ),
         itemCount: 12,
         itemBuilder: (context, index) {
           final month = DateTime(selectedDate.year, index + 1);
-          final count = items.where((item) {
-            final start = item.start;
-            return start != null &&
-                start.year == month.year &&
-                start.month == month.month;
-          }).length;
-          return Button(
-            onPressed: () => onSelectDate(month),
+          final offset = month.weekday - 1;
+          final dayCount = DateTime(month.year, month.month + 1, 0).day;
+          return Card(
+            padding: const EdgeInsets.all(8),
             child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 Text(
                   DateFormat.MMMM(locale).format(month),
                   style: FluentTheme.of(context).typography.subtitle,
                 ),
                 const SizedBox(height: 8),
-                Text(AppLocalizations.of(context).scheduleItemCount(count)),
+                Row(
+                  children: [
+                    for (var weekday = 0; weekday < 7; weekday++)
+                      Expanded(
+                        child: Center(
+                          child: Text(
+                            DateFormat.E(
+                              locale,
+                            ).format(DateTime(2026, 1, 5 + weekday)),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: FluentTheme.of(context).typography.caption,
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+                const SizedBox(height: 4),
+                Expanded(
+                  child: LayoutBuilder(
+                    builder: (context, grid) => GridView.builder(
+                      physics: const NeverScrollableScrollPhysics(),
+                      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                        crossAxisCount: 7,
+                        mainAxisExtent: grid.maxHeight / 6,
+                      ),
+                      itemCount: 42,
+                      itemBuilder: (context, cell) {
+                        final number = cell - offset + 1;
+                        if (number < 1 || number > dayCount) {
+                          return const SizedBox.shrink();
+                        }
+                        final day = DateTime(month.year, month.month, number);
+                        final dayItems = items
+                            .where((item) => _itemOccursOn(item, day))
+                            .toList();
+                        final selected = _dateOnly(selectedDate) == day;
+                        final today = _dateOnly(DateTime.now()) == day;
+                        return Tooltip(
+                          message:
+                              '${DateFormat.yMMMMEEEEd(locale).format(day)} · ${AppLocalizations.of(context).scheduleItemCount(dayItems.length)}',
+                          child: Button(
+                            key: ValueKey(
+                              'year-day-${day.year}-${day.month}-${day.day}',
+                            ),
+                            style: ButtonStyle(
+                              padding: WidgetStateProperty.all(EdgeInsets.zero),
+                            ),
+                            onPressed: () => onSelectDate(day),
+                            child: Container(
+                              alignment: Alignment.center,
+                              decoration: BoxDecoration(
+                                border: selected || today
+                                    ? Border.all(
+                                        color: FluentTheme.of(context)
+                                            .accentColor
+                                            .defaultBrushFor(
+                                              FluentTheme.of(
+                                                context,
+                                              ).brightness,
+                                            ),
+                                        width: selected ? 2 : 1,
+                                      )
+                                    : null,
+                              ),
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Text('$number'),
+                                  SizedBox(
+                                    height: 5,
+                                    child: Row(
+                                      mainAxisAlignment:
+                                          MainAxisAlignment.center,
+                                      children: [
+                                        for (final item in dayItems.take(3))
+                                          Container(
+                                            width: 4,
+                                            height: 4,
+                                            margin: const EdgeInsets.symmetric(
+                                              horizontal: 1,
+                                            ),
+                                            decoration: BoxDecoration(
+                                              color: _compactItemColor(
+                                                context,
+                                                item,
+                                              ),
+                                              shape: BoxShape.circle,
+                                            ),
+                                          ),
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                ),
               ],
             ),
           );
@@ -1664,6 +1952,14 @@ class _YearView extends StatelessWidget {
     );
   }
 }
+
+Color _compactItemColor(BuildContext context, ScheduleItem item) =>
+    item is TaskScheduleItem
+    ? ScheduleProjection.deterministicSourceColor(
+        '${item.accountId}/${item.sourceId}',
+        FluentTheme.of(context).brightness,
+      )
+    : ScheduleProjection.colorForItem(item, FluentTheme.of(context).brightness);
 
 class _CompactScheduleItem extends StatelessWidget {
   const _CompactScheduleItem({
@@ -1683,36 +1979,44 @@ class _CompactScheduleItem extends StatelessWidget {
     final label = item.allDay || start == null
         ? item.title
         : '${DateFormat.jm(locale).format(start)} ${item.title}';
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 3),
-      child: Button(
-        onPressed: onPressed,
-        child: Row(
-          children: [
-            Icon(
-              windowsBusyMaxGlyph(
-                task != null
-                    ? task.completed
-                          ? BusyMaxGlyph.check
-                          : BusyMaxGlyph.task
-                    : BusyMaxGlyph.calendar,
+    return Tooltip(
+      message: [
+        label,
+        item.accountEmail ?? item.accountDisplayName,
+        item.sourceName,
+      ].whereType<String>().join(' · '),
+      child: Padding(
+        padding: const EdgeInsets.only(bottom: 3),
+        child: Button(
+          onPressed: onPressed,
+          child: Row(
+            children: [
+              Icon(
+                windowsBusyMaxGlyph(
+                  task != null
+                      ? task.completed
+                            ? BusyMaxGlyph.check
+                            : BusyMaxGlyph.task
+                      : BusyMaxGlyph.calendar,
+                ),
+                size: 13,
+                color: _compactItemColor(context, item),
               ),
-              size: 13,
-            ),
-            const SizedBox(width: 4),
-            Expanded(
-              child: Text(
-                label,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: FluentTheme.of(context).typography.caption?.copyWith(
-                  decoration: task?.completed == true
-                      ? TextDecoration.lineThrough
-                      : null,
+              const SizedBox(width: 4),
+              Expanded(
+                child: Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: FluentTheme.of(context).typography.caption?.copyWith(
+                    decoration: task?.completed == true
+                        ? TextDecoration.lineThrough
+                        : null,
+                  ),
                 ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );

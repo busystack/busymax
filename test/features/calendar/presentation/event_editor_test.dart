@@ -1081,7 +1081,10 @@ void main() {
       RecurringEventMutationScope.thisAndFuture,
     );
 
+    FocusManager.instance.primaryFocus?.unfocus();
+    await tester.pumpAndSettle();
     await tester.ensureVisible(find.text('This event'));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('This event'));
     await tester.pump();
     await tester.ensureVisible(find.text('Delete Event'));
@@ -1335,6 +1338,8 @@ void main() {
       expect(_actionRow(tester, 'This event').enabled, isTrue);
       expect(_actionRow(tester, 'Entire series').enabled, isFalse);
       await tester.ensureVisible(find.text('This event'));
+      await tester.ensureVisible(find.text('This event'));
+      await tester.pumpAndSettle();
       await tester.tap(find.text('This event'));
       await tester.pump();
       await tester.enterText(
@@ -2210,6 +2215,14 @@ void main() {
     );
 
     await tester.ensureVisible(find.text('Add category'));
+    final section = find.byType(YaruExpandable);
+    await tester.ensureVisible(section);
+    await tester.tap(
+      find.descendant(of: section, matching: find.byType(YaruIconButton)).first,
+    );
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.text('Add category'));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Add category'));
     await tester.pumpAndSettle();
     expect(find.byKey(const Key('event-category-input')), findsOneWidget);

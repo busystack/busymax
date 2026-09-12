@@ -66,3 +66,10 @@ Widget tests are not substitutes for native rendering. The release checklist
 requires real installed-MSIX screenshots of major screens in light and dark at
 1280x800 and 1920x1080, including a 125% or 150% run. Capture RTL, high-contrast,
 focus, and mixed-DPI observations in the same Windows test record.
+
+Tasks now includes account/list scope, completed filtering, hierarchy and inline
+completion. Open Windows views refresh from repository changes. Notification
+commands reveal the referenced item, and tray Today selects today's day view.
+Month overflow opens a day's items and Year provides selectable mini-calendars.
+See [workflow validation](windows_workflow_validation.md) for regression coverage
+and the outstanding native Windows release matrix.

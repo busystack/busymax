@@ -2566,10 +2566,7 @@ T? _findCommandItem<T extends ScheduleItem>(
   ScheduleWorkspaceCommand command,
 ) {
   for (final item in items) {
-    if (item is T &&
-        item.id == command.itemId &&
-        item.accountId == command.accountId &&
-        item.sourceId == command.sourceId) {
+    if (item is T && command.matchesItem(item)) {
       return item;
     }
   }
