@@ -14,7 +14,6 @@ void main() {
     (contents: 'OnlyShowIn=GNOME;', enabled: true),
     (contents: 'NotShowIn=GNOME;', enabled: false),
     (contents: 'TryExec=/missing/busymax-executable', enabled: false),
-    (contents: 'TryExec=sh', enabled: true),
     (
       contents: 'Hidden=false\n[Desktop Action Other]\nHidden=true',
       enabled: true,
@@ -52,6 +51,27 @@ void main() {
       expect(await service.isEnabled(), isTrue);
     });
   }
+
+  test('resolves a TryExec command from a Unix search path', () async {
+    final configHome = await Directory.systemTemp.createTemp(
+      'busymax-autostart-try-exec-',
+    );
+    addTearDown(() => configHome.delete(recursive: true));
+    final service = LinuxAutostartService(
+      environment: {
+        'XDG_CONFIG_HOME': configHome.path,
+        'PATH': '/bin:/usr/bin',
+      },
+      isLinux: true,
+    );
+    await service.setEnabled(true);
+    final file = File('${configHome.path}/autostart/$busyMaxAutostartFileName');
+    await file.writeAsString(
+      '[Desktop Entry]\nType=Application\nExec=busymax\nTryExec=sh\n',
+    );
+
+    expect(await service.isEnabled(), isTrue);
+  }, skip: !Platform.isLinux);
 
   test('concurrent enables use independent temporary files', () async {
     final configHome = await Directory.systemTemp.createTemp(
