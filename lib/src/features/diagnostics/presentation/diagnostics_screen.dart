@@ -31,13 +31,24 @@ class DiagnosticsPanel extends ConsumerWidget {
     final l10n = context.l10n;
 
     final children = [
-      Text(l10n.googleTasksApi, style: Theme.of(context).textTheme.titleLarge),
+      Semantics(
+        header: true,
+        child: Text(
+          l10n.googleTasksApi,
+          style: busyMaxSectionHeaderStyle(context),
+        ),
+      ),
       const SizedBox(height: 8),
       SelectableText(l10n.discoveryRevision(googleTasksDiscoveryRevision)),
       const SizedBox(height: 20),
-      Text(
-        l10n.implementedMethods,
-        style: Theme.of(context).textTheme.titleMedium,
+      Semantics(
+        header: true,
+        child: Text(
+          l10n.implementedMethods,
+          style: Theme.of(
+            context,
+          ).textTheme.bodySmall?.copyWith(fontWeight: FontWeight.w600),
+        ),
       ),
       const SizedBox(height: 8),
       YaruTileList(
@@ -55,9 +66,14 @@ class DiagnosticsPanel extends ConsumerWidget {
         ],
       ),
       const SizedBox(height: 20),
-      Text(
-        l10n.blockedPendingOperations,
-        style: Theme.of(context).textTheme.titleMedium,
+      Semantics(
+        header: true,
+        child: Text(
+          l10n.blockedPendingOperations,
+          style: Theme.of(
+            context,
+          ).textTheme.bodySmall?.copyWith(fontWeight: FontWeight.w600),
+        ),
       ),
       const SizedBox(height: 8),
       StreamBuilder<List<PendingOp>>(

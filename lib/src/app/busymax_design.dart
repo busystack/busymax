@@ -1264,6 +1264,7 @@ class BusyMaxGroupedList extends StatelessWidget {
     super.key,
     this.title,
     this.description,
+    this.titleStyle,
     required this.children,
     this.padding = const EdgeInsets.symmetric(horizontal: BusyMaxSpacing.xs),
     this.filled = false,
@@ -1271,6 +1272,7 @@ class BusyMaxGroupedList extends StatelessWidget {
 
   final String? title;
   final String? description;
+  final TextStyle? titleStyle;
   final List<Widget> children;
   final EdgeInsetsGeometry padding;
   final bool filled;
@@ -1291,7 +1293,13 @@ class BusyMaxGroupedList extends StatelessWidget {
           if (title != null) ...[
             Padding(
               padding: padding,
-              child: Text(title!, style: busyMaxSectionHeaderStyle(context)),
+              child: Semantics(
+                header: true,
+                child: Text(
+                  title!,
+                  style: titleStyle ?? busyMaxSectionHeaderStyle(context),
+                ),
+              ),
             ),
             if (description != null && description!.isNotEmpty) ...[
               const SizedBox(height: BusyMaxSpacing.xs),

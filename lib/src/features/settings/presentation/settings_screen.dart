@@ -166,182 +166,198 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             unawaited(_changeSubscriptionColor(subscription)),
         onUnsubscribe: (subscription) => unawaited(_unsubscribe(subscription)),
       ),
-      SettingsPage.schedule => BusyMaxGroupedList(
-        title: l10n.scheduleDisplaySettings,
-        description: l10n.scheduleDisplayHoursDescription,
-        filled: true,
+      SettingsPage.schedule => _SettingsPageLayout(
+        title: l10n.scheduleSettings,
         children: [
-          BusyMaxComboRow<int>(
-            title: l10n.scheduleDayStartsAt,
-            leading: const Icon(YaruIcons.calendar_day),
-            values: _scheduleDayStartValues(settings),
-            selected: settings.scheduleDayStartMinute,
-            labelFor: (value) => _timeOfDayLabel(context, value),
-            onSelected: settingsController.setScheduleDayStartMinute,
-          ),
-          BusyMaxComboRow<int>(
-            title: l10n.scheduleDayEndsAt,
-            leading: const Icon(YaruIcons.clock),
-            values: _scheduleDayEndValues(settings),
-            selected: settings.scheduleDayEndMinute,
-            labelFor: (value) => _timeOfDayLabel(context, value),
-            onSelected: settingsController.setScheduleDayEndMinute,
-          ),
-        ],
-      ),
-      SettingsPage.system => BusyMaxGroupedList(
-        title: l10n.settingsSystem,
-        filled: true,
-        children: [
-          BusyMaxComboRow<String>(
-            title: l10n.currentLocale,
-            leading: const Icon(Icons.language),
-            values: [
-              _systemLocaleTag,
-              for (final option in busyMaxLocaleOptions) option.tag,
+          BusyMaxGroupedList(
+            title: l10n.scheduleDisplaySettings,
+            description: l10n.scheduleDisplayHoursDescription,
+            filled: true,
+            children: [
+              BusyMaxComboRow<int>(
+                title: l10n.scheduleDayStartsAt,
+                leading: const Icon(YaruIcons.calendar_day),
+                values: _scheduleDayStartValues(settings),
+                selected: settings.scheduleDayStartMinute,
+                labelFor: (value) => _timeOfDayLabel(context, value),
+                onSelected: settingsController.setScheduleDayStartMinute,
+              ),
+              BusyMaxComboRow<int>(
+                title: l10n.scheduleDayEndsAt,
+                leading: const Icon(YaruIcons.clock),
+                values: _scheduleDayEndValues(settings),
+                selected: settings.scheduleDayEndMinute,
+                labelFor: (value) => _timeOfDayLabel(context, value),
+                onSelected: settingsController.setScheduleDayEndMinute,
+              ),
             ],
-            selected: settings.localeTag ?? _systemLocaleTag,
-            labelFor: (tag) => tag == _systemLocaleTag
-                ? l10n.themeSystem
-                : busyMaxLocaleEndonym(tag),
-            onSelected: (tag) => settingsController.setLocaleTag(
-              tag == _systemLocaleTag ? null : tag,
-            ),
-          ),
-          BusyMaxSwitchRow(
-            title: l10n.showTrayIcon,
-            value: settings.showTrayIcon,
-            onChanged: settingsController.setShowTrayIcon,
-            leading: const Icon(YaruIcons.pin),
-          ),
-          BusyMaxSwitchRow(
-            title: l10n.runInBackgroundWhenClosed,
-            subtitle: settings.showTrayIcon ? null : l10n.requiresTrayIcon,
-            value: settings.runInBackgroundWhenClosed,
-            enabled: settings.showTrayIcon,
-            onChanged: settingsController.setRunInBackgroundWhenClosed,
-            leading: const Icon(YaruIcons.window),
-          ),
-          BusyMaxSwitchRow(
-            title: l10n.startMinimizedToTray,
-            subtitle: settings.showTrayIcon ? null : l10n.requiresTrayIcon,
-            value: settings.startMinimizedToTray,
-            enabled: settings.showTrayIcon,
-            onChanged: settingsController.setStartMinimizedToTray,
-            leading: const Icon(YaruIcons.window_minimize),
-          ),
-          BusyMaxSwitchRow(
-            title: l10n.launchAtLogin,
-            subtitle: l10n.launchAtLoginDescription,
-            value: launchAtLogin.valueOrNull ?? false,
-            enabled: !launchAtLogin.isLoading,
-            onChanged: (enabled) =>
-                unawaited(_setLaunchAtLogin(context, enabled)),
-            leading: const Icon(Icons.power_settings_new_outlined),
-          ),
-          BusyMaxComboRow<BusyMaxThemeModePreference>(
-            title: l10n.theme,
-            leading: const Icon(Icons.tune),
-            values: BusyMaxThemeModePreference.values,
-            selected: settings.themeModePreference,
-            labelFor: (value) => _themeModeLabel(context, value),
-            onSelected: themeController.setThemeMode,
           ),
         ],
       ),
-      SettingsPage.notifications => BusyMaxGroupedList(
+      SettingsPage.system => _SettingsPageLayout(
+        title: l10n.settingsSystem,
+        children: [
+          BusyMaxGroupedList(
+            filled: true,
+            children: [
+              BusyMaxComboRow<String>(
+                title: l10n.currentLocale,
+                leading: const Icon(Icons.language),
+                values: [
+                  _systemLocaleTag,
+                  for (final option in busyMaxLocaleOptions) option.tag,
+                ],
+                selected: settings.localeTag ?? _systemLocaleTag,
+                labelFor: (tag) => tag == _systemLocaleTag
+                    ? l10n.themeSystem
+                    : busyMaxLocaleEndonym(tag),
+                onSelected: (tag) => settingsController.setLocaleTag(
+                  tag == _systemLocaleTag ? null : tag,
+                ),
+              ),
+              BusyMaxSwitchRow(
+                title: l10n.showTrayIcon,
+                value: settings.showTrayIcon,
+                onChanged: settingsController.setShowTrayIcon,
+                leading: const Icon(YaruIcons.pin),
+              ),
+              BusyMaxSwitchRow(
+                title: l10n.runInBackgroundWhenClosed,
+                subtitle: settings.showTrayIcon ? null : l10n.requiresTrayIcon,
+                value: settings.runInBackgroundWhenClosed,
+                enabled: settings.showTrayIcon,
+                onChanged: settingsController.setRunInBackgroundWhenClosed,
+                leading: const Icon(YaruIcons.window),
+              ),
+              BusyMaxSwitchRow(
+                title: l10n.startMinimizedToTray,
+                subtitle: settings.showTrayIcon ? null : l10n.requiresTrayIcon,
+                value: settings.startMinimizedToTray,
+                enabled: settings.showTrayIcon,
+                onChanged: settingsController.setStartMinimizedToTray,
+                leading: const Icon(YaruIcons.window_minimize),
+              ),
+              BusyMaxSwitchRow(
+                title: l10n.launchAtLogin,
+                subtitle: l10n.launchAtLoginDescription,
+                value: launchAtLogin.valueOrNull ?? false,
+                enabled: !launchAtLogin.isLoading,
+                onChanged: (enabled) =>
+                    unawaited(_setLaunchAtLogin(context, enabled)),
+                leading: const Icon(Icons.power_settings_new_outlined),
+              ),
+              BusyMaxComboRow<BusyMaxThemeModePreference>(
+                title: l10n.theme,
+                leading: const Icon(Icons.tune),
+                values: BusyMaxThemeModePreference.values,
+                selected: settings.themeModePreference,
+                labelFor: (value) => _themeModeLabel(context, value),
+                onSelected: themeController.setThemeMode,
+              ),
+            ],
+          ),
+        ],
+      ),
+      SettingsPage.notifications => _SettingsPageLayout(
         title: l10n.notifications,
-        filled: true,
         children: [
-          BusyMaxSwitchRow(
-            title: l10n.eventReminders,
-            value: settings.notifyEventReminders,
-            onChanged: settingsController.setNotifyEventReminders,
-            leading: const Icon(YaruIcons.calendar_day),
-          ),
-          BusyMaxSwitchRow(
-            title: l10n.taskReminders,
-            value: settings.notifyTaskReminders,
-            onChanged: settingsController.setNotifyTaskReminders,
-            leading: const Icon(YaruIcons.checkmark),
-          ),
-          BusyMaxSwitchRow(
-            title: l10n.notifyDueToday,
-            value: settings.notifyDueToday,
-            onChanged: settingsController.setNotifyDueToday,
-            leading: const Icon(YaruIcons.calendar_day),
-          ),
-          BusyMaxSwitchRow(
-            title: l10n.notifySyncFailures,
-            value: settings.notifySyncFailures,
-            onChanged: settingsController.setNotifySyncFailures,
-            leading: const Icon(YaruIcons.sync_error),
-          ),
-          BusyMaxSwitchRow(
-            title: l10n.notifyConflicts,
-            value: settings.notifyConflicts,
-            onChanged: settingsController.setNotifyConflicts,
-            leading: const Icon(YaruIcons.warning),
-          ),
-          BusyMaxComboRow<NotificationDetailLevel>(
-            title: l10n.notificationDetailLevel,
-            leading: const Icon(YaruIcons.eye),
-            values: NotificationDetailLevel.values,
-            selected: settings.notificationDetailLevel,
-            labelFor: (value) => _notificationDetailLabel(context, value),
-            onSelected: settingsController.setNotificationDetailLevel,
-          ),
-          BusyMaxSwitchRow(
-            title: l10n.quietHours,
-            subtitle: l10n.quietHoursDescription,
-            value: settings.quietHoursEnabled,
-            onChanged: settingsController.setQuietHoursEnabled,
-            leading: const Icon(YaruIcons.clear_night),
-          ),
-          DesktopTimeValueRow(
-            label: l10n.quietHoursStart,
-            time: settings.quietHoursStart,
-            enabled: settings.quietHoursEnabled,
-            allowEmpty: false,
-            onChanged: (time) {
-              if (time != null) {
-                unawaited(settingsController.setQuietHoursStart(time));
-              }
-            },
-          ),
-          DesktopTimeValueRow(
-            label: l10n.quietHoursEnd,
-            time: settings.quietHoursEnd,
-            enabled: settings.quietHoursEnabled,
-            allowEmpty: false,
-            onChanged: (time) {
-              if (time != null) {
-                unawaited(settingsController.setQuietHoursEnd(time));
-              }
-            },
+          BusyMaxGroupedList(
+            filled: true,
+            children: [
+              BusyMaxSwitchRow(
+                title: l10n.eventReminders,
+                value: settings.notifyEventReminders,
+                onChanged: settingsController.setNotifyEventReminders,
+                leading: const Icon(YaruIcons.calendar_day),
+              ),
+              BusyMaxSwitchRow(
+                title: l10n.taskReminders,
+                value: settings.notifyTaskReminders,
+                onChanged: settingsController.setNotifyTaskReminders,
+                leading: const Icon(YaruIcons.checkmark),
+              ),
+              BusyMaxSwitchRow(
+                title: l10n.notifyDueToday,
+                value: settings.notifyDueToday,
+                onChanged: settingsController.setNotifyDueToday,
+                leading: const Icon(YaruIcons.calendar_day),
+              ),
+              BusyMaxSwitchRow(
+                title: l10n.notifySyncFailures,
+                value: settings.notifySyncFailures,
+                onChanged: settingsController.setNotifySyncFailures,
+                leading: const Icon(YaruIcons.sync_error),
+              ),
+              BusyMaxSwitchRow(
+                title: l10n.notifyConflicts,
+                value: settings.notifyConflicts,
+                onChanged: settingsController.setNotifyConflicts,
+                leading: const Icon(YaruIcons.warning),
+              ),
+              BusyMaxComboRow<NotificationDetailLevel>(
+                title: l10n.notificationDetailLevel,
+                leading: const Icon(YaruIcons.eye),
+                values: NotificationDetailLevel.values,
+                selected: settings.notificationDetailLevel,
+                labelFor: (value) => _notificationDetailLabel(context, value),
+                onSelected: settingsController.setNotificationDetailLevel,
+              ),
+              BusyMaxSwitchRow(
+                title: l10n.quietHours,
+                subtitle: l10n.quietHoursDescription,
+                value: settings.quietHoursEnabled,
+                onChanged: settingsController.setQuietHoursEnabled,
+                leading: const Icon(YaruIcons.clear_night),
+              ),
+              DesktopTimeValueRow(
+                label: l10n.quietHoursStart,
+                time: settings.quietHoursStart,
+                enabled: settings.quietHoursEnabled,
+                allowEmpty: false,
+                onChanged: (time) {
+                  if (time != null) {
+                    unawaited(settingsController.setQuietHoursStart(time));
+                  }
+                },
+              ),
+              DesktopTimeValueRow(
+                label: l10n.quietHoursEnd,
+                time: settings.quietHoursEnd,
+                enabled: settings.quietHoursEnabled,
+                allowEmpty: false,
+                onChanged: (time) {
+                  if (time != null) {
+                    unawaited(settingsController.setQuietHoursEnd(time));
+                  }
+                },
+              ),
+            ],
           ),
         ],
       ),
-      SettingsPage.privacy => BusyMaxGroupedList(
+      SettingsPage.privacy => _SettingsPageLayout(
         title: l10n.privacy,
-        filled: true,
         children: [
-          BusyMaxSwitchRow(
-            title: l10n.redactTaskContentInDiagnostics,
-            value: settings.redactTaskContentInDiagnostics,
-            onChanged: settingsController.setRedactTaskContentInDiagnostics,
-            leading: const Icon(YaruIcons.shield_warning),
+          BusyMaxGroupedList(
+            filled: true,
+            children: [
+              BusyMaxSwitchRow(
+                title: l10n.redactTaskContentInDiagnostics,
+                value: settings.redactTaskContentInDiagnostics,
+                onChanged: settingsController.setRedactTaskContentInDiagnostics,
+                leading: const Icon(YaruIcons.shield_warning),
+              ),
+            ],
           ),
         ],
       ),
-      SettingsPage.diagnostics => Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
+      SettingsPage.diagnostics => _SettingsPageLayout(
+        title: l10n.diagnostics,
         children: [
-          Text(l10n.sync, style: Theme.of(context).textTheme.titleLarge),
-          const SizedBox(height: BusyMaxSpacing.sm),
-          Text(l10n.forceFullResyncDescription),
           BusyMaxGroupedList(
             key: const ValueKey('diagnostics-full-resync-section'),
+            title: l10n.sync,
+            description: l10n.forceFullResyncDescription,
             filled: true,
             children: [
               BusyMaxActionRow(
@@ -1076,6 +1092,33 @@ class _SettingsFallbackHeader extends StatelessWidget {
   }
 }
 
+class _SettingsPageLayout extends StatelessWidget {
+  const _SettingsPageLayout({required this.title, required this.children});
+
+  final String title;
+  final List<Widget> children;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Semantics(
+          header: true,
+          child: Text(
+            key: const ValueKey('settings-page-heading'),
+            title,
+            style: Theme.of(
+              context,
+            ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w600),
+          ),
+        ),
+        ...children,
+      ],
+    );
+  }
+}
+
 enum SettingsPage {
   system,
   accounts,
@@ -1225,11 +1268,10 @@ class _AccountManagementSection extends StatelessWidget {
   Widget build(BuildContext context) {
     final l10n = context.l10n;
     final connecting = connectingProvider != null;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
+    return _SettingsPageLayout(
+      title: l10n.accounts,
       children: [
         BusyMaxGroupedList(
-          title: l10n.account,
           filled: true,
           children: [
             BusyMaxActionRow(
@@ -1268,67 +1310,76 @@ class _AccountManagementSection extends StatelessWidget {
                 leading: const Icon(YaruIcons.window_close),
                 onTap: onCancelConnection,
               ),
-            if (accounts.isEmpty)
-              BusyMaxActionRow(
-                title: l10n.account,
-                subtitle: l10n.connectGoogleAccount,
-                leading: const Icon(YaruIcons.user),
-              ),
           ],
         ),
-        for (final account in accounts) ...[
-          _AccountManagementCard(
+        for (final account in accounts)
+          _AccountSettingsGroup(
             account: account,
-            removing: removingAccountIds.contains(account.id),
-            onReconnect: connecting || removingAccountIds.contains(account.id)
-                ? null
-                : () => onReconnect(account),
-            onRefreshCollections:
-                account.provider == BusyProvider.appleICloud ||
-                    account.provider == BusyProvider.nextcloud
-                ? () => onRefreshCollections(account)
-                : null,
-            onRemoveAccount: () => onRemoveAccount(account),
+            actions: _AccountManagementCard(
+              account: account,
+              removing: removingAccountIds.contains(account.id),
+              onReconnect: connecting || removingAccountIds.contains(account.id)
+                  ? null
+                  : () => onReconnect(account),
+              onRefreshCollections:
+                  account.provider == BusyProvider.appleICloud ||
+                      account.provider == BusyProvider.nextcloud
+                  ? () => onRefreshCollections(account)
+                  : null,
+              onRemoveAccount: () => onRemoveAccount(account),
+            ),
+            subsections: [
+              if (account.calendarsEnabled &&
+                  (account.provider == BusyProvider.google ||
+                      account.provider == BusyProvider.microsoft))
+                _CalendarSettingsCard(
+                  sources: [
+                    for (final source in calendarSources)
+                      if (source.accountId == account.id) source,
+                  ],
+                  onSelected: onCalendarSelected,
+                  onProviderVisibilityChanged:
+                      onCalendarProviderVisibilityChanged,
+                ),
+              if (account.provider == BusyProvider.appleICloud ||
+                  account.provider == BusyProvider.nextcloud)
+                _DavCollectionsCard(
+                  collections: [
+                    for (final collection in davCollections)
+                      if (collection.accountId == account.id &&
+                          (collection.supportsEvents ||
+                              collection.supportsTasks))
+                        collection,
+                  ],
+                  onEventsSelected: onEventsSelected,
+                  onTasksSelected: onTasksSelected,
+                ),
+              if (davConflicts.any(
+                (conflict) => conflict.accountId == account.id,
+              ))
+                _DavConflictsCard(
+                  conflicts: [
+                    for (final conflict in davConflicts)
+                      if (conflict.accountId == account.id) conflict,
+                  ],
+                  onResolve: onResolveConflict,
+                ),
+              if (account.provider == BusyProvider.nextcloud)
+                BusyMaxGroupedList(
+                  filled: true,
+                  children: [
+                    BusyMaxActionRow(
+                      title: context.l10n.nextcloudTrash,
+                      leading: const Icon(YaruIcons.trash),
+                      onTap: () => showLinuxNextcloudTrashDialog(
+                        context,
+                        accountId: account.id,
+                      ),
+                    ),
+                  ],
+                ),
+            ],
           ),
-          if (account.calendarsEnabled &&
-              (account.provider == BusyProvider.google ||
-                  account.provider == BusyProvider.microsoft))
-            _CalendarSettingsCard(
-              sources: [
-                for (final source in calendarSources)
-                  if (source.accountId == account.id) source,
-              ],
-              onSelected: onCalendarSelected,
-              onProviderVisibilityChanged: onCalendarProviderVisibilityChanged,
-            ),
-          if (account.provider == BusyProvider.appleICloud ||
-              account.provider == BusyProvider.nextcloud)
-            _DavCollectionsCard(
-              collections: [
-                for (final collection in davCollections)
-                  if (collection.accountId == account.id &&
-                      (collection.supportsEvents || collection.supportsTasks))
-                    collection,
-              ],
-              onEventsSelected: onEventsSelected,
-              onTasksSelected: onTasksSelected,
-            ),
-          if (davConflicts.any((conflict) => conflict.accountId == account.id))
-            _DavConflictsCard(
-              conflicts: [
-                for (final conflict in davConflicts)
-                  if (conflict.accountId == account.id) conflict,
-              ],
-              onResolve: onResolveConflict,
-            ),
-          if (account.provider == BusyProvider.nextcloud)
-            BusyMaxActionRow(
-              title: context.l10n.nextcloudTrash,
-              leading: const Icon(YaruIcons.trash),
-              onTap: () =>
-                  showLinuxNextcloudTrashDialog(context, accountId: account.id),
-            ),
-        ],
         _CalendarImportCard(onImport: onImportIcs),
         _CalendarSubscriptionsCard(
           subscriptions: subscriptions,
@@ -1342,6 +1393,67 @@ class _AccountManagementSection extends StatelessWidget {
       ],
     );
   }
+}
+
+class _AccountSettingsGroup extends StatelessWidget {
+  const _AccountSettingsGroup({
+    required this.account,
+    required this.actions,
+    required this.subsections,
+  });
+
+  final AccountEntity account;
+  final Widget actions;
+  final List<Widget> subsections;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(top: BusyMaxSpacing.lg),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: BusyMaxSpacing.xs),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Semantics(
+                  header: true,
+                  child: Text(
+                    key: ValueKey('settings-account-heading-${account.id}'),
+                    _accountProviderLabel(context, account.provider),
+                    style: busyMaxSectionHeaderStyle(context),
+                  ),
+                ),
+                const SizedBox(height: BusyMaxSpacing.xs),
+                Text(
+                  _accountIdentityLabel(context, account),
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          actions,
+          if (subsections.isNotEmpty)
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: subsections,
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+TextStyle? _settingsAccountSubsectionStyle(BuildContext context) {
+  final theme = Theme.of(context);
+  return theme.textTheme.bodySmall?.copyWith(
+    color: theme.colorScheme.onSurfaceVariant,
+    fontWeight: FontWeight.w600,
+  );
 }
 
 class _CalendarSettingsCard extends StatelessWidget {
@@ -1359,9 +1471,12 @@ class _CalendarSettingsCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = context.l10n;
+    final showsProviderVisibility = sources.any(
+      (source) => source.capabilities.canChangeProviderVisibility,
+    );
     return BusyMaxGroupedList(
       title: l10n.calendars,
-      description: l10n.calendarSettingsDescription,
+      titleStyle: _settingsAccountSubsectionStyle(context),
       filled: true,
       children: sources.isEmpty
           ? [
@@ -1371,39 +1486,173 @@ class _CalendarSettingsCard extends StatelessWidget {
               ),
             ]
           : [
-              for (final source in sources) ...[
-                BusyMaxSwitchRow(
-                  key: ValueKey('settings-calendar-schedule-${source.id}'),
-                  title: source.summary,
-                  subtitle: source.hidden
-                      ? l10n.googleHiddenCalendarScheduleHelp
-                      : source.readOnly
-                      ? l10n.readOnlySharedCollection
-                      : null,
-                  value: source.selected && !source.hidden,
-                  enabled: !source.hidden,
-                  onChanged: (selected) => onSelected(source, selected),
-                  leading: const Icon(YaruIcons.calendar),
+              _CalendarSettingsColumnHeader(
+                showsProviderVisibility: showsProviderVisibility,
+              ),
+              for (final source in sources)
+                _CalendarSettingsRow(
+                  source: source,
+                  showsProviderVisibility: showsProviderVisibility,
+                  onSelected: onSelected,
+                  onProviderVisibilityChanged: onProviderVisibilityChanged,
                 ),
-                if (source.capabilities.canChangeProviderVisibility)
-                  Padding(
-                    padding: const EdgeInsetsDirectional.only(
-                      start: BusyMaxSpacing.xxl,
-                    ),
-                    child: BusyMaxSwitchRow(
-                      key: ValueKey('settings-calendar-provider-${source.id}'),
-                      title: l10n.showInGoogleCalendarList,
-                      subtitle: source.hidden
-                          ? l10n.hiddenInGoogleCalendar
-                          : null,
-                      value: !source.hidden,
-                      onChanged: (visible) =>
-                          onProviderVisibilityChanged(source, visible),
-                      leading: const Icon(YaruIcons.eye),
-                    ),
-                  ),
-              ],
             ],
+    );
+  }
+}
+
+const _calendarSettingsColumnWidth = 92.0;
+
+class _CalendarSettingsColumnHeader extends StatelessWidget {
+  const _CalendarSettingsColumnHeader({required this.showsProviderVisibility});
+
+  final bool showsProviderVisibility;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = context.l10n;
+    final style = Theme.of(context).textTheme.labelSmall?.copyWith(
+      color: Theme.of(context).colorScheme.onSurfaceVariant,
+      fontWeight: FontWeight.w600,
+    );
+    return Padding(
+      padding: const EdgeInsetsDirectional.fromSTEB(
+        BusyMaxSpacing.md,
+        BusyMaxSpacing.sm,
+        BusyMaxSpacing.md,
+        BusyMaxSpacing.xs,
+      ),
+      child: Row(
+        children: [
+          const Expanded(child: SizedBox()),
+          _CalendarSettingsColumnLabel(
+            key: const ValueKey('settings-calendar-column-schedule'),
+            label: l10n.scheduleSettings,
+            style: style,
+          ),
+          if (showsProviderVisibility)
+            _CalendarSettingsColumnLabel(
+              key: const ValueKey('settings-calendar-column-provider'),
+              label: l10n.googleProvider,
+              style: style,
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _CalendarSettingsColumnLabel extends StatelessWidget {
+  const _CalendarSettingsColumnLabel({
+    super.key,
+    required this.label,
+    required this.style,
+  });
+
+  final String label;
+  final TextStyle? style;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: _calendarSettingsColumnWidth,
+      child: Text(
+        label,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        textAlign: TextAlign.center,
+        style: style,
+      ),
+    );
+  }
+}
+
+class _CalendarSettingsRow extends StatelessWidget {
+  const _CalendarSettingsRow({
+    required this.source,
+    required this.showsProviderVisibility,
+    required this.onSelected,
+    required this.onProviderVisibilityChanged,
+  });
+
+  final CalendarSourceEntity source;
+  final bool showsProviderVisibility;
+  final void Function(CalendarSourceEntity source, bool selected) onSelected;
+  final void Function(CalendarSourceEntity source, bool visible)
+  onProviderVisibilityChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = context.l10n;
+    final canChangeProviderVisibility =
+        source.capabilities.canChangeProviderVisibility;
+    return Semantics(
+      container: true,
+      label: source.summary,
+      explicitChildNodes: true,
+      child: Padding(
+        padding: const EdgeInsetsDirectional.fromSTEB(
+          BusyMaxSpacing.md,
+          BusyMaxSpacing.xs,
+          BusyMaxSpacing.md,
+          BusyMaxSpacing.xs,
+        ),
+        child: Row(
+          children: [
+            _DavCollectionIndicator(color: source.backgroundColor),
+            const SizedBox(width: BusyMaxSpacing.md),
+            Expanded(
+              child: Text(
+                source.summary,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+            _CalendarSettingsSwitchCell(
+              message: l10n.showInSchedule,
+              child: YaruSwitch(
+                key: ValueKey('settings-calendar-schedule-${source.id}'),
+                value: source.selected && !source.hidden,
+                onChanged: source.hidden
+                    ? null
+                    : (selected) => onSelected(source, selected),
+              ),
+            ),
+            if (showsProviderVisibility)
+              _CalendarSettingsSwitchCell(
+                message: l10n.visibility,
+                child: YaruSwitch(
+                  key: ValueKey('settings-calendar-provider-${source.id}'),
+                  value: !source.hidden,
+                  onChanged: canChangeProviderVisibility
+                      ? (visible) =>
+                            onProviderVisibilityChanged(source, visible)
+                      : null,
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _CalendarSettingsSwitchCell extends StatelessWidget {
+  const _CalendarSettingsSwitchCell({
+    required this.message,
+    required this.child,
+  });
+
+  final String message;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: _calendarSettingsColumnWidth,
+      child: Center(
+        child: Tooltip(message: message, child: child),
+      ),
     );
   }
 }
@@ -1472,14 +1721,17 @@ class _CalendarSubscriptionsCard extends StatelessWidget {
         for (final subscription in subscriptions)
           BusyMaxGroupedList(
             key: ValueKey('calendar-subscription-${subscription.id}'),
-            title: subscription.name,
-            description: subscription.safeOrigin,
             filled: true,
             children: [
               BusyMaxActionRow(
+                title: subscription.name,
+                subtitle: subscription.safeOrigin,
+                leading: _DavCollectionIndicator(color: subscription.color),
+              ),
+              BusyMaxActionRow(
                 title: l10n.subscriptionReadOnly,
                 subtitle: _subscriptionTiming(context, subscription),
-                leading: _DavCollectionIndicator(color: subscription.color),
+                leading: const Icon(Icons.lock_outline),
               ),
               BusyMaxActionRow(
                 title: subscription.lastFailureCode == null
@@ -1750,8 +2002,6 @@ class _AccountManagementCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final l10n = context.l10n;
     return BusyMaxGroupedList(
-      title: _accountProviderLabel(context, account.provider),
-      description: _accountIdentityLabel(context, account),
       filled: true,
       children: [
         if (account.provider == BusyProvider.nextcloud)
@@ -1841,6 +2091,7 @@ class _DavCollectionsCard extends StatelessWidget {
     final l10n = context.l10n;
     return BusyMaxGroupedList(
       title: l10n.collectionSettings,
+      titleStyle: _settingsAccountSubsectionStyle(context),
       filled: true,
       children: [
         for (final collection in collections) ...[
@@ -2003,6 +2254,7 @@ class _DavConflictsCard extends StatelessWidget {
     final l10n = context.l10n;
     return BusyMaxGroupedList(
       title: l10n.syncConflicts,
+      titleStyle: _settingsAccountSubsectionStyle(context),
       filled: true,
       children: [
         for (final conflict in conflicts) ...[

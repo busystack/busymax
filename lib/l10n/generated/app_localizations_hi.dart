@@ -444,20 +444,6 @@ class AppLocalizationsHi extends AppLocalizations {
   String get calendars => 'कैलेंडर';
 
   @override
-  String get calendarSettingsDescription =>
-      'इस खाते के सभी कैलेंडर प्रबंधित करें। Google Calendar सूची और BusyMax शेड्यूल में दृश्यता अलग-अलग नियंत्रित होती है।';
-
-  @override
-  String get showInGoogleCalendarList => 'Google Calendar सूची में दिखाएँ';
-
-  @override
-  String get hiddenInGoogleCalendar => 'Google Calendar में छिपा हुआ';
-
-  @override
-  String get googleHiddenCalendarScheduleHelp =>
-      'BusyMax शेड्यूल में दिखाने से पहले इस कैलेंडर को Google Calendar में दिखाएँ।';
-
-  @override
   String get newCalendar => 'नया कैलेंडर';
 
   @override

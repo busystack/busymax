@@ -442,20 +442,6 @@ class AppLocalizationsRu extends AppLocalizations {
   String get calendars => 'Календари';
 
   @override
-  String get calendarSettingsDescription =>
-      'Управляйте всеми календарями этой учётной записи. Видимость в списке Google Календаря и расписании BusyMax настраивается отдельно.';
-
-  @override
-  String get showInGoogleCalendarList => 'Показывать в списке Google Календаря';
-
-  @override
-  String get hiddenInGoogleCalendar => 'Скрыт в Google Календаре';
-
-  @override
-  String get googleHiddenCalendarScheduleHelp =>
-      'Сначала покажите этот календарь в Google Календаре, а затем — в расписании BusyMax.';
-
-  @override
   String get newCalendar => 'Новый календарь';
 
   @override

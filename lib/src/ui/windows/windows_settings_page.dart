@@ -340,10 +340,14 @@ class WindowsSettingsPage extends ConsumerWidget {
                 for (var index = 0; index < values.length; index++) ...[
                   ListTile(
                     leading: Icon(windowsBusyMaxGlyph(BusyMaxGlyph.account)),
-                    title: Text(
-                      values[index].displayName ??
-                          values[index].email ??
-                          values[index].id,
+                    title: Semantics(
+                      header: true,
+                      child: Text(
+                        values[index].displayName ??
+                            values[index].email ??
+                            values[index].id,
+                        style: FluentTheme.of(context).typography.bodyStrong,
+                      ),
                     ),
                     subtitle: Text(values[index].provider.storageValue),
                     trailing: DropDownButton(
@@ -595,48 +599,120 @@ class _WindowsAccountCalendars extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
+    final showsProviderVisibility = sources.any(
+      (source) => source.capabilities.canChangeProviderVisibility,
+    );
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Text(
-            l10n.calendars,
-            style: FluentTheme.of(context).typography.bodyStrong,
-          ),
-          const SizedBox(height: 2),
-          Text(
-            l10n.calendarSettingsDescription,
-            style: FluentTheme.of(context).typography.caption,
+          Semantics(
+            header: true,
+            child: Text(
+              l10n.calendars,
+              style: FluentTheme.of(
+                context,
+              ).typography.caption?.copyWith(fontWeight: FontWeight.w600),
+            ),
           ),
           const SizedBox(height: 8),
           if (sources.isEmpty)
             Text(l10n.noCalendarsSynced)
-          else
+          else ...[
+            _WindowsCalendarSettingsColumnHeader(
+              showsProviderVisibility: showsProviderVisibility,
+            ),
             for (final source in sources) ...[
-              _WindowsCalendarSettingsItem(
+              _WindowsCalendarSettingsRow(
                 key: ValueKey('settings-calendar-${source.id}'),
                 source: source,
+                showsProviderVisibility: showsProviderVisibility,
                 onSelected: onSelected,
                 onProviderVisibilityChanged: onProviderVisibilityChanged,
               ),
-              if (source != sources.last) const SizedBox(height: 4),
+              if (source != sources.last) const Divider(),
             ],
+          ],
         ],
       ),
     );
   }
 }
 
-class _WindowsCalendarSettingsItem extends StatelessWidget {
-  const _WindowsCalendarSettingsItem({
+const _windowsCalendarSettingsColumnWidth = 92.0;
+
+class _WindowsCalendarSettingsColumnHeader extends StatelessWidget {
+  const _WindowsCalendarSettingsColumnHeader({
+    required this.showsProviderVisibility,
+  });
+
+  final bool showsProviderVisibility;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final style = FluentTheme.of(
+      context,
+    ).typography.caption?.copyWith(fontWeight: FontWeight.w600);
+    return Padding(
+      padding: const EdgeInsets.only(top: 8, bottom: 4),
+      child: Row(
+        children: [
+          const Expanded(child: SizedBox()),
+          _WindowsCalendarSettingsColumnLabel(
+            key: const ValueKey('settings-calendar-column-schedule'),
+            label: l10n.scheduleSettings,
+            style: style,
+          ),
+          if (showsProviderVisibility)
+            _WindowsCalendarSettingsColumnLabel(
+              key: const ValueKey('settings-calendar-column-provider'),
+              label: l10n.googleProvider,
+              style: style,
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _WindowsCalendarSettingsColumnLabel extends StatelessWidget {
+  const _WindowsCalendarSettingsColumnLabel({
+    super.key,
+    required this.label,
+    required this.style,
+  });
+
+  final String label;
+  final TextStyle? style;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: _windowsCalendarSettingsColumnWidth,
+      child: Text(
+        label,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        textAlign: TextAlign.center,
+        style: style,
+      ),
+    );
+  }
+}
+
+class _WindowsCalendarSettingsRow extends StatelessWidget {
+  const _WindowsCalendarSettingsRow({
     super.key,
     required this.source,
+    required this.showsProviderVisibility,
     required this.onSelected,
     required this.onProviderVisibilityChanged,
   });
 
   final CalendarSourceEntity source;
+  final bool showsProviderVisibility;
   final void Function(CalendarSourceEntity source, bool selected) onSelected;
   final void Function(CalendarSourceEntity source, bool visible)
   onProviderVisibilityChanged;
@@ -644,56 +720,58 @@ class _WindowsCalendarSettingsItem extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    return Expander(
-      header: Row(
+    final canChangeProviderVisibility =
+        source.capabilities.canChangeProviderVisibility;
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 6),
+      child: Row(
         children: [
-          Icon(windowsBusyMaxGlyph(BusyMaxGlyph.calendar)),
+          Icon(windowsBusyMaxGlyph(BusyMaxGlyph.calendar), size: 16),
           const SizedBox(width: 12),
           Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(source.summary),
-                if (source.hidden)
-                  Text(
-                    l10n.hiddenInGoogleCalendar,
-                    style: FluentTheme.of(context).typography.caption,
-                  ),
-              ],
+            child: Text(
+              source.summary,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
             ),
           ),
-        ],
-      ),
-      content: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          ToggleSwitch(
-            key: ValueKey('settings-calendar-schedule-${source.id}'),
-            checked: source.selected && !source.hidden,
-            onChanged: source.hidden
-                ? null
-                : (selected) => onSelected(source, selected),
-            content: Text(l10n.showInSchedule),
+          _WindowsCalendarSettingsSwitchCell(
+            child: ToggleSwitch(
+              key: ValueKey('settings-calendar-schedule-${source.id}'),
+              checked: source.selected && !source.hidden,
+              onChanged: source.hidden
+                  ? null
+                  : (selected) => onSelected(source, selected),
+              semanticLabel: l10n.showInSchedule,
+            ),
           ),
-          if (source.hidden) ...[
-            const SizedBox(height: 4),
-            Text(
-              l10n.googleHiddenCalendarScheduleHelp,
-              style: FluentTheme.of(context).typography.caption,
+          if (showsProviderVisibility)
+            _WindowsCalendarSettingsSwitchCell(
+              child: ToggleSwitch(
+                key: ValueKey('settings-calendar-provider-${source.id}'),
+                checked: !source.hidden,
+                onChanged: canChangeProviderVisibility
+                    ? (visible) => onProviderVisibilityChanged(source, visible)
+                    : null,
+                semanticLabel: l10n.visibility,
+              ),
             ),
-          ],
-          if (source.capabilities.canChangeProviderVisibility) ...[
-            const SizedBox(height: 12),
-            ToggleSwitch(
-              key: ValueKey('settings-calendar-provider-${source.id}'),
-              checked: !source.hidden,
-              onChanged: (visible) =>
-                  onProviderVisibilityChanged(source, visible),
-              content: Text(l10n.showInGoogleCalendarList),
-            ),
-          ],
         ],
       ),
+    );
+  }
+}
+
+class _WindowsCalendarSettingsSwitchCell extends StatelessWidget {
+  const _WindowsCalendarSettingsSwitchCell({required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: _windowsCalendarSettingsColumnWidth,
+      child: Center(child: child),
     );
   }
 }
@@ -1037,7 +1115,10 @@ class _SectionTitle extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Padding(
     padding: const EdgeInsetsDirectional.only(bottom: 8),
-    child: Text(text, style: FluentTheme.of(context).typography.subtitle),
+    child: Semantics(
+      header: true,
+      child: Text(text, style: FluentTheme.of(context).typography.subtitle),
+    ),
   );
 }
 

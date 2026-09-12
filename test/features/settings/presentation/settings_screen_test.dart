@@ -125,26 +125,125 @@ void main() {
     );
     addTearDown(container.dispose);
 
-    await _pumpSettings(tester, container);
+    await _pumpSettings(tester, container, logicalSize: const Size(1000, 700));
 
     expect(find.text('Visible calendar'), findsOneWidget);
     expect(find.text('Hidden calendar'), findsOneWidget);
-    expect(find.text('Show in Google Calendar list'), findsNWidgets(2));
-    final visibleSchedule = tester.widget<BusyMaxSwitchRow>(
+    final visibleSchedule = tester.widget<YaruSwitch>(
       find.byKey(const ValueKey('settings-calendar-schedule-visible')),
     );
-    final hiddenSchedule = tester.widget<BusyMaxSwitchRow>(
+    final hiddenSchedule = tester.widget<YaruSwitch>(
       find.byKey(const ValueKey('settings-calendar-schedule-hidden')),
     );
-    final hiddenProvider = tester.widget<BusyMaxSwitchRow>(
+    final hiddenProvider = tester.widget<YaruSwitch>(
       find.byKey(const ValueKey('settings-calendar-provider-hidden')),
     );
+    final visibleProvider = tester.widget<YaruSwitch>(
+      find.byKey(const ValueKey('settings-calendar-provider-visible')),
+    );
     expect(visibleSchedule.value, isTrue);
-    expect(visibleSchedule.enabled, isTrue);
+    expect(visibleSchedule.onChanged, isNotNull);
     expect(hiddenSchedule.value, isFalse);
-    expect(hiddenSchedule.enabled, isFalse);
+    expect(hiddenSchedule.onChanged, isNull);
     expect(hiddenProvider.value, isFalse);
-    expect(hiddenProvider.enabled, isTrue);
+    expect(hiddenProvider.onChanged, isNotNull);
+    expect(visibleProvider.value, isTrue);
+    expect(visibleProvider.onChanged, isNotNull);
+    expect(find.text('Visibility'), findsNothing);
+    expect(
+      tester
+          .getCenter(
+            find.byKey(const ValueKey('settings-calendar-column-schedule')),
+          )
+          .dx,
+      closeTo(
+        tester
+            .getCenter(
+              find.byKey(const ValueKey('settings-calendar-schedule-visible')),
+            )
+            .dx,
+        0.01,
+      ),
+    );
+    expect(
+      tester
+          .getCenter(
+            find.byKey(const ValueKey('settings-calendar-column-provider')),
+          )
+          .dx,
+      closeTo(
+        tester
+            .getCenter(
+              find.byKey(const ValueKey('settings-calendar-provider-visible')),
+            )
+            .dx,
+        0.01,
+      ),
+    );
+
+    final pageHeading = tester.widget<Text>(
+      find.byKey(const ValueKey('settings-page-heading')),
+    );
+    final accountHeading = tester.widget<Text>(
+      find.byKey(const ValueKey('settings-account-heading-google:g')),
+    );
+    final calendarHeading = tester.widget<Text>(find.text('Calendars'));
+    expect(
+      pageHeading.style!.fontSize,
+      greaterThan(accountHeading.style!.fontSize!),
+    );
+    expect(
+      accountHeading.style!.fontSize,
+      greaterThan(calendarHeading.style!.fontSize!),
+    );
+    expect(
+      tester.getTopLeft(find.text('Calendars')).dx,
+      closeTo(
+        tester
+            .getTopLeft(
+              find.byKey(const ValueKey('settings-account-heading-google:g')),
+            )
+            .dx,
+        0.01,
+      ),
+    );
+  });
+
+  testWidgets('Every Settings page uses a primary page heading', (
+    tester,
+  ) async {
+    final container = _container(
+      selectedAccountId: 'google:g',
+      authRepository: _FakeAuthRepository(),
+      accounts: const [_googleAccount],
+    );
+    addTearDown(container.dispose);
+
+    await _pumpSettings(tester, container, logicalSize: const Size(1000, 700));
+
+    const expectedTitles = <SettingsPage, String>{
+      SettingsPage.system: 'System',
+      SettingsPage.accounts: 'Accounts',
+      SettingsPage.schedule: 'Schedule',
+      SettingsPage.notifications: 'Notifications',
+      SettingsPage.privacy: 'Privacy',
+      SettingsPage.diagnostics: 'Diagnostics',
+    };
+    for (final entry in expectedTitles.entries) {
+      await tester.tap(
+        find.byKey(ValueKey('settings-navigation-${entry.key.name}')),
+      );
+      await tester.pumpAndSettle();
+      final heading = tester.widget<Text>(
+        find.byKey(const ValueKey('settings-page-heading')),
+      );
+      expect(heading.data, entry.value);
+      expect(heading.style?.fontWeight, FontWeight.w600);
+    }
+
+    await tester.pumpWidget(const SizedBox());
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 1));
   });
 
   testWidgets('Settings fallback header uses the semantic title style', (

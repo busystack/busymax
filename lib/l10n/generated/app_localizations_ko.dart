@@ -432,20 +432,6 @@ class AppLocalizationsKo extends AppLocalizations {
   String get calendars => '캘린더';
 
   @override
-  String get calendarSettingsDescription =>
-      '이 계정의 모든 캘린더를 관리합니다. Google 캘린더 목록과 BusyMax 일정에서의 표시 여부는 별도로 제어됩니다.';
-
-  @override
-  String get showInGoogleCalendarList => 'Google 캘린더 목록에 표시';
-
-  @override
-  String get hiddenInGoogleCalendar => 'Google 캘린더에서 숨김';
-
-  @override
-  String get googleHiddenCalendarScheduleHelp =>
-      'BusyMax 일정에 표시하기 전에 Google 캘린더에서 이 캘린더를 표시하세요.';
-
-  @override
   String get newCalendar => '새 캘린더';
 
   @override

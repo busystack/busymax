@@ -440,20 +440,6 @@ class AppLocalizationsAr extends AppLocalizations {
   String get calendars => 'التقويمات';
 
   @override
-  String get calendarSettingsDescription =>
-      'أدِر كل تقويم في هذا الحساب. إن الظهور في قائمة تقويم Google والظهور في جدول BusyMax إعدادان منفصلان.';
-
-  @override
-  String get showInGoogleCalendarList => 'إظهار في قائمة تقويم Google';
-
-  @override
-  String get hiddenInGoogleCalendar => 'مخفي في تقويم Google';
-
-  @override
-  String get googleHiddenCalendarScheduleHelp =>
-      'أظهر هذا التقويم في تقويم Google قبل إظهاره في جدول BusyMax.';
-
-  @override
   String get newCalendar => 'تقويم جديد';
 
   @override

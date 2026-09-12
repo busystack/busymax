@@ -450,20 +450,6 @@ class AppLocalizationsFr extends AppLocalizations {
   String get calendars => 'Calendriers';
 
   @override
-  String get calendarSettingsDescription =>
-      'Gérez tous les calendriers de ce compte. La visibilité dans la liste Google Agenda et dans le planning BusyMax est contrôlée séparément.';
-
-  @override
-  String get showInGoogleCalendarList => 'Afficher dans la liste Google Agenda';
-
-  @override
-  String get hiddenInGoogleCalendar => 'Masqué dans Google Agenda';
-
-  @override
-  String get googleHiddenCalendarScheduleHelp =>
-      'Affichez d’abord ce calendrier dans Google Agenda avant de l’afficher dans le planning BusyMax.';
-
-  @override
   String get newCalendar => 'Nouveau calendrier';
 
   @override
