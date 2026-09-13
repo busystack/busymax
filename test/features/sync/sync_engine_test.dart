@@ -1,7 +1,9 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:busymax/src/app/app_settings.dart';
+import 'package:busymax/src/features/accounts/data/accounts_repository.dart';
 import 'package:drift/drift.dart' hide isNull;
 import 'package:drift/native.dart';
 import 'package:flutter/widgets.dart';
@@ -243,8 +245,17 @@ void main() {
   );
 
   test(
-    'failed partial task import waits for successful retry before summary',
+    'failed partial task import survives restart before summary retry',
     () async {
+      await database.close();
+      final directory = await Directory.systemTemp.createTemp(
+        'busymax-due-today-restart-',
+      );
+      addTearDown(() => directory.delete(recursive: true));
+      final databaseFile = File('${directory.path}/busymax.sqlite');
+      database = AppDatabase(NativeDatabase(databaseFile));
+      await _insertAccount(database);
+
       final releaseSecondPage = Completer<void>();
       final secondPageRequested = Completer<void>();
       final secondPageFailure = StateError('second task page failed');
@@ -274,48 +285,69 @@ void main() {
       var settings = AppSettings.defaults().copyWith(notifyDueToday: true);
       final markedDates = <String>[];
       final backend = RecordingNotificationBackend();
-      final coordinator = AccountSyncCoordinator();
-      addTearDown(coordinator.dispose);
-      late final DueTodayNotificationScheduler dueToday;
-      dueToday = DueTodayNotificationScheduler(
-        database: database,
-        settings: () => settings,
-        activeAccountId: () => 'account',
-        notifications: () => DesktopNotificationService(
-          backend: backend,
-          settings: settings,
-          locale: const Locale('en'),
+      AccountSyncCoordinator createCoordinator() {
+        final accountsRepository = AccountsRepository(database: database);
+        return AccountSyncCoordinator(
+          restoreIncompleteTaskImports:
+              accountsRepository.incompleteTaskImportAccountIds,
+          persistTaskImportIncomplete:
+              accountsRepository.setTaskImportIncomplete,
+        );
+      }
+
+      late AccountSyncCoordinator coordinator;
+      late DueTodayNotificationScheduler dueToday;
+
+      DueTodayNotificationScheduler createDueTodayScheduler(Duration interval) {
+        return DueTodayNotificationScheduler(
+          database: database,
+          settings: () => settings,
+          activeAccountId: () => 'account',
+          notifications: () => DesktopNotificationService(
+            backend: backend,
+            settings: settings,
+            locale: const Locale('en'),
+            now: () => DateTime(2026, 6, 8, 9),
+          ),
+          markNotified: (date) async {
+            markedDates.add(date);
+            settings = settings.copyWith(lastDueTodayNotificationDate: date);
+            dueToday.inputsChanged();
+          },
+          syncBlocksDelivery: coordinator.blocksDueToday,
+          accountSyncChanges: coordinator.runningChanges,
           now: () => DateTime(2026, 6, 8, 9),
-        ),
-        markNotified: (date) async {
-          markedDates.add(date);
-          settings = settings.copyWith(lastDueTodayNotificationDate: date);
-          dueToday.inputsChanged();
-        },
-        syncBlocksDelivery: coordinator.blocksDueToday,
-        accountSyncChanges: coordinator.runningChanges,
-        now: () => DateTime(2026, 6, 8, 9),
-        interval: const Duration(days: 1),
-      );
-      addTearDown(dueToday.stop);
+          interval: interval,
+        );
+      }
+
+      CoordinatedAccountSyncOperations createOperations() =>
+          CoordinatedAccountSyncOperations(
+            coordinator: coordinator,
+            inner: DelegatingAccountSyncOperations(
+              syncTasks: (accountId, {required full}) =>
+                  coordinator.trackTaskImport(
+                    accountId,
+                    () => SyncEngine(
+                      database: database,
+                      apiClient: apiClient,
+                      accountId: accountId,
+                      nowUtc: () => DateTime.utc(2026, 6, 8, 9),
+                    ).fullSync(),
+                  ),
+              syncCalendar: (accountId, {required full}) async {},
+            ),
+          );
+
+      coordinator = createCoordinator();
+      dueToday = createDueTodayScheduler(const Duration(days: 1));
+      addTearDown(() async {
+        dueToday.stop();
+        await coordinator.dispose();
+      });
       dueToday.start();
 
-      final operations = CoordinatedAccountSyncOperations(
-        coordinator: coordinator,
-        inner: DelegatingAccountSyncOperations(
-          syncTasks: (accountId, {required full}) =>
-              coordinator.trackTaskImport(
-                accountId,
-                () => SyncEngine(
-                  database: database,
-                  apiClient: apiClient,
-                  accountId: accountId,
-                  nowUtc: () => DateTime.utc(2026, 6, 8, 9),
-                ).fullSync(),
-              ),
-          syncCalendar: (accountId, {required full}) async {},
-        ),
-      );
+      var operations = createOperations();
       final synchronization = operations.syncTasks('account', full: true);
       final failedSyncExpectation = expectLater(
         synchronization,
@@ -329,7 +361,7 @@ void main() {
       );
       await dueToday.checkNow();
 
-      expect(coordinator.blocksDueToday('account'), isTrue);
+      expect(await coordinator.blocksDueToday('account'), isTrue);
       expect(backend.requests, isEmpty);
       expect(markedDates, isEmpty);
       expect(settings.lastDueTodayNotificationDate, isNull);
@@ -339,7 +371,42 @@ void main() {
       await dueToday.checkNow();
 
       expect(coordinator.isRunning('account'), isFalse);
-      expect(coordinator.blocksDueToday('account'), isTrue);
+      expect(await coordinator.blocksDueToday('account'), isTrue);
+      expect(backend.requests, isEmpty);
+      expect(markedDates, isEmpty);
+      expect(settings.lastDueTodayNotificationDate, isNull);
+      expect(
+        await database.tasksDao.listTasks('account', 'list-1'),
+        hasLength(1),
+      );
+      expect(
+        (await database.select(database.accounts).getSingle())
+            .taskImportIncomplete,
+        isTrue,
+      );
+
+      dueToday.stop();
+      await coordinator.dispose();
+      await Future<void>.delayed(Duration.zero);
+      await database.close();
+
+      database = AppDatabase(NativeDatabase(databaseFile));
+      coordinator = createCoordinator();
+      dueToday = createDueTodayScheduler(const Duration(milliseconds: 5));
+      dueToday.start();
+
+      expect(await coordinator.blocksDueToday('account'), isTrue);
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+      expect(backend.requests, isEmpty);
+
+      await dueToday.checkNow();
+      expect(backend.requests, isEmpty);
+
+      await (database.update(database.tasks)
+            ..where((task) => task.id.equals('task-1')))
+          .write(const TasksCompanion(title: Value('Locally changed')));
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+
       expect(backend.requests, isEmpty);
       expect(markedDates, isEmpty);
       expect(settings.lastDueTodayNotificationDate, isNull);
@@ -366,11 +433,12 @@ void main() {
           rawJson: const {},
         ),
       ];
+      operations = createOperations();
       await operations.syncTasks('account', full: true);
       await _waitUntil(() => backend.requests.isNotEmpty);
 
       expect(coordinator.isRunning('account'), isFalse);
-      expect(coordinator.blocksDueToday('account'), isFalse);
+      expect(await coordinator.blocksDueToday('account'), isFalse);
       expect(backend.requests, hasLength(1));
       expect(backend.requests.single.body, '10 tasks are due today.');
       expect(markedDates, ['2026-06-08']);
@@ -378,6 +446,11 @@ void main() {
       expect(
         await database.tasksDao.listTasks('account', 'list-1'),
         hasLength(10),
+      );
+      expect(
+        (await database.select(database.accounts).getSingle())
+            .taskImportIncomplete,
+        isFalse,
       );
     },
   );

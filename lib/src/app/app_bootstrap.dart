@@ -666,7 +666,12 @@ final davAccountSyncEngineFactoryProvider =
     });
 
 final accountSyncCoordinatorProvider = Provider<AccountSyncCoordinator>((ref) {
-  final coordinator = AccountSyncCoordinator();
+  final accountsRepository = ref.watch(accountsRepositoryProvider);
+  final coordinator = AccountSyncCoordinator(
+    restoreIncompleteTaskImports:
+        accountsRepository.incompleteTaskImportAccountIds,
+    persistTaskImportIncomplete: accountsRepository.setTaskImportIncomplete,
+  );
   ref.onDispose(() => unawaited(coordinator.dispose()));
   return coordinator;
 });

@@ -35,6 +35,9 @@ void main() {
     final taskColumns = await database
         .customSelect('PRAGMA table_info(tasks)')
         .get();
+    final accountColumns = await database
+        .customSelect('PRAGMA table_info(accounts)')
+        .get();
     final calendarSourceColumns = await database
         .customSelect('PRAGMA table_info(calendar_sources)')
         .get();
@@ -46,6 +49,10 @@ void main() {
         .get();
 
     expect(version.data['user_version'], latestSchemaVersion);
+    expect(
+      accountColumns.map((row) => row.read<String>('name')),
+      contains('task_import_incomplete'),
+    );
     expect(
       taskColumns.map((row) => row.read<String>('name')),
       contains('microsoft_checklist_items_json'),
@@ -165,7 +172,7 @@ void main() {
           .select(database.locationResolutions)
           .getSingle();
 
-      expect(latestSchemaVersion, 15);
+      expect(latestSchemaVersion, 16);
       expect(version.read<int>('user_version'), latestSchemaVersion);
       expect(event.locationLatitude, 49.2827);
       expect(event.locationLongitude, -123.1207);
@@ -223,6 +230,11 @@ void main() {
     expect(row.sentAtUtc, 101);
     expect(row.scheduledAtUtc, 100);
     expect(
+      (await database.select(database.accounts).getSingle())
+          .taskImportIncomplete,
+      isFalse,
+    );
+    expect(
       (await database.customSelect('PRAGMA user_version').getSingle())
           .read<int>('user_version'),
       latestSchemaVersion,
@@ -231,6 +243,38 @@ void main() {
       await database.customSelect('PRAGMA foreign_key_check').get(),
       isEmpty,
     );
+    await database.close();
+    database = AppDatabase(NativeDatabase.memory());
+  });
+
+  test('schema 15 migration adds the durable task-import guard', () async {
+    await database.close();
+    final directory = await Directory.systemTemp.createTemp(
+      'busymax-task-import-migration-',
+    );
+    addTearDown(() => directory.delete(recursive: true));
+    final file = File('${directory.path}/busymax.sqlite');
+    database = AppDatabase(NativeDatabase(file));
+    await _insertAccount(database);
+    await database.close();
+
+    final raw = sqlite3.sqlite3.open(file.path);
+    try {
+      raw.execute('ALTER TABLE accounts DROP COLUMN task_import_incomplete');
+      raw.execute('PRAGMA user_version = 15');
+    } finally {
+      raw.close();
+    }
+
+    database = AppDatabase(NativeDatabase(file));
+    final account = await database.select(database.accounts).getSingle();
+    expect(account.taskImportIncomplete, isFalse);
+    expect(
+      (await database.customSelect('PRAGMA user_version').getSingle())
+          .read<int>('user_version'),
+      latestSchemaVersion,
+    );
+
     await database.close();
     database = AppDatabase(NativeDatabase.memory());
   });

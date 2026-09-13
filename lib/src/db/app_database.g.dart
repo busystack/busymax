@@ -225,6 +225,20 @@ class $AccountsTable extends Accounts with TableInfo<$AccountsTable, Account> {
         type: DriftSqlType.string,
         requiredDuringInsert: false,
       );
+  static const VerificationMeta _taskImportIncompleteMeta =
+      const VerificationMeta('taskImportIncomplete');
+  @override
+  late final GeneratedColumn<bool> taskImportIncomplete = GeneratedColumn<bool>(
+    'task_import_incomplete',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("task_import_incomplete" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
+  );
   @override
   List<GeneratedColumn> get $columns => [
     id,
@@ -246,6 +260,7 @@ class $AccountsTable extends Accounts with TableInfo<$AccountsTable, Account> {
     updatedAtUtc,
     lastSuccessfulSyncAtUtc,
     lastFullSyncAtUtc,
+    taskImportIncomplete,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -423,6 +438,15 @@ class $AccountsTable extends Accounts with TableInfo<$AccountsTable, Account> {
         ),
       );
     }
+    if (data.containsKey('task_import_incomplete')) {
+      context.handle(
+        _taskImportIncompleteMeta,
+        taskImportIncomplete.isAcceptableOrUnknown(
+          data['task_import_incomplete']!,
+          _taskImportIncompleteMeta,
+        ),
+      );
+    }
     return context;
   }
 
@@ -508,6 +532,10 @@ class $AccountsTable extends Accounts with TableInfo<$AccountsTable, Account> {
         DriftSqlType.string,
         data['${effectivePrefix}last_full_sync_at_utc'],
       ),
+      taskImportIncomplete: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}task_import_incomplete'],
+      )!,
     );
   }
 
@@ -537,6 +565,7 @@ class Account extends DataClass implements Insertable<Account> {
   final String updatedAtUtc;
   final String? lastSuccessfulSyncAtUtc;
   final String? lastFullSyncAtUtc;
+  final bool taskImportIncomplete;
   const Account({
     required this.id,
     required this.provider,
@@ -557,6 +586,7 @@ class Account extends DataClass implements Insertable<Account> {
     required this.updatedAtUtc,
     this.lastSuccessfulSyncAtUtc,
     this.lastFullSyncAtUtc,
+    required this.taskImportIncomplete,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -596,6 +626,7 @@ class Account extends DataClass implements Insertable<Account> {
     if (!nullToAbsent || lastFullSyncAtUtc != null) {
       map['last_full_sync_at_utc'] = Variable<String>(lastFullSyncAtUtc);
     }
+    map['task_import_incomplete'] = Variable<bool>(taskImportIncomplete);
     return map;
   }
 
@@ -634,6 +665,7 @@ class Account extends DataClass implements Insertable<Account> {
       lastFullSyncAtUtc: lastFullSyncAtUtc == null && nullToAbsent
           ? const Value.absent()
           : Value(lastFullSyncAtUtc),
+      taskImportIncomplete: Value(taskImportIncomplete),
     );
   }
 
@@ -670,6 +702,9 @@ class Account extends DataClass implements Insertable<Account> {
       lastFullSyncAtUtc: serializer.fromJson<String?>(
         json['lastFullSyncAtUtc'],
       ),
+      taskImportIncomplete: serializer.fromJson<bool>(
+        json['taskImportIncomplete'],
+      ),
     );
   }
   @override
@@ -697,6 +732,7 @@ class Account extends DataClass implements Insertable<Account> {
         lastSuccessfulSyncAtUtc,
       ),
       'lastFullSyncAtUtc': serializer.toJson<String?>(lastFullSyncAtUtc),
+      'taskImportIncomplete': serializer.toJson<bool>(taskImportIncomplete),
     };
   }
 
@@ -720,6 +756,7 @@ class Account extends DataClass implements Insertable<Account> {
     String? updatedAtUtc,
     Value<String?> lastSuccessfulSyncAtUtc = const Value.absent(),
     Value<String?> lastFullSyncAtUtc = const Value.absent(),
+    bool? taskImportIncomplete,
   }) => Account(
     id: id ?? this.id,
     provider: provider ?? this.provider,
@@ -749,6 +786,7 @@ class Account extends DataClass implements Insertable<Account> {
     lastFullSyncAtUtc: lastFullSyncAtUtc.present
         ? lastFullSyncAtUtc.value
         : this.lastFullSyncAtUtc,
+    taskImportIncomplete: taskImportIncomplete ?? this.taskImportIncomplete,
   );
   Account copyWithCompanion(AccountsCompanion data) {
     return Account(
@@ -797,6 +835,9 @@ class Account extends DataClass implements Insertable<Account> {
       lastFullSyncAtUtc: data.lastFullSyncAtUtc.present
           ? data.lastFullSyncAtUtc.value
           : this.lastFullSyncAtUtc,
+      taskImportIncomplete: data.taskImportIncomplete.present
+          ? data.taskImportIncomplete.value
+          : this.taskImportIncomplete,
     );
   }
 
@@ -821,7 +862,8 @@ class Account extends DataClass implements Insertable<Account> {
           ..write('createdAtUtc: $createdAtUtc, ')
           ..write('updatedAtUtc: $updatedAtUtc, ')
           ..write('lastSuccessfulSyncAtUtc: $lastSuccessfulSyncAtUtc, ')
-          ..write('lastFullSyncAtUtc: $lastFullSyncAtUtc')
+          ..write('lastFullSyncAtUtc: $lastFullSyncAtUtc, ')
+          ..write('taskImportIncomplete: $taskImportIncomplete')
           ..write(')'))
         .toString();
   }
@@ -847,6 +889,7 @@ class Account extends DataClass implements Insertable<Account> {
     updatedAtUtc,
     lastSuccessfulSyncAtUtc,
     lastFullSyncAtUtc,
+    taskImportIncomplete,
   );
   @override
   bool operator ==(Object other) =>
@@ -870,7 +913,8 @@ class Account extends DataClass implements Insertable<Account> {
           other.createdAtUtc == this.createdAtUtc &&
           other.updatedAtUtc == this.updatedAtUtc &&
           other.lastSuccessfulSyncAtUtc == this.lastSuccessfulSyncAtUtc &&
-          other.lastFullSyncAtUtc == this.lastFullSyncAtUtc);
+          other.lastFullSyncAtUtc == this.lastFullSyncAtUtc &&
+          other.taskImportIncomplete == this.taskImportIncomplete);
 }
 
 class AccountsCompanion extends UpdateCompanion<Account> {
@@ -893,6 +937,7 @@ class AccountsCompanion extends UpdateCompanion<Account> {
   final Value<String> updatedAtUtc;
   final Value<String?> lastSuccessfulSyncAtUtc;
   final Value<String?> lastFullSyncAtUtc;
+  final Value<bool> taskImportIncomplete;
   final Value<int> rowid;
   const AccountsCompanion({
     this.id = const Value.absent(),
@@ -914,6 +959,7 @@ class AccountsCompanion extends UpdateCompanion<Account> {
     this.updatedAtUtc = const Value.absent(),
     this.lastSuccessfulSyncAtUtc = const Value.absent(),
     this.lastFullSyncAtUtc = const Value.absent(),
+    this.taskImportIncomplete = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   AccountsCompanion.insert({
@@ -936,6 +982,7 @@ class AccountsCompanion extends UpdateCompanion<Account> {
     required String updatedAtUtc,
     this.lastSuccessfulSyncAtUtc = const Value.absent(),
     this.lastFullSyncAtUtc = const Value.absent(),
+    this.taskImportIncomplete = const Value.absent(),
     this.rowid = const Value.absent(),
   }) : id = Value(id),
        provider = Value(provider),
@@ -964,6 +1011,7 @@ class AccountsCompanion extends UpdateCompanion<Account> {
     Expression<String>? updatedAtUtc,
     Expression<String>? lastSuccessfulSyncAtUtc,
     Expression<String>? lastFullSyncAtUtc,
+    Expression<bool>? taskImportIncomplete,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
@@ -989,6 +1037,8 @@ class AccountsCompanion extends UpdateCompanion<Account> {
       if (lastSuccessfulSyncAtUtc != null)
         'last_successful_sync_at_utc': lastSuccessfulSyncAtUtc,
       if (lastFullSyncAtUtc != null) 'last_full_sync_at_utc': lastFullSyncAtUtc,
+      if (taskImportIncomplete != null)
+        'task_import_incomplete': taskImportIncomplete,
       if (rowid != null) 'rowid': rowid,
     });
   }
@@ -1013,6 +1063,7 @@ class AccountsCompanion extends UpdateCompanion<Account> {
     Value<String>? updatedAtUtc,
     Value<String?>? lastSuccessfulSyncAtUtc,
     Value<String?>? lastFullSyncAtUtc,
+    Value<bool>? taskImportIncomplete,
     Value<int>? rowid,
   }) {
     return AccountsCompanion(
@@ -1037,6 +1088,7 @@ class AccountsCompanion extends UpdateCompanion<Account> {
       lastSuccessfulSyncAtUtc:
           lastSuccessfulSyncAtUtc ?? this.lastSuccessfulSyncAtUtc,
       lastFullSyncAtUtc: lastFullSyncAtUtc ?? this.lastFullSyncAtUtc,
+      taskImportIncomplete: taskImportIncomplete ?? this.taskImportIncomplete,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -1107,6 +1159,11 @@ class AccountsCompanion extends UpdateCompanion<Account> {
     if (lastFullSyncAtUtc.present) {
       map['last_full_sync_at_utc'] = Variable<String>(lastFullSyncAtUtc.value);
     }
+    if (taskImportIncomplete.present) {
+      map['task_import_incomplete'] = Variable<bool>(
+        taskImportIncomplete.value,
+      );
+    }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
     }
@@ -1135,6 +1192,7 @@ class AccountsCompanion extends UpdateCompanion<Account> {
           ..write('updatedAtUtc: $updatedAtUtc, ')
           ..write('lastSuccessfulSyncAtUtc: $lastSuccessfulSyncAtUtc, ')
           ..write('lastFullSyncAtUtc: $lastFullSyncAtUtc, ')
+          ..write('taskImportIncomplete: $taskImportIncomplete, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -26087,6 +26145,7 @@ typedef $$AccountsTableCreateCompanionBuilder =
       required String updatedAtUtc,
       Value<String?> lastSuccessfulSyncAtUtc,
       Value<String?> lastFullSyncAtUtc,
+      Value<bool> taskImportIncomplete,
       Value<int> rowid,
     });
 typedef $$AccountsTableUpdateCompanionBuilder =
@@ -26110,6 +26169,7 @@ typedef $$AccountsTableUpdateCompanionBuilder =
       Value<String> updatedAtUtc,
       Value<String?> lastSuccessfulSyncAtUtc,
       Value<String?> lastFullSyncAtUtc,
+      Value<bool> taskImportIncomplete,
       Value<int> rowid,
     });
 
@@ -26556,6 +26616,11 @@ class $$AccountsTableFilterComposer
 
   ColumnFilters<String> get lastFullSyncAtUtc => $composableBuilder(
     column: $table.lastFullSyncAtUtc,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get taskImportIncomplete => $composableBuilder(
+    column: $table.taskImportIncomplete,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -27039,6 +27104,11 @@ class $$AccountsTableOrderingComposer
     column: $table.lastFullSyncAtUtc,
     builder: (column) => ColumnOrderings(column),
   );
+
+  ColumnOrderings<bool> get taskImportIncomplete => $composableBuilder(
+    column: $table.taskImportIncomplete,
+    builder: (column) => ColumnOrderings(column),
+  );
 }
 
 class $$AccountsTableAnnotationComposer
@@ -27130,6 +27200,11 @@ class $$AccountsTableAnnotationComposer
 
   GeneratedColumn<String> get lastFullSyncAtUtc => $composableBuilder(
     column: $table.lastFullSyncAtUtc,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<bool> get taskImportIncomplete => $composableBuilder(
+    column: $table.taskImportIncomplete,
     builder: (column) => column,
   );
 
@@ -27578,6 +27653,7 @@ class $$AccountsTableTableManager
                 Value<String> updatedAtUtc = const Value.absent(),
                 Value<String?> lastSuccessfulSyncAtUtc = const Value.absent(),
                 Value<String?> lastFullSyncAtUtc = const Value.absent(),
+                Value<bool> taskImportIncomplete = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => AccountsCompanion(
                 id: id,
@@ -27599,6 +27675,7 @@ class $$AccountsTableTableManager
                 updatedAtUtc: updatedAtUtc,
                 lastSuccessfulSyncAtUtc: lastSuccessfulSyncAtUtc,
                 lastFullSyncAtUtc: lastFullSyncAtUtc,
+                taskImportIncomplete: taskImportIncomplete,
                 rowid: rowid,
               ),
           createCompanionCallback:
@@ -27622,6 +27699,7 @@ class $$AccountsTableTableManager
                 required String updatedAtUtc,
                 Value<String?> lastSuccessfulSyncAtUtc = const Value.absent(),
                 Value<String?> lastFullSyncAtUtc = const Value.absent(),
+                Value<bool> taskImportIncomplete = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => AccountsCompanion.insert(
                 id: id,
@@ -27643,6 +27721,7 @@ class $$AccountsTableTableManager
                 updatedAtUtc: updatedAtUtc,
                 lastSuccessfulSyncAtUtc: lastSuccessfulSyncAtUtc,
                 lastFullSyncAtUtc: lastFullSyncAtUtc,
+                taskImportIncomplete: taskImportIncomplete,
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0

@@ -16,7 +16,7 @@ class DueTodayNotificationScheduler {
     required String? Function() activeAccountId,
     required DesktopNotificationService Function() notifications,
     required Future<void> Function(String date) markNotified,
-    bool Function(String accountId)? syncBlocksDelivery,
+    FutureOr<bool> Function(String accountId)? syncBlocksDelivery,
     Stream<String>? accountSyncChanges,
     DateTime Function()? now,
     Duration interval = const Duration(minutes: 1),
@@ -35,7 +35,7 @@ class DueTodayNotificationScheduler {
   final String? Function() _activeAccountId;
   final DesktopNotificationService Function() _notifications;
   final Future<void> Function(String date) _markNotified;
-  final bool Function(String accountId) _syncBlocksDelivery;
+  final FutureOr<bool> Function(String accountId) _syncBlocksDelivery;
   final Stream<String> _accountSyncChanges;
   final DateTime Function() _now;
   final Duration _interval;
@@ -105,7 +105,7 @@ class DueTodayNotificationScheduler {
     final accountId = _activeAccountId();
     if (!settings.notifyDueToday ||
         accountId == null ||
-        _syncBlocksDelivery(accountId) ||
+        await _syncBlocksDelivery(accountId) ||
         settings.lastDueTodayNotificationDate == today ||
         (_retryAt != null && now.isBefore(_retryAt!))) {
       return;
@@ -128,7 +128,7 @@ class DueTodayNotificationScheduler {
     }
     // Synchronization may have started while the task query was awaiting the
     // database. Its completion transition will trigger a fresh evaluation.
-    if (_syncBlocksDelivery(accountId)) return;
+    if (await _syncBlocksDelivery(accountId)) return;
     if (!_settings().notifyDueToday ||
         _settings().lastDueTodayNotificationDate == today) {
       return;
@@ -173,4 +173,4 @@ class DueTodayNotificationScheduler {
       '${date.day.toString().padLeft(2, '0')}';
 }
 
-bool _neverBlocked(String _) => false;
+FutureOr<bool> _neverBlocked(String _) => false;

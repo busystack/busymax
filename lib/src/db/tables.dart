@@ -23,6 +23,8 @@ class Accounts extends Table {
   TextColumn get updatedAtUtc => text()();
   TextColumn get lastSuccessfulSyncAtUtc => text().nullable()();
   TextColumn get lastFullSyncAtUtc => text().nullable()();
+  BoolColumn get taskImportIncomplete =>
+      boolean().withDefault(const Constant(false))();
 
   @override
   Set<Column<Object>> get primaryKey => {id};
