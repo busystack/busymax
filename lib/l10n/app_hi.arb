@@ -1,4 +1,9 @@
 {
+  "timeFormat": "समय प्रारूप",
+  "timeFormatTwelveHour": "12 घंटे",
+  "timeFormatTwentyFourHour": "24 घंटे",
+  "timeEndOfDay": "दिन का अंत",
+  "timePeriod": "दिन की अवधि",
   "taskRecurrenceDestinationUnsupported": "यह सूची इस दोहराव पैटर्न का समर्थन नहीं करती। पैटर्न बदलें या दूसरी सूची चुनें।",
   "taskRecurrenceRequiresDate": "इस दोहराव पैटर्न का उपयोग करने के लिए शुरू होने या नियत तिथि जोड़ें, या दोहराव बंद करें।",
   "launchAtLoginReadFailed": "लॉगिन पर शुरू होने की स्थिति का पता नहीं चल सका।",

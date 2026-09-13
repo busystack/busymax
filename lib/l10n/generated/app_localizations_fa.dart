@@ -13,6 +13,21 @@ class AppLocalizationsFa extends AppLocalizations {
   AppLocalizationsFa([String locale = 'fa']) : super(locale);
 
   @override
+  String get timeFormat => 'قالب زمان';
+
+  @override
+  String get timeFormatTwelveHour => '۱۲ ساعته';
+
+  @override
+  String get timeFormatTwentyFourHour => '۲۴ ساعته';
+
+  @override
+  String get timeEndOfDay => 'پایان روز';
+
+  @override
+  String get timePeriod => 'بازهٔ روز';
+
+  @override
   String get launchAtLoginReadFailed =>
       'وضعیت اجرای خودکار هنگام ورود مشخص نشد.';
 

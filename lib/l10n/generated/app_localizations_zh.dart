@@ -13,6 +13,21 @@ class AppLocalizationsZh extends AppLocalizations {
   AppLocalizationsZh([String locale = 'zh']) : super(locale);
 
   @override
+  String get timeFormat => '时间格式';
+
+  @override
+  String get timeFormatTwelveHour => '12小时制';
+
+  @override
+  String get timeFormatTwentyFourHour => '24小时制';
+
+  @override
+  String get timeEndOfDay => '当天结束';
+
+  @override
+  String get timePeriod => '上午/下午';
+
+  @override
   String get launchAtLoginReadFailed => '无法确定登录时启动的状态。';
 
   @override
@@ -2813,6 +2828,21 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
   AppLocalizationsZhHans() : super('zh_Hans');
 
   @override
+  String get timeFormat => '时间格式';
+
+  @override
+  String get timeFormatTwelveHour => '12小时制';
+
+  @override
+  String get timeFormatTwentyFourHour => '24小时制';
+
+  @override
+  String get timeEndOfDay => '当天结束';
+
+  @override
+  String get timePeriod => '上午/下午';
+
+  @override
   String get launchAtLoginReadFailed => '无法确定登录时启动的状态。';
 
   @override
@@ -5611,6 +5641,21 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
 /// The translations for Chinese, using the Han script (`zh_Hant`).
 class AppLocalizationsZhHant extends AppLocalizationsZh {
   AppLocalizationsZhHant() : super('zh_Hant');
+
+  @override
+  String get timeFormat => '時間格式';
+
+  @override
+  String get timeFormatTwelveHour => '12小時制';
+
+  @override
+  String get timeFormatTwentyFourHour => '24小時制';
+
+  @override
+  String get timeEndOfDay => '當天結束';
+
+  @override
+  String get timePeriod => '上午/下午';
 
   @override
   String get launchAtLoginReadFailed => '無法確定登入時啟動的狀態。';

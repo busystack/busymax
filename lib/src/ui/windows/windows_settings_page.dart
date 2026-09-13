@@ -1,3 +1,4 @@
+import 'windows_time_picker.dart';
 import 'dart:async';
 import 'windows_nextcloud_dialogs.dart';
 
@@ -119,9 +120,36 @@ class _WindowsSettingsPageState extends ConsumerState<WindowsSettingsPage> {
           child: Column(
             children: [
               _SettingsRow(
+                icon: BusyMaxGlyph.settings,
+                title: l10n.timeFormat,
+                child: ComboBox<BusyMaxTimeFormatPreference>(
+                  value: settings.timeFormatPreference,
+                  items: [
+                    for (final value in BusyMaxTimeFormatPreference.values)
+                      ComboBoxItem(
+                        value: value,
+                        child: Text(switch (value) {
+                          BusyMaxTimeFormatPreference.system =>
+                            l10n.themeSystem,
+                          BusyMaxTimeFormatPreference.twelveHour =>
+                            l10n.timeFormatTwelveHour,
+                          BusyMaxTimeFormatPreference.twentyFourHour =>
+                            l10n.timeFormatTwentyFourHour,
+                        }),
+                      ),
+                  ],
+                  onChanged: (value) {
+                    if (value != null) {
+                      controller.setTimeFormatPreference(value);
+                    }
+                  },
+                ),
+              ),
+              const Divider(),
+              _SettingsRow(
                 icon: BusyMaxGlyph.calendar,
                 title: l10n.scheduleDayStartsAt,
-                child: TimePicker(
+                child: WindowsTimePicker(
                   selected: _minuteDateTime(settings.scheduleDayStartMinute),
                   onChanged: (value) => controller.setScheduleDayStartMinute(
                     value.hour * 60 + value.minute,
@@ -132,8 +160,9 @@ class _WindowsSettingsPageState extends ConsumerState<WindowsSettingsPage> {
               _SettingsRow(
                 icon: BusyMaxGlyph.calendar,
                 title: l10n.scheduleDayEndsAt,
-                child: TimePicker(
+                child: WindowsTimePicker(
                   selected: _minuteDateTime(settings.scheduleDayEndMinute),
+                  endOfDay: settings.scheduleDayEndMinute == 1440,
                   onChanged: (value) => controller.setScheduleDayEndMinute(
                     value.hour == 0 && value.minute == 0
                         ? 24 * 60
@@ -325,7 +354,7 @@ class _WindowsSettingsPageState extends ConsumerState<WindowsSettingsPage> {
                 _SettingsRow(
                   icon: BusyMaxGlyph.previous,
                   title: l10n.quietHoursStart,
-                  child: TimePicker(
+                  child: WindowsTimePicker(
                     selected: _timeStringDateTime(settings.quietHoursStart),
                     onChanged: (value) =>
                         controller.setQuietHoursStart(_timeString(value)),
@@ -335,7 +364,7 @@ class _WindowsSettingsPageState extends ConsumerState<WindowsSettingsPage> {
                 _SettingsRow(
                   icon: BusyMaxGlyph.next,
                   title: l10n.quietHoursEnd,
-                  child: TimePicker(
+                  child: WindowsTimePicker(
                     selected: _timeStringDateTime(settings.quietHoursEnd),
                     onChanged: (value) =>
                         controller.setQuietHoursEnd(_timeString(value)),

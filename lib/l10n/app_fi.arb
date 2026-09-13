@@ -1,4 +1,9 @@
 {
+  "timeFormat": "Aikamuoto",
+  "timeFormatTwelveHour": "12 tuntia",
+  "timeFormatTwentyFourHour": "24 tuntia",
+  "timeEndOfDay": "vuorokauden loppu",
+  "timePeriod": "Vuorokaudenaika",
   "taskRecurrenceDestinationUnsupported": "Tämä lista ei tue tätä toistomallia. Muuta mallia tai valitse toinen lista.",
   "taskRecurrenceRequiresDate": "Lisää alkamis- tai määräpäivä käyttääksesi tätä toistomallia tai poista toisto käytöstä.",
   "launchAtLoginReadFailed": "Kirjautumisen yhteydessä käynnistymisen tilaa ei voitu selvittää.",

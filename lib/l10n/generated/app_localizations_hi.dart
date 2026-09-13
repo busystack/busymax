@@ -13,6 +13,21 @@ class AppLocalizationsHi extends AppLocalizations {
   AppLocalizationsHi([String locale = 'hi']) : super(locale);
 
   @override
+  String get timeFormat => 'समय प्रारूप';
+
+  @override
+  String get timeFormatTwelveHour => '12 घंटे';
+
+  @override
+  String get timeFormatTwentyFourHour => '24 घंटे';
+
+  @override
+  String get timeEndOfDay => 'दिन का अंत';
+
+  @override
+  String get timePeriod => 'दिन की अवधि';
+
+  @override
   String get launchAtLoginReadFailed =>
       'लॉगिन पर शुरू होने की स्थिति का पता नहीं चल सका।';
 

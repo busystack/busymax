@@ -1,4 +1,9 @@
 {
+  "timeFormat": "قالب زمان",
+  "timeFormatTwelveHour": "۱۲ ساعته",
+  "timeFormatTwentyFourHour": "۲۴ ساعته",
+  "timeEndOfDay": "پایان روز",
+  "timePeriod": "بازهٔ روز",
   "taskRecurrenceDestinationUnsupported": "این فهرست از این الگوی تکرار پشتیبانی نمی‌کند. الگو را تغییر دهید یا فهرست دیگری انتخاب کنید.",
   "taskRecurrenceRequiresDate": "برای استفاده از این الگوی تکرار، تاریخ شروع یا سررسید اضافه کنید یا تکرار را خاموش کنید.",
   "launchAtLoginReadFailed": "وضعیت اجرای خودکار هنگام ورود مشخص نشد.",

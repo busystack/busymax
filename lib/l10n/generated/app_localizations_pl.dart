@@ -13,6 +13,21 @@ class AppLocalizationsPl extends AppLocalizations {
   AppLocalizationsPl([String locale = 'pl']) : super(locale);
 
   @override
+  String get timeFormat => 'Format czasu';
+
+  @override
+  String get timeFormatTwelveHour => '12-godzinny';
+
+  @override
+  String get timeFormatTwentyFourHour => '24-godzinny';
+
+  @override
+  String get timeEndOfDay => 'koniec dnia';
+
+  @override
+  String get timePeriod => 'Pora dnia';
+
+  @override
   String get launchAtLoginReadFailed =>
       'Nie udało się ustalić stanu uruchamiania przy logowaniu.';
 

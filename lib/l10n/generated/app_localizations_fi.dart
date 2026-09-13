@@ -13,6 +13,21 @@ class AppLocalizationsFi extends AppLocalizations {
   AppLocalizationsFi([String locale = 'fi']) : super(locale);
 
   @override
+  String get timeFormat => 'Aikamuoto';
+
+  @override
+  String get timeFormatTwelveHour => '12 tuntia';
+
+  @override
+  String get timeFormatTwentyFourHour => '24 tuntia';
+
+  @override
+  String get timeEndOfDay => 'vuorokauden loppu';
+
+  @override
+  String get timePeriod => 'Vuorokaudenaika';
+
+  @override
   String get launchAtLoginReadFailed =>
       'Kirjautumisen yhteydessä käynnistymisen tilaa ei voitu selvittää.';
 

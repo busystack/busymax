@@ -13,6 +13,21 @@ class AppLocalizationsEs extends AppLocalizations {
   AppLocalizationsEs([String locale = 'es']) : super(locale);
 
   @override
+  String get timeFormat => 'Formato de hora';
+
+  @override
+  String get timeFormatTwelveHour => '12 horas';
+
+  @override
+  String get timeFormatTwentyFourHour => '24 horas';
+
+  @override
+  String get timeEndOfDay => 'fin del día';
+
+  @override
+  String get timePeriod => 'Período del día';
+
+  @override
   String get launchAtLoginReadFailed =>
       'No se pudo determinar el estado del inicio automático.';
 

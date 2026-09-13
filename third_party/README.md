@@ -1,10 +1,11 @@
 # Vendored dependencies
 
-BusyMax overrides four packages with source under `third_party/`. Their
+BusyMax overrides five packages with source under `third_party/`. Their
 upstream license files and notices remain authoritative and must stay intact.
 
 | Package | Upstream/version | Local path | License | Why it is vendored |
 |---|---|---|---|---|
+| `fluent_ui` | [bdlukaa/fluent_ui](https://github.com/bdlukaa/fluent_ui), 4.16.1 | [`third_party/fluent_ui`](fluent_ui/) | [BSD-3-Clause](fluent_ui/LICENSE) | Correct time-picker clock conversion, labels and live format changes; see [patch notes](fluent_ui/README.busymax.md) |
 | `flutter_timezone` | [tjarvstrand/flutter_timezone](https://github.com/tjarvstrand/flutter_timezone), 5.1.0 | [`third_party/flutter_timezone`](flutter_timezone/) | [Apache-2.0](flutter_timezone/LICENSE) | Keep the upstream Dart API and Windows plugin without registering another Linux timezone implementation |
 | `tray_manager` | [leanflutter/tray_manager](https://github.com/leanflutter/tray_manager), 0.5.3 | [`third_party/tray_manager`](tray_manager/) | [MIT](tray_manager/LICENSE) | Keep the upstream Dart API and Windows tray plugin while Linux continues to use BusyMax's XDG/DBus tray |
 | `yaru_window` | [ubuntu/yaru_window.dart](https://github.com/ubuntu/yaru_window.dart), 0.2.2 | [`third_party/yaru_window`](yaru_window/) | [MPL-2.0](yaru_window/LICENSE) | Restrict plugin registration to Linux so the Windows runner remains the sole Windows lifecycle owner |

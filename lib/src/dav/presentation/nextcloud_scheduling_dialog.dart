@@ -1,3 +1,4 @@
+import 'package:busymax/src/l10n/time_format_scope.dart';
 import 'dart:async';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
@@ -90,9 +91,9 @@ class _LinuxNextcloudSchedulingDialogState
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    final date = DateFormat.yMMMd(
-      Localizations.localeOf(context).toString(),
-    ).add_jm();
+    final date = DateFormat.yMMMd(Localizations.localeOf(context).toString());
+    String dateTime(DateTime value) =>
+        formatClockDateTime(context, value, date.format(value));
     final size = MediaQuery.sizeOf(context);
     final error = model.error;
     return AlertDialog(
@@ -114,7 +115,7 @@ class _LinuxNextcloudSchedulingDialogState
                 Text(l10n.nextcloudInboxExplanation)
               else if (widget.draft!.start != null && widget.draft!.end != null)
                 SelectableText(
-                  '${date.format(widget.draft!.start!)} – ${date.format(widget.draft!.end!)}'
+                  '${dateTime(widget.draft!.start!)} – ${dateTime(widget.draft!.end!)}'
                   ' (${widget.draft!.startTimeZone ?? ref.read(localTimeZoneProvider)})',
                 ),
               const SizedBox(height: 12),
@@ -170,7 +171,7 @@ class _LinuxNextcloudSchedulingDialogState
                       ),
                       for (final interval in result.intervals)
                         SelectableText(
-                          '${date.format(interval.startUtc.toLocal())} – ${date.format(interval.endUtc.toLocal())}',
+                          '${dateTime(interval.startUtc.toLocal())} – ${dateTime(interval.endUtc.toLocal())}',
                         ),
                     ],
                   ),

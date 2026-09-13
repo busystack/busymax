@@ -1,3 +1,5 @@
+import 'windows_time_picker.dart';
+import 'package:busymax/src/l10n/time_format_scope.dart';
 import '../../features/tasks/presentation/task_recurrence.dart';
 import 'dart:async';
 import 'dart:convert';
@@ -1394,7 +1396,7 @@ class _TaskDateTimeField extends StatelessWidget {
               : null,
         ),
         if (showTime && value != null) ...[
-          TimePicker(
+          WindowsTimePicker(
             selected: value,
             onChanged: enabled
                 ? (time) => onChanged(
@@ -1466,7 +1468,7 @@ String _alarmLabel(BuildContext context, IcalTaskAlarm alarm) {
     final local = absolute.toLocal();
     return l10n.dateTimeDisplay(
       DateFormat.yMMMd(locale).format(local),
-      DateFormat.jm(locale).format(local),
+      BusyMaxTimeFormatScope.of(context).format(local),
     );
   }
   final offset = alarm.relativeOffset;
@@ -1516,7 +1518,7 @@ Future<DateTime?> _showAbsoluteReminderDialog(
                 );
               }),
             ),
-            TimePicker(
+            WindowsTimePicker(
               selected: value,
               onChanged: (time) => setState(() {
                 value = DateTime(

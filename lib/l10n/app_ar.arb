@@ -1,4 +1,9 @@
 {
+  "timeFormat": "تنسيق الوقت",
+  "timeFormatTwelveHour": "12 ساعة",
+  "timeFormatTwentyFourHour": "24 ساعة",
+  "timeEndOfDay": "نهاية اليوم",
+  "timePeriod": "الفترة",
   "taskRecurrenceDestinationUnsupported": "لا يمكن استخدام نمط التكرار هذا في هذه القائمة. غيّر النمط أو اختر قائمة أخرى.",
   "taskRecurrenceRequiresDate": "أضف تاريخ بدء أو استحقاق لاستخدام نمط التكرار هذا، أو أوقف التكرار.",
   "launchAtLoginReadFailed": "تعذر تحديد حالة التشغيل عند تسجيل الدخول.",

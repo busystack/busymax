@@ -1,4 +1,9 @@
 {
+  "timeFormat": "時刻の表示形式",
+  "timeFormatTwelveHour": "12時間表示",
+  "timeFormatTwentyFourHour": "24時間表示",
+  "timeEndOfDay": "一日の終わり",
+  "timePeriod": "午前・午後",
   "taskRecurrenceDestinationUnsupported": "このリストではこの繰り返しパターンを使用できません。パターンを変更するか、別のリストを選択してください。",
   "taskRecurrenceRequiresDate": "この繰り返しパターンを使用するには、開始日または期限を追加するか、繰り返しをオフにしてください。",
   "launchAtLoginReadFailed": "ログイン時の起動状態を確認できませんでした。",

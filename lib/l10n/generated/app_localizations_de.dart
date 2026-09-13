@@ -13,6 +13,21 @@ class AppLocalizationsDe extends AppLocalizations {
   AppLocalizationsDe([String locale = 'de']) : super(locale);
 
   @override
+  String get timeFormat => 'Zeitformat';
+
+  @override
+  String get timeFormatTwelveHour => '12 Stunden';
+
+  @override
+  String get timeFormatTwentyFourHour => '24 Stunden';
+
+  @override
+  String get timeEndOfDay => 'Tagesende';
+
+  @override
+  String get timePeriod => 'Tageszeit';
+
+  @override
   String get launchAtLoginReadFailed =>
       'Der Status des Starts bei der Anmeldung konnte nicht ermittelt werden.';
 

@@ -13,6 +13,21 @@ class AppLocalizationsEt extends AppLocalizations {
   AppLocalizationsEt([String locale = 'et']) : super(locale);
 
   @override
+  String get timeFormat => 'Kellaajavorming';
+
+  @override
+  String get timeFormatTwelveHour => '12-tunnine';
+
+  @override
+  String get timeFormatTwentyFourHour => '24-tunnine';
+
+  @override
+  String get timeEndOfDay => 'päeva lõpp';
+
+  @override
+  String get timePeriod => 'Päevaosa';
+
+  @override
   String get launchAtLoginReadFailed =>
       'Sisselogimisel käivitamise olekut ei õnnestunud tuvastada.';
 

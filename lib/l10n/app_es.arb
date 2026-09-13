@@ -1,4 +1,9 @@
 {
+  "timeFormat": "Formato de hora",
+  "timeFormatTwelveHour": "12 horas",
+  "timeFormatTwentyFourHour": "24 horas",
+  "timeEndOfDay": "fin del día",
+  "timePeriod": "Período del día",
   "taskRecurrenceDestinationUnsupported": "Esta lista no admite este patrón de repetición. Cambia el patrón o elige otra lista.",
   "taskRecurrenceRequiresDate": "Añade una fecha de inicio o de vencimiento para usar este patrón, o desactiva la repetición.",
   "launchAtLoginReadFailed": "No se pudo determinar el estado del inicio automático.",

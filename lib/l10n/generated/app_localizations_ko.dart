@@ -13,6 +13,21 @@ class AppLocalizationsKo extends AppLocalizations {
   AppLocalizationsKo([String locale = 'ko']) : super(locale);
 
   @override
+  String get timeFormat => '시간 형식';
+
+  @override
+  String get timeFormatTwelveHour => '12시간';
+
+  @override
+  String get timeFormatTwentyFourHour => '24시간';
+
+  @override
+  String get timeEndOfDay => '하루의 끝';
+
+  @override
+  String get timePeriod => '오전/오후';
+
+  @override
   String get launchAtLoginReadFailed => '로그인 시 실행 상태를 확인할 수 없습니다.';
 
   @override

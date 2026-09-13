@@ -1,4 +1,9 @@
 {
+  "timeFormat": "Time format",
+  "timeFormatTwelveHour": "12-hour",
+  "timeFormatTwentyFourHour": "24-hour",
+  "timeEndOfDay": "end of day",
+  "timePeriod": "Day period",
   "launchAtLoginReadFailed": "Could not determine the launch-at-login state.",
   "launchAtLoginUnavailable": "Launch at login is unavailable on this system.",
   "windowsStartupEnabledByPolicy": "Startup is enabled by your administrator and cannot be changed here.",

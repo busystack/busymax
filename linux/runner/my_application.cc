@@ -1,3 +1,4 @@
+#include "time_picker.h"
 #include "my_application.h"
 
 #include <flutter_linux/flutter_linux.h>
@@ -448,20 +449,7 @@ static gboolean parse_date(const gchar* value,
 }
 
 static gboolean parse_time(const gchar* value, guint* hour, guint* minute) {
-  if (value == nullptr) {
-    return FALSE;
-  }
-  unsigned int parsed_hour = 0;
-  unsigned int parsed_minute = 0;
-  if (sscanf(value, "%u:%u", &parsed_hour, &parsed_minute) != 2) {
-    return FALSE;
-  }
-  if (parsed_hour > 23 || parsed_minute > 59) {
-    return FALSE;
-  }
-  *hour = parsed_hour;
-  *minute = parsed_minute;
-  return TRUE;
+  return busymax_time_picker::ParseCanonical(value, hour, minute);
 }
 
 static void respond_string(FlMethodCall* method_call, const gchar* value) {
@@ -552,49 +540,35 @@ static void handle_pick_time(FlMethodCall* method_call,
   gtk_window_set_resizable(GTK_WINDOW(dialog), FALSE);
 
   GtkWidget* content = gtk_dialog_get_content_area(GTK_DIALOG(dialog));
-  GtkWidget* row = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 6);
   gtk_container_set_border_width(GTK_CONTAINER(content), 12);
-  gtk_container_add(GTK_CONTAINER(content), row);
-
-  GtkWidget* hour_input = gtk_spin_button_new_with_range(0.0, 23.0, 1.0);
-  GtkWidget* minute_input = gtk_spin_button_new_with_range(0.0, 59.0, 1.0);
-  gtk_spin_button_set_numeric(GTK_SPIN_BUTTON(hour_input), TRUE);
-  gtk_spin_button_set_numeric(GTK_SPIN_BUTTON(minute_input), TRUE);
-  gtk_spin_button_set_value(GTK_SPIN_BUTTON(hour_input), 0.0);
-  gtk_spin_button_set_value(GTK_SPIN_BUTTON(minute_input), 0.0);
-  gtk_widget_set_size_request(hour_input, 70, -1);
-  gtk_widget_set_size_request(minute_input, 70, -1);
-
-  gtk_container_add(GTK_CONTAINER(row), gtk_label_new("Hour"));
-  gtk_container_add(GTK_CONTAINER(row), hour_input);
-  gtk_container_add(GTK_CONTAINER(row), gtk_label_new(":"));
-  gtk_container_add(GTK_CONTAINER(row), minute_input);
-  gtk_container_add(GTK_CONTAINER(row), gtk_label_new("Min"));
 
   guint hour = 0;
   guint minute = 0;
-  if (parse_time(initial_time, &hour, &minute)) {
-    gtk_spin_button_set_value(GTK_SPIN_BUTTON(hour_input), hour);
-    gtk_spin_button_set_value(GTK_SPIN_BUTTON(minute_input), minute);
-  } else {
+  if (!parse_time(initial_time, &hour, &minute)) {
     GDateTime* now = g_date_time_new_now_local();
     if (now != nullptr) {
       hour = g_date_time_get_hour(now);
       minute = g_date_time_get_minute(now);
-      gtk_spin_button_set_value(GTK_SPIN_BUTTON(hour_input), hour);
-      gtk_spin_button_set_value(GTK_SPIN_BUTTON(minute_input), minute);
       g_date_time_unref(now);
     }
   }
 
+  const bool use24 = fl_lookup_bool_arg(args, "use24Hour", TRUE);
+  auto label = [args](const char* key, const char* fallback) {
+    const char* value = fl_lookup_string_arg(args, key);
+    return value && value[0] ? value : fallback;
+  };
+  busymax_time_picker::Controls controls(use24, hour, minute,
+      label("hourLabel", "Hour"), label("minuteLabel", "Minute"),
+      label("periodLabel", "AM/PM"), label("amLabel", "AM"), label("pmLabel", "PM"));
+  gtk_container_add(GTK_CONTAINER(content), controls.row);
   gtk_widget_show_all(dialog);
   const gint response = gtk_dialog_run(GTK_DIALOG(dialog));
 
   if (response == GTK_RESPONSE_OK) {
-    const gint selected_hour = gtk_spin_button_get_value_as_int(
-        GTK_SPIN_BUTTON(hour_input));
+    const gint selected_hour = controls.selected_hour();
     const gint selected_minute = gtk_spin_button_get_value_as_int(
-        GTK_SPIN_BUTTON(minute_input));
+        controls.minute);
     g_autofree gchar* result = g_strdup_printf(
         "%02d:%02d", selected_hour, selected_minute);
     respond_string(method_call, result);

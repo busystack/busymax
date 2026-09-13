@@ -13,6 +13,21 @@ class AppLocalizationsVi extends AppLocalizations {
   AppLocalizationsVi([String locale = 'vi']) : super(locale);
 
   @override
+  String get timeFormat => 'Định dạng giờ';
+
+  @override
+  String get timeFormatTwelveHour => '12 giờ';
+
+  @override
+  String get timeFormatTwentyFourHour => '24 giờ';
+
+  @override
+  String get timeEndOfDay => 'cuối ngày';
+
+  @override
+  String get timePeriod => 'Buổi trong ngày';
+
+  @override
   String get launchAtLoginReadFailed =>
       'Không thể xác định trạng thái khởi chạy khi đăng nhập.';
 

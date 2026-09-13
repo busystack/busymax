@@ -1,3 +1,5 @@
+import 'windows_time_picker.dart';
+import 'package:busymax/src/l10n/time_format_scope.dart';
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
@@ -805,7 +807,7 @@ class _DateTimeField extends StatelessWidget {
               : null,
         ),
         if (showTime && value != null)
-          TimePicker(
+          WindowsTimePicker(
             selected: value,
             onChanged: enabled
                 ? (time) => onChanged(
@@ -869,7 +871,7 @@ String _newTaskAlarmLabel(BuildContext context, IcalTaskAlarm alarm) {
   final local = alarm.absoluteUtc!.toLocal();
   return l10n.dateTimeDisplay(
     DateFormat.yMMMd(locale).format(local),
-    DateFormat.jm(locale).format(local),
+    BusyMaxTimeFormatScope.of(context).format(local),
   );
 }
 
@@ -900,7 +902,7 @@ Future<DateTime?> _showTaskReminderDialog(
                 );
               }),
             ),
-            TimePicker(
+            WindowsTimePicker(
               selected: value,
               onChanged: (time) => setState(() {
                 value = DateTime(

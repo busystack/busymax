@@ -4,6 +4,9 @@ import 'package:busymax/l10n/generated/app_localizations.dart';
 import 'package:busymax/src/app/app_bootstrap.dart';
 import 'package:busymax/src/platform/common/desktop_services.dart';
 import 'package:busymax/src/ui/windows/windows_desktop_runtime.dart';
+import 'package:busymax/src/l10n/time_format_scope.dart';
+import 'package:busymax/src/features/tray/domain/tray_presentation.dart';
+import 'package:busymax/src/features/connectivity/network_connectivity_service.dart';
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -11,6 +14,93 @@ import 'package:flutter_test/flutter_test.dart';
 import '../../support/memory_settings_store.dart';
 
 void main() {
+  testWidgets(
+    'unchanged locale and changed clock immediately refresh actual tray labels',
+    (tester) async {
+      final window = _Window();
+      final tray = _FormattingTray();
+      final container = ProviderContainer(
+        overrides: [
+          localSettingsStoreProvider.overrideWithValue(MemorySettingsStore()),
+          desktopWindowServiceProvider.overrideWithValue(window),
+        ],
+      );
+      addTearDown(container.dispose);
+      final controller = container.read(appSettingsControllerProvider.notifier);
+      await controller.setTimeFormatPreference(
+        BusyMaxTimeFormatPreference.twelveHour,
+      );
+      await tester.pumpWidget(
+        UncontrolledProviderScope(
+          container: container,
+          child: FluentApp(
+            locale: const Locale('en'),
+            localizationsDelegates: const [AppLocalizations.delegate],
+            supportedLocales: AppLocalizations.supportedLocales,
+            builder: (context, child) => Consumer(
+              builder: (context, ref, _) => BusyMaxTimeFormatScope(
+                formatter: BusyMaxTimeFormatter(
+                  locale: 'en',
+                  use24Hour: resolveBusyMax24HourClock(
+                    ref
+                        .watch(appSettingsControllerProvider)
+                        .timeFormatPreference,
+                    systemUses24Hour: false,
+                  ),
+                ),
+                child: child!,
+              ),
+            ),
+            home: WindowsDesktopRuntime(
+              startMinimizedAtLaunch: false,
+              trayServiceFactory: (loader) {
+                tray.loader = loader;
+                return tray;
+              },
+              loadPresentation: () async => BusyMaxTrayPresentation(
+                connectivity: NetworkAvailability.online,
+                synchronizationRunning: false,
+                lastSuccessfulSynchronizationUtc: null,
+                incompleteTasksDueToday: 0,
+                canCreateEvent: true,
+                canCreateTask: true,
+                hasSyncEligibleAccount: true,
+                notificationDetailLevel: NotificationDetailLevel.normal,
+                localNow: DateTime(2026, 9, 13),
+                events: [
+                  BusyMaxTrayEventEntry(
+                    eventId: 'event',
+                    accountId: 'account',
+                    calendarSourceId: 'calendar',
+                    title: 'Meeting',
+                    start: DateTime(2026, 9, 13, 14, 30),
+                    end: null,
+                    allDay: false,
+                  ),
+                ],
+              ),
+              child: const SizedBox(),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(tray.labels.last, '2:30 PM · Meeting');
+      final before = tray.labels.length;
+      await controller.setTimeFormatPreference(
+        BusyMaxTimeFormatPreference.twentyFourHour,
+      );
+      await tester.pumpAndSettle();
+      expect(tray.labels.length, greaterThan(before));
+      expect(tray.labels.last, '14:30 · Meeting');
+      await controller.setTimeFormatPreference(
+        BusyMaxTimeFormatPreference.twelveHour,
+      );
+      await tester.pumpAndSettle();
+      expect(tray.labels.last, '2:30 PM · Meeting');
+      await tester.pumpWidget(const SizedBox());
+    },
+  );
   for (final initiallyShowTray in [false, true]) {
     testWidgets(
       'changing Start minimized after normal launch keeps the window open (tray=$initiallyShowTray)',
@@ -191,6 +281,14 @@ class _Window implements DesktopWindowService {
 
   @override
   Future<void> quitApp() async {}
+}
+
+class _FormattingTray extends _Tray {
+  late Future<BusyMaxTrayMenuPresentation> Function() loader;
+  final labels = <String>[];
+  @override
+  Future<void> refresh() async =>
+      labels.add((await loader()).eventRows.single.label);
 }
 
 class _Tray implements DesktopTrayService {

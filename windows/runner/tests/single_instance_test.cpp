@@ -1,4 +1,5 @@
 #include "../single_instance.h"
+#include "../clock_preference.h"
 
 #include <windows.h>
 
@@ -218,6 +219,12 @@ void TestForwardingTimeoutIsBounded() {
 }  // namespace
 
 int main() {
+  Check(BusyMaxRead24HourClock().has_value(), "user clock preference can be read");
+  Check(BusyMaxClockRefreshMessage(WM_SETTINGCHANGE, 0, reinterpret_cast<LPARAM>(L"intl")), "locale settings refresh the clock");
+  Check(BusyMaxClockRefreshMessage(WM_SETTINGCHANGE, 0, 0), "unspecified settings refresh the clock");
+  Check(!BusyMaxClockRefreshMessage(WM_SETTINGCHANGE, 0, reinterpret_cast<LPARAM>(L"Environment")), "unrelated settings do not refresh the clock");
+  Check(BusyMaxClockRefreshMessage(WM_ACTIVATEAPP, TRUE, 0), "reactivation refreshes the clock");
+  Check(!BusyMaxClockRefreshMessage(WM_ACTIVATEAPP, FALSE, 0), "deactivation does not refresh the clock");
   TestActivationValidation();
   TestFatalInitializationStates();
   TestListenerStartupAcknowledgmentFailure();

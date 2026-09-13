@@ -1,3 +1,4 @@
+import 'windows_time_picker.dart';
 import '../../features/calendar/domain/event_property_policy.dart';
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -307,7 +308,7 @@ Future<bool> showWindowsEventEditorDialog(
                                 }),
                         ),
                         if (!allDay)
-                          TimePicker(
+                          WindowsTimePicker(
                             selected: start,
                             onChanged: saving
                                 ? null
@@ -348,7 +349,7 @@ Future<bool> showWindowsEventEditorDialog(
                                 }),
                         ),
                         if (!allDay)
-                          TimePicker(
+                          WindowsTimePicker(
                             selected: end,
                             onChanged: saving
                                 ? null

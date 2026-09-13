@@ -1,3 +1,4 @@
+import 'package:busymax/src/l10n/time_format_scope.dart';
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -690,7 +691,7 @@ class _IcalTaskFieldsEditorState extends ConsumerState<IcalTaskFieldsEditor> {
       final local = absolute.toLocal();
       return context.l10n.dateTimeDisplay(
         MaterialLocalizations.of(context).formatMediumDate(local),
-        TimeOfDay.fromDateTime(local).format(context),
+        BusyMaxTimeFormatScope.of(context).format(local),
       );
     }
     final offset = alarm.relativeOffset;

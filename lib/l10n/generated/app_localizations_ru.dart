@@ -13,6 +13,21 @@ class AppLocalizationsRu extends AppLocalizations {
   AppLocalizationsRu([String locale = 'ru']) : super(locale);
 
   @override
+  String get timeFormat => 'Формат времени';
+
+  @override
+  String get timeFormatTwelveHour => '12 часов';
+
+  @override
+  String get timeFormatTwentyFourHour => '24 часа';
+
+  @override
+  String get timeEndOfDay => 'конец дня';
+
+  @override
+  String get timePeriod => 'Время суток';
+
+  @override
   String get launchAtLoginReadFailed =>
       'Не удалось определить состояние запуска при входе в систему.';
 

@@ -1,4 +1,9 @@
 {
+  "timeFormat": "Formato ora",
+  "timeFormatTwelveHour": "12 ore",
+  "timeFormatTwentyFourHour": "24 ore",
+  "timeEndOfDay": "fine giornata",
+  "timePeriod": "Periodo del giorno",
   "taskRecurrenceDestinationUnsupported": "Questo elenco non supporta questo schema di ripetizione. Modifica lo schema o scegli un altro elenco.",
   "taskRecurrenceRequiresDate": "Aggiungi una data di inizio o di scadenza per usare questo schema di ripetizione, oppure disattiva la ripetizione.",
   "launchAtLoginReadFailed": "Impossibile determinare lo stato dell’avvio all’accesso.",

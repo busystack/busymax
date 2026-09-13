@@ -13,6 +13,21 @@ class AppLocalizationsPt extends AppLocalizations {
   AppLocalizationsPt([String locale = 'pt']) : super(locale);
 
   @override
+  String get timeFormat => 'Time format';
+
+  @override
+  String get timeFormatTwelveHour => '12-hour';
+
+  @override
+  String get timeFormatTwentyFourHour => '24-hour';
+
+  @override
+  String get timeEndOfDay => 'end of day';
+
+  @override
+  String get timePeriod => 'Day period';
+
+  @override
   String get launchAtLoginReadFailed =>
       'Could not determine the launch-at-login state.';
 
@@ -2943,6 +2958,21 @@ class AppLocalizationsPt extends AppLocalizations {
 /// The translations for Portuguese, as used in Portugal (`pt_PT`).
 class AppLocalizationsPtPt extends AppLocalizationsPt {
   AppLocalizationsPtPt() : super('pt_PT');
+
+  @override
+  String get timeFormat => 'Formato da hora';
+
+  @override
+  String get timeFormatTwelveHour => '12 horas';
+
+  @override
+  String get timeFormatTwentyFourHour => '24 horas';
+
+  @override
+  String get timeEndOfDay => 'fim do dia';
+
+  @override
+  String get timePeriod => 'Período do dia';
 
   @override
   String get launchAtLoginReadFailed =>

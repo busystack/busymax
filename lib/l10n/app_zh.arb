@@ -1,4 +1,9 @@
 {
+  "timeFormat": "时间格式",
+  "timeFormatTwelveHour": "12小时制",
+  "timeFormatTwentyFourHour": "24小时制",
+  "timeEndOfDay": "当天结束",
+  "timePeriod": "上午/下午",
   "taskRecurrenceDestinationUnsupported": "此列表不支持此重复模式。请更改模式或选择其他列表。",
   "taskRecurrenceRequiresDate": "请添加开始日期或截止日期以使用此重复模式，或关闭重复。",
   "launchAtLoginReadFailed": "无法确定登录时启动的状态。",

@@ -1,3 +1,4 @@
+import 'package:busymax/src/l10n/time_format_scope.dart';
 import 'package:busymax/l10n/generated/app_localizations.dart';
 import 'package:busymax/src/app/app_bootstrap.dart';
 import 'package:busymax/src/calendar_providers/calendar_sync_dto.dart';
@@ -50,6 +51,8 @@ void main() {
           DateTime.utc(2026, 1, 12, 0, 45),
         );
         bool? result;
+        final clock = ValueNotifier(false);
+        addTearDown(clock.dispose);
         await tester.pumpWidget(
           ProviderScope(
             overrides: [
@@ -64,6 +67,16 @@ void main() {
               localTimeZoneProvider.overrideWithValue('UTC'),
             ],
             child: FluentApp(
+              builder: (context, child) => ValueListenableBuilder<bool>(
+                valueListenable: clock,
+                builder: (context, use24, _) => BusyMaxTimeFormatScope(
+                  formatter: BusyMaxTimeFormatter(
+                    locale: 'en',
+                    use24Hour: use24,
+                  ),
+                  child: child!,
+                ),
+              ),
               localizationsDelegates: const [AppLocalizations.delegate],
               supportedLocales: AppLocalizations.supportedLocales,
               home: Consumer(
@@ -103,6 +116,43 @@ void main() {
         expect(pickers[0].selected!.minute, 0);
         expect(pickers[1].selected!.hour, 0);
         expect(pickers[1].selected!.minute, 45);
+        expect(
+          find.descendant(
+            of: find.byType(TimePicker).first,
+            matching: find.text('12'),
+          ),
+          findsOneWidget,
+        );
+        final dialogState = tester.element(find.byType(ContentDialog));
+        final datesBefore = tester
+            .widgetList<DatePicker>(find.byType(DatePicker))
+            .map((p) => p.selected)
+            .toList();
+        final timesBefore = pickers.map((p) => p.selected).toList();
+        clock.value = true;
+        await tester.pumpAndSettle();
+        expect(tester.element(find.byType(ContentDialog)), same(dialogState));
+        expect(
+          find.descendant(
+            of: find.byType(TimePicker).first,
+            matching: find.text('00'),
+          ),
+          findsNWidgets(2),
+        );
+        expect(
+          tester
+              .widgetList<TimePicker>(find.byType(TimePicker))
+              .map((p) => p.selected),
+          timesBefore,
+        );
+        expect(
+          tester
+              .widgetList<DatePicker>(find.byType(DatePicker))
+              .map((p) => p.selected),
+          datesBefore,
+        );
+        clock.value = false;
+        await tester.pumpAndSettle();
         expect(await database.select(database.calendarEvents).get(), isEmpty);
         if (save) {
           await tester.enterText(

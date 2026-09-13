@@ -135,6 +135,36 @@ abstract class AppLocalizations {
     Locale.fromSubtags(languageCode: 'zh', scriptCode: 'Hant'),
   ];
 
+  /// No description provided for @timeFormat.
+  ///
+  /// In en, this message translates to:
+  /// **'Time format'**
+  String get timeFormat;
+
+  /// No description provided for @timeFormatTwelveHour.
+  ///
+  /// In en, this message translates to:
+  /// **'12-hour'**
+  String get timeFormatTwelveHour;
+
+  /// No description provided for @timeFormatTwentyFourHour.
+  ///
+  /// In en, this message translates to:
+  /// **'24-hour'**
+  String get timeFormatTwentyFourHour;
+
+  /// No description provided for @timeEndOfDay.
+  ///
+  /// In en, this message translates to:
+  /// **'end of day'**
+  String get timeEndOfDay;
+
+  /// No description provided for @timePeriod.
+  ///
+  /// In en, this message translates to:
+  /// **'Day period'**
+  String get timePeriod;
+
   /// No description provided for @launchAtLoginReadFailed.
   ///
   /// In en, this message translates to:

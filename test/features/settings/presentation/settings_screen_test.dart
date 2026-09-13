@@ -890,7 +890,7 @@ void main() {
     expect(find.text('Day ends at'), findsOneWidget);
     expect(find.text('Add Google account'), findsNothing);
 
-    await tester.tap(find.text('System'));
+    await tester.tap(find.byKey(const ValueKey('settings-navigation-system')));
     await tester.pumpAndSettle();
 
     expect(find.text('Theme'), findsOneWidget);

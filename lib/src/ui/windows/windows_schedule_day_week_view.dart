@@ -1,3 +1,5 @@
+import 'package:busymax/src/ui/common/schedule/clock_hours_painter.dart';
+import 'package:busymax/src/l10n/time_format_scope.dart';
 import 'dart:math' as math;
 
 import 'package:fluent_ui/fluent_ui.dart';
@@ -112,9 +114,11 @@ class _WindowsScheduleDayWeekViewState
     final background = theme.scaffoldBackgroundColor;
     final grid = theme.resources.controlStrokeColorDefault;
     final locale = Localizations.localeOf(context).toLanguageTag();
-    final time = MediaQuery.alwaysUse24HourFormatOf(context)
-        ? DateFormat.Hm(locale)
-        : DateFormat.jm(locale);
+    final time = BusyMaxTimeFormatScope.of(context);
+    final gutterWidth = clockRulerWidth(
+      context,
+      theme.typography.caption ?? const TextStyle(),
+    );
     final hasAllDay = widget.items.any((item) => item.allDay);
     final bar = hasAllDay ? _allDayHeight : 0.0;
     final header = widget.daysShowed == 1 ? 0.0 : 50.0;
@@ -207,9 +211,9 @@ class _WindowsScheduleDayWeekViewState
             _tile(event, height, width, locale),
       ),
       timesIndicatorsParam: icv.TimesIndicatorsParam(
-        timesIndicatorsWidth: 64,
+        timesIndicatorsWidth: gutterWidth,
         timesIndicatorsHorizontalPadding: 6,
-        timesIndicatorsCustomPainter: (height) => icv.HoursPainter(
+        timesIndicatorsCustomPainter: (height) => BusyMaxClockHoursPainter(
           heightPerMinute: height,
           hourColor: theme.inactiveColor,
           halfHourColor: theme.inactiveColor,
@@ -221,6 +225,7 @@ class _WindowsScheduleDayWeekViewState
             ),
             textDirection: Directionality.of(context),
             textAlign: TextAlign.center,
+            textScaler: MediaQuery.textScalerOf(context),
           ),
         ),
       ),
@@ -261,7 +266,7 @@ class _WindowsScheduleDayWeekViewState
           if (hasAllDay)
             Positioned(
               top: header + bar - 8,
-              left: 64,
+              left: gutterWidth,
               right: 0,
               child: Center(
                 child: ScheduleInteractionBlocker(

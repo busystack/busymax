@@ -14,6 +14,7 @@ import '../platform/linux_header_bar_provider.dart';
 import '../platform/linux_header_bar_service.dart';
 import '../platform/common/desktop_services.dart';
 import '../l10n/locale_resolution.dart';
+import '../l10n/time_format_scope.dart';
 import '../schedule/schedule_commands.dart';
 import 'app_bootstrap.dart';
 import 'desktop_startup_policy.dart';
@@ -257,9 +258,12 @@ class _BusyMaxAppState extends ConsumerState<LinuxBusyMaxApp> {
           supportedLocales: busyMaxSupportedLocales,
           builder: (context, child) {
             final l10n = AppLocalizations.of(context);
-            final material = MaterialLocalizations.of(context);
-            final alwaysUse24HourFormat = MediaQuery.alwaysUse24HourFormatOf(
-              context,
+            final clock = BusyMaxTimeFormatter(
+              locale: Localizations.localeOf(context).toLanguageTag(),
+              use24Hour: resolveBusyMax24HourClock(
+                settings.timeFormatPreference,
+                systemUses24Hour: MediaQuery.alwaysUse24HourFormatOf(context),
+              ),
             );
             final trayFormatter = BusyMaxTrayPresentationFormatter(
               BusyMaxTrayPresentationStrings(
@@ -281,10 +285,7 @@ class _BusyMaxAppState extends ConsumerState<LinuxBusyMaxApp> {
                 quitBusyMax: l10n.trayQuitBusyMax,
                 offline: l10n.networkOffline,
                 offlineDescription: l10n.networkOfflineDescription,
-                formatTime: (value) => material.formatTimeOfDay(
-                  TimeOfDay.fromDateTime(value),
-                  alwaysUse24HourFormat: alwaysUse24HourFormat,
-                ),
+                formatTime: clock.format,
                 tasksDueToday: l10n.trayTasksDueToday,
                 lastSyncedJustNow: l10n.trayLastSyncedJustNow,
                 lastSyncedMinutesAgo: l10n.trayLastSyncedMinutesAgo,
@@ -332,7 +333,15 @@ class _BusyMaxAppState extends ConsumerState<LinuxBusyMaxApp> {
                 },
                 child: ColoredBox(
                   color: BusyMaxSurfaceColors.of(context).window,
-                  child: child ?? const SizedBox.shrink(),
+                  child: BusyMaxTimeFormatScope(
+                    formatter: clock,
+                    child: MediaQuery(
+                      data: MediaQuery.of(
+                        context,
+                      ).copyWith(alwaysUse24HourFormat: clock.use24Hour),
+                      child: child ?? const SizedBox.shrink(),
+                    ),
+                  ),
                 ),
               ),
             );
@@ -508,12 +517,11 @@ class _BusyMaxAppState extends ConsumerState<LinuxBusyMaxApp> {
   }
 
   Future<BusyMaxTrayMenuPresentation> _loadTrayPresentation() async {
-    final formatter = _trayPresentationFormatter;
-    if (formatter == null) {
+    if (_trayPresentationFormatter == null) {
       throw StateError('Tray localization is not ready.');
     }
     final presentation = await ref.read(trayPresentationServiceProvider).load();
-    return formatter.format(presentation);
+    return _trayPresentationFormatter!.format(presentation);
   }
 
   Future<void> _openTrayNewEvent(DesktopWindowService windowService) async {

@@ -1,4 +1,9 @@
 {
+  "timeFormat": "Zeitformat",
+  "timeFormatTwelveHour": "12 Stunden",
+  "timeFormatTwentyFourHour": "24 Stunden",
+  "timeEndOfDay": "Tagesende",
+  "timePeriod": "Tageszeit",
   "taskRecurrenceDestinationUnsupported": "Diese Liste unterstützt dieses Wiederholungsmuster nicht. Ändere das Muster oder wähle eine andere Liste.",
   "taskRecurrenceRequiresDate": "Füge ein Start- oder Fälligkeitsdatum hinzu, um dieses Wiederholungsmuster zu verwenden, oder deaktiviere die Wiederholung.",
   "launchAtLoginReadFailed": "Der Status des Starts bei der Anmeldung konnte nicht ermittelt werden.",

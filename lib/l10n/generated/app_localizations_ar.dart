@@ -13,6 +13,21 @@ class AppLocalizationsAr extends AppLocalizations {
   AppLocalizationsAr([String locale = 'ar']) : super(locale);
 
   @override
+  String get timeFormat => 'تنسيق الوقت';
+
+  @override
+  String get timeFormatTwelveHour => '12 ساعة';
+
+  @override
+  String get timeFormatTwentyFourHour => '24 ساعة';
+
+  @override
+  String get timeEndOfDay => 'نهاية اليوم';
+
+  @override
+  String get timePeriod => 'الفترة';
+
+  @override
   String get launchAtLoginReadFailed =>
       'تعذر تحديد حالة التشغيل عند تسجيل الدخول.';
 

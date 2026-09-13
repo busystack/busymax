@@ -10,6 +10,9 @@ import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 
 import '../l10n/app_locale.dart';
+import '../l10n/time_format.dart';
+
+export '../l10n/time_format.dart' show BusyMaxTimeFormatPreference;
 import '../core/logging/redacting_logger.dart';
 import '../schedule/schedule_sidebar_order.dart';
 import '../schedule/schedule_view_mode.dart';
@@ -39,6 +42,7 @@ class AppSettings {
     required this.themeFamily,
     required this.themeModePreference,
     required this.localeTag,
+    this.timeFormatPreference = BusyMaxTimeFormatPreference.system,
     required this.notifySyncFailures,
     required this.notifyConflicts,
     required this.notifyDueToday,
@@ -66,6 +70,7 @@ class AppSettings {
       themeFamily: BusyMaxThemeFamily.yaru,
       themeModePreference: BusyMaxThemeModePreference.system,
       localeTag: null,
+      timeFormatPreference: BusyMaxTimeFormatPreference.system,
       notifySyncFailures: true,
       notifyConflicts: true,
       notifyDueToday: false,
@@ -152,6 +157,11 @@ class AppSettings {
         defaults.themeModePreference,
       ),
       localeTag: normalizeBusyMaxLocaleTag(json['localeTag']?.toString()),
+      timeFormatPreference: _enumFromName(
+        BusyMaxTimeFormatPreference.values,
+        json['timeFormatPreference'],
+        defaults.timeFormatPreference,
+      ),
       notifySyncFailures:
           json['notifySyncFailures'] as bool? ?? defaults.notifySyncFailures,
       notifyConflicts:
@@ -193,6 +203,7 @@ class AppSettings {
   final BusyMaxThemeFamily themeFamily;
   final BusyMaxThemeModePreference themeModePreference;
   final String? localeTag;
+  final BusyMaxTimeFormatPreference timeFormatPreference;
   final bool notifySyncFailures;
   final bool notifyConflicts;
   final bool notifyDueToday;
@@ -223,6 +234,7 @@ class AppSettings {
       'themeFamily': themeFamily.name,
       'themeModePreference': themeModePreference.name,
       'localeTag': localeTag,
+      'timeFormatPreference': timeFormatPreference.name,
       'notifySyncFailures': notifySyncFailures,
       'notifyConflicts': notifyConflicts,
       'notifyDueToday': notifyDueToday,
@@ -250,6 +262,7 @@ class AppSettings {
     BusyMaxThemeFamily? themeFamily,
     BusyMaxThemeModePreference? themeModePreference,
     Object? localeTag = _unset,
+    BusyMaxTimeFormatPreference? timeFormatPreference,
     bool? notifySyncFailures,
     bool? notifyConflicts,
     bool? notifyDueToday,
@@ -283,6 +296,7 @@ class AppSettings {
     );
     return AppSettings(
       themeFamily: themeFamily ?? this.themeFamily,
+      timeFormatPreference: timeFormatPreference ?? this.timeFormatPreference,
       themeModePreference: themeModePreference ?? this.themeModePreference,
       localeTag: identical(localeTag, _unset)
           ? this.localeTag
@@ -391,6 +405,9 @@ class AppSettingsController extends StateNotifier<AppSettings> {
   Future<void> get ready => _loadFuture;
 
   Future<void> retrySave() => _mutate((settings) => settings);
+
+  Future<void> setTimeFormatPreference(BusyMaxTimeFormatPreference value) =>
+      _mutate((current) => current.copyWith(timeFormatPreference: value));
 
   Future<void> registerSidebarIds(
     SidebarOrderSection section,

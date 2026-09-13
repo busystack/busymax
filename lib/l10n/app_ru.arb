@@ -1,4 +1,9 @@
 {
+  "timeFormat": "Формат времени",
+  "timeFormatTwelveHour": "12 часов",
+  "timeFormatTwentyFourHour": "24 часа",
+  "timeEndOfDay": "конец дня",
+  "timePeriod": "Время суток",
   "taskRecurrenceDestinationUnsupported": "Этот список не поддерживает такой шаблон повторения. Измените шаблон или выберите другой список.",
   "taskRecurrenceRequiresDate": "Добавьте дату начала или срок выполнения для этого шаблона либо отключите повторение.",
   "launchAtLoginReadFailed": "Не удалось определить состояние запуска при входе в систему.",

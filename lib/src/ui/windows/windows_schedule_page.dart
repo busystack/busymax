@@ -1,3 +1,4 @@
+import 'package:busymax/src/l10n/time_format_scope.dart';
 import 'dart:async';
 import '../../providers/busy_provider.dart';
 import 'dart:math' as math;
@@ -963,7 +964,7 @@ class _WindowsSchedulePageState extends ConsumerState<WindowsSchedulePage> {
     if (!mounted) return;
     final l10n = AppLocalizations.of(context);
     final locale = Localizations.localeOf(context).toLanguageTag();
-    final time = _itemDateLabel(item, locale);
+    final time = _itemDateLabel(context, item, locale);
     return showDialog<void>(
       context: context,
       builder: (dialogContext) => ContentDialog(
@@ -1978,7 +1979,7 @@ class _CompactScheduleItem extends StatelessWidget {
     final task = item is TaskScheduleItem ? item as TaskScheduleItem : null;
     final label = item.allDay || start == null
         ? item.title
-        : '${DateFormat.jm(locale).format(start)} ${item.title}';
+        : '${BusyMaxTimeFormatScope.of(context).format(start)} ${item.title}';
     return Tooltip(
       message: [
         label,
@@ -2092,7 +2093,7 @@ class _ScheduleItemCard extends StatelessWidget {
           ),
           subtitle: Text(
             [
-              _itemDateLabel(item, locale),
+              _itemDateLabel(context, item, locale),
               ?item.sourceName,
             ].where((value) => value.isNotEmpty).join(' · '),
           ),
@@ -2120,12 +2121,16 @@ String _modeLabel(AppLocalizations l10n, ScheduleViewMode mode) =>
       ScheduleViewMode.agenda => l10n.viewAgenda,
     };
 
-String _itemDateLabel(ScheduleItem item, String locale) {
+String _itemDateLabel(BuildContext context, ScheduleItem item, String locale) {
   final start = item.start;
   if (start == null) return '';
   return item.allDay
       ? DateFormat.yMMMd(locale).format(start)
-      : DateFormat.yMMMd(locale).add_jm().format(start);
+      : formatClockDateTime(
+          context,
+          start,
+          DateFormat.yMMMd(locale).format(start),
+        );
 }
 
 DateTime _dateOnly(DateTime value) =>

@@ -1,3 +1,4 @@
+import 'package:busymax/src/l10n/time_format_scope.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart' hide TextDirection;
 import 'package:yaru/yaru.dart';
@@ -646,7 +647,7 @@ List<Widget> _taskDetails(
         icon: Icons.notifications_outlined,
         text:
             '${context.l10n.reminder}: '
-            '${DateFormat.yMMMd(Localizations.localeOf(context).toLanguageTag()).add_jm().format(item.reminder!)}',
+            '${formatClockDateTime(context, item.reminder!, DateFormat.yMMMd(Localizations.localeOf(context).toLanguageTag()).format(item.reminder!))}',
       ),
     if (item.categories.isNotEmpty)
       _ScheduleDetailRow(

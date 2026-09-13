@@ -1795,8 +1795,6 @@ Object _disabledRemindersFor(BusyProvider provider) {
   return {'isReminderOn': false};
 }
 
-
-
 List<int> _normalizedReminderMinutes(Iterable<int> minutes) {
   final result = <int>[];
   for (final value in minutes) {

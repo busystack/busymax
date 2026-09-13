@@ -13,6 +13,21 @@ class AppLocalizationsJa extends AppLocalizations {
   AppLocalizationsJa([String locale = 'ja']) : super(locale);
 
   @override
+  String get timeFormat => '時刻の表示形式';
+
+  @override
+  String get timeFormatTwelveHour => '12時間表示';
+
+  @override
+  String get timeFormatTwentyFourHour => '24時間表示';
+
+  @override
+  String get timeEndOfDay => '一日の終わり';
+
+  @override
+  String get timePeriod => '午前・午後';
+
+  @override
   String get launchAtLoginReadFailed => 'ログイン時の起動状態を確認できませんでした。';
 
   @override

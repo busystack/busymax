@@ -8,6 +8,7 @@ import 'package:busymax/src/core/time/local_time_zone.dart';
 import 'package:busymax/src/core/time/time_zone_catalog.dart';
 import 'package:busymax/src/l10n/l10n.dart';
 import 'package:busymax/src/l10n/localized_formatters.dart';
+import 'package:busymax/src/l10n/time_format_scope.dart';
 import 'package:busymax/src/features/schedule/presentation/mini_calendar.dart';
 import 'package:busymax/src/features/schedule/presentation/schedule_anchored_popover.dart';
 import 'package:busymax/src/features/tasks/presentation/time_zone_selection_dialog.dart';
@@ -58,12 +59,22 @@ class NativeDateTimePicker {
     required String? initialTime,
     required String cancelLabel,
     required String okLabel,
+    required BusyMaxTimeFormatter clock,
+    required String hourLabel,
+    required String minuteLabel,
+    required String periodLabel,
   }) async {
     return _invoke('pickTime', {
       'title': title,
       'initialTime': initialTime,
       'cancelLabel': cancelLabel,
       'okLabel': okLabel,
+      'use24Hour': clock.use24Hour,
+      'hourLabel': hourLabel,
+      'minuteLabel': minuteLabel,
+      'periodLabel': periodLabel,
+      'amLabel': clock.periodLabel(false),
+      'pmLabel': clock.periodLabel(true),
     });
   }
 
@@ -302,6 +313,31 @@ Future<String?> showBusyMaxDateValueDialog(
   );
 }
 
+double _timePopoverWidth(BuildContext context) {
+  final clock = BusyMaxTimeFormatScope.of(context);
+  var width = MediaQuery.textScalerOf(context).scale(_timePickerMaxWidth);
+  // Reserve both periods even when opened in 24-hour mode: an open popover
+  // can change format without replacing its route or losing its current edit.
+  var periodWidth = 0.0;
+  for (final pm in [false, true]) {
+    final painter = TextPainter(
+      text: TextSpan(
+        text: clock.periodLabel(pm),
+        style: Theme.of(context).textTheme.bodyMedium,
+      ),
+      textDirection: Directionality.of(context),
+      textScaler: MediaQuery.textScalerOf(context),
+    )..layout();
+    if (painter.width > periodWidth) periodWidth = painter.width;
+    painter.dispose();
+  }
+  final requiredWidth =
+      MediaQuery.textScalerOf(context).scale(2 * _timePickerInputColumnWidth) +
+      periodWidth +
+      100;
+  return width > requiredWidth ? width : requiredWidth.ceilToDouble();
+}
+
 Future<String?> showBusyMaxTimeValueDialog(
   BuildContext context, {
   required String label,
@@ -309,6 +345,8 @@ Future<String?> showBusyMaxTimeValueDialog(
   required bool allowEmpty,
   String? initialTimeZone,
   ValueChanged<String?>? onTimeChanged,
+  ValueChanged<bool>? onValidityChanged,
+  String? Function()? readTime,
   ValueChanged<String>? onTimeZoneChanged,
   BuildContext? anchorContext,
 }) {
@@ -316,7 +354,7 @@ Future<String?> showBusyMaxTimeValueDialog(
     context: context,
     anchorContext: anchorContext ?? context,
     semanticLabel: label,
-    preferredWidth: _timePickerMaxWidth,
+    preferredWidth: _timePopoverWidth(context),
     minimumWidth: _timePickerMinimumWidth,
     preferredMinimumHeight: _timePickerPopoverMinimumHeight,
     builder: (context, arrowSide, arrowAlignment) => _DesktopTimeValueDialog(
@@ -325,6 +363,8 @@ Future<String?> showBusyMaxTimeValueDialog(
       initialTimeZone: initialTimeZone,
       allowEmpty: allowEmpty,
       onTimeChanged: onTimeChanged,
+      onValidityChanged: onValidityChanged,
+      readTime: readTime,
       onTimeZoneChanged: onTimeZoneChanged,
       arrowSide: arrowSide,
       arrowAlignment: arrowAlignment,
@@ -695,6 +735,7 @@ class _DesktopTimeFieldState extends State<DesktopTimeField> {
   bool? _reportedValidity;
   var _hasPendingEmission = false;
   String? _pendingEmission;
+  String? _editingLocale;
 
   @override
   void initState() {
@@ -708,7 +749,8 @@ class _DesktopTimeFieldState extends State<DesktopTimeField> {
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    if (!_focusNode.hasFocus) {
+    BusyMaxTimeFormatScope.of(context);
+    if (!_focusNode.hasFocus && _inputValid) {
       _syncVisibleValue();
     }
     _reportValidityAfterBuild();
@@ -822,6 +864,10 @@ class _DesktopTimeFieldState extends State<DesktopTimeField> {
     final localizations = MaterialLocalizations.of(context);
     if (widget.useNativePicker) {
       final picked = await _nativeDateTimePicker.pickTime(
+        clock: BusyMaxTimeFormatScope.of(context),
+        hourLabel: localizations.timePickerHourLabel,
+        minuteLabel: localizations.timePickerMinuteLabel,
+        periodLabel: context.l10n.timePeriod,
         title: widget.label,
         initialTime: widget.time,
         cancelLabel: localizations.cancelButtonLabel,
@@ -831,6 +877,10 @@ class _DesktopTimeFieldState extends State<DesktopTimeField> {
         return;
       }
       if (picked.time != null) {
+        if (parseTimeOfDay(picked.time) == null) {
+          _setInputValidity(false);
+          return;
+        }
         _emitTime(picked.time!);
         _focusNode.requestFocus();
         return;
@@ -847,12 +897,16 @@ class _DesktopTimeFieldState extends State<DesktopTimeField> {
       allowEmpty: widget.allowEmpty,
       initialTimeZone: widget.timeZone,
       onTimeChanged: _emitTime,
+      onValidityChanged: _setInputValidity,
+      readTime: () => widget.time,
       onTimeZoneChanged: widget.onTimeZoneChanged,
       anchorContext: anchorContext,
     );
     if (!context.mounted) {
       return;
     }
+    _setInputValidity(_storedTimeIsValid(widget.time, widget.allowEmpty));
+    _syncVisibleValue();
     if (picked != null) {
       _emitTime(picked);
       _focusNode.requestFocus();
@@ -871,7 +925,7 @@ class _DesktopTimeFieldState extends State<DesktopTimeField> {
       }
       return;
     }
-    final parsed = parseDesktopTimeInput(context, trimmed);
+    final parsed = _parseInput(trimmed);
     if (parsed == null) {
       _setInputValidity(false);
       return;
@@ -882,6 +936,7 @@ class _DesktopTimeFieldState extends State<DesktopTimeField> {
 
   void _handleFocusChanged() {
     if (_focusNode.hasFocus) {
+      _editingLocale ??= BusyMaxTimeFormatScope.of(context).locale;
       if (_inputValid) {
         _syncVisibleValue(includeTimeZone: false);
       }
@@ -896,19 +951,31 @@ class _DesktopTimeFieldState extends State<DesktopTimeField> {
   void _normalizeOrRestore() {
     final input = _controller.text.trim();
     if (input.isEmpty && widget.allowEmpty) {
+      _editingLocale = null;
       _setInputValidity(true);
       _emitTime(null);
       _syncVisibleValue();
       return;
     }
-    final parsed = parseDesktopTimeInput(context, input);
+    final parsed = _parseInput(input);
     if (parsed == null) {
       _setInputValidity(false);
       return;
     }
     _setInputValidity(true);
     _emitTime(encodeTimeOfDay(parsed));
+    _editingLocale = null;
     _syncVisibleValue(time: parsed);
+  }
+
+  TimeOfDay? _parseInput(String input) {
+    final parsed = parseBusyMaxClockInput(
+      input,
+      _editingLocale ?? BusyMaxTimeFormatScope.of(context).locale,
+    );
+    return parsed == null
+        ? null
+        : TimeOfDay(hour: parsed.hour, minute: parsed.minute);
   }
 
   void _syncVisibleValue({TimeOfDay? time, bool? includeTimeZone}) {
@@ -944,6 +1011,7 @@ class _DesktopTimeFieldState extends State<DesktopTimeField> {
   }
 
   void _emitTime(String? value) {
+    if (!widget.enabled) return;
     if (value == widget.time ||
         _hasPendingEmission && value == _pendingEmission) {
       return;
@@ -1009,6 +1077,8 @@ class _DesktopTimeValueDialog extends StatefulWidget {
     required this.initialTimeZone,
     required this.allowEmpty,
     required this.onTimeChanged,
+    required this.onValidityChanged,
+    required this.readTime,
     required this.onTimeZoneChanged,
     required this.arrowSide,
     required this.arrowAlignment,
@@ -1019,6 +1089,8 @@ class _DesktopTimeValueDialog extends StatefulWidget {
   final String? initialTimeZone;
   final bool allowEmpty;
   final ValueChanged<String?>? onTimeChanged;
+  final ValueChanged<bool>? onValidityChanged;
+  final String? Function()? readTime;
   final ValueChanged<String>? onTimeZoneChanged;
   final BusyMaxPopoverArrowSide arrowSide;
   final double arrowAlignment;
@@ -1036,24 +1108,52 @@ class _DesktopTimeValueDialogState extends State<_DesktopTimeValueDialog> {
   bool _syncingText = false;
   bool _inputValid = true;
   late String _selectedTimeZone;
+  TimeOfDay? _selection;
+  BusyMaxTimeFormatter? _format;
+  late BusyMaxTimeFormatter _desiredFormat;
+  bool _isPm = false;
+  String? _lastEmission;
 
   @override
   void initState() {
     super.initState();
     _hourController = TextEditingController();
     _minuteController = TextEditingController();
-    _hourFocusNode = FocusNode(debugLabel: 'Time picker hour');
-    _minuteFocusNode = FocusNode(debugLabel: 'Time picker minute');
+    _hourFocusNode = FocusNode(debugLabel: 'Time picker hour')
+      ..addListener(_componentFocusChanged);
+    _minuteFocusNode = FocusNode(debugLabel: 'Time picker minute')
+      ..addListener(_componentFocusChanged);
     _inputValid =
         widget.allowEmpty || parseTimeOfDay(widget.initialTime) != null;
     _selectedTimeZone = widget.initialTimeZone ?? localIanaTimeZone();
-    _syncVisibleValue();
+    _selection = parseTimeOfDay(widget.initialTime);
+    _lastEmission = widget.initialTime;
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _desiredFormat = BusyMaxTimeFormatScope.of(context);
+    if (_format == null || _inputValid) {
+      _format = _desiredFormat;
+      _syncVisibleValue();
+    }
+  }
+
+  void _componentFocusChanged() {
+    if (!_hourFocusNode.hasFocus && !_minuteFocusNode.hasFocus && _inputValid) {
+      setState(() {
+        _format = _desiredFormat;
+        _syncVisibleValue();
+      });
+    }
   }
 
   @override
   void didUpdateWidget(covariant _DesktopTimeValueDialog oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.initialTime != widget.initialTime) {
+      _selection = parseTimeOfDay(widget.initialTime);
       _syncVisibleValue();
     }
     if (oldWidget.initialTimeZone != widget.initialTimeZone &&
@@ -1074,11 +1174,15 @@ class _DesktopTimeValueDialogState extends State<_DesktopTimeValueDialog> {
   @override
   Widget build(BuildContext context) {
     final materialLocalizations = MaterialLocalizations.of(context);
+    final componentWidth = MediaQuery.textScalerOf(
+      context,
+    ).scale(_timePickerInputColumnWidth);
     return BusyMaxContentPopoverSurface(
       arrowSide: widget.arrowSide,
       arrowAlignment: widget.arrowAlignment,
       padding: _timePickerPopoverPadding,
       child: FocusTraversalGroup(
+        policy: OrderedTraversalPolicy(),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -1088,10 +1192,10 @@ class _DesktopTimeValueDialogState extends State<_DesktopTimeValueDialog> {
               mainAxisSize: MainAxisSize.min,
               children: [
                 SizedBox(
-                  width: _timePickerInputColumnWidth,
+                  width: componentWidth,
                   child: _timeInputSection(
                     context: context,
-                    buttonWidth: _timePickerInputColumnWidth,
+                    buttonWidth: componentWidth,
                     controller: _hourController,
                     focusNode: _hourFocusNode,
                     label: materialLocalizations.timePickerHourLabel,
@@ -1111,10 +1215,10 @@ class _DesktopTimeValueDialogState extends State<_DesktopTimeValueDialog> {
                 ),
                 const SizedBox(width: BusyMaxSpacing.xs),
                 SizedBox(
-                  width: _timePickerInputColumnWidth,
+                  width: componentWidth,
                   child: _timeInputSection(
                     context: context,
-                    buttonWidth: _timePickerInputColumnWidth,
+                    buttonWidth: componentWidth,
                     controller: _minuteController,
                     focusNode: _minuteFocusNode,
                     label: materialLocalizations.timePickerMinuteLabel,
@@ -1122,6 +1226,34 @@ class _DesktopTimeValueDialogState extends State<_DesktopTimeValueDialog> {
                     onDecrement: () => _changeMinute(-1),
                   ),
                 ),
+                if (!_format!.use24Hour) ...[
+                  const SizedBox(width: BusyMaxSpacing.sm),
+                  Flexible(
+                    child: FocusTraversalOrder(
+                      order: const NumericFocusOrder(2),
+                      child: Semantics(
+                        label: context.l10n.timePeriod,
+                        child: DropdownButton<bool>(
+                          key: const ValueKey('time-period-selector'),
+                          value: _isPm,
+                          isExpanded: true,
+                          items: [
+                            for (final pm in [false, true])
+                              DropdownMenuItem(
+                                value: pm,
+                                child: Text(_format!.periodLabel(pm)),
+                              ),
+                          ],
+                          onChanged: (pm) {
+                            if (pm == null) return;
+                            setState(() => _isPm = pm);
+                            _handleTimeInputChanged();
+                          },
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
               ],
             ),
             if (!_inputValid)
@@ -1204,7 +1336,7 @@ class _DesktopTimeValueDialogState extends State<_DesktopTimeValueDialog> {
         const TextStyle(fontWeight: FontWeight.normal, height: 1);
 
     return FocusTraversalOrder(
-      order: const NumericFocusOrder(0),
+      order: NumericFocusOrder(identical(controller, _hourController) ? 0 : 1),
       child: Container(
         key: ValueKey(('time-input-section', label)),
         decoration: BoxDecoration(
@@ -1252,7 +1384,11 @@ class _DesktopTimeValueDialogState extends State<_DesktopTimeValueDialog> {
                           keyboardType: TextInputType.number,
                           maxLines: 1,
                           inputFormatters: [
-                            FilteringTextInputFormatter.digitsOnly,
+                            FilteringTextInputFormatter.allow(
+                              RegExp(
+                                '[0-9\u0660-\u0669\u06f0-\u06f9\u0966-\u096f]',
+                              ),
+                            ),
                             LengthLimitingTextInputFormatter(2),
                           ],
                           style: inputTextStyle,
@@ -1309,39 +1445,70 @@ class _DesktopTimeValueDialogState extends State<_DesktopTimeValueDialog> {
     if (bothBlank) {
       _setInputValidity(widget.allowEmpty);
       if (widget.allowEmpty) {
-        widget.onTimeChanged?.call(null);
+        _selection = null;
+        _emitSelection(null);
       }
       return;
     }
     _setInputValidity(parsed != null);
     if (parsed != null) {
-      widget.onTimeChanged?.call(encodeTimeOfDay(parsed));
+      _selection = parsed;
+      _emitSelection(encodeTimeOfDay(parsed));
     }
   }
 
+  void _emitSelection(String? value) {
+    if (value == _lastEmission) return;
+    _lastEmission = value;
+    widget.onTimeChanged?.call(value);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || widget.readTime == null || _lastEmission != value) return;
+      final accepted = widget.readTime!();
+      if (accepted == value) return;
+      // Match the controlled outer field when its parent rejects a valid edit.
+      _selection = parseTimeOfDay(accepted);
+      _lastEmission = accepted;
+      if (_inputValid) setState(_syncVisibleValue);
+    });
+  }
+
   void _changeHour(int delta) {
-    final next = _normalizeHour(_hourController.text, 0) + delta;
-    final value = next % 24;
-    _setComponent(_hourController, value < 0 ? value + 24 : value);
+    final component = _normalizeHour(_hourController.text, -1);
+    final currentHour = component < 0
+        ? _selection?.hour ?? 0
+        : _format!.use24Hour
+        ? component
+        : canonicalHour(component, isPm: _isPm);
+    final next = (currentHour + delta) % 24;
+    setState(() {
+      _isPm = next >= 12;
+      _ensureTwoDigits(
+        _hourController,
+        _format!.use24Hour ? next : twelveHourComponent(next),
+      );
+    });
+    // An hour step must not complete or replace a partly edited minute.
+    _handleTimeInputChanged();
   }
 
   void _changeMinute(int delta) {
     final next = _normalizeMinute(_minuteController.text, 0) + delta;
     final value = next % 60;
     _setComponent(_minuteController, value < 0 ? value + 60 : value);
-    _handleTimeInputChanged();
   }
 
   int _normalizeHour(String input, int fallback) {
-    final parsed = int.tryParse(input.trim());
-    if (parsed == null || parsed < 0 || parsed > 23) {
+    final parsed = int.tryParse(normalizeTimeDigits(input.trim()));
+    if (parsed == null ||
+        parsed < (_format!.use24Hour ? 0 : 1) ||
+        parsed > (_format!.use24Hour ? 23 : 12)) {
       return fallback;
     }
     return parsed;
   }
 
   int _normalizeMinute(String input, int fallback) {
-    final parsed = int.tryParse(input.trim());
+    final parsed = int.tryParse(normalizeTimeDigits(input.trim()));
     if (parsed == null || parsed < 0 || parsed > 59) {
       return fallback;
     }
@@ -1356,7 +1523,10 @@ class _DesktopTimeValueDialogState extends State<_DesktopTimeValueDialog> {
   }
 
   void _ensureTwoDigits(TextEditingController controller, int value) {
-    final valueText = value.toString().padLeft(2, '0');
+    final valueText = _format!.component(
+      value,
+      padded: !identical(controller, _hourController) || _format!.use24Hour,
+    );
     if (controller.text == valueText) {
       return;
     }
@@ -1372,18 +1542,25 @@ class _DesktopTimeValueDialogState extends State<_DesktopTimeValueDialog> {
     if (hour < 0 || minute < 0) {
       return null;
     }
-    return TimeOfDay(hour: hour, minute: minute);
+    return TimeOfDay(
+      hour: _format!.use24Hour ? hour : canonicalHour(hour, isPm: _isPm),
+      minute: minute,
+    );
   }
 
   void _syncVisibleValue() {
-    final initial = parseTimeOfDay(widget.initialTime);
+    final initial = _selection;
     _syncingText = true;
     if (initial == null) {
       _hourController.text = '';
       _minuteController.text = '';
     } else {
-      _hourController.text = initial.hour.toString().padLeft(2, '0');
-      _minuteController.text = initial.minute.toString().padLeft(2, '0');
+      _isPm = initial.hour >= 12;
+      _ensureTwoDigits(
+        _hourController,
+        _format!.use24Hour ? initial.hour : twelveHourComponent(initial.hour),
+      );
+      _ensureTwoDigits(_minuteController, initial.minute);
     }
     _syncingText = false;
   }
@@ -1395,6 +1572,7 @@ class _DesktopTimeValueDialogState extends State<_DesktopTimeValueDialog> {
     setState(() {
       _inputValid = valid;
     });
+    widget.onValidityChanged?.call(valid);
   }
 }
 
@@ -1411,10 +1589,7 @@ String formatDesktopDateTime(BuildContext context, String? dateTime) {
 }
 
 String formatMaterialTime(BuildContext context, TimeOfDay time) {
-  return MaterialLocalizations.of(context).formatTimeOfDay(
-    time,
-    alwaysUse24HourFormat: MediaQuery.alwaysUse24HourFormatOf(context),
-  );
+  return formatClockTime(context, time);
 }
 
 String formatDesktopDate(BuildContext context, String? date) {
@@ -1429,35 +1604,13 @@ String formatDesktopDate(BuildContext context, String? date) {
 
 @visibleForTesting
 TimeOfDay? parseDesktopTimeInput(BuildContext context, String input) {
-  final trimmed = input.trim();
-  if (trimmed.isEmpty) {
-    return null;
-  }
-  if (_providerTimePattern.hasMatch(trimmed)) {
-    return parseTimeOfDay(trimmed);
-  }
-
-  final normalized = trimmed
-      .replaceAll('\u00A0', ' ')
-      .replaceAll('\u202F', ' ')
-      .replaceAll(RegExp(r'\s+'), ' ');
-  final locale = Localizations.localeOf(context).toLanguageTag();
-  for (final candidate in {trimmed, normalized}) {
-    for (final format in [
-      DateFormat.Hm(locale),
-      DateFormat.jm(locale),
-      DateFormat('H:mm', locale),
-      DateFormat('h:mm a', locale),
-    ]) {
-      try {
-        final parsed = format.parseStrict(candidate);
-        return TimeOfDay(hour: parsed.hour, minute: parsed.minute);
-      } on FormatException {
-        // Try the other native locale representation.
-      }
-    }
-  }
-  return null;
+  final parsed = parseBusyMaxClockInput(
+    input,
+    Localizations.localeOf(context).toLanguageTag(),
+  );
+  return parsed == null
+      ? null
+      : TimeOfDay(hour: parsed.hour, minute: parsed.minute);
 }
 
 DateTime? parseDateOnly(String? date) {

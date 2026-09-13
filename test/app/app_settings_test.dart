@@ -4,6 +4,42 @@ import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  test(
+    'clock preference persists independently of language and canonical data',
+    () {
+      final initial = AppSettings.defaults().copyWith(
+        quietHoursStart: '23:05',
+        quietHoursEnd: '06:05',
+        scheduleDayEndMinute: 1440,
+      );
+      for (final preference in BusyMaxTimeFormatPreference.values) {
+        for (final locale in ['en', 'de']) {
+          final settings = initial.copyWith(
+            timeFormatPreference: preference,
+            localeTag: locale,
+          );
+          final restored = AppSettings.fromJson(settings.toJson());
+          expect(restored.timeFormatPreference, preference);
+          expect(restored.localeTag, locale);
+          expect(restored.quietHoursStart, '23:05');
+          expect(restored.quietHoursEnd, '06:05');
+          expect(restored.scheduleDayEndMinute, 1440);
+        }
+      }
+      for (final value in [null, 'unknown', 12]) {
+        expect(
+          AppSettings.fromJson({
+            'timeFormatPreference': value,
+          }).timeFormatPreference,
+          BusyMaxTimeFormatPreference.system,
+        );
+      }
+      expect(
+        AppSettings.fromJson({}).timeFormatPreference,
+        BusyMaxTimeFormatPreference.system,
+      );
+    },
+  );
   test('sidebar order defaults, serialization and copyWith are immutable', () {
     expect(AppSettings.defaults().sidebarOrder.accountIds, isEmpty);
     expect(AppSettings.fromJson(const {}).sidebarOrder.accountIds, isEmpty);

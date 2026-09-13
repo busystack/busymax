@@ -22,6 +22,7 @@ import 'package:busymax/src/features/connectivity/network_connectivity_service.d
 import 'package:busymax/src/features/sync/all_accounts_sync_scheduler.dart';
 import 'package:busymax/src/features/tray/domain/tray_presentation.dart';
 import 'package:busymax/src/l10n/l10n.dart';
+import 'package:busymax/src/l10n/time_format_scope.dart';
 import 'package:busymax/src/platform/busymax_tray_service.dart';
 import 'package:busymax/src/platform/gtk_font_service.dart';
 import 'package:busymax/src/platform/linux_window_service.dart';
@@ -1807,6 +1808,46 @@ void main() {
     expect(app.themeMode, ThemeMode.system);
     expect(app.debugShowCheckedModeBanner, isFalse);
     expect(app.localizationsDelegates, contains(AppLocalizations.delegate));
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(BusyMaxApp)),
+    );
+    final settings = container.read(appSettingsControllerProvider.notifier);
+    final router = container.read(appRouterProvider);
+    final navigator = rootNavigatorKey.currentState;
+    bool use24() => tester
+        .widget<BusyMaxTimeFormatScope>(find.byType(BusyMaxTimeFormatScope))
+        .formatter
+        .use24Hour;
+    addTearDown(tester.platformDispatcher.clearAlwaysUse24HourTestValue);
+    tester.platformDispatcher.alwaysUse24HourFormatTestValue = true;
+    tester.binding.handleTextScaleFactorChanged();
+    await tester.pump();
+    expect(use24(), true);
+    await settings.setTimeFormatPreference(
+      BusyMaxTimeFormatPreference.twelveHour,
+    );
+    await settings.setLocaleTag('de');
+    await tester.pumpAndSettle();
+    expect(use24(), false);
+    tester.platformDispatcher.alwaysUse24HourFormatTestValue = false;
+    tester.binding.handleTextScaleFactorChanged();
+    await tester.pump();
+    expect(use24(), false);
+    await settings.setTimeFormatPreference(
+      BusyMaxTimeFormatPreference.twentyFourHour,
+    );
+    await settings.setLocaleTag('en');
+    await tester.pumpAndSettle();
+    expect(use24(), true);
+    await settings.setTimeFormatPreference(BusyMaxTimeFormatPreference.system);
+    await tester.pump();
+    expect(use24(), false);
+    tester.platformDispatcher.alwaysUse24HourFormatTestValue = true;
+    tester.binding.handleTextScaleFactorChanged();
+    await tester.pump();
+    expect(use24(), true);
+    expect(container.read(appRouterProvider), same(router));
+    expect(rootNavigatorKey.currentState, same(navigator));
   });
 
   testWidgets('BusyMaxApp does not dim Flutter content when inactive', (
@@ -2266,7 +2307,7 @@ void main() {
     expect(currentPresentation!.offline, isFalse);
   });
 
-  testWidgets('tray refreshes after privacy and locale changes', (
+  testWidgets('tray refreshes after privacy, locale and clock changes', (
     tester,
   ) async {
     final database = AppDatabase.memoryForTests();
@@ -2302,6 +2343,18 @@ void main() {
 
     previousRefreshCalls = trayService.refreshCalls;
     await settings.setLocaleTag('de');
+    await tester.pump();
+    expect(trayService.refreshCalls, greaterThan(previousRefreshCalls));
+    previousRefreshCalls = trayService.refreshCalls;
+    await settings.setTimeFormatPreference(
+      BusyMaxTimeFormatPreference.twelveHour,
+    );
+    await tester.pump();
+    expect(trayService.refreshCalls, greaterThan(previousRefreshCalls));
+    previousRefreshCalls = trayService.refreshCalls;
+    await settings.setTimeFormatPreference(
+      BusyMaxTimeFormatPreference.twentyFourHour,
+    );
     await tester.pump();
     expect(trayService.refreshCalls, greaterThan(previousRefreshCalls));
   });

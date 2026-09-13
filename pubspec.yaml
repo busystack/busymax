@@ -58,6 +58,8 @@ dev_dependencies:
   very_good_analysis: ^10.1.0
 
 dependency_overrides:
+  fluent_ui:
+    path: third_party/fluent_ui
   flutter_timezone:
     path: third_party/flutter_timezone
   tray_manager:

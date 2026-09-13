@@ -7,6 +7,51 @@ import 'package:flutter_test/flutter_test.dart';
 import '../support/memory_settings_store.dart';
 
 void main() {
+  test('clock changes survive loading and preserve loaded language', () async {
+    final store = _DelayedLoadSettingsStore();
+    final controller = AppSettingsController(store);
+    addTearDown(controller.dispose);
+    final write = controller.setTimeFormatPreference(
+      BusyMaxTimeFormatPreference.twelveHour,
+    );
+    store.completeLoad({
+      'localeTag': 'de',
+      'timeFormatPreference': 'twentyFourHour',
+    });
+    await write;
+    expect(
+      controller.state.timeFormatPreference,
+      BusyMaxTimeFormatPreference.twelveHour,
+    );
+    expect(store.persisted['timeFormatPreference'], 'twelveHour');
+    expect(store.persisted['localeTag'], 'de');
+    await controller.setLocaleTag('en');
+    expect(
+      controller.state.timeFormatPreference,
+      BusyMaxTimeFormatPreference.twelveHour,
+    );
+  });
+
+  test('clock preference save failure uses the existing retry path', () async {
+    final store = _FailFirstSaveSettingsStore();
+    final failures = <bool>[];
+    final controller = AppSettingsController(
+      store,
+      onPersistenceChanged: failures.add,
+    );
+    addTearDown(controller.dispose);
+    await controller.setTimeFormatPreference(
+      BusyMaxTimeFormatPreference.twentyFourHour,
+    );
+    expect(failures, [true]);
+    expect(
+      controller.state.timeFormatPreference,
+      BusyMaxTimeFormatPreference.twentyFourHour,
+    );
+    await controller.retrySave();
+    expect(failures, [true, false]);
+    expect(store.persisted['timeFormatPreference'], 'twentyFourHour');
+  });
   test(
     'save failure is reported without losing changes and retry clears it',
     () async {

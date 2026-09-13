@@ -1,3 +1,4 @@
+import 'package:busymax/src/l10n/time_format_scope.dart';
 import 'dart:async';
 import 'dart:io';
 
@@ -182,6 +183,20 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             description: l10n.scheduleDisplayHoursDescription,
             filled: true,
             children: [
+              BusyMaxComboRow<BusyMaxTimeFormatPreference>(
+                title: l10n.timeFormat,
+                leading: const Icon(YaruIcons.clock),
+                values: BusyMaxTimeFormatPreference.values,
+                selected: settings.timeFormatPreference,
+                labelFor: (value) => switch (value) {
+                  BusyMaxTimeFormatPreference.system => l10n.themeSystem,
+                  BusyMaxTimeFormatPreference.twelveHour =>
+                    l10n.timeFormatTwelveHour,
+                  BusyMaxTimeFormatPreference.twentyFourHour =>
+                    l10n.timeFormatTwentyFourHour,
+                },
+                onSelected: settingsController.setTimeFormatPreference,
+              ),
               BusyMaxComboRow<int>(
                 title: l10n.scheduleDayStartsAt,
                 leading: const Icon(YaruIcons.calendar_day),
@@ -1223,16 +1238,8 @@ List<int> _scheduleDayEndValues(AppSettings settings) {
   ];
 }
 
-String _timeOfDayLabel(BuildContext context, int minute) {
-  if (minute == 24 * 60) {
-    return '24:00';
-  }
-  final time = TimeOfDay(hour: minute ~/ 60, minute: minute % 60);
-  return MaterialLocalizations.of(context).formatTimeOfDay(
-    time,
-    alwaysUse24HourFormat: MediaQuery.alwaysUse24HourFormatOf(context),
-  );
-}
+String _timeOfDayLabel(BuildContext context, int minute) =>
+    formatScheduleBoundary(context, minute);
 
 class _AccountManagementSection extends StatelessWidget {
   const _AccountManagementSection({
@@ -2500,8 +2507,7 @@ String _davCollectionDetails(
 String _formatDavDateTime(BuildContext context, DateTime value) {
   final local = value.toLocal();
   final material = MaterialLocalizations.of(context);
-  return '${material.formatMediumDate(local)} '
-      '${material.formatTimeOfDay(TimeOfDay.fromDateTime(local))}';
+  return formatClockDateTime(context, local, material.formatMediumDate(local));
 }
 
 Color? _parseDavColor(String? source) {

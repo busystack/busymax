@@ -3,12 +3,13 @@ import 'dart:async';
 
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:intl/intl.dart';
+import '../../l10n/time_format_scope.dart';
 
 import '../../../l10n/generated/app_localizations.dart';
 import '../../app/app_bootstrap.dart';
 import '../../app/desktop_startup_policy.dart';
 import '../../features/tray/domain/tray_presentation_formatter.dart';
+import '../../features/tray/domain/tray_presentation.dart';
 import '../../platform/common/desktop_services.dart';
 import '../../platform/windows/windows_tray_service.dart';
 import 'windows_event_editor_dialog.dart';
@@ -24,6 +25,8 @@ class WindowsDesktopRuntime extends ConsumerStatefulWidget {
     required this.child,
     required this.startMinimizedAtLaunch,
     this.trayService,
+    this.trayServiceFactory,
+    this.loadPresentation,
     super.key,
   });
 
@@ -31,6 +34,13 @@ class WindowsDesktopRuntime extends ConsumerStatefulWidget {
   final bool startMinimizedAtLaunch;
   @visibleForTesting
   final DesktopTrayService? trayService;
+  @visibleForTesting
+  final DesktopTrayService Function(
+    Future<BusyMaxTrayMenuPresentation> Function(),
+  )?
+  trayServiceFactory;
+  @visibleForTesting
+  final Future<BusyMaxTrayPresentation> Function()? loadPresentation;
 
   @override
   ConsumerState<WindowsDesktopRuntime> createState() =>
@@ -46,7 +56,7 @@ class _WindowsDesktopRuntimeState extends ConsumerState<WindowsDesktopRuntime> {
   late final _startupPolicy = DesktopStartupPolicy(
     startMinimizedAtLaunch: widget.startMinimizedAtLaunch,
   );
-  String? _localeTag;
+  BusyMaxTimeFormatter? _clock;
 
   @override
   void dispose() {
@@ -60,9 +70,9 @@ class _WindowsDesktopRuntimeState extends ConsumerState<WindowsDesktopRuntime> {
   Widget build(BuildContext context) {
     final settings = ref.watch(appSettingsControllerProvider);
     final l10n = AppLocalizations.of(context);
-    final locale = Localizations.localeOf(context).toLanguageTag();
-    if (_localeTag != locale || _formatter == null) {
-      _localeTag = locale;
+    final clock = BusyMaxTimeFormatScope.of(context);
+    if (_clock != clock || _formatter == null) {
+      _clock = clock;
       _formatter = BusyMaxTrayPresentationFormatter(
         BusyMaxTrayPresentationStrings(
           showBusyMax: l10n.trayShowBusyMax,
@@ -83,7 +93,7 @@ class _WindowsDesktopRuntimeState extends ConsumerState<WindowsDesktopRuntime> {
           quitBusyMax: l10n.trayQuitBusyMax,
           offline: l10n.networkOffline,
           offlineDescription: l10n.networkOfflineDescription,
-          formatTime: (value) => DateFormat.jm(locale).format(value),
+          formatTime: clock.format,
           tasksDueToday: l10n.trayTasksDueToday,
           lastSyncedJustNow: l10n.trayLastSyncedJustNow,
           lastSyncedMinutesAgo: l10n.trayLastSyncedMinutesAgo,
@@ -122,13 +132,9 @@ class _WindowsDesktopRuntimeState extends ConsumerState<WindowsDesktopRuntime> {
       }
       final tray = _tray ??=
           widget.trayService ??
+          widget.trayServiceFactory?.call(_loadFormattedPresentation) ??
           WindowsTrayService(
-            loadPresentation: () async {
-              final presentation = await ref
-                  .read(trayPresentationServiceProvider)
-                  .load();
-              return _formatter!.format(presentation);
-            },
+            loadPresentation: _loadFormattedPresentation,
             onCommand: _handleCommand,
             onUnavailable: (errorCode) async {
               ref.read(desktopTrayDiagnosticProvider.notifier).state =
@@ -187,6 +193,13 @@ class _WindowsDesktopRuntimeState extends ConsumerState<WindowsDesktopRuntime> {
         unawaited(_configure(ref.read(appSettingsControllerProvider)));
       }
     }
+  }
+
+  Future<BusyMaxTrayMenuPresentation> _loadFormattedPresentation() async {
+    final presentation =
+        await (widget.loadPresentation?.call() ??
+            ref.read(trayPresentationServiceProvider).load());
+    return _formatter!.format(presentation);
   }
 
   Future<void> _handleCommand(WindowsTrayCommand command) async {

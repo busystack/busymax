@@ -229,6 +229,11 @@ void main() {
           calls.add(call);
           expect(call.method, 'pickTime');
           expect(call.arguments, containsPair('initialTime', '09:30'));
+          expect(call.arguments, containsPair('use24Hour', false));
+          expect(call.arguments, containsPair('hourLabel', 'Hour'));
+          expect(call.arguments, containsPair('minuteLabel', 'Minute'));
+          expect(call.arguments, containsPair('amLabel', 'AM'));
+          expect(call.arguments, containsPair('pmLabel', 'PM'));
           return Future.value('10:45');
         });
     addTearDown(
@@ -266,6 +271,7 @@ void main() {
   ) async {
     await tester.pumpWidget(
       localizedTestApp(
+        alwaysUse24HourFormat: true,
         child: Scaffold(
           body: DesktopTimeValueRow(
             label: 'Due time',
@@ -1183,7 +1189,7 @@ void main() {
 
       await pumpEntry(locale: const Locale('de'), alwaysUse24HourFormat: false);
       expect(tester.state(find.byType(DesktopTimeField)), same(originalState));
-      expect(visibleText(), '14:30');
+      expect(visibleText(), '2:30 PM');
 
       await pumpEntry(locale: const Locale('en'), alwaysUse24HourFormat: false);
       expect(tester.state(find.byType(DesktopTimeField)), same(originalState));

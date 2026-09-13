@@ -13,6 +13,21 @@ class AppLocalizationsEn extends AppLocalizations {
   AppLocalizationsEn([String locale = 'en']) : super(locale);
 
   @override
+  String get timeFormat => 'Time format';
+
+  @override
+  String get timeFormatTwelveHour => '12-hour';
+
+  @override
+  String get timeFormatTwentyFourHour => '24-hour';
+
+  @override
+  String get timeEndOfDay => 'end of day';
+
+  @override
+  String get timePeriod => 'Day period';
+
+  @override
   String get launchAtLoginReadFailed =>
       'Could not determine the launch-at-login state.';
 
