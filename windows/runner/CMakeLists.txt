@@ -10,6 +10,7 @@ add_executable(${BINARY_NAME} WIN32
   "flutter_window.cpp"
   "main.cpp"
   "single_instance.cpp"
+  "notification_activation.cpp"
   "utils.cpp"
   "windows_startup_task.cpp"
   "win32_window.cpp"
@@ -50,12 +51,21 @@ target_include_directories(${BINARY_NAME} PRIVATE "${CMAKE_SOURCE_DIR}")
 add_executable(busymax_runner_native_test EXCLUDE_FROM_ALL
   "tests/single_instance_test.cpp"
   "single_instance.cpp"
+  "notification_activation.cpp"
 )
 apply_standard_settings(busymax_runner_native_test)
 target_compile_definitions(busymax_runner_native_test PRIVATE "NOMINMAX")
 target_link_libraries(busymax_runner_native_test PRIVATE
   "advapi32.lib" "user32.lib")
 add_test(NAME busymax_runner_native_test COMMAND busymax_runner_native_test)
+
+add_executable(busymax_notification_activation_test EXCLUDE_FROM_ALL
+  "tests/notification_activation_test.cpp"
+  "notification_activation.cpp"
+)
+apply_standard_settings(busymax_notification_activation_test)
+add_test(NAME busymax_notification_activation_test
+  COMMAND busymax_notification_activation_test)
 
 # Run the Flutter tool portions of the build. This must not be removed.
 add_dependencies(${BINARY_NAME} flutter_assemble)

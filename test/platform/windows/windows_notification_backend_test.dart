@@ -11,9 +11,18 @@ import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import '../../support/native_notification_activation_validator.dart';
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
   late Directory directory;
+  late NativeNotificationActivationValidator nativeValidator;
+
+  setUpAll(() async {
+    nativeValidator = await NativeNotificationActivationValidator.build();
+  });
+
+  tearDownAll(() => nativeValidator.dispose());
 
   setUp(() async {
     directory = await Directory.systemTemp.createTemp(
@@ -30,7 +39,7 @@ void main() {
 
   for (final route in ['due-today', 'sync-failure', 'conflict']) {
     test(
-      '$route body click survives warm, cold, and forwarded activation',
+      '$route body click survives warm, cold, and native-validated forwarding',
       () async {
         final plugin = _FakeNotificationsPlugin();
         final warm = <DesktopActivation>[];
@@ -85,7 +94,9 @@ void main() {
         TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
             .setMockMethodCallHandler(channel, (call) async {
               if (call.method == 'forwardActivation') {
-                primary.acceptEncoded(call.arguments);
+                final encoded = call.arguments as String;
+                if (!await nativeValidator.accepts(encoded)) return false;
+                primary.acceptEncoded(encoded);
                 return true;
               }
               return null;

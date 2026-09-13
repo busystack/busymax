@@ -7,6 +7,7 @@
 #include <cstdint>
 #include <cstdlib>
 #include <iostream>
+#include <mutex>
 #include <string>
 #include <thread>
 #include <vector>
@@ -99,8 +100,14 @@ void TestSimultaneousStartAndPipeAcknowledgment() {
   BusyMaxSingleInstance primary;
   if (primary.state() != BusyMaxInstanceState::kPrimary) return;
   std::atomic<int> activations = 0;
-  Check(primary.Start([&activations](std::string activation) {
-          if (IsValidBusyMaxActivation(activation)) ++activations;
+  std::mutex received_mutex;
+  std::vector<std::string> received;
+  Check(primary.Start([&](std::string activation) {
+          if (IsValidBusyMaxActivation(activation)) {
+            std::lock_guard<std::mutex> lock(received_mutex);
+            received.push_back(activation);
+            ++activations;
+          }
         }),
         "primary listener starts before application data");
 
@@ -113,6 +120,48 @@ void TestSimultaneousStartAndPipeAcknowledgment() {
   const ULONGLONG deadline = GetTickCount64() + 1000;
   while (activations.load() == 0 && GetTickCount64() < deadline) Sleep(5);
   Check(activations.load() == 1, "primary receives one activation");
+
+  // Exercise both sender and receiver validation through the real named pipe.
+  // These activations deliberately have no reminder schedule ID.
+  int expected_count = 1;
+  for (const std::string route : {"due-today", "sync-failure", "conflict"}) {
+    for (const std::string action : {"default", "open"}) {
+      const std::string activation =
+          R"({"version":1,"kind":"notification","action":")" + action +
+          R"(","payload":{"notificationRoute":")" + route + R"("}})";
+      Check(IsValidBusyMaxActivation(activation),
+            "runner accepts routed notification activation");
+      Check(secondary.ForwardActivation(activation),
+            "routed notification receives native pipe acknowledgment");
+      ++expected_count;
+      const ULONGLONG route_deadline = GetTickCount64() + 1000;
+      while (activations.load() < expected_count &&
+             GetTickCount64() < route_deadline) {
+        Sleep(5);
+      }
+      Check(activations.load() == expected_count,
+            "primary receives routed notification exactly once");
+      std::lock_guard<std::mutex> lock(received_mutex);
+      Check(!received.empty() && received.back() == activation,
+            "native forwarding preserves exact routed payload");
+    }
+    for (const std::string action : {"snooze", "dismiss"}) {
+      const std::string activation =
+          R"({"version":1,"kind":"notification","action":")" + action +
+          R"(","payload":{"notificationRoute":")" + route + R"("}})";
+      Check(!secondary.ForwardActivation(activation),
+            "native forwarding rejects reminder actions on summaries");
+    }
+    Check(!secondary.ForwardActivation(
+              R"({"version":1,"kind":"notification","action":"open","payload":{"notificationRoute":")" +
+              route + R"(","notificationScheduleId":"row-1"}})"),
+          "native forwarding rejects mixed route/reminder payloads");
+  }
+  Check(!secondary.ForwardActivation(
+            R"({"version":1,"kind":"notification","action":"open","payload":{"notificationRoute":"unknown"}})"),
+        "native forwarding rejects unknown routes");
+  Check(activations.load() == expected_count,
+        "rejected notifications never reach the primary");
 
   primary.Stop();
   Check(!secondary.ForwardActivation(
