@@ -65,6 +65,9 @@ void main() {
               taskListId: 'list-1',
               id: id,
               title: 'File report',
+              microsoftIsReminderOn: const Value(true),
+              microsoftReminderDateTime: Value(now.toIso8601String()),
+              microsoftReminderTimeZone: const Value('UTC'),
               rawJson: '{}',
               createdLocalAtUtc: '',
               updatedLocalAtUtc: '',
@@ -95,6 +98,15 @@ void main() {
             providerCalendarId: 'calendar',
             providerEventId: 'event-1',
             title: 'Standup',
+            startDateTime: Value(
+              now.add(const Duration(minutes: 5)).toIso8601String(),
+            ),
+            endDateTime: Value(
+              now.add(const Duration(hours: 1)).toIso8601String(),
+            ),
+            remindersJson: const Value(
+              '{"isReminderOn":true,"reminderMinutesBeforeStart":5}',
+            ),
             createdAtLocal: 0,
             updatedAtLocal: 0,
           ),
@@ -210,6 +222,15 @@ void main() {
     );
     scheduler.start();
 
+    await (database.update(
+      database.tasks,
+    )..where((row) => row.id.equals('future-task'))).write(
+      TasksCompanion(
+        microsoftReminderDateTime: Value(
+          baseNow.add(const Duration(milliseconds: 60)).toIso8601String(),
+        ),
+      ),
+    );
     await database
         .into(database.notificationSchedule)
         .insert(
@@ -504,6 +525,13 @@ void main() {
         final checking = scheduler.checkNow();
         await _waitUntil(() => backend.notifications.isNotEmpty);
         final tomorrow = now.add(const Duration(days: 1));
+        await (database.update(
+          database.tasks,
+        )..where((row) => row.id.equals('task-1'))).write(
+          TasksCompanion(
+            microsoftReminderDateTime: Value(tomorrow.toIso8601String()),
+          ),
+        );
         await database
             .update(database.notificationSchedule)
             .write(
@@ -698,7 +726,7 @@ void main() {
           .getSingle();
       await database
           .into(database.notificationSchedule)
-          .insert(row.copyWith(id: 'second'));
+          .insert(row.copyWith(id: 'second', sourceId: 'future-task'));
       backend.deliveryBarrier = Completer<void>();
       final checking = scheduler.checkNow();
       await _waitUntil(() => backend.notifications.isNotEmpty);
@@ -771,8 +799,17 @@ Future<void> _waitUntil(
 Future<void> _insertDueTaskNotification(
   AppDatabase database,
   DateTime scheduledAt,
-) {
-  return database
+) async {
+  await (database.update(
+    database.tasks,
+  )..where((row) => row.id.equals('task-1'))).write(
+    TasksCompanion(
+      microsoftIsReminderOn: const Value(true),
+      microsoftReminderDateTime: Value(scheduledAt.toIso8601String()),
+      microsoftReminderTimeZone: const Value('UTC'),
+    ),
+  );
+  await database
       .into(database.notificationSchedule)
       .insert(
         NotificationScheduleCompanion.insert(

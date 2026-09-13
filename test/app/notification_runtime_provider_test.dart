@@ -44,6 +44,37 @@ void main() {
             ),
           );
       await database
+          .into(database.taskLists)
+          .insert(
+            TaskListsCompanion.insert(
+              accountId: 'account',
+              id: 'list',
+              title: 'Tasks',
+              rawJson: '{}',
+              createdLocalAtUtc: '',
+              updatedLocalAtUtc: '',
+            ),
+          );
+      final reminderAt = DateTime.now().toUtc().subtract(
+        const Duration(seconds: 1),
+      );
+      await database
+          .into(database.tasks)
+          .insert(
+            TasksCompanion.insert(
+              accountId: 'account',
+              taskListId: 'list',
+              id: 'task',
+              title: 'Report',
+              microsoftIsReminderOn: const Value(true),
+              microsoftReminderDateTime: Value(reminderAt.toIso8601String()),
+              microsoftReminderTimeZone: const Value('UTC'),
+              rawJson: '{}',
+              createdLocalAtUtc: '',
+              updatedLocalAtUtc: '',
+            ),
+          );
+      await database
           .into(database.notificationSchedule)
           .insert(
             NotificationScheduleCompanion.insert(
@@ -51,8 +82,7 @@ void main() {
               accountId: 'account',
               sourceType: 'task',
               sourceId: 'task',
-              scheduledAtUtc:
-                  DateTime.now().toUtc().millisecondsSinceEpoch - 1000,
+              scheduledAtUtc: reminderAt.millisecondsSinceEpoch,
               title: 'Report',
               createdAtLocal: 0,
               updatedAtLocal: 0,
@@ -96,6 +126,121 @@ void main() {
       await subscription.read().checkNow();
       await retired.checkNow();
       expect(backend.requests, hasLength(1));
+    },
+  );
+  test(
+    'late cancellation survives scheduler and notification-service replacement',
+    () async {
+      final database = AppDatabase(NativeDatabase.memory());
+      final backend = RecordingNotificationBackend();
+      final barrier = Completer<void>();
+      backend.barrier = barrier;
+      final container = ProviderContainer(
+        overrides: [
+          databaseProvider.overrideWithValue(database),
+          initialAppSettingsProvider.overrideWithValue(AppSettings.defaults()),
+          localSettingsStoreProvider.overrideWithValue(MemorySettingsStore()),
+          desktopNotificationBackendProvider.overrideWithValue(backend),
+        ],
+      );
+      addTearDown(() async {
+        container.dispose();
+        await database.close();
+      });
+      await database
+          .into(database.accounts)
+          .insert(
+            AccountsCompanion.insert(
+              id: 'account',
+              provider: 'microsoft',
+              authority: 'https://login.microsoftonline.com/common',
+              providerAccountId: 'account',
+              credentialKind: 'oauth',
+              authState: const Value('signed_in'),
+              createdAtUtc: '',
+              updatedAtUtc: '',
+            ),
+          );
+      await database
+          .into(database.taskLists)
+          .insert(
+            TaskListsCompanion.insert(
+              accountId: 'account',
+              id: 'list',
+              title: 'Tasks',
+              rawJson: '{}',
+              createdLocalAtUtc: '',
+              updatedLocalAtUtc: '',
+            ),
+          );
+      final reminderAt = DateTime.now().toUtc().subtract(
+        const Duration(seconds: 1),
+      );
+      await database
+          .into(database.tasks)
+          .insert(
+            TasksCompanion.insert(
+              accountId: 'account',
+              taskListId: 'list',
+              id: 'task',
+              title: 'Report',
+              microsoftIsReminderOn: const Value(true),
+              microsoftReminderDateTime: Value(reminderAt.toIso8601String()),
+              microsoftReminderTimeZone: const Value('UTC'),
+              rawJson: '{}',
+              createdLocalAtUtc: '',
+              updatedLocalAtUtc: '',
+            ),
+          );
+      await database
+          .into(database.notificationSchedule)
+          .insert(
+            NotificationScheduleCompanion.insert(
+              id: 'reminder',
+              accountId: 'account',
+              sourceType: 'task',
+              sourceId: 'task',
+              scheduledAtUtc: reminderAt.millisecondsSinceEpoch,
+              title: 'Report',
+              createdAtLocal: 0,
+              updatedAtLocal: 0,
+            ),
+          );
+      final subscription = container.listen(
+        notificationSchedulerProvider,
+        (_, _) {},
+      );
+      final retired = subscription.read();
+      await _waitUntil(() => backend.requests.length == 1);
+      final oldId = backend.requests.single.stableId;
+      backend.barrier = null;
+      container.invalidate(notificationSchedulerProvider);
+      container.invalidate(desktopNotificationServiceProvider);
+      await container.pump();
+      final replacement = subscription.read();
+      expect(replacement, isNot(same(retired)));
+      await _waitUntil(
+        () async =>
+            (await database.select(database.notificationSchedule).getSingle())
+                .sentAtUtc !=
+            null,
+      );
+      final newId = backend.requests.last.stableId;
+      expect(newId, isNot(oldId));
+      backend.cancellationFailuresRemaining = 1;
+      barrier.complete();
+      await _waitUntil(() => backend.cancellationAttempts.contains(oldId));
+      expect(backend.activeIds, {oldId, newId});
+      await replacement.checkNow();
+      expect(backend.activeIds, {newId});
+      expect(backend.cancelledIds, [oldId]);
+      expect(
+        backend.cancellationAttempts.where((id) => id == oldId),
+        hasLength(2),
+      );
+      await retired.checkNow();
+      expect(backend.requests, hasLength(2));
+      expect(backend.activeIds, {newId});
     },
   );
 }

@@ -90,6 +90,64 @@ void main() {
     );
   });
 
+  test(
+    'malformed numeric entities do not block unrelated alarm reconciliation',
+    () async {
+      await _upsertEvent(
+        database,
+        accountId: 'google:g',
+        provider: BusyProvider.google,
+        remindersJson: {
+          'overrides': [
+            {'method': 'popup', 'minutes': 10},
+          ],
+        },
+      );
+      await service.rebuildUpcomingEventNotifications('google:g');
+      final before = await database
+          .select(database.notificationSchedule)
+          .getSingle();
+      await database
+          .update(database.calendarEvents)
+          .write(
+            const CalendarEventsCompanion(
+              startDateTime: Value('2026-06-08T10:00:00Z'),
+            ),
+          );
+      await CalendarRepository(database: database).upsertEvent(
+        accountId: 'google:g',
+        event: googleCalendarEventFromJson('cal-1', {
+          'id': 'malformed',
+          'summary': 'Notes',
+          'description':
+              '<p>Notes &#x110000; &#1114112; &#xD800; &#99999999999999999999999999;</p>',
+          'start': {'dateTime': '2026-06-08T09:00:00Z'},
+          'end': {'dateTime': '2026-06-08T10:00:00Z'},
+          'reminders': {
+            'overrides': [
+              {'method': 'popup', 'minutes': 10},
+            ],
+          },
+        }),
+      );
+      await service.rebuildUpcomingEventNotifications('google:g');
+      final schedules = await database
+          .select(database.notificationSchedule)
+          .get();
+      expect(schedules, hasLength(2));
+      final changed = schedules.singleWhere((row) => row.id == before.id);
+      expect(
+        changed.scheduledAtUtc,
+        DateTime.utc(2026, 6, 8, 9, 50).millisecondsSinceEpoch,
+      );
+      expect(changed.generation, isNot(before.generation));
+      expect(
+        schedules.singleWhere((row) => row.id != before.id).body,
+        'Notes \uFFFD \uFFFD \uFFFD \uFFFD',
+      );
+    },
+  );
+
   for (final source in ['event', 'task']) {
     test(
       'sync retains delivered $source actions after the relevance cutoff',

@@ -40,6 +40,7 @@ import '../features/auth/data/auth_repository.dart';
 import '../features/connectivity/network_connectivity_service.dart';
 import '../features/feedback/data/feedback_api_client.dart';
 import '../features/notifications/desktop_notification_service.dart';
+import '../features/notifications/notification_cancellation_queue.dart';
 import '../features/notifications/due_today_notification_scheduler.dart';
 import '../features/notifications/notification_schedule_service.dart';
 import '../features/notifications/notification_scheduler.dart';
@@ -253,11 +254,18 @@ final desktopNotificationReadinessProvider =
       (ref) => const DesktopNotificationReadiness.initializing(),
     );
 
+// Survives scheduler invalidation, settings changes and backend replacement.
+final notificationCancellationQueueProvider =
+    Provider<NotificationCancellationQueue>(
+      (ref) => NotificationCancellationQueue(),
+    );
+
 final desktopNotificationServiceProvider = Provider<DesktopNotificationService>(
   (ref) {
     final settings = ref.watch(appSettingsControllerProvider);
     return DesktopNotificationService(
       backend: ref.watch(desktopNotificationBackendProvider),
+      cancellationQueue: ref.watch(notificationCancellationQueueProvider),
       settings: settings,
       locale: settings.locale,
       onDestinationActivated: (destination) async {

@@ -211,27 +211,38 @@ String escapeHtml(String value) {
 }
 
 String decodeHtmlEntities(String value) {
-  return value
-      .replaceAll('&nbsp;', ' ')
-      .replaceAll('&#160;', ' ')
-      .replaceAll('&amp;', '&')
-      .replaceAll('&lt;', '<')
-      .replaceAll('&gt;', '>')
-      .replaceAll('&quot;', '"')
-      .replaceAll('&#39;', "'")
-      .replaceAll('&apos;', "'")
-      .replaceAllMapped(RegExp(r'&#x([0-9a-fA-F]+);'), (match) {
-        final codePoint = int.tryParse(match.group(1)!, radix: 16);
-        return codePoint == null
-            ? match.group(0)!
-            : String.fromCharCode(codePoint);
-      })
-      .replaceAllMapped(RegExp(r'&#([0-9]+);'), (match) {
-        final codePoint = int.tryParse(match.group(1)!);
-        return codePoint == null
-            ? match.group(0)!
-            : String.fromCharCode(codePoint);
-      });
+  // Decode once: &amp;lt; represents the literal text &lt;, not a new tag.
+  return value.replaceAllMapped(
+    RegExp(r'&(?:#([xX][0-9a-fA-F]+|[0-9]+)|(nbsp|amp|lt|gt|quot|apos));'),
+    (match) {
+      final numeric = match.group(1);
+      if (numeric != null) {
+        final hex = numeric.startsWith(RegExp('[xX]'));
+        final codePoint = int.tryParse(
+          hex ? numeric.substring(1) : numeric,
+          radix: hex ? 16 : 10,
+        );
+        // Invalid numeric references (including overflow, NUL and surrogates)
+        // have a visible replacement instead of throwing during projection.
+        if (codePoint == null ||
+            codePoint <= 0 ||
+            codePoint > 0x10ffff ||
+            (codePoint >= 0xd800 && codePoint <= 0xdfff)) {
+          return '\uFFFD';
+        }
+        return codePoint == 160 ? ' ' : String.fromCharCode(codePoint);
+      }
+      return switch (match.group(2)) {
+        'nbsp' => ' ',
+        'amp' => '&',
+        'lt' => '<',
+        'gt' => '>',
+        'quot' => '"',
+        'apos' => "'",
+        _ => match.group(0)!,
+      };
+    },
+  );
 }
 
 bool isHtmlContentType(String? value) => _isHtmlContentType(value);

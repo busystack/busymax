@@ -7,6 +7,7 @@ import '../../db/app_database.dart';
 import '../accounts/data/accounts_repository.dart';
 import 'desktop_notification_service.dart';
 import 'notification_identity.dart';
+import 'notification_schedule_service.dart';
 
 const defaultReminderSnoozeDuration = Duration(minutes: 10);
 
@@ -54,7 +55,6 @@ class NotificationScheduler {
   final Map<String, int> _deferredUntilUtc = {};
   final Set<String> _disabledNotificationIds = {};
   final Map<String, NotificationScheduleData> _knownSchedules = {};
-  final Set<String> _pendingCancellations = {};
 
   void start() {
     if (_stopped || _running) return;
@@ -110,7 +110,7 @@ class NotificationScheduler {
     try {
       do {
         _checkAgain = false;
-        await _retryCancellations();
+        await _notifications.retryReminderCancellations();
         await _cancelObsoleteNotifications();
         if (_stopped) return;
         await _checkDueNotifications();
@@ -174,26 +174,13 @@ class NotificationScheduler {
       final eligible = await _isAccountReminderEligible(pending.accountId);
       if (_stopped) return;
       if (!eligible) continue;
-      if (!await _isSourceEligible(pending)) {
-        await (_database.delete(
-          _database.notificationSchedule,
-        )..where((table) => _sameDelivery(table, pending))).go();
+      final row = await _claimReminder(pending);
+      if (_stopped) return;
+      if (row == null) {
         await _cancelReminder(_deliveryId(pending));
+        _checkAgain = true;
         continue;
       }
-
-      // Claim a distinct delivery before crossing the asynchronous backend
-      // boundary. A replacement scheduler cannot reuse this attempt's ID.
-      final generation = const Uuid().v4();
-      final claimed =
-          await (_database.update(
-            _database.notificationSchedule,
-          )..where((table) => _pendingDelivery(table, pending))).write(
-            NotificationScheduleCompanion(generation: Value(generation)),
-          );
-      if (_stopped) return;
-      if (claimed == 0) continue;
-      final row = pending.copyWith(generation: generation);
       _knownSchedules[row.id] = row;
       final deliveryId = _deliveryId(row);
       final notifications = _notifications;
@@ -240,74 +227,32 @@ class NotificationScheduler {
   }
 
   Future<void> _cancelReminder(String deliveryId) async {
-    _pendingCancellations.add(deliveryId);
-    if (await _notifications.cancelReminder(deliveryId)) {
-      _pendingCancellations.remove(deliveryId);
-    }
+    await _notifications.cancelReminder(deliveryId);
   }
 
-  Future<void> _retryCancellations() async {
-    for (final deliveryId in _pendingCancellations.toList()) {
-      await _cancelReminder(deliveryId);
-    }
-  }
+  Future<bool> _isReminderCurrent(NotificationScheduleData row) =>
+      NotificationScheduleService(
+        database: _database,
+        nowUtc: _nowUtc,
+      ).validateAndReconcileReminder(row);
 
-  // A source can change while a later sync page is still in flight. Do not
-  // rely solely on schedules, which are reconciled when that sync finishes.
-  Future<bool> _isSourceEligible(NotificationScheduleData row) async {
-    if (row.sourceType == 'event') {
-      final events = _database.calendarEvents;
-      final sources = _database.calendarSources;
-      final query = _database.selectOnly(events)
-        ..addColumns([events.id])
-        ..join([
-          innerJoin(
-            sources,
-            sources.id.equalsExp(events.calendarSourceId) &
-                sources.accountId.equalsExp(events.accountId),
-          ),
-        ])
-        ..where(
-          events.id.equals(row.sourceId) &
-              events.accountId.equals(row.accountId) &
-              events.isDeleted.equals(false) &
-              events.isCancelled.equals(false) &
-              sources.isDeleted.equals(false) &
-              sources.remindersEnabled.equals(true),
-        )
-        ..limit(1);
-      return await query.getSingleOrNull() != null;
-    }
-    if (row.sourceType == 'task') {
-      final tasks = _database.tasks;
-      final lists = _database.taskLists;
-      final query = _database.selectOnly(tasks)
-        ..addColumns([tasks.id])
-        ..join([
-          innerJoin(
-            lists,
-            lists.id.equalsExp(tasks.taskListId) &
-                lists.accountId.equalsExp(tasks.accountId),
-          ),
-        ])
-        ..where(
-          tasks.id.equals(row.sourceId) &
-              tasks.accountId.equals(row.accountId) &
-              (tasks.status.isNull() |
-                  tasks.status.isNotIn(['completed', 'cancelled'])) &
-              tasks.pendingDelete.equals(false) &
-              tasks.serverMissing.equals(false) &
-              (tasks.deleted.isNull() | tasks.deleted.equals(false)) &
-              (tasks.hidden.isNull() | tasks.hidden.equals(false)) &
-              lists.pendingDelete.equals(false) &
-              lists.serverMissing.equals(false) &
-              lists.remindersEnabled.equals(true),
-        )
-        ..limit(1);
-      return await query.getSingleOrNull() != null;
-    }
-    return false;
-  }
+  Future<NotificationScheduleData?> _claimReminder(
+    NotificationScheduleData pending,
+  ) => _database.transaction(() async {
+    if (_stopped) return null;
+    final reminderCurrent = await _isReminderCurrent(pending);
+    if (_stopped || !reminderCurrent) return null;
+    // Validation and claiming use one snapshot. Source changes committed
+    // before this attempt cannot leave the old alarm eligible for delivery.
+    final generation = const Uuid().v4();
+    final claimed =
+        await (_database.update(
+          _database.notificationSchedule,
+        )..where((table) => _pendingDelivery(table, pending))).write(
+          NotificationScheduleCompanion(generation: Value(generation)),
+        );
+    return claimed == 0 ? null : pending.copyWith(generation: generation);
+  });
 
   String _deliveryId(NotificationScheduleData row) =>
       notificationDeliveryId(row.id, row.generation);
@@ -379,21 +324,24 @@ class NotificationScheduler {
           ? table.snoozedUntilUtc.isNull()
           : table.snoozedUntilUtc.equals(row.snoozedUntilUtc!));
 
-  Future<bool> _markDelivered(NotificationScheduleData row) async {
-    if (_stopped || !await _isSourceEligible(row)) return false;
-    // One conditional write: no lookup/update race with edits or actions.
-    final updated =
-        await (_database.update(
-          _database.notificationSchedule,
-        )..where((table) => _pendingDelivery(table, row))).write(
-          NotificationScheduleCompanion(
-            sentAtUtc: Value(_nowUtc().millisecondsSinceEpoch),
-            snoozedUntilUtc: const Value(null),
-            updatedAtLocal: Value(DateTime.now().millisecondsSinceEpoch),
-          ),
-        );
-    return updated != 0;
-  }
+  Future<bool> _markDelivered(NotificationScheduleData row) =>
+      _database.transaction(() async {
+        if (_stopped) return false;
+        final reminderCurrent = await _isReminderCurrent(row);
+        if (_stopped || !reminderCurrent) return false;
+        // One conditional write: no lookup/update race with edits or actions.
+        final updated =
+            await (_database.update(
+              _database.notificationSchedule,
+            )..where((table) => _pendingDelivery(table, row))).write(
+              NotificationScheduleCompanion(
+                sentAtUtc: Value(_nowUtc().millisecondsSinceEpoch),
+                snoozedUntilUtc: const Value(null),
+                updatedAtLocal: Value(DateTime.now().millisecondsSinceEpoch),
+              ),
+            );
+        return updated != 0;
+      });
 
   Future<void> handleReminderAction(
     NotificationScheduleData row,

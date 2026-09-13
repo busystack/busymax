@@ -1,3 +1,4 @@
+import 'package:busymax/src/features/notifications/notification_scheduler.dart';
 import 'package:busymax/src/features/notifications/notification_schedule_service.dart';
 import 'dart:async';
 import 'dart:convert';
@@ -121,6 +122,105 @@ void main() {
             (await database.select(database.syncRuns).get()).single.status,
             'failed',
           );
+        },
+      );
+    }
+  }
+
+  for (final incremental in [false, true]) {
+    for (final disabled in [false, true]) {
+      test(
+        'task reminder ${disabled ? 'disabled' : 'moved'} during pending ${incremental ? 'incremental' : 'full'} sync never fires at its former time',
+        () async {
+          var now = DateTime.utc(2026, 6, 4, 8);
+          await database
+              .update(database.accounts)
+              .write(
+                const AccountsCompanion(
+                  provider: Value('microsoft'),
+                  authState: Value('signed_in'),
+                ),
+              );
+          await database.taskListsDao.upsertTaskList(_localTaskList('list-1'));
+          await database.tasksDao.upsertTask(
+            _localTask('task-1').copyWith(
+              microsoftIsReminderOn: const Value(true),
+              microsoftReminderDateTime: const Value('2026-06-04T09:00:00Z'),
+              microsoftReminderTimeZone: const Value('UTC'),
+            ),
+          );
+          await NotificationScheduleService(
+            database: database,
+            nowUtc: () => now,
+          ).rebuildUpcomingTaskNotifications('account');
+          apiClient.taskListsPages = [
+            TaskListsPageDto(
+              items: [_taskListDto('list-1')],
+              rawJson: const {},
+            ),
+          ];
+          apiClient.taskPages['list-1'] = [
+            TasksPageDto(
+              items: [
+                TaskDto(
+                  id: 'task-1',
+                  title: 'Changed',
+                  status: 'needsAction',
+                  rawJson: {
+                    'isReminderOn': !disabled,
+                    'reminderDateTime': {
+                      'dateTime': '2026-06-04T11:00:00',
+                      'timeZone': 'UTC',
+                    },
+                  },
+                ),
+              ],
+              nextPageToken: 'held',
+              rawJson: const {},
+            ),
+          ];
+          apiClient.blockedTaskPageToken = 'held';
+          apiClient.blockedTaskPageStarted = Completer<void>();
+          apiClient.blockedTaskPageRelease = Completer<void>();
+          apiClient.blockedTaskPageError = StateError('second page failed');
+          final engine = SyncEngine(
+            database: database,
+            apiClient: apiClient,
+            accountId: 'account',
+            nowUtc: () => now,
+          );
+          final sync = expectLater(
+            incremental ? engine.incrementalSync() : engine.fullSync(),
+            throwsStateError,
+          );
+          await apiClient.blockedTaskPageStarted!.future;
+          final backend = RecordingNotificationBackend();
+          final scheduler = NotificationScheduler(
+            database: database,
+            notifications: DesktopNotificationService(
+              backend: backend,
+              settings: AppSettings.defaults(),
+            ),
+            nowUtc: () => now,
+          );
+          addTearDown(scheduler.stop);
+          try {
+            expect(
+              (await database.select(database.tasks).getSingle())
+                  .microsoftIsReminderOn,
+              !disabled,
+            );
+            now = DateTime.utc(2026, 6, 4, 9);
+            await scheduler.checkNow();
+            expect(backend.requests, isEmpty);
+            // The new time must also work without waiting for sync completion.
+            now = DateTime.utc(2026, 6, 4, 11);
+            await scheduler.checkNow();
+            expect(backend.requests, hasLength(disabled ? 0 : 1));
+          } finally {
+            apiClient.blockedTaskPageRelease!.complete();
+            await sync;
+          }
         },
       );
     }

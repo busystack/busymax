@@ -21,7 +21,20 @@ class NotificationScheduleService {
   final AppDatabase _database;
   final DateTime Function() _nowUtc;
 
-  Future<void> rebuildUpcomingEventNotifications(String accountId) async {
+  Future<void> rebuildUpcomingEventNotifications(String accountId) =>
+      _database.transaction(() async {
+        final desired = await _eventNotifications(accountId);
+        await _reconcileNotifications(
+          accountId: accountId,
+          sourceType: 'event',
+          notifications: desired.values,
+        );
+      });
+
+  Future<Map<String, _PendingNotification>> _eventNotifications(
+    String accountId, {
+    String? sourceId,
+  }) async {
     final now = _nowUtc();
     final notifications = <String, _PendingNotification>{};
     final retainedIds = await _actionableNotificationIds(accountId, 'event');
@@ -40,6 +53,9 @@ class NotificationScheduleService {
         await (_database.select(_database.calendarEvents)..where(
               (row) =>
                   row.accountId.equals(accountId) &
+                  (sourceId == null
+                      ? const Constant(true)
+                      : row.id.equals(sourceId)) &
                   row.isDeleted.equals(false) &
                   row.isCancelled.equals(false),
             ))
@@ -74,25 +90,40 @@ class NotificationScheduleService {
           sourceId: event.id,
           scheduledAtUtc: reminderAt,
           title: event.title,
-          body:
-              event.provider == BusyProvider.google.storageValue &&
-                  event.description != null
-              ? htmlCalendarDescriptionToPlainText(event.description!)
-              : event.description ?? event.location,
+          body: _eventPreview(event),
         );
       }
     }
-    await _reconcileNotifications(
-      accountId: accountId,
-      sourceType: 'event',
-      notifications: notifications.values,
-    );
+    return notifications;
+  }
+
+  String? _eventPreview(CalendarEvent event) {
+    if (event.provider != BusyProvider.google.storageValue ||
+        event.description == null) {
+      return event.description ?? event.location;
+    }
+    try {
+      return htmlCalendarDescriptionToPlainText(event.description!);
+    } on Object {
+      // Preview content is optional; it must never block alarm reconciliation.
+      return event.location;
+    }
   }
 
   Future<void> rebuildUpcomingTaskNotifications(String accountId) =>
-      _database.transaction(() => _rebuildUpcomingTaskNotifications(accountId));
+      _database.transaction(() async {
+        final desired = await _taskNotifications(accountId);
+        await _reconcileNotifications(
+          accountId: accountId,
+          sourceType: 'task',
+          notifications: desired.values,
+        );
+      });
 
-  Future<void> _rebuildUpcomingTaskNotifications(String accountId) async {
+  Future<Map<String, _PendingNotification>> _taskNotifications(
+    String accountId, {
+    String? sourceId,
+  }) async {
     final now = _nowUtc();
     final notifications = <String, _PendingNotification>{};
     final existing =
@@ -136,6 +167,9 @@ class NotificationScheduleService {
         await (_database.select(_database.tasks)..where(
               (row) =>
                   row.accountId.equals(accountId) &
+                  (sourceId == null
+                      ? const Constant(true)
+                      : row.id.equals(sourceId)) &
                   row.pendingDelete.equals(false) &
                   row.serverMissing.equals(false) &
                   (row.deleted.isNull() | row.deleted.equals(false)) &
@@ -185,12 +219,46 @@ class NotificationScheduleService {
         );
       }
     }
-    await _reconcileNotifications(
-      accountId: accountId,
-      sourceType: 'task',
-      notifications: notifications.values,
-    );
+    return notifications;
   }
+
+  /// Validate the alarm itself against the same projection used by rebuilds.
+  /// Preserve the original alarm time for snoozes and transferred local IDs.
+  /// Repair a changed source immediately, even while sync awaits another page.
+  Future<bool> validateAndReconcileReminder(
+    NotificationScheduleData row,
+  ) => _database.transaction(() async {
+    final current = await (_database.select(
+      _database.notificationSchedule,
+    )..where((table) => table.id.equals(row.id))).getSingleOrNull();
+    if (current == null ||
+        current.generation != row.generation ||
+        current.scheduledAtUtc != row.scheduledAtUtc ||
+        current.dismissedAtUtc != null) {
+      return false;
+    }
+    final desired = switch (row.sourceType) {
+      'event' => await _eventNotifications(
+        row.accountId,
+        sourceId: row.sourceId,
+      ),
+      'task' => await _taskNotifications(row.accountId, sourceId: row.sourceId),
+      _ => <String, _PendingNotification>{},
+    };
+    final reminder = desired[row.id];
+    if (reminder != null &&
+        reminder.sourceId == row.sourceId &&
+        reminder.scheduledAtUtc.millisecondsSinceEpoch == row.scheduledAtUtc) {
+      return true;
+    }
+    await _reconcileNotifications(
+      accountId: row.accountId,
+      sourceType: row.sourceType,
+      sourceId: row.sourceId,
+      notifications: desired.values,
+    );
+    return false;
+  });
 
   Future<void> rebuildUpcomingNotifications(String accountId) async {
     await rebuildUpcomingEventNotifications(accountId);
@@ -218,6 +286,7 @@ class NotificationScheduleService {
     required String accountId,
     required String sourceType,
     required Iterable<_PendingNotification> notifications,
+    String? sourceId,
   }) async {
     final desired = {
       for (final notification in notifications) notification.id: notification,
@@ -241,7 +310,10 @@ class NotificationScheduleService {
           await (_database.select(_database.notificationSchedule)..where(
                 (row) =>
                     row.accountId.equals(accountId) &
-                    row.sourceType.equals(sourceType),
+                    row.sourceType.equals(sourceType) &
+                    (sourceId == null
+                        ? const Constant(true)
+                        : row.sourceId.equals(sourceId)),
               ))
               .get();
       final existingById = {for (final row in existing) row.id: row};

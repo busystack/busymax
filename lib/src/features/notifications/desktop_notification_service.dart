@@ -8,6 +8,7 @@ import '../../l10n/locale_resolution.dart';
 import '../../platform/common/desktop_services.dart';
 import '../sync/sync_failure_notification_policy.dart';
 import 'desktop_notification_backend.dart';
+import 'notification_cancellation_queue.dart';
 
 export 'desktop_notification_backend.dart';
 
@@ -41,6 +42,7 @@ class DesktopNotificationService {
   DesktopNotificationService({
     required DesktopNotificationBackend backend,
     required AppSettings settings,
+    NotificationCancellationQueue? cancellationQueue,
     Locale? locale,
     Duration syncFailureDebounce = const Duration(minutes: 5),
     Duration reminderFailureRetryDelay = const Duration(minutes: 1),
@@ -48,6 +50,7 @@ class DesktopNotificationService {
     Future<void> Function(DesktopNavigationDestination destination)?
     onDestinationActivated,
   }) : _backend = backend,
+       _cancellations = cancellationQueue ?? NotificationCancellationQueue(),
        _settings = settings,
        _strings = locale == null
            ? NotificationStrings.forLocales(PlatformDispatcher.instance.locales)
@@ -58,6 +61,7 @@ class DesktopNotificationService {
        _onDestinationActivated = onDestinationActivated;
 
   final DesktopNotificationBackend _backend;
+  final NotificationCancellationQueue _cancellations;
   final AppSettings _settings;
   final NotificationStrings _strings;
   final Duration _syncFailureDebounce;
@@ -144,15 +148,10 @@ class DesktopNotificationService {
           );
   }
 
-  Future<bool> cancelReminder(String deliveryId) async {
-    try {
-      await _backend.cancel(deliveryId);
-      return true;
-    } on Object {
-      // Let the scheduler retain failed work without interrupting other items.
-      return false;
-    }
-  }
+  Future<bool> cancelReminder(String deliveryId) =>
+      _cancellations.cancel(deliveryId, () => _backend.cancel(deliveryId));
+
+  Future<void> retryReminderCancellations() => _cancellations.retry();
 
   Future<ReminderDeliveryResult> notifyEventReminder(
     String title,

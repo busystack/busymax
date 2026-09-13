@@ -1,3 +1,8 @@
+import 'dart:async';
+import 'package:busymax/src/app/app_settings.dart';
+import 'package:busymax/src/features/notifications/desktop_notification_service.dart';
+import 'package:busymax/src/features/notifications/notification_scheduler.dart';
+import '../../support/recording_notification_backend.dart';
 import 'package:busymax/src/calendar_providers/calendar_mutation.dart';
 import 'package:busymax/src/calendar_providers/calendar_provider_capabilities.dart';
 import 'package:busymax/src/calendar_providers/calendar_sync_dto.dart';
@@ -112,6 +117,102 @@ void main() {
             );
           }
           expect(reconciled, 1);
+        },
+      );
+    }
+  }
+
+  for (final incremental in [false, true]) {
+    for (final disabled in [false, true]) {
+      test(
+        'event alarm ${disabled ? 'removed' : 'moved'} during pending ${incremental ? 'incremental' : 'full'} sync cannot fire at its former time',
+        () async {
+          var now = DateTime.utc(2026, 7, 15, 8);
+          const source = CalendarSourceDto(
+            provider: BusyProvider.google,
+            providerCalendarId: 'cal-1',
+            summary: 'Work',
+          );
+          await _insertAccount(database, provider: BusyProvider.google);
+          await _insertSource(database, source);
+          await _insertEvent(
+            database,
+            provider: BusyProvider.google,
+            providerCalendarId: 'cal-1',
+            remindersJson: {
+              'overrides': [
+                {'method': 'popup', 'minutes': 10},
+              ],
+            },
+          );
+          await NotificationScheduleService(
+            database: database,
+            nowUtc: () => now,
+          ).rebuildUpcomingEventNotifications('account');
+          final client = _FakeCalendarClient(
+            provider: BusyProvider.google,
+            calendars: [source],
+            pages: [
+              CalendarSyncPageDto(
+                events: [
+                  CalendarEventDto(
+                    provider: BusyProvider.google,
+                    providerCalendarId: 'cal-1',
+                    providerEventId: 'event-1',
+                    title: 'Changed',
+                    startDateTime: '2026-07-15T11:00:00Z',
+                    endDateTime: '2026-07-15T12:00:00Z',
+                    remindersJson: {
+                      'overrides': [
+                        if (!disabled) {'method': 'popup', 'minutes': 10},
+                      ],
+                    },
+                    rawJson: const {},
+                  ),
+                ],
+                nextPageTokenOrUrl: 'held',
+              ),
+            ],
+          );
+          client.secondPageStarted = Completer<void>();
+          client.secondPageRelease = Completer<void>();
+          final engine = CalendarSyncEngine(
+            database: database,
+            client: client,
+            accountId: 'account',
+            nowUtc: () => now,
+          );
+          final sync = expectLater(
+            incremental ? engine.incrementalSync() : engine.fullSync(),
+            throwsStateError,
+          );
+          await client.secondPageStarted!.future;
+          final backend = RecordingNotificationBackend();
+          final scheduler = NotificationScheduler(
+            database: database,
+            notifications: DesktopNotificationService(
+              backend: backend,
+              settings: AppSettings.defaults(),
+            ),
+            nowUtc: () => now,
+          );
+          addTearDown(scheduler.stop);
+          try {
+            expect(
+              (await database.select(database.calendarEvents).getSingle())
+                  .startDateTime,
+              '2026-07-15T11:00:00Z',
+            );
+            now = DateTime.utc(2026, 7, 15, 8, 50);
+            await scheduler.checkNow();
+            expect(backend.requests, isEmpty);
+            now = DateTime.utc(2026, 7, 15, 10, 50);
+            await scheduler.checkNow();
+            expect(backend.requests, hasLength(disabled ? 0 : 1));
+          } finally {
+            client.secondPageRelease!.complete();
+            await sync;
+          }
         },
       );
     }
@@ -878,6 +979,8 @@ class _FakeCalendarClient implements CloudCalendarClient {
   final List<CalendarSourceDto> calendars;
   final List<CalendarSyncPageDto> _pages;
   final List<_SyncCall> syncCalls = [];
+  Completer<void>? secondPageStarted;
+  Completer<void>? secondPageRelease;
 
   @override
   CalendarProviderCapabilities get capabilities =>
@@ -904,6 +1007,10 @@ class _FakeCalendarClient implements CloudCalendarClient {
         primaryCalendar: primaryCalendar,
       ),
     );
+    if (syncCalls.length == 2) {
+      secondPageStarted?.complete();
+      await secondPageRelease?.future;
+    }
     if (_pages.isEmpty) {
       throw StateError('No fake calendar sync page remains.');
     }

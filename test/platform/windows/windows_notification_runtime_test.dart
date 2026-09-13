@@ -85,26 +85,8 @@ void main() {
         );
       });
       await tester.pump();
-      await tester.runAsync(() async {
-        await database
-            .into(database.notificationSchedule)
-            .insert(
-              NotificationScheduleCompanion.insert(
-                id: 'reminder',
-                accountId: 'account',
-                sourceType: 'task',
-                sourceId: 'task',
-                scheduledAtUtc:
-                    DateTime.now().toUtc().millisecondsSinceEpoch - 1000,
-                title: 'File report',
-                createdAtLocal: 0,
-                updatedAtLocal: 0,
-              ),
-            );
-      });
-      await _pumpUntil(
-        tester,
-        () => backend.requests.any((request) => request.title == 'File report'),
+      final reminderAt = DateTime.now().toUtc().subtract(
+        const Duration(seconds: 1),
       );
       final now = DateTime.now();
       final today =
@@ -120,11 +102,36 @@ void main() {
                 title: 'File report',
                 dueUtc: Value(today),
                 status: const Value('needsAction'),
+                microsoftIsReminderOn: const Value(true),
+                microsoftReminderDateTime: Value(reminderAt.toIso8601String()),
+                microsoftReminderTimeZone: const Value('UTC'),
                 rawJson: '{}',
                 createdLocalAtUtc: '',
                 updatedLocalAtUtc: '',
               ),
             );
+      });
+      await tester.runAsync(() async {
+        await database
+            .into(database.notificationSchedule)
+            .insert(
+              NotificationScheduleCompanion.insert(
+                id: 'reminder',
+                accountId: 'account',
+                sourceType: 'task',
+                sourceId: 'task',
+                scheduledAtUtc: reminderAt.millisecondsSinceEpoch,
+                title: 'File report',
+                createdAtLocal: 0,
+                updatedAtLocal: 0,
+              ),
+            );
+      });
+      await _pumpUntil(
+        tester,
+        () => backend.requests.any((request) => request.title == 'File report'),
+      );
+      await tester.runAsync(() async {
         await container
             .read(appSettingsControllerProvider.notifier)
             .setNotifyDueToday(true);
