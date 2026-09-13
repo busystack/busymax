@@ -256,6 +256,14 @@ class SyncEngine {
           taskFromDto(_accountId, taskListId, item, now),
         );
       }
+      if (page.items.isNotEmpty) {
+        // This page is already committed. Reconcile before any later task,
+        // checklist, or list request so earlier alarms become due immediately.
+        await NotificationScheduleService(
+          database: _database,
+          nowUtc: _nowUtc,
+        ).rebuildUpcomingTaskNotifications(_accountId);
+      }
       pageToken = page.nextPageToken;
     } while (pageToken != null && pageToken.isNotEmpty);
 

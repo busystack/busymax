@@ -199,6 +199,15 @@ class CalendarSyncEngine {
           ),
         );
       }
+      if (page.events.isNotEmpty) {
+        // Events from this page are already committed. Reconcile before any
+        // later page or calendar request so earlier alarms become due now.
+        await NotificationScheduleService(
+          database: _database,
+          nowUtc: _nowUtc,
+        ).rebuildUpcomingEventNotifications(_accountId);
+        await _onNotificationScheduleChanged?.call();
+      }
       final next = page.nextPageTokenOrUrl;
       if (next == null || next.isEmpty) {
         break;

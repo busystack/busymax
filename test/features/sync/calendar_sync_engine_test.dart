@@ -116,7 +116,7 @@ void main() {
               DateTime.utc(2026, 7, 15, 10, 50).millisecondsSinceEpoch,
             );
           }
-          expect(reconciled, 1);
+          expect(reconciled, 2);
         },
       );
     }
@@ -216,6 +216,113 @@ void main() {
         },
       );
     }
+  }
+
+  for (final incremental in [false, true]) {
+    test(
+      'event reminder moved earlier during pending ${incremental ? 'incremental' : 'full'} sync fires once at its new time',
+      () async {
+        var now = DateTime.utc(2026, 7, 15, 8, 59);
+        const source = CalendarSourceDto(
+          provider: BusyProvider.google,
+          providerCalendarId: 'cal-1',
+          summary: 'Work',
+        );
+        await _insertAccount(database, provider: BusyProvider.google);
+        await _insertSource(database, source);
+        await _insertEvent(
+          database,
+          provider: BusyProvider.google,
+          providerCalendarId: 'cal-1',
+          remindersJson: {
+            'overrides': [
+              {'method': 'popup', 'minutes': 10},
+            ],
+          },
+        );
+        await database
+            .update(database.calendarEvents)
+            .write(
+              const CalendarEventsCompanion(
+                startDateTime: Value('2026-07-15T11:10:00Z'),
+                endDateTime: Value('2026-07-15T12:10:00Z'),
+              ),
+            );
+        await NotificationScheduleService(
+          database: database,
+          nowUtc: () => now,
+        ).rebuildUpcomingEventNotifications('account');
+        expect(
+          (await database.select(database.notificationSchedule).getSingle())
+              .scheduledAtUtc,
+          DateTime.utc(2026, 7, 15, 11).millisecondsSinceEpoch,
+        );
+        final client = _FakeCalendarClient(
+          provider: BusyProvider.google,
+          calendars: [source],
+          pages: const [
+            CalendarSyncPageDto(
+              events: [
+                CalendarEventDto(
+                  provider: BusyProvider.google,
+                  providerCalendarId: 'cal-1',
+                  providerEventId: 'event-1',
+                  title: 'Changed',
+                  startDateTime: '2026-07-15T09:10:00Z',
+                  endDateTime: '2026-07-15T10:10:00Z',
+                  remindersJson: {
+                    'overrides': [
+                      {'method': 'popup', 'minutes': 10},
+                    ],
+                  },
+                  rawJson: {},
+                ),
+              ],
+              nextPageTokenOrUrl: 'held',
+            ),
+          ],
+        );
+        client.secondPageStarted = Completer<void>();
+        client.secondPageRelease = Completer<void>();
+        final engine = CalendarSyncEngine(
+          database: database,
+          client: client,
+          accountId: 'account',
+          nowUtc: () => now,
+        );
+        final sync = expectLater(
+          incremental ? engine.incrementalSync() : engine.fullSync(),
+          throwsStateError,
+        );
+        await client.secondPageStarted!.future;
+        expect(
+          (await database.select(database.notificationSchedule).getSingle())
+              .scheduledAtUtc,
+          DateTime.utc(2026, 7, 15, 9).millisecondsSinceEpoch,
+        );
+        final backend = RecordingNotificationBackend();
+        final scheduler = NotificationScheduler(
+          database: database,
+          notifications: DesktopNotificationService(
+            backend: backend,
+            settings: AppSettings.defaults(),
+          ),
+          nowUtc: () => now,
+        );
+        addTearDown(scheduler.stop);
+        try {
+          now = DateTime.utc(2026, 7, 15, 9);
+          await scheduler.checkNow();
+          expect(backend.requests, hasLength(1));
+          now = DateTime.utc(2026, 7, 15, 11);
+          await scheduler.checkNow();
+          expect(backend.requests, hasLength(1));
+        } finally {
+          client.secondPageRelease!.complete();
+          await sync;
+        }
+      },
+    );
   }
 
   test('same-month sync reuses its cursor and one sync-state row', () async {
