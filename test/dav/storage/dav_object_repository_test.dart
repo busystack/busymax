@@ -1,5 +1,9 @@
 import 'dart:convert';
 
+import 'package:busymax/src/app/app_settings.dart';
+import 'package:busymax/src/features/notifications/due_today_notification_scheduler.dart';
+import 'package:busymax/src/features/notifications/notification_scheduler.dart';
+import 'package:busymax/src/features/notifications/desktop_notification_service.dart';
 import 'package:busymax/src/dav/ical/ical_recurrence.dart';
 import 'package:busymax/src/dav/ical/ical_document.dart';
 import 'package:busymax/src/dav/mutation/dav_mutation_patch.dart';
@@ -16,6 +20,8 @@ import 'package:drift/drift.dart';
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import '../../support/recording_notification_backend.dart';
+
 void main() {
   late AppDatabase database;
   late DavObjectRepository repository;
@@ -31,6 +37,103 @@ void main() {
   });
 
   tearDown(() => database.close());
+
+  for (final due in [
+    (property: 'DUE;VALUE=DATE:20260809', local: DateTime(2026, 8, 9)),
+    (property: 'DUE:20260809T140000', local: DateTime(2026, 8, 9, 14)),
+    (
+      property: 'DUE;TZID=Asia/Tokyo:20260810T003000',
+      local: DateTime.utc(2026, 8, 9, 15, 30).toLocal(),
+    ),
+    (
+      property: 'DUE:20260810T003000Z',
+      local: DateTime.utc(2026, 8, 10, 0, 30).toLocal(),
+    ),
+  ]) {
+    test('summary uses imported temporal day for ${due.property}', () async {
+      await _importNotificationTask(repository, due: due.property);
+      final backend = RecordingNotificationBackend();
+      var now = DateTime(due.local.year, due.local.month, due.local.day - 1, 9);
+      final marked = <String>[];
+      final scheduler = DueTodayNotificationScheduler(
+        database: database,
+        settings: () => AppSettings.defaults().copyWith(notifyDueToday: true),
+        activeAccountId: () => 'account',
+        notifications: () => DesktopNotificationService(
+          backend: backend,
+          settings: AppSettings.defaults().copyWith(notifyDueToday: true),
+        ),
+        markNotified: (date) async => marked.add(date),
+        now: () => now,
+      );
+      addTearDown(scheduler.stop);
+      await scheduler.checkNow();
+      expect(backend.requests, isEmpty);
+      now = DateTime(due.local.year, due.local.month, due.local.day, 9);
+      await scheduler.checkNow();
+      expect(backend.requests, hasLength(1));
+      expect(marked.single, now.toIso8601String().substring(0, 10));
+      now = DateTime(due.local.year, due.local.month, due.local.day + 1, 9);
+      await scheduler.checkNow();
+      expect(backend.requests, hasLength(1));
+    });
+  }
+
+  test(
+    'remote cancellation removes unchanged alarm, displayed toast, and summary eligibility',
+    () async {
+      await _importNotificationTask(repository, due: 'DUE;VALUE=DATE:20260809');
+      var now = DateTime.utc(2026, 8, 9, 7);
+      final schedules = NotificationScheduleService(
+        database: database,
+        nowUtc: () => now,
+      );
+      await schedules.rebuildUpcomingTaskNotifications('account');
+      final original = await database.select(database.tasks).getSingle();
+      final backend = RecordingNotificationBackend();
+      final notifications = DesktopNotificationService(
+        backend: backend,
+        settings: AppSettings.defaults().copyWith(notifyDueToday: true),
+      );
+      final scheduler = NotificationScheduler(
+        database: database,
+        notifications: notifications,
+        nowUtc: () => now,
+      );
+      addTearDown(scheduler.stop);
+      now = DateTime.utc(2026, 8, 9, 8);
+      await scheduler.checkNow();
+      expect(backend.requests, hasLength(1));
+      await _importNotificationTask(
+        repository,
+        due: 'DUE;VALUE=DATE:20260809',
+        status: 'CANCELLED',
+      );
+      final cancelled = await database.select(database.tasks).getSingle();
+      expect(cancelled.status, 'cancelled');
+      expect(cancelled.taskAlarmsJson, original.taskAlarmsJson);
+      await schedules.rebuildUpcomingTaskNotifications('account');
+      expect(
+        await database.select(database.notificationSchedule).get(),
+        isEmpty,
+      );
+      await scheduler.checkNow();
+      expect(backend.cancelledIds, contains(backend.requests.single.stableId));
+      final marked = <String>[];
+      final summary = DueTodayNotificationScheduler(
+        database: database,
+        settings: () => AppSettings.defaults().copyWith(notifyDueToday: true),
+        activeAccountId: () => 'account',
+        notifications: () => notifications,
+        markNotified: (date) async => marked.add(date),
+        now: () => DateTime(2026, 8, 9, 9),
+      );
+      addTearDown(summary.stop);
+      await summary.checkNow();
+      expect(marked, isEmpty);
+      expect(backend.requests, hasLength(1));
+    },
+  );
 
   test(
     'stores exact raw event and atomically builds recurrence projections',
@@ -1127,3 +1230,38 @@ END:VALARM\r
 END:VTODO\r
 END:VCALENDAR\r
 ''';
+
+Future<void> _importNotificationTask(
+  DavObjectRepository repository, {
+  required String due,
+  String status = 'NEEDS-ACTION',
+}) async {
+  const href = '/remote.php/dav/calendars/alex/work/notification.ics';
+  final prepared = DavPreparedObject.parse(
+    hrefKey: href,
+    requestUri: Uri.parse('https://cloud.example.test$href'),
+    etag: '"$status"',
+    contentType: 'text/calendar',
+    rawIcsBody: [
+      'BEGIN:VCALENDAR',
+      'VERSION:2.0',
+      'PRODID:-//BusyMax Test//EN',
+      'BEGIN:VTODO',
+      'UID:notification-task',
+      'SUMMARY:Notification task',
+      due,
+      'STATUS:$status',
+      'BEGIN:VALARM',
+      'ACTION:DISPLAY',
+      'TRIGGER;VALUE=DATE-TIME:20260809T080000Z',
+      'DESCRIPTION:Reminder',
+      'END:VALARM',
+      'END:VTODO',
+      'END:VCALENDAR',
+      '',
+    ].join('\r\n'),
+  );
+  await repository.commit(
+    _commit(objects: [prepared], membership: {href}, cursor: status),
+  );
+}

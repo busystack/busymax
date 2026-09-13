@@ -170,6 +170,11 @@ final class DesktopActivation {
             uri.userInfo.isEmpty &&
             !uri.hasFragment;
       case DesktopActivationKind.notification:
+        if (payload?.containsKey('notificationRoute') ?? false) {
+          return const {'default', 'open'}.contains(action) &&
+              payload!.length == 1 &&
+              notificationDestination != null;
+        }
         const permittedActions = {'default', 'open', 'snooze', 'dismiss'};
         const permittedPayloadKeys = {
           'notificationScheduleId',
@@ -190,6 +195,15 @@ final class DesktopActivation {
             );
     }
   }
+
+  DesktopNavigationDestination? get notificationDestination =>
+      kind != DesktopActivationKind.notification
+      ? null
+      : switch (payload?['notificationRoute']) {
+          'due-today' => DesktopNavigationDestination.tasks,
+          'sync-failure' || 'conflict' => DesktopNavigationDestination.settings,
+          _ => null,
+        };
 }
 
 abstract interface class DesktopActivationService {

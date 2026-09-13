@@ -3,10 +3,15 @@ import 'dart:async';
 import 'package:drift/drift.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../dav/nextcloud/nextcloud_native_export.dart';
 import 'package:http/http.dart' as http;
 import 'package:uuid/uuid.dart';
+import 'package:busymax/src/core/secrets/secret_store.dart';
+import 'package:busymax/src/providers/busy_provider.dart';
+import 'package:busymax/src/features/tasks/domain/task_capabilities.dart';
 
+import '../core/time/provider_date_time.dart';
+import '../core/time/stored_temporal_projection.dart';
+import '../dav/nextcloud/nextcloud_native_export.dart';
 import '../config/build_config.dart';
 import '../calendar_providers/cloud_calendar_client.dart';
 import '../db/app_database.dart';
@@ -54,15 +59,12 @@ import '../google_tasks/http/authenticated_http_client.dart';
 import '../google_tasks/http/retrying_http_client.dart';
 import '../google_tasks/oauth/oauth_loopback_flow.dart';
 import '../google_tasks/oauth/oauth_service.dart';
-import 'package:busymax/src/core/secrets/secret_store.dart';
 import '../google_calendar/google_calendar_api_client.dart';
 import '../microsoft_calendar/microsoft_calendar_api_client.dart';
 import '../microsoft_todo/api/microsoft_todo_api_client.dart';
 import '../microsoft_todo/api/microsoft_todo_task_remote_client.dart';
 import '../microsoft_todo/oauth/microsoft_oauth_service.dart';
 import '../platform/common/desktop_services.dart';
-import 'package:busymax/src/providers/busy_provider.dart';
-import 'package:busymax/src/features/tasks/domain/task_capabilities.dart';
 import '../schedule/schedule_commands.dart';
 import '../schedule/schedule_repository.dart';
 import '../schedule/schedule_sidebar_order.dart';
@@ -1297,7 +1299,7 @@ Future<void> _openEventNotification(
   await _openScheduleItemFromNotification(
     ref,
     kind: ScheduleWorkspaceCommandKind.openCalendarEvent,
-    date: _calendarEventCommandDate(event),
+    date: calendarEventStartAsLocal(event),
     accountId: event.accountId,
     sourceId: event.calendarSourceId,
     itemId: event.id,
@@ -1363,59 +1365,16 @@ Future<void> _openScheduleItemFromNotification(
       .open(DesktopNavigationDestination.schedule);
 }
 
-DateTime? _calendarEventCommandDate(CalendarEvent event) {
-  if (event.allDay) {
-    return _parseLocalDate(event.startDate);
-  }
-  return _parseProviderDateTime(event.startDateTime, event.startTimeZone);
-}
-
 DateTime? _taskCommandDate(Task task) {
-  return _parseProviderDateTime(
+  return providerDateTimeAsLocal(
         task.microsoftDueDateTime,
         task.microsoftDueTimeZone,
       ) ??
-      _parseProviderDateTime(
+      providerDateTimeAsLocal(
         task.microsoftReminderDateTime,
         task.microsoftReminderTimeZone,
       ) ??
-      _parseProviderDateTime(task.dueUtc, 'UTC');
-}
-
-DateTime? _parseLocalDate(String? value) {
-  if (value == null || value.length < 10) {
-    return null;
-  }
-  return DateTime.tryParse('${value.substring(0, 10)}T00:00:00');
-}
-
-DateTime? _parseProviderDateTime(String? value, String? timeZone) {
-  final parsed = DateTime.tryParse(value ?? '');
-  if (parsed == null) {
-    return null;
-  }
-  if (parsed.isUtc) {
-    return parsed.toLocal();
-  }
-
-  final normalizedZone = timeZone?.trim().toLowerCase();
-  if (normalizedZone == 'utc' ||
-      normalizedZone == 'etc/utc' ||
-      normalizedZone == 'gmt' ||
-      normalizedZone == 'etc/gmt') {
-    return DateTime.utc(
-      parsed.year,
-      parsed.month,
-      parsed.day,
-      parsed.hour,
-      parsed.minute,
-      parsed.second,
-      parsed.millisecond,
-      parsed.microsecond,
-    ).toLocal();
-  }
-
-  return parsed;
+      taskDueAsLocal(task);
 }
 
 final dueTodayNotificationProvider = Provider<DueTodayNotificationScheduler>((

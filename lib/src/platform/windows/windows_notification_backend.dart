@@ -110,6 +110,7 @@ final class WindowsNotificationBackend implements DesktopNotificationBackend {
     DesktopNotificationActionHandler? onAction,
   }) async {
     const permittedPayloadKeys = {
+      'notificationRoute',
       'notificationScheduleId',
       'notificationGeneration',
       'itemKind',
@@ -180,12 +181,15 @@ final class WindowsNotificationBackend implements DesktopNotificationBackend {
     if (parsed == null) return;
     final stableId = parsed.remove('stableId');
     final scheduleId = parsed['notificationScheduleId'];
-    if (scheduleId == null ||
-        stableId !=
-            notificationDeliveryId(
-              scheduleId,
-              parsed['notificationGeneration'] ?? 'legacy',
-            )) {
+    final route = parsed['notificationRoute'];
+    if (route != null
+        ? stableId != route
+        : scheduleId == null ||
+              stableId !=
+                  notificationDeliveryId(
+                    scheduleId,
+                    parsed['notificationGeneration'] ?? 'legacy',
+                  )) {
       return;
     }
     final encodedAction = parsed.remove('action');

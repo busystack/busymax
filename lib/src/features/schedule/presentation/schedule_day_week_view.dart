@@ -915,24 +915,27 @@ class _PlannerItemChip extends StatelessWidget {
   final void Function(BuildContext context, [Offset? globalPosition]) onTap;
   final ValueChanged<bool>? onTaskCompletionChanged;
   @override
-  Widget build(BuildContext context) => SizedBox(
-    width: width,
-    height: height,
-    child: ScheduleEventInteraction(
-      key: ValueKey(
-        'planner-${item.accountId}-${item.sourceId}-${item.id}-${representedDate.toIso8601String()}',
-      ),
-      item: item,
-      representedDate: representedDate,
-      dateOnly: item.allDay,
-      child: ScheduleItemChip(
+  Widget build(BuildContext context) {
+    ScheduleItemAnchorScope.register(context, item);
+    return SizedBox(
+      width: width,
+      height: height,
+      child: ScheduleEventInteraction(
+        key: ValueKey(
+          'planner-${item.accountId}-${item.sourceId}-${item.id}-${representedDate.toIso8601String()}',
+        ),
         item: item,
-        height: height,
-        width: width,
-        compact: compact,
-        onTap: onTap,
-        onTaskCompletionChanged: onTaskCompletionChanged,
+        representedDate: representedDate,
+        dateOnly: item.allDay,
+        child: ScheduleItemChip(
+          item: item,
+          height: height,
+          width: width,
+          compact: compact,
+          onTap: onTap,
+          onTaskCompletionChanged: onTaskCompletionChanged,
+        ),
       ),
-    ),
-  );
+    );
+  }
 }

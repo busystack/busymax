@@ -1,18 +1,19 @@
 import 'dart:convert';
-import '../features/maps/domain/geographic_point.dart';
 
 import 'package:drift/drift.dart';
+import 'package:busymax/src/providers/busy_provider.dart';
 
+import '../core/time/provider_date_time.dart';
+import '../features/maps/domain/geographic_point.dart';
 import '../calendar_providers/calendar_colors.dart';
 import '../calendar_providers/calendar_description.dart';
-import '../core/time/provider_date_time.dart';
+import '../core/time/stored_temporal_projection.dart';
 import '../dav/storage/dav_collection_capabilities.dart';
 import '../db/app_database.dart';
 import '../features/accounts/data/accounts_repository.dart';
 import '../features/calendar/data/calendar_event_detail.dart';
 import '../features/calendar/domain/event_timing_policy.dart';
 import '../features/tasks/domain/task_checklist_item.dart';
-import 'package:busymax/src/providers/busy_provider.dart';
 import 'schedule_filters.dart';
 import 'schedule_item.dart';
 import 'schedule_projection.dart';
@@ -434,8 +435,8 @@ class ScheduleRepository {
     for (final row in rows) {
       final event = row.readTable(_database.calendarEvents);
       final source = row.readTableOrNull(_database.calendarSources);
-      final start = _eventStart(event);
-      final end = _eventEnd(event);
+      final start = calendarEventStartAsLocal(event);
+      final end = calendarEventEndAsLocal(event);
       final descriptionBody = _eventDescriptionBody(event);
       final provider =
           providers[event.accountId] ??
@@ -1199,35 +1200,6 @@ bool _intersects(ScheduleRange range, DateTime? start, DateTime? end) {
   }
   final effectiveEnd = end ?? start.add(const Duration(minutes: 1));
   return effectiveEnd.isAfter(range.start) && start.isBefore(range.end);
-}
-
-DateTime? _eventStart(CalendarEvent event) {
-  if (!event.allDay) {
-    final projected = _projectedEventUtc(event.rawJson, 'startUtc');
-    if (projected != null) return projected.toLocal();
-    return providerDateTimeAsLocal(event.startDateTime, event.startTimeZone);
-  }
-  return _parseDate(event.startDate) ?? _parseDate(event.startDateTime);
-}
-
-DateTime? _eventEnd(CalendarEvent event) {
-  if (!event.allDay) {
-    final projected = _projectedEventUtc(event.rawJson, 'endUtc');
-    if (projected != null) return projected.toLocal();
-    return providerDateTimeAsLocal(event.endDateTime, event.endTimeZone);
-  }
-  return _parseDate(event.endDate) ?? _parseDate(event.endDateTime);
-}
-
-DateTime? _projectedEventUtc(String? rawJson, String key) {
-  if (rawJson == null || rawJson.isEmpty) return null;
-  try {
-    final decoded = jsonDecode(rawJson);
-    if (decoded is! Map || decoded[key] is! String) return null;
-    return DateTime.tryParse(decoded[key] as String)?.toUtc();
-  } on FormatException {
-    return null;
-  }
 }
 
 DateTime? _parseDate(String? value) {

@@ -95,6 +95,7 @@ class DesktopNotificationService {
       body,
       BusyMaxNotificationCategory.networkError,
       stableId: 'sync-failure',
+      payload: const {'notificationRoute': 'sync-failure'},
     );
   }
 
@@ -110,6 +111,7 @@ class DesktopNotificationService {
       body,
       BusyMaxNotificationCategory.conflict,
       stableId: 'conflict',
+      payload: const {'notificationRoute': 'conflict'},
     );
   }
 
@@ -126,6 +128,7 @@ class DesktopNotificationService {
       _strings.dueTodayBody(count),
       BusyMaxNotificationCategory.reminder,
       stableId: 'due-today',
+      payload: const {'notificationRoute': 'due-today'},
     );
     return delivered
         ? const ReminderDeliveryResult.delivered()

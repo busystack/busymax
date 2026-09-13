@@ -1,3 +1,12 @@
+import 'dart:convert';
+
+import 'package:flutter/services.dart';
+import 'package:busymax/src/features/schedule/presentation/schedule_workspace.dart';
+import 'package:busymax/src/schedule/schedule_scope.dart';
+import 'package:busymax/src/platform/linux_header_bar_provider.dart';
+import 'package:busymax/src/platform/linux_header_bar_service.dart';
+import 'package:busymax/src/platform/common/desktop_services.dart';
+import 'package:flutter/material.dart' as material;
 import 'package:busymax/src/features/connectivity/network_connectivity_service.dart';
 import 'package:busymax/l10n/generated/app_localizations.dart';
 import 'package:busymax/src/app/app_bootstrap.dart';
@@ -18,9 +27,217 @@ import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import '../../test_localized_app.dart';
+import '../../support/recording_notification_backend.dart';
 import '../../support/memory_settings_store.dart';
 
 void main() {
+  for (final linux in [false, true]) {
+    for (final filter in ['scope', 'search', 'hidden']) {
+      testWidgets(
+        '${linux ? 'Linux' : 'Windows'} reminder Open resolves local day and exact event with $filter filter',
+        (tester) async {
+          final db = AppDatabase.memoryForTests();
+          addTearDown(() async {
+            await tester.pumpWidget(const SizedBox.shrink());
+            await db.close();
+          });
+          final calendar = CalendarRepository(database: db);
+          await _seed(db, calendar);
+          final event = await db.select(db.calendarEvents).getSingle();
+          // Written September 16 in Tokyo is September 15 on UTC and Vancouver hosts.
+          final year = DateTime.now().year;
+          final instant = DateTime.utc(year, 9, 15, 15, 30);
+          final local = instant.toLocal();
+          expect(local.day, isNot(16));
+          await db
+              .update(db.calendarEvents)
+              .write(
+                CalendarEventsCompanion(
+                  allDay: const Value(false),
+                  startDate: const Value(null),
+                  endDate: const Value(null),
+                  startDateTime: Value('$year-09-16T00:30:00'),
+                  endDateTime: Value('$year-09-16T01:30:00'),
+                  startTimeZone: Value(
+                    filter == 'hidden' ? 'Custom/Embedded' : 'Asia/Tokyo',
+                  ),
+                  endTimeZone: Value(
+                    filter == 'hidden' ? 'Custom/Embedded' : 'Asia/Tokyo',
+                  ),
+                  description: const Value('Exact notification event details'),
+                  rawJson: Value(
+                    filter == 'hidden'
+                        ? jsonEncode({
+                            'startUtc': instant.toIso8601String(),
+                            'endUtc': instant
+                                .add(const Duration(hours: 1))
+                                .toIso8601String(),
+                          })
+                        : '{}',
+                  ),
+                ),
+              );
+          if (filter == 'hidden') {
+            await calendar.setSourceSelected(event.calendarSourceId, false);
+          }
+          final container = await _mount(
+            tester,
+            db,
+            calendar,
+            linux: linux,
+            scope: filter == 'scope' ? ScheduleScope.tasks : ScheduleScope.all,
+          );
+          await tester.pumpAndSettle();
+          if (filter == 'search') {
+            if (linux) {
+              await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
+              await tester.sendKeyEvent(LogicalKeyboardKey.keyF);
+              await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
+              await tester.pumpAndSettle();
+              await tester.enterText(
+                find.byType(material.TextField).first,
+                'unrelated search',
+              );
+            } else {
+              await tester.enterText(
+                find.byType(TextBox).first,
+                'unrelated search',
+              );
+            }
+            await tester.pump(const Duration(milliseconds: 400));
+            await tester.pumpAndSettle();
+          }
+          await db
+              .into(db.notificationSchedule)
+              .insert(
+                NotificationScheduleCompanion.insert(
+                  id: 'event-reminder',
+                  accountId: 'account',
+                  sourceType: 'event',
+                  sourceId: event.id,
+                  scheduledAtUtc: instant.millisecondsSinceEpoch,
+                  sentAtUtc: const Value(1),
+                  title: event.title,
+                  createdAtLocal: 0,
+                  updatedAtLocal: 0,
+                ),
+              );
+          ScheduleWorkspaceCommand? received;
+          final subscription = container.listen(
+            scheduleWorkspaceCommandProvider,
+            (_, command) {
+              if (command != null) received = command;
+            },
+          );
+          addTearDown(subscription.close);
+          await container
+              .read(notificationSchedulerProvider)
+              .handleActivation(
+                notificationScheduleId: 'event-reminder',
+                action: 'open',
+              );
+          container.read(notificationSchedulerProvider).stop();
+          expect(received?.date, local);
+          expect(received?.itemId, event.id);
+          await _until(
+            tester,
+            find.textContaining('Exact notification event details'),
+          );
+          expect(
+            find.textContaining('Exact notification event details'),
+            findsOneWidget,
+          );
+          if (!linux) {
+            final planner = tester.widget<WindowsScheduleDayWeekView>(
+              find.byType(WindowsScheduleDayWeekView),
+            );
+            expect(
+              planner.initialDate,
+              DateTime(local.year, local.month, local.day),
+            );
+          }
+          expect(
+            (await db.select(db.calendarSources).getSingle()).selected,
+            filter != 'hidden',
+          );
+          if (linux && filter == 'hidden') {
+            await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+            await tester.pumpAndSettle();
+            expect(find.text('Target event'), findsNothing);
+            expect(
+              (await db.select(db.calendarSources).getSingle()).selected,
+              isFalse,
+            );
+          }
+          expect(tester.takeException(), isNull);
+        },
+      );
+    }
+  }
+
+  testWidgets(
+    'Linux task reminder opens its exact all-day task from Events scope',
+    (tester) async {
+      final db = AppDatabase.memoryForTests();
+      addTearDown(() async {
+        await tester.pumpWidget(const SizedBox.shrink());
+        await db.close();
+      });
+      final calendar = CalendarRepository(database: db);
+      await _seed(db, calendar);
+      final date = DateTime.now();
+      await db.tasksDao.upsertTask(
+        TasksCompanion.insert(
+          accountId: 'account',
+          taskListId: 'list',
+          id: 'task-reminder-target',
+          title: 'Target task',
+          notes: const Value('Exact notification task details'),
+          dueUtc: Value(date.toIso8601String().substring(0, 10)),
+          status: const Value('needsAction'),
+          rawJson: '{}',
+          createdLocalAtUtc: _now,
+          updatedLocalAtUtc: _now,
+        ),
+      );
+      final container = await _mount(
+        tester,
+        db,
+        calendar,
+        linux: true,
+        scope: ScheduleScope.events,
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('Target task'), findsNothing);
+      await db
+          .into(db.notificationSchedule)
+          .insert(
+            NotificationScheduleCompanion.insert(
+              id: 'task-reminder',
+              accountId: 'account',
+              sourceType: 'task',
+              sourceId: 'task-reminder-target',
+              scheduledAtUtc: date.toUtc().millisecondsSinceEpoch,
+              sentAtUtc: const Value(1),
+              title: 'Target task',
+              createdAtLocal: 0,
+              updatedAtLocal: 0,
+            ),
+          );
+      await container
+          .read(notificationSchedulerProvider)
+          .handleActivation(
+            notificationScheduleId: 'task-reminder',
+            action: 'open',
+          );
+      container.read(notificationSchedulerProvider).stop();
+      await _until(tester, find.text('Exact notification task details'));
+      expect(find.text('Exact notification task details'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
   testWidgets(
     'a pending notification opens its exact event across date and visibility filters',
     (tester) async {
@@ -161,13 +378,24 @@ Future<ProviderContainer> _mount(
   AppDatabase db,
   CalendarRepository calendar, {
   ScheduleWorkspaceCommand? command,
+  bool linux = false,
+  ScheduleScope scope = ScheduleScope.all,
 }) async {
   tester.view.physicalSize = const Size(1280, 800);
   tester.view.devicePixelRatio = 1;
   addTearDown(tester.view.reset);
+  final headerBar = LinuxHeaderBarService(isLinux: false);
+  addTearDown(headerBar.dispose);
   final container = ProviderContainer(
     overrides: [
       databaseProvider.overrideWithValue(db),
+      linuxHeaderBarServiceProvider.overrideWithValue(headerBar),
+      desktopWindowServiceProvider.overrideWithValue(
+        const NoOpDesktopWindowService(),
+      ),
+      desktopNotificationBackendProvider.overrideWithValue(
+        RecordingNotificationBackend(),
+      ),
       networkAvailabilityProvider.overrideWith(
         (ref) => Stream.value(NetworkAvailability.online),
       ),
@@ -194,11 +422,13 @@ Future<ProviderContainer> _mount(
   await tester.pumpWidget(
     UncontrolledProviderScope(
       container: container,
-      child: FluentApp(
-        localizationsDelegates: const [AppLocalizations.delegate],
-        supportedLocales: AppLocalizations.supportedLocales,
-        home: const WindowsSchedulePage(),
-      ),
+      child: linux
+          ? localizedTestApp(child: ScheduleWorkspace(initialScope: scope))
+          : FluentApp(
+              localizationsDelegates: const [AppLocalizations.delegate],
+              supportedLocales: AppLocalizations.supportedLocales,
+              home: const WindowsSchedulePage(),
+            ),
     ),
   );
   return container;

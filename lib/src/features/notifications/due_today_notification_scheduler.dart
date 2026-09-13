@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:drift/drift.dart';
 
+import '../../core/time/stored_temporal_projection.dart';
 import '../../app/app_settings.dart';
 import '../../db/app_database.dart';
 import 'desktop_notification_service.dart';
@@ -114,7 +115,7 @@ class DueTodayNotificationScheduler {
         await (_database.select(_database.tasks)..where(
               (row) =>
                   row.accountId.equals(accountId) &
-                  row.dueUtc.equals(today) &
+                  row.dueUtc.isNotNull() &
                   row.pendingDelete.equals(false) &
                   row.serverMissing.equals(false) &
                   (row.deleted.isNull() | row.deleted.equals(false)) &
@@ -133,7 +134,13 @@ class DueTodayNotificationScheduler {
         _settings().lastDueTodayNotificationDate == today) {
       return;
     }
-    final count = tasks.where((task) => task.status != 'completed').length;
+    final count = tasks.where((task) {
+      if (task.status == 'completed' || task.status == 'cancelled') {
+        return false;
+      }
+      final due = taskDueAsLocal(task);
+      return due != null && _date(due) == today;
+    }).length;
     if (count == 0) return;
     final revision = _inputRevision;
     final result = await _notifications().notifyDueToday(count);

@@ -99,6 +99,7 @@ class _WindowsBusyMaxAppState extends ConsumerState<WindowsBusyMaxApp>
   }
 
   Future<void> _handleActivation(DesktopActivation activation) async {
+    if (!activation.isValid) return;
     if (activation.requiresVisibleWindow) {
       await ref.read(desktopWindowServiceProvider).showWindow();
     }
@@ -130,6 +131,11 @@ class _WindowsBusyMaxAppState extends ConsumerState<WindowsBusyMaxApp>
           );
         }
       case DesktopActivationKind.notification:
+        final destination = activation.notificationDestination;
+        if (destination != null) {
+          _handleNavigation(DesktopNavigationRequest(destination));
+          return;
+        }
         final scheduleId = activation.payload?['notificationScheduleId'];
         if (scheduleId == null) return;
         await ref

@@ -2,6 +2,9 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:math';
 
+import 'package:busymax/src/features/notifications/notification_schedule_service.dart';
+import 'package:busymax/src/features/notifications/notification_scheduler.dart';
+import 'package:busymax/src/features/notifications/desktop_notification_service.dart';
 import 'package:drift/drift.dart';
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -20,6 +23,7 @@ import 'package:busymax/src/microsoft_todo/api/microsoft_todo_api_error.dart';
 import 'package:busymax/src/microsoft_todo/api/microsoft_todo_api_models.dart';
 import 'package:busymax/src/microsoft_todo/api/microsoft_todo_task_remote_client.dart';
 
+import '../../support/recording_notification_backend.dart';
 import '../../support/memory_settings_store.dart';
 
 void main() {
@@ -36,6 +40,127 @@ void main() {
   tearDown(() async {
     await database.close();
   });
+
+  for (final lifecycle in ['snoozed', 'sent', 'dismissed']) {
+    test(
+      'actual create replay preserves $lifecycle reminder identity',
+      () async {
+        await database
+            .update(database.accounts)
+            .write(
+              const AccountsCompanion(
+                provider: Value('microsoft'),
+                authState: Value('signed_in'),
+              ),
+            );
+        var now = DateTime.utc(2026, 6, 8, 8, 59);
+        final reminder = DateTime.utc(2026, 6, 8, 9);
+        final repository = TasksRepository(
+          database: database,
+          accountId: 'account',
+          nowUtc: () => now,
+        );
+        await repository.createTask(
+          'list-1',
+          TaskCreateInput(
+            title: 'Offline reminder',
+            fields: {
+              'microsoftIsReminderOn': true,
+              'microsoftReminderDateTime': reminder.toIso8601String(),
+              'microsoftReminderTimeZone': 'UTC',
+            },
+          ),
+        );
+        final original = await database
+            .select(database.notificationSchedule)
+            .getSingle();
+        apiClient.createdTask = TaskDto(
+          id: 'task-server',
+          title: 'Offline reminder',
+          status: 'needsAction',
+          rawJson: {
+            'isReminderOn': true,
+            'reminderDateTime': {
+              'dateTime': reminder.toIso8601String(),
+              'timeZone': 'UTC',
+            },
+          },
+        );
+        final backend = RecordingNotificationBackend();
+        NotificationScheduleData? opened;
+        final scheduler = NotificationScheduler(
+          database: database,
+          notifications: DesktopNotificationService(
+            backend: backend,
+            settings: AppSettings.defaults(),
+          ),
+          nowUtc: () => now,
+          onNotificationActivated: (row) async => opened = row,
+        );
+        addTearDown(scheduler.stop);
+        now = reminder;
+        await scheduler.checkNow();
+        expect(backend.requests, hasLength(1));
+        if (lifecycle != 'sent') {
+          await backend.invoke(
+            0,
+            lifecycle == 'snoozed' ? 'snooze' : 'dismiss',
+          );
+        }
+        final before = await database
+            .select(database.notificationSchedule)
+            .getSingle();
+        now = reminder.add(const Duration(minutes: 2));
+        expect(
+          await PendingOpsReplayer(
+            database: database,
+            apiClient: apiClient,
+            accountId: 'account',
+            nowUtc: () => now,
+          ).replayDueOps(),
+          1,
+        );
+        final replaced = await database
+            .select(database.notificationSchedule)
+            .getSingle();
+        expect(replaced.id, original.id);
+        expect(replaced.sourceId, 'task-server');
+        expect(replaced.generation, before.generation);
+        expect(replaced.snoozedUntilUtc, before.snoozedUntilUtc);
+        expect(replaced.sentAtUtc, before.sentAtUtc);
+        expect(replaced.dismissedAtUtc, before.dismissedAtUtc);
+        expect(
+          (await database.tasksDao.listTasks('account', 'list-1')).single.id,
+          'task-server',
+        );
+        final schedules = NotificationScheduleService(
+          database: database,
+          nowUtc: () => now,
+        );
+        await schedules.rebuildUpcomingTaskNotifications('account');
+        await scheduler.checkNow();
+        expect(backend.requests, hasLength(1));
+        if (lifecycle == 'sent') {
+          await backend.invoke(0, 'default');
+          expect(opened?.sourceId, 'task-server');
+          expect(backend.cancelledIds, isEmpty);
+        }
+        now = reminder.add(const Duration(minutes: 10));
+        await schedules.rebuildUpcomingTaskNotifications('account');
+        await scheduler.checkNow();
+        await scheduler.checkNow();
+        expect(backend.requests, hasLength(lifecycle == 'snoozed' ? 2 : 1));
+        if (lifecycle == 'snoozed') {
+          expect(backend.requests.last.payload!['itemId'], 'task-server');
+          expect(
+            (await database.select(database.notificationSchedule).getSingle())
+                .sentAtUtc,
+            now.millisecondsSinceEpoch,
+          );
+        }
+      },
+    );
+  }
 
   for (final throughEngine in [false, true]) {
     for (final failSettings in [false, true]) {
@@ -1574,6 +1699,7 @@ class _ThrowingMicrosoftTodoApiClient implements MicrosoftTodoApiClient {
 }
 
 class _FakeTaskRemoteClient implements TaskRemoteClient {
+  TaskDto? createdTask;
   final calls = <String>[];
   final taskPatchFields = <Map<String, Object?>>[];
   final createParentTaskIds = <String?>[];
@@ -1638,7 +1764,8 @@ class _FakeTaskRemoteClient implements TaskRemoteClient {
     await createTaskGate?.future;
     final error = createTaskError;
     if (error != null) throw error;
-    return _taskDto('task-server', title: create.fields['title'].toString());
+    return createdTask ??
+        _taskDto('task-server', title: create.fields['title'].toString());
   }
 
   @override
