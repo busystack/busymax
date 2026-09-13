@@ -110,6 +110,33 @@ void main() {
 
     expect(secondRan, isTrue);
   });
+
+  test('running lifecycle remains active across queued account work', () async {
+    final coordinator = AccountSyncCoordinator();
+    addTearDown(coordinator.dispose);
+    final changes = <String>[];
+    final subscription = coordinator.runningChanges.listen(changes.add);
+    addTearDown(subscription.cancel);
+    final firstRelease = Completer<void>();
+    final secondRelease = Completer<void>();
+
+    final first = coordinator.run<void>('account', () => firstRelease.future);
+    final second = coordinator.run<void>('account', () => secondRelease.future);
+
+    expect(coordinator.isRunning('account'), isTrue);
+    expect(coordinator.isRunning('other'), isFalse);
+    expect(changes, ['account']);
+
+    firstRelease.complete();
+    await first;
+    expect(coordinator.isRunning('account'), isTrue);
+    expect(changes, ['account']);
+
+    secondRelease.complete();
+    await second;
+    expect(coordinator.isRunning('account'), isFalse);
+    expect(changes, ['account', 'account']);
+  });
 }
 
 final class _BlockingAccountSyncOperations implements AccountSyncOperations {

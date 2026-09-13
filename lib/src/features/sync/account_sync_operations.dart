@@ -22,8 +22,20 @@ abstract interface class AccountSyncOperations {
 /// different synchronization trigger.
 final class AccountSyncCoordinator {
   final Map<String, Future<void>> _accountTails = {};
+  final Map<String, int> _activeCounts = <String, int>{};
+  final StreamController<String> _runningChanges =
+      StreamController<String>.broadcast(sync: true);
+
+  bool isRunning(String accountId) => (_activeCounts[accountId] ?? 0) > 0;
+
+  Stream<String> get runningChanges => _runningChanges.stream;
 
   Future<T> run<T>(String accountId, Future<T> Function() operation) async {
+    final wasIdle = !isRunning(accountId);
+    _activeCounts.update(accountId, (count) => count + 1, ifAbsent: () => 1);
+    if (wasIdle && !_runningChanges.isClosed) {
+      _runningChanges.add(accountId);
+    }
     final previous = _accountTails[accountId];
     final release = Completer<void>();
     final tail = release.future;
@@ -39,8 +51,17 @@ final class AccountSyncCoordinator {
       if (identical(_accountTails[accountId], tail)) {
         _accountTails.remove(accountId);
       }
+      final remaining = (_activeCounts[accountId] ?? 1) - 1;
+      if (remaining == 0) {
+        _activeCounts.remove(accountId);
+        if (!_runningChanges.isClosed) _runningChanges.add(accountId);
+      } else {
+        _activeCounts[accountId] = remaining;
+      }
     }
   }
+
+  Future<void> dispose() => _runningChanges.close();
 }
 
 /// Routes every synchronization entry point through one account-scoped gate.

@@ -666,7 +666,9 @@ final davAccountSyncEngineFactoryProvider =
     });
 
 final accountSyncCoordinatorProvider = Provider<AccountSyncCoordinator>((ref) {
-  return AccountSyncCoordinator();
+  final coordinator = AccountSyncCoordinator();
+  ref.onDispose(() => unawaited(coordinator.dispose()));
+  return coordinator;
 });
 
 final accountSyncOperationsProvider = Provider<AccountSyncOperations>((ref) {
@@ -1419,6 +1421,8 @@ final dueTodayNotificationProvider = Provider<DueTodayNotificationScheduler>((
     markNotified: (date) => ref
         .read(appSettingsControllerProvider.notifier)
         .markDueTodayNotified(date),
+    accountSyncRunning: ref.read(accountSyncCoordinatorProvider).isRunning,
+    accountSyncChanges: ref.read(accountSyncCoordinatorProvider).runningChanges,
   );
   ref.listen(
     appSettingsControllerProvider,

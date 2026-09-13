@@ -1,13 +1,21 @@
+import 'dart:async';
 import 'dart:convert';
 
-import 'package:drift/drift.dart';
+import 'package:busymax/src/app/app_settings.dart';
+import 'package:drift/drift.dart' hide isNull;
 import 'package:drift/native.dart';
+import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:busymax/src/db/app_database.dart';
+import 'package:busymax/src/features/notifications/desktop_notification_service.dart';
+import 'package:busymax/src/features/notifications/due_today_notification_scheduler.dart';
+import 'package:busymax/src/features/sync/account_sync_operations.dart';
 import 'package:busymax/src/features/sync/sync_engine.dart';
 import 'package:busymax/src/features/tasks/domain/task_remote_client.dart';
 import 'package:busymax/src/features/tasks/domain/task_remote_models.dart';
 import 'package:busymax/src/features/tasks/domain/task_checklist_item.dart';
+
+import '../../support/recording_notification_backend.dart';
 
 void main() {
   late AppDatabase database;
@@ -233,6 +241,99 @@ void main() {
       );
     },
   );
+
+  test('due-today summary waits for every synchronized task page', () async {
+    final releaseSecondPage = Completer<void>();
+    final secondPageRequested = Completer<void>();
+    apiClient
+      ..blockedTaskPageToken = 'task-next'
+      ..blockedTaskPageStarted = secondPageRequested
+      ..blockedTaskPageRelease = releaseSecondPage
+      ..taskListsPages = [
+        TaskListsPageDto(items: [_taskListDto('list-1')], rawJson: const {}),
+      ];
+    apiClient.taskPages['list-1'] = [
+      TasksPageDto(
+        items: [_dueTaskDto('task-1')],
+        nextPageToken: 'task-next',
+        rawJson: const {},
+      ),
+      TasksPageDto(
+        items: [
+          for (var index = 2; index <= 10; index += 1)
+            _dueTaskDto('task-$index'),
+        ],
+        rawJson: const {},
+      ),
+    ];
+
+    var settings = AppSettings.defaults().copyWith(notifyDueToday: true);
+    final markedDates = <String>[];
+    final backend = RecordingNotificationBackend();
+    final coordinator = AccountSyncCoordinator();
+    addTearDown(coordinator.dispose);
+    late final DueTodayNotificationScheduler dueToday;
+    dueToday = DueTodayNotificationScheduler(
+      database: database,
+      settings: () => settings,
+      activeAccountId: () => 'account',
+      notifications: () => DesktopNotificationService(
+        backend: backend,
+        settings: settings,
+        locale: const Locale('en'),
+        now: () => DateTime(2026, 6, 8, 9),
+      ),
+      markNotified: (date) async {
+        markedDates.add(date);
+        settings = settings.copyWith(lastDueTodayNotificationDate: date);
+        dueToday.inputsChanged();
+      },
+      accountSyncRunning: coordinator.isRunning,
+      accountSyncChanges: coordinator.runningChanges,
+      now: () => DateTime(2026, 6, 8, 9),
+      interval: const Duration(days: 1),
+    );
+    addTearDown(dueToday.stop);
+    dueToday.start();
+
+    final synchronization = CoordinatedAccountSyncOperations(
+      coordinator: coordinator,
+      inner: DelegatingAccountSyncOperations(
+        syncTasks: (accountId, {required full}) => SyncEngine(
+          database: database,
+          apiClient: apiClient,
+          accountId: accountId,
+          nowUtc: () => DateTime.utc(2026, 6, 8, 9),
+        ).fullSync(),
+        syncCalendar: (accountId, {required full}) async {},
+      ),
+    ).syncTasks('account', full: true);
+    await secondPageRequested.future;
+    await _waitUntil(
+      () async =>
+          (await database.tasksDao.listTasks('account', 'list-1')).length == 1,
+    );
+    await dueToday.checkNow();
+
+    expect(coordinator.isRunning('account'), isTrue);
+    expect(backend.requests, isEmpty);
+    expect(markedDates, isEmpty);
+    expect(settings.lastDueTodayNotificationDate, isNull);
+
+    releaseSecondPage.complete();
+    await synchronization;
+    await _waitUntil(() => backend.requests.isNotEmpty);
+
+    expect(coordinator.isRunning('account'), isFalse);
+    expect(backend.requests, hasLength(1));
+    expect(backend.requests.single.body, '10 tasks are due today.');
+    expect(markedDates, ['2026-06-08']);
+    expect(settings.lastDueTodayNotificationDate, '2026-06-08');
+    expect(
+      await database.tasksDao.listTasks('account', 'list-1'),
+      hasLength(10),
+    );
+  });
 
   test('full-refresh-only sync pulls remote task changes', () async {
     await database.taskListsDao.upsertTaskList(_localTaskList('list-1'));
@@ -513,6 +614,9 @@ class FakeTaskRemoteClient
   final checklistPages = <String, List<TaskChecklistItemsPageDto>>{};
   final checklistPageTokens = <String, List<String?>>{};
   DateTime? lastUpdatedMin;
+  String? blockedTaskPageToken;
+  Completer<void>? blockedTaskPageStarted;
+  Completer<void>? blockedTaskPageRelease;
   var _taskListPageIndex = 0;
   final _taskPageIndexes = <String, int>{};
   final _checklistPageIndexes = <String, int>{};
@@ -587,6 +691,12 @@ class FakeTaskRemoteClient
   }) async {
     lastUpdatedMin = updatedMin;
     taskPageTokens.putIfAbsent(taskListId, () => []).add(pageToken);
+    if (pageToken == blockedTaskPageToken) {
+      if (blockedTaskPageStarted?.isCompleted == false) {
+        blockedTaskPageStarted!.complete();
+      }
+      await blockedTaskPageRelease?.future;
+    }
     final index = _taskPageIndexes.update(
       taskListId,
       (value) => value + 1,
@@ -711,6 +821,32 @@ TaskListDto _taskListDto(String id, {String title = 'List'}) {
 
 TaskDto _taskDto(String id, {String title = 'Task'}) {
   return TaskDto(id: id, title: title, rawJson: {'id': id, 'title': title});
+}
+
+TaskDto _dueTaskDto(String id) {
+  final due = DateTime.utc(2026, 6, 8);
+  return TaskDto(
+    id: id,
+    title: 'Task $id',
+    status: 'needsAction',
+    due: due,
+    rawJson: {
+      'id': id,
+      'title': 'Task $id',
+      'status': 'needsAction',
+      'due': due.toIso8601String(),
+    },
+  );
+}
+
+Future<void> _waitUntil(FutureOr<bool> Function() condition) async {
+  final deadline = DateTime.now().add(const Duration(seconds: 3));
+  while (!await condition()) {
+    if (DateTime.now().isAfter(deadline)) {
+      fail('Timed out waiting for synchronization state.');
+    }
+    await Future<void>.delayed(const Duration(milliseconds: 10));
+  }
 }
 
 TaskListsCompanion _localTaskList(

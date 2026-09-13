@@ -16,6 +16,8 @@ class DueTodayNotificationScheduler {
     required String? Function() activeAccountId,
     required DesktopNotificationService Function() notifications,
     required Future<void> Function(String date) markNotified,
+    bool Function(String accountId)? accountSyncRunning,
+    Stream<String>? accountSyncChanges,
     DateTime Function()? now,
     Duration interval = const Duration(minutes: 1),
   }) : _database = database,
@@ -23,6 +25,8 @@ class DueTodayNotificationScheduler {
        _activeAccountId = activeAccountId,
        _notifications = notifications,
        _markNotified = markNotified,
+       _accountSyncRunning = accountSyncRunning ?? _neverSyncing,
+       _accountSyncChanges = accountSyncChanges ?? const Stream<String>.empty(),
        _now = now ?? DateTime.now,
        _interval = interval;
 
@@ -31,9 +35,12 @@ class DueTodayNotificationScheduler {
   final String? Function() _activeAccountId;
   final DesktopNotificationService Function() _notifications;
   final Future<void> Function(String date) _markNotified;
+  final bool Function(String accountId) _accountSyncRunning;
+  final Stream<String> _accountSyncChanges;
   final DateTime Function() _now;
   final Duration _interval;
   StreamSubscription<Set<TableUpdate>>? _taskSubscription;
+  StreamSubscription<String>? _accountSyncSubscription;
   Timer? _clockTimer;
   Timer? _nextCheckTimer;
   DateTime? _retryAt;
@@ -49,6 +56,9 @@ class DueTodayNotificationScheduler {
     _taskSubscription = _database
         .tableUpdates(TableUpdateQuery.onTable(_database.tasks))
         .listen((_) => unawaited(checkNow()));
+    _accountSyncSubscription = _accountSyncChanges.listen((accountId) {
+      if (accountId == _activeAccountId()) unawaited(checkNow());
+    });
     // Also catches resume from suspension and system clock/time-zone changes.
     _clockTimer = Timer.periodic(_interval, (_) => unawaited(checkNow()));
     unawaited(checkNow());
@@ -67,6 +77,7 @@ class DueTodayNotificationScheduler {
     _clockTimer?.cancel();
     _nextCheckTimer?.cancel();
     unawaited(_taskSubscription?.cancel());
+    unawaited(_accountSyncSubscription?.cancel());
   }
 
   Future<void> checkNow() async {
@@ -94,6 +105,7 @@ class DueTodayNotificationScheduler {
     final accountId = _activeAccountId();
     if (!settings.notifyDueToday ||
         accountId == null ||
+        _accountSyncRunning(accountId) ||
         settings.lastDueTodayNotificationDate == today ||
         (_retryAt != null && now.isBefore(_retryAt!))) {
       return;
@@ -114,6 +126,9 @@ class DueTodayNotificationScheduler {
       _checkAgain = true;
       return;
     }
+    // Synchronization may have started while the task query was awaiting the
+    // database. Its completion transition will trigger a fresh evaluation.
+    if (_accountSyncRunning(accountId)) return;
     if (!_settings().notifyDueToday ||
         _settings().lastDueTodayNotificationDate == today) {
       return;
@@ -157,3 +172,5 @@ class DueTodayNotificationScheduler {
       '${date.month.toString().padLeft(2, '0')}-'
       '${date.day.toString().padLeft(2, '0')}';
 }
+
+bool _neverSyncing(String _) => false;
