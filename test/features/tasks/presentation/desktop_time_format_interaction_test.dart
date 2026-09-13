@@ -1,13 +1,61 @@
 import 'package:busymax/l10n/generated/app_localizations.dart';
 import 'package:busymax/src/app/busymax_design.dart';
+import 'package:busymax/src/app/busymax_yaru_theme.dart';
 import 'package:busymax/src/features/tasks/presentation/desktop_date_time_fields.dart';
 import 'package:busymax/src/l10n/time_format_scope.dart';
+import 'package:busymax/src/platform/native_menu_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:yaru/yaru.dart';
 
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+  const menuChannel = MethodChannel(nativeMenuChannelName);
+  setUp(() {
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(
+          menuChannel,
+          (_) async => throw MissingPluginException(),
+        );
+  });
+  tearDown(() {
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(menuChannel, null);
+  });
+
+  testWidgets('period uses a compact shared menu aligned with clock inputs', (
+    tester,
+  ) async {
+    final format = ValueNotifier(false);
+    addTearDown(format.dispose);
+    final changes = <String?>[];
+    await _pump(tester, format, '02:30', changes);
+    await _open(tester);
+    final selector = find.byKey(const ValueKey('time-period-selector'));
+    expect(tester.widget(selector), isA<BusyMaxMenuButton<bool>>());
+    expect(find.byType(DropdownButton<bool>), findsNothing);
+    final input = find.byKey(const ValueKey(('time-input', 'Hour')));
+    final triggerSize = tester.getSize(selector);
+    final inputSize = tester.getSize(input);
+    expect(triggerSize.height, inputSize.height);
+    expect(triggerSize.width, lessThanOrEqualTo(inputSize.width * 2));
+    expect(tester.getCenter(selector).dy, tester.getCenter(input).dy);
+    final periodText = find.descendant(of: selector, matching: find.text('AM'));
+    expect(
+      DefaultTextStyle.of(tester.element(periodText)).style.fontSize,
+      tester.widget<EditableText>(_inputs.first).style.fontSize,
+    );
+    await tester.tap(selector);
+    await tester.pumpAndSettle();
+    expect(changes, isEmpty);
+    await tester.tap(find.text('PM').last);
+    await tester.pumpAndSettle();
+    expect(changes, ['14:30']);
+    expect(_components(tester), ['2', '30']);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets(
     'hour steps preserve an incomplete minute and clearing stays nullable',
     (tester) async {
@@ -46,9 +94,11 @@ void main() {
       expect(_components(tester), ['12', '30']);
       expect(
         tester
-            .widget<DropdownButton<bool>>(
+            .widget<BusyMaxMenuButton<bool>>(
               find.byKey(const ValueKey('time-period-selector')),
             )
+            .entries
+            .singleWhere((entry) => entry.selected)
             .value,
         hour == 11,
       );
@@ -77,7 +127,13 @@ void main() {
       await _pump(tester, format, '00:05', changes);
       await _open(tester);
       final selector = find.byKey(const ValueKey('time-period-selector'));
-      await tester.tap(selector);
+      final trigger = find.descendant(
+        of: selector,
+        matching: find.byType(FilledButton),
+      );
+      tester.widget<FilledButton>(trigger).focusNode!.requestFocus();
+      await tester.pump();
+      await tester.sendKeyEvent(LogicalKeyboardKey.enter);
       await tester.pumpAndSettle();
       await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
       await tester.sendKeyEvent(LogicalKeyboardKey.enter);
@@ -185,6 +241,10 @@ Future<void> _pump(
   String? time = initial;
   await tester.pumpWidget(
     MaterialApp(
+      theme: BusyMaxYaruTheme.build(
+        brightness: Brightness.light,
+        accentColor: YaruColors.orange,
+      ),
       locale: Locale(locale),
       localizationsDelegates: AppLocalizations.localizationsDelegates,
       supportedLocales: AppLocalizations.supportedLocales,

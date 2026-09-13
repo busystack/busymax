@@ -1234,24 +1234,63 @@ class _DesktopTimeValueDialogState extends State<_DesktopTimeValueDialog> {
                   Flexible(
                     child: FocusTraversalOrder(
                       order: const NumericFocusOrder(2),
-                      child: Semantics(
-                        label: context.l10n.timePeriod,
-                        child: DropdownButton<bool>(
-                          key: const ValueKey('time-period-selector'),
-                          value: _isPm,
-                          isExpanded: true,
-                          items: [
-                            for (final pm in [false, true])
-                              DropdownMenuItem(
-                                value: pm,
-                                child: Text(_format!.periodLabel(pm)),
+                      child: BusyMaxMenuButton<bool>(
+                        key: const ValueKey('time-period-selector'),
+                        tooltip: context.l10n.timePeriod,
+                        entries: [
+                          for (final pm in [false, true])
+                            BusyMaxMenuEntry(
+                              value: pm,
+                              label: _format!.periodLabel(pm),
+                              role: BusyMaxMenuEntryRole.radio,
+                              selected: pm == _isPm,
+                            ),
+                        ],
+                        onSelected: (pm) {
+                          if (pm == _isPm) return;
+                          setState(() => _isPm = pm);
+                          _handleTimeInputChanged();
+                        },
+                        triggerBuilder: (context, trigger) => trigger.anchor(
+                          child: Semantics(
+                            label: context.l10n.timePeriod,
+                            expanded: trigger.isOpen,
+                            child: BusyMaxPushButton.standard(
+                              onPressed: trigger.onPressed,
+                              focusNode: trigger.focusNode,
+                              style: ButtonStyle(
+                                textStyle: WidgetStatePropertyAll(
+                                  Theme.of(context).textTheme.bodyMedium,
+                                ),
+                                minimumSize: const WidgetStatePropertyAll(
+                                  Size(0, _timePickerInputControlSize),
+                                ),
+                                padding: const WidgetStatePropertyAll(
+                                  EdgeInsets.symmetric(
+                                    horizontal: BusyMaxSpacing.sm,
+                                  ),
+                                ),
+                                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                               ),
-                          ],
-                          onChanged: (pm) {
-                            if (pm == null) return;
-                            setState(() => _isPm = pm);
-                            _handleTimeInputChanged();
-                          },
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Flexible(
+                                    child: Text(
+                                      _format!.periodLabel(_isPm),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ),
+                                  const SizedBox(width: BusyMaxSpacing.xs),
+                                  const Icon(
+                                    YaruIcons.pan_down,
+                                    size: BusyMaxSizes.iconSm,
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
                         ),
                       ),
                     ),
