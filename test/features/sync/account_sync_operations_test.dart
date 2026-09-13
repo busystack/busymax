@@ -137,6 +137,35 @@ void main() {
     expect(coordinator.isRunning('account'), isFalse);
     expect(changes, ['account', 'account']);
   });
+
+  test(
+    'failed task import remains blocked until a task import succeeds',
+    () async {
+      final coordinator = AccountSyncCoordinator();
+      addTearDown(coordinator.dispose);
+      final failure = StateError('task page failed');
+
+      await expectLater(
+        coordinator.run<void>('account', () async => throw failure),
+        throwsA(same(failure)),
+      );
+      expect(coordinator.blocksDueToday('account'), isFalse);
+
+      await expectLater(
+        coordinator.trackTaskImport<void>('account', () async => throw failure),
+        throwsA(same(failure)),
+      );
+
+      expect(coordinator.isRunning('account'), isFalse);
+      expect(coordinator.blocksDueToday('account'), isTrue);
+
+      await coordinator.run<void>('account', () async {});
+      expect(coordinator.blocksDueToday('account'), isTrue);
+
+      await coordinator.trackTaskImport<void>('account', () async {});
+      expect(coordinator.blocksDueToday('account'), isFalse);
+    },
+  );
 }
 
 final class _BlockingAccountSyncOperations implements AccountSyncOperations {

@@ -674,6 +674,7 @@ final accountSyncCoordinatorProvider = Provider<AccountSyncCoordinator>((ref) {
 final accountSyncOperationsProvider = Provider<AccountSyncOperations>((ref) {
   final accountsRepository = ref.watch(accountsRepositoryProvider);
   final connectivity = ref.watch(networkConnectivityMonitorProvider);
+  final syncCoordinator = ref.watch(accountSyncCoordinatorProvider);
 
   Future<BusyProvider> providerForAccount(String accountId) async {
     final account = await accountsRepository.accountById(accountId);
@@ -685,26 +686,28 @@ final accountSyncOperationsProvider = Provider<AccountSyncOperations>((ref) {
 
   final routing = RoutingAccountSyncOperations(
     providerForAccount: providerForAccount,
-    syncDav: (accountId, {required full}) async {
-      await ref
+    syncDav: (accountId, {required full}) => syncCoordinator.trackTaskImport(
+      accountId,
+      () => ref
           .read(davAccountSyncEngineFactoryProvider)(accountId)
-          .synchronize(full: full);
-    },
+          .synchronize(full: full),
+    ),
     syncWebCal: (accountId, {required full}) => ref
         .read(webCalSubscriptionServiceProvider)
         .refreshAccount(accountId, force: full),
-    syncTasksRest: (accountId, {required full}) async {
-      final provider = await providerForAccount(accountId);
-      final engine = ref.read(syncEngineForAccountFactoryProvider)(
-        accountId,
-        provider,
-      );
-      if (full) {
-        await engine.fullSync();
-      } else {
-        await engine.incrementalSync();
-      }
-    },
+    syncTasksRest: (accountId, {required full}) =>
+        syncCoordinator.trackTaskImport(accountId, () async {
+          final provider = await providerForAccount(accountId);
+          final engine = ref.read(syncEngineForAccountFactoryProvider)(
+            accountId,
+            provider,
+          );
+          if (full) {
+            await engine.fullSync();
+          } else {
+            await engine.incrementalSync();
+          }
+        }),
     syncCalendarRest: (accountId, {required full}) async {
       final provider = await providerForAccount(accountId);
       final engine = ref.read(calendarSyncEngineForAccountFactoryProvider)(
@@ -719,7 +722,7 @@ final accountSyncOperationsProvider = Provider<AccountSyncOperations>((ref) {
     },
   );
   return CoordinatedAccountSyncOperations(
-    coordinator: ref.watch(accountSyncCoordinatorProvider),
+    coordinator: syncCoordinator,
     inner: ConnectivityAwareAccountSyncOperations(
       inner: routing,
       requireNetwork: connectivity.requireNetwork,
@@ -1421,7 +1424,7 @@ final dueTodayNotificationProvider = Provider<DueTodayNotificationScheduler>((
     markNotified: (date) => ref
         .read(appSettingsControllerProvider.notifier)
         .markDueTodayNotified(date),
-    accountSyncRunning: ref.read(accountSyncCoordinatorProvider).isRunning,
+    syncBlocksDelivery: ref.read(accountSyncCoordinatorProvider).blocksDueToday,
     accountSyncChanges: ref.read(accountSyncCoordinatorProvider).runningChanges,
   );
   ref.listen(

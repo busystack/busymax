@@ -23,12 +23,55 @@ abstract interface class AccountSyncOperations {
 final class AccountSyncCoordinator {
   final Map<String, Future<void>> _accountTails = {};
   final Map<String, int> _activeCounts = <String, int>{};
+  final Map<String, int> _activeTaskImportCounts = <String, int>{};
+  final Set<String> _taskImportFailed = <String>{};
+  final Set<String> _incompleteTaskImports = <String>{};
   final StreamController<String> _runningChanges =
       StreamController<String>.broadcast(sync: true);
 
   bool isRunning(String accountId) => (_activeCounts[accountId] ?? 0) > 0;
 
+  bool blocksDueToday(String accountId) =>
+      isRunning(accountId) ||
+      (_activeTaskImportCounts[accountId] ?? 0) > 0 ||
+      _incompleteTaskImports.contains(accountId);
+
   Stream<String> get runningChanges => _runningChanges.stream;
+
+  /// Records whether an operation that actually imports tasks completed.
+  /// A failed incremental import leaves its account blocked until a later
+  /// task import succeeds, because rows written before the failure remain in
+  /// the local cache.
+  Future<T> trackTaskImport<T>(
+    String accountId,
+    Future<T> Function() import,
+  ) async {
+    _activeTaskImportCounts.update(
+      accountId,
+      (count) => count + 1,
+      ifAbsent: () => 1,
+    );
+    if (!_runningChanges.isClosed) _runningChanges.add(accountId);
+    try {
+      return await import();
+    } on Object {
+      _taskImportFailed.add(accountId);
+      rethrow;
+    } finally {
+      final remaining = (_activeTaskImportCounts[accountId] ?? 1) - 1;
+      if (remaining == 0) {
+        _activeTaskImportCounts.remove(accountId);
+        if (_taskImportFailed.remove(accountId)) {
+          _incompleteTaskImports.add(accountId);
+        } else {
+          _incompleteTaskImports.remove(accountId);
+        }
+      } else {
+        _activeTaskImportCounts[accountId] = remaining;
+      }
+      if (!_runningChanges.isClosed) _runningChanges.add(accountId);
+    }
+  }
 
   Future<T> run<T>(String accountId, Future<T> Function() operation) async {
     final wasIdle = !isRunning(accountId);

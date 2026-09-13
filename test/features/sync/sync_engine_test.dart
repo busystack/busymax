@@ -242,98 +242,145 @@ void main() {
     },
   );
 
-  test('due-today summary waits for every synchronized task page', () async {
-    final releaseSecondPage = Completer<void>();
-    final secondPageRequested = Completer<void>();
-    apiClient
-      ..blockedTaskPageToken = 'task-next'
-      ..blockedTaskPageStarted = secondPageRequested
-      ..blockedTaskPageRelease = releaseSecondPage
-      ..taskListsPages = [
-        TaskListsPageDto(items: [_taskListDto('list-1')], rawJson: const {}),
+  test(
+    'failed partial task import waits for successful retry before summary',
+    () async {
+      final releaseSecondPage = Completer<void>();
+      final secondPageRequested = Completer<void>();
+      final secondPageFailure = StateError('second task page failed');
+      apiClient
+        ..blockedTaskPageToken = 'task-next'
+        ..blockedTaskPageStarted = secondPageRequested
+        ..blockedTaskPageRelease = releaseSecondPage
+        ..blockedTaskPageError = secondPageFailure
+        ..taskListsPages = [
+          TaskListsPageDto(items: [_taskListDto('list-1')], rawJson: const {}),
+        ];
+      apiClient.taskPages['list-1'] = [
+        TasksPageDto(
+          items: [_dueTaskDto('task-1')],
+          nextPageToken: 'task-next',
+          rawJson: const {},
+        ),
+        TasksPageDto(
+          items: [
+            for (var index = 2; index <= 10; index += 1)
+              _dueTaskDto('task-$index'),
+          ],
+          rawJson: const {},
+        ),
       ];
-    apiClient.taskPages['list-1'] = [
-      TasksPageDto(
-        items: [_dueTaskDto('task-1')],
-        nextPageToken: 'task-next',
-        rawJson: const {},
-      ),
-      TasksPageDto(
-        items: [
-          for (var index = 2; index <= 10; index += 1)
-            _dueTaskDto('task-$index'),
-        ],
-        rawJson: const {},
-      ),
-    ];
 
-    var settings = AppSettings.defaults().copyWith(notifyDueToday: true);
-    final markedDates = <String>[];
-    final backend = RecordingNotificationBackend();
-    final coordinator = AccountSyncCoordinator();
-    addTearDown(coordinator.dispose);
-    late final DueTodayNotificationScheduler dueToday;
-    dueToday = DueTodayNotificationScheduler(
-      database: database,
-      settings: () => settings,
-      activeAccountId: () => 'account',
-      notifications: () => DesktopNotificationService(
-        backend: backend,
-        settings: settings,
-        locale: const Locale('en'),
+      var settings = AppSettings.defaults().copyWith(notifyDueToday: true);
+      final markedDates = <String>[];
+      final backend = RecordingNotificationBackend();
+      final coordinator = AccountSyncCoordinator();
+      addTearDown(coordinator.dispose);
+      late final DueTodayNotificationScheduler dueToday;
+      dueToday = DueTodayNotificationScheduler(
+        database: database,
+        settings: () => settings,
+        activeAccountId: () => 'account',
+        notifications: () => DesktopNotificationService(
+          backend: backend,
+          settings: settings,
+          locale: const Locale('en'),
+          now: () => DateTime(2026, 6, 8, 9),
+        ),
+        markNotified: (date) async {
+          markedDates.add(date);
+          settings = settings.copyWith(lastDueTodayNotificationDate: date);
+          dueToday.inputsChanged();
+        },
+        syncBlocksDelivery: coordinator.blocksDueToday,
+        accountSyncChanges: coordinator.runningChanges,
         now: () => DateTime(2026, 6, 8, 9),
-      ),
-      markNotified: (date) async {
-        markedDates.add(date);
-        settings = settings.copyWith(lastDueTodayNotificationDate: date);
-        dueToday.inputsChanged();
-      },
-      accountSyncRunning: coordinator.isRunning,
-      accountSyncChanges: coordinator.runningChanges,
-      now: () => DateTime(2026, 6, 8, 9),
-      interval: const Duration(days: 1),
-    );
-    addTearDown(dueToday.stop);
-    dueToday.start();
+        interval: const Duration(days: 1),
+      );
+      addTearDown(dueToday.stop);
+      dueToday.start();
 
-    final synchronization = CoordinatedAccountSyncOperations(
-      coordinator: coordinator,
-      inner: DelegatingAccountSyncOperations(
-        syncTasks: (accountId, {required full}) => SyncEngine(
-          database: database,
-          apiClient: apiClient,
-          accountId: accountId,
-          nowUtc: () => DateTime.utc(2026, 6, 8, 9),
-        ).fullSync(),
-        syncCalendar: (accountId, {required full}) async {},
-      ),
-    ).syncTasks('account', full: true);
-    await secondPageRequested.future;
-    await _waitUntil(
-      () async =>
-          (await database.tasksDao.listTasks('account', 'list-1')).length == 1,
-    );
-    await dueToday.checkNow();
+      final operations = CoordinatedAccountSyncOperations(
+        coordinator: coordinator,
+        inner: DelegatingAccountSyncOperations(
+          syncTasks: (accountId, {required full}) =>
+              coordinator.trackTaskImport(
+                accountId,
+                () => SyncEngine(
+                  database: database,
+                  apiClient: apiClient,
+                  accountId: accountId,
+                  nowUtc: () => DateTime.utc(2026, 6, 8, 9),
+                ).fullSync(),
+              ),
+          syncCalendar: (accountId, {required full}) async {},
+        ),
+      );
+      final synchronization = operations.syncTasks('account', full: true);
+      final failedSyncExpectation = expectLater(
+        synchronization,
+        throwsA(same(secondPageFailure)),
+      );
+      await secondPageRequested.future;
+      await _waitUntil(
+        () async =>
+            (await database.tasksDao.listTasks('account', 'list-1')).length ==
+            1,
+      );
+      await dueToday.checkNow();
 
-    expect(coordinator.isRunning('account'), isTrue);
-    expect(backend.requests, isEmpty);
-    expect(markedDates, isEmpty);
-    expect(settings.lastDueTodayNotificationDate, isNull);
+      expect(coordinator.blocksDueToday('account'), isTrue);
+      expect(backend.requests, isEmpty);
+      expect(markedDates, isEmpty);
+      expect(settings.lastDueTodayNotificationDate, isNull);
 
-    releaseSecondPage.complete();
-    await synchronization;
-    await _waitUntil(() => backend.requests.isNotEmpty);
+      releaseSecondPage.complete();
+      await failedSyncExpectation;
+      await dueToday.checkNow();
 
-    expect(coordinator.isRunning('account'), isFalse);
-    expect(backend.requests, hasLength(1));
-    expect(backend.requests.single.body, '10 tasks are due today.');
-    expect(markedDates, ['2026-06-08']);
-    expect(settings.lastDueTodayNotificationDate, '2026-06-08');
-    expect(
-      await database.tasksDao.listTasks('account', 'list-1'),
-      hasLength(10),
-    );
-  });
+      expect(coordinator.isRunning('account'), isFalse);
+      expect(coordinator.blocksDueToday('account'), isTrue);
+      expect(backend.requests, isEmpty);
+      expect(markedDates, isEmpty);
+      expect(settings.lastDueTodayNotificationDate, isNull);
+      expect(
+        await database.tasksDao.listTasks('account', 'list-1'),
+        hasLength(1),
+      );
+
+      apiClient = FakeTaskRemoteClient()
+        ..taskListsPages = [
+          TaskListsPageDto(items: [_taskListDto('list-1')], rawJson: const {}),
+        ];
+      apiClient.taskPages['list-1'] = [
+        TasksPageDto(
+          items: [_dueTaskDto('task-1')],
+          nextPageToken: 'task-next',
+          rawJson: const {},
+        ),
+        TasksPageDto(
+          items: [
+            for (var index = 2; index <= 10; index += 1)
+              _dueTaskDto('task-$index'),
+          ],
+          rawJson: const {},
+        ),
+      ];
+      await operations.syncTasks('account', full: true);
+      await _waitUntil(() => backend.requests.isNotEmpty);
+
+      expect(coordinator.isRunning('account'), isFalse);
+      expect(coordinator.blocksDueToday('account'), isFalse);
+      expect(backend.requests, hasLength(1));
+      expect(backend.requests.single.body, '10 tasks are due today.');
+      expect(markedDates, ['2026-06-08']);
+      expect(settings.lastDueTodayNotificationDate, '2026-06-08');
+      expect(
+        await database.tasksDao.listTasks('account', 'list-1'),
+        hasLength(10),
+      );
+    },
+  );
 
   test('full-refresh-only sync pulls remote task changes', () async {
     await database.taskListsDao.upsertTaskList(_localTaskList('list-1'));
@@ -617,6 +664,7 @@ class FakeTaskRemoteClient
   String? blockedTaskPageToken;
   Completer<void>? blockedTaskPageStarted;
   Completer<void>? blockedTaskPageRelease;
+  Object? blockedTaskPageError;
   var _taskListPageIndex = 0;
   final _taskPageIndexes = <String, int>{};
   final _checklistPageIndexes = <String, int>{};
@@ -696,6 +744,8 @@ class FakeTaskRemoteClient
         blockedTaskPageStarted!.complete();
       }
       await blockedTaskPageRelease?.future;
+      final error = blockedTaskPageError;
+      if (error != null) throw error;
     }
     final index = _taskPageIndexes.update(
       taskListId,
