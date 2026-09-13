@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 
 import '../../features/notifications/desktop_notification_backend.dart';
+import '../../features/notifications/notification_identity.dart';
 import '../common/desktop_services.dart';
 import 'windows_notification_id_store.dart';
 import 'windows_window_service.dart';
@@ -110,6 +111,7 @@ final class WindowsNotificationBackend implements DesktopNotificationBackend {
   }) async {
     const permittedPayloadKeys = {
       'notificationScheduleId',
+      'notificationGeneration',
       'itemKind',
       'accountId',
       'sourceId',
@@ -177,7 +179,13 @@ final class WindowsNotificationBackend implements DesktopNotificationBackend {
     final parsed = _decodePayload(response.payload);
     if (parsed == null) return;
     final stableId = parsed.remove('stableId');
-    if (stableId == null || stableId != parsed['notificationScheduleId']) {
+    final scheduleId = parsed['notificationScheduleId'];
+    if (scheduleId == null ||
+        stableId !=
+            notificationDeliveryId(
+              scheduleId,
+              parsed['notificationGeneration'] ?? 'legacy',
+            )) {
       return;
     }
     final encodedAction = parsed.remove('action');

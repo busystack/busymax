@@ -1,9 +1,11 @@
+import 'dart:async';
+
 import 'package:busymax/src/app/app_settings.dart';
 import 'package:busymax/src/db/app_database.dart';
 import 'package:busymax/src/features/notifications/desktop_notification_service.dart';
 import 'package:busymax/src/features/notifications/notification_scheduler.dart';
 import 'package:busymax/src/providers/busy_provider.dart';
-import 'package:drift/drift.dart' hide isNotNull;
+import 'package:drift/drift.dart' hide isNotNull, isNull;
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -332,14 +334,17 @@ void main() {
 
     await scheduler.handleActivation(
       notificationScheduleId: row.id,
+      notificationGeneration: row.generation,
       action: 'snooze',
     );
     final first = await database
         .select(database.notificationSchedule)
         .getSingle();
+    expect(first.snoozedUntilUtc, isNotNull);
     now = now.add(const Duration(minutes: 1));
     await scheduler.handleActivation(
       notificationScheduleId: row.id,
+      notificationGeneration: row.generation,
       action: 'snooze',
     );
     final duplicate = await database
@@ -349,6 +354,248 @@ void main() {
     expect(duplicate.snoozedUntilUtc, first.snoozedUntilUtc);
     expect(duplicate.updatedAtLocal, first.updatedAtLocal);
   });
+
+  test('stop is terminal for visible callbacks and explicit checks', () async {
+    await _insertDueTaskNotification(database, now);
+    await scheduler.checkNow();
+    final notification = backend.notifications.single;
+    final before = await database
+        .select(database.notificationSchedule)
+        .getSingle();
+    scheduler.stop();
+    now = now.add(const Duration(days: 1));
+    await notification.invoke('snooze');
+    await notification.invoke('dismiss');
+    scheduler.start();
+    await scheduler.checkNow();
+    await Future<void>.delayed(const Duration(milliseconds: 30));
+    expect(
+      await database.select(database.notificationSchedule).getSingle(),
+      before,
+    );
+    expect(backend.notifications, hasLength(1));
+  });
+
+  for (final changeGeneration in [false, true]) {
+    test(
+      'late delivery cannot mark a rescheduled reminder sent (generation=$changeGeneration)',
+      () async {
+        backend.deliveryBarrier = Completer<void>();
+        await _insertDueTaskNotification(database, now);
+        final checking = scheduler.checkNow();
+        await _waitUntil(() => backend.notifications.isNotEmpty);
+        final tomorrow = now.add(const Duration(days: 1));
+        await database
+            .update(database.notificationSchedule)
+            .write(
+              NotificationScheduleCompanion(
+                scheduledAtUtc: Value(tomorrow.millisecondsSinceEpoch),
+                generation: changeGeneration
+                    ? const Value('tomorrow')
+                    : const Value.absent(),
+              ),
+            );
+        backend.deliveryBarrier!.complete();
+        await checking;
+        final row = await database
+            .select(database.notificationSchedule)
+            .getSingle();
+        expect(row.sentAtUtc, isNull);
+        expect(row.scheduledAtUtc, tomorrow.millisecondsSinceEpoch);
+        expect(
+          backend.cancelledIds,
+          contains(backend.notifications.single.request.stableId),
+        );
+        now = tomorrow;
+        await scheduler.checkNow();
+        expect(backend.notifications, hasLength(2));
+        expect(
+          (await database.select(database.notificationSchedule).getSingle())
+              .sentAtUtc,
+          isNotNull,
+        );
+      },
+    );
+  }
+
+  test(
+    'stopped delivery cannot cancel or mark a replacement delivery',
+    () async {
+      final oldBarrier = Completer<void>();
+      backend.deliveryBarrier = oldBarrier;
+      await _insertDueTaskNotification(database, now);
+      final retired = scheduler;
+      final oldCheck = retired.checkNow();
+      await _waitUntil(() => backend.notifications.isNotEmpty);
+      retired.stop();
+      backend.deliveryBarrier = null;
+      scheduler = NotificationScheduler(
+        database: database,
+        notifications: DesktopNotificationService(
+          backend: backend,
+          settings: AppSettings.defaults(),
+        ),
+        nowUtc: () => now,
+      );
+      await scheduler.checkNow();
+      final replacement = await database
+          .select(database.notificationSchedule)
+          .getSingle();
+      oldBarrier.complete();
+      await oldCheck;
+      expect(
+        await database.select(database.notificationSchedule).getSingle(),
+        replacement,
+      );
+      expect(
+        backend.cancelledIds,
+        contains(backend.notifications.first.request.stableId),
+      );
+      expect(
+        backend.cancelledIds,
+        isNot(contains(backend.notifications.last.request.stableId)),
+      );
+      await retired.checkNow();
+      expect(backend.notifications, hasLength(2));
+    },
+  );
+
+  for (final action in ['dismiss', 'snooze', 'default']) {
+    test(
+      'old $action cannot affect a new delivery with the same schedule ID',
+      () async {
+        await _insertDueTaskNotification(database, now);
+        await scheduler.checkNow();
+        final old = backend.notifications.single;
+        now = now.add(const Duration(days: 1));
+        await database
+            .update(database.notificationSchedule)
+            .write(
+              NotificationScheduleCompanion(
+                scheduledAtUtc: Value(now.millisecondsSinceEpoch),
+                generation: const Value('rescheduled'),
+                sentAtUtc: const Value(null),
+              ),
+            );
+        await scheduler.checkNow();
+        final current = await database
+            .select(database.notificationSchedule)
+            .getSingle();
+        expect(backend.cancelledIds, contains(old.request.stableId));
+        await old.invoke(action);
+        await scheduler.handleActivation(
+          notificationScheduleId: current.id,
+          notificationGeneration:
+              old.request.payload!['notificationGeneration']!,
+          action: action,
+        );
+        expect(
+          await database.select(database.notificationSchedule).getSingle(),
+          current,
+        );
+        expect(backend.notifications, hasLength(2));
+        expect(
+          backend.cancelledIds,
+          isNot(contains(backend.notifications.last.request.stableId)),
+        );
+      },
+    );
+  }
+
+  test(
+    'removing a schedule cancels its displayed notification automatically',
+    () async {
+      await _insertDueTaskNotification(database, now);
+      await scheduler.checkNow();
+      scheduler.start();
+      final old = backend.notifications.single;
+      await database.delete(database.notificationSchedule).go();
+      await _waitUntil(
+        () => backend.cancelledIds.contains(old.request.stableId),
+      );
+      await old.invoke('snooze');
+      expect(
+        await database.select(database.notificationSchedule).get(),
+        isEmpty,
+      );
+    },
+  );
+
+  test(
+    'an old snooze cannot act on a reminder removed and recreated at the same time',
+    () async {
+      await _insertDueTaskNotification(database, now);
+      await scheduler.checkNow();
+      final old = backend.notifications.single;
+      await database.delete(database.notificationSchedule).go();
+      await _insertDueTaskNotification(database, now);
+      await scheduler.checkNow();
+      final current = await database
+          .select(database.notificationSchedule)
+          .getSingle();
+      await old.invoke('snooze');
+      expect(
+        await database.select(database.notificationSchedule).getSingle(),
+        current,
+      );
+    },
+  );
+
+  for (final quiet in [false, true]) {
+    test('visible snooze uses updated settings (quiet=$quiet)', () async {
+      await _insertDueTaskNotification(database, now);
+      await scheduler.checkNow();
+      final old = backend.notifications.single;
+      scheduler.updateNotifications(
+        DesktopNotificationService(
+          backend: backend,
+          settings: AppSettings.defaults().copyWith(
+            notifyTaskReminders: quiet,
+            quietHoursEnabled: quiet,
+            quietHoursStart: '00:00',
+            quietHoursEnd: '23:59',
+          ),
+          now: () => now,
+        ),
+      );
+      await old.invoke('snooze');
+      now = now.add(const Duration(minutes: 11));
+      await scheduler.checkNow();
+      expect(backend.notifications, hasLength(1));
+      expect(
+        (await database.select(database.notificationSchedule).getSingle())
+            .sentAtUtc,
+        isNull,
+      );
+    });
+  }
+
+  test(
+    'settings changed during delivery apply to the remaining due reminders',
+    () async {
+      await _insertDueTaskNotification(database, now);
+      final row = await database
+          .select(database.notificationSchedule)
+          .getSingle();
+      await database
+          .into(database.notificationSchedule)
+          .insert(row.copyWith(id: 'second'));
+      backend.deliveryBarrier = Completer<void>();
+      final checking = scheduler.checkNow();
+      await _waitUntil(() => backend.notifications.isNotEmpty);
+      scheduler.updateNotifications(
+        DesktopNotificationService(
+          backend: backend,
+          settings: AppSettings.defaults().copyWith(notifyTaskReminders: false),
+        ),
+      );
+      backend.deliveryBarrier!.complete();
+      await checking;
+      expect(backend.notifications, hasLength(1));
+      final rows = await database.select(database.notificationSchedule).get();
+      expect(rows.where((row) => row.sentAtUtc == null), hasLength(1));
+    },
+  );
 
   test('does not notify for a signed-out account', () async {
     await database
@@ -424,6 +671,8 @@ Future<void> _insertDueTaskNotification(
 
 class _FakeNotificationBackend implements DesktopNotificationBackend {
   final notifications = <_NotificationRecord>[];
+  final cancelledIds = <String>[];
+  Completer<void>? deliveryBarrier;
   Object? error;
   String? actionBeforeReturn;
 
@@ -435,6 +684,7 @@ class _FakeNotificationBackend implements DesktopNotificationBackend {
     final failure = error;
     if (failure != null) throw failure;
     notifications.add(_NotificationRecord(request, onAction));
+    await deliveryBarrier?.future;
     final immediateAction = actionBeforeReturn;
     if (immediateAction != null) {
       actionBeforeReturn = null;
@@ -443,7 +693,9 @@ class _FakeNotificationBackend implements DesktopNotificationBackend {
   }
 
   @override
-  Future<void> cancel(String stableId) async {}
+  Future<void> cancel(String stableId) async {
+    cancelledIds.add(stableId);
+  }
 
   @override
   Future<void> close() async {}

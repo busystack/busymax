@@ -173,6 +173,7 @@ final class DesktopActivation {
         const permittedActions = {'default', 'open', 'snooze', 'dismiss'};
         const permittedPayloadKeys = {
           'notificationScheduleId',
+          'notificationGeneration',
           'itemKind',
           'accountId',
           'sourceId',

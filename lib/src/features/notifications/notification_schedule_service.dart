@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:drift/drift.dart';
+import 'package:uuid/uuid.dart';
 
 import '../../core/time/provider_date_time.dart';
 import '../../dav/ical/ical_task_alarm.dart';
@@ -21,7 +22,7 @@ class NotificationScheduleService {
   Future<void> rebuildUpcomingEventNotifications(String accountId) async {
     final now = _nowUtc();
     final notifications = <String, _PendingNotification>{};
-    final pendingIds = await _pendingNotificationIds(accountId, 'event');
+    final retainedIds = await _actionableNotificationIds(accountId, 'event');
     final sourcesById = {
       for (final source
           in await (_database.select(_database.calendarSources)..where(
@@ -61,7 +62,7 @@ class NotificationScheduleService {
         final reminderAt = reminder.scheduledAtUtc;
         final id = 'event|${event.id}|${reminder.key}';
         if (!reminder.relevantUntilUtc.isAfter(now) &&
-            !pendingIds.contains(id)) {
+            !retainedIds.contains(id)) {
           continue;
         }
         notifications[id] = _PendingNotification(
@@ -85,7 +86,7 @@ class NotificationScheduleService {
   Future<void> rebuildUpcomingTaskNotifications(String accountId) async {
     final now = _nowUtc();
     final notifications = <String, _PendingNotification>{};
-    final pendingIds = await _pendingNotificationIds(accountId, 'task');
+    final retainedIds = await _actionableNotificationIds(accountId, 'task');
     final account = await (_database.select(
       _database.accounts,
     )..where((row) => row.id.equals(accountId))).getSingleOrNull();
@@ -130,7 +131,8 @@ class NotificationScheduleService {
       final baseId = 'task|${task.accountId}|${task.taskListId}|${task.id}';
       for (final reminder in reminders) {
         final id = reminder.key == null ? baseId : '$baseId|${reminder.key}';
-        if (reminder.scheduledAtUtc.isBefore(now) && !pendingIds.contains(id)) {
+        if (reminder.scheduledAtUtc.isBefore(now) &&
+            !retainedIds.contains(id)) {
           continue;
         }
         notifications[id] = _PendingNotification(
@@ -156,7 +158,9 @@ class NotificationScheduleService {
     await rebuildUpcomingTaskNotifications(accountId);
   }
 
-  Future<Set<String>> _pendingNotificationIds(
+  // Sent reminders still back Open/Snooze actions in the notification center.
+  // Retain them while their source and reminder exist and are enabled.
+  Future<Set<String>> _actionableNotificationIds(
     String accountId,
     String sourceType,
   ) async {
@@ -165,7 +169,6 @@ class NotificationScheduleService {
               (row) =>
                   row.accountId.equals(accountId) &
                   row.sourceType.equals(sourceType) &
-                  row.sentAtUtc.isNull() &
                   row.dismissedAtUtc.isNull(),
             ))
             .get();
@@ -222,6 +225,9 @@ class NotificationScheduleService {
               ))
               .write(
                 NotificationScheduleCompanion(
+                  generation: existingRow.scheduledAtUtc != scheduledAt
+                      ? Value(const Uuid().v4())
+                      : const Value.absent(),
                   sourceId: Value(notification.sourceId),
                   scheduledAtUtc: Value(scheduledAt),
                   title: Value(notification.title),
@@ -246,6 +252,7 @@ class NotificationScheduleService {
             .insert(
               NotificationScheduleCompanion.insert(
                 id: notification.id,
+                generation: Value(const Uuid().v4()),
                 accountId: notification.accountId,
                 sourceType: notification.sourceType,
                 sourceId: notification.sourceId,

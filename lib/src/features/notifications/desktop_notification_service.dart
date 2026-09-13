@@ -113,16 +113,34 @@ class DesktopNotificationService {
     );
   }
 
-  Future<void> notifyDueToday(int count) async {
-    if (!_settings.notifyDueToday || count <= 0 || _isQuietHours()) {
-      return;
+  Future<ReminderDeliveryResult> notifyDueToday(int count) async {
+    if (!_settings.notifyDueToday || count <= 0) {
+      return const ReminderDeliveryResult.disabled();
     }
-    await _safeNotify(
+    final quietHoursEnd = _quietHoursEndUtc();
+    if (quietHoursEnd != null) {
+      return ReminderDeliveryResult.deferred(quietHoursEnd);
+    }
+    final delivered = await _safeNotify(
       _strings.dueTodayTitle,
       _strings.dueTodayBody(count),
       BusyMaxNotificationCategory.reminder,
       stableId: 'due-today',
     );
+    return delivered
+        ? const ReminderDeliveryResult.delivered()
+        : ReminderDeliveryResult.failed(
+            _now().add(_reminderFailureRetryDelay).toUtc(),
+          );
+  }
+
+  Future<void> cancelReminder(String deliveryId) async {
+    try {
+      await _backend.cancel(deliveryId);
+    } on Object {
+      // Unavailable notification centers must not interrupt reconciliation.
+      // Generation checks also make any surviving actions harmless.
+    }
   }
 
   Future<ReminderDeliveryResult> notifyEventReminder(

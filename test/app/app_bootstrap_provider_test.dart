@@ -11,6 +11,7 @@ import 'package:busymax/src/db/app_database.dart';
 import 'package:busymax/src/features/accounts/data/accounts_repository.dart';
 import 'package:busymax/src/features/auth/data/auth_repository.dart';
 import 'package:busymax/src/features/notifications/notification_scheduler.dart';
+import 'package:busymax/src/features/notifications/desktop_notification_service.dart';
 import 'package:busymax/src/features/tasks/domain/task_capabilities.dart';
 import 'package:busymax/src/google_tasks/api/google_tasks_api_surface.dart';
 import 'package:busymax/src/core/auth/oauth_models.dart';
@@ -452,7 +453,17 @@ final class _TrackingNotificationScheduler implements NotificationScheduler {
   Future<void> handleActivation({
     required String notificationScheduleId,
     required String action,
+    String notificationGeneration = 'legacy',
   }) async {}
+
+  @override
+  Future<void> handleReminderAction(
+    NotificationScheduleData row,
+    ReminderNotificationAction action,
+  ) async {}
+
+  @override
+  void updateNotifications(DesktopNotificationService notifications) {}
 
   @override
   void start() {}

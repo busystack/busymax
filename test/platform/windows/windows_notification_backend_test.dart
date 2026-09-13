@@ -164,6 +164,57 @@ void main() {
     );
   });
 
+  test(
+    'delivery generation survives warm and cold Windows action routing',
+    () async {
+      final activations = <DesktopActivation>[];
+      final plugin = _FakeNotificationsPlugin();
+      final backend = await WindowsNotificationBackend.create(
+        appUserModelId: 'BusyStack.BusyMax_test',
+        onActivation: activations.add,
+        plugin: plugin,
+        idStore: ids(),
+      );
+      await backend.notify(
+        const BusyMaxNotificationRequest(
+          stableId: 'schedule|generation-1',
+          title: 'Reminder',
+          payload: {
+            'notificationScheduleId': 'schedule',
+            'notificationGeneration': 'generation-1',
+          },
+          actions: [BusyMaxNotificationAction('snooze', 'Snooze')],
+        ),
+      );
+      final actionPayload =
+          plugin.details.single.windows!.actions.single.arguments;
+      final response = NotificationResponse(
+        notificationResponseType:
+            NotificationResponseType.selectedNotificationAction,
+        payload: actionPayload,
+      );
+      plugin.response!(response);
+      final coldPlugin = _FakeNotificationsPlugin()..launchResponse = response;
+      await WindowsNotificationBackend.create(
+        appUserModelId: 'BusyStack.BusyMax_test',
+        onActivation: activations.add,
+        plugin: coldPlugin,
+        idStore: ids(),
+      );
+      expect(activations, hasLength(2));
+      for (final activation in activations) {
+        expect(activation.action, 'snooze');
+        expect(activation.payload!['notificationGeneration'], 'generation-1');
+        expect(
+          DesktopActivation.tryDecode(activation.encode())?.payload,
+          activation.payload,
+        );
+      }
+      await backend.cancel('schedule|generation-1');
+      expect(plugin.cancelledIds, [plugin.shownIds.single]);
+    },
+  );
+
   test('Open, Snooze, and Dismiss route through one validated path', () async {
     final activations = <DesktopActivation>[];
     final plugin = _FakeNotificationsPlugin();
@@ -216,6 +267,7 @@ final class _FakeNotificationsPlugin
   final bool initializeResult;
   final Object? initializeError;
   DidReceiveNotificationResponseCallback? response;
+  NotificationResponse? launchResponse;
   final shownIds = <int>[];
   final cancelledIds = <int>[];
   final payloads = <String?>[];
@@ -233,8 +285,10 @@ final class _FakeNotificationsPlugin
 
   @override
   Future<NotificationAppLaunchDetails?>
-  getNotificationAppLaunchDetails() async =>
-      const NotificationAppLaunchDetails(false);
+  getNotificationAppLaunchDetails() async => NotificationAppLaunchDetails(
+    launchResponse != null,
+    notificationResponse: launchResponse,
+  );
 
   @override
   Future<void> show({

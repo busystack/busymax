@@ -233,6 +233,7 @@ class _WindowsDesktopRuntimeState extends ConsumerState<WindowsDesktopRuntime> {
             .open(DesktopNavigationDestination.settings);
       case WindowsTrayCommand.quit:
         ref.read(notificationSchedulerProvider).stop();
+        ref.read(dueTodayNotificationProvider).stop();
         ref.read(syncSchedulerProvider).stop();
         try {
           await _tray?.stop();

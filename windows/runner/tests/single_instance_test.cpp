@@ -52,7 +52,7 @@ void TestActivationValidation() {
   Check(!IsValidBusyMaxActivation(std::string(16 * 1024 + 1, 'x')),
         "oversized activation rejected");
   Check(IsValidBusyMaxActivation(
-            R"({"version":1,"kind":"notification","action":"snooze","payload":{"notificationScheduleId":"row-1","itemId":"item-1"}})"),
+            R"({"version":1,"kind":"notification","action":"snooze","payload":{"notificationScheduleId":"row-1","notificationGeneration":"delivery-1","itemId":"item-1"}})"),
         "notification action allowlist accepted");
   Check(!IsValidBusyMaxActivation(
             R"({"version":1,"kind":"notification","action":"run-command","payload":{"notificationScheduleId":"row-1"}})"),

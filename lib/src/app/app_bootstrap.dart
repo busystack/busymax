@@ -35,6 +35,7 @@ import '../features/auth/data/auth_repository.dart';
 import '../features/connectivity/network_connectivity_service.dart';
 import '../features/feedback/data/feedback_api_client.dart';
 import '../features/notifications/desktop_notification_service.dart';
+import '../features/notifications/due_today_notification_scheduler.dart';
 import '../features/notifications/notification_schedule_service.dart';
 import '../features/notifications/notification_scheduler.dart';
 import '../features/sync/account_sync_operations.dart';
@@ -1224,16 +1225,32 @@ Future<void> _markAccountReconnectRequiredForSyncError(
   }
 }
 
-final notificationSchedulerProvider = Provider<NotificationScheduler>((ref) {
-  final scheduler = NotificationScheduler(
-    database: ref.watch(databaseProvider),
-    notifications: ref.watch(desktopNotificationServiceProvider),
-    onNotificationActivated: (row) => _openNotificationSource(ref, row),
-  );
-  scheduler.start();
-  ref.onDispose(scheduler.stop);
-  return scheduler;
-});
+// This handler outlives individual schedulers, so a visible Linux notification
+// can route to the current scheduler even after an explicit invalidation.
+final _reminderActionHandlerProvider = Provider<ScheduledReminderActionHandler>(
+  (ref) =>
+      (row, action) => ref
+          .read(notificationSchedulerProvider)
+          .handleReminderAction(row, action),
+);
+
+final Provider<NotificationScheduler> notificationSchedulerProvider =
+    Provider<NotificationScheduler>((ref) {
+      final scheduler = NotificationScheduler(
+        database: ref.watch(databaseProvider),
+        notifications: ref.read(desktopNotificationServiceProvider),
+        // Read the independent router without making it a dependency of the
+        // scheduler it resolves when an action arrives.
+        onReminderAction: ref.read(_reminderActionHandlerProvider),
+        onNotificationActivated: (row) => _openNotificationSource(ref, row),
+      );
+      ref.listen(desktopNotificationServiceProvider, (_, notifications) {
+        scheduler.updateNotifications(notifications);
+      });
+      scheduler.start();
+      ref.onDispose(scheduler.stop);
+      return scheduler;
+    });
 
 final _notificationOpenSequenceProvider = StateProvider<int>((ref) => 0);
 
@@ -1391,46 +1408,24 @@ DateTime? _parseProviderDateTime(String? value, String? timeZone) {
   return parsed;
 }
 
-final dueTodayNotificationProvider = Provider<void>((ref) {
-  final settings = ref.watch(appSettingsControllerProvider);
-  final accountId = ref.watch(activeAccountProvider);
-  if (!settings.notifyDueToday || accountId == null) {
-    return;
-  }
-
-  unawaited(_notifyDueTodayIfNeeded(ref, accountId, settings));
+final dueTodayNotificationProvider = Provider<DueTodayNotificationScheduler>((
+  ref,
+) {
+  final scheduler = DueTodayNotificationScheduler(
+    database: ref.watch(databaseProvider),
+    settings: () => ref.read(appSettingsControllerProvider),
+    activeAccountId: () => ref.read(activeAccountProvider),
+    notifications: () => ref.read(desktopNotificationServiceProvider),
+    markNotified: (date) => ref
+        .read(appSettingsControllerProvider.notifier)
+        .markDueTodayNotified(date),
+  );
+  ref.listen(
+    appSettingsControllerProvider,
+    (_, _) => scheduler.inputsChanged(),
+  );
+  ref.listen(activeAccountProvider, (_, _) => scheduler.inputsChanged());
+  scheduler.start();
+  ref.onDispose(scheduler.stop);
+  return scheduler;
 });
-
-Future<void> _notifyDueTodayIfNeeded(
-  Ref ref,
-  String accountId,
-  AppSettings settings,
-) async {
-  final now = DateTime.now();
-  final today =
-      '${now.year.toString().padLeft(4, '0')}-'
-      '${now.month.toString().padLeft(2, '0')}-'
-      '${now.day.toString().padLeft(2, '0')}';
-  if (settings.lastDueTodayNotificationDate == today) {
-    return;
-  }
-
-  final database = ref.read(databaseProvider);
-  final tasks =
-      await (database.select(database.tasks)..where(
-            (row) =>
-                row.accountId.equals(accountId) &
-                row.dueUtc.equals(today) &
-                row.pendingDelete.equals(false),
-          ))
-          .get();
-  final count = tasks.where((task) => task.status != 'completed').length;
-  if (count <= 0) {
-    return;
-  }
-
-  await ref.read(desktopNotificationServiceProvider).notifyDueToday(count);
-  await ref
-      .read(appSettingsControllerProvider.notifier)
-      .markDueTodayNotified(today);
-}

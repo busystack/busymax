@@ -86,9 +86,6 @@ class _WindowsBusyMaxAppState extends ConsumerState<WindowsBusyMaxApp>
         .read(systemAppearanceSourceProvider)
         .changes
         .listen((_) => _platformChanged());
-    // Starts in-process reminder scheduling. Explicit Quit disposes it before
-    // asking the runner to terminate.
-    ref.read(notificationSchedulerProvider);
   }
 
   @override
@@ -139,6 +136,8 @@ class _WindowsBusyMaxAppState extends ConsumerState<WindowsBusyMaxApp>
             .read(notificationSchedulerProvider)
             .handleActivation(
               notificationScheduleId: scheduleId,
+              notificationGeneration:
+                  activation.payload?['notificationGeneration'] ?? 'legacy',
               action: activation.action!,
             );
         if (activation.action == 'default' || activation.action == 'open') {
@@ -167,6 +166,8 @@ class _WindowsBusyMaxAppState extends ConsumerState<WindowsBusyMaxApp>
 
   @override
   Widget build(BuildContext context) {
+    ref.watch(notificationSchedulerProvider);
+    ref.watch(dueTodayNotificationProvider);
     final settings = ref.watch(appSettingsControllerProvider);
     final dispatcher = WidgetsBinding.instance.platformDispatcher;
     final appearance = ref.watch(systemAppearanceSourceProvider);

@@ -343,7 +343,8 @@ bool IsValidNotificationActivation(const std::string& activation) {
         cursor >= activation.size() || activation[cursor++] != ':' ||
         !ParseJsonString(activation, &cursor, &value) || value.empty() ||
         value.size() > 2048 ||
-        (key != "notificationScheduleId" && key != "itemKind" &&
+        (key != "notificationScheduleId" && key != "notificationGeneration" &&
+         key != "itemKind" &&
          key != "accountId" && key != "sourceId" && key != "itemId") ||
         !keys.insert(key).second) {
       return false;

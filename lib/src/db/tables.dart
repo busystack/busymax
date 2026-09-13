@@ -667,6 +667,8 @@ class ScheduleItemOverrides extends Table {
 
 class NotificationSchedule extends Table {
   TextColumn get id => text()();
+  // Existing desktop notifications predate generation-aware activation.
+  TextColumn get generation => text().withDefault(const Constant('legacy'))();
   TextColumn get accountId =>
       text().references(Accounts, #id, onDelete: KeyAction.cascade)();
   TextColumn get sourceType => text()();

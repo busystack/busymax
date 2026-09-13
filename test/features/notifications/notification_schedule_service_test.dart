@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:busymax/src/calendar_providers/calendar_sync_dto.dart';
@@ -5,8 +6,12 @@ import 'package:busymax/src/db/app_database.dart';
 import 'package:busymax/src/features/calendar/data/calendar_repository.dart';
 import 'package:busymax/src/features/calendar/presentation/event_editor_draft.dart';
 import 'package:busymax/src/features/notifications/notification_schedule_service.dart';
+import 'package:busymax/src/features/notifications/notification_scheduler.dart';
+import 'package:busymax/src/features/notifications/desktop_notification_service.dart';
+import 'package:busymax/src/app/app_settings.dart';
+import '../../support/recording_notification_backend.dart';
 import 'package:busymax/src/providers/busy_provider.dart';
-import 'package:drift/drift.dart';
+import 'package:drift/drift.dart' hide isNotNull;
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -45,6 +50,159 @@ void main() {
   tearDown(() async {
     await database.close();
   });
+
+  for (final source in ['event', 'task']) {
+    test(
+      'sync retains delivered $source actions after the relevance cutoff',
+      () async {
+        if (source == 'event') {
+          await _upsertEvent(
+            database,
+            accountId: 'microsoft:m',
+            provider: BusyProvider.microsoft,
+            remindersJson: {
+              'isReminderOn': true,
+              'reminderMinutesBeforeStart': 10,
+            },
+          );
+        } else {
+          await _insertTaskReminder(database, status: 'needsAction');
+        }
+        await service.rebuildUpcomingNotifications('microsoft:m');
+        var now = DateTime.utc(2026, 6, 8, 9, 15);
+        final backend = RecordingNotificationBackend();
+        NotificationScheduleData? opened;
+        final scheduler = NotificationScheduler(
+          database: database,
+          notifications: DesktopNotificationService(
+            backend: backend,
+            settings: AppSettings.defaults(),
+          ),
+          nowUtc: () => now,
+          onNotificationActivated: (row) async => opened = row,
+        );
+        addTearDown(scheduler.stop);
+        await scheduler.checkNow();
+        final delivered = await database
+            .select(database.notificationSchedule)
+            .getSingle();
+        expect(delivered.sentAtUtc, isNotNull);
+        now = DateTime.utc(2026, 6, 8, 10);
+        service = NotificationScheduleService(
+          database: database,
+          nowUtc: () => now,
+        );
+        await service.rebuildUpcomingNotifications('microsoft:m');
+        final retained = await database
+            .select(database.notificationSchedule)
+            .getSingle();
+        expect(retained.generation, delivered.generation);
+        expect(retained.sentAtUtc, delivered.sentAtUtc);
+        expect(retained.scheduledAtUtc, delivered.scheduledAtUtc);
+        await scheduler.handleActivation(
+          notificationScheduleId: delivered.id,
+          notificationGeneration: delivered.generation,
+          action: 'open',
+        );
+        expect(opened?.sourceId, delivered.sourceId);
+        await backend.invoke(0, 'snooze');
+        final snoozed = await database
+            .select(database.notificationSchedule)
+            .getSingle();
+        expect(snoozed.sentAtUtc, null);
+        expect(
+          snoozed.snoozedUntilUtc,
+          now.add(const Duration(minutes: 10)).millisecondsSinceEpoch,
+        );
+      },
+    );
+  }
+
+  test(
+    'event rescheduling during delivery keeps the replacement unsent',
+    () async {
+      await _upsertEvent(
+        database,
+        accountId: 'microsoft:m',
+        provider: BusyProvider.microsoft,
+        remindersJson: {'isReminderOn': true, 'reminderMinutesBeforeStart': 10},
+      );
+      await service.rebuildUpcomingEventNotifications('microsoft:m');
+      final backend = RecordingNotificationBackend()
+        ..barrier = Completer<void>();
+      final scheduler = NotificationScheduler(
+        database: database,
+        notifications: DesktopNotificationService(
+          backend: backend,
+          settings: AppSettings.defaults(),
+        ),
+        nowUtc: () => DateTime.utc(2026, 6, 8, 8, 50),
+      );
+      addTearDown(scheduler.stop);
+      final delivery = scheduler.checkNow();
+      while (backend.requests.isEmpty) {
+        await Future<void>.delayed(const Duration(milliseconds: 1));
+      }
+      await database
+          .update(database.calendarEvents)
+          .write(
+            const CalendarEventsCompanion(
+              startDateTime: Value('2026-06-09T09:00:00.000Z'),
+            ),
+          );
+      await service.rebuildUpcomingEventNotifications('microsoft:m');
+      final replacement = await database
+          .select(database.notificationSchedule)
+          .getSingle();
+      backend.barrier!.complete();
+      await delivery;
+      expect(
+        await database.select(database.notificationSchedule).getSingle(),
+        replacement,
+      );
+      expect(replacement.sentAtUtc, null);
+      expect(
+        replacement.generation,
+        isNot(backend.requests.single.payload!['notificationGeneration']),
+      );
+      expect(backend.cancelledIds, contains(backend.requests.single.stableId));
+      await backend.invoke(0, 'dismiss');
+      expect(
+        (await database.select(database.notificationSchedule).getSingle())
+            .dismissedAtUtc,
+        null,
+      );
+    },
+  );
+
+  test(
+    'completing a task cancels the displayed reminder after reconciliation',
+    () async {
+      await _insertTaskReminder(database, status: 'needsAction');
+      await service.rebuildUpcomingTaskNotifications('microsoft:m');
+      final backend = RecordingNotificationBackend();
+      final scheduler = NotificationScheduler(
+        database: database,
+        notifications: DesktopNotificationService(
+          backend: backend,
+          settings: AppSettings.defaults(),
+        ),
+        nowUtc: () => DateTime.utc(2026, 6, 8, 9, 15),
+      );
+      addTearDown(scheduler.stop);
+      await scheduler.checkNow();
+      await database
+          .update(database.tasks)
+          .write(const TasksCompanion(status: Value('completed')));
+      await service.rebuildUpcomingTaskNotifications('microsoft:m');
+      await scheduler.checkNow();
+      expect(
+        await database.select(database.notificationSchedule).get(),
+        isEmpty,
+      );
+      expect(backend.cancelledIds, contains(backend.requests.single.stableId));
+    },
+  );
 
   test('Google event popup reminder schedules notification', () async {
     await _upsertEvent(

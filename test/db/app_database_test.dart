@@ -94,7 +94,7 @@ void main() {
   });
 
   test(
-    'reopens schema 14 with coordinates, remembered provenance, and pending work',
+    'reopens the current schema with coordinates, remembered provenance, and pending work',
     () async {
       await database.close();
       final directory = await Directory.systemTemp.createTemp(
@@ -165,8 +165,8 @@ void main() {
           .select(database.locationResolutions)
           .getSingle();
 
-      expect(latestSchemaVersion, 14);
-      expect(version.read<int>('user_version'), 14);
+      expect(latestSchemaVersion, 15);
+      expect(version.read<int>('user_version'), latestSchemaVersion);
       expect(event.locationLatitude, 49.2827);
       expect(event.locationLongitude, -123.1207);
       expect(remembered.source, 'legacy-provider');
@@ -181,6 +181,59 @@ void main() {
       await directory.delete(recursive: true);
     },
   );
+
+  test('schema 14 migration preserves actionable legacy reminders', () async {
+    await database.close();
+    final directory = await Directory.systemTemp.createTemp(
+      'busymax-reminder-migration-',
+    );
+    addTearDown(() => directory.delete(recursive: true));
+    final file = File('${directory.path}/busymax.sqlite');
+    database = AppDatabase(NativeDatabase(file));
+    await _insertAccount(database);
+    await database
+        .into(database.notificationSchedule)
+        .insert(
+          NotificationScheduleCompanion.insert(
+            id: 'reminder',
+            accountId: 'account',
+            sourceType: 'task',
+            sourceId: 'task',
+            scheduledAtUtc: 100,
+            title: 'Reminder',
+            sentAtUtc: const Value(101),
+            createdAtLocal: 1,
+            updatedAtLocal: 2,
+          ),
+        );
+    await database.close();
+    final raw = sqlite3.sqlite3.open(file.path);
+    try {
+      raw.execute('ALTER TABLE notification_schedule DROP COLUMN generation');
+      raw.execute('PRAGMA user_version = 14');
+    } finally {
+      raw.close();
+    }
+    database = AppDatabase(NativeDatabase(file));
+    final row = await database
+        .select(database.notificationSchedule)
+        .getSingle();
+    expect(row.generation, 'legacy');
+    expect(row.id, 'reminder');
+    expect(row.sentAtUtc, 101);
+    expect(row.scheduledAtUtc, 100);
+    expect(
+      (await database.customSelect('PRAGMA user_version').getSingle())
+          .read<int>('user_version'),
+      latestSchemaVersion,
+    );
+    expect(
+      await database.customSelect('PRAGMA foreign_key_check').get(),
+      isEmpty,
+    );
+    await database.close();
+    database = AppDatabase(NativeDatabase.memory());
+  });
 
   test('schema 10 migration preserves accounts and enables WebCal', () async {
     await database.close();

@@ -1,12 +1,20 @@
 import 'dart:async';
 
 import 'package:drift/drift.dart';
+import 'package:uuid/uuid.dart';
 
 import '../../db/app_database.dart';
 import '../accounts/data/accounts_repository.dart';
 import 'desktop_notification_service.dart';
+import 'notification_identity.dart';
 
 const defaultReminderSnoozeDuration = Duration(minutes: 10);
+
+typedef ScheduledReminderActionHandler =
+    Future<void> Function(
+      NotificationScheduleData row,
+      ReminderNotificationAction action,
+    );
 
 class NotificationScheduler {
   NotificationScheduler({
@@ -17,43 +25,66 @@ class NotificationScheduler {
     Duration snoozeDuration = defaultReminderSnoozeDuration,
     Future<void> Function(NotificationScheduleData row)?
     onNotificationActivated,
+    ScheduledReminderActionHandler? onReminderAction,
   }) : _database = database,
        _notifications = notifications,
        _interval = interval,
        _nowUtc = nowUtc ?? (() => DateTime.now().toUtc()),
        _snoozeDuration = snoozeDuration,
-       _onNotificationActivated = onNotificationActivated;
+       _onNotificationActivated = onNotificationActivated,
+       _onReminderAction = onReminderAction;
 
   final AppDatabase _database;
-  final DesktopNotificationService _notifications;
+  DesktopNotificationService _notifications;
   final Duration _interval;
   final DateTime Function() _nowUtc;
   final Duration _snoozeDuration;
   final Future<void> Function(NotificationScheduleData row)?
   _onNotificationActivated;
+  final ScheduledReminderActionHandler? _onReminderAction;
   Timer? _timer;
   Timer? _dueTimer;
   StreamSubscription<List<NotificationScheduleData>>? _scheduleSubscription;
   StreamSubscription<List<Account>>? _accountSubscription;
+  var _running = false;
+  var _stopped = false;
   var _checking = false;
   var _checkAgain = false;
+  var _settingsRevision = 0;
   final Map<String, int> _deferredUntilUtc = {};
   final Set<String> _disabledNotificationIds = {};
+  final Map<String, NotificationScheduleData> _knownSchedules = {};
 
   void start() {
-    _timer ??= Timer.periodic(_interval, (_) => unawaited(checkNow()));
-    _scheduleSubscription ??= _database
+    if (_stopped || _running) return;
+    _running = true;
+    _timer = Timer.periodic(_interval, (_) => unawaited(checkNow()));
+    _scheduleSubscription = _database
         .select(_database.notificationSchedule)
         .watch()
-        .listen((_) => unawaited(_handleScheduleChanged()));
-    _accountSubscription ??= _database
+        .listen((_) => unawaited(checkNow()));
+    _accountSubscription = _database
         .select(_database.accounts)
         .watch()
-        .listen((_) => unawaited(_handleScheduleChanged()));
+        .listen((_) => unawaited(checkNow()));
     unawaited(checkNow());
   }
 
+  /// Settings change without retiring the scheduler or its visible actions.
+  void updateNotifications(DesktopNotificationService notifications) {
+    if (_stopped) return;
+    _notifications = notifications;
+    _settingsRevision++;
+    _deferredUntilUtc.clear();
+    _disabledNotificationIds.clear();
+    unawaited(checkNow());
+  }
+
+  /// Terminal: neither callbacks nor work already awaiting delivery may rearm it.
   void stop() {
+    _stopped = true;
+    _running = false;
+    _checkAgain = false;
     _timer?.cancel();
     _timer = null;
     _dueTimer?.cancel();
@@ -64,13 +95,11 @@ class NotificationScheduler {
     _accountSubscription = null;
     _deferredUntilUtc.clear();
     _disabledNotificationIds.clear();
-  }
-
-  Future<void> _handleScheduleChanged() async {
-    await checkNow();
+    _knownSchedules.clear();
   }
 
   Future<void> checkNow() async {
+    if (_stopped) return;
     if (_checking) {
       _checkAgain = true;
       return;
@@ -80,24 +109,49 @@ class NotificationScheduler {
     try {
       do {
         _checkAgain = false;
+        await _cancelObsoleteNotifications();
+        if (_stopped) return;
         await _checkDueNotifications();
+        if (_stopped) return;
         await _scheduleNextDueCheck();
-      } while (_checkAgain);
+      } while (!_stopped && _checkAgain);
     } finally {
       _checking = false;
     }
   }
 
+  // Watching the schedule also covers deletions outside schedule rebuilding,
+  // including account cascades and local calendar/task mutations.
+  Future<void> _cancelObsoleteNotifications() async {
+    final rows = await _database.select(_database.notificationSchedule).get();
+    if (_stopped) return;
+    final current = {for (final row in rows) row.id: row};
+    for (final previous in _knownSchedules.values.toList()) {
+      final row = current[previous.id];
+      if (row == null ||
+          row.generation != previous.generation ||
+          row.scheduledAtUtc != previous.scheduledAtUtc ||
+          (row.dismissedAtUtc != null && previous.dismissedAtUtc == null)) {
+        final deliveryId = _deliveryId(previous);
+        await _notifications.cancelReminder(deliveryId);
+        if (_stopped) return;
+        _deferredUntilUtc.remove(deliveryId);
+        _disabledNotificationIds.remove(deliveryId);
+      }
+    }
+    _knownSchedules
+      ..clear()
+      ..addAll(current);
+  }
+
   Future<void> _checkDueNotifications() async {
     final now = _nowUtc().millisecondsSinceEpoch;
-    final reminderEligibleAccountIds = await _reminderEligibleAccountIds();
-    if (reminderEligibleAccountIds.isEmpty) {
-      return;
-    }
+    final accountIds = await _reminderEligibleAccountIds();
+    if (_stopped || accountIds.isEmpty) return;
     final rows =
         await (_database.select(_database.notificationSchedule)..where(
               (row) =>
-                  row.accountId.isIn(reminderEligibleAccountIds) &
+                  row.accountId.isIn(accountIds) &
                   row.sentAtUtc.isNull() &
                   row.dismissedAtUtc.isNull() &
                   ((row.snoozedUntilUtc.isNull() &
@@ -106,91 +160,114 @@ class NotificationScheduler {
                           row.snoozedUntilUtc.isSmallerOrEqualValue(now))),
             ))
             .get();
-    rows.sort(
-      (left, right) =>
-          _effectiveDueAtUtc(left).compareTo(_effectiveDueAtUtc(right)),
-    );
-    for (final row in rows) {
-      if (_disabledNotificationIds.contains(row.id) ||
-          _effectiveDueAtUtc(row) > now) {
+    if (_stopped) return;
+    rows.sort((a, b) => _effectiveDueAtUtc(a).compareTo(_effectiveDueAtUtc(b)));
+    for (final pending in rows) {
+      if (_stopped) return;
+      if (_disabledNotificationIds.contains(_deliveryId(pending)) ||
+          _effectiveDueAtUtc(pending) > now ||
+          !const {'event', 'task'}.contains(pending.sourceType)) {
         continue;
       }
-      if (!await _isAccountReminderEligible(row.accountId)) {
-        continue;
-      }
-      final ReminderDeliveryResult result;
-      if (row.sourceType == 'event') {
-        result = await _notifications.notifyEventReminder(
-          row.title,
-          row.body,
-          stableId: row.id,
-          payload: _activationPayload(row),
-          onAction: (action) => _handleReminderAction(row, action),
-        );
-      } else if (row.sourceType == 'task') {
-        result = await _notifications.notifyTaskReminder(
-          row.title,
-          row.body,
-          stableId: row.id,
-          payload: _activationPayload(row),
-          onAction: (action) => _handleReminderAction(row, action),
-        );
-      } else {
-        continue;
+      final eligible = await _isAccountReminderEligible(pending.accountId);
+      if (_stopped) return;
+      if (!eligible) continue;
+
+      // Claim a distinct delivery before crossing the asynchronous backend
+      // boundary. A replacement scheduler cannot reuse this attempt's ID.
+      final generation = const Uuid().v4();
+      final claimed =
+          await (_database.update(
+            _database.notificationSchedule,
+          )..where((table) => _pendingDelivery(table, pending))).write(
+            NotificationScheduleCompanion(generation: Value(generation)),
+          );
+      if (_stopped) return;
+      if (claimed == 0) continue;
+      final row = pending.copyWith(generation: generation);
+      _knownSchedules[row.id] = row;
+      final deliveryId = _deliveryId(row);
+      final notifications = _notifications;
+      final settingsRevision = _settingsRevision;
+      Future<void> onAction(ReminderNotificationAction action) =>
+          (_onReminderAction ?? handleReminderAction)(row, action);
+      final result = row.sourceType == 'event'
+          ? await notifications.notifyEventReminder(
+              row.title,
+              row.body,
+              stableId: deliveryId,
+              payload: _activationPayload(row),
+              onAction: onAction,
+            )
+          : await notifications.notifyTaskReminder(
+              row.title,
+              row.body,
+              stableId: deliveryId,
+              payload: _activationPayload(row),
+              onAction: onAction,
+            );
+      if (_stopped) {
+        if (result.status == ReminderDeliveryStatus.delivered) {
+          await notifications.cancelReminder(deliveryId);
+        }
+        return;
       }
       switch (result.status) {
         case ReminderDeliveryStatus.delivered:
-          _deferredUntilUtc.remove(row.id);
-          _disabledNotificationIds.remove(row.id);
-          await _markDeliveredUnlessActionAlreadyHandled(row);
+          final marked = await _markDelivered(row);
+          if (!marked) await notifications.cancelReminder(deliveryId);
         case ReminderDeliveryStatus.deferred:
         case ReminderDeliveryStatus.failed:
           final retryAt = result.retryAtUtc;
-          if (retryAt != null) {
-            _deferredUntilUtc[row.id] = retryAt.millisecondsSinceEpoch;
+          if (settingsRevision == _settingsRevision && retryAt != null) {
+            _deferredUntilUtc[deliveryId] = retryAt.millisecondsSinceEpoch;
           }
         case ReminderDeliveryStatus.disabled:
-          _disabledNotificationIds.add(row.id);
+          if (settingsRevision == _settingsRevision) {
+            _disabledNotificationIds.add(deliveryId);
+          }
       }
     }
   }
 
+  String _deliveryId(NotificationScheduleData row) =>
+      notificationDeliveryId(row.id, row.generation);
+
   Map<String, String> _activationPayload(NotificationScheduleData row) => {
     'notificationScheduleId': row.id,
+    'notificationGeneration': row.generation,
     'itemKind': row.sourceType,
     'accountId': row.accountId,
     'itemId': row.sourceId,
   };
 
   Future<void> _scheduleNextDueCheck() async {
+    if (_stopped || !_running) return;
     _dueTimer?.cancel();
     _dueTimer = null;
-
-    final reminderEligibleAccountIds = await _reminderEligibleAccountIds();
-    if (reminderEligibleAccountIds.isEmpty) {
-      return;
-    }
+    final accountIds = await _reminderEligibleAccountIds();
+    if (_stopped || accountIds.isEmpty) return;
     final pending =
         await (_database.select(_database.notificationSchedule)..where(
               (row) =>
-                  row.accountId.isIn(reminderEligibleAccountIds) &
+                  row.accountId.isIn(accountIds) &
                   row.sentAtUtc.isNull() &
                   row.dismissedAtUtc.isNull(),
             ))
             .get();
+    if (_stopped) return;
     final nextDueAt = pending
-        .where((row) => !_disabledNotificationIds.contains(row.id))
+        .where((row) => !_disabledNotificationIds.contains(_deliveryId(row)))
         .map(_effectiveDueAtUtc)
         .fold<int?>(null, (earliest, value) {
           return earliest == null || value < earliest ? value : earliest;
         });
-    if (nextDueAt == null) {
-      return;
-    }
-
-    final now = _nowUtc().millisecondsSinceEpoch;
+    if (nextDueAt == null) return;
     final delay = Duration(
-      milliseconds: (nextDueAt - now).clamp(0, 2147483647),
+      milliseconds: (nextDueAt - _nowUtc().millisecondsSinceEpoch).clamp(
+        0,
+        2147483647,
+      ),
     );
     _dueTimer = Timer(delay, () => unawaited(checkNow()));
   }
@@ -198,107 +275,117 @@ class NotificationScheduler {
   int _effectiveDueAtUtc(NotificationScheduleData row) {
     var dueAt = row.scheduledAtUtc;
     final snoozedUntil = row.snoozedUntilUtc;
-    if (snoozedUntil != null && snoozedUntil > dueAt) {
-      dueAt = snoozedUntil;
-    }
-    final deferredUntil = _deferredUntilUtc[row.id];
-    if (deferredUntil != null && deferredUntil > dueAt) {
-      dueAt = deferredUntil;
-    }
+    if (snoozedUntil != null && snoozedUntil > dueAt) dueAt = snoozedUntil;
+    final deferredUntil = _deferredUntilUtc[_deliveryId(row)];
+    if (deferredUntil != null && deferredUntil > dueAt) dueAt = deferredUntil;
     return dueAt;
   }
 
-  Future<void> _markDeliveredUnlessActionAlreadyHandled(
-    NotificationScheduleData deliveredRow,
-  ) async {
-    final current = await (_database.select(
-      _database.notificationSchedule,
-    )..where((table) => table.id.equals(deliveredRow.id))).getSingleOrNull();
-    if (current == null || current.dismissedAtUtc != null) return;
-
-    final now = _nowUtc().millisecondsSinceEpoch;
-    final snoozedUntil = current.snoozedUntilUtc;
-    if (snoozedUntil != null && snoozedUntil > now) return;
-
-    await (_database.update(
-      _database.notificationSchedule,
-    )..where((table) => table.id.equals(deliveredRow.id))).write(
-      NotificationScheduleCompanion(
-        sentAtUtc: Value(now),
-        snoozedUntilUtc: const Value(null),
-        updatedAtLocal: Value(DateTime.now().millisecondsSinceEpoch),
-      ),
-    );
-  }
-
-  Future<void> _handleReminderAction(
+  Expression<bool> _sameDelivery(
+    $NotificationScheduleTable table,
     NotificationScheduleData row,
-    ReminderNotificationAction action,
-  ) async {
-    switch (action) {
-      case ReminderNotificationAction.open:
-        await _onNotificationActivated?.call(row);
-        return;
-      case ReminderNotificationAction.snooze:
-        final now = _nowUtc();
+  ) =>
+      table.id.equals(row.id) &
+      table.generation.equals(row.generation) &
+      table.scheduledAtUtc.equals(row.scheduledAtUtc);
+
+  Expression<bool> _pendingDelivery(
+    $NotificationScheduleTable table,
+    NotificationScheduleData row,
+  ) =>
+      _sameDelivery(table, row) &
+      table.sentAtUtc.isNull() &
+      table.dismissedAtUtc.isNull() &
+      (row.snoozedUntilUtc == null
+          ? table.snoozedUntilUtc.isNull()
+          : table.snoozedUntilUtc.equals(row.snoozedUntilUtc!));
+
+  Future<bool> _markDelivered(NotificationScheduleData row) async {
+    if (_stopped) return false;
+    // One conditional write: no lookup/update race with edits or actions.
+    final updated =
         await (_database.update(
           _database.notificationSchedule,
-        )..where((table) => table.id.equals(row.id))).write(
+        )..where((table) => _pendingDelivery(table, row))).write(
           NotificationScheduleCompanion(
-            sentAtUtc: const Value(null),
-            dismissedAtUtc: const Value(null),
-            snoozedUntilUtc: Value(
-              now.add(_snoozeDuration).millisecondsSinceEpoch,
-            ),
-            updatedAtLocal: Value(DateTime.now().millisecondsSinceEpoch),
-          ),
-        );
-      case ReminderNotificationAction.dismiss:
-        await (_database.update(
-          _database.notificationSchedule,
-        )..where((table) => table.id.equals(row.id))).write(
-          NotificationScheduleCompanion(
-            dismissedAtUtc: Value(_nowUtc().millisecondsSinceEpoch),
+            sentAtUtc: Value(_nowUtc().millisecondsSinceEpoch),
             snoozedUntilUtc: const Value(null),
             updatedAtLocal: Value(DateTime.now().millisecondsSinceEpoch),
           ),
         );
+    return updated != 0;
+  }
+
+  Future<void> handleReminderAction(
+    NotificationScheduleData row,
+    ReminderNotificationAction action,
+  ) async {
+    if (_stopped) return;
+    if (action == ReminderNotificationAction.open) {
+      final current = await (_database.select(
+        _database.notificationSchedule,
+      )..where((table) => _sameDelivery(table, row))).getSingleOrNull();
+      if (!_stopped && current != null && current.dismissedAtUtc == null) {
+        await _onNotificationActivated?.call(current);
+      }
+      return;
     }
-    _deferredUntilUtc.remove(row.id);
-    _disabledNotificationIds.remove(row.id);
+    final updated =
+        await (_database.update(_database.notificationSchedule)..where(
+              (table) =>
+                  _sameDelivery(table, row) & table.dismissedAtUtc.isNull(),
+            ))
+            .write(
+              action == ReminderNotificationAction.snooze
+                  ? NotificationScheduleCompanion(
+                      generation: Value(const Uuid().v4()),
+                      sentAtUtc: const Value(null),
+                      snoozedUntilUtc: Value(
+                        _nowUtc().add(_snoozeDuration).millisecondsSinceEpoch,
+                      ),
+                      updatedAtLocal: Value(
+                        DateTime.now().millisecondsSinceEpoch,
+                      ),
+                    )
+                  : NotificationScheduleCompanion(
+                      dismissedAtUtc: Value(_nowUtc().millisecondsSinceEpoch),
+                      snoozedUntilUtc: const Value(null),
+                      updatedAtLocal: Value(
+                        DateTime.now().millisecondsSinceEpoch,
+                      ),
+                    ),
+            );
+    if (updated == 0) return;
+    final deliveryId = _deliveryId(row);
+    await _notifications.cancelReminder(deliveryId);
+    _deferredUntilUtc.remove(deliveryId);
+    _disabledNotificationIds.remove(deliveryId);
     await checkNow();
   }
 
-  /// Routes a process-independent desktop activation through the same action
-  /// path used for an in-process notification callback.
+  /// Warm and cold Windows activations use the persisted delivery generation.
+  /// Legacy toasts can only act on schedules that have never been superseded.
   Future<void> handleActivation({
     required String notificationScheduleId,
     required String action,
+    String notificationGeneration = 'legacy',
   }) async {
+    if (_stopped) return;
     final row =
-        await (_database.select(_database.notificationSchedule)
-              ..where((table) => table.id.equals(notificationScheduleId)))
+        await (_database.select(_database.notificationSchedule)..where(
+              (table) =>
+                  table.id.equals(notificationScheduleId) &
+                  table.generation.equals(notificationGeneration),
+            ))
             .getSingleOrNull();
-    if (row == null) return;
+    if (_stopped || row == null) return;
     final parsedAction = switch (action) {
       'default' || 'open' => ReminderNotificationAction.open,
       'snooze' => ReminderNotificationAction.snooze,
       'dismiss' => ReminderNotificationAction.dismiss,
       _ => null,
     };
-    if (parsedAction == null) return;
-
-    // Snooze and dismiss are safe under duplicate Windows toast delivery.
-    if (parsedAction == ReminderNotificationAction.dismiss &&
-        row.dismissedAtUtc != null) {
-      return;
-    }
-    if (parsedAction == ReminderNotificationAction.snooze &&
-        row.snoozedUntilUtc != null &&
-        row.snoozedUntilUtc! > _nowUtc().millisecondsSinceEpoch) {
-      return;
-    }
-    await _handleReminderAction(row, parsedAction);
+    if (parsedAction != null) await handleReminderAction(row, parsedAction);
   }
 
   Future<List<String>> _reminderEligibleAccountIds() async {
