@@ -63,6 +63,7 @@ class NativeDateTimePicker {
     required String hourLabel,
     required String minuteLabel,
     required String periodLabel,
+    required String invalidTimeLabel,
   }) async {
     return _invoke('pickTime', {
       'title': title,
@@ -73,6 +74,7 @@ class NativeDateTimePicker {
       'hourLabel': hourLabel,
       'minuteLabel': minuteLabel,
       'periodLabel': periodLabel,
+      'invalidTimeLabel': invalidTimeLabel,
       'amLabel': clock.periodLabel(false),
       'pmLabel': clock.periodLabel(true),
     });
@@ -868,6 +870,7 @@ class _DesktopTimeFieldState extends State<DesktopTimeField> {
         hourLabel: localizations.timePickerHourLabel,
         minuteLabel: localizations.timePickerMinuteLabel,
         periodLabel: context.l10n.timePeriod,
+        invalidTimeLabel: localizations.invalidTimeLabel,
         title: widget.label,
         initialTime: widget.time,
         cancelLabel: localizations.cancelButtonLabel,

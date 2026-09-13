@@ -17,3 +17,14 @@ endif()
 enable_testing()
 add_test(NAME busymax_notification_activation_test
   COMMAND busymax_notification_activation_test)
+
+add_executable(busymax_short_time_pattern_test "short_time_pattern_test.cpp")
+target_compile_features(busymax_short_time_pattern_test PRIVATE cxx_std_17)
+if(MSVC)
+  target_compile_options(busymax_short_time_pattern_test PRIVATE /W4 /WX)
+else()
+  target_compile_options(busymax_short_time_pattern_test PRIVATE
+    -Wall -Wextra -Werror)
+endif()
+add_test(NAME busymax_short_time_pattern_test
+  COMMAND busymax_short_time_pattern_test)

@@ -563,14 +563,12 @@ static void handle_pick_time(FlMethodCall* method_call,
       label("periodLabel", "AM/PM"), label("amLabel", "AM"), label("pmLabel", "PM"));
   gtk_container_add(GTK_CONTAINER(content), controls.row);
   gtk_widget_show_all(dialog);
-  const gint response = gtk_dialog_run(GTK_DIALOG(dialog));
-
-  if (response == GTK_RESPONSE_OK) {
-    const gint selected_hour = controls.selected_hour();
-    const gint selected_minute = gtk_spin_button_get_value_as_int(
-        controls.minute);
+  unsigned selected_hour, selected_minute;
+  if (busymax_time_picker::RunDialog(GTK_DIALOG(dialog), controls,
+      label("invalidTimeLabel", "Enter a valid time"),
+      &selected_hour, &selected_minute)) {
     g_autofree gchar* result = g_strdup_printf(
-        "%02d:%02d", selected_hour, selected_minute);
+        "%02u:%02u", selected_hour, selected_minute);
     respond_string(method_call, result);
   } else {
     respond_string(method_call, nullptr);

@@ -39,13 +39,26 @@ Windows locale changes use the `intl` category of
   changed labels when canvas dimensions stay the same.
 - The Windows runner reads the user clock preference at initialization and on
   locale-setting messages/reactivation. It notifies Dart only on changes and
-  retains existing message processing. Linux continues using Flutter's existing
+  retains existing message processing. It reads the first preferred
+  `LOCALE_SSHORTTIME` pattern, interpreting unquoted `h`/`H` tokens and doubled
+  apostrophes; it does not infer the short clock from the long-time setting.
+  Linux continues using Flutter's existing
   settings path; the pinned engine's settings handler, GNOME settings and portal
   sources were inspected for clock propagation and change subscriptions.
 - The optional GTK picker remains opt-in. Its request supplies format and
   translated component/period labels; native input and output remain canonical
   `HH:mm`. Native tests exercise strict whole-input parsing, conversions and
-  the actual GTK controls. The Linux workflow now runs these under Xvfb.
+  the actual GTK controls. Confirmation validates the entry text before
+  accepting a response. Invalid components survive GTK focus-out/update without
+  clamping or replacement by the old value; the dialog stays open with the
+  application's localized validation label. Correction and cancellation retain
+  the existing canonical-time/null-result contract. The Linux workflow runs
+  these dialog interaction tests under Xvfb.
+
+The short-time source and first-entry rule follow Microsoft's
+[LOCALE_SSHORTTIME documentation](https://learn.microsoft.com/en-us/windows/win32/intl/locale-sshorttime);
+literal handling follows its
+[time format picture rules](https://learn.microsoft.com/en-us/windows/win32/intl/hour--minute--and-second-format-pictures).
 
 ## Display audit
 
@@ -78,7 +91,9 @@ schedule calculation was changed.
 The SDK verifier passed for the workflow pins. Localization output was
 regenerated with `flutter gen-l10n`; generated classes were not edited manually.
 Static analysis, formatting, platform-boundary checks and the Linux release
-build passed. The final full test run passed with 2,189 tests and 10 skips.
+build passed. The full suite was rerun after the native follow-up corrections
+and passed with 2,189 tests and 10 skips; all 52 focused clock/picker tests also
+passed.
 
 Regression coverage includes all 1,440 minutes in both formats for every exposed
 locale, malformed period input, native-digit input, English examples, German
@@ -92,6 +107,13 @@ time zones, recurrence and absolute alarms across format changes.
 The native GTK executable compiled with `-Wall -Wextra -Werror` and passed under
 Xvfb. Windows clock reader/message tests are included in the existing runner
 native-test target used by `tool/windows/run_native_tests.ps1`.
+The follow-up native tests cover opposed short/long Windows clocks in both
+directions through an injected locale reader, and quoted/escaped literals and
+preferred-pattern ordering through a portable parser test. The portable test
+passed on this Linux host too. The GTK dialog tests exercise invalid hour/minute text before
+and after update, focus-out and activation, repeated confirmation, correction,
+and cancellation. Explicit BusyMax modes remain covered by the shared clock
+resolution tests and are independent of the native System source.
 
 ### Outstanding platform verification
 
@@ -108,3 +130,5 @@ mode, verify the calendar, an open picker/editor and tray all update. Repeat
 with explicit 12/24-hour preferences and German/English application language;
 explicit preferences must stay fixed. Check midnight/noon, schedule end-of-day,
 RTL and larger text, and confirm unchanged editors without producing mutations.
+On Windows, deliberately oppose the short- and long-time clock conventions in
+both directions and verify System mode follows the short-time preference.

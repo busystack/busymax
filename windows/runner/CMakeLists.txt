@@ -67,5 +67,12 @@ apply_standard_settings(busymax_notification_activation_test)
 add_test(NAME busymax_notification_activation_test
   COMMAND busymax_notification_activation_test)
 
+add_executable(busymax_short_time_pattern_test EXCLUDE_FROM_ALL
+  "tests/short_time_pattern_test.cpp"
+)
+apply_standard_settings(busymax_short_time_pattern_test)
+add_test(NAME busymax_short_time_pattern_test
+  COMMAND busymax_short_time_pattern_test)
+
 # Run the Flutter tool portions of the build. This must not be removed.
 add_dependencies(${BINARY_NAME} flutter_assemble)

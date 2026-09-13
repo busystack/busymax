@@ -233,6 +233,10 @@ void main() {
           expect(call.arguments, containsPair('hourLabel', 'Hour'));
           expect(call.arguments, containsPair('minuteLabel', 'Minute'));
           expect(call.arguments, containsPair('amLabel', 'AM'));
+          expect(
+            call.arguments,
+            containsPair('invalidTimeLabel', 'Enter a valid time'),
+          );
           expect(call.arguments, containsPair('pmLabel', 'PM'));
           return Future.value('10:45');
         });

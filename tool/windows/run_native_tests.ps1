@@ -22,7 +22,7 @@ if ($configureExitCode -ne 0) {
 }
 & cmake --build $BuildDirectory --config $Configuration `
   --target busymax_runner_native_test busymax_notification_activation_test `
-    flutter_timezone_test tray_manager_test `
+    busymax_short_time_pattern_test flutter_timezone_test tray_manager_test `
   2>&1 | Tee-Object `
   -FilePath (Join-Path $resultDirectory 'native-build.log')
 $buildExitCode = $LASTEXITCODE

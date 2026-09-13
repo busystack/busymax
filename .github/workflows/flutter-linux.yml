@@ -87,9 +87,13 @@ jobs:
       - name: Test
         run: '"$BUSYMAX_FLUTTER_EXECUTABLE" test'
 
-      - name: Test optional native GTK time picker
+      - name: Test native clock patterns and optional GTK time picker
         run: |
           mkdir -p build/linux/native-tests
+          g++ -std=c++17 -Wall -Wextra -Werror \
+            windows/runner/tests/short_time_pattern_test.cpp \
+            -o build/linux/native-tests/short_time_pattern_test
+          build/linux/native-tests/short_time_pattern_test
           g++ -std=c++17 -Wall -Wextra -Werror \
             linux/runner/tests/time_picker_test.cc \
             -o build/linux/native-tests/time_picker_test \
