@@ -3649,7 +3649,8 @@ static void header_bar_size_allocate_cb(GtkWidget*,
 static void update_header_control_visibility(MyApplication* self) {
   const gboolean schedule_controls_visible =
       self->header_schedule_controls_visible;
-  if (!schedule_controls_visible) {
+  const gboolean search_inactive = !self->header_search_active;
+  if (!schedule_controls_visible || !search_inactive) {
     close_header_menu_button(self->create_button);
   }
   set_widget_visible(self->header_start_box,
@@ -3659,20 +3660,20 @@ static void update_header_control_visibility(MyApplication* self) {
                      schedule_controls_visible &&
                          self->header_bar_can_show_sidebar);
   set_widget_visible(self->today_button,
-                     schedule_controls_visible &&
-                         !self->header_search_active);
+                     schedule_controls_visible && search_inactive);
   set_widget_visible(self->previous_button,
                      schedule_controls_visible &&
-                         self->header_navigation_visible);
+                         self->header_navigation_visible && search_inactive);
   set_widget_visible(self->next_button,
                      schedule_controls_visible &&
-                         self->header_navigation_visible);
+                         self->header_navigation_visible && search_inactive);
   set_widget_visible(self->header_view_box,
-                     schedule_controls_visible &&
-                         !self->header_search_active);
+                     schedule_controls_visible && search_inactive);
   set_widget_visible(self->search_button, schedule_controls_visible);
-  set_widget_visible(self->create_button, schedule_controls_visible);
-  set_widget_visible(self->refresh_button, schedule_controls_visible);
+  set_widget_visible(self->create_button,
+                     schedule_controls_visible && search_inactive);
+  set_widget_visible(self->refresh_button,
+                     schedule_controls_visible && search_inactive);
   set_widget_visible(self->settings_menu_button,
                      schedule_controls_visible || self->header_back_visible);
 }
@@ -4167,7 +4168,6 @@ static GtkWidget* create_busymax_titlebar(MyApplication* self) {
   gtk_box_pack_start(GTK_BOX(self->header_view_box), self->view_mode_button,
                      FALSE, FALSE, 0);
   gtk_box_pack_start(GTK_BOX(end_box), self->header_view_box, FALSE, FALSE, 0);
-  gtk_box_pack_start(GTK_BOX(end_box), self->search_button, FALSE, FALSE, 0);
 
   track_widget_pointer(&self->create_button, gtk_menu_button_new());
   gtk_button_set_image(
@@ -4183,6 +4183,7 @@ static GtkWidget* create_busymax_titlebar(MyApplication* self) {
                                                  ""));
   connect_header_bar_action(self, self->refresh_button, "refresh");
   gtk_box_pack_start(GTK_BOX(end_box), self->refresh_button, FALSE, FALSE, 0);
+  gtk_box_pack_start(GTK_BOX(end_box), self->search_button, FALSE, FALSE, 0);
   gtk_box_pack_start(GTK_BOX(end_box), self->settings_menu_button, FALSE, FALSE,
                      0);
   gtk_header_bar_pack_end(header_bar, end_box);
