@@ -270,6 +270,11 @@ class TaskListsRepository {
       baselineRawJson: baseline?.rawJson,
       createdAtUtc: now,
     );
+    await NotificationScheduleService(
+      database: _database,
+      nowUtc: _nowUtc,
+    ).rebuildUpcomingTaskNotifications(_accountId);
+    await _onNotificationScheduleChanged?.call();
     _onMutationQueued?.call();
   }
 

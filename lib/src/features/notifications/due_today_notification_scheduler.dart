@@ -55,7 +55,12 @@ class DueTodayNotificationScheduler {
     if (_stopped || _running) return;
     _running = true;
     _taskSubscription = _database
-        .tableUpdates(TableUpdateQuery.onTable(_database.tasks))
+        .tableUpdates(
+          TableUpdateQuery.allOf([
+            TableUpdateQuery.onTable(_database.tasks),
+            TableUpdateQuery.onTable(_database.taskLists),
+          ]),
+        )
         .listen((_) => unawaited(checkNow()));
     _accountSyncSubscription = _accountSyncChanges.listen((accountId) {
       if (accountId == _activeAccountId()) unawaited(checkNow());
@@ -111,10 +116,19 @@ class DueTodayNotificationScheduler {
         (_retryAt != null && now.isBefore(_retryAt!))) {
       return;
     }
+    final taskLists = _database.taskLists;
+    final eligibleLists = _database.selectOnly(taskLists)
+      ..addColumns([taskLists.id])
+      ..where(
+        taskLists.accountId.equals(accountId) &
+            taskLists.pendingDelete.equals(false) &
+            taskLists.serverMissing.equals(false),
+      );
     final tasks =
         await (_database.select(_database.tasks)..where(
               (row) =>
                   row.accountId.equals(accountId) &
+                  row.taskListId.isInQuery(eligibleLists) &
                   row.dueUtc.isNotNull() &
                   row.pendingDelete.equals(false) &
                   row.serverMissing.equals(false) &

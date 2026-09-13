@@ -22,6 +22,101 @@ void main() {
     await database.close();
   });
 
+  for (final incremental in [false, true]) {
+    for (final cancelled in [false, true]) {
+      test(
+        '${incremental ? 'incremental' : 'full'} calendar sync reconciles ${cancelled ? 'cancellation' : 'rescheduling'} after a page failure',
+        () async {
+          final now = DateTime.utc(2026, 7, 15, 8);
+          const source = CalendarSourceDto(
+            provider: BusyProvider.google,
+            providerCalendarId: 'cal-1',
+            summary: 'Work',
+          );
+          await _insertAccount(database, provider: BusyProvider.google);
+          await _insertSource(database, source);
+          await _insertEvent(
+            database,
+            provider: BusyProvider.google,
+            providerCalendarId: 'cal-1',
+            remindersJson: {
+              'overrides': [
+                {'method': 'popup', 'minutes': 10},
+              ],
+            },
+          );
+          await NotificationScheduleService(
+            database: database,
+            nowUtc: () => now,
+          ).rebuildUpcomingEventNotifications('account');
+          expect(
+            await database.select(database.notificationSchedule).get(),
+            hasLength(1),
+          );
+          final client = _FakeCalendarClient(
+            provider: BusyProvider.google,
+            calendars: [source],
+            pages: [
+              CalendarSyncPageDto(
+                events: [
+                  CalendarEventDto(
+                    provider: BusyProvider.google,
+                    providerCalendarId: 'cal-1',
+                    providerEventId: 'event-1',
+                    title: 'Changed',
+                    isCancelled: cancelled,
+                    startDateTime: '2026-07-15T11:00:00Z',
+                    endDateTime: '2026-07-15T12:00:00Z',
+                    remindersJson: {
+                      'overrides': [
+                        {'method': 'popup', 'minutes': 10},
+                      ],
+                    },
+                    rawJson: const {},
+                  ),
+                ],
+                nextPageTokenOrUrl: 'later-page',
+              ),
+            ],
+          );
+          var reconciled = 0;
+          final engine = CalendarSyncEngine(
+            database: database,
+            client: client,
+            accountId: 'account',
+            nowUtc: () => now,
+            onNotificationScheduleChanged: () async {
+              reconciled++;
+            },
+          );
+          await expectLater(
+            incremental ? engine.incrementalSync() : engine.fullSync(),
+            throwsStateError,
+          );
+          expect(client.syncCalls, hasLength(2));
+          expect(
+            (await database.select(database.calendarEvents).get())
+                .single
+                .isCancelled,
+            cancelled,
+          );
+          final reminders = await database
+              .select(database.notificationSchedule)
+              .get();
+          if (cancelled) {
+            expect(reminders, isEmpty);
+          } else {
+            expect(
+              reminders.single.scheduledAtUtc,
+              DateTime.utc(2026, 7, 15, 10, 50).millisecondsSinceEpoch,
+            );
+          }
+          expect(reconciled, 1);
+        },
+      );
+    }
+  }
+
   test('same-month sync reuses its cursor and one sync-state row', () async {
     const source = CalendarSourceDto(
       provider: BusyProvider.google,

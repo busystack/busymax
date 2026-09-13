@@ -81,6 +81,40 @@ void main() {
     await database.close();
   });
 
+  for (final missing in [false, true]) {
+    test(
+      'summary excludes ${missing ? 'missing' : 'deleted'} parent lists and watches restoration',
+      () async {
+        await _insertTask(database, 'one', '2026-06-08');
+        await database
+            .update(database.taskLists)
+            .write(
+              TaskListsCompanion(
+                pendingDelete: Value(!missing),
+                serverMissing: Value(missing),
+              ),
+            );
+        await scheduler.checkNow();
+        expect(backend.requests, isEmpty);
+        expect(markedDates, isEmpty);
+        scheduler.start();
+        await Future<void>.delayed(const Duration(milliseconds: 30));
+        // Only the parent changes; the task is still an ordinary incomplete row.
+        await database
+            .update(database.taskLists)
+            .write(
+              const TaskListsCompanion(
+                pendingDelete: Value(false),
+                serverMissing: Value(false),
+              ),
+            );
+        await _waitUntil(() => backend.requests.isNotEmpty);
+        expect(markedDates, ['2026-06-08']);
+        expect(backend.requests, hasLength(1));
+      },
+    );
+  }
+
   test(
     'synchronizing tasks into an empty cache triggers the summary',
     () async {

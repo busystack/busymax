@@ -44,11 +44,130 @@ void main() {
             updatedAtUtc: '2026-06-08T00:00:00.000Z',
           ),
         );
+    await database
+        .into(database.taskLists)
+        .insert(
+          TaskListsCompanion.insert(
+            accountId: 'microsoft:m',
+            id: 'list-1',
+            title: 'Tasks',
+            rawJson: '{}',
+            createdLocalAtUtc: '',
+            updatedLocalAtUtc: '',
+          ),
+        );
+    for (final id in ['task-1', 'future-task']) {
+      await database
+          .into(database.tasks)
+          .insert(
+            TasksCompanion.insert(
+              accountId: 'microsoft:m',
+              taskListId: 'list-1',
+              id: id,
+              title: 'File report',
+              rawJson: '{}',
+              createdLocalAtUtc: '',
+              updatedLocalAtUtc: '',
+            ),
+          );
+    }
+    await database
+        .into(database.calendarSources)
+        .insert(
+          CalendarSourcesCompanion.insert(
+            id: 'calendar',
+            accountId: 'microsoft:m',
+            provider: 'microsoft',
+            providerCalendarId: 'calendar',
+            summary: 'Calendar',
+            createdAtLocal: 0,
+            updatedAtLocal: 0,
+          ),
+        );
+    await database
+        .into(database.calendarEvents)
+        .insert(
+          CalendarEventsCompanion.insert(
+            id: 'event-1',
+            accountId: 'microsoft:m',
+            calendarSourceId: 'calendar',
+            provider: 'microsoft',
+            providerCalendarId: 'calendar',
+            providerEventId: 'event-1',
+            title: 'Standup',
+            createdAtLocal: 0,
+            updatedAtLocal: 0,
+          ),
+        );
   });
 
   tearDown(() async {
     scheduler.stop();
     await database.close();
+  });
+
+  test(
+    'cancellation failure retries without blocking an unrelated reminder',
+    () async {
+      await _insertDueTaskNotification(database, now);
+      await scheduler.checkNow();
+      final obsolete = backend.notifications.single.request.stableId;
+      backend.cancellationError = StateError('notification center unavailable');
+      await database.delete(database.notificationSchedule).go();
+      await scheduler.checkNow();
+      expect(backend.cancelledIds, isEmpty);
+      expect(backend.cancellationAttempts, [obsolete]);
+      await _insertDueTaskNotification(database, now);
+      await scheduler.checkNow();
+      expect(backend.notifications, hasLength(2));
+      backend.cancellationError = null;
+      await scheduler.checkNow();
+      expect(backend.cancelledIds, [obsolete]);
+      final attempts = backend.cancellationAttempts.length;
+      await scheduler.checkNow();
+      expect(backend.cancellationAttempts, hasLength(attempts));
+    },
+  );
+
+  for (final status in ['completed', 'cancelled']) {
+    test(
+      'delivery revalidates a task changed to $status without a rebuild',
+      () async {
+        await _insertDueTaskNotification(database, now);
+        await database
+            .update(database.tasks)
+            .write(TasksCompanion(status: Value(status)));
+        await scheduler.checkNow();
+        expect(backend.notifications, isEmpty);
+        expect(
+          await database.select(database.notificationSchedule).get(),
+          isEmpty,
+        );
+      },
+    );
+  }
+
+  test('delivery revalidates a cancelled event without a rebuild', () async {
+    await database
+        .into(database.notificationSchedule)
+        .insert(
+          NotificationScheduleCompanion.insert(
+            id: 'event|event-1|5',
+            accountId: 'microsoft:m',
+            sourceType: 'event',
+            sourceId: 'event-1',
+            scheduledAtUtc: now.millisecondsSinceEpoch,
+            title: 'Standup',
+            createdAtLocal: 0,
+            updatedAtLocal: 0,
+          ),
+        );
+    await database
+        .update(database.calendarEvents)
+        .write(const CalendarEventsCompanion(isCancelled: Value(true)));
+    await scheduler.checkNow();
+    expect(backend.notifications, isEmpty);
+    expect(await database.select(database.notificationSchedule).get(), isEmpty);
   });
 
   test('notifies when a due reminder is scheduled after startup', () async {
@@ -672,6 +791,8 @@ Future<void> _insertDueTaskNotification(
 class _FakeNotificationBackend implements DesktopNotificationBackend {
   final notifications = <_NotificationRecord>[];
   final cancelledIds = <String>[];
+  final cancellationAttempts = <String>[];
+  Object? cancellationError;
   Completer<void>? deliveryBarrier;
   Object? error;
   String? actionBeforeReturn;
@@ -694,6 +815,8 @@ class _FakeNotificationBackend implements DesktopNotificationBackend {
 
   @override
   Future<void> cancel(String stableId) async {
+    cancellationAttempts.add(stableId);
+    if (cancellationError != null) throw cancellationError!;
     cancelledIds.add(stableId);
   }
 

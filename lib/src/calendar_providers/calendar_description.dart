@@ -90,10 +90,14 @@ CalendarDescriptionDocument htmlCalendarDescriptionDocument(String html) {
     }
   }
 
-  final tokenPattern = RegExp(r'<[^>]+>|[^<]+', multiLine: true, dotAll: true);
+  final tokenPattern = RegExp(
+    r'</?[a-zA-Z][^>]*>|[^<]+|<',
+    multiLine: true,
+    dotAll: true,
+  );
   for (final match in tokenPattern.allMatches(withoutHidden)) {
     final token = match.group(0) ?? '';
-    if (token.startsWith('<')) {
+    if (token.startsWith('<') && token.length > 1) {
       final tag = _tagName(token);
       final closing = RegExp(r'^</').hasMatch(token);
       final selfClosing = token.endsWith('/>');

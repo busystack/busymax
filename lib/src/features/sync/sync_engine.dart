@@ -93,31 +93,35 @@ class SyncEngine {
     var tasksSeen = 0;
     var pendingOpsApplied = 0;
     try {
-      pendingOpsApplied = await PendingOpsReplayer(
-        database: _database,
-        apiClient: _apiClient,
-        accountId: _accountId,
-        nowUtc: _nowUtc,
-        onConflictBlocked: _onConflictBlocked,
-        onTaskListIdReplaced: _onTaskListIdReplaced,
-      ).replayDueOps();
-      final listIds = await _pullTaskLists();
-      await _reconcileTaskListMembership(listIds);
-      taskListsSeen = listIds.length;
-      final tasksByList = <String, Set<String>>{};
-      for (final taskListId in listIds) {
-        final taskIds = await _pullTasks(taskListId, updatedMin: updatedMin);
-        tasksByList[taskListId] = taskIds;
-        tasksSeen += taskIds.length;
-      }
+      try {
+        pendingOpsApplied = await PendingOpsReplayer(
+          database: _database,
+          apiClient: _apiClient,
+          accountId: _accountId,
+          nowUtc: _nowUtc,
+          onConflictBlocked: _onConflictBlocked,
+          onTaskListIdReplaced: _onTaskListIdReplaced,
+        ).replayDueOps();
+        final listIds = await _pullTaskLists();
+        await _reconcileTaskListMembership(listIds);
+        taskListsSeen = listIds.length;
+        final tasksByList = <String, Set<String>>{};
+        for (final taskListId in listIds) {
+          final taskIds = await _pullTasks(taskListId, updatedMin: updatedMin);
+          tasksByList[taskListId] = taskIds;
+          tasksSeen += taskIds.length;
+        }
 
-      if (markMissingTasks) {
-        await _markMissingTasks(tasksByList);
+        if (markMissingTasks) {
+          await _markMissingTasks(tasksByList);
+        }
+      } finally {
+        // Keep reminders consistent even when a later page or list fails.
+        await NotificationScheduleService(
+          database: _database,
+          nowUtc: _nowUtc,
+        ).rebuildUpcomingTaskNotifications(_accountId);
       }
-      await NotificationScheduleService(
-        database: _database,
-        nowUtc: _nowUtc,
-      ).rebuildUpcomingTaskNotifications(_accountId);
 
       final finishedAt = _now();
       await _updateAccountSyncCompletion(mode, finishedAt);

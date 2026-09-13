@@ -54,6 +54,7 @@ class NotificationScheduler {
   final Map<String, int> _deferredUntilUtc = {};
   final Set<String> _disabledNotificationIds = {};
   final Map<String, NotificationScheduleData> _knownSchedules = {};
+  final Set<String> _pendingCancellations = {};
 
   void start() {
     if (_stopped || _running) return;
@@ -109,6 +110,7 @@ class NotificationScheduler {
     try {
       do {
         _checkAgain = false;
+        await _retryCancellations();
         await _cancelObsoleteNotifications();
         if (_stopped) return;
         await _checkDueNotifications();
@@ -133,7 +135,7 @@ class NotificationScheduler {
           row.scheduledAtUtc != previous.scheduledAtUtc ||
           (row.dismissedAtUtc != null && previous.dismissedAtUtc == null)) {
         final deliveryId = _deliveryId(previous);
-        await _notifications.cancelReminder(deliveryId);
+        await _cancelReminder(deliveryId);
         if (_stopped) return;
         _deferredUntilUtc.remove(deliveryId);
         _disabledNotificationIds.remove(deliveryId);
@@ -172,6 +174,13 @@ class NotificationScheduler {
       final eligible = await _isAccountReminderEligible(pending.accountId);
       if (_stopped) return;
       if (!eligible) continue;
+      if (!await _isSourceEligible(pending)) {
+        await (_database.delete(
+          _database.notificationSchedule,
+        )..where((table) => _sameDelivery(table, pending))).go();
+        await _cancelReminder(_deliveryId(pending));
+        continue;
+      }
 
       // Claim a distinct delivery before crossing the asynchronous backend
       // boundary. A replacement scheduler cannot reuse this attempt's ID.
@@ -215,7 +224,7 @@ class NotificationScheduler {
       switch (result.status) {
         case ReminderDeliveryStatus.delivered:
           final marked = await _markDelivered(row);
-          if (!marked) await notifications.cancelReminder(deliveryId);
+          if (!marked) await _cancelReminder(deliveryId);
         case ReminderDeliveryStatus.deferred:
         case ReminderDeliveryStatus.failed:
           final retryAt = result.retryAtUtc;
@@ -228,6 +237,76 @@ class NotificationScheduler {
           }
       }
     }
+  }
+
+  Future<void> _cancelReminder(String deliveryId) async {
+    _pendingCancellations.add(deliveryId);
+    if (await _notifications.cancelReminder(deliveryId)) {
+      _pendingCancellations.remove(deliveryId);
+    }
+  }
+
+  Future<void> _retryCancellations() async {
+    for (final deliveryId in _pendingCancellations.toList()) {
+      await _cancelReminder(deliveryId);
+    }
+  }
+
+  // A source can change while a later sync page is still in flight. Do not
+  // rely solely on schedules, which are reconciled when that sync finishes.
+  Future<bool> _isSourceEligible(NotificationScheduleData row) async {
+    if (row.sourceType == 'event') {
+      final events = _database.calendarEvents;
+      final sources = _database.calendarSources;
+      final query = _database.selectOnly(events)
+        ..addColumns([events.id])
+        ..join([
+          innerJoin(
+            sources,
+            sources.id.equalsExp(events.calendarSourceId) &
+                sources.accountId.equalsExp(events.accountId),
+          ),
+        ])
+        ..where(
+          events.id.equals(row.sourceId) &
+              events.accountId.equals(row.accountId) &
+              events.isDeleted.equals(false) &
+              events.isCancelled.equals(false) &
+              sources.isDeleted.equals(false) &
+              sources.remindersEnabled.equals(true),
+        )
+        ..limit(1);
+      return await query.getSingleOrNull() != null;
+    }
+    if (row.sourceType == 'task') {
+      final tasks = _database.tasks;
+      final lists = _database.taskLists;
+      final query = _database.selectOnly(tasks)
+        ..addColumns([tasks.id])
+        ..join([
+          innerJoin(
+            lists,
+            lists.id.equalsExp(tasks.taskListId) &
+                lists.accountId.equalsExp(tasks.accountId),
+          ),
+        ])
+        ..where(
+          tasks.id.equals(row.sourceId) &
+              tasks.accountId.equals(row.accountId) &
+              (tasks.status.isNull() |
+                  tasks.status.isNotIn(['completed', 'cancelled'])) &
+              tasks.pendingDelete.equals(false) &
+              tasks.serverMissing.equals(false) &
+              (tasks.deleted.isNull() | tasks.deleted.equals(false)) &
+              (tasks.hidden.isNull() | tasks.hidden.equals(false)) &
+              lists.pendingDelete.equals(false) &
+              lists.serverMissing.equals(false) &
+              lists.remindersEnabled.equals(true),
+        )
+        ..limit(1);
+      return await query.getSingleOrNull() != null;
+    }
+    return false;
   }
 
   String _deliveryId(NotificationScheduleData row) =>
@@ -301,7 +380,7 @@ class NotificationScheduler {
           : table.snoozedUntilUtc.equals(row.snoozedUntilUtc!));
 
   Future<bool> _markDelivered(NotificationScheduleData row) async {
-    if (_stopped) return false;
+    if (_stopped || !await _isSourceEligible(row)) return false;
     // One conditional write: no lookup/update race with edits or actions.
     final updated =
         await (_database.update(
@@ -357,7 +436,7 @@ class NotificationScheduler {
             );
     if (updated == 0) return;
     final deliveryId = _deliveryId(row);
-    await _notifications.cancelReminder(deliveryId);
+    await _cancelReminder(deliveryId);
     _deferredUntilUtc.remove(deliveryId);
     _disabledNotificationIds.remove(deliveryId);
     await checkNow();

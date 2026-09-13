@@ -260,6 +260,10 @@ final desktopNotificationServiceProvider = Provider<DesktopNotificationService>(
       backend: ref.watch(desktopNotificationBackendProvider),
       settings: settings,
       locale: settings.locale,
+      onDestinationActivated: (destination) async {
+        await ref.read(desktopWindowServiceProvider).showWindow();
+        ref.read(desktopNavigationServiceProvider).open(destination);
+      },
     );
   },
 );

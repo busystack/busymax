@@ -4,6 +4,7 @@ import 'package:drift/drift.dart';
 import 'package:uuid/uuid.dart';
 import 'package:busymax/src/providers/busy_provider.dart';
 
+import '../../calendar_providers/calendar_description.dart';
 import '../../core/time/stored_temporal_projection.dart';
 import '../../core/time/provider_date_time.dart';
 import '../../dav/ical/ical_task_alarm.dart';
@@ -73,7 +74,11 @@ class NotificationScheduleService {
           sourceId: event.id,
           scheduledAtUtc: reminderAt,
           title: event.title,
-          body: event.description ?? event.location,
+          body:
+              event.provider == BusyProvider.google.storageValue &&
+                  event.description != null
+              ? htmlCalendarDescriptionToPlainText(event.description!)
+              : event.description ?? event.location,
         );
       }
     }

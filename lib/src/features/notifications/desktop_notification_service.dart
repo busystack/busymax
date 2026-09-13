@@ -5,6 +5,7 @@ import '../../../l10n/generated/app_localizations.dart';
 import '../../app/app_settings.dart';
 import '../../core/logging/redacting_logger.dart';
 import '../../l10n/locale_resolution.dart';
+import '../../platform/common/desktop_services.dart';
 import '../sync/sync_failure_notification_policy.dart';
 import 'desktop_notification_backend.dart';
 
@@ -44,6 +45,8 @@ class DesktopNotificationService {
     Duration syncFailureDebounce = const Duration(minutes: 5),
     Duration reminderFailureRetryDelay = const Duration(minutes: 1),
     DateTime Function()? now,
+    Future<void> Function(DesktopNavigationDestination destination)?
+    onDestinationActivated,
   }) : _backend = backend,
        _settings = settings,
        _strings = locale == null
@@ -51,7 +54,8 @@ class DesktopNotificationService {
            : NotificationStrings.forLocale(locale),
        _syncFailureDebounce = syncFailureDebounce,
        _reminderFailureRetryDelay = reminderFailureRetryDelay,
-       _now = now ?? DateTime.now;
+       _now = now ?? DateTime.now,
+       _onDestinationActivated = onDestinationActivated;
 
   final DesktopNotificationBackend _backend;
   final AppSettings _settings;
@@ -59,6 +63,9 @@ class DesktopNotificationService {
   final Duration _syncFailureDebounce;
   final Duration _reminderFailureRetryDelay;
   final DateTime Function() _now;
+
+  final Future<void> Function(DesktopNavigationDestination destination)?
+  _onDestinationActivated;
 
   DateTime? _lastSyncFailureAt;
   String? _lastSyncFailureBody;
@@ -137,12 +144,13 @@ class DesktopNotificationService {
           );
   }
 
-  Future<void> cancelReminder(String deliveryId) async {
+  Future<bool> cancelReminder(String deliveryId) async {
     try {
       await _backend.cancel(deliveryId);
+      return true;
     } on Object {
-      // Unavailable notification centers must not interrupt reconciliation.
-      // Generation checks also make any surviving actions harmless.
+      // Let the scheduler retain failed work without interrupting other items.
+      return false;
     }
   }
 
@@ -235,6 +243,15 @@ class DesktopNotificationService {
     bool transient = true,
   }) async {
     try {
+      final activation = DesktopActivation(
+        kind: DesktopActivationKind.notification,
+        action: 'default',
+        payload: payload,
+      );
+      final destination = activation.notificationDestination;
+      if (activation.isValid && destination != null) {
+        onActivated ??= () async => _onDestinationActivated?.call(destination);
+      }
       final hasActions = onActivated != null || onReminderAction != null;
       await _backend.notify(
         BusyMaxNotificationRequest(
@@ -263,6 +280,7 @@ class DesktopNotificationService {
             : (action, _) async {
                 switch (action) {
                   case 'default':
+                  case 'open':
                     if (onReminderAction != null) {
                       await onReminderAction(ReminderNotificationAction.open);
                     } else {

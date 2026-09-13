@@ -1,3 +1,4 @@
+import 'package:busymax/src/google_calendar/google_calendar_mapper.dart';
 import 'dart:async';
 import 'dart:convert';
 
@@ -49,6 +50,44 @@ void main() {
 
   tearDown(() async {
     await database.close();
+  });
+
+  test('Google HTML descriptions become plain notification previews', () async {
+    final repository = CalendarRepository(database: database);
+    await repository.upsertSource(
+      accountId: 'google:g',
+      source: const CalendarSourceDto(
+        provider: BusyProvider.google,
+        providerCalendarId: 'cal-1',
+        summary: 'Calendar',
+      ),
+    );
+    await repository.upsertEvent(
+      accountId: 'google:g',
+      event: googleCalendarEventFromJson('cal-1', {
+        'id': 'html-event',
+        'summary': 'Planning',
+        'description':
+            '<p>First &amp; second</p><p>Next &lt; step</p>'
+            '<ul><li>One</li><li><a href="https://example.com">Read more</a></li></ul>'
+            '<p>2 < 3 & 5 > 4</p>',
+        'start': {'dateTime': '2026-06-08T09:00:00Z'},
+        'end': {'dateTime': '2026-06-08T10:00:00Z'},
+        'reminders': {
+          'overrides': [
+            {'method': 'popup', 'minutes': 10},
+          ],
+        },
+      }),
+    );
+    await service.rebuildUpcomingEventNotifications('google:g');
+    final schedule = await database
+        .select(database.notificationSchedule)
+        .getSingle();
+    expect(
+      schedule.body,
+      'First & second\n\nNext < step\n\n• One\n\n• Read more\n\n2 < 3 & 5 > 4',
+    );
   });
 
   for (final source in ['event', 'task']) {

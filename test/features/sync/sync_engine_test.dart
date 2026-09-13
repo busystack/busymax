@@ -1,3 +1,4 @@
+import 'package:busymax/src/features/notifications/notification_schedule_service.dart';
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
@@ -32,6 +33,98 @@ void main() {
   tearDown(() async {
     await database.close();
   });
+
+  for (final incremental in [false, true]) {
+    for (final completed in [false, true]) {
+      test(
+        '${incremental ? 'incremental' : 'full'} task sync reconciles ${completed ? 'completion' : 'rescheduling'} before a later page fails',
+        () async {
+          final now = DateTime.utc(2026, 6, 4, 8);
+          await database
+              .update(database.accounts)
+              .write(
+                const AccountsCompanion(
+                  provider: Value('microsoft'),
+                  authState: Value('signed_in'),
+                ),
+              );
+          await database.taskListsDao.upsertTaskList(_localTaskList('list-1'));
+          await database.tasksDao.upsertTask(
+            _localTask('task-1').copyWith(
+              microsoftIsReminderOn: const Value(true),
+              microsoftReminderDateTime: const Value('2026-06-04T09:00:00Z'),
+              microsoftReminderTimeZone: const Value('UTC'),
+            ),
+          );
+          await NotificationScheduleService(
+            database: database,
+            nowUtc: () => now,
+          ).rebuildUpcomingTaskNotifications('account');
+          expect(
+            await database.select(database.notificationSchedule).get(),
+            hasLength(1),
+          );
+          apiClient.taskListsPages = [
+            TaskListsPageDto(
+              items: [_taskListDto('list-1')],
+              rawJson: const {},
+            ),
+          ];
+          apiClient.taskPages['list-1'] = [
+            TasksPageDto(
+              items: [
+                TaskDto(
+                  id: 'task-1',
+                  title: 'Changed',
+                  status: completed ? 'completed' : 'needsAction',
+                  rawJson: const {
+                    'isReminderOn': true,
+                    'reminderDateTime': {
+                      'dateTime': '2026-06-04T11:00:00',
+                      'timeZone': 'UTC',
+                    },
+                  },
+                ),
+              ],
+              nextPageToken: 'fail',
+              rawJson: const {},
+            ),
+          ];
+          final failure = StateError('later page failed');
+          apiClient.blockedTaskPageToken = 'fail';
+          apiClient.blockedTaskPageError = failure;
+          final engine = SyncEngine(
+            database: database,
+            apiClient: apiClient,
+            accountId: 'account',
+            nowUtc: () => now,
+          );
+          await expectLater(
+            incremental ? engine.incrementalSync() : engine.fullSync(),
+            throwsA(same(failure)),
+          );
+          final task = await database.select(database.tasks).getSingle();
+          expect(task.title, 'Changed');
+          expect(task.status, completed ? 'completed' : 'needsAction');
+          final reminders = await database
+              .select(database.notificationSchedule)
+              .get();
+          if (completed) {
+            expect(reminders, isEmpty);
+          } else {
+            expect(
+              reminders.single.scheduledAtUtc,
+              DateTime.utc(2026, 6, 4, 11).millisecondsSinceEpoch,
+            );
+          }
+          expect(
+            (await database.select(database.syncRuns).get()).single.status,
+            'failed',
+          );
+        },
+      );
+    }
+  }
 
   test('full sync upserts task lists and tasks', () async {
     apiClient.taskListsPages = [
