@@ -1,12 +1,15 @@
+import '../../schedule/schedule_commands.dart';
 import 'dart:async';
 
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:intl/intl.dart';
+import '../../l10n/time_format_scope.dart';
 
 import '../../../l10n/generated/app_localizations.dart';
 import '../../app/app_bootstrap.dart';
+import '../../app/desktop_startup_policy.dart';
 import '../../features/tray/domain/tray_presentation_formatter.dart';
+import '../../features/tray/domain/tray_presentation.dart';
 import '../../platform/common/desktop_services.dart';
 import '../../platform/windows/windows_tray_service.dart';
 import 'windows_event_editor_dialog.dart';
@@ -21,11 +24,23 @@ class WindowsDesktopRuntime extends ConsumerStatefulWidget {
   const WindowsDesktopRuntime({
     required this.child,
     required this.startMinimizedAtLaunch,
+    this.trayService,
+    this.trayServiceFactory,
+    this.loadPresentation,
     super.key,
   });
 
   final Widget child;
   final bool startMinimizedAtLaunch;
+  @visibleForTesting
+  final DesktopTrayService? trayService;
+  @visibleForTesting
+  final DesktopTrayService Function(
+    Future<BusyMaxTrayMenuPresentation> Function(),
+  )?
+  trayServiceFactory;
+  @visibleForTesting
+  final Future<BusyMaxTrayPresentation> Function()? loadPresentation;
 
   @override
   ConsumerState<WindowsDesktopRuntime> createState() =>
@@ -33,13 +48,15 @@ class WindowsDesktopRuntime extends ConsumerStatefulWidget {
 }
 
 class _WindowsDesktopRuntimeState extends ConsumerState<WindowsDesktopRuntime> {
-  WindowsTrayService? _tray;
+  DesktopTrayService? _tray;
   BusyMaxTrayPresentationFormatter? _formatter;
   Timer? _refreshTimer;
   bool _configurationRunning = false;
   bool _configurationPending = false;
-  bool _startMinimizedHandled = false;
-  String? _localeTag;
+  late final _startupPolicy = DesktopStartupPolicy(
+    startMinimizedAtLaunch: widget.startMinimizedAtLaunch,
+  );
+  BusyMaxTimeFormatter? _clock;
 
   @override
   void dispose() {
@@ -53,9 +70,9 @@ class _WindowsDesktopRuntimeState extends ConsumerState<WindowsDesktopRuntime> {
   Widget build(BuildContext context) {
     final settings = ref.watch(appSettingsControllerProvider);
     final l10n = AppLocalizations.of(context);
-    final locale = Localizations.localeOf(context).toLanguageTag();
-    if (_localeTag != locale || _formatter == null) {
-      _localeTag = locale;
+    final clock = BusyMaxTimeFormatScope.of(context);
+    if (_clock != clock || _formatter == null) {
+      _clock = clock;
       _formatter = BusyMaxTrayPresentationFormatter(
         BusyMaxTrayPresentationStrings(
           showBusyMax: l10n.trayShowBusyMax,
@@ -76,7 +93,7 @@ class _WindowsDesktopRuntimeState extends ConsumerState<WindowsDesktopRuntime> {
           quitBusyMax: l10n.trayQuitBusyMax,
           offline: l10n.networkOffline,
           offlineDescription: l10n.networkOfflineDescription,
-          formatTime: (value) => DateFormat.jm(locale).format(value),
+          formatTime: clock.format,
           tasksDueToday: l10n.trayTasksDueToday,
           lastSyncedJustNow: l10n.trayLastSyncedJustNow,
           lastSyncedMinutesAgo: l10n.trayLastSyncedMinutesAgo,
@@ -98,41 +115,52 @@ class _WindowsDesktopRuntimeState extends ConsumerState<WindowsDesktopRuntime> {
     }
     _configurationRunning = true;
     try {
-      final needsTray =
-          settings.showTrayIcon ||
-          settings.runInBackgroundWhenClosed ||
-          settings.startMinimizedToTray ||
-          widget.startMinimizedAtLaunch;
+      await ref.read(appSettingsControllerProvider.notifier).ready;
+      if (!mounted) return;
+      settings = ref.read(appSettingsControllerProvider);
+      final needsTray = _startupPolicy.needsTray(settings);
+      final startMinimized = _startupPolicy.takeStartMinimized(settings);
       final window = ref.read(desktopWindowServiceProvider);
       if (!needsTray) {
         await window.setHideOnClose(false);
+        if (!await window.isWindowVisible()) await window.showWindow();
         await _tray?.stop();
         ref.read(desktopTrayDiagnosticProvider.notifier).state = null;
         _refreshTimer?.cancel();
         _refreshTimer = null;
         return;
       }
-      final tray = _tray ??= WindowsTrayService(
-        loadPresentation: () async {
-          final presentation = await ref
-              .read(trayPresentationServiceProvider)
-              .load();
-          return _formatter!.format(presentation);
-        },
-        onCommand: _handleCommand,
-        onUnavailable: (errorCode) async {
-          ref.read(desktopTrayDiagnosticProvider.notifier).state =
-              errorCode ?? 'tray-unavailable';
-          // Explorer recovery and native tray failures must never strand an
-          // otherwise healthy process with no reachable window.
-          await window.setHideOnClose(false);
-          await window.showWindow();
-        },
-      );
+      final tray = _tray ??=
+          widget.trayService ??
+          widget.trayServiceFactory?.call(_loadFormattedPresentation) ??
+          WindowsTrayService(
+            loadPresentation: _loadFormattedPresentation,
+            onCommand: _handleCommand,
+            onUnavailable: (errorCode) async {
+              ref.read(desktopTrayDiagnosticProvider.notifier).state =
+                  errorCode ?? 'tray-unavailable';
+              // Explorer recovery and native tray failures must never strand an
+              // otherwise healthy process with no reachable window.
+              await window.setHideOnClose(false);
+              await window.showWindow();
+            },
+          );
       var available = tray.isAvailable || await tray.start();
       if (available) {
         await tray.refresh();
         available = tray.isAvailable;
+      }
+      if (!mounted) {
+        await tray.stop();
+        return;
+      }
+      settings = ref.read(appSettingsControllerProvider);
+      if (!_startupPolicy.needsTray(settings)) {
+        await window.setHideOnClose(false);
+        await window.showWindow();
+        await tray.stop();
+        _configurationPending = true;
+        return;
       }
       await window.setHideOnClose(
         shouldWindowsHideOnClose(
@@ -151,9 +179,7 @@ class _WindowsDesktopRuntimeState extends ConsumerState<WindowsDesktopRuntime> {
           unawaited(_configure(ref.read(appSettingsControllerProvider)));
         }
       });
-      if (!_startMinimizedHandled &&
-          (widget.startMinimizedAtLaunch || settings.startMinimizedToTray)) {
-        _startMinimizedHandled = true;
+      if (startMinimized) {
         if (available) {
           await window.hideWindow();
         } else {
@@ -167,6 +193,13 @@ class _WindowsDesktopRuntimeState extends ConsumerState<WindowsDesktopRuntime> {
         unawaited(_configure(ref.read(appSettingsControllerProvider)));
       }
     }
+  }
+
+  Future<BusyMaxTrayMenuPresentation> _loadFormattedPresentation() async {
+    final presentation =
+        await (widget.loadPresentation?.call() ??
+            ref.read(trayPresentationServiceProvider).load());
+    return _formatter!.format(presentation);
   }
 
   Future<void> _handleCommand(WindowsTrayCommand command) async {
@@ -195,6 +228,12 @@ class _WindowsDesktopRuntimeState extends ConsumerState<WindowsDesktopRuntime> {
       case WindowsTrayCommand.today:
         await window.showWindow();
         ref
+            .read(scheduleWorkspaceCommandProvider.notifier)
+            .state = ScheduleWorkspaceCommand(
+          ScheduleWorkspaceCommandKind.today,
+          DateTime.now().microsecondsSinceEpoch,
+        );
+        ref
             .read(desktopNavigationServiceProvider)
             .open(DesktopNavigationDestination.schedule);
       case WindowsTrayCommand.synchronize:
@@ -207,6 +246,7 @@ class _WindowsDesktopRuntimeState extends ConsumerState<WindowsDesktopRuntime> {
             .open(DesktopNavigationDestination.settings);
       case WindowsTrayCommand.quit:
         ref.read(notificationSchedulerProvider).stop();
+        ref.read(dueTodayNotificationProvider).stop();
         ref.read(syncSchedulerProvider).stop();
         try {
           await _tray?.stop();

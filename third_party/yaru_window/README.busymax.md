@@ -1,7 +1,10 @@
-This is the public Dart API from upstream `yaru_window` 0.2.2, licensed under
-the included LGPL-3.0 license. BusyMax narrows the plugin declaration to Linux.
+# BusyMax vendoring notes: yaru_window
 
-The upstream package selects a `window_manager` implementation on Windows.
-BusyMax has a separate native Windows runner bridge, so registering that second
-window lifecycle owner would violate the Windows architecture. Linux continues
-to use the upstream `yaru_window_linux` implementation unchanged.
+This directory contains the public Dart API from upstream
+[yaru_window 0.2.2](https://github.com/ubuntu/yaru_window.dart) under the
+included [MPL-2.0 license](LICENSE).
+
+BusyMax narrows plugin registration to Linux, where the upstream
+`yaru_window_linux` implementation remains in use. The upstream Windows path
+would register a second window lifecycle implementation, so the BusyMax
+Windows composition uses only its native runner bridge.

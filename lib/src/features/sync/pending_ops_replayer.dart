@@ -575,6 +575,15 @@ class PendingOpsReplayer {
         serverTask.id,
         completedCreateOpId: completedCreateOpId,
       );
+      // The schedule ID is also the identity of an already displayed toast.
+      // Keep it and its lifecycle intact while retargeting actions atomically.
+      await (_database.update(_database.notificationSchedule)..where(
+            (row) =>
+                row.accountId.equals(_accountId) &
+                row.sourceType.equals('task') &
+                row.sourceId.equals(tempTaskId),
+          ))
+          .write(NotificationScheduleCompanion(sourceId: Value(serverTask.id)));
       await _database.tasksDao.deleteTask(
         _accountId,
         localTask?.taskListId ?? taskListId,

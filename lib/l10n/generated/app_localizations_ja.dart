@@ -13,6 +13,35 @@ class AppLocalizationsJa extends AppLocalizations {
   AppLocalizationsJa([String locale = 'ja']) : super(locale);
 
   @override
+  String get timeFormat => '時刻の表示形式';
+
+  @override
+  String get timeFormatTwelveHour => '12時間表示';
+
+  @override
+  String get timeFormatTwentyFourHour => '24時間表示';
+
+  @override
+  String get timeEndOfDay => '一日の終わり';
+
+  @override
+  String get timePeriod => '午前・午後';
+
+  @override
+  String get launchAtLoginReadFailed => 'ログイン時の起動状態を確認できませんでした。';
+
+  @override
+  String get launchAtLoginUnavailable => 'このシステムではログイン時の起動を利用できません。';
+
+  @override
+  String get windowsStartupEnabledByPolicy =>
+      '管理者によって自動起動が有効になっているため、ここでは変更できません。';
+
+  @override
+  String get settingsSaveFailed =>
+      '設定を保存できませんでした。BusyMax を再起動すると変更が失われる可能性があります。';
+
+  @override
   String get nextcloudExportCollection => 'コレクションのリソースをエクスポート';
 
   @override
@@ -1795,6 +1824,14 @@ class AppLocalizationsJa extends AppLocalizations {
   @override
   String get unsupportedRecurrencePreserved =>
       'この繰り返しルールには、このエディターで変更されないオプションが含まれています。';
+
+  @override
+  String get taskRecurrenceDestinationUnsupported =>
+      'このリストではこの繰り返しパターンを使用できません。パターンを変更するか、別のリストを選択してください。';
+
+  @override
+  String get taskRecurrenceRequiresDate =>
+      'この繰り返しパターンを使用するには、開始日または期限を追加するか、繰り返しをオフにしてください。';
 
   @override
   String recurrenceUnsupportedByProvider(String provider) {

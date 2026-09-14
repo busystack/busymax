@@ -16,6 +16,8 @@ final class WindowsNotificationIdStore {
   final File file;
   final _ids = <String, int>{};
   bool _loaded = false;
+  // Failed writes leave allocations uncommitted until a later write succeeds.
+  bool _dirty = false;
   int _nextId = 1;
   Future<void> _serial = Future<void>.value();
 
@@ -54,6 +56,10 @@ final class WindowsNotificationIdStore {
         await _load();
         final existing = _ids[notificationScheduleId];
         if (existing != null) {
+          if (_dirty) {
+            await _persist();
+            _dirty = false;
+          }
           completer.complete(existing);
           return;
         }
@@ -62,7 +68,9 @@ final class WindowsNotificationIdStore {
         }
         final id = _nextId++;
         _ids[notificationScheduleId] = id;
+        _dirty = true;
         await _persist();
+        _dirty = false;
         completer.complete(id);
       } on Object catch (error, stackTrace) {
         completer.completeError(error, stackTrace);

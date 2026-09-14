@@ -5,8 +5,10 @@ import '../../../l10n/generated/app_localizations.dart';
 import '../../app/app_settings.dart';
 import '../../core/logging/redacting_logger.dart';
 import '../../l10n/locale_resolution.dart';
+import '../../platform/common/desktop_services.dart';
 import '../sync/sync_failure_notification_policy.dart';
 import 'desktop_notification_backend.dart';
+import 'notification_cancellation_queue.dart';
 
 export 'desktop_notification_backend.dart';
 
@@ -40,25 +42,34 @@ class DesktopNotificationService {
   DesktopNotificationService({
     required DesktopNotificationBackend backend,
     required AppSettings settings,
+    NotificationCancellationQueue? cancellationQueue,
     Locale? locale,
     Duration syncFailureDebounce = const Duration(minutes: 5),
     Duration reminderFailureRetryDelay = const Duration(minutes: 1),
     DateTime Function()? now,
+    Future<void> Function(DesktopNavigationDestination destination)?
+    onDestinationActivated,
   }) : _backend = backend,
+       _cancellations = cancellationQueue ?? NotificationCancellationQueue(),
        _settings = settings,
        _strings = locale == null
            ? NotificationStrings.forLocales(PlatformDispatcher.instance.locales)
            : NotificationStrings.forLocale(locale),
        _syncFailureDebounce = syncFailureDebounce,
        _reminderFailureRetryDelay = reminderFailureRetryDelay,
-       _now = now ?? DateTime.now;
+       _now = now ?? DateTime.now,
+       _onDestinationActivated = onDestinationActivated;
 
   final DesktopNotificationBackend _backend;
+  final NotificationCancellationQueue _cancellations;
   final AppSettings _settings;
   final NotificationStrings _strings;
   final Duration _syncFailureDebounce;
   final Duration _reminderFailureRetryDelay;
   final DateTime Function() _now;
+
+  final Future<void> Function(DesktopNavigationDestination destination)?
+  _onDestinationActivated;
 
   DateTime? _lastSyncFailureAt;
   String? _lastSyncFailureBody;
@@ -95,6 +106,7 @@ class DesktopNotificationService {
       body,
       BusyMaxNotificationCategory.networkError,
       stableId: 'sync-failure',
+      payload: const {'notificationRoute': 'sync-failure'},
     );
   }
 
@@ -110,20 +122,36 @@ class DesktopNotificationService {
       body,
       BusyMaxNotificationCategory.conflict,
       stableId: 'conflict',
+      payload: const {'notificationRoute': 'conflict'},
     );
   }
 
-  Future<void> notifyDueToday(int count) async {
-    if (!_settings.notifyDueToday || count <= 0 || _isQuietHours()) {
-      return;
+  Future<ReminderDeliveryResult> notifyDueToday(int count) async {
+    if (!_settings.notifyDueToday || count <= 0) {
+      return const ReminderDeliveryResult.disabled();
     }
-    await _safeNotify(
+    final quietHoursEnd = _quietHoursEndUtc();
+    if (quietHoursEnd != null) {
+      return ReminderDeliveryResult.deferred(quietHoursEnd);
+    }
+    final delivered = await _safeNotify(
       _strings.dueTodayTitle,
       _strings.dueTodayBody(count),
       BusyMaxNotificationCategory.reminder,
       stableId: 'due-today',
+      payload: const {'notificationRoute': 'due-today'},
     );
+    return delivered
+        ? const ReminderDeliveryResult.delivered()
+        : ReminderDeliveryResult.failed(
+            _now().add(_reminderFailureRetryDelay).toUtc(),
+          );
   }
+
+  Future<bool> cancelReminder(String deliveryId) =>
+      _cancellations.cancel(deliveryId, () => _backend.cancel(deliveryId));
+
+  Future<void> retryReminderCancellations() => _cancellations.retry();
 
   Future<ReminderDeliveryResult> notifyEventReminder(
     String title,
@@ -214,6 +242,15 @@ class DesktopNotificationService {
     bool transient = true,
   }) async {
     try {
+      final activation = DesktopActivation(
+        kind: DesktopActivationKind.notification,
+        action: 'default',
+        payload: payload,
+      );
+      final destination = activation.notificationDestination;
+      if (activation.isValid && destination != null) {
+        onActivated ??= () async => _onDestinationActivated?.call(destination);
+      }
       final hasActions = onActivated != null || onReminderAction != null;
       await _backend.notify(
         BusyMaxNotificationRequest(
@@ -242,6 +279,7 @@ class DesktopNotificationService {
             : (action, _) async {
                 switch (action) {
                   case 'default':
+                  case 'open':
                     if (onReminderAction != null) {
                       await onReminderAction(ReminderNotificationAction.open);
                     } else {

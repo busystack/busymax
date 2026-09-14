@@ -1,3 +1,4 @@
+import '../domain/event_property_policy.dart';
 import 'dart:convert';
 
 import 'package:busymax/src/providers/busy_provider.dart';
@@ -2393,9 +2394,15 @@ class CalendarRepository {
         await (_database.update(
           _database.calendarEvents,
         )..where((row) => row.id.equals(existing.id))).write(
-          CalendarEventsCompanion(
-            syncStatus: const Value('pending'),
-            updatedAtLocal: Value(now),
+          _eventPatchProjection(
+            draft: draft,
+            existing: existing,
+            provider: provider,
+            request: patchRequest,
+            startTimeZone: startTimeZone,
+            endTimeZone: endTimeZone,
+            conference: conferenceRequest,
+            now: now,
           ),
         );
         if (provider == BusyProvider.google &&
@@ -2760,8 +2767,8 @@ class CalendarRepository {
       importance: destinationProvider == BusyProvider.microsoft
           ? draft.importance
           : null,
-      showAs: _eventShowAsForProvider(draft.showAs, destinationProvider),
-      visibilityOrSensitivity: _eventVisibilityForProvider(
+      showAs: eventShowAsForProvider(draft.showAs, destinationProvider),
+      visibilityOrSensitivity: eventVisibilityForProvider(
         draft.visibilityOrSensitivity,
         destinationProvider,
       ),
@@ -5522,35 +5529,6 @@ Object _eventRemindersForProvider(Object? reminders, BusyProvider provider) {
     'overrides': [
       for (final value in minutes) {'method': 'popup', 'minutes': value},
     ],
-  };
-}
-
-String _eventShowAsForProvider(String? value, BusyProvider provider) {
-  if (provider == BusyProvider.microsoft) {
-    return switch (value) {
-      'free' || 'tentative' || 'busy' || 'oof' || 'workingElsewhere' => value!,
-      'transparent' => 'free',
-      _ => 'busy',
-    };
-  }
-  return switch (value) {
-    'opaque' || 'transparent' => value!,
-    'free' => 'transparent',
-    _ => 'opaque',
-  };
-}
-
-String _eventVisibilityForProvider(String? value, BusyProvider provider) {
-  if (provider == BusyProvider.microsoft) {
-    return switch (value) {
-      'normal' || 'personal' || 'private' || 'confidential' => value!,
-      _ => 'normal',
-    };
-  }
-  return switch (value) {
-    'default' || 'public' || 'private' || 'confidential' => value!,
-    'personal' => 'private',
-    _ => 'default',
   };
 }
 

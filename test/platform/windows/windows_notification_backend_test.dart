@@ -1,7 +1,9 @@
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:busymax/src/features/notifications/desktop_notification_backend.dart';
+import 'package:busymax/src/app/app_settings.dart';
+import 'package:busymax/src/features/notifications/desktop_notification_service.dart';
+import 'package:busymax/src/platform/windows/windows_activation_service.dart';
 import 'package:busymax/src/platform/common/desktop_services.dart';
 import 'package:busymax/src/platform/windows/windows_notification_backend.dart';
 import 'package:busymax/src/platform/windows/windows_notification_id_store.dart';
@@ -9,9 +11,18 @@ import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import '../../support/native_notification_activation_validator.dart';
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
   late Directory directory;
+  late NativeNotificationActivationValidator nativeValidator;
+
+  setUpAll(() async {
+    nativeValidator = await NativeNotificationActivationValidator.build();
+  });
+
+  tearDownAll(() => nativeValidator.dispose());
 
   setUp(() async {
     directory = await Directory.systemTemp.createTemp(
@@ -25,6 +36,134 @@ void main() {
 
   WindowsNotificationIdStore ids() =>
       WindowsNotificationIdStore(File('${directory.path}/ids.json'));
+
+  for (final route in ['due-today', 'sync-failure', 'conflict']) {
+    test(
+      '$route body click survives warm, cold, and native-validated forwarding',
+      () async {
+        final plugin = _FakeNotificationsPlugin();
+        final warm = <DesktopActivation>[];
+        final backend = await WindowsNotificationBackend.create(
+          appUserModelId: 'BusyStack.BusyMax_test',
+          plugin: plugin,
+          idStore: ids(),
+          onActivation: warm.add,
+        );
+        addTearDown(backend.close);
+        final service = DesktopNotificationService(
+          backend: backend,
+          settings: AppSettings.defaults().copyWith(notifyDueToday: true),
+        );
+        switch (route) {
+          case 'due-today':
+            await service.notifyDueToday(3);
+          case 'sync-failure':
+            await service.notifySyncFailure(StateError('sync failed'));
+          case 'conflict':
+            await service.notifyConflict('conflict');
+        }
+        final response = NotificationResponse(
+          notificationResponseType:
+              NotificationResponseType.selectedNotification,
+          payload: plugin.payloads.single,
+        );
+        plugin.response!(response);
+        expect(warm, hasLength(1));
+        expect(warm.single.requiresVisibleWindow, isTrue);
+        expect(warm.single.payload, {'notificationRoute': route});
+        expect(
+          warm.single.notificationDestination,
+          route == 'due-today'
+              ? DesktopNavigationDestination.tasks
+              : DesktopNavigationDestination.settings,
+        );
+        final cold = <DesktopActivation>[];
+        final coldBackend = await WindowsNotificationBackend.create(
+          appUserModelId: 'BusyStack.BusyMax_test',
+          plugin: _FakeNotificationsPlugin()..launchResponse = response,
+          idStore: ids(),
+          onActivation: cold.add,
+        );
+        addTearDown(coldBackend.close);
+        expect(cold.single.toJson(), warm.single.toJson());
+
+        const channel = MethodChannel('busymax/test/summary-forwarder');
+        final primary = WindowsActivationService(channel: channel);
+        final received = <DesktopActivation>[];
+        final subscription = primary.activations.listen(received.add);
+        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+            .setMockMethodCallHandler(channel, (call) async {
+              if (call.method == 'forwardActivation') {
+                final encoded = call.arguments as String;
+                if (!await nativeValidator.accepts(encoded)) return false;
+                primary.acceptEncoded(encoded);
+                return true;
+              }
+              return null;
+            });
+        addTearDown(() async {
+          await subscription.cancel();
+          await primary.dispose();
+          TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+              .setMockMethodCallHandler(channel, null);
+        });
+        await primary.initialize();
+        Future<bool>? forwarded;
+        final forwarder = await WindowsNotificationBackend.create(
+          appUserModelId: 'BusyStack.BusyMax_test',
+          plugin: _FakeNotificationsPlugin()..launchResponse = response,
+          activationForwarderOnly: true,
+          onActivation: (activation) {
+            forwarded = forwardWindowsActivationToPrimary(
+              activation,
+              channel: channel,
+            );
+          },
+        );
+        addTearDown(forwarder.close);
+        expect(forwarded, isNotNull);
+        expect(await forwarded, isTrue);
+        await Future<void>.delayed(Duration.zero);
+        expect(received.single.toJson(), warm.single.toJson());
+      },
+    );
+  }
+
+  test(
+    'summary routes reject reminder actions, mixed payloads, and mismatched identities',
+    () async {
+      final plugin = _FakeNotificationsPlugin();
+      final activations = <DesktopActivation>[];
+      final backend = await WindowsNotificationBackend.create(
+        appUserModelId: 'BusyStack.BusyMax_test',
+        plugin: plugin,
+        idStore: ids(),
+        onActivation: activations.add,
+      );
+      addTearDown(backend.close);
+      for (final extra in [
+        {'action': 'snooze'},
+        {'action': 'dismiss'},
+        {'notificationScheduleId': 'fabricated'},
+        {'stableId': 'different'},
+        {'notificationRoute': 'unknown'},
+      ]) {
+        plugin.response!(
+          NotificationResponse(
+            notificationResponseType:
+                NotificationResponseType.selectedNotification,
+            payload: jsonEncode({
+              'version': 1,
+              'stableId': 'due-today',
+              'notificationRoute': 'due-today',
+              ...extra,
+            }),
+          ),
+        );
+      }
+      expect(activations, isEmpty);
+    },
+  );
 
   test('missing AUMID fails initialization', () async {
     await expectLater(
@@ -164,6 +303,57 @@ void main() {
     );
   });
 
+  test(
+    'delivery generation survives warm and cold Windows action routing',
+    () async {
+      final activations = <DesktopActivation>[];
+      final plugin = _FakeNotificationsPlugin();
+      final backend = await WindowsNotificationBackend.create(
+        appUserModelId: 'BusyStack.BusyMax_test',
+        onActivation: activations.add,
+        plugin: plugin,
+        idStore: ids(),
+      );
+      await backend.notify(
+        const BusyMaxNotificationRequest(
+          stableId: 'schedule|generation-1',
+          title: 'Reminder',
+          payload: {
+            'notificationScheduleId': 'schedule',
+            'notificationGeneration': 'generation-1',
+          },
+          actions: [BusyMaxNotificationAction('snooze', 'Snooze')],
+        ),
+      );
+      final actionPayload =
+          plugin.details.single.windows!.actions.single.arguments;
+      final response = NotificationResponse(
+        notificationResponseType:
+            NotificationResponseType.selectedNotificationAction,
+        payload: actionPayload,
+      );
+      plugin.response!(response);
+      final coldPlugin = _FakeNotificationsPlugin()..launchResponse = response;
+      await WindowsNotificationBackend.create(
+        appUserModelId: 'BusyStack.BusyMax_test',
+        onActivation: activations.add,
+        plugin: coldPlugin,
+        idStore: ids(),
+      );
+      expect(activations, hasLength(2));
+      for (final activation in activations) {
+        expect(activation.action, 'snooze');
+        expect(activation.payload!['notificationGeneration'], 'generation-1');
+        expect(
+          DesktopActivation.tryDecode(activation.encode())?.payload,
+          activation.payload,
+        );
+      }
+      await backend.cancel('schedule|generation-1');
+      expect(plugin.cancelledIds, [plugin.shownIds.single]);
+    },
+  );
+
   test('Open, Snooze, and Dismiss route through one validated path', () async {
     final activations = <DesktopActivation>[];
     final plugin = _FakeNotificationsPlugin();
@@ -216,6 +406,7 @@ final class _FakeNotificationsPlugin
   final bool initializeResult;
   final Object? initializeError;
   DidReceiveNotificationResponseCallback? response;
+  NotificationResponse? launchResponse;
   final shownIds = <int>[];
   final cancelledIds = <int>[];
   final payloads = <String?>[];
@@ -233,8 +424,10 @@ final class _FakeNotificationsPlugin
 
   @override
   Future<NotificationAppLaunchDetails?>
-  getNotificationAppLaunchDetails() async =>
-      const NotificationAppLaunchDetails(false);
+  getNotificationAppLaunchDetails() async => NotificationAppLaunchDetails(
+    launchResponse != null,
+    notificationResponse: launchResponse,
+  );
 
   @override
   Future<void> show({

@@ -13,6 +13,37 @@ class AppLocalizationsEs extends AppLocalizations {
   AppLocalizationsEs([String locale = 'es']) : super(locale);
 
   @override
+  String get timeFormat => 'Formato de hora';
+
+  @override
+  String get timeFormatTwelveHour => '12 horas';
+
+  @override
+  String get timeFormatTwentyFourHour => '24 horas';
+
+  @override
+  String get timeEndOfDay => 'fin del día';
+
+  @override
+  String get timePeriod => 'Período del día';
+
+  @override
+  String get launchAtLoginReadFailed =>
+      'No se pudo determinar el estado del inicio automático.';
+
+  @override
+  String get launchAtLoginUnavailable =>
+      'El inicio automático no está disponible en este sistema.';
+
+  @override
+  String get windowsStartupEnabledByPolicy =>
+      'Tu administrador ha activado el inicio automático y no se puede cambiar aquí.';
+
+  @override
+  String get settingsSaveFailed =>
+      'No se pudo guardar la configuración. Los cambios podrían perderse al reiniciar BusyMax.';
+
+  @override
   String get nextcloudExportCollection => 'Exportar recursos de la colección';
 
   @override
@@ -1837,6 +1868,14 @@ class AppLocalizationsEs extends AppLocalizations {
   @override
   String get unsupportedRecurrencePreserved =>
       'Esta regla de repetición usa opciones que este editor no modifica.';
+
+  @override
+  String get taskRecurrenceDestinationUnsupported =>
+      'Esta lista no admite este patrón de repetición. Cambia el patrón o elige otra lista.';
+
+  @override
+  String get taskRecurrenceRequiresDate =>
+      'Añade una fecha de inicio o de vencimiento para usar este patrón, o desactiva la repetición.';
 
   @override
   String recurrenceUnsupportedByProvider(String provider) {

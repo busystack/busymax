@@ -1,3 +1,8 @@
+import 'package:busymax/src/app/app_settings.dart';
+import 'package:busymax/src/features/notifications/desktop_notification_service.dart';
+import 'package:busymax/src/features/notifications/notification_schedule_service.dart';
+import 'package:busymax/src/features/notifications/notification_scheduler.dart';
+import '../../../support/recording_notification_backend.dart';
 import 'dart:convert';
 
 import 'package:drift/drift.dart';
@@ -133,6 +138,76 @@ void main() {
     expect(ops.single.baselineRawJson, '{"id":"list-1","title":"Inbox"}');
     expect(mutationQueuedCalls, 1);
   });
+
+  test(
+    'offline list deletion cancels pending and displayed reminders',
+    () async {
+      final now = DateTime.utc(2026, 6, 4, 9);
+      await database
+          .update(database.accounts)
+          .write(const AccountsCompanion(provider: Value('microsoft')));
+      await database.taskListsDao.upsertTaskList(_taskList('list-1'));
+      for (final hour in [9, 10]) {
+        await database
+            .into(database.tasks)
+            .insert(
+              TasksCompanion.insert(
+                accountId: 'account',
+                taskListId: 'list-1',
+                id: 'task-$hour',
+                title: 'Task $hour',
+                rawJson: '{}',
+                createdLocalAtUtc: _now,
+                updatedLocalAtUtc: _now,
+                microsoftIsReminderOn: const Value(true),
+                microsoftReminderDateTime: Value(
+                  DateTime.utc(2026, 6, 4, hour).toIso8601String(),
+                ),
+                microsoftReminderTimeZone: const Value('UTC'),
+              ),
+            );
+      }
+      await NotificationScheduleService(
+        database: database,
+        nowUtc: () => now,
+      ).rebuildUpcomingTaskNotifications('account');
+      final backend = RecordingNotificationBackend();
+      final scheduler = NotificationScheduler(
+        database: database,
+        notifications: DesktopNotificationService(
+          backend: backend,
+          settings: AppSettings.defaults(),
+        ),
+        nowUtc: () => now,
+      );
+      addTearDown(scheduler.stop);
+      await scheduler.checkNow();
+      expect(backend.requests, hasLength(1));
+      expect(
+        await database.select(database.notificationSchedule).get(),
+        hasLength(2),
+      );
+      repository = TaskListsRepository(
+        database: database,
+        accountId: 'account',
+        nowUtc: () => now,
+        onNotificationScheduleChanged: scheduler.checkNow,
+      );
+      await repository.deleteTaskList('list-1');
+      expect(
+        await database.select(database.notificationSchedule).get(),
+        isEmpty,
+      );
+      expect(backend.cancelledIds, contains(backend.requests.single.stableId));
+      expect(backend.cancelledIds, hasLength(2));
+      expect(
+        (await database.select(database.pendingOps).get()).single.operation,
+        'delete_task_list',
+      );
+      await scheduler.checkNow();
+      expect(backend.requests, hasLength(1));
+    },
+  );
 
   test('deleteTaskList requests sync after queuing delete op', () async {
     var mutationQueuedCalls = 0;

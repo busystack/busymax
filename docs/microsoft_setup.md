@@ -1,27 +1,35 @@
-# Microsoft OAuth setup
+# Microsoft OAuth registration
 
-BusyMax requires a Microsoft public-client application ID, supplied as
-`MICROSOFT_OAUTH_CLIENT_ID` at build time.
+This guide is for developers and release maintainers who configure a BusyMax
+build. People installing an already configured package do not need their own
+Microsoft Entra application.
+
+BusyMax reads the public-client application ID from the compile-time setting
+`MICROSOFT_OAUTH_CLIENT_ID`.
 
 ## Create the application registration
 
-1. Open [Microsoft Entra](https://entra.microsoft.com/).
-2. Go to **App registrations** and select **New registration**.
-3. Enter an application name.
-4. Select the account type that supports both organizational and personal
-   Microsoft accounts.
-5. Add a **Public client/native mobile and desktop** redirect URI:
+1. In the [Microsoft Entra admin center](https://entra.microsoft.com/), open
+   **App registrations** and select **New registration**.
+2. Enter an application name.
+3. Select the supported account type that includes both organizational
+   directories and personal Microsoft accounts.
+4. Register the application and copy its **Application (client) ID**.
+5. Under **Authentication**, add the **Mobile and desktop applications**
+   platform and the redirect URI:
 
    ```text
    http://localhost
    ```
 
-6. Register the application and copy its **Application (client) ID**. Supply
-   that value as `MICROSOFT_OAUTH_CLIENT_ID`.
+BusyMax opens the system browser and listens on an ephemeral localhost port.
+Microsoft's
+[desktop registration guidance](https://learn.microsoft.com/en-us/entra/identity-platform/quickstart-desktop-app-sign-in)
+uses this redirect for a system-browser desktop flow.
 
-## Add delegated Microsoft Graph permissions
+## Add delegated permissions
 
-Under **API permissions**, add these delegated Microsoft Graph permissions:
+Under **API permissions**, add these **delegated** Microsoft Graph permissions:
 
 ```text
 User.Read
@@ -29,5 +37,16 @@ Tasks.ReadWrite
 Calendars.ReadWrite
 ```
 
-Do not create or embed a client secret. BusyMax uses the public-client OAuth
-flow.
+These are provider-console permission names. At runtime BusyMax requests their
+fully qualified Graph scope strings together with the identity scopes
+`openid`, `profile`, and `email`, plus `offline_access` so it can request
+refresh tokens. See the official
+[Microsoft Graph permissions reference](https://learn.microsoft.com/en-us/graph/permissions-reference)
+and
+[OpenID Connect scope reference](https://learn.microsoft.com/en-us/entra/identity-platform/scopes-oidc).
+
+Supply the application ID as `MICROSOFT_OAUTH_CLIENT_ID`. It is embedded in
+the desktop package, so treat it as public application configuration and do not
+commit private build configuration. Do not create or embed a client secret:
+BusyMax uses an authorization-code flow with PKCE as a public client, not a
+confidential-client flow.

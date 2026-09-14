@@ -1,4 +1,5 @@
 #include "../single_instance.h"
+#include "../clock_preference.h"
 
 #include <windows.h>
 
@@ -7,6 +8,7 @@
 #include <cstdint>
 #include <cstdlib>
 #include <iostream>
+#include <mutex>
 #include <string>
 #include <thread>
 #include <vector>
@@ -19,6 +21,57 @@ void Check(bool condition, const char* description) {
   if (condition) return;
   ++failures;
   std::cerr << "FAILED: " << description << std::endl;
+}
+
+std::wstring short_time_pattern;
+std::wstring long_time_pattern;
+bool fail_locale_read = false;
+
+int WINAPI ReadTestLocale(LPCWSTR locale, LCTYPE type, LPWSTR output, int size) {
+  Check(locale == LOCALE_NAME_USER_DEFAULT, "clock reads the user locale");
+  if (fail_locale_read) return 0;
+  // Deliberately implement the old long-time queries too: these regressions
+  // must fail if the production reader goes back to either of those sources.
+  std::wstring value;
+  if (type == LOCALE_SSHORTTIME) {
+    value = short_time_pattern;
+  } else if (type == LOCALE_STIMEFORMAT) {
+    value = long_time_pattern;
+  } else if (type == LOCALE_ITIME) {
+    value = BusyMaxShortTimeUses24Hours(long_time_pattern) == true ? L"1" : L"0";
+  } else {
+    Check(false, "unexpected locale query");
+    return 0;
+  }
+  const int required = static_cast<int>(value.size()) + 1;
+  if (size == 0) return required;
+  if (size < required || !output) return 0;
+  std::wmemcpy(output, value.c_str(), static_cast<std::size_t>(required));
+  return required;
+}
+
+void TestPreferredShortTimeClock() {
+  short_time_pattern = L"HH:mm";
+  long_time_pattern = L"h:mm:ss tt";
+  Check(BusyMaxRead24HourClock(&ReadTestLocale) == true,
+        "24-hour short time wins over 12-hour long time");
+  short_time_pattern = L"h:mm tt";
+  long_time_pattern = L"HH:mm:ss";
+  Check(BusyMaxRead24HourClock(&ReadTestLocale) == false,
+        "12-hour short time wins over 24-hour long time");
+  short_time_pattern = L"'h; o''clock' HH:mm;h:mm tt";
+  Check(BusyMaxRead24HourClock(&ReadTestLocale) == true,
+        "preferred short pattern ignores quoted literals and alternatives");
+  short_time_pattern = L"'H; o''clock' h:mm tt;HH:mm";
+  Check(BusyMaxRead24HourClock(&ReadTestLocale) == false,
+        "preferred 12-hour short pattern ignores literal uppercase H");
+  short_time_pattern = L"'HH:mm'";
+  Check(!BusyMaxRead24HourClock(&ReadTestLocale).has_value(),
+        "missing hour token does not fall back to the long clock");
+  fail_locale_read = true;
+  Check(!BusyMaxRead24HourClock(&ReadTestLocale).has_value(),
+        "locale read failure remains unavailable");
+  fail_locale_read = false;
 }
 
 void TestActivationValidation() {
@@ -52,7 +105,7 @@ void TestActivationValidation() {
   Check(!IsValidBusyMaxActivation(std::string(16 * 1024 + 1, 'x')),
         "oversized activation rejected");
   Check(IsValidBusyMaxActivation(
-            R"({"version":1,"kind":"notification","action":"snooze","payload":{"notificationScheduleId":"row-1","itemId":"item-1"}})"),
+            R"({"version":1,"kind":"notification","action":"snooze","payload":{"notificationScheduleId":"row-1","notificationGeneration":"delivery-1","itemId":"item-1"}})"),
         "notification action allowlist accepted");
   Check(!IsValidBusyMaxActivation(
             R"({"version":1,"kind":"notification","action":"run-command","payload":{"notificationScheduleId":"row-1"}})"),
@@ -99,8 +152,14 @@ void TestSimultaneousStartAndPipeAcknowledgment() {
   BusyMaxSingleInstance primary;
   if (primary.state() != BusyMaxInstanceState::kPrimary) return;
   std::atomic<int> activations = 0;
-  Check(primary.Start([&activations](std::string activation) {
-          if (IsValidBusyMaxActivation(activation)) ++activations;
+  std::mutex received_mutex;
+  std::vector<std::string> received;
+  Check(primary.Start([&](std::string activation) {
+          if (IsValidBusyMaxActivation(activation)) {
+            std::lock_guard<std::mutex> lock(received_mutex);
+            received.push_back(activation);
+            ++activations;
+          }
         }),
         "primary listener starts before application data");
 
@@ -113,6 +172,48 @@ void TestSimultaneousStartAndPipeAcknowledgment() {
   const ULONGLONG deadline = GetTickCount64() + 1000;
   while (activations.load() == 0 && GetTickCount64() < deadline) Sleep(5);
   Check(activations.load() == 1, "primary receives one activation");
+
+  // Exercise both sender and receiver validation through the real named pipe.
+  // These activations deliberately have no reminder schedule ID.
+  int expected_count = 1;
+  for (const std::string route : {"due-today", "sync-failure", "conflict"}) {
+    for (const std::string action : {"default", "open"}) {
+      const std::string activation =
+          R"({"version":1,"kind":"notification","action":")" + action +
+          R"(","payload":{"notificationRoute":")" + route + R"("}})";
+      Check(IsValidBusyMaxActivation(activation),
+            "runner accepts routed notification activation");
+      Check(secondary.ForwardActivation(activation),
+            "routed notification receives native pipe acknowledgment");
+      ++expected_count;
+      const ULONGLONG route_deadline = GetTickCount64() + 1000;
+      while (activations.load() < expected_count &&
+             GetTickCount64() < route_deadline) {
+        Sleep(5);
+      }
+      Check(activations.load() == expected_count,
+            "primary receives routed notification exactly once");
+      std::lock_guard<std::mutex> lock(received_mutex);
+      Check(!received.empty() && received.back() == activation,
+            "native forwarding preserves exact routed payload");
+    }
+    for (const std::string action : {"snooze", "dismiss"}) {
+      const std::string activation =
+          R"({"version":1,"kind":"notification","action":")" + action +
+          R"(","payload":{"notificationRoute":")" + route + R"("}})";
+      Check(!secondary.ForwardActivation(activation),
+            "native forwarding rejects reminder actions on summaries");
+    }
+    Check(!secondary.ForwardActivation(
+              R"({"version":1,"kind":"notification","action":"open","payload":{"notificationRoute":")" +
+              route + R"(","notificationScheduleId":"row-1"}})"),
+          "native forwarding rejects mixed route/reminder payloads");
+  }
+  Check(!secondary.ForwardActivation(
+            R"({"version":1,"kind":"notification","action":"open","payload":{"notificationRoute":"unknown"}})"),
+        "native forwarding rejects unknown routes");
+  Check(activations.load() == expected_count,
+        "rejected notifications never reach the primary");
 
   primary.Stop();
   Check(!secondary.ForwardActivation(
@@ -169,6 +270,13 @@ void TestForwardingTimeoutIsBounded() {
 }  // namespace
 
 int main() {
+  TestPreferredShortTimeClock();
+  Check(BusyMaxRead24HourClock().has_value(), "user clock preference can be read");
+  Check(BusyMaxClockRefreshMessage(WM_SETTINGCHANGE, 0, reinterpret_cast<LPARAM>(L"intl")), "locale settings refresh the clock");
+  Check(BusyMaxClockRefreshMessage(WM_SETTINGCHANGE, 0, 0), "unspecified settings refresh the clock");
+  Check(!BusyMaxClockRefreshMessage(WM_SETTINGCHANGE, 0, reinterpret_cast<LPARAM>(L"Environment")), "unrelated settings do not refresh the clock");
+  Check(BusyMaxClockRefreshMessage(WM_ACTIVATEAPP, TRUE, 0), "reactivation refreshes the clock");
+  Check(!BusyMaxClockRefreshMessage(WM_ACTIVATEAPP, FALSE, 0), "deactivation does not refresh the clock");
   TestActivationValidation();
   TestFatalInitializationStates();
   TestListenerStartupAcknowledgmentFailure();

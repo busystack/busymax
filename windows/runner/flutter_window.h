@@ -40,6 +40,9 @@ class FlutterWindow : public Win32Window {
   std::unique_ptr<flutter::FlutterViewController> flutter_controller_;
   std::unique_ptr<flutter::MethodChannel<flutter::EncodableValue>>
       desktop_channel_;
+  std::unique_ptr<flutter::MethodChannel<flutter::EncodableValue>> clock_channel_;
+  bool uses_24_hour_clock_ = false;
+  void RefreshClockPreference();
   std::mutex activation_mutex_;
   std::vector<std::string> pending_activations_;
   bool activation_ready_ = false;

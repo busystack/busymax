@@ -13,6 +13,37 @@ class AppLocalizationsFa extends AppLocalizations {
   AppLocalizationsFa([String locale = 'fa']) : super(locale);
 
   @override
+  String get timeFormat => 'قالب زمان';
+
+  @override
+  String get timeFormatTwelveHour => '۱۲ ساعته';
+
+  @override
+  String get timeFormatTwentyFourHour => '۲۴ ساعته';
+
+  @override
+  String get timeEndOfDay => 'پایان روز';
+
+  @override
+  String get timePeriod => 'بازهٔ روز';
+
+  @override
+  String get launchAtLoginReadFailed =>
+      'وضعیت اجرای خودکار هنگام ورود مشخص نشد.';
+
+  @override
+  String get launchAtLoginUnavailable =>
+      'اجرای خودکار هنگام ورود در این سیستم در دسترس نیست.';
+
+  @override
+  String get windowsStartupEnabledByPolicy =>
+      'اجرای خودکار توسط مدیر فعال شده و از اینجا قابل تغییر نیست.';
+
+  @override
+  String get settingsSaveFailed =>
+      'تنظیمات ذخیره نشد. ممکن است تغییرات شما با راه‌اندازی دوبارهٔ BusyMax از بین برود.';
+
+  @override
   String get nextcloudExportCollection => 'برون‌بری منابع مجموعه';
 
   @override
@@ -1852,6 +1883,14 @@ class AppLocalizationsFa extends AppLocalizations {
   @override
   String get unsupportedRecurrencePreserved =>
       'این قانون تکرار از گزینه‌هایی استفاده می‌کند که این ویرایشگر تغییر نمی‌دهد.';
+
+  @override
+  String get taskRecurrenceDestinationUnsupported =>
+      'این فهرست از این الگوی تکرار پشتیبانی نمی‌کند. الگو را تغییر دهید یا فهرست دیگری انتخاب کنید.';
+
+  @override
+  String get taskRecurrenceRequiresDate =>
+      'برای استفاده از این الگوی تکرار، تاریخ شروع یا سررسید اضافه کنید یا تکرار را خاموش کنید.';
 
   @override
   String recurrenceUnsupportedByProvider(String provider) {

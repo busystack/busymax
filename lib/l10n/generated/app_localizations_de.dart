@@ -13,6 +13,37 @@ class AppLocalizationsDe extends AppLocalizations {
   AppLocalizationsDe([String locale = 'de']) : super(locale);
 
   @override
+  String get timeFormat => 'Zeitformat';
+
+  @override
+  String get timeFormatTwelveHour => '12 Stunden';
+
+  @override
+  String get timeFormatTwentyFourHour => '24 Stunden';
+
+  @override
+  String get timeEndOfDay => 'Tagesende';
+
+  @override
+  String get timePeriod => 'Tageszeit';
+
+  @override
+  String get launchAtLoginReadFailed =>
+      'Der Status des Starts bei der Anmeldung konnte nicht ermittelt werden.';
+
+  @override
+  String get launchAtLoginUnavailable =>
+      'Der Start bei der Anmeldung ist auf diesem System nicht verfügbar.';
+
+  @override
+  String get windowsStartupEnabledByPolicy =>
+      'Der Autostart wurde von Ihrem Administrator aktiviert und kann hier nicht geändert werden.';
+
+  @override
+  String get settingsSaveFailed =>
+      'Die Einstellungen konnten nicht gespeichert werden. Ihre Änderungen können beim Neustart von BusyMax verloren gehen.';
+
+  @override
   String get nextcloudExportCollection => 'Sammlungsressourcen exportieren';
 
   @override
@@ -1832,6 +1863,14 @@ class AppLocalizationsDe extends AppLocalizations {
   @override
   String get unsupportedRecurrencePreserved =>
       'Diese Wiederholungsregel verwendet Optionen, die dieser Editor nicht ändert.';
+
+  @override
+  String get taskRecurrenceDestinationUnsupported =>
+      'Diese Liste unterstützt dieses Wiederholungsmuster nicht. Ändere das Muster oder wähle eine andere Liste.';
+
+  @override
+  String get taskRecurrenceRequiresDate =>
+      'Füge ein Start- oder Fälligkeitsdatum hinzu, um dieses Wiederholungsmuster zu verwenden, oder deaktiviere die Wiederholung.';
 
   @override
   String recurrenceUnsupportedByProvider(String provider) {

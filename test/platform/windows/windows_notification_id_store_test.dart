@@ -41,6 +41,30 @@ void main() {
     expect(await restarted.idFor('schedule-new'), isNot(id));
   });
 
+  test(
+    'failed persistence must succeed on retry before an ID is returned',
+    () async {
+      final store = WindowsNotificationIdStore(file);
+      await store.initialize();
+      final obstruction = Directory('${file.path}.new');
+      await obstruction.create();
+      await expectLater(
+        store.idFor('due-today'),
+        throwsA(isA<FileSystemException>()),
+      );
+      // Repeated requests must not take the in-memory fast path.
+      await expectLater(
+        store.idFor('due-today'),
+        throwsA(isA<FileSystemException>()),
+      );
+      await obstruction.delete();
+      final id = await store.idFor('due-today');
+      final reopened = WindowsNotificationIdStore(file);
+      expect(await reopened.idFor('due-today'), id);
+      expect(await reopened.idFor('conflict'), isNot(id));
+    },
+  );
+
   test('rejects persisted collisions instead of overwriting a toast', () async {
     await file.writeAsString(
       jsonEncode({

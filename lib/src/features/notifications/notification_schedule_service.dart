@@ -1,11 +1,14 @@
 import 'dart:convert';
 
 import 'package:drift/drift.dart';
+import 'package:uuid/uuid.dart';
+import 'package:busymax/src/providers/busy_provider.dart';
 
+import '../../calendar_providers/calendar_description.dart';
+import '../../core/time/stored_temporal_projection.dart';
 import '../../core/time/provider_date_time.dart';
 import '../../dav/ical/ical_task_alarm.dart';
 import '../../db/app_database.dart';
-import 'package:busymax/src/providers/busy_provider.dart';
 import '../accounts/data/accounts_repository.dart';
 
 class NotificationScheduleService {
@@ -18,10 +21,23 @@ class NotificationScheduleService {
   final AppDatabase _database;
   final DateTime Function() _nowUtc;
 
-  Future<void> rebuildUpcomingEventNotifications(String accountId) async {
+  Future<void> rebuildUpcomingEventNotifications(String accountId) =>
+      _database.transaction(() async {
+        final desired = await _eventNotifications(accountId);
+        await _reconcileNotifications(
+          accountId: accountId,
+          sourceType: 'event',
+          notifications: desired.values,
+        );
+      });
+
+  Future<Map<String, _PendingNotification>> _eventNotifications(
+    String accountId, {
+    String? sourceId,
+  }) async {
     final now = _nowUtc();
     final notifications = <String, _PendingNotification>{};
-    final pendingIds = await _pendingNotificationIds(accountId, 'event');
+    final retainedIds = await _actionableNotificationIds(accountId, 'event');
     final sourcesById = {
       for (final source
           in await (_database.select(_database.calendarSources)..where(
@@ -37,6 +53,9 @@ class NotificationScheduleService {
         await (_database.select(_database.calendarEvents)..where(
               (row) =>
                   row.accountId.equals(accountId) &
+                  (sourceId == null
+                      ? const Constant(true)
+                      : row.id.equals(sourceId)) &
                   row.isDeleted.equals(false) &
                   row.isCancelled.equals(false),
             ))
@@ -46,11 +65,11 @@ class NotificationScheduleService {
       if (source == null) {
         continue;
       }
-      final startUtc = _eventStartUtc(event);
+      final startUtc = calendarEventStartAsLocal(event)?.toUtc();
       if (startUtc == null) {
         continue;
       }
-      final endUtc = _eventEndUtc(event);
+      final endUtc = calendarEventEndAsLocal(event)?.toUtc();
       final reminders = _eventReminders(
         event,
         source: source,
@@ -61,7 +80,7 @@ class NotificationScheduleService {
         final reminderAt = reminder.scheduledAtUtc;
         final id = 'event|${event.id}|${reminder.key}';
         if (!reminder.relevantUntilUtc.isAfter(now) &&
-            !pendingIds.contains(id)) {
+            !retainedIds.contains(id)) {
           continue;
         }
         notifications[id] = _PendingNotification(
@@ -71,21 +90,58 @@ class NotificationScheduleService {
           sourceId: event.id,
           scheduledAtUtc: reminderAt,
           title: event.title,
-          body: event.description ?? event.location,
+          body: _eventPreview(event),
         );
       }
     }
-    await _reconcileNotifications(
-      accountId: accountId,
-      sourceType: 'event',
-      notifications: notifications.values,
-    );
+    return notifications;
   }
 
-  Future<void> rebuildUpcomingTaskNotifications(String accountId) async {
+  String? _eventPreview(CalendarEvent event) {
+    if (event.provider != BusyProvider.google.storageValue ||
+        event.description == null) {
+      return event.description ?? event.location;
+    }
+    try {
+      return htmlCalendarDescriptionToPlainText(event.description!);
+    } on Object {
+      // Preview content is optional; it must never block alarm reconciliation.
+      return event.location;
+    }
+  }
+
+  Future<void> rebuildUpcomingTaskNotifications(String accountId) =>
+      _database.transaction(() async {
+        final desired = await _taskNotifications(accountId);
+        await _reconcileNotifications(
+          accountId: accountId,
+          sourceType: 'task',
+          notifications: desired.values,
+        );
+      });
+
+  Future<Map<String, _PendingNotification>> _taskNotifications(
+    String accountId, {
+    String? sourceId,
+  }) async {
     final now = _nowUtc();
     final notifications = <String, _PendingNotification>{};
-    final pendingIds = await _pendingNotificationIds(accountId, 'task');
+    final existing =
+        await (_database.select(_database.notificationSchedule)..where(
+              (row) =>
+                  row.accountId.equals(accountId) &
+                  row.sourceType.equals('task'),
+            ))
+            .get();
+    final retainedIds = {
+      for (final row in existing)
+        if (row.dismissedAtUtc == null) row.id,
+    };
+    final existingById = {for (final row in existing) row.id: row};
+    final existingBySource = <String, List<NotificationScheduleData>>{};
+    for (final row in existing) {
+      (existingBySource[row.sourceId] ??= []).add(row);
+    }
     final account = await (_database.select(
       _database.accounts,
     )..where((row) => row.id.equals(accountId))).getSingleOrNull();
@@ -111,6 +167,9 @@ class NotificationScheduleService {
         await (_database.select(_database.tasks)..where(
               (row) =>
                   row.accountId.equals(accountId) &
+                  (sourceId == null
+                      ? const Constant(true)
+                      : row.id.equals(sourceId)) &
                   row.pendingDelete.equals(false) &
                   row.serverMissing.equals(false) &
                   (row.deleted.isNull() | row.deleted.equals(false)) &
@@ -121,7 +180,7 @@ class NotificationScheduleService {
       if (!reminderEnabledTaskListIds.contains(task.taskListId)) {
         continue;
       }
-      if (task.status == 'completed') {
+      if (task.status == 'completed' || task.status == 'cancelled') {
         continue;
       }
       final reminders = isDav
@@ -129,8 +188,24 @@ class NotificationScheduleService {
           : _providerTaskReminders(task);
       final baseId = 'task|${task.accountId}|${task.taskListId}|${task.id}';
       for (final reminder in reminders) {
-        final id = reminder.key == null ? baseId : '$baseId|${reminder.key}';
-        if (reminder.scheduledAtUtc.isBefore(now) && !pendingIds.contains(id)) {
+        final canonicalId = reminder.key == null
+            ? baseId
+            : '$baseId|${reminder.key}';
+        // ID replacement preserves the delivery ID so notification-center
+        // actions remain valid. Reuse that identity for the unchanged alarm.
+        final previous =
+            (existingBySource[task.id] ?? const <NotificationScheduleData>[])
+                .where(
+                  (row) =>
+                      row.scheduledAtUtc ==
+                          reminder.scheduledAtUtc.millisecondsSinceEpoch &&
+                      !notifications.containsKey(row.id),
+                );
+        final id = existingById.containsKey(canonicalId)
+            ? canonicalId
+            : previous.firstOrNull?.id ?? canonicalId;
+        if (reminder.scheduledAtUtc.isBefore(now) &&
+            !retainedIds.contains(id)) {
           continue;
         }
         notifications[id] = _PendingNotification(
@@ -144,19 +219,55 @@ class NotificationScheduleService {
         );
       }
     }
-    await _reconcileNotifications(
-      accountId: accountId,
-      sourceType: 'task',
-      notifications: notifications.values,
-    );
+    return notifications;
   }
+
+  /// Validate the alarm itself against the same projection used by rebuilds.
+  /// Preserve the original alarm time for snoozes and transferred local IDs.
+  /// Repair a changed source immediately, even while sync awaits another page.
+  Future<bool> validateAndReconcileReminder(
+    NotificationScheduleData row,
+  ) => _database.transaction(() async {
+    final current = await (_database.select(
+      _database.notificationSchedule,
+    )..where((table) => table.id.equals(row.id))).getSingleOrNull();
+    if (current == null ||
+        current.generation != row.generation ||
+        current.scheduledAtUtc != row.scheduledAtUtc ||
+        current.dismissedAtUtc != null) {
+      return false;
+    }
+    final desired = switch (row.sourceType) {
+      'event' => await _eventNotifications(
+        row.accountId,
+        sourceId: row.sourceId,
+      ),
+      'task' => await _taskNotifications(row.accountId, sourceId: row.sourceId),
+      _ => <String, _PendingNotification>{},
+    };
+    final reminder = desired[row.id];
+    if (reminder != null &&
+        reminder.sourceId == row.sourceId &&
+        reminder.scheduledAtUtc.millisecondsSinceEpoch == row.scheduledAtUtc) {
+      return true;
+    }
+    await _reconcileNotifications(
+      accountId: row.accountId,
+      sourceType: row.sourceType,
+      sourceId: row.sourceId,
+      notifications: desired.values,
+    );
+    return false;
+  });
 
   Future<void> rebuildUpcomingNotifications(String accountId) async {
     await rebuildUpcomingEventNotifications(accountId);
     await rebuildUpcomingTaskNotifications(accountId);
   }
 
-  Future<Set<String>> _pendingNotificationIds(
+  // Sent reminders still back Open/Snooze actions in the notification center.
+  // Retain them while their source and reminder exist and are enabled.
+  Future<Set<String>> _actionableNotificationIds(
     String accountId,
     String sourceType,
   ) async {
@@ -165,7 +276,6 @@ class NotificationScheduleService {
               (row) =>
                   row.accountId.equals(accountId) &
                   row.sourceType.equals(sourceType) &
-                  row.sentAtUtc.isNull() &
                   row.dismissedAtUtc.isNull(),
             ))
             .get();
@@ -176,6 +286,7 @@ class NotificationScheduleService {
     required String accountId,
     required String sourceType,
     required Iterable<_PendingNotification> notifications,
+    String? sourceId,
   }) async {
     final desired = {
       for (final notification in notifications) notification.id: notification,
@@ -199,7 +310,10 @@ class NotificationScheduleService {
           await (_database.select(_database.notificationSchedule)..where(
                 (row) =>
                     row.accountId.equals(accountId) &
-                    row.sourceType.equals(sourceType),
+                    row.sourceType.equals(sourceType) &
+                    (sourceId == null
+                        ? const Constant(true)
+                        : row.sourceId.equals(sourceId)),
               ))
               .get();
       final existingById = {for (final row in existing) row.id: row};
@@ -222,6 +336,9 @@ class NotificationScheduleService {
               ))
               .write(
                 NotificationScheduleCompanion(
+                  generation: existingRow.scheduledAtUtc != scheduledAt
+                      ? Value(const Uuid().v4())
+                      : const Value.absent(),
                   sourceId: Value(notification.sourceId),
                   scheduledAtUtc: Value(scheduledAt),
                   title: Value(notification.title),
@@ -246,6 +363,7 @@ class NotificationScheduleService {
             .insert(
               NotificationScheduleCompanion.insert(
                 id: notification.id,
+                generation: Value(const Uuid().v4()),
                 accountId: notification.accountId,
                 sourceType: notification.sourceType,
                 sourceId: notification.sourceId,
@@ -409,22 +527,6 @@ class _PendingNotification {
   final DateTime scheduledAtUtc;
   final String title;
   final String? body;
-}
-
-DateTime? _eventStartUtc(CalendarEvent event) {
-  if (event.allDay) {
-    return _parseDate(event.startDate)?.toUtc();
-  }
-  return _projectedUtc(event.rawJson, 'startUtc') ??
-      providerDateTimeAsUtcInstant(event.startDateTime, event.startTimeZone);
-}
-
-DateTime? _eventEndUtc(CalendarEvent event) {
-  if (event.allDay) {
-    return _parseDate(event.endDate)?.toUtc();
-  }
-  return _projectedUtc(event.rawJson, 'endUtc') ??
-      providerDateTimeAsUtcInstant(event.endDateTime, event.endTimeZone);
 }
 
 List<_EventReminder> _eventReminders(
@@ -594,22 +696,6 @@ List<int> _googleDefaultReminderMinutes(CalendarSource? source) {
       if (item is Map && item['method'] == 'popup' && item['minutes'] is int)
         item['minutes'] as int,
   ];
-}
-
-DateTime? _parseDate(String? value) {
-  if (value == null || value.length < 10) {
-    return null;
-  }
-  return DateTime.tryParse('${value.substring(0, 10)}T00:00:00');
-}
-
-DateTime? _projectedUtc(String? rawJson, String key) {
-  if (rawJson == null || rawJson.isEmpty) return null;
-  final decoded = _decodeJson(rawJson);
-  if (decoded is! Map) return null;
-  final value = decoded[key];
-  if (value is! String) return null;
-  return DateTime.tryParse(value)?.toUtc();
 }
 
 final class _EventReminder {

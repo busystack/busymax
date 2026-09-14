@@ -13,6 +13,37 @@ class AppLocalizationsFr extends AppLocalizations {
   AppLocalizationsFr([String locale = 'fr']) : super(locale);
 
   @override
+  String get timeFormat => 'Format de l’heure';
+
+  @override
+  String get timeFormatTwelveHour => '12 heures';
+
+  @override
+  String get timeFormatTwentyFourHour => '24 heures';
+
+  @override
+  String get timeEndOfDay => 'fin de journée';
+
+  @override
+  String get timePeriod => 'Période de la journée';
+
+  @override
+  String get launchAtLoginReadFailed =>
+      'Impossible de déterminer l’état du lancement à la connexion.';
+
+  @override
+  String get launchAtLoginUnavailable =>
+      'Le lancement à la connexion n’est pas disponible sur ce système.';
+
+  @override
+  String get windowsStartupEnabledByPolicy =>
+      'Le démarrage automatique est activé par votre administrateur et ne peut pas être modifié ici.';
+
+  @override
+  String get settingsSaveFailed =>
+      'Impossible d’enregistrer les paramètres. Vos modifications risquent d’être perdues au redémarrage de BusyMax.';
+
+  @override
   String get nextcloudExportCollection =>
       'Exporter les ressources de la collection';
 
@@ -1837,6 +1868,14 @@ class AppLocalizationsFr extends AppLocalizations {
   @override
   String get unsupportedRecurrencePreserved =>
       'Cette règle de récurrence utilise des options que cet éditeur ne modifie pas.';
+
+  @override
+  String get taskRecurrenceDestinationUnsupported =>
+      'Cette liste ne prend pas en charge ce modèle de répétition. Modifiez le modèle ou choisissez une autre liste.';
+
+  @override
+  String get taskRecurrenceRequiresDate =>
+      'Ajoutez une date de début ou d’échéance pour utiliser ce modèle de répétition, ou désactivez la répétition.';
 
   @override
   String recurrenceUnsupportedByProvider(String provider) {

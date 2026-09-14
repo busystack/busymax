@@ -13,6 +13,37 @@ class AppLocalizationsEn extends AppLocalizations {
   AppLocalizationsEn([String locale = 'en']) : super(locale);
 
   @override
+  String get timeFormat => 'Time format';
+
+  @override
+  String get timeFormatTwelveHour => '12-hour';
+
+  @override
+  String get timeFormatTwentyFourHour => '24-hour';
+
+  @override
+  String get timeEndOfDay => 'end of day';
+
+  @override
+  String get timePeriod => 'Day period';
+
+  @override
+  String get launchAtLoginReadFailed =>
+      'Could not determine the launch-at-login state.';
+
+  @override
+  String get launchAtLoginUnavailable =>
+      'Launch at login is unavailable on this system.';
+
+  @override
+  String get windowsStartupEnabledByPolicy =>
+      'Startup is enabled by your administrator and cannot be changed here.';
+
+  @override
+  String get settingsSaveFailed =>
+      'Could not save settings. Your changes may be lost when BusyMax restarts.';
+
+  @override
   String get nextcloudExportCollection => 'Export collection resources';
 
   @override
@@ -1851,6 +1882,14 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get unsupportedRecurrencePreserved =>
       'This recurrence rule uses options that this editor does not change.';
+
+  @override
+  String get taskRecurrenceDestinationUnsupported =>
+      'This list cannot use this repeat pattern. Change the pattern or choose another list.';
+
+  @override
+  String get taskRecurrenceRequiresDate =>
+      'Add a start or due date to use this repeat pattern, or turn off repeat.';
 
   @override
   String recurrenceUnsupportedByProvider(String provider) {

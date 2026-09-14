@@ -1,3 +1,5 @@
+import 'windows_time_picker.dart';
+import 'package:busymax/src/l10n/time_format_scope.dart';
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
@@ -8,19 +10,22 @@ import '../../dav/ical/ical_task_alarm.dart';
 import '../../features/recurrence/domain/event_recurrence_codec.dart';
 import '../../features/recurrence/domain/recurrence_rule.dart';
 import '../../features/task_lists/data/task_lists_repository.dart';
-import '../../features/tasks/data/tasks_repository.dart';
 import '../../features/tasks/domain/task_capabilities.dart';
 import '../../providers/busy_provider.dart';
 import '../common/busymax_glyph.dart';
+import '../common/editor_state_builder.dart';
 import 'windows_busymax_glyphs.dart';
 import 'windows_recurrence_dialog.dart';
-import 'windows_task_create_fields.dart';
+import '../../features/tasks/presentation/task_details_draft.dart';
 import 'windows_time_zone_dialog.dart';
 
 Future<bool> showWindowsTaskEditorDialog(
   BuildContext context,
-  WidgetRef ref,
-) async {
+  WidgetRef ref, {
+  String? initialAccountId,
+  String? initialTaskListId,
+  DateTime? initialDate,
+}) async {
   final accounts = await ref
       .read(accountsRepositoryProvider)
       .watchAccounts()
@@ -44,7 +49,7 @@ Future<bool> showWindowsTaskEditorDialog(
           : adapterDefaultTaskCapabilities(account.provider);
       if (value.canCreateTasks) {
         lists.add(list);
-        capabilities[list.id] = value;
+        capabilities['${list.accountId}/${list.id}'] = value;
       }
     }
   }
@@ -71,9 +76,17 @@ Future<bool> showWindowsTaskEditorDialog(
   final location = TextEditingController();
   final taskUrl = TextEditingController();
   final categories = TextEditingController();
-  var selectedList = lists.first;
+  var selectedList = lists.firstWhere(
+    (list) =>
+        (initialAccountId == null || list.accountId == initialAccountId) &&
+        (initialTaskListId == null || list.id == initialTaskListId),
+    orElse: () => lists.first,
+  );
   var selectedTimeZone = ref.read(localTimeZoneProvider);
-  DateTime? due;
+  DateTime? due = initialDate == null
+      ? null
+      : DateTime(initialDate.year, initialDate.month, initialDate.day);
+  final initialDue = due;
   DateTime? start;
   var scheduledAllDay = true;
   DateTime? reminder;
@@ -92,16 +105,42 @@ Future<bool> showWindowsTaskEditorDialog(
   var allowPop = false;
   String? error;
   final initialListId = selectedList.id;
+  final originalAccountId = selectedList.accountId;
   final initialTimeZone = selectedTimeZone;
+  TaskDetailsDraft currentDraft() => TaskDetailsDraft.forCreation(
+    taskListId: selectedList.id,
+    provider: accountsById[selectedList.accountId]!.provider,
+    timeZone: selectedTimeZone,
+    title: title.text,
+    notes: notes.text,
+    due: due,
+    start: start,
+    reminder: reminder,
+    alarms: alarms,
+    scheduledAllDay: scheduledAllDay,
+    recurrence: recurrence,
+    importance: importance,
+    status: status,
+    priority: priority,
+    progress: progress,
+    location: location.text,
+    taskUrl: taskUrl.text,
+    classification: classification,
+    pinned: pinned,
+    hideSubtasks: hideSubtasks,
+    hideCompletedSubtasks: hideCompletedSubtasks,
+    categories: _categories(categories.text),
+  );
   bool hasPendingEdits() =>
       selectedList.id != initialListId ||
+      selectedList.accountId != originalAccountId ||
       selectedTimeZone != initialTimeZone ||
       title.text.isNotEmpty ||
       notes.text.isNotEmpty ||
       location.text.isNotEmpty ||
       taskUrl.text.isNotEmpty ||
       categories.text.isNotEmpty ||
-      due != null ||
+      due != initialDue ||
       start != null ||
       !scheduledAllDay ||
       reminder != null ||
@@ -119,19 +158,21 @@ Future<bool> showWindowsTaskEditorDialog(
   await showDialog<void>(
     context: context,
     barrierDismissible: false,
-    builder: (dialogContext) => StatefulBuilder(
+    builder: (dialogContext) => EditorStateBuilder(
+      textControllers: [title, notes, location, taskUrl, categories],
       builder: (context, setState) {
         final l10n = AppLocalizations.of(context);
         final capability =
-            capabilities[selectedList.id] ?? noTaskCollectionCapabilities;
+            capabilities['${selectedList.accountId}/${selectedList.id}'] ??
+            noTaskCollectionCapabilities;
         final provider =
             accountsById[selectedList.accountId]?.provider ??
             BusyProvider.google;
-        final validUrl =
-            taskUrl.text.trim().isEmpty ||
-            (Uri.tryParse(taskUrl.text.trim())?.hasScheme ?? false);
+        final draft = currentDraft();
+        final validUrl = draft.hasValidTaskUrlFor(capability);
         final validSchedule =
-            due == null || start == null || !due!.isBefore(start!);
+            draft.scheduleIssueFor(capability) == TaskScheduleIssue.none;
+        final recurrenceIssue = draft.recurrenceIssueFor(capability);
         void closeDialog() {
           setState(() => allowPop = true);
           WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -172,7 +213,12 @@ Future<bool> showWindowsTaskEditorDialog(
                       value: selectedList,
                       items: [
                         for (final list in lists)
-                          ComboBoxItem(value: list, child: Text(list.title)),
+                          ComboBoxItem(
+                            value: list,
+                            child: Text(
+                              '${accountsById[list.accountId]?.selectorLabel ?? list.accountId} · ${list.title}',
+                            ),
+                          ),
                       ],
                       onChanged: saving
                           ? null
@@ -180,15 +226,43 @@ Future<bool> showWindowsTaskEditorDialog(
                               if (list != null) {
                                 setState(() {
                                   selectedList = list;
-                                  recurrence = const RecurrenceRule.none();
-                                  reminder = null;
-                                  alarms = [];
-                                  scheduledAllDay = true;
                                 });
                               }
                             },
                     ),
                   ),
+                  if (recurrenceIssue != TaskRecurrenceIssue.none) ...[
+                    const SizedBox(height: 12),
+                    InfoBar(
+                      title: Text(
+                        recurrenceIssue == TaskRecurrenceIssue.missingDate
+                            ? l10n.taskRecurrenceRequiresDate
+                            : l10n.taskRecurrenceDestinationUnsupported,
+                      ),
+                      severity: InfoBarSeverity.warning,
+                      action: Button(
+                        onPressed: saving
+                            ? null
+                            : () async {
+                                final value = await showWindowsRecurrenceDialog(
+                                  context,
+                                  initial: recurrence,
+                                  baseDate: start ?? due ?? DateTime.now(),
+                                  allDay: scheduledAllDay,
+                                  timeZone: selectedTimeZone,
+                                  providerLabel: provider.displayName,
+                                  limits: EventRecurrenceCodec.limitsFor(
+                                    provider,
+                                  ),
+                                );
+                                if (value != null && context.mounted) {
+                                  setState(() => recurrence = value);
+                                }
+                              },
+                        child: Text(l10n.repeat),
+                      ),
+                    ),
+                  ],
                   if (capability.supportsDueDate) ...[
                     const SizedBox(height: 12),
                     _DateTimeField(
@@ -246,301 +320,11 @@ Future<bool> showWindowsTaskEditorDialog(
                       ),
                     ),
                   ],
-                  if (capability.supportsReminderDateTime &&
-                      !capability.supportsMultipleReminders) ...[
+                  if (!validSchedule) ...[
                     const SizedBox(height: 12),
-                    ToggleSwitch(
-                      checked: reminder != null,
-                      onChanged: saving
-                          ? null
-                          : (enabled) => setState(
-                              () => reminder = enabled
-                                  ? (due ?? start ?? DateTime.now()).subtract(
-                                      const Duration(minutes: 15),
-                                    )
-                                  : null,
-                            ),
-                      content: Text(l10n.reminder),
-                    ),
-                    if (reminder != null) ...[
-                      const SizedBox(height: 8),
-                      _DateTimeField(
-                        label: l10n.reminderTime,
-                        value: reminder,
-                        showTime: true,
-                        enabled: !saving,
-                        onChanged: (value) => setState(() => reminder = value),
-                      ),
-                    ],
-                  ],
-                  if (capability.supportsMultipleReminders) ...[
-                    const SizedBox(height: 12),
-                    InfoLabel(
-                      label: l10n.reminder,
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          for (var index = 0; index < alarms.length; index += 1)
-                            ListTile(
-                              title: Text(
-                                _newTaskAlarmLabel(context, alarms[index]),
-                              ),
-                              onPressed: saving
-                                  ? null
-                                  : () async {
-                                      final value =
-                                          await _showTaskReminderDialog(
-                                            context,
-                                            initial: alarms[index].absoluteUtc!
-                                                .toLocal(),
-                                          );
-                                      if (value != null) {
-                                        setState(() {
-                                          alarms[index] = alarms[index]
-                                              .withAbsoluteTrigger(
-                                                value.toUtc(),
-                                              );
-                                        });
-                                      }
-                                    },
-                              trailing: IconButton(
-                                icon: Icon(
-                                  windowsBusyMaxGlyph(BusyMaxGlyph.delete),
-                                ),
-                                onPressed: saving
-                                    ? null
-                                    : () => setState(
-                                        () => alarms.removeAt(index),
-                                      ),
-                              ),
-                            ),
-                          Button(
-                            onPressed: saving
-                                ? null
-                                : () async {
-                                    final value = await _showTaskReminderDialog(
-                                      context,
-                                      initial: (due ?? start ?? DateTime.now())
-                                          .subtract(
-                                            const Duration(minutes: 15),
-                                          ),
-                                    );
-                                    if (value != null) {
-                                      setState(() {
-                                        alarms = [
-                                          ...alarms,
-                                          IcalTaskAlarm.displayAbsolute(
-                                            value.toUtc(),
-                                          ),
-                                        ];
-                                      });
-                                    }
-                                  },
-                            child: Text(l10n.addReminder),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                  if (capability.supportsRecurrence &&
-                      (due != null || start != null)) ...[
-                    const SizedBox(height: 12),
-                    InfoLabel(
-                      label: l10n.repeat,
-                      child: capability.supportsAdvancedRecurrence
-                          ? Button(
-                              onPressed: saving
-                                  ? null
-                                  : () async {
-                                      final value =
-                                          await showWindowsRecurrenceDialog(
-                                            context,
-                                            initial: recurrence,
-                                            baseDate: start ?? due!,
-                                            allDay: scheduledAllDay,
-                                            timeZone: selectedTimeZone,
-                                            providerLabel: provider.displayName,
-                                            limits:
-                                                RecurrenceRuleLimits.rfc5545,
-                                          );
-                                      if (value != null) {
-                                        setState(() => recurrence = value);
-                                      }
-                                    },
-                              child: Align(
-                                alignment: AlignmentDirectional.centerStart,
-                                child: Text(
-                                  _recurrenceLabel(l10n, recurrence.frequency),
-                                ),
-                              ),
-                            )
-                          : ComboBox<RecurrenceFrequency>(
-                              isExpanded: true,
-                              value: recurrence.frequency,
-                              items: [
-                                for (final frequency
-                                    in RecurrenceFrequency.values)
-                                  ComboBoxItem(
-                                    value: frequency,
-                                    child: Text(
-                                      _recurrenceLabel(l10n, frequency),
-                                    ),
-                                  ),
-                              ],
-                              onChanged: saving
-                                  ? null
-                                  : (frequency) {
-                                      if (frequency != null) {
-                                        setState(
-                                          () => recurrence =
-                                              _simpleRecurrenceRule(
-                                                frequency,
-                                                start ?? due!,
-                                              ),
-                                        );
-                                      }
-                                    },
-                            ),
-                    ),
-                  ],
-                  if (capability.supportsImportance &&
-                      !capability.supportsIcalPriority) ...[
-                    const SizedBox(height: 12),
-                    _StringCombo(
-                      label: l10n.importance,
-                      value: importance,
-                      values: {
-                        'low': l10n.importanceLow,
-                        'normal': l10n.importanceNormal,
-                        'high': l10n.importanceHigh,
-                      },
-                      enabled: !saving,
-                      onChanged: (value) => setState(() => importance = value),
-                    ),
-                  ],
-                  if (capability.supportsCategories) ...[
-                    const SizedBox(height: 12),
-                    InfoLabel(
-                      label: l10n.categories,
-                      child: TextBox(controller: categories),
-                    ),
-                  ],
-                  if (capability.supportsTaskStatus) ...[
-                    const SizedBox(height: 12),
-                    _StringCombo(
-                      label: l10n.taskStatus,
-                      value: status,
-                      values: {
-                        '': l10n.taskStatusNone,
-                        'NEEDS-ACTION': l10n.taskStatusNeedsAction,
-                        'IN-PROCESS': l10n.taskStatusInProcess,
-                        'COMPLETED': l10n.taskStatusCompleted,
-                        'CANCELLED': l10n.taskStatusCancelled,
-                      },
-                      enabled: !saving,
-                      onChanged: (value) => setState(() => status = value),
-                    ),
-                  ],
-                  if (capability.supportsPercentComplete) ...[
-                    const SizedBox(height: 12),
-                    Text(l10n.completionPercent(progress)),
-                    Slider(
-                      value: progress.toDouble(),
-                      max: 100,
-                      divisions: 100,
-                      onChanged: saving
-                          ? null
-                          : (value) => setState(() => progress = value.round()),
-                    ),
-                  ],
-                  if (capability.supportsIcalPriority) ...[
-                    const SizedBox(height: 12),
-                    Text(_priorityLabel(l10n, priority)),
-                    Slider(
-                      value: priority.toDouble(),
-                      max: 9,
-                      divisions: 9,
-                      onChanged: saving
-                          ? null
-                          : (value) => setState(() => priority = value.round()),
-                    ),
-                  ],
-                  if (capability.supportsLocation) ...[
-                    const SizedBox(height: 12),
-                    InfoLabel(
-                      label: l10n.location,
-                      child: TextBox(
-                        key: const ValueKey('windows-new-task-location-field'),
-                        controller: location,
-                        enabled: !saving,
-                        onChanged: (_) => setState(() {}),
-                      ),
-                    ),
-                  ],
-                  if (capability.supportsUrl) ...[
-                    const SizedBox(height: 12),
-                    InfoLabel(
-                      label: l10n.taskUrl,
-                      child: TextBox(
-                        controller: taskUrl,
-                        onChanged: (_) => setState(() {}),
-                      ),
-                    ),
-                    if (!validUrl)
-                      InfoBar(
-                        title: Text(l10n.invalidTaskUrl),
-                        severity: InfoBarSeverity.warning,
-                      ),
-                    if (!validSchedule) ...[
-                      const SizedBox(height: 8),
-                      InfoBar(
-                        title: Text(l10n.taskDueBeforeStart),
-                        severity: InfoBarSeverity.warning,
-                      ),
-                    ],
-                  ],
-                  if (capability.supportsClassification) ...[
-                    const SizedBox(height: 12),
-                    _StringCombo(
-                      label: l10n.classification,
-                      value: classification,
-                      values: {
-                        'PUBLIC': l10n.classificationPublic,
-                        'CONFIDENTIAL': l10n.classificationConfidential,
-                        'PRIVATE': l10n.classificationPrivate,
-                      },
-                      enabled: !saving,
-                      onChanged: (value) =>
-                          setState(() => classification = value),
-                    ),
-                  ],
-                  if (capability.supportsPinning) ...[
-                    const SizedBox(height: 12),
-                    ToggleSwitch(
-                      checked: pinned,
-                      onChanged: saving
-                          ? null
-                          : (value) => setState(() => pinned = value),
-                      content: Text(l10n.pinTask),
-                    ),
-                  ],
-                  if (capability.supportsSubtaskVisibility) ...[
-                    const SizedBox(height: 8),
-                    ToggleSwitch(
-                      checked: hideSubtasks,
-                      onChanged: saving
-                          ? null
-                          : (value) => setState(() => hideSubtasks = value),
-                      content: Text(l10n.hideSubtasks),
-                    ),
-                    const SizedBox(height: 8),
-                    ToggleSwitch(
-                      checked: hideCompletedSubtasks,
-                      onChanged: saving
-                          ? null
-                          : (value) =>
-                                setState(() => hideCompletedSubtasks = value),
-                      content: Text(l10n.hideClosedSubtasks),
+                    InfoBar(
+                      title: Text(l10n.taskDueBeforeStart),
+                      severity: InfoBarSeverity.warning,
                     ),
                   ],
                   const SizedBox(height: 12),
@@ -548,6 +332,363 @@ Future<bool> showWindowsTaskEditorDialog(
                     label: l10n.notes,
                     child: TextBox(controller: notes, maxLines: 4),
                   ),
+                  if (capability.supportsReminderDateTime ||
+                      capability.supportsRecurrence) ...[
+                    const SizedBox(height: 12),
+                    Expander(
+                      key: const ValueKey('task-reminders-recurrence'),
+                      header: Text('${l10n.reminderGroup} · ${l10n.repeat}'),
+                      initiallyExpanded: false,
+                      content: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          if (capability.supportsReminderDateTime &&
+                              !capability.supportsMultipleReminders) ...[
+                            const SizedBox(height: 12),
+                            ToggleSwitch(
+                              checked: reminder != null,
+                              onChanged: saving
+                                  ? null
+                                  : (enabled) => setState(
+                                      () => reminder = enabled
+                                          ? (due ?? start ?? DateTime.now())
+                                                .subtract(
+                                                  const Duration(minutes: 15),
+                                                )
+                                          : null,
+                                    ),
+                              content: Text(l10n.reminder),
+                            ),
+                            if (reminder != null) ...[
+                              const SizedBox(height: 8),
+                              _DateTimeField(
+                                label: l10n.reminderTime,
+                                value: reminder,
+                                showTime: true,
+                                enabled: !saving,
+                                onChanged: (value) =>
+                                    setState(() => reminder = value),
+                              ),
+                            ],
+                          ],
+                          if (capability.supportsMultipleReminders) ...[
+                            const SizedBox(height: 12),
+                            InfoLabel(
+                              label: l10n.reminder,
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.stretch,
+                                children: [
+                                  for (
+                                    var index = 0;
+                                    index < alarms.length;
+                                    index += 1
+                                  )
+                                    ListTile(
+                                      title: Text(
+                                        _newTaskAlarmLabel(
+                                          context,
+                                          alarms[index],
+                                        ),
+                                      ),
+                                      onPressed: saving
+                                          ? null
+                                          : () async {
+                                              final value =
+                                                  await _showTaskReminderDialog(
+                                                    context,
+                                                    initial: alarms[index]
+                                                        .absoluteUtc!
+                                                        .toLocal(),
+                                                  );
+                                              if (value != null) {
+                                                setState(() {
+                                                  alarms[index] = alarms[index]
+                                                      .withAbsoluteTrigger(
+                                                        value.toUtc(),
+                                                      );
+                                                });
+                                              }
+                                            },
+                                      trailing: IconButton(
+                                        icon: Icon(
+                                          windowsBusyMaxGlyph(
+                                            BusyMaxGlyph.delete,
+                                          ),
+                                        ),
+                                        onPressed: saving
+                                            ? null
+                                            : () => setState(
+                                                () => alarms.removeAt(index),
+                                              ),
+                                      ),
+                                    ),
+                                  Button(
+                                    onPressed: saving
+                                        ? null
+                                        : () async {
+                                            final value =
+                                                await _showTaskReminderDialog(
+                                                  context,
+                                                  initial:
+                                                      (due ??
+                                                              start ??
+                                                              DateTime.now())
+                                                          .subtract(
+                                                            const Duration(
+                                                              minutes: 15,
+                                                            ),
+                                                          ),
+                                                );
+                                            if (value != null) {
+                                              setState(() {
+                                                alarms = [
+                                                  ...alarms,
+                                                  IcalTaskAlarm.displayAbsolute(
+                                                    value.toUtc(),
+                                                  ),
+                                                ];
+                                              });
+                                            }
+                                          },
+                                    child: Text(l10n.addReminder),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                          if (capability.supportsRecurrence &&
+                              (due != null || start != null)) ...[
+                            const SizedBox(height: 12),
+                            InfoLabel(
+                              label: l10n.repeat,
+                              child: capability.supportsAdvancedRecurrence
+                                  ? Button(
+                                      onPressed: saving
+                                          ? null
+                                          : () async {
+                                              final value =
+                                                  await showWindowsRecurrenceDialog(
+                                                    context,
+                                                    initial: recurrence,
+                                                    baseDate: start ?? due!,
+                                                    allDay: scheduledAllDay,
+                                                    timeZone: selectedTimeZone,
+                                                    providerLabel:
+                                                        provider.displayName,
+                                                    limits: RecurrenceRuleLimits
+                                                        .rfc5545,
+                                                  );
+                                              if (value != null) {
+                                                setState(
+                                                  () => recurrence = value,
+                                                );
+                                              }
+                                            },
+                                      child: Align(
+                                        alignment:
+                                            AlignmentDirectional.centerStart,
+                                        child: Text(
+                                          _recurrenceLabel(
+                                            l10n,
+                                            recurrence.frequency,
+                                          ),
+                                        ),
+                                      ),
+                                    )
+                                  : ComboBox<RecurrenceFrequency>(
+                                      isExpanded: true,
+                                      value: recurrence.frequency,
+                                      items: [
+                                        for (final frequency
+                                            in RecurrenceFrequency.values)
+                                          ComboBoxItem(
+                                            value: frequency,
+                                            child: Text(
+                                              _recurrenceLabel(l10n, frequency),
+                                            ),
+                                          ),
+                                      ],
+                                      onChanged: saving
+                                          ? null
+                                          : (frequency) {
+                                              if (frequency != null) {
+                                                setState(
+                                                  () => recurrence =
+                                                      _simpleRecurrenceRule(
+                                                        frequency,
+                                                        start ?? due!,
+                                                      ),
+                                                );
+                                              }
+                                            },
+                                    ),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
+                  ],
+                  if (capability.supportsProgressDetails ||
+                      capability.supportsOrganizationDetails) ...[
+                    const SizedBox(height: 12),
+                    Expander(
+                      key: const ValueKey('task-secondary-properties'),
+                      header: Text(
+                        capability.supportsProgressDetails
+                            ? '${l10n.statusSection} · ${l10n.organizationSection}'
+                            : l10n.organizationSection,
+                      ),
+                      initiallyExpanded: false,
+                      content: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          if (capability.supportsImportance &&
+                              !capability.supportsIcalPriority) ...[
+                            const SizedBox(height: 12),
+                            _StringCombo(
+                              label: l10n.importance,
+                              value: importance,
+                              values: {
+                                'low': l10n.importanceLow,
+                                'normal': l10n.importanceNormal,
+                                'high': l10n.importanceHigh,
+                              },
+                              enabled: !saving,
+                              onChanged: (value) =>
+                                  setState(() => importance = value),
+                            ),
+                          ],
+                          if (capability.supportsCategories) ...[
+                            const SizedBox(height: 12),
+                            InfoLabel(
+                              label: l10n.categories,
+                              child: TextBox(controller: categories),
+                            ),
+                          ],
+                          if (capability.supportsTaskStatus) ...[
+                            const SizedBox(height: 12),
+                            _StringCombo(
+                              label: l10n.taskStatus,
+                              value: status,
+                              values: {
+                                '': l10n.taskStatusNone,
+                                'NEEDS-ACTION': l10n.taskStatusNeedsAction,
+                                'IN-PROCESS': l10n.taskStatusInProcess,
+                                'COMPLETED': l10n.taskStatusCompleted,
+                                'CANCELLED': l10n.taskStatusCancelled,
+                              },
+                              enabled: !saving,
+                              onChanged: (value) =>
+                                  setState(() => status = value),
+                            ),
+                          ],
+                          if (capability.supportsPercentComplete) ...[
+                            const SizedBox(height: 12),
+                            Text(l10n.completionPercent(progress)),
+                            Slider(
+                              value: progress.toDouble(),
+                              max: 100,
+                              divisions: 100,
+                              onChanged: saving
+                                  ? null
+                                  : (value) => setState(
+                                      () => progress = value.round(),
+                                    ),
+                            ),
+                          ],
+                          if (capability.supportsIcalPriority) ...[
+                            const SizedBox(height: 12),
+                            Text(_priorityLabel(l10n, priority)),
+                            Slider(
+                              value: priority.toDouble(),
+                              max: 9,
+                              divisions: 9,
+                              onChanged: saving
+                                  ? null
+                                  : (value) => setState(
+                                      () => priority = value.round(),
+                                    ),
+                            ),
+                          ],
+                          if (capability.supportsLocation) ...[
+                            const SizedBox(height: 12),
+                            InfoLabel(
+                              label: l10n.location,
+                              child: TextBox(
+                                key: const ValueKey(
+                                  'windows-new-task-location-field',
+                                ),
+                                controller: location,
+                                enabled: !saving,
+                                onChanged: (_) => setState(() {}),
+                              ),
+                            ),
+                          ],
+                          if (capability.supportsUrl) ...[
+                            const SizedBox(height: 12),
+                            InfoLabel(
+                              label: l10n.taskUrl,
+                              child: TextBox(
+                                controller: taskUrl,
+                                onChanged: (_) => setState(() {}),
+                              ),
+                            ),
+                            if (!validUrl)
+                              InfoBar(
+                                title: Text(l10n.invalidTaskUrl),
+                                severity: InfoBarSeverity.warning,
+                              ),
+                          ],
+                          if (capability.supportsClassification) ...[
+                            const SizedBox(height: 12),
+                            _StringCombo(
+                              label: l10n.classification,
+                              value: classification,
+                              values: {
+                                'PUBLIC': l10n.classificationPublic,
+                                'CONFIDENTIAL': l10n.classificationConfidential,
+                                'PRIVATE': l10n.classificationPrivate,
+                              },
+                              enabled: !saving,
+                              onChanged: (value) =>
+                                  setState(() => classification = value),
+                            ),
+                          ],
+                          if (capability.supportsPinning) ...[
+                            const SizedBox(height: 12),
+                            ToggleSwitch(
+                              checked: pinned,
+                              onChanged: saving
+                                  ? null
+                                  : (value) => setState(() => pinned = value),
+                              content: Text(l10n.pinTask),
+                            ),
+                          ],
+                          if (capability.supportsSubtaskVisibility) ...[
+                            const SizedBox(height: 8),
+                            ToggleSwitch(
+                              checked: hideSubtasks,
+                              onChanged: saving
+                                  ? null
+                                  : (value) =>
+                                        setState(() => hideSubtasks = value),
+                              content: Text(l10n.hideSubtasks),
+                            ),
+                            const SizedBox(height: 8),
+                            ToggleSwitch(
+                              checked: hideCompletedSubtasks,
+                              onChanged: saving
+                                  ? null
+                                  : (value) => setState(
+                                      () => hideCompletedSubtasks = value,
+                                    ),
+                              content: Text(l10n.hideClosedSubtasks),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
+                  ],
                   if (error != null) ...[
                     const SizedBox(height: 12),
                     InfoBar(
@@ -576,7 +717,8 @@ Future<bool> showWindowsTaskEditorDialog(
                     saving ||
                         title.text.trim().isEmpty ||
                         !validUrl ||
-                        !validSchedule
+                        !validSchedule ||
+                        recurrenceIssue != TaskRecurrenceIssue.none
                     ? null
                     : () async {
                         setState(() {
@@ -584,27 +726,6 @@ Future<bool> showWindowsTaskEditorDialog(
                           error = null;
                         });
                         try {
-                          final fields = buildWindowsTaskCreateFields(
-                            capability: capability,
-                            provider: provider,
-                            due: due,
-                            start: start,
-                            reminder: reminder,
-                            alarms: alarms,
-                            scheduledAllDay: scheduledAllDay,
-                            timeZone: selectedTimeZone,
-                            recurrence: recurrence,
-                            importance: importance,
-                            status: status,
-                            priority: priority,
-                            progress: progress,
-                            location: location.text,
-                            taskUrl: taskUrl.text,
-                            classification: classification,
-                            pinned: pinned,
-                            hideSubtasks: hideSubtasks,
-                            hideCompletedSubtasks: hideCompletedSubtasks,
-                          );
                           await ref
                               .read(
                                 tasksRepositoryForAccountProvider(
@@ -613,12 +734,9 @@ Future<bool> showWindowsTaskEditorDialog(
                               )
                               .createTask(
                                 selectedList.id,
-                                TaskCreateInput(
-                                  title: title.text.trim(),
-                                  notes: notes.text.trim(),
-                                  dueUtc: due?.toUtc(),
-                                  categories: _categories(categories.text),
-                                  fields: fields,
+                                currentDraft().toCreateInput(
+                                  capability,
+                                  localTimeZone: selectedTimeZone,
                                 ),
                               );
                           saved = true;
@@ -689,7 +807,7 @@ class _DateTimeField extends StatelessWidget {
               : null,
         ),
         if (showTime && value != null)
-          TimePicker(
+          WindowsTimePicker(
             selected: value,
             onChanged: enabled
                 ? (time) => onChanged(
@@ -753,7 +871,7 @@ String _newTaskAlarmLabel(BuildContext context, IcalTaskAlarm alarm) {
   final local = alarm.absoluteUtc!.toLocal();
   return l10n.dateTimeDisplay(
     DateFormat.yMMMd(locale).format(local),
-    DateFormat.jm(locale).format(local),
+    BusyMaxTimeFormatScope.of(context).format(local),
   );
 }
 
@@ -784,7 +902,7 @@ Future<DateTime?> _showTaskReminderDialog(
                 );
               }),
             ),
-            TimePicker(
+            WindowsTimePicker(
               selected: value,
               onChanged: (time) => setState(() {
                 value = DateTime(

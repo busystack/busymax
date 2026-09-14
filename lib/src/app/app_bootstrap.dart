@@ -3,10 +3,15 @@ import 'dart:async';
 import 'package:drift/drift.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../dav/nextcloud/nextcloud_native_export.dart';
 import 'package:http/http.dart' as http;
 import 'package:uuid/uuid.dart';
+import 'package:busymax/src/core/secrets/secret_store.dart';
+import 'package:busymax/src/providers/busy_provider.dart';
+import 'package:busymax/src/features/tasks/domain/task_capabilities.dart';
 
+import '../core/time/provider_date_time.dart';
+import '../core/time/stored_temporal_projection.dart';
+import '../dav/nextcloud/nextcloud_native_export.dart';
 import '../config/build_config.dart';
 import '../calendar_providers/cloud_calendar_client.dart';
 import '../db/app_database.dart';
@@ -35,6 +40,8 @@ import '../features/auth/data/auth_repository.dart';
 import '../features/connectivity/network_connectivity_service.dart';
 import '../features/feedback/data/feedback_api_client.dart';
 import '../features/notifications/desktop_notification_service.dart';
+import '../features/notifications/notification_cancellation_queue.dart';
+import '../features/notifications/due_today_notification_scheduler.dart';
 import '../features/notifications/notification_schedule_service.dart';
 import '../features/notifications/notification_scheduler.dart';
 import '../features/sync/account_sync_operations.dart';
@@ -53,15 +60,12 @@ import '../google_tasks/http/authenticated_http_client.dart';
 import '../google_tasks/http/retrying_http_client.dart';
 import '../google_tasks/oauth/oauth_loopback_flow.dart';
 import '../google_tasks/oauth/oauth_service.dart';
-import 'package:busymax/src/core/secrets/secret_store.dart';
 import '../google_calendar/google_calendar_api_client.dart';
 import '../microsoft_calendar/microsoft_calendar_api_client.dart';
 import '../microsoft_todo/api/microsoft_todo_api_client.dart';
 import '../microsoft_todo/api/microsoft_todo_task_remote_client.dart';
 import '../microsoft_todo/oauth/microsoft_oauth_service.dart';
 import '../platform/common/desktop_services.dart';
-import 'package:busymax/src/providers/busy_provider.dart';
-import 'package:busymax/src/features/tasks/domain/task_capabilities.dart';
 import '../schedule/schedule_commands.dart';
 import '../schedule/schedule_repository.dart';
 import '../schedule/schedule_sidebar_order.dart';
@@ -250,13 +254,24 @@ final desktopNotificationReadinessProvider =
       (ref) => const DesktopNotificationReadiness.initializing(),
     );
 
+// Survives scheduler invalidation, settings changes and backend replacement.
+final notificationCancellationQueueProvider =
+    Provider<NotificationCancellationQueue>(
+      (ref) => NotificationCancellationQueue(),
+    );
+
 final desktopNotificationServiceProvider = Provider<DesktopNotificationService>(
   (ref) {
     final settings = ref.watch(appSettingsControllerProvider);
     return DesktopNotificationService(
       backend: ref.watch(desktopNotificationBackendProvider),
+      cancellationQueue: ref.watch(notificationCancellationQueueProvider),
       settings: settings,
       locale: settings.locale,
+      onDestinationActivated: (destination) async {
+        await ref.read(desktopWindowServiceProvider).showWindow();
+        ref.read(desktopNavigationServiceProvider).open(destination);
+      },
     );
   },
 );
@@ -288,10 +303,39 @@ final launchAtLoginStateProvider = FutureProvider<DesktopAutostartState>(
 );
 
 final launchAtLoginEnabledProvider = FutureProvider<bool>(
-  (ref) async =>
-      await ref.watch(launchAtLoginStateProvider.future) ==
-      DesktopAutostartState.enabled,
+  (ref) async => (await ref.watch(launchAtLoginStateProvider.future)).isEnabled,
 );
+
+final launchAtLoginControllerProvider =
+    StateNotifierProvider<LaunchAtLoginController, bool>(
+      (ref) => LaunchAtLoginController(ref),
+    );
+
+/// Serializes changes across Settings instances, including the state readback.
+class LaunchAtLoginController extends StateNotifier<bool> {
+  LaunchAtLoginController(this._ref) : super(false);
+
+  final Ref _ref;
+
+  Future<void> setEnabled(bool enabled) async {
+    if (state) return;
+    state = true;
+    try {
+      await _ref.read(desktopAutostartServiceProvider).setEnabled(enabled);
+    } finally {
+      if (mounted) {
+        _ref.invalidate(launchAtLoginStateProvider);
+        try {
+          await _ref.read(launchAtLoginStateProvider.future);
+        } on Object {
+          // The read provider exposes this failure separately from write errors.
+        } finally {
+          if (mounted) state = false;
+        }
+      }
+    }
+  }
+}
 
 final desktopNavigationServiceProvider = Provider<DesktopNavigationService>((
   ref,
@@ -636,12 +680,20 @@ final davAccountSyncEngineFactoryProvider =
     });
 
 final accountSyncCoordinatorProvider = Provider<AccountSyncCoordinator>((ref) {
-  return AccountSyncCoordinator();
+  final accountsRepository = ref.watch(accountsRepositoryProvider);
+  final coordinator = AccountSyncCoordinator(
+    restoreIncompleteTaskImports:
+        accountsRepository.incompleteTaskImportAccountIds,
+    persistTaskImportIncomplete: accountsRepository.setTaskImportIncomplete,
+  );
+  ref.onDispose(() => unawaited(coordinator.dispose()));
+  return coordinator;
 });
 
 final accountSyncOperationsProvider = Provider<AccountSyncOperations>((ref) {
   final accountsRepository = ref.watch(accountsRepositoryProvider);
   final connectivity = ref.watch(networkConnectivityMonitorProvider);
+  final syncCoordinator = ref.watch(accountSyncCoordinatorProvider);
 
   Future<BusyProvider> providerForAccount(String accountId) async {
     final account = await accountsRepository.accountById(accountId);
@@ -653,26 +705,28 @@ final accountSyncOperationsProvider = Provider<AccountSyncOperations>((ref) {
 
   final routing = RoutingAccountSyncOperations(
     providerForAccount: providerForAccount,
-    syncDav: (accountId, {required full}) async {
-      await ref
+    syncDav: (accountId, {required full}) => syncCoordinator.trackTaskImport(
+      accountId,
+      () => ref
           .read(davAccountSyncEngineFactoryProvider)(accountId)
-          .synchronize(full: full);
-    },
+          .synchronize(full: full),
+    ),
     syncWebCal: (accountId, {required full}) => ref
         .read(webCalSubscriptionServiceProvider)
         .refreshAccount(accountId, force: full),
-    syncTasksRest: (accountId, {required full}) async {
-      final provider = await providerForAccount(accountId);
-      final engine = ref.read(syncEngineForAccountFactoryProvider)(
-        accountId,
-        provider,
-      );
-      if (full) {
-        await engine.fullSync();
-      } else {
-        await engine.incrementalSync();
-      }
-    },
+    syncTasksRest: (accountId, {required full}) =>
+        syncCoordinator.trackTaskImport(accountId, () async {
+          final provider = await providerForAccount(accountId);
+          final engine = ref.read(syncEngineForAccountFactoryProvider)(
+            accountId,
+            provider,
+          );
+          if (full) {
+            await engine.fullSync();
+          } else {
+            await engine.incrementalSync();
+          }
+        }),
     syncCalendarRest: (accountId, {required full}) async {
       final provider = await providerForAccount(accountId);
       final engine = ref.read(calendarSyncEngineForAccountFactoryProvider)(
@@ -687,7 +741,7 @@ final accountSyncOperationsProvider = Provider<AccountSyncOperations>((ref) {
     },
   );
   return CoordinatedAccountSyncOperations(
-    coordinator: ref.watch(accountSyncCoordinatorProvider),
+    coordinator: syncCoordinator,
     inner: ConnectivityAwareAccountSyncOperations(
       inner: routing,
       requireNetwork: connectivity.requireNetwork,
@@ -816,6 +870,30 @@ final davProjectionCoverageServiceProvider =
         database: ref.watch(databaseProvider),
       );
     });
+
+/// One invalidation source for all presentations, including background sync.
+final scheduleDataRevisionProvider = StreamProvider<int>((ref) async* {
+  final changes = ref.watch(scheduleRepositoryProvider).watchChanges();
+  var revision = 0;
+  yield revision;
+  await for (final _ in changes) {
+    yield ++revision;
+  }
+});
+
+final scheduleTaskListsProvider = FutureProvider<List<TaskListEntity>>((
+  ref,
+) async {
+  ref.watch(scheduleDataRevisionProvider);
+  final accounts = await ref.watch(accountsStreamProvider.future);
+  final groups = await Future.wait([
+    for (final account in accounts.where((account) => account.isTaskCapable))
+      ref
+          .watch(taskListsRepositoryForAccountProvider(account.id))
+          .listTaskLists(),
+  ]);
+  return [for (final group in groups) ...group];
+});
 
 final scheduleRepositoryProvider = Provider<ScheduleRepository>((ref) {
   return ScheduleRepository(
@@ -1171,16 +1249,32 @@ Future<void> _markAccountReconnectRequiredForSyncError(
   }
 }
 
-final notificationSchedulerProvider = Provider<NotificationScheduler>((ref) {
-  final scheduler = NotificationScheduler(
-    database: ref.watch(databaseProvider),
-    notifications: ref.watch(desktopNotificationServiceProvider),
-    onNotificationActivated: (row) => _openNotificationSource(ref, row),
-  );
-  scheduler.start();
-  ref.onDispose(scheduler.stop);
-  return scheduler;
-});
+// This handler outlives individual schedulers, so a visible Linux notification
+// can route to the current scheduler even after an explicit invalidation.
+final _reminderActionHandlerProvider = Provider<ScheduledReminderActionHandler>(
+  (ref) =>
+      (row, action) => ref
+          .read(notificationSchedulerProvider)
+          .handleReminderAction(row, action),
+);
+
+final Provider<NotificationScheduler> notificationSchedulerProvider =
+    Provider<NotificationScheduler>((ref) {
+      final scheduler = NotificationScheduler(
+        database: ref.watch(databaseProvider),
+        notifications: ref.read(desktopNotificationServiceProvider),
+        // Read the independent router without making it a dependency of the
+        // scheduler it resolves when an action arrives.
+        onReminderAction: ref.read(_reminderActionHandlerProvider),
+        onNotificationActivated: (row) => _openNotificationSource(ref, row),
+      );
+      ref.listen(desktopNotificationServiceProvider, (_, notifications) {
+        scheduler.updateNotifications(notifications);
+      });
+      scheduler.start();
+      ref.onDispose(scheduler.stop);
+      return scheduler;
+    });
 
 final _notificationOpenSequenceProvider = StateProvider<int>((ref) => 0);
 
@@ -1217,7 +1311,7 @@ Future<void> _openEventNotification(
   await _openScheduleItemFromNotification(
     ref,
     kind: ScheduleWorkspaceCommandKind.openCalendarEvent,
-    date: _calendarEventCommandDate(event),
+    date: calendarEventStartAsLocal(event),
     accountId: event.accountId,
     sourceId: event.calendarSourceId,
     itemId: event.id,
@@ -1283,101 +1377,38 @@ Future<void> _openScheduleItemFromNotification(
       .open(DesktopNavigationDestination.schedule);
 }
 
-DateTime? _calendarEventCommandDate(CalendarEvent event) {
-  if (event.allDay) {
-    return _parseLocalDate(event.startDate);
-  }
-  return _parseProviderDateTime(event.startDateTime, event.startTimeZone);
-}
-
 DateTime? _taskCommandDate(Task task) {
-  return _parseProviderDateTime(
+  return providerDateTimeAsLocal(
         task.microsoftDueDateTime,
         task.microsoftDueTimeZone,
       ) ??
-      _parseProviderDateTime(
+      providerDateTimeAsLocal(
         task.microsoftReminderDateTime,
         task.microsoftReminderTimeZone,
       ) ??
-      _parseProviderDateTime(task.dueUtc, 'UTC');
+      taskDueAsLocal(task);
 }
 
-DateTime? _parseLocalDate(String? value) {
-  if (value == null || value.length < 10) {
-    return null;
-  }
-  return DateTime.tryParse('${value.substring(0, 10)}T00:00:00');
-}
-
-DateTime? _parseProviderDateTime(String? value, String? timeZone) {
-  final parsed = DateTime.tryParse(value ?? '');
-  if (parsed == null) {
-    return null;
-  }
-  if (parsed.isUtc) {
-    return parsed.toLocal();
-  }
-
-  final normalizedZone = timeZone?.trim().toLowerCase();
-  if (normalizedZone == 'utc' ||
-      normalizedZone == 'etc/utc' ||
-      normalizedZone == 'gmt' ||
-      normalizedZone == 'etc/gmt') {
-    return DateTime.utc(
-      parsed.year,
-      parsed.month,
-      parsed.day,
-      parsed.hour,
-      parsed.minute,
-      parsed.second,
-      parsed.millisecond,
-      parsed.microsecond,
-    ).toLocal();
-  }
-
-  return parsed;
-}
-
-final dueTodayNotificationProvider = Provider<void>((ref) {
-  final settings = ref.watch(appSettingsControllerProvider);
-  final accountId = ref.watch(activeAccountProvider);
-  if (!settings.notifyDueToday || accountId == null) {
-    return;
-  }
-
-  unawaited(_notifyDueTodayIfNeeded(ref, accountId, settings));
+final dueTodayNotificationProvider = Provider<DueTodayNotificationScheduler>((
+  ref,
+) {
+  final scheduler = DueTodayNotificationScheduler(
+    database: ref.watch(databaseProvider),
+    settings: () => ref.read(appSettingsControllerProvider),
+    activeAccountId: () => ref.read(activeAccountProvider),
+    notifications: () => ref.read(desktopNotificationServiceProvider),
+    markNotified: (date) => ref
+        .read(appSettingsControllerProvider.notifier)
+        .markDueTodayNotified(date),
+    syncBlocksDelivery: ref.read(accountSyncCoordinatorProvider).blocksDueToday,
+    accountSyncChanges: ref.read(accountSyncCoordinatorProvider).runningChanges,
+  );
+  ref.listen(
+    appSettingsControllerProvider,
+    (_, _) => scheduler.inputsChanged(),
+  );
+  ref.listen(activeAccountProvider, (_, _) => scheduler.inputsChanged());
+  scheduler.start();
+  ref.onDispose(scheduler.stop);
+  return scheduler;
 });
-
-Future<void> _notifyDueTodayIfNeeded(
-  Ref ref,
-  String accountId,
-  AppSettings settings,
-) async {
-  final now = DateTime.now();
-  final today =
-      '${now.year.toString().padLeft(4, '0')}-'
-      '${now.month.toString().padLeft(2, '0')}-'
-      '${now.day.toString().padLeft(2, '0')}';
-  if (settings.lastDueTodayNotificationDate == today) {
-    return;
-  }
-
-  final database = ref.read(databaseProvider);
-  final tasks =
-      await (database.select(database.tasks)..where(
-            (row) =>
-                row.accountId.equals(accountId) &
-                row.dueUtc.equals(today) &
-                row.pendingDelete.equals(false),
-          ))
-          .get();
-  final count = tasks.where((task) => task.status != 'completed').length;
-  if (count <= 0) {
-    return;
-  }
-
-  await ref.read(desktopNotificationServiceProvider).notifyDueToday(count);
-  await ref
-      .read(appSettingsControllerProvider.notifier)
-      .markDueTodayNotified(today);
-}

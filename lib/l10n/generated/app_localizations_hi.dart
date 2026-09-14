@@ -13,6 +13,37 @@ class AppLocalizationsHi extends AppLocalizations {
   AppLocalizationsHi([String locale = 'hi']) : super(locale);
 
   @override
+  String get timeFormat => 'समय प्रारूप';
+
+  @override
+  String get timeFormatTwelveHour => '12 घंटे';
+
+  @override
+  String get timeFormatTwentyFourHour => '24 घंटे';
+
+  @override
+  String get timeEndOfDay => 'दिन का अंत';
+
+  @override
+  String get timePeriod => 'दिन की अवधि';
+
+  @override
+  String get launchAtLoginReadFailed =>
+      'लॉगिन पर शुरू होने की स्थिति का पता नहीं चल सका।';
+
+  @override
+  String get launchAtLoginUnavailable =>
+      'इस सिस्टम पर लॉगिन के समय शुरू करना उपलब्ध नहीं है।';
+
+  @override
+  String get windowsStartupEnabledByPolicy =>
+      'आपके व्यवस्थापक ने स्वचालित शुरुआत चालू की है और इसे यहाँ बदला नहीं जा सकता।';
+
+  @override
+  String get settingsSaveFailed =>
+      'सेटिंग्स सहेजी नहीं जा सकीं। BusyMax फिर से शुरू होने पर आपके बदलाव खो सकते हैं।';
+
+  @override
   String get nextcloudExportCollection => 'संग्रह के संसाधन निर्यात करें';
 
   @override
@@ -1837,6 +1868,14 @@ class AppLocalizationsHi extends AppLocalizations {
   @override
   String get unsupportedRecurrencePreserved =>
       'यह दोहराव नियम ऐसे विकल्पों का उपयोग करता है जिन्हें यह संपादक नहीं बदलता।';
+
+  @override
+  String get taskRecurrenceDestinationUnsupported =>
+      'यह सूची इस दोहराव पैटर्न का समर्थन नहीं करती। पैटर्न बदलें या दूसरी सूची चुनें।';
+
+  @override
+  String get taskRecurrenceRequiresDate =>
+      'इस दोहराव पैटर्न का उपयोग करने के लिए शुरू होने या नियत तिथि जोड़ें, या दोहराव बंद करें।';
 
   @override
   String recurrenceUnsupportedByProvider(String provider) {

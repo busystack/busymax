@@ -41,83 +41,91 @@ class CalendarSyncEngine {
   BusyProvider get provider => _client.provider;
 
   Future<void> fullSync() async {
-    await _replayPendingOps();
-    final calendars = await _refreshCalendarSources();
+    try {
+      await _replayPendingOps();
+      final calendars = await _refreshCalendarSources();
 
-    final window = _calendarSyncWindow(_nowUtc());
-    for (final calendar in calendars.where((source) => !source.isDeleted)) {
-      await _syncCalendarRange(
-        providerCalendarId: calendar.providerCalendarId,
-        primaryCalendar: calendar.primaryCalendar,
-        rangeStart: window.start,
-        rangeEnd: window.end,
-        full: true,
-      );
+      final window = _calendarSyncWindow(_nowUtc());
+      for (final calendar in calendars.where((source) => !source.isDeleted)) {
+        await _syncCalendarRange(
+          providerCalendarId: calendar.providerCalendarId,
+          primaryCalendar: calendar.primaryCalendar,
+          rangeStart: window.start,
+          rangeEnd: window.end,
+          full: true,
+        );
+      }
+    } finally {
+      // Earlier pages and pending operations may already have committed.
+      await NotificationScheduleService(
+        database: _database,
+        nowUtc: _nowUtc,
+      ).rebuildUpcomingEventNotifications(_accountId);
+      await _onNotificationScheduleChanged?.call();
     }
-    await NotificationScheduleService(
-      database: _database,
-      nowUtc: _nowUtc,
-    ).rebuildUpcomingEventNotifications(_accountId);
-    await _onNotificationScheduleChanged?.call();
   }
 
   Future<void> incrementalSync() async {
-    await _replayPendingOps();
-    final calendars = await _refreshCalendarSources();
+    try {
+      await _replayPendingOps();
+      final calendars = await _refreshCalendarSources();
 
-    final window = _calendarSyncWindow(_nowUtc());
-    final rangeStartValue = window.start.toIso8601String();
-    final rangeEndValue = window.end.toIso8601String();
-    for (final calendar in calendars.where((source) => !source.isDeleted)) {
-      final sourceId = CalendarRepository.sourceId(
-        accountId: _accountId,
-        provider: provider,
-        providerCalendarId: calendar.providerCalendarId,
-      );
-      final state = await _repository.syncState(
-        accountId: _accountId,
-        provider: provider,
-        syncKind: 'events',
-        calendarSourceId: sourceId,
-      );
-      final rangeMatches =
-          state?.rangeStart == rangeStartValue &&
-          state?.rangeEnd == rangeEndValue;
-      final expectedCursorKind = provider == BusyProvider.google
-          ? 'google_sync_token'
-          : 'microsoft_delta_link';
-      final savedCursor = state?.cursorKind == expectedCursorKind
-          ? state?.cursorValue
-          : null;
-      final supportsIncrementalCursor =
-          provider == BusyProvider.google || calendar.primaryCalendar;
-      final syncOptionsMatch =
-          provider != BusyProvider.google ||
-          state?.stateJson == _googleExpandedEventsSyncState;
-      final tokenOrLink =
-          supportsIncrementalCursor &&
-              rangeMatches &&
-              syncOptionsMatch &&
-              savedCursor?.isNotEmpty == true
-          ? savedCursor
-          : null;
-      final requiresSnapshot =
-          tokenOrLink == null ||
-          (provider == BusyProvider.microsoft && !calendar.primaryCalendar);
-      await _syncCalendarRange(
-        providerCalendarId: calendar.providerCalendarId,
-        primaryCalendar: calendar.primaryCalendar,
-        rangeStart: window.start,
-        rangeEnd: window.end,
-        tokenOrLink: tokenOrLink,
-        full: requiresSnapshot,
-      );
+      final window = _calendarSyncWindow(_nowUtc());
+      final rangeStartValue = window.start.toIso8601String();
+      final rangeEndValue = window.end.toIso8601String();
+      for (final calendar in calendars.where((source) => !source.isDeleted)) {
+        final sourceId = CalendarRepository.sourceId(
+          accountId: _accountId,
+          provider: provider,
+          providerCalendarId: calendar.providerCalendarId,
+        );
+        final state = await _repository.syncState(
+          accountId: _accountId,
+          provider: provider,
+          syncKind: 'events',
+          calendarSourceId: sourceId,
+        );
+        final rangeMatches =
+            state?.rangeStart == rangeStartValue &&
+            state?.rangeEnd == rangeEndValue;
+        final expectedCursorKind = provider == BusyProvider.google
+            ? 'google_sync_token'
+            : 'microsoft_delta_link';
+        final savedCursor = state?.cursorKind == expectedCursorKind
+            ? state?.cursorValue
+            : null;
+        final supportsIncrementalCursor =
+            provider == BusyProvider.google || calendar.primaryCalendar;
+        final syncOptionsMatch =
+            provider != BusyProvider.google ||
+            state?.stateJson == _googleExpandedEventsSyncState;
+        final tokenOrLink =
+            supportsIncrementalCursor &&
+                rangeMatches &&
+                syncOptionsMatch &&
+                savedCursor?.isNotEmpty == true
+            ? savedCursor
+            : null;
+        final requiresSnapshot =
+            tokenOrLink == null ||
+            (provider == BusyProvider.microsoft && !calendar.primaryCalendar);
+        await _syncCalendarRange(
+          providerCalendarId: calendar.providerCalendarId,
+          primaryCalendar: calendar.primaryCalendar,
+          rangeStart: window.start,
+          rangeEnd: window.end,
+          tokenOrLink: tokenOrLink,
+          full: requiresSnapshot,
+        );
+      }
+    } finally {
+      // Earlier pages and pending operations may already have committed.
+      await NotificationScheduleService(
+        database: _database,
+        nowUtc: _nowUtc,
+      ).rebuildUpcomingEventNotifications(_accountId);
+      await _onNotificationScheduleChanged?.call();
     }
-    await NotificationScheduleService(
-      database: _database,
-      nowUtc: _nowUtc,
-    ).rebuildUpcomingEventNotifications(_accountId);
-    await _onNotificationScheduleChanged?.call();
   }
 
   Future<List<CalendarSourceDto>> _refreshCalendarSources() async {
@@ -190,6 +198,15 @@ class CalendarSyncEngine {
             providerOriginalStartKey: event.providerOriginalStartKey,
           ),
         );
+      }
+      if (page.events.isNotEmpty) {
+        // Events from this page are already committed. Reconcile before any
+        // later page or calendar request so earlier alarms become due now.
+        await NotificationScheduleService(
+          database: _database,
+          nowUtc: _nowUtc,
+        ).rebuildUpcomingEventNotifications(_accountId);
+        await _onNotificationScheduleChanged?.call();
       }
       final next = page.nextPageTokenOrUrl;
       if (next == null || next.isEmpty) {

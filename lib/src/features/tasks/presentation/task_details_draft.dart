@@ -1,4 +1,7 @@
 import 'dart:convert';
+import '../../../providers/busy_provider.dart';
+import '../../recurrence/domain/event_recurrence_codec.dart';
+import '../../recurrence/domain/recurrence_rule.dart';
 import '../../maps/domain/geographic_point.dart';
 import '../../maps/domain/location_result.dart';
 
@@ -9,6 +12,8 @@ import 'package:busymax/src/features/tasks/domain/task_capabilities.dart';
 import '../data/tasks_repository.dart';
 
 enum TaskScheduleIssue { none, dueBeforeStart, mixedTimeModes }
+
+enum TaskRecurrenceIssue { none, unsupportedDestination, missingDate }
 
 class TaskDetailsDraft {
   const TaskDetailsDraft({
@@ -27,6 +32,7 @@ class TaskDetailsDraft {
     required this.microsoftReminderTime,
     required this.microsoftReminderTimeZone,
     required this.recurrenceJson,
+    this.creationRecurrence,
     required this.importance,
     required this.categories,
     required this.icalPriority,
@@ -45,6 +51,88 @@ class TaskDetailsDraft {
     required this.hideCompletedSubtasks,
     required this.alarms,
   });
+
+  /// Creation uses the same validation and capability-aware serializer as edits.
+  factory TaskDetailsDraft.forCreation({
+    required String taskListId,
+    required BusyProvider provider,
+    required String timeZone,
+    String title = '',
+    String notes = '',
+    DateTime? due,
+    DateTime? start,
+    DateTime? reminder,
+    bool scheduledAllDay = true,
+    List<IcalTaskAlarm> alarms = const [],
+    RecurrenceRule recurrence = const RecurrenceRule.none(),
+    String importance = 'normal',
+    String status = '',
+    int priority = 0,
+    int progress = 0,
+    String location = '',
+    String taskUrl = '',
+    String classification = 'PUBLIC',
+    bool pinned = false,
+    bool hideSubtasks = false,
+    bool hideCompletedSubtasks = false,
+    List<String> categories = const [],
+  }) {
+    String? date(DateTime? value) => value == null
+        ? null
+        : providerWallTimeIso8601String(value).substring(0, 10);
+    String? time(DateTime? value) => value == null
+        ? null
+        : providerWallTimeIso8601String(value).substring(11, 16);
+    return TaskDetailsDraft(
+      taskListId: taskListId,
+      taskId: '',
+      title: title,
+      notes: notes,
+      dueDate: date(due),
+      microsoftDueTime: scheduledAllDay ? null : time(due),
+      microsoftDueTimeZone: timeZone,
+      microsoftStartDate: date(start),
+      microsoftStartTime: scheduledAllDay ? null : time(start),
+      microsoftStartTimeZone: timeZone,
+      microsoftReminderEnabled: reminder != null,
+      microsoftReminderDate: date(reminder),
+      microsoftReminderTime: time(reminder),
+      microsoftReminderTimeZone: timeZone,
+      recurrenceJson: null,
+      creationRecurrence: (provider: provider, rule: recurrence),
+      importance: importance,
+      categories: categories,
+      icalPriority: priority,
+      percentComplete: progress,
+      taskStatus: status.isEmpty ? null : status,
+      completedDate: null,
+      completedTime: null,
+      location: location,
+      originalLocation: '',
+      taskUrl: taskUrl,
+      classification: classification,
+      pinned: pinned,
+      hideSubtasks: hideSubtasks,
+      hideCompletedSubtasks: hideCompletedSubtasks,
+      alarms: alarms,
+    );
+  }
+
+  bool get hasDetailedProgress =>
+      (taskStatus != null && taskStatus != 'NEEDS-ACTION') ||
+      percentComplete != 0 ||
+      completedDate != null;
+
+  bool get hasProviderOptions =>
+      icalPriority != 0 ||
+      importance != 'normal' ||
+      categories.isNotEmpty ||
+      location.isNotEmpty ||
+      taskUrl.isNotEmpty ||
+      classification != 'PUBLIC' ||
+      pinned ||
+      hideSubtasks ||
+      hideCompletedSubtasks;
 
   factory TaskDetailsDraft.fromTask(TaskEntity task, String localTimeZone) {
     final due = _editableProviderDateTime(
@@ -112,6 +200,10 @@ class TaskDetailsDraft {
   final String? microsoftReminderTime;
   final String? microsoftReminderTimeZone;
   final String? recurrenceJson;
+
+  /// Retain the user's rule until save, even when a new destination cannot
+  /// represent it. Constructing a draft must not serialize provider payloads.
+  final ({BusyProvider provider, RecurrenceRule rule})? creationRecurrence;
   final String importance;
   final List<String> categories;
   final int icalPriority;
@@ -139,6 +231,37 @@ class TaskDetailsDraft {
     final parsed = Uri.tryParse(value);
     return parsed != null && parsed.hasScheme;
   }
+
+  bool hasValidTaskUrlFor(TaskCollectionCapabilities capabilities) =>
+      !capabilities.supportsUrl || hasValidTaskUrl;
+
+  TaskScheduleIssue scheduleIssueFor(TaskCollectionCapabilities capabilities) =>
+      capabilities.supportsDueDate && capabilities.supportsStartDateTime
+      ? scheduleIssue
+      : TaskScheduleIssue.none;
+
+  TaskRecurrenceIssue recurrenceIssueFor(
+    TaskCollectionCapabilities capabilities,
+  ) {
+    final recurrence = creationRecurrence;
+    if (recurrence == null || !recurrence.rule.repeats) {
+      return TaskRecurrenceIssue.none;
+    }
+    if (!capabilities.supportsRecurrence ||
+        !EventRecurrenceCodec.canEncode(recurrence.provider, recurrence.rule)) {
+      return TaskRecurrenceIssue.unsupportedDestination;
+    }
+    if (_recurrenceBaseDate(capabilities) == null) {
+      return TaskRecurrenceIssue.missingDate;
+    }
+    return TaskRecurrenceIssue.none;
+  }
+
+  DateTime? _recurrenceBaseDate(TaskCollectionCapabilities capabilities) =>
+      (capabilities.supportsStartDateTime
+          ? DateTime.tryParse(microsoftStartDate ?? '')
+          : null) ??
+      (capabilities.supportsDueDate ? DateTime.tryParse(dueDate ?? '') : null);
 
   DateTime? reminderReferenceUtc({
     required bool due,
@@ -207,6 +330,7 @@ class TaskDetailsDraft {
         microsoftReminderTime == other.microsoftReminderTime &&
         microsoftReminderTimeZone == other.microsoftReminderTimeZone &&
         recurrenceJson == other.recurrenceJson &&
+        creationRecurrence == other.creationRecurrence &&
         importance == other.importance &&
         _sameStrings(categories, other.categories) &&
         icalPriority == other.icalPriority &&
@@ -397,6 +521,11 @@ class TaskDetailsDraft {
     TaskCollectionCapabilities capabilities, {
     required String localTimeZone,
   }) {
+    if (!hasValidTaskUrlFor(capabilities) ||
+        scheduleIssueFor(capabilities) != TaskScheduleIssue.none ||
+        recurrenceIssueFor(capabilities) != TaskRecurrenceIssue.none) {
+      throw StateError('The task draft is not valid for this destination.');
+    }
     final baseline = TaskEntity(
       accountId: '',
       taskListId: taskListId,
@@ -417,6 +546,21 @@ class TaskDetailsDraft {
     );
     final trimmedTitle = title.trim();
     fields['title'] = trimmedTitle;
+    final recurrence = creationRecurrence;
+    if (recurrence != null && recurrence.rule.repeats) {
+      fields['recurrence'] = recurrence.provider == BusyProvider.nextcloud
+          ? jsonDecode(recurrence.rule.toJsonString())
+          : EventRecurrenceCodec.encode(
+              recurrence.provider,
+              recurrence.rule,
+              baseDate: _recurrenceBaseDate(capabilities)!,
+              allDay: microsoftStartTime == null && microsoftDueTime == null,
+              timeZone:
+                  microsoftStartTimeZone ??
+                  microsoftDueTimeZone ??
+                  localTimeZone,
+            );
+    }
 
     return TaskCreateInput(
       title: trimmedTitle,
@@ -490,6 +634,7 @@ class TaskDetailsDraft {
       recurrenceJson: recurrenceJson == _unchanged
           ? this.recurrenceJson
           : recurrenceJson as String?,
+      creationRecurrence: creationRecurrence,
       importance: importance ?? this.importance,
       categories: categories ?? this.categories,
       icalPriority: icalPriority ?? this.icalPriority,

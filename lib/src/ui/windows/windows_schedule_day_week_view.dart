@@ -1,3 +1,5 @@
+import 'package:busymax/src/ui/common/schedule/clock_hours_painter.dart';
+import 'package:busymax/src/l10n/time_format_scope.dart';
 import 'dart:math' as math;
 
 import 'package:fluent_ui/fluent_ui.dart';
@@ -50,7 +52,14 @@ class WindowsScheduleDayWeekView extends StatefulWidget {
 class _WindowsScheduleDayWeekViewState
     extends State<WindowsScheduleDayWeekView> {
   final _events = icv.EventsController();
-  final _planner = GlobalKey<icv.EventsPlannerState>();
+  var _planner = GlobalKey<icv.EventsPlannerState>();
+  late DateTime _plannerOrigin;
+  @override
+  void initState() {
+    super.initState();
+    _plannerOrigin = widget.initialDate;
+  }
+
   final _interaction = GlobalKey<ScheduleInteractionRegionState>();
   double _heightPerMinute = .9;
   double _allDayHeight = 82;
@@ -65,6 +74,13 @@ class _WindowsScheduleDayWeekViewState
     super.didUpdateWidget(oldWidget);
     _reload();
     if (!_sameDay(oldWidget.initialDate, widget.initialDate)) {
+      // The planner bounds scrolling around its original date. Recenter it for
+      // distant navigation (including Today after opening an old notification).
+      if (widget.initialDate.difference(_plannerOrigin).inDays.abs() > 700) {
+        _planner = GlobalKey<icv.EventsPlannerState>();
+        _plannerOrigin = widget.initialDate;
+        return;
+      }
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted && !(_interaction.currentState?.active ?? false)) {
           _planner.currentState?.jumpToDate(widget.initialDate);
@@ -98,12 +114,15 @@ class _WindowsScheduleDayWeekViewState
     final background = theme.scaffoldBackgroundColor;
     final grid = theme.resources.controlStrokeColorDefault;
     final locale = Localizations.localeOf(context).toLanguageTag();
-    final time = MediaQuery.alwaysUse24HourFormatOf(context)
-        ? DateFormat.Hm(locale)
-        : DateFormat.jm(locale);
+    final time = BusyMaxTimeFormatScope.of(context);
+    final gutterWidth = clockRulerWidth(
+      context,
+      theme.typography.caption ?? const TextStyle(),
+    );
     final hasAllDay = widget.items.any((item) => item.allDay);
     final bar = hasAllDay ? _allDayHeight : 0.0;
     final header = widget.daysShowed == 1 ? 0.0 : 50.0;
+    final plannerKey = _planner;
     final planner = icv.EventsPlanner(
       key: _planner,
       controller: _events,
@@ -117,7 +136,9 @@ class _WindowsScheduleDayWeekViewState
       initialVerticalScrollOffset: widget.dayStartMinute * _heightPerMinute,
       daySeparationWidth: 1,
       dayEventsArranger: const SchedulePlannerEventArranger(),
-      onDayChange: widget.onVisibleDateChanged,
+      onDayChange: (date) {
+        if (plannerKey == _planner) widget.onVisibleDateChanged(date);
+      },
       daysHeaderParam: icv.DaysHeaderParam(
         daysHeaderHeight: header,
         daysHeaderColor: background,
@@ -190,9 +211,9 @@ class _WindowsScheduleDayWeekViewState
             _tile(event, height, width, locale),
       ),
       timesIndicatorsParam: icv.TimesIndicatorsParam(
-        timesIndicatorsWidth: 64,
+        timesIndicatorsWidth: gutterWidth,
         timesIndicatorsHorizontalPadding: 6,
-        timesIndicatorsCustomPainter: (height) => icv.HoursPainter(
+        timesIndicatorsCustomPainter: (height) => BusyMaxClockHoursPainter(
           heightPerMinute: height,
           hourColor: theme.inactiveColor,
           halfHourColor: theme.inactiveColor,
@@ -204,6 +225,7 @@ class _WindowsScheduleDayWeekViewState
             ),
             textDirection: Directionality.of(context),
             textAlign: TextAlign.center,
+            textScaler: MediaQuery.textScalerOf(context),
           ),
         ),
       ),
@@ -244,7 +266,7 @@ class _WindowsScheduleDayWeekViewState
           if (hasAllDay)
             Positioned(
               top: header + bar - 8,
-              left: 64,
+              left: gutterWidth,
               right: 0,
               child: Center(
                 child: ScheduleInteractionBlocker(

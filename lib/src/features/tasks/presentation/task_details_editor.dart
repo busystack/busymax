@@ -1,3 +1,4 @@
+import 'task_recurrence.dart';
 import 'dart:async';
 import 'dart:convert';
 
@@ -304,6 +305,26 @@ class _TaskDetailsEditorState extends State<TaskDetailsEditor> {
                       ),
                     if (scheduleIssue != TaskScheduleIssue.none)
                       _taskScheduleError(scheduleIssue),
+                    BusyMaxGroupedList(
+                      filled: true,
+                      children: [
+                        YaruListTile.square(
+                          title: TextField(
+                            controller: _notesController,
+                            enabled: _canWrite,
+                            minLines: 3,
+                            maxLines: 5,
+                            decoration: busyMaxGroupedTextFieldDecoration(
+                              context,
+                              labelText: l10n.notes,
+                              alignLabelWithHint: true,
+                            ),
+                            onChanged: (value) =>
+                                _updateDraft(draft.copyWith(notes: value)),
+                          ),
+                        ),
+                      ],
+                    ),
                     if (_supportsIcalFields)
                       IcalTaskFieldsEditor(
                         draft: draft,
@@ -346,40 +367,26 @@ class _TaskDetailsEditorState extends State<TaskDetailsEditor> {
                     if ((widget.capabilities.supportsImportance &&
                             !widget.capabilities.supportsIcalPriority) ||
                         widget.capabilities.supportsCategories)
-                      BusyMaxGroupedList(
-                        title: l10n.organizationSection,
-                        filled: true,
-                        children: [
-                          if (widget.capabilities.supportsImportance &&
-                              !widget.capabilities.supportsIcalPriority)
-                            _importanceRow(draft),
-                          if (widget.capabilities.supportsCategories)
-                            IgnorePointer(
-                              ignoring: !_canWrite,
-                              child: _categoriesRow(draft),
-                            ),
-                        ],
-                      ),
-                    BusyMaxGroupedList(
-                      filled: true,
-                      children: [
-                        YaruListTile.square(
-                          title: TextField(
-                            controller: _notesController,
-                            enabled: _canWrite,
-                            minLines: 3,
-                            maxLines: 5,
-                            decoration: busyMaxGroupedTextFieldDecoration(
-                              context,
-                              labelText: l10n.notes,
-                              alignLabelWithHint: true,
-                            ),
-                            onChanged: (value) =>
-                                _updateDraft(draft.copyWith(notes: value)),
-                          ),
+                      YaruExpandable(
+                        header: Text(l10n.organizationSection),
+                        expandIconSemanticLabel: l10n.organizationSection,
+                        isExpanded:
+                            draft.importance != 'normal' ||
+                            draft.categories.isNotEmpty,
+                        child: BusyMaxGroupedList(
+                          filled: true,
+                          children: [
+                            if (widget.capabilities.supportsImportance &&
+                                !widget.capabilities.supportsIcalPriority)
+                              _importanceRow(draft),
+                            if (widget.capabilities.supportsCategories)
+                              IgnorePointer(
+                                ignoring: !_canWrite,
+                                child: _categoriesRow(draft),
+                              ),
+                          ],
                         ),
-                      ],
-                    ),
+                      ),
                     if (widget.showAdvancedActions &&
                         widget.capabilities.supportsTaskHierarchy)
                       _subtasksSection(),
@@ -785,9 +792,10 @@ class _TaskDetailsEditorState extends State<TaskDetailsEditor> {
       labelFor: (value) => options[value] ?? l10n.repeatNone,
       onSelected: (value) => _updateDraft(
         draft.copyWith(
-          recurrenceJson: _recurrenceJsonFor(
+          recurrenceJson: encodeSimpleTaskRecurrence(
             value,
-            draft,
+            due: DateTime.tryParse(draft.dueDate ?? ''),
+            start: DateTime.tryParse(draft.microsoftStartDate ?? ''),
             dav: _editingTask.davCollectionId != null,
           ),
         ),
@@ -1411,90 +1419,4 @@ String _recurrenceType(String? recurrenceJson) {
     return 'none';
   }
   return 'none';
-}
-
-String? _recurrenceJsonFor(
-  String type,
-  TaskDetailsDraft draft, {
-  required bool dav,
-}) {
-  if (type == 'none') {
-    return null;
-  }
-  final now = DateTime.now();
-  final recurrenceStart = DateTime.tryParse(draft.dueDate ?? '') ?? now;
-  if (dav) {
-    final frequency = switch (type) {
-      'daily' => 'DAILY',
-      'weekly' => 'WEEKLY',
-      'absoluteMonthly' => 'MONTHLY',
-      'absoluteYearly' => 'YEARLY',
-      _ => 'DAILY',
-    };
-    final parts = <String>['FREQ=$frequency', 'INTERVAL=1'];
-    if (type == 'weekly') {
-      parts.add('BYDAY=${_weekdayCode(recurrenceStart.weekday)}');
-    } else if (type == 'absoluteMonthly') {
-      parts.add('BYMONTHDAY=${recurrenceStart.day}');
-    } else if (type == 'absoluteYearly') {
-      parts
-        ..add('BYMONTH=${recurrenceStart.month}')
-        ..add('BYMONTHDAY=${recurrenceStart.day}');
-    }
-    return jsonEncode({
-      'rules': [parts.join(';')],
-      'dates': const <String>[],
-      'excludedDates': const <String>[],
-    });
-  }
-  final pattern = switch (type) {
-    'daily' => {'type': 'daily', 'interval': 1},
-    'weekly' => {
-      'type': 'weekly',
-      'interval': 1,
-      'daysOfWeek': [_weekdayName(now.weekday)],
-      'firstDayOfWeek': 'monday',
-    },
-    'absoluteMonthly' => {
-      'type': 'absoluteMonthly',
-      'interval': 1,
-      'dayOfMonth': now.day.clamp(1, 31),
-    },
-    'absoluteYearly' => {
-      'type': 'absoluteYearly',
-      'interval': 1,
-      'dayOfMonth': now.day.clamp(1, 31),
-      'month': now.month,
-    },
-    _ => {'type': 'daily', 'interval': 1},
-  };
-  return jsonEncode({
-    'pattern': pattern,
-    'range': {
-      'type': 'noEnd',
-      'startDate': draft.dueDate ?? encodeGoogleDateOnly(now),
-    },
-  });
-}
-
-String _weekdayCode(int weekday) => switch (weekday) {
-  DateTime.monday => 'MO',
-  DateTime.tuesday => 'TU',
-  DateTime.wednesday => 'WE',
-  DateTime.thursday => 'TH',
-  DateTime.friday => 'FR',
-  DateTime.saturday => 'SA',
-  _ => 'SU',
-};
-
-String _weekdayName(int weekday) {
-  return switch (weekday) {
-    DateTime.monday => 'monday',
-    DateTime.tuesday => 'tuesday',
-    DateTime.wednesday => 'wednesday',
-    DateTime.thursday => 'thursday',
-    DateTime.friday => 'friday',
-    DateTime.saturday => 'saturday',
-    _ => 'sunday',
-  };
 }

@@ -1,3 +1,4 @@
+#include "time_picker.h"
 #include "my_application.h"
 
 #include <flutter_linux/flutter_linux.h>
@@ -448,20 +449,7 @@ static gboolean parse_date(const gchar* value,
 }
 
 static gboolean parse_time(const gchar* value, guint* hour, guint* minute) {
-  if (value == nullptr) {
-    return FALSE;
-  }
-  unsigned int parsed_hour = 0;
-  unsigned int parsed_minute = 0;
-  if (sscanf(value, "%u:%u", &parsed_hour, &parsed_minute) != 2) {
-    return FALSE;
-  }
-  if (parsed_hour > 23 || parsed_minute > 59) {
-    return FALSE;
-  }
-  *hour = parsed_hour;
-  *minute = parsed_minute;
-  return TRUE;
+  return busymax_time_picker::ParseCanonical(value, hour, minute);
 }
 
 static void respond_string(FlMethodCall* method_call, const gchar* value) {
@@ -552,51 +540,35 @@ static void handle_pick_time(FlMethodCall* method_call,
   gtk_window_set_resizable(GTK_WINDOW(dialog), FALSE);
 
   GtkWidget* content = gtk_dialog_get_content_area(GTK_DIALOG(dialog));
-  GtkWidget* row = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 6);
   gtk_container_set_border_width(GTK_CONTAINER(content), 12);
-  gtk_container_add(GTK_CONTAINER(content), row);
-
-  GtkWidget* hour_input = gtk_spin_button_new_with_range(0.0, 23.0, 1.0);
-  GtkWidget* minute_input = gtk_spin_button_new_with_range(0.0, 59.0, 1.0);
-  gtk_spin_button_set_numeric(GTK_SPIN_BUTTON(hour_input), TRUE);
-  gtk_spin_button_set_numeric(GTK_SPIN_BUTTON(minute_input), TRUE);
-  gtk_spin_button_set_value(GTK_SPIN_BUTTON(hour_input), 0.0);
-  gtk_spin_button_set_value(GTK_SPIN_BUTTON(minute_input), 0.0);
-  gtk_widget_set_size_request(hour_input, 70, -1);
-  gtk_widget_set_size_request(minute_input, 70, -1);
-
-  gtk_container_add(GTK_CONTAINER(row), gtk_label_new("Hour"));
-  gtk_container_add(GTK_CONTAINER(row), hour_input);
-  gtk_container_add(GTK_CONTAINER(row), gtk_label_new(":"));
-  gtk_container_add(GTK_CONTAINER(row), minute_input);
-  gtk_container_add(GTK_CONTAINER(row), gtk_label_new("Min"));
 
   guint hour = 0;
   guint minute = 0;
-  if (parse_time(initial_time, &hour, &minute)) {
-    gtk_spin_button_set_value(GTK_SPIN_BUTTON(hour_input), hour);
-    gtk_spin_button_set_value(GTK_SPIN_BUTTON(minute_input), minute);
-  } else {
+  if (!parse_time(initial_time, &hour, &minute)) {
     GDateTime* now = g_date_time_new_now_local();
     if (now != nullptr) {
       hour = g_date_time_get_hour(now);
       minute = g_date_time_get_minute(now);
-      gtk_spin_button_set_value(GTK_SPIN_BUTTON(hour_input), hour);
-      gtk_spin_button_set_value(GTK_SPIN_BUTTON(minute_input), minute);
       g_date_time_unref(now);
     }
   }
 
+  const bool use24 = fl_lookup_bool_arg(args, "use24Hour", TRUE);
+  auto label = [args](const char* key, const char* fallback) {
+    const char* value = fl_lookup_string_arg(args, key);
+    return value && value[0] ? value : fallback;
+  };
+  busymax_time_picker::Controls controls(use24, hour, minute,
+      label("hourLabel", "Hour"), label("minuteLabel", "Minute"),
+      label("periodLabel", "AM/PM"), label("amLabel", "AM"), label("pmLabel", "PM"));
+  gtk_container_add(GTK_CONTAINER(content), controls.row);
   gtk_widget_show_all(dialog);
-  const gint response = gtk_dialog_run(GTK_DIALOG(dialog));
-
-  if (response == GTK_RESPONSE_OK) {
-    const gint selected_hour = gtk_spin_button_get_value_as_int(
-        GTK_SPIN_BUTTON(hour_input));
-    const gint selected_minute = gtk_spin_button_get_value_as_int(
-        GTK_SPIN_BUTTON(minute_input));
+  unsigned selected_hour, selected_minute;
+  if (busymax_time_picker::RunDialog(GTK_DIALOG(dialog), controls,
+      label("invalidTimeLabel", "Enter a valid time"),
+      &selected_hour, &selected_minute)) {
     g_autofree gchar* result = g_strdup_printf(
-        "%02d:%02d", selected_hour, selected_minute);
+        "%02u:%02u", selected_hour, selected_minute);
     respond_string(method_call, result);
   } else {
     respond_string(method_call, nullptr);
@@ -3649,7 +3621,8 @@ static void header_bar_size_allocate_cb(GtkWidget*,
 static void update_header_control_visibility(MyApplication* self) {
   const gboolean schedule_controls_visible =
       self->header_schedule_controls_visible;
-  if (!schedule_controls_visible) {
+  const gboolean search_inactive = !self->header_search_active;
+  if (!schedule_controls_visible || !search_inactive) {
     close_header_menu_button(self->create_button);
   }
   set_widget_visible(self->header_start_box,
@@ -3659,20 +3632,20 @@ static void update_header_control_visibility(MyApplication* self) {
                      schedule_controls_visible &&
                          self->header_bar_can_show_sidebar);
   set_widget_visible(self->today_button,
-                     schedule_controls_visible &&
-                         !self->header_search_active);
+                     schedule_controls_visible && search_inactive);
   set_widget_visible(self->previous_button,
                      schedule_controls_visible &&
-                         self->header_navigation_visible);
+                         self->header_navigation_visible && search_inactive);
   set_widget_visible(self->next_button,
                      schedule_controls_visible &&
-                         self->header_navigation_visible);
+                         self->header_navigation_visible && search_inactive);
   set_widget_visible(self->header_view_box,
-                     schedule_controls_visible &&
-                         !self->header_search_active);
+                     schedule_controls_visible && search_inactive);
   set_widget_visible(self->search_button, schedule_controls_visible);
-  set_widget_visible(self->create_button, schedule_controls_visible);
-  set_widget_visible(self->refresh_button, schedule_controls_visible);
+  set_widget_visible(self->create_button,
+                     schedule_controls_visible && search_inactive);
+  set_widget_visible(self->refresh_button,
+                     schedule_controls_visible && search_inactive);
   set_widget_visible(self->settings_menu_button,
                      schedule_controls_visible || self->header_back_visible);
 }
@@ -4167,7 +4140,6 @@ static GtkWidget* create_busymax_titlebar(MyApplication* self) {
   gtk_box_pack_start(GTK_BOX(self->header_view_box), self->view_mode_button,
                      FALSE, FALSE, 0);
   gtk_box_pack_start(GTK_BOX(end_box), self->header_view_box, FALSE, FALSE, 0);
-  gtk_box_pack_start(GTK_BOX(end_box), self->search_button, FALSE, FALSE, 0);
 
   track_widget_pointer(&self->create_button, gtk_menu_button_new());
   gtk_button_set_image(
@@ -4183,6 +4155,7 @@ static GtkWidget* create_busymax_titlebar(MyApplication* self) {
                                                  ""));
   connect_header_bar_action(self, self->refresh_button, "refresh");
   gtk_box_pack_start(GTK_BOX(end_box), self->refresh_button, FALSE, FALSE, 0);
+  gtk_box_pack_start(GTK_BOX(end_box), self->search_button, FALSE, FALSE, 0);
   gtk_box_pack_start(GTK_BOX(end_box), self->settings_menu_button, FALSE, FALSE,
                      0);
   gtk_header_bar_pack_end(header_bar, end_box);

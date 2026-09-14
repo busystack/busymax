@@ -225,6 +225,20 @@ class $AccountsTable extends Accounts with TableInfo<$AccountsTable, Account> {
         type: DriftSqlType.string,
         requiredDuringInsert: false,
       );
+  static const VerificationMeta _taskImportIncompleteMeta =
+      const VerificationMeta('taskImportIncomplete');
+  @override
+  late final GeneratedColumn<bool> taskImportIncomplete = GeneratedColumn<bool>(
+    'task_import_incomplete',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("task_import_incomplete" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
+  );
   @override
   List<GeneratedColumn> get $columns => [
     id,
@@ -246,6 +260,7 @@ class $AccountsTable extends Accounts with TableInfo<$AccountsTable, Account> {
     updatedAtUtc,
     lastSuccessfulSyncAtUtc,
     lastFullSyncAtUtc,
+    taskImportIncomplete,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -423,6 +438,15 @@ class $AccountsTable extends Accounts with TableInfo<$AccountsTable, Account> {
         ),
       );
     }
+    if (data.containsKey('task_import_incomplete')) {
+      context.handle(
+        _taskImportIncompleteMeta,
+        taskImportIncomplete.isAcceptableOrUnknown(
+          data['task_import_incomplete']!,
+          _taskImportIncompleteMeta,
+        ),
+      );
+    }
     return context;
   }
 
@@ -508,6 +532,10 @@ class $AccountsTable extends Accounts with TableInfo<$AccountsTable, Account> {
         DriftSqlType.string,
         data['${effectivePrefix}last_full_sync_at_utc'],
       ),
+      taskImportIncomplete: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}task_import_incomplete'],
+      )!,
     );
   }
 
@@ -537,6 +565,7 @@ class Account extends DataClass implements Insertable<Account> {
   final String updatedAtUtc;
   final String? lastSuccessfulSyncAtUtc;
   final String? lastFullSyncAtUtc;
+  final bool taskImportIncomplete;
   const Account({
     required this.id,
     required this.provider,
@@ -557,6 +586,7 @@ class Account extends DataClass implements Insertable<Account> {
     required this.updatedAtUtc,
     this.lastSuccessfulSyncAtUtc,
     this.lastFullSyncAtUtc,
+    required this.taskImportIncomplete,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -596,6 +626,7 @@ class Account extends DataClass implements Insertable<Account> {
     if (!nullToAbsent || lastFullSyncAtUtc != null) {
       map['last_full_sync_at_utc'] = Variable<String>(lastFullSyncAtUtc);
     }
+    map['task_import_incomplete'] = Variable<bool>(taskImportIncomplete);
     return map;
   }
 
@@ -634,6 +665,7 @@ class Account extends DataClass implements Insertable<Account> {
       lastFullSyncAtUtc: lastFullSyncAtUtc == null && nullToAbsent
           ? const Value.absent()
           : Value(lastFullSyncAtUtc),
+      taskImportIncomplete: Value(taskImportIncomplete),
     );
   }
 
@@ -670,6 +702,9 @@ class Account extends DataClass implements Insertable<Account> {
       lastFullSyncAtUtc: serializer.fromJson<String?>(
         json['lastFullSyncAtUtc'],
       ),
+      taskImportIncomplete: serializer.fromJson<bool>(
+        json['taskImportIncomplete'],
+      ),
     );
   }
   @override
@@ -697,6 +732,7 @@ class Account extends DataClass implements Insertable<Account> {
         lastSuccessfulSyncAtUtc,
       ),
       'lastFullSyncAtUtc': serializer.toJson<String?>(lastFullSyncAtUtc),
+      'taskImportIncomplete': serializer.toJson<bool>(taskImportIncomplete),
     };
   }
 
@@ -720,6 +756,7 @@ class Account extends DataClass implements Insertable<Account> {
     String? updatedAtUtc,
     Value<String?> lastSuccessfulSyncAtUtc = const Value.absent(),
     Value<String?> lastFullSyncAtUtc = const Value.absent(),
+    bool? taskImportIncomplete,
   }) => Account(
     id: id ?? this.id,
     provider: provider ?? this.provider,
@@ -749,6 +786,7 @@ class Account extends DataClass implements Insertable<Account> {
     lastFullSyncAtUtc: lastFullSyncAtUtc.present
         ? lastFullSyncAtUtc.value
         : this.lastFullSyncAtUtc,
+    taskImportIncomplete: taskImportIncomplete ?? this.taskImportIncomplete,
   );
   Account copyWithCompanion(AccountsCompanion data) {
     return Account(
@@ -797,6 +835,9 @@ class Account extends DataClass implements Insertable<Account> {
       lastFullSyncAtUtc: data.lastFullSyncAtUtc.present
           ? data.lastFullSyncAtUtc.value
           : this.lastFullSyncAtUtc,
+      taskImportIncomplete: data.taskImportIncomplete.present
+          ? data.taskImportIncomplete.value
+          : this.taskImportIncomplete,
     );
   }
 
@@ -821,7 +862,8 @@ class Account extends DataClass implements Insertable<Account> {
           ..write('createdAtUtc: $createdAtUtc, ')
           ..write('updatedAtUtc: $updatedAtUtc, ')
           ..write('lastSuccessfulSyncAtUtc: $lastSuccessfulSyncAtUtc, ')
-          ..write('lastFullSyncAtUtc: $lastFullSyncAtUtc')
+          ..write('lastFullSyncAtUtc: $lastFullSyncAtUtc, ')
+          ..write('taskImportIncomplete: $taskImportIncomplete')
           ..write(')'))
         .toString();
   }
@@ -847,6 +889,7 @@ class Account extends DataClass implements Insertable<Account> {
     updatedAtUtc,
     lastSuccessfulSyncAtUtc,
     lastFullSyncAtUtc,
+    taskImportIncomplete,
   );
   @override
   bool operator ==(Object other) =>
@@ -870,7 +913,8 @@ class Account extends DataClass implements Insertable<Account> {
           other.createdAtUtc == this.createdAtUtc &&
           other.updatedAtUtc == this.updatedAtUtc &&
           other.lastSuccessfulSyncAtUtc == this.lastSuccessfulSyncAtUtc &&
-          other.lastFullSyncAtUtc == this.lastFullSyncAtUtc);
+          other.lastFullSyncAtUtc == this.lastFullSyncAtUtc &&
+          other.taskImportIncomplete == this.taskImportIncomplete);
 }
 
 class AccountsCompanion extends UpdateCompanion<Account> {
@@ -893,6 +937,7 @@ class AccountsCompanion extends UpdateCompanion<Account> {
   final Value<String> updatedAtUtc;
   final Value<String?> lastSuccessfulSyncAtUtc;
   final Value<String?> lastFullSyncAtUtc;
+  final Value<bool> taskImportIncomplete;
   final Value<int> rowid;
   const AccountsCompanion({
     this.id = const Value.absent(),
@@ -914,6 +959,7 @@ class AccountsCompanion extends UpdateCompanion<Account> {
     this.updatedAtUtc = const Value.absent(),
     this.lastSuccessfulSyncAtUtc = const Value.absent(),
     this.lastFullSyncAtUtc = const Value.absent(),
+    this.taskImportIncomplete = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   AccountsCompanion.insert({
@@ -936,6 +982,7 @@ class AccountsCompanion extends UpdateCompanion<Account> {
     required String updatedAtUtc,
     this.lastSuccessfulSyncAtUtc = const Value.absent(),
     this.lastFullSyncAtUtc = const Value.absent(),
+    this.taskImportIncomplete = const Value.absent(),
     this.rowid = const Value.absent(),
   }) : id = Value(id),
        provider = Value(provider),
@@ -964,6 +1011,7 @@ class AccountsCompanion extends UpdateCompanion<Account> {
     Expression<String>? updatedAtUtc,
     Expression<String>? lastSuccessfulSyncAtUtc,
     Expression<String>? lastFullSyncAtUtc,
+    Expression<bool>? taskImportIncomplete,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
@@ -989,6 +1037,8 @@ class AccountsCompanion extends UpdateCompanion<Account> {
       if (lastSuccessfulSyncAtUtc != null)
         'last_successful_sync_at_utc': lastSuccessfulSyncAtUtc,
       if (lastFullSyncAtUtc != null) 'last_full_sync_at_utc': lastFullSyncAtUtc,
+      if (taskImportIncomplete != null)
+        'task_import_incomplete': taskImportIncomplete,
       if (rowid != null) 'rowid': rowid,
     });
   }
@@ -1013,6 +1063,7 @@ class AccountsCompanion extends UpdateCompanion<Account> {
     Value<String>? updatedAtUtc,
     Value<String?>? lastSuccessfulSyncAtUtc,
     Value<String?>? lastFullSyncAtUtc,
+    Value<bool>? taskImportIncomplete,
     Value<int>? rowid,
   }) {
     return AccountsCompanion(
@@ -1037,6 +1088,7 @@ class AccountsCompanion extends UpdateCompanion<Account> {
       lastSuccessfulSyncAtUtc:
           lastSuccessfulSyncAtUtc ?? this.lastSuccessfulSyncAtUtc,
       lastFullSyncAtUtc: lastFullSyncAtUtc ?? this.lastFullSyncAtUtc,
+      taskImportIncomplete: taskImportIncomplete ?? this.taskImportIncomplete,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -1107,6 +1159,11 @@ class AccountsCompanion extends UpdateCompanion<Account> {
     if (lastFullSyncAtUtc.present) {
       map['last_full_sync_at_utc'] = Variable<String>(lastFullSyncAtUtc.value);
     }
+    if (taskImportIncomplete.present) {
+      map['task_import_incomplete'] = Variable<bool>(
+        taskImportIncomplete.value,
+      );
+    }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
     }
@@ -1135,6 +1192,7 @@ class AccountsCompanion extends UpdateCompanion<Account> {
           ..write('updatedAtUtc: $updatedAtUtc, ')
           ..write('lastSuccessfulSyncAtUtc: $lastSuccessfulSyncAtUtc, ')
           ..write('lastFullSyncAtUtc: $lastFullSyncAtUtc, ')
+          ..write('taskImportIncomplete: $taskImportIncomplete, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -24329,6 +24387,18 @@ class $NotificationScheduleTable extends NotificationSchedule
     type: DriftSqlType.string,
     requiredDuringInsert: true,
   );
+  static const VerificationMeta _generationMeta = const VerificationMeta(
+    'generation',
+  );
+  @override
+  late final GeneratedColumn<String> generation = GeneratedColumn<String>(
+    'generation',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('legacy'),
+  );
   static const VerificationMeta _accountIdMeta = const VerificationMeta(
     'accountId',
   );
@@ -24452,6 +24522,7 @@ class $NotificationScheduleTable extends NotificationSchedule
   @override
   List<GeneratedColumn> get $columns => [
     id,
+    generation,
     accountId,
     sourceType,
     sourceId,
@@ -24480,6 +24551,12 @@ class $NotificationScheduleTable extends NotificationSchedule
       context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
     } else if (isInserting) {
       context.missing(_idMeta);
+    }
+    if (data.containsKey('generation')) {
+      context.handle(
+        _generationMeta,
+        generation.isAcceptableOrUnknown(data['generation']!, _generationMeta),
+      );
     }
     if (data.containsKey('account_id')) {
       context.handle(
@@ -24592,6 +24669,10 @@ class $NotificationScheduleTable extends NotificationSchedule
         DriftSqlType.string,
         data['${effectivePrefix}id'],
       )!,
+      generation: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}generation'],
+      )!,
       accountId: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}account_id'],
@@ -24648,6 +24729,7 @@ class $NotificationScheduleTable extends NotificationSchedule
 class NotificationScheduleData extends DataClass
     implements Insertable<NotificationScheduleData> {
   final String id;
+  final String generation;
   final String accountId;
   final String sourceType;
   final String sourceId;
@@ -24661,6 +24743,7 @@ class NotificationScheduleData extends DataClass
   final int updatedAtLocal;
   const NotificationScheduleData({
     required this.id,
+    required this.generation,
     required this.accountId,
     required this.sourceType,
     required this.sourceId,
@@ -24677,6 +24760,7 @@ class NotificationScheduleData extends DataClass
   Map<String, Expression> toColumns(bool nullToAbsent) {
     final map = <String, Expression>{};
     map['id'] = Variable<String>(id);
+    map['generation'] = Variable<String>(generation);
     map['account_id'] = Variable<String>(accountId);
     map['source_type'] = Variable<String>(sourceType);
     map['source_id'] = Variable<String>(sourceId);
@@ -24702,6 +24786,7 @@ class NotificationScheduleData extends DataClass
   NotificationScheduleCompanion toCompanion(bool nullToAbsent) {
     return NotificationScheduleCompanion(
       id: Value(id),
+      generation: Value(generation),
       accountId: Value(accountId),
       sourceType: Value(sourceType),
       sourceId: Value(sourceId),
@@ -24729,6 +24814,7 @@ class NotificationScheduleData extends DataClass
     serializer ??= driftRuntimeOptions.defaultSerializer;
     return NotificationScheduleData(
       id: serializer.fromJson<String>(json['id']),
+      generation: serializer.fromJson<String>(json['generation']),
       accountId: serializer.fromJson<String>(json['accountId']),
       sourceType: serializer.fromJson<String>(json['sourceType']),
       sourceId: serializer.fromJson<String>(json['sourceId']),
@@ -24747,6 +24833,7 @@ class NotificationScheduleData extends DataClass
     serializer ??= driftRuntimeOptions.defaultSerializer;
     return <String, dynamic>{
       'id': serializer.toJson<String>(id),
+      'generation': serializer.toJson<String>(generation),
       'accountId': serializer.toJson<String>(accountId),
       'sourceType': serializer.toJson<String>(sourceType),
       'sourceId': serializer.toJson<String>(sourceId),
@@ -24763,6 +24850,7 @@ class NotificationScheduleData extends DataClass
 
   NotificationScheduleData copyWith({
     String? id,
+    String? generation,
     String? accountId,
     String? sourceType,
     String? sourceId,
@@ -24776,6 +24864,7 @@ class NotificationScheduleData extends DataClass
     int? updatedAtLocal,
   }) => NotificationScheduleData(
     id: id ?? this.id,
+    generation: generation ?? this.generation,
     accountId: accountId ?? this.accountId,
     sourceType: sourceType ?? this.sourceType,
     sourceId: sourceId ?? this.sourceId,
@@ -24797,6 +24886,9 @@ class NotificationScheduleData extends DataClass
   ) {
     return NotificationScheduleData(
       id: data.id.present ? data.id.value : this.id,
+      generation: data.generation.present
+          ? data.generation.value
+          : this.generation,
       accountId: data.accountId.present ? data.accountId.value : this.accountId,
       sourceType: data.sourceType.present
           ? data.sourceType.value
@@ -24827,6 +24919,7 @@ class NotificationScheduleData extends DataClass
   String toString() {
     return (StringBuffer('NotificationScheduleData(')
           ..write('id: $id, ')
+          ..write('generation: $generation, ')
           ..write('accountId: $accountId, ')
           ..write('sourceType: $sourceType, ')
           ..write('sourceId: $sourceId, ')
@@ -24845,6 +24938,7 @@ class NotificationScheduleData extends DataClass
   @override
   int get hashCode => Object.hash(
     id,
+    generation,
     accountId,
     sourceType,
     sourceId,
@@ -24862,6 +24956,7 @@ class NotificationScheduleData extends DataClass
       identical(this, other) ||
       (other is NotificationScheduleData &&
           other.id == this.id &&
+          other.generation == this.generation &&
           other.accountId == this.accountId &&
           other.sourceType == this.sourceType &&
           other.sourceId == this.sourceId &&
@@ -24878,6 +24973,7 @@ class NotificationScheduleData extends DataClass
 class NotificationScheduleCompanion
     extends UpdateCompanion<NotificationScheduleData> {
   final Value<String> id;
+  final Value<String> generation;
   final Value<String> accountId;
   final Value<String> sourceType;
   final Value<String> sourceId;
@@ -24892,6 +24988,7 @@ class NotificationScheduleCompanion
   final Value<int> rowid;
   const NotificationScheduleCompanion({
     this.id = const Value.absent(),
+    this.generation = const Value.absent(),
     this.accountId = const Value.absent(),
     this.sourceType = const Value.absent(),
     this.sourceId = const Value.absent(),
@@ -24907,6 +25004,7 @@ class NotificationScheduleCompanion
   });
   NotificationScheduleCompanion.insert({
     required String id,
+    this.generation = const Value.absent(),
     required String accountId,
     required String sourceType,
     required String sourceId,
@@ -24929,6 +25027,7 @@ class NotificationScheduleCompanion
        updatedAtLocal = Value(updatedAtLocal);
   static Insertable<NotificationScheduleData> custom({
     Expression<String>? id,
+    Expression<String>? generation,
     Expression<String>? accountId,
     Expression<String>? sourceType,
     Expression<String>? sourceId,
@@ -24944,6 +25043,7 @@ class NotificationScheduleCompanion
   }) {
     return RawValuesInsertable({
       if (id != null) 'id': id,
+      if (generation != null) 'generation': generation,
       if (accountId != null) 'account_id': accountId,
       if (sourceType != null) 'source_type': sourceType,
       if (sourceId != null) 'source_id': sourceId,
@@ -24961,6 +25061,7 @@ class NotificationScheduleCompanion
 
   NotificationScheduleCompanion copyWith({
     Value<String>? id,
+    Value<String>? generation,
     Value<String>? accountId,
     Value<String>? sourceType,
     Value<String>? sourceId,
@@ -24976,6 +25077,7 @@ class NotificationScheduleCompanion
   }) {
     return NotificationScheduleCompanion(
       id: id ?? this.id,
+      generation: generation ?? this.generation,
       accountId: accountId ?? this.accountId,
       sourceType: sourceType ?? this.sourceType,
       sourceId: sourceId ?? this.sourceId,
@@ -24996,6 +25098,9 @@ class NotificationScheduleCompanion
     final map = <String, Expression>{};
     if (id.present) {
       map['id'] = Variable<String>(id.value);
+    }
+    if (generation.present) {
+      map['generation'] = Variable<String>(generation.value);
     }
     if (accountId.present) {
       map['account_id'] = Variable<String>(accountId.value);
@@ -25040,6 +25145,7 @@ class NotificationScheduleCompanion
   String toString() {
     return (StringBuffer('NotificationScheduleCompanion(')
           ..write('id: $id, ')
+          ..write('generation: $generation, ')
           ..write('accountId: $accountId, ')
           ..write('sourceType: $sourceType, ')
           ..write('sourceId: $sourceId, ')
@@ -26039,6 +26145,7 @@ typedef $$AccountsTableCreateCompanionBuilder =
       required String updatedAtUtc,
       Value<String?> lastSuccessfulSyncAtUtc,
       Value<String?> lastFullSyncAtUtc,
+      Value<bool> taskImportIncomplete,
       Value<int> rowid,
     });
 typedef $$AccountsTableUpdateCompanionBuilder =
@@ -26062,6 +26169,7 @@ typedef $$AccountsTableUpdateCompanionBuilder =
       Value<String> updatedAtUtc,
       Value<String?> lastSuccessfulSyncAtUtc,
       Value<String?> lastFullSyncAtUtc,
+      Value<bool> taskImportIncomplete,
       Value<int> rowid,
     });
 
@@ -26508,6 +26616,11 @@ class $$AccountsTableFilterComposer
 
   ColumnFilters<String> get lastFullSyncAtUtc => $composableBuilder(
     column: $table.lastFullSyncAtUtc,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get taskImportIncomplete => $composableBuilder(
+    column: $table.taskImportIncomplete,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -26991,6 +27104,11 @@ class $$AccountsTableOrderingComposer
     column: $table.lastFullSyncAtUtc,
     builder: (column) => ColumnOrderings(column),
   );
+
+  ColumnOrderings<bool> get taskImportIncomplete => $composableBuilder(
+    column: $table.taskImportIncomplete,
+    builder: (column) => ColumnOrderings(column),
+  );
 }
 
 class $$AccountsTableAnnotationComposer
@@ -27082,6 +27200,11 @@ class $$AccountsTableAnnotationComposer
 
   GeneratedColumn<String> get lastFullSyncAtUtc => $composableBuilder(
     column: $table.lastFullSyncAtUtc,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<bool> get taskImportIncomplete => $composableBuilder(
+    column: $table.taskImportIncomplete,
     builder: (column) => column,
   );
 
@@ -27530,6 +27653,7 @@ class $$AccountsTableTableManager
                 Value<String> updatedAtUtc = const Value.absent(),
                 Value<String?> lastSuccessfulSyncAtUtc = const Value.absent(),
                 Value<String?> lastFullSyncAtUtc = const Value.absent(),
+                Value<bool> taskImportIncomplete = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => AccountsCompanion(
                 id: id,
@@ -27551,6 +27675,7 @@ class $$AccountsTableTableManager
                 updatedAtUtc: updatedAtUtc,
                 lastSuccessfulSyncAtUtc: lastSuccessfulSyncAtUtc,
                 lastFullSyncAtUtc: lastFullSyncAtUtc,
+                taskImportIncomplete: taskImportIncomplete,
                 rowid: rowid,
               ),
           createCompanionCallback:
@@ -27574,6 +27699,7 @@ class $$AccountsTableTableManager
                 required String updatedAtUtc,
                 Value<String?> lastSuccessfulSyncAtUtc = const Value.absent(),
                 Value<String?> lastFullSyncAtUtc = const Value.absent(),
+                Value<bool> taskImportIncomplete = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => AccountsCompanion.insert(
                 id: id,
@@ -27595,6 +27721,7 @@ class $$AccountsTableTableManager
                 updatedAtUtc: updatedAtUtc,
                 lastSuccessfulSyncAtUtc: lastSuccessfulSyncAtUtc,
                 lastFullSyncAtUtc: lastFullSyncAtUtc,
+                taskImportIncomplete: taskImportIncomplete,
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0
@@ -43940,6 +44067,7 @@ typedef $$ScheduleItemOverridesTableProcessedTableManager =
 typedef $$NotificationScheduleTableCreateCompanionBuilder =
     NotificationScheduleCompanion Function({
       required String id,
+      Value<String> generation,
       required String accountId,
       required String sourceType,
       required String sourceId,
@@ -43956,6 +44084,7 @@ typedef $$NotificationScheduleTableCreateCompanionBuilder =
 typedef $$NotificationScheduleTableUpdateCompanionBuilder =
     NotificationScheduleCompanion Function({
       Value<String> id,
+      Value<String> generation,
       Value<String> accountId,
       Value<String> sourceType,
       Value<String> sourceId,
@@ -44014,6 +44143,11 @@ class $$NotificationScheduleTableFilterComposer
   });
   ColumnFilters<String> get id => $composableBuilder(
     column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get generation => $composableBuilder(
+    column: $table.generation,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -44105,6 +44239,11 @@ class $$NotificationScheduleTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get generation => $composableBuilder(
+    column: $table.generation,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<String> get sourceType => $composableBuilder(
     column: $table.sourceType,
     builder: (column) => ColumnOrderings(column),
@@ -44190,6 +44329,11 @@ class $$NotificationScheduleTableAnnotationComposer
   });
   GeneratedColumn<String> get id =>
       $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get generation => $composableBuilder(
+    column: $table.generation,
+    builder: (column) => column,
+  );
 
   GeneratedColumn<String> get sourceType => $composableBuilder(
     column: $table.sourceType,
@@ -44294,6 +44438,7 @@ class $$NotificationScheduleTableTableManager
           updateCompanionCallback:
               ({
                 Value<String> id = const Value.absent(),
+                Value<String> generation = const Value.absent(),
                 Value<String> accountId = const Value.absent(),
                 Value<String> sourceType = const Value.absent(),
                 Value<String> sourceId = const Value.absent(),
@@ -44308,6 +44453,7 @@ class $$NotificationScheduleTableTableManager
                 Value<int> rowid = const Value.absent(),
               }) => NotificationScheduleCompanion(
                 id: id,
+                generation: generation,
                 accountId: accountId,
                 sourceType: sourceType,
                 sourceId: sourceId,
@@ -44324,6 +44470,7 @@ class $$NotificationScheduleTableTableManager
           createCompanionCallback:
               ({
                 required String id,
+                Value<String> generation = const Value.absent(),
                 required String accountId,
                 required String sourceType,
                 required String sourceId,
@@ -44338,6 +44485,7 @@ class $$NotificationScheduleTableTableManager
                 Value<int> rowid = const Value.absent(),
               }) => NotificationScheduleCompanion.insert(
                 id: id,
+                generation: generation,
                 accountId: accountId,
                 sourceType: sourceType,
                 sourceId: sourceId,

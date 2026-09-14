@@ -13,6 +13,37 @@ class AppLocalizationsPt extends AppLocalizations {
   AppLocalizationsPt([String locale = 'pt']) : super(locale);
 
   @override
+  String get timeFormat => 'Time format';
+
+  @override
+  String get timeFormatTwelveHour => '12-hour';
+
+  @override
+  String get timeFormatTwentyFourHour => '24-hour';
+
+  @override
+  String get timeEndOfDay => 'end of day';
+
+  @override
+  String get timePeriod => 'Day period';
+
+  @override
+  String get launchAtLoginReadFailed =>
+      'Could not determine the launch-at-login state.';
+
+  @override
+  String get launchAtLoginUnavailable =>
+      'Launch at login is unavailable on this system.';
+
+  @override
+  String get windowsStartupEnabledByPolicy =>
+      'Startup is enabled by your administrator and cannot be changed here.';
+
+  @override
+  String get settingsSaveFailed =>
+      'Could not save settings. Your changes may be lost when BusyMax restarts.';
+
+  @override
   String get nextcloudExportCollection => 'Export collection resources';
 
   @override
@@ -1853,6 +1884,14 @@ class AppLocalizationsPt extends AppLocalizations {
       'This recurrence rule uses options that this editor does not change.';
 
   @override
+  String get taskRecurrenceDestinationUnsupported =>
+      'This list cannot use this repeat pattern. Change the pattern or choose another list.';
+
+  @override
+  String get taskRecurrenceRequiresDate =>
+      'Add a start or due date to use this repeat pattern, or turn off repeat.';
+
+  @override
   String recurrenceUnsupportedByProvider(String provider) {
     return 'This recurrence cannot be used with $provider.';
   }
@@ -2919,6 +2958,37 @@ class AppLocalizationsPt extends AppLocalizations {
 /// The translations for Portuguese, as used in Portugal (`pt_PT`).
 class AppLocalizationsPtPt extends AppLocalizationsPt {
   AppLocalizationsPtPt() : super('pt_PT');
+
+  @override
+  String get timeFormat => 'Formato da hora';
+
+  @override
+  String get timeFormatTwelveHour => '12 horas';
+
+  @override
+  String get timeFormatTwentyFourHour => '24 horas';
+
+  @override
+  String get timeEndOfDay => 'fim do dia';
+
+  @override
+  String get timePeriod => 'Período do dia';
+
+  @override
+  String get launchAtLoginReadFailed =>
+      'Não foi possível determinar o estado do arranque ao iniciar sessão.';
+
+  @override
+  String get launchAtLoginUnavailable =>
+      'O arranque ao iniciar sessão não está disponível neste sistema.';
+
+  @override
+  String get windowsStartupEnabledByPolicy =>
+      'O arranque automático foi ativado pelo administrador e não pode ser alterado aqui.';
+
+  @override
+  String get settingsSaveFailed =>
+      'Não foi possível guardar as definições. As alterações poderão perder-se ao reiniciar o BusyMax.';
 
   @override
   String get nextcloudExportCollection => 'Exportar recursos da coleção';
@@ -4755,6 +4825,14 @@ class AppLocalizationsPtPt extends AppLocalizationsPt {
   @override
   String get unsupportedRecurrencePreserved =>
       'Esta regra de recorrência utiliza opções que este editor não altera.';
+
+  @override
+  String get taskRecurrenceDestinationUnsupported =>
+      'Esta lista não suporta este padrão de repetição. Altere o padrão ou escolha outra lista.';
+
+  @override
+  String get taskRecurrenceRequiresDate =>
+      'Adicione uma data de início ou de conclusão para usar este padrão, ou desative a repetição.';
 
   @override
   String recurrenceUnsupportedByProvider(String provider) {

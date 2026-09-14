@@ -13,6 +13,37 @@ class AppLocalizationsVi extends AppLocalizations {
   AppLocalizationsVi([String locale = 'vi']) : super(locale);
 
   @override
+  String get timeFormat => 'Định dạng giờ';
+
+  @override
+  String get timeFormatTwelveHour => '12 giờ';
+
+  @override
+  String get timeFormatTwentyFourHour => '24 giờ';
+
+  @override
+  String get timeEndOfDay => 'cuối ngày';
+
+  @override
+  String get timePeriod => 'Buổi trong ngày';
+
+  @override
+  String get launchAtLoginReadFailed =>
+      'Không thể xác định trạng thái khởi chạy khi đăng nhập.';
+
+  @override
+  String get launchAtLoginUnavailable =>
+      'Hệ thống này không hỗ trợ khởi chạy khi đăng nhập.';
+
+  @override
+  String get windowsStartupEnabledByPolicy =>
+      'Quản trị viên đã bật tự động khởi động và không thể thay đổi tại đây.';
+
+  @override
+  String get settingsSaveFailed =>
+      'Không thể lưu cài đặt. Các thay đổi có thể bị mất khi BusyMax khởi động lại.';
+
+  @override
   String get nextcloudExportCollection => 'Xuất tài nguyên bộ sưu tập';
 
   @override
@@ -1835,6 +1866,14 @@ class AppLocalizationsVi extends AppLocalizations {
   @override
   String get unsupportedRecurrencePreserved =>
       'Quy tắc lặp lại này sử dụng các tùy chọn mà trình chỉnh sửa này không thay đổi.';
+
+  @override
+  String get taskRecurrenceDestinationUnsupported =>
+      'Danh sách này không hỗ trợ kiểu lặp này. Hãy đổi kiểu lặp hoặc chọn danh sách khác.';
+
+  @override
+  String get taskRecurrenceRequiresDate =>
+      'Thêm ngày bắt đầu hoặc hạn chót để dùng kiểu lặp này, hoặc tắt lặp lại.';
 
   @override
   String recurrenceUnsupportedByProvider(String provider) {

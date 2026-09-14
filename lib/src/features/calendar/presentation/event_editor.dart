@@ -1,3 +1,4 @@
+import '../domain/event_property_policy.dart';
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -546,6 +547,28 @@ class _EventEditorState extends ConsumerState<EventEditor> {
                   ),
               ],
             ),
+            BusyMaxGroupedList(
+              filled: true,
+              children: [
+                YaruListTile.square(
+                  title: EventDescriptionEditor(
+                    provider: provider,
+                    text: _draft.description,
+                    contentType: _draft.descriptionContentType,
+                    html: _draft.descriptionHtml,
+                    onChanged: (value) {
+                      setState(() {
+                        _draft = _draft.copyWith(
+                          description: value.text,
+                          descriptionContentType: value.contentType,
+                          descriptionHtml: value.html,
+                        );
+                      });
+                    },
+                  ),
+                ),
+              ],
+            ),
             if (recurringOccurrence)
               BusyMaxGroupedList(
                 title: l10n.recurringEventScope,
@@ -584,54 +607,55 @@ class _EventEditorState extends ConsumerState<EventEditor> {
                 ),
                 child: Text(l10n.nextcloudGuestAvailability),
               ),
-            if ((provider == BusyProvider.google ||
-                    provider == BusyProvider.microsoft) &&
-                _draft.isOrganizer != false)
-              BusyMaxGroupedList(
-                title: l10n.meetingSection,
-                filled: true,
-                children: _meetingRows(provider, currentSource),
-              ),
-            if (provider == BusyProvider.microsoft ||
-                provider == BusyProvider.nextcloud ||
-                schedulingReadOnly)
-              BusyMaxGroupedList(
-                title: l10n.organizationSection,
-                filled: true,
+            YaruExpandable(
+              header: Text(l10n.organizationSection),
+              expandIconSemanticLabel: l10n.organizationSection,
+              isExpanded:
+                  _draft.categories.isNotEmpty ||
+                  _draft.conference != null ||
+                  _draft.createConference ||
+                  (_draft.importance != null &&
+                      _draft.importance != 'normal') ||
+                  (_draft.showAs != null &&
+                      !const ['opaque', 'busy'].contains(_draft.showAs)) ||
+                  (_draft.visibilityOrSensitivity != null &&
+                      !const [
+                        'default',
+                        'normal',
+                        'public',
+                      ].contains(_draft.visibilityOrSensitivity)),
+              child: Column(
                 children: [
-                  _categoriesRow(),
-                  if (provider == BusyProvider.microsoft) _importanceRow(),
+                  if ((provider == BusyProvider.google ||
+                          provider == BusyProvider.microsoft) &&
+                      _draft.isOrganizer != false)
+                    BusyMaxGroupedList(
+                      title: l10n.meetingSection,
+                      filled: true,
+                      children: _meetingRows(provider, currentSource),
+                    ),
+                  if (provider == BusyProvider.microsoft ||
+                      provider == BusyProvider.nextcloud ||
+                      schedulingReadOnly)
+                    BusyMaxGroupedList(
+                      title: l10n.organizationSection,
+                      filled: true,
+                      children: [
+                        _categoriesRow(),
+                        if (provider == BusyProvider.microsoft)
+                          _importanceRow(),
+                      ],
+                    ),
+                  BusyMaxGroupedList(
+                    filled: true,
+                    children: [_availabilityRow(provider)],
+                  ),
+                  BusyMaxGroupedList(
+                    filled: true,
+                    children: [_visibilityRow(provider)],
+                  ),
                 ],
               ),
-            BusyMaxGroupedList(
-              filled: true,
-              children: [
-                YaruListTile.square(
-                  title: EventDescriptionEditor(
-                    provider: provider,
-                    text: _draft.description,
-                    contentType: _draft.descriptionContentType,
-                    html: _draft.descriptionHtml,
-                    onChanged: (value) {
-                      setState(() {
-                        _draft = _draft.copyWith(
-                          description: value.text,
-                          descriptionContentType: value.contentType,
-                          descriptionHtml: value.html,
-                        );
-                      });
-                    },
-                  ),
-                ),
-              ],
-            ),
-            BusyMaxGroupedList(
-              filled: true,
-              children: [_availabilityRow(provider)],
-            ),
-            BusyMaxGroupedList(
-              filled: true,
-              children: [_visibilityRow(provider)],
             ),
             if (_draft.eventId != null && widget.onDelete != null)
               const SizedBox(height: BusyMaxSpacing.md),
@@ -1028,10 +1052,10 @@ class _EventEditorState extends ConsumerState<EventEditor> {
               _disabledRemindersFor(source.provider)
         : _draft.reminders;
     final adjustedShowAs = providerChanged
-        ? _showAsForProvider(_draft.showAs, source.provider)
+        ? eventShowAsForProvider(_draft.showAs, source.provider)
         : _draft.showAs;
     final adjustedVisibility = providerChanged
-        ? _visibilityForProvider(
+        ? eventVisibilityForProvider(
             _draft.visibilityOrSensitivity,
             source.provider,
           )
@@ -1769,35 +1793,6 @@ Object _disabledRemindersFor(BusyProvider provider) {
     return {'useDefault': false, 'overrides': const []};
   }
   return {'isReminderOn': false};
-}
-
-String _showAsForProvider(String? value, BusyProvider provider) {
-  if (provider == BusyProvider.microsoft) {
-    return switch (value) {
-      'free' || 'tentative' || 'busy' || 'oof' || 'workingElsewhere' => value!,
-      'transparent' => 'free',
-      _ => 'busy',
-    };
-  }
-  return switch (value) {
-    'opaque' || 'transparent' => value!,
-    'free' => 'transparent',
-    _ => 'opaque',
-  };
-}
-
-String _visibilityForProvider(String? value, BusyProvider provider) {
-  if (provider == BusyProvider.microsoft) {
-    return switch (value) {
-      'normal' || 'personal' || 'private' || 'confidential' => value!,
-      _ => 'normal',
-    };
-  }
-  return switch (value) {
-    'default' || 'public' || 'private' || 'confidential' => value!,
-    'personal' => 'private',
-    _ => 'default',
-  };
 }
 
 List<int> _normalizedReminderMinutes(Iterable<int> minutes) {

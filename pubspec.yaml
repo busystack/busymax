@@ -1,7 +1,7 @@
 name: busymax
 description: BusyMax calendar and task manager.
 publish_to: 'none'
-version: 0.2.0
+version: 0.2.1
 
 environment:
   sdk: ^3.12.0
@@ -58,6 +58,8 @@ dev_dependencies:
   very_good_analysis: ^10.1.0
 
 dependency_overrides:
+  fluent_ui:
+    path: third_party/fluent_ui
   flutter_timezone:
     path: third_party/flutter_timezone
   tray_manager:

@@ -13,6 +13,35 @@ class AppLocalizationsKo extends AppLocalizations {
   AppLocalizationsKo([String locale = 'ko']) : super(locale);
 
   @override
+  String get timeFormat => '시간 형식';
+
+  @override
+  String get timeFormatTwelveHour => '12시간';
+
+  @override
+  String get timeFormatTwentyFourHour => '24시간';
+
+  @override
+  String get timeEndOfDay => '하루의 끝';
+
+  @override
+  String get timePeriod => '오전/오후';
+
+  @override
+  String get launchAtLoginReadFailed => '로그인 시 실행 상태를 확인할 수 없습니다.';
+
+  @override
+  String get launchAtLoginUnavailable => '이 시스템에서는 로그인 시 실행을 사용할 수 없습니다.';
+
+  @override
+  String get windowsStartupEnabledByPolicy =>
+      '관리자가 자동 시작을 활성화했으며 여기서는 변경할 수 없습니다.';
+
+  @override
+  String get settingsSaveFailed =>
+      '설정을 저장할 수 없습니다. BusyMax를 다시 시작하면 변경 사항이 사라질 수 있습니다.';
+
+  @override
   String get nextcloudExportCollection => '컬렉션 리소스 내보내기';
 
   @override
@@ -1799,6 +1828,14 @@ class AppLocalizationsKo extends AppLocalizations {
   @override
   String get unsupportedRecurrencePreserved =>
       '이 반복 규칙에는 이 편집기에서 변경하지 않는 옵션이 사용됩니다.';
+
+  @override
+  String get taskRecurrenceDestinationUnsupported =>
+      '이 목록은 이 반복 패턴을 지원하지 않습니다. 패턴을 변경하거나 다른 목록을 선택하세요.';
+
+  @override
+  String get taskRecurrenceRequiresDate =>
+      '이 반복 패턴을 사용하려면 시작일 또는 마감일을 추가하거나 반복을 끄세요.';
 
   @override
   String recurrenceUnsupportedByProvider(String provider) {

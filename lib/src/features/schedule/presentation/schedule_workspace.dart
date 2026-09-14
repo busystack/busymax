@@ -198,6 +198,7 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
   Offset? _recentSchedulePointerPosition;
   Duration? _recentSchedulePointerTime;
   ScheduleWorkspaceCommand? _pendingAnchoredCommand;
+  ScheduleWorkspaceCommand? _revealedNotificationTarget;
   List<CalendarSourceEntity> _pendingAnchoredSources =
       const <CalendarSourceEntity>[];
   var _agendaLoadedDays = _agendaInitialDays;
@@ -310,18 +311,31 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
                   settings: settings,
                 );
                 final firstWeekday = _firstWeekday(context);
+                final revealed = _revealedNotificationTarget;
+                final visibleSourceIds = {
+                  ...visibility.visibleCalendarSourceIds,
+                  if (revealed?.kind ==
+                          ScheduleWorkspaceCommandKind.openCalendarEvent &&
+                      revealed?.sourceId != null)
+                    revealed!.sourceId!,
+                };
                 final visibleSources = sources
-                    .where(
-                      (source) => visibility.visibleCalendarSourceIds.contains(
-                        source.id,
-                      ),
-                    )
+                    .where((source) => visibleSourceIds.contains(source.id))
                     .toList();
                 final writableSources = writableCalendarSources(visibleSources);
                 final routedTaskListKey = _initialTaskListKey;
-                final visibleTaskListKeys = routedTaskListKey == null
-                    ? visibility.visibleTaskListKeys
-                    : <ScheduleTaskListKey>{routedTaskListKey};
+                final visibleTaskListKeys = <ScheduleTaskListKey>{
+                  ...routedTaskListKey == null
+                      ? visibility.visibleTaskListKeys
+                      : <ScheduleTaskListKey>{routedTaskListKey},
+                  if (revealed?.kind == ScheduleWorkspaceCommandKind.openTask &&
+                      revealed?.accountId != null &&
+                      revealed?.sourceId != null)
+                    ScheduleTaskListKey(
+                      accountId: revealed!.accountId!,
+                      taskListId: revealed.sourceId!,
+                    ),
+                };
                 final visibleTaskLists = taskLists
                     .where(
                       (list) => visibleTaskListKeys.contains(
@@ -344,7 +358,7 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
                     range: range,
                     searchHasQuery: searchHasQuery,
                     accountIds: accountIds.toSet(),
-                    sourceIds: visibility.visibleCalendarSourceIds,
+                    sourceIds: visibleSourceIds,
                     taskListKeys: visibleTaskListKeys,
                   ),
                   builder: (context, snapshot) {
@@ -396,7 +410,7 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
                     final displayMode = searchHasQuery
                         ? ScheduleViewMode.agenda
                         : _mode;
-                    _consumePendingCommand(visibleSources, accounts);
+                    _consumePendingCommand(visibleSources, accounts, sources);
                     final showFallbackHeader = _showFlutterHeaderFallback;
                     final canShowFallbackSidebar =
                         BusyMaxLayoutRules.showSidebar(
@@ -644,7 +658,12 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
     );
   }
 
-  Widget _scheduleShortcutScope(Widget child) {
+  Widget _scheduleShortcutScope(Widget child) => ScheduleItemAnchorScope(
+    onAnchorAvailable: _handleItemAnchorAvailable,
+    child: _buildScheduleShortcuts(child),
+  );
+
+  Widget _buildScheduleShortcuts(Widget child) {
     return Shortcuts(
       shortcuts: _scheduleShortcuts,
       child: Actions(
@@ -2457,6 +2476,7 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
   void _consumePendingCommand(
     List<CalendarSourceEntity> sources,
     List<AccountEntity> accounts,
+    List<CalendarSourceEntity> notificationSources,
   ) {
     final command = ref.watch(scheduleWorkspaceCommandProvider);
     if (command == null) {
@@ -2479,9 +2499,9 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
         case ScheduleWorkspaceCommandKind.openDate:
           _openCommandDate(command.date);
         case ScheduleWorkspaceCommandKind.openCalendarEvent:
-          _queueAnchoredCommand(command, sources);
+          _queueAnchoredCommand(command, notificationSources);
         case ScheduleWorkspaceCommandKind.openTask:
-          _queueAnchoredCommand(command, sources);
+          _queueAnchoredCommand(command, notificationSources);
       }
     });
   }
@@ -2492,7 +2512,14 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
   ) {
     _pendingAnchoredCommand = command;
     _pendingAnchoredSources = List<CalendarSourceEntity>.unmodifiable(sources);
-    _openCommandDate(command.date);
+    setState(() {
+      _revealedNotificationTarget = command;
+      _scope = ScheduleScope.all;
+      _searchActive = false;
+      _searchQuery = '';
+      _searchController.clear();
+    });
+    _openCommandDate(command.date ?? DateTime.now());
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
         _tryOpenPendingAnchoredCommand();
@@ -2524,7 +2551,24 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
     final sources = _pendingAnchoredSources;
     _pendingAnchoredCommand = null;
     _pendingAnchoredSources = const <CalendarSourceEntity>[];
-    unawaited(_openItem(anchorContext, item, sources));
+    unawaited(
+      _openRevealedNotificationItem(anchorContext, item, sources, command),
+    );
+  }
+
+  Future<void> _openRevealedNotificationItem(
+    BuildContext anchorContext,
+    ScheduleItem item,
+    List<CalendarSourceEntity> sources,
+    ScheduleWorkspaceCommand command,
+  ) async {
+    try {
+      await _openItem(anchorContext, item, sources);
+    } finally {
+      if (mounted && _revealedNotificationTarget == command) {
+        setState(() => _revealedNotificationTarget = null);
+      }
+    }
   }
 
   ScheduleItem? _findLatestCommandItem(ScheduleWorkspaceCommand command) {
@@ -2566,10 +2610,7 @@ T? _findCommandItem<T extends ScheduleItem>(
   ScheduleWorkspaceCommand command,
 ) {
   for (final item in items) {
-    if (item is T &&
-        item.id == command.itemId &&
-        item.accountId == command.accountId &&
-        item.sourceId == command.sourceId) {
+    if (item is T && command.matchesItem(item)) {
       return item;
     }
   }

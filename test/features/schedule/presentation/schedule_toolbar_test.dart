@@ -302,6 +302,15 @@ void main() {
       ),
     );
 
+    expect(
+      tester.getCenter(find.byTooltip('Refresh all')).dx,
+      lessThan(tester.getCenter(find.byTooltip('Search (Ctrl+F)')).dx),
+    );
+    expect(
+      tester.getCenter(find.byTooltip('Search (Ctrl+F)')).dx,
+      lessThan(tester.getCenter(find.byTooltip('Main Menu')).dx),
+    );
+
     await tester.tap(find.byTooltip('Hide sidebar panel (F9)'));
     await tester.pump();
     expect(find.byTooltip('Show sidebar panel (F9)'), findsOneWidget);

@@ -14,8 +14,10 @@ import '../platform/linux_header_bar_provider.dart';
 import '../platform/linux_header_bar_service.dart';
 import '../platform/common/desktop_services.dart';
 import '../l10n/locale_resolution.dart';
+import '../l10n/time_format_scope.dart';
 import '../schedule/schedule_commands.dart';
 import 'app_bootstrap.dart';
+import 'desktop_startup_policy.dart';
 import 'app_router.dart';
 import 'busymax_keyboard_shortcuts_dialog.dart';
 import 'busymax_shortcuts.dart';
@@ -88,7 +90,11 @@ class _BusyMaxAppState extends ConsumerState<LinuxBusyMaxApp> {
   BusyMaxTrayService? _trayService;
   bool? _lastHideOnClose;
   bool? _lastTrayEnabled;
-  bool _startMinimizedHandled = false;
+  late final _startupPolicy = DesktopStartupPolicy(
+    startMinimizedAtLaunch: widget.startMinimizedAtLaunch,
+  );
+  bool _backgroundConfigurationRunning = false;
+  bool _backgroundConfigurationPending = false;
   bool _settingsReady = false;
   var _scheduleCommandSequence = 0;
   BusyMaxTrayPresentationFormatter? _trayPresentationFormatter;
@@ -252,9 +258,12 @@ class _BusyMaxAppState extends ConsumerState<LinuxBusyMaxApp> {
           supportedLocales: busyMaxSupportedLocales,
           builder: (context, child) {
             final l10n = AppLocalizations.of(context);
-            final material = MaterialLocalizations.of(context);
-            final alwaysUse24HourFormat = MediaQuery.alwaysUse24HourFormatOf(
-              context,
+            final clock = BusyMaxTimeFormatter(
+              locale: Localizations.localeOf(context).toLanguageTag(),
+              use24Hour: resolveBusyMax24HourClock(
+                settings.timeFormatPreference,
+                systemUses24Hour: MediaQuery.alwaysUse24HourFormatOf(context),
+              ),
             );
             final trayFormatter = BusyMaxTrayPresentationFormatter(
               BusyMaxTrayPresentationStrings(
@@ -276,10 +285,7 @@ class _BusyMaxAppState extends ConsumerState<LinuxBusyMaxApp> {
                 quitBusyMax: l10n.trayQuitBusyMax,
                 offline: l10n.networkOffline,
                 offlineDescription: l10n.networkOfflineDescription,
-                formatTime: (value) => material.formatTimeOfDay(
-                  TimeOfDay.fromDateTime(value),
-                  alwaysUse24HourFormat: alwaysUse24HourFormat,
-                ),
+                formatTime: clock.format,
                 tasksDueToday: l10n.trayTasksDueToday,
                 lastSyncedJustNow: l10n.trayLastSyncedJustNow,
                 lastSyncedMinutesAgo: l10n.trayLastSyncedMinutesAgo,
@@ -327,7 +333,15 @@ class _BusyMaxAppState extends ConsumerState<LinuxBusyMaxApp> {
                 },
                 child: ColoredBox(
                   color: BusyMaxSurfaceColors.of(context).window,
-                  child: child ?? const SizedBox.shrink(),
+                  child: BusyMaxTimeFormatScope(
+                    formatter: clock,
+                    child: MediaQuery(
+                      data: MediaQuery.of(
+                        context,
+                      ).copyWith(alwaysUse24HourFormat: clock.use24Hour),
+                      child: child ?? const SizedBox.shrink(),
+                    ),
+                  ),
                 ),
               ),
             );
@@ -400,44 +414,64 @@ class _BusyMaxAppState extends ConsumerState<LinuxBusyMaxApp> {
     if (!_settingsReady) {
       return;
     }
-
-    final windowService = ref.read(desktopWindowServiceProvider);
-    final trayEnabled =
-        settings.showTrayIcon ||
-        settings.runInBackgroundWhenClosed ||
-        settings.startMinimizedToTray ||
-        widget.startMinimizedAtLaunch;
-    _setHideOnClose(
-      windowService,
-      settings.runInBackgroundWhenClosed &&
-          trayEnabled &&
-          (_trayService?.available ?? false),
-    );
-    if (_trayService != null) {
-      unawaited(_trayService!.refreshPresentation());
-    }
-    if (_lastTrayEnabled == trayEnabled) {
+    if (_backgroundConfigurationRunning) {
+      _backgroundConfigurationPending = true;
       return;
     }
-    _lastTrayEnabled = trayEnabled;
-    final tray = _trayService ??= _createTrayService(
-      windowService: windowService,
-      formatter: trayFormatter,
-      settings: settings,
-    );
-    unawaited(tray.refreshPresentation());
-    if (trayEnabled) {
-      unawaited(
-        _startTray(
+    unawaited(_applyBackgroundServices(settings, trayFormatter));
+  }
+
+  Future<void> _applyBackgroundServices(
+    AppSettings settings,
+    BusyMaxTrayPresentationFormatter trayFormatter,
+  ) async {
+    _backgroundConfigurationRunning = true;
+    try {
+      final windowService = ref.read(desktopWindowServiceProvider);
+      final trayEnabled = _startupPolicy.needsTray(settings);
+      final startMinimized = _startupPolicy.takeStartMinimized(settings);
+      _setHideOnClose(
+        windowService,
+        settings.runInBackgroundWhenClosed &&
+            trayEnabled &&
+            (_trayService?.available ?? false),
+      );
+      if (_trayService != null) {
+        unawaited(_trayService!.refreshPresentation());
+      }
+      if (_lastTrayEnabled == trayEnabled) {
+        return;
+      }
+      _lastTrayEnabled = trayEnabled;
+      final tray = _trayService ??= _createTrayService(
+        windowService: windowService,
+        formatter: trayFormatter,
+        settings: settings,
+      );
+      unawaited(tray.refreshPresentation());
+      if (trayEnabled) {
+        await _startTray(
           tray,
           windowService,
-          startMinimizedToTray:
-              settings.startMinimizedToTray || widget.startMinimizedAtLaunch,
-        ),
-      );
-    } else {
-      _setHideOnClose(windowService, false);
-      unawaited(tray.stop());
+          startMinimizedToTray: startMinimized,
+        );
+      } else {
+        _setHideOnClose(windowService, false);
+        if (!await windowService.isWindowVisible()) {
+          await windowService.showWindow();
+        }
+        await tray.stop();
+      }
+    } finally {
+      _backgroundConfigurationRunning = false;
+      if (_backgroundConfigurationPending && mounted) {
+        _backgroundConfigurationPending = false;
+        _configureBackgroundServices(
+          ref,
+          ref.read(appSettingsControllerProvider),
+          trayFormatter,
+        );
+      }
     }
   }
 
@@ -483,12 +517,11 @@ class _BusyMaxAppState extends ConsumerState<LinuxBusyMaxApp> {
   }
 
   Future<BusyMaxTrayMenuPresentation> _loadTrayPresentation() async {
-    final formatter = _trayPresentationFormatter;
-    if (formatter == null) {
+    if (_trayPresentationFormatter == null) {
       throw StateError('Tray localization is not ready.');
     }
     final presentation = await ref.read(trayPresentationServiceProvider).load();
-    return formatter.format(presentation);
+    return _trayPresentationFormatter!.format(presentation);
   }
 
   Future<void> _openTrayNewEvent(DesktopWindowService windowService) async {
@@ -582,13 +615,10 @@ class _BusyMaxAppState extends ConsumerState<LinuxBusyMaxApp> {
     }
 
     final latestSettings = ref.read(appSettingsControllerProvider);
-    final trayStillEnabled =
-        latestSettings.showTrayIcon ||
-        latestSettings.runInBackgroundWhenClosed ||
-        latestSettings.startMinimizedToTray ||
-        widget.startMinimizedAtLaunch;
+    final trayStillEnabled = _startupPolicy.needsTray(latestSettings);
     if (!trayStillEnabled) {
       _setHideOnClose(windowService, false);
+      await windowService.showWindow();
       await tray.stop();
       return;
     }
@@ -596,10 +626,9 @@ class _BusyMaxAppState extends ConsumerState<LinuxBusyMaxApp> {
       windowService,
       latestSettings.runInBackgroundWhenClosed && tray.available,
     );
-    if (!startMinimizedToTray || _startMinimizedHandled) {
+    if (!startMinimizedToTray) {
       return;
     }
-    _startMinimizedHandled = true;
     if (tray.available) {
       await windowService.hideWindow();
     } else {

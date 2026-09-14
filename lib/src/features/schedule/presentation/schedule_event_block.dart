@@ -1,3 +1,4 @@
+import 'package:busymax/src/l10n/time_format_scope.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -250,8 +251,5 @@ String scheduleTimeRange(BuildContext context, ScheduleItem item) {
 }
 
 String _formatTime(BuildContext context, DateTime value) {
-  return MaterialLocalizations.of(context).formatTimeOfDay(
-    TimeOfDay.fromDateTime(value),
-    alwaysUse24HourFormat: MediaQuery.alwaysUse24HourFormatOf(context),
-  );
+  return formatClockTime(context, TimeOfDay.fromDateTime(value));
 }

@@ -13,6 +13,37 @@ class AppLocalizationsFi extends AppLocalizations {
   AppLocalizationsFi([String locale = 'fi']) : super(locale);
 
   @override
+  String get timeFormat => 'Aikamuoto';
+
+  @override
+  String get timeFormatTwelveHour => '12 tuntia';
+
+  @override
+  String get timeFormatTwentyFourHour => '24 tuntia';
+
+  @override
+  String get timeEndOfDay => 'vuorokauden loppu';
+
+  @override
+  String get timePeriod => 'Vuorokaudenaika';
+
+  @override
+  String get launchAtLoginReadFailed =>
+      'Kirjautumisen yhteydessä käynnistymisen tilaa ei voitu selvittää.';
+
+  @override
+  String get launchAtLoginUnavailable =>
+      'Käynnistys kirjautumisen yhteydessä ei ole käytettävissä tässä järjestelmässä.';
+
+  @override
+  String get windowsStartupEnabledByPolicy =>
+      'Ylläpitäjä on ottanut automaattisen käynnistyksen käyttöön, eikä sitä voi muuttaa täällä.';
+
+  @override
+  String get settingsSaveFailed =>
+      'Asetuksia ei voitu tallentaa. Muutokset saattavat kadota, kun BusyMax käynnistetään uudelleen.';
+
+  @override
   String get nextcloudExportCollection => 'Vie kokoelman resurssit';
 
   @override
@@ -1846,6 +1877,14 @@ class AppLocalizationsFi extends AppLocalizations {
   @override
   String get unsupportedRecurrencePreserved =>
       'Tämä toistosääntö käyttää asetuksia, joita tämä muokkain ei muuta.';
+
+  @override
+  String get taskRecurrenceDestinationUnsupported =>
+      'Tämä lista ei tue tätä toistomallia. Muuta mallia tai valitse toinen lista.';
+
+  @override
+  String get taskRecurrenceRequiresDate =>
+      'Lisää alkamis- tai määräpäivä käyttääksesi tätä toistomallia tai poista toisto käytöstä.';
 
   @override
   String recurrenceUnsupportedByProvider(String provider) {

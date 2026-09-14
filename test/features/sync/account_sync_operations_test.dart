@@ -110,6 +110,80 @@ void main() {
 
     expect(secondRan, isTrue);
   });
+
+  test('running lifecycle remains active across queued account work', () async {
+    final coordinator = AccountSyncCoordinator();
+    addTearDown(coordinator.dispose);
+    final changes = <String>[];
+    final subscription = coordinator.runningChanges.listen(changes.add);
+    addTearDown(subscription.cancel);
+    final firstRelease = Completer<void>();
+    final secondRelease = Completer<void>();
+
+    final first = coordinator.run<void>('account', () => firstRelease.future);
+    final second = coordinator.run<void>('account', () => secondRelease.future);
+
+    expect(coordinator.isRunning('account'), isTrue);
+    expect(coordinator.isRunning('other'), isFalse);
+    expect(changes, ['account']);
+
+    firstRelease.complete();
+    await first;
+    expect(coordinator.isRunning('account'), isTrue);
+    expect(changes, ['account']);
+
+    secondRelease.complete();
+    await second;
+    expect(coordinator.isRunning('account'), isFalse);
+    expect(changes, ['account', 'account']);
+  });
+
+  test(
+    'failed task import remains blocked until a task import succeeds',
+    () async {
+      final incompleteAccounts = <String>{};
+      AccountSyncCoordinator createCoordinator() => AccountSyncCoordinator(
+        restoreIncompleteTaskImports: () async => Set.of(incompleteAccounts),
+        persistTaskImportIncomplete: (accountId, incomplete) async {
+          if (incomplete) {
+            incompleteAccounts.add(accountId);
+          } else {
+            incompleteAccounts.remove(accountId);
+          }
+        },
+      );
+
+      var coordinator = createCoordinator();
+      final failure = StateError('task page failed');
+
+      await expectLater(
+        coordinator.run<void>('account', () async => throw failure),
+        throwsA(same(failure)),
+      );
+      expect(await coordinator.blocksDueToday('account'), isFalse);
+
+      await expectLater(
+        coordinator.trackTaskImport<void>('account', () async => throw failure),
+        throwsA(same(failure)),
+      );
+
+      expect(coordinator.isRunning('account'), isFalse);
+      expect(await coordinator.blocksDueToday('account'), isTrue);
+      expect(incompleteAccounts, {'account'});
+
+      await coordinator.dispose();
+      coordinator = createCoordinator();
+      addTearDown(coordinator.dispose);
+      expect(await coordinator.blocksDueToday('account'), isTrue);
+
+      await coordinator.run<void>('account', () async {});
+      expect(await coordinator.blocksDueToday('account'), isTrue);
+
+      await coordinator.trackTaskImport<void>('account', () async {});
+      expect(await coordinator.blocksDueToday('account'), isFalse);
+      expect(incompleteAccounts, isEmpty);
+    },
+  );
 }
 
 final class _BlockingAccountSyncOperations implements AccountSyncOperations {

@@ -157,15 +157,6 @@ class ScheduleToolbar extends StatelessWidget {
                 ],
                 onSelected: onModeChanged,
               ),
-              if (onSearch != null)
-                YaruIconButton(
-                  tooltip: _shortcutTooltip(
-                    MaterialLocalizations.of(context).searchFieldLabel,
-                    BusyMaxShortcutLabels.search,
-                  ),
-                  icon: const Icon(YaruIcons.search),
-                  onPressed: onSearch,
-                ),
               BusyMaxMenuButton<_ScheduleCreateAction>(
                 tooltip: context.l10n.create,
                 icon: const Icon(YaruIcons.plus),
@@ -201,6 +192,15 @@ class ScheduleToolbar extends StatelessWidget {
                   tooltip: context.l10n.refreshAll,
                   icon: const Icon(YaruIcons.refresh),
                   onPressed: canRefresh ? onRefresh : null,
+                ),
+              if (onSearch != null)
+                YaruIconButton(
+                  tooltip: _shortcutTooltip(
+                    MaterialLocalizations.of(context).searchFieldLabel,
+                    BusyMaxShortcutLabels.search,
+                  ),
+                  icon: const Icon(YaruIcons.search),
+                  onPressed: onSearch,
                 ),
               if (onMenuSelected != null)
                 BusyMaxMenuButton<ScheduleToolbarMenuAction>(

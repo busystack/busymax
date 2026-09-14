@@ -137,6 +137,12 @@ void main() {
         final painter =
             planner.timesIndicatorsParam.timesIndicatorsCustomPainter!(0.9)
                 as icv.HoursPainter;
+        final midnight = painter.textPainterBuilder!(
+          const TimeOfDay(hour: 24, minute: 0),
+          Colors.black,
+        );
+        expect(midnight.text!.toPlainText(), use24Hours ? '00:00' : '12:00 AM');
+        midnight.dispose();
         for (final minute in [37, 30, 0]) {
           final text = painter.textPainterBuilder!(
             TimeOfDay(hour: 14, minute: minute),

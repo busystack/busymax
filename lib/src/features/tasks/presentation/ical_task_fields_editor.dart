@@ -1,3 +1,4 @@
+import 'package:busymax/src/l10n/time_format_scope.dart';
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -108,10 +109,22 @@ class _IcalTaskFieldsEditorState extends ConsumerState<IcalTaskFieldsEditor> {
     if (capabilities.supportsTaskStatus ||
         capabilities.supportsPercentComplete ||
         capabilities.supportsCompletedDateTime) {
-      result.add(_statusGroup());
+      result.add(
+        _secondarySection(
+          context.l10n.statusSection,
+          widget.draft.hasDetailedProgress,
+          _statusGroup(),
+        ),
+      );
     }
     if (capabilities.supportsIcalPriority) {
-      result.add(_priorityGroup());
+      result.add(
+        _secondarySection(
+          context.l10n.priority,
+          widget.draft.icalPriority != 0,
+          _priorityGroup(),
+        ),
+      );
     }
     if (capabilities.supportsLocation || capabilities.supportsUrl) {
       result.add(_placeAndLinkGroup());
@@ -119,10 +132,25 @@ class _IcalTaskFieldsEditorState extends ConsumerState<IcalTaskFieldsEditor> {
     if (capabilities.supportsClassification ||
         capabilities.supportsPinning ||
         capabilities.supportsSubtaskVisibility) {
-      result.add(_sharingGroup());
+      result.add(
+        _secondarySection(
+          context.l10n.organizationSection,
+          widget.draft.classification != 'PUBLIC' ||
+              widget.draft.pinned ||
+              widget.draft.hideSubtasks ||
+              widget.draft.hideCompletedSubtasks,
+          _sharingGroup(),
+        ),
+      );
     }
     if (capabilities.supportsMultipleReminders) {
-      result.add(_remindersGroup());
+      result.add(
+        _secondarySection(
+          context.l10n.reminderGroup,
+          widget.draft.alarms.isNotEmpty,
+          _remindersGroup(),
+        ),
+      );
     }
     if (capabilities.supportsAdvancedRecurrence &&
         (widget.draft.microsoftStartDate != null ||
@@ -131,6 +159,14 @@ class _IcalTaskFieldsEditorState extends ConsumerState<IcalTaskFieldsEditor> {
     }
     return Column(children: result);
   }
+
+  Widget _secondarySection(String title, bool populated, Widget child) =>
+      YaruExpandable(
+        header: Text(title),
+        expandIconSemanticLabel: title,
+        isExpanded: populated,
+        child: child,
+      );
 
   Widget _statusGroup() {
     final l10n = context.l10n;
@@ -655,7 +691,7 @@ class _IcalTaskFieldsEditorState extends ConsumerState<IcalTaskFieldsEditor> {
       final local = absolute.toLocal();
       return context.l10n.dateTimeDisplay(
         MaterialLocalizations.of(context).formatMediumDate(local),
-        TimeOfDay.fromDateTime(local).format(context),
+        BusyMaxTimeFormatScope.of(context).format(local),
       );
     }
     final offset = alarm.relativeOffset;

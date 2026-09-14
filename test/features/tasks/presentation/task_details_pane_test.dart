@@ -1,6 +1,9 @@
 import 'dart:async';
 import 'dart:io';
 import 'dart:ui';
+import 'package:busymax/src/l10n/time_format_scope.dart';
+import 'package:busymax/src/dav/ical/ical_task_alarm.dart';
+import 'package:busymax/src/features/recurrence/domain/recurrence_rule.dart';
 
 import 'package:intl/intl.dart';
 import 'package:flutter/material.dart';
@@ -56,6 +59,74 @@ String _testAuthority(BusyProvider provider) => switch (provider) {
 };
 
 void main() {
+  testWidgets(
+    'clock changes preserve a timed recurring task draft and its absolute alarm',
+    (tester) async {
+      final alarm = IcalTaskAlarm.displayAbsolute(
+        DateTime.utc(2026, 9, 13, 13, 15),
+      );
+      final initial = TaskDetailsDraft.forCreation(
+        taskListId: 'list',
+        provider: BusyProvider.nextcloud,
+        timeZone: 'Europe/Berlin',
+        title: 'Draft title',
+        notes: 'Unsaved notes',
+        due: DateTime(2026, 9, 13, 14, 30),
+        start: DateTime(2026, 9, 13, 12),
+        scheduledAllDay: false,
+        alarms: [alarm],
+        recurrence: RecurrenceRule.fromJson(
+          '{"rules":["FREQ=WEEKLY;BYDAY=SU"]}',
+        ),
+      );
+      var draft = initial;
+      var changes = 0;
+      Future<void> pump(bool use24) => tester.pumpWidget(
+        ProviderScope(
+          child: localizedTestApp(
+            locale: const Locale('de'),
+            child: BusyMaxTimeFormatScope(
+              formatter: BusyMaxTimeFormatter(locale: 'de', use24Hour: use24),
+              child: Scaffold(
+                body: SingleChildScrollView(
+                  child: IcalTaskFieldsEditor(
+                    draft: draft,
+                    capabilities: nextcloudTaskCollectionCapabilities,
+                    enabled: true,
+                    onChanged: (value) {
+                      changes++;
+                      draft = value;
+                    },
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      await pump(false);
+      await tester.pumpAndSettle();
+      final editor = tester.state(find.byType(IcalTaskFieldsEditor));
+      await pump(true);
+      await tester.pumpAndSettle();
+      expect(tester.state(find.byType(IcalTaskFieldsEditor)), same(editor));
+      expect(changes, 0);
+      expect(draft, same(initial));
+      expect(draft.dueDate, '2026-09-13');
+      expect(draft.microsoftDueTime, '14:30');
+      expect(draft.microsoftStartTime, '12:00');
+      expect(draft.microsoftDueTimeZone, 'Europe/Berlin');
+      expect(
+        draft.alarms.single.absoluteUtc,
+        DateTime.utc(2026, 9, 13, 13, 15),
+      );
+      expect(draft.creationRecurrence, initial.creationRecurrence);
+      await pump(false);
+      await tester.pumpAndSettle();
+      expect(changes, 0);
+      expect(draft, same(initial));
+    },
+  );
   setUp(() {
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(_nativeDialogChannel, (_) async => null);

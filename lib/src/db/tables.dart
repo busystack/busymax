@@ -23,6 +23,8 @@ class Accounts extends Table {
   TextColumn get updatedAtUtc => text()();
   TextColumn get lastSuccessfulSyncAtUtc => text().nullable()();
   TextColumn get lastFullSyncAtUtc => text().nullable()();
+  BoolColumn get taskImportIncomplete =>
+      boolean().withDefault(const Constant(false))();
 
   @override
   Set<Column<Object>> get primaryKey => {id};
@@ -667,6 +669,8 @@ class ScheduleItemOverrides extends Table {
 
 class NotificationSchedule extends Table {
   TextColumn get id => text()();
+  // Existing desktop notifications predate generation-aware activation.
+  TextColumn get generation => text().withDefault(const Constant('legacy'))();
   TextColumn get accountId =>
       text().references(Accounts, #id, onDelete: KeyAction.cascade)();
   TextColumn get sourceType => text()();

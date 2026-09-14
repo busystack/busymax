@@ -13,6 +13,33 @@ class AppLocalizationsZh extends AppLocalizations {
   AppLocalizationsZh([String locale = 'zh']) : super(locale);
 
   @override
+  String get timeFormat => '时间格式';
+
+  @override
+  String get timeFormatTwelveHour => '12小时制';
+
+  @override
+  String get timeFormatTwentyFourHour => '24小时制';
+
+  @override
+  String get timeEndOfDay => '当天结束';
+
+  @override
+  String get timePeriod => '上午/下午';
+
+  @override
+  String get launchAtLoginReadFailed => '无法确定登录时启动的状态。';
+
+  @override
+  String get launchAtLoginUnavailable => '此系统不支持登录时启动。';
+
+  @override
+  String get windowsStartupEnabledByPolicy => '管理员已启用自动启动，无法在此更改。';
+
+  @override
+  String get settingsSaveFailed => '无法保存设置。重新启动 BusyMax 时，您的更改可能会丢失。';
+
+  @override
   String get nextcloudExportCollection => '导出集合资源';
 
   @override
@@ -1773,6 +1800,13 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get unsupportedRecurrencePreserved => '此重复规则使用了编辑器不会更改的选项。';
+
+  @override
+  String get taskRecurrenceDestinationUnsupported =>
+      '此列表不支持此重复模式。请更改模式或选择其他列表。';
+
+  @override
+  String get taskRecurrenceRequiresDate => '请添加开始日期或截止日期以使用此重复模式，或关闭重复。';
 
   @override
   String recurrenceUnsupportedByProvider(String provider) {
@@ -2794,6 +2828,33 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
   AppLocalizationsZhHans() : super('zh_Hans');
 
   @override
+  String get timeFormat => '时间格式';
+
+  @override
+  String get timeFormatTwelveHour => '12小时制';
+
+  @override
+  String get timeFormatTwentyFourHour => '24小时制';
+
+  @override
+  String get timeEndOfDay => '当天结束';
+
+  @override
+  String get timePeriod => '上午/下午';
+
+  @override
+  String get launchAtLoginReadFailed => '无法确定登录时启动的状态。';
+
+  @override
+  String get launchAtLoginUnavailable => '此系统不支持登录时启动。';
+
+  @override
+  String get windowsStartupEnabledByPolicy => '管理员已启用自动启动，无法在此更改。';
+
+  @override
+  String get settingsSaveFailed => '无法保存设置。重新启动 BusyMax 时，您的更改可能会丢失。';
+
+  @override
   String get nextcloudExportCollection => '导出集合资源';
 
   @override
@@ -4556,6 +4617,13 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
   String get unsupportedRecurrencePreserved => '此重复规则使用了编辑器不会更改的选项。';
 
   @override
+  String get taskRecurrenceDestinationUnsupported =>
+      '此列表不支持此重复模式。请更改模式或选择其他列表。';
+
+  @override
+  String get taskRecurrenceRequiresDate => '请添加开始日期或截止日期以使用此重复模式，或关闭重复。';
+
+  @override
   String recurrenceUnsupportedByProvider(String provider) {
     return '此重复规则不能用于 $provider。';
   }
@@ -5573,6 +5641,33 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
 /// The translations for Chinese, using the Han script (`zh_Hant`).
 class AppLocalizationsZhHant extends AppLocalizationsZh {
   AppLocalizationsZhHant() : super('zh_Hant');
+
+  @override
+  String get timeFormat => '時間格式';
+
+  @override
+  String get timeFormatTwelveHour => '12小時制';
+
+  @override
+  String get timeFormatTwentyFourHour => '24小時制';
+
+  @override
+  String get timeEndOfDay => '當天結束';
+
+  @override
+  String get timePeriod => '上午/下午';
+
+  @override
+  String get launchAtLoginReadFailed => '無法確定登入時啟動的狀態。';
+
+  @override
+  String get launchAtLoginUnavailable => '此系統不支援登入時啟動。';
+
+  @override
+  String get windowsStartupEnabledByPolicy => '管理員已啟用自動啟動，無法在此變更。';
+
+  @override
+  String get settingsSaveFailed => '無法儲存設定。重新啟動 BusyMax 時，您的變更可能會遺失。';
 
   @override
   String get nextcloudExportCollection => '匯出集合資源';
@@ -7335,6 +7430,13 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get unsupportedRecurrencePreserved => '此重複規則使用了編輯器不會更改的選項。';
+
+  @override
+  String get taskRecurrenceDestinationUnsupported =>
+      '此清單不支援此重複模式。請變更模式或選擇其他清單。';
+
+  @override
+  String get taskRecurrenceRequiresDate => '請新增開始日期或截止日期以使用此重複模式，或關閉重複。';
 
   @override
   String recurrenceUnsupportedByProvider(String provider) {

@@ -405,7 +405,17 @@ class EventEditorDraft {
       return false;
     }
     if (!allDay) {
-      return end.isAfter(start);
+      final startInstant = providerDateTimeAsUtcInstant(
+        providerWallTimeIso8601String(start),
+        startTimeZone,
+      );
+      final endInstant = providerDateTimeAsUtcInstant(
+        providerWallTimeIso8601String(end),
+        endTimeZone,
+      );
+      return startInstant != null &&
+          endInstant != null &&
+          endInstant.isAfter(startInstant);
     }
     final startDate = DateTime.utc(start.year, start.month, start.day);
     final endDate = DateTime.utc(end.year, end.month, end.day);

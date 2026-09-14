@@ -1,19 +1,33 @@
+import 'package:busymax/src/features/notifications/notification_scheduler.dart';
+import 'package:busymax/src/features/notifications/notification_schedule_service.dart';
+import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 
-import 'package:drift/drift.dart';
+import 'package:busymax/src/app/app_settings.dart';
+import 'package:busymax/src/features/accounts/data/accounts_repository.dart';
+import 'package:drift/drift.dart' hide isNull;
 import 'package:drift/native.dart';
+import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:busymax/src/db/app_database.dart';
+import 'package:busymax/src/features/notifications/desktop_notification_service.dart';
+import 'package:busymax/src/features/notifications/due_today_notification_scheduler.dart';
+import 'package:busymax/src/features/sync/account_sync_operations.dart';
 import 'package:busymax/src/features/sync/sync_engine.dart';
 import 'package:busymax/src/features/tasks/domain/task_remote_client.dart';
 import 'package:busymax/src/features/tasks/domain/task_remote_models.dart';
 import 'package:busymax/src/features/tasks/domain/task_checklist_item.dart';
 
+import '../../support/recording_notification_backend.dart';
+
 void main() {
   late AppDatabase database;
   late FakeTaskRemoteClient apiClient;
+  Directory? databaseDirectory;
 
   setUp(() async {
+    databaseDirectory = null;
     database = AppDatabase(NativeDatabase.memory());
     await _insertAccount(database);
     apiClient = FakeTaskRemoteClient();
@@ -21,7 +35,302 @@ void main() {
 
   tearDown(() async {
     await database.close();
+    final directory = databaseDirectory;
+    if (directory != null && await directory.exists()) {
+      await directory.delete(recursive: true);
+    }
   });
+
+  for (final incremental in [false, true]) {
+    for (final completed in [false, true]) {
+      test(
+        '${incremental ? 'incremental' : 'full'} task sync reconciles ${completed ? 'completion' : 'rescheduling'} before a later page fails',
+        () async {
+          final now = DateTime.utc(2026, 6, 4, 8);
+          await database
+              .update(database.accounts)
+              .write(
+                const AccountsCompanion(
+                  provider: Value('microsoft'),
+                  authState: Value('signed_in'),
+                ),
+              );
+          await database.taskListsDao.upsertTaskList(_localTaskList('list-1'));
+          await database.tasksDao.upsertTask(
+            _localTask('task-1').copyWith(
+              microsoftIsReminderOn: const Value(true),
+              microsoftReminderDateTime: const Value('2026-06-04T09:00:00Z'),
+              microsoftReminderTimeZone: const Value('UTC'),
+            ),
+          );
+          await NotificationScheduleService(
+            database: database,
+            nowUtc: () => now,
+          ).rebuildUpcomingTaskNotifications('account');
+          expect(
+            await database.select(database.notificationSchedule).get(),
+            hasLength(1),
+          );
+          apiClient.taskListsPages = [
+            TaskListsPageDto(
+              items: [_taskListDto('list-1')],
+              rawJson: const {},
+            ),
+          ];
+          apiClient.taskPages['list-1'] = [
+            TasksPageDto(
+              items: [
+                TaskDto(
+                  id: 'task-1',
+                  title: 'Changed',
+                  status: completed ? 'completed' : 'needsAction',
+                  rawJson: const {
+                    'isReminderOn': true,
+                    'reminderDateTime': {
+                      'dateTime': '2026-06-04T11:00:00',
+                      'timeZone': 'UTC',
+                    },
+                  },
+                ),
+              ],
+              nextPageToken: 'fail',
+              rawJson: const {},
+            ),
+          ];
+          final failure = StateError('later page failed');
+          apiClient.blockedTaskPageToken = 'fail';
+          apiClient.blockedTaskPageError = failure;
+          final engine = SyncEngine(
+            database: database,
+            apiClient: apiClient,
+            accountId: 'account',
+            nowUtc: () => now,
+          );
+          await expectLater(
+            incremental ? engine.incrementalSync() : engine.fullSync(),
+            throwsA(same(failure)),
+          );
+          final task = await database.select(database.tasks).getSingle();
+          expect(task.title, 'Changed');
+          expect(task.status, completed ? 'completed' : 'needsAction');
+          final reminders = await database
+              .select(database.notificationSchedule)
+              .get();
+          if (completed) {
+            expect(reminders, isEmpty);
+          } else {
+            expect(
+              reminders.single.scheduledAtUtc,
+              DateTime.utc(2026, 6, 4, 11).millisecondsSinceEpoch,
+            );
+          }
+          expect(
+            (await database.select(database.syncRuns).get()).single.status,
+            'failed',
+          );
+        },
+      );
+    }
+  }
+
+  for (final incremental in [false, true]) {
+    for (final disabled in [false, true]) {
+      test(
+        'task reminder ${disabled ? 'disabled' : 'moved'} during pending ${incremental ? 'incremental' : 'full'} sync never fires at its former time',
+        () async {
+          var now = DateTime.utc(2026, 6, 4, 8);
+          await database
+              .update(database.accounts)
+              .write(
+                const AccountsCompanion(
+                  provider: Value('microsoft'),
+                  authState: Value('signed_in'),
+                ),
+              );
+          await database.taskListsDao.upsertTaskList(_localTaskList('list-1'));
+          await database.tasksDao.upsertTask(
+            _localTask('task-1').copyWith(
+              microsoftIsReminderOn: const Value(true),
+              microsoftReminderDateTime: const Value('2026-06-04T09:00:00Z'),
+              microsoftReminderTimeZone: const Value('UTC'),
+            ),
+          );
+          await NotificationScheduleService(
+            database: database,
+            nowUtc: () => now,
+          ).rebuildUpcomingTaskNotifications('account');
+          apiClient.taskListsPages = [
+            TaskListsPageDto(
+              items: [_taskListDto('list-1')],
+              rawJson: const {},
+            ),
+          ];
+          apiClient.taskPages['list-1'] = [
+            TasksPageDto(
+              items: [
+                TaskDto(
+                  id: 'task-1',
+                  title: 'Changed',
+                  status: 'needsAction',
+                  rawJson: {
+                    'isReminderOn': !disabled,
+                    'reminderDateTime': {
+                      'dateTime': '2026-06-04T11:00:00',
+                      'timeZone': 'UTC',
+                    },
+                  },
+                ),
+              ],
+              nextPageToken: 'held',
+              rawJson: const {},
+            ),
+          ];
+          apiClient.blockedTaskPageToken = 'held';
+          apiClient.blockedTaskPageStarted = Completer<void>();
+          apiClient.blockedTaskPageRelease = Completer<void>();
+          apiClient.blockedTaskPageError = StateError('second page failed');
+          final engine = SyncEngine(
+            database: database,
+            apiClient: apiClient,
+            accountId: 'account',
+            nowUtc: () => now,
+          );
+          final sync = expectLater(
+            incremental ? engine.incrementalSync() : engine.fullSync(),
+            throwsStateError,
+          );
+          await apiClient.blockedTaskPageStarted!.future;
+          final backend = RecordingNotificationBackend();
+          final scheduler = NotificationScheduler(
+            database: database,
+            notifications: DesktopNotificationService(
+              backend: backend,
+              settings: AppSettings.defaults(),
+            ),
+            nowUtc: () => now,
+          );
+          addTearDown(scheduler.stop);
+          try {
+            expect(
+              (await database.select(database.tasks).getSingle())
+                  .microsoftIsReminderOn,
+              !disabled,
+            );
+            now = DateTime.utc(2026, 6, 4, 9);
+            await scheduler.checkNow();
+            expect(backend.requests, isEmpty);
+            // The new time must also work without waiting for sync completion.
+            now = DateTime.utc(2026, 6, 4, 11);
+            await scheduler.checkNow();
+            expect(backend.requests, hasLength(disabled ? 0 : 1));
+          } finally {
+            apiClient.blockedTaskPageRelease!.complete();
+            await sync;
+          }
+        },
+      );
+    }
+  }
+
+  for (final incremental in [false, true]) {
+    test(
+      'task reminder moved earlier during pending ${incremental ? 'incremental' : 'full'} sync fires once at its new time',
+      () async {
+        var now = DateTime.utc(2026, 6, 4, 8, 59);
+        await database
+            .update(database.accounts)
+            .write(
+              const AccountsCompanion(
+                provider: Value('microsoft'),
+                authState: Value('signed_in'),
+              ),
+            );
+        await database.taskListsDao.upsertTaskList(_localTaskList('list-1'));
+        await database.tasksDao.upsertTask(
+          _localTask('task-1').copyWith(
+            microsoftIsReminderOn: const Value(true),
+            microsoftReminderDateTime: const Value('2026-06-04T11:00:00Z'),
+            microsoftReminderTimeZone: const Value('UTC'),
+          ),
+        );
+        await NotificationScheduleService(
+          database: database,
+          nowUtc: () => now,
+        ).rebuildUpcomingTaskNotifications('account');
+        expect(
+          (await database.select(database.notificationSchedule).getSingle())
+              .scheduledAtUtc,
+          DateTime.utc(2026, 6, 4, 11).millisecondsSinceEpoch,
+        );
+        apiClient.taskListsPages = [
+          TaskListsPageDto(items: [_taskListDto('list-1')], rawJson: const {}),
+        ];
+        apiClient.taskPages['list-1'] = [
+          const TasksPageDto(
+            items: [
+              TaskDto(
+                id: 'task-1',
+                title: 'Changed',
+                status: 'needsAction',
+                rawJson: {
+                  'isReminderOn': true,
+                  'reminderDateTime': {
+                    'dateTime': '2026-06-04T09:00:00',
+                    'timeZone': 'UTC',
+                  },
+                },
+              ),
+            ],
+            nextPageToken: 'held',
+            rawJson: {},
+          ),
+        ];
+        apiClient.blockedTaskPageToken = 'held';
+        apiClient.blockedTaskPageStarted = Completer<void>();
+        apiClient.blockedTaskPageRelease = Completer<void>();
+        apiClient.blockedTaskPageError = StateError('second page failed');
+        final engine = SyncEngine(
+          database: database,
+          apiClient: apiClient,
+          accountId: 'account',
+          nowUtc: () => now,
+        );
+        final sync = expectLater(
+          incremental ? engine.incrementalSync() : engine.fullSync(),
+          throwsStateError,
+        );
+        await apiClient.blockedTaskPageStarted!.future;
+        final schedule = await database
+            .select(database.notificationSchedule)
+            .getSingle();
+        expect(
+          schedule.scheduledAtUtc,
+          DateTime.utc(2026, 6, 4, 9).millisecondsSinceEpoch,
+        );
+        final backend = RecordingNotificationBackend();
+        final scheduler = NotificationScheduler(
+          database: database,
+          notifications: DesktopNotificationService(
+            backend: backend,
+            settings: AppSettings.defaults(),
+          ),
+          nowUtc: () => now,
+        );
+        addTearDown(scheduler.stop);
+        try {
+          now = DateTime.utc(2026, 6, 4, 9);
+          await scheduler.checkNow();
+          expect(backend.requests, hasLength(1));
+          now = DateTime.utc(2026, 6, 4, 11);
+          await scheduler.checkNow();
+          expect(backend.requests, hasLength(1));
+        } finally {
+          apiClient.blockedTaskPageRelease!.complete();
+          await sync;
+        }
+      },
+    );
+  }
 
   test('full sync upserts task lists and tasks', () async {
     apiClient.taskListsPages = [
@@ -230,6 +539,215 @@ void main() {
       expect(
         await database.tasksDao.listTasks('account', 'list-1'),
         hasLength(2),
+      );
+    },
+  );
+
+  test(
+    'failed partial task import survives restart before summary retry',
+    () async {
+      await database.close();
+      final directory = databaseDirectory = await Directory.systemTemp
+          .createTemp('busymax-due-today-restart-');
+      final databaseFile = File('${directory.path}/busymax.sqlite');
+      database = AppDatabase(NativeDatabase(databaseFile));
+      await _insertAccount(database);
+
+      final releaseSecondPage = Completer<void>();
+      final secondPageRequested = Completer<void>();
+      final secondPageFailure = StateError('second task page failed');
+      apiClient
+        ..blockedTaskPageToken = 'task-next'
+        ..blockedTaskPageStarted = secondPageRequested
+        ..blockedTaskPageRelease = releaseSecondPage
+        ..blockedTaskPageError = secondPageFailure
+        ..taskListsPages = [
+          TaskListsPageDto(items: [_taskListDto('list-1')], rawJson: const {}),
+        ];
+      apiClient.taskPages['list-1'] = [
+        TasksPageDto(
+          items: [_dueTaskDto('task-1')],
+          nextPageToken: 'task-next',
+          rawJson: const {},
+        ),
+        TasksPageDto(
+          items: [
+            for (var index = 2; index <= 10; index += 1)
+              _dueTaskDto('task-$index'),
+          ],
+          rawJson: const {},
+        ),
+      ];
+
+      var settings = AppSettings.defaults().copyWith(notifyDueToday: true);
+      final markedDates = <String>[];
+      final backend = RecordingNotificationBackend();
+      AccountSyncCoordinator createCoordinator() {
+        final accountsRepository = AccountsRepository(database: database);
+        return AccountSyncCoordinator(
+          restoreIncompleteTaskImports:
+              accountsRepository.incompleteTaskImportAccountIds,
+          persistTaskImportIncomplete:
+              accountsRepository.setTaskImportIncomplete,
+        );
+      }
+
+      late AccountSyncCoordinator coordinator;
+      late DueTodayNotificationScheduler dueToday;
+
+      DueTodayNotificationScheduler createDueTodayScheduler(Duration interval) {
+        return DueTodayNotificationScheduler(
+          database: database,
+          settings: () => settings,
+          activeAccountId: () => 'account',
+          notifications: () => DesktopNotificationService(
+            backend: backend,
+            settings: settings,
+            locale: const Locale('en'),
+            now: () => DateTime(2026, 6, 8, 9),
+          ),
+          markNotified: (date) async {
+            markedDates.add(date);
+            settings = settings.copyWith(lastDueTodayNotificationDate: date);
+            dueToday.inputsChanged();
+          },
+          syncBlocksDelivery: coordinator.blocksDueToday,
+          accountSyncChanges: coordinator.runningChanges,
+          now: () => DateTime(2026, 6, 8, 9),
+          interval: interval,
+        );
+      }
+
+      CoordinatedAccountSyncOperations createOperations() =>
+          CoordinatedAccountSyncOperations(
+            coordinator: coordinator,
+            inner: DelegatingAccountSyncOperations(
+              syncTasks: (accountId, {required full}) =>
+                  coordinator.trackTaskImport(
+                    accountId,
+                    () => SyncEngine(
+                      database: database,
+                      apiClient: apiClient,
+                      accountId: accountId,
+                      nowUtc: () => DateTime.utc(2026, 6, 8, 9),
+                    ).fullSync(),
+                  ),
+              syncCalendar: (accountId, {required full}) async {},
+            ),
+          );
+
+      coordinator = createCoordinator();
+      dueToday = createDueTodayScheduler(const Duration(days: 1));
+      addTearDown(() async {
+        dueToday.stop();
+        await coordinator.dispose();
+      });
+      dueToday.start();
+
+      var operations = createOperations();
+      final synchronization = operations.syncTasks('account', full: true);
+      final failedSyncExpectation = expectLater(
+        synchronization,
+        throwsA(same(secondPageFailure)),
+      );
+      await secondPageRequested.future;
+      await _waitUntil(
+        () async =>
+            (await database.tasksDao.listTasks('account', 'list-1')).length ==
+            1,
+      );
+      await dueToday.checkNow();
+
+      expect(await coordinator.blocksDueToday('account'), isTrue);
+      expect(backend.requests, isEmpty);
+      expect(markedDates, isEmpty);
+      expect(settings.lastDueTodayNotificationDate, isNull);
+
+      releaseSecondPage.complete();
+      await failedSyncExpectation;
+      await dueToday.checkNow();
+
+      expect(coordinator.isRunning('account'), isFalse);
+      expect(await coordinator.blocksDueToday('account'), isTrue);
+      expect(backend.requests, isEmpty);
+      expect(markedDates, isEmpty);
+      expect(settings.lastDueTodayNotificationDate, isNull);
+      expect(
+        await database.tasksDao.listTasks('account', 'list-1'),
+        hasLength(1),
+      );
+      expect(
+        (await database.select(database.accounts).getSingle())
+            .taskImportIncomplete,
+        isTrue,
+      );
+
+      dueToday.stop();
+      await coordinator.dispose();
+      await Future<void>.delayed(Duration.zero);
+      await database.close();
+
+      database = AppDatabase(NativeDatabase(databaseFile));
+      coordinator = createCoordinator();
+      dueToday = createDueTodayScheduler(const Duration(milliseconds: 5));
+      dueToday.start();
+
+      expect(await coordinator.blocksDueToday('account'), isTrue);
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+      expect(backend.requests, isEmpty);
+
+      await dueToday.checkNow();
+      expect(backend.requests, isEmpty);
+
+      await (database.update(database.tasks)
+            ..where((task) => task.id.equals('task-1')))
+          .write(const TasksCompanion(title: Value('Locally changed')));
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+
+      expect(backend.requests, isEmpty);
+      expect(markedDates, isEmpty);
+      expect(settings.lastDueTodayNotificationDate, isNull);
+      expect(
+        await database.tasksDao.listTasks('account', 'list-1'),
+        hasLength(1),
+      );
+
+      apiClient = FakeTaskRemoteClient()
+        ..taskListsPages = [
+          TaskListsPageDto(items: [_taskListDto('list-1')], rawJson: const {}),
+        ];
+      apiClient.taskPages['list-1'] = [
+        TasksPageDto(
+          items: [_dueTaskDto('task-1')],
+          nextPageToken: 'task-next',
+          rawJson: const {},
+        ),
+        TasksPageDto(
+          items: [
+            for (var index = 2; index <= 10; index += 1)
+              _dueTaskDto('task-$index'),
+          ],
+          rawJson: const {},
+        ),
+      ];
+      operations = createOperations();
+      await operations.syncTasks('account', full: true);
+      await _waitUntil(() => backend.requests.isNotEmpty);
+
+      expect(coordinator.isRunning('account'), isFalse);
+      expect(await coordinator.blocksDueToday('account'), isFalse);
+      expect(backend.requests, hasLength(1));
+      expect(backend.requests.single.body, '10 tasks are due today.');
+      expect(markedDates, ['2026-06-08']);
+      expect(settings.lastDueTodayNotificationDate, '2026-06-08');
+      expect(
+        await database.tasksDao.listTasks('account', 'list-1'),
+        hasLength(10),
+      );
+      expect(
+        (await database.select(database.accounts).getSingle())
+            .taskImportIncomplete,
+        isFalse,
       );
     },
   );
@@ -513,6 +1031,10 @@ class FakeTaskRemoteClient
   final checklistPages = <String, List<TaskChecklistItemsPageDto>>{};
   final checklistPageTokens = <String, List<String?>>{};
   DateTime? lastUpdatedMin;
+  String? blockedTaskPageToken;
+  Completer<void>? blockedTaskPageStarted;
+  Completer<void>? blockedTaskPageRelease;
+  Object? blockedTaskPageError;
   var _taskListPageIndex = 0;
   final _taskPageIndexes = <String, int>{};
   final _checklistPageIndexes = <String, int>{};
@@ -587,6 +1109,14 @@ class FakeTaskRemoteClient
   }) async {
     lastUpdatedMin = updatedMin;
     taskPageTokens.putIfAbsent(taskListId, () => []).add(pageToken);
+    if (pageToken == blockedTaskPageToken) {
+      if (blockedTaskPageStarted?.isCompleted == false) {
+        blockedTaskPageStarted!.complete();
+      }
+      await blockedTaskPageRelease?.future;
+      final error = blockedTaskPageError;
+      if (error != null) throw error;
+    }
     final index = _taskPageIndexes.update(
       taskListId,
       (value) => value + 1,
@@ -711,6 +1241,32 @@ TaskListDto _taskListDto(String id, {String title = 'List'}) {
 
 TaskDto _taskDto(String id, {String title = 'Task'}) {
   return TaskDto(id: id, title: title, rawJson: {'id': id, 'title': title});
+}
+
+TaskDto _dueTaskDto(String id) {
+  final due = DateTime.utc(2026, 6, 8);
+  return TaskDto(
+    id: id,
+    title: 'Task $id',
+    status: 'needsAction',
+    due: due,
+    rawJson: {
+      'id': id,
+      'title': 'Task $id',
+      'status': 'needsAction',
+      'due': due.toIso8601String(),
+    },
+  );
+}
+
+Future<void> _waitUntil(FutureOr<bool> Function() condition) async {
+  final deadline = DateTime.now().add(const Duration(seconds: 3));
+  while (!await condition()) {
+    if (DateTime.now().isAfter(deadline)) {
+      fail('Timed out waiting for synchronization state.');
+    }
+    await Future<void>.delayed(const Duration(milliseconds: 10));
+  }
 }
 
 TaskListsCompanion _localTaskList(

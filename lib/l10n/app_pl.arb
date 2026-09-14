@@ -1,4 +1,15 @@
 {
+  "timeFormat": "Format czasu",
+  "timeFormatTwelveHour": "12-godzinny",
+  "timeFormatTwentyFourHour": "24-godzinny",
+  "timeEndOfDay": "koniec dnia",
+  "timePeriod": "Pora dnia",
+  "taskRecurrenceDestinationUnsupported": "Ta lista nie obsługuje tego wzorca powtarzania. Zmień wzorzec lub wybierz inną listę.",
+  "taskRecurrenceRequiresDate": "Dodaj datę rozpoczęcia lub termin wykonania, aby użyć tego wzorca, albo wyłącz powtarzanie.",
+  "launchAtLoginReadFailed": "Nie udało się ustalić stanu uruchamiania przy logowaniu.",
+  "launchAtLoginUnavailable": "Uruchamianie przy logowaniu jest niedostępne w tym systemie.",
+  "windowsStartupEnabledByPolicy": "Administrator włączył automatyczne uruchamianie i nie można tego tutaj zmienić.",
+  "settingsSaveFailed": "Nie udało się zapisać ustawień. Zmiany mogą zostać utracone po ponownym uruchomieniu BusyMax.",
   "nextcloudExportCollection": "Eksportuj zasoby kolekcji",
   "nextcloudImportItems": "Liczba znalezionych zasobów wydarzeń i zadań: {count}",
   "@nextcloudImportItems": {

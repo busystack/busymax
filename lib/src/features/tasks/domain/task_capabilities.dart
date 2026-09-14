@@ -72,6 +72,21 @@ class TaskCollectionCapabilities {
   final bool supportsTaskReparenting;
   final bool canUpdateClassification;
 
+  bool get supportsProgressDetails =>
+      supportsTaskStatus ||
+      supportsPercentComplete ||
+      supportsCompletedDateTime;
+
+  bool get supportsOrganizationDetails =>
+      supportsImportance ||
+      supportsCategories ||
+      supportsIcalPriority ||
+      supportsLocation ||
+      supportsUrl ||
+      supportsClassification ||
+      supportsPinning ||
+      supportsSubtaskVisibility;
+
   TaskCollectionCapabilities asReadOnly() => TaskCollectionCapabilities(
     supportsDueDate: supportsDueDate,
     supportsDueTime: supportsDueTime,

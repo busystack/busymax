@@ -684,22 +684,61 @@ void main() {
       ),
     );
     expect(source, contains('kHeaderSearchEntryStyleClass'));
+    final visibility = RegExp(
+      r'static void update_header_control_visibility[\s\S]*?'
+      r'(?=^static void set_header_schedule_controls_visible)',
+      multiLine: true,
+    ).firstMatch(source)?.group(0);
+    expect(visibility, isNotNull);
+    for (final control in [
+      'today_button',
+      'previous_button',
+      'next_button',
+      'header_view_box',
+      'create_button',
+      'refresh_button',
+    ]) {
+      expect(
+        visibility,
+        contains(
+          RegExp(
+            'set_widget_visible\\(self->$control,[\\s\\S]*?search_inactive\\);',
+          ),
+        ),
+      );
+    }
     expect(
-      source,
+      visibility,
       contains(
-        'set_widget_visible(self->today_button,\n'
-        '                     schedule_controls_visible &&\n'
-        '                         !self->header_search_active);',
+        'set_widget_visible(self->search_button, schedule_controls_visible)',
       ),
     );
     expect(
-      source,
+      visibility,
       contains(
-        'set_widget_visible(self->header_view_box,\n'
-        '                     schedule_controls_visible &&\n'
-        '                         !self->header_search_active);',
+        RegExp(
+          r'set_widget_visible\(self->settings_menu_button,\s*'
+          r'schedule_controls_visible \|\| self->header_back_visible\);',
+        ),
       ),
     );
+
+    final createOffset = source.indexOf(
+      'gtk_box_pack_start(GTK_BOX(end_box), self->create_button',
+    );
+    final refreshOffset = source.indexOf(
+      'gtk_box_pack_start(GTK_BOX(end_box), self->refresh_button',
+    );
+    final searchOffset = source.indexOf(
+      'gtk_box_pack_start(GTK_BOX(end_box), self->search_button',
+    );
+    final menuOffset = source.indexOf(
+      'gtk_box_pack_start(GTK_BOX(end_box), self->settings_menu_button',
+    );
+    expect(createOffset, isNonNegative);
+    expect(refreshOffset, greaterThan(createOffset));
+    expect(searchOffset, greaterThan(refreshOffset));
+    expect(menuOffset, greaterThan(searchOffset));
 
     expect(geometryCssStart, isNonNegative);
     expect(geometryCssEnd, greaterThan(geometryCssStart));

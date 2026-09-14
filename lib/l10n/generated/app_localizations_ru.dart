@@ -13,6 +13,37 @@ class AppLocalizationsRu extends AppLocalizations {
   AppLocalizationsRu([String locale = 'ru']) : super(locale);
 
   @override
+  String get timeFormat => 'Формат времени';
+
+  @override
+  String get timeFormatTwelveHour => '12 часов';
+
+  @override
+  String get timeFormatTwentyFourHour => '24 часа';
+
+  @override
+  String get timeEndOfDay => 'конец дня';
+
+  @override
+  String get timePeriod => 'Время суток';
+
+  @override
+  String get launchAtLoginReadFailed =>
+      'Не удалось определить состояние запуска при входе в систему.';
+
+  @override
+  String get launchAtLoginUnavailable =>
+      'Запуск при входе в систему недоступен в этой системе.';
+
+  @override
+  String get windowsStartupEnabledByPolicy =>
+      'Автозапуск включён администратором, и его нельзя изменить здесь.';
+
+  @override
+  String get settingsSaveFailed =>
+      'Не удалось сохранить настройки. Изменения могут быть потеряны при перезапуске BusyMax.';
+
+  @override
   String get nextcloudExportCollection => 'Экспортировать ресурсы коллекции';
 
   @override
@@ -1853,6 +1884,14 @@ class AppLocalizationsRu extends AppLocalizations {
   @override
   String get unsupportedRecurrencePreserved =>
       'Это правило повторения использует параметры, которые этот редактор не изменяет.';
+
+  @override
+  String get taskRecurrenceDestinationUnsupported =>
+      'Этот список не поддерживает такой шаблон повторения. Измените шаблон или выберите другой список.';
+
+  @override
+  String get taskRecurrenceRequiresDate =>
+      'Добавьте дату начала или срок выполнения для этого шаблона либо отключите повторение.';
 
   @override
   String recurrenceUnsupportedByProvider(String provider) {

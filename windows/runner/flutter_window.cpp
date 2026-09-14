@@ -1,4 +1,5 @@
 #include "flutter_window.h"
+#include "clock_preference.h"
 
 #include <appmodel.h>
 #include <flutter/standard_method_codec.h>
@@ -63,6 +64,20 @@ bool FlutterWindow::OnCreate() {
   }
   RegisterPlugins(flutter_controller_->engine());
   SetChildContent(flutter_controller_->view()->GetNativeWindow());
+
+  clock_channel_ =
+      std::make_unique<flutter::MethodChannel<flutter::EncodableValue>>(
+          flutter_controller_->engine()->messenger(), "busymax/windows_clock",
+          &flutter::StandardMethodCodec::GetInstance());
+  RefreshClockPreference();
+  clock_channel_->SetMethodCallHandler([this](const auto& call, auto result) {
+    if (call.method_name() == "getUses24HourClock") {
+      RefreshClockPreference();
+      result->Success(flutter::EncodableValue(uses_24_hour_clock_));
+    } else {
+      result->NotImplemented();
+    }
+  });
 
   desktop_channel_ =
       std::make_unique<flutter::MethodChannel<flutter::EncodableValue>>(
@@ -166,11 +181,16 @@ bool FlutterWindow::OnCreate() {
               std::shared_ptr<flutter::MethodResult<flutter::EncodableValue>>(
                   std::move(result));
           GetBusyMaxStartupTaskStateAsync(
-              [window, shared_result](std::string state) {
+              [window, shared_result](std::string state, std::string error) {
                 PostUiTask(
                     window,
-                    [shared_result, state = std::move(state)]() {
-                      shared_result->Success(flutter::EncodableValue(state));
+                    [shared_result, state = std::move(state),
+                     error = std::move(error)]() {
+                      if (error.empty()) {
+                        shared_result->Success(flutter::EncodableValue(state));
+                      } else {
+                        shared_result->Error("startup_task_failed", error);
+                      }
                     });
               });
           return;
@@ -229,6 +249,7 @@ void FlutterWindow::QueueActivation(std::string activation) {
 }
 
 void FlutterWindow::OnDestroy() {
+  clock_channel_.reset();
   if (flutter_controller_) {
     flutter_controller_ = nullptr;
   }
@@ -240,6 +261,10 @@ LRESULT
 FlutterWindow::MessageHandler(HWND hwnd, UINT const message,
                               WPARAM const wparam,
                               LPARAM const lparam) noexcept {
+  // Observe before plugin processing, but retain all existing message handling.
+  if (BusyMaxClockRefreshMessage(message, wparam, lparam)) {
+    RefreshClockPreference();
+  }
   // Give Flutter, including plugins, an opportunity to handle window messages.
   if (flutter_controller_) {
     std::optional<LRESULT> result =
@@ -290,4 +315,16 @@ FlutterWindow::MessageHandler(HWND hwnd, UINT const message,
   }
 
   return Win32Window::MessageHandler(hwnd, message, wparam, lparam);
+}
+
+void FlutterWindow::RefreshClockPreference() {
+  const auto preference = BusyMaxRead24HourClock();
+  if (!preference) return;
+  const bool current = *preference;
+  if (current == uses_24_hour_clock_) return;
+  uses_24_hour_clock_ = current;
+  if (clock_channel_) {
+    clock_channel_->InvokeMethod("clockChanged",
+        std::make_unique<flutter::EncodableValue>(current));
+  }
 }

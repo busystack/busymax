@@ -7,6 +7,8 @@ import 'package:go_router/go_router.dart';
 import '../../../l10n/generated/app_localizations.dart';
 import '../../features/auth/data/auth_repository.dart';
 import '../../l10n/locale_resolution.dart';
+import '../../l10n/time_format_scope.dart';
+import '../../platform/windows/windows_clock_preference.dart';
 import '../../platform/common/desktop_services.dart';
 import '../../ui/windows/windows_schedule_page.dart';
 import '../../ui/windows/windows_settings_page.dart';
@@ -68,12 +70,13 @@ class _WindowsBusyMaxAppState extends ConsumerState<WindowsBusyMaxApp>
   StreamSubscription<DesktopActivation>? _activationSubscription;
   StreamSubscription<DesktopNavigationRequest>? _navigationSubscription;
   StreamSubscription<void>? _appearanceSubscription;
-  int _platformChangeSequence = 0;
+  late final WindowsClockPreference _clockPreference;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    _clockPreference = WindowsClockPreference()..addListener(_platformChanged);
     _activationSubscription = ref
         .read(desktopActivationServiceProvider)
         .activations
@@ -86,9 +89,6 @@ class _WindowsBusyMaxAppState extends ConsumerState<WindowsBusyMaxApp>
         .read(systemAppearanceSourceProvider)
         .changes
         .listen((_) => _platformChanged());
-    // Starts in-process reminder scheduling. Explicit Quit disposes it before
-    // asking the runner to terminate.
-    ref.read(notificationSchedulerProvider);
   }
 
   @override
@@ -98,10 +98,11 @@ class _WindowsBusyMaxAppState extends ConsumerState<WindowsBusyMaxApp>
   void didChangePlatformBrightness() => _platformChanged();
 
   void _platformChanged() {
-    if (mounted) setState(() => _platformChangeSequence++);
+    if (mounted) setState(() {});
   }
 
   Future<void> _handleActivation(DesktopActivation activation) async {
+    if (!activation.isValid) return;
     if (activation.requiresVisibleWindow) {
       await ref.read(desktopWindowServiceProvider).showWindow();
     }
@@ -133,12 +134,19 @@ class _WindowsBusyMaxAppState extends ConsumerState<WindowsBusyMaxApp>
           );
         }
       case DesktopActivationKind.notification:
+        final destination = activation.notificationDestination;
+        if (destination != null) {
+          _handleNavigation(DesktopNavigationRequest(destination));
+          return;
+        }
         final scheduleId = activation.payload?['notificationScheduleId'];
         if (scheduleId == null) return;
         await ref
             .read(notificationSchedulerProvider)
             .handleActivation(
               notificationScheduleId: scheduleId,
+              notificationGeneration:
+                  activation.payload?['notificationGeneration'] ?? 'legacy',
               action: activation.action!,
             );
         if (activation.action == 'default' || activation.action == 'open') {
@@ -159,6 +167,7 @@ class _WindowsBusyMaxAppState extends ConsumerState<WindowsBusyMaxApp>
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    _clockPreference.dispose();
     unawaited(_activationSubscription?.cancel());
     unawaited(_navigationSubscription?.cancel());
     unawaited(_appearanceSubscription?.cancel());
@@ -167,6 +176,8 @@ class _WindowsBusyMaxAppState extends ConsumerState<WindowsBusyMaxApp>
 
   @override
   Widget build(BuildContext context) {
+    ref.watch(notificationSchedulerProvider);
+    ref.watch(dueTodayNotificationProvider);
     final settings = ref.watch(appSettingsControllerProvider);
     final dispatcher = WidgetsBinding.instance.platformDispatcher;
     final appearance = ref.watch(systemAppearanceSourceProvider);
@@ -198,12 +209,6 @@ class _WindowsBusyMaxAppState extends ConsumerState<WindowsBusyMaxApp>
     }
 
     return FluentApp.router(
-      key: ValueKey((
-        _platformChangeSequence,
-        appearance.brightness,
-        highContrast,
-        reducedMotion,
-      )),
       title: 'BusyMax',
       debugShowCheckedModeBanner: false,
       routerConfig: windowsAppRouter,
@@ -216,10 +221,29 @@ class _WindowsBusyMaxAppState extends ConsumerState<WindowsBusyMaxApp>
       localizationsDelegates: const [AppLocalizations.delegate],
       localeListResolutionCallback: resolveBusyMaxLocales,
       supportedLocales: busyMaxSupportedLocales,
-      builder: (context, child) => WindowsDesktopRuntime(
-        startMinimizedAtLaunch: widget.startMinimizedAtLaunch,
-        child: child ?? const SizedBox.shrink(),
-      ),
+      builder: (context, child) {
+        final clock = BusyMaxTimeFormatter(
+          locale: Localizations.localeOf(context).toLanguageTag(),
+          use24Hour: resolveBusyMax24HourClock(
+            settings.timeFormatPreference,
+            systemUses24Hour:
+                _clockPreference.value ??
+                MediaQuery.alwaysUse24HourFormatOf(context),
+          ),
+        );
+        return BusyMaxTimeFormatScope(
+          formatter: clock,
+          child: MediaQuery(
+            data: MediaQuery.of(
+              context,
+            ).copyWith(alwaysUse24HourFormat: clock.use24Hour),
+            child: WindowsDesktopRuntime(
+              startMinimizedAtLaunch: widget.startMinimizedAtLaunch,
+              child: child ?? const SizedBox.shrink(),
+            ),
+          ),
+        );
+      },
     );
   }
 }

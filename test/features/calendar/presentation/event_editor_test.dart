@@ -878,6 +878,74 @@ void main() {
     );
   });
 
+  testWidgets('recurrence editor leaves space below its final section', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1000, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await tester.pumpWidget(
+      localizedTestApp(
+        child: Scaffold(
+          body: BusyMaxModalEditorSurface(
+            maxWidth: 620,
+            maxHeight: 420,
+            child: RecurrenceEditorDialog(
+              initial: const RecurrenceRule(
+                frequency: RecurrenceFrequency.yearly,
+                interval: 1,
+                byDay: [],
+                byMonth: [9],
+                byMonthDay: [7],
+                bySetPosition: null,
+                count: null,
+                untilRaw: null,
+                recurrenceDates: [],
+                exceptionDates: [],
+                rawRules: [],
+                isSupported: true,
+              ),
+              allDay: true,
+              baseDate: DateTime(2026, 9, 7),
+              minimumDate: DateTime(2026, 9, 7),
+              floating: false,
+              useNativeDatePicker: false,
+              limits: RecurrenceRuleLimits.rfc5545,
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.drag(
+      find.descendant(
+        of: find.byType(RecurrenceEditorDialog),
+        matching: find.byType(SingleChildScrollView),
+      ),
+      const Offset(0, -2000),
+    );
+    await tester.pumpAndSettle();
+
+    final finalSection = find.descendant(
+      of: find.byType(RecurrenceEditorDialog),
+      matching: find.byType(BusyMaxGroupedSurface),
+    );
+    final dialogBounds = find.descendant(
+      of: find.byType(BusyMaxModalEditorSurface),
+      matching: find.byWidgetPredicate(
+        (widget) =>
+            widget is ConstrainedBox && widget.constraints.maxHeight == 420,
+      ),
+    );
+    final dialogBottom = tester.getRect(dialogBounds).bottom;
+    final sectionBottom = tester.getRect(finalSection.last).bottom;
+
+    expect(dialogBottom - sectionBottom, closeTo(BusyMaxSpacing.lg, 0.01));
+  });
+
   testWidgets('Microsoft recurrence range follows a changed start date', (
     tester,
   ) async {
@@ -1081,7 +1149,10 @@ void main() {
       RecurringEventMutationScope.thisAndFuture,
     );
 
+    FocusManager.instance.primaryFocus?.unfocus();
+    await tester.pumpAndSettle();
     await tester.ensureVisible(find.text('This event'));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('This event'));
     await tester.pump();
     await tester.ensureVisible(find.text('Delete Event'));
@@ -1335,6 +1406,8 @@ void main() {
       expect(_actionRow(tester, 'This event').enabled, isTrue);
       expect(_actionRow(tester, 'Entire series').enabled, isFalse);
       await tester.ensureVisible(find.text('This event'));
+      await tester.ensureVisible(find.text('This event'));
+      await tester.pumpAndSettle();
       await tester.tap(find.text('This event'));
       await tester.pump();
       await tester.enterText(
@@ -2210,6 +2283,14 @@ void main() {
     );
 
     await tester.ensureVisible(find.text('Add category'));
+    final section = find.byType(YaruExpandable);
+    await tester.ensureVisible(section);
+    await tester.tap(
+      find.descendant(of: section, matching: find.byType(YaruIconButton)).first,
+    );
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.text('Add category'));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Add category'));
     await tester.pumpAndSettle();
     expect(find.byKey(const Key('event-category-input')), findsOneWidget);

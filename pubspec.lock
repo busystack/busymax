@@ -396,10 +396,9 @@ packages:
   fluent_ui:
     dependency: "direct main"
     description:
-      name: fluent_ui
-      sha256: "64c2b9dd208f8e3134d3e38db107235ee30c1dd9b792843274687a7ecc063590"
-      url: "https://pub.dev"
-    source: hosted
+      path: "third_party/fluent_ui"
+      relative: true
+    source: path
     version: "4.16.1"
   fluentui_system_icons:
     dependency: "direct main"

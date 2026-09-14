@@ -1,3 +1,5 @@
+import 'package:busymax/src/ui/common/schedule/clock_hours_painter.dart';
+import 'package:busymax/src/l10n/time_format_scope.dart';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
@@ -22,7 +24,6 @@ const _fullDayBarDefaultHeight = 82.0;
 const _fullDayBarMinHeight = 82.0;
 const _fullDayBarMaxHeight = 260.0;
 const _allDayResizeHandleHeight = 22.0;
-const _timesIndicatorsWidth = 64.0;
 const _defaultHeightPerMinute = 0.9;
 
 class ScheduleDayWeekView extends StatefulWidget {
@@ -253,26 +254,31 @@ class _ScheduleDayWeekViewState extends State<ScheduleDayWeekView> {
         },
       ),
       timesIndicatorsParam: icv.TimesIndicatorsParam(
-        timesIndicatorsWidth: _timesIndicatorsWidth,
-        timesIndicatorsHorizontalPadding: 6,
-        timesIndicatorsCustomPainter: (heightPerMinute) => icv.HoursPainter(
-          heightPerMinute: heightPerMinute,
-          hourColor: colorScheme.onSurfaceVariant,
-          halfHourColor: colorScheme.outline,
-          quarterHourColor: colorScheme.outlineVariant,
-          currentHourIndicatorColor: surfaceColors.mutedForeground,
-          quarterHourMinHeightPerMinute: 100,
-          textPainterBuilder: (time, defaultColor) => TextPainter(
-            text: TextSpan(
-              text: _formatHour(context, time),
-              style: Theme.of(
-                context,
-              ).textTheme.labelSmall?.copyWith(color: defaultColor),
-            ),
-            textDirection: Directionality.of(context),
-            textAlign: TextAlign.center,
-          ),
+        timesIndicatorsWidth: clockRulerWidth(
+          context,
+          Theme.of(context).textTheme.bodySmall ?? const TextStyle(),
         ),
+        timesIndicatorsHorizontalPadding: 6,
+        timesIndicatorsCustomPainter: (heightPerMinute) =>
+            BusyMaxClockHoursPainter(
+              heightPerMinute: heightPerMinute,
+              hourColor: colorScheme.onSurfaceVariant,
+              halfHourColor: colorScheme.outline,
+              quarterHourColor: colorScheme.outlineVariant,
+              currentHourIndicatorColor: surfaceColors.mutedForeground,
+              quarterHourMinHeightPerMinute: 100,
+              textPainterBuilder: (time, defaultColor) => TextPainter(
+                text: TextSpan(
+                  text: _formatHour(context, time),
+                  style: Theme.of(
+                    context,
+                  ).textTheme.labelSmall?.copyWith(color: defaultColor),
+                ),
+                textDirection: Directionality.of(context),
+                textAlign: TextAlign.center,
+                textScaler: MediaQuery.textScalerOf(context),
+              ),
+            ),
       ),
       currentHourIndicatorParam: icv.CurrentHourIndicatorParam(
         currentHourIndicatorColor: surfaceColors.mutedForeground,
@@ -340,7 +346,10 @@ class _ScheduleDayWeekViewState extends State<ScheduleDayWeekView> {
                   daysHeaderHeight +
                   fullDayBarHeight -
                   _allDayResizeHandleHeight / 2,
-              left: _timesIndicatorsWidth,
+              left: clockRulerWidth(
+                context,
+                Theme.of(context).textTheme.bodySmall ?? const TextStyle(),
+              ),
               right: 0,
               child: Center(
                 child: ScheduleInteractionBlocker(
@@ -862,10 +871,7 @@ class _SameSlotItemsStripState extends State<_SameSlotItemsStrip> {
 }
 
 String _formatHour(BuildContext context, TimeOfDay value) {
-  return MaterialLocalizations.of(context).formatTimeOfDay(
-    value,
-    alwaysUse24HourFormat: MediaQuery.alwaysUse24HourFormatOf(context),
-  );
+  return formatClockTime(context, value);
 }
 
 DateTime _day(DateTime value) => DateTime(value.year, value.month, value.day);
@@ -915,24 +921,27 @@ class _PlannerItemChip extends StatelessWidget {
   final void Function(BuildContext context, [Offset? globalPosition]) onTap;
   final ValueChanged<bool>? onTaskCompletionChanged;
   @override
-  Widget build(BuildContext context) => SizedBox(
-    width: width,
-    height: height,
-    child: ScheduleEventInteraction(
-      key: ValueKey(
-        'planner-${item.accountId}-${item.sourceId}-${item.id}-${representedDate.toIso8601String()}',
-      ),
-      item: item,
-      representedDate: representedDate,
-      dateOnly: item.allDay,
-      child: ScheduleItemChip(
+  Widget build(BuildContext context) {
+    ScheduleItemAnchorScope.register(context, item);
+    return SizedBox(
+      width: width,
+      height: height,
+      child: ScheduleEventInteraction(
+        key: ValueKey(
+          'planner-${item.accountId}-${item.sourceId}-${item.id}-${representedDate.toIso8601String()}',
+        ),
         item: item,
-        height: height,
-        width: width,
-        compact: compact,
-        onTap: onTap,
-        onTaskCompletionChanged: onTaskCompletionChanged,
+        representedDate: representedDate,
+        dateOnly: item.allDay,
+        child: ScheduleItemChip(
+          item: item,
+          height: height,
+          width: width,
+          compact: compact,
+          onTap: onTap,
+          onTaskCompletionChanged: onTaskCompletionChanged,
+        ),
       ),
-    ),
-  );
+    );
+  }
 }

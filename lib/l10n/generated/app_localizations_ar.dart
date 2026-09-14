@@ -13,6 +13,37 @@ class AppLocalizationsAr extends AppLocalizations {
   AppLocalizationsAr([String locale = 'ar']) : super(locale);
 
   @override
+  String get timeFormat => 'تنسيق الوقت';
+
+  @override
+  String get timeFormatTwelveHour => '12 ساعة';
+
+  @override
+  String get timeFormatTwentyFourHour => '24 ساعة';
+
+  @override
+  String get timeEndOfDay => 'نهاية اليوم';
+
+  @override
+  String get timePeriod => 'الفترة';
+
+  @override
+  String get launchAtLoginReadFailed =>
+      'تعذر تحديد حالة التشغيل عند تسجيل الدخول.';
+
+  @override
+  String get launchAtLoginUnavailable =>
+      'التشغيل عند تسجيل الدخول غير متاح على هذا النظام.';
+
+  @override
+  String get windowsStartupEnabledByPolicy =>
+      'فعّل المسؤول التشغيل عند بدء النظام ولا يمكن تغييره هنا.';
+
+  @override
+  String get settingsSaveFailed =>
+      'تعذر حفظ الإعدادات. قد تُفقد تغييراتك عند إعادة تشغيل BusyMax.';
+
+  @override
   String get nextcloudExportCollection => 'تصدير موارد المجموعة';
 
   @override
@@ -1898,6 +1929,14 @@ class AppLocalizationsAr extends AppLocalizations {
   @override
   String get unsupportedRecurrencePreserved =>
       'تستخدم قاعدة التكرار هذه خيارات لا يغيّرها هذا المحرر.';
+
+  @override
+  String get taskRecurrenceDestinationUnsupported =>
+      'لا يمكن استخدام نمط التكرار هذا في هذه القائمة. غيّر النمط أو اختر قائمة أخرى.';
+
+  @override
+  String get taskRecurrenceRequiresDate =>
+      'أضف تاريخ بدء أو استحقاق لاستخدام نمط التكرار هذا، أو أوقف التكرار.';
 
   @override
   String recurrenceUnsupportedByProvider(String provider) {

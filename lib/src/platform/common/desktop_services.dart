@@ -30,10 +30,21 @@ abstract interface class DesktopTrayService {
 
 enum DesktopAutostartState {
   enabled,
+  enabledByPolicy,
   disabled,
   disabledByUser,
   disabledByPolicy,
   unavailable,
+}
+
+extension DesktopAutostartStateX on DesktopAutostartState {
+  bool get isEnabled =>
+      this == DesktopAutostartState.enabled ||
+      this == DesktopAutostartState.enabledByPolicy;
+
+  bool get canChange =>
+      this == DesktopAutostartState.enabled ||
+      this == DesktopAutostartState.disabled;
 }
 
 abstract interface class DesktopAutostartService {
@@ -159,9 +170,15 @@ final class DesktopActivation {
             uri.userInfo.isEmpty &&
             !uri.hasFragment;
       case DesktopActivationKind.notification:
+        if (payload?.containsKey('notificationRoute') ?? false) {
+          return const {'default', 'open'}.contains(action) &&
+              payload!.length == 1 &&
+              notificationDestination != null;
+        }
         const permittedActions = {'default', 'open', 'snooze', 'dismiss'};
         const permittedPayloadKeys = {
           'notificationScheduleId',
+          'notificationGeneration',
           'itemKind',
           'accountId',
           'sourceId',
@@ -178,6 +195,15 @@ final class DesktopActivation {
             );
     }
   }
+
+  DesktopNavigationDestination? get notificationDestination =>
+      kind != DesktopActivationKind.notification
+      ? null
+      : switch (payload?['notificationRoute']) {
+          'due-today' => DesktopNavigationDestination.tasks,
+          'sync-failure' || 'conflict' => DesktopNavigationDestination.settings,
+          _ => null,
+        };
 }
 
 abstract interface class DesktopActivationService {

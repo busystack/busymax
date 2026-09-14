@@ -13,6 +13,37 @@ class AppLocalizationsIt extends AppLocalizations {
   AppLocalizationsIt([String locale = 'it']) : super(locale);
 
   @override
+  String get timeFormat => 'Formato ora';
+
+  @override
+  String get timeFormatTwelveHour => '12 ore';
+
+  @override
+  String get timeFormatTwentyFourHour => '24 ore';
+
+  @override
+  String get timeEndOfDay => 'fine giornata';
+
+  @override
+  String get timePeriod => 'Periodo del giorno';
+
+  @override
+  String get launchAtLoginReadFailed =>
+      'Impossibile determinare lo stato dell’avvio all’accesso.';
+
+  @override
+  String get launchAtLoginUnavailable =>
+      'L’avvio all’accesso non è disponibile su questo sistema.';
+
+  @override
+  String get windowsStartupEnabledByPolicy =>
+      'L’avvio automatico è attivato dall’amministratore e non può essere modificato qui.';
+
+  @override
+  String get settingsSaveFailed =>
+      'Impossibile salvare le impostazioni. Le modifiche potrebbero andare perse al riavvio di BusyMax.';
+
+  @override
   String get nextcloudExportCollection => 'Esporta risorse della raccolta';
 
   @override
@@ -1849,6 +1880,14 @@ class AppLocalizationsIt extends AppLocalizations {
   @override
   String get unsupportedRecurrencePreserved =>
       'Questa regola di ricorrenza usa opzioni che questo editor non modifica.';
+
+  @override
+  String get taskRecurrenceDestinationUnsupported =>
+      'Questo elenco non supporta questo schema di ripetizione. Modifica lo schema o scegli un altro elenco.';
+
+  @override
+  String get taskRecurrenceRequiresDate =>
+      'Aggiungi una data di inizio o di scadenza per usare questo schema di ripetizione, oppure disattiva la ripetizione.';
 
   @override
   String recurrenceUnsupportedByProvider(String provider) {

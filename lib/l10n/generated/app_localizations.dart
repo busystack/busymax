@@ -135,6 +135,60 @@ abstract class AppLocalizations {
     Locale.fromSubtags(languageCode: 'zh', scriptCode: 'Hant'),
   ];
 
+  /// No description provided for @timeFormat.
+  ///
+  /// In en, this message translates to:
+  /// **'Time format'**
+  String get timeFormat;
+
+  /// No description provided for @timeFormatTwelveHour.
+  ///
+  /// In en, this message translates to:
+  /// **'12-hour'**
+  String get timeFormatTwelveHour;
+
+  /// No description provided for @timeFormatTwentyFourHour.
+  ///
+  /// In en, this message translates to:
+  /// **'24-hour'**
+  String get timeFormatTwentyFourHour;
+
+  /// No description provided for @timeEndOfDay.
+  ///
+  /// In en, this message translates to:
+  /// **'end of day'**
+  String get timeEndOfDay;
+
+  /// No description provided for @timePeriod.
+  ///
+  /// In en, this message translates to:
+  /// **'Day period'**
+  String get timePeriod;
+
+  /// No description provided for @launchAtLoginReadFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not determine the launch-at-login state.'**
+  String get launchAtLoginReadFailed;
+
+  /// No description provided for @launchAtLoginUnavailable.
+  ///
+  /// In en, this message translates to:
+  /// **'Launch at login is unavailable on this system.'**
+  String get launchAtLoginUnavailable;
+
+  /// No description provided for @windowsStartupEnabledByPolicy.
+  ///
+  /// In en, this message translates to:
+  /// **'Startup is enabled by your administrator and cannot be changed here.'**
+  String get windowsStartupEnabledByPolicy;
+
+  /// No description provided for @settingsSaveFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not save settings. Your changes may be lost when BusyMax restarts.'**
+  String get settingsSaveFailed;
+
   /// No description provided for @nextcloudExportCollection.
   ///
   /// In en, this message translates to:
@@ -3119,6 +3173,18 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'This recurrence rule uses options that this editor does not change.'**
   String get unsupportedRecurrencePreserved;
+
+  /// No description provided for @taskRecurrenceDestinationUnsupported.
+  ///
+  /// In en, this message translates to:
+  /// **'This list cannot use this repeat pattern. Change the pattern or choose another list.'**
+  String get taskRecurrenceDestinationUnsupported;
+
+  /// No description provided for @taskRecurrenceRequiresDate.
+  ///
+  /// In en, this message translates to:
+  /// **'Add a start or due date to use this repeat pattern, or turn off repeat.'**
+  String get taskRecurrenceRequiresDate;
 
   /// No description provided for @recurrenceUnsupportedByProvider.
   ///

@@ -13,6 +13,37 @@ class AppLocalizationsPl extends AppLocalizations {
   AppLocalizationsPl([String locale = 'pl']) : super(locale);
 
   @override
+  String get timeFormat => 'Format czasu';
+
+  @override
+  String get timeFormatTwelveHour => '12-godzinny';
+
+  @override
+  String get timeFormatTwentyFourHour => '24-godzinny';
+
+  @override
+  String get timeEndOfDay => 'koniec dnia';
+
+  @override
+  String get timePeriod => 'Pora dnia';
+
+  @override
+  String get launchAtLoginReadFailed =>
+      'Nie udało się ustalić stanu uruchamiania przy logowaniu.';
+
+  @override
+  String get launchAtLoginUnavailable =>
+      'Uruchamianie przy logowaniu jest niedostępne w tym systemie.';
+
+  @override
+  String get windowsStartupEnabledByPolicy =>
+      'Administrator włączył automatyczne uruchamianie i nie można tego tutaj zmienić.';
+
+  @override
+  String get settingsSaveFailed =>
+      'Nie udało się zapisać ustawień. Zmiany mogą zostać utracone po ponownym uruchomieniu BusyMax.';
+
+  @override
   String get nextcloudExportCollection => 'Eksportuj zasoby kolekcji';
 
   @override
@@ -1977,6 +2008,14 @@ class AppLocalizationsPl extends AppLocalizations {
   @override
   String get unsupportedRecurrencePreserved =>
       'Ta reguła powtarzania korzysta z opcji, których ten edytor nie zmienia.';
+
+  @override
+  String get taskRecurrenceDestinationUnsupported =>
+      'Ta lista nie obsługuje tego wzorca powtarzania. Zmień wzorzec lub wybierz inną listę.';
+
+  @override
+  String get taskRecurrenceRequiresDate =>
+      'Dodaj datę rozpoczęcia lub termin wykonania, aby użyć tego wzorca, albo wyłącz powtarzanie.';
 
   @override
   String recurrenceUnsupportedByProvider(String provider) {

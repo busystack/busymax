@@ -368,6 +368,19 @@ class AccountsRepository {
     );
   }
 
+  Future<Set<String>> incompleteTaskImportAccountIds() async {
+    final rows = await (_database.select(
+      _database.accounts,
+    )..where((account) => account.taskImportIncomplete.equals(true))).get();
+    return rows.map((account) => account.id).toSet();
+  }
+
+  Future<void> setTaskImportIncomplete(String accountId, bool incomplete) {
+    return (_database.update(_database.accounts)
+          ..where((account) => account.id.equals(accountId)))
+        .write(AccountsCompanion(taskImportIncomplete: Value(incomplete)));
+  }
+
   Future<void> deleteAccount(String accountId) {
     return (_database.delete(
       _database.accounts,
