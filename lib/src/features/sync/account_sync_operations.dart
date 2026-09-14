@@ -17,6 +17,18 @@ abstract interface class AccountSyncOperations {
   Future<void> syncCalendar(String accountId, {required bool full});
 }
 
+abstract interface class CrossEngineAccountGate {
+  Future<T> run<T>(String accountId, Future<T> Function() operation);
+}
+
+final class InProcessAccountGate implements CrossEngineAccountGate {
+  const InProcessAccountGate();
+
+  @override
+  Future<T> run<T>(String accountId, Future<T> Function() operation) =>
+      operation();
+}
+
 /// Serializes synchronization for each account while allowing different
 /// accounts to synchronize independently.
 ///
@@ -171,6 +183,31 @@ final class CoordinatedAccountSyncOperations implements AccountSyncOperations {
       () => _inner.syncTasks(accountId, full: full),
     );
   }
+}
+
+/// Extends account serialization across foreground and WorkManager engines.
+final class CrossEngineCoordinatedAccountSyncOperations
+    implements AccountSyncOperations {
+  const CrossEngineCoordinatedAccountSyncOperations({
+    required AccountSyncOperations inner,
+    required CrossEngineAccountGate gate,
+  }) : _inner = inner,
+       _gate = gate;
+
+  final AccountSyncOperations _inner;
+  final CrossEngineAccountGate _gate;
+
+  @override
+  Future<void> syncAccount(String accountId, {required bool full}) =>
+      _gate.run(accountId, () => _inner.syncAccount(accountId, full: full));
+
+  @override
+  Future<void> syncCalendar(String accountId, {required bool full}) =>
+      _gate.run(accountId, () => _inner.syncCalendar(accountId, full: full));
+
+  @override
+  Future<void> syncTasks(String accountId, {required bool full}) =>
+      _gate.run(accountId, () => _inner.syncTasks(accountId, full: full));
 }
 
 final class ConnectivityAwareAccountSyncOperations

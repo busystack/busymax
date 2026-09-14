@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<full-backup-content>
+    <!-- Includes MSAL, GIS bindings and flutter_secure_storage metadata. -->
+    <exclude domain="sharedpref" path="." />
+    <exclude domain="root" path="flutter_secure_storage" />
+</full-backup-content>

@@ -1,0 +1,61 @@
+name: Flutter Android
+
+on:
+  workflow_dispatch:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: '3.47.2'
+          cache: true
+
+      - name: Install Android API and Build Tools 37
+        run: >-
+          sdkmanager
+          'platforms;android-37.0'
+          'build-tools;37.0.0'
+
+      - name: Verify source, Dart, Flutter, Android, and native plugin tests
+        run: tool/android/verify.sh
+
+      - name: Build explicitly test-signed release APK and AAB
+        run: >-
+          tool/android/build_release.sh --all --test-signing
+          --allow-unconfigured-providers
+
+      - name: Inspect test-signed artifacts
+        run: tool/android/inspect_artifacts.sh
+
+      - name: Upload clearly labeled non-production artifacts
+        uses: actions/upload-artifact@v7
+        with:
+          name: busymax-android-test-signed-not-for-distribution
+          path: |
+            build/app/outputs/flutter-apk/app-release.apk
+            build/app/outputs/bundle/release/app-release.aab
+            build/android/android-artifact-inspection.txt
+          if-no-files-found: error
+          retention-days: 7

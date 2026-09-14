@@ -688,6 +688,39 @@ class NotificationSchedule extends Table {
   Set<Column<Object>> get primaryKey => {id};
 }
 
+/// Durable Android alarm identity. This maps a mutable logical reminder to a
+/// collision-free platform integer without duplicating calendar/task data.
+class AndroidNotificationMappings extends Table {
+  TextColumn get scheduleId => text().references(
+    NotificationSchedule,
+    #id,
+    onDelete: KeyAction.cascade,
+  )();
+  TextColumn get generation => text()();
+  IntColumn get platformId => integer().unique()();
+  IntColumn get scheduledAtUtc => integer()();
+  TextColumn get state => text().withDefault(const Constant('scheduled'))();
+  IntColumn get updatedAtUtc => integer()();
+
+  @override
+  Set<Column<Object>> get primaryKey => {scheduleId};
+}
+
+/// Registration bookkeeping for the optional once-per-local-day task summary.
+/// This records what BusyMax asked Android to schedule, not a delivery claim.
+class AndroidDailySummarySchedules extends Table {
+  TextColumn get localDate => text()();
+  IntColumn get platformId => integer()();
+  TextColumn get generation => text()();
+  IntColumn get scheduledAtUtc => integer()();
+  IntColumn get taskCount => integer()();
+  TextColumn get state => text().withDefault(const Constant('scheduled'))();
+  IntColumn get updatedAtUtc => integer()();
+
+  @override
+  Set<Column<Object>> get primaryKey => {localDate};
+}
+
 class SyncRuns extends Table {
   TextColumn get id => text()();
   TextColumn get accountId =>

@@ -60,6 +60,7 @@ class AppSettings {
     required this.lastDueTodayNotificationDate,
     required this.taskListScheduleVisibility,
     required this.scheduleViewMode,
+    this.androidScheduleViewMode,
     required this.scheduleDayStartMinute,
     required this.scheduleDayEndMinute,
     this.sidebarOrder = const ScheduleSidebarOrder.empty(),
@@ -195,6 +196,10 @@ class AppSettings {
         json['scheduleViewMode'],
         defaults.scheduleViewMode,
       ),
+      androidScheduleViewMode: _enumFromNameOrNull(
+        ScheduleViewMode.values,
+        json['androidScheduleViewMode'],
+      ),
       scheduleDayStartMinute: scheduleDayStartMinute,
       scheduleDayEndMinute: scheduleDayEndMinute,
     );
@@ -222,6 +227,7 @@ class AppSettings {
   final Map<String, bool> taskListScheduleVisibility;
   final ScheduleSidebarOrder sidebarOrder;
   final ScheduleViewMode scheduleViewMode;
+  final ScheduleViewMode? androidScheduleViewMode;
   final int scheduleDayStartMinute;
   final int scheduleDayEndMinute;
 
@@ -253,6 +259,7 @@ class AppSettings {
       'taskListScheduleVisibility': taskListScheduleVisibility,
       'sidebarOrder': sidebarOrder.toJson(),
       'scheduleViewMode': scheduleViewMode.name,
+      'androidScheduleViewMode': androidScheduleViewMode?.name,
       'scheduleDayStartMinute': scheduleDayStartMinute,
       'scheduleDayEndMinute': scheduleDayEndMinute,
     };
@@ -281,6 +288,7 @@ class AppSettings {
     Map<String, bool>? taskListScheduleVisibility,
     ScheduleSidebarOrder? sidebarOrder,
     ScheduleViewMode? scheduleViewMode,
+    Object? androidScheduleViewMode = _unset,
     int? scheduleDayStartMinute,
     int? scheduleDayEndMinute,
     bool clearLastDueTodayNotificationDate = false,
@@ -325,6 +333,9 @@ class AppSettings {
           taskListScheduleVisibility ?? this.taskListScheduleVisibility,
       sidebarOrder: sidebarOrder ?? this.sidebarOrder,
       scheduleViewMode: scheduleViewMode ?? this.scheduleViewMode,
+      androidScheduleViewMode: identical(androidScheduleViewMode, _unset)
+          ? this.androidScheduleViewMode
+          : androidScheduleViewMode as ScheduleViewMode?,
       scheduleDayStartMinute: resolvedScheduleDayStartMinute,
       scheduleDayEndMinute: resolvedScheduleDayEndMinute,
     );
@@ -364,7 +375,9 @@ class JsonFileLocalSettingsStore implements LocalSettingsStore {
   Future<void> save(Map<String, Object?> json) async {
     final file = await _settingsFile();
     await file.parent.create(recursive: true);
-    await file.writeAsString(jsonEncode(json));
+    final temporary = File('${file.path}.tmp');
+    await temporary.writeAsString(jsonEncode(json), flush: true);
+    await temporary.rename(file.path);
   }
 
   Future<File> _settingsFile() async {
@@ -472,6 +485,12 @@ class AppSettingsController extends StateNotifier<AppSettings> {
 
   Future<void> setScheduleViewMode(ScheduleViewMode mode) {
     return _mutate((current) => current.copyWith(scheduleViewMode: mode));
+  }
+
+  Future<void> setAndroidScheduleViewMode(ScheduleViewMode mode) {
+    return _mutate(
+      (current) => current.copyWith(androidScheduleViewMode: mode),
+    );
   }
 
   Future<void> setScheduleDayStartMinute(int minute) {

@@ -588,6 +588,7 @@ class TaskDetailsDraft {
     Object? microsoftReminderTime = _unchanged,
     String? microsoftReminderTimeZone,
     Object? recurrenceJson = _unchanged,
+    ({BusyProvider provider, RecurrenceRule rule})? creationRecurrence,
     String? importance,
     List<String>? categories,
     int? icalPriority,
@@ -634,7 +635,7 @@ class TaskDetailsDraft {
       recurrenceJson: recurrenceJson == _unchanged
           ? this.recurrenceJson
           : recurrenceJson as String?,
-      creationRecurrence: creationRecurrence,
+      creationRecurrence: creationRecurrence ?? this.creationRecurrence,
       importance: importance ?? this.importance,
       categories: categories ?? this.categories,
       icalPriority: icalPriority ?? this.icalPriority,

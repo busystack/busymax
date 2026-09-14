@@ -8,7 +8,7 @@ add telemetry or analytics.
 
 | Data | Local handling | Network or external destination |
 |---|---|---|
-| Google/Microsoft OAuth tokens, Apple app-specific password, Nextcloud app password, WebCal subscription secret | Operating-system credential storage on unpackaged Linux and Windows; the strict Snap uses an encrypted Secret portal file | Used only with the selected provider, Nextcloud server, or WebCal endpoint |
+| Google/Microsoft OAuth tokens, Apple app-specific password, Nextcloud app password, WebCal subscription secret | Operating-system credential storage on Android, unpackaged Linux, and Windows; the strict Snap uses an encrypted Secret portal file. Android Google/MSAL SDK caches are app-private. | Used only with the selected provider, Nextcloud server, or WebCal endpoint |
 | OAuth authorization code, PKCE verifier, and state | Short-lived in memory during browser sign-in; callbacks are restricted to loopback and secrets are redacted from logs | Selected provider's authorization/token endpoints |
 | Account, calendar, task-list, event, task, attendee, reminder, recurrence, DAV resource, synchronization, pending-operation, and conflict data | Cached and projected in the Drift database under the platform application-support directory | Selected provider during discovery, synchronization, or a user-requested mutation |
 | Local settings | Platform application-support/settings storage | No provider destination |
@@ -54,7 +54,7 @@ viewed, saved, or synchronized.
 
 External opening occurs only after the user chooses **Show on map** or
 **Open link**. BusyMax hands the saved address or coordinates to a registered
-`geo:`/maps handler on Linux, with a Google Maps browser fallback, or to the
+`geo:`/maps handler on Android or Linux, with a browser fallback, or to the
 default browser on Windows. A complete saved HTTP(S) value opens its own host.
 The receiving application or website can receive the destination and normal
 network metadata. BusyMax does not retain a separate opening history or mutate
@@ -75,6 +75,38 @@ Windows notification display and activation are separate data flows:
 Click, Open, Snooze, and Dismiss activation data returns through the packaged
 Windows activation bridge. Linux notifications use the desktop notification
 service to display reminder content and route actions.
+
+## Android platform data and permissions
+
+Android calendar/task content and coordination metadata are stored in the
+app-private database; credentials use Android-backed secure storage or the
+app-private caches owned by Google Identity Services and MSAL. Android backup
+and device-transfer rules exclude BusyMax preferences, secure-storage files,
+and databases so provider credentials and cached private content are not copied
+by the platform backup service. Cached calendar/task rows are not encrypted by
+BusyMax and remain protected by the Android application sandbox.
+
+BusyMax requests internet and network-state access for provider sync. Android
+13+ notification permission is requested only when a notification feature is
+enabled. Exact-alarm access is optional: if unavailable, BusyMax clearly uses
+inexact Android scheduling. Android 17 local-network permission is requested
+contextually only when the user enters a local Nextcloud host; denial is kept
+distinct from an authentication failure. No broad media or storage permission,
+contacts permission, device-calendar permission, location permission,
+advertising ID, analytics, Firebase, microphone, or camera access is used.
+
+ICS input and output use the Storage Access Framework. BusyMax consumes bounded
+`content:` URI data selected or shared by the user and does not turn a content
+URI into a filesystem path. Collection export writes only to the document tree
+the user selected. Notification payloads contain bounded local identifiers and
+generation data, not event bodies, account addresses, tokens, or credentials.
+The notification body can be made private in Settings.
+
+WorkManager may start a headless Flutter engine to synchronize configured
+accounts and refill notification schedules. Google and Microsoft access tokens
+are acquired silently for the exact stored native account binding; short-lived
+access tokens are not persisted by BusyMax. Periodic work and alarms remain
+subject to Android battery, permission, idle, and explicit force-stop policy.
 
 ## Feedback
 

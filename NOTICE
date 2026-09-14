@@ -9,3 +9,12 @@ Source repository: https://github.com/busystack/busymax
 The BusyMax name and logo are identifying marks of BusyStack.
 This license does not grant permission to use the BusyMax name or logo to
 imply endorsement, sponsorship, or official status for modified versions.
+
+The Android build includes Microsoft Authentication Library for Android
+(MSAL), licensed under the MIT License; Flutter Workmanager, licensed under the
+MIT License; and flutter_local_notifications, licensed under the BSD 3-Clause
+License. It also links Google Play services libraries, which are distributed
+under Google's applicable Android SDK and API terms. Complete Flutter package
+license text is available through Flutter's license registry in built apps;
+Gradle dependency and license records must be retained with distributed
+Android artifacts.

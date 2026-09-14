@@ -23,7 +23,15 @@ const microsoftSignInCallbackNotReceivedMessage =
     'again. If the browser opened an old tab, close it and start sign-in '
     'again.';
 
-class MicrosoftOAuthService {
+abstract interface class MicrosoftOAuthGateway {
+  Future<MicrosoftOAuthSignInResult> signInWithMicrosoft();
+
+  Future<void> cancelSignIn();
+
+  Future<void> signOutAccount(String accountId);
+}
+
+class MicrosoftOAuthService implements MicrosoftOAuthGateway {
   MicrosoftOAuthService({
     required BuildConfig config,
     required http.Client httpClient,
@@ -98,6 +106,10 @@ class MicrosoftOAuthService {
     );
   }
 
+  @override
+  Future<MicrosoftOAuthSignInResult> signInWithMicrosoft() => signIn();
+
+  @override
   Future<void> cancelSignIn() => _loopbackFlow.cancel();
 
   Future<OAuthTokenSet?> readTokenSet(String accountId) {
@@ -235,6 +247,7 @@ class MicrosoftOAuthService {
     );
   }
 
+  @override
   Future<void> signOutAccount(String accountId) async {
     await _tokenStore.deleteCredential(accountId);
     if (await _tokenStore.readActiveAccountId() == accountId) {
