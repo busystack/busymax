@@ -94,6 +94,31 @@ void main() {
     ]);
   });
 
+  test('a failed mutation does not prevent a later retry', () async {
+    final root = await Directory.systemTemp.createTemp(
+      'busymax-autostart-retry-',
+    );
+    addTearDown(() => root.delete(recursive: true));
+    final configHomePath = path.join(root.path, 'config');
+    final blockingFile = File(configHomePath);
+    await blockingFile.writeAsString('not a directory');
+    final service = LinuxAutostartService(
+      environment: {'XDG_CONFIG_HOME': configHomePath},
+      isLinux: true,
+    );
+
+    await expectLater(
+      service.setEnabled(true),
+      throwsA(isA<FileSystemException>()),
+    );
+    await blockingFile.delete();
+    await Directory(configHomePath).create();
+
+    await service.setEnabled(true);
+
+    expect(await service.isEnabled(), isTrue);
+  });
+
   test(
     'state read failures propagate and unsupported platforms are unavailable',
     () async {

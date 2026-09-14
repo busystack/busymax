@@ -18,6 +18,7 @@ final class LinuxAutostartService implements DesktopAutostartService {
   final Map<String, String> _environment;
   final String _executable;
   final bool _isLinux;
+  Future<void> _mutationTail = Future<void>.value();
 
   Future<bool> isEnabled() async {
     if (!_isLinux) return false;
@@ -96,7 +97,19 @@ final class LinuxAutostartService implements DesktopAutostartService {
   }
 
   @override
-  Future<void> setEnabled(bool enabled) async {
+  Future<void> setEnabled(bool enabled) {
+    final ready = _mutationTail.then<void>(
+      (_) {},
+      // A failed write belongs to its caller and must not prevent a later
+      // settings change from retrying the mutation.
+      onError: (Object _, StackTrace _) {},
+    );
+    final mutation = ready.then((_) => _setEnabled(enabled));
+    _mutationTail = mutation;
+    return mutation;
+  }
+
+  Future<void> _setEnabled(bool enabled) async {
     if (!_isLinux) {
       throw UnsupportedError('Launch at login is supported only on Linux.');
     }
