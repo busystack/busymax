@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:busymax/src/platform/linux_autostart_service.dart';
 import 'package:busymax/src/platform/common/desktop_services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:path/path.dart' as path;
 
 void main() {
   for (final entryCase in <({String contents, bool enabled})>[
@@ -35,7 +36,7 @@ void main() {
       );
       await service.setEnabled(true);
       final file = File(
-        '${configHome.path}/autostart/$busyMaxAutostartFileName',
+        path.join(configHome.path, 'autostart', busyMaxAutostartFileName),
       );
       await file.writeAsString(
         '[Desktop Entry]\nType=Application\nExec=busymax\n${entryCase.contents}\n',
@@ -65,7 +66,9 @@ void main() {
       isLinux: true,
     );
     await service.setEnabled(true);
-    final file = File('${configHome.path}/autostart/$busyMaxAutostartFileName');
+    final file = File(
+      path.join(configHome.path, 'autostart', busyMaxAutostartFileName),
+    );
     await file.writeAsString(
       '[Desktop Entry]\nType=Application\nExec=busymax\nTryExec=sh\n',
     );
@@ -84,11 +87,10 @@ void main() {
     );
     await Future.wait(List.generate(8, (_) => service.setEnabled(true)));
     expect(await service.isEnabled(), isTrue);
-    final entries = await Directory(
-      '${configHome.path}/autostart',
-    ).list().toList();
+    final autostartDirectory = path.join(configHome.path, 'autostart');
+    final entries = await Directory(autostartDirectory).list().toList();
     expect(entries.map((entry) => entry.path), [
-      '${configHome.path}/autostart/$busyMaxAutostartFileName',
+      path.join(autostartDirectory, busyMaxAutostartFileName),
     ]);
   });
 
@@ -120,7 +122,9 @@ void main() {
 
     await service.setEnabled(true);
 
-    final file = File('${configHome.path}/autostart/$busyMaxAutostartFileName');
+    final file = File(
+      path.join(configHome.path, 'autostart', busyMaxAutostartFileName),
+    );
     expect(await service.isEnabled(), isTrue);
     expect(await file.exists(), isTrue);
     final entry = await file.readAsString();
@@ -150,7 +154,7 @@ void main() {
     await service.setEnabled(true);
 
     final entry = await File(
-      '${configHome.path}/autostart/$busyMaxAutostartFileName',
+      path.join(configHome.path, 'autostart', busyMaxAutostartFileName),
     ).readAsString();
     expect(entry, contains('Exec=busymax --start-minimized'));
   });

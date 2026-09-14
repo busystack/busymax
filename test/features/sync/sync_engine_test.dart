@@ -24,8 +24,10 @@ import '../../support/recording_notification_backend.dart';
 void main() {
   late AppDatabase database;
   late FakeTaskRemoteClient apiClient;
+  Directory? databaseDirectory;
 
   setUp(() async {
+    databaseDirectory = null;
     database = AppDatabase(NativeDatabase.memory());
     await _insertAccount(database);
     apiClient = FakeTaskRemoteClient();
@@ -33,6 +35,10 @@ void main() {
 
   tearDown(() async {
     await database.close();
+    final directory = databaseDirectory;
+    if (directory != null && await directory.exists()) {
+      await directory.delete(recursive: true);
+    }
   });
 
   for (final incremental in [false, true]) {
@@ -541,10 +547,8 @@ void main() {
     'failed partial task import survives restart before summary retry',
     () async {
       await database.close();
-      final directory = await Directory.systemTemp.createTemp(
-        'busymax-due-today-restart-',
-      );
-      addTearDown(() => directory.delete(recursive: true));
+      final directory = databaseDirectory = await Directory.systemTemp
+          .createTemp('busymax-due-today-restart-');
       final databaseFile = File('${directory.path}/busymax.sqlite');
       database = AppDatabase(NativeDatabase(databaseFile));
       await _insertAccount(database);
