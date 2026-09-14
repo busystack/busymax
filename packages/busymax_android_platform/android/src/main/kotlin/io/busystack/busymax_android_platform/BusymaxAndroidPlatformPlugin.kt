@@ -49,6 +49,44 @@ import java.util.concurrent.Executors
 import java.util.concurrent.Semaphore
 import java.util.concurrent.TimeUnit
 
+internal object EngineOwnedAccountGateRegistry {
+    internal data class Lease(val ownerId: String, val semaphore: Semaphore)
+
+    private val accountGates = ConcurrentHashMap<String, Semaphore>()
+    private val leases = ConcurrentHashMap<String, Lease>()
+
+    fun acquire(accountId: String, ownerId: String, timeoutMillis: Long): String? {
+        val semaphore = accountGates.computeIfAbsent(accountId) { Semaphore(1, true) }
+        if (!semaphore.tryAcquire(timeoutMillis, TimeUnit.MILLISECONDS)) return null
+        val leaseId = UUID.randomUUID().toString()
+        leases[leaseId] = Lease(ownerId, semaphore)
+        return leaseId
+    }
+
+    fun release(leaseId: String?, ownerId: String): Boolean {
+        if (leaseId == null) return false
+        var released = false
+        leases.computeIfPresent(leaseId) { _, lease ->
+            if (lease.ownerId == ownerId) {
+                lease.semaphore.release()
+                released = true
+                null
+            } else {
+                lease
+            }
+        }
+        return released
+    }
+
+    fun releaseOwned(ownerId: String) {
+        for ((leaseId, lease) in leases.entries) {
+            if (lease.ownerId == ownerId && leases.remove(leaseId, lease)) {
+                lease.semaphore.release()
+            }
+        }
+    }
+}
+
 /** BusyMax-owned Android integration. Provider refresh tokens never enter Dart. */
 class BusymaxAndroidPlatformPlugin : FlutterPlugin,
     MethodChannel.MethodCallHandler,
@@ -69,6 +107,8 @@ class BusymaxAndroidPlatformPlugin : FlutterPlugin,
     private var pendingInteractive: PendingInteractive? = null
     private var pendingDocument: PendingDocument? = null
     private var pendingPermission: MethodChannel.Result? = null
+    private val engineId = UUID.randomUUID().toString()
+    @Volatile private var detached = false
     @Volatile private var msal: IMultipleAccountPublicClientApplication? = null
     private var initialActivation: Map<String, Any?>? = null
 
@@ -79,6 +119,7 @@ class BusymaxAndroidPlatformPlugin : FlutterPlugin,
     }
 
     override fun onAttachedToEngine(binding: FlutterPlugin.FlutterPluginBinding) {
+        detached = false
         context = binding.applicationContext
         channel = MethodChannel(binding.binaryMessenger, METHOD_CHANNEL)
         eventChannel = EventChannel(binding.binaryMessenger, EVENT_CHANNEL)
@@ -94,6 +135,8 @@ class BusymaxAndroidPlatformPlugin : FlutterPlugin,
     }
 
     override fun onDetachedFromEngine(binding: FlutterPlugin.FlutterPluginBinding) {
+        detached = true
+        EngineOwnedAccountGateRegistry.releaseOwned(engineId)
         activePlugins.remove(this)
         channel.setMethodCallHandler(null)
         eventChannel.setStreamHandler(null)
@@ -159,6 +202,10 @@ class BusymaxAndroidPlatformPlugin : FlutterPlugin,
             }
             "acquireAccountGate" -> acquireAccountGate(call, result)
             "releaseAccountGate" -> releaseAccountGate(call, result)
+            "releaseOwnedAccountGates" -> {
+                EngineOwnedAccountGateRegistry.releaseOwned(engineId)
+                result.success(null)
+            }
             "notifyDataChanged" -> {
                 activePlugins.forEach { plugin ->
                     plugin.eventSink?.success(mapOf("kind" to "dataChanged"))
@@ -221,7 +268,14 @@ class BusymaxAndroidPlatformPlugin : FlutterPlugin,
             result.error("android/google-result-invalid", "Google returned an incomplete authorization result.", null)
             return
         }
-        result.success(mapOf("accessToken" to token, "scopes" to authorization.grantedScopes, "nativeAccountId" to nativeId, "username" to account?.email))
+        result.success(mapOf(
+            "accessToken" to token,
+            // AuthorizationResult exposes the concrete granted scopes as
+            // Scope values; Scope.toString() is its canonical URI.
+            "scopes" to authorization.grantedScopes.map { it.toString() },
+            "nativeAccountId" to nativeId,
+            "username" to account?.email,
+        ))
     }
 
     private fun authorizeMicrosoft(call: MethodCall, result: MethodChannel.Result, interactive: Boolean) {
@@ -389,13 +443,17 @@ class BusymaxAndroidPlatformPlugin : FlutterPlugin,
         pendingDocument = null
         if (resultCode != Activity.RESULT_OK || data?.data == null) { pending.result.success(null); return true }
         val uri = data.data!!
-        try {
-            when (pending) {
-                is PendingDocument.Open -> finishOpenDocument(uri, pending)
-                is PendingDocument.Create -> finishCreateDocument(uri, pending)
-                is PendingDocument.Tree -> finishTreeExport(uri, pending)
+        executor.execute {
+            try {
+                when (pending) {
+                    is PendingDocument.Open -> finishOpenDocument(uri, pending)
+                    is PendingDocument.Create -> finishCreateDocument(uri, pending)
+                    is PendingDocument.Tree -> finishTreeExport(uri, pending)
+                }
+            } catch (error: Exception) {
+                postError(pending.result, "android/document-failed", "The selected document could not be processed.", error)
             }
-        } catch (error: Exception) { pending.result.error("android/document-failed", "The selected document could not be processed.", safeError(error)) }
+        }
         return true
     }
 
@@ -415,15 +473,17 @@ class BusymaxAndroidPlatformPlugin : FlutterPlugin,
 
     private fun finishOpenDocument(uri: Uri, pending: PendingDocument.Open) {
         tryPersistPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
-        pending.result.success(readDocument(uri, pending.maximumBytes))
+        postSuccess(pending.result, readDocument(uri, pending.maximumBytes))
     }
 
     private fun readDocumentUri(call: MethodCall, result: MethodChannel.Result) {
         val uri = Uri.parse(call.argument<String>("uri").orEmpty())
         if (uri.scheme != "content") return result.error("android/invalid-document-uri", "Only content document URIs are supported.", null)
         val max = (call.argument<Number>("maximumBytes")?.toLong() ?: MAX_IMPORT_BYTES).coerceIn(1, MAX_IMPORT_BYTES)
-        try { result.success(readDocument(uri, max)) }
-        catch (error: Exception) { result.error("android/document-failed", "The shared document could not be read.", safeError(error)) }
+        executor.execute {
+            try { postSuccess(result, readDocument(uri, max)) }
+            catch (error: Exception) { postError(result, "android/document-failed", "The shared document could not be read.", error) }
+        }
     }
 
     private fun readDocument(uri: Uri, maximumBytes: Long): Map<String, Any?> {
@@ -454,7 +514,7 @@ class BusymaxAndroidPlatformPlugin : FlutterPlugin,
         tryPersistPermission(uri, Intent.FLAG_GRANT_WRITE_URI_PERMISSION)
         context.contentResolver.openOutputStream(uri, "wt")?.use { it.write(pending.bytes) }
             ?: throw IllegalArgumentException("Document could not be created.")
-        pending.result.success(uri.toString())
+        postSuccess(pending.result, uri.toString())
     }
 
     private fun exportDocumentTree(call: MethodCall, result: MethodChannel.Result) {
@@ -488,7 +548,7 @@ class BusymaxAndroidPlatformPlugin : FlutterPlugin,
             resolver.openOutputStream(output, "wt")?.use { it.write(resource.bytes) }
                 ?: throw IllegalStateException("Could not write ${resource.name}.")
         }
-        pending.result.success(folder.toString())
+        postSuccess(pending.result, folder.toString())
     }
 
     private fun launchExternalUri(call: MethodCall, result: MethodChannel.Result) {
@@ -519,17 +579,24 @@ class BusymaxAndroidPlatformPlugin : FlutterPlugin,
         val timeout = (call.argument<Number>("timeoutMillis")?.toLong() ?: 30_000L).coerceIn(1_000L, 120_000L)
         if (accountId.isBlank()) return result.error("android/invalid-arguments", "Account id is required.", null)
         executor.execute {
-            val semaphore = accountGates.computeIfAbsent(accountId) { Semaphore(1, true) }
             try {
-                if (!semaphore.tryAcquire(timeout, TimeUnit.MILLISECONDS)) return@execute postError(result, "android/account-busy", "This account is already synchronizing.", null)
-                val lease = UUID.randomUUID().toString(); leases[lease] = semaphore; postSuccess(result, lease)
+                val lease = EngineOwnedAccountGateRegistry.acquire(accountId, engineId, timeout)
+                    ?: return@execute postError(result, "android/account-busy", "This account is already synchronizing.", null)
+                if (detached) {
+                    EngineOwnedAccountGateRegistry.release(lease, engineId)
+                    return@execute
+                }
+                postSuccess(result, lease)
             } catch (error: InterruptedException) {
                 Thread.currentThread().interrupt(); postError(result, "android/account-gate-interrupted", "Account synchronization was interrupted.", error)
             }
         }
     }
 
-    private fun releaseAccountGate(call: MethodCall, result: MethodChannel.Result) { leases.remove(call.argument<String>("leaseId"))?.release(); result.success(null) }
+    private fun releaseAccountGate(call: MethodCall, result: MethodChannel.Result) {
+        EngineOwnedAccountGateRegistry.release(call.argument<String>("leaseId"), engineId)
+        result.success(null)
+    }
     override fun onNewIntent(intent: Intent): Boolean = captureActivation(intent)
     private fun captureActivation(intent: Intent?): Boolean {
         if (intent == null) return false
@@ -590,8 +657,6 @@ class BusymaxAndroidPlatformPlugin : FlutterPlugin,
         private const val MAX_EXPORT_BYTES = 32 * 1024 * 1024
         private const val MAX_TREE_EXPORT_BYTES = 64L * 1024L * 1024L
         private const val MAX_EXPORT_RESOURCES = 512
-        private val accountGates = ConcurrentHashMap<String, Semaphore>()
-        private val leases = ConcurrentHashMap<String, Semaphore>()
         private val activePlugins = ConcurrentHashMap.newKeySet<BusymaxAndroidPlatformPlugin>()
     }
 }

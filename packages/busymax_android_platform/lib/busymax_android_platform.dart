@@ -195,6 +195,13 @@ final class BusyMaxAndroidPlatform {
   Future<void> releaseAccountGate(String leaseId) => _methodChannel
       .invokeMethod<void>('releaseAccountGate', {'leaseId': leaseId});
 
+  /// Releases every gate acquired by this Flutter engine.
+  ///
+  /// WorkManager calls this before tearing down a stopped background engine;
+  /// the native plugin also performs the same cleanup when detached.
+  Future<void> releaseOwnedAccountGates() =>
+      _methodChannel.invokeMethod<void>('releaseOwnedAccountGates');
+
   Future<AndroidActivation?> takeInitialActivation() async {
     final value = await _methodChannel.invokeMethod<Object?>(
       'takeInitialActivation',

@@ -22,27 +22,49 @@ import 'android_time_zone.dart';
 const busyMaxPeriodicSyncUniqueName = 'busymax.periodic-sync.v1';
 const busyMaxPeriodicSyncTaskName = 'busymax.sync-and-reconcile';
 const busyMaxImmediateSyncUniqueName = 'busymax.immediate-sync.v1';
+const busyMaxNotificationRefillUniqueName = 'busymax.notification-refill.v1';
+const busyMaxNotificationRefillTaskName = 'busymax.reconcile-notifications';
 
 @pragma('vm:entry-point')
 void busyMaxWorkmanagerDispatcher() {
-  Workmanager().executeTask((taskName, inputData) async {
-    if (taskName != busyMaxPeriodicSyncTaskName) return true;
-    WidgetsFlutterBinding.ensureInitialized();
-    DartPluginRegistrant.ensureInitialized();
-    final runtime = await AndroidHeadlessRuntime.create();
-    try {
-      await runtime.container.read(allAccountsSyncRunnerProvider)();
-      await runtime.notifications.reconcile();
-      await BusyMaxAndroidPlatform.instance.notifyDataChanged();
-      return true;
-    } on Object {
-      // WorkManager applies bounded exponential backoff. Provider-specific
-      // failures are already persisted in SyncRuns by the shared engines.
-      return false;
-    } finally {
-      await runtime.dispose();
-    }
-  });
+  Workmanager().executeTask(
+    (taskName, inputData) async {
+      if (taskName != busyMaxPeriodicSyncTaskName &&
+          taskName != busyMaxNotificationRefillTaskName) {
+        return true;
+      }
+      WidgetsFlutterBinding.ensureInitialized();
+      DartPluginRegistrant.ensureInitialized();
+      final runtime = await AndroidHeadlessRuntime.create();
+      var succeeded = true;
+      try {
+        if (taskName == busyMaxPeriodicSyncTaskName) {
+          try {
+            await runtime.container.read(allAccountsSyncRunnerProvider)();
+          } on Object {
+            // Provider-specific failures are persisted by the shared engines.
+            succeeded = false;
+          }
+        }
+        // Local reminders must still refill while offline and after a failed
+        // provider synchronization.
+        try {
+          await runtime.notifications.reconcile();
+          await BusyMaxAndroidPlatform.instance.notifyDataChanged();
+        } on Object {
+          succeeded = false;
+        }
+        return succeeded;
+      } finally {
+        await runtime.dispose();
+      }
+    },
+    onTaskStopped: (taskName, stopReason) async {
+      // Dart finally blocks are not guaranteed when Android destroys the
+      // worker engine. Release engine-owned native semaphores explicitly.
+      await BusyMaxAndroidPlatform.instance.releaseOwnedAccountGates();
+    },
+  );
 }
 
 Future<void> configureBusyMaxWorkmanager() async {
@@ -62,6 +84,20 @@ Future<void> configureBusyMaxWorkmanager() async {
     backoffPolicy: BackoffPolicy.exponential,
     backoffPolicyDelay: const Duration(minutes: 10),
     tag: 'busymax-sync',
+  );
+  await workmanager.registerPeriodicTask(
+    busyMaxNotificationRefillUniqueName,
+    busyMaxNotificationRefillTaskName,
+    frequency: const Duration(minutes: 15),
+    flexInterval: const Duration(minutes: 5),
+    constraints: Constraints(
+      requiresBatteryNotLow: true,
+      requiresStorageNotLow: true,
+    ),
+    existingWorkPolicy: ExistingPeriodicWorkPolicy.update,
+    backoffPolicy: BackoffPolicy.exponential,
+    backoffPolicyDelay: const Duration(minutes: 10),
+    tag: 'busymax-notification-refill',
   );
 }
 

@@ -78,4 +78,12 @@ void main() {
       expect(calls.single.arguments, containsPair('maximumBytes', 1024));
     },
   );
+
+  test('worker teardown releases every gate owned by its engine', () async {
+    final platform = BusyMaxAndroidPlatform(methodChannel: channel);
+
+    await platform.releaseOwnedAccountGates();
+
+    expect(calls.single.method, 'releaseOwnedAccountGates');
+  });
 }

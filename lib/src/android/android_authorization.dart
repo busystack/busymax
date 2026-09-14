@@ -68,7 +68,7 @@ final class AndroidAuthorizationBroker
       final native = await _platform.authorizeGoogleInteractively(
         scopes: _googleScopes,
       );
-      final tokenSet = _tokenSet(native, extraScopes: _googleScopes);
+      final tokenSet = _tokenSet(native);
       final user = await fetchUserInfo(tokenSet);
       final subject = user?.subject?.trim();
       if (subject == null || subject.isEmpty) {
@@ -99,7 +99,7 @@ final class AndroidAuthorizationBroker
       final native = await _platform.authorizeMicrosoftInteractively(
         scopes: _microsoftNativeScopes,
       );
-      final tokenSet = _tokenSet(native, extraScopes: _microsoftStoredScopes);
+      final tokenSet = _tokenSet(native);
       final user = await _microsoftMe(native.accessToken);
       if (user.id.trim().isEmpty) {
         throw const OAuthException(
@@ -166,19 +166,25 @@ final class AndroidAuthorizationBroker
     BusyProvider provider,
     String accountId,
   ) async {
-    final token = switch (provider) {
-      BusyProvider.google => await _platform.authorizeGoogleSilently(
-        accountId: accountId,
-        scopes: _googleScopes,
-      ),
-      BusyProvider.microsoft => await _platform.authorizeMicrosoftSilently(
-        accountId: accountId,
-        scopes: _microsoftNativeScopes,
-      ),
-      _ => throw StateError('$provider does not use native authorization.'),
-    };
-    _lastAccessTokens[accountId] = token.accessToken;
-    return 'Bearer ${token.accessToken}';
+    try {
+      final token = switch (provider) {
+        BusyProvider.google => await _platform.authorizeGoogleSilently(
+          accountId: accountId,
+          scopes: _googleScopes,
+        ),
+        BusyProvider.microsoft => await _platform.authorizeMicrosoftSilently(
+          accountId: accountId,
+          scopes: _microsoftNativeScopes,
+        ),
+        _ => throw StateError('$provider does not use native authorization.'),
+      };
+      final tokenSet = _tokenSet(token);
+      _requireSilentScopes(provider, tokenSet);
+      _lastAccessTokens[accountId] = token.accessToken;
+      return 'Bearer ${token.accessToken}';
+    } on PlatformException catch (error) {
+      throw _silentOAuthError(error, provider: provider);
+    }
   }
 
   @override
@@ -194,12 +200,18 @@ final class AndroidAuthorizationBroker
   }
 
   Future<OAuthTokenSet> _googleToken(String accountId) async {
-    final native = await _platform.authorizeGoogleSilently(
-      accountId: accountId,
-      scopes: _googleScopes,
-    );
-    _lastAccessTokens[accountId] = native.accessToken;
-    return _tokenSet(native, extraScopes: _googleScopes);
+    try {
+      final native = await _platform.authorizeGoogleSilently(
+        accountId: accountId,
+        scopes: _googleScopes,
+      );
+      final tokenSet = _tokenSet(native);
+      _requireSilentScopes(BusyProvider.google, tokenSet);
+      _lastAccessTokens[accountId] = native.accessToken;
+      return tokenSet;
+    } on PlatformException catch (error) {
+      throw _silentOAuthError(error, provider: BusyProvider.google);
+    }
   }
 
   @override
@@ -236,7 +248,15 @@ final class AndroidAuthorizationBroker
   @override
   Future<void> clearLocalSession({String? accountId}) async {
     final target = accountId ?? await activeAccountId;
-    if (target != null) _lastAccessTokens.remove(target);
+    if (target != null) {
+      _lastAccessTokens.remove(target);
+      if (target.startsWith('google:')) {
+        await _platform.removeAuthorization(
+          provider: BusyProvider.google.storageValue,
+          accountId: target,
+        );
+      }
+    }
     if (target == null || await activeAccountId == target) {
       await _secretStore.clearActiveAccount();
     }
@@ -254,16 +274,63 @@ final class AndroidAuthorizationBroker
   @override
   Future<void> cancelSignIn() => _platform.cancelInteractiveAuthorization();
 
-  OAuthTokenSet _tokenSet(
-    AndroidAuthorizationToken token, {
-    Iterable<String> extraScopes = const [],
-  }) => OAuthTokenSet(
+  OAuthTokenSet _tokenSet(AndroidAuthorizationToken token) => OAuthTokenSet(
     accessToken: token.accessToken,
     expiresAtUtc:
         token.expiresAtUtc ??
         DateTime.now().toUtc().add(const Duration(minutes: 45)),
     tokenType: 'Bearer',
-    scopes: {...token.scopes, ...extraScopes},
+    // Persist only scopes reported by the authorization provider. Adding the
+    // requested scopes here would turn a denied permission into a fake grant.
+    scopes: {for (final scope in token.scopes) _storedScope(scope)},
+  );
+
+  void _requireSilentScopes(BusyProvider provider, OAuthTokenSet tokenSet) {
+    final granted = tokenSet.scopes;
+    final complete = switch (provider) {
+      BusyProvider.google =>
+        granted.contains(googleTasksReadWriteScope) &&
+            granted.contains(googleCalendarReadWriteScope),
+      BusyProvider.microsoft => _microsoftStoredScopes.every(granted.contains),
+      _ => true,
+    };
+    if (!complete) {
+      throw OAuthException(
+        provider == BusyProvider.microsoft
+            ? 'MicrosoftOAuthMissingToken'
+            : 'OAuthMissingToken',
+        '${provider.displayName} permissions must be reconnected.',
+      );
+    }
+  }
+}
+
+String _storedScope(String value) {
+  final scope = value.trim();
+  for (final nativeScope in _microsoftNativeScopes) {
+    if (scope.toLowerCase() == nativeScope.toLowerCase()) {
+      return 'https://graph.microsoft.com/$nativeScope';
+    }
+  }
+  return scope;
+}
+
+OAuthException _silentOAuthError(
+  PlatformException error, {
+  required BusyProvider provider,
+}) {
+  final reconnect = error.code == 'android/auth-interaction-required';
+  if (reconnect) {
+    return OAuthException(
+      provider == BusyProvider.microsoft
+          ? 'MicrosoftOAuthMissingToken'
+          : 'OAuthMissingToken',
+      '${provider.displayName} authorization must be reconnected.',
+    );
+  }
+  return OAuthException(
+    error.code,
+    error.message ?? '${provider.displayName} authorization failed.',
   );
 }
 

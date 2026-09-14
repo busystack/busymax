@@ -39,6 +39,71 @@ void main() {
     );
   });
 
+  test('quiet-hour deferral remains eligible after its original time', () {
+    final now = DateTime.utc(2026, 1, 1, 23, 15).millisecondsSinceEpoch;
+    final deferred = DateTime.utc(2026, 1, 2, 7).millisecondsSinceEpoch;
+
+    expect(
+      shouldKeepAndroidReminder(
+        effectiveAt: deferred,
+        now: now,
+        horizon: DateTime.utc(2026, 4, 1).millisecondsSinceEpoch,
+        remainsPending: false,
+      ),
+      isTrue,
+    );
+  });
+
+  test('an overdue inexact registration is retained while Android has it', () {
+    expect(
+      shouldKeepAndroidReminder(
+        effectiveAt: 100,
+        now: 200,
+        horizon: 1000,
+        remainsPending: true,
+      ),
+      isTrue,
+    );
+    expect(
+      shouldKeepAndroidReminder(
+        effectiveAt: 100,
+        now: 200,
+        horizon: 1000,
+        remainsPending: false,
+      ),
+      isFalse,
+    );
+  });
+
+  test('registration fingerprint changes for privacy and alarm precision', () {
+    final normal = AppSettings.defaults();
+    final private = normal.copyWith(
+      notificationDetailLevel: NotificationDetailLevel.private,
+    );
+
+    expect(
+      androidNotificationRegistrationState(settings: normal, exact: false),
+      isNot(
+        androidNotificationRegistrationState(settings: private, exact: false),
+      ),
+    );
+    expect(
+      androidNotificationRegistrationState(settings: normal, exact: false),
+      isNot(
+        androidNotificationRegistrationState(settings: normal, exact: true),
+      ),
+    );
+  });
+
+  test('explicit Open action launches the user interface', () {
+    final action = androidOpenNotificationAction(
+      const AndroidNotificationStrings(),
+    );
+
+    expect(action.id, androidNotificationActionOpen);
+    expect(action.showsUserInterface, isTrue);
+  });
+
   test('activation payload parsing rejects incomplete data', () {
     expect(parseAndroidReminderActivation('{"schedule":"only"}'), isNull);
     final activation = parseAndroidReminderActivation(

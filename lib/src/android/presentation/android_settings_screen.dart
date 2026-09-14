@@ -1,9 +1,10 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:typed_data';
+import 'dart:io';
 
 import 'package:busymax_android_platform/busymax_android_platform.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import 'package:package_info_plus/package_info_plus.dart';
@@ -13,6 +14,8 @@ import '../../calendar_providers/calendar_colors.dart';
 import '../../core/auth/oauth_models.dart';
 import '../../dav/dav_errors.dart';
 import '../../dav/mutation/dav_conflict_repository.dart';
+import '../../dav/nextcloud/nextcloud_sharing_service.dart';
+import '../../dav/nextcloud/nextcloud_trash_service.dart';
 import '../../features/accounts/data/accounts_repository.dart';
 import '../../features/accounts/domain/account_collection_creation_capabilities.dart';
 import '../../features/calendar/data/calendar_repository.dart';
@@ -181,6 +184,20 @@ class _AndroidSettingsScreenState extends ConsumerState<AndroidSettingsScreen> {
                     ),
                   ),
                   onTap: () => unawaited(_editTaskList(list, accounts)),
+                ),
+              for (final account in accounts.where(
+                (account) => account.provider == BusyProvider.nextcloud,
+              ))
+                ListTile(
+                  leading: const Icon(Icons.delete_sweep_outlined),
+                  title: Text(context.l10n.nextcloudTrash),
+                  subtitle: Text(account.displayLabel),
+                  onTap: () => Navigator.of(context).push<void>(
+                    MaterialPageRoute(
+                      builder: (_) =>
+                          AndroidNextcloudTrashScreen(accountId: account.id),
+                    ),
+                  ),
                 ),
             ],
           ),
@@ -391,6 +408,11 @@ class _AndroidSettingsScreenState extends ConsumerState<AndroidSettingsScreen> {
                         value
                             ? NotificationDetailLevel.private
                             : NotificationDetailLevel.normal,
+                      )
+                      .then(
+                        (_) => ref
+                            .read(notificationReconcilerProvider)
+                            .reconcile(),
                       ),
                 ),
               ),
@@ -551,6 +573,7 @@ class _AndroidSettingsScreenState extends ConsumerState<AndroidSettingsScreen> {
     AccountEntity? reconnecting,
   ]) async {
     if (_connecting != null) return;
+    final localNetworkDenied = context.l10n.nextcloudOperationDenied;
     String? email;
     String? password;
     String? server;
@@ -565,10 +588,20 @@ class _AndroidSettingsScreenState extends ConsumerState<AndroidSettingsScreen> {
         initialValue: reconnecting?.authority,
         helper: context.l10n.nextcloudBrowserAuthorizationHelp,
       );
-      if (server == null) return;
+      if (server == null || !mounted) return;
       final uri = Uri.tryParse(server);
-      if (uri != null && _isLocalHost(uri.host)) {
-        await BusyMaxAndroidPlatform.instance.requestLocalNetworkAccess();
+      if (uri != null && isAndroidLocalNetworkHost(uri.host)) {
+        try {
+          final granted = await BusyMaxAndroidPlatform.instance
+              .requestLocalNetworkAccess();
+          if (!granted) {
+            _message(localNetworkDenied);
+            return;
+          }
+        } on PlatformException catch (error) {
+          _message(error.message ?? localNetworkDenied);
+          return;
+        }
       }
     }
     setState(() => _connecting = provider);
@@ -789,6 +822,13 @@ class _AndroidSettingsScreenState extends ConsumerState<AndroidSettingsScreen> {
             if (source.provider == BusyProvider.nextcloud &&
                 source.davCollectionId != null)
               ListTile(
+                leading: const Icon(Icons.people_outline),
+                title: Text(context.l10n.nextcloudSharing),
+                onTap: () => Navigator.pop(context, 'sharing'),
+              ),
+            if (source.provider == BusyProvider.nextcloud &&
+                source.davCollectionId != null)
+              ListTile(
                 leading: const Icon(Icons.file_download_outlined),
                 title: Text(context.l10n.export),
                 onTap: () => Navigator.pop(context, 'export'),
@@ -835,6 +875,17 @@ class _AndroidSettingsScreenState extends ConsumerState<AndroidSettingsScreen> {
             .setSourceColor(source.id, choice);
       } else if (action == 'export') {
         await _exportCollection(source.accountId, source.davCollectionId!);
+      } else if (action == 'sharing') {
+        if (!mounted) return;
+        await Navigator.of(context).push<void>(
+          MaterialPageRoute(
+            builder: (_) => AndroidNextcloudSharingScreen(
+              accountId: source.accountId,
+              collectionId: source.davCollectionId!,
+              title: source.summary,
+            ),
+          ),
+        );
       } else if (action == 'delete') {
         final remove =
             source.capabilities.removalMode ==
@@ -904,6 +955,13 @@ class _AndroidSettingsScreenState extends ConsumerState<AndroidSettingsScreen> {
             if (list.davCollectionId != null &&
                 capabilities.supportsNativeExport)
               ListTile(
+                leading: const Icon(Icons.people_outline),
+                title: Text(context.l10n.nextcloudSharing),
+                onTap: () => Navigator.pop(context, 'sharing'),
+              ),
+            if (list.davCollectionId != null &&
+                capabilities.supportsNativeExport)
+              ListTile(
                 leading: const Icon(Icons.file_download_outlined),
                 title: Text(context.l10n.export),
                 onTap: () => Navigator.pop(context, 'export'),
@@ -944,6 +1002,17 @@ class _AndroidSettingsScreenState extends ConsumerState<AndroidSettingsScreen> {
             .setRemindersEnabled(list.id, reminders);
       } else if (action == 'export') {
         await _exportCollection(list.accountId, list.davCollectionId!);
+      } else if (action == 'sharing') {
+        if (!mounted) return;
+        await Navigator.of(context).push<void>(
+          MaterialPageRoute(
+            builder: (_) => AndroidNextcloudSharingScreen(
+              accountId: list.accountId,
+              collectionId: list.davCollectionId!,
+              title: list.title,
+            ),
+          ),
+        );
       } else if (action == 'delete') {
         final confirmed = await _confirm(
           l10n.deleteList,
@@ -1344,21 +1413,418 @@ class _AndroidSettingsScreenState extends ConsumerState<AndroidSettingsScreen> {
       ) ??
       false;
 
-  bool _isLocalHost(String host) {
-    final value = host.toLowerCase();
-    if (value == 'localhost' || value.endsWith('.local')) return true;
-    final parts = value.split('.').map(int.tryParse).toList();
-    if (parts.length != 4 || parts.any((part) => part == null)) return false;
-    return parts[0] == 10 ||
-        (parts[0] == 192 && parts[1] == 168) ||
-        (parts[0] == 172 && parts[1]! >= 16 && parts[1]! <= 31);
-  }
-
   void _message(String message) {
     if (!mounted) return;
     ScaffoldMessenger.of(
       context,
     ).showSnackBar(SnackBar(content: Text(message)));
+  }
+}
+
+bool isAndroidLocalNetworkHost(String host) {
+  var value = host.trim().toLowerCase();
+  if (value.startsWith('[') && value.endsWith(']')) {
+    value = value.substring(1, value.length - 1);
+  }
+  value = value.split('%').first;
+  if (value.isEmpty) return false;
+  if (value == 'localhost' ||
+      value.endsWith('.local') ||
+      value.endsWith('.lan') ||
+      value.endsWith('.home') ||
+      value.endsWith('.internal')) {
+    return true;
+  }
+  final address = InternetAddress.tryParse(value);
+  if (address == null) return !value.contains('.');
+  final bytes = address.rawAddress;
+  if (address.type == InternetAddressType.IPv4) {
+    return bytes[0] == 10 ||
+        bytes[0] == 127 ||
+        (bytes[0] == 169 && bytes[1] == 254) ||
+        (bytes[0] == 192 && bytes[1] == 168) ||
+        (bytes[0] == 172 && bytes[1] >= 16 && bytes[1] <= 31);
+  }
+  final loopback = bytes.take(15).every((byte) => byte == 0) && bytes[15] == 1;
+  final uniqueLocal = (bytes[0] & 0xfe) == 0xfc;
+  final linkLocal = bytes[0] == 0xfe && (bytes[1] & 0xc0) == 0x80;
+  return loopback || uniqueLocal || linkLocal;
+}
+
+class AndroidNextcloudSharingScreen extends ConsumerStatefulWidget {
+  const AndroidNextcloudSharingScreen({
+    super.key,
+    required this.accountId,
+    required this.collectionId,
+    required this.title,
+  });
+
+  final String accountId;
+  final String collectionId;
+  final String title;
+
+  @override
+  ConsumerState<AndroidNextcloudSharingScreen> createState() =>
+      _AndroidNextcloudSharingScreenState();
+}
+
+class _AndroidNextcloudSharingScreenState
+    extends ConsumerState<AndroidNextcloudSharingScreen> {
+  final _search = TextEditingController();
+  NextcloudSharingState? _state;
+  List<NextcloudShareRecipient> _recipients = const [];
+  bool _busy = true;
+  Object? _error;
+
+  NextcloudSharingService get _service =>
+      ref.read(nextcloudSharingServiceProvider(widget.accountId));
+
+  @override
+  void initState() {
+    super.initState();
+    unawaited(_load());
+  }
+
+  @override
+  void dispose() {
+    _search.dispose();
+    super.dispose();
+  }
+
+  Future<void> _load() async {
+    setState(() {
+      _busy = true;
+      _error = null;
+    });
+    try {
+      final state = await _service.load(widget.collectionId);
+      if (mounted) setState(() => _state = state);
+    } on Object catch (error) {
+      if (mounted) setState(() => _error = error);
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _findRecipients() async {
+    if (_search.text.trim().isEmpty) return;
+    setState(() {
+      _busy = true;
+      _error = null;
+    });
+    try {
+      final recipients = await _service.search(_search.text);
+      if (mounted) setState(() => _recipients = recipients);
+    } on Object catch (error) {
+      if (mounted) setState(() => _error = error);
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _changeShare(
+    NextcloudShareRecipient recipient,
+    bool? writable,
+  ) async {
+    setState(() => _busy = true);
+    try {
+      await _service.changeShare(
+        widget.collectionId,
+        recipient,
+        writable: writable,
+      );
+      _search.clear();
+      _recipients = const [];
+      await _load();
+    } on Object catch (error) {
+      if (mounted) setState(() => _error = error);
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _setPublished(bool value) async {
+    if (value) {
+      final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          title: Text(context.l10n.nextcloudPublish),
+          content: Text(context.l10n.nextcloudPublishWarning),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext, false),
+              child: Text(context.l10n.cancel),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(dialogContext, true),
+              child: Text(context.l10n.nextcloudPublish),
+            ),
+          ],
+        ),
+      );
+      if (confirmed != true) return;
+    }
+    setState(() => _busy = true);
+    try {
+      await _service.setPublished(widget.collectionId, value);
+      await _load();
+    } on Object catch (error) {
+      if (mounted) setState(() => _error = error);
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final state = _state;
+    return Scaffold(
+      appBar: AppBar(title: Text(widget.title)),
+      body: _busy && state == null
+          ? const Center(child: CircularProgressIndicator())
+          : RefreshIndicator(
+              onRefresh: _load,
+              child: ListView(
+                padding: const EdgeInsets.all(16),
+                children: [
+                  if (_error != null)
+                    ListTile(
+                      leading: const Icon(Icons.error_outline),
+                      title: Text(context.l10n.operationFailed),
+                      subtitle: Text('$_error'),
+                    ),
+                  if (state?.canPublish ?? false)
+                    SwitchListTile(
+                      contentPadding: EdgeInsets.zero,
+                      secondary: const Icon(Icons.public),
+                      title: Text(
+                        state!.publishUrl == null
+                            ? context.l10n.nextcloudPublish
+                            : context.l10n.nextcloudUnpublish,
+                      ),
+                      subtitle: state.publishUrl == null
+                          ? null
+                          : SelectableText(state.publishUrl.toString()),
+                      value: state.publishUrl != null,
+                      onChanged: _busy ? null : _setPublished,
+                    ),
+                  if (state?.canShare ?? false) ...[
+                    TextField(
+                      controller: _search,
+                      decoration: InputDecoration(
+                        labelText: context.l10n.nextcloudRecipientSearch,
+                        suffixIcon: IconButton(
+                          onPressed: _busy ? null : _findRecipients,
+                          icon: const Icon(Icons.search),
+                        ),
+                      ),
+                      onSubmitted: (_) => unawaited(_findRecipients()),
+                    ),
+                    for (final recipient in _recipients)
+                      ListTile(
+                        leading: Icon(
+                          recipient.group ? Icons.groups : Icons.person_outline,
+                        ),
+                        title: Text(recipient.label),
+                        trailing: PopupMenuButton<bool>(
+                          onSelected: (value) =>
+                              unawaited(_changeShare(recipient, value)),
+                          itemBuilder: (context) => [
+                            PopupMenuItem(
+                              value: false,
+                              child: Text(context.l10n.nextcloudReadAccess),
+                            ),
+                            PopupMenuItem(
+                              value: true,
+                              child: Text(context.l10n.nextcloudWriteAccess),
+                            ),
+                          ],
+                        ),
+                      ),
+                  ],
+                  const Divider(height: 32),
+                  for (final share
+                      in state?.shares ?? const <NextcloudCollectionShare>[])
+                    ListTile(
+                      leading: Icon(
+                        share.recipient.group
+                            ? Icons.groups
+                            : Icons.person_outline,
+                      ),
+                      title: Text(share.recipient.label),
+                      subtitle: Text(
+                        share.writable
+                            ? context.l10n.nextcloudWriteAccess
+                            : context.l10n.nextcloudReadAccess,
+                      ),
+                      trailing: PopupMenuButton<String>(
+                        onSelected: (value) => unawaited(
+                          _changeShare(share.recipient, switch (value) {
+                            'read' => false,
+                            'write' => true,
+                            _ => null,
+                          }),
+                        ),
+                        itemBuilder: (context) => [
+                          PopupMenuItem(
+                            value: 'read',
+                            child: Text(context.l10n.nextcloudReadAccess),
+                          ),
+                          PopupMenuItem(
+                            value: 'write',
+                            child: Text(context.l10n.nextcloudWriteAccess),
+                          ),
+                          PopupMenuItem(
+                            value: 'remove',
+                            child: Text(context.l10n.nextcloudRevokeShare),
+                          ),
+                        ],
+                      ),
+                    ),
+                  if (state != null &&
+                      state.shares.isEmpty &&
+                      _recipients.isEmpty)
+                    ListTile(title: Text(context.l10n.nextcloudNoRecipients)),
+                  if (_busy)
+                    const Padding(
+                      padding: EdgeInsets.all(16),
+                      child: LinearProgressIndicator(),
+                    ),
+                ],
+              ),
+            ),
+    );
+  }
+}
+
+class AndroidNextcloudTrashScreen extends ConsumerStatefulWidget {
+  const AndroidNextcloudTrashScreen({super.key, required this.accountId});
+
+  final String accountId;
+
+  @override
+  ConsumerState<AndroidNextcloudTrashScreen> createState() =>
+      _AndroidNextcloudTrashScreenState();
+}
+
+class _AndroidNextcloudTrashScreenState
+    extends ConsumerState<AndroidNextcloudTrashScreen> {
+  NextcloudTrashListing? _listing;
+  bool _busy = true;
+  Object? _error;
+
+  NextcloudTrashService get _service =>
+      ref.read(nextcloudTrashServiceProvider(widget.accountId));
+
+  @override
+  void initState() {
+    super.initState();
+    unawaited(_load());
+  }
+
+  Future<void> _load() async {
+    setState(() {
+      _busy = true;
+      _error = null;
+    });
+    try {
+      final listing = await _service.list();
+      if (mounted) setState(() => _listing = listing);
+    } on Object catch (error) {
+      if (mounted) setState(() => _error = error);
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _act(NextcloudTrashItem item, {required bool permanent}) async {
+    if (permanent) {
+      final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          title: Text(context.l10n.nextcloudPermanentDelete),
+          content: Text(context.l10n.nextcloudPermanentDeleteWarning),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext, false),
+              child: Text(context.l10n.cancel),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(dialogContext, true),
+              child: Text(context.l10n.nextcloudPermanentDelete),
+            ),
+          ],
+        ),
+      );
+      if (confirmed != true) return;
+    }
+    setState(() => _busy = true);
+    try {
+      if (permanent) {
+        await _service.permanentlyDelete(item);
+      } else {
+        await _service.restore(item);
+      }
+      await _load();
+    } on Object catch (error) {
+      if (mounted) setState(() => _error = error);
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final items = _listing?.items ?? const <NextcloudTrashItem>[];
+    return Scaffold(
+      appBar: AppBar(title: Text(context.l10n.nextcloudTrash)),
+      body: RefreshIndicator(
+        onRefresh: _load,
+        child: ListView(
+          padding: const EdgeInsets.all(16),
+          children: [
+            if (_error != null)
+              ListTile(
+                leading: const Icon(Icons.error_outline),
+                title: Text(context.l10n.operationFailed),
+                subtitle: Text('$_error'),
+              ),
+            if (!_busy && items.isEmpty && _error == null)
+              ListTile(title: Text(context.l10n.nextcloudTrashEmpty)),
+            for (final item in items)
+              ListTile(
+                leading: Icon(switch (item.kind) {
+                  NextcloudTrashKind.event => Icons.event_outlined,
+                  NextcloudTrashKind.task => Icons.task_alt_outlined,
+                  NextcloudTrashKind.calendar => Icons.calendar_month_outlined,
+                  NextcloudTrashKind.taskList => Icons.checklist_outlined,
+                  NextcloudTrashKind.mixedCollection =>
+                    Icons.folder_copy_outlined,
+                }),
+                title: Text(item.title),
+                subtitle: item.deletedAt == null ? null : Text(item.deletedAt!),
+                trailing: PopupMenuButton<String>(
+                  onSelected: (value) =>
+                      unawaited(_act(item, permanent: value == 'delete')),
+                  itemBuilder: (context) => [
+                    if (item.canRestore)
+                      PopupMenuItem(
+                        value: 'restore',
+                        child: Text(context.l10n.nextcloudRestore),
+                      ),
+                    if (item.canPermanentlyDelete)
+                      PopupMenuItem(
+                        value: 'delete',
+                        child: Text(context.l10n.nextcloudPermanentDelete),
+                      ),
+                  ],
+                ),
+              ),
+            if (_busy) const LinearProgressIndicator(),
+          ],
+        ),
+      ),
+    );
   }
 }
 

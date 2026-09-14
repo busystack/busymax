@@ -26,6 +26,7 @@ class AndroidBusyMaxApp extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final settings = ref.watch(appSettingsControllerProvider);
     return MaterialApp(
+      restorationScopeId: 'busymax_android',
       debugShowCheckedModeBanner: false,
       onGenerateTitle: (_) => 'BusyMax',
       locale: settings.locale,

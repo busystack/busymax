@@ -346,38 +346,61 @@ final class AndroidNotificationService
   Future<void> _reconcileOnce() async {
     final now = DateTime.now().toUtc();
     final horizon = now.add(_schedulingHorizon).millisecondsSinceEpoch;
+    final nowMillis = now.millisecondsSinceEpoch;
     final eligibleAccounts = {
       for (final account in await _database.select(_database.accounts).get())
         if (accountLocalReminderEligibleStates.contains(account.authState))
           account.id,
     };
     final settings = _settings();
+    final mappings = await _database
+        .select(_database.androidNotificationMappings)
+        .get();
+    final mappingByScheduleId = {
+      for (final mapping in mappings) mapping.scheduleId: mapping,
+    };
+    final pendingIds = {
+      for (final request in await _plugin.pendingNotificationRequests())
+        request.id,
+    };
+    final exact = await canScheduleExactly();
+    final registrationState = androidNotificationRegistrationState(
+      settings: settings,
+      exact: exact,
+    );
     final rows =
         await (_database.select(_database.notificationSchedule)..where(
               (table) =>
                   table.accountId.isIn(eligibleAccounts) &
                   table.sentAtUtc.isNull() &
-                  table.dismissedAtUtc.isNull() &
-                  table.scheduledAtUtc.isSmallerOrEqualValue(horizon),
+                  table.dismissedAtUtc.isNull(),
             ))
             .get();
-    rows.removeWhere(
-      (row) =>
-          (row.sourceType == 'event' && !settings.notifyEventReminders) ||
+    rows.removeWhere((row) {
+      if ((row.sourceType == 'event' && !settings.notifyEventReminders) ||
           (row.sourceType == 'task' && !settings.notifyTaskReminders) ||
-          !const {'event', 'task'}.contains(row.sourceType) ||
-          _effectiveAt(row) <= now.millisecondsSinceEpoch,
+          !const {'event', 'task'}.contains(row.sourceType)) {
+        return true;
+      }
+      final effectiveAt = applyAndroidQuietHours(_effectiveAt(row), settings);
+      final mapping = mappingByScheduleId[row.id];
+      final remainsPending =
+          mapping != null && pendingIds.contains(mapping.platformId);
+      return !shouldKeepAndroidReminder(
+        effectiveAt: effectiveAt,
+        now: nowMillis,
+        horizon: horizon,
+        remainsPending: remainsPending,
+      );
+    });
+    rows.sort(
+      (a, b) => applyAndroidQuietHours(
+        _effectiveAt(a),
+        settings,
+      ).compareTo(applyAndroidQuietHours(_effectiveAt(b), settings)),
     );
-    rows.sort((a, b) => _effectiveAt(a).compareTo(_effectiveAt(b)));
     final desired = rows.take(_maximumScheduledAlarms).toList();
     final desiredIds = {for (final row in desired) row.id};
-    final mappings = await _database
-        .select(_database.androidNotificationMappings)
-        .get();
-    final pendingIds = {
-      for (final request in await _plugin.pendingNotificationRequests())
-        request.id,
-    };
 
     for (final mapping in mappings) {
       if (!desiredIds.contains(mapping.scheduleId)) {
@@ -388,7 +411,6 @@ final class AndroidNotificationService
       }
     }
 
-    final exact = await canScheduleExactly();
     _precisionDiagnostic = exact
         ? 'Exact reminder alarms are enabled.'
         : 'Exact alarm access is unavailable; reminders use Android inexact scheduling.';
@@ -413,6 +435,7 @@ final class AndroidNotificationService
           mapping != null &&
           mapping.generation == row.generation &&
           mapping.scheduledAtUtc == effectiveAt &&
+          mapping.state == registrationState &&
           pendingIds.contains(mapping.platformId);
       if (unchanged) continue;
       if (mapping != null) await _plugin.cancel(id: mapping.platformId);
@@ -427,6 +450,9 @@ final class AndroidNotificationService
         sourceId: row.sourceId,
       ).encode();
       final strings = _strings();
+      final scheduledAt = effectiveAt <= nowMillis
+          ? now.add(const Duration(seconds: 5)).millisecondsSinceEpoch
+          : effectiveAt;
       await _plugin.zonedSchedule(
         id: platformId,
         title:
@@ -439,7 +465,7 @@ final class AndroidNotificationService
             : row.body,
         scheduledDate: tz.TZDateTime.fromMillisecondsSinceEpoch(
           tz.local,
-          effectiveAt,
+          scheduledAt,
         ),
         notificationDetails: NotificationDetails(
           android: AndroidNotificationDetails(
@@ -454,22 +480,7 @@ final class AndroidNotificationService
                     NotificationDetailLevel.private
                 ? NotificationVisibility.private
                 : NotificationVisibility.public,
-            actions: <AndroidNotificationAction>[
-              AndroidNotificationAction(
-                androidNotificationActionOpen,
-                strings.open,
-              ),
-              AndroidNotificationAction(
-                androidNotificationActionSnooze,
-                strings.snooze,
-                cancelNotification: true,
-              ),
-              AndroidNotificationAction(
-                androidNotificationActionDismiss,
-                strings.dismiss,
-                cancelNotification: true,
-              ),
-            ],
+            actions: androidReminderNotificationActions(strings),
           ),
         ),
         androidScheduleMode: exact
@@ -485,6 +496,7 @@ final class AndroidNotificationService
               generation: row.generation,
               platformId: platformId,
               scheduledAtUtc: effectiveAt,
+              state: Value(registrationState),
               updatedAtUtc: now.millisecondsSinceEpoch,
             ),
           );
@@ -493,6 +505,7 @@ final class AndroidNotificationService
       settings: settings,
       eligibleAccounts: eligibleAccounts,
       exact: exact,
+      registrationState: registrationState,
       pendingIds: pendingIds,
     );
   }
@@ -501,6 +514,7 @@ final class AndroidNotificationService
     required AppSettings settings,
     required Set<String> eligibleAccounts,
     required bool exact,
+    required String registrationState,
     required Set<int> pendingIds,
   }) async {
     const platformId = 0x425903;
@@ -585,6 +599,7 @@ final class AndroidNotificationService
         current != null &&
         current.taskCount == count &&
         current.scheduledAtUtc == scheduledAt &&
+        current.state == registrationState &&
         pendingIds.contains(platformId);
     if (unchanged) return;
     if (current != null) await _plugin.cancel(id: platformId);
@@ -612,12 +627,7 @@ final class AndroidNotificationService
                   NotificationDetailLevel.private
               ? NotificationVisibility.private
               : NotificationVisibility.public,
-          actions: <AndroidNotificationAction>[
-            AndroidNotificationAction(
-              androidNotificationActionOpen,
-              strings.open,
-            ),
-          ],
+          actions: [androidOpenNotificationAction(strings)],
         ),
       ),
       androidScheduleMode: exact
@@ -640,6 +650,7 @@ final class AndroidNotificationService
             generation: generation,
             scheduledAtUtc: scheduledAt,
             taskCount: count,
+            state: Value(registrationState),
             updatedAtUtc: DateTime.now().millisecondsSinceEpoch,
           ),
         );
@@ -697,6 +708,46 @@ int applyAndroidQuietHours(int epochMillis, AppSettings settings) {
     end % 60,
   ).millisecondsSinceEpoch;
 }
+
+/// Fingerprint of platform-visible scheduling choices that are not represented
+/// by a reminder generation. A changed fingerprint must replace the existing
+/// Android registration even when the source reminder itself did not change.
+String androidNotificationRegistrationState({
+  required AppSettings settings,
+  required bool exact,
+}) =>
+    'scheduled:v2:${settings.notificationDetailLevel.name}:${exact ? 'exact' : 'inexact'}';
+
+AndroidNotificationAction androidOpenNotificationAction(
+  AndroidNotificationStrings strings,
+) => AndroidNotificationAction(
+  androidNotificationActionOpen,
+  strings.open,
+  showsUserInterface: true,
+);
+
+List<AndroidNotificationAction> androidReminderNotificationActions(
+  AndroidNotificationStrings strings,
+) => [
+  androidOpenNotificationAction(strings),
+  AndroidNotificationAction(
+    androidNotificationActionSnooze,
+    strings.snooze,
+    cancelNotification: true,
+  ),
+  AndroidNotificationAction(
+    androidNotificationActionDismiss,
+    strings.dismiss,
+    cancelNotification: true,
+  ),
+];
+
+bool shouldKeepAndroidReminder({
+  required int effectiveAt,
+  required int now,
+  required int horizon,
+  required bool remainsPending,
+}) => effectiveAt <= horizon && (effectiveAt > now || remainsPending);
 
 bool _isQuietNow(AppSettings settings) {
   final now = DateTime.now().millisecondsSinceEpoch;

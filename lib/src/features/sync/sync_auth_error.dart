@@ -1,5 +1,6 @@
 import '../../core/logging/redacting_logger.dart';
 import 'package:busymax/src/core/auth/oauth_models.dart';
+import 'package:flutter/services.dart';
 import '../connectivity/network_connectivity_service.dart';
 
 const accountReconnectRequiredSyncMessage =
@@ -7,9 +8,11 @@ const accountReconnectRequiredSyncMessage =
 const accountReconnectRequiredActionLabel = 'Reconnect this account';
 
 bool isMissingOAuthTokenError(Object error) {
-  return error is OAuthException &&
-      (error.code == 'OAuthMissingToken' ||
-          error.code == 'MicrosoftOAuthMissingToken');
+  return (error is OAuthException &&
+          (error.code == 'OAuthMissingToken' ||
+              error.code == 'MicrosoftOAuthMissingToken')) ||
+      (error is PlatformException &&
+          error.code == 'android/auth-interaction-required');
 }
 
 String syncFailureMessage(
