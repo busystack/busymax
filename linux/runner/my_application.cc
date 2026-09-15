@@ -10,7 +10,6 @@
 #include <cmath>
 #include <cstdio>
 #include <cstring>
-#include <initializer_list>
 #include "flutter/generated_plugin_registrant.h"
 
 constexpr char kApplicationDisplayName[] = "BusyMax";
@@ -18,8 +17,6 @@ constexpr char kNativeDateTimePickerChannel[] =
     "busymax/native_date_time_picker";
 constexpr char kNativeDialogChannel[] = "busymax/native_dialogs";
 constexpr char kNativeMenuChannel[] = "busymax/native_menus";
-constexpr char kNativeScheduleSearchFiltersChannel[] =
-    "busymax/native_schedule_search_filters";
 constexpr char kWindowChannel[] = "io.busystack.busymax/window";
 constexpr char kHeaderBarChannel[] = "io.busystack.busymax/headerbar";
 constexpr char kGtkSettingsChannel[] = "io.busystack.busymax/gtk_settings";
@@ -96,11 +93,6 @@ constexpr char kNativeTimeZoneRowStyleClass[] = "busymax-time-zone-row";
 constexpr gint kNativeTimeZoneDialogWidth = 520;
 constexpr gint kNativeTimeZoneDialogContentHeight = 420;
 constexpr size_t kNativeTimeZoneResultLimit = 250;
-constexpr gint64 kNativeScheduleSearchFilterSchemaVersion = 1;
-constexpr gint kNativeScheduleSearchFilterDialogWidth = 420;
-constexpr gint kNativeScheduleSearchFilterDialogHeight = 680;
-
-struct NativeScheduleFilterControls;
 
 struct _MyApplication {
   GtkApplication parent_instance;
@@ -109,7 +101,6 @@ struct _MyApplication {
   FlMethodChannel* native_date_time_picker_channel;
   FlMethodChannel* native_dialog_channel;
   FlMethodChannel* native_menu_channel;
-  FlMethodChannel* native_schedule_search_filters_channel;
   FlMethodChannel* window_channel;
   FlMethodChannel* header_bar_channel;
   FlMethodChannel* gtk_settings_channel;
@@ -151,7 +142,6 @@ struct _MyApplication {
   GtkWindow* main_window;
   GtkWindow* header_focus_transient_window;
   GtkWidget* flutter_view;
-  GtkWidget* content_overlay;
   GtkWidget* titlebar_handle;
   GtkWidget* titlebar_overlay;
   GtkWidget* titlebar_modal_barrier;
@@ -221,10 +211,6 @@ struct _MyApplication {
   gboolean header_back_visible;
   gboolean header_onboarding_controls_visible;
   gint header_onboarding_content_width;
-  NativeScheduleFilterControls* schedule_filter_sidebar;
-  NativeScheduleFilterControls* schedule_filter_modal;
-  FlValue* schedule_filter_state;
-  gboolean suppress_schedule_filter_events;
 };
 
 struct PendingExternalOpen {
@@ -482,11 +468,13 @@ static void style_native_dialog(GtkWidget* dialog) {
   }
 }
 
-static gchar* run_native_date_picker(GtkWindow* parent,
-                                     const gchar* title,
-                                     const gchar* initial_date,
-                                     const gchar* cancel_label,
-                                     const gchar* ok_label) {
+static void handle_pick_date(FlMethodCall* method_call,
+                             FlValue* args,
+                             GtkWindow* parent) {
+  const gchar* title = fl_lookup_string_arg(args, "title");
+  const gchar* initial_date = fl_lookup_string_arg(args, "initialDate");
+  const gchar* cancel_label = fl_lookup_string_arg(args, "cancelLabel");
+  const gchar* ok_label = fl_lookup_string_arg(args, "okLabel");
   GtkWidget* dialog = gtk_dialog_new_with_buttons(
       title != nullptr ? title : "Date", parent,
       static_cast<GtkDialogFlags>(GTK_DIALOG_MODAL |
@@ -517,25 +505,16 @@ static gchar* run_native_date_picker(GtkWindow* parent,
   gtk_widget_show_all(dialog);
   const gint response = gtk_dialog_run(GTK_DIALOG(dialog));
 
-  gchar* result = nullptr;
   if (response == GTK_RESPONSE_OK) {
     gtk_calendar_get_date(GTK_CALENDAR(calendar), &year, &month, &day);
-    result = g_strdup_printf("%04u-%02u-%02u", year, month + 1, day);
+    g_autofree gchar* result =
+        g_strdup_printf("%04u-%02u-%02u", year, month + 1, day);
+    respond_string(method_call, result);
+  } else {
+    respond_string(method_call, nullptr);
   }
 
   gtk_widget_destroy(dialog);
-  return result;
-}
-
-static void handle_pick_date(FlMethodCall* method_call,
-                             FlValue* args,
-                             GtkWindow* parent) {
-  g_autofree gchar* result = run_native_date_picker(
-      parent, fl_lookup_string_arg(args, "title"),
-      fl_lookup_string_arg(args, "initialDate"),
-      fl_lookup_string_arg(args, "cancelLabel"),
-      fl_lookup_string_arg(args, "okLabel"));
-  respond_string(method_call, result);
 }
 
 static void handle_pick_time(FlMethodCall* method_call,
@@ -1975,1118 +1954,6 @@ static void register_native_menus(MyApplication* self, FlView* view) {
 static void respond_success(FlMethodCall* method_call) {
   g_autoptr(FlValue) result = fl_value_new_null();
   fl_method_call_respond_success(method_call, result, nullptr);
-}
-
-struct NativeScheduleFilterSourceRow {
-  GtkWidget* group;
-  GtkWidget* row;
-  GtkWidget* check_button;
-  gboolean is_task_list;
-  gchar* source_id;
-  gchar* account_id;
-  gchar* task_list_id;
-};
-
-struct NativeScheduleFilterControls {
-  MyApplication* application;
-  GtkWidget* window;
-  GtkWidget* root;
-  GtkWidget* scrolled_window;
-  GtkWidget* content;
-  GtkWidget* title_label;
-  GtkWidget* general_group;
-  GtkWidget* type_row;
-  GtkWidget* type_combo;
-  GtkWidget* date_row;
-  GtkWidget* date_combo;
-  GtkWidget* start_date_row;
-  GtkWidget* start_date_button;
-  GtkWidget* end_date_row;
-  GtkWidget* end_date_button;
-  GtkWidget* task_completion_row;
-  GtkWidget* task_completion_combo;
-  GtkWidget* task_due_row;
-  GtkWidget* task_due_combo;
-  GtkWidget* person_row;
-  GtkWidget* person_entry;
-  GtkWidget* location_row;
-  GtkWidget* location_entry;
-  GtkWidget* sources_label;
-  GtkWidget* sources_box;
-  GtkWidget* no_sources_label;
-  GtkWidget* clear_button;
-  GPtrArray* source_rows;
-  gchar* topology_signature;
-  gchar* labels_signature;
-  gboolean modal;
-};
-
-static void native_schedule_filter_source_row_free(gpointer data) {
-  auto* row = static_cast<NativeScheduleFilterSourceRow*>(data);
-  if (row == nullptr) return;
-  g_free(row->source_id);
-  g_free(row->account_id);
-  g_free(row->task_list_id);
-  g_free(row);
-}
-
-static void native_schedule_filter_controls_free(
-    NativeScheduleFilterControls* controls) {
-  if (controls == nullptr) return;
-  g_clear_pointer(&controls->source_rows, g_ptr_array_unref);
-  g_clear_pointer(&controls->topology_signature, g_free);
-  g_clear_pointer(&controls->labels_signature, g_free);
-  g_free(controls);
-}
-
-static FlValue* native_schedule_filter_criteria(MyApplication* self) {
-  return self->schedule_filter_state == nullptr
-             ? nullptr
-             : fl_lookup_map_arg(self->schedule_filter_state, "criteria");
-}
-
-static FlValue* fl_lookup_list_arg(FlValue* args, const gchar* key) {
-  if (args == nullptr || fl_value_get_type(args) != FL_VALUE_TYPE_MAP) {
-    return nullptr;
-  }
-  FlValue* value = fl_value_lookup_string(args, key);
-  return value != nullptr && fl_value_get_type(value) == FL_VALUE_TYPE_LIST
-             ? value
-             : nullptr;
-}
-
-static gboolean native_schedule_filter_has_string(FlValue* map,
-                                                   const gchar* key) {
-  return fl_lookup_string_arg(map, key) != nullptr;
-}
-
-static gboolean native_schedule_filter_valid_enum(const gchar* value,
-                                                   const gchar* const* values,
-                                                   gsize count) {
-  if (value == nullptr) return FALSE;
-  for (gsize index = 0; index < count; index++) {
-    if (g_strcmp0(value, values[index]) == 0) return TRUE;
-  }
-  return FALSE;
-}
-
-static gboolean native_schedule_filter_valid_optional_date(FlValue* map,
-                                                            const gchar* key) {
-  FlValue* value = fl_value_lookup_string(map, key);
-  if (value == nullptr || fl_value_get_type(value) == FL_VALUE_TYPE_NULL) {
-    return TRUE;
-  }
-  if (fl_value_get_type(value) != FL_VALUE_TYPE_STRING) return FALSE;
-  guint year = 0;
-  guint month = 0;
-  guint day = 0;
-  return parse_date(fl_value_get_string(value), &year, &month, &day);
-}
-
-static gboolean native_schedule_filter_validate_item_list(
-    FlValue* list,
-    const gchar* const* string_keys,
-    gsize string_key_count,
-    gboolean requires_selected) {
-  if (list == nullptr) return FALSE;
-  for (size_t index = 0; index < fl_value_get_length(list); index++) {
-    FlValue* item = fl_value_get_list_value(list, index);
-    if (item == nullptr || fl_value_get_type(item) != FL_VALUE_TYPE_MAP) {
-      return FALSE;
-    }
-    for (gsize key_index = 0; key_index < string_key_count; key_index++) {
-      if (!native_schedule_filter_has_string(item, string_keys[key_index])) {
-        return FALSE;
-      }
-    }
-    if (requires_selected) {
-      gboolean selected = FALSE;
-      if (!fl_lookup_optional_bool_arg(item, "selected", &selected)) {
-        return FALSE;
-      }
-      (void)selected;
-    }
-  }
-  return TRUE;
-}
-
-static gboolean validate_native_schedule_filter_state(FlValue* args,
-                                                       const gchar** error) {
-  if (args == nullptr || fl_value_get_type(args) != FL_VALUE_TYPE_MAP) {
-    *error = "The filter state must be a map.";
-    return FALSE;
-  }
-  gint64 schema_version = 0;
-  if (!fl_lookup_int_arg(args, "schemaVersion", &schema_version) ||
-      schema_version != kNativeScheduleSearchFilterSchemaVersion) {
-    *error = "The filter state schema version is unsupported.";
-    return FALSE;
-  }
-  gboolean active = FALSE;
-  gboolean sidebar_visible = FALSE;
-  if (!fl_lookup_optional_bool_arg(args, "active", &active) ||
-      !fl_lookup_optional_bool_arg(args, "sidebarVisible",
-                                   &sidebar_visible)) {
-    *error = "The filter visibility state is invalid.";
-    return FALSE;
-  }
-  (void)sidebar_visible;
-  gdouble sidebar_width = 0;
-  if (!fl_lookup_double_arg(args, "sidebarWidth", &sidebar_width) ||
-      sidebar_width < 160 || sidebar_width > 800) {
-    *error = "The filter sidebar width is invalid.";
-    return FALSE;
-  }
-  FlValue* labels = fl_lookup_map_arg(args, "labels");
-  constexpr const gchar* label_keys[] = {
-      "searchFilters", "type",        "all",          "events",
-      "tasks",         "date",        "anyDate",      "today",
-      "tomorrow",      "thisWeek",    "customRange",  "startDate",
-      "endDate",       "taskStatus",  "open",         "completed",
-      "taskDue",       "anyDueState", "overdue",      "noDueDate",
-      "person",        "location",    "sources",      "clearFilters",
-      "noSources",     "close",       "cancel",       "ok",
-  };
-  if (labels == nullptr) {
-    *error = "The localized filter labels are missing.";
-    return FALSE;
-  }
-  for (const gchar* key : label_keys) {
-    if (!native_schedule_filter_has_string(labels, key)) {
-      *error = "A localized filter label is invalid.";
-      return FALSE;
-    }
-  }
-  constexpr const gchar* account_keys[] = {"id", "label"};
-  constexpr const gchar* source_keys[] = {"id", "accountId", "title"};
-  constexpr const gchar* task_list_keys[] = {"accountId", "taskListId",
-                                              "title"};
-  if (!native_schedule_filter_validate_item_list(
-          fl_lookup_list_arg(args, "accounts"), account_keys,
-          G_N_ELEMENTS(account_keys), FALSE) ||
-      !native_schedule_filter_validate_item_list(
-          fl_lookup_list_arg(args, "calendarSources"), source_keys,
-          G_N_ELEMENTS(source_keys), TRUE) ||
-      !native_schedule_filter_validate_item_list(
-          fl_lookup_list_arg(args, "taskLists"), task_list_keys,
-          G_N_ELEMENTS(task_list_keys), TRUE)) {
-    *error = "The filter source presentation is invalid.";
-    return FALSE;
-  }
-  FlValue* criteria = fl_lookup_map_arg(args, "criteria");
-  if (!active && criteria == nullptr) return TRUE;
-  if (criteria == nullptr) {
-    *error = "Active filters require criteria.";
-    return FALSE;
-  }
-  constexpr const gchar* types[] = {"all", "events", "tasks"};
-  constexpr const gchar* dates[] = {"any", "today", "tomorrow", "thisWeek",
-                                     "custom"};
-  constexpr const gchar* completion[] = {"open", "all", "completed"};
-  constexpr const gchar* due_states[] = {"any", "overdue", "noDueDate"};
-  if (!native_schedule_filter_valid_enum(
-          fl_lookup_string_arg(criteria, "type"), types,
-          G_N_ELEMENTS(types)) ||
-      !native_schedule_filter_valid_enum(
-          fl_lookup_string_arg(criteria, "date"), dates,
-          G_N_ELEMENTS(dates)) ||
-      !native_schedule_filter_valid_enum(
-          fl_lookup_string_arg(criteria, "taskCompletion"), completion,
-          G_N_ELEMENTS(completion)) ||
-      !native_schedule_filter_valid_enum(
-          fl_lookup_string_arg(criteria, "taskDueState"), due_states,
-          G_N_ELEMENTS(due_states)) ||
-      !native_schedule_filter_has_string(criteria, "person") ||
-      !native_schedule_filter_has_string(criteria, "location") ||
-      !native_schedule_filter_valid_optional_date(criteria, "customStart") ||
-      !native_schedule_filter_valid_optional_date(criteria, "customEnd") ||
-      !native_schedule_filter_valid_optional_date(criteria, "referenceDate") ||
-      fl_lookup_list_arg(criteria, "sourceIds") == nullptr ||
-      fl_lookup_list_arg(criteria, "taskListKeys") == nullptr) {
-    *error = "The filter criteria are invalid.";
-    return FALSE;
-  }
-  return TRUE;
-}
-
-static void invoke_native_schedule_filter_event(MyApplication* self,
-                                                const gchar* method,
-                                                FlValue* arguments) {
-  if (self->suppress_schedule_filter_events ||
-      self->native_schedule_search_filters_channel == nullptr ||
-      method == nullptr) {
-    return;
-  }
-  fl_method_channel_invoke_method(
-      self->native_schedule_search_filters_channel, method, arguments,
-      nullptr, nullptr, nullptr);
-}
-
-static void invoke_native_schedule_filter_string_event(
-    MyApplication* self,
-    const gchar* method,
-    const gchar* value) {
-  g_autoptr(FlValue) argument =
-      fl_value_new_string(value == nullptr ? "" : value);
-  invoke_native_schedule_filter_event(self, method, argument);
-}
-
-static const gchar* native_schedule_filter_combo_value(GtkComboBox* combo,
-                                                       const gchar* kind) {
-  const gint index = gtk_combo_box_get_active(combo);
-  if (g_strcmp0(kind, "type") == 0) {
-    constexpr const gchar* values[] = {"all", "events", "tasks"};
-    return index >= 0 && index < static_cast<gint>(G_N_ELEMENTS(values))
-               ? values[index]
-               : nullptr;
-  }
-  if (g_strcmp0(kind, "date") == 0) {
-    constexpr const gchar* values[] = {"any", "today", "tomorrow",
-                                       "thisWeek", "custom"};
-    return index >= 0 && index < static_cast<gint>(G_N_ELEMENTS(values))
-               ? values[index]
-               : nullptr;
-  }
-  if (g_strcmp0(kind, "completion") == 0) {
-    constexpr const gchar* values[] = {"open", "all", "completed"};
-    return index >= 0 && index < static_cast<gint>(G_N_ELEMENTS(values))
-               ? values[index]
-               : nullptr;
-  }
-  constexpr const gchar* values[] = {"any", "overdue", "noDueDate"};
-  return index >= 0 && index < static_cast<gint>(G_N_ELEMENTS(values))
-             ? values[index]
-             : nullptr;
-}
-
-static void native_schedule_filter_combo_changed_cb(GtkComboBox* combo,
-                                                    gpointer user_data) {
-  auto* controls = static_cast<NativeScheduleFilterControls*>(user_data);
-  const gchar* kind = static_cast<const gchar*>(
-      g_object_get_data(G_OBJECT(combo), "busymax-filter-kind"));
-  const gchar* value = native_schedule_filter_combo_value(combo, kind);
-  if (value == nullptr) return;
-  const gchar* method = g_strcmp0(kind, "type") == 0
-                            ? "typeChanged"
-                            : g_strcmp0(kind, "date") == 0
-                                  ? "dateChanged"
-                                  : g_strcmp0(kind, "completion") == 0
-                                        ? "taskCompletionChanged"
-                                        : "taskDueStateChanged";
-  invoke_native_schedule_filter_string_event(controls->application, method,
-                                             value);
-}
-
-static void native_schedule_filter_entry_changed_cb(GtkEditable* entry,
-                                                    gpointer user_data) {
-  auto* controls = static_cast<NativeScheduleFilterControls*>(user_data);
-  const gchar* kind = static_cast<const gchar*>(
-      g_object_get_data(G_OBJECT(entry), "busymax-filter-kind"));
-  invoke_native_schedule_filter_string_event(
-      controls->application,
-      g_strcmp0(kind, "person") == 0 ? "personChanged" : "locationChanged",
-      gtk_entry_get_text(GTK_ENTRY(entry)));
-}
-
-static void native_schedule_filter_source_toggled_cb(GtkToggleButton* button,
-                                                     gpointer user_data) {
-  auto* source_row = static_cast<NativeScheduleFilterSourceRow*>(user_data);
-  auto* controls = static_cast<NativeScheduleFilterControls*>(
-      g_object_get_data(G_OBJECT(button), "busymax-filter-controls"));
-  if (controls == nullptr || source_row == nullptr) return;
-  g_autoptr(FlValue) args = fl_value_new_map();
-  if (source_row->is_task_list) {
-    fl_value_set_string_take(
-        args, "accountId",
-        fl_value_new_string(source_row->account_id == nullptr
-                                ? ""
-                                : source_row->account_id));
-    fl_value_set_string_take(
-        args, "taskListId",
-        fl_value_new_string(source_row->task_list_id == nullptr
-                                ? ""
-                                : source_row->task_list_id));
-  } else {
-    fl_value_set_string_take(
-        args, "sourceId",
-        fl_value_new_string(source_row->source_id == nullptr
-                                ? ""
-                                : source_row->source_id));
-  }
-  fl_value_set_string_take(
-      args, "selected",
-      fl_value_new_bool(gtk_toggle_button_get_active(button)));
-  invoke_native_schedule_filter_event(
-      controls->application,
-      source_row->is_task_list ? "taskListToggled" : "calendarSourceToggled",
-      args);
-}
-
-static void native_schedule_filter_clear_clicked_cb(GtkButton*,
-                                                    gpointer user_data) {
-  auto* controls = static_cast<NativeScheduleFilterControls*>(user_data);
-  invoke_native_schedule_filter_event(controls->application, "clearFilters",
-                                     nullptr);
-}
-
-static gchar* native_schedule_filter_format_date(const gchar* value) {
-  guint year = 0;
-  guint month = 0;
-  guint day = 0;
-  if (!parse_date(value, &year, &month, &day)) {
-    return g_strdup(value == nullptr ? "" : value);
-  }
-  g_autoptr(GDateTime) date =
-      g_date_time_new_local(year, month, day, 12, 0, 0);
-  return date == nullptr ? g_strdup(value) : g_date_time_format(date, "%x");
-}
-
-static const gchar* native_schedule_filter_date_value(FlValue* criteria,
-                                                       const gchar* key) {
-  FlValue* value = criteria == nullptr
-                       ? nullptr
-                       : fl_value_lookup_string(criteria, key);
-  return value != nullptr && fl_value_get_type(value) == FL_VALUE_TYPE_STRING
-             ? fl_value_get_string(value)
-             : nullptr;
-}
-
-static void native_schedule_filter_date_clicked_cb(GtkButton* button,
-                                                   gpointer user_data) {
-  auto* controls = static_cast<NativeScheduleFilterControls*>(user_data);
-  MyApplication* self = controls->application;
-  FlValue* criteria = native_schedule_filter_criteria(self);
-  FlValue* labels = self->schedule_filter_state == nullptr
-                        ? nullptr
-                        : fl_lookup_map_arg(self->schedule_filter_state,
-                                            "labels");
-  if (criteria == nullptr || labels == nullptr) return;
-  const gboolean is_start =
-      g_strcmp0(static_cast<const gchar*>(g_object_get_data(
-                    G_OBJECT(button), "busymax-filter-date-kind")),
-                "start") == 0;
-  const gchar* value = native_schedule_filter_date_value(
-      criteria, is_start ? "customStart" : "customEnd");
-  if (value == nullptr) {
-    value = native_schedule_filter_date_value(criteria, "referenceDate");
-  }
-  GtkWidget* toplevel = gtk_widget_get_toplevel(GTK_WIDGET(button));
-  GtkWindow* parent = GTK_IS_WINDOW(toplevel) ? GTK_WINDOW(toplevel)
-                                              : self->main_window;
-  g_autofree gchar* result = run_native_date_picker(
-      parent,
-      fl_lookup_string_arg(labels, is_start ? "startDate" : "endDate"),
-      value, fl_lookup_string_arg(labels, "cancel"),
-      fl_lookup_string_arg(labels, "ok"));
-  if (result != nullptr) {
-    invoke_native_schedule_filter_string_event(
-        self, is_start ? "customStartChanged" : "customEndChanged", result);
-  }
-}
-
-static GtkWidget* native_schedule_filter_action_row(const gchar* kind,
-                                                    GtkWidget* control,
-                                                    GCallback callback,
-                                                    gpointer user_data) {
-  GtkWidget* row = hdy_action_row_new();
-  gtk_widget_set_hexpand(row, TRUE);
-  gtk_widget_set_halign(row, GTK_ALIGN_FILL);
-  gtk_widget_set_valign(control, GTK_ALIGN_CENTER);
-  g_object_set_data_full(G_OBJECT(control), "busymax-filter-kind",
-                         g_strdup(kind), g_free);
-  gtk_container_add(GTK_CONTAINER(row), control);
-  hdy_action_row_set_activatable_widget(HDY_ACTION_ROW(row), control);
-  gtk_list_box_row_set_activatable(GTK_LIST_BOX_ROW(row), TRUE);
-  g_signal_connect(control,
-                   GTK_IS_COMBO_BOX(control) ? "changed" : "search-changed",
-                   callback, user_data);
-  return row;
-}
-
-static void native_schedule_filter_controls_destroyed_cb(GtkWidget*,
-                                                         gpointer user_data) {
-  auto* controls = static_cast<NativeScheduleFilterControls*>(user_data);
-  MyApplication* self = controls->application;
-  if (self->schedule_filter_sidebar == controls) {
-    self->schedule_filter_sidebar = nullptr;
-  }
-  if (self->schedule_filter_modal == controls) {
-    self->schedule_filter_modal = nullptr;
-    if (self->main_window != nullptr) {
-      gtk_window_present(self->main_window);
-    }
-  }
-  native_schedule_filter_controls_free(controls);
-}
-
-static NativeScheduleFilterControls* create_native_schedule_filter_controls(
-    MyApplication* self,
-    gboolean modal) {
-  auto* controls = g_new0(NativeScheduleFilterControls, 1);
-  controls->application = self;
-  controls->modal = modal;
-  controls->source_rows = g_ptr_array_new_with_free_func(
-      native_schedule_filter_source_row_free);
-
-  controls->root = gtk_box_new(GTK_ORIENTATION_VERTICAL, 0);
-  gtk_style_context_add_class(gtk_widget_get_style_context(controls->root),
-                              GTK_STYLE_CLASS_BACKGROUND);
-  gtk_widget_set_hexpand(controls->root, FALSE);
-  gtk_widget_set_vexpand(controls->root, TRUE);
-  g_signal_connect(controls->root, "destroy",
-                   G_CALLBACK(native_schedule_filter_controls_destroyed_cb),
-                   controls);
-
-  controls->scrolled_window = gtk_scrolled_window_new(nullptr, nullptr);
-  gtk_scrolled_window_set_policy(
-      GTK_SCROLLED_WINDOW(controls->scrolled_window), GTK_POLICY_NEVER,
-      GTK_POLICY_AUTOMATIC);
-  gtk_scrolled_window_set_shadow_type(
-      GTK_SCROLLED_WINDOW(controls->scrolled_window), GTK_SHADOW_NONE);
-  gtk_container_add(GTK_CONTAINER(controls->root), controls->scrolled_window);
-
-  controls->content = gtk_box_new(GTK_ORIENTATION_VERTICAL, 12);
-  gtk_container_set_border_width(GTK_CONTAINER(controls->content), 12);
-  gtk_container_add(GTK_CONTAINER(controls->scrolled_window),
-                    controls->content);
-
-  controls->title_label = gtk_label_new(nullptr);
-  gtk_widget_set_halign(controls->title_label, GTK_ALIGN_START);
-  gtk_style_context_add_class(
-      gtk_widget_get_style_context(controls->title_label), "title");
-  gtk_box_pack_start(GTK_BOX(controls->content), controls->title_label, FALSE,
-                     FALSE, 0);
-
-  controls->general_group = hdy_preferences_group_new();
-  gtk_widget_set_hexpand(controls->general_group, TRUE);
-  gtk_box_pack_start(GTK_BOX(controls->content), controls->general_group,
-                     FALSE, FALSE, 0);
-
-  controls->type_combo = gtk_combo_box_text_new();
-  controls->type_row = native_schedule_filter_action_row(
-      "type", controls->type_combo,
-      G_CALLBACK(native_schedule_filter_combo_changed_cb), controls);
-  gtk_container_add(GTK_CONTAINER(controls->general_group),
-                    controls->type_row);
-  controls->date_combo = gtk_combo_box_text_new();
-  controls->date_row = native_schedule_filter_action_row(
-      "date", controls->date_combo,
-      G_CALLBACK(native_schedule_filter_combo_changed_cb), controls);
-  gtk_container_add(GTK_CONTAINER(controls->general_group),
-                    controls->date_row);
-
-  controls->start_date_button = gtk_button_new();
-  g_object_set_data_full(G_OBJECT(controls->start_date_button),
-                         "busymax-filter-date-kind", g_strdup("start"),
-                         g_free);
-  controls->start_date_row = hdy_action_row_new();
-  gtk_container_add(GTK_CONTAINER(controls->start_date_row),
-                    controls->start_date_button);
-  hdy_action_row_set_activatable_widget(
-      HDY_ACTION_ROW(controls->start_date_row), controls->start_date_button);
-  g_signal_connect(controls->start_date_button, "clicked",
-                   G_CALLBACK(native_schedule_filter_date_clicked_cb),
-                   controls);
-  gtk_container_add(GTK_CONTAINER(controls->general_group),
-                    controls->start_date_row);
-
-  controls->end_date_button = gtk_button_new();
-  g_object_set_data_full(G_OBJECT(controls->end_date_button),
-                         "busymax-filter-date-kind", g_strdup("end"),
-                         g_free);
-  controls->end_date_row = hdy_action_row_new();
-  gtk_container_add(GTK_CONTAINER(controls->end_date_row),
-                    controls->end_date_button);
-  hdy_action_row_set_activatable_widget(
-      HDY_ACTION_ROW(controls->end_date_row), controls->end_date_button);
-  g_signal_connect(controls->end_date_button, "clicked",
-                   G_CALLBACK(native_schedule_filter_date_clicked_cb),
-                   controls);
-  gtk_container_add(GTK_CONTAINER(controls->general_group),
-                    controls->end_date_row);
-
-  controls->task_completion_combo = gtk_combo_box_text_new();
-  controls->task_completion_row = native_schedule_filter_action_row(
-      "completion", controls->task_completion_combo,
-      G_CALLBACK(native_schedule_filter_combo_changed_cb), controls);
-  gtk_container_add(GTK_CONTAINER(controls->general_group),
-                    controls->task_completion_row);
-  controls->task_due_combo = gtk_combo_box_text_new();
-  controls->task_due_row = native_schedule_filter_action_row(
-      "due", controls->task_due_combo,
-      G_CALLBACK(native_schedule_filter_combo_changed_cb), controls);
-  gtk_container_add(GTK_CONTAINER(controls->general_group),
-                    controls->task_due_row);
-
-  controls->person_entry = gtk_search_entry_new();
-  controls->person_row = native_schedule_filter_action_row(
-      "person", controls->person_entry,
-      G_CALLBACK(native_schedule_filter_entry_changed_cb), controls);
-  gtk_container_add(GTK_CONTAINER(controls->general_group),
-                    controls->person_row);
-  controls->location_entry = gtk_search_entry_new();
-  controls->location_row = native_schedule_filter_action_row(
-      "location", controls->location_entry,
-      G_CALLBACK(native_schedule_filter_entry_changed_cb), controls);
-  gtk_container_add(GTK_CONTAINER(controls->general_group),
-                    controls->location_row);
-
-  controls->sources_label = gtk_label_new(nullptr);
-  gtk_widget_set_halign(controls->sources_label, GTK_ALIGN_START);
-  gtk_style_context_add_class(
-      gtk_widget_get_style_context(controls->sources_label), "heading");
-  gtk_box_pack_start(GTK_BOX(controls->content), controls->sources_label,
-                     FALSE, FALSE, 0);
-  controls->sources_box = gtk_box_new(GTK_ORIENTATION_VERTICAL, 12);
-  gtk_widget_set_hexpand(controls->sources_box, TRUE);
-  gtk_box_pack_start(GTK_BOX(controls->content), controls->sources_box, FALSE,
-                     FALSE, 0);
-  controls->no_sources_label = gtk_label_new(nullptr);
-  gtk_label_set_line_wrap(GTK_LABEL(controls->no_sources_label), TRUE);
-  gtk_widget_set_halign(controls->no_sources_label, GTK_ALIGN_START);
-  gtk_box_pack_start(GTK_BOX(controls->content), controls->no_sources_label,
-                     FALSE, FALSE, 0);
-  controls->clear_button = gtk_button_new();
-  gtk_widget_set_halign(controls->clear_button, GTK_ALIGN_START);
-  g_signal_connect(controls->clear_button, "clicked",
-                   G_CALLBACK(native_schedule_filter_clear_clicked_cb),
-                   controls);
-  gtk_box_pack_start(GTK_BOX(controls->content), controls->clear_button, FALSE,
-                     FALSE, 0);
-
-  return controls;
-}
-
-static gchar* native_schedule_filter_topology_signature(FlValue* state) {
-  GString* signature = g_string_new(nullptr);
-  constexpr const gchar* list_names[] = {"accounts", "calendarSources",
-                                         "taskLists"};
-  constexpr const gchar* keys[][3] = {{"id", "label", nullptr},
-                                      {"id", "accountId", "title"},
-                                      {"accountId", "taskListId", "title"}};
-  for (gsize list_index = 0; list_index < G_N_ELEMENTS(list_names);
-       list_index++) {
-    FlValue* list = fl_lookup_list_arg(state, list_names[list_index]);
-    g_string_append_printf(signature, "%s:%zu;", list_names[list_index],
-                           fl_value_get_length(list));
-    for (size_t index = 0; index < fl_value_get_length(list); index++) {
-      FlValue* item = fl_value_get_list_value(list, index);
-      for (const gchar* key : keys[list_index]) {
-        if (key == nullptr) continue;
-        const gchar* value = fl_lookup_string_arg(item, key);
-        g_string_append_printf(signature, "%zu:%s;", strlen(value), value);
-      }
-    }
-  }
-  return g_string_free(signature, FALSE);
-}
-
-static GtkWidget* native_schedule_filter_account_group(
-    NativeScheduleFilterControls* controls,
-    const gchar* title) {
-  GtkWidget* group = hdy_preferences_group_new();
-  gtk_widget_set_hexpand(group, TRUE);
-  gtk_widget_set_halign(group, GTK_ALIGN_FILL);
-  hdy_preferences_group_set_title(HDY_PREFERENCES_GROUP(group), title);
-  gtk_box_pack_start(GTK_BOX(controls->sources_box), group, FALSE, FALSE, 0);
-  return group;
-}
-
-static void native_schedule_filter_add_source_row(
-    NativeScheduleFilterControls* controls,
-    GtkWidget* group,
-    FlValue* item,
-    gboolean is_task_list) {
-  auto* source_row = g_new0(NativeScheduleFilterSourceRow, 1);
-  source_row->group = group;
-  source_row->is_task_list = is_task_list;
-  source_row->account_id =
-      g_strdup(fl_lookup_string_arg(item, "accountId"));
-  source_row->source_id = is_task_list
-                              ? nullptr
-                              : g_strdup(fl_lookup_string_arg(item, "id"));
-  source_row->task_list_id =
-      is_task_list ? g_strdup(fl_lookup_string_arg(item, "taskListId"))
-                   : nullptr;
-  source_row->row = hdy_action_row_new();
-  hdy_preferences_row_set_title(
-      HDY_PREFERENCES_ROW(source_row->row),
-      fl_lookup_string_arg(item, "title"));
-  source_row->check_button = gtk_check_button_new();
-  atk_object_set_name(
-      gtk_widget_get_accessible(source_row->check_button),
-      fl_lookup_string_arg(item, "title"));
-  g_object_set_data(G_OBJECT(source_row->check_button),
-                    "busymax-filter-controls", controls);
-  gtk_container_add(GTK_CONTAINER(source_row->row),
-                    source_row->check_button);
-  hdy_action_row_set_activatable_widget(HDY_ACTION_ROW(source_row->row),
-                                        source_row->check_button);
-  gtk_list_box_row_set_activatable(GTK_LIST_BOX_ROW(source_row->row), TRUE);
-  gtk_container_add(GTK_CONTAINER(group), source_row->row);
-  g_ptr_array_add(controls->source_rows, source_row);
-  g_signal_connect(source_row->check_button, "toggled",
-                   G_CALLBACK(native_schedule_filter_source_toggled_cb),
-                   source_row);
-}
-
-static void native_schedule_filter_rebuild_sources(
-    NativeScheduleFilterControls* controls,
-    FlValue* state) {
-  g_autofree gchar* signature =
-      native_schedule_filter_topology_signature(state);
-  if (g_strcmp0(signature, controls->topology_signature) == 0) return;
-  g_free(controls->topology_signature);
-  controls->topology_signature = g_strdup(signature);
-  GList* children = gtk_container_get_children(
-      GTK_CONTAINER(controls->sources_box));
-  for (GList* child = children; child != nullptr; child = child->next) {
-    gtk_widget_destroy(GTK_WIDGET(child->data));
-  }
-  g_list_free(children);
-  g_ptr_array_set_size(controls->source_rows, 0);
-
-  FlValue* accounts = fl_lookup_list_arg(state, "accounts");
-  FlValue* calendar_sources = fl_lookup_list_arg(state, "calendarSources");
-  FlValue* task_lists = fl_lookup_list_arg(state, "taskLists");
-  for (size_t account_index = 0;
-       account_index < fl_value_get_length(accounts); account_index++) {
-    FlValue* account = fl_value_get_list_value(accounts, account_index);
-    const gchar* account_id = fl_lookup_string_arg(account, "id");
-    GtkWidget* group = nullptr;
-    for (size_t index = 0; index < fl_value_get_length(calendar_sources);
-         index++) {
-      FlValue* source = fl_value_get_list_value(calendar_sources, index);
-      if (g_strcmp0(account_id,
-                    fl_lookup_string_arg(source, "accountId")) != 0) {
-        continue;
-      }
-      if (group == nullptr) {
-        group = native_schedule_filter_account_group(
-            controls, fl_lookup_string_arg(account, "label"));
-      }
-      native_schedule_filter_add_source_row(controls, group, source, FALSE);
-    }
-    for (size_t index = 0; index < fl_value_get_length(task_lists); index++) {
-      FlValue* task_list = fl_value_get_list_value(task_lists, index);
-      if (g_strcmp0(account_id,
-                    fl_lookup_string_arg(task_list, "accountId")) != 0) {
-        continue;
-      }
-      if (group == nullptr) {
-        group = native_schedule_filter_account_group(
-            controls, fl_lookup_string_arg(account, "label"));
-      }
-      native_schedule_filter_add_source_row(controls, group, task_list, TRUE);
-    }
-  }
-  gtk_widget_show_all(controls->sources_box);
-}
-
-static gint native_schedule_filter_combo_index(const gchar* value,
-                                               const gchar* kind) {
-  if (g_strcmp0(kind, "type") == 0) {
-    if (g_strcmp0(value, "events") == 0) return 1;
-    if (g_strcmp0(value, "tasks") == 0) return 2;
-    return 0;
-  }
-  if (g_strcmp0(kind, "date") == 0) {
-    if (g_strcmp0(value, "today") == 0) return 1;
-    if (g_strcmp0(value, "tomorrow") == 0) return 2;
-    if (g_strcmp0(value, "thisWeek") == 0) return 3;
-    if (g_strcmp0(value, "custom") == 0) return 4;
-    return 0;
-  }
-  if (g_strcmp0(kind, "completion") == 0) {
-    if (g_strcmp0(value, "all") == 0) return 1;
-    if (g_strcmp0(value, "completed") == 0) return 2;
-    return 0;
-  }
-  if (g_strcmp0(value, "overdue") == 0) return 1;
-  if (g_strcmp0(value, "noDueDate") == 0) return 2;
-  return 0;
-}
-
-static gchar* native_schedule_filter_labels_signature(FlValue* labels) {
-  GString* signature = g_string_new(nullptr);
-  constexpr const gchar* keys[] = {
-      "searchFilters", "type",        "all",         "events",
-      "tasks",         "date",        "anyDate",     "today",
-      "tomorrow",      "thisWeek",    "customRange", "startDate",
-      "endDate",       "taskStatus",  "open",        "completed",
-      "taskDue",       "anyDueState", "overdue",     "noDueDate",
-      "person",        "location",    "sources",     "clearFilters",
-      "noSources"};
-  for (const gchar* key : keys) {
-    const gchar* value = fl_lookup_string_arg(labels, key);
-    g_string_append_printf(signature, "%zu:%s;", strlen(value), value);
-  }
-  return g_string_free(signature, FALSE);
-}
-
-static void native_schedule_filter_set_combo_labels(
-    GtkWidget* combo,
-    std::initializer_list<const gchar*> labels) {
-  gtk_combo_box_text_remove_all(GTK_COMBO_BOX_TEXT(combo));
-  for (const gchar* label : labels) {
-    gtk_combo_box_text_append_text(GTK_COMBO_BOX_TEXT(combo), label);
-  }
-}
-
-static void native_schedule_filter_apply_labels(
-    NativeScheduleFilterControls* controls,
-    FlValue* labels) {
-  g_autofree gchar* signature =
-      native_schedule_filter_labels_signature(labels);
-  const gboolean combo_labels_changed =
-      g_strcmp0(signature, controls->labels_signature) != 0;
-  if (combo_labels_changed) {
-    g_free(controls->labels_signature);
-    controls->labels_signature = g_strdup(signature);
-    native_schedule_filter_set_combo_labels(
-        controls->type_combo,
-        {fl_lookup_string_arg(labels, "all"),
-         fl_lookup_string_arg(labels, "events"),
-         fl_lookup_string_arg(labels, "tasks")});
-    native_schedule_filter_set_combo_labels(
-        controls->date_combo,
-        {fl_lookup_string_arg(labels, "anyDate"),
-         fl_lookup_string_arg(labels, "today"),
-         fl_lookup_string_arg(labels, "tomorrow"),
-         fl_lookup_string_arg(labels, "thisWeek"),
-         fl_lookup_string_arg(labels, "customRange")});
-    native_schedule_filter_set_combo_labels(
-        controls->task_completion_combo,
-        {fl_lookup_string_arg(labels, "open"),
-         fl_lookup_string_arg(labels, "all"),
-         fl_lookup_string_arg(labels, "completed")});
-    native_schedule_filter_set_combo_labels(
-        controls->task_due_combo,
-        {fl_lookup_string_arg(labels, "anyDueState"),
-         fl_lookup_string_arg(labels, "overdue"),
-         fl_lookup_string_arg(labels, "noDueDate")});
-  }
-  gtk_label_set_text(GTK_LABEL(controls->title_label),
-                     fl_lookup_string_arg(labels, "searchFilters"));
-  hdy_preferences_row_set_title(HDY_PREFERENCES_ROW(controls->type_row),
-                                fl_lookup_string_arg(labels, "type"));
-  hdy_preferences_row_set_title(HDY_PREFERENCES_ROW(controls->date_row),
-                                fl_lookup_string_arg(labels, "date"));
-  hdy_preferences_row_set_title(
-      HDY_PREFERENCES_ROW(controls->start_date_row),
-      fl_lookup_string_arg(labels, "startDate"));
-  hdy_preferences_row_set_title(HDY_PREFERENCES_ROW(controls->end_date_row),
-                                fl_lookup_string_arg(labels, "endDate"));
-  hdy_preferences_row_set_title(
-      HDY_PREFERENCES_ROW(controls->task_completion_row),
-      fl_lookup_string_arg(labels, "taskStatus"));
-  hdy_preferences_row_set_title(HDY_PREFERENCES_ROW(controls->task_due_row),
-                                fl_lookup_string_arg(labels, "taskDue"));
-  hdy_preferences_row_set_title(HDY_PREFERENCES_ROW(controls->person_row),
-                                fl_lookup_string_arg(labels, "person"));
-  hdy_preferences_row_set_title(HDY_PREFERENCES_ROW(controls->location_row),
-                                fl_lookup_string_arg(labels, "location"));
-  atk_object_set_name(gtk_widget_get_accessible(controls->type_combo),
-                      fl_lookup_string_arg(labels, "type"));
-  atk_object_set_name(gtk_widget_get_accessible(controls->date_combo),
-                      fl_lookup_string_arg(labels, "date"));
-  atk_object_set_name(
-      gtk_widget_get_accessible(controls->task_completion_combo),
-      fl_lookup_string_arg(labels, "taskStatus"));
-  atk_object_set_name(gtk_widget_get_accessible(controls->task_due_combo),
-                      fl_lookup_string_arg(labels, "taskDue"));
-  gtk_entry_set_placeholder_text(GTK_ENTRY(controls->person_entry),
-                                 fl_lookup_string_arg(labels, "person"));
-  gtk_entry_set_placeholder_text(GTK_ENTRY(controls->location_entry),
-                                 fl_lookup_string_arg(labels, "location"));
-  atk_object_set_name(gtk_widget_get_accessible(controls->person_entry),
-                      fl_lookup_string_arg(labels, "person"));
-  atk_object_set_name(gtk_widget_get_accessible(controls->location_entry),
-                      fl_lookup_string_arg(labels, "location"));
-  gtk_label_set_text(GTK_LABEL(controls->sources_label),
-                     fl_lookup_string_arg(labels, "sources"));
-  gtk_label_set_text(GTK_LABEL(controls->no_sources_label),
-                     fl_lookup_string_arg(labels, "noSources"));
-  gtk_button_set_label(GTK_BUTTON(controls->clear_button),
-                       fl_lookup_string_arg(labels, "clearFilters"));
-  atk_object_set_name(gtk_widget_get_accessible(controls->clear_button),
-                      fl_lookup_string_arg(labels, "clearFilters"));
-}
-
-static gboolean native_schedule_filter_item_selected(
-    FlValue* state,
-    NativeScheduleFilterSourceRow* row) {
-  FlValue* list = fl_lookup_list_arg(
-      state, row->is_task_list ? "taskLists" : "calendarSources");
-  for (size_t index = 0; index < fl_value_get_length(list); index++) {
-    FlValue* item = fl_value_get_list_value(list, index);
-    const gboolean matches = row->is_task_list
-        ? g_strcmp0(row->account_id,
-                    fl_lookup_string_arg(item, "accountId")) == 0 &&
-              g_strcmp0(row->task_list_id,
-                        fl_lookup_string_arg(item, "taskListId")) == 0
-        : g_strcmp0(row->source_id, fl_lookup_string_arg(item, "id")) == 0;
-    if (matches) {
-      return fl_lookup_bool_arg(item, "selected", FALSE);
-    }
-  }
-  return FALSE;
-}
-
-static void apply_native_schedule_filter_state_to_controls(
-    NativeScheduleFilterControls* controls,
-    FlValue* state) {
-  FlValue* criteria = fl_lookup_map_arg(state, "criteria");
-  FlValue* labels = fl_lookup_map_arg(state, "labels");
-  if (criteria == nullptr || labels == nullptr) return;
-  MyApplication* self = controls->application;
-  self->suppress_schedule_filter_events = TRUE;
-  native_schedule_filter_apply_labels(controls, labels);
-  native_schedule_filter_rebuild_sources(controls, state);
-
-  const gchar* type = fl_lookup_string_arg(criteria, "type");
-  const gchar* date = fl_lookup_string_arg(criteria, "date");
-  gtk_combo_box_set_active(
-      GTK_COMBO_BOX(controls->type_combo),
-      native_schedule_filter_combo_index(type, "type"));
-  gtk_combo_box_set_active(
-      GTK_COMBO_BOX(controls->date_combo),
-      native_schedule_filter_combo_index(date, "date"));
-  gtk_combo_box_set_active(
-      GTK_COMBO_BOX(controls->task_completion_combo),
-      native_schedule_filter_combo_index(
-          fl_lookup_string_arg(criteria, "taskCompletion"), "completion"));
-  gtk_combo_box_set_active(
-      GTK_COMBO_BOX(controls->task_due_combo),
-      native_schedule_filter_combo_index(
-          fl_lookup_string_arg(criteria, "taskDueState"), "due"));
-
-  const gchar* person = fl_lookup_string_arg(criteria, "person");
-  const gchar* location = fl_lookup_string_arg(criteria, "location");
-  if (g_strcmp0(gtk_entry_get_text(GTK_ENTRY(controls->person_entry)),
-                person) != 0) {
-    gtk_entry_set_text(GTK_ENTRY(controls->person_entry), person);
-  }
-  if (g_strcmp0(gtk_entry_get_text(GTK_ENTRY(controls->location_entry)),
-                location) != 0) {
-    gtk_entry_set_text(GTK_ENTRY(controls->location_entry), location);
-  }
-
-  const gchar* start = native_schedule_filter_date_value(criteria,
-                                                          "customStart");
-  const gchar* end = native_schedule_filter_date_value(criteria, "customEnd");
-  const gchar* reference = native_schedule_filter_date_value(
-      criteria, "referenceDate");
-  g_autofree gchar* start_label =
-      native_schedule_filter_format_date(start == nullptr ? reference : start);
-  g_autofree gchar* end_label =
-      native_schedule_filter_format_date(end == nullptr ? reference : end);
-  gtk_button_set_label(GTK_BUTTON(controls->start_date_button), start_label);
-  gtk_button_set_label(GTK_BUTTON(controls->end_date_button), end_label);
-  atk_object_set_name(
-      gtk_widget_get_accessible(controls->start_date_button),
-      fl_lookup_string_arg(labels, "startDate"));
-  atk_object_set_name(gtk_widget_get_accessible(controls->end_date_button),
-                      fl_lookup_string_arg(labels, "endDate"));
-
-  const gboolean includes_events = g_strcmp0(type, "tasks") != 0;
-  const gboolean includes_tasks = g_strcmp0(type, "events") != 0;
-  const gboolean custom_date = g_strcmp0(date, "custom") == 0;
-  gtk_widget_set_visible(controls->start_date_row, custom_date);
-  gtk_widget_set_visible(controls->end_date_row, custom_date);
-  gtk_widget_set_visible(controls->task_completion_row, includes_tasks);
-  gtk_widget_set_visible(controls->task_due_row, includes_tasks);
-  gtk_widget_set_visible(controls->person_row, includes_events);
-
-  gboolean has_selected_source = FALSE;
-  for (guint index = 0; index < controls->source_rows->len; index++) {
-    auto* source_row = static_cast<NativeScheduleFilterSourceRow*>(
-        g_ptr_array_index(controls->source_rows, index));
-    gtk_widget_set_visible(source_row->group, FALSE);
-  }
-  for (guint index = 0; index < controls->source_rows->len; index++) {
-    auto* source_row = static_cast<NativeScheduleFilterSourceRow*>(
-        g_ptr_array_index(controls->source_rows, index));
-    const gboolean visible =
-        source_row->is_task_list ? includes_tasks : includes_events;
-    const gboolean selected =
-        native_schedule_filter_item_selected(state, source_row);
-    gtk_toggle_button_set_active(
-        GTK_TOGGLE_BUTTON(source_row->check_button), selected);
-    gtk_widget_set_visible(source_row->row, visible);
-    if (visible) gtk_widget_set_visible(source_row->group, TRUE);
-    has_selected_source = has_selected_source || (visible && selected);
-  }
-  gtk_widget_set_visible(controls->no_sources_label, !has_selected_source);
-  self->suppress_schedule_filter_events = FALSE;
-}
-
-static void hide_native_schedule_filter_modal(MyApplication* self) {
-  NativeScheduleFilterControls* controls = self->schedule_filter_modal;
-  if (controls != nullptr && controls->window != nullptr &&
-      GTK_IS_WIDGET(controls->window)) {
-    gtk_widget_destroy(controls->window);
-  }
-}
-
-static NativeScheduleFilterControls* ensure_native_schedule_filter_sidebar(
-    MyApplication* self) {
-  if (self->schedule_filter_sidebar != nullptr) {
-    return self->schedule_filter_sidebar;
-  }
-  if (self->content_overlay == nullptr ||
-      !GTK_IS_OVERLAY(self->content_overlay)) {
-    return nullptr;
-  }
-  NativeScheduleFilterControls* controls =
-      create_native_schedule_filter_controls(self, FALSE);
-  self->schedule_filter_sidebar = controls;
-  gtk_widget_set_halign(controls->root, GTK_ALIGN_START);
-  gtk_widget_set_valign(controls->root, GTK_ALIGN_FILL);
-  gtk_overlay_add_overlay(GTK_OVERLAY(self->content_overlay), controls->root);
-  gtk_overlay_set_overlay_pass_through(GTK_OVERLAY(self->content_overlay),
-                                       controls->root, FALSE);
-  return controls;
-}
-
-static void apply_native_schedule_filter_state(MyApplication* self) {
-  FlValue* state = self->schedule_filter_state;
-  if (state == nullptr) return;
-  const gboolean active = fl_lookup_bool_arg(state, "active", FALSE);
-  const gboolean sidebar_visible =
-      active && fl_lookup_bool_arg(state, "sidebarVisible", FALSE);
-  NativeScheduleFilterControls* sidebar =
-      ensure_native_schedule_filter_sidebar(self);
-  if (sidebar != nullptr) {
-    gdouble sidebar_width = 300;
-    fl_lookup_double_arg(state, "sidebarWidth", &sidebar_width);
-    gtk_widget_set_size_request(
-        sidebar->root, static_cast<gint>(sidebar_width), -1);
-    if (active) {
-      gtk_widget_show_all(sidebar->root);
-      apply_native_schedule_filter_state_to_controls(sidebar, state);
-    }
-    gtk_widget_set_visible(sidebar->root, sidebar_visible);
-  }
-  if (!active) {
-    hide_native_schedule_filter_modal(self);
-    return;
-  }
-  if (sidebar_visible) {
-    hide_native_schedule_filter_modal(self);
-  }
-  if (self->schedule_filter_modal != nullptr) {
-    apply_native_schedule_filter_state_to_controls(
-        self->schedule_filter_modal, state);
-  }
-}
-
-static gboolean native_schedule_filter_modal_key_press_cb(GtkWidget* window,
-                                                          GdkEventKey* event,
-                                                          gpointer) {
-  if (event->keyval != GDK_KEY_Escape) return FALSE;
-  gtk_widget_destroy(window);
-  return TRUE;
-}
-
-static gboolean show_native_schedule_filter_modal(MyApplication* self) {
-  if (self->schedule_filter_state == nullptr ||
-      !fl_lookup_bool_arg(self->schedule_filter_state, "active", FALSE) ||
-      self->main_window == nullptr) {
-    return FALSE;
-  }
-  if (self->schedule_filter_modal != nullptr) {
-    gtk_window_present(GTK_WINDOW(self->schedule_filter_modal->window));
-    return TRUE;
-  }
-  NativeScheduleFilterControls* controls =
-      create_native_schedule_filter_controls(self, TRUE);
-  self->schedule_filter_modal = controls;
-  GtkWidget* window = hdy_window_new();
-  controls->window = window;
-  style_native_dialog(window);
-  gtk_window_set_transient_for(GTK_WINDOW(window), self->main_window);
-  gtk_window_set_modal(GTK_WINDOW(window), TRUE);
-  gtk_window_set_destroy_with_parent(GTK_WINDOW(window), TRUE);
-  gtk_window_set_type_hint(GTK_WINDOW(window), GDK_WINDOW_TYPE_HINT_DIALOG);
-  gtk_window_set_skip_taskbar_hint(GTK_WINDOW(window), TRUE);
-  gtk_window_set_skip_pager_hint(GTK_WINDOW(window), TRUE);
-  gtk_window_set_position(GTK_WINDOW(window), GTK_WIN_POS_CENTER_ON_PARENT);
-  gtk_window_set_default_size(GTK_WINDOW(window),
-                              kNativeScheduleSearchFilterDialogWidth,
-                              kNativeScheduleSearchFilterDialogHeight);
-  gtk_window_set_resizable(GTK_WINDOW(window), TRUE);
-
-  FlValue* labels =
-      fl_lookup_map_arg(self->schedule_filter_state, "labels");
-  const gchar* title = fl_lookup_string_arg(labels, "searchFilters");
-  gtk_window_set_title(GTK_WINDOW(window), title);
-  GtkWidget* window_root = gtk_box_new(GTK_ORIENTATION_VERTICAL, 0);
-  gtk_container_add(GTK_CONTAINER(window), window_root);
-  GtkWidget* header = hdy_header_bar_new();
-  hdy_header_bar_set_title(HDY_HEADER_BAR(header), title);
-  hdy_header_bar_set_has_subtitle(HDY_HEADER_BAR(header), FALSE);
-  hdy_header_bar_set_show_close_button(HDY_HEADER_BAR(header), TRUE);
-  hdy_header_bar_set_decoration_layout(HDY_HEADER_BAR(header), ":close");
-  gtk_box_pack_start(GTK_BOX(window_root), header, FALSE, FALSE, 0);
-  gtk_box_pack_start(GTK_BOX(window_root), controls->root, TRUE, TRUE, 0);
-  g_signal_connect(window, "key-press-event",
-                   G_CALLBACK(native_schedule_filter_modal_key_press_cb),
-                   nullptr);
-  gtk_widget_show_all(window);
-  apply_native_schedule_filter_state_to_controls(
-      controls, self->schedule_filter_state);
-  gtk_widget_grab_focus(controls->type_combo);
-  gtk_window_present(GTK_WINDOW(window));
-  return TRUE;
-}
-
-static void native_schedule_search_filters_method_call_cb(
-    FlMethodChannel*,
-    FlMethodCall* method_call,
-    gpointer user_data) {
-  MyApplication* self = MY_APPLICATION(user_data);
-  const gchar* method = fl_method_call_get_name(method_call);
-  FlValue* args = fl_method_call_get_args(method_call);
-  if (g_strcmp0(method, "initialize") == 0) {
-    respond_bool(method_call, self->content_overlay != nullptr);
-  } else if (g_strcmp0(method, "setState") == 0) {
-    const gchar* error = nullptr;
-    if (!validate_native_schedule_filter_state(args, &error)) {
-      fl_method_call_respond_error(method_call, "invalid-arguments", error,
-                                   nullptr, nullptr);
-      return;
-    }
-    g_clear_pointer(&self->schedule_filter_state, fl_value_unref);
-    self->schedule_filter_state = fl_value_ref(args);
-    apply_native_schedule_filter_state(self);
-    respond_success(method_call);
-  } else if (g_strcmp0(method, "showModal") == 0) {
-    respond_bool(method_call, show_native_schedule_filter_modal(self));
-  } else if (g_strcmp0(method, "hideModal") == 0) {
-    hide_native_schedule_filter_modal(self);
-    respond_success(method_call);
-  } else if (g_strcmp0(method, "hide") == 0) {
-    if (self->schedule_filter_sidebar != nullptr) {
-      gtk_widget_hide(self->schedule_filter_sidebar->root);
-    }
-    hide_native_schedule_filter_modal(self);
-    g_clear_pointer(&self->schedule_filter_state, fl_value_unref);
-    respond_success(method_call);
-  } else {
-    fl_method_call_respond_not_implemented(method_call, nullptr);
-  }
-}
-
-static void register_native_schedule_search_filters(MyApplication* self,
-                                                    FlView* view) {
-  g_autoptr(FlStandardMethodCodec) codec = fl_standard_method_codec_new();
-  self->native_schedule_search_filters_channel = fl_method_channel_new(
-      fl_engine_get_binary_messenger(fl_view_get_engine(view)),
-      kNativeScheduleSearchFiltersChannel, FL_METHOD_CODEC(codec));
-  fl_method_channel_set_method_call_handler(
-      self->native_schedule_search_filters_channel,
-      native_schedule_search_filters_method_call_cb, self, nullptr);
 }
 
 static gboolean fl_method_bool_arg(FlValue* args) {
@@ -4610,41 +3477,6 @@ static gboolean focus_header_search_entry(MyApplication* self) {
   gtk_widget_grab_focus(self->search_entry);
   gtk_editable_select_region(GTK_EDITABLE(self->search_entry), 0, -1);
   return gtk_widget_has_focus(self->search_entry);
-}
-
-static gboolean native_schedule_filter_window_key_press_cb(
-    GtkWindow* window,
-    GdkEventKey* event,
-    gpointer user_data) {
-  MyApplication* self = MY_APPLICATION(user_data);
-  if (self->schedule_filter_state == nullptr ||
-      !fl_lookup_bool_arg(self->schedule_filter_state, "active", FALSE) ||
-      self->schedule_filter_modal != nullptr) {
-    return FALSE;
-  }
-  const GdkModifierType modifiers = static_cast<GdkModifierType>(
-      event->state & gtk_accelerator_get_default_mod_mask());
-  if ((event->keyval == GDK_KEY_f || event->keyval == GDK_KEY_F) &&
-      (modifiers & GDK_CONTROL_MASK) != 0) {
-    return focus_header_search_entry(self);
-  }
-  if (event->keyval == GDK_KEY_F9) {
-    invoke_header_bar_action(self, "sidebarToggle");
-    return TRUE;
-  }
-  if (event->keyval != GDK_KEY_Escape ||
-      self->schedule_filter_sidebar == nullptr ||
-      !gtk_widget_get_visible(self->schedule_filter_sidebar->root)) {
-    return FALSE;
-  }
-  GtkWidget* focus = gtk_window_get_focus(window);
-  if (focus == nullptr ||
-      !gtk_widget_is_ancestor(focus,
-                              self->schedule_filter_sidebar->root)) {
-    return FALSE;
-  }
-  invoke_native_schedule_filter_event(self, "dismissSearch", nullptr);
-  return TRUE;
 }
 
 static void set_header_search_state(MyApplication* self,
@@ -6245,9 +5077,6 @@ static void my_application_activate(GApplication* application) {
   g_signal_connect(
       window, "notify::is-active",
       G_CALLBACK(header_focus_window_is_active_notify_cb), self);
-  g_signal_connect(window, "key-press-event",
-                   G_CALLBACK(native_schedule_filter_window_key_press_cb),
-                   self);
 
   g_autoptr(FlDartProject) project = fl_dart_project_new();
   fl_dart_project_set_dart_entrypoint_arguments(
@@ -6261,13 +5090,7 @@ static void my_application_activate(GApplication* application) {
   GtkWidget* window_content =
       gtk_box_new(GTK_ORIENTATION_VERTICAL, 0);
   gtk_box_pack_start(GTK_BOX(window_content), titlebar_handle, FALSE, FALSE, 0);
-  track_widget_pointer(&self->content_overlay, gtk_overlay_new());
-  gtk_widget_set_hexpand(self->content_overlay, TRUE);
-  gtk_widget_set_vexpand(self->content_overlay, TRUE);
-  gtk_container_add(GTK_CONTAINER(self->content_overlay), GTK_WIDGET(view));
-  gtk_widget_show(self->content_overlay);
-  gtk_box_pack_start(GTK_BOX(window_content), self->content_overlay, TRUE, TRUE,
-                     0);
+  gtk_box_pack_start(GTK_BOX(window_content), GTK_WIDGET(view), TRUE, TRUE, 0);
   gtk_widget_show(window_content);
   gtk_container_add(GTK_CONTAINER(window), window_content);
 
@@ -6281,7 +5104,6 @@ static void my_application_activate(GApplication* application) {
   register_native_date_time_picker(self, view, window);
   register_native_dialogs(self, view, window);
   register_native_menus(self, view);
-  register_native_schedule_search_filters(self, view);
   register_external_calendar_open_channel(self, view);
   register_external_uri_launcher_channel(self, view);
   register_window_channel(self, view);
@@ -6375,13 +5197,6 @@ static void my_application_shutdown(GApplication* application) {
 static void my_application_dispose(GObject* object) {
   MyApplication* self = MY_APPLICATION(object);
   disconnect_gtk_theme_colors_signals(self);
-  hide_native_schedule_filter_modal(self);
-  if (self->schedule_filter_sidebar != nullptr &&
-      self->schedule_filter_sidebar->root != nullptr &&
-      GTK_IS_WIDGET(self->schedule_filter_sidebar->root)) {
-    gtk_widget_destroy(self->schedule_filter_sidebar->root);
-  }
-  g_clear_pointer(&self->schedule_filter_state, fl_value_unref);
   if (self->header_bar_css_provider != nullptr) {
     gtk_style_context_remove_provider_for_screen(
         gdk_screen_get_default(), GTK_STYLE_PROVIDER(self->header_bar_css_provider));
@@ -6390,7 +5205,6 @@ static void my_application_dispose(GObject* object) {
   g_clear_object(&self->native_date_time_picker_channel);
   g_clear_object(&self->native_dialog_channel);
   g_clear_object(&self->native_menu_channel);
-  g_clear_object(&self->native_schedule_search_filters_channel);
   g_clear_object(&self->window_channel);
   g_clear_object(&self->header_bar_channel);
   g_clear_object(&self->gtk_settings_channel);
@@ -6416,7 +5230,6 @@ static void my_application_dispose(GObject* object) {
   }
   self->main_window = nullptr;
   clear_widget_pointer(&self->flutter_view);
-  clear_widget_pointer(&self->content_overlay);
   clear_widget_pointer(&self->titlebar_handle);
   clear_widget_pointer(&self->titlebar_overlay);
   clear_widget_pointer(&self->titlebar_modal_barrier);
@@ -6509,7 +5322,6 @@ static void my_application_init(MyApplication* self) {
   self->native_date_time_picker_channel = nullptr;
   self->native_dialog_channel = nullptr;
   self->native_menu_channel = nullptr;
-  self->native_schedule_search_filters_channel = nullptr;
   self->window_channel = nullptr;
   self->header_bar_channel = nullptr;
   self->gtk_settings_channel = nullptr;
@@ -6563,7 +5375,6 @@ static void my_application_init(MyApplication* self) {
   self->main_window = nullptr;
   self->header_focus_transient_window = nullptr;
   self->flutter_view = nullptr;
-  self->content_overlay = nullptr;
   self->titlebar_handle = nullptr;
   self->titlebar_overlay = nullptr;
   self->titlebar_modal_barrier = nullptr;
@@ -6627,10 +5438,6 @@ static void my_application_init(MyApplication* self) {
   self->header_search_query = g_strdup("");
   self->header_search_active = FALSE;
   self->header_navigation_visible = TRUE;
-  self->schedule_filter_sidebar = nullptr;
-  self->schedule_filter_modal = nullptr;
-  self->schedule_filter_state = nullptr;
-  self->suppress_schedule_filter_events = FALSE;
 }
 
 MyApplication* my_application_new() {

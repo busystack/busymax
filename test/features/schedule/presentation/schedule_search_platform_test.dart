@@ -6,14 +6,15 @@ import 'package:busymax/src/calendar_providers/calendar_sync_dto.dart';
 import 'package:busymax/src/db/app_database.dart';
 import 'package:busymax/src/features/accounts/data/accounts_repository.dart';
 import 'package:busymax/src/features/calendar/data/calendar_repository.dart';
+import 'package:busymax/src/features/schedule/presentation/schedule_agenda_view.dart';
 import 'package:busymax/src/features/schedule/presentation/schedule_month_view.dart';
+import 'package:busymax/src/features/schedule/presentation/schedule_search_filters.dart';
 import 'package:busymax/src/features/schedule/presentation/schedule_sidebar.dart';
 import 'package:busymax/src/features/schedule/presentation/schedule_workspace.dart';
 import 'package:busymax/src/features/task_lists/data/task_lists_repository.dart';
 import 'package:busymax/src/features/tasks/data/tasks_repository.dart';
 import 'package:busymax/src/platform/linux_header_bar_provider.dart';
 import 'package:busymax/src/platform/linux_header_bar_service.dart';
-import 'package:busymax/src/platform/linux_schedule_search_filter_service.dart';
 import 'package:busymax/src/providers/busy_provider.dart';
 import 'package:busymax/src/schedule/schedule_filters.dart';
 import 'package:busymax/src/schedule/schedule_repository.dart';
@@ -25,6 +26,7 @@ import 'package:busymax/src/ui/windows/windows_schedule_source_pane.dart';
 import 'package:drift/drift.dart' hide Column, isNull, isNotNull;
 import 'package:fluent_ui/fluent_ui.dart' as fluent;
 import 'package:flutter/material.dart';
+import 'package:yaru/yaru.dart';
 import 'package:busymax/src/android/presentation/android_schedule_search_filters.dart';
 import 'package:busymax/src/features/connectivity/network_connectivity_service.dart';
 import 'package:flutter/services.dart';
@@ -48,21 +50,9 @@ void main() {
         await _searchShortcut(tester);
         expect(normal, findsNothing);
         final panelFinder = platform == 'linux'
-            ? find.byKey(const ValueKey('linux-native-search-filter-spacer'))
+            ? find.byType(ScheduleSearchFilters)
             : find.byType(WindowsScheduleSearchPane);
         expect(panelFinder, findsOneWidget);
-        if (platform == 'linux') {
-          expect(find.byType(Dialog), findsNothing);
-          expect(
-            fixture.filterCalls
-                .lastWhere((call) => call.method == 'setState')
-                .arguments,
-            allOf(
-              containsPair('active', true),
-              containsPair('sidebarVisible', true),
-            ),
-          );
-        }
         final list = find.byKey(
           ValueKey(
             platform == 'linux'
@@ -74,14 +64,24 @@ void main() {
         expect(find.text('Far future review'), findsOneWidget);
         expect(find.text('No due task'), findsOneWidget);
         if (platform == 'linux') {
-          expect(_nativeCriteria(fixture.filterCalls), isNotNull);
+          expect(find.byType(BusyMaxSidebarSurface), findsOneWidget);
+          expect(
+            find.byKey(const ValueKey('linux-native-search-filter-spacer')),
+            findsNothing,
+          );
+          expect(
+            tester
+                .widget<ScheduleAgendaView>(find.byType(ScheduleAgendaView))
+                .searchCriteria,
+            isNotNull,
+          );
         }
         ScheduleSearchCriteria criteria() => platform == 'linux'
-            ? _nativeCriteria(fixture.filterCalls)
+            ? tester.widget<ScheduleSearchFilters>(panelFinder).value
             : tester.widget<WindowsScheduleSearchPane>(panelFinder).value;
-        Future<void> change(ScheduleSearchCriteria value) async {
+        void change(ScheduleSearchCriteria value) {
           if (platform == 'linux') {
-            await _applyLinuxCriteria(fixture.filters, criteria(), value);
+            tester.widget<ScheduleSearchFilters>(panelFinder).onChanged(value);
           } else {
             tester
                 .widget<WindowsScheduleSearchPane>(panelFinder)
@@ -90,7 +90,7 @@ void main() {
         }
 
         final initial = criteria();
-        await change(
+        change(
           criteria().copyWith(
             type: ScheduleSearchType.tasks,
             taskCompletion: ScheduleTaskCompletion.open,
@@ -102,27 +102,23 @@ void main() {
         expect(find.text('Completed task'), findsNothing);
         expect(find.text('No due task'), findsNothing);
         expect(find.text('Far future review'), findsNothing);
-        // Exercise the actual source checkbox, then verify repository/settings stayed intact.
+        // Exercise the actual source switch, then verify repository/settings
+        // stayed intact.
         final checkbox = platform == 'linux'
-            ? null
+            ? find
+                  .descendant(
+                    of: panelFinder,
+                    matching: find.byType(YaruSwitchListTile),
+                  )
+                  .first
             : find
                   .descendant(
                     of: panelFinder,
                     matching: find.byType(fluent.Checkbox),
                   )
                   .first;
-        if (platform == 'linux') {
-          await fixture.filters.handleNativeMethodCall(
-            const MethodCall('taskListToggled', {
-              'accountId': 'account',
-              'taskListId': 'list',
-              'selected': false,
-            }),
-          );
-        } else {
-          await tester.ensureVisible(checkbox!);
-          await tester.tap(checkbox);
-        }
+        await tester.ensureVisible(checkbox);
+        await tester.tap(checkbox);
         await tester.pumpAndSettle();
         expect(criteria().taskListKeys, isEmpty);
         expect(find.text('Overdue task'), findsNothing);
@@ -138,33 +134,27 @@ void main() {
           isTrue,
         );
         if (platform == 'linux') {
-          await fixture.filters.handleNativeMethodCall(
-            const MethodCall('clearFilters'),
-          );
+          tester.widget<ScheduleSearchFilters>(panelFinder).onClear();
         } else {
           tester.widget<WindowsScheduleSearchPane>(panelFinder).onClear();
         }
         await tester.pumpAndSettle();
         expect(criteria(), initial);
         final calendarToggle = platform == 'linux'
-            ? null
+            ? find
+                  .descendant(
+                    of: panelFinder,
+                    matching: find.byType(YaruSwitchListTile),
+                  )
+                  .first
             : find
                   .descendant(
                     of: panelFinder,
                     matching: find.byType(fluent.Checkbox),
                   )
                   .first;
-        if (platform == 'linux') {
-          await fixture.filters.handleNativeMethodCall(
-            MethodCall('calendarSourceToggled', {
-              'sourceId': criteria().sourceIds.single,
-              'selected': false,
-            }),
-          );
-        } else {
-          await tester.ensureVisible(calendarToggle!);
-          await tester.tap(calendarToggle);
-        }
+        await tester.ensureVisible(calendarToggle);
+        await tester.tap(calendarToggle);
         await tester.pumpAndSettle();
         expect(criteria().sourceIds, isEmpty);
         expect(
@@ -173,19 +163,10 @@ void main() {
           isTrue,
         );
         expect(find.text('Far future review'), findsNothing);
-        if (platform == 'linux') {
-          await fixture.filters.handleNativeMethodCall(
-            MethodCall('calendarSourceToggled', {
-              'sourceId': initial.sourceIds.single,
-              'selected': true,
-            }),
-          );
-        } else {
-          await tester.tap(calendarToggle!);
-        }
+        await tester.tap(calendarToggle);
         await tester.pumpAndSettle();
 
-        await change(
+        change(
           criteria().copyWith(
             type: ScheduleSearchType.events,
             person: 'alex@example.com',
@@ -193,7 +174,7 @@ void main() {
         );
         await tester.pumpAndSettle();
         expect(find.text('Far future review'), findsOneWidget);
-        await change(
+        change(
           criteria().copyWith(
             date: ScheduleSearchDate.custom,
             customStart: DateTime(2040, 2, 15),
@@ -203,7 +184,7 @@ void main() {
         );
         await tester.pumpAndSettle();
         expect(find.text('Far future review'), findsOneWidget);
-        await change(
+        change(
           criteria().copyWith(
             customStart: DateTime(2040, 2, 16),
             customEnd: DateTime(2040, 2, 16),
@@ -211,7 +192,7 @@ void main() {
         );
         await tester.pumpAndSettle();
         expect(find.text('Far future review'), findsNothing);
-        await change(criteria().copyWith(date: ScheduleSearchDate.any));
+        change(criteria().copyWith(date: ScheduleSearchDate.any));
         await tester.pumpAndSettle();
         // Clearing only the entry retains Person and the temporary scope.
         final entry = platform == 'linux'
@@ -245,14 +226,6 @@ void main() {
         await tester.pumpAndSettle();
         expect(normal, findsOneWidget);
         expect(panelFinder, findsNothing);
-        if (platform == 'linux') {
-          expect(
-            fixture.filterCalls
-                .lastWhere((call) => call.method == 'setState')
-                .arguments,
-            containsPair('active', false),
-          );
-        }
         expect(
           platform == 'linux'
               ? find.byType(ScheduleMonthView)
@@ -271,12 +244,12 @@ void main() {
     testWidgets(
       '$platform narrow search opens full filters through sidebar action',
       (tester) async {
-        final fixture = await _mount(tester, platform, width: 650);
+        await _mount(tester, platform, width: 650);
         await tester.pumpAndSettle();
         await _searchShortcut(tester);
         expect(
           platform == 'linux'
-              ? find.byKey(const ValueKey('linux-native-search-filter-spacer'))
+              ? find.byType(ScheduleSearchFilters)
               : find.byType(WindowsScheduleSearchPane),
           findsNothing,
         );
@@ -284,15 +257,40 @@ void main() {
         await tester.pumpAndSettle();
         expect(
           platform == 'linux'
-              ? find.byType(Dialog)
+              ? find.byType(ScheduleSearchFilters)
               : find.byType(WindowsScheduleSearchPane),
-          platform == 'linux' ? findsNothing : findsOneWidget,
+          findsOneWidget,
         );
         if (platform == 'linux') {
+          expect(find.byType(BusyMaxDialogShell), findsOneWidget);
+          expect(find.byType(BusyMaxSidebarSurface), findsNothing);
           expect(
-            fixture.filterCalls.where((call) => call.method == 'showModal'),
-            isNotEmpty,
+            tester
+                .widget<ScheduleSearchFilters>(
+                  find.byType(ScheduleSearchFilters),
+                )
+                .sidebar,
+            isFalse,
           );
+          Navigator.of(
+            tester.element(find.byType(ScheduleSearchFilters)),
+          ).pop();
+          await tester.pumpAndSettle();
+          expect(find.byType(BusyMaxDialogShell), findsNothing);
+          expect(find.byType(ScheduleSearchFilters), findsNothing);
+          expect(
+            find.byKey(const ValueKey('schedule-search-results')),
+            findsOneWidget,
+          );
+
+          await tester.sendKeyEvent(LogicalKeyboardKey.f9);
+          await tester.pumpAndSettle();
+          expect(find.byType(BusyMaxDialogShell), findsOneWidget);
+          tester.view.physicalSize = const Size(1280, 900);
+          await tester.pumpAndSettle();
+          expect(find.byType(BusyMaxDialogShell), findsNothing);
+          expect(find.byType(ScheduleSearchFilters), findsOneWidget);
+          expect(find.byType(BusyMaxSidebarSurface), findsOneWidget);
         }
         expect(
           find.text('Custom range'),
@@ -407,15 +405,11 @@ Future<void> _searchShortcut(WidgetTester tester) async {
   await tester.pumpAndSettle();
 }
 
-Future<
-  ({
-    AppDatabase db,
-    ProviderContainer container,
-    LinuxScheduleSearchFilterService filters,
-    List<MethodCall> filterCalls,
-  })
->
-_mount(WidgetTester tester, String platform, {double width = 1280}) async {
+Future<({AppDatabase db, ProviderContainer container})> _mount(
+  WidgetTester tester,
+  String platform, {
+  double width = 1280,
+}) async {
   tester.view
     ..physicalSize = Size(width, 900)
     ..devicePixelRatio = 1;
@@ -493,22 +487,6 @@ _mount(WidgetTester tester, String platform, {double width = 1280}) async {
     );
   }
   final header = LinuxHeaderBarService(isLinux: false);
-  const filterChannel = MethodChannel(
-    'busymax_test/schedule_search_platform_filters',
-  );
-  final filterCalls = <MethodCall>[];
-  TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
-      .setMockMethodCallHandler(filterChannel, (call) async {
-        filterCalls.add(call);
-        if (call.method == 'initialize' || call.method == 'showModal') {
-          return true;
-        }
-        return null;
-      });
-  final filters = LinuxScheduleSearchFilterService(
-    channel: filterChannel,
-    isLinux: platform == 'linux',
-  );
   final container = ProviderContainer(
     overrides: [
       networkAvailabilityProvider.overrideWith(
@@ -517,7 +495,6 @@ _mount(WidgetTester tester, String platform, {double width = 1280}) async {
       databaseProvider.overrideWithValue(db),
       localTimeZoneProvider.overrideWithValue('UTC'),
       linuxHeaderBarServiceProvider.overrideWithValue(header),
-      linuxScheduleSearchFilterServiceProvider.overrideWithValue(filters),
       localSettingsStoreProvider.overrideWithValue(MemorySettingsStore()),
       initialAppSettingsProvider.overrideWithValue(
         AppSettings.defaults().copyWith(
@@ -542,9 +519,6 @@ _mount(WidgetTester tester, String platform, {double width = 1280}) async {
     await tester.pumpWidget(const SizedBox.shrink());
     container.dispose();
     header.dispose();
-    filters.dispose();
-    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
-        .setMockMethodCallHandler(filterChannel, null);
     await db.close();
   });
   await tester.pumpWidget(
@@ -563,79 +537,5 @@ _mount(WidgetTester tester, String platform, {double width = 1280}) async {
             ),
     ),
   );
-  return (
-    db: db,
-    container: container,
-    filters: filters,
-    filterCalls: filterCalls,
-  );
-}
-
-Future<void> _applyLinuxCriteria(
-  LinuxScheduleSearchFilterService service,
-  ScheduleSearchCriteria current,
-  ScheduleSearchCriteria next,
-) async {
-  final calls = <MethodCall>[
-    if (current.type != next.type) MethodCall('typeChanged', next.type.name),
-    if (current.date != next.date) MethodCall('dateChanged', next.date.name),
-    if (current.taskCompletion != next.taskCompletion)
-      MethodCall('taskCompletionChanged', next.taskCompletion.name),
-    if (current.taskDueState != next.taskDueState)
-      MethodCall('taskDueStateChanged', next.taskDueState.name),
-    if (current.person != next.person) MethodCall('personChanged', next.person),
-    if (current.location != next.location)
-      MethodCall('locationChanged', next.location),
-    if (current.customStart != next.customStart && next.customStart != null)
-      MethodCall(
-        'customStartChanged',
-        next.customStart!.toIso8601String().substring(0, 10),
-      ),
-    if (current.customEnd != next.customEnd && next.customEnd != null)
-      MethodCall(
-        'customEndChanged',
-        next.customEnd!.toIso8601String().substring(0, 10),
-      ),
-  ];
-  for (final call in calls) {
-    await service.handleNativeMethodCall(call);
-  }
-}
-
-ScheduleSearchCriteria _nativeCriteria(List<MethodCall> calls) {
-  final state =
-      calls.lastWhere((call) => call.method == 'setState').arguments
-          as Map<Object?, Object?>;
-  final value = state['criteria']! as Map<Object?, Object?>;
-  DateTime? date(String key) {
-    final encoded = value[key] as String?;
-    return encoded == null ? null : DateTime.parse(encoded);
-  }
-
-  return ScheduleSearchCriteria(
-    type: ScheduleSearchType.values.byName(value['type']! as String),
-    date: ScheduleSearchDate.values.byName(value['date']! as String),
-    taskCompletion: ScheduleTaskCompletion.values.byName(
-      value['taskCompletion']! as String,
-    ),
-    taskDueState: ScheduleTaskDueState.values.byName(
-      value['taskDueState']! as String,
-    ),
-    person: value['person']! as String,
-    location: value['location']! as String,
-    customStart: date('customStart'),
-    customEnd: date('customEnd'),
-    referenceDate: date('referenceDate')!,
-    firstWeekday: value['firstWeekday']! as int,
-    sourceIds: {
-      for (final id in value['sourceIds']! as List<Object?>) id! as String,
-    },
-    taskListKeys: {
-      for (final item in value['taskListKeys']! as List<Object?>)
-        ScheduleTaskListKey(
-          accountId: (item! as Map<Object?, Object?>)['accountId']! as String,
-          taskListId: (item as Map<Object?, Object?>)['taskListId']! as String,
-        ),
-    },
-  );
+  return (db: db, container: container);
 }

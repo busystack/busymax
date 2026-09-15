@@ -8,10 +8,10 @@ import 'package:busymax/src/db/app_database.dart';
 import 'package:busymax/src/features/accounts/data/accounts_repository.dart';
 import 'package:busymax/src/features/schedule/presentation/schedule_empty_states.dart';
 import 'package:busymax/src/features/schedule/presentation/schedule_sidebar.dart';
+import 'package:busymax/src/features/schedule/presentation/schedule_search_filters.dart';
 import 'package:busymax/src/features/schedule/presentation/schedule_workspace.dart';
 import 'package:busymax/src/platform/linux_header_bar_service.dart';
 import 'package:busymax/src/platform/linux_header_bar_provider.dart';
-import 'package:busymax/src/platform/linux_schedule_search_filter_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/services.dart';
@@ -255,29 +255,11 @@ void main() {
         channel: channel,
         isLinux: true,
       );
-      const filterChannel = MethodChannel(
-        'busymax_test/schedule_native_filters',
-      );
-      final filterCalls = <MethodCall>[];
-      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
-          .setMockMethodCallHandler(filterChannel, (call) async {
-            filterCalls.add(call);
-            return call.method == 'initialize' ? true : null;
-          });
-      addTearDown(() {
-        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
-            .setMockMethodCallHandler(filterChannel, null);
-      });
-      final filterService = LinuxScheduleSearchFilterService(
-        channel: filterChannel,
-        isLinux: true,
-      );
 
       await _pumpWorkspace(
         tester,
         accountsFactory: () => Stream.value(const <AccountEntity>[]),
         headerBarService: headerBarService,
-        searchFilterService: filterService,
       );
       await tester.pumpAndSettle();
 
@@ -289,6 +271,14 @@ void main() {
         calls.where((call) => call.method == 'setState').last.arguments,
         containsPair('searchActive', true),
       );
+      expect(find.byType(ScheduleSearchFilters), findsOneWidget);
+
+      await tester.sendKeyEvent(LogicalKeyboardKey.f9);
+      await tester.pumpAndSettle();
+      expect(find.byType(ScheduleSearchFilters), findsNothing);
+      await tester.sendKeyEvent(LogicalKeyboardKey.f9);
+      await tester.pumpAndSettle();
+      expect(find.byType(ScheduleSearchFilters), findsOneWidget);
 
       await headerBarService.handleNativeMethodCall(
         const MethodCall('searchQueryChanged', 'planning'),
@@ -299,23 +289,17 @@ void main() {
         containsPair('searchQuery', 'planning'),
       );
 
-      expect(
-        find.byKey(const ValueKey('linux-native-search-filter-spacer')),
-        findsOneWidget,
-      );
-      expect(find.byType(TextField), findsNothing);
-      await filterService.handleNativeMethodCall(
-        const MethodCall('personChanged', 'Taylor'),
-      );
+      await tester.tap(find.byType(TextField).first);
       await tester.pumpAndSettle();
-      final nativeFilterState =
-          filterCalls.where((call) => call.method == 'setState').last.arguments
-              as Map<Object?, Object?>;
-      expect(nativeFilterState['criteria'], containsPair('person', 'Taylor'));
-      expect(calls.where((call) => call.method == 'focusContent'), isEmpty);
+      expect(calls.where((call) => call.method == 'focusContent'), isNotEmpty);
+      await tester.enterText(find.byType(TextField).first, 'Taylor');
+      await tester.pumpAndSettle();
       expect(
-        filterCalls.where((call) => call.method == 'setState').last.arguments,
-        containsPair('active', true),
+        tester
+            .widget<ScheduleSearchFilters>(find.byType(ScheduleSearchFilters))
+            .value
+            .person,
+        'Taylor',
       );
       expect(
         calls.where((call) => call.method == 'setState').last.arguments,
@@ -357,10 +341,7 @@ void main() {
       await tester.sendKeyEvent(LogicalKeyboardKey.keyF);
       await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
       await tester.pumpAndSettle();
-      expect(
-        find.byKey(const ValueKey('linux-native-search-filter-spacer')),
-        findsOneWidget,
-      );
+      expect(find.byType(ScheduleSearchFilters), findsOneWidget);
       await tester.sendKeyEvent(LogicalKeyboardKey.escape);
       await tester.pumpAndSettle();
       expect(find.byType(ScheduleSidebar), findsOneWidget);
@@ -389,16 +370,12 @@ Future<void> _pumpWorkspace(
   WidgetTester tester, {
   required Stream<List<AccountEntity>> Function() accountsFactory,
   LinuxHeaderBarService? headerBarService,
-  LinuxScheduleSearchFilterService? searchFilterService,
 }) async {
   final database = AppDatabase.memoryForTests();
   addTearDown(database.close);
   final resolvedHeaderBarService =
       headerBarService ?? LinuxHeaderBarService(isLinux: false);
   addTearDown(resolvedHeaderBarService.dispose);
-  final resolvedSearchFilterService =
-      searchFilterService ?? LinuxScheduleSearchFilterService(isLinux: false);
-  addTearDown(resolvedSearchFilterService.dispose);
 
   await tester.pumpWidget(
     ProviderScope(
@@ -409,9 +386,6 @@ Future<void> _pumpWorkspace(
         localSettingsStoreProvider.overrideWithValue(_MemorySettingsStore()),
         linuxHeaderBarServiceProvider.overrideWithValue(
           resolvedHeaderBarService,
-        ),
-        linuxScheduleSearchFilterServiceProvider.overrideWithValue(
-          resolvedSearchFilterService,
         ),
       ],
       child: localizedTestApp(child: const ScheduleWorkspace()),
