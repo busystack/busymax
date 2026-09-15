@@ -13,6 +13,10 @@ class AppLocalizationsAr extends AppLocalizations {
   AppLocalizationsAr([String locale = 'ar']) : super(locale);
 
   @override
+  String get launchAtLoginManagedExternally =>
+      'تم تشغيل BusyMax من إعدادات بدء التشغيل في سطح المكتب. أزل إدخاله هناك، ثم أنهِ BusyMax وافتحه مجددًا لاستخدام هذا المفتاح.';
+
+  @override
   String get timeFormat => 'تنسيق الوقت';
 
   @override

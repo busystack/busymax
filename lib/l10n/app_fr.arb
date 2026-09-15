@@ -1,4 +1,5 @@
 {
+  "launchAtLoginManagedExternally": "BusyMax a été lancé par les paramètres de démarrage de votre bureau. Supprimez son entrée à cet endroit, puis quittez et rouvrez BusyMax pour utiliser cet interrupteur.",
   "timeFormat": "Format de l’heure",
   "timeFormatTwelveHour": "12 heures",
   "timeFormatTwentyFourHour": "24 heures",

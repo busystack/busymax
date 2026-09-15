@@ -1,4 +1,5 @@
 {
+  "launchAtLoginManagedExternally": "BusyMax запущен через настройки автозапуска рабочего стола. Удалите его запись там, затем полностью завершите и снова откройте BusyMax, чтобы использовать этот переключатель.",
   "timeFormat": "Формат времени",
   "timeFormatTwelveHour": "12 часов",
   "timeFormatTwentyFourHour": "24 часа",

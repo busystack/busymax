@@ -1,4 +1,5 @@
 {
+  "launchAtLoginManagedExternally": "BusyMax was launched by your desktop's startup settings. Remove its entry there, then quit and reopen BusyMax to use this switch.",
   "timeFormat": "Time format",
   "timeFormatTwelveHour": "12-hour",
   "timeFormatTwentyFourHour": "24-hour",

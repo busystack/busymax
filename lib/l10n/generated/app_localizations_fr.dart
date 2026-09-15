@@ -13,6 +13,10 @@ class AppLocalizationsFr extends AppLocalizations {
   AppLocalizationsFr([String locale = 'fr']) : super(locale);
 
   @override
+  String get launchAtLoginManagedExternally =>
+      'BusyMax a été lancé par les paramètres de démarrage de votre bureau. Supprimez son entrée à cet endroit, puis quittez et rouvrez BusyMax pour utiliser cet interrupteur.';
+
+  @override
   String get timeFormat => 'Format de l’heure';
 
   @override

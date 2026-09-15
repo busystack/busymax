@@ -13,6 +13,10 @@ class AppLocalizationsJa extends AppLocalizations {
   AppLocalizationsJa([String locale = 'ja']) : super(locale);
 
   @override
+  String get launchAtLoginManagedExternally =>
+      'BusyMax はデスクトップの自動起動設定によって起動されました。このスイッチを使うには、そこで BusyMax の項目を削除してから、BusyMax を終了して開き直してください。';
+
+  @override
   String get timeFormat => '時刻の表示形式';
 
   @override

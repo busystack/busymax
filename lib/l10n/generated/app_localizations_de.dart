@@ -13,6 +13,10 @@ class AppLocalizationsDe extends AppLocalizations {
   AppLocalizationsDe([String locale = 'de']) : super(locale);
 
   @override
+  String get launchAtLoginManagedExternally =>
+      'BusyMax wurde durch die Autostart-Einstellungen Ihres Desktops gestartet. Entfernen Sie dort den Eintrag, beenden Sie BusyMax und öffnen Sie es erneut, um diesen Schalter zu verwenden.';
+
+  @override
   String get timeFormat => 'Zeitformat';
 
   @override

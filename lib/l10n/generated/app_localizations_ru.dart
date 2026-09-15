@@ -13,6 +13,10 @@ class AppLocalizationsRu extends AppLocalizations {
   AppLocalizationsRu([String locale = 'ru']) : super(locale);
 
   @override
+  String get launchAtLoginManagedExternally =>
+      'BusyMax запущен через настройки автозапуска рабочего стола. Удалите его запись там, затем полностью завершите и снова откройте BusyMax, чтобы использовать этот переключатель.';
+
+  @override
   String get timeFormat => 'Формат времени';
 
   @override

@@ -11,7 +11,9 @@ void main() {
       TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
   tearDown(() => messenger.setMockMethodCallHandler(channel, null));
 
-  for (final state in DesktopAutostartState.values) {
+  for (final state in DesktopAutostartState.values.where(
+    (state) => state != DesktopAutostartState.enabledExternally,
+  )) {
     test('maps and enforces Windows startup state ${state.name}', () async {
       var writes = 0;
       messenger.setMockMethodCallHandler(channel, (call) async {

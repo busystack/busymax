@@ -31,6 +31,9 @@ abstract interface class DesktopTrayService {
 enum DesktopAutostartState {
   enabled,
   enabledByPolicy,
+  // The current process was started by a desktop entry outside the app's
+  // control. Its current on-disk state cannot be checked from a confined Snap.
+  enabledExternally,
   disabled,
   disabledByUser,
   disabledByPolicy,
@@ -40,7 +43,8 @@ enum DesktopAutostartState {
 extension DesktopAutostartStateX on DesktopAutostartState {
   bool get isEnabled =>
       this == DesktopAutostartState.enabled ||
-      this == DesktopAutostartState.enabledByPolicy;
+      this == DesktopAutostartState.enabledByPolicy ||
+      this == DesktopAutostartState.enabledExternally;
 
   bool get canChange =>
       this == DesktopAutostartState.enabled ||

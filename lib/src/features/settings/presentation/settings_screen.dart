@@ -266,6 +266,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 subtitle: launchAtLogin.hasError
                     ? l10n.launchAtLoginReadFailed
                     : launchAtLogin.valueOrNull ==
+                          DesktopAutostartState.enabledExternally
+                    ? l10n.launchAtLoginManagedExternally
+                    : launchAtLogin.valueOrNull ==
                           DesktopAutostartState.unavailable
                     ? l10n.launchAtLoginUnavailable
                     : l10n.launchAtLoginDescription,

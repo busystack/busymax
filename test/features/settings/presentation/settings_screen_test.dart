@@ -280,6 +280,30 @@ void main() {
     },
   );
 
+  testWidgets('external startup is shown as on with desktop instructions', (
+    tester,
+  ) async {
+    final service = FakeAutostartService()
+      ..current = DesktopAutostartState.enabledExternally;
+    final container = _autostartContainer(service);
+    addTearDown(container.dispose);
+    await _pumpDefaultSettings(
+      tester,
+      container,
+      logicalSize: const Size(1000, 900),
+    );
+    expect(_launchSwitch(tester).value, isTrue);
+    expect(_launchSwitch(tester).onChanged, isNull);
+    expect(
+      find.text(
+        "BusyMax was launched by your desktop's startup settings. "
+        'Remove its entry there, then quit and reopen BusyMax to use this switch.',
+      ),
+      findsOneWidget,
+    );
+    expect(service.writes, isEmpty);
+  });
+
   testWidgets('Settings inventories visible and provider-hidden calendars', (
     tester,
   ) async {

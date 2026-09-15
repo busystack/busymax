@@ -1,4 +1,5 @@
 {
+  "launchAtLoginManagedExternally": "O BusyMax foi iniciado pelas definições de arranque do ambiente de trabalho. Remova a respetiva entrada, depois saia do BusyMax e volte a abri-lo para utilizar este interruptor.",
   "timeFormat": "Formato da hora",
   "timeFormatTwelveHour": "12 horas",
   "timeFormatTwentyFourHour": "24 horas",

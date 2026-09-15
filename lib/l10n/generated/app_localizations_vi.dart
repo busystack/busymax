@@ -13,6 +13,10 @@ class AppLocalizationsVi extends AppLocalizations {
   AppLocalizationsVi([String locale = 'vi']) : super(locale);
 
   @override
+  String get launchAtLoginManagedExternally =>
+      'BusyMax được mở bởi cài đặt khởi động của môi trường máy tính. Xóa mục BusyMax ở đó, rồi thoát hẳn và mở lại BusyMax để dùng công tắc này.';
+
+  @override
   String get timeFormat => 'Định dạng giờ';
 
   @override

@@ -1,4 +1,5 @@
 {
+  "launchAtLoginManagedExternally": "BusyMax käynnistettiin työpöydän automaattisen käynnistyksen asetuksista. Poista sen merkintä sieltä, lopeta BusyMax ja avaa se uudelleen, jotta voit käyttää tätä kytkintä.",
   "timeFormat": "Aikamuoto",
   "timeFormatTwelveHour": "12 tuntia",
   "timeFormatTwentyFourHour": "24 tuntia",

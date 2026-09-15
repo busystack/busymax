@@ -13,6 +13,10 @@ class AppLocalizationsZh extends AppLocalizations {
   AppLocalizationsZh([String locale = 'zh']) : super(locale);
 
   @override
+  String get launchAtLoginManagedExternally =>
+      'BusyMax 由桌面的启动设置启动。请在那里移除 BusyMax 的条目，然后完全退出并重新打开 BusyMax，以使用此开关。';
+
+  @override
   String get timeFormat => '时间格式';
 
   @override
@@ -2828,6 +2832,10 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
   AppLocalizationsZhHans() : super('zh_Hans');
 
   @override
+  String get launchAtLoginManagedExternally =>
+      'BusyMax 由桌面的启动设置启动。请在那里移除 BusyMax 的条目，然后完全退出并重新打开 BusyMax，以使用此开关。';
+
+  @override
   String get timeFormat => '时间格式';
 
   @override
@@ -5641,6 +5649,10 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
 /// The translations for Chinese, using the Han script (`zh_Hant`).
 class AppLocalizationsZhHant extends AppLocalizationsZh {
   AppLocalizationsZhHant() : super('zh_Hant');
+
+  @override
+  String get launchAtLoginManagedExternally =>
+      'BusyMax 由桌面的啟動設定啟動。請在那裡移除 BusyMax 的項目，然後完全結束並重新開啟 BusyMax，以使用此開關。';
 
   @override
   String get timeFormat => '時間格式';

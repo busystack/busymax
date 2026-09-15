@@ -1,4 +1,5 @@
 {
+  "launchAtLoginManagedExternally": "تم تشغيل BusyMax من إعدادات بدء التشغيل في سطح المكتب. أزل إدخاله هناك، ثم أنهِ BusyMax وافتحه مجددًا لاستخدام هذا المفتاح.",
   "timeFormat": "تنسيق الوقت",
   "timeFormatTwelveHour": "12 ساعة",
   "timeFormatTwentyFourHour": "24 ساعة",

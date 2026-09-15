@@ -1,4 +1,5 @@
 {
+  "launchAtLoginManagedExternally": "BusyMax käivitati töölaua automaatkäivituse seadete kaudu. Eemalda sealt selle kirje, seejärel sulge BusyMax täielikult ja ava see lüliti kasutamiseks uuesti.",
   "timeFormat": "Kellaajavorming",
   "timeFormatTwelveHour": "12-tunnine",
   "timeFormatTwentyFourHour": "24-tunnine",

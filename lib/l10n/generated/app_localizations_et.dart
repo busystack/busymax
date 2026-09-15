@@ -13,6 +13,10 @@ class AppLocalizationsEt extends AppLocalizations {
   AppLocalizationsEt([String locale = 'et']) : super(locale);
 
   @override
+  String get launchAtLoginManagedExternally =>
+      'BusyMax käivitati töölaua automaatkäivituse seadete kaudu. Eemalda sealt selle kirje, seejärel sulge BusyMax täielikult ja ava see lüliti kasutamiseks uuesti.';
+
+  @override
   String get timeFormat => 'Kellaajavorming';
 
   @override

@@ -13,6 +13,10 @@ class AppLocalizationsFi extends AppLocalizations {
   AppLocalizationsFi([String locale = 'fi']) : super(locale);
 
   @override
+  String get launchAtLoginManagedExternally =>
+      'BusyMax käynnistettiin työpöydän automaattisen käynnistyksen asetuksista. Poista sen merkintä sieltä, lopeta BusyMax ja avaa se uudelleen, jotta voit käyttää tätä kytkintä.';
+
+  @override
   String get timeFormat => 'Aikamuoto';
 
   @override

@@ -13,6 +13,10 @@ class AppLocalizationsPt extends AppLocalizations {
   AppLocalizationsPt([String locale = 'pt']) : super(locale);
 
   @override
+  String get launchAtLoginManagedExternally =>
+      'BusyMax was launched by your desktop\'s startup settings. Remove its entry there, then quit and reopen BusyMax to use this switch.';
+
+  @override
   String get timeFormat => 'Time format';
 
   @override
@@ -2958,6 +2962,10 @@ class AppLocalizationsPt extends AppLocalizations {
 /// The translations for Portuguese, as used in Portugal (`pt_PT`).
 class AppLocalizationsPtPt extends AppLocalizationsPt {
   AppLocalizationsPtPt() : super('pt_PT');
+
+  @override
+  String get launchAtLoginManagedExternally =>
+      'O BusyMax foi iniciado pelas definições de arranque do ambiente de trabalho. Remova a respetiva entrada, depois saia do BusyMax e volte a abri-lo para utilizar este interruptor.';
 
   @override
   String get timeFormat => 'Formato da hora';

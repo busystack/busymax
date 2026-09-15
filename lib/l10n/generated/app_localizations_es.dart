@@ -13,6 +13,10 @@ class AppLocalizationsEs extends AppLocalizations {
   AppLocalizationsEs([String locale = 'es']) : super(locale);
 
   @override
+  String get launchAtLoginManagedExternally =>
+      'BusyMax se inició desde los ajustes de inicio del escritorio. Elimina su entrada allí y luego sal de BusyMax y vuelve a abrirlo para usar este interruptor.';
+
+  @override
   String get timeFormat => 'Formato de hora';
 
   @override

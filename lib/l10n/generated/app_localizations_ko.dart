@@ -13,6 +13,10 @@ class AppLocalizationsKo extends AppLocalizations {
   AppLocalizationsKo([String locale = 'ko']) : super(locale);
 
   @override
+  String get launchAtLoginManagedExternally =>
+      '데스크톱의 시작 프로그램 설정에 의해 BusyMax가 실행되었습니다. 이 스위치를 사용하려면 해당 설정에서 BusyMax 항목을 제거한 다음 BusyMax를 완전히 종료하고 다시 여세요.';
+
+  @override
   String get timeFormat => '시간 형식';
 
   @override

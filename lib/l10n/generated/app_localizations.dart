@@ -135,6 +135,12 @@ abstract class AppLocalizations {
     Locale.fromSubtags(languageCode: 'zh', scriptCode: 'Hant'),
   ];
 
+  /// No description provided for @launchAtLoginManagedExternally.
+  ///
+  /// In en, this message translates to:
+  /// **'BusyMax was launched by your desktop\'s startup settings. Remove its entry there, then quit and reopen BusyMax to use this switch.'**
+  String get launchAtLoginManagedExternally;
+
   /// No description provided for @timeFormat.
   ///
   /// In en, this message translates to:
