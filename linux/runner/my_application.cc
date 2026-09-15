@@ -4285,6 +4285,9 @@ static void header_bar_method_call_cb(FlMethodChannel* channel,
     set_header_search_state(self, fl_method_bool_arg(args),
                             self->header_search_query);
     respond_success(method_call);
+  } else if (strcmp(method, "focusContent") == 0) {
+    focus_flutter_view(self);
+    respond_bool(method_call, TRUE);
   } else if (strcmp(method, "focusSearch") == 0) {
     respond_bool(method_call, focus_header_search_entry(self));
   } else if (strcmp(method, "setCanShowSidebar") == 0) {

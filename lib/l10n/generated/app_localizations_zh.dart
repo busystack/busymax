@@ -2825,6 +2825,54 @@ class AppLocalizationsZh extends AppLocalizations {
     });
     return '$frequency$months的$_temp0';
   }
+
+  @override
+  String get searchFilters => '搜索筛选条件';
+
+  @override
+  String get searchType => '类型';
+
+  @override
+  String get searchDate => '日期';
+
+  @override
+  String get searchAnyDate => '任何日期';
+
+  @override
+  String get searchThisWeek => '本周';
+
+  @override
+  String get searchCustomRange => '自定义范围';
+
+  @override
+  String get searchTaskStatus => '任务状态';
+
+  @override
+  String get searchTaskDue => '任务到期状态';
+
+  @override
+  String get searchAnyDueState => '任何到期状态';
+
+  @override
+  String get searchNoDueDate => '无截止日期';
+
+  @override
+  String get searchPerson => '人员';
+
+  @override
+  String get searchSources => '来源';
+
+  @override
+  String get searchClearFilters => '重置筛选条件';
+
+  @override
+  String get searchFiltersAction => '筛选';
+
+  @override
+  String get searchNoSources => '未选择搜索来源';
+
+  @override
+  String get searchClearText => '清除文字';
 }
 
 /// The translations for Chinese, using the Han script (`zh_Hans`).
@@ -5644,6 +5692,54 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
     });
     return '$frequency$months的$_temp0';
   }
+
+  @override
+  String get searchFilters => '搜索筛选条件';
+
+  @override
+  String get searchType => '类型';
+
+  @override
+  String get searchDate => '日期';
+
+  @override
+  String get searchAnyDate => '任何日期';
+
+  @override
+  String get searchThisWeek => '本周';
+
+  @override
+  String get searchCustomRange => '自定义范围';
+
+  @override
+  String get searchTaskStatus => '任务状态';
+
+  @override
+  String get searchTaskDue => '任务到期状态';
+
+  @override
+  String get searchAnyDueState => '任何到期状态';
+
+  @override
+  String get searchNoDueDate => '无截止日期';
+
+  @override
+  String get searchPerson => '人员';
+
+  @override
+  String get searchSources => '来源';
+
+  @override
+  String get searchClearFilters => '重置筛选条件';
+
+  @override
+  String get searchFiltersAction => '筛选';
+
+  @override
+  String get searchNoSources => '未选择搜索来源';
+
+  @override
+  String get searchClearText => '清除文字';
 }
 
 /// The translations for Chinese, using the Han script (`zh_Hant`).
@@ -8464,4 +8560,52 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
     });
     return '$frequency$months的$_temp0';
   }
+
+  @override
+  String get searchFilters => '搜尋篩選條件';
+
+  @override
+  String get searchType => '類型';
+
+  @override
+  String get searchDate => '日期';
+
+  @override
+  String get searchAnyDate => '任何日期';
+
+  @override
+  String get searchThisWeek => '本週';
+
+  @override
+  String get searchCustomRange => '自訂範圍';
+
+  @override
+  String get searchTaskStatus => '工作狀態';
+
+  @override
+  String get searchTaskDue => '工作到期狀態';
+
+  @override
+  String get searchAnyDueState => '任何到期狀態';
+
+  @override
+  String get searchNoDueDate => '無截止日期';
+
+  @override
+  String get searchPerson => '人員';
+
+  @override
+  String get searchSources => '來源';
+
+  @override
+  String get searchClearFilters => '重設篩選條件';
+
+  @override
+  String get searchFiltersAction => '篩選';
+
+  @override
+  String get searchNoSources => '未選取搜尋來源';
+
+  @override
+  String get searchClearText => '清除文字';
 }

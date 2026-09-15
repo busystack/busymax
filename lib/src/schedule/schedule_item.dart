@@ -170,6 +170,7 @@ class TaskScheduleItem implements ScheduleItem {
     required this.completed,
     required this.allDay,
     this.start,
+    this.due,
     this.end,
     this.notes,
     this.location,
@@ -204,6 +205,9 @@ class TaskScheduleItem implements ScheduleItem {
   @override
   final bool allDay;
   final bool completed;
+
+  /// Actual provider due value, independent of the scheduling start.
+  final DateTime? due;
   final String? notes;
   final String? location;
   final GeographicPoint? locationPoint;

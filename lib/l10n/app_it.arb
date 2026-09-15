@@ -1025,5 +1025,21 @@
       "position": {"type": "String"},
       "days": {"type": "String"}
     }
-  }
+  },
+  "searchFilters": "Filtri di ricerca",
+  "searchType": "Tipo",
+  "searchDate": "Data",
+  "searchAnyDate": "Qualsiasi data",
+  "searchThisWeek": "Questa settimana",
+  "searchCustomRange": "Intervallo personalizzato",
+  "searchTaskStatus": "Stato attività",
+  "searchTaskDue": "Scadenza attività",
+  "searchAnyDueState": "Qualsiasi scadenza",
+  "searchNoDueDate": "Senza scadenza",
+  "searchPerson": "Persona",
+  "searchSources": "Origini",
+  "searchClearFilters": "Reimposta filtri",
+  "searchFiltersAction": "Filtri",
+  "searchNoSources": "Nessuna origine di ricerca selezionata",
+  "searchClearText": "Cancella testo"
 }

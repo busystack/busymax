@@ -2957,6 +2957,54 @@ class AppLocalizationsPt extends AppLocalizations {
     });
     return '$frequency $_temp0';
   }
+
+  @override
+  String get searchFilters => 'Search filters';
+
+  @override
+  String get searchType => 'Type';
+
+  @override
+  String get searchDate => 'Date';
+
+  @override
+  String get searchAnyDate => 'Any date';
+
+  @override
+  String get searchThisWeek => 'This week';
+
+  @override
+  String get searchCustomRange => 'Custom range';
+
+  @override
+  String get searchTaskStatus => 'Task status';
+
+  @override
+  String get searchTaskDue => 'Task due';
+
+  @override
+  String get searchAnyDueState => 'Any due state';
+
+  @override
+  String get searchNoDueDate => 'No due date';
+
+  @override
+  String get searchPerson => 'Person';
+
+  @override
+  String get searchSources => 'Sources';
+
+  @override
+  String get searchClearFilters => 'Clear filters';
+
+  @override
+  String get searchFiltersAction => 'Filters';
+
+  @override
+  String get searchNoSources => 'No search sources selected';
+
+  @override
+  String get searchClearText => 'Clear text';
 }
 
 /// The translations for Portuguese, as used in Portugal (`pt_PT`).
@@ -5896,4 +5944,52 @@ class AppLocalizationsPtPt extends AppLocalizationsPt {
     });
     return '$frequency $_temp0';
   }
+
+  @override
+  String get searchFilters => 'Filtros de pesquisa';
+
+  @override
+  String get searchType => 'Tipo';
+
+  @override
+  String get searchDate => 'Data';
+
+  @override
+  String get searchAnyDate => 'Qualquer data';
+
+  @override
+  String get searchThisWeek => 'Esta semana';
+
+  @override
+  String get searchCustomRange => 'Intervalo personalizado';
+
+  @override
+  String get searchTaskStatus => 'Estado das tarefas';
+
+  @override
+  String get searchTaskDue => 'Prazo das tarefas';
+
+  @override
+  String get searchAnyDueState => 'Qualquer prazo';
+
+  @override
+  String get searchNoDueDate => 'Sem data de conclusão';
+
+  @override
+  String get searchPerson => 'Pessoa';
+
+  @override
+  String get searchSources => 'Origens';
+
+  @override
+  String get searchClearFilters => 'Repor filtros';
+
+  @override
+  String get searchFiltersAction => 'Filtros';
+
+  @override
+  String get searchNoSources => 'Nenhuma origem de pesquisa selecionada';
+
+  @override
+  String get searchClearText => 'Limpar texto';
 }

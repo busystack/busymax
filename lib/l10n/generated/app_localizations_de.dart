@@ -2925,4 +2925,52 @@ class AppLocalizationsDe extends AppLocalizations {
     });
     return '$frequency $_temp0 $days in $months';
   }
+
+  @override
+  String get searchFilters => 'Suchfilter';
+
+  @override
+  String get searchType => 'Eintragstyp';
+
+  @override
+  String get searchDate => 'Datum';
+
+  @override
+  String get searchAnyDate => 'Beliebiges Datum';
+
+  @override
+  String get searchThisWeek => 'Diese Woche';
+
+  @override
+  String get searchCustomRange => 'Eigener Zeitraum';
+
+  @override
+  String get searchTaskStatus => 'Aufgabenstatus';
+
+  @override
+  String get searchTaskDue => 'Aufgabenfälligkeit';
+
+  @override
+  String get searchAnyDueState => 'Beliebige Fälligkeit';
+
+  @override
+  String get searchNoDueDate => 'Kein Fälligkeitsdatum';
+
+  @override
+  String get searchPerson => 'Beteiligte Person';
+
+  @override
+  String get searchSources => 'Quellen';
+
+  @override
+  String get searchClearFilters => 'Filter zurücksetzen';
+
+  @override
+  String get searchFiltersAction => 'Suchfilter öffnen';
+
+  @override
+  String get searchNoSources => 'Keine Suchquellen ausgewählt';
+
+  @override
+  String get searchClearText => 'Text löschen';
 }

@@ -39,6 +39,9 @@ import 'windows_calendar_activation_flows.dart';
 import 'windows_event_editor_dialog.dart';
 import 'windows_guest_update_dialog.dart';
 import 'windows_schedule_source_pane.dart';
+import 'windows_schedule_search_pane.dart';
+import '../../schedule/schedule_search_criteria.dart';
+import '../../features/schedule/presentation/schedule_search_result_text.dart';
 import 'windows_task_details_dialog.dart';
 import 'windows_task_editor_dialog.dart';
 
@@ -57,13 +60,18 @@ class _WindowsSchedulePageState extends ConsumerState<WindowsSchedulePage> {
   final _searchFocusNode = FocusNode();
   var _selectedDate = DateTime.now();
   var _query = '';
+  bool _searchActive = false;
+  bool? _sourcePaneBeforeSearch;
+  ScheduleSearchCriteria? _searchCriteria;
+  ScheduleSearchCriteria? _initialSearchCriteria;
+  ScheduleSourceVisibility? _latestVisibility;
   late ScheduleViewMode _mode;
   var _agendaDays = 30;
   var _agendaTaskLimit = 100;
   var _refreshRevision = 0;
   String? _taskListsKey;
   Future<List<TaskListEntity>>? _taskListsFuture;
-  String? _itemsKey;
+  Object? _itemsKey;
   Future<List<ScheduleItem>>? _itemsFuture;
   var _sourcePaneCollapsed = false;
   Timer? _searchDebounce;
@@ -77,6 +85,7 @@ class _WindowsSchedulePageState extends ConsumerState<WindowsSchedulePage> {
   void initState() {
     super.initState();
     _mode = ref.read(appSettingsControllerProvider).scheduleViewMode;
+    _searchFocusNode.addListener(_searchFocusChanged);
     ref.listenManual(scheduleDataRevisionProvider, (previous, next) {
       if (!next.hasValue || !mounted) return;
       _reload();
@@ -107,6 +116,10 @@ class _WindowsSchedulePageState extends ConsumerState<WindowsSchedulePage> {
             _searchDebounce?.cancel();
             _searchController.clear();
             _query = '';
+            _searchActive = false;
+            _searchCriteria = null;
+            _initialSearchCriteria = null;
+            _searchFocusNode.unfocus();
             _openDay(command.date ?? DateTime.now());
             _pendingCommand = command;
             unawaited(_revealPendingCommand());
@@ -119,6 +132,7 @@ class _WindowsSchedulePageState extends ConsumerState<WindowsSchedulePage> {
   void dispose() {
     _searchDebounce?.cancel();
     _searchController.dispose();
+    _searchFocusNode.removeListener(_searchFocusChanged);
     _searchFocusNode.dispose();
     super.dispose();
   }
@@ -136,7 +150,7 @@ class _WindowsSchedulePageState extends ConsumerState<WindowsSchedulePage> {
       final repository = ref.read(scheduleRepositoryProvider);
       final filters = ScheduleFilters(
         accountIds: {if (command.accountId != null) command.accountId!},
-        showCompletedTasks: true,
+        taskCompletion: ScheduleTaskCompletion.all,
         showNoDateTasks: true,
       );
       final items = command.kind == ScheduleWorkspaceCommandKind.openTask
@@ -258,6 +272,8 @@ class _WindowsSchedulePageState extends ConsumerState<WindowsSchedulePage> {
     required List<TaskListEntity> taskLists,
     required ScheduleSourceVisibility visibility,
   }) {
+    _latestVisibility = visibility;
+    if (_searchActive && _searchCriteria == null) _initializeSearch();
     _creationCalendar = writableCalendarSources(sources)
         .where(
           (source) => visibility.visibleCalendarSourceIds.contains(source.id),
@@ -273,18 +289,20 @@ class _WindowsSchedulePageState extends ConsumerState<WindowsSchedulePage> {
           constraints.maxWidth,
         );
         final showSourcePane = canShowSourcePane && !_sourcePaneCollapsed;
-        final sourcePane = WindowsScheduleSourcePane(
-          selectedDate: _selectedDate,
-          accounts: accounts,
-          calendarSources: sources,
-          taskLists: taskLists,
-          visibleCalendarSourceIds: visibility.visibleCalendarSourceIds,
-          visibleTaskListKeys: visibility.visibleTaskListKeys,
-          onDateSelected: _openDay,
-          onCalendarVisibilityChanged: _setCalendarVisible,
-          onTaskListVisibilityChanged: _setTaskListVisible,
-          onSourcesChanged: _reload,
-        );
+        final sourcePane = _searchActive && _searchCriteria != null
+            ? _searchPane(accounts, sources, taskLists)
+            : WindowsScheduleSourcePane(
+                selectedDate: _selectedDate,
+                accounts: accounts,
+                calendarSources: sources,
+                taskLists: taskLists,
+                visibleCalendarSourceIds: visibility.visibleCalendarSourceIds,
+                visibleTaskListKeys: visibility.visibleTaskListKeys,
+                onDateSelected: _openDay,
+                onCalendarVisibilityChanged: _setCalendarVisible,
+                onTaskListVisibilityChanged: _setTaskListVisible,
+                onSourcesChanged: _reload,
+              );
         return CallbackShortcuts(
           bindings: {
             BusyMaxShortcutActivators.search: _focusSearch,
@@ -356,202 +374,239 @@ class _WindowsSchedulePageState extends ConsumerState<WindowsSchedulePage> {
                   () => _setMode(ScheduleViewMode.agenda),
                 ),
           },
-          child: ScaffoldPage(
-            header: PageHeader(
-              title: Text(_periodTitle(l10n, locale, range)),
-              commandBar: CommandBar(
-                compactBreakpointWidth: BusyMaxBreakpoints.compact,
-                primaryItems: [
-                  if (!showSourcePane)
+          child: Focus(
+            autofocus: true,
+            child: ScaffoldPage(
+              header: PageHeader(
+                title: Text(_periodTitle(l10n, locale, range)),
+                commandBar: CommandBar(
+                  compactBreakpointWidth: BusyMaxBreakpoints.compact,
+                  primaryItems: [
+                    if (!showSourcePane)
+                      CommandBarButton(
+                        icon: Icon(windowsBusyMaxGlyph(BusyMaxGlyph.more)),
+                        label: Text(
+                          _searchActive
+                              ? l10n.searchFiltersAction
+                              : l10n.showSidebar,
+                        ),
+                        onPressed: () {
+                          if (canShowSourcePane) {
+                            setState(() => _sourcePaneCollapsed = false);
+                          } else {
+                            unawaited(
+                              _showSourcesDialog(
+                                accounts: accounts,
+                                sources: sources,
+                                taskLists: taskLists,
+                                visibility: visibility,
+                              ),
+                            );
+                          }
+                        },
+                      ),
+                    if (!_searchActive)
+                      CommandBarButton(
+                        icon: Icon(windowsBusyMaxGlyph(BusyMaxGlyph.today)),
+                        label: Text(l10n.today),
+                        onPressed: () => _selectDate(DateTime.now()),
+                      ),
+                    if (!_searchActive && _mode != ScheduleViewMode.agenda) ...[
+                      CommandBarButton(
+                        icon: Icon(windowsBusyMaxGlyph(BusyMaxGlyph.previous)),
+                        tooltip: l10n.shortcutPreviousPeriodDescription,
+                        onPressed: () => _movePeriod(-1),
+                      ),
+                      CommandBarButton(
+                        icon: Icon(windowsBusyMaxGlyph(BusyMaxGlyph.next)),
+                        tooltip: l10n.shortcutNextPeriodDescription,
+                        onPressed: () => _movePeriod(1),
+                      ),
+                    ],
                     CommandBarButton(
-                      icon: Icon(windowsBusyMaxGlyph(BusyMaxGlyph.more)),
-                      label: Text(l10n.showSidebar),
-                      onPressed: () {
-                        if (canShowSourcePane) {
-                          setState(() => _sourcePaneCollapsed = false);
-                        } else {
-                          unawaited(
-                            _showSourcesDialog(
-                              accounts: accounts,
-                              sources: sources,
-                              taskLists: taskLists,
-                              visibility: visibility,
-                            ),
-                          );
-                        }
-                      },
-                    ),
-                  CommandBarButton(
-                    icon: Icon(windowsBusyMaxGlyph(BusyMaxGlyph.today)),
-                    label: Text(l10n.today),
-                    onPressed: () => _selectDate(DateTime.now()),
-                  ),
-                  if (_mode != ScheduleViewMode.agenda) ...[
-                    CommandBarButton(
-                      icon: Icon(windowsBusyMaxGlyph(BusyMaxGlyph.previous)),
-                      tooltip: l10n.shortcutPreviousPeriodDescription,
-                      onPressed: () => _movePeriod(-1),
-                    ),
-                    CommandBarButton(
-                      icon: Icon(windowsBusyMaxGlyph(BusyMaxGlyph.next)),
-                      tooltip: l10n.shortcutNextPeriodDescription,
-                      onPressed: () => _movePeriod(1),
+                      icon: Icon(windowsBusyMaxGlyph(BusyMaxGlyph.add)),
+                      label: Text(l10n.newEvent),
+                      onPressed: () => unawaited(_createEvent()),
                     ),
                   ],
-                  CommandBarButton(
-                    icon: Icon(windowsBusyMaxGlyph(BusyMaxGlyph.add)),
-                    label: Text(l10n.newEvent),
-                    onPressed: () => unawaited(_createEvent()),
-                  ),
-                ],
-                secondaryItems: [
-                  CommandBarButton(
-                    icon: Icon(windowsBusyMaxGlyph(BusyMaxGlyph.task)),
-                    label: Text(l10n.newTask),
-                    onPressed: () => unawaited(_createTask()),
-                  ),
-                  CommandBarButton(
-                    icon: Icon(windowsBusyMaxGlyph(BusyMaxGlyph.refresh)),
-                    label: Text(l10n.refresh),
-                    onPressed: _reload,
-                  ),
-                  CommandBarButton(
-                    icon: Icon(windowsBusyMaxGlyph(BusyMaxGlyph.calendar)),
-                    label: Text(l10n.importIcsFile),
-                    onPressed: () => unawaited(
-                      showWindowsIcsImportFlow(
-                        context,
-                        ref,
-                      ).then((_) => _reload()),
+                  secondaryItems: [
+                    CommandBarButton(
+                      icon: Icon(windowsBusyMaxGlyph(BusyMaxGlyph.task)),
+                      label: Text(l10n.newTask),
+                      onPressed: () => unawaited(_createTask()),
+                    ),
+                    CommandBarButton(
+                      icon: Icon(windowsBusyMaxGlyph(BusyMaxGlyph.refresh)),
+                      label: Text(l10n.refresh),
+                      onPressed: _reload,
+                    ),
+                    CommandBarButton(
+                      icon: Icon(windowsBusyMaxGlyph(BusyMaxGlyph.calendar)),
+                      label: Text(l10n.importIcsFile),
+                      onPressed: () => unawaited(
+                        showWindowsIcsImportFlow(
+                          context,
+                          ref,
+                        ).then((_) => _reload()),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              content: Row(
+                children: [
+                  if (showSourcePane) ...[
+                    SizedBox(
+                      width: BusyMaxDimensions.sourcePaneWidth,
+                      child: sourcePane,
+                    ),
+                    const Divider(direction: Axis.vertical),
+                  ],
+                  Expanded(
+                    child: Column(
+                      children: [
+                        Padding(
+                          padding: const EdgeInsetsDirectional.fromSTEB(
+                            20,
+                            0,
+                            20,
+                            12,
+                          ),
+                          child: Row(
+                            children: [
+                              Expanded(
+                                child: TextBox(
+                                  controller: _searchController,
+                                  focusNode: _searchFocusNode,
+                                  placeholder: l10n.windowsSearch,
+                                  suffix: _searchActive
+                                      ? Tooltip(
+                                          message: l10n.searchClearText,
+                                          child: IconButton(
+                                            icon: const Icon(FluentIcons.clear),
+                                            onPressed: () {
+                                              _searchDebounce?.cancel();
+                                              _searchController.clear();
+                                              setState(() => _query = '');
+                                            },
+                                          ),
+                                        )
+                                      : null,
+                                  prefix: Padding(
+                                    padding: const EdgeInsetsDirectional.only(
+                                      start: 10,
+                                    ),
+                                    child: Icon(
+                                      windowsBusyMaxGlyph(BusyMaxGlyph.search),
+                                    ),
+                                  ),
+                                  onChanged: (value) {
+                                    if (!_searchActive) _activateSearch();
+                                    _searchDebounce?.cancel();
+                                    _searchDebounce = Timer(
+                                      const Duration(milliseconds: 250),
+                                      () {
+                                        if (!mounted) return;
+                                        _query = value;
+                                        _reload();
+                                      },
+                                    );
+                                  },
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              if (_searchActive)
+                                Tooltip(
+                                  message: l10n.close,
+                                  child: IconButton(
+                                    icon: const Icon(FluentIcons.cancel),
+                                    onPressed: _dismissSearch,
+                                  ),
+                                )
+                              else
+                                _ViewModeMenu(mode: _mode, onChanged: _setMode),
+                            ],
+                          ),
+                        ),
+                        Expanded(
+                          child: FutureBuilder<List<ScheduleItem>>(
+                            future: _itemsFor(
+                              range: range,
+                              accounts: accounts,
+                              visibility: visibility,
+                            ),
+                            builder: (context, snapshot) {
+                              if (snapshot.connectionState !=
+                                      ConnectionState.done &&
+                                  (_searchActive || !snapshot.hasData)) {
+                                return const Center(child: ProgressRing());
+                              }
+                              if (snapshot.hasError) {
+                                return Center(
+                                  child: InfoBar(
+                                    title: Text(l10n.scheduleUnavailable),
+                                    severity: InfoBarSeverity.error,
+                                    action: Button(
+                                      onPressed: _reload,
+                                      child: Text(l10n.retry),
+                                    ),
+                                  ),
+                                );
+                              }
+                              final items = snapshot.data ?? const [];
+                              if (items.isEmpty && _searchActive) {
+                                return _WindowsScheduleEmptyState(
+                                  searching: _searchActive,
+                                  noVisibleSources:
+                                      _searchCriteria?.hasSources == false,
+                                );
+                              }
+                              if (_searchActive) {
+                                return _AgendaList(
+                                  key: const ValueKey('windows-search-results'),
+                                  items: items,
+                                  locale: locale,
+                                  onOpen: _showItemDetails,
+                                  groupByDate: false,
+                                  searchCriteria: _searchCriteria,
+                                  searchQuery: _query,
+                                );
+                              }
+                              return _ScheduleModeView(
+                                mode: _mode,
+                                selectedDate: _selectedDate,
+                                range: range,
+                                items: items,
+                                locale: locale,
+                                onOpen: _showItemDetails,
+                                onSelectDate: _openDay,
+                                onLoadMoreAgenda: _loadMoreAgenda,
+                                onVisibleDateChanged: _selectDate,
+                                onEmptySlot: (start) =>
+                                    unawaited(_createEvent(start: start)),
+                                onRangeCreated:
+                                    writableCalendarSources(sources).isEmpty
+                                    ? null
+                                    : (interval) => unawaited(
+                                        _createEvent(interval: interval),
+                                      ),
+                                onReschedule: _rescheduleEvent,
+                                onTaskCompletionChanged: _setTaskCompleted,
+                                dayStartMinute: ref
+                                    .read(appSettingsControllerProvider)
+                                    .scheduleDayStartMinute,
+                                dayEndMinute: ref
+                                    .read(appSettingsControllerProvider)
+                                    .scheduleDayEndMinute,
+                              );
+                            },
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                 ],
               ),
-            ),
-            content: Row(
-              children: [
-                if (showSourcePane) ...[
-                  SizedBox(
-                    width: BusyMaxDimensions.sourcePaneWidth,
-                    child: sourcePane,
-                  ),
-                  const Divider(direction: Axis.vertical),
-                ],
-                Expanded(
-                  child: Column(
-                    children: [
-                      Padding(
-                        padding: const EdgeInsetsDirectional.fromSTEB(
-                          20,
-                          0,
-                          20,
-                          12,
-                        ),
-                        child: Row(
-                          children: [
-                            Expanded(
-                              child: TextBox(
-                                controller: _searchController,
-                                focusNode: _searchFocusNode,
-                                placeholder: l10n.windowsSearch,
-                                prefix: Padding(
-                                  padding: const EdgeInsetsDirectional.only(
-                                    start: 10,
-                                  ),
-                                  child: Icon(
-                                    windowsBusyMaxGlyph(BusyMaxGlyph.search),
-                                  ),
-                                ),
-                                onChanged: (value) {
-                                  _searchDebounce?.cancel();
-                                  _searchDebounce = Timer(
-                                    const Duration(milliseconds: 250),
-                                    () {
-                                      if (!mounted) return;
-                                      _query = value;
-                                      _reload();
-                                    },
-                                  );
-                                },
-                              ),
-                            ),
-                            const SizedBox(width: 12),
-                            _ViewModeMenu(mode: _mode, onChanged: _setMode),
-                          ],
-                        ),
-                      ),
-                      Expanded(
-                        child: FutureBuilder<List<ScheduleItem>>(
-                          future: _itemsFor(
-                            range: range,
-                            accounts: accounts,
-                            visibility: visibility,
-                          ),
-                          builder: (context, snapshot) {
-                            if (snapshot.connectionState !=
-                                    ConnectionState.done &&
-                                !snapshot.hasData) {
-                              return const Center(child: ProgressRing());
-                            }
-                            if (snapshot.hasError) {
-                              return Center(
-                                child: InfoBar(
-                                  title: Text(l10n.scheduleUnavailable),
-                                  severity: InfoBarSeverity.error,
-                                  action: Button(
-                                    onPressed: _reload,
-                                    child: Text(l10n.retry),
-                                  ),
-                                ),
-                              );
-                            }
-                            final items = snapshot.data ?? const [];
-                            if (items.isEmpty &&
-                                _query.isNotEmpty &&
-                                _mode != ScheduleViewMode.agenda) {
-                              return _WindowsScheduleEmptyState(
-                                searching: _query.isNotEmpty,
-                                noVisibleSources:
-                                    visibility
-                                        .visibleCalendarSourceIds
-                                        .isEmpty &&
-                                    visibility.visibleTaskListKeys.isEmpty,
-                              );
-                            }
-                            return _ScheduleModeView(
-                              mode: _mode,
-                              selectedDate: _selectedDate,
-                              range: range,
-                              items: items,
-                              locale: locale,
-                              onOpen: _showItemDetails,
-                              onSelectDate: _openDay,
-                              onLoadMoreAgenda: _loadMoreAgenda,
-                              onVisibleDateChanged: _selectDate,
-                              onEmptySlot: (start) =>
-                                  unawaited(_createEvent(start: start)),
-                              onRangeCreated:
-                                  writableCalendarSources(sources).isEmpty
-                                  ? null
-                                  : (interval) => unawaited(
-                                      _createEvent(interval: interval),
-                                    ),
-                              onReschedule: _rescheduleEvent,
-                              onTaskCompletionChanged: _setTaskCompleted,
-                              dayStartMinute: ref
-                                  .read(appSettingsControllerProvider)
-                                  .scheduleDayStartMinute,
-                              dayEndMinute: ref
-                                  .read(appSettingsControllerProvider)
-                                  .scheduleDayEndMinute,
-                            );
-                          },
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
             ),
           ),
         );
@@ -658,10 +713,64 @@ class _WindowsSchedulePageState extends ConsumerState<WindowsSchedulePage> {
     if (changed && mounted) _reload();
   }
 
-  void _focusSearch() => _searchFocusNode.requestFocus();
+  void _initializeSearch() {
+    final visibility = _latestVisibility;
+    if (visibility == null) return;
+    final now = DateTime.now();
+    _initialSearchCriteria = ScheduleSearchCriteria(
+      referenceDate: DateTime(now.year, now.month, now.day),
+      firstWeekday: DateTime.monday,
+      sourceIds: visibility.visibleCalendarSourceIds,
+      taskListKeys: visibility.visibleTaskListKeys,
+    );
+    _searchCriteria = _initialSearchCriteria;
+  }
+
+  void _activateSearch() {
+    if (_searchActive) return;
+    setState(() {
+      _sourcePaneBeforeSearch = _sourcePaneCollapsed;
+      _searchActive = true;
+      _initializeSearch();
+    });
+  }
+
+  void _searchFocusChanged() {
+    if (_searchFocusNode.hasFocus) _activateSearch();
+  }
+
+  void _focusSearch() {
+    _activateSearch();
+    _searchFocusNode.requestFocus();
+  }
+
+  Widget _searchPane(
+    List<AccountEntity> accounts,
+    List<CalendarSourceEntity> sources,
+    List<TaskListEntity> taskLists, {
+    VoidCallback? refresh,
+  }) => WindowsScheduleSearchPane(
+    value: _searchCriteria!,
+    accounts: accounts,
+    sources: sources,
+    taskLists: taskLists,
+    onChanged: (value) {
+      setState(() => _searchCriteria = value);
+      refresh?.call();
+    },
+    onClear: () {
+      setState(() => _searchCriteria = _initialSearchCriteria);
+      refresh?.call();
+    },
+  );
 
   void _dismissSearch() {
-    if (!_searchFocusNode.hasFocus && _query.isEmpty) return;
+    if (!_searchActive) return;
+    _searchActive = false;
+    _sourcePaneCollapsed = _sourcePaneBeforeSearch ?? _sourcePaneCollapsed;
+    _sourcePaneBeforeSearch = null;
+    _searchCriteria = null;
+    _initialSearchCriteria = null;
     _searchDebounce?.cancel();
     _searchController.clear();
     _query = '';
@@ -670,6 +779,7 @@ class _WindowsSchedulePageState extends ConsumerState<WindowsSchedulePage> {
   }
 
   void _invokeUnmodifiedShortcut(VoidCallback callback) {
+    if (_searchActive) return;
     final focusContext = FocusManager.instance.primaryFocus?.context;
     if (focusContext != null &&
         (focusContext.widget is EditableText ||
@@ -712,7 +822,7 @@ class _WindowsSchedulePageState extends ConsumerState<WindowsSchedulePage> {
             .toList()
           ..sort();
     final accountIds = [for (final account in accounts) account.id]..sort();
-    final key = [
+    final normalKey = [
       _refreshRevision,
       _mode.name,
       range.start.toIso8601String(),
@@ -722,6 +832,7 @@ class _WindowsSchedulePageState extends ConsumerState<WindowsSchedulePage> {
       calendarIds.join(','),
       taskKeys.join(','),
     ].join('|');
+    final key = (normalKey, _searchActive, _searchCriteria);
     if (_itemsKey == key && _itemsFuture != null) return _itemsFuture!;
     _itemsKey = key;
     final filters = ScheduleFilters(
@@ -733,10 +844,17 @@ class _WindowsSchedulePageState extends ConsumerState<WindowsSchedulePage> {
       taskListFilterActive: true,
       includeCalendarEvents: true,
       includeTasks: true,
-      showCompletedTasks: true,
+      taskCompletion: ScheduleTaskCompletion.all,
       showNoDateTasks: _mode == ScheduleViewMode.agenda,
     );
-    _itemsFuture = _loadItems(range, filters);
+    _itemsFuture = _searchActive && _searchCriteria != null
+        ? ref
+              .read(scheduleRepositoryProvider)
+              .listItems(
+                range: _searchCriteria!.range ?? range,
+                filters: _searchCriteria!.filters(_query),
+              )
+        : _loadItems(range, filters);
     return _itemsFuture!;
   }
 
@@ -748,7 +866,7 @@ class _WindowsSchedulePageState extends ConsumerState<WindowsSchedulePage> {
     final items = <ScheduleItem>[
       ...await repository.listItems(range: range, filters: filters),
     ];
-    if (_mode == ScheduleViewMode.agenda && _query.trim().isEmpty) {
+    if (_mode == ScheduleViewMode.agenda) {
       final overdue = await repository.listOverdueTasks(
         before: range.start,
         limit: _agendaTaskLimit,
@@ -897,6 +1015,32 @@ class _WindowsSchedulePageState extends ConsumerState<WindowsSchedulePage> {
     required List<TaskListEntity> taskLists,
     required ScheduleSourceVisibility visibility,
   }) {
+    if (_searchActive && _searchCriteria != null) {
+      return showDialog<void>(
+        context: context,
+        builder: (context) => StatefulBuilder(
+          builder: (context, update) => ContentDialog(
+            title: Text(AppLocalizations.of(context).searchFilters),
+            content: SizedBox(
+              width: 360,
+              height: math.min(MediaQuery.sizeOf(context).height - 180, 620),
+              child: _searchPane(
+                accounts,
+                sources,
+                taskLists,
+                refresh: () => update(() {}),
+              ),
+            ),
+            actions: [
+              Button(
+                onPressed: () => Navigator.pop(context),
+                child: Text(AppLocalizations.of(context).close),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
     final visibleCalendars = {...visibility.visibleCalendarSourceIds};
     final visibleTaskLists = {...visibility.visibleTaskListKeys};
     return showDialog<void>(
@@ -1519,6 +1663,9 @@ class _ScheduleModeView extends StatelessWidget {
 
 class _AgendaList extends StatelessWidget {
   const _AgendaList({
+    super.key,
+    this.searchCriteria,
+    this.searchQuery = '',
     required this.items,
     required this.locale,
     required this.onOpen,
@@ -1526,6 +1673,8 @@ class _AgendaList extends StatelessWidget {
     this.onLoadMore,
   });
 
+  final ScheduleSearchCriteria? searchCriteria;
+  final String searchQuery;
   final List<ScheduleItem> items;
   final String locale;
   final ValueChanged<ScheduleItem> onOpen;
@@ -1578,6 +1727,8 @@ class _AgendaList extends StatelessWidget {
       rows.add(
         _ScheduleItemCard(
           item: item,
+          searchCriteria: searchCriteria,
+          searchQuery: searchQuery,
           locale: locale,
           onPressed: () => onOpen(item),
         ),
@@ -2044,7 +2195,9 @@ class _WindowsScheduleEmptyState extends StatelessWidget {
           const SizedBox(height: 12),
           Text(
             searching
-                ? l10n.scheduleNoSearchResults
+                ? noVisibleSources
+                      ? l10n.searchNoSources
+                      : l10n.scheduleNoSearchResults
                 : noVisibleSources
                 ? l10n.scheduleNoSources
                 : l10n.noEventsOrTasks,
@@ -2062,11 +2215,15 @@ class _WindowsScheduleEmptyState extends StatelessWidget {
 
 class _ScheduleItemCard extends StatelessWidget {
   const _ScheduleItemCard({
+    this.searchCriteria,
+    this.searchQuery = '',
     required this.item,
     required this.locale,
     required this.onPressed,
   });
 
+  final ScheduleSearchCriteria? searchCriteria;
+  final String searchQuery;
   final ScheduleItem item;
   final String locale;
   final VoidCallback onPressed;
@@ -2092,10 +2249,19 @@ class _ScheduleItemCard extends StatelessWidget {
                 : null,
           ),
           subtitle: Text(
-            [
-              _itemDateLabel(context, item, locale),
-              ?item.sourceName,
-            ].where((value) => value.isNotEmpty).join(' · '),
+            searchCriteria != null
+                ? scheduleSearchResultText(
+                    context,
+                    item,
+                    searchCriteria!,
+                    searchQuery,
+                  )
+                : [
+                    _itemDateLabel(context, item, locale),
+                    ?item.sourceName,
+                  ].where((value) => value.isNotEmpty).join(' · '),
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
           ),
           onPressed: onPressed,
         ),

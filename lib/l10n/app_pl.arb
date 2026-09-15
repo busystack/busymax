@@ -1735,5 +1735,21 @@
         "type": "String"
       }
     }
-  }
+  },
+  "searchFilters": "Filtry wyszukiwania",
+  "searchType": "Typ",
+  "searchDate": "Data",
+  "searchAnyDate": "Dowolna data",
+  "searchThisWeek": "Ten tydzień",
+  "searchCustomRange": "Zakres niestandardowy",
+  "searchTaskStatus": "Stan zadania",
+  "searchTaskDue": "Termin zadania",
+  "searchAnyDueState": "Dowolny stan terminu",
+  "searchNoDueDate": "Bez terminu",
+  "searchPerson": "Osoba",
+  "searchSources": "Źródła",
+  "searchClearFilters": "Resetuj filtry",
+  "searchFiltersAction": "Filtry",
+  "searchNoSources": "Nie wybrano źródeł wyszukiwania",
+  "searchClearText": "Wyczyść tekst"
 }

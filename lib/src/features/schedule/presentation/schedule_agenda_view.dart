@@ -13,6 +13,8 @@ import '../../../schedule/schedule_projection.dart';
 import '../../../schedule/schedule_range.dart';
 import '../../../schedule/schedule_sorting.dart';
 import 'schedule_event_block.dart';
+import 'schedule_search_result_text.dart';
+import '../../../schedule/schedule_search_criteria.dart';
 import 'schedule_item_selection.dart';
 
 class ScheduleAgendaView extends StatefulWidget {
@@ -29,8 +31,12 @@ class ScheduleAgendaView extends StatefulWidget {
     this.onLoadMoreOverdue,
     this.onLoadMoreNoDate,
     this.onItemAnchorAvailable,
+    this.searchCriteria,
+    this.searchQuery = '',
   });
 
+  final ScheduleSearchCriteria? searchCriteria;
+  final String searchQuery;
   final ScheduleRange range;
   final List<ScheduleItem> items;
   final ScheduleItemSelectionCallback onItemSelected;
@@ -82,6 +88,14 @@ class _ScheduleAgendaViewState extends State<ScheduleAgendaView> {
 
   @override
   Widget build(BuildContext context) {
+    if (widget.searchCriteria != null) {
+      return ListView.builder(
+        key: const ValueKey('schedule-search-results'),
+        padding: const EdgeInsetsDirectional.all(BusyMaxSpacing.md),
+        itemCount: widget.items.length,
+        itemBuilder: (context, index) => _standaloneRow(widget.items[index]),
+      );
+    }
     final dated = widget.items.where((item) => item.start != null).toList();
     final noDateTasks = ScheduleProjection.noDateTasks(widget.items);
     final groups = ScheduleProjection.groupByDay(dated);
@@ -214,6 +228,8 @@ class _ScheduleAgendaViewState extends State<ScheduleAgendaView> {
     final task = item is TaskScheduleItem ? item : null;
     return _AgendaRow(
       item: item,
+      searchCriteria: widget.searchCriteria,
+      searchQuery: widget.searchQuery,
       onAnchorAvailable: widget.onItemAnchorAvailable,
       onTap: select,
       onTaskCompletionChanged: task == null
@@ -384,9 +400,13 @@ class _AgendaRow extends StatelessWidget {
     required this.item,
     required this.onTap,
     this.onAnchorAvailable,
+    this.searchCriteria,
+    this.searchQuery = '',
     this.onTaskCompletionChanged,
   });
 
+  final ScheduleSearchCriteria? searchCriteria;
+  final String searchQuery;
   final ScheduleItem item;
   final ScheduleItemTapCallback onTap;
   final ScheduleItemAnchorCallback? onAnchorAvailable;
@@ -407,7 +427,18 @@ class _AgendaRow extends StatelessWidget {
     return BusyMaxActionRow(
       title: item.title,
       titleWidget: _AgendaItemTitle(item: item),
-      subtitleWidget: _AgendaItemSubtitle(item: item),
+      subtitleWidget: searchCriteria == null
+          ? _AgendaItemSubtitle(item: item)
+          : Text(
+              scheduleSearchResultText(
+                context,
+                item,
+                searchCriteria!,
+                searchQuery,
+              ),
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+            ),
       leading: _AgendaItemMarker(item: item),
       trailing: task == null
           ? null

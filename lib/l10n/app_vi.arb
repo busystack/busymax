@@ -1025,5 +1025,21 @@
       "position": {"type": "String"},
       "days": {"type": "String"}
     }
-  }
+  },
+  "searchFilters": "Bộ lọc tìm kiếm",
+  "searchType": "Loại",
+  "searchDate": "Ngày",
+  "searchAnyDate": "Mọi ngày",
+  "searchThisWeek": "Tuần này",
+  "searchCustomRange": "Khoảng tùy chọn",
+  "searchTaskStatus": "Trạng thái công việc",
+  "searchTaskDue": "Hạn công việc",
+  "searchAnyDueState": "Mọi trạng thái hạn",
+  "searchNoDueDate": "Không có hạn",
+  "searchPerson": "Người",
+  "searchSources": "Nguồn",
+  "searchClearFilters": "Đặt lại bộ lọc",
+  "searchFiltersAction": "Bộ lọc",
+  "searchNoSources": "Chưa chọn nguồn tìm kiếm",
+  "searchClearText": "Xóa văn bản"
 }

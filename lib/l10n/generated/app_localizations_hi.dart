@@ -2925,4 +2925,52 @@ class AppLocalizationsHi extends AppLocalizations {
     });
     return '$frequency $months के $_temp0 $days को';
   }
+
+  @override
+  String get searchFilters => 'खोज फ़िल्टर';
+
+  @override
+  String get searchType => 'प्रकार';
+
+  @override
+  String get searchDate => 'तारीख';
+
+  @override
+  String get searchAnyDate => 'कोई भी तारीख';
+
+  @override
+  String get searchThisWeek => 'इस सप्ताह';
+
+  @override
+  String get searchCustomRange => 'कस्टम अवधि';
+
+  @override
+  String get searchTaskStatus => 'कार्य स्थिति';
+
+  @override
+  String get searchTaskDue => 'कार्य की नियत तारीख';
+
+  @override
+  String get searchAnyDueState => 'कोई भी नियत स्थिति';
+
+  @override
+  String get searchNoDueDate => 'बिना नियत तारीख';
+
+  @override
+  String get searchPerson => 'व्यक्ति';
+
+  @override
+  String get searchSources => 'स्रोत';
+
+  @override
+  String get searchClearFilters => 'फ़िल्टर रीसेट करें';
+
+  @override
+  String get searchFiltersAction => 'फ़िल्टर';
+
+  @override
+  String get searchNoSources => 'कोई खोज स्रोत नहीं चुना गया';
+
+  @override
+  String get searchClearText => 'पाठ साफ़ करें';
 }

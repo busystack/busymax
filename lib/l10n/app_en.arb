@@ -1564,5 +1564,21 @@
       "position": {"type": "String"},
       "days": {"type": "String"}
     }
-  }
+  },
+  "searchFilters": "Search filters",
+  "searchType": "Type",
+  "searchDate": "Date",
+  "searchAnyDate": "Any date",
+  "searchThisWeek": "This week",
+  "searchCustomRange": "Custom range",
+  "searchTaskStatus": "Task status",
+  "searchTaskDue": "Task due",
+  "searchAnyDueState": "Any due state",
+  "searchNoDueDate": "No due date",
+  "searchPerson": "Person",
+  "searchSources": "Sources",
+  "searchClearFilters": "Clear filters",
+  "searchFiltersAction": "Filters",
+  "searchNoSources": "No search sources selected",
+  "searchClearText": "Clear text"
 }

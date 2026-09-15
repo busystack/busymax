@@ -1203,5 +1203,21 @@
       "position": {"type": "String"},
       "days": {"type": "String"}
     }
-  }
+  },
+  "searchFilters": "Otsingufiltrid",
+  "searchType": "Tüüp",
+  "searchDate": "Kuupäev",
+  "searchAnyDate": "Kõik kuupäevad",
+  "searchThisWeek": "See nädal",
+  "searchCustomRange": "Kohandatud vahemik",
+  "searchTaskStatus": "Ülesande olek",
+  "searchTaskDue": "Ülesande tähtaeg",
+  "searchAnyDueState": "Kõik tähtajad",
+  "searchNoDueDate": "Tähtajata",
+  "searchPerson": "Isik",
+  "searchSources": "Allikad",
+  "searchClearFilters": "Lähtesta filtrid",
+  "searchFiltersAction": "Filtrid",
+  "searchNoSources": "Otsinguallikaid pole valitud",
+  "searchClearText": "Tühjenda tekst"
 }

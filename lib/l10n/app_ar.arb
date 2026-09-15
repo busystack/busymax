@@ -1025,5 +1025,21 @@
       "position": {"type": "String"},
       "days": {"type": "String"}
     }
-  }
+  },
+  "searchFilters": "عوامل تصفية البحث",
+  "searchType": "النوع",
+  "searchDate": "التاريخ",
+  "searchAnyDate": "أي تاريخ",
+  "searchThisWeek": "هذا الأسبوع",
+  "searchCustomRange": "نطاق مخصص",
+  "searchTaskStatus": "حالة المهمة",
+  "searchTaskDue": "استحقاق المهمة",
+  "searchAnyDueState": "أي حالة استحقاق",
+  "searchNoDueDate": "بلا تاريخ استحقاق",
+  "searchPerson": "الشخص",
+  "searchSources": "المصادر",
+  "searchClearFilters": "إعادة ضبط عوامل التصفية",
+  "searchFiltersAction": "عوامل التصفية",
+  "searchNoSources": "لم يتم تحديد مصادر للبحث",
+  "searchClearText": "مسح النص"
 }

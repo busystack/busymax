@@ -1025,5 +1025,21 @@
       "position": {"type": "String"},
       "days": {"type": "String"}
     }
-  }
+  },
+  "searchFilters": "搜索筛选条件",
+  "searchType": "类型",
+  "searchDate": "日期",
+  "searchAnyDate": "任何日期",
+  "searchThisWeek": "本周",
+  "searchCustomRange": "自定义范围",
+  "searchTaskStatus": "任务状态",
+  "searchTaskDue": "任务到期状态",
+  "searchAnyDueState": "任何到期状态",
+  "searchNoDueDate": "无截止日期",
+  "searchPerson": "人员",
+  "searchSources": "来源",
+  "searchClearFilters": "重置筛选条件",
+  "searchFiltersAction": "筛选",
+  "searchNoSources": "未选择搜索来源",
+  "searchClearText": "清除文字"
 }

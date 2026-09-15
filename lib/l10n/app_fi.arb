@@ -1025,5 +1025,21 @@
       "position": {"type": "String"},
       "days": {"type": "String"}
     }
-  }
+  },
+  "searchFilters": "Hakusuodattimet",
+  "searchType": "Tyyppi",
+  "searchDate": "Päivämäärä",
+  "searchAnyDate": "Kaikki päivämäärät",
+  "searchThisWeek": "Tämä viikko",
+  "searchCustomRange": "Mukautettu aikaväli",
+  "searchTaskStatus": "Tehtävän tila",
+  "searchTaskDue": "Tehtävän erääntyminen",
+  "searchAnyDueState": "Kaikki erääntymistilat",
+  "searchNoDueDate": "Ei eräpäivää",
+  "searchPerson": "Henkilö",
+  "searchSources": "Lähteet",
+  "searchClearFilters": "Nollaa suodattimet",
+  "searchFiltersAction": "Suodattimet",
+  "searchNoSources": "Hakulähteitä ei ole valittu",
+  "searchClearText": "Tyhjennä teksti"
 }

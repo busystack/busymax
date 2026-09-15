@@ -1025,5 +1025,21 @@
       "position": {"type": "String"},
       "days": {"type": "String"}
     }
-  }
+  },
+  "searchFilters": "खोज फ़िल्टर",
+  "searchType": "प्रकार",
+  "searchDate": "तारीख",
+  "searchAnyDate": "कोई भी तारीख",
+  "searchThisWeek": "इस सप्ताह",
+  "searchCustomRange": "कस्टम अवधि",
+  "searchTaskStatus": "कार्य स्थिति",
+  "searchTaskDue": "कार्य की नियत तारीख",
+  "searchAnyDueState": "कोई भी नियत स्थिति",
+  "searchNoDueDate": "बिना नियत तारीख",
+  "searchPerson": "व्यक्ति",
+  "searchSources": "स्रोत",
+  "searchClearFilters": "फ़िल्टर रीसेट करें",
+  "searchFiltersAction": "फ़िल्टर",
+  "searchNoSources": "कोई खोज स्रोत नहीं चुना गया",
+  "searchClearText": "पाठ साफ़ करें"
 }

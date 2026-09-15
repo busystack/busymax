@@ -1088,5 +1088,21 @@
       "position": {"type": "String"},
       "days": {"type": "String"}
     }
-  }
+  },
+  "searchFilters": "Suchfilter",
+  "searchType": "Eintragstyp",
+  "searchDate": "Datum",
+  "searchAnyDate": "Beliebiges Datum",
+  "searchThisWeek": "Diese Woche",
+  "searchCustomRange": "Eigener Zeitraum",
+  "searchTaskStatus": "Aufgabenstatus",
+  "searchTaskDue": "Aufgabenfälligkeit",
+  "searchAnyDueState": "Beliebige Fälligkeit",
+  "searchNoDueDate": "Kein Fälligkeitsdatum",
+  "searchPerson": "Beteiligte Person",
+  "searchSources": "Quellen",
+  "searchClearFilters": "Filter zurücksetzen",
+  "searchFiltersAction": "Suchfilter öffnen",
+  "searchNoSources": "Keine Suchquellen ausgewählt",
+  "searchClearText": "Text löschen"
 }

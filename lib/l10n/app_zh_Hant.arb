@@ -1025,5 +1025,21 @@
       "position": {"type": "String"},
       "days": {"type": "String"}
     }
-  }
+  },
+  "searchFilters": "搜尋篩選條件",
+  "searchType": "類型",
+  "searchDate": "日期",
+  "searchAnyDate": "任何日期",
+  "searchThisWeek": "本週",
+  "searchCustomRange": "自訂範圍",
+  "searchTaskStatus": "工作狀態",
+  "searchTaskDue": "工作到期狀態",
+  "searchAnyDueState": "任何到期狀態",
+  "searchNoDueDate": "無截止日期",
+  "searchPerson": "人員",
+  "searchSources": "來源",
+  "searchClearFilters": "重設篩選條件",
+  "searchFiltersAction": "篩選",
+  "searchNoSources": "未選取搜尋來源",
+  "searchClearText": "清除文字"
 }

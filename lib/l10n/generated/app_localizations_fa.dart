@@ -2960,4 +2960,52 @@ class AppLocalizationsFa extends AppLocalizations {
     });
     return '$frequency در $_temp0 $days ماه‌های $months';
   }
+
+  @override
+  String get searchFilters => 'فیلترهای جستجو';
+
+  @override
+  String get searchType => 'نوع';
+
+  @override
+  String get searchDate => 'تاریخ';
+
+  @override
+  String get searchAnyDate => 'هر تاریخی';
+
+  @override
+  String get searchThisWeek => 'این هفته';
+
+  @override
+  String get searchCustomRange => 'بازهٔ دلخواه';
+
+  @override
+  String get searchTaskStatus => 'وضعیت کار';
+
+  @override
+  String get searchTaskDue => 'سررسید کار';
+
+  @override
+  String get searchAnyDueState => 'هر وضعیت سررسید';
+
+  @override
+  String get searchNoDueDate => 'بدون تاریخ سررسید';
+
+  @override
+  String get searchPerson => 'شخص';
+
+  @override
+  String get searchSources => 'منابع';
+
+  @override
+  String get searchClearFilters => 'بازنشانی فیلترها';
+
+  @override
+  String get searchFiltersAction => 'فیلترها';
+
+  @override
+  String get searchNoSources => 'هیچ منبع جستجویی انتخاب نشده است';
+
+  @override
+  String get searchClearText => 'پاک کردن متن';
 }

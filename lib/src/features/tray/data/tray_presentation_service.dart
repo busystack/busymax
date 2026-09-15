@@ -71,7 +71,7 @@ final class BusyMaxTrayPresentationService {
         taskListKeys: visibility.visibleTaskListKeys,
         sourceFilterActive: true,
         taskListFilterActive: true,
-        showCompletedTasks: false,
+        taskCompletion: ScheduleTaskCompletion.open,
         showNoDateTasks: false,
       ),
     );

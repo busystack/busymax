@@ -2862,4 +2862,52 @@ class AppLocalizationsJa extends AppLocalizations {
     });
     return '$frequency$monthsの$_temp0';
   }
+
+  @override
+  String get searchFilters => '検索フィルター';
+
+  @override
+  String get searchType => '種類';
+
+  @override
+  String get searchDate => '日付';
+
+  @override
+  String get searchAnyDate => 'すべての日付';
+
+  @override
+  String get searchThisWeek => '今週';
+
+  @override
+  String get searchCustomRange => '期間を指定';
+
+  @override
+  String get searchTaskStatus => 'タスクの状態';
+
+  @override
+  String get searchTaskDue => 'タスクの期限';
+
+  @override
+  String get searchAnyDueState => 'すべての期限状態';
+
+  @override
+  String get searchNoDueDate => '期限なし';
+
+  @override
+  String get searchPerson => '人物';
+
+  @override
+  String get searchSources => '検索元';
+
+  @override
+  String get searchClearFilters => 'フィルターをリセット';
+
+  @override
+  String get searchFiltersAction => 'フィルター';
+
+  @override
+  String get searchNoSources => '検索元が選択されていません';
+
+  @override
+  String get searchClearText => 'テキストを消去';
 }

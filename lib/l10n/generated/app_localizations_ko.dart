@@ -2866,4 +2866,52 @@ class AppLocalizationsKo extends AppLocalizations {
     });
     return '$frequency $months의 $_temp0';
   }
+
+  @override
+  String get searchFilters => '검색 필터';
+
+  @override
+  String get searchType => '유형';
+
+  @override
+  String get searchDate => '날짜';
+
+  @override
+  String get searchAnyDate => '모든 날짜';
+
+  @override
+  String get searchThisWeek => '이번 주';
+
+  @override
+  String get searchCustomRange => '사용자 지정 기간';
+
+  @override
+  String get searchTaskStatus => '작업 상태';
+
+  @override
+  String get searchTaskDue => '작업 기한';
+
+  @override
+  String get searchAnyDueState => '모든 기한 상태';
+
+  @override
+  String get searchNoDueDate => '기한 없음';
+
+  @override
+  String get searchPerson => '사람';
+
+  @override
+  String get searchSources => '검색 소스';
+
+  @override
+  String get searchClearFilters => '필터 초기화';
+
+  @override
+  String get searchFiltersAction => '필터';
+
+  @override
+  String get searchNoSources => '선택한 검색 소스가 없습니다';
+
+  @override
+  String get searchClearText => '텍스트 지우기';
 }

@@ -1025,5 +1025,21 @@
       "position": {"type": "String"},
       "days": {"type": "String"}
     }
-  }
+  },
+  "searchFilters": "검색 필터",
+  "searchType": "유형",
+  "searchDate": "날짜",
+  "searchAnyDate": "모든 날짜",
+  "searchThisWeek": "이번 주",
+  "searchCustomRange": "사용자 지정 기간",
+  "searchTaskStatus": "작업 상태",
+  "searchTaskDue": "작업 기한",
+  "searchAnyDueState": "모든 기한 상태",
+  "searchNoDueDate": "기한 없음",
+  "searchPerson": "사람",
+  "searchSources": "검색 소스",
+  "searchClearFilters": "필터 초기화",
+  "searchFiltersAction": "필터",
+  "searchNoSources": "선택한 검색 소스가 없습니다",
+  "searchClearText": "텍스트 지우기"
 }

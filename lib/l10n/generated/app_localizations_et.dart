@@ -2904,4 +2904,52 @@ class AppLocalizationsEt extends AppLocalizations {
     });
     return '$frequency $months: $_temp0 $days';
   }
+
+  @override
+  String get searchFilters => 'Otsingufiltrid';
+
+  @override
+  String get searchType => 'Tüüp';
+
+  @override
+  String get searchDate => 'Kuupäev';
+
+  @override
+  String get searchAnyDate => 'Kõik kuupäevad';
+
+  @override
+  String get searchThisWeek => 'See nädal';
+
+  @override
+  String get searchCustomRange => 'Kohandatud vahemik';
+
+  @override
+  String get searchTaskStatus => 'Ülesande olek';
+
+  @override
+  String get searchTaskDue => 'Ülesande tähtaeg';
+
+  @override
+  String get searchAnyDueState => 'Kõik tähtajad';
+
+  @override
+  String get searchNoDueDate => 'Tähtajata';
+
+  @override
+  String get searchPerson => 'Isik';
+
+  @override
+  String get searchSources => 'Allikad';
+
+  @override
+  String get searchClearFilters => 'Lähtesta filtrid';
+
+  @override
+  String get searchFiltersAction => 'Filtrid';
+
+  @override
+  String get searchNoSources => 'Otsinguallikaid pole valitud';
+
+  @override
+  String get searchClearText => 'Tühjenda tekst';
 }

@@ -3099,4 +3099,52 @@ class AppLocalizationsPl extends AppLocalizations {
     });
     return '$frequency, $_temp0';
   }
+
+  @override
+  String get searchFilters => 'Filtry wyszukiwania';
+
+  @override
+  String get searchType => 'Typ';
+
+  @override
+  String get searchDate => 'Data';
+
+  @override
+  String get searchAnyDate => 'Dowolna data';
+
+  @override
+  String get searchThisWeek => 'Ten tydzień';
+
+  @override
+  String get searchCustomRange => 'Zakres niestandardowy';
+
+  @override
+  String get searchTaskStatus => 'Stan zadania';
+
+  @override
+  String get searchTaskDue => 'Termin zadania';
+
+  @override
+  String get searchAnyDueState => 'Dowolny stan terminu';
+
+  @override
+  String get searchNoDueDate => 'Bez terminu';
+
+  @override
+  String get searchPerson => 'Osoba';
+
+  @override
+  String get searchSources => 'Źródła';
+
+  @override
+  String get searchClearFilters => 'Resetuj filtry';
+
+  @override
+  String get searchFiltersAction => 'Filtry';
+
+  @override
+  String get searchNoSources => 'Nie wybrano źródeł wyszukiwania';
+
+  @override
+  String get searchClearText => 'Wyczyść tekst';
 }

@@ -1025,5 +1025,21 @@
       "position": {"type": "String"},
       "days": {"type": "String"}
     }
-  }
+  },
+  "searchFilters": "検索フィルター",
+  "searchType": "種類",
+  "searchDate": "日付",
+  "searchAnyDate": "すべての日付",
+  "searchThisWeek": "今週",
+  "searchCustomRange": "期間を指定",
+  "searchTaskStatus": "タスクの状態",
+  "searchTaskDue": "タスクの期限",
+  "searchAnyDueState": "すべての期限状態",
+  "searchNoDueDate": "期限なし",
+  "searchPerson": "人物",
+  "searchSources": "検索元",
+  "searchClearFilters": "フィルターをリセット",
+  "searchFiltersAction": "フィルター",
+  "searchNoSources": "検索元が選択されていません",
+  "searchClearText": "テキストを消去"
 }

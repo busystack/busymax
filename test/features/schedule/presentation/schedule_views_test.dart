@@ -3472,40 +3472,6 @@ void main() {
     expect(popover, isNot(contains('BoxShadow(')));
   });
 
-  test(
-    'schedule search renders query results instead of current range only',
-    () {
-      final workspace = File(
-        'lib/src/features/schedule/presentation/schedule_workspace.dart',
-      ).readAsStringSync();
-      final agenda = File(
-        'lib/src/features/schedule/presentation/schedule_agenda_view.dart',
-      ).readAsStringSync();
-      final repository = File(
-        'lib/src/schedule/schedule_repository.dart',
-      ).readAsStringSync();
-
-      expect(
-        workspace,
-        contains('final searchHasQuery = _searchQuery.trim().isNotEmpty'),
-      );
-      expect(workspace, contains('_rangeForSearchResults(items, range)'));
-      expect(workspace, contains('? ScheduleViewMode.agenda'));
-      expect(
-        repository,
-        contains('final searching = filters.query.trim().isNotEmpty'),
-      );
-      expect(repository, contains('!searching && !_intersects'));
-      expect(agenda, contains('groups.keys'));
-      expect(agenda, contains('ColoredBox('));
-      expect(
-        agenda,
-        contains('color: BusyMaxSurfaceColors.of(context).window'),
-      );
-      expect(agenda, isNot(contains('_daysInRange')));
-    },
-  );
-
   test('agenda list groups use the shared grouped row surface', () {
     final agenda = File(
       'lib/src/features/schedule/presentation/schedule_agenda_view.dart',
@@ -4217,7 +4183,7 @@ void main() {
     expect(sidebar, contains('required this.firstWeekday'));
     expect(sidebar, contains('firstWeekday: firstWeekday'));
     expect(workspace, contains('firstWeekday: _firstWeekday(context)'));
-    expect(workspace, contains('final miniCalendarItemsFuture = ref'));
+    expect(workspace, contains('final miniCalendarItemsFuture ='));
     expect(workspace, contains('ScheduleRange.month('));
     expect(workspace, contains('showNoDateTasks: false'));
     expect(workspace, contains('items: miniCalendarItems'));
@@ -4576,7 +4542,9 @@ void main() {
     expect(toolbar, contains('agendaLabel: context.l10n.viewAgenda'));
     expect(
       workspace,
-      contains('navigationVisible: _mode != ScheduleViewMode.agenda'),
+      contains(
+        'navigationVisible: !_searchActive && _mode != ScheduleViewMode.agenda',
+      ),
     );
     expect(
       workspace,
@@ -4600,7 +4568,7 @@ void main() {
     expect(
       source,
       contains(
-        'showNoDateTasks: searchHasQuery || '
+        'showNoDateTasks: searchActive || '
         '_mode != ScheduleViewMode.agenda',
       ),
     );
@@ -4612,7 +4580,7 @@ void main() {
     expect(source, contains('limit: _agendaOverdueTaskLimit'));
     expect(source, contains('final noDateTasks = repository.listNoDateTasks'));
     expect(source, contains('limit: _agendaNoDateTaskLimit'));
-    expect(source, contains('showCompletedTasks: false'));
+    expect(source, contains('taskCompletion: ScheduleTaskCompletion.open'));
     expect(source, contains('repository.includeTaskAncestors'));
     expect(source, contains('hasMoreOverdueTasks: overduePage.hasMore'));
     expect(source, contains('hasMoreNoDateTasks: noDatePage.hasMore'));

@@ -46,7 +46,9 @@ final _androidTasksProvider = FutureProvider.autoDispose
           .listAllTasks(
             filters: ScheduleFilters(
               query: key.query,
-              showCompletedTasks: key.completed,
+              taskCompletion: key.completed
+                  ? ScheduleTaskCompletion.all
+                  : ScheduleTaskCompletion.open,
               showNoDateTasks: key.noDate,
               taskListFilterActive: selected != null,
               taskListKeys: selected == null

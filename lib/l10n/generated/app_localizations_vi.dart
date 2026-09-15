@@ -2922,4 +2922,52 @@ class AppLocalizationsVi extends AppLocalizations {
     });
     return '$frequency vào $days $_temp0 của $months';
   }
+
+  @override
+  String get searchFilters => 'Bộ lọc tìm kiếm';
+
+  @override
+  String get searchType => 'Loại';
+
+  @override
+  String get searchDate => 'Ngày';
+
+  @override
+  String get searchAnyDate => 'Mọi ngày';
+
+  @override
+  String get searchThisWeek => 'Tuần này';
+
+  @override
+  String get searchCustomRange => 'Khoảng tùy chọn';
+
+  @override
+  String get searchTaskStatus => 'Trạng thái công việc';
+
+  @override
+  String get searchTaskDue => 'Hạn công việc';
+
+  @override
+  String get searchAnyDueState => 'Mọi trạng thái hạn';
+
+  @override
+  String get searchNoDueDate => 'Không có hạn';
+
+  @override
+  String get searchPerson => 'Người';
+
+  @override
+  String get searchSources => 'Nguồn';
+
+  @override
+  String get searchClearFilters => 'Đặt lại bộ lọc';
+
+  @override
+  String get searchFiltersAction => 'Bộ lọc';
+
+  @override
+  String get searchNoSources => 'Chưa chọn nguồn tìm kiếm';
+
+  @override
+  String get searchClearText => 'Xóa văn bản';
 }

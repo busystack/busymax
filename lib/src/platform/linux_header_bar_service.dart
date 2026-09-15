@@ -781,6 +781,20 @@ class LinuxHeaderBarService {
     return false;
   }
 
+  Future<bool> _focusContent(LinuxHeaderBarSession session) async {
+    if (_disposed || !_available || !_isCurrentSession(session)) {
+      return false;
+    }
+    try {
+      return await _channel.invokeMethod<bool>('focusContent') ?? false;
+    } on MissingPluginException {
+      _available = false;
+    } on PlatformException {
+      _available = false;
+    }
+    return false;
+  }
+
   BusyMaxHeaderBarSearchEvent? _searchEventForCall(MethodCall call) {
     return switch ((call.method, call.arguments)) {
       ('searchQueryChanged', final String query) =>
@@ -901,6 +915,18 @@ class LinuxHeaderBarSession {
       return false;
     }
     return _service._focusSearch(this);
+  }
+
+  /// Returns GTK keyboard focus to the Flutter filter controls.
+  Future<bool> focusContent() async {
+    if (_disposed) {
+      return false;
+    }
+    await initialize();
+    if (!isCurrent) {
+      return false;
+    }
+    return _service._focusContent(this);
   }
 
   Future<void> setOnboardingControls({

@@ -26,6 +26,10 @@ import '../../schedule/schedule_item.dart';
 import '../../schedule/schedule_projection.dart';
 import '../../schedule/schedule_range.dart';
 import '../../schedule/schedule_view_mode.dart';
+import '../../schedule/schedule_source_visibility.dart';
+import '../../schedule/schedule_search_criteria.dart';
+import 'android_schedule_search_filters.dart';
+import '../../features/schedule/presentation/schedule_search_result_text.dart';
 import '../android_notifications.dart';
 import 'android_availability_dialog.dart';
 import 'android_settings_screen.dart';
@@ -34,7 +38,13 @@ import 'android_tasks_screen.dart';
 final _androidScheduleItemsProvider = FutureProvider.autoDispose
     .family<
       List<ScheduleItem>,
-      ({DateTime anchor, ScheduleViewMode mode, String query, int firstWeekday})
+      ({
+        DateTime anchor,
+        ScheduleViewMode mode,
+        String query,
+        int firstWeekday,
+        ScheduleSearchCriteria? search,
+      })
     >((ref, key) async {
       ref.watch(scheduleDataRevisionProvider);
       final sources = await ref.watch(calendarSourcesStreamProvider.future);
@@ -43,33 +53,33 @@ final _androidScheduleItemsProvider = FutureProvider.autoDispose
       return ref
           .watch(scheduleRepositoryProvider)
           .listItems(
-            range: _rangeFor(
-              key.anchor,
-              key.mode,
-              firstWeekday: key.firstWeekday,
-            ),
-            filters: ScheduleFilters(
-              query: key.query,
-              sourceIds: {
-                for (final source in sources)
-                  if (source.selected) source.id,
-              },
-              taskListKeys: {
-                for (final list in lists)
-                  if (settings.isTaskListVisibleInSchedule(
-                    list.accountId,
-                    list.id,
-                  ))
-                    ScheduleTaskListKey(
-                      accountId: list.accountId,
-                      taskListId: list.id,
-                    ),
-              },
-              sourceFilterActive: true,
-              taskListFilterActive: true,
-              showCompletedTasks: true,
-              showNoDateTasks: key.mode == ScheduleViewMode.agenda,
-            ),
+            range:
+                key.search?.range ??
+                _rangeFor(key.anchor, key.mode, firstWeekday: key.firstWeekday),
+            filters:
+                key.search?.filters(key.query) ??
+                ScheduleFilters(
+                  query: key.query,
+                  sourceIds: {
+                    for (final source in sources)
+                      if (source.selected) source.id,
+                  },
+                  taskListKeys: {
+                    for (final list in lists)
+                      if (settings.isTaskListVisibleInSchedule(
+                        list.accountId,
+                        list.id,
+                      ))
+                        ScheduleTaskListKey(
+                          accountId: list.accountId,
+                          taskListId: list.id,
+                        ),
+                  },
+                  sourceFilterActive: true,
+                  taskListFilterActive: true,
+                  taskCompletion: ScheduleTaskCompletion.all,
+                  showNoDateTasks: key.mode == ScheduleViewMode.agenda,
+                ),
           );
     });
 
@@ -85,6 +95,15 @@ class _AndroidScheduleScreenState extends ConsumerState<AndroidScheduleScreen> {
   DateTime _anchor = DateTime.now();
   bool _searching = false;
   String _query = '';
+  final _searchController = TextEditingController();
+  ScheduleSearchCriteria? _searchCriteria;
+  ScheduleSearchCriteria? _initialSearchCriteria;
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -95,6 +114,7 @@ class _AndroidScheduleScreenState extends ConsumerState<AndroidScheduleScreen> {
         anchor: DateTime(_anchor.year, _anchor.month, _anchor.day),
         mode: mode,
         query: _query,
+        search: _searching ? _searchCriteria : null,
         firstWeekday: _firstWeekday(context),
       )),
     );
@@ -102,10 +122,21 @@ class _AndroidScheduleScreenState extends ConsumerState<AndroidScheduleScreen> {
       appBar: AppBar(
         title: _searching
             ? TextField(
+                controller: _searchController,
                 autofocus: true,
                 decoration: InputDecoration(
                   hintText: context.l10n.windowsSearch,
                   border: InputBorder.none,
+                  suffixIcon: IconButton(
+                    tooltip: MaterialLocalizations.of(
+                      context,
+                    ).clearButtonTooltip,
+                    icon: const Icon(Icons.clear),
+                    onPressed: () {
+                      _searchController.clear();
+                      setState(() => _query = '');
+                    },
+                  ),
                 ),
                 onChanged: (value) => setState(() => _query = value),
               )
@@ -126,66 +157,70 @@ class _AndroidScheduleScreenState extends ConsumerState<AndroidScheduleScreen> {
         actions: [
           IconButton(
             tooltip: context.l10n.windowsSearch,
-            onPressed: () => setState(() {
-              _searching = !_searching;
-              if (!_searching) _query = '';
-            }),
+            onPressed: _searching ? _closeSearch : _openSearch,
             icon: Icon(_searching ? Icons.close : Icons.search),
           ),
           IconButton(
-            tooltip: context.l10n.collectionSettings,
-            onPressed: () => _showSources(context),
+            tooltip: _searching
+                ? context.l10n.searchFiltersAction
+                : context.l10n.collectionSettings,
+            onPressed: () =>
+                _searching ? _showSearchFilters() : _showSources(context),
             icon: const Icon(Icons.tune),
           ),
-          PopupMenuButton<ScheduleViewMode>(
-            tooltip: context.l10n.scheduleDisplaySettings,
-            initialValue: mode,
-            onSelected: ref
-                .read(appSettingsControllerProvider.notifier)
-                .setAndroidScheduleViewMode,
-            itemBuilder: (context) => [
-              for (final candidate in ScheduleViewMode.values)
-                PopupMenuItem(
-                  value: candidate,
-                  child: Text(_modeLabel(context, candidate)),
-                ),
-            ],
-          ),
-        ],
-        bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(48),
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(8, 0, 8, 8),
-            child: Row(
-              children: [
-                IconButton(
-                  tooltip: context.l10n.shortcutPreviousPeriod,
-                  onPressed: () =>
-                      setState(() => _anchor = _move(_anchor, mode, -1)),
-                  icon: const Icon(Icons.chevron_left),
-                ),
-                FilledButton.tonal(
-                  onPressed: () => setState(() => _anchor = DateTime.now()),
-                  child: Text(context.l10n.today),
-                ),
-                IconButton(
-                  tooltip: context.l10n.shortcutNextPeriod,
-                  onPressed: () =>
-                      setState(() => _anchor = _move(_anchor, mode, 1)),
-                  icon: const Icon(Icons.chevron_right),
-                ),
-                const Spacer(),
-                Flexible(
-                  child: Text(
-                    _modeLabel(context, mode),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
+          if (!_searching)
+            PopupMenuButton<ScheduleViewMode>(
+              tooltip: context.l10n.scheduleDisplaySettings,
+              initialValue: mode,
+              onSelected: ref
+                  .read(appSettingsControllerProvider.notifier)
+                  .setAndroidScheduleViewMode,
+              itemBuilder: (context) => [
+                for (final candidate in ScheduleViewMode.values)
+                  PopupMenuItem(
+                    value: candidate,
+                    child: Text(_modeLabel(context, candidate)),
                   ),
-                ),
               ],
             ),
-          ),
-        ),
+        ],
+        bottom: _searching
+            ? null
+            : PreferredSize(
+                preferredSize: const Size.fromHeight(48),
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(8, 0, 8, 8),
+                  child: Row(
+                    children: [
+                      IconButton(
+                        tooltip: context.l10n.shortcutPreviousPeriod,
+                        onPressed: () =>
+                            setState(() => _anchor = _move(_anchor, mode, -1)),
+                        icon: const Icon(Icons.chevron_left),
+                      ),
+                      FilledButton.tonal(
+                        onPressed: () =>
+                            setState(() => _anchor = DateTime.now()),
+                        child: Text(context.l10n.today),
+                      ),
+                      IconButton(
+                        tooltip: context.l10n.shortcutNextPeriod,
+                        onPressed: () =>
+                            setState(() => _anchor = _move(_anchor, mode, 1)),
+                        icon: const Icon(Icons.chevron_right),
+                      ),
+                      const Spacer(),
+                      Flexible(
+                        child: Text(
+                          _modeLabel(context, mode),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
       ),
       body: items.when(
         loading: () => const Center(child: CircularProgressIndicator()),
@@ -195,16 +230,26 @@ class _AndroidScheduleScreenState extends ConsumerState<AndroidScheduleScreen> {
           detail: '$error',
         ),
         data: (value) =>
-            value.isEmpty &&
-                (_query.isNotEmpty || mode == ScheduleViewMode.agenda)
+            value.isEmpty && (_searching || mode == ScheduleViewMode.agenda)
             ? _Message(
-                icon: _query.isEmpty ? Icons.event_busy : Icons.search_off,
-                title: _query.isEmpty
+                icon: !_searching ? Icons.event_busy : Icons.search_off,
+                title: !_searching
                     ? context.l10n.noEventsOrTasks
+                    : _searchCriteria?.hasSources == false
+                    ? context.l10n.searchNoSources
                     : context.l10n.scheduleNoSearchResults,
-                detail: _query.isEmpty
+                detail: !_searching
                     ? context.l10n.noEventsOrTasks
                     : context.l10n.scheduleNoSearchResultsDescription,
+              )
+            : _searching
+            ? _AgendaList(
+                key: const ValueKey('android-search-results'),
+                items: value,
+                onOpen: (item) => _showItem(context, item),
+                onToggleTask: _toggleTask,
+                searchCriteria: _searchCriteria,
+                searchQuery: _query,
               )
             : _ScheduleBody(
                 anchor: _anchor,
@@ -225,6 +270,77 @@ class _AndroidScheduleScreenState extends ConsumerState<AndroidScheduleScreen> {
         onPressed: () => _createItem(context),
         tooltip: context.l10n.create,
         child: const Icon(Icons.add),
+      ),
+    );
+  }
+
+  Future<void> _openSearch() async {
+    final sources = await ref.read(calendarSourcesStreamProvider.future);
+    final lists = await ref.read(scheduleTaskListsProvider.future);
+    if (!mounted) return;
+    final visibility = ScheduleSourceVisibility.fromSources(
+      calendarSources: sources,
+      taskLists: lists,
+      settings: ref.read(appSettingsControllerProvider),
+    );
+    final now = DateTime.now();
+    setState(() {
+      _initialSearchCriteria = ScheduleSearchCriteria(
+        referenceDate: DateTime(now.year, now.month, now.day),
+        firstWeekday: _firstWeekday(context),
+        sourceIds: visibility.visibleCalendarSourceIds,
+        taskListKeys: visibility.visibleTaskListKeys,
+      );
+      _searchCriteria = _initialSearchCriteria;
+      _searching = true;
+    });
+  }
+
+  void _closeSearch() {
+    setState(() {
+      _searching = false;
+      _searchCriteria = null;
+      _initialSearchCriteria = null;
+      _query = '';
+      _searchController.clear();
+    });
+  }
+
+  Future<void> _showSearchFilters() async {
+    if (_searchCriteria == null) return;
+    await showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      isScrollControlled: true,
+      builder: (context) => StatefulBuilder(
+        builder: (context, update) => SafeArea(
+          child: Padding(
+            padding: EdgeInsetsDirectional.only(
+              bottom: MediaQuery.viewInsetsOf(context).bottom,
+            ),
+            child: SizedBox(
+              height: MediaQuery.sizeOf(context).height * .8,
+              child: AndroidScheduleSearchFilters(
+                value: _searchCriteria!,
+                accounts:
+                    ref.read(accountsStreamProvider).valueOrNull ?? const [],
+                sources:
+                    ref.read(calendarSourcesStreamProvider).valueOrNull ??
+                    const [],
+                taskLists:
+                    ref.read(scheduleTaskListsProvider).valueOrNull ?? const [],
+                onChanged: (value) {
+                  setState(() => _searchCriteria = value);
+                  update(() {});
+                },
+                onClear: () {
+                  setState(() => _searchCriteria = _initialSearchCriteria);
+                  update(() {});
+                },
+              ),
+            ),
+          ),
+        ),
       ),
     );
   }
@@ -751,10 +867,15 @@ class _ScheduleBody extends StatelessWidget {
 
 class _AgendaList extends StatelessWidget {
   const _AgendaList({
+    super.key,
+    this.searchCriteria,
+    this.searchQuery = '',
     required this.items,
     required this.onOpen,
     required this.onToggleTask,
   });
+  final ScheduleSearchCriteria? searchCriteria;
+  final String searchQuery;
   final List<ScheduleItem> items;
   final ValueChanged<ScheduleItem> onOpen;
   final ValueChanged<TaskScheduleItem> onToggleTask;
@@ -822,7 +943,16 @@ class _AgendaList extends StatelessWidget {
                   overflow: TextOverflow.ellipsis,
                 ),
                 subtitle: Text(
-                  '$time · ${item.sourceName ?? item.provider.displayName}',
+                  searchCriteria != null
+                      ? scheduleSearchResultText(
+                          context,
+                          item,
+                          searchCriteria!,
+                          searchQuery,
+                        )
+                      : '$time · ${item.sourceName ?? item.provider.displayName}',
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
                 ),
                 onTap: () => onOpen(item),
               ),

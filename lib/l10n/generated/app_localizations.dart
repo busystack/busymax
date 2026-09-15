@@ -4867,6 +4867,102 @@ abstract class AppLocalizations {
     String position,
     String days,
   );
+
+  /// No description provided for @searchFilters.
+  ///
+  /// In en, this message translates to:
+  /// **'Search filters'**
+  String get searchFilters;
+
+  /// No description provided for @searchType.
+  ///
+  /// In en, this message translates to:
+  /// **'Type'**
+  String get searchType;
+
+  /// No description provided for @searchDate.
+  ///
+  /// In en, this message translates to:
+  /// **'Date'**
+  String get searchDate;
+
+  /// No description provided for @searchAnyDate.
+  ///
+  /// In en, this message translates to:
+  /// **'Any date'**
+  String get searchAnyDate;
+
+  /// No description provided for @searchThisWeek.
+  ///
+  /// In en, this message translates to:
+  /// **'This week'**
+  String get searchThisWeek;
+
+  /// No description provided for @searchCustomRange.
+  ///
+  /// In en, this message translates to:
+  /// **'Custom range'**
+  String get searchCustomRange;
+
+  /// No description provided for @searchTaskStatus.
+  ///
+  /// In en, this message translates to:
+  /// **'Task status'**
+  String get searchTaskStatus;
+
+  /// No description provided for @searchTaskDue.
+  ///
+  /// In en, this message translates to:
+  /// **'Task due'**
+  String get searchTaskDue;
+
+  /// No description provided for @searchAnyDueState.
+  ///
+  /// In en, this message translates to:
+  /// **'Any due state'**
+  String get searchAnyDueState;
+
+  /// No description provided for @searchNoDueDate.
+  ///
+  /// In en, this message translates to:
+  /// **'No due date'**
+  String get searchNoDueDate;
+
+  /// No description provided for @searchPerson.
+  ///
+  /// In en, this message translates to:
+  /// **'Person'**
+  String get searchPerson;
+
+  /// No description provided for @searchSources.
+  ///
+  /// In en, this message translates to:
+  /// **'Sources'**
+  String get searchSources;
+
+  /// No description provided for @searchClearFilters.
+  ///
+  /// In en, this message translates to:
+  /// **'Clear filters'**
+  String get searchClearFilters;
+
+  /// No description provided for @searchFiltersAction.
+  ///
+  /// In en, this message translates to:
+  /// **'Filters'**
+  String get searchFiltersAction;
+
+  /// No description provided for @searchNoSources.
+  ///
+  /// In en, this message translates to:
+  /// **'No search sources selected'**
+  String get searchNoSources;
+
+  /// No description provided for @searchClearText.
+  ///
+  /// In en, this message translates to:
+  /// **'Clear text'**
+  String get searchClearText;
 }
 
 class _AppLocalizationsDelegate

@@ -1099,5 +1099,21 @@
       "position": {"type": "String"},
       "days": {"type": "String"}
     }
-  }
+  },
+  "searchFilters": "فیلترهای جستجو",
+  "searchType": "نوع",
+  "searchDate": "تاریخ",
+  "searchAnyDate": "هر تاریخی",
+  "searchThisWeek": "این هفته",
+  "searchCustomRange": "بازهٔ دلخواه",
+  "searchTaskStatus": "وضعیت کار",
+  "searchTaskDue": "سررسید کار",
+  "searchAnyDueState": "هر وضعیت سررسید",
+  "searchNoDueDate": "بدون تاریخ سررسید",
+  "searchPerson": "شخص",
+  "searchSources": "منابع",
+  "searchClearFilters": "بازنشانی فیلترها",
+  "searchFiltersAction": "فیلترها",
+  "searchNoSources": "هیچ منبع جستجویی انتخاب نشده است",
+  "searchClearText": "پاک کردن متن"
 }
