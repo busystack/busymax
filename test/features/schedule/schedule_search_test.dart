@@ -81,6 +81,80 @@ void main() {
         expect(matches(task(), ScheduleFilters(person: term)), isFalse);
       });
     }
+    for (final nested in [false, true]) {
+      test('Person terms must identify one attendee (nested: $nested)', () {
+        Map<String, Object?> identity(String name, String email) => nested
+            ? {
+                'emailAddress': {'name': name, 'address': email},
+              }
+            : {'displayName': name, 'email': email};
+        final participants = CalendarScheduleItem(
+          id: 'participants',
+          accountId: 'account',
+          provider: BusyProvider.microsoft,
+          sourceId: 'calendar',
+          providerCalendarId: 'calendar',
+          title: 'Meeting',
+          allDay: true,
+          attendees: [
+            identity('Alex Jones', 'alex@example.com'),
+            identity('Robin Smith', 'robin@example.com'),
+          ],
+          organizer: identity('Morgan Lee', 'morgan@example.com'),
+        );
+        bool personMatches(String person) => matches(
+          participants,
+          ScheduleFilters(ignoreDateRange: true, person: person),
+        );
+        expect(personMatches('Alex Smith'), isFalse);
+        expect(personMatches('Morgan Jones'), isFalse);
+        expect(personMatches('Alex robin@example.com'), isFalse);
+        expect(personMatches('ALEX Jones'), isTrue);
+        expect(personMatches('Alex alex@example.com'), isTrue);
+        expect(personMatches('Morgan morgan@example.com'), isTrue);
+        // Free text deliberately keeps its cross-field matching semantics.
+        expect(matchesScheduleQuery(participants, 'Alex Smith'), isTrue);
+      });
+    }
+    test('Person context describes the matching participant', () {
+      const participants = CalendarScheduleItem(
+        id: 'participants',
+        accountId: 'account',
+        provider: BusyProvider.microsoft,
+        sourceId: 'calendar',
+        providerCalendarId: 'calendar',
+        title: 'Meeting',
+        allDay: true,
+        organizer: {'name': 'Alex Jones', 'email': 'jones@example.com'},
+        attendees: [
+          {'name': 'Alex Smith', 'email': 'smith@example.com'},
+        ],
+      );
+      final snippet = scheduleMatchContext(
+        participants,
+        '',
+        person: 'Alex Smith',
+      );
+      expect(snippet, contains('Alex Smith'));
+      expect(snippet, isNot(contains('Jones')));
+    });
+    test('long snippets include the match within bounded text', () {
+      for (final padding in [0, 200]) {
+        final item = TaskScheduleItem(
+          id: 'long-notes',
+          accountId: 'account',
+          provider: BusyProvider.microsoft,
+          sourceId: 'list',
+          title: 'Report',
+          completed: false,
+          allDay: true,
+          notes: '${'x' * padding} needle ${'y' * 200}',
+        );
+        final snippet = scheduleMatchContext(item, 'needle')!;
+        expect(snippet, contains('needle'));
+        expect(snippet.length, lessThanOrEqualTo(142));
+      }
+    });
     test(
       'identity extraction ignores response metadata and handles organizer emailAddress',
       () {

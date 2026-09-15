@@ -169,7 +169,7 @@ class WindowsScheduleSearchPane extends StatelessWidget {
       checked: checked,
       onChanged: onChanged,
       content: SizedBox(
-        width: (constraints.maxWidth - 36).clamp(0, double.infinity),
+        width: (constraints.maxWidth - 36).clamp(0, double.infinity).toDouble(),
         child: Row(
           children: [
             Icon(windowsBusyMaxGlyph(glyph), size: 16),

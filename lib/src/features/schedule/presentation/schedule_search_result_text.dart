@@ -16,11 +16,27 @@ String scheduleSearchResultText(
   final l = context.l10n;
   final locale = Localizations.localeOf(context).toLanguageTag();
   String date(DateTime value) => DateFormat.yMMMd(locale).format(value);
+  String taskDate(DateTime value) {
+    // A DAV task can have an all-day start and a separately timed due value.
+    final hasTime =
+        !item.allDay ||
+        value.hour != 0 ||
+        value.minute != 0 ||
+        value.second != 0 ||
+        value.millisecond != 0 ||
+        value.microsecond != 0;
+    return hasTime
+        ? formatClockDateTime(context, value, date(value))
+        : date(value);
+  }
+
   final start = item.start;
   final time = item is TaskScheduleItem
-      ? item.due == null
-            ? l.searchNoDueDate
-            : '${l.dueDate}: ${date(item.due!)}'
+      ? item.due != null
+            ? '${l.dueDate}: ${taskDate(item.due!)}'
+            : start != null
+            ? '${l.startDate}: ${taskDate(start)}'
+            : l.searchNoDueDate
       : start == null
       ? l.noDate
       : item.allDay

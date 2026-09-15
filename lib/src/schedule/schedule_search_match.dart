@@ -13,11 +13,12 @@ List<String> _terms(String query) => query
 
 /// Only identity fields are searchable; response and other provider metadata
 /// deliberately do not become part of a person's identity.
-Iterable<String> scheduleEventPeople(CalendarScheduleItem item) sync* {
+Iterable<List<String>> scheduleEventPeople(CalendarScheduleItem item) sync* {
   for (final person in [
     if (item.organizer != null) item.organizer!,
     ...item.attendees,
   ]) {
+    final identity = <String>[];
     for (final key in const [
       'displayName',
       'name',
@@ -27,16 +28,22 @@ Iterable<String> scheduleEventPeople(CalendarScheduleItem item) sync* {
       'uri',
     ]) {
       final value = person[key];
-      if (value is String && value.trim().isNotEmpty) yield value;
+      if (value is String && value.trim().isNotEmpty) identity.add(value);
     }
     final nested = person['emailAddress'];
     if (nested is Map) {
       for (final key in const ['name', 'address']) {
         final value = nested[key];
-        if (value is String && value.trim().isNotEmpty) yield value;
+        if (value is String && value.trim().isNotEmpty) identity.add(value);
       }
     }
+    if (identity.isNotEmpty) yield identity;
   }
+}
+
+bool _matchesPerson(List<String> identity, List<String> terms) {
+  final fields = identity.map((field) => field.toLowerCase()).toList();
+  return terms.every((term) => fields.any((field) => field.contains(term)));
 }
 
 String? scheduleItemLocation(ScheduleItem item) => switch (item) {
@@ -53,7 +60,11 @@ String _plainDescription(ScheduleItem item) => switch (item) {
 
 Iterable<String> _contextFields(ScheduleItem item) sync* {
   yield scheduleItemLocation(item) ?? '';
-  if (item is CalendarScheduleItem) yield* scheduleEventPeople(item);
+  if (item is CalendarScheduleItem) {
+    for (final identity in scheduleEventPeople(item)) {
+      yield* identity;
+    }
+  }
   yield _plainDescription(item);
   yield* item.categories;
   if (item is TaskScheduleItem) {
@@ -110,12 +121,11 @@ bool matchesScheduleFilters(
         return false;
       }
     }
-    final people = scheduleEventPeople(
-      item,
-    ).map((s) => s.toLowerCase()).toList();
-    if (!_terms(
-      filters.person,
-    ).every((term) => people.any((s) => s.contains(term)))) {
+    final personTerms = _terms(filters.person);
+    if (personTerms.isNotEmpty &&
+        !scheduleEventPeople(
+          item,
+        ).any((identity) => _matchesPerson(identity, personTerms))) {
       return false;
     }
   }
@@ -171,9 +181,10 @@ String? scheduleMatchContext(
     return _snippet(scheduleItemLocation(item)!, _terms(location));
   }
   if (person.trim().isNotEmpty && item is CalendarScheduleItem) {
+    final personTerms = _terms(person);
     for (final identity in scheduleEventPeople(item)) {
-      if (_terms(person).any(identity.toLowerCase().contains)) {
-        return _snippet(identity, _terms(person));
+      if (_matchesPerson(identity, personTerms)) {
+        return _snippet(identity.join(' · '), personTerms);
       }
     }
   }
@@ -194,7 +205,7 @@ String _snippet(String field, List<String> terms) {
         ..sort();
   final start = matches.isEmpty
       ? 0
-      : (matches.first - 35).clamp(0, text.length - 140);
+      : (matches.first - 35).clamp(0, text.length - 140).toInt();
   return '${start > 0 ? '…' : ''}${text.substring(start, start + 140)}…';
 }
 

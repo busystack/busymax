@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
 import 'package:yaru/yaru.dart';
 import '../../../app/busymax_design.dart';
 
@@ -9,6 +8,7 @@ import '../../../schedule/schedule_filters.dart';
 import '../../accounts/data/accounts_repository.dart';
 import '../../calendar/data/calendar_repository.dart';
 import '../../task_lists/data/task_lists_repository.dart';
+import '../../tasks/presentation/desktop_date_time_fields.dart';
 import 'schedule_search_labels.dart';
 
 /// Compact Yaru search controls for the existing Schedule sidebar.
@@ -54,18 +54,8 @@ class ScheduleSearchFilters extends StatelessWidget {
           (v) => onChanged(value.copyWith(date: v)),
         ),
         if (value.date == ScheduleSearchDate.custom) ...[
-          _date(
-            context,
-            l.startDate,
-            value.customStart ?? value.referenceDate,
-            true,
-          ),
-          _date(
-            context,
-            l.endDate,
-            value.customEnd ?? value.referenceDate,
-            false,
-          ),
+          _date(l.startDate, value.customStart ?? value.referenceDate, true),
+          _date(l.endDate, value.customEnd ?? value.referenceDate, false),
         ],
         if (value.includesTasks) ...[
           _select(
@@ -187,22 +177,14 @@ class ScheduleSearchFilters extends StatelessWidget {
         child: _SearchFilterText(label: label, value: text, onChanged: changed),
       );
 
-  Widget _date(
-    BuildContext context,
-    String label,
-    DateTime date,
-    bool start,
-  ) => Padding(
+  Widget _date(String label, DateTime date, bool start) => Padding(
     padding: const EdgeInsetsDirectional.only(bottom: 8),
-    child: OutlinedButton(
-      onPressed: () async {
-        final picked = await showDatePicker(
-          context: context,
-          initialDate: date,
-          firstDate: DateTime(1900),
-          lastDate: DateTime(2200),
-        );
-        if (picked == null) return;
+    child: DesktopDateField(
+      label: label,
+      date: encodeDateOnly(date),
+      useNativePicker: true,
+      onChanged: (date) {
+        final picked = DateTime.parse(date);
         final from = start ? picked : value.customStart ?? value.referenceDate;
         final to = start ? value.customEnd ?? value.referenceDate : picked;
         onChanged(
@@ -212,9 +194,6 @@ class ScheduleSearchFilters extends StatelessWidget {
           ),
         );
       },
-      child: Text(
-        '$label: ${DateFormat.yMMMd(Localizations.localeOf(context).toLanguageTag()).format(date)}',
-      ),
     ),
   );
 }
