@@ -15,6 +15,7 @@ class GoogleCalendarApiClient
     implements
         CloudCalendarClient,
         CompleteRecurringInstanceClient,
+        DetailedFreeBusyClient,
         CalendarListManagementClient {
   GoogleCalendarApiClient({
     required http.Client httpClient,
@@ -502,6 +503,20 @@ class GoogleCalendarApiClient
     required DateTime rangeStart,
     required DateTime rangeEnd,
   }) async {
+    final results = await freeBusyDetails(
+      calendarIds: calendarIds,
+      rangeStart: rangeStart,
+      rangeEnd: rangeEnd,
+    );
+    return [for (final result in results) ...result.busySlots];
+  }
+
+  @override
+  Future<List<FreeBusyCalendarResultDto>> freeBusyDetails({
+    required List<String> calendarIds,
+    required DateTime rangeStart,
+    required DateTime rangeEnd,
+  }) async {
     final json = await _requestJson(
       'POST',
       _uri('/calendar/v3/freeBusy'),
@@ -515,19 +530,64 @@ class GoogleCalendarApiClient
     );
     final calendars = json['calendars'];
     if (calendars is! Map) {
-      return const [];
+      return [
+        for (final calendarId in calendarIds)
+          FreeBusyCalendarResultDto(
+            calendarId: calendarId,
+            status: FreeBusyEvaluationStatus.missing,
+          ),
+      ];
     }
+    final responses = {
+      for (final entry in calendars.entries)
+        entry.key.toString().toLowerCase(): entry,
+    };
+    return [
+      for (final calendarId in calendarIds)
+        _googleFreeBusyResult(calendarId, responses[calendarId.toLowerCase()]),
+    ];
+  }
+
+  FreeBusyCalendarResultDto _googleFreeBusyResult(
+    String requestedCalendarId,
+    MapEntry<Object?, Object?>? entry,
+  ) {
+    if (entry == null) {
+      return FreeBusyCalendarResultDto(
+        calendarId: requestedCalendarId,
+        status: FreeBusyEvaluationStatus.missing,
+      );
+    }
+    final value = entry.value;
+    if (value is! Map) {
+      return FreeBusyCalendarResultDto(
+        calendarId: requestedCalendarId,
+        status: FreeBusyEvaluationStatus.failed,
+        errors: const ['Malformed free/busy result.'],
+      );
+    }
+    final errors = <String>[
+      if (value['errors'] case final List<dynamic> values)
+        for (final error in values)
+          if (error is Map)
+            error['reason']?.toString() ??
+                error['domain']?.toString() ??
+                'error'
+          else
+            error.toString(),
+    ];
+    final busy = value['busy'];
+    if (busy is! List) {
+      return FreeBusyCalendarResultDto(
+        calendarId: requestedCalendarId,
+        status: FreeBusyEvaluationStatus.failed,
+        errors: errors.isEmpty ? const ['Malformed free/busy result.'] : errors,
+      );
+    }
+    var malformedInterval = false;
     final slots = <BusySlotDto>[];
-    for (final entry in calendars.entries) {
-      final value = entry.value;
-      if (value is! Map) {
-        continue;
-      }
-      final busy = value['busy'];
-      if (busy is! List) {
-        continue;
-      }
-      for (final item in busy.whereType<Map>()) {
+    for (final item in busy) {
+      if (item is Map) {
         final start = DateTime.tryParse(item['start']?.toString() ?? '');
         final end = DateTime.tryParse(item['end']?.toString() ?? '');
         if (start != null && end != null) {
@@ -538,10 +598,20 @@ class GoogleCalendarApiClient
               end: end,
             ),
           );
+          continue;
         }
       }
+      malformedInterval = true;
     }
-    return slots;
+    if (malformedInterval) errors.add('Malformed busy interval.');
+    return FreeBusyCalendarResultDto(
+      calendarId: requestedCalendarId,
+      status: errors.isEmpty
+          ? FreeBusyEvaluationStatus.success
+          : FreeBusyEvaluationStatus.failed,
+      busySlots: slots,
+      errors: errors,
+    );
   }
 
   Future<void> _requestEmpty(String method, Uri uri) async {

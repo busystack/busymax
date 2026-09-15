@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:busymax/src/calendar_providers/calendar_mutation.dart';
+import 'package:busymax/src/calendar_providers/calendar_sync_dto.dart';
 import 'package:busymax/src/db/app_database.dart';
 import 'package:busymax/src/features/sync/calendar_sync_engine.dart';
 import 'package:busymax/src/google_calendar/google_calendar_api_client.dart';
@@ -239,6 +240,52 @@ void main() {
         {'email': 'me@example.com', 'responseStatus': 'tentative'},
       ],
     });
+  });
+
+  test('free/busy preserves success, failure, and missing calendars', () async {
+    final client = _client(
+      (_) => _json({
+        'calendars': {
+          'free@example.com': {'busy': <Object?>[]},
+          'busy@example.com': {
+            'busy': [
+              {'start': '2026-09-14T17:00:00Z', 'end': '2026-09-14T18:00:00Z'},
+            ],
+          },
+          'failed@example.com': {
+            'errors': [
+              {'domain': 'global', 'reason': 'notFound'},
+            ],
+            'busy': <Object?>[],
+          },
+        },
+      }),
+    );
+
+    final results = await client.freeBusyDetails(
+      calendarIds: const [
+        'free@example.com',
+        'busy@example.com',
+        'failed@example.com',
+        'missing@example.com',
+      ],
+      rangeStart: DateTime.utc(2026, 9, 14, 16),
+      rangeEnd: DateTime.utc(2026, 9, 14, 20),
+    );
+
+    expect(results.map((result) => result.calendarId), [
+      'free@example.com',
+      'busy@example.com',
+      'failed@example.com',
+      'missing@example.com',
+    ]);
+    expect(results[0].status, FreeBusyEvaluationStatus.success);
+    expect(results[0].busySlots, isEmpty);
+    expect(results[1].status, FreeBusyEvaluationStatus.success);
+    expect(results[1].busySlots, hasLength(1));
+    expect(results[2].status, FreeBusyEvaluationStatus.failed);
+    expect(results[2].errors, contains('notFound'));
+    expect(results[3].status, FreeBusyEvaluationStatus.missing);
   });
 
   test(

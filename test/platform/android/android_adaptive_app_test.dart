@@ -9,6 +9,7 @@ import 'package:busymax/src/android/presentation/android_schedule_screen.dart';
 import 'package:busymax/src/android/presentation/android_settings_screen.dart';
 import 'package:busymax/src/android/presentation/android_tasks_screen.dart';
 import 'package:busymax/src/app/app_bootstrap.dart';
+import 'package:busymax/src/calendar_providers/cloud_calendar_client.dart';
 import 'package:busymax/src/config/build_config.dart';
 import 'package:busymax/src/db/app_database.dart';
 import 'package:busymax/src/features/calendar/data/calendar_repository.dart';
@@ -18,6 +19,7 @@ import 'package:busymax/src/features/feedback/data/feedback_submission.dart';
 import 'package:busymax/src/features/notifications/notification_reconciler.dart';
 import 'package:busymax/src/features/recurrence/domain/recurrence_rule.dart';
 import 'package:busymax/src/features/sync/pending_mutation_sync_requester.dart';
+import 'package:busymax/src/google_calendar/google_calendar_api_client.dart';
 import 'package:busymax/src/features/task_lists/data/task_lists_repository.dart';
 import 'package:busymax/src/features/tasks/data/tasks_repository.dart';
 import 'package:busymax/src/features/tasks/domain/task_capabilities.dart';
@@ -29,9 +31,16 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:http/http.dart' as http;
+import 'package:http/testing.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 
 import '../../support/memory_settings_store.dart';
+
+final _longScheduleDetailsNotes = List.generate(
+  60,
+  (index) => 'Full task note line ${index + 1}',
+).join('\n');
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -293,6 +302,62 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets(
+    'long schedule details remain scrollable across constrained viewports',
+    (tester) async {
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+      const viewports = [
+        (Size(412, 915), 1.0, 'phone'),
+        (Size(700, 320), 1.0, 'short landscape'),
+        (Size(390, 844), 2.0, 'enlarged text'),
+      ];
+
+      for (final (size, textScale, label) in viewports) {
+        tester.view.physicalSize = size;
+        tester.platformDispatcher.textScaleFactorTestValue = textScale;
+        tester.binding.handleMetricsChanged();
+        tester.binding.handleTextScaleFactorChanged();
+        final harness = await _pumpApp(
+          tester,
+          AppSettings.defaults().copyWith(
+            androidScheduleViewMode: ScheduleViewMode.day,
+          ),
+          populated: true,
+        );
+        try {
+          final more = find.ancestor(
+            of: find.textContaining('more').first,
+            matching: find.byType(TextButton),
+          );
+          tester.widget<TextButton>(more).onPressed!();
+          await tester.pumpAndSettle();
+          final task = find.text('Date-only task');
+          await _scrollUntilBuilt(tester, task);
+          await tester.ensureVisible(task);
+          await tester.tap(task);
+          await tester.pumpAndSettle();
+
+          final details = find.byKey(
+            const ValueKey('android-schedule-details-scroll'),
+          );
+          final edit = find.text('Edit Task');
+          expect(details, findsOneWidget, reason: label);
+          expect(find.text(_longScheduleDetailsNotes), findsOneWidget);
+          expect(edit, findsOneWidget, reason: label);
+          await tester.ensureVisible(edit);
+          await tester.pumpAndSettle();
+          expect(edit.hitTestable(), findsOneWidget, reason: label);
+          expect(tester.takeException(), isNull, reason: label);
+        } finally {
+          await harness.dispose();
+        }
+      }
+    },
+  );
+
   testWidgets('Android invitation response queues the provider payload', (
     tester,
   ) async {
@@ -427,6 +492,91 @@ void main() {
         find.textContaining('Availability is unavailable'),
         findsOneWidget,
       );
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
+    'Google guest availability shows failures and missing results as unknown',
+    (tester) async {
+      final client = GoogleCalendarApiClient(
+        httpClient: MockClient(
+          (_) async => http.Response(
+            jsonEncode({
+              'calendars': {
+                'free@example.com': {'busy': <Object?>[]},
+                'failed@example.com': {
+                  'errors': [
+                    {'domain': 'global', 'reason': 'notFound'},
+                  ],
+                  'busy': <Object?>[],
+                },
+              },
+            }),
+            200,
+            headers: {'Content-Type': 'application/json'},
+          ),
+        ),
+        baseUri: Uri.parse('https://www.googleapis.com'),
+        authorizationHeaderProvider: () async => 'Bearer token',
+      );
+      final harness = await _pumpApp(
+        tester,
+        AppSettings.defaults(),
+        calendarClient: client,
+      );
+      addTearDown(harness.dispose);
+      final now = DateTime.now();
+      const source = CalendarSourceEntity(
+        id: 'calendar',
+        accountId: 'google:editable',
+        provider: BusyProvider.google,
+        providerCalendarId: 'calendar',
+        summary: 'Editable calendar',
+        selected: true,
+        hidden: false,
+        readOnly: false,
+        isDeleted: false,
+      );
+      tester
+          .state<NavigatorState>(find.byType(Navigator).first)
+          .push<void>(
+            MaterialPageRoute(
+              builder: (_) => AndroidEventEditor(
+                sources: const [source],
+                draft: EventEditorDraft.existing(
+                  eventId: 'availability-event',
+                  accountId: source.accountId,
+                  sourceId: source.id,
+                  providerCalendarId: source.providerCalendarId,
+                  title: 'Availability event',
+                  allDay: false,
+                  start: now,
+                  end: now.add(const Duration(hours: 1)),
+                  attendees: const [
+                    EventAttendeeDraft(email: 'free@example.com'),
+                    EventAttendeeDraft(email: 'failed@example.com'),
+                    EventAttendeeDraft(email: 'missing@example.com'),
+                  ],
+                ),
+              ),
+            ),
+          );
+      await tester.pumpAndSettle();
+      final action = find.text('Check guest availability');
+      await _scrollUntilBuilt(tester, action);
+      await tester.ensureVisible(action);
+      await tester.tap(action);
+      await tester.pumpAndSettle();
+
+      expect(
+        find.text('No busy periods reported for this interval'),
+        findsOneWidget,
+      );
+      expect(find.text('Availability unknown'), findsNWidgets(2));
+      expect(find.text('free@example.com'), findsOneWidget);
+      expect(find.text('failed@example.com'), findsOneWidget);
+      expect(find.text('missing@example.com'), findsOneWidget);
       expect(tester.takeException(), isNull);
     },
   );
@@ -787,15 +937,13 @@ void main() {
     final navigator = tester.state<NavigatorState>(
       find.byType(Navigator).first,
     );
-    void open() => navigator.push<void>(
+    void open(EventEditorDraft draft) => navigator.push<void>(
       MaterialPageRoute(
-        builder: (_) => AndroidEventEditor(
-          sources: const [sourceA, sourceB],
-          draft: initial,
-        ),
+        builder: (_) =>
+            AndroidEventEditor(sources: const [sourceA, sourceB], draft: draft),
       ),
     );
-    open();
+    open(initial);
     await tester.pumpAndSettle();
 
     await tester.tap(find.byType(DropdownButtonFormField<String>).first);
@@ -810,13 +958,23 @@ void main() {
     expect(saved['accountId'], sourceB.accountId);
     expect(saved['sourceId'], sourceB.id);
     expect(saved['providerCalendarId'], sourceB.providerCalendarId);
+    expect(saved['v'], 3);
+    expect(saved['eventId'], isNull);
+    expect(saved['start'], initial.start!.toIso8601String());
 
     final route = ModalRoute.of(
       tester.element(find.byType(AndroidEventEditor)),
     )!;
     navigator.removeRoute(route);
     await tester.pumpAndSettle();
-    open();
+    final reopenedOnAnotherDate = EventEditorDraft.newEvent(
+      accountId: sourceA.accountId,
+      sourceId: sourceA.id,
+      providerCalendarId: sourceA.providerCalendarId,
+      start: now.add(const Duration(days: 3)),
+      end: now.add(const Duration(days: 3, hours: 1)),
+    );
+    open(reopenedOnAnotherDate);
     await tester.pumpAndSettle();
     await tester.tap(find.text('Restore'));
     await tester.pumpAndSettle();
@@ -828,6 +986,7 @@ void main() {
         .cast<String, Object?>();
     expect(rewritten['showAs'], isNull);
     expect(rewritten['visibility'], isNull);
+    expect(rewritten['start'], initial.start!.toIso8601String());
     expect(tester.takeException(), isNull);
   });
 
@@ -1303,6 +1462,7 @@ Future<_AndroidAppHarness> _pumpApp(
   Future<void> Function(AppDatabase database)? seedDatabase,
   Future<void> Function(String accountId)? onCalendarSync,
   FeedbackSubmissionService? feedbackService,
+  CloudCalendarClient? calendarClient,
 }) async {
   final database = AppDatabase.memoryForTests();
   if (seedDatabase != null) await seedDatabase(database);
@@ -1340,6 +1500,10 @@ Future<_AndroidAppHarness> _pumpApp(
         }),
       if (feedbackService != null)
         feedbackSubmissionServiceProvider.overrideWithValue(feedbackService),
+      if (calendarClient != null)
+        calendarRemoteApiClientForAccountProvider.overrideWith(
+          (ref, accountId) => calendarClient,
+        ),
       initialAppSettingsProvider.overrideWithValue(settings),
       localSettingsStoreProvider.overrideWithValue(MemorySettingsStore()),
       allAccountsSyncRunnerProvider.overrideWithValue(() async {}),
@@ -1412,6 +1576,7 @@ Future<void> _seedPopulatedSchedule(AppDatabase database) async {
       taskListId: 'visible-list',
       id: 'date-only-task',
       title: 'Date-only task',
+      notes: Value(_longScheduleDetailsNotes),
       dueUtc: Value(
         '${today.year.toString().padLeft(4, '0')}-'
         '${today.month.toString().padLeft(2, '0')}-'

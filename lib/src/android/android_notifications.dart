@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:busymax_android_platform/busymax_android_platform.dart';
+import 'package:crypto/crypto.dart';
 import 'package:drift/drift.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -492,10 +493,6 @@ final class AndroidNotificationService
       activeIds = const {};
     }
     final exact = await canScheduleExactly();
-    final registrationState = androidNotificationRegistrationState(
-      settings: settings,
-      exact: exact,
-    );
     final rows =
         await (_database.select(_database.notificationSchedule)..where(
               (table) =>
@@ -562,8 +559,23 @@ final class AndroidNotificationService
     final usedIds = {
       for (final mapping in activeMappings.values) mapping.platformId,
     };
+    final strings = _strings();
     for (final row in desired) {
       final effectiveAt = applyAndroidQuietHours(_effectiveAt(row), settings);
+      final title =
+          settings.notificationDetailLevel == NotificationDetailLevel.private
+          ? strings.privateTitle
+          : row.title;
+      final body =
+          settings.notificationDetailLevel == NotificationDetailLevel.private
+          ? null
+          : row.body;
+      final registrationState = androidNotificationRegistrationState(
+        settings: settings,
+        exact: exact,
+        title: title,
+        body: body,
+      );
       var mapping = activeMappings[row.id];
       final sameGeneration = mapping?.generation == row.generation;
       final displayed =
@@ -592,20 +604,13 @@ final class AndroidNotificationService
         accountId: row.accountId,
         sourceId: row.sourceId,
       ).encode();
-      final strings = _strings();
       final scheduledAt = effectiveAt <= nowMillis
           ? now.add(const Duration(seconds: 5)).millisecondsSinceEpoch
           : effectiveAt;
       await _notifications.zonedSchedule(
         id: platformId,
-        title:
-            settings.notificationDetailLevel == NotificationDetailLevel.private
-            ? strings.privateTitle
-            : row.title,
-        body:
-            settings.notificationDetailLevel == NotificationDetailLevel.private
-            ? null
-            : row.body,
+        title: title,
+        body: body,
         scheduledDate: tz.TZDateTime.fromMillisecondsSinceEpoch(
           tz.local,
           scheduledAt,
@@ -648,7 +653,6 @@ final class AndroidNotificationService
       settings: settings,
       eligibleAccounts: eligibleAccounts,
       exact: exact,
-      registrationState: registrationState,
       pendingIds: pendingIds,
       activeIds: activeIds,
     );
@@ -658,7 +662,6 @@ final class AndroidNotificationService
     required AppSettings settings,
     required Set<String> eligibleAccounts,
     required bool exact,
-    required String registrationState,
     required Set<int> pendingIds,
     required Set<int> activeIds,
   }) async {
@@ -723,6 +726,18 @@ final class AndroidNotificationService
       )..where((table) => table.localDate.equals(localDate))).go();
       return;
     }
+    final strings = _strings();
+    final title = strings.dueTodayTitle;
+    final body =
+        settings.notificationDetailLevel == NotificationDetailLevel.private
+        ? null
+        : strings.dueTodayBody(count);
+    final registrationState = androidNotificationRegistrationState(
+      settings: settings,
+      exact: exact,
+      title: title,
+      body: body,
+    );
     final current = existing
         .where((row) => row.localDate == localDate)
         .firstOrNull;
@@ -766,13 +781,10 @@ final class AndroidNotificationService
     if (unchanged) return;
     if (current != null) await _notifications.cancel(id: platformId);
     final generation = '$localDate:$count:$scheduledAt';
-    final strings = _strings();
     await _notifications.zonedSchedule(
       id: platformId,
-      title: strings.dueTodayTitle,
-      body: settings.notificationDetailLevel == NotificationDetailLevel.private
-          ? null
-          : strings.dueTodayBody(count),
+      title: title,
+      body: body,
       scheduledDate: tz.TZDateTime.fromMillisecondsSinceEpoch(
         tz.local,
         scheduledAt,
@@ -877,8 +889,13 @@ int applyAndroidQuietHours(int epochMillis, AppSettings settings) {
 String androidNotificationRegistrationState({
   required AppSettings settings,
   required bool exact,
-}) =>
-    'scheduled:v2:${settings.notificationDetailLevel.name}:${exact ? 'exact' : 'inexact'}';
+  String? title,
+  String? body,
+}) {
+  final contentHash = sha256.convert(utf8.encode(jsonEncode([title, body])));
+  return 'scheduled:v3:${settings.notificationDetailLevel.name}:'
+      '${exact ? 'exact' : 'inexact'}:$contentHash';
+}
 
 AndroidNotificationAction androidOpenNotificationAction(
   AndroidNotificationStrings strings,

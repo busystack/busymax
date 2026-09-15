@@ -6,6 +6,7 @@ import 'package:intl/intl.dart';
 
 import '../../app/app_bootstrap.dart';
 import '../../calendar_providers/calendar_sync_dto.dart';
+import '../../calendar_providers/cloud_calendar_client.dart';
 import '../../core/logging/redacting_logger.dart';
 import '../../dav/nextcloud/nextcloud_scheduling_service.dart';
 import '../../features/calendar/presentation/event_editor_draft.dart';
@@ -53,7 +54,7 @@ class _AndroidGuestAvailabilityDialogState
   bool _loading = true;
   Object? _error;
   List<NextcloudFreeBusyResult> _nextcloud = const [];
-  Map<String, List<BusySlotDto>> _google = const {};
+  Map<String, FreeBusyCalendarResultDto> _google = const {};
 
   List<String> get _recipients => widget.draft.attendees
       .where((attendee) => !attendee.self && !attendee.organizer)
@@ -91,20 +92,35 @@ class _AndroidGuestAvailabilityDialogState
         if (client == null || start == null || end == null) {
           throw StateError('Availability is unavailable');
         }
-        final slots = await client.freeBusy(
-          calendarIds: _recipients,
-          rangeStart: start.toUtc(),
-          rangeEnd: end.toUtc(),
-        );
-        _google = {
-          for (final recipient in _recipients)
-            recipient: slots
-                .where(
-                  (slot) =>
-                      slot.calendarId.toLowerCase() == recipient.toLowerCase(),
-                )
-                .toList(growable: false),
-        };
+        if (client is DetailedFreeBusyClient) {
+          final results = await (client as DetailedFreeBusyClient)
+              .freeBusyDetails(
+                calendarIds: _recipients,
+                rangeStart: start.toUtc(),
+                rangeEnd: end.toUtc(),
+              );
+          final byCalendar = {
+            for (final result in results)
+              result.calendarId.toLowerCase(): result,
+          };
+          _google = {
+            for (final recipient in _recipients)
+              recipient:
+                  byCalendar[recipient.toLowerCase()] ??
+                  FreeBusyCalendarResultDto(
+                    calendarId: recipient,
+                    status: FreeBusyEvaluationStatus.missing,
+                  ),
+          };
+        } else {
+          _google = {
+            for (final recipient in _recipients)
+              recipient: FreeBusyCalendarResultDto(
+                calendarId: recipient,
+                status: FreeBusyEvaluationStatus.missing,
+              ),
+          };
+        }
       } else {
         throw StateError('Availability is unsupported');
       }
@@ -153,10 +169,12 @@ class _AndroidGuestAvailabilityDialogState
                   for (final entry in _google.entries)
                     _AvailabilityEntry(
                       recipient: entry.key,
-                      free: entry.value.isEmpty,
-                      unknown: false,
+                      free:
+                          entry.value.succeeded &&
+                          entry.value.busySlots.isEmpty,
+                      unknown: !entry.value.succeeded,
                       intervals: [
-                        for (final value in entry.value)
+                        for (final value in entry.value.busySlots)
                           interval(value.start, value.end),
                       ],
                     ),

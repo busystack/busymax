@@ -385,120 +385,126 @@ class _AndroidScheduleScreenState extends ConsumerState<AndroidScheduleScreen> {
       showDragHandle: true,
       isScrollControlled: true,
       builder: (sheetContext) => SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Text(
-                item.title,
-                style: Theme.of(context).textTheme.headlineSmall,
-              ),
-              const SizedBox(height: 8),
-              Text(item.sourceName ?? item.provider.displayName),
-              if (item.start != null)
+        child: ConstrainedBox(
+          constraints: BoxConstraints(
+            maxHeight: MediaQuery.sizeOf(sheetContext).height * .82,
+          ),
+          child: SingleChildScrollView(
+            key: const ValueKey('android-schedule-details-scroll'),
+            padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
                 Text(
-                  formatClockDateTime(
-                    context,
-                    item.start!,
-                    DateFormat.yMMMd().format(item.start!),
-                  ),
+                  item.title,
+                  style: Theme.of(context).textTheme.headlineSmall,
                 ),
-              if (item case CalendarScheduleItem(
-                :final location?,
-              ) when location.isNotEmpty)
-                ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  leading: const Icon(Icons.place),
-                  title: Text(location),
-                  trailing: const Icon(Icons.open_in_new),
-                  onTap: () => unawaited(
-                    const ExternalLocationLauncher(
-                      platform: _androidLocationPlatform,
-                    ).open(projectedScheduleItemLocationDestination(item)),
-                  ),
-                ),
-              if (item case TaskScheduleItem(
-                :final notes?,
-              ) when notes.isNotEmpty)
-                Padding(
-                  padding: const EdgeInsets.only(top: 12),
-                  child: Text(notes),
-                ),
-              if (item is CalendarScheduleItem &&
-                  item.canRespondToInvitation) ...[
-                const SizedBox(height: 16),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: [
-                    FilledButton.tonal(
-                      onPressed: () {
-                        Navigator.pop(sheetContext);
-                        unawaited(
-                          _respondToInvitation(
-                            item,
-                            CalendarInvitationResponse.accept,
-                          ),
-                        );
-                      },
-                      child: Text(context.l10n.acceptInvitation),
-                    ),
-                    OutlinedButton(
-                      onPressed: () {
-                        Navigator.pop(sheetContext);
-                        unawaited(
-                          _respondToInvitation(
-                            item,
-                            CalendarInvitationResponse.tentative,
-                          ),
-                        );
-                      },
-                      child: Text(context.l10n.tentativeInvitation),
-                    ),
-                    OutlinedButton(
-                      onPressed: () {
-                        Navigator.pop(sheetContext);
-                        unawaited(
-                          _respondToInvitation(
-                            item,
-                            CalendarInvitationResponse.decline,
-                          ),
-                        );
-                      },
-                      child: Text(context.l10n.declineInvitation),
-                    ),
-                  ],
-                ),
-              ],
-              const SizedBox(height: 16),
-              if (item.capabilities.canEdit)
-                FilledButton.icon(
-                  onPressed: () async {
-                    Navigator.pop(sheetContext);
-                    if (item is CalendarScheduleItem) {
-                      await _editEvent(context, item);
-                    } else if (item is TaskScheduleItem) {
-                      await showAndroidTaskEditor(context, ref, task: item);
-                    }
-                  },
-                  icon: const Icon(Icons.edit),
-                  label: Text(
-                    item is CalendarScheduleItem
-                        ? context.l10n.editEvent
-                        : context.l10n.editTask,
-                  ),
-                ),
-              if (item.provider == BusyProvider.nextcloud) ...[
                 const SizedBox(height: 8),
-                OutlinedButton.icon(
-                  onPressed: () => _exportItem(sheetContext, item),
-                  icon: const Icon(Icons.file_download_outlined),
-                  label: Text(context.l10n.export),
-                ),
+                Text(item.sourceName ?? item.provider.displayName),
+                if (item.start != null)
+                  Text(
+                    formatClockDateTime(
+                      context,
+                      item.start!,
+                      DateFormat.yMMMd().format(item.start!),
+                    ),
+                  ),
+                if (item case CalendarScheduleItem(
+                  :final location?,
+                ) when location.isNotEmpty)
+                  ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: const Icon(Icons.place),
+                    title: Text(location),
+                    trailing: const Icon(Icons.open_in_new),
+                    onTap: () => unawaited(
+                      const ExternalLocationLauncher(
+                        platform: _androidLocationPlatform,
+                      ).open(projectedScheduleItemLocationDestination(item)),
+                    ),
+                  ),
+                if (item case TaskScheduleItem(
+                  :final notes?,
+                ) when notes.isNotEmpty)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 12),
+                    child: Text(notes),
+                  ),
+                if (item is CalendarScheduleItem &&
+                    item.canRespondToInvitation) ...[
+                  const SizedBox(height: 16),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      FilledButton.tonal(
+                        onPressed: () {
+                          Navigator.pop(sheetContext);
+                          unawaited(
+                            _respondToInvitation(
+                              item,
+                              CalendarInvitationResponse.accept,
+                            ),
+                          );
+                        },
+                        child: Text(context.l10n.acceptInvitation),
+                      ),
+                      OutlinedButton(
+                        onPressed: () {
+                          Navigator.pop(sheetContext);
+                          unawaited(
+                            _respondToInvitation(
+                              item,
+                              CalendarInvitationResponse.tentative,
+                            ),
+                          );
+                        },
+                        child: Text(context.l10n.tentativeInvitation),
+                      ),
+                      OutlinedButton(
+                        onPressed: () {
+                          Navigator.pop(sheetContext);
+                          unawaited(
+                            _respondToInvitation(
+                              item,
+                              CalendarInvitationResponse.decline,
+                            ),
+                          );
+                        },
+                        child: Text(context.l10n.declineInvitation),
+                      ),
+                    ],
+                  ),
+                ],
+                const SizedBox(height: 16),
+                if (item.capabilities.canEdit)
+                  FilledButton.icon(
+                    onPressed: () async {
+                      Navigator.pop(sheetContext);
+                      if (item is CalendarScheduleItem) {
+                        await _editEvent(context, item);
+                      } else if (item is TaskScheduleItem) {
+                        await showAndroidTaskEditor(context, ref, task: item);
+                      }
+                    },
+                    icon: const Icon(Icons.edit),
+                    label: Text(
+                      item is CalendarScheduleItem
+                          ? context.l10n.editEvent
+                          : context.l10n.editTask,
+                    ),
+                  ),
+                if (item.provider == BusyProvider.nextcloud) ...[
+                  const SizedBox(height: 8),
+                  OutlinedButton.icon(
+                    onPressed: () => _exportItem(sheetContext, item),
+                    icon: const Icon(Icons.file_download_outlined),
+                    label: Text(context.l10n.export),
+                  ),
+                ],
               ],
-            ],
+            ),
           ),
         ),
       ),
@@ -868,6 +874,19 @@ class _AndroidTimeGrid extends StatelessWidget {
                   .clamp(112.0, 220.0)
                   .toDouble();
         final contentWidth = _axisWidth + columnWidth * days;
+        final compactHeight = constraints.maxHeight < 240;
+        final dateHeaderHeight = compactHeight ? 36.0 : 48.0;
+        final preferredAllDayHeight =
+            (MediaQuery.textScalerOf(context).scale(28) + 70)
+                .clamp(68.0, 148.0)
+                .toDouble();
+        final maximumAllDayHeight =
+            (constraints.maxHeight - dateHeaderHeight - 32)
+                .clamp(0.0, double.infinity)
+                .toDouble();
+        final allDayHeight = preferredAllDayHeight
+            .clamp(0.0, maximumAllDayHeight)
+            .toDouble();
         return SingleChildScrollView(
           scrollDirection: Axis.horizontal,
           child: SizedBox(
@@ -876,7 +895,7 @@ class _AndroidTimeGrid extends StatelessWidget {
             child: Column(
               children: [
                 SizedBox(
-                  height: 48,
+                  height: dateHeaderHeight,
                   child: Row(
                     children: [
                       const SizedBox(width: _axisWidth),
@@ -894,8 +913,7 @@ class _AndroidTimeGrid extends StatelessWidget {
                   ),
                 ),
                 SizedBox(
-                  height: (MediaQuery.textScalerOf(context).scale(28) + 70)
-                      .clamp(92.0, 148.0),
+                  height: allDayHeight,
                   child: Row(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
@@ -993,24 +1011,27 @@ class _AndroidAllDayCell extends StatelessWidget {
     ),
     child: items.isEmpty
         ? null
-        : Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              _AndroidCalendarChip(item: items.first, onOpen: onOpen),
-              if (items.length > 1)
-                Align(
-                  alignment: AlignmentDirectional.centerEnd,
-                  child: TextButton(
-                    style: TextButton.styleFrom(
-                      minimumSize: const Size(48, 32),
-                      padding: const EdgeInsets.symmetric(horizontal: 4),
-                      textStyle: Theme.of(context).textTheme.labelSmall,
+        : SingleChildScrollView(
+            primary: false,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                _AndroidCalendarChip(item: items.first, onOpen: onOpen),
+                if (items.length > 1)
+                  Align(
+                    alignment: AlignmentDirectional.centerEnd,
+                    child: TextButton(
+                      style: TextButton.styleFrom(
+                        minimumSize: const Size(48, 32),
+                        padding: const EdgeInsets.symmetric(horizontal: 4),
+                        textStyle: Theme.of(context).textTheme.labelSmall,
+                      ),
+                      onPressed: () => _showAllDayItems(context),
+                      child: Text(context.l10n.moreItems(items.length - 1)),
                     ),
-                    onPressed: () => _showAllDayItems(context),
-                    child: Text(context.l10n.moreItems(items.length - 1)),
                   ),
-                ),
-            ],
+              ],
+            ),
           ),
   );
 
@@ -2147,16 +2168,24 @@ class _AndroidEventEditorState extends ConsumerState<AndroidEventEditor> {
       if (value is! Map) return;
       final map = value.cast<String, Object?>();
       final savedAt = DateTime.tryParse(map['savedAt']?.toString() ?? '');
+      final version = map['v'];
+      final editingExistingEvent = widget.draft.eventId != null;
+      final storedEventId = map['eventId']?.toString();
+      final identityMatches = editingExistingEvent
+          ? (version == 2 || storedEventId == widget.draft.eventId) &&
+                map['baseTitle'] == widget.draft.title &&
+                map['baseStart'] == widget.draft.start?.toIso8601String()
+          : storedEventId == null;
       if (savedAt == null ||
           DateTime.now().difference(savedAt).abs() > const Duration(days: 14) ||
-          map['baseTitle'] != widget.draft.title ||
-          map['baseStart'] != widget.draft.start?.toIso8601String()) {
+          (version != 2 && version != 3) ||
+          !identityMatches) {
         await _clearRecovery();
         return;
       }
       final start = DateTime.tryParse(map['start']?.toString() ?? '');
       final end = DateTime.tryParse(map['end']?.toString() ?? '');
-      if (map['v'] != 2 || start == null || end == null) {
+      if (start == null || end == null) {
         await _clearRecovery();
         return;
       }
@@ -2250,8 +2279,9 @@ class _AndroidEventEditorState extends ConsumerState<AndroidEventEditor> {
       return;
     }
     final payload = jsonEncode({
-      'v': 2,
+      'v': 3,
       'savedAt': DateTime.now().toIso8601String(),
+      'eventId': widget.draft.eventId,
       'baseTitle': widget.draft.title,
       'baseStart': widget.draft.start?.toIso8601String(),
       'accountId': _draft.accountId,

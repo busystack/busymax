@@ -148,3 +148,25 @@ class BusySlotDto {
   final DateTime start;
   final DateTime end;
 }
+
+enum FreeBusyEvaluationStatus { success, failed, missing }
+
+/// The result of evaluating one requested calendar in a free/busy query.
+///
+/// A successful response with no [busySlots] means the calendar is free. A
+/// failed or missing response must remain unknown even when it has no slots.
+class FreeBusyCalendarResultDto {
+  const FreeBusyCalendarResultDto({
+    required this.calendarId,
+    required this.status,
+    this.busySlots = const [],
+    this.errors = const [],
+  });
+
+  final String calendarId;
+  final FreeBusyEvaluationStatus status;
+  final List<BusySlotDto> busySlots;
+  final List<String> errors;
+
+  bool get succeeded => status == FreeBusyEvaluationStatus.success;
+}

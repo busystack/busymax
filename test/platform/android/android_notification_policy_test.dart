@@ -90,25 +90,44 @@ void main() {
     );
   });
 
-  test('registration fingerprint changes for privacy and alarm precision', () {
-    final normal = AppSettings.defaults();
-    final private = normal.copyWith(
-      notificationDetailLevel: NotificationDetailLevel.private,
-    );
+  test(
+    'registration fingerprint changes for privacy, precision, and content',
+    () {
+      final normal = AppSettings.defaults();
+      final private = normal.copyWith(
+        notificationDetailLevel: NotificationDetailLevel.private,
+      );
 
-    expect(
-      androidNotificationRegistrationState(settings: normal, exact: false),
-      isNot(
-        androidNotificationRegistrationState(settings: private, exact: false),
-      ),
-    );
-    expect(
-      androidNotificationRegistrationState(settings: normal, exact: false),
-      isNot(
-        androidNotificationRegistrationState(settings: normal, exact: true),
-      ),
-    );
-  });
+      expect(
+        androidNotificationRegistrationState(settings: normal, exact: false),
+        isNot(
+          androidNotificationRegistrationState(settings: private, exact: false),
+        ),
+      );
+      expect(
+        androidNotificationRegistrationState(settings: normal, exact: false),
+        isNot(
+          androidNotificationRegistrationState(settings: normal, exact: true),
+        ),
+      );
+      expect(
+        androidNotificationRegistrationState(
+          settings: normal,
+          exact: false,
+          title: 'Original title',
+          body: 'Original body',
+        ),
+        isNot(
+          androidNotificationRegistrationState(
+            settings: normal,
+            exact: false,
+            title: 'Renamed title',
+            body: 'Original body',
+          ),
+        ),
+      );
+    },
+  );
 
   test('explicit Open action launches the user interface', () {
     final action = androidOpenNotificationAction(

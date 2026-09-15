@@ -159,6 +159,7 @@ void main() {
     final state = androidNotificationRegistrationState(
       settings: settings,
       exact: false,
+      title: 'Visible meeting',
     );
     await _insertMapping(
       database,
@@ -249,6 +250,53 @@ void main() {
     expect(plugin.scheduledIds, isNot(contains(platformId)));
   });
 
+  test('content-only edits replace an unchanged pending reminder', () async {
+    final scheduledAt = DateTime.now().add(const Duration(hours: 1));
+    await _insertReminder(
+      database,
+      generation: 'generation-1',
+      scheduledAt: scheduledAt,
+    );
+    final notifications = service();
+    await notifications.initialize(timeZoneId: 'America/Vancouver');
+    await notifications.reconcile();
+    final mapping = await database
+        .select(database.androidNotificationMappings)
+        .getSingle();
+    final platformId = mapping.platformId;
+    plugin.cancelledIds.clear();
+    plugin.scheduled.clear();
+
+    await (database.update(
+      database.notificationSchedule,
+    )..where((table) => table.id.equals('reminder-1'))).write(
+      const NotificationScheduleCompanion(
+        title: Value('Renamed meeting'),
+        body: Value('Updated location'),
+      ),
+    );
+    await notifications.reconcile();
+
+    expect(plugin.cancelledIds, contains(platformId));
+    expect(plugin.scheduledIds, contains(platformId));
+    final call = plugin.scheduled.single;
+    expect(call.title, 'Renamed meeting');
+    expect(call.body, 'Updated location');
+    final updatedMapping = await database
+        .select(database.androidNotificationMappings)
+        .getSingle();
+    expect(updatedMapping.generation, 'generation-1');
+    expect(
+      updatedMapping.state,
+      androidNotificationRegistrationState(
+        settings: settings,
+        exact: false,
+        title: 'Renamed meeting',
+        body: 'Updated location',
+      ),
+    );
+  });
+
   test(
     'overdue pending summary is replaced after privacy and precision change',
     () async {
@@ -299,7 +347,11 @@ void main() {
           .getSingle();
       expect(
         row.state,
-        androidNotificationRegistrationState(settings: settings, exact: true),
+        androidNotificationRegistrationState(
+          settings: settings,
+          exact: true,
+          title: const AndroidNotificationStrings().dueTodayTitle,
+        ),
       );
     },
   );
@@ -393,7 +445,8 @@ class _StatefulNotificationPlugin implements AndroidNotificationBackend {
   final Set<int> pendingIds = {};
   final Set<int> activeIds = {};
   final List<int> cancelledIds = [];
-  final List<({int id, String? body, AndroidScheduleMode mode})> scheduled = [];
+  final List<({int id, String? title, String? body, AndroidScheduleMode mode})>
+  scheduled = [];
   bool activeQueryFails = false;
 
   Iterable<int> get scheduledIds => scheduled.map((value) => value.id);
@@ -442,7 +495,12 @@ class _StatefulNotificationPlugin implements AndroidNotificationBackend {
     String? payload,
     DateTimeComponents? matchDateTimeComponents,
   }) async {
-    scheduled.add((id: id, body: body, mode: androidScheduleMode));
+    scheduled.add((
+      id: id,
+      title: title,
+      body: body,
+      mode: androidScheduleMode,
+    ));
     pendingIds.add(id);
   }
 
