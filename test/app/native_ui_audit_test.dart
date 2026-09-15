@@ -1344,6 +1344,56 @@ void main() {
       expect(confirmBody, isNot(contains('return AlertDialog(')));
     });
 
+    test('schedule search filters are native GTK and Handy on Linux', () {
+      final runner = File('linux/runner/my_application.cc').readAsStringSync();
+      final workspace = File(
+        'lib/src/features/schedule/presentation/schedule_workspace.dart',
+      ).readAsStringSync();
+      final service = File(
+        'lib/src/platform/linux_schedule_search_filter_service.dart',
+      ).readAsStringSync();
+
+      expect(runner, contains('busymax/native_schedule_search_filters'));
+      expect(runner, contains('gtk_overlay_new()'));
+      expect(runner, contains('gtk_overlay_add_overlay('));
+      expect(runner, contains('gtk_overlay_set_overlay_pass_through('));
+      expect(runner, contains('gtk_scrolled_window_new('));
+      expect(runner, contains('hdy_preferences_group_new()'));
+      expect(runner, contains('hdy_action_row_new()'));
+      expect(runner, contains('gtk_combo_box_text_new()'));
+      expect(runner, contains('gtk_search_entry_new()'));
+      expect(runner, contains('gtk_check_button_new()'));
+      expect(
+        runner,
+        contains(
+          'gtk_style_context_add_class(gtk_widget_get_style_context(controls->root),\n'
+          '                              GTK_STYLE_CLASS_BACKGROUND);',
+        ),
+      );
+      expect(
+        runner,
+        isNot(
+          contains(
+            'gtk_style_context_add_class(gtk_widget_get_style_context(controls->root),\n'
+            '                              "sidebar");',
+          ),
+        ),
+      );
+      expect(runner, contains('show_native_schedule_filter_modal'));
+      expect(runner, contains('run_native_date_picker('));
+      expect(runner, contains('self->suppress_schedule_filter_events = TRUE'));
+      expect(service, contains('class LinuxScheduleSearchFilterService'));
+      expect(workspace, contains('linux-native-search-filter-spacer'));
+      expect(workspace, isNot(contains('ScheduleSearchFilters(')));
+      expect(workspace, isNot(contains('showDialog<void>(')));
+      expect(
+        File(
+          'lib/src/features/schedule/presentation/schedule_search_filters.dart',
+        ).existsSync(),
+        isFalse,
+      );
+    });
+
     test('timezone selection uses native GTK and Handy controls on Linux', () {
       final runner = File('linux/runner/my_application.cc').readAsStringSync();
       final service = File(

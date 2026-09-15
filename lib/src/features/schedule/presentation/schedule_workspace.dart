@@ -27,6 +27,7 @@ import '../../../l10n/l10n.dart';
 import '../../../l10n/localized_formatters.dart';
 import '../../../platform/linux_header_bar_service.dart';
 import '../../../platform/linux_header_bar_provider.dart';
+import '../../../platform/linux_schedule_search_filter_service.dart';
 import '../../../schedule/schedule_commands.dart';
 import '../../../schedule/schedule_filters.dart';
 import '../../../schedule/schedule_item.dart';
@@ -60,7 +61,6 @@ import 'schedule_item_exporter.dart';
 import 'schedule_item_selection.dart';
 import 'schedule_month_view.dart';
 import 'schedule_sidebar.dart';
-import 'schedule_search_filters.dart';
 import '../../../schedule/schedule_search_criteria.dart';
 import 'schedule_toolbar.dart';
 import 'schedule_year_view.dart';
@@ -179,8 +179,10 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
   late ScheduleScope _scope;
   _TaskDetailsTarget? _taskDetailsTarget;
   late final LinuxHeaderBarSession _headerBarSession;
+  late final LinuxScheduleSearchFilterSession _searchFilterSession;
   StreamSubscription<BusyMaxHeaderBarAction>? _headerBarActions;
   StreamSubscription<BusyMaxHeaderBarSearchEvent>? _headerBarSearchEvents;
+  StreamSubscription<LinuxScheduleSearchFilterEvent>? _searchFilterEvents;
   var _headerBarReady = false;
   var _nativeHeaderBarAvailable = false;
   var _sidebarCollapsed = false;
@@ -189,8 +191,6 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
   bool? _sidebarBeforeSearch;
   ScheduleSearchCriteria? _searchCriteria;
   ScheduleSearchCriteria? _initialSearchCriteria;
-  List<CalendarSourceEntity> _searchSources = const [];
-  List<TaskListEntity> _searchTaskLists = const [];
   ScheduleSourceVisibility? _searchVisibility;
   final _searchController = TextEditingController();
   final _workspaceFocusNode = FocusNode();
@@ -235,6 +235,13 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
     _headerBarSearchEvents = _headerBarSession.searchEvents.listen(
       _handleHeaderBarSearchEvent,
     );
+    _searchFilterSession = ref
+        .read(linuxScheduleSearchFilterServiceProvider)
+        .claimSession();
+    _searchFilterEvents = _searchFilterSession.events.listen(
+      _handleNativeSearchFilterEvent,
+    );
+    unawaited(_searchFilterSession.initialize());
     unawaited(_initializeHeaderBar());
     _scheduleInitialTaskWatch();
   }
@@ -247,6 +254,7 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
       unawaited(createChoiceMenuSession.dismiss());
     }
     _headerBarSession.dispose();
+    _searchFilterSession.dispose();
     if (_taskDetailsTarget != null) {
       unawaited(
         releaseBusyMaxModalBarrier(ref.read(linuxHeaderBarServiceProvider)),
@@ -254,6 +262,7 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
     }
     unawaited(_headerBarActions?.cancel());
     unawaited(_headerBarSearchEvents?.cancel());
+    unawaited(_searchFilterEvents?.cancel());
     unawaited(_initialTaskTargetSubscription?.cancel());
     _searchController.dispose();
     _workspaceFocusNode.dispose();
@@ -278,6 +287,7 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
 
   @override
   Widget build(BuildContext context) {
+    final routeIsCurrent = ModalRoute.of(context)?.isCurrent ?? true;
     final settings = ref.watch(appSettingsControllerProvider);
     _syncModeFromSettings(settings.scheduleViewMode);
     final range = _range(context);
@@ -321,8 +331,6 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
                   taskLists: taskLists,
                   settings: settings,
                 );
-                _searchSources = sources;
-                _searchTaskLists = taskLists;
                 _searchVisibility = visibility;
                 if (_searchActive &&
                     _searchCriteria == null &&
@@ -444,9 +452,9 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
                         );
                     Widget buildSidebar() {
                       if (searchActive && _searchCriteria != null) {
-                        return SizedBox(
+                        return const SizedBox(
+                          key: ValueKey('linux-native-search-filter-spacer'),
                           width: BusyMaxSizes.sidebarWidth,
-                          child: _searchFilterPanel(),
                         );
                       }
                       return SizedBox(
@@ -501,7 +509,7 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
                                     YaruIconButton(
                                       tooltip: context.l10n.searchFiltersAction,
                                       icon: const Icon(Icons.filter_list),
-                                      onPressed: _showSearchFilters,
+                                      onPressed: _showNativeSearchFilters,
                                     ),
                                   YaruIconButton(
                                     tooltip: context.l10n.close,
@@ -679,6 +687,14 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
                             canCreateTask: canCreateTask,
                             showSidebar: showSidebar,
                           );
+                          _updateNativeSearchFilterState(
+                            context,
+                            accounts: accounts,
+                            sources: sources,
+                            taskLists: taskLists,
+                            showSidebar: showSidebar,
+                            routeIsCurrent: routeIsCurrent,
+                          );
                           final body = !showSidebar || _sidebarCollapsed
                               ? main
                               : Row(
@@ -803,6 +819,161 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
     });
   }
 
+  void _updateNativeSearchFilterState(
+    BuildContext context, {
+    required List<AccountEntity> accounts,
+    required List<CalendarSourceEntity> sources,
+    required List<TaskListEntity> taskLists,
+    required bool showSidebar,
+    required bool routeIsCurrent,
+  }) {
+    final l = context.l10n;
+    final material = MaterialLocalizations.of(context);
+    final criteria = _searchCriteria;
+    final state = LinuxScheduleSearchFilterState(
+      active: routeIsCurrent && _searchActive && criteria != null,
+      sidebarVisible:
+          routeIsCurrent &&
+          _searchActive &&
+          criteria != null &&
+          showSidebar &&
+          !_sidebarCollapsed,
+      sidebarWidth: BusyMaxSizes.sidebarWidth,
+      criteria: criteria,
+      labels: LinuxScheduleSearchFilterLabels(
+        searchFilters: l.searchFilters,
+        type: l.searchType,
+        all: l.all,
+        events: l.calendarEvents,
+        tasks: l.tasks,
+        date: l.searchDate,
+        anyDate: l.searchAnyDate,
+        today: l.today,
+        tomorrow: l.tomorrow,
+        thisWeek: l.searchThisWeek,
+        customRange: l.searchCustomRange,
+        startDate: l.startDate,
+        endDate: l.endDate,
+        taskStatus: l.searchTaskStatus,
+        open: l.openStatus,
+        completed: l.completed,
+        taskDue: l.searchTaskDue,
+        anyDueState: l.searchAnyDueState,
+        overdue: l.overdue,
+        noDueDate: l.searchNoDueDate,
+        person: l.searchPerson,
+        location: l.location,
+        sources: l.searchSources,
+        clearFilters: l.searchClearFilters,
+        noSources: l.searchNoSources,
+        close: l.close,
+        cancel: material.cancelButtonLabel,
+        ok: material.okButtonLabel,
+      ),
+      accounts: [
+        for (final account in accounts)
+          LinuxScheduleSearchFilterAccount(
+            id: account.id,
+            label: account.displayLabel,
+          ),
+      ],
+      calendarSources: [
+        for (final source in sources)
+          if (!source.isDeleted)
+            LinuxScheduleSearchFilterCalendarSource(
+              id: source.id,
+              accountId: source.accountId,
+              title: source.summary,
+              selected: criteria?.sourceIds.contains(source.id) ?? false,
+            ),
+      ],
+      taskLists: [
+        for (final taskList in taskLists)
+          if (!taskList.pendingDelete)
+            LinuxScheduleSearchFilterTaskList(
+              accountId: taskList.accountId,
+              taskListId: taskList.id,
+              title: taskList.title,
+              selected:
+                  criteria?.taskListKeys.contains(
+                    ScheduleTaskListKey(
+                      accountId: taskList.accountId,
+                      taskListId: taskList.id,
+                    ),
+                  ) ??
+                  false,
+            ),
+      ],
+    );
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      unawaited(_searchFilterSession.updateState(state));
+    });
+  }
+
+  void _handleNativeSearchFilterEvent(LinuxScheduleSearchFilterEvent event) {
+    if (!_searchFilterSession.isCurrent ||
+        !_searchActive ||
+        !(ModalRoute.of(context)?.isCurrent ?? true)) {
+      return;
+    }
+    final criteria = _searchCriteria;
+    if (criteria == null) return;
+    switch (event) {
+      case LinuxScheduleSearchTypeChanged(:final value):
+        setState(() => _searchCriteria = criteria.copyWith(type: value));
+      case LinuxScheduleSearchDateChanged(:final value):
+        setState(() => _searchCriteria = criteria.copyWith(date: value));
+      case LinuxScheduleSearchTaskCompletionChanged(:final value):
+        setState(
+          () => _searchCriteria = criteria.copyWith(taskCompletion: value),
+        );
+      case LinuxScheduleSearchTaskDueStateChanged(:final value):
+        setState(
+          () => _searchCriteria = criteria.copyWith(taskDueState: value),
+        );
+      case LinuxScheduleSearchPersonChanged(:final value):
+        setState(() => _searchCriteria = criteria.copyWith(person: value));
+      case LinuxScheduleSearchLocationChanged(:final value):
+        setState(() => _searchCriteria = criteria.copyWith(location: value));
+      case LinuxScheduleSearchCustomStartChanged(:final value):
+        final end = criteria.customEnd ?? criteria.referenceDate;
+        setState(
+          () => _searchCriteria = criteria.copyWith(
+            customStart: value,
+            customEnd: end.isBefore(value) ? value : end,
+          ),
+        );
+      case LinuxScheduleSearchCustomEndChanged(:final value):
+        final start = criteria.customStart ?? criteria.referenceDate;
+        setState(
+          () => _searchCriteria = criteria.copyWith(
+            customStart: start.isAfter(value) ? value : start,
+            customEnd: value,
+          ),
+        );
+      case LinuxScheduleSearchCalendarSourceToggled(
+        :final sourceId,
+        :final selected,
+      ):
+        final sourceIds = {...criteria.sourceIds};
+        selected ? sourceIds.add(sourceId) : sourceIds.remove(sourceId);
+        setState(
+          () => _searchCriteria = criteria.copyWith(sourceIds: sourceIds),
+        );
+      case LinuxScheduleSearchTaskListToggled(:final key, :final selected):
+        final taskListKeys = {...criteria.taskListKeys};
+        selected ? taskListKeys.add(key) : taskListKeys.remove(key);
+        setState(
+          () => _searchCriteria = criteria.copyWith(taskListKeys: taskListKeys),
+        );
+      case LinuxScheduleSearchClearRequested():
+        setState(() => _searchCriteria = _initialSearchCriteria);
+      case LinuxScheduleSearchDismissRequested():
+        _closeSearch();
+    }
+  }
+
   void _handleFallbackToolbarMenu(ScheduleToolbarMenuAction action) {
     switch (action) {
       case ScheduleToolbarMenuAction.refresh:
@@ -889,7 +1060,7 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
         return;
       case BusyMaxHeaderBarAction.sidebarToggle:
         if (!_latestCanShowSidebar) {
-          if (_searchActive) unawaited(_showSearchFilters());
+          if (_searchActive) unawaited(_showNativeSearchFilters());
           return;
         }
         setState(() => _sidebarCollapsed = !_sidebarCollapsed);
@@ -1037,61 +1208,9 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
     });
   }
 
-  void _focusSearchFilters() {
-    if (_nativeHeaderBarAvailable) unawaited(_headerBarSession.focusContent());
-  }
-
-  Widget _searchFilterPanel({VoidCallback? refresh}) => Listener(
-    onPointerDown: (_) => _focusSearchFilters(),
-    child: Focus(
-      onFocusChange: (focused) {
-        if (focused) _focusSearchFilters();
-      },
-      child: ScheduleSearchFilters(
-        value: _searchCriteria!,
-        accounts: _latestAccounts,
-        sources: _searchSources,
-        taskLists: _searchTaskLists,
-        onChanged: (value) {
-          setState(() => _searchCriteria = value);
-          refresh?.call();
-        },
-        onClear: () {
-          setState(() => _searchCriteria = _initialSearchCriteria);
-          refresh?.call();
-        },
-      ),
-    ),
-  );
-
-  Future<void> _showSearchFilters() async {
+  Future<void> _showNativeSearchFilters() async {
     if (_searchCriteria == null) return;
-    await showDialog<void>(
-      context: context,
-      builder: (context) => StatefulBuilder(
-        builder: (context, update) => Dialog(
-          child: SizedBox(
-            width: 360,
-            height: MediaQuery.sizeOf(context).height * .85,
-            child: Column(
-              children: [
-                Align(
-                  alignment: AlignmentDirectional.centerEnd,
-                  child: YaruIconButton(
-                    tooltip: context.l10n.close,
-                    icon: const Icon(Icons.close),
-                    onPressed: () => Navigator.pop(context),
-                  ),
-                ),
-                Expanded(
-                  child: _searchFilterPanel(refresh: () => update(() {})),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
+    await _searchFilterSession.showModal();
   }
 
   Future<_ScheduleItemsResult> _scheduleItems({
