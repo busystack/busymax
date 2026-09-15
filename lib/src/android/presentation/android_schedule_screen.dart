@@ -8,6 +8,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
 import '../../app/app_bootstrap.dart';
+import '../../calendar_providers/calendar_mutation.dart';
+import '../../core/logging/redacting_logger.dart';
 import '../../features/accounts/data/accounts_repository.dart';
 import '../../features/calendar/data/calendar_repository.dart';
 import '../../features/calendar/presentation/event_editor_draft.dart';
@@ -25,13 +27,14 @@ import '../../schedule/schedule_projection.dart';
 import '../../schedule/schedule_range.dart';
 import '../../schedule/schedule_view_mode.dart';
 import '../android_notifications.dart';
+import 'android_availability_dialog.dart';
 import 'android_settings_screen.dart';
 import 'android_tasks_screen.dart';
 
 final _androidScheduleItemsProvider = FutureProvider.autoDispose
     .family<
       List<ScheduleItem>,
-      ({DateTime anchor, ScheduleViewMode mode, String query})
+      ({DateTime anchor, ScheduleViewMode mode, String query, int firstWeekday})
     >((ref, key) async {
       ref.watch(scheduleDataRevisionProvider);
       final sources = await ref.watch(calendarSourcesStreamProvider.future);
@@ -40,7 +43,11 @@ final _androidScheduleItemsProvider = FutureProvider.autoDispose
       return ref
           .watch(scheduleRepositoryProvider)
           .listItems(
-            range: _rangeFor(key.anchor, key.mode),
+            range: _rangeFor(
+              key.anchor,
+              key.mode,
+              firstWeekday: key.firstWeekday,
+            ),
             filters: ScheduleFilters(
               query: key.query,
               sourceIds: {
@@ -88,6 +95,7 @@ class _AndroidScheduleScreenState extends ConsumerState<AndroidScheduleScreen> {
         anchor: DateTime(_anchor.year, _anchor.month, _anchor.day),
         mode: mode,
         query: _query,
+        firstWeekday: _firstWeekday(context),
       )),
     );
     return Scaffold(
@@ -418,6 +426,52 @@ class _AndroidScheduleScreenState extends ConsumerState<AndroidScheduleScreen> {
                   padding: const EdgeInsets.only(top: 12),
                   child: Text(notes),
                 ),
+              if (item is CalendarScheduleItem &&
+                  item.canRespondToInvitation) ...[
+                const SizedBox(height: 16),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    FilledButton.tonal(
+                      onPressed: () {
+                        Navigator.pop(sheetContext);
+                        unawaited(
+                          _respondToInvitation(
+                            item,
+                            CalendarInvitationResponse.accept,
+                          ),
+                        );
+                      },
+                      child: Text(context.l10n.acceptInvitation),
+                    ),
+                    OutlinedButton(
+                      onPressed: () {
+                        Navigator.pop(sheetContext);
+                        unawaited(
+                          _respondToInvitation(
+                            item,
+                            CalendarInvitationResponse.tentative,
+                          ),
+                        );
+                      },
+                      child: Text(context.l10n.tentativeInvitation),
+                    ),
+                    OutlinedButton(
+                      onPressed: () {
+                        Navigator.pop(sheetContext);
+                        unawaited(
+                          _respondToInvitation(
+                            item,
+                            CalendarInvitationResponse.decline,
+                          ),
+                        );
+                      },
+                      child: Text(context.l10n.declineInvitation),
+                    ),
+                  ],
+                ),
+              ],
               const SizedBox(height: 16),
               if (item.capabilities.canEdit)
                 FilledButton.icon(
@@ -544,6 +598,55 @@ class _AndroidScheduleScreenState extends ConsumerState<AndroidScheduleScreen> {
     await showAndroidEventEditor(context, ref, eventId: item.id);
   }
 
+  Future<void> _respondToInvitation(
+    CalendarScheduleItem item,
+    CalendarInvitationResponse response,
+  ) async {
+    if (!item.canRespondToInvitation) return;
+    try {
+      RecurringEventMutationScope? scope;
+      if (item.provider == BusyProvider.nextcloud &&
+          item.providerRecurringEventId != null) {
+        scope = await showModalBottomSheet<RecurringEventMutationScope>(
+          context: context,
+          showDragHandle: true,
+          builder: (sheetContext) => SafeArea(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                ListTile(title: Text(context.l10n.chooseRecurringEventScope)),
+                for (final value in RecurringEventMutationScope.values)
+                  if (value != RecurringEventMutationScope.thisAndFuture)
+                    ListTile(
+                      title: Text(_scopeLabel(context, value)),
+                      onTap: () => Navigator.pop(sheetContext, value),
+                    ),
+              ],
+            ),
+          ),
+        );
+        if (scope == null || !mounted) return;
+      }
+      final accountId = await ref
+          .read(calendarRepositoryProvider)
+          .respondToLocalEvent(item.id, response, recurringScope: scope);
+      ref
+          .read(
+            pendingCalendarMutationSyncRequesterForAccountProvider(accountId),
+          )
+          .request();
+    } on Object catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            context.l10n.invitationResponseFailed(redactForLog(error)),
+          ),
+        ),
+      );
+    }
+  }
+
   Future<void> _toggleTask(TaskScheduleItem task) async {
     if (!task.capabilities.canEdit) return;
     try {
@@ -628,6 +731,7 @@ class _ScheduleBody extends StatelessWidget {
       key: ValueKey('android-${mode.name}-time-grid'),
       anchor: anchor,
       days: mode == ScheduleViewMode.day ? 1 : 7,
+      firstWeekday: _firstWeekday(context),
       items: items,
       onOpen: onOpen,
     ),
@@ -729,6 +833,7 @@ class _AndroidTimeGrid extends StatelessWidget {
     super.key,
     required this.anchor,
     required this.days,
+    required this.firstWeekday,
     required this.items,
     required this.onOpen,
   });
@@ -738,6 +843,7 @@ class _AndroidTimeGrid extends StatelessWidget {
 
   final DateTime anchor;
   final int days;
+  final int firstWeekday;
   final List<ScheduleItem> items;
   final ValueChanged<ScheduleItem> onOpen;
 
@@ -745,7 +851,7 @@ class _AndroidTimeGrid extends StatelessWidget {
   Widget build(BuildContext context) {
     final start = days == 1
         ? DateTime(anchor.year, anchor.month, anchor.day)
-        : ScheduleRange.week(anchor).start;
+        : ScheduleRange.week(anchor, firstWeekday: firstWeekday).start;
     final dates = [
       for (var index = 0; index < days; index++)
         DateTime(start.year, start.month, start.day + index),
@@ -788,7 +894,8 @@ class _AndroidTimeGrid extends StatelessWidget {
                   ),
                 ),
                 SizedBox(
-                  height: 58,
+                  height: (MediaQuery.textScalerOf(context).scale(28) + 70)
+                      .clamp(92.0, 148.0),
                   child: Row(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
@@ -891,14 +998,53 @@ class _AndroidAllDayCell extends StatelessWidget {
             children: [
               _AndroidCalendarChip(item: items.first, onOpen: onOpen),
               if (items.length > 1)
-                Text(
-                  '+${items.length - 1}',
-                  textAlign: TextAlign.end,
-                  style: Theme.of(context).textTheme.labelSmall,
+                Align(
+                  alignment: AlignmentDirectional.centerEnd,
+                  child: TextButton(
+                    style: TextButton.styleFrom(
+                      minimumSize: const Size(48, 32),
+                      padding: const EdgeInsets.symmetric(horizontal: 4),
+                      textStyle: Theme.of(context).textTheme.labelSmall,
+                    ),
+                    onPressed: () => _showAllDayItems(context),
+                    child: Text(context.l10n.moreItems(items.length - 1)),
+                  ),
                 ),
             ],
           ),
   );
+
+  Future<void> _showAllDayItems(BuildContext context) =>
+      showModalBottomSheet<void>(
+        context: context,
+        showDragHandle: true,
+        isScrollControlled: true,
+        builder: (sheetContext) => SafeArea(
+          child: FractionallySizedBox(
+            heightFactor: .62,
+            child: ListView.builder(
+              padding: const EdgeInsets.fromLTRB(12, 0, 12, 24),
+              itemCount: items.length,
+              itemBuilder: (context, index) {
+                final item = items[index];
+                return ListTile(
+                  leading: Icon(
+                    item is TaskScheduleItem
+                        ? Icons.check_circle_outline
+                        : Icons.event_outlined,
+                  ),
+                  title: Text(item.title),
+                  subtitle: Text(item.sourceName ?? item.provider.displayName),
+                  onTap: () {
+                    Navigator.pop(sheetContext);
+                    onOpen(item);
+                  },
+                );
+              },
+            ),
+          ),
+        ),
+      );
 }
 
 class _AndroidTimedDayColumn extends StatelessWidget {
@@ -1095,6 +1241,12 @@ class _MonthView extends StatelessWidget {
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
+        final scaledDayText = MediaQuery.textScalerOf(context).scale(16);
+        // The grid is inside the outer vertical scroller, so preserve the
+        // user's text scale with real civil-day row height instead of
+        // shrinking full-size Month labels to fit a viewport fraction.
+        final gridHeight = 30 + 6 * (scaledDayText * 1.55 + 36);
+        final agendaHeight = (constraints.maxHeight * .42).clamp(200.0, 420.0);
         return GestureDetector(
           behavior: HitTestBehavior.opaque,
           onHorizontalDragEnd: (details) {
@@ -1104,30 +1256,32 @@ class _MonthView extends StatelessWidget {
               DateTime(anchor.year, anchor.month + (velocity < 0 ? 1 : -1)),
             );
           },
-          child: Column(
-            children: [
-              Expanded(
-                flex: 3,
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(8, 8, 8, 0),
-                  child: _AndroidMonthGrid(
-                    key: const ValueKey('android-month-grid'),
-                    displayedMonth: DateTime(anchor.year, anchor.month),
-                    selectedDate: anchor,
-                    items: items,
-                    onDaySelected: onSelectDate,
+          child: SingleChildScrollView(
+            child: Column(
+              children: [
+                SizedBox(
+                  height: gridHeight,
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(8, 8, 8, 0),
+                    child: _AndroidMonthGrid(
+                      key: const ValueKey('android-month-grid'),
+                      displayedMonth: DateTime(anchor.year, anchor.month),
+                      selectedDate: anchor,
+                      items: items,
+                      onDaySelected: onSelectDate,
+                    ),
                   ),
                 ),
-              ),
-              Expanded(
-                flex: 2,
-                child: _AgendaList(
-                  items: ScheduleProjection.itemsForDay(items, anchor),
-                  onOpen: onOpen,
-                  onToggleTask: onToggleTask,
+                SizedBox(
+                  height: agendaHeight,
+                  child: _AgendaList(
+                    items: ScheduleProjection.itemsForDay(items, anchor),
+                    onOpen: onOpen,
+                    onToggleTask: onToggleTask,
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         );
       },
@@ -1216,8 +1370,11 @@ class _AndroidMonthGrid extends StatelessWidget {
   Widget build(BuildContext context) {
     final firstWeekday = _firstWeekday(context);
     final month = DateTime(displayedMonth.year, displayedMonth.month);
-    final firstOffset = (month.weekday - firstWeekday) % DateTime.daysPerWeek;
-    final gridStart = DateTime(month.year, month.month, 1 - firstOffset);
+    final range = androidMonthGridRange(
+      displayedMonth,
+      firstWeekday: firstWeekday,
+    );
+    final gridStart = range.start;
     final days = [
       for (var index = 0; index < 42; index++)
         DateTime(gridStart.year, gridStart.month, gridStart.day + index),
@@ -1293,6 +1450,44 @@ class _AndroidMonthDay extends StatelessWidget {
     final matching = ScheduleProjection.itemsForDay(items, day);
     final selected = _sameDay(day, selectedDate);
     final scheme = Theme.of(context).colorScheme;
+    final content = Column(
+      mainAxisSize: MainAxisSize.min,
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        Text(
+          '${day.day}',
+          style:
+              (compact
+                      ? Theme.of(context).textTheme.labelSmall
+                      : Theme.of(context).textTheme.bodyMedium)
+                  ?.copyWith(
+                    color: day.month == displayedMonth.month
+                        ? null
+                        : scheme.onSurfaceVariant.withValues(alpha: .45),
+                  ),
+        ),
+        if (matching.isNotEmpty)
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              for (final item in matching.take(compact ? 2 : 3))
+                Container(
+                  width: compact ? 3 : 5,
+                  height: compact ? 3 : 5,
+                  margin: const EdgeInsets.symmetric(horizontal: 1),
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: ScheduleProjection.colorForItem(
+                      item,
+                      Theme.of(context).brightness,
+                    ),
+                  ),
+                ),
+            ],
+          ),
+      ],
+    );
     return InkWell(
       onTap: () => onSelected(day),
       child: DecoratedBox(
@@ -1302,42 +1497,9 @@ class _AndroidMonthDay extends StatelessWidget {
               ? null
               : Border.all(color: Theme.of(context).dividerColor, width: .35),
         ),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Text(
-              '${day.day}',
-              style:
-                  (compact
-                          ? Theme.of(context).textTheme.labelSmall
-                          : Theme.of(context).textTheme.bodyMedium)
-                      ?.copyWith(
-                        color: day.month == displayedMonth.month
-                            ? null
-                            : scheme.onSurfaceVariant.withValues(alpha: .45),
-                      ),
-            ),
-            if (matching.isNotEmpty)
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  for (final item in matching.take(compact ? 2 : 3))
-                    Container(
-                      width: compact ? 3 : 5,
-                      height: compact ? 3 : 5,
-                      margin: const EdgeInsets.symmetric(horizontal: 1),
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: ScheduleProjection.colorForItem(
-                          item,
-                          Theme.of(context).brightness,
-                        ),
-                      ),
-                    ),
-                ],
-              ),
-          ],
-        ),
+        child: compact
+            ? FittedBox(fit: BoxFit.scaleDown, child: content)
+            : Center(child: content),
       ),
     );
   }
@@ -1385,6 +1547,8 @@ class _AndroidEventEditorState extends ConsumerState<AndroidEventEditor> {
   bool _saving = false;
   bool _allowPop = false;
   bool _recoveryLoaded = false;
+  bool _recoveryWritesBlocked = false;
+  Future<void> _recoveryIo = Future.value();
   Timer? _recoveryTimer;
 
   String get _recoveryKey =>
@@ -1454,7 +1618,7 @@ class _AndroidEventEditorState extends ConsumerState<AndroidEventEditor> {
       onPopInvokedWithResult: (didPop, _) async {
         if (didPop || _saving || _allowPop) return;
         if (await _confirmDiscardChanges() && mounted) {
-          await _clearRecovery();
+          await _clearRecovery(finalCleanup: true);
           if (!mounted) return;
           setState(() => _allowPop = true);
           WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -1518,6 +1682,8 @@ class _AndroidEventEditorState extends ConsumerState<AndroidEventEditor> {
                             accountId: source.accountId,
                             sourceId: source.id,
                             providerCalendarId: source.providerCalendarId,
+                            clearShowAs: true,
+                            clearVisibilityOrSensitivity: true,
                           ),
                         );
                       },
@@ -1552,6 +1718,54 @@ class _AndroidEventEditorState extends ConsumerState<AndroidEventEditor> {
                           setState(() => _draft = _draft.copyWith(end: value)),
               ),
               const SizedBox(height: 12),
+              DropdownButtonFormField<String>(
+                key: ValueKey('android-event-show-as-${_provider.name}'),
+                initialValue:
+                    _eventShowAsValues(_provider).contains(_draft.showAs)
+                    ? _draft.showAs
+                    : _eventShowAsValues(_provider).first,
+                decoration: InputDecoration(
+                  labelText: context.l10n.availabilityShowAs,
+                ),
+                items: [
+                  for (final value in _eventShowAsValues(_provider))
+                    DropdownMenuItem(
+                      value: value,
+                      child: Text(_eventAvailabilityLabel(context, value)),
+                    ),
+                ],
+                onChanged: !_canEdit
+                    ? null
+                    : (value) => setState(
+                        () => _draft = _draft.copyWith(showAs: value),
+                      ),
+              ),
+              const SizedBox(height: 12),
+              DropdownButtonFormField<String>(
+                key: ValueKey('android-event-visibility-${_provider.name}'),
+                initialValue:
+                    _eventVisibilityValues(
+                      _provider,
+                    ).contains(_draft.visibilityOrSensitivity)
+                    ? _draft.visibilityOrSensitivity
+                    : _eventVisibilityValues(_provider).first,
+                decoration: InputDecoration(labelText: context.l10n.visibility),
+                items: [
+                  for (final value in _eventVisibilityValues(_provider))
+                    DropdownMenuItem(
+                      value: value,
+                      child: Text(_eventVisibilityLabel(context, value)),
+                    ),
+                ],
+                onChanged: !_canEdit
+                    ? null
+                    : (value) => setState(
+                        () => _draft = _draft.copyWith(
+                          visibilityOrSensitivity: value,
+                        ),
+                      ),
+              ),
+              const SizedBox(height: 12),
               TextFormField(
                 controller: _location,
                 enabled: _canEdit,
@@ -1559,7 +1773,8 @@ class _AndroidEventEditorState extends ConsumerState<AndroidEventEditor> {
                   labelText: context.l10n.location,
                   prefixIcon: const Icon(Icons.place_outlined),
                 ),
-                onChanged: (v) => _draft = _draft.copyWith(location: v),
+                onChanged: (v) =>
+                    setState(() => _draft = _draft.copyWith(location: v)),
               ),
               const SizedBox(height: 12),
               TextFormField(
@@ -1570,7 +1785,8 @@ class _AndroidEventEditorState extends ConsumerState<AndroidEventEditor> {
                 decoration: InputDecoration(
                   labelText: context.l10n.description,
                 ),
-                onChanged: (v) => _draft = _draft.copyWith(description: v),
+                onChanged: (v) =>
+                    setState(() => _draft = _draft.copyWith(description: v)),
               ),
               const SizedBox(height: 12),
               DropdownButtonFormField<RecurrenceFrequency>(
@@ -1644,12 +1860,25 @@ class _AndroidEventEditorState extends ConsumerState<AndroidEventEditor> {
                 enabled: _canEdit && _draft.canManageAttendees,
                 decoration: InputDecoration(labelText: context.l10n.guests),
                 keyboardType: TextInputType.emailAddress,
+                onChanged: (_) => setState(() {}),
               ),
+              if (_canCheckGuestAvailability) ...[
+                const SizedBox(height: 4),
+                Align(
+                  alignment: AlignmentDirectional.centerStart,
+                  child: TextButton.icon(
+                    onPressed: _showGuestAvailability,
+                    icon: const Icon(Icons.event_available_outlined),
+                    label: Text(context.l10n.nextcloudGuestAvailability),
+                  ),
+                ),
+              ],
               const SizedBox(height: 12),
               TextFormField(
                 controller: _categories,
                 enabled: _canEdit,
                 decoration: InputDecoration(labelText: context.l10n.categories),
+                onChanged: (_) => setState(() {}),
               ),
               if (_canDelete) ...[
                 const SizedBox(height: 24),
@@ -1739,7 +1968,7 @@ class _AndroidEventEditorState extends ConsumerState<AndroidEventEditor> {
           )
           .request();
       if (mounted) {
-        await _clearRecovery();
+        await _clearRecovery(finalCleanup: true);
         if (!mounted) return;
         setState(() => _allowPop = true);
         Navigator.pop(context);
@@ -1753,6 +1982,41 @@ class _AndroidEventEditorState extends ConsumerState<AndroidEventEditor> {
     } finally {
       if (mounted) setState(() => _saving = false);
     }
+  }
+
+  bool get _canCheckGuestAvailability {
+    final source = _source;
+    if (source == null ||
+        _draft.start == null ||
+        _draft.end == null ||
+        !_draft.end!.isAfter(_draft.start!)) {
+      return false;
+    }
+    final hasGuests = mergeAndroidEventAttendees(
+      _draft.attendees,
+      _guests.text,
+    ).attendees.any((attendee) => !attendee.self && !attendee.organizer);
+    if (!hasGuests) return false;
+    if (source.provider == BusyProvider.google) return true;
+    return source.provider == BusyProvider.nextcloud &&
+        source.davCollectionId != null &&
+        source.davEffectivePermissions['canQueryFreeBusy'] == true;
+  }
+
+  Future<void> _showGuestAvailability() async {
+    final source = _source;
+    if (source == null || !_canCheckGuestAvailability) return;
+    final attendees = mergeAndroidEventAttendees(
+      _draft.attendees,
+      _guests.text,
+    ).attendees;
+    await showAndroidGuestAvailabilityDialog(
+      context,
+      accountId: source.accountId,
+      provider: source.provider,
+      collectionId: source.davCollectionId,
+      draft: _draft.copyWith(attendees: attendees),
+    );
   }
 
   Future<void> _delete() async {
@@ -1798,7 +2062,7 @@ class _AndroidEventEditorState extends ConsumerState<AndroidEventEditor> {
           )
           .request();
       if (mounted) {
-        await _clearRecovery();
+        await _clearRecovery(finalCleanup: true);
         if (!mounted) return;
         setState(() => _allowPop = true);
         Navigator.pop(context);
@@ -1848,7 +2112,7 @@ class _AndroidEventEditorState extends ConsumerState<AndroidEventEditor> {
   Future<void> _requestClose() async {
     if (!_hasPendingEdits || await _confirmDiscardChanges()) {
       if (!mounted) return;
-      await _clearRecovery();
+      await _clearRecovery(finalCleanup: true);
       if (!mounted) return;
       setState(() => _allowPop = true);
       Navigator.pop(context);
@@ -1892,8 +2156,30 @@ class _AndroidEventEditorState extends ConsumerState<AndroidEventEditor> {
       }
       final start = DateTime.tryParse(map['start']?.toString() ?? '');
       final end = DateTime.tryParse(map['end']?.toString() ?? '');
+      if (map['v'] != 2 || start == null || end == null) {
+        await _clearRecovery();
+        return;
+      }
+      final recoveredSource = widget.sources
+          .where(
+            (source) =>
+                source.id == map['sourceId'] &&
+                source.accountId == map['accountId'] &&
+                source.providerCalendarId == map['providerCalendarId'] &&
+                (widget.draft.eventId == null
+                    ? source.capabilities.canCreateEvents
+                    : source.capabilities.canEditEvents),
+          )
+          .firstOrNull;
+      if (recoveredSource == null) {
+        await _clearRecovery();
+        return;
+      }
       final frequency = RecurrenceFrequency.values
           .where((value) => value.name == map['frequency'])
+          .firstOrNull;
+      final recurringScope = RecurringEventMutationScope.values
+          .where((value) => value.name == map['recurringMutationScope'])
           .firstOrNull;
       if (!mounted) return;
       await WidgetsBinding.instance.endOfFrame;
@@ -1932,12 +2218,21 @@ class _AndroidEventEditorState extends ConsumerState<AndroidEventEditor> {
           _recurrenceChanged = true;
         }
         _draft = _draft.copyWith(
+          accountId: recoveredSource.accountId,
+          sourceId: recoveredSource.id,
+          providerCalendarId: recoveredSource.providerCalendarId,
           title: _title.text,
           location: _location.text,
           description: _description.text,
           allDay: map['allDay'] as bool? ?? _draft.allDay,
           start: start,
           end: end,
+          recurringMutationScope: recurringScope,
+          clearRecurringMutationScope: recurringScope == null,
+          showAs: map['showAs']?.toString(),
+          clearShowAs: map['showAs'] == null,
+          visibilityOrSensitivity: map['visibility']?.toString(),
+          clearVisibilityOrSensitivity: map['visibility'] == null,
         );
       });
     } on Object {
@@ -1948,32 +2243,57 @@ class _AndroidEventEditorState extends ConsumerState<AndroidEventEditor> {
   }
 
   Future<void> _persistRecovery() async {
-    if (!_recoveryLoaded || !_hasPendingEdits || _allowPop) return;
-    await ref
-        .read(secureStorageProvider)
-        .write(
-          key: _recoveryKey,
-          value: jsonEncode({
-            'v': 1,
-            'savedAt': DateTime.now().toIso8601String(),
-            'baseTitle': widget.draft.title,
-            'baseStart': widget.draft.start?.toIso8601String(),
-            'title': _title.text,
-            'location': _location.text,
-            'description': _description.text,
-            'guests': _guests.text,
-            'categories': _categories.text,
-            'allDay': _draft.allDay,
-            'start': _draft.start?.toIso8601String(),
-            'end': _draft.end?.toIso8601String(),
-            'reminderMinutes': _reminderMinutes,
-            'frequency': _frequency.name,
-          }),
-        );
+    if (!_recoveryLoaded ||
+        !_hasPendingEdits ||
+        _allowPop ||
+        _recoveryWritesBlocked) {
+      return;
+    }
+    final payload = jsonEncode({
+      'v': 2,
+      'savedAt': DateTime.now().toIso8601String(),
+      'baseTitle': widget.draft.title,
+      'baseStart': widget.draft.start?.toIso8601String(),
+      'accountId': _draft.accountId,
+      'sourceId': _draft.sourceId,
+      'providerCalendarId': _draft.providerCalendarId,
+      'recurringMutationScope': _draft.recurringMutationScope?.name,
+      'showAs': _draft.showAs,
+      'visibility': _draft.visibilityOrSensitivity,
+      'title': _title.text,
+      'location': _location.text,
+      'description': _description.text,
+      'guests': _guests.text,
+      'categories': _categories.text,
+      'allDay': _draft.allDay,
+      'start': _draft.start?.toIso8601String(),
+      'end': _draft.end?.toIso8601String(),
+      'reminderMinutes': _reminderMinutes,
+      'frequency': _frequency.name,
+    });
+    await _enqueueRecovery(() async {
+      if (_recoveryWritesBlocked) return;
+      await ref
+          .read(secureStorageProvider)
+          .write(key: _recoveryKey, value: payload);
+    });
   }
 
-  Future<void> _clearRecovery() =>
-      ref.read(secureStorageProvider).delete(key: _recoveryKey);
+  Future<void> _clearRecovery({bool finalCleanup = false}) {
+    if (finalCleanup) {
+      _recoveryWritesBlocked = true;
+      _recoveryTimer?.cancel();
+    }
+    return _enqueueRecovery(
+      () => ref.read(secureStorageProvider).delete(key: _recoveryKey),
+    );
+  }
+
+  Future<void> _enqueueRecovery(Future<void> Function() operation) {
+    final result = _recoveryIo.then((_) => operation());
+    _recoveryIo = result.catchError((_) {});
+    return result.catchError((_) {});
+  }
 }
 
 final class AndroidEventAttendeeEdit {
@@ -2142,17 +2462,56 @@ class _Message extends StatelessWidget {
   );
 }
 
-ScheduleRange _rangeFor(DateTime anchor, ScheduleViewMode mode) =>
-    switch (mode) {
-      ScheduleViewMode.day => ScheduleRange.day(anchor),
-      ScheduleViewMode.week => ScheduleRange.week(anchor),
-      ScheduleViewMode.month => ScheduleRange.month(anchor),
-      ScheduleViewMode.year => ScheduleRange.year(anchor),
-      ScheduleViewMode.agenda => ScheduleRange(
-        start: DateTime(anchor.year, anchor.month, anchor.day - 30),
-        end: DateTime(anchor.year, anchor.month, anchor.day + 91),
-      ),
-    };
+ScheduleRange _rangeFor(
+  DateTime anchor,
+  ScheduleViewMode mode, {
+  required int firstWeekday,
+}) => switch (mode) {
+  ScheduleViewMode.day => ScheduleRange.day(anchor),
+  ScheduleViewMode.week => ScheduleRange.week(
+    anchor,
+    firstWeekday: firstWeekday,
+  ),
+  ScheduleViewMode.month => androidMonthGridRange(
+    anchor,
+    firstWeekday: firstWeekday,
+  ),
+  ScheduleViewMode.year => androidYearGridRange(
+    anchor,
+    firstWeekday: firstWeekday,
+  ),
+  ScheduleViewMode.agenda => ScheduleRange(
+    start: DateTime(anchor.year, anchor.month, anchor.day - 30),
+    end: DateTime(anchor.year, anchor.month, anchor.day + 91),
+  ),
+};
+
+/// The exact civil-date interval rendered by the Android six-week month grid.
+ScheduleRange androidMonthGridRange(
+  DateTime month, {
+  required int firstWeekday,
+}) {
+  final first = DateTime(month.year, month.month);
+  final offset = (first.weekday - firstWeekday) % DateTime.daysPerWeek;
+  final start = DateTime(first.year, first.month, first.day - offset);
+  return ScheduleRange(
+    start: start,
+    end: DateTime(start.year, start.month, start.day + 42),
+  );
+}
+
+/// Covers every leading and trailing date drawn by all twelve year miniatures.
+ScheduleRange androidYearGridRange(DateTime year, {required int firstWeekday}) {
+  final january = androidMonthGridRange(
+    DateTime(year.year),
+    firstWeekday: firstWeekday,
+  );
+  final december = androidMonthGridRange(
+    DateTime(year.year, DateTime.december),
+    firstWeekday: firstWeekday,
+  );
+  return ScheduleRange(start: january.start, end: december.end);
+}
 
 DateTime _move(DateTime date, ScheduleViewMode mode, int amount) =>
     switch (mode) {
@@ -2178,8 +2537,8 @@ String _periodLabel(
   ScheduleViewMode.day ||
   ScheduleViewMode.agenda => DateFormat.yMMMMd().format(date),
   ScheduleViewMode.week =>
-    '${DateFormat.MMMd().format(ScheduleRange.week(date).start)} – '
-        '${DateFormat.MMMd().format(_previousCivilDay(ScheduleRange.week(date).end))}',
+    '${DateFormat.MMMd().format(ScheduleRange.week(date, firstWeekday: _firstWeekday(context)).start)} – '
+        '${DateFormat.MMMd().format(_previousCivilDay(ScheduleRange.week(date, firstWeekday: _firstWeekday(context)).end))}',
   ScheduleViewMode.month => DateFormat.yMMMM().format(date),
   ScheduleViewMode.year => '${date.year}',
 };
@@ -2215,3 +2574,34 @@ Object? _eventReminders(BusyProvider provider, int minutes) {
           ],
         };
 }
+
+List<String> _eventShowAsValues(BusyProvider provider) =>
+    provider == BusyProvider.microsoft
+    ? const ['free', 'tentative', 'busy', 'oof', 'workingElsewhere']
+    : const ['opaque', 'transparent'];
+
+String _eventAvailabilityLabel(BuildContext context, String value) =>
+    switch (value) {
+      'opaque' || 'busy' => context.l10n.busy,
+      'transparent' || 'free' => context.l10n.availabilityFree,
+      'tentative' => context.l10n.availabilityTentative,
+      'oof' => context.l10n.availabilityOutOfOffice,
+      'workingElsewhere' => context.l10n.availabilityWorkingElsewhere,
+      _ => value,
+    };
+
+List<String> _eventVisibilityValues(BusyProvider provider) =>
+    provider == BusyProvider.microsoft
+    ? const ['normal', 'personal', 'private', 'confidential']
+    : const ['default', 'public', 'private', 'confidential'];
+
+String _eventVisibilityLabel(BuildContext context, String value) =>
+    switch (value) {
+      'default' => context.l10n.visibilityDefault,
+      'public' => context.l10n.visibilityPublic,
+      'private' => context.l10n.visibilityPrivate,
+      'confidential' => context.l10n.visibilityConfidential,
+      'normal' => context.l10n.sensitivityNormal,
+      'personal' => context.l10n.sensitivityPersonal,
+      _ => value,
+    };

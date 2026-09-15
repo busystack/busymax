@@ -28,6 +28,125 @@ final androidNotificationServiceProvider = Provider<AndroidNotificationService>(
   ),
 );
 
+/// Testable boundary between reminder policy/database reconciliation and the
+/// process-global notifications plugin.
+abstract interface class AndroidNotificationBackend {
+  Future<bool?> initialize({
+    required InitializationSettings settings,
+    DidReceiveNotificationResponseCallback? onDidReceiveNotificationResponse,
+    DidReceiveBackgroundNotificationResponseCallback?
+    onDidReceiveBackgroundNotificationResponse,
+  });
+
+  Future<NotificationAppLaunchDetails?> getNotificationAppLaunchDetails();
+  Future<List<PendingNotificationRequest>> pendingNotificationRequests();
+  Future<List<ActiveNotification>> getActiveNotifications();
+  Future<void> cancel({required int id});
+  Future<void> show({
+    required int id,
+    String? title,
+    String? body,
+    required NotificationDetails notificationDetails,
+  });
+  Future<void> zonedSchedule({
+    required int id,
+    String? title,
+    String? body,
+    required tz.TZDateTime scheduledDate,
+    required NotificationDetails notificationDetails,
+    required AndroidScheduleMode androidScheduleMode,
+    String? payload,
+  });
+  Future<bool> requestNotificationPermission();
+  Future<bool> requestExactAlarmPermission();
+  Future<bool> canScheduleExactly();
+}
+
+final class FlutterAndroidNotificationBackend
+    implements AndroidNotificationBackend {
+  FlutterAndroidNotificationBackend([FlutterLocalNotificationsPlugin? plugin])
+    : _plugin = plugin ?? FlutterLocalNotificationsPlugin();
+
+  final FlutterLocalNotificationsPlugin _plugin;
+
+  AndroidFlutterLocalNotificationsPlugin? get _android => _plugin
+      .resolvePlatformSpecificImplementation<
+        AndroidFlutterLocalNotificationsPlugin
+      >();
+
+  @override
+  Future<bool?> initialize({
+    required InitializationSettings settings,
+    DidReceiveNotificationResponseCallback? onDidReceiveNotificationResponse,
+    DidReceiveBackgroundNotificationResponseCallback?
+    onDidReceiveBackgroundNotificationResponse,
+  }) => _plugin.initialize(
+    settings: settings,
+    onDidReceiveNotificationResponse: onDidReceiveNotificationResponse,
+    onDidReceiveBackgroundNotificationResponse:
+        onDidReceiveBackgroundNotificationResponse,
+  );
+
+  @override
+  Future<NotificationAppLaunchDetails?> getNotificationAppLaunchDetails() =>
+      _plugin.getNotificationAppLaunchDetails();
+
+  @override
+  Future<List<PendingNotificationRequest>> pendingNotificationRequests() =>
+      _plugin.pendingNotificationRequests();
+
+  @override
+  Future<List<ActiveNotification>> getActiveNotifications() =>
+      _plugin.getActiveNotifications();
+
+  @override
+  Future<void> cancel({required int id}) => _plugin.cancel(id: id);
+
+  @override
+  Future<void> show({
+    required int id,
+    String? title,
+    String? body,
+    required NotificationDetails notificationDetails,
+  }) => _plugin.show(
+    id: id,
+    title: title,
+    body: body,
+    notificationDetails: notificationDetails,
+  );
+
+  @override
+  Future<void> zonedSchedule({
+    required int id,
+    String? title,
+    String? body,
+    required tz.TZDateTime scheduledDate,
+    required NotificationDetails notificationDetails,
+    required AndroidScheduleMode androidScheduleMode,
+    String? payload,
+  }) => _plugin.zonedSchedule(
+    id: id,
+    title: title,
+    body: body,
+    scheduledDate: scheduledDate,
+    notificationDetails: notificationDetails,
+    androidScheduleMode: androidScheduleMode,
+    payload: payload,
+  );
+
+  @override
+  Future<bool> requestNotificationPermission() async =>
+      await _android?.requestNotificationsPermission() ?? true;
+
+  @override
+  Future<bool> requestExactAlarmPermission() async =>
+      await _android?.requestExactAlarmsPermission() ?? false;
+
+  @override
+  Future<bool> canScheduleExactly() async =>
+      await _android?.canScheduleExactNotifications() ?? false;
+}
+
 @pragma('vm:entry-point')
 Future<void> busyMaxNotificationBackgroundResponse(
   NotificationResponse response,
@@ -184,17 +303,21 @@ final class AndroidNotificationService
     BusyMaxAndroidPlatform? platform,
     AndroidNotificationStrings Function()? strings,
     FlutterLocalNotificationsPlugin? plugin,
+    AndroidNotificationBackend? backend,
+    Future<bool> Function()? exactAlarmCapability,
   }) : _database = database,
        _settings = settings,
        _platform = platform ?? BusyMaxAndroidPlatform.instance,
        _strings = strings ?? _defaultStrings,
-       _plugin = plugin ?? FlutterLocalNotificationsPlugin();
+       _notifications = backend ?? FlutterAndroidNotificationBackend(plugin),
+       _exactAlarmCapability = exactAlarmCapability;
 
   final AppDatabase _database;
   final AppSettings Function() _settings;
   final BusyMaxAndroidPlatform _platform;
   final AndroidNotificationStrings Function() _strings;
-  final FlutterLocalNotificationsPlugin _plugin;
+  final AndroidNotificationBackend _notifications;
+  final Future<bool> Function()? _exactAlarmCapability;
   final StreamController<AndroidReminderActivation> _activations =
       StreamController<AndroidReminderActivation>.broadcast(sync: true);
   AndroidReminderActivation? _initialActivation;
@@ -219,7 +342,7 @@ final class AndroidNotificationService
     }
     tz_data.initializeTimeZones();
     updateTimeZone(timeZoneId);
-    await _plugin.initialize(
+    await _notifications.initialize(
       settings: const InitializationSettings(
         android: AndroidInitializationSettings('ic_notification'),
       ),
@@ -227,7 +350,7 @@ final class AndroidNotificationService
       onDidReceiveBackgroundNotificationResponse:
           busyMaxNotificationBackgroundResponse,
     );
-    final launch = await _plugin.getNotificationAppLaunchDetails();
+    final launch = await _notifications.getNotificationAppLaunchDetails();
     if (launch?.didNotificationLaunchApp ?? false) {
       _initialActivation = _publicActivation(
         _AndroidReminderPayload.tryParse(launch?.notificationResponse?.payload),
@@ -245,27 +368,17 @@ final class AndroidNotificationService
   }
 
   Future<bool> requestNotificationPermission() async {
-    final android = _plugin
-        .resolvePlatformSpecificImplementation<
-          AndroidFlutterLocalNotificationsPlugin
-        >();
-    return await android?.requestNotificationsPermission() ?? true;
+    return _notifications.requestNotificationPermission();
   }
 
   Future<bool> requestExactAlarmPermission() async {
-    final android = _plugin
-        .resolvePlatformSpecificImplementation<
-          AndroidFlutterLocalNotificationsPlugin
-        >();
-    return await android?.requestExactAlarmsPermission() ?? false;
+    return _notifications.requestExactAlarmPermission();
   }
 
   Future<bool> canScheduleExactly() async {
-    final android = _plugin
-        .resolvePlatformSpecificImplementation<
-          AndroidFlutterLocalNotificationsPlugin
-        >();
-    return await android?.canScheduleExactNotifications() ?? false;
+    final override = _exactAlarmCapability;
+    if (override != null) return override();
+    return _notifications.canScheduleExactly();
   }
 
   @override
@@ -301,7 +414,7 @@ final class AndroidNotificationService
   }) async {
     if (!_initialized) return;
     final strings = _strings();
-    await _plugin.show(
+    await _notifications.show(
       id: id,
       title: title,
       body: body,
@@ -360,9 +473,24 @@ final class AndroidNotificationService
       for (final mapping in mappings) mapping.scheduleId: mapping,
     };
     final pendingIds = {
-      for (final request in await _plugin.pendingNotificationRequests())
+      for (final request in await _notifications.pendingNotificationRequests())
         request.id,
     };
+    var activeStateKnown = true;
+    Set<int> activeIds;
+    try {
+      activeIds = {
+        for (final notification
+            in await _notifications.getActiveNotifications())
+          if (notification.id case final id?) id,
+      };
+    } on Object {
+      // Losing visibility into posted notifications must not make a routine
+      // reconciliation dismiss them. Source/generation invalidation below is
+      // still authoritative and will cancel an obsolete registration.
+      activeStateKnown = false;
+      activeIds = const {};
+    }
     final exact = await canScheduleExactly();
     final registrationState = androidNotificationRegistrationState(
       settings: settings,
@@ -384,13 +512,19 @@ final class AndroidNotificationService
       }
       final effectiveAt = applyAndroidQuietHours(_effectiveAt(row), settings);
       final mapping = mappingByScheduleId[row.id];
+      final mappingMatchesGeneration = mapping?.generation == row.generation;
       final remainsPending =
-          mapping != null && pendingIds.contains(mapping.platformId);
+          mappingMatchesGeneration && pendingIds.contains(mapping!.platformId);
+      final remainsDisplayed =
+          mappingMatchesGeneration &&
+          (activeIds.contains(mapping!.platformId) ||
+              (!activeStateKnown && !remainsPending));
       return !shouldKeepAndroidReminder(
         effectiveAt: effectiveAt,
         now: nowMillis,
         horizon: horizon,
         remainsPending: remainsPending,
+        remainsDisplayed: remainsDisplayed,
       );
     });
     rows.sort(
@@ -404,7 +538,7 @@ final class AndroidNotificationService
 
     for (final mapping in mappings) {
       if (!desiredIds.contains(mapping.scheduleId)) {
-        await _plugin.cancel(id: mapping.platformId);
+        await _notifications.cancel(id: mapping.platformId);
         await (_database.delete(
           _database.androidNotificationMappings,
         )..where((table) => table.scheduleId.equals(mapping.scheduleId))).go();
@@ -431,14 +565,23 @@ final class AndroidNotificationService
     for (final row in desired) {
       final effectiveAt = applyAndroidQuietHours(_effectiveAt(row), settings);
       var mapping = activeMappings[row.id];
-      final unchanged =
+      final sameGeneration = mapping?.generation == row.generation;
+      final displayed =
+          sameGeneration &&
+          (activeIds.contains(mapping!.platformId) ||
+              (!activeStateKnown &&
+                  !pendingIds.contains(mapping.platformId) &&
+                  effectiveAt <= nowMillis));
+      final unchangedPending =
           mapping != null &&
-          mapping.generation == row.generation &&
+          sameGeneration &&
           mapping.scheduledAtUtc == effectiveAt &&
           mapping.state == registrationState &&
           pendingIds.contains(mapping.platformId);
-      if (unchanged) continue;
-      if (mapping != null) await _plugin.cancel(id: mapping.platformId);
+      if (displayed || unchangedPending) continue;
+      if (mapping != null) {
+        await _notifications.cancel(id: mapping.platformId);
+      }
       final platformId =
           mapping?.platformId ?? allocateAndroidNotificationId(row.id, usedIds);
       usedIds.add(platformId);
@@ -453,7 +596,7 @@ final class AndroidNotificationService
       final scheduledAt = effectiveAt <= nowMillis
           ? now.add(const Duration(seconds: 5)).millisecondsSinceEpoch
           : effectiveAt;
-      await _plugin.zonedSchedule(
+      await _notifications.zonedSchedule(
         id: platformId,
         title:
             settings.notificationDetailLevel == NotificationDetailLevel.private
@@ -507,6 +650,7 @@ final class AndroidNotificationService
       exact: exact,
       registrationState: registrationState,
       pendingIds: pendingIds,
+      activeIds: activeIds,
     );
   }
 
@@ -516,13 +660,14 @@ final class AndroidNotificationService
     required bool exact,
     required String registrationState,
     required Set<int> pendingIds,
+    required Set<int> activeIds,
   }) async {
     const platformId = 0x425903;
     final existing = await _database
         .select(_database.androidDailySummarySchedules)
         .get();
     if (!settings.notifyDueToday || eligibleAccounts.isEmpty) {
-      await _plugin.cancel(id: platformId);
+      await _notifications.cancel(id: platformId);
       await _database.delete(_database.androidDailySummarySchedules).go();
       return;
     }
@@ -530,7 +675,7 @@ final class AndroidNotificationService
     final localDate =
         '${now.year.toString().padLeft(4, '0')}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
     for (final row in existing.where((row) => row.localDate != localDate)) {
-      await _plugin.cancel(id: row.platformId);
+      await _notifications.cancel(id: row.platformId);
       await (_database.delete(
         _database.androidDailySummarySchedules,
       )..where((table) => table.localDate.equals(row.localDate))).go();
@@ -572,7 +717,7 @@ final class AndroidNotificationService
           due.day == now.day;
     }).length;
     if (count == 0) {
-      await _plugin.cancel(id: platformId);
+      await _notifications.cancel(id: platformId);
       await (_database.delete(
         _database.androidDailySummarySchedules,
       )..where((table) => table.localDate.equals(localDate))).go();
@@ -581,11 +726,28 @@ final class AndroidNotificationService
     final current = existing
         .where((row) => row.localDate == localDate)
         .firstOrNull;
-    if (current != null &&
-        current.scheduledAtUtc <= DateTime.now().millisecondsSinceEpoch) {
-      // Android does not report ordinary display delivery. Keeping this
-      // registration prevents a false delivery claim and duplicate summary.
-      return;
+    final nowMillis = DateTime.now().millisecondsSinceEpoch;
+    if (current != null) {
+      final pending = pendingIds.contains(platformId);
+      final displayed = activeIds.contains(platformId);
+      final contentMatches = current.taskCount == count;
+      if (displayed && contentMatches) {
+        // A posted summary remains actionable. Do not remove or repost it just
+        // because its scheduled time has elapsed or policy has since changed.
+        return;
+      }
+      if (pending && contentMatches && current.state == registrationState) {
+        // Inexact delivery may be late. Preserve an unchanged pending alarm,
+        // but policy/content changes below must replace it.
+        return;
+      }
+      if (current.scheduledAtUtc <= nowMillis && !pending && !displayed) {
+        // Absence from both platform sets after the due time can mean the user
+        // dismissed an already shown summary. Do not infer that it needs to be
+        // emitted again. If active-state inspection failed, prefer the same
+        // non-destructive outcome.
+        return;
+      }
     }
     var scheduled = tz.TZDateTime(tz.local, now.year, now.month, now.day, 9);
     if (!scheduled.isAfter(now)) {
@@ -602,10 +764,10 @@ final class AndroidNotificationService
         current.state == registrationState &&
         pendingIds.contains(platformId);
     if (unchanged) return;
-    if (current != null) await _plugin.cancel(id: platformId);
+    if (current != null) await _notifications.cancel(id: platformId);
     final generation = '$localDate:$count:$scheduledAt';
     final strings = _strings();
-    await _plugin.zonedSchedule(
+    await _notifications.zonedSchedule(
       id: platformId,
       title: strings.dueTodayTitle,
       body: settings.notificationDetailLevel == NotificationDetailLevel.private
@@ -747,7 +909,10 @@ bool shouldKeepAndroidReminder({
   required int now,
   required int horizon,
   required bool remainsPending,
-}) => effectiveAt <= horizon && (effectiveAt > now || remainsPending);
+  bool remainsDisplayed = false,
+}) =>
+    effectiveAt <= horizon &&
+    (effectiveAt > now || remainsPending || remainsDisplayed);
 
 bool _isQuietNow(AppSettings settings) {
   final now = DateTime.now().millisecondsSinceEpoch;

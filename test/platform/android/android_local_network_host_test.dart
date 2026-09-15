@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:busymax/src/android/presentation/android_settings_screen.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -29,4 +31,50 @@ void main() {
     expect(isAndroidLocalNetworkHost('8.8.8.8'), isFalse);
     expect(isAndroidLocalNetworkHost('2001:4860:4860::8888'), isFalse);
   });
+
+  test(
+    'resolves an ordinary dotted DNS name to its actual LAN address',
+    () async {
+      expect(
+        await requiresAndroidLocalNetworkAccess(
+          'cloud.example.com',
+          lookup: (_) async => [InternetAddress('192.168.1.20')],
+        ),
+        isTrue,
+      );
+    },
+  );
+
+  test('does not prompt when an ordinary DNS name resolves publicly', () async {
+    expect(
+      await requiresAndroidLocalNetworkAccess(
+        'cloud.example.com',
+        lookup: (_) async => [InternetAddress('203.0.113.10')],
+      ),
+      isFalse,
+    );
+  });
+
+  test(
+    'mixed DNS answers require LAN access and lookup failure does not',
+    () async {
+      expect(
+        await requiresAndroidLocalNetworkAccess(
+          'cloud.example.com',
+          lookup: (_) async => [
+            InternetAddress('203.0.113.10'),
+            InternetAddress('fd12:3456::1'),
+          ],
+        ),
+        isTrue,
+      );
+      expect(
+        await requiresAndroidLocalNetworkAccess(
+          'missing.example.com',
+          lookup: (_) => throw const SocketException('unresolved'),
+        ),
+        isFalse,
+      );
+    },
+  );
 }

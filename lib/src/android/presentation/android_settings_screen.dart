@@ -29,6 +29,9 @@ import '../../providers/busy_provider.dart';
 import '../../webcal/webcal_subscription_service.dart';
 import '../android_background.dart';
 import '../android_notifications.dart';
+import 'android_diagnostics_screen.dart';
+import 'android_feedback_screen.dart';
+import 'android_nextcloud_scheduling_screen.dart';
 
 class AndroidSettingsScreen extends ConsumerStatefulWidget {
   const AndroidSettingsScreen({super.key});
@@ -490,6 +493,15 @@ class _AndroidSettingsScreenState extends ConsumerState<AndroidSettingsScreen> {
                 subtitle: Text(context.l10n.launchAtLoginDescription),
                 onTap: () => unawaited(enqueueImmediateBusyMaxSync()),
               ),
+              ListTile(
+                leading: const Icon(Icons.monitor_heart_outlined),
+                title: Text(context.l10n.diagnostics),
+                onTap: () => Navigator.of(context).push<void>(
+                  MaterialPageRoute(
+                    builder: (_) => const AndroidDiagnosticsScreen(),
+                  ),
+                ),
+              ),
             ],
           ),
           _Section(
@@ -551,6 +563,19 @@ class _AndroidSettingsScreenState extends ConsumerState<AndroidSettingsScreen> {
                 subtitle: Text(context.l10n.aboutBusyMaxDescription),
                 onTap: _showAbout,
               ),
+              ListTile(
+                leading: const Icon(Icons.feedback_outlined),
+                title: Text(context.l10n.sendFeedback),
+                enabled: ref
+                    .read(buildConfigProvider)
+                    .feedbackEndpoint
+                    .isNotEmpty,
+                onTap: () => Navigator.of(context).push<void>(
+                  MaterialPageRoute(
+                    builder: (_) => const AndroidFeedbackScreen(),
+                  ),
+                ),
+              ),
             ],
           ),
         ],
@@ -590,7 +615,7 @@ class _AndroidSettingsScreenState extends ConsumerState<AndroidSettingsScreen> {
       );
       if (server == null || !mounted) return;
       final uri = Uri.tryParse(server);
-      if (uri != null && isAndroidLocalNetworkHost(uri.host)) {
+      if (uri != null && await requiresAndroidLocalNetworkAccess(uri.host)) {
         try {
           final granted = await BusyMaxAndroidPlatform.instance
               .requestLocalNetworkAccess();
@@ -651,58 +676,11 @@ class _AndroidSettingsScreenState extends ConsumerState<AndroidSettingsScreen> {
     }
   }
 
-  Future<(String, String)?> _appleCredentials(String? fixedEmail) async {
-    final email = TextEditingController(text: fixedEmail);
-    final password = TextEditingController();
-    final result = await showDialog<(String, String)>(
+  Future<(String, String)?> _appleCredentials(String? fixedEmail) {
+    return showDialog<(String, String)>(
       context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: Text(context.l10n.connectAppleICloudTitle),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              controller: email,
-              enabled: fixedEmail == null,
-              keyboardType: TextInputType.emailAddress,
-              decoration: InputDecoration(
-                labelText: context.l10n.appleAccountEmail,
-              ),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: password,
-              obscureText: true,
-              decoration: InputDecoration(
-                labelText: context.l10n.appleAppSpecificPassword,
-                helperText: context.l10n.appleAppSpecificPasswordHelp,
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext),
-            child: Text(context.l10n.cancel),
-          ),
-          FilledButton(
-            onPressed: () {
-              if (email.text.trim().isNotEmpty &&
-                  password.text.trim().isNotEmpty) {
-                Navigator.pop(dialogContext, (
-                  email.text.trim(),
-                  password.text.trim(),
-                ));
-              }
-            },
-            child: Text(context.l10n.connectAccountAction),
-          ),
-        ],
-      ),
+      builder: (_) => _AndroidAppleCredentialsDialog(fixedEmail: fixedEmail),
     );
-    email.dispose();
-    password.dispose();
-    return result;
   }
 
   Future<void> _removeAccount(AccountEntity account) async {
@@ -822,6 +800,13 @@ class _AndroidSettingsScreenState extends ConsumerState<AndroidSettingsScreen> {
             if (source.provider == BusyProvider.nextcloud &&
                 source.davCollectionId != null)
               ListTile(
+                leading: const Icon(Icons.inbox_outlined),
+                title: Text(context.l10n.nextcloudSchedulingInbox),
+                onTap: () => Navigator.pop(context, 'scheduling'),
+              ),
+            if (source.provider == BusyProvider.nextcloud &&
+                source.davCollectionId != null)
+              ListTile(
                 leading: const Icon(Icons.people_outline),
                 title: Text(context.l10n.nextcloudSharing),
                 onTap: () => Navigator.pop(context, 'sharing'),
@@ -857,6 +842,7 @@ class _AndroidSettingsScreenState extends ConsumerState<AndroidSettingsScreen> {
           await ref
               .read(calendarRepositoryProvider)
               .renameLocalSource(source.id, name);
+          _requestQueuedCalendarSync(source);
         }
       } else if (action == 'reminders') {
         final reminders = await _booleanPrompt(
@@ -873,6 +859,7 @@ class _AndroidSettingsScreenState extends ConsumerState<AndroidSettingsScreen> {
         await ref
             .read(calendarRepositoryProvider)
             .setSourceColor(source.id, choice);
+        _requestQueuedCalendarSync(source);
       } else if (action == 'export') {
         await _exportCollection(source.accountId, source.davCollectionId!);
       } else if (action == 'sharing') {
@@ -883,6 +870,16 @@ class _AndroidSettingsScreenState extends ConsumerState<AndroidSettingsScreen> {
               accountId: source.accountId,
               collectionId: source.davCollectionId!,
               title: source.summary,
+            ),
+          ),
+        );
+      } else if (action == 'scheduling') {
+        if (!mounted) return;
+        await Navigator.of(context).push<void>(
+          MaterialPageRoute(
+            builder: (_) => AndroidNextcloudSchedulingScreen(
+              accountId: source.accountId,
+              collectionId: source.davCollectionId!,
             ),
           ),
         );
@@ -899,6 +896,7 @@ class _AndroidSettingsScreenState extends ConsumerState<AndroidSettingsScreen> {
         );
         if (!confirmed) return;
         await ref.read(calendarRepositoryProvider).deleteLocalSource(source.id);
+        _requestQueuedCalendarSync(source);
       }
     } on Object catch (error) {
       _message(l10n.calendarUpdateFailed('$error'));
@@ -1134,6 +1132,20 @@ class _AndroidSettingsScreenState extends ConsumerState<AndroidSettingsScreen> {
     );
   }
 
+  void _requestQueuedCalendarSync(CalendarSourceEntity source) {
+    if (source.provider != BusyProvider.google &&
+        source.provider != BusyProvider.microsoft) {
+      return;
+    }
+    ref
+        .read(
+          pendingCalendarMutationSyncRequesterForAccountProvider(
+            source.accountId,
+          ),
+        )
+        .request();
+  }
+
   Future<void> _exportCollection(String accountId, String collectionId) async {
     final l10n = context.l10n;
     final resources = await ref
@@ -1343,34 +1355,16 @@ class _AndroidSettingsScreenState extends ConsumerState<AndroidSettingsScreen> {
     required String label,
     String? initialValue,
     String? helper,
-  }) async {
-    final controller = TextEditingController(text: initialValue);
-    final value = await showDialog<String>(
+  }) {
+    return showDialog<String>(
       context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: Text(title),
-        content: TextField(
-          controller: controller,
-          autofocus: true,
-          decoration: InputDecoration(labelText: label, helperText: helper),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext),
-            child: Text(context.l10n.cancel),
-          ),
-          FilledButton(
-            onPressed: () {
-              final text = controller.text.trim();
-              if (text.isNotEmpty) Navigator.pop(dialogContext, text);
-            },
-            child: Text(context.l10n.save),
-          ),
-        ],
+      builder: (_) => _AndroidTextPromptDialog(
+        title: title,
+        label: label,
+        initialValue: initialValue,
+        helper: helper,
       ),
     );
-    controller.dispose();
-    return value;
   }
 
   Future<bool?> _booleanPrompt(String title, bool value) {
@@ -1449,6 +1443,160 @@ bool isAndroidLocalNetworkHost(String host) {
   final uniqueLocal = (bytes[0] & 0xfe) == 0xfc;
   final linkLocal = bytes[0] == 0xfe && (bytes[1] & 0xc0) == 0x80;
   return loopback || uniqueLocal || linkLocal;
+}
+
+typedef AndroidHostLookup = Future<List<InternetAddress>> Function(String host);
+
+/// Resolves ordinary DNS names before deciding whether Android's contextual
+/// local-network permission is required. DNS failure is left to onboarding so
+/// it can surface the real connectivity error without an irrelevant prompt.
+Future<bool> requiresAndroidLocalNetworkAccess(
+  String host, {
+  AndroidHostLookup lookup = InternetAddress.lookup,
+}) async {
+  if (isAndroidLocalNetworkHost(host)) return true;
+  var value = host.trim();
+  if (value.startsWith('[') && value.endsWith(']')) {
+    value = value.substring(1, value.length - 1);
+  }
+  if (value.isEmpty || InternetAddress.tryParse(value) != null) return false;
+  try {
+    final addresses = await lookup(value);
+    return addresses.any(
+      (address) => isAndroidLocalNetworkHost(address.address),
+    );
+  } on Object {
+    return false;
+  }
+}
+
+class _AndroidTextPromptDialog extends StatefulWidget {
+  const _AndroidTextPromptDialog({
+    required this.title,
+    required this.label,
+    this.initialValue,
+    this.helper,
+  });
+
+  final String title;
+  final String label;
+  final String? initialValue;
+  final String? helper;
+
+  @override
+  State<_AndroidTextPromptDialog> createState() =>
+      _AndroidTextPromptDialogState();
+}
+
+class _AndroidTextPromptDialogState extends State<_AndroidTextPromptDialog> {
+  late final TextEditingController _controller = TextEditingController(
+    text: widget.initialValue,
+  );
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: Text(widget.title),
+      content: TextField(
+        controller: _controller,
+        autofocus: true,
+        decoration: InputDecoration(
+          labelText: widget.label,
+          helperText: widget.helper,
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: Text(context.l10n.cancel),
+        ),
+        FilledButton(
+          onPressed: () {
+            final text = _controller.text.trim();
+            if (text.isNotEmpty) Navigator.pop(context, text);
+          },
+          child: Text(context.l10n.save),
+        ),
+      ],
+    );
+  }
+}
+
+class _AndroidAppleCredentialsDialog extends StatefulWidget {
+  const _AndroidAppleCredentialsDialog({this.fixedEmail});
+
+  final String? fixedEmail;
+
+  @override
+  State<_AndroidAppleCredentialsDialog> createState() =>
+      _AndroidAppleCredentialsDialogState();
+}
+
+class _AndroidAppleCredentialsDialogState
+    extends State<_AndroidAppleCredentialsDialog> {
+  late final TextEditingController _email = TextEditingController(
+    text: widget.fixedEmail,
+  );
+  final TextEditingController _password = TextEditingController();
+
+  @override
+  void dispose() {
+    _email.dispose();
+    _password.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: Text(context.l10n.connectAppleICloudTitle),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          TextField(
+            controller: _email,
+            enabled: widget.fixedEmail == null,
+            keyboardType: TextInputType.emailAddress,
+            decoration: InputDecoration(
+              labelText: context.l10n.appleAccountEmail,
+            ),
+            onChanged: (_) => setState(() {}),
+          ),
+          const SizedBox(height: 12),
+          TextField(
+            controller: _password,
+            obscureText: true,
+            decoration: InputDecoration(
+              labelText: context.l10n.appleAppSpecificPassword,
+              helperText: context.l10n.appleAppSpecificPasswordHelp,
+            ),
+            onChanged: (_) => setState(() {}),
+          ),
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: Text(context.l10n.cancel),
+        ),
+        FilledButton(
+          onPressed: _email.text.trim().isEmpty || _password.text.trim().isEmpty
+              ? null
+              : () => Navigator.pop(context, (
+                  _email.text.trim(),
+                  _password.text.trim(),
+                )),
+          child: Text(context.l10n.connectAccountAction),
+        ),
+      ],
+    );
+  }
 }
 
 class AndroidNextcloudSharingScreen extends ConsumerStatefulWidget {

@@ -32,7 +32,10 @@ import com.microsoft.identity.client.IAuthenticationResult
 import com.microsoft.identity.client.IMultipleAccountPublicClientApplication
 import com.microsoft.identity.client.Prompt
 import com.microsoft.identity.client.PublicClientApplication
+import com.microsoft.identity.client.exception.MsalClientException
 import com.microsoft.identity.client.exception.MsalException
+import com.microsoft.identity.client.exception.MsalServiceException
+import com.microsoft.identity.client.exception.MsalUiRequiredException
 import io.flutter.embedding.engine.plugins.FlutterPlugin
 import io.flutter.embedding.engine.plugins.activity.ActivityAware
 import io.flutter.embedding.engine.plugins.activity.ActivityPluginBinding
@@ -85,6 +88,67 @@ internal object EngineOwnedAccountGateRegistry {
             }
         }
     }
+}
+
+internal data class MicrosoftSilentFailure(
+    val code: String,
+    val message: String,
+)
+
+internal class MicrosoftAccountMissingException : IllegalStateException()
+
+/** Maps MSAL failures without turning transport or configuration faults into logout state. */
+internal fun classifyMicrosoftSilentFailure(error: Throwable): MicrosoftSilentFailure = when (error) {
+    is MicrosoftAccountMissingException,
+    is MsalUiRequiredException -> MicrosoftSilentFailure(
+        "android/auth-interaction-required",
+        "Microsoft authorization must be reconnected.",
+    )
+    is MsalServiceException -> {
+        val configurationCodes = setOf(
+            MsalServiceException.INVALID_REQUEST,
+            MsalServiceException.UNAUTHORIZED_CLIENT,
+            MsalServiceException.INVALID_SCOPE,
+            MsalServiceException.INVALID_INSTANCE,
+        )
+        if (error.errorCode in configurationCodes) {
+            MicrosoftSilentFailure(
+                "android/microsoft-not-configured",
+                "Microsoft authorization is not configured for this account.",
+            )
+        } else {
+            MicrosoftSilentFailure(
+                "android/auth-temporary-failure",
+                "Microsoft authorization is temporarily unavailable.",
+            )
+        }
+    }
+    is MsalClientException -> {
+        val configurationCodes = setOf(
+            MsalClientException.INVALID_PARAMETER,
+            MsalClientException.SCOPE_EMPTY_OR_NULL,
+            MsalClientException.JSON_PARSE_FAILURE,
+            MsalClientException.MALFORMED_URL,
+            MsalClientException.UNKNOWN_AUTHORITY,
+            MsalClientException.APP_MANIFEST_VALIDATION_ERROR,
+            MsalClientException.REDIRECT_URI_VALIDATION_ERROR,
+        )
+        if (error.errorCode in configurationCodes) {
+            MicrosoftSilentFailure(
+                "android/microsoft-not-configured",
+                "Microsoft authorization is not configured correctly.",
+            )
+        } else {
+            MicrosoftSilentFailure(
+                "android/auth-temporary-failure",
+                "Microsoft authorization is temporarily unavailable.",
+            )
+        }
+    }
+    else -> MicrosoftSilentFailure(
+        "android/microsoft-authorization-failed",
+        "Microsoft authorization failed.",
+    )
 }
 
 /** BusyMax-owned Android integration. Provider refresh tokens never enter Dart. */
@@ -316,12 +380,13 @@ class BusymaxAndroidPlatformPlugin : FlutterPlugin,
                     executor.execute {
                         try {
                             val account = application.accounts.firstOrNull { it.id == nativeId }
-                                ?: throw IllegalStateException("Microsoft account is not in the MSAL cache.")
+                                ?: throw MicrosoftAccountMissingException()
                             val parameters = AcquireTokenSilentParameters.Builder()
                                 .withScopes(scopes).forAccount(account).fromAuthority(account.authority).build()
                             postSuccess(result, msalResult(application.acquireTokenSilent(parameters)))
                         } catch (error: Exception) {
-                            postError(result, "android/auth-interaction-required", "Microsoft authorization must be reconnected.", error)
+                            val failure = classifyMicrosoftSilentFailure(error)
+                            postError(result, failure.code, failure.message, error)
                         }
                     }
                 }

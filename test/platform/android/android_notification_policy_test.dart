@@ -61,6 +61,7 @@ void main() {
         now: 200,
         horizon: 1000,
         remainsPending: true,
+        remainsDisplayed: false,
       ),
       isTrue,
     );
@@ -70,8 +71,22 @@ void main() {
         now: 200,
         horizon: 1000,
         remainsPending: false,
+        remainsDisplayed: false,
       ),
       isFalse,
+    );
+  });
+
+  test('a delivered reminder remains eligible while it is still visible', () {
+    expect(
+      shouldKeepAndroidReminder(
+        effectiveAt: 100,
+        now: 200,
+        horizon: 1000,
+        remainsPending: false,
+        remainsDisplayed: true,
+      ),
+      isTrue,
     );
   });
 
