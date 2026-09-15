@@ -11,12 +11,12 @@ test is never counted as a pass.
 
 | Item | Recorded value |
 |---|---|
-| Source baseline | `b0f816ca4687decd4b502d0f0fdf6ac518de40cc` |
-| Reviewed Android foundation | The source baseline plus the uncommitted `BusyMax_Android_a8d0604_Review.md` corrections described here |
+| Source baseline | `f14f309f0357712f878b53df7b2643105996684a` |
+| Reviewed Android foundation | The source baseline, including the `BusyMax_Android_a8d0604_Review.md` corrections and the four follow-up correctness fixes described here |
 | Verification host | `skynet3`, Linux x86_64, Ubuntu kernel `7.0.0-31-generic` |
 | Verification time | Current correction pass on `2026-09-14` (`America/Vancouver`) |
 | Flutter / Dart | Flutter `3.47.2` (`d3b14c8769`), bundled Dart `3.13.2` |
-| Java | Eclipse Temurin JDK `17.0.18+8` |
+| Java | Eclipse Temurin JDK `17.0.20.1+1`, verified temporary archive used for the current release build |
 | Android toolchain | platform `37.0` revision 2, Build Tools `37.0.0`, Gradle `9.4.1`, AGP `9.2.0` |
 | Kotlin configuration | built-in Kotlin enabled; plugin declaration `2.4.0`; `android.newDsl=false` for the documented Flutter 3.47.2 compatibility requirement |
 | Application | `io.busystack.busymax`, beta `0.2.2+2`, min SDK 24, target/compile SDK 37 |
@@ -65,8 +65,8 @@ uploaded.
 
 | Artifact | Size | SHA-256 |
 |---|---:|---|
-| `build/app/outputs/flutter-apk/app-release.apk` | 86,948,944 bytes | `9e7a0ee03242e5d206e3c5df724b4bfcf999342aa15e3853275c72e5558545f5` |
-| `build/app/outputs/bundle/release/app-release.aab` | 82,776,685 bytes | `e48f2e64db3bb0186fb898ae26a36e40746efe9cc1e2645a26a9b49ae577848a` |
+| `build/app/outputs/flutter-apk/app-release.apk` | 86,965,328 bytes | `3ba8ab41fc7d23bad2d44c1d43a078cef7893b42fdb6693e7347d0081eaa7b12` |
+| `build/app/outputs/bundle/release/app-release.aab` | 82,785,235 bytes | `139f69721718bd9bb2a0a603e354eb10a22a4dcfe5afbd3ce5d546d29971ef01` |
 
 Inspection found `arm64-v8a`, `armeabi-v7a`, and `x86_64`, with Flutter,
 application, Dart JNI, and SQLite native libraries in each ABI. Every packaged
