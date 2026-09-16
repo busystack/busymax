@@ -32,6 +32,7 @@ import 'package:busymax/src/features/connectivity/network_connectivity_service.d
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:intl/intl.dart';
 
 import '../../../support/memory_settings_store.dart';
 import '../../../test_localized_app.dart';
@@ -63,6 +64,10 @@ void main() {
         expect(list, findsOneWidget);
         expect(find.text('Far future review'), findsOneWidget);
         expect(find.text('No due task'), findsOneWidget);
+        expect(
+          find.text(DateFormat.yMMMMEEEEd('en').format(DateTime(2040, 2, 15))),
+          findsOneWidget,
+        );
         if (platform == 'linux') {
           expect(find.byType(BusyMaxSidebarSurface), findsOneWidget);
           expect(
@@ -318,6 +323,10 @@ void main() {
         findsOneWidget,
       );
       expect(find.text('Far future review'), findsOneWidget);
+      expect(
+        find.text(DateFormat.yMMMMEEEEd('en').format(DateTime(2040, 2, 15))),
+        findsOneWidget,
+      );
       await tester.tap(find.byIcon(Icons.tune));
       await tester.pumpAndSettle();
       final panel = find.byType(AndroidScheduleSearchFilters);

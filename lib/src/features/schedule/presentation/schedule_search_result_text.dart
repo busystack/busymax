@@ -7,6 +7,50 @@ import '../../../schedule/schedule_item.dart';
 import '../../../schedule/schedule_search_criteria.dart';
 import '../../../schedule/schedule_search_match.dart';
 
+/// The date that gives a search result its place in Agenda presentation.
+///
+/// Search date filters intentionally use a task's actual due value, while the
+/// ordinary Schedule projection uses its scheduling start. Keep that
+/// distinction in presentation so an already-matched task remains under the
+/// date that caused it to match.
+DateTime? scheduleSearchResultDisplayDate(ScheduleItem item) =>
+    item is TaskScheduleItem ? item.due ?? item.start : item.start;
+
+int compareScheduleSearchResultPresentation(
+  ScheduleItem first,
+  ScheduleItem second,
+) {
+  final firstDate = scheduleSearchResultDisplayDate(first);
+  final secondDate = scheduleSearchResultDisplayDate(second);
+  final dayComparison = _searchResultDay(
+    firstDate,
+  ).compareTo(_searchResultDay(secondDate));
+  if (dayComparison != 0) return dayComparison;
+  if (first.allDay != second.allDay) return first.allDay ? -1 : 1;
+  final timeComparison = _searchResultDate(
+    firstDate,
+  ).compareTo(_searchResultDate(secondDate));
+  if (timeComparison != 0) return timeComparison;
+  if (first.kind != second.kind) {
+    return first.kind == ScheduleItemKind.calendarEvent ? -1 : 1;
+  }
+  final titleComparison = first.title.toLowerCase().compareTo(
+    second.title.toLowerCase(),
+  );
+  if (titleComparison != 0) return titleComparison;
+  final accountComparison = first.accountId.compareTo(second.accountId);
+  if (accountComparison != 0) return accountComparison;
+  final sourceComparison = first.sourceId.compareTo(second.sourceId);
+  if (sourceComparison != 0) return sourceComparison;
+  return first.id.compareTo(second.id);
+}
+
+DateTime _searchResultDay(DateTime? value) => value == null
+    ? DateTime(9999)
+    : DateTime(value.year, value.month, value.day);
+
+DateTime _searchResultDate(DateTime? value) => value ?? DateTime(9999);
+
 String scheduleSearchResultText(
   BuildContext context,
   ScheduleItem item,

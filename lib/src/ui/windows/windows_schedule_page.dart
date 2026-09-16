@@ -567,7 +567,6 @@ class _WindowsSchedulePageState extends ConsumerState<WindowsSchedulePage> {
                                   items: items,
                                   locale: locale,
                                   onOpen: _showItemDetails,
-                                  groupByDate: false,
                                   searchCriteria: _searchCriteria,
                                   searchQuery: _query,
                                 );
@@ -1655,7 +1654,6 @@ class _ScheduleModeView extends StatelessWidget {
       items: items,
       locale: locale,
       onOpen: onOpen,
-      groupByDate: true,
       onLoadMore: onLoadMoreAgenda,
     ),
   };
@@ -1669,7 +1667,6 @@ class _AgendaList extends StatelessWidget {
     required this.items,
     required this.locale,
     required this.onOpen,
-    required this.groupByDate,
     this.onLoadMore,
   });
 
@@ -1678,13 +1675,16 @@ class _AgendaList extends StatelessWidget {
   final List<ScheduleItem> items;
   final String locale;
   final ValueChanged<ScheduleItem> onOpen;
-  final bool groupByDate;
   final VoidCallback? onLoadMore;
 
   @override
   Widget build(BuildContext context) {
+    final agendaItems = searchCriteria == null
+        ? items
+        : (List<ScheduleItem>.of(items)
+            ..sort(compareScheduleSearchResultPresentation));
     final rows = <Widget>[];
-    if (items.isEmpty) {
+    if (agendaItems.isEmpty) {
       rows.add(
         Padding(
           padding: const EdgeInsets.symmetric(vertical: 48),
@@ -1696,9 +1696,12 @@ class _AgendaList extends StatelessWidget {
     }
     DateTime? previousDay;
     var noDateShown = false;
-    for (final item in items) {
-      final day = item.start == null ? null : _dateOnly(item.start!);
-      if (groupByDate && day != previousDay) {
+    for (final item in agendaItems) {
+      final displayDate = searchCriteria == null
+          ? item.start
+          : scheduleSearchResultDisplayDate(item);
+      final day = displayDate == null ? null : _dateOnly(displayDate);
+      if (day != previousDay) {
         rows.add(
           Padding(
             padding: const EdgeInsetsDirectional.fromSTEB(4, 14, 4, 6),
@@ -1712,7 +1715,7 @@ class _AgendaList extends StatelessWidget {
         );
         previousDay = day;
         noDateShown = day == null;
-      } else if (groupByDate && day == null && !noDateShown) {
+      } else if (day == null && !noDateShown) {
         rows.add(
           Padding(
             padding: const EdgeInsetsDirectional.fromSTEB(4, 14, 4, 6),

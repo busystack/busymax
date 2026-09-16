@@ -112,4 +112,43 @@ void main() {
     );
     expect(find.textContaining('3:45 PM'), findsOneWidget);
   });
+
+  test('search Agenda display date prefers task due then start', () {
+    final due = DateTime(2026, 6, 12, 15, 45);
+    final start = DateTime(2026, 6, 20, 9);
+
+    expect(scheduleSearchResultDisplayDate(task(due: due, start: start)), due);
+    expect(scheduleSearchResultDisplayDate(task(start: start)), start);
+    expect(scheduleSearchResultDisplayDate(task()), isNull);
+  });
+
+  test('search Agenda ordering is due-first and leaves undated items last', () {
+    TaskScheduleItem result(String id, {DateTime? due, DateTime? start}) =>
+        TaskScheduleItem(
+          id: id,
+          accountId: 'account',
+          sourceId: 'list',
+          provider: BusyProvider.microsoft,
+          title: id,
+          completed: false,
+          allDay: true,
+          due: due,
+          start: start,
+        );
+    final values = <ScheduleItem>[
+      result('undated'),
+      result(
+        'later start but earlier due',
+        due: DateTime(2026, 6, 12),
+        start: DateTime(2026, 6, 20),
+      ),
+      result('start fallback', start: DateTime(2026, 6, 14)),
+    ]..sort(compareScheduleSearchResultPresentation);
+
+    expect(values.map((item) => item.id), [
+      'later start but earlier due',
+      'start fallback',
+      'undated',
+    ]);
+  });
 }

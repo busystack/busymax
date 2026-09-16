@@ -884,35 +884,47 @@ class _AgendaList extends StatelessWidget {
     if (items.isEmpty) {
       return Center(child: Text(context.l10n.noEventsOrTasks));
     }
+    final agendaItems = searchCriteria == null
+        ? items
+        : (List<ScheduleItem>.of(items)
+            ..sort(compareScheduleSearchResultPresentation));
     return ListView.separated(
       padding: const EdgeInsets.fromLTRB(12, 8, 12, 96),
-      itemCount: items.length,
+      itemCount: agendaItems.length,
       separatorBuilder: (_, _) => const SizedBox(height: 6),
       itemBuilder: (context, index) {
-        final item = items[index];
+        final item = agendaItems[index];
+        final displayDate = searchCriteria == null
+            ? item.start
+            : scheduleSearchResultDisplayDate(item);
         final time = item.start == null
             ? context.l10n.noDate
             : item.allDay
             ? context.l10n.allDay
             : BusyMaxTimeFormatScope.of(context).format(item.start!);
         final isToday =
-            item.start != null && _sameDay(item.start!, DateTime.now());
+            displayDate != null && _sameDay(displayDate, DateTime.now());
+        final previousDisplayDate = index == 0
+            ? null
+            : searchCriteria == null
+            ? agendaItems[index - 1].start
+            : scheduleSearchResultDisplayDate(agendaItems[index - 1]);
         return Card(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               if (index == 0 ||
-                  (item.start == null && items[index - 1].start != null) ||
-                  (item.start != null &&
-                      (items[index - 1].start == null ||
-                          !_sameDay(item.start!, items[index - 1].start!))))
+                  (displayDate == null && previousDisplayDate != null) ||
+                  (displayDate != null &&
+                      (previousDisplayDate == null ||
+                          !_sameDay(displayDate, previousDisplayDate))))
                 Padding(
                   padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
                   child: Text(
-                    item.start == null
+                    displayDate == null
                         ? context.l10n.noDate
                         : '${isToday ? '${context.l10n.today} · ' : ''}'
-                              '${DateFormat.yMMMMEEEEd().format(item.start!)}',
+                              '${DateFormat.yMMMMEEEEd().format(displayDate)}',
                     style: Theme.of(context).textTheme.labelLarge?.copyWith(
                       color: isToday
                           ? Theme.of(context).colorScheme.primary

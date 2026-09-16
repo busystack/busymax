@@ -29,6 +29,7 @@ import 'package:busymax/src/features/maps/domain/geographic_point.dart';
 import 'package:busymax/src/platform/gtk_font_service.dart';
 import 'package:busymax/src/schedule/schedule_item.dart';
 import 'package:busymax/src/schedule/schedule_range.dart';
+import 'package:busymax/src/schedule/schedule_search_criteria.dart';
 import 'package:busymax/src/providers/busy_provider.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
@@ -2802,6 +2803,184 @@ void main() {
     );
   });
 
+  testWidgets(
+    'search results reuse Agenda groups and use task due dates without an overdue bucket',
+    (tester) async {
+      final criteria = ScheduleSearchCriteria(
+        referenceDate: DateTime(2040, 6, 15),
+        firstWeekday: DateTime.monday,
+        sourceIds: const {'calendar'},
+        taskListKeys: {
+          const ScheduleTaskListKey(
+            accountId: 'microsoft:m',
+            taskListId: 'tasks',
+          ),
+        },
+      );
+      final dueFirstTask = TaskScheduleItem(
+        id: 'due-first',
+        accountId: 'microsoft:m',
+        provider: BusyProvider.microsoft,
+        sourceId: 'tasks',
+        title: 'Due-first task',
+        completed: false,
+        allDay: true,
+        start: DateTime(2040, 6, 20),
+        due: DateTime(2040, 6, 12),
+        sourceName: 'Tasks',
+      );
+      final startFallbackTask = TaskScheduleItem(
+        id: 'start-fallback',
+        accountId: 'microsoft:m',
+        provider: BusyProvider.microsoft,
+        sourceId: 'tasks',
+        title: 'Start fallback task',
+        completed: false,
+        allDay: true,
+        start: DateTime(2040, 6, 14),
+        sourceName: 'Tasks',
+      );
+      const undatedTask = TaskScheduleItem(
+        id: 'undated',
+        accountId: 'microsoft:m',
+        provider: BusyProvider.microsoft,
+        sourceId: 'tasks',
+        title: 'Undated task',
+        completed: false,
+        allDay: true,
+        sourceName: 'Tasks',
+      );
+
+      await tester.pumpWidget(
+        localizedTestApp(
+          child: Scaffold(
+            body: ScheduleAgendaView(
+              range: ScheduleRange.week(criteria.referenceDate),
+              items: [undatedTask, startFallbackTask, dueFirstTask],
+              searchCriteria: criteria,
+              searchQuery: 'task',
+              onItemSelected: (_, _, [_]) {},
+              onTaskCompletionChanged: (_, _) {},
+            ),
+          ),
+        ),
+      );
+
+      expect(
+        find.byKey(const ValueKey('schedule-search-results')),
+        findsOneWidget,
+      );
+      expect(find.byType(BusyMaxGroupedList), findsNWidgets(3));
+      final dueGroup = tester.widget<BusyMaxGroupedList>(
+        find.ancestor(
+          of: find.text('Due-first task'),
+          matching: find.byType(BusyMaxGroupedList),
+        ),
+      );
+      final startGroup = tester.widget<BusyMaxGroupedList>(
+        find.ancestor(
+          of: find.text('Start fallback task'),
+          matching: find.byType(BusyMaxGroupedList),
+        ),
+      );
+      final undatedGroup = tester.widget<BusyMaxGroupedList>(
+        find.ancestor(
+          of: find.text('Undated task'),
+          matching: find.byType(BusyMaxGroupedList),
+        ),
+      );
+      expect(
+        dueGroup.title,
+        DateFormat.yMMMMEEEEd('en').format(DateTime(2040, 6, 12)),
+      );
+      expect(
+        startGroup.title,
+        DateFormat.yMMMMEEEEd('en').format(DateTime(2040, 6, 14)),
+      );
+      expect(undatedGroup.title, 'No date');
+      expect(find.text('Overdue'), findsNothing);
+      expect(
+        tester.getTopLeft(find.text('Due-first task')).dy,
+        lessThan(tester.getTopLeft(find.text('Start fallback task')).dy),
+      );
+      expect(
+        tester.getTopLeft(find.text('Start fallback task')).dy,
+        lessThan(tester.getTopLeft(find.text('Undated task')).dy),
+      );
+    },
+  );
+
+  testWidgets('search Agenda keeps matched task hierarchy and context', (
+    tester,
+  ) async {
+    final day = DateTime(2040, 6, 12);
+    final criteria = ScheduleSearchCriteria(
+      referenceDate: day,
+      firstWeekday: DateTime.monday,
+      sourceIds: const {},
+      taskListKeys: {
+        const ScheduleTaskListKey(accountId: 'google:g', taskListId: 'tasks'),
+      },
+    );
+    final parent = TaskScheduleItem(
+      id: 'parent',
+      accountId: 'google:g',
+      provider: BusyProvider.google,
+      sourceId: 'tasks',
+      title: 'Matching parent',
+      completed: false,
+      allDay: true,
+      start: day,
+      due: day,
+      hasSubtasks: true,
+      sourceName: 'Projects',
+    );
+    final child = TaskScheduleItem(
+      id: 'child',
+      accountId: 'google:g',
+      provider: BusyProvider.google,
+      sourceId: 'tasks',
+      title: 'Matching child',
+      completed: false,
+      allDay: true,
+      start: day,
+      due: day,
+      notes: 'Needle appears in child notes',
+      parentId: 'parent',
+      parentTitle: 'Matching parent',
+      hierarchyDepth: 1,
+      sourceName: 'Projects',
+    );
+
+    await tester.pumpWidget(
+      localizedTestApp(
+        child: Scaffold(
+          body: ScheduleAgendaView(
+            range: ScheduleRange.day(day),
+            items: [child, parent],
+            searchCriteria: criteria,
+            searchQuery: 'needle',
+            onItemSelected: (_, _, [_]) {},
+            onTaskCompletionChanged: (_, _) {},
+          ),
+        ),
+      ),
+    );
+
+    final group = find.byKey(
+      const ValueKey('agenda-task-group-google:g-tasks-parent'),
+    );
+    final childRow = find.byKey(
+      const ValueKey('agenda-subtask-google:g-tasks-child'),
+    );
+    expect(group, findsOneWidget);
+    expect(find.descendant(of: group, matching: childRow), findsOneWidget);
+    expect(
+      find.textContaining('Needle appears in child notes'),
+      findsOneWidget,
+    );
+  });
+
   testWidgets('agenda nests task children and Microsoft checklist steps', (
     tester,
   ) async {
@@ -3490,6 +3669,27 @@ void main() {
     expect(design, contains('CardTheme.of(context)'));
     expect(design, isNot(contains('lightSurfaceShadowMinimum')));
     expect(design, isNot(contains('class _BusyMaxRowTile')));
+  });
+
+  test('search results use each platform Agenda presentation', () {
+    final linux = File(
+      'lib/src/features/schedule/presentation/schedule_agenda_view.dart',
+    ).readAsStringSync();
+    final windows = File(
+      'lib/src/ui/windows/windows_schedule_page.dart',
+    ).readAsStringSync();
+    final android = File(
+      'lib/src/android/presentation/android_schedule_screen.dart',
+    ).readAsStringSync();
+
+    expect(linux, isNot(contains('ListView.builder(')));
+    expect('BusyMaxGroupedList('.allMatches(linux), hasLength(1));
+    expect(linux, contains('scheduleSearchResultDisplayDate(item)'));
+    expect(windows, isNot(contains('groupByDate')));
+    expect(windows, contains('scheduleSearchResultDisplayDate(item)'));
+    expect(android, contains('scheduleSearchResultDisplayDate(item)'));
+    expect(windows, isNot(contains('class _SearchResultList')));
+    expect(android, isNot(contains('class _SearchResultList')));
   });
 
   test('sidebar does not render redundant provider group titles', () {

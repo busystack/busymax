@@ -88,14 +88,38 @@ class _ScheduleAgendaViewState extends State<ScheduleAgendaView> {
 
   @override
   Widget build(BuildContext context) {
-    if (widget.searchCriteria != null) {
-      return ListView.builder(
-        key: const ValueKey('schedule-search-results'),
-        padding: const EdgeInsetsDirectional.all(BusyMaxSpacing.md),
-        itemCount: widget.items.length,
-        itemBuilder: (context, index) => _standaloneRow(widget.items[index]),
-      );
-    }
+    final sections = widget.searchCriteria == null
+        ? _ordinarySections(context)
+        : _searchSections(context);
+    return NotificationListener<ScrollNotification>(
+      onNotification: _handleScroll,
+      child: ColoredBox(
+        color: BusyMaxSurfaceColors.of(context).window,
+        child: ListView(
+          key: widget.searchCriteria == null
+              ? null
+              : const ValueKey('schedule-search-results'),
+          padding: const EdgeInsets.fromLTRB(
+            BusyMaxSpacing.lg,
+            BusyMaxSpacing.md,
+            BusyMaxSpacing.lg,
+            BusyMaxSpacing.xl,
+          ),
+          children: [
+            for (final section in sections)
+              if (section.children.isNotEmpty)
+                BusyMaxGroupedList(
+                  title: section.title,
+                  filled: true,
+                  children: section.children,
+                ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  List<_AgendaSection> _ordinarySections(BuildContext context) {
     final dated = widget.items.where((item) => item.start != null).toList();
     final noDateTasks = ScheduleProjection.noDateTasks(widget.items);
     final groups = ScheduleProjection.groupByDay(dated);
@@ -127,58 +151,68 @@ class _ScheduleAgendaViewState extends State<ScheduleAgendaView> {
       for (final day in days)
         day: _entriesFor(groups[day]!, hierarchy, emittedTasks),
     };
-
-    return NotificationListener<ScrollNotification>(
-      onNotification: _handleScroll,
-      child: ColoredBox(
-        color: BusyMaxSurfaceColors.of(context).window,
-        child: ListView(
-          padding: const EdgeInsets.fromLTRB(
-            BusyMaxSpacing.lg,
-            BusyMaxSpacing.md,
-            BusyMaxSpacing.lg,
-            BusyMaxSpacing.xl,
-          ),
+    return [
+      if (overdueEntries.isNotEmpty || widget.hasMoreOverdueTasks)
+        _AgendaSection(
+          title: context.l10n.overdue,
           children: [
-            if (overdueEntries.isNotEmpty || widget.hasMoreOverdueTasks)
-              BusyMaxGroupedList(
-                title: context.l10n.overdue,
-                filled: true,
-                children: [
-                  ...overdueEntries,
-                  if (widget.hasMoreOverdueTasks &&
-                      widget.onLoadMoreOverdue != null)
-                    _AgendaLoadMoreRow(
-                      title: context.l10n.agendaLoadMoreOverdue,
-                      onTap: widget.onLoadMoreOverdue!,
-                    ),
-                ],
+            ...overdueEntries,
+            if (widget.hasMoreOverdueTasks && widget.onLoadMoreOverdue != null)
+              _AgendaLoadMoreRow(
+                title: context.l10n.agendaLoadMoreOverdue,
+                onTap: widget.onLoadMoreOverdue!,
               ),
-            if (noDateEntries.isNotEmpty || widget.hasMoreNoDateTasks)
-              BusyMaxGroupedList(
-                title: context.l10n.noDate,
-                filled: true,
-                children: [
-                  ...noDateEntries,
-                  if (widget.hasMoreNoDateTasks &&
-                      widget.onLoadMoreNoDate != null)
-                    _AgendaLoadMoreRow(
-                      title: context.l10n.agendaLoadMoreNoDate,
-                      onTap: widget.onLoadMoreNoDate!,
-                    ),
-                ],
-              ),
-            for (final day in days)
-              if (dayEntries[day]!.isNotEmpty)
-                BusyMaxGroupedList(
-                  title: _dayLabel(context, day),
-                  filled: true,
-                  children: dayEntries[day]!,
-                ),
           ],
         ),
-      ),
-    );
+      if (noDateEntries.isNotEmpty || widget.hasMoreNoDateTasks)
+        _AgendaSection(
+          title: context.l10n.noDate,
+          children: [
+            ...noDateEntries,
+            if (widget.hasMoreNoDateTasks && widget.onLoadMoreNoDate != null)
+              _AgendaLoadMoreRow(
+                title: context.l10n.agendaLoadMoreNoDate,
+                onTap: widget.onLoadMoreNoDate!,
+              ),
+          ],
+        ),
+      for (final day in days)
+        _AgendaSection(
+          title: _dayLabel(context, day),
+          children: dayEntries[day]!,
+        ),
+    ];
+  }
+
+  List<_AgendaSection> _searchSections(BuildContext context) {
+    final orderedItems = List<ScheduleItem>.of(widget.items)
+      ..sort(compareScheduleSearchResultPresentation);
+    final hierarchy = _AgendaHierarchyIndex(orderedItems);
+    final datedGroups = <DateTime, List<ScheduleItem>>{};
+    final undated = <ScheduleItem>[];
+    for (final item in orderedItems) {
+      final displayDate = scheduleSearchResultDisplayDate(item);
+      if (displayDate == null) {
+        undated.add(item);
+      } else {
+        datedGroups
+            .putIfAbsent(ScheduleProjection.day(displayDate), () => [])
+            .add(item);
+      }
+    }
+    final emittedTasks = <String>{};
+    return [
+      for (final entry in datedGroups.entries)
+        _AgendaSection(
+          title: _dayLabel(context, entry.key),
+          children: _entriesFor(entry.value, hierarchy, emittedTasks),
+        ),
+      if (undated.isNotEmpty)
+        _AgendaSection(
+          title: context.l10n.noDate,
+          children: _entriesFor(undated, hierarchy, emittedTasks),
+        ),
+    ];
   }
 
   List<Widget> _entriesFor(
@@ -340,6 +374,15 @@ class _ScheduleAgendaViewState extends State<ScheduleAgendaView> {
       title: task.title,
       completed: task.completed,
       subtitleBuilder: (context) {
+        final searchCriteria = widget.searchCriteria;
+        if (searchCriteria != null) {
+          return scheduleSearchResultText(
+            context,
+            task,
+            searchCriteria,
+            widget.searchQuery,
+          );
+        }
         final values = [
           _nestedTaskScheduleLabel(context, task, hierarchyRoot),
           if (showSource) ScheduleProjection.sourceLabelForScheduleItem(task),
@@ -377,6 +420,13 @@ class _ScheduleAgendaViewState extends State<ScheduleAgendaView> {
             ),
     );
   }
+}
+
+class _AgendaSection {
+  const _AgendaSection({required this.title, required this.children});
+
+  final String title;
+  final List<Widget> children;
 }
 
 class _AgendaLoadMoreRow extends StatelessWidget {
