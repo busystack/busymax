@@ -26,7 +26,6 @@ int compareScheduleSearchResultPresentation(
     firstDate,
   ).compareTo(_searchResultDay(secondDate));
   if (dayComparison != 0) return dayComparison;
-  if (first.allDay != second.allDay) return first.allDay ? -1 : 1;
   final timeComparison = _searchResultDate(
     firstDate,
   ).compareTo(_searchResultDate(secondDate));

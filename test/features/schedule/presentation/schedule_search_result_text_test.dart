@@ -151,4 +151,27 @@ void main() {
       'undated',
     ]);
   });
+
+  test('search Agenda orders a timed DAV due by its actual time', () {
+    final values = <ScheduleItem>[
+      task(
+        due: DateTime(2026, 6, 12, 15, 45),
+        start: DateTime(2026, 6, 10),
+        allDay: true,
+        provider: BusyProvider.nextcloud,
+      ),
+      CalendarScheduleItem(
+        id: 'morning-event',
+        accountId: 'account',
+        sourceId: 'calendar',
+        provider: BusyProvider.google,
+        providerCalendarId: 'calendar',
+        title: 'Morning event',
+        allDay: false,
+        start: DateTime(2026, 6, 12, 9),
+      ),
+    ]..sort(compareScheduleSearchResultPresentation);
+
+    expect(values.map((item) => item.id), ['morning-event', 'task']);
+  });
 }

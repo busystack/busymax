@@ -2981,6 +2981,79 @@ void main() {
     );
   });
 
+  testWidgets('search Agenda keeps cross-date children in their own section', (
+    tester,
+  ) async {
+    final parentDay = DateTime(2040, 6, 12);
+    final childDay = DateTime(2040, 6, 20);
+    final criteria = ScheduleSearchCriteria(
+      referenceDate: parentDay,
+      firstWeekday: DateTime.monday,
+      sourceIds: const {},
+      taskListKeys: {
+        const ScheduleTaskListKey(accountId: 'google:g', taskListId: 'tasks'),
+      },
+    );
+    final parent = TaskScheduleItem(
+      id: 'parent',
+      accountId: 'google:g',
+      provider: BusyProvider.google,
+      sourceId: 'tasks',
+      title: 'June parent',
+      completed: false,
+      allDay: true,
+      start: parentDay,
+      due: parentDay,
+      hasSubtasks: true,
+      sourceName: 'Projects',
+    );
+    final child = TaskScheduleItem(
+      id: 'child',
+      accountId: 'google:g',
+      provider: BusyProvider.google,
+      sourceId: 'tasks',
+      title: 'Later child',
+      completed: false,
+      allDay: true,
+      start: childDay,
+      due: childDay,
+      parentId: 'parent',
+      parentTitle: 'June parent',
+      hierarchyDepth: 1,
+      sourceName: 'Projects',
+    );
+
+    await tester.pumpWidget(
+      localizedTestApp(
+        child: Scaffold(
+          body: ScheduleAgendaView(
+            range: ScheduleRange.day(parentDay),
+            items: [child, parent],
+            searchCriteria: criteria,
+            onItemSelected: (_, _, [_]) {},
+            onTaskCompletionChanged: (_, _) {},
+          ),
+        ),
+      ),
+    );
+
+    final parentGroup = tester.widget<BusyMaxGroupedList>(
+      find.ancestor(
+        of: find.text('June parent'),
+        matching: find.byType(BusyMaxGroupedList),
+      ),
+    );
+    final childGroup = tester.widget<BusyMaxGroupedList>(
+      find.ancestor(
+        of: find.text('Later child'),
+        matching: find.byType(BusyMaxGroupedList),
+      ),
+    );
+    expect(parentGroup.title, DateFormat.yMMMMEEEEd('en').format(parentDay));
+    expect(childGroup.title, DateFormat.yMMMMEEEEd('en').format(childDay));
+    expect(find.text('Parent: June parent'), findsOneWidget);
+  });
+
   testWidgets('agenda nests task children and Microsoft checklist steps', (
     tester,
   ) async {

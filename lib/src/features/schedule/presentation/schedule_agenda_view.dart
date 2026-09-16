@@ -187,7 +187,6 @@ class _ScheduleAgendaViewState extends State<ScheduleAgendaView> {
   List<_AgendaSection> _searchSections(BuildContext context) {
     final orderedItems = List<ScheduleItem>.of(widget.items)
       ..sort(compareScheduleSearchResultPresentation);
-    final hierarchy = _AgendaHierarchyIndex(orderedItems);
     final datedGroups = <DateTime, List<ScheduleItem>>{};
     final undated = <ScheduleItem>[];
     for (final item in orderedItems) {
@@ -200,17 +199,24 @@ class _ScheduleAgendaViewState extends State<ScheduleAgendaView> {
             .add(item);
       }
     }
-    final emittedTasks = <String>{};
     return [
       for (final entry in datedGroups.entries)
         _AgendaSection(
           title: _dayLabel(context, entry.key),
-          children: _entriesFor(entry.value, hierarchy, emittedTasks),
+          children: _entriesFor(
+            entry.value,
+            _AgendaHierarchyIndex(entry.value),
+            <String>{},
+          ),
         ),
       if (undated.isNotEmpty)
         _AgendaSection(
           title: context.l10n.noDate,
-          children: _entriesFor(undated, hierarchy, emittedTasks),
+          children: _entriesFor(
+            undated,
+            _AgendaHierarchyIndex(undated),
+            <String>{},
+          ),
         ),
     ];
   }
