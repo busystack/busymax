@@ -1,4 +1,5 @@
 import 'package:busymax/src/l10n/time_format_scope.dart';
+import 'package:busymax/src/l10n/week_preferences_scope.dart';
 import 'dart:async';
 import 'dart:io';
 
@@ -196,6 +197,15 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                     l10n.timeFormatTwentyFourHour,
                 },
                 onSelected: settingsController.setTimeFormatPreference,
+              ),
+              BusyMaxComboRow<BusyMaxFirstDayOfWeekPreference>(
+                title: l10n.firstDayOfWeek,
+                leading: const Icon(YaruIcons.calendar),
+                values: BusyMaxFirstDayOfWeekPreference.values,
+                selected: settings.firstDayOfWeekPreference,
+                labelFor: (value) =>
+                    busyMaxFirstDayOfWeekPreferenceLabel(context, value),
+                onSelected: settingsController.setFirstDayOfWeekPreference,
               ),
               BusyMaxComboRow<int>(
                 title: l10n.scheduleDayStartsAt,

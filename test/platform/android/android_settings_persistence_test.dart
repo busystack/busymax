@@ -23,4 +23,15 @@ void main() {
     expect(restored.androidScheduleViewMode, ScheduleViewMode.month);
     expect(restored.scheduleViewMode, ScheduleViewMode.week);
   });
+
+  test('Android first-day preference is device-local and round-trips', () {
+    for (final preference in BusyMaxFirstDayOfWeekPreference.values) {
+      final restored = AppSettings.fromJson(
+        AppSettings.defaults()
+            .copyWith(firstDayOfWeekPreference: preference)
+            .toJson(),
+      );
+      expect(restored.firstDayOfWeekPreference, preference);
+    }
+  });
 }

@@ -32,6 +32,33 @@ void main() {
     );
   });
 
+  test(
+    'weekday changes queued during loading persist and survive restart',
+    () async {
+      final store = _DelayedLoadSettingsStore();
+      final controller = AppSettingsController(store);
+      addTearDown(controller.dispose);
+      final write = controller.setFirstDayOfWeekPreference(
+        BusyMaxFirstDayOfWeekPreference.saturday,
+      );
+      store.completeLoad({
+        'localeTag': 'de',
+        'firstDayOfWeekPreference': 'tuesday',
+      });
+      await write;
+      expect(
+        controller.state.firstDayOfWeekPreference,
+        BusyMaxFirstDayOfWeekPreference.saturday,
+      );
+      expect(store.persisted['firstDayOfWeekPreference'], 'saturday');
+      expect(
+        AppSettings.fromJson(store.persisted).firstDayOfWeekPreference,
+        BusyMaxFirstDayOfWeekPreference.saturday,
+      );
+      expect(store.persisted['localeTag'], 'de');
+    },
+  );
+
   test('clock preference save failure uses the existing retry path', () async {
     final store = _FailFirstSaveSettingsStore();
     final failures = <bool>[];

@@ -9,6 +9,27 @@ import '../../test_localized_app.dart';
 import '../../support/process_time_zone.dart';
 
 void main() {
+  test('week and month boundaries support every first weekday', () {
+    final anchor = DateTime(2028, 2, 29);
+    for (
+      var firstWeekday = DateTime.monday;
+      firstWeekday <= DateTime.sunday;
+      firstWeekday++
+    ) {
+      final week = ScheduleRange.week(anchor, firstWeekday: firstWeekday);
+      final month = ScheduleRange.month(anchor, firstWeekday: firstWeekday);
+      expect(week.start.weekday, firstWeekday);
+      expect(
+        week.end,
+        DateTime(week.start.year, week.start.month, week.start.day + 7),
+      );
+      expect(month.start.weekday, firstWeekday);
+      expect(month.end.weekday, firstWeekday);
+      expect(month.start.isAfter(DateTime(2028, 2, 1)), isFalse);
+      expect(month.end.isAfter(DateTime(2028, 2, 29)), isTrue);
+    }
+  });
+
   final supportsPosixTimeZones = Platform.isLinux || Platform.isMacOS;
 
   group(
@@ -61,7 +82,10 @@ void main() {
       });
 
       test('month range retains civil midnight across its trailing days', () {
-        final range = ScheduleRange.month(DateTime(2025, 10, 15));
+        final range = ScheduleRange.month(
+          DateTime(2025, 10, 15),
+          firstWeekday: DateTime.monday,
+        );
 
         expect(range.start, DateTime(2025, 9, 29));
         expect(range.end, DateTime(2025, 11, 3));

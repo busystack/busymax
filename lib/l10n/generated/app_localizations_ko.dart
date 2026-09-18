@@ -20,6 +20,17 @@ class AppLocalizationsKo extends AppLocalizations {
   String get timeFormat => '시간 형식';
 
   @override
+  String get firstDayOfWeek => '한 주의 시작 요일';
+
+  @override
+  String get systemDefault => '시스템 기본값';
+
+  @override
+  String systemDefaultResolved(String weekday) {
+    return '시스템 기본값($weekday)';
+  }
+
+  @override
   String get timeFormatTwelveHour => '12시간';
 
   @override

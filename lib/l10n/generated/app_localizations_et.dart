@@ -20,6 +20,17 @@ class AppLocalizationsEt extends AppLocalizations {
   String get timeFormat => 'Kellaajavorming';
 
   @override
+  String get firstDayOfWeek => 'Nädala esimene päev';
+
+  @override
+  String get systemDefault => 'Süsteemi vaikeväärtus';
+
+  @override
+  String systemDefaultResolved(String weekday) {
+    return 'Süsteemi vaikeväärtus ($weekday)';
+  }
+
+  @override
   String get timeFormatTwelveHour => '12-tunnine';
 
   @override

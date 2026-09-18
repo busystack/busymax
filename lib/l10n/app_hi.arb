@@ -1,6 +1,9 @@
 {
   "launchAtLoginManagedExternally": "BusyMax आपके डेस्कटॉप की स्टार्टअप सेटिंग से शुरू हुआ था। वहाँ से इसकी प्रविष्टि हटाएँ, फिर इस स्विच का उपयोग करने के लिए BusyMax से बाहर निकलें और इसे दोबारा खोलें।",
   "timeFormat": "समय प्रारूप",
+  "firstDayOfWeek": "सप्ताह का पहला दिन",
+  "systemDefault": "सिस्टम डिफ़ॉल्ट",
+  "systemDefaultResolved": "सिस्टम डिफ़ॉल्ट ({weekday})",
   "timeFormatTwelveHour": "12 घंटे",
   "timeFormatTwentyFourHour": "24 घंटे",
   "timeEndOfDay": "दिन का अंत",

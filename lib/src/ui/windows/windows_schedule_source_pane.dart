@@ -25,6 +25,7 @@ import 'windows_busymax_glyphs.dart';
 
 class WindowsScheduleSourcePane extends ConsumerStatefulWidget {
   const WindowsScheduleSourcePane({
+    required this.firstWeekday,
     required this.selectedDate,
     required this.accounts,
     required this.calendarSources,
@@ -39,6 +40,7 @@ class WindowsScheduleSourcePane extends ConsumerStatefulWidget {
   });
 
   final DateTime selectedDate;
+  final int firstWeekday;
   final List<AccountEntity> accounts;
   final List<CalendarSourceEntity> calendarSources;
   final List<TaskListEntity> taskLists;
@@ -141,6 +143,7 @@ class _WindowsScheduleSourcePaneState
           Padding(
             padding: const EdgeInsets.fromLTRB(12, 12, 12, 8),
             child: _MiniMonth(
+              firstWeekday: widget.firstWeekday,
               displayedMonth: _displayedMonth,
               selectedDate: widget.selectedDate,
               locale: locale,
@@ -862,6 +865,7 @@ bool _isCurrentCalendarColor(
 class _MiniMonth extends StatelessWidget {
   const _MiniMonth({
     required this.displayedMonth,
+    required this.firstWeekday,
     required this.selectedDate,
     required this.locale,
     required this.onPrevious,
@@ -870,6 +874,7 @@ class _MiniMonth extends StatelessWidget {
   });
 
   final DateTime displayedMonth;
+  final int firstWeekday;
   final DateTime selectedDate;
   final String locale;
   final VoidCallback onPrevious;
@@ -882,13 +887,13 @@ class _MiniMonth extends StatelessWidget {
     final gridStart = DateTime(
       first.year,
       first.month,
-      first.day - (first.weekday - DateTime.monday),
+      first.day - ((first.weekday - firstWeekday) % DateTime.daysPerWeek),
     );
     final days = [
       for (var offset = 0; offset < 42; offset += 1)
         DateTime(gridStart.year, gridStart.month, gridStart.day + offset),
     ];
-    final weekdayBase = DateTime(2026, 1, 5);
+    final weekdayBase = DateTime(2026, 1, 5 + firstWeekday - 1);
     return Column(
       children: [
         Row(

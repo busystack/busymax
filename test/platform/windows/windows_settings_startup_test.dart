@@ -140,6 +140,26 @@ void main() {
     await tester.pumpAndSettle();
     expect(tester.widget<ToggleSwitch>(_switch).onChanged, isNotNull);
   });
+
+  testWidgets('Windows Settings persists the first weekday selection', (
+    tester,
+  ) async {
+    final container = _container(FakeAutostartService());
+    addTearDown(container.dispose);
+    await _pumpSettings(tester, container);
+    final combo = tester.widget<ComboBox<BusyMaxFirstDayOfWeekPreference>>(
+      find.byWidgetPredicate(
+        (widget) => widget is ComboBox<BusyMaxFirstDayOfWeekPreference>,
+      ),
+    );
+    expect(combo.value, BusyMaxFirstDayOfWeekPreference.system);
+    combo.onChanged!(BusyMaxFirstDayOfWeekPreference.wednesday);
+    await tester.pumpAndSettle();
+    expect(
+      container.read(appSettingsControllerProvider).firstDayOfWeekPreference,
+      BusyMaxFirstDayOfWeekPreference.wednesday,
+    );
+  });
 }
 
 final _switch = find.byKey(const ValueKey('launch-at-login-switch'));

@@ -1,6 +1,9 @@
 {
   "launchAtLoginManagedExternally": "BusyMax はデスクトップの自動起動設定によって起動されました。このスイッチを使うには、そこで BusyMax の項目を削除してから、BusyMax を終了して開き直してください。",
   "timeFormat": "時刻の表示形式",
+  "firstDayOfWeek": "週の最初の曜日",
+  "systemDefault": "システムの既定値",
+  "systemDefaultResolved": "システムの既定値（{weekday}）",
   "timeFormatTwelveHour": "12時間表示",
   "timeFormatTwentyFourHour": "24時間表示",
   "timeEndOfDay": "一日の終わり",

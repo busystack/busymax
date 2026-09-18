@@ -20,6 +20,17 @@ class AppLocalizationsPl extends AppLocalizations {
   String get timeFormat => 'Format czasu';
 
   @override
+  String get firstDayOfWeek => 'Pierwszy dzień tygodnia';
+
+  @override
+  String get systemDefault => 'Domyślne ustawienie systemu';
+
+  @override
+  String systemDefaultResolved(String weekday) {
+    return 'Domyślne ustawienie systemu ($weekday)';
+  }
+
+  @override
   String get timeFormatTwelveHour => '12-godzinny';
 
   @override

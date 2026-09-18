@@ -5,10 +5,12 @@
 #include <gdk-pixbuf/gdk-pixbuf.h>
 #include <gio/gio.h>
 #include <handy.h>
+#include <langinfo.h>
 #include <pango/pango.h>
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
+#include <cstdint>
 #include <cstring>
 #include "flutter/generated_plugin_registrant.h"
 
@@ -425,29 +427,6 @@ static FlValue* fl_lookup_map_arg(FlValue* args, const gchar* key) {
              : nullptr;
 }
 
-static gboolean parse_date(const gchar* value,
-                           guint* year,
-                           guint* month,
-                           guint* day) {
-  if (value == nullptr) {
-    return FALSE;
-  }
-  unsigned int parsed_year = 0;
-  unsigned int parsed_month = 0;
-  unsigned int parsed_day = 0;
-  if (sscanf(value, "%u-%u-%u", &parsed_year, &parsed_month, &parsed_day) != 3) {
-    return FALSE;
-  }
-  if (parsed_year < 1 || parsed_month < 1 || parsed_month > 12 ||
-      parsed_day < 1 || parsed_day > 31) {
-    return FALSE;
-  }
-  *year = parsed_year;
-  *month = parsed_month;
-  *day = parsed_day;
-  return TRUE;
-}
-
 static gboolean parse_time(const gchar* value, guint* hour, guint* minute) {
   return busymax_time_picker::ParseCanonical(value, hour, minute);
 }
@@ -466,55 +445,6 @@ static void style_native_dialog(GtkWidget* dialog) {
         gtk_widget_get_style_context(gtk_dialog_get_content_area(GTK_DIALOG(dialog)));
     gtk_style_context_add_class(content_context, "busymax-native-dialog-content");
   }
-}
-
-static void handle_pick_date(FlMethodCall* method_call,
-                             FlValue* args,
-                             GtkWindow* parent) {
-  const gchar* title = fl_lookup_string_arg(args, "title");
-  const gchar* initial_date = fl_lookup_string_arg(args, "initialDate");
-  const gchar* cancel_label = fl_lookup_string_arg(args, "cancelLabel");
-  const gchar* ok_label = fl_lookup_string_arg(args, "okLabel");
-  GtkWidget* dialog = gtk_dialog_new_with_buttons(
-      title != nullptr ? title : "Date", parent,
-      static_cast<GtkDialogFlags>(GTK_DIALOG_MODAL |
-                                  GTK_DIALOG_DESTROY_WITH_PARENT |
-                                  GTK_DIALOG_USE_HEADER_BAR),
-      cancel_label != nullptr && cancel_label[0] != '\0' ? cancel_label : "Cancel",
-      GTK_RESPONSE_CANCEL,
-      ok_label != nullptr && ok_label[0] != '\0' ? ok_label : "OK",
-      GTK_RESPONSE_OK,
-      nullptr);
-  style_native_dialog(dialog);
-  gtk_dialog_set_default_response(GTK_DIALOG(dialog), GTK_RESPONSE_OK);
-  gtk_window_set_resizable(GTK_WINDOW(dialog), FALSE);
-
-  GtkWidget* content = gtk_dialog_get_content_area(GTK_DIALOG(dialog));
-  GtkWidget* calendar = gtk_calendar_new();
-  gtk_container_set_border_width(GTK_CONTAINER(content), 12);
-  gtk_container_add(GTK_CONTAINER(content), calendar);
-
-  guint year = 0;
-  guint month = 0;
-  guint day = 0;
-  if (parse_date(initial_date, &year, &month, &day)) {
-    gtk_calendar_select_month(GTK_CALENDAR(calendar), month - 1, year);
-    gtk_calendar_select_day(GTK_CALENDAR(calendar), day);
-  }
-
-  gtk_widget_show_all(dialog);
-  const gint response = gtk_dialog_run(GTK_DIALOG(dialog));
-
-  if (response == GTK_RESPONSE_OK) {
-    gtk_calendar_get_date(GTK_CALENDAR(calendar), &year, &month, &day);
-    g_autofree gchar* result =
-        g_strdup_printf("%04u-%02u-%02u", year, month + 1, day);
-    respond_string(method_call, result);
-  } else {
-    respond_string(method_call, nullptr);
-  }
-
-  gtk_widget_destroy(dialog);
 }
 
 static void handle_pick_time(FlMethodCall* method_call,
@@ -583,9 +513,7 @@ static void native_date_time_picker_method_call_cb(FlMethodChannel* channel,
   GtkWindow* parent = GTK_WINDOW(user_data);
   const gchar* method = fl_method_call_get_name(method_call);
   FlValue* args = fl_method_call_get_args(method_call);
-  if (strcmp(method, "pickDate") == 0) {
-    handle_pick_date(method_call, args, parent);
-  } else if (strcmp(method, "pickTime") == 0) {
+  if (strcmp(method, "pickTime") == 0) {
     handle_pick_time(method_call, args, parent);
   } else {
     fl_method_call_respond_not_implemented(method_call, nullptr);
@@ -4667,6 +4595,36 @@ static void gtk_settings_method_call_cb(FlMethodChannel* channel,
   if (strcmp(method, "getGtkFont") == 0) {
     g_autoptr(FlValue) result = get_gtk_font_settings();
     fl_method_call_respond_success(method_call, result, nullptr);
+  } else if (strcmp(method, "getFirstWeekday") == 0) {
+#if defined(_NL_TIME_FIRST_WEEKDAY) && defined(_NL_TIME_WEEK_1STDAY)
+    const char* weekday_bytes = nl_langinfo(_NL_TIME_FIRST_WEEKDAY);
+    const char* origin_bytes = nl_langinfo(_NL_TIME_WEEK_1STDAY);
+    if (weekday_bytes == nullptr || origin_bytes == nullptr) {
+      fl_method_call_respond_success(method_call, nullptr, nullptr);
+      return;
+    }
+    const guint relative_weekday =
+        static_cast<unsigned char>(weekday_bytes[0]);
+    std::uint32_t origin = 0;
+    std::memcpy(&origin, origin_bytes, sizeof(origin));
+    gint origin_weekday = 0;
+    if (origin == 19971130) {
+      origin_weekday = 7;  // Sunday in Dart numbering.
+    } else if (origin == 19971201) {
+      origin_weekday = 1;  // Monday in Dart numbering.
+    }
+    if (origin_weekday == 0 || relative_weekday < 1 ||
+        relative_weekday > 7) {
+      fl_method_call_respond_success(method_call, nullptr, nullptr);
+      return;
+    }
+    const gint dart_weekday =
+        ((origin_weekday + static_cast<gint>(relative_weekday) - 2) % 7) + 1;
+    g_autoptr(FlValue) result = fl_value_new_int(dart_weekday);
+    fl_method_call_respond_success(method_call, result, nullptr);
+#else
+    fl_method_call_respond_success(method_call, nullptr, nullptr);
+#endif
   } else if (strcmp(method, "getGtkThemeColors") == 0) {
     g_autoptr(FlValue) result = get_gtk_theme_colors();
     fl_method_call_respond_success(method_call, result, nullptr);

@@ -32,6 +32,10 @@ final class BusyMaxAndroidPlatform {
   Future<bool> uses24HourFormat() async =>
       await _methodChannel.invokeMethod<bool>('uses24HourFormat') ?? false;
 
+  /// Dart weekday numbering (Monday = 1 through Sunday = 7), or unavailable.
+  Future<int?> getFirstWeekday() =>
+      _methodChannel.invokeMethod<int>('getFirstWeekday');
+
   Future<bool> googleAuthorizationAvailable() async =>
       await _methodChannel.invokeMethod<bool>('googleAuthorizationAvailable') ??
       false;

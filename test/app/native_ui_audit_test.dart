@@ -1988,8 +1988,8 @@ void main() {
       expect(source, contains('style_native_dialog(GtkWidget* dialog)'));
       expect(
         'style_native_dialog(dialog);'.allMatches(source).length,
-        2,
-        reason: 'native date and time pickers share dialog styling',
+        1,
+        reason: 'the remaining native time picker uses dialog styling',
       );
       expect(source, contains('style_native_dialog(window);'));
       expect(

@@ -20,6 +20,17 @@ class AppLocalizationsVi extends AppLocalizations {
   String get timeFormat => 'Định dạng giờ';
 
   @override
+  String get firstDayOfWeek => 'Ngày đầu tuần';
+
+  @override
+  String get systemDefault => 'Mặc định hệ thống';
+
+  @override
+  String systemDefaultResolved(String weekday) {
+    return 'Mặc định hệ thống ($weekday)';
+  }
+
+  @override
   String get timeFormatTwelveHour => '12 giờ';
 
   @override

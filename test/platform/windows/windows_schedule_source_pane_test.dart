@@ -282,6 +282,7 @@ void main() {
             width: 360,
             height: 720,
             child: WindowsScheduleSourcePane(
+              firstWeekday: DateTime.monday,
               selectedDate: DateTime(2026, 8, 31),
               accounts: const [account],
               calendarSources: const [source],
@@ -344,6 +345,7 @@ Future<void> _pumpPane(
             width: 360,
             height: 1100,
             child: WindowsScheduleSourcePane(
+              firstWeekday: DateTime.monday,
               selectedDate: DateTime(2026, 9, 5),
               accounts: accounts,
               calendarSources: calendars,

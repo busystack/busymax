@@ -12,6 +12,8 @@ import '../l10n/app_locale.dart';
 import '../l10n/locale_resolution.dart';
 import '../l10n/l10n.dart';
 import '../l10n/time_format_scope.dart';
+import '../l10n/week_preferences_scope.dart';
+import '../platform/android/android_first_weekday_source.dart';
 import 'android_notifications.dart';
 import 'presentation/android_schedule_screen.dart';
 import 'presentation/android_settings_screen.dart';
@@ -19,11 +21,38 @@ import 'presentation/android_tasks_screen.dart';
 
 final androidSelectedDestinationProvider = StateProvider<int>((ref) => 0);
 
-class AndroidBusyMaxApp extends ConsumerWidget {
+class AndroidBusyMaxApp extends ConsumerStatefulWidget {
   const AndroidBusyMaxApp({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<AndroidBusyMaxApp> createState() => _AndroidBusyMaxAppState();
+}
+
+class _AndroidBusyMaxAppState extends ConsumerState<AndroidBusyMaxApp> {
+  late final BusyMaxSystemFirstWeekdayController _firstWeekdayController;
+
+  @override
+  void initState() {
+    super.initState();
+    _firstWeekdayController = BusyMaxSystemFirstWeekdayController(
+      AndroidFirstWeekdaySource(),
+    )..addListener(_platformChanged);
+  }
+
+  void _platformChanged() {
+    if (mounted) setState(() {});
+  }
+
+  @override
+  void dispose() {
+    _firstWeekdayController
+      ..removeListener(_platformChanged)
+      ..dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final settings = ref.watch(appSettingsControllerProvider);
     return MaterialApp(
       restorationScopeId: 'busymax_android',
@@ -50,7 +79,13 @@ class AndroidBusyMaxApp extends ConsumerWidget {
             systemUses24Hour: ref.watch(androidSystemUses24HourProvider),
           ),
         ),
-        child: child ?? const SizedBox.shrink(),
+        child: BusyMaxWeekPreferencesScope(
+          preference: settings.firstDayOfWeekPreference,
+          systemWeekday: _firstWeekdayController.value,
+          platformLocaleTag: WidgetsBinding.instance.platformDispatcher.locale
+              .toLanguageTag(),
+          child: child ?? const SizedBox.shrink(),
+        ),
       ),
       home: const AndroidHomeShell(),
     );

@@ -8,6 +8,7 @@ import '../../features/accounts/data/accounts_repository.dart';
 import '../../features/calendar/data/calendar_repository.dart';
 import '../../features/task_lists/data/task_lists_repository.dart';
 import '../../features/schedule/presentation/schedule_search_labels.dart';
+import 'android_date_picker.dart';
 
 /// Material search controls for the Android bottom sheet.
 /// This widget only emits immutable criteria; it never writes source settings.
@@ -200,7 +201,7 @@ class AndroidScheduleSearchFilters extends StatelessWidget {
     padding: const EdgeInsetsDirectional.only(bottom: 8),
     child: OutlinedButton(
       onPressed: () async {
-        final picked = await showDatePicker(
+        final picked = await showBusyMaxDatePicker(
           context: context,
           initialDate: date,
           firstDate: DateTime(1900),

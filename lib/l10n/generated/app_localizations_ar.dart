@@ -20,6 +20,17 @@ class AppLocalizationsAr extends AppLocalizations {
   String get timeFormat => 'تنسيق الوقت';
 
   @override
+  String get firstDayOfWeek => 'أول أيام الأسبوع';
+
+  @override
+  String get systemDefault => 'الإعداد الافتراضي للنظام';
+
+  @override
+  String systemDefaultResolved(String weekday) {
+    return 'الإعداد الافتراضي للنظام (⁨$weekday⁩)';
+  }
+
+  @override
   String get timeFormatTwelveHour => '12 ساعة';
 
   @override

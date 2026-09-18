@@ -25,6 +25,7 @@ import '../../../features/feedback/presentation/feedback_dialog.dart';
 import '../../../features/sync/sync_auth_error.dart';
 import '../../../l10n/l10n.dart';
 import '../../../l10n/localized_formatters.dart';
+import '../../../l10n/week_preferences_scope.dart';
 import '../../../platform/linux_header_bar_service.dart';
 import '../../../platform/linux_header_bar_provider.dart';
 import '../../../schedule/schedule_commands.dart';
@@ -189,6 +190,7 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
   bool? _sidebarBeforeSearch;
   ScheduleSearchCriteria? _searchCriteria;
   ScheduleSearchCriteria? _initialSearchCriteria;
+  var _searchFirstWeekday = DateTime.monday;
   List<CalendarSourceEntity> _searchSources = const [];
   List<TaskListEntity> _searchTaskLists = const [];
   ScheduleSourceVisibility? _searchVisibility;
@@ -258,6 +260,18 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
     _searchController.dispose();
     _workspaceFocusNode.dispose();
     super.dispose();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final firstWeekday = _firstWeekday(context);
+    if (_searchFirstWeekday == firstWeekday) return;
+    _searchFirstWeekday = firstWeekday;
+    _searchCriteria = _searchCriteria?.copyWith(firstWeekday: firstWeekday);
+    _initialSearchCriteria = _initialSearchCriteria?.copyWith(
+      firstWeekday: firstWeekday,
+    );
   }
 
   @override
@@ -3218,8 +3232,7 @@ class _ScheduleShortcutAction extends ContextAction<_ScheduleShortcutIntent> {
 }
 
 int _firstWeekday(BuildContext context) {
-  final index = MaterialLocalizations.of(context).firstDayOfWeekIndex;
-  return index == 0 ? DateTime.sunday : index;
+  return BusyMaxWeekPreferencesScope.firstWeekdayOf(context);
 }
 
 DateTime _day(DateTime date) => DateTime(date.year, date.month, date.day);

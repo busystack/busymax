@@ -17,6 +17,7 @@ import '../../features/notifications/desktop_notification_backend.dart';
 import '../../features/sync/sync_auth_error.dart';
 import '../../features/settings/presentation/launch_at_login_refresh.dart';
 import '../../l10n/app_locale.dart';
+import '../../l10n/week_preferences_scope.dart';
 import '../../platform/common/desktop_services.dart';
 import '../../providers/busy_provider.dart';
 import '../../webcal/webcal_subscription_service.dart';
@@ -141,6 +142,28 @@ class _WindowsSettingsPageState extends ConsumerState<WindowsSettingsPage> {
                   onChanged: (value) {
                     if (value != null) {
                       controller.setTimeFormatPreference(value);
+                    }
+                  },
+                ),
+              ),
+              const Divider(),
+              _SettingsRow(
+                icon: BusyMaxGlyph.calendar,
+                title: l10n.firstDayOfWeek,
+                child: ComboBox<BusyMaxFirstDayOfWeekPreference>(
+                  value: settings.firstDayOfWeekPreference,
+                  items: [
+                    for (final value in BusyMaxFirstDayOfWeekPreference.values)
+                      ComboBoxItem(
+                        value: value,
+                        child: Text(
+                          busyMaxFirstDayOfWeekPreferenceLabel(context, value),
+                        ),
+                      ),
+                  ],
+                  onChanged: (value) {
+                    if (value != null) {
+                      controller.setFirstDayOfWeekPreference(value);
                     }
                   },
                 ),

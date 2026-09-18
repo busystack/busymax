@@ -25,6 +25,7 @@ import '../../ical/ical_import_service.dart';
 import '../../ical/ical_ingestion.dart';
 import '../../l10n/app_locale.dart';
 import '../../l10n/l10n.dart';
+import '../../l10n/week_preferences_scope.dart';
 import '../../providers/busy_provider.dart';
 import '../../webcal/webcal_subscription_service.dart';
 import '../android_background.dart';
@@ -337,6 +338,39 @@ class _AndroidSettingsScreenState extends ConsumerState<AndroidSettingsScreen> {
                       child: Text(context.l10n.timeFormatTwentyFourHour),
                     ),
                   ],
+                ),
+              ),
+              ListTile(
+                leading: const Icon(Icons.calendar_view_week_outlined),
+                title: Text(context.l10n.firstDayOfWeek),
+                subtitle: DropdownButtonHideUnderline(
+                  child: DropdownButton<BusyMaxFirstDayOfWeekPreference>(
+                    isExpanded: true,
+                    value: settings.firstDayOfWeekPreference,
+                    onChanged: (value) {
+                      if (value != null) {
+                        unawaited(
+                          ref
+                              .read(appSettingsControllerProvider.notifier)
+                              .setFirstDayOfWeekPreference(value),
+                        );
+                      }
+                    },
+                    items: [
+                      for (final value
+                          in BusyMaxFirstDayOfWeekPreference.values)
+                        DropdownMenuItem(
+                          value: value,
+                          child: Text(
+                            busyMaxFirstDayOfWeekPreferenceLabel(
+                              context,
+                              value,
+                            ),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                    ],
+                  ),
                 ),
               ),
             ],

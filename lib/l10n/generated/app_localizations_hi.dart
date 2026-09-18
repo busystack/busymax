@@ -20,6 +20,17 @@ class AppLocalizationsHi extends AppLocalizations {
   String get timeFormat => 'समय प्रारूप';
 
   @override
+  String get firstDayOfWeek => 'सप्ताह का पहला दिन';
+
+  @override
+  String get systemDefault => 'सिस्टम डिफ़ॉल्ट';
+
+  @override
+  String systemDefaultResolved(String weekday) {
+    return 'सिस्टम डिफ़ॉल्ट ($weekday)';
+  }
+
+  @override
   String get timeFormatTwelveHour => '12 घंटे';
 
   @override

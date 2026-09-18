@@ -1,6 +1,9 @@
 {
   "launchAtLoginManagedExternally": "BusyMax 由桌面的啟動設定啟動。請在那裡移除 BusyMax 的項目，然後完全結束並重新開啟 BusyMax，以使用此開關。",
   "timeFormat": "時間格式",
+  "firstDayOfWeek": "一週的第一天",
+  "systemDefault": "系統預設",
+  "systemDefaultResolved": "系統預設（{weekday}）",
   "timeFormatTwelveHour": "12小時制",
   "timeFormatTwentyFourHour": "24小時制",
   "timeEndOfDay": "當天結束",

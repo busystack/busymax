@@ -45,7 +45,9 @@ import '../../../support/schedule_planner_gesture_suite.dart';
 import '../../../support/schedule_date_gesture_suite.dart';
 
 Widget _emptyPlanner(DateTime day, {required int days}) => ScheduleDayWeekView(
-  range: days == 1 ? ScheduleRange.day(day) : ScheduleRange.week(day),
+  range: days == 1
+      ? ScheduleRange.day(day)
+      : ScheduleRange.week(day, firstWeekday: DateTime.monday),
   selectedDate: day,
   daysShowed: days,
   items: const [],
@@ -80,7 +82,10 @@ void main() {
     (scenario) => localizedTestApp(
       child: Scaffold(
         body: ScheduleMonthView(
-          range: ScheduleRange.month(PlannerGestureScenario.day),
+          range: ScheduleRange.month(
+            PlannerGestureScenario.day,
+            firstWeekday: DateTime.monday,
+          ),
           selectedDate: PlannerGestureScenario.day,
           items: scenario.items,
           firstWeekday: DateTime.monday,
@@ -104,7 +109,10 @@ void main() {
           child: ScheduleDayWeekView(
             range: scenario.days == 1
                 ? ScheduleRange.day(PlannerGestureScenario.day)
-                : ScheduleRange.week(PlannerGestureScenario.day),
+                : ScheduleRange.week(
+                    PlannerGestureScenario.day,
+                    firstWeekday: DateTime.monday,
+                  ),
             selectedDate: PlannerGestureScenario.day,
             daysShowed: scenario.days,
             items: scenario.items,
@@ -463,7 +471,10 @@ void main() {
                 child: ScheduleDayWeekView(
                   range: configuration.daysShowed == 1
                       ? ScheduleRange.day(selectedDate)
-                      : ScheduleRange.week(selectedDate),
+                      : ScheduleRange.week(
+                          selectedDate,
+                          firstWeekday: DateTime.monday,
+                        ),
                   selectedDate: selectedDate,
                   daysShowed: configuration.daysShowed,
                   items: _itemsFor(selectedDate),
@@ -523,7 +534,10 @@ void main() {
             width: 1000,
             height: 720,
             child: ScheduleDayWeekView(
-              range: ScheduleRange.week(selectedDate),
+              range: ScheduleRange.week(
+                selectedDate,
+                firstWeekday: DateTime.monday,
+              ),
               selectedDate: selectedDate,
               daysShowed: 7,
               items: _itemsFor(selectedDate),
@@ -568,7 +582,10 @@ void main() {
             width: 1000,
             height: 720,
             child: ScheduleMonthView(
-              range: ScheduleRange.month(selectedDate),
+              range: ScheduleRange.month(
+                selectedDate,
+                firstWeekday: DateTime.monday,
+              ),
               selectedDate: selectedDate,
               items: _itemsFor(selectedDate),
               firstWeekday: DateTime.monday,
@@ -712,7 +729,10 @@ void main() {
             width: 1000,
             height: 720,
             child: ScheduleMonthView(
-              range: ScheduleRange.month(selectedDate),
+              range: ScheduleRange.month(
+                selectedDate,
+                firstWeekday: DateTime.monday,
+              ),
               selectedDate: selectedDate,
               firstWeekday: DateTime.monday,
               items: const [],
@@ -1072,7 +1092,10 @@ void main() {
             width: 1000,
             height: 720,
             child: ScheduleMonthView(
-              range: ScheduleRange.month(selectedDate),
+              range: ScheduleRange.month(
+                selectedDate,
+                firstWeekday: DateTime.monday,
+              ),
               selectedDate: selectedDate,
               firstWeekday: DateTime.monday,
               items: _itemsFor(selectedDate),
@@ -1105,7 +1128,10 @@ void main() {
             width: 1000,
             height: 720,
             child: ScheduleMonthView(
-              range: ScheduleRange.month(selectedDate),
+              range: ScheduleRange.month(
+                selectedDate,
+                firstWeekday: DateTime.monday,
+              ),
               selectedDate: selectedDate,
               firstWeekday: DateTime.monday,
               items: const [],
@@ -1169,7 +1195,10 @@ void main() {
             width: 1000,
             height: 720,
             child: ScheduleMonthView(
-              range: ScheduleRange.month(selectedDate),
+              range: ScheduleRange.month(
+                selectedDate,
+                firstWeekday: DateTime.monday,
+              ),
               selectedDate: selectedDate,
               firstWeekday: DateTime.monday,
               items: const [],
@@ -1308,7 +1337,10 @@ void main() {
             width: 700,
             height: 120,
             child: ScheduleMonthView(
-              range: ScheduleRange.month(selectedDate),
+              range: ScheduleRange.month(
+                selectedDate,
+                firstWeekday: DateTime.monday,
+              ),
               selectedDate: selectedDate,
               firstWeekday: DateTime.monday,
               items: _sameSlotItemsFor(selectedDate),
@@ -1339,7 +1371,10 @@ void main() {
             width: 700,
             height: 720,
             child: ScheduleMonthView(
-              range: ScheduleRange.month(selectedDate),
+              range: ScheduleRange.month(
+                selectedDate,
+                firstWeekday: DateTime.monday,
+              ),
               selectedDate: selectedDate,
               firstWeekday: DateTime.monday,
               items: _manyAllDayItemsFor(selectedDate),
@@ -2855,7 +2890,10 @@ void main() {
         localizedTestApp(
           child: Scaffold(
             body: ScheduleAgendaView(
-              range: ScheduleRange.week(criteria.referenceDate),
+              range: ScheduleRange.week(
+                criteria.referenceDate,
+                firstWeekday: DateTime.monday,
+              ),
               items: [undatedTask, startFallbackTask, dueFirstTask],
               searchCriteria: criteria,
               searchQuery: 'task',
@@ -3128,7 +3166,10 @@ void main() {
             width: 800,
             height: 700,
             child: ScheduleAgendaView(
-              range: ScheduleRange.week(selectedDate),
+              range: ScheduleRange.week(
+                selectedDate,
+                firstWeekday: DateTime.monday,
+              ),
               items: const [
                 googleGrandchild,
                 googleChild,
@@ -3242,7 +3283,10 @@ void main() {
             width: 800,
             height: 700,
             child: ScheduleAgendaView(
-              range: ScheduleRange.week(selectedDate),
+              range: ScheduleRange.week(
+                selectedDate,
+                firstWeekday: DateTime.monday,
+              ),
               items: const [firstChild, secondChild],
               onItemSelected: (_, _, [_]) {},
               onTaskCompletionChanged: (_, _) {},
@@ -3366,7 +3410,10 @@ void main() {
             width: 1000,
             height: 720,
             child: ScheduleAgendaView(
-              range: ScheduleRange.week(selectedDate),
+              range: ScheduleRange.week(
+                selectedDate,
+                firstWeekday: DateTime.monday,
+              ),
               items: const [],
               onItemSelected: (_, _, [_]) {},
               onTaskCompletionChanged: (_, _) {},
@@ -3394,7 +3441,10 @@ void main() {
             width: 1000,
             height: 720,
             child: ScheduleAgendaView(
-              range: ScheduleRange.week(selectedDate),
+              range: ScheduleRange.week(
+                selectedDate,
+                firstWeekday: DateTime.monday,
+              ),
               items: _itemsFor(selectedDate),
               onItemSelected: (_, _, [_]) {},
               onItemAnchorAvailable: (item, context) {

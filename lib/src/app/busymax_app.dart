@@ -9,12 +9,14 @@ import '../platform/busymax_tray_service.dart';
 import '../features/tray/domain/tray_presentation.dart';
 import '../features/tray/domain/tray_presentation_formatter.dart';
 import '../platform/gtk_font_service.dart';
+import '../platform/linux_first_weekday_source.dart';
 import '../platform/linux_header_bar_configuration_synchronizer.dart';
 import '../platform/linux_header_bar_provider.dart';
 import '../platform/linux_header_bar_service.dart';
 import '../platform/common/desktop_services.dart';
 import '../l10n/locale_resolution.dart';
 import '../l10n/time_format_scope.dart';
+import '../l10n/week_preferences_scope.dart';
 import '../schedule/schedule_commands.dart';
 import 'app_bootstrap.dart';
 import 'desktop_startup_policy.dart';
@@ -87,6 +89,7 @@ class BusyMaxApp extends LinuxBusyMaxApp {
 }
 
 class _BusyMaxAppState extends ConsumerState<LinuxBusyMaxApp> {
+  late final BusyMaxSystemFirstWeekdayController _firstWeekdayController;
   BusyMaxTrayService? _trayService;
   bool? _lastHideOnClose;
   bool? _lastTrayEnabled;
@@ -107,6 +110,9 @@ class _BusyMaxAppState extends ConsumerState<LinuxBusyMaxApp> {
   @override
   void initState() {
     super.initState();
+    _firstWeekdayController = BusyMaxSystemFirstWeekdayController(
+      const LinuxFirstWeekdaySource(),
+    )..addListener(_weekPreferenceChanged);
     _headerBarConfigurationSynchronizer =
         BusyMaxHeaderBarConfigurationSynchronizer(
           ref.read(linuxHeaderBarServiceProvider),
@@ -128,6 +134,9 @@ class _BusyMaxAppState extends ConsumerState<LinuxBusyMaxApp> {
 
   @override
   void dispose() {
+    _firstWeekdayController
+      ..removeListener(_weekPreferenceChanged)
+      ..dispose();
     _headerBarConfigurationSynchronizer.dispose();
     unawaited(_externalOpenSubscription?.cancel());
     unawaited(_navigationSubscription?.cancel());
@@ -136,6 +145,10 @@ class _BusyMaxAppState extends ConsumerState<LinuxBusyMaxApp> {
       unawaited(tray.stop());
     }
     super.dispose();
+  }
+
+  void _weekPreferenceChanged() {
+    if (mounted) setState(() {});
   }
 
   Future<void> _handleExternalCalendarOpen(DesktopActivation request) async {
@@ -335,11 +348,20 @@ class _BusyMaxAppState extends ConsumerState<LinuxBusyMaxApp> {
                   color: BusyMaxSurfaceColors.of(context).window,
                   child: BusyMaxTimeFormatScope(
                     formatter: clock,
-                    child: MediaQuery(
-                      data: MediaQuery.of(
-                        context,
-                      ).copyWith(alwaysUse24HourFormat: clock.use24Hour),
-                      child: child ?? const SizedBox.shrink(),
+                    child: BusyMaxWeekPreferencesScope(
+                      preference: settings.firstDayOfWeekPreference,
+                      systemWeekday: _firstWeekdayController.value,
+                      platformLocaleTag: WidgetsBinding
+                          .instance
+                          .platformDispatcher
+                          .locale
+                          .toLanguageTag(),
+                      child: MediaQuery(
+                        data: MediaQuery.of(
+                          context,
+                        ).copyWith(alwaysUse24HourFormat: clock.use24Hour),
+                        child: child ?? const SizedBox.shrink(),
+                      ),
                     ),
                   ),
                 ),

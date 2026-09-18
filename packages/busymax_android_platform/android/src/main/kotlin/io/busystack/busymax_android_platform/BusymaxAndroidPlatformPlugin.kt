@@ -17,6 +17,7 @@ import android.provider.OpenableColumns
 import android.provider.Settings
 import android.text.format.DateFormat
 import androidx.core.content.ContextCompat
+import androidx.core.text.util.LocalePreferences
 import com.google.android.gms.auth.GoogleAuthUtil
 import com.google.android.gms.auth.api.identity.AuthorizationRequest
 import com.google.android.gms.auth.api.identity.AuthorizationResult
@@ -96,6 +97,17 @@ internal data class MicrosoftSilentFailure(
 )
 
 internal class MicrosoftAccountMissingException : IllegalStateException()
+
+internal fun dartWeekday(firstDay: String?): Int? = when (firstDay) {
+    LocalePreferences.FirstDayOfWeek.MONDAY -> 1
+    LocalePreferences.FirstDayOfWeek.TUESDAY -> 2
+    LocalePreferences.FirstDayOfWeek.WEDNESDAY -> 3
+    LocalePreferences.FirstDayOfWeek.THURSDAY -> 4
+    LocalePreferences.FirstDayOfWeek.FRIDAY -> 5
+    LocalePreferences.FirstDayOfWeek.SATURDAY -> 6
+    LocalePreferences.FirstDayOfWeek.SUNDAY -> 7
+    else -> null
+}
 
 /** Maps MSAL failures without turning transport or configuration faults into logout state. */
 internal fun classifyMicrosoftSilentFailure(error: Throwable): MicrosoftSilentFailure = when (error) {
@@ -237,6 +249,7 @@ class BusymaxAndroidPlatformPlugin : FlutterPlugin,
         when (call.method) {
             "currentTimeZoneId" -> result.success(TimeZone.getDefault().id)
             "uses24HourFormat" -> result.success(DateFormat.is24HourFormat(context))
+            "getFirstWeekday" -> result.success(firstWeekday())
             "googleAuthorizationAvailable" -> result.success(GoogleApiAvailability.getInstance().isGooglePlayServicesAvailable(context) == 0)
             "microsoftAuthorizationAvailable" -> result.success(
                 context.resources.getIdentifier("busymax_msal_config", "raw", context.packageName) != 0,
@@ -284,6 +297,9 @@ class BusymaxAndroidPlatformPlugin : FlutterPlugin,
             else -> result.notImplemented()
         }
     }
+
+    private fun firstWeekday(): Int? =
+        dartWeekday(LocalePreferences.getFirstDayOfWeek(true))
 
     private fun authorizeGoogle(call: MethodCall, result: MethodChannel.Result, interactive: Boolean) {
         val scopes = stringList(call.argument<List<*>>("scopes"))

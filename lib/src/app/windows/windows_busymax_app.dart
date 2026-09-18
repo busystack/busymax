@@ -8,7 +8,9 @@ import '../../../l10n/generated/app_localizations.dart';
 import '../../features/auth/data/auth_repository.dart';
 import '../../l10n/locale_resolution.dart';
 import '../../l10n/time_format_scope.dart';
+import '../../l10n/week_preferences_scope.dart';
 import '../../platform/windows/windows_clock_preference.dart';
+import '../../platform/windows/windows_first_weekday_source.dart';
 import '../../platform/common/desktop_services.dart';
 import '../../ui/windows/windows_schedule_page.dart';
 import '../../ui/windows/windows_settings_page.dart';
@@ -71,12 +73,16 @@ class _WindowsBusyMaxAppState extends ConsumerState<WindowsBusyMaxApp>
   StreamSubscription<DesktopNavigationRequest>? _navigationSubscription;
   StreamSubscription<void>? _appearanceSubscription;
   late final WindowsClockPreference _clockPreference;
+  late final BusyMaxSystemFirstWeekdayController _firstWeekdayController;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _clockPreference = WindowsClockPreference()..addListener(_platformChanged);
+    _firstWeekdayController = BusyMaxSystemFirstWeekdayController(
+      WindowsFirstWeekdaySource(),
+    )..addListener(_platformChanged);
     _activationSubscription = ref
         .read(desktopActivationServiceProvider)
         .activations
@@ -168,6 +174,9 @@ class _WindowsBusyMaxAppState extends ConsumerState<WindowsBusyMaxApp>
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _clockPreference.dispose();
+    _firstWeekdayController
+      ..removeListener(_platformChanged)
+      ..dispose();
     unawaited(_activationSubscription?.cancel());
     unawaited(_navigationSubscription?.cancel());
     unawaited(_appearanceSubscription?.cancel());
@@ -233,13 +242,19 @@ class _WindowsBusyMaxAppState extends ConsumerState<WindowsBusyMaxApp>
         );
         return BusyMaxTimeFormatScope(
           formatter: clock,
-          child: MediaQuery(
-            data: MediaQuery.of(
-              context,
-            ).copyWith(alwaysUse24HourFormat: clock.use24Hour),
-            child: WindowsDesktopRuntime(
-              startMinimizedAtLaunch: widget.startMinimizedAtLaunch,
-              child: child ?? const SizedBox.shrink(),
+          child: BusyMaxWeekPreferencesScope(
+            preference: settings.firstDayOfWeekPreference,
+            systemWeekday: _firstWeekdayController.value,
+            platformLocaleTag: WidgetsBinding.instance.platformDispatcher.locale
+                .toLanguageTag(),
+            child: MediaQuery(
+              data: MediaQuery.of(
+                context,
+              ).copyWith(alwaysUse24HourFormat: clock.use24Hour),
+              child: WindowsDesktopRuntime(
+                startMinimizedAtLaunch: widget.startMinimizedAtLaunch,
+                child: child ?? const SizedBox.shrink(),
+              ),
             ),
           ),
         );

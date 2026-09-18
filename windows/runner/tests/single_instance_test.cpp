@@ -1,5 +1,6 @@
 #include "../single_instance.h"
 #include "../clock_preference.h"
+#include "../weekday_preference.h"
 
 #include <windows.h>
 
@@ -71,6 +72,35 @@ void TestPreferredShortTimeClock() {
   fail_locale_read = true;
   Check(!BusyMaxRead24HourClock(&ReadTestLocale).has_value(),
         "locale read failure remains unavailable");
+  fail_locale_read = false;
+}
+
+DWORD test_first_weekday = 0;
+
+int WINAPI ReadTestFirstWeekday(LPCWSTR locale, LCTYPE type, LPWSTR output,
+                                int size) {
+  Check(locale == LOCALE_NAME_USER_DEFAULT, "weekday reads the user locale");
+  Check(type == (LOCALE_IFIRSTDAYOFWEEK | LOCALE_RETURN_NUMBER),
+        "weekday requests the numeric user override");
+  const int required = static_cast<int>(sizeof(DWORD) / sizeof(wchar_t));
+  if (fail_locale_read || output == nullptr || size != required) return 0;
+  *reinterpret_cast<DWORD*>(output) = test_first_weekday;
+  return required;
+}
+
+void TestFirstWeekday() {
+  for (DWORD windows_weekday = 0; windows_weekday < 7; windows_weekday++) {
+    test_first_weekday = windows_weekday;
+    Check(BusyMaxReadFirstWeekday(&ReadTestFirstWeekday) ==
+              static_cast<int>(windows_weekday) + 1,
+          "Windows weekday converts to Dart numbering");
+  }
+  test_first_weekday = 7;
+  Check(!BusyMaxReadFirstWeekday(&ReadTestFirstWeekday).has_value(),
+        "invalid Windows weekday is unavailable");
+  fail_locale_read = true;
+  Check(!BusyMaxReadFirstWeekday(&ReadTestFirstWeekday).has_value(),
+        "weekday read failure is unavailable");
   fail_locale_read = false;
 }
 
@@ -271,6 +301,7 @@ void TestForwardingTimeoutIsBounded() {
 
 int main() {
   TestPreferredShortTimeClock();
+  TestFirstWeekday();
   Check(BusyMaxRead24HourClock().has_value(), "user clock preference can be read");
   Check(BusyMaxClockRefreshMessage(WM_SETTINGCHANGE, 0, reinterpret_cast<LPARAM>(L"intl")), "locale settings refresh the clock");
   Check(BusyMaxClockRefreshMessage(WM_SETTINGCHANGE, 0, 0), "unspecified settings refresh the clock");

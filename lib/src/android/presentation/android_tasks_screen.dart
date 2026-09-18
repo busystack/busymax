@@ -21,6 +21,7 @@ import '../../providers/busy_provider.dart';
 import '../../schedule/schedule_filters.dart';
 import '../../schedule/schedule_item.dart';
 import '../android_notifications.dart';
+import 'android_date_picker.dart';
 
 final _androidTasksProvider = FutureProvider.autoDispose
     .family<
@@ -1030,7 +1031,7 @@ class _AndroidTaskEditorState extends ConsumerState<AndroidTaskEditor> {
 
   Future<void> _pickDue() async {
     final current = DateTime.tryParse(_draft.dueDate ?? '') ?? DateTime.now();
-    final value = await showDatePicker(
+    final value = await showBusyMaxDatePicker(
       context: context,
       initialDate: current,
       firstDate: DateTime(1970),
@@ -1205,7 +1206,7 @@ class _AndroidTaskEditorState extends ConsumerState<AndroidTaskEditor> {
   Future<void> _pickStartDate() async {
     final current =
         DateTime.tryParse(_draft.microsoftStartDate ?? '') ?? DateTime.now();
-    final value = await showDatePicker(
+    final value = await showBusyMaxDatePicker(
       context: context,
       initialDate: current,
       firstDate: DateTime(1970),
@@ -1228,7 +1229,7 @@ class _AndroidTaskEditorState extends ConsumerState<AndroidTaskEditor> {
   Future<void> _pickReminderDate() async {
     final current =
         DateTime.tryParse(_draft.microsoftReminderDate ?? '') ?? DateTime.now();
-    final value = await showDatePicker(
+    final value = await showBusyMaxDatePicker(
       context: context,
       initialDate: current,
       firstDate: DateTime(1970),
@@ -1325,7 +1326,7 @@ class _AndroidTaskEditorState extends ConsumerState<AndroidTaskEditor> {
   Future<void> _pickCompletionDate() async {
     final current =
         DateTime.tryParse(_draft.completedDate ?? '') ?? DateTime.now();
-    final value = await showDatePicker(
+    final value = await showBusyMaxDatePicker(
       context: context,
       initialDate: current,
       firstDate: DateTime(1970),
@@ -1394,7 +1395,7 @@ class _AndroidTaskEditorState extends ConsumerState<AndroidTaskEditor> {
     if (mode == null || !mounted) return;
     IcalTaskAlarm? alarm;
     if (mode == 'absolute') {
-      final date = await showDatePicker(
+      final date = await showBusyMaxDatePicker(
         context: context,
         initialDate: DateTime.now(),
         firstDate: DateTime(1970),
@@ -2395,7 +2396,7 @@ class _AndroidRecurrenceDialogState extends State<_AndroidRecurrenceDialog> {
   }
 
   Future<void> _pickUntil() async {
-    final value = await showDatePicker(
+    final value = await showBusyMaxDatePicker(
       context: context,
       initialDate: _until,
       firstDate: DateTime(

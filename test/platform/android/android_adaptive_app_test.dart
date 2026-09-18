@@ -163,6 +163,40 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets('Android Settings fits and persists first weekday', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(360, 800);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final harness = await _pumpApp(tester, AppSettings.defaults());
+    addTearDown(harness.dispose);
+
+    await tester.tap(find.text('Settings').last);
+    await tester.pumpAndSettle();
+    final label = find.text('First day of the week');
+    await _scrollUntilBuilt(tester, label);
+    expect(label, findsOneWidget);
+    final dropdown = tester
+        .widget<DropdownButton<BusyMaxFirstDayOfWeekPreference>>(
+          find.byWidgetPredicate(
+            (widget) =>
+                widget is DropdownButton<BusyMaxFirstDayOfWeekPreference>,
+          ),
+        );
+    expect(dropdown.isExpanded, isTrue);
+    dropdown.onChanged!(BusyMaxFirstDayOfWeekPreference.thursday);
+    await tester.pumpAndSettle();
+    expect(
+      harness.container
+          .read(appSettingsControllerProvider)
+          .firstDayOfWeekPreference,
+      BusyMaxFirstDayOfWeekPreference.thursday,
+    );
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('required Android viewport matrix renders every destination', (
     tester,
   ) async {
@@ -232,7 +266,7 @@ void main() {
     expect(find.text('Hidden event'), findsNothing);
     expect(find.text('Hidden task'), findsNothing);
     expect(tester.takeException(), isNull);
-    await tester.tap(find.textContaining('more').first);
+    await tester.tap(find.textContaining('more').hitTestable().first);
     await tester.pumpAndSettle();
     await tester.tap(find.text('Invitation event'));
     await tester.pumpAndSettle();
@@ -241,7 +275,7 @@ void main() {
     expect(find.text('Decline'), findsOneWidget);
     tester.state<NavigatorState>(find.byType(Navigator).first).pop();
     await tester.pumpAndSettle();
-    await tester.tap(find.textContaining('more').first);
+    await tester.tap(find.textContaining('more').hitTestable().first);
     await tester.pumpAndSettle();
     expect(find.text('All-day event 3'), findsOneWidget);
     expect(find.text('Date-only task'), findsOneWidget);
@@ -262,7 +296,10 @@ void main() {
     expect(find.textContaining('Overnight event'), findsWidgets);
     expect(find.textContaining('more'), findsWidgets);
     expect(tester.takeException(), isNull);
-    await tester.tap(find.textContaining('more').first);
+    final compactWeekMore = find.textContaining('more').first;
+    await tester.ensureVisible(compactWeekMore);
+    await tester.pumpAndSettle();
+    await tester.tap(compactWeekMore);
     await tester.pumpAndSettle();
     expect(find.text('Date-only task'), findsOneWidget);
     tester.state<NavigatorState>(find.byType(Navigator).first).pop();
@@ -275,7 +312,7 @@ void main() {
       find.byKey(const ValueKey('android-week-time-grid')),
       findsOneWidget,
     );
-    await tester.tap(find.textContaining('more').first);
+    await tester.tap(find.textContaining('more').hitTestable().first);
     await tester.pumpAndSettle();
     expect(find.text('Date-only task'), findsOneWidget);
     tester.state<NavigatorState>(find.byType(Navigator).first).pop();

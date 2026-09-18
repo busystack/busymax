@@ -20,6 +20,17 @@ class AppLocalizationsFi extends AppLocalizations {
   String get timeFormat => 'Aikamuoto';
 
   @override
+  String get firstDayOfWeek => 'Viikon ensimmäinen päivä';
+
+  @override
+  String get systemDefault => 'Järjestelmän oletus';
+
+  @override
+  String systemDefaultResolved(String weekday) {
+    return 'Järjestelmän oletus ($weekday)';
+  }
+
+  @override
   String get timeFormatTwelveHour => '12 tuntia';
 
   @override

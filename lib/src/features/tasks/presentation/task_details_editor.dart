@@ -270,7 +270,6 @@ class _TaskDetailsEditorState extends State<TaskDetailsEditor> {
                             enabled: _canWrite,
                             onChanged: (value) =>
                                 _updateDraft(draft.copyWith(dueDate: value)),
-                            useNativePicker: widget.useNativeDatePicker,
                             onClear: () => unawaited(
                               _clearScheduledDate(draft, due: true),
                             ),
@@ -575,7 +574,6 @@ class _TaskDetailsEditorState extends State<TaskDetailsEditor> {
         enabled: _canWrite,
         onChanged: (value) =>
             _updateDraft(draft.copyWith(microsoftStartDate: value)),
-        useNativePicker: widget.useNativeDatePicker,
         onClear: () => unawaited(_clearScheduledDate(draft, due: false)),
       ),
       if (!scheduledAllDay)
@@ -1267,7 +1265,6 @@ class _TaskDetailsEditorState extends State<TaskDetailsEditor> {
         enabled: _canWrite,
         onChanged: (value) =>
             _updateDraft(draft.copyWith(microsoftReminderDate: value)),
-        useNativePicker: widget.useNativeDatePicker,
         onClear: () =>
             _updateDraft(draft.copyWith(microsoftReminderDate: null)),
       ),

@@ -20,6 +20,17 @@ class AppLocalizationsRu extends AppLocalizations {
   String get timeFormat => 'Формат времени';
 
   @override
+  String get firstDayOfWeek => 'Первый день недели';
+
+  @override
+  String get systemDefault => 'Системное значение';
+
+  @override
+  String systemDefaultResolved(String weekday) {
+    return 'Системное значение ($weekday)';
+  }
+
+  @override
   String get timeFormatTwelveHour => '12 часов';
 
   @override

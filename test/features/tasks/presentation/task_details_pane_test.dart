@@ -1621,7 +1621,6 @@ void main() {
           body: DesktopDateValueRow(
             label: 'Due date',
             date: '2026-06-06',
-            useNativePicker: false,
             onChanged: (date) => changed = date,
           ),
         ),
@@ -1664,7 +1663,6 @@ void main() {
           body: DesktopDateValueRow(
             label: 'Due date',
             date: null,
-            useNativePicker: false,
             onChanged: (date) => changed = date,
           ),
         ),

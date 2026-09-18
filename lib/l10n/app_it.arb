@@ -1,6 +1,9 @@
 {
   "launchAtLoginManagedExternally": "BusyMax è stato avviato dalle impostazioni di avvio del desktop. Rimuovi la sua voce da lì, poi esci da BusyMax e riaprilo per usare questo interruttore.",
   "timeFormat": "Formato ora",
+  "firstDayOfWeek": "Primo giorno della settimana",
+  "systemDefault": "Predefinito di sistema",
+  "systemDefaultResolved": "Predefinito di sistema ({weekday})",
   "timeFormatTwelveHour": "12 ore",
   "timeFormatTwentyFourHour": "24 ore",
   "timeEndOfDay": "fine giornata",

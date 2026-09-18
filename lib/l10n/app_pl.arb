@@ -1,6 +1,9 @@
 {
   "launchAtLoginManagedExternally": "BusyMax został uruchomiony przez ustawienia autostartu pulpitu. Usuń stamtąd jego wpis, a następnie zakończ i ponownie uruchom BusyMax, aby użyć tego przełącznika.",
   "timeFormat": "Format czasu",
+  "firstDayOfWeek": "Pierwszy dzień tygodnia",
+  "systemDefault": "Domyślne ustawienie systemu",
+  "systemDefaultResolved": "Domyślne ustawienie systemu ({weekday})",
   "timeFormatTwelveHour": "12-godzinny",
   "timeFormatTwentyFourHour": "24-godzinny",
   "timeEndOfDay": "koniec dnia",

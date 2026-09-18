@@ -20,6 +20,17 @@ class AppLocalizationsFa extends AppLocalizations {
   String get timeFormat => 'قالب زمان';
 
   @override
+  String get firstDayOfWeek => 'روز اول هفته';
+
+  @override
+  String get systemDefault => 'پیش‌فرض سیستم';
+
+  @override
+  String systemDefaultResolved(String weekday) {
+    return 'پیش‌فرض سیستم (⁨$weekday⁩)';
+  }
+
+  @override
   String get timeFormatTwelveHour => '۱۲ ساعته';
 
   @override

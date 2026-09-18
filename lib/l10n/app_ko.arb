@@ -1,6 +1,9 @@
 {
   "launchAtLoginManagedExternally": "데스크톱의 시작 프로그램 설정에 의해 BusyMax가 실행되었습니다. 이 스위치를 사용하려면 해당 설정에서 BusyMax 항목을 제거한 다음 BusyMax를 완전히 종료하고 다시 여세요.",
   "timeFormat": "시간 형식",
+  "firstDayOfWeek": "한 주의 시작 요일",
+  "systemDefault": "시스템 기본값",
+  "systemDefaultResolved": "시스템 기본값({weekday})",
   "timeFormatTwelveHour": "12시간",
   "timeFormatTwentyFourHour": "24시간",
   "timeEndOfDay": "하루의 끝",

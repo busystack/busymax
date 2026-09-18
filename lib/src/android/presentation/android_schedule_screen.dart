@@ -20,6 +20,7 @@ import '../../features/recurrence/domain/event_recurrence_codec.dart';
 import '../../features/recurrence/domain/recurrence_rule.dart';
 import '../../l10n/l10n.dart';
 import '../../l10n/time_format_scope.dart';
+import '../../l10n/week_preferences_scope.dart';
 import '../../providers/busy_provider.dart';
 import '../../schedule/schedule_filters.dart';
 import '../../schedule/schedule_item.dart';
@@ -32,6 +33,7 @@ import 'android_schedule_search_filters.dart';
 import '../../features/schedule/presentation/schedule_search_result_text.dart';
 import '../android_notifications.dart';
 import 'android_availability_dialog.dart';
+import 'android_date_picker.dart';
 import 'android_settings_screen.dart';
 import 'android_tasks_screen.dart';
 
@@ -98,6 +100,19 @@ class _AndroidScheduleScreenState extends ConsumerState<AndroidScheduleScreen> {
   final _searchController = TextEditingController();
   ScheduleSearchCriteria? _searchCriteria;
   ScheduleSearchCriteria? _initialSearchCriteria;
+  var _searchFirstWeekday = DateTime.monday;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final firstWeekday = _firstWeekday(context);
+    if (_searchFirstWeekday == firstWeekday) return;
+    _searchFirstWeekday = firstWeekday;
+    _searchCriteria = _searchCriteria?.copyWith(firstWeekday: firstWeekday);
+    _initialSearchCriteria = _initialSearchCriteria?.copyWith(
+      firstWeekday: firstWeekday,
+    );
+  }
 
   @override
   void dispose() {
@@ -428,7 +443,7 @@ class _AndroidScheduleScreenState extends ConsumerState<AndroidScheduleScreen> {
   }
 
   Future<void> _selectDate() async {
-    final selected = await showDatePicker(
+    final selected = await showBusyMaxDatePicker(
       context: context,
       initialDate: _anchor,
       firstDate: DateTime(1900),
@@ -2576,7 +2591,7 @@ class _DateTimeTile extends StatelessWidget {
     onTap: onChanged == null
         ? null
         : () async {
-            final date = await showDatePicker(
+            final date = await showBusyMaxDatePicker(
               context: context,
               initialDate: value,
               firstDate: DateTime(1970),
@@ -2731,8 +2746,7 @@ bool _sameDay(DateTime a, DateTime b) =>
     a.year == b.year && a.month == b.month && a.day == b.day;
 
 int _firstWeekday(BuildContext context) {
-  final index = MaterialLocalizations.of(context).firstDayOfWeekIndex;
-  return index == 0 ? DateTime.sunday : index;
+  return BusyMaxWeekPreferencesScope.firstWeekdayOf(context);
 }
 
 Object? _eventReminders(BusyProvider provider, int minutes) {

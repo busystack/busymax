@@ -90,6 +90,7 @@ class ScheduleSearchCriteria {
     String? location,
     DateTime? customStart,
     DateTime? customEnd,
+    int? firstWeekday,
     Set<String>? sourceIds,
     Set<ScheduleTaskListKey>? taskListKeys,
   }) => ScheduleSearchCriteria(
@@ -97,14 +98,12 @@ class ScheduleSearchCriteria {
     date: date ?? this.date,
     taskCompletion: taskCompletion ?? this.taskCompletion,
     taskDueState: taskDueState ?? this.taskDueState,
-    person: (type ?? this.type) == ScheduleSearchType.tasks
-        ? ''
-        : person ?? this.person,
+    person: type == ScheduleSearchType.tasks ? '' : person ?? this.person,
     location: location ?? this.location,
     customStart: customStart ?? this.customStart,
     customEnd: customEnd ?? this.customEnd,
     referenceDate: referenceDate,
-    firstWeekday: firstWeekday,
+    firstWeekday: firstWeekday ?? this.firstWeekday,
     sourceIds: sourceIds ?? this.sourceIds,
     taskListKeys: taskListKeys ?? this.taskListKeys,
   );

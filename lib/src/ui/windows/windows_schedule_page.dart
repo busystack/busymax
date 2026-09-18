@@ -1,4 +1,5 @@
 import 'package:busymax/src/l10n/time_format_scope.dart';
+import 'package:busymax/src/l10n/week_preferences_scope.dart';
 import 'dart:async';
 import '../../providers/busy_provider.dart';
 import 'dart:math' as math;
@@ -64,6 +65,7 @@ class _WindowsSchedulePageState extends ConsumerState<WindowsSchedulePage> {
   bool? _sourcePaneBeforeSearch;
   ScheduleSearchCriteria? _searchCriteria;
   ScheduleSearchCriteria? _initialSearchCriteria;
+  var _firstWeekday = DateTime.monday;
   ScheduleSourceVisibility? _latestVisibility;
   late ScheduleViewMode _mode;
   var _agendaDays = 30;
@@ -135,6 +137,19 @@ class _WindowsSchedulePageState extends ConsumerState<WindowsSchedulePage> {
     _searchFocusNode.removeListener(_searchFocusChanged);
     _searchFocusNode.dispose();
     super.dispose();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final firstWeekday = BusyMaxWeekPreferencesScope.firstWeekdayOf(context);
+    if (_firstWeekday == firstWeekday) return;
+    _firstWeekday = firstWeekday;
+    _searchCriteria = _searchCriteria?.copyWith(firstWeekday: firstWeekday);
+    _initialSearchCriteria = _initialSearchCriteria?.copyWith(
+      firstWeekday: firstWeekday,
+    );
+    _itemsKey = null;
   }
 
   Future<void> _revealPendingCommand() async {
@@ -292,6 +307,7 @@ class _WindowsSchedulePageState extends ConsumerState<WindowsSchedulePage> {
         final sourcePane = _searchActive && _searchCriteria != null
             ? _searchPane(accounts, sources, taskLists)
             : WindowsScheduleSourcePane(
+                firstWeekday: _firstWeekday,
                 selectedDate: _selectedDate,
                 accounts: accounts,
                 calendarSources: sources,
@@ -572,6 +588,7 @@ class _WindowsSchedulePageState extends ConsumerState<WindowsSchedulePage> {
                                 );
                               }
                               return _ScheduleModeView(
+                                firstWeekday: _firstWeekday,
                                 mode: _mode,
                                 selectedDate: _selectedDate,
                                 range: range,
@@ -718,7 +735,7 @@ class _WindowsSchedulePageState extends ConsumerState<WindowsSchedulePage> {
     final now = DateTime.now();
     _initialSearchCriteria = ScheduleSearchCriteria(
       referenceDate: DateTime(now.year, now.month, now.day),
-      firstWeekday: DateTime.monday,
+      firstWeekday: _firstWeekday,
       sourceIds: visibility.visibleCalendarSourceIds,
       taskListKeys: visibility.visibleTaskListKeys,
     );
@@ -899,8 +916,14 @@ class _WindowsSchedulePageState extends ConsumerState<WindowsSchedulePage> {
 
   ScheduleRange _rangeForMode() => switch (_mode) {
     ScheduleViewMode.day => ScheduleRange.day(_selectedDate),
-    ScheduleViewMode.week => ScheduleRange.week(_selectedDate),
-    ScheduleViewMode.month => ScheduleRange.month(_selectedDate),
+    ScheduleViewMode.week => ScheduleRange.week(
+      _selectedDate,
+      firstWeekday: _firstWeekday,
+    ),
+    ScheduleViewMode.month => ScheduleRange.month(
+      _selectedDate,
+      firstWeekday: _firstWeekday,
+    ),
     ScheduleViewMode.year => ScheduleRange.year(_selectedDate),
     ScheduleViewMode.agenda => ScheduleRange(
       start: _dateOnly(_selectedDate),
@@ -1051,6 +1074,7 @@ class _WindowsSchedulePageState extends ConsumerState<WindowsSchedulePage> {
             width: 520,
             height: math.min(MediaQuery.sizeOf(context).height - 180, 620),
             child: WindowsScheduleSourcePane(
+              firstWeekday: _firstWeekday,
               selectedDate: _selectedDate,
               accounts: accounts,
               calendarSources: sources,
@@ -1586,6 +1610,7 @@ class _ViewModeMenu extends StatelessWidget {
 class _ScheduleModeView extends StatelessWidget {
   const _ScheduleModeView({
     required this.mode,
+    required this.firstWeekday,
     required this.selectedDate,
     required this.range,
     required this.items,
@@ -1603,6 +1628,7 @@ class _ScheduleModeView extends StatelessWidget {
   });
 
   final ScheduleViewMode mode;
+  final int firstWeekday;
   final DateTime selectedDate;
   final ScheduleRange range;
   final List<ScheduleItem> items;
@@ -1636,6 +1662,7 @@ class _ScheduleModeView extends StatelessWidget {
       dayEndMinute: dayEndMinute,
     ),
     ScheduleViewMode.month => WindowsScheduleMonthView(
+      firstWeekday: firstWeekday,
       onReschedule: onReschedule,
       selectedDate: selectedDate,
       range: range,
@@ -1645,6 +1672,7 @@ class _ScheduleModeView extends StatelessWidget {
       onSelectDate: onSelectDate,
     ),
     ScheduleViewMode.year => WindowsScheduleYearView(
+      firstWeekday: firstWeekday,
       selectedDate: selectedDate,
       items: items,
       locale: locale,
@@ -1759,6 +1787,7 @@ class WindowsScheduleMonthView extends StatelessWidget {
   const WindowsScheduleMonthView({
     super.key,
     required this.selectedDate,
+    required this.firstWeekday,
     required this.onReschedule,
     required this.range,
     required this.items,
@@ -1768,6 +1797,7 @@ class WindowsScheduleMonthView extends StatelessWidget {
   });
 
   final DateTime selectedDate;
+  final int firstWeekday;
   final ScheduleRescheduleCallback onReschedule;
   final ScheduleRange range;
   final List<ScheduleItem> items;
@@ -1802,9 +1832,9 @@ class WindowsScheduleMonthView extends StatelessWidget {
                   Expanded(
                     child: Center(
                       child: Text(
-                        DateFormat.E(
-                          locale,
-                        ).format(DateTime(2026, 1, 5 + index)),
+                        DateFormat.E(locale).format(
+                          DateTime(2026, 1, 5 + firstWeekday - 1 + index),
+                        ),
                         style: FluentTheme.of(context).typography.caption,
                       ),
                     ),
@@ -1958,12 +1988,14 @@ class WindowsScheduleYearView extends StatelessWidget {
   const WindowsScheduleYearView({
     super.key,
     required this.selectedDate,
+    required this.firstWeekday,
     required this.items,
     required this.locale,
     required this.onSelectDate,
   });
 
   final DateTime selectedDate;
+  final int firstWeekday;
   final List<ScheduleItem> items;
   final String locale;
   final ValueChanged<DateTime> onSelectDate;
@@ -1986,7 +2018,7 @@ class WindowsScheduleYearView extends StatelessWidget {
         itemCount: 12,
         itemBuilder: (context, index) {
           final month = DateTime(selectedDate.year, index + 1);
-          final offset = month.weekday - 1;
+          final offset = (month.weekday - firstWeekday) % DateTime.daysPerWeek;
           final dayCount = DateTime(month.year, month.month + 1, 0).day;
           return Card(
             padding: const EdgeInsets.all(8),
@@ -2003,9 +2035,9 @@ class WindowsScheduleYearView extends StatelessWidget {
                       Expanded(
                         child: Center(
                           child: Text(
-                            DateFormat.E(
-                              locale,
-                            ).format(DateTime(2026, 1, 5 + weekday)),
+                            DateFormat.E(locale).format(
+                              DateTime(2026, 1, 5 + firstWeekday - 1 + weekday),
+                            ),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: FluentTheme.of(context).typography.caption,

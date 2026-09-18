@@ -2,6 +2,7 @@ package io.busystack.busymax_android_platform
 
 import io.flutter.plugin.common.MethodCall
 import io.flutter.plugin.common.MethodChannel
+import androidx.core.text.util.LocalePreferences
 import com.microsoft.identity.client.exception.MsalClientException
 import com.microsoft.identity.client.exception.MsalServiceException
 import com.microsoft.identity.client.exception.MsalUiRequiredException
@@ -11,6 +12,24 @@ import org.junit.jupiter.api.Test
 import org.mockito.Mockito
 
 internal class BusymaxAndroidPlatformPluginTest {
+    @Test
+    fun firstWeekday_convertsEveryAndroidxValueToDartNumbering() {
+        val values = listOf(
+            LocalePreferences.FirstDayOfWeek.MONDAY to 1,
+            LocalePreferences.FirstDayOfWeek.TUESDAY to 2,
+            LocalePreferences.FirstDayOfWeek.WEDNESDAY to 3,
+            LocalePreferences.FirstDayOfWeek.THURSDAY to 4,
+            LocalePreferences.FirstDayOfWeek.FRIDAY to 5,
+            LocalePreferences.FirstDayOfWeek.SATURDAY to 6,
+            LocalePreferences.FirstDayOfWeek.SUNDAY to 7,
+        )
+        values.forEach { (value, expected) ->
+            assertEquals(expected, dartWeekday(value))
+        }
+        assertEquals(null, dartWeekday(null))
+        assertEquals(null, dartWeekday("unexpected"))
+    }
+
     @Test
     fun unknownMethod_isReportedAsNotImplemented() {
         val plugin = BusymaxAndroidPlatformPlugin()

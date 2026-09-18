@@ -20,6 +20,17 @@ class AppLocalizationsZh extends AppLocalizations {
   String get timeFormat => '时间格式';
 
   @override
+  String get firstDayOfWeek => '一周的第一天';
+
+  @override
+  String get systemDefault => '系统默认';
+
+  @override
+  String systemDefaultResolved(String weekday) {
+    return '系统默认（$weekday）';
+  }
+
+  @override
   String get timeFormatTwelveHour => '12小时制';
 
   @override
@@ -2887,6 +2898,17 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
   String get timeFormat => '时间格式';
 
   @override
+  String get firstDayOfWeek => '一周的第一天';
+
+  @override
+  String get systemDefault => '系统默认';
+
+  @override
+  String systemDefaultResolved(String weekday) {
+    return '系统默认（$weekday）';
+  }
+
+  @override
   String get timeFormatTwelveHour => '12小时制';
 
   @override
@@ -5752,6 +5774,17 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get timeFormat => '時間格式';
+
+  @override
+  String get firstDayOfWeek => '一週的第一天';
+
+  @override
+  String get systemDefault => '系統預設';
+
+  @override
+  String systemDefaultResolved(String weekday) {
+    return '系統預設（$weekday）';
+  }
 
   @override
   String get timeFormatTwelveHour => '12小時制';

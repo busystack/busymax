@@ -148,22 +148,9 @@ void main() {
     expect(cleared, isTrue);
   });
 
-  testWidgets('Linux custom range uses native desktop date fields', (
+  testWidgets('Linux custom range uses the BusyMax calendar popover', (
     tester,
   ) async {
-    const channel = MethodChannel(nativeDateTimePickerChannelName);
-    final calls = <MethodCall>[];
-    final responses = <String?>['2026-06-15', '2026-06-12', null];
-    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
-        .setMockMethodCallHandler(channel, (call) async {
-          calls.add(call);
-          return responses.removeAt(0);
-        });
-    addTearDown(() {
-      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
-          .setMockMethodCallHandler(channel, null);
-    });
-
     final state = _FilterState(
       _criteria(
         date: ScheduleSearchDate.custom,
@@ -177,7 +164,7 @@ void main() {
       tester.element(find.byType(ScheduleSearchFilters)),
     );
 
-    Future<void> pickDate(String label) async {
+    Future<void> openPicker(String label) async {
       final field = find.byWidgetPredicate(
         (widget) => widget is DesktopDateField && widget.label == label,
       );
@@ -188,25 +175,38 @@ void main() {
       await tester.ensureVisible(button);
       await tester.tap(button);
       await tester.pumpAndSettle();
+      expect(find.byType(BusyMaxContentPopoverSurface), findsOneWidget);
+      expect(find.byType(DatePickerDialog), findsNothing);
     }
 
-    await pickDate(labels.startDate);
-    expect(calls.single.method, 'pickDate');
-    expect(calls.single.arguments, containsPair('initialDate', '2026-06-12'));
+    Future<void> pickDate(String label, int day) async {
+      await openPicker(label);
+      final popover = find.byType(BusyMaxContentPopoverSurface);
+      final dayButton = find.descendant(
+        of: popover,
+        matching: find.text('$day'),
+      );
+      expect(dayButton, findsOneWidget);
+      await tester.tap(dayButton);
+      await tester.pumpAndSettle();
+    }
+
+    await pickDate(labels.startDate, 15);
     expect(state.value.customStart, DateTime(2026, 6, 15));
     expect(state.value.customEnd, DateTime(2026, 6, 15));
     expect(state.value.range!.end, DateTime(2026, 6, 16));
 
-    await pickDate(labels.endDate);
-    expect(calls.last.arguments, containsPair('initialDate', '2026-06-15'));
+    await pickDate(labels.endDate, 12);
     expect(state.value.customStart, DateTime(2026, 6, 12));
     expect(state.value.customEnd, DateTime(2026, 6, 12));
     expect(state.value.range!.end, DateTime(2026, 6, 13));
 
     final beforeCancel = state.value;
-    await pickDate(labels.endDate);
+    await openPicker(labels.endDate);
+    await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+    await tester.pumpAndSettle();
     expect(state.value, beforeCancel);
-    expect(find.byType(DatePickerDialog), findsNothing);
+    expect(find.byType(BusyMaxContentPopoverSurface), findsNothing);
     expect(tester.takeException(), isNull);
   });
 }

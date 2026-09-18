@@ -75,6 +75,7 @@ kotlin {
 }
 
 dependencies {
+    implementation("androidx.core:core:1.19.0")
     implementation("com.google.android.gms:play-services-auth:21.5.0")
     implementation("com.microsoft.identity.client:msal:8.4.1")
     testImplementation("org.junit.jupiter:junit-jupiter:5.11.4")

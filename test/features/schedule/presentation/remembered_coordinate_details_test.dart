@@ -40,9 +40,12 @@ void main() {
 
       final harness = await _importGeoOnlyGoogleEvent();
       addTearDown(harness.database.close);
-      final item = (await ScheduleRepository(
-        harness.database,
-      ).listItems(range: ScheduleRange.week(DateTime.now()))).single;
+      final item = (await ScheduleRepository(harness.database).listItems(
+        range: ScheduleRange.week(
+          DateTime.now(),
+          firstWeekday: DateTime.monday,
+        ),
+      )).single;
       final resolved = await resolveSavedScheduleLocation(
         item: item,
         repository: LocationResolutionRepository(harness.database),

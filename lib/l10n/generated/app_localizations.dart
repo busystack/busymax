@@ -147,6 +147,24 @@ abstract class AppLocalizations {
   /// **'Time format'**
   String get timeFormat;
 
+  /// No description provided for @firstDayOfWeek.
+  ///
+  /// In en, this message translates to:
+  /// **'First day of the week'**
+  String get firstDayOfWeek;
+
+  /// No description provided for @systemDefault.
+  ///
+  /// In en, this message translates to:
+  /// **'System default'**
+  String get systemDefault;
+
+  /// No description provided for @systemDefaultResolved.
+  ///
+  /// In en, this message translates to:
+  /// **'System default ({weekday})'**
+  String systemDefaultResolved(String weekday);
+
   /// No description provided for @timeFormatTwelveHour.
   ///
   /// In en, this message translates to:

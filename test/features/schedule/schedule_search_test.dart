@@ -67,6 +67,32 @@ void main() {
     bool matches(ScheduleItem item, ScheduleFilters filters) =>
         matchesScheduleFilters(item, filters, range: range);
 
+    test('copyWith changes week boundary without losing other filters', () {
+      final original = ScheduleSearchCriteria(
+        type: ScheduleSearchType.tasks,
+        date: ScheduleSearchDate.thisWeek,
+        taskCompletion: ScheduleTaskCompletion.completed,
+        person: 'Alex',
+        location: 'Office',
+        referenceDate: today,
+        firstWeekday: DateTime.monday,
+        sourceIds: const {'calendar'},
+        taskListKeys: {
+          const ScheduleTaskListKey(accountId: 'account', taskListId: 'list'),
+        },
+      );
+      final changed = original.copyWith(firstWeekday: DateTime.saturday);
+
+      expect(changed.range?.start, DateTime(2026, 6, 6));
+      expect(changed.firstWeekday, DateTime.saturday);
+      expect(changed.type, original.type);
+      expect(changed.taskCompletion, original.taskCompletion);
+      expect(changed.person, original.person);
+      expect(changed.location, original.location);
+      expect(changed.sourceIds, original.sourceIds);
+      expect(changed.taskListKeys, original.taskListKeys);
+    });
+
     for (final term in [
       'Alex Smith',
       'alex@example.com',

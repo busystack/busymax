@@ -1223,6 +1223,38 @@ void main() {
     expect(second.state.scheduleDayEndMinute, 24 * 60);
   });
 
+  testWidgets('Linux schedule settings exposes and persists first weekday', (
+    tester,
+  ) async {
+    final container = _container(
+      selectedAccountId: 'google:g',
+      authRepository: _FakeAuthRepository(),
+      accounts: const [_googleAccount],
+    );
+    addTearDown(container.dispose);
+    await _pumpSettings(
+      tester,
+      container,
+      initialPage: SettingsPage.schedule,
+      logicalSize: const Size(1000, 800),
+    );
+
+    final row = tester.widget<BusyMaxComboRow<BusyMaxFirstDayOfWeekPreference>>(
+      find.byWidgetPredicate(
+        (widget) => widget is BusyMaxComboRow<BusyMaxFirstDayOfWeekPreference>,
+      ),
+    );
+    expect(row.values, BusyMaxFirstDayOfWeekPreference.values);
+    expect(row.selected, BusyMaxFirstDayOfWeekPreference.system);
+    expect(row.labelFor(row.selected), startsWith('System default ('));
+    row.onSelected(BusyMaxFirstDayOfWeekPreference.saturday);
+    await tester.pumpAndSettle();
+    expect(
+      container.read(appSettingsControllerProvider).firstDayOfWeekPreference,
+      BusyMaxFirstDayOfWeekPreference.saturday,
+    );
+  });
+
   testWidgets('Settings owns calendar import but not task-list creation', (
     tester,
   ) async {

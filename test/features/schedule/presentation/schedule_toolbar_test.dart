@@ -49,7 +49,10 @@ void main() {
             width: 1200,
             child: ScheduleToolbar(
               mode: ScheduleViewMode.agenda,
-              range: ScheduleRange.week(DateTime(2026, 7, 22)),
+              range: ScheduleRange.week(
+                DateTime(2026, 7, 22),
+                firstWeekday: DateTime.monday,
+              ),
               selectedDate: DateTime(2026, 7, 22),
               onToday: () {},
               onPrevious: () {},
@@ -123,7 +126,10 @@ void main() {
             width: 1000,
             child: ScheduleToolbar(
               mode: ScheduleViewMode.week,
-              range: ScheduleRange.week(DateTime(2026, 7, 22)),
+              range: ScheduleRange.week(
+                DateTime(2026, 7, 22),
+                firstWeekday: DateTime.monday,
+              ),
               selectedDate: DateTime(2026, 7, 22),
               onToday: () => activations++,
               onPrevious: () {},
@@ -169,7 +175,10 @@ void main() {
             width: 1000,
             child: ScheduleToolbar(
               mode: ScheduleViewMode.week,
-              range: ScheduleRange.week(DateTime(2026, 7, 22)),
+              range: ScheduleRange.week(
+                DateTime(2026, 7, 22),
+                firstWeekday: DateTime.monday,
+              ),
               selectedDate: DateTime(2026, 7, 22),
               onToday: () {},
               onPrevious: () {},
@@ -226,7 +235,10 @@ void main() {
             width: 600,
             child: ScheduleToolbar(
               mode: ScheduleViewMode.week,
-              range: ScheduleRange.week(DateTime(2026, 7, 22)),
+              range: ScheduleRange.week(
+                DateTime(2026, 7, 22),
+                firstWeekday: DateTime.monday,
+              ),
               selectedDate: DateTime(2026, 7, 22),
               onToday: () {},
               onPrevious: () {},
@@ -276,7 +288,10 @@ void main() {
             child: StatefulBuilder(
               builder: (context, setToolbarState) => ScheduleToolbar(
                 mode: ScheduleViewMode.week,
-                range: ScheduleRange.week(DateTime(2026, 7, 22)),
+                range: ScheduleRange.week(
+                  DateTime(2026, 7, 22),
+                  firstWeekday: DateTime.monday,
+                ),
                 selectedDate: DateTime(2026, 7, 22),
                 onToday: () {},
                 onPrevious: () {},
@@ -436,7 +451,10 @@ void main() {
             width: 1000,
             child: ScheduleToolbar(
               mode: ScheduleViewMode.week,
-              range: ScheduleRange.week(DateTime(2026, 7, 22)),
+              range: ScheduleRange.week(
+                DateTime(2026, 7, 22),
+                firstWeekday: DateTime.monday,
+              ),
               selectedDate: DateTime(2026, 7, 22),
               onToday: () {},
               onPrevious: () {},
@@ -498,7 +516,10 @@ void main() {
               width: 1000,
               child: ScheduleToolbar(
                 mode: ScheduleViewMode.week,
-                range: ScheduleRange.week(DateTime(2026, 7, 22)),
+                range: ScheduleRange.week(
+                  DateTime(2026, 7, 22),
+                  firstWeekday: DateTime.monday,
+                ),
                 selectedDate: DateTime(2026, 7, 22),
                 onToday: () {},
                 onPrevious: () {},
@@ -578,7 +599,10 @@ void main() {
             width: 1000,
             child: ScheduleToolbar(
               mode: ScheduleViewMode.week,
-              range: ScheduleRange.week(DateTime(2026, 7, 22)),
+              range: ScheduleRange.week(
+                DateTime(2026, 7, 22),
+                firstWeekday: DateTime.monday,
+              ),
               selectedDate: DateTime(2026, 7, 22),
               onToday: () {},
               onPrevious: () {},
@@ -627,7 +651,10 @@ void main() {
     Widget buildToolbar() {
       return ScheduleToolbar(
         mode: ScheduleViewMode.week,
-        range: ScheduleRange.week(DateTime(2026, 7, 22)),
+        range: ScheduleRange.week(
+          DateTime(2026, 7, 22),
+          firstWeekday: DateTime.monday,
+        ),
         selectedDate: DateTime(2026, 7, 22),
         onToday: () {},
         onPrevious: () {},
@@ -701,7 +728,10 @@ void main() {
             width: 1000,
             child: ScheduleToolbar(
               mode: ScheduleViewMode.week,
-              range: ScheduleRange.week(DateTime(2026, 7, 22)),
+              range: ScheduleRange.week(
+                DateTime(2026, 7, 22),
+                firstWeekday: DateTime.monday,
+              ),
               selectedDate: DateTime(2026, 7, 22),
               onToday: () {},
               onPrevious: () {},

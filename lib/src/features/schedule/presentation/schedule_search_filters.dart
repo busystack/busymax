@@ -235,7 +235,6 @@ class ScheduleSearchFilters extends StatelessWidget {
     return DesktopDateValueRow(
       label: label,
       date: encodeDateOnly(date),
-      useNativePicker: true,
       onChanged: (date) {
         final picked = DateTime.parse(date);
         final from = start ? picked : value.customStart ?? value.referenceDate;

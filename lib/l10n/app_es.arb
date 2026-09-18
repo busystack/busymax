@@ -1,6 +1,9 @@
 {
   "launchAtLoginManagedExternally": "BusyMax se inició desde los ajustes de inicio del escritorio. Elimina su entrada allí y luego sal de BusyMax y vuelve a abrirlo para usar este interruptor.",
   "timeFormat": "Formato de hora",
+  "firstDayOfWeek": "Primer día de la semana",
+  "systemDefault": "Predeterminado del sistema",
+  "systemDefaultResolved": "Predeterminado del sistema ({weekday})",
   "timeFormatTwelveHour": "12 horas",
   "timeFormatTwentyFourHour": "24 horas",
   "timeEndOfDay": "fin del día",
