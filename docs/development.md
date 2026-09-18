@@ -5,14 +5,14 @@ and Windows. Release packaging has separate procedures linked below.
 
 ## Shared setup
 
-BusyMax development and CI use Flutter **3.47.2** and the Dart **3.13.2** SDK
+BusyMax development and CI use Flutter **3.47.4** and the Dart **3.13.3** SDK
 bundled with that Flutter installation. Use the bundled `dart` executable; do
 not mix Flutter with a different global Dart SDK. The `pubspec.yaml` constraint
 `sdk: ^3.12.0` is the Dart language/package compatibility constraint. It is not
 the repository's build-toolchain version.
 
 The workflows verify the selected SDK with `tool/verify_flutter_sdk.dart`.
-After installing Flutter 3.47.2, prepare the checkout in this order:
+After installing Flutter 3.47.4, prepare the checkout in this order:
 
 ```bash
 flutter pub get --enforce-lockfile
@@ -95,7 +95,7 @@ x86, ARM64, MSI, and EXE installers are outside the supported target.
 
 Install:
 
-- Flutter 3.47.2 with Windows desktop enabled;
+- Flutter 3.47.4 with Windows desktop enabled;
 - Visual Studio 2022 with **Desktop development with C++**, the x64 MSVC
   toolchain, and CMake tools;
 - Windows SDK `10.0.26100.0` or newer; and

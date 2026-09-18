@@ -7,6 +7,10 @@ specific external prerequisite was unavailable, and `NOT RUN` means an
 appropriate runner or environment was not available. A skipped live-provider
 test is never counted as a pass.
 
+This is a dated verification snapshot. Its recorded Flutter 3.47.2 values are
+historical evidence, not the current repository requirement; see
+[Development](development.md) for the active toolchain pin.
+
 ## Build identity and environment
 
 | Item | Recorded value |

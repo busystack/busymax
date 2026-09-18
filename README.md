@@ -87,8 +87,8 @@ differences and limitations are summarized in the
 ### Android development build
 
 Android support targets API 37 with a minimum API of 24 and uses the explicit
-entrypoint `lib/main_android.dart`. It requires Flutter 3.47.2, bundled Dart
-3.13.2, JDK 17, Android platform 37, and Build Tools 37.x.
+entrypoint `lib/main_android.dart`. It requires Flutter 3.47.4, bundled Dart
+3.13.3, JDK 17, Android platform 37, and Build Tools 37.x.
 
 ```sh
 tool/android/check_prerequisites.sh
