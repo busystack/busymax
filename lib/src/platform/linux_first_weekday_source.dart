@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/services.dart';
 
 import '../l10n/week_preferences_scope.dart';
@@ -11,9 +13,17 @@ final class LinuxFirstWeekdaySource
     MethodChannel channel = const MethodChannel(
       'io.busystack.busymax/gtk_settings',
     ),
-  }) : _channel = channel;
+    EventChannel events = const EventChannel(
+      'io.busystack.busymax/first_weekday',
+    ),
+  }) : _channel = channel,
+       _events = events;
 
   final MethodChannel _channel;
+  final EventChannel _events;
+
+  @override
+  Stream<void> get changes => _events.receiveBroadcastStream().map((_) {});
 
   @override
   Future<int?> read() async {
@@ -24,5 +34,12 @@ final class LinuxFirstWeekdaySource
     } on PlatformException {
       return null;
     }
+  }
+
+  @override
+  void dispose() {
+    unawaited(
+      _channel.invokeMethod<void>('cancelFirstWeekdayReads').catchError((_) {}),
+    );
   }
 }

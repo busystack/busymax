@@ -1246,7 +1246,7 @@ void main() {
     );
     expect(row.values, BusyMaxFirstDayOfWeekPreference.values);
     expect(row.selected, BusyMaxFirstDayOfWeekPreference.system);
-    expect(row.labelFor(row.selected), startsWith('System default ('));
+    expect(row.labelFor(row.selected), startsWith('System Default ('));
     row.onSelected(BusyMaxFirstDayOfWeekPreference.saturday);
     await tester.pumpAndSettle();
     expect(

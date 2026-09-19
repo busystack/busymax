@@ -79,4 +79,37 @@ void main() {
       expect(controller.value, DateTime.friday);
     },
   );
+
+  test(
+    'disposing Windows weekday source removes its channel handler',
+    () async {
+      const channel = MethodChannel('busymax_test/windows_weekday_dispose');
+      final messenger =
+          TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+      final source = WindowsFirstWeekdaySource(channel: channel);
+      var changes = 0;
+      final subscription = source.changes.listen((_) => changes++);
+
+      await messenger.handlePlatformMessage(
+        channel.name,
+        const StandardMethodCodec().encodeMethodCall(
+          MethodCall('weekdayChanged', DateTime.monday),
+        ),
+        (_) {},
+      );
+      expect(changes, 1);
+
+      source.dispose();
+      await messenger.handlePlatformMessage(
+        channel.name,
+        const StandardMethodCodec().encodeMethodCall(
+          MethodCall('weekdayChanged', DateTime.sunday),
+        ),
+        (_) {},
+      );
+      await Future<void>.delayed(Duration.zero);
+      expect(changes, 1);
+      await subscription.cancel();
+    },
+  );
 }

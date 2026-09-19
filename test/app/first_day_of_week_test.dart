@@ -176,13 +176,13 @@ void main() {
       );
 
       expect(find.text('effective: 3'), findsOneWidget);
-      expect(find.text('System default (Sunday)'), findsOneWidget);
+      expect(find.text('System Default (Sunday)'), findsOneWidget);
 
       systemWeekday.value = DateTime.friday;
       await tester.pump();
 
       expect(find.text('effective: 3'), findsOneWidget);
-      expect(find.text('System default (Friday)'), findsOneWidget);
+      expect(find.text('System Default (Friday)'), findsOneWidget);
     },
   );
 

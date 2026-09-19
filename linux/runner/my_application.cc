@@ -1,6 +1,6 @@
 #include "time_picker.h"
 #include "my_application.h"
-#include "first_weekday.h"
+#include "first_weekday_preference.h"
 
 #include <flutter_linux/flutter_linux.h>
 #include <gdk-pixbuf/gdk-pixbuf.h>
@@ -13,6 +13,7 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstring>
+#include <memory>
 #include "flutter/generated_plugin_registrant.h"
 
 constexpr char kApplicationDisplayName[] = "BusyMax";
@@ -31,6 +32,8 @@ constexpr char kGtkFontSettingsEventChannel[] =
     "io.busystack.busymax/gtk_font_settings";
 constexpr char kGtkThemeColorsEventChannel[] =
     "io.busystack.busymax/gtk_theme_colors";
+constexpr char kFirstWeekdayEventChannel[] =
+    "io.busystack.busymax/first_weekday";
 constexpr gint64 kHeaderBarStateSchemaVersion = 3;
 constexpr gint kHeaderButtonHeight = 34;
 constexpr gint kHeaderButtonSpacing = 6;
@@ -113,11 +116,14 @@ struct _MyApplication {
   gboolean external_calendar_open_ready;
   FlEventChannel* gtk_font_settings_event_channel;
   FlEventChannel* gtk_theme_colors_event_channel;
+  FlEventChannel* first_weekday_event_channel;
+  BusyMaxLinuxFirstWeekdayPreference* first_weekday_preference;
   gulong gtk_font_settings_signal_id;
   gulong gtk_theme_name_signal_id;
   gulong gtk_theme_dark_signal_id;
   gboolean gtk_font_settings_listening;
   gboolean gtk_theme_colors_listening;
+  gboolean first_weekday_listening;
   GtkCssProvider* header_bar_css_provider;
   gchar* header_bar_window_background_color;
   gchar* header_bar_background_color;
@@ -4591,16 +4597,25 @@ static void apply_gtk_theme_to_bootstrap_chrome(MyApplication* self) {
 static void gtk_settings_method_call_cb(FlMethodChannel* channel,
                                         FlMethodCall* method_call,
                                         gpointer user_data) {
+  MyApplication* self = MY_APPLICATION(user_data);
   const gchar* method = fl_method_call_get_name(method_call);
   FlValue* args = fl_method_call_get_args(method_call);
   if (strcmp(method, "getGtkFont") == 0) {
     g_autoptr(FlValue) result = get_gtk_font_settings();
     fl_method_call_respond_success(method_call, result, nullptr);
   } else if (strcmp(method, "getFirstWeekday") == 0) {
-    const auto weekday = BusyMaxReadFirstWeekday();
-    g_autoptr(FlValue) result =
-        weekday ? fl_value_new_int(*weekday) : nullptr;
-    fl_method_call_respond_success(method_call, result, nullptr);
+    auto pending = std::shared_ptr<FlMethodCall>(
+        static_cast<FlMethodCall*>(g_object_ref(method_call)),
+        [](FlMethodCall* call) { g_object_unref(call); });
+    self->first_weekday_preference->Read(
+        [pending](std::optional<int> weekday) {
+          g_autoptr(FlValue) result =
+              weekday ? fl_value_new_int(*weekday) : nullptr;
+          fl_method_call_respond_success(pending.get(), result, nullptr);
+        });
+  } else if (strcmp(method, "cancelFirstWeekdayReads") == 0) {
+    self->first_weekday_preference->CancelRead();
+    fl_method_call_respond_success(method_call, nullptr, nullptr);
   } else if (strcmp(method, "getGtkThemeColors") == 0) {
     g_autoptr(FlValue) result = get_gtk_theme_colors();
     fl_method_call_respond_success(method_call, result, nullptr);
@@ -4610,6 +4625,37 @@ static void gtk_settings_method_call_cb(FlMethodChannel* channel,
   } else {
     fl_method_call_respond_not_implemented(method_call, nullptr);
   }
+}
+
+static void send_first_weekday_event(MyApplication* self) {
+  if (!self->first_weekday_listening ||
+      self->first_weekday_event_channel == nullptr) {
+    return;
+  }
+  g_autoptr(FlValue) event = fl_value_new_null();
+  g_autoptr(GError) error = nullptr;
+  if (!fl_event_channel_send(self->first_weekday_event_channel, event, nullptr,
+                             &error)) {
+    const gchar* message = error != nullptr ? error->message : "unknown error";
+    g_warning("Failed to send first-weekday event: %s", message);
+  }
+}
+
+static FlMethodErrorResponse* first_weekday_listen_cb(
+    FlEventChannel*, FlValue*, gpointer user_data) {
+  MyApplication* self = MY_APPLICATION(user_data);
+  self->first_weekday_listening = TRUE;
+  self->first_weekday_preference->StartWatching(
+      [self]() { send_first_weekday_event(self); });
+  return nullptr;
+}
+
+static FlMethodErrorResponse* first_weekday_cancel_cb(
+    FlEventChannel*, FlValue*, gpointer user_data) {
+  MyApplication* self = MY_APPLICATION(user_data);
+  self->first_weekday_listening = FALSE;
+  self->first_weekday_preference->StopWatching();
+  return nullptr;
 }
 
 static void disconnect_gtk_font_settings_signal(MyApplication* self) {
@@ -4753,6 +4799,14 @@ static void register_gtk_settings_channel(MyApplication* self, FlView* view) {
       messenger, kGtkSettingsChannel, FL_METHOD_CODEC(codec));
   fl_method_channel_set_method_call_handler(
       self->gtk_settings_channel, gtk_settings_method_call_cb, self, nullptr);
+
+  self->first_weekday_preference =
+      new BusyMaxLinuxFirstWeekdayPreference();
+  self->first_weekday_event_channel = fl_event_channel_new(
+      messenger, kFirstWeekdayEventChannel, FL_METHOD_CODEC(codec));
+  fl_event_channel_set_stream_handlers(
+      self->first_weekday_event_channel, first_weekday_listen_cb,
+      first_weekday_cancel_cb, self, nullptr);
 
   self->gtk_font_settings_event_channel = fl_event_channel_new(
       messenger, kGtkFontSettingsEventChannel, FL_METHOD_CODEC(codec));
@@ -5141,7 +5195,11 @@ static void my_application_dispose(GObject* object) {
   g_clear_object(&self->native_menu_channel);
   g_clear_object(&self->window_channel);
   g_clear_object(&self->header_bar_channel);
+  self->first_weekday_listening = FALSE;
+  delete self->first_weekday_preference;
+  self->first_weekday_preference = nullptr;
   g_clear_object(&self->gtk_settings_channel);
+  g_clear_object(&self->first_weekday_event_channel);
   g_clear_object(&self->external_calendar_open_channel);
   g_clear_object(&self->external_uri_launcher_channel);
   disconnect_gtk_font_settings_signal(self);
@@ -5265,11 +5323,14 @@ static void my_application_init(MyApplication* self) {
   self->external_calendar_open_ready = FALSE;
   self->gtk_font_settings_event_channel = nullptr;
   self->gtk_theme_colors_event_channel = nullptr;
+  self->first_weekday_event_channel = nullptr;
+  self->first_weekday_preference = nullptr;
   self->gtk_font_settings_signal_id = 0;
   self->gtk_theme_name_signal_id = 0;
   self->gtk_theme_dark_signal_id = 0;
   self->gtk_font_settings_listening = FALSE;
   self->gtk_theme_colors_listening = FALSE;
+  self->first_weekday_listening = FALSE;
   self->hide_on_close = FALSE;
   self->suppress_header_bar_actions = FALSE;
   self->header_schedule_controls_visible = TRUE;

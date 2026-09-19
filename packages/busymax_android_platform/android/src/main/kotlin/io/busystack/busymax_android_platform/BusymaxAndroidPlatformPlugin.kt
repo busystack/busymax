@@ -109,6 +109,49 @@ internal fun dartWeekday(firstDay: String?): Int? = when (firstDay) {
     else -> null
 }
 
+internal fun androidxFirstWeekday(): Int? =
+    dartWeekday(LocalePreferences.getFirstDayOfWeek(true))
+
+internal class SystemSettingsReceiverLifecycle(
+    private val register: () -> Unit,
+    private val unregister: () -> Unit,
+    private val clearListener: () -> Unit,
+) {
+    private var registered = false
+
+    fun attach() {
+        if (registered) return
+        register()
+        registered = true
+    }
+
+    fun detach() {
+        clearListener()
+        if (!registered) return
+        registered = false
+        unregister()
+    }
+}
+
+internal class ActivityListenerLifecycle<T : Any>(
+    private val add: (T) -> Unit,
+    private val remove: (T) -> Unit,
+) {
+    private var attached: T? = null
+
+    fun attach(next: T) {
+        detach()
+        add(next)
+        attached = next
+    }
+
+    fun detach() {
+        val current = attached ?: return
+        attached = null
+        remove(current)
+    }
+}
+
 /** Maps MSAL failures without turning transport or configuration faults into logout state. */
 internal fun classifyMicrosoftSilentFailure(error: Throwable): MicrosoftSilentFailure = when (error) {
     is MicrosoftAccountMissingException,
@@ -176,7 +219,6 @@ class BusymaxAndroidPlatformPlugin : FlutterPlugin,
     private lateinit var channel: MethodChannel
     private lateinit var eventChannel: EventChannel
     private var activity: Activity? = null
-    private var activityBinding: ActivityPluginBinding? = null
     private var eventSink: EventChannel.EventSink? = null
     private val main by lazy { Handler(Looper.getMainLooper()) }
     private val executor = Executors.newCachedThreadPool()
@@ -193,6 +235,39 @@ class BusymaxAndroidPlatformPlugin : FlutterPlugin,
             eventSink?.success(mapOf("kind" to "systemSettingsChanged"))
         }
     }
+    private val settingsReceiverLifecycle by lazy {
+        SystemSettingsReceiverLifecycle(
+            register = {
+                val filter = IntentFilter().apply {
+                    addAction(Intent.ACTION_TIME_CHANGED)
+                    addAction(Intent.ACTION_TIMEZONE_CHANGED)
+                    addAction(Intent.ACTION_LOCALE_CHANGED)
+                }
+                ContextCompat.registerReceiver(
+                    context,
+                    settingsReceiver,
+                    filter,
+                    ContextCompat.RECEIVER_NOT_EXPORTED,
+                )
+            },
+            unregister = {
+                try { context.unregisterReceiver(settingsReceiver) } catch (_: Exception) {}
+            },
+            clearListener = { eventSink = null },
+        )
+    }
+    private val activityListenerLifecycle = ActivityListenerLifecycle<ActivityPluginBinding>(
+        add = { binding ->
+            binding.addActivityResultListener(this)
+            binding.addOnNewIntentListener(this)
+            binding.addRequestPermissionsResultListener(this)
+        },
+        remove = { binding ->
+            binding.removeActivityResultListener(this)
+            binding.removeOnNewIntentListener(this)
+            binding.removeRequestPermissionsResultListener(this)
+        },
+    )
 
     override fun onAttachedToEngine(binding: FlutterPlugin.FlutterPluginBinding) {
         detached = false
@@ -202,12 +277,7 @@ class BusymaxAndroidPlatformPlugin : FlutterPlugin,
         channel.setMethodCallHandler(this)
         eventChannel.setStreamHandler(this)
         activePlugins.add(this)
-        val filter = IntentFilter().apply {
-            addAction(Intent.ACTION_TIME_CHANGED)
-            addAction(Intent.ACTION_TIMEZONE_CHANGED)
-            addAction(Intent.ACTION_LOCALE_CHANGED)
-        }
-        ContextCompat.registerReceiver(context, settingsReceiver, filter, ContextCompat.RECEIVER_NOT_EXPORTED)
+        settingsReceiverLifecycle.attach()
     }
 
     override fun onDetachedFromEngine(binding: FlutterPlugin.FlutterPluginBinding) {
@@ -216,7 +286,7 @@ class BusymaxAndroidPlatformPlugin : FlutterPlugin,
         activePlugins.remove(this)
         channel.setMethodCallHandler(null)
         eventChannel.setStreamHandler(null)
-        try { context.unregisterReceiver(settingsReceiver) } catch (_: Exception) {}
+        settingsReceiverLifecycle.detach()
         executor.shutdown()
     }
 
@@ -226,11 +296,8 @@ class BusymaxAndroidPlatformPlugin : FlutterPlugin,
     override fun onReattachedToActivityForConfigChanges(binding: ActivityPluginBinding) = attachActivity(binding)
 
     private fun attachActivity(binding: ActivityPluginBinding) {
-        activityBinding = binding
+        activityListenerLifecycle.attach(binding)
         activity = binding.activity
-        binding.addActivityResultListener(this)
-        binding.addOnNewIntentListener(this)
-        binding.addRequestPermissionsResultListener(this)
         captureActivation(binding.activity.intent)
     }
 
@@ -238,10 +305,7 @@ class BusymaxAndroidPlatformPlugin : FlutterPlugin,
     override fun onDetachedFromActivity() = detachActivity()
 
     private fun detachActivity() {
-        activityBinding?.removeActivityResultListener(this)
-        activityBinding?.removeOnNewIntentListener(this)
-        activityBinding?.removeRequestPermissionsResultListener(this)
-        activityBinding = null
+        activityListenerLifecycle.detach()
         activity = null
     }
 
@@ -299,7 +363,7 @@ class BusymaxAndroidPlatformPlugin : FlutterPlugin,
     }
 
     private fun firstWeekday(): Int? =
-        dartWeekday(LocalePreferences.getFirstDayOfWeek(true))
+        androidxFirstWeekday()
 
     private fun authorizeGoogle(call: MethodCall, result: MethodChannel.Result, interactive: Boolean) {
         val scopes = stringList(call.argument<List<*>>("scopes"))

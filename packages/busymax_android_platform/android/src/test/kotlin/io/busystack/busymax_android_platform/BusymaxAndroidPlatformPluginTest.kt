@@ -1,11 +1,12 @@
 package io.busystack.busymax_android_platform
 
-import io.flutter.plugin.common.MethodCall
-import io.flutter.plugin.common.MethodChannel
 import androidx.core.text.util.LocalePreferences
 import com.microsoft.identity.client.exception.MsalClientException
 import com.microsoft.identity.client.exception.MsalServiceException
 import com.microsoft.identity.client.exception.MsalUiRequiredException
+import io.flutter.plugin.common.MethodCall
+import io.flutter.plugin.common.MethodChannel
+import java.util.Locale
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNotNull
 import org.junit.jupiter.api.Test
@@ -28,6 +29,63 @@ internal class BusymaxAndroidPlatformPluginTest {
         }
         assertEquals(null, dartWeekday(null))
         assertEquals(null, dartWeekday("unexpected"))
+    }
+
+    @Test
+    fun firstWeekday_readsUnicodeOverrideThroughAndroidx() {
+        val original = Locale.getDefault()
+        try {
+            Locale.setDefault(Locale.forLanguageTag("en-US-u-fw-mon"))
+            assertEquals(1, androidxFirstWeekday())
+
+            Locale.setDefault(Locale.forLanguageTag("en-US-u-fw-thu"))
+            assertEquals(4, androidxFirstWeekday())
+        } finally {
+            Locale.setDefault(original)
+        }
+    }
+
+    @Test
+    fun systemSettingsReceiver_detachesAndReattachesWithoutDuplicatesOrStaleListener() {
+        var registrations = 0
+        var unregistrations = 0
+        var listenerActive = true
+        val lifecycle = SystemSettingsReceiverLifecycle(
+            register = { registrations++ },
+            unregister = { unregistrations++ },
+            clearListener = { listenerActive = false },
+        )
+
+        lifecycle.attach()
+        lifecycle.attach()
+        assertEquals(1, registrations)
+
+        lifecycle.detach()
+        lifecycle.detach()
+        assertEquals(1, unregistrations)
+        assertEquals(false, listenerActive)
+
+        lifecycle.attach()
+        assertEquals(2, registrations)
+    }
+
+    @Test
+    fun activityRecreation_removesListenersBeforeReattachingThem() {
+        val additions = mutableListOf<String>()
+        val removals = mutableListOf<String>()
+        val lifecycle = ActivityListenerLifecycle<String>(
+            add = additions::add,
+            remove = removals::add,
+        )
+
+        lifecycle.attach("first activity")
+        lifecycle.detach()
+        lifecycle.attach("recreated activity")
+        lifecycle.detach()
+        lifecycle.detach()
+
+        assertEquals(listOf("first activity", "recreated activity"), additions)
+        assertEquals(listOf("first activity", "recreated activity"), removals)
     }
 
     @Test

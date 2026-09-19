@@ -11,6 +11,7 @@ Future<void> testExecutable(FutureOr<void> Function() testMain) async {
       TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
   for (final channel in const [
     MethodChannel('io.busystack.busymax/gtk_settings'),
+    MethodChannel('io.busystack.busymax/first_weekday'),
     MethodChannel('busymax/windows_weekday'),
   ]) {
     messenger.setMockMethodCallHandler(channel, (call) async {

@@ -100,6 +100,17 @@ jobs:
             linux/runner/tests/first_weekday_test.cc \
             -o build/linux/native-tests/first_weekday_test
           build/linux/native-tests/first_weekday_test
+          mkdir -p build/linux/native-tests/weekday-schemas
+          glib-compile-schemas --strict \
+            --targetdir=build/linux/native-tests/weekday-schemas \
+            linux/runner/tests/schemas
+          g++ -std=c++17 -Wall -Wextra -Werror \
+            linux/runner/tests/first_weekday_preference_test.cc \
+            linux/runner/first_weekday_preference.cc \
+            -o build/linux/native-tests/first_weekday_preference_test \
+            $(pkg-config --cflags --libs gio-2.0)
+          build/linux/native-tests/first_weekday_preference_test \
+            build/linux/native-tests/weekday-schemas
           LC_ALL=C.UTF-8 MALLOC_PERTURB_=165 \
             build/linux/native-tests/first_weekday_test
           g++ -std=c++17 -Wall -Wextra -Werror \

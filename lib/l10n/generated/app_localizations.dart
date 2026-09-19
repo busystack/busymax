@@ -156,13 +156,13 @@ abstract class AppLocalizations {
   /// No description provided for @systemDefault.
   ///
   /// In en, this message translates to:
-  /// **'System default'**
+  /// **'System Default'**
   String get systemDefault;
 
   /// No description provided for @systemDefaultResolved.
   ///
   /// In en, this message translates to:
-  /// **'System default ({weekday})'**
+  /// **'System Default ({weekday})'**
   String systemDefaultResolved(String weekday);
 
   /// No description provided for @timeFormatTwelveHour.

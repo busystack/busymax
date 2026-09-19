@@ -23,11 +23,11 @@ class AppLocalizationsPt extends AppLocalizations {
   String get firstDayOfWeek => 'First day of the week';
 
   @override
-  String get systemDefault => 'System default';
+  String get systemDefault => 'System Default';
 
   @override
   String systemDefaultResolved(String weekday) {
-    return 'System default ($weekday)';
+    return 'System Default ($weekday)';
   }
 
   @override
