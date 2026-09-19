@@ -13,6 +13,7 @@ import 'package:busymax/src/features/schedule/presentation/schedule_sidebar.dart
 import 'package:busymax/src/features/schedule/presentation/schedule_workspace.dart';
 import 'package:busymax/src/features/task_lists/data/task_lists_repository.dart';
 import 'package:busymax/src/features/tasks/data/tasks_repository.dart';
+import 'package:busymax/src/l10n/week_preferences_scope.dart';
 import 'package:busymax/src/platform/linux_header_bar_provider.dart';
 import 'package:busymax/src/platform/linux_header_bar_service.dart';
 import 'package:busymax/src/providers/busy_provider.dart';
@@ -405,6 +406,86 @@ void main() {
       expect(tester.takeException(), isNull);
     },
   );
+
+  testWidgets(
+    'Android confirms an open date filter with the latest system weekday',
+    (tester) async {
+      final systemWeekday = ValueNotifier<int?>(DateTime.monday);
+      addTearDown(systemWeekday.dispose);
+      await _mount(tester, 'android', width: 480, systemWeekday: systemWeekday);
+      await tester.pumpAndSettle();
+      await tester.tap(find.byIcon(Icons.search));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byIcon(Icons.tune));
+      await tester.pumpAndSettle();
+
+      final panel = find.byType(AndroidScheduleSearchFilters);
+      var filters = tester.widget<AndroidScheduleSearchFilters>(panel);
+      filters.onChanged(
+        filters.value.copyWith(
+          date: ScheduleSearchDate.custom,
+          customStart: filters.value.referenceDate,
+          customEnd: filters.value.referenceDate,
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final startDate = find
+          .descendant(of: panel, matching: find.byType(OutlinedButton))
+          .first;
+      await tester.ensureVisible(startDate);
+      await tester.tap(startDate);
+      await tester.pumpAndSettle();
+      expect(find.byType(DatePickerDialog), findsOneWidget);
+
+      systemWeekday.value = DateTime.sunday;
+      await tester.pump();
+      await tester.tap(find.text('OK').last);
+      await tester.pumpAndSettle();
+
+      filters = tester.widget<AndroidScheduleSearchFilters>(panel);
+      expect(filters.value.firstWeekday, DateTime.sunday);
+      filters.onChanged(
+        filters.value.copyWith(date: ScheduleSearchDate.thisWeek),
+      );
+      await tester.pumpAndSettle();
+      filters = tester.widget<AndroidScheduleSearchFilters>(panel);
+      expect(filters.value.range?.start.weekday, DateTime.sunday);
+
+      filters.onClear();
+      await tester.pumpAndSettle();
+      expect(
+        tester.widget<AndroidScheduleSearchFilters>(panel).value.firstWeekday,
+        DateTime.sunday,
+      );
+    },
+  );
+
+  testWidgets('Windows compact mini-calendar tracks an open system change', (
+    tester,
+  ) async {
+    final systemWeekday = ValueNotifier<int?>(DateTime.monday);
+    addTearDown(systemWeekday.dispose);
+    await _mount(tester, 'windows', width: 650, systemWeekday: systemWeekday);
+    await tester.pumpAndSettle();
+
+    await tester.sendKeyEvent(LogicalKeyboardKey.f9);
+    await tester.pumpAndSettle();
+    final pane = find.byType(WindowsScheduleSourcePane);
+    expect(pane, findsOneWidget);
+    expect(
+      tester.widget<WindowsScheduleSourcePane>(pane).firstWeekday,
+      DateTime.monday,
+    );
+
+    systemWeekday.value = DateTime.sunday;
+    await tester.pump();
+
+    expect(
+      tester.widget<WindowsScheduleSourcePane>(pane).firstWeekday,
+      DateTime.sunday,
+    );
+  });
 }
 
 Future<void> _searchShortcut(WidgetTester tester) async {
@@ -418,6 +499,7 @@ Future<({AppDatabase db, ProviderContainer container})> _mount(
   WidgetTester tester,
   String platform, {
   double width = 1280,
+  ValueListenable<int?>? systemWeekday,
 }) async {
   tester.view
     ..physicalSize = Size(width, 900)
@@ -530,21 +612,31 @@ Future<({AppDatabase db, ProviderContainer container})> _mount(
     header.dispose();
     await db.close();
   });
+  final platformApp = platform == 'windows'
+      ? fluent.FluentApp(
+          localizationsDelegates: const [AppLocalizations.delegate],
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: const WindowsSchedulePage(),
+        )
+      : localizedTestApp(
+          child: platform == 'linux'
+              ? const ScheduleWorkspace()
+              : const AndroidScheduleScreen(),
+        );
+  final app = systemWeekday == null
+      ? platformApp
+      : ValueListenableBuilder<int?>(
+          valueListenable: systemWeekday,
+          child: platformApp,
+          builder: (context, value, child) => BusyMaxWeekPreferencesScope(
+            preference: BusyMaxFirstDayOfWeekPreference.system,
+            systemWeekday: value,
+            platformLocaleTag: 'en-GB',
+            child: child!,
+          ),
+        );
   await tester.pumpWidget(
-    UncontrolledProviderScope(
-      container: container,
-      child: platform == 'windows'
-          ? fluent.FluentApp(
-              localizationsDelegates: const [AppLocalizations.delegate],
-              supportedLocales: AppLocalizations.supportedLocales,
-              home: const WindowsSchedulePage(),
-            )
-          : localizedTestApp(
-              child: platform == 'linux'
-                  ? const ScheduleWorkspace()
-                  : const AndroidScheduleScreen(),
-            ),
-    ),
+    UncontrolledProviderScope(container: container, child: app),
   );
   return (db: db, container: container);
 }

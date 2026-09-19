@@ -131,6 +131,138 @@ void main() {
 
     expect(find.text('Systemstandard (Sonntag)'), findsOneWidget);
   });
+
+  testWidgets(
+    'manual calendar stays fixed while the automatic option tracks the system',
+    (tester) async {
+      final systemWeekday = ValueNotifier<int?>(DateTime.sunday);
+      addTearDown(systemWeekday.dispose);
+      await tester.pumpWidget(
+        MaterialApp(
+          localizationsDelegates: const [
+            AppLocalizations.delegate,
+            GlobalMaterialLocalizations.delegate,
+            GlobalWidgetsLocalizations.delegate,
+            GlobalCupertinoLocalizations.delegate,
+          ],
+          supportedLocales: const [Locale('en')],
+          builder: (context, child) => ValueListenableBuilder<int?>(
+            valueListenable: systemWeekday,
+            builder: (context, value, child) => BusyMaxWeekPreferencesScope(
+              preference: BusyMaxFirstDayOfWeekPreference.wednesday,
+              systemWeekday: value,
+              platformLocaleTag: 'en-US',
+              child: child!,
+            ),
+            child: child,
+          ),
+          home: Builder(
+            builder: (context) => Column(
+              children: [
+                Text(
+                  'effective: '
+                  '${BusyMaxWeekPreferencesScope.firstWeekdayOf(context)}',
+                ),
+                Text(
+                  busyMaxFirstDayOfWeekPreferenceLabel(
+                    context,
+                    BusyMaxFirstDayOfWeekPreference.system,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+
+      expect(find.text('effective: 3'), findsOneWidget);
+      expect(find.text('System default (Sunday)'), findsOneWidget);
+
+      systemWeekday.value = DateTime.friday;
+      await tester.pump();
+
+      expect(find.text('effective: 3'), findsOneWidget);
+      expect(find.text('System default (Friday)'), findsOneWidget);
+    },
+  );
+
+  testWidgets('automatic calendar waits for a delayed initial native result', (
+    tester,
+  ) async {
+    final source = _ControlledSource();
+    final controller = BusyMaxSystemFirstWeekdayController(source);
+    addTearDown(controller.dispose);
+
+    await tester.pumpWidget(
+      ValueListenableBuilder<int?>(
+        valueListenable: controller,
+        builder: (context, value, _) => BusyMaxWeekPreferencesScope(
+          preference: BusyMaxFirstDayOfWeekPreference.system,
+          systemWeekday: value,
+          platformLocaleTag: 'en-US',
+          child: BusyMaxWeekPreferencesStartupGate(
+            preference: BusyMaxFirstDayOfWeekPreference.system,
+            systemValueInitialized: controller.isInitialized,
+            child: MaterialApp(
+              home: Builder(
+                builder: (context) => Text(
+                  'calendar: '
+                  '${BusyMaxWeekPreferencesScope.firstWeekdayOf(context)}',
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    expect(controller.isInitialized, isFalse);
+    expect(find.textContaining('calendar:'), findsNothing);
+
+    source.reads.single.complete(DateTime.saturday);
+    await tester.pump();
+
+    expect(controller.isInitialized, isTrue);
+    expect(find.text('calendar: 6'), findsOneWidget);
+  });
+
+  testWidgets('manual calendar does not wait for native initialization', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      const BusyMaxWeekPreferencesStartupGate(
+        preference: BusyMaxFirstDayOfWeekPreference.thursday,
+        systemValueInitialized: false,
+        child: Text('manual calendar', textDirection: TextDirection.ltr),
+      ),
+    );
+
+    expect(find.text('manual calendar'), findsOneWidget);
+  });
+
+  testWidgets('a stalled native read reaches locale fallback after timeout', (
+    tester,
+  ) async {
+    final source = _ControlledSource();
+    final controller = BusyMaxSystemFirstWeekdayController(
+      source,
+      readTimeout: const Duration(milliseconds: 10),
+    );
+    addTearDown(controller.dispose);
+
+    await tester.pump(const Duration(milliseconds: 11));
+
+    expect(controller.isInitialized, isTrue);
+    expect(controller.value, isNull);
+    expect(
+      resolveBusyMaxFirstWeekday(
+        preference: BusyMaxFirstDayOfWeekPreference.system,
+        systemWeekday: controller.value,
+        platformLocaleTag: 'en-US',
+      ),
+      DateTime.sunday,
+    );
+  });
 }
 
 class _ControlledSource implements BusyMaxSystemFirstWeekdaySource {

@@ -1069,11 +1069,19 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
             taskLists: _searchTaskLists,
             sidebar: sidebar,
             onChanged: (value) {
-              setState(() => _searchCriteria = value);
+              setState(
+                () => _searchCriteria = value.copyWith(
+                  firstWeekday: _firstWeekday(context),
+                ),
+              );
               refresh?.call();
             },
             onClear: () {
-              setState(() => _searchCriteria = _initialSearchCriteria);
+              setState(
+                () => _searchCriteria = _initialSearchCriteria?.copyWith(
+                  firstWeekday: _firstWeekday(context),
+                ),
+              );
               refresh?.call();
             },
           ),

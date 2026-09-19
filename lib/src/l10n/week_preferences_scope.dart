@@ -31,7 +31,10 @@ abstract base class BusyMaxSystemFirstWeekdaySourceBase
 /// Application-lifetime owner of native refreshes and lifecycle observation.
 class BusyMaxSystemFirstWeekdayController extends ValueNotifier<int?>
     with WidgetsBindingObserver {
-  BusyMaxSystemFirstWeekdayController(this._source) : super(null) {
+  BusyMaxSystemFirstWeekdayController(
+    this._source, {
+    this.readTimeout = const Duration(seconds: 2),
+  }) : super(null) {
     WidgetsBinding.instance.addObserver(this);
     _subscription = _source.changes.listen(
       (_) => unawaited(refresh()),
@@ -41,20 +44,35 @@ class BusyMaxSystemFirstWeekdayController extends ValueNotifier<int?>
   }
 
   final BusyMaxSystemFirstWeekdaySource _source;
+  final Duration readTimeout;
+  final _ready = Completer<void>();
   StreamSubscription<void>? _subscription;
   var _refreshSequence = 0;
   var _disposed = false;
+  var _initialized = false;
+
+  bool get isInitialized => _initialized;
+
+  Future<void> get ready => _ready.future;
 
   Future<void> refresh() async {
     final sequence = ++_refreshSequence;
     int? result;
     try {
-      result = await _source.read();
+      result = await _source.read().timeout(readTimeout);
     } on Object {
       result = null;
     }
     if (_disposed || sequence != _refreshSequence) return;
-    value = isValidBusyMaxWeekday(result) ? result : null;
+    final next = isValidBusyMaxWeekday(result) ? result : null;
+    final firstResult = !_initialized;
+    _initialized = true;
+    if (value != next) {
+      value = next;
+    } else if (firstResult) {
+      notifyListeners();
+    }
+    if (!_ready.isCompleted) _ready.complete();
   }
 
   @override
@@ -69,11 +87,34 @@ class BusyMaxSystemFirstWeekdayController extends ValueNotifier<int?>
   void dispose() {
     _disposed = true;
     _refreshSequence++;
+    if (!_ready.isCompleted) _ready.complete();
     WidgetsBinding.instance.removeObserver(this);
     unawaited(_subscription?.cancel());
     _source.dispose();
     super.dispose();
   }
+}
+
+/// Prevents an automatic calendar from rendering while its initial native
+/// preference is unresolved. Manual preferences never wait for that read.
+class BusyMaxWeekPreferencesStartupGate extends StatelessWidget {
+  const BusyMaxWeekPreferencesStartupGate({
+    required this.preference,
+    required this.systemValueInitialized,
+    required this.child,
+    super.key,
+  });
+
+  final BusyMaxFirstDayOfWeekPreference preference;
+  final bool systemValueInitialized;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) =>
+      preference != BusyMaxFirstDayOfWeekPreference.system ||
+          systemValueInitialized
+      ? child
+      : const SizedBox.shrink();
 }
 
 /// Place above the navigator so routes and overlays share one effective value.
@@ -124,8 +165,13 @@ String busyMaxFirstDayOfWeekPreferenceLabel(
   BuildContext context,
   BusyMaxFirstDayOfWeekPreference preference,
 ) {
-  final effective =
-      preference.weekday ?? BusyMaxWeekPreferencesScope.firstWeekdayOf(context);
+  final scope = BusyMaxWeekPreferencesScope.of(context);
+  final automatic = resolveBusyMaxFirstWeekday(
+    preference: BusyMaxFirstDayOfWeekPreference.system,
+    systemWeekday: scope.systemWeekday,
+    platformLocaleTag: scope.platformLocaleTag,
+  );
+  final effective = preference.weekday ?? automatic;
   final locale = Localizations.localeOf(context).toLanguageTag();
   final weekday = localizedWeekdayLabel(
     locale,

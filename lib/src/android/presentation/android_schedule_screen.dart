@@ -328,34 +328,46 @@ class _AndroidScheduleScreenState extends ConsumerState<AndroidScheduleScreen> {
       showDragHandle: true,
       isScrollControlled: true,
       builder: (context) => StatefulBuilder(
-        builder: (context, update) => SafeArea(
-          child: Padding(
-            padding: EdgeInsetsDirectional.only(
-              bottom: MediaQuery.viewInsetsOf(context).bottom,
-            ),
-            child: SizedBox(
-              height: MediaQuery.sizeOf(context).height * .8,
-              child: AndroidScheduleSearchFilters(
-                value: _searchCriteria!,
-                accounts:
-                    ref.read(accountsStreamProvider).valueOrNull ?? const [],
-                sources:
-                    ref.read(calendarSourcesStreamProvider).valueOrNull ??
-                    const [],
-                taskLists:
-                    ref.read(scheduleTaskListsProvider).valueOrNull ?? const [],
-                onChanged: (value) {
-                  setState(() => _searchCriteria = value);
-                  update(() {});
-                },
-                onClear: () {
-                  setState(() => _searchCriteria = _initialSearchCriteria);
-                  update(() {});
-                },
+        builder: (context, update) {
+          final firstWeekday = _firstWeekday(context);
+          return SafeArea(
+            child: Padding(
+              padding: EdgeInsetsDirectional.only(
+                bottom: MediaQuery.viewInsetsOf(context).bottom,
+              ),
+              child: SizedBox(
+                height: MediaQuery.sizeOf(context).height * .8,
+                child: AndroidScheduleSearchFilters(
+                  value: _searchCriteria!.copyWith(firstWeekday: firstWeekday),
+                  accounts:
+                      ref.read(accountsStreamProvider).valueOrNull ?? const [],
+                  sources:
+                      ref.read(calendarSourcesStreamProvider).valueOrNull ??
+                      const [],
+                  taskLists:
+                      ref.read(scheduleTaskListsProvider).valueOrNull ??
+                      const [],
+                  onChanged: (value) {
+                    setState(
+                      () => _searchCriteria = value.copyWith(
+                        firstWeekday: _firstWeekday(context),
+                      ),
+                    );
+                    update(() {});
+                  },
+                  onClear: () {
+                    setState(
+                      () => _searchCriteria = _initialSearchCriteria?.copyWith(
+                        firstWeekday: _firstWeekday(context),
+                      ),
+                    );
+                    update(() {});
+                  },
+                ),
               ),
             ),
-          ),
-        ),
+          );
+        },
       ),
     );
   }

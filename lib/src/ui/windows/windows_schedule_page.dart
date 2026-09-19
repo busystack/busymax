@@ -765,20 +765,32 @@ class _WindowsSchedulePageState extends ConsumerState<WindowsSchedulePage> {
     List<CalendarSourceEntity> sources,
     List<TaskListEntity> taskLists, {
     VoidCallback? refresh,
-  }) => WindowsScheduleSearchPane(
-    value: _searchCriteria!,
-    accounts: accounts,
-    sources: sources,
-    taskLists: taskLists,
-    onChanged: (value) {
-      setState(() => _searchCriteria = value);
-      refresh?.call();
-    },
-    onClear: () {
-      setState(() => _searchCriteria = _initialSearchCriteria);
-      refresh?.call();
-    },
-  );
+    int? firstWeekday,
+  }) {
+    final currentFirstWeekday = firstWeekday ?? _firstWeekday;
+    return WindowsScheduleSearchPane(
+      value: _searchCriteria!.copyWith(firstWeekday: currentFirstWeekday),
+      accounts: accounts,
+      sources: sources,
+      taskLists: taskLists,
+      onChanged: (value) {
+        setState(
+          () => _searchCriteria = value.copyWith(
+            firstWeekday: currentFirstWeekday,
+          ),
+        );
+        refresh?.call();
+      },
+      onClear: () {
+        setState(
+          () => _searchCriteria = _initialSearchCriteria?.copyWith(
+            firstWeekday: currentFirstWeekday,
+          ),
+        );
+        refresh?.call();
+      },
+    );
+  }
 
   void _dismissSearch() {
     if (!_searchActive) return;
@@ -1041,25 +1053,31 @@ class _WindowsSchedulePageState extends ConsumerState<WindowsSchedulePage> {
       return showDialog<void>(
         context: context,
         builder: (context) => StatefulBuilder(
-          builder: (context, update) => ContentDialog(
-            title: Text(AppLocalizations.of(context).searchFilters),
-            content: SizedBox(
-              width: 360,
-              height: math.min(MediaQuery.sizeOf(context).height - 180, 620),
-              child: _searchPane(
-                accounts,
-                sources,
-                taskLists,
-                refresh: () => update(() {}),
+          builder: (context, update) {
+            final firstWeekday = BusyMaxWeekPreferencesScope.firstWeekdayOf(
+              context,
+            );
+            return ContentDialog(
+              title: Text(AppLocalizations.of(context).searchFilters),
+              content: SizedBox(
+                width: 360,
+                height: math.min(MediaQuery.sizeOf(context).height - 180, 620),
+                child: _searchPane(
+                  accounts,
+                  sources,
+                  taskLists,
+                  firstWeekday: firstWeekday,
+                  refresh: () => update(() {}),
+                ),
               ),
-            ),
-            actions: [
-              Button(
-                onPressed: () => Navigator.pop(context),
-                child: Text(AppLocalizations.of(context).close),
-              ),
-            ],
-          ),
+              actions: [
+                Button(
+                  onPressed: () => Navigator.pop(context),
+                  child: Text(AppLocalizations.of(context).close),
+                ),
+              ],
+            );
+          },
         ),
       );
     }
@@ -1074,7 +1092,7 @@ class _WindowsSchedulePageState extends ConsumerState<WindowsSchedulePage> {
             width: 520,
             height: math.min(MediaQuery.sizeOf(context).height - 180, 620),
             child: WindowsScheduleSourcePane(
-              firstWeekday: _firstWeekday,
+              firstWeekday: BusyMaxWeekPreferencesScope.firstWeekdayOf(context),
               selectedDate: _selectedDate,
               accounts: accounts,
               calendarSources: sources,

@@ -1,5 +1,6 @@
 #include "time_picker.h"
 #include "my_application.h"
+#include "first_weekday.h"
 
 #include <flutter_linux/flutter_linux.h>
 #include <gdk-pixbuf/gdk-pixbuf.h>
@@ -4596,35 +4597,10 @@ static void gtk_settings_method_call_cb(FlMethodChannel* channel,
     g_autoptr(FlValue) result = get_gtk_font_settings();
     fl_method_call_respond_success(method_call, result, nullptr);
   } else if (strcmp(method, "getFirstWeekday") == 0) {
-#if defined(_NL_TIME_FIRST_WEEKDAY) && defined(_NL_TIME_WEEK_1STDAY)
-    const char* weekday_bytes = nl_langinfo(_NL_TIME_FIRST_WEEKDAY);
-    const char* origin_bytes = nl_langinfo(_NL_TIME_WEEK_1STDAY);
-    if (weekday_bytes == nullptr || origin_bytes == nullptr) {
-      fl_method_call_respond_success(method_call, nullptr, nullptr);
-      return;
-    }
-    const guint relative_weekday =
-        static_cast<unsigned char>(weekday_bytes[0]);
-    std::uint32_t origin = 0;
-    std::memcpy(&origin, origin_bytes, sizeof(origin));
-    gint origin_weekday = 0;
-    if (origin == 19971130) {
-      origin_weekday = 7;  // Sunday in Dart numbering.
-    } else if (origin == 19971201) {
-      origin_weekday = 1;  // Monday in Dart numbering.
-    }
-    if (origin_weekday == 0 || relative_weekday < 1 ||
-        relative_weekday > 7) {
-      fl_method_call_respond_success(method_call, nullptr, nullptr);
-      return;
-    }
-    const gint dart_weekday =
-        ((origin_weekday + static_cast<gint>(relative_weekday) - 2) % 7) + 1;
-    g_autoptr(FlValue) result = fl_value_new_int(dart_weekday);
+    const auto weekday = BusyMaxReadFirstWeekday();
+    g_autoptr(FlValue) result =
+        weekday ? fl_value_new_int(*weekday) : nullptr;
     fl_method_call_respond_success(method_call, result, nullptr);
-#else
-    fl_method_call_respond_success(method_call, nullptr, nullptr);
-#endif
   } else if (strcmp(method, "getGtkThemeColors") == 0) {
     g_autoptr(FlValue) result = get_gtk_theme_colors();
     fl_method_call_respond_success(method_call, result, nullptr);

@@ -247,13 +247,17 @@ class _WindowsBusyMaxAppState extends ConsumerState<WindowsBusyMaxApp>
             systemWeekday: _firstWeekdayController.value,
             platformLocaleTag: WidgetsBinding.instance.platformDispatcher.locale
                 .toLanguageTag(),
-            child: MediaQuery(
-              data: MediaQuery.of(
-                context,
-              ).copyWith(alwaysUse24HourFormat: clock.use24Hour),
-              child: WindowsDesktopRuntime(
-                startMinimizedAtLaunch: widget.startMinimizedAtLaunch,
-                child: child ?? const SizedBox.shrink(),
+            child: BusyMaxWeekPreferencesStartupGate(
+              preference: settings.firstDayOfWeekPreference,
+              systemValueInitialized: _firstWeekdayController.isInitialized,
+              child: MediaQuery(
+                data: MediaQuery.of(
+                  context,
+                ).copyWith(alwaysUse24HourFormat: clock.use24Hour),
+                child: WindowsDesktopRuntime(
+                  startMinimizedAtLaunch: widget.startMinimizedAtLaunch,
+                  child: child ?? const SizedBox.shrink(),
+                ),
               ),
             ),
           ),

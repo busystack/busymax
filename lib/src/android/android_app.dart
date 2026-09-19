@@ -84,7 +84,11 @@ class _AndroidBusyMaxAppState extends ConsumerState<AndroidBusyMaxApp> {
           systemWeekday: _firstWeekdayController.value,
           platformLocaleTag: WidgetsBinding.instance.platformDispatcher.locale
               .toLanguageTag(),
-          child: child ?? const SizedBox.shrink(),
+          child: BusyMaxWeekPreferencesStartupGate(
+            preference: settings.firstDayOfWeekPreference,
+            systemValueInitialized: _firstWeekdayController.isInitialized,
+            child: child ?? const SizedBox.shrink(),
+          ),
         ),
       ),
       home: const AndroidHomeShell(),

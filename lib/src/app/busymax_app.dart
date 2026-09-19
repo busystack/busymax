@@ -356,11 +356,16 @@ class _BusyMaxAppState extends ConsumerState<LinuxBusyMaxApp> {
                           .platformDispatcher
                           .locale
                           .toLanguageTag(),
-                      child: MediaQuery(
-                        data: MediaQuery.of(
-                          context,
-                        ).copyWith(alwaysUse24HourFormat: clock.use24Hour),
-                        child: child ?? const SizedBox.shrink(),
+                      child: BusyMaxWeekPreferencesStartupGate(
+                        preference: settings.firstDayOfWeekPreference,
+                        systemValueInitialized:
+                            _firstWeekdayController.isInitialized,
+                        child: MediaQuery(
+                          data: MediaQuery.of(
+                            context,
+                          ).copyWith(alwaysUse24HourFormat: clock.use24Hour),
+                          child: child ?? const SizedBox.shrink(),
+                        ),
                       ),
                     ),
                   ),
