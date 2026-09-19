@@ -11,6 +11,7 @@ import 'package:busymax/src/features/tasks/domain/task_capabilities.dart';
 
 import '../core/time/provider_date_time.dart';
 import '../core/auth/account_token_broker.dart';
+import '../core/http/native_terminating_http_client.dart';
 import '../core/time/stored_temporal_projection.dart';
 import '../dav/nextcloud/nextcloud_native_export.dart';
 import '../config/build_config.dart';
@@ -121,7 +122,7 @@ final networkReconnectSyncCoordinatorProvider =
 
 final baseHttpClientProvider = Provider<http.Client>((ref) {
   final client = ConnectivityAwareHttpClient(
-    inner: http.Client(),
+    inner: NativeTerminatingHttpClient(),
     requireNetwork: ref
         .watch(networkConnectivityMonitorProvider)
         .requireNetwork,

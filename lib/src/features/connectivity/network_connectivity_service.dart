@@ -5,6 +5,7 @@ import 'package:http/http.dart' as http;
 import 'package:logging/logging.dart';
 
 import '../../core/http/request_dispatch_exception.dart';
+import '../../core/http/terminating_http_client.dart';
 import '../../core/logging/redacting_logger.dart';
 
 enum NetworkAvailability { unknown, online, offline }
@@ -206,7 +207,8 @@ final class NetworkConnectivityMonitor {
 
 Future<List<ConnectivityResult>> _unknownConnectivityCheck() async => const [];
 
-final class ConnectivityAwareHttpClient extends http.BaseClient {
+final class ConnectivityAwareHttpClient extends http.BaseClient
+    implements TerminatingHttpClient {
   ConnectivityAwareHttpClient({
     required http.Client inner,
     required Future<void> Function() requireNetwork,
@@ -218,6 +220,29 @@ final class ConnectivityAwareHttpClient extends http.BaseClient {
 
   @override
   Future<http.StreamedResponse> send(http.BaseRequest request) async {
+    await _requireNetworkBeforeDispatch();
+    return _inner.send(request);
+  }
+
+  @override
+  Future<http.StreamedResponse> sendTerminating(
+    http.BaseRequest request, {
+    required Future<void> terminate,
+    required Duration connectionTimeout,
+  }) async {
+    await _requireNetworkBeforeDispatch();
+    final inner = _inner;
+    if (inner is TerminatingHttpClient) {
+      return inner.sendTerminating(
+        request,
+        terminate: terminate,
+        connectionTimeout: connectionTimeout,
+      );
+    }
+    return inner.send(request);
+  }
+
+  Future<void> _requireNetworkBeforeDispatch() async {
     try {
       await _requireNetwork();
     } on Object catch (error, stackTrace) {
@@ -232,7 +257,6 @@ final class ConnectivityAwareHttpClient extends http.BaseClient {
         stackTrace,
       );
     }
-    return _inner.send(request);
   }
 
   @override

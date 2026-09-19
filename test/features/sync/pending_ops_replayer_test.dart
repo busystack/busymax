@@ -927,6 +927,92 @@ void main() {
   );
 
   test(
+    'remote edit conflicts with a patch between two cross-list moves',
+    () async {
+      const baselineUpdated = '2026-06-04T00:00:00.000Z';
+      final baselineRaw = jsonEncode({
+        'id': 'task-1',
+        'title': 'Base title',
+        'updated': baselineUpdated,
+      });
+      for (final listId in ['list-2', 'list-3']) {
+        await database.taskListsDao.upsertTaskList(_taskList(listId));
+      }
+      await database.tasksDao.upsertTask(
+        _task(
+          'list-1',
+          'task-1',
+          title: 'Base title',
+          updatedUtc: baselineUpdated,
+          rawJson: baselineRaw,
+        ),
+      );
+      apiClient
+        ..remoteTask = _taskDto(
+          'task-1',
+          title: 'Base title',
+          updated: DateTime.parse(baselineUpdated),
+        )
+        ..remoteTaskAfterMove = _taskDto(
+          'task-1',
+          title: 'Independent remote title',
+          updated: DateTime.utc(2026, 6, 4, 0, 10),
+        );
+      final repository = TasksRepository(
+        database: database,
+        accountId: 'account',
+        nowUtc: () => DateTime.utc(2026, 6, 4),
+      );
+      await repository.moveTask(
+        const TaskMoveInput(
+          sourceTaskListId: 'list-1',
+          taskId: 'task-1',
+          destinationTaskListId: 'list-2',
+        ),
+      );
+      await repository.patchTask(
+        'list-2',
+        'task-1',
+        const TaskPatchInput({'title': 'Local title'}),
+      );
+      await repository.moveTask(
+        const TaskMoveInput(
+          sourceTaskListId: 'list-2',
+          taskId: 'task-1',
+          destinationTaskListId: 'list-3',
+        ),
+      );
+
+      expect(
+        await PendingOpsReplayer(
+          database: database,
+          apiClient: apiClient,
+          accountId: 'account',
+          nowUtc: () => DateTime.utc(2026, 6, 4, 1),
+        ).replayDueOps(),
+        1,
+      );
+
+      expect(apiClient.calls, ['move_task:task-1']);
+      final pending = await database.select(database.pendingOps).get();
+      final patch = pending.singleWhere(
+        (operation) => operation.operation == 'patch_task',
+      );
+      final laterMove = pending.singleWhere(
+        (operation) => operation.operation == 'move_task',
+      );
+      expect(patch.lastErrorCode, 'conflict');
+      expect(patch.lastErrorMessage, contains('title'));
+      expect(laterMove.dependsOnOpId, patch.id);
+      expect(
+        (await database.tasksDao.listTasks('account', 'list-3')).single.title,
+        'Local title',
+      );
+      expect(apiClient.remoteTask!.title, 'Independent remote title');
+    },
+  );
+
+  test(
     'delete remains blocked behind a permanently rejected cross-list move',
     () async {
       await database.taskListsDao.upsertTaskList(_taskList('list-2'));
@@ -1176,6 +1262,77 @@ void main() {
     expect(local.title, 'C');
     expect(local.localDirty, isFalse);
   });
+
+  for (final childChanged in [false, true]) {
+    test(
+      'rename then delete ${childChanged ? 'blocks' : 'succeeds'} for child cutoff',
+      () async {
+        final baseline = DateTime.utc(2026, 6, 4);
+        final childEdit = baseline.add(const Duration(minutes: 5));
+        final renameAcknowledged = baseline.add(const Duration(minutes: 10));
+        await database.taskListsDao.upsertTaskList(
+          _taskList(
+            'list-1',
+            title: 'A',
+            updatedUtc: baseline.toIso8601String(),
+          ),
+        );
+        apiClient
+          ..persistTaskListPatches = true
+          ..remoteTaskList = _taskListDto(
+            'list-1',
+            title: 'A',
+            updated: baseline,
+          )
+          ..taskListPatchResultUpdated = renameAcknowledged
+          ..remoteTasksPage = TasksPageDto(
+            items: childChanged
+                ? [_taskDto('child-1', updated: childEdit)]
+                : const [],
+            rawJson: const {},
+          );
+        final repository = TaskListsRepository(
+          database: database,
+          accountId: 'account',
+          nowUtc: () => baseline,
+        );
+        await repository.renameTaskList('list-1', 'B');
+        await repository.deleteTaskList('list-1');
+
+        final applied = await PendingOpsReplayer(
+          database: database,
+          apiClient: apiClient,
+          accountId: 'account',
+          nowUtc: () => baseline.add(const Duration(hours: 1)),
+        ).replayDueOps();
+
+        expect(apiClient.taskListPageUpdatedMins, [baseline]);
+        expect(
+          apiClient.calls.where((call) => call == 'delete_task_list:list-1'),
+          hasLength(childChanged ? 0 : 1),
+        );
+        expect(applied, childChanged ? 1 : 2);
+        if (childChanged) {
+          final delete = (await database.select(database.pendingOps).get())
+              .singleWhere(
+                (operation) => operation.operation == 'delete_task_list',
+              );
+          expect(delete.lastErrorCode, 'conflict');
+          expect(
+            delete.baselineUpdatedUtc,
+            renameAcknowledged.toIso8601String(),
+          );
+          expect(
+            jsonDecode(delete.requestJson),
+            containsPair(
+              '_busymaxChildTaskConflictBaselineUpdatedUtc',
+              baseline.toIso8601String(),
+            ),
+          );
+        }
+      },
+    );
+  }
 
   for (final reminderValue in [false, true]) {
     test(
@@ -2498,6 +2655,8 @@ class _FakeTaskRemoteClient implements TaskRemoteClient {
   TaskListDto? remoteTaskList;
   TaskDto? remoteTask;
   TaskDto? remoteTaskAfterMove;
+  DateTime? taskListPatchResultUpdated;
+  final taskListPageUpdatedMins = <DateTime?>[];
   Completer<void>? createTaskGate;
   Completer<void>? createTaskListStarted;
   Completer<void>? createTaskListGate;
@@ -2536,7 +2695,11 @@ class _FakeTaskRemoteClient implements TaskRemoteClient {
       taskListPatchStarted!.complete();
     }
     await taskListPatchGate?.future;
-    final result = _taskListDto(taskListId, title: title);
+    final result = _taskListDto(
+      taskListId,
+      title: title,
+      updated: taskListPatchResultUpdated,
+    );
     if (persistTaskListPatches) remoteTaskList = result;
     return result;
   }
@@ -2684,6 +2847,7 @@ class _FakeTaskRemoteClient implements TaskRemoteClient {
     DateTime? updatedMin,
     bool showAssigned = false,
   }) async {
+    taskListPageUpdatedMins.add(updatedMin);
     return remoteTasksPage;
   }
 }

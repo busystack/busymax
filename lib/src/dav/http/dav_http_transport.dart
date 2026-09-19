@@ -6,6 +6,7 @@ import 'dart:typed_data';
 
 import 'package:http/http.dart' as http;
 
+import '../../core/http/terminating_http_client.dart';
 import '../../dav/dav_errors.dart';
 import '../dav_provider_profile.dart';
 import '../../providers/busy_provider.dart';
@@ -364,18 +365,25 @@ final class DavHttpTransport {
         outbound.bodyBytes = body;
       }
 
-      final streamed = await _sendAttempt(
-        outbound,
-        abort,
-        context,
-        request.correlationId,
-      );
-      final responseBytes = await _readBoundedBody(
-        streamed,
-        abort,
-        context,
-        request.correlationId,
-      );
+      late final http.StreamedResponse streamed;
+      late final Uint8List responseBytes;
+      try {
+        streamed = await _sendAttempt(
+          outbound,
+          abort,
+          context,
+          request.correlationId,
+        );
+        responseBytes = await _readBoundedBody(
+          streamed,
+          abort,
+          context,
+          request.correlationId,
+        );
+      } finally {
+        // Also closes an isolated native attempt after its body is consumed.
+        if (!abort.isCompleted) abort.complete();
+      }
       final headers = <String, String>{
         for (final entry in streamed.headers.entries)
           entry.key.toLowerCase(): entry.value,
@@ -533,7 +541,14 @@ final class DavHttpTransport {
         );
       }
     });
-    final sendFuture = _client.send(request);
+    final client = _client;
+    final sendFuture = client is TerminatingHttpClient
+        ? client.sendTerminating(
+            request,
+            terminate: abort.future,
+            connectionTimeout: _limits.connectTimeout,
+          )
+        : client.send(request);
     final cancellationFuture = context.whenCancelled
         .then<http.StreamedResponse>(
           (_) => throw context.cancellationException,
@@ -546,11 +561,10 @@ final class DavHttpTransport {
       ]);
     } on Object {
       if (!abort.isCompleted) abort.complete();
-      try {
-        await sendFuture;
-      } on Object {
-        // The original failure below retains the timeout/cancellation reason.
-      }
+      // Production native requests receive an operation-local force-close
+      // above. Observe late completion without extending the caller's
+      // configured deadline or leaking an asynchronous error.
+      unawaited(sendFuture.then<void>((_) {}, onError: (_, _) {}));
       rethrow;
     } finally {
       timer.cancel();

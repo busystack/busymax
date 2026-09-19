@@ -6,6 +6,7 @@ import 'dart:math';
 import 'package:busymax/src/dav/dav_errors.dart';
 import 'package:busymax/src/dav/dav_provider_profile.dart';
 import 'package:busymax/src/dav/http/dav_http_transport.dart';
+import 'package:busymax/src/core/http/terminating_http_client.dart';
 import 'package:busymax/src/providers/busy_provider.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
@@ -359,6 +360,7 @@ void main() {
         ),
       ),
     );
+    await Future<void>.delayed(Duration.zero);
     expect(client.calls, 1);
     expect(client.aborts, 1);
   });
@@ -494,11 +496,99 @@ void main() {
 
       expect(sibling.statusCode, 200);
       await timedOutExpectation;
+      await Future<void>.delayed(Duration.zero);
       expect(token.isCancelled, isFalse);
       expect(client.calls, 2);
       expect(client.aborts, 1);
     },
   );
+
+  test(
+    'timeout terminates native connection establishment and releases permit',
+    () async {
+      final client = _ConnectionStageTerminatingClient();
+      final transport = _nextcloudTransport(
+        client,
+        limits: const DavTransportLimits(
+          connectTimeout: Duration(seconds: 5),
+          operationTimeout: Duration(milliseconds: 25),
+          maximumReadAttempts: 1,
+          maximumConcurrentPerAccount: 1,
+        ),
+      );
+      final elapsed = Stopwatch()..start();
+
+      await expectLater(
+        transport.send(
+          _propfind(
+            Uri.parse(
+              'https://cloud.example.test/nextcloud/remote.php/dav/connect',
+            ),
+          ),
+          credential: credential,
+        ),
+        throwsA(
+          isA<DavException>().having(
+            (error) => error.code,
+            'code',
+            'DavOperationTimeout',
+          ),
+        ),
+      );
+      elapsed.stop();
+      await Future<void>.delayed(Duration.zero);
+      expect(elapsed.elapsed, lessThan(const Duration(seconds: 1)));
+      expect(client.connectionTerminations, 1);
+      expect(client.connectionActive, isFalse);
+
+      final next = await transport.send(
+        _propfind(
+          Uri.parse('https://cloud.example.test/nextcloud/remote.php/dav/next'),
+        ),
+        credential: credential,
+      );
+      expect(next.statusCode, 200);
+      expect(client.calls, 2);
+    },
+  );
+}
+
+final class _ConnectionStageTerminatingClient extends http.BaseClient
+    implements TerminatingHttpClient {
+  var calls = 0;
+  var connectionTerminations = 0;
+  var connectionActive = false;
+
+  @override
+  Future<http.StreamedResponse> send(http.BaseRequest request) {
+    throw StateError('DAV must use sendTerminating for native requests.');
+  }
+
+  @override
+  Future<http.StreamedResponse> sendTerminating(
+    http.BaseRequest request, {
+    required Future<void> terminate,
+    required Duration connectionTimeout,
+  }) {
+    calls += 1;
+    if (calls == 1) {
+      connectionActive = true;
+      unawaited(
+        terminate.then((_) {
+          connectionTerminations += 1;
+          connectionActive = false;
+        }),
+      );
+      // Models IOClient.openUrl before its request abort listener exists. The
+      // transport-level termination hook closes the isolated connection, but
+      // this deliberately never-completing future proves the caller does not
+      // wait without a bound for abort acknowledgement.
+      return Completer<http.StreamedResponse>().future;
+    }
+    return Future.value(
+      http.StreamedResponse(Stream.value(utf8.encode('ok')), 200),
+    );
+  }
 }
 
 final class _AbortObservingClient extends http.BaseClient {

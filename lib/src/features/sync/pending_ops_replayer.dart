@@ -318,6 +318,15 @@ class PendingOpsReplayer {
       serverList.rawJson,
     );
     for (final dependent in dependents) {
+      final dependentRequest = _request(dependent);
+      if (dependent.operation == 'delete_task_list' &&
+          !dependentRequest.containsKey(_childTaskConflictBaselineKey) &&
+          dependent.baselineUpdatedUtc != null) {
+        // A list mutation acknowledges list metadata only. Preserve the
+        // original cutoff used to detect independent child-task changes.
+        dependentRequest[_childTaskConflictBaselineKey] =
+            dependent.baselineUpdatedUtc;
+      }
       final baseline = _normalizeTaskListConflictSnapshot(
         _jsonObject(dependent.baselineRawJson ?? '{}'),
       );
@@ -328,6 +337,7 @@ class PendingOpsReplayer {
         _database.pendingOps,
       )..where((row) => row.id.equals(dependent.id))).write(
         PendingOpsCompanion(
+          requestJson: Value(jsonEncode(dependentRequest)),
           baselineRawJson: Value(jsonEncode(baseline)),
           baselineUpdatedUtc: serverList.updated == null
               ? const Value.absent()
@@ -993,24 +1003,23 @@ class PendingOpsReplayer {
       return;
     }
 
-    final local =
-        await (_database.select(_database.tasks)..where(
-              (row) =>
-                  row.accountId.equals(_accountId) &
-                  row.taskListId.equals(op.taskListId!) &
-                  row.id.equals(op.taskId!),
-            ))
-            .getSingleOrNull();
-    if (local == null) {
-      return;
-    }
+    final local = op.baselineRawJson == null
+        ? await (_database.select(_database.tasks)..where(
+                (row) =>
+                    row.accountId.equals(_accountId) &
+                    row.taskListId.equals(op.taskListId!) &
+                    row.id.equals(op.taskId!),
+              ))
+              .getSingleOrNull()
+        : null;
+    if (op.baselineRawJson == null && local == null) return;
 
     final current = await _apiClient.getTask(
       taskListId: op.taskListId!,
       taskId: op.taskId!,
     );
     final baselineJson = op.baselineRawJson == null
-        ? _jsonObject(local.rawJson)
+        ? _jsonObject(local!.rawJson)
         : _jsonObject(op.baselineRawJson!);
     final normalizedBaseline = _normalizeTaskConflictSnapshot(baselineJson);
     final normalizedCurrent = _normalizeTaskConflictSnapshot(current.rawJson);
@@ -1090,7 +1099,10 @@ class PendingOpsReplayer {
     PendingOp op,
     String action,
   ) async {
-    final baselineUpdatedUtc = _parseUtc(op.baselineUpdatedUtc);
+    final request = _request(op);
+    final childBaseline = request[_childTaskConflictBaselineKey]?.toString();
+    final baselineUpdatedUtc =
+        _parseUtc(childBaseline) ?? _parseUtc(op.baselineUpdatedUtc);
     if (baselineUpdatedUtc == null || op.taskListId == null) {
       return;
     }
@@ -1175,6 +1187,9 @@ class PendingOpsReplayer {
 
   String _now() => _nowUtc().toIso8601String();
 }
+
+const _childTaskConflictBaselineKey =
+    '_busymaxChildTaskConflictBaselineUpdatedUtc';
 
 const _pendingOpReferenceKeys = {
   'id',
