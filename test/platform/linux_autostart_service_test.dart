@@ -209,7 +209,7 @@ void main() {
         }
       },
     );
-  });
+  }, skip: !Platform.isLinux);
 
   for (final entryCase in <({String contents, bool enabled})>[
     (contents: 'Hidden=true', enabled: false),
@@ -365,7 +365,7 @@ void main() {
 
     expect(await service.isEnabled(), isFalse);
     expect(await file.exists(), isFalse);
-  });
+  }, skip: !Platform.isLinux);
 
   test('writes the Snap command in the Snap user configuration', () async {
     final configHome = await Directory.systemTemp.createTemp(

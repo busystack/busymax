@@ -229,8 +229,12 @@ bool _isLegacyLinuxPresentation(String relative) {
 }
 
 String _relative(String root, String path) {
-  final prefix = root.endsWith(Platform.pathSeparator)
-      ? root
-      : '$root${Platform.pathSeparator}';
-  return path.startsWith(prefix) ? path.substring(prefix.length) : path;
+  final normalizedRoot = root
+      .replaceAll('\\', '/')
+      .replaceAll(RegExp(r'/+$'), '');
+  final normalizedPath = path.replaceAll('\\', '/');
+  final prefix = '$normalizedRoot/';
+  return normalizedPath.startsWith(prefix)
+      ? normalizedPath.substring(prefix.length)
+      : normalizedPath;
 }
