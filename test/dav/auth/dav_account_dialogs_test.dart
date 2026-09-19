@@ -39,7 +39,7 @@ void main() {
     expect(field.decoration?.filled, isFalse);
     expect(
       find.text('Calendar and task data is cached locally for offline use.'),
-      findsNothing,
+      findsOneWidget,
     );
 
     const copiedAddress = ' https://cloud.example.test/remote.php/dav ';
@@ -105,6 +105,10 @@ void main() {
       expect(password.enableSuggestions, isFalse);
       expect(password.autocorrect, isFalse);
       expect(password.decoration?.border, InputBorder.none);
+      expect(
+        find.text('Calendar and task data is cached locally for offline use.'),
+        findsOneWidget,
+      );
 
       await tester.tap(find.text('Connect'));
       await tester.pumpAndSettle();

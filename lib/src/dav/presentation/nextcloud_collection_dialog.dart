@@ -471,7 +471,9 @@ class _LinuxNextcloudTrashState
     final confirmed = await showBusyMaxConfirm(
       context,
       title: permanent ? l10n.nextcloudPermanentDelete : l10n.nextcloudRestore,
-      message: permanent ? l10n.nextcloudPermanentDeleteWarning : item.title,
+      message: permanent
+          ? '${item.title}\n\n${l10n.nextcloudPermanentDeleteWarning}'
+          : item.title,
       confirmLabel: permanent
           ? l10n.nextcloudPermanentDelete
           : l10n.nextcloudRestore,

@@ -189,9 +189,28 @@ void main() {
     expect(find.textContaining('30'), findsOneWidget);
     expect(find.byType(AlertDialog), findsNothing);
 
-    await tester.tap(find.text('Permanently delete').first);
+    final deleteActions = find.widgetWithText(
+      BusyMaxActionRow,
+      'Permanently delete',
+    );
+    await tester.tap(deleteActions.first);
     await tester.pumpAndSettle();
-    expect(find.byType(BusyMaxConfirmDialog), findsOneWidget);
+    var confirmation = find.byType(BusyMaxConfirmDialog);
+    expect(confirmation, findsOneWidget);
+    expect(
+      find.descendant(
+        of: confirmation,
+        matching: find.textContaining('Deleted event'),
+      ),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(
+        of: confirmation,
+        matching: find.textContaining('Deleted task'),
+      ),
+      findsNothing,
+    );
     await tester.tap(find.text('Cancel'));
     await tester.pumpAndSettle();
     expect(
@@ -199,9 +218,29 @@ void main() {
       isEmpty,
     );
 
-    await tester.tap(find.text('Permanently delete').first);
+    await tester.tap(deleteActions.last);
     await tester.pumpAndSettle();
-    await tester.tap(find.widgetWithText(ElevatedButton, 'Permanently delete'));
+    confirmation = find.byType(BusyMaxConfirmDialog);
+    expect(
+      find.descendant(
+        of: confirmation,
+        matching: find.textContaining('Deleted task'),
+      ),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(
+        of: confirmation,
+        matching: find.textContaining('Deleted event'),
+      ),
+      findsNothing,
+    );
+    await tester.tap(
+      find.descendant(
+        of: confirmation,
+        matching: find.widgetWithText(ElevatedButton, 'Permanently delete'),
+      ),
+    );
     for (var attempt = 0; attempt < 20; attempt++) {
       await tester.runAsync(
         () => Future<void>.delayed(const Duration(milliseconds: 50)),
@@ -212,10 +251,11 @@ void main() {
         break;
       }
     }
-    expect(
-      fixture.requests.where((request) => request.method == 'DELETE'),
-      hasLength(1),
-    );
+    final deletes = fixture.requests
+        .where((request) => request.method == 'DELETE')
+        .toList();
+    expect(deletes, hasLength(1));
+    expect(deletes.single.url.path, endsWith('/objects/42.ics'));
     expect(tester.takeException(), isNull);
   });
 
