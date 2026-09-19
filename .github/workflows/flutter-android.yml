@@ -34,7 +34,7 @@ jobs:
 
       - name: Install Android API and Build Tools 37
         run: >-
-          sdkmanager
+          "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager"
           'platforms;android-37.0'
           'build-tools;37.0.0'
 
