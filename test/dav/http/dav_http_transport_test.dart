@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:math';
@@ -294,6 +295,267 @@ void main() {
       ),
     );
   });
+
+  test(
+    'operation timeout interrupts retry backoff without another request',
+    () async {
+      var calls = 0;
+      final delayGate = Completer<void>();
+      final transport = _nextcloudTransport(
+        MockClient((_) async {
+          calls += 1;
+          return http.Response('', 503, headers: {'retry-after': '1'});
+        }),
+        limits: const DavTransportLimits(
+          operationTimeout: Duration(milliseconds: 25),
+        ),
+        delay: (_) => delayGate.future,
+      );
+
+      await expectLater(
+        transport.send(
+          _propfind(
+            Uri.parse('https://cloud.example.test/nextcloud/remote.php/dav'),
+          ),
+          credential: credential,
+        ),
+        throwsA(
+          isA<DavException>().having(
+            (error) => error.code,
+            'code',
+            'DavOperationTimeout',
+          ),
+        ),
+      );
+      delayGate.complete();
+      await Future<void>.delayed(Duration.zero);
+      expect(calls, 1);
+    },
+  );
+
+  test('timeout awaiting headers aborts the active request', () async {
+    final client = _AbortObservingClient(hangFirstHeaders: true);
+    final transport = _nextcloudTransport(
+      client,
+      limits: const DavTransportLimits(
+        connectTimeout: Duration(seconds: 1),
+        operationTimeout: Duration(milliseconds: 25),
+        maximumReadAttempts: 1,
+      ),
+    );
+
+    await expectLater(
+      transport.send(
+        _propfind(
+          Uri.parse('https://cloud.example.test/nextcloud/remote.php/dav'),
+        ),
+        credential: credential,
+      ),
+      throwsA(
+        isA<DavException>().having(
+          (error) => error.code,
+          'code',
+          'DavOperationTimeout',
+        ),
+      ),
+    );
+    expect(client.calls, 1);
+    expect(client.aborts, 1);
+  });
+
+  test(
+    'cancellation during body streaming aborts and stops consumption',
+    () async {
+      final client = _AbortObservingClient(streamBody: true);
+      final token = DavCancellationToken();
+      final transport = _nextcloudTransport(
+        client,
+        limits: const DavTransportLimits(
+          operationTimeout: Duration(seconds: 1),
+        ),
+      );
+      final request = transport.send(
+        _propfind(
+          Uri.parse('https://cloud.example.test/nextcloud/remote.php/dav'),
+        ),
+        credential: credential,
+        cancellationToken: token,
+      );
+      await client.bodyStarted.future;
+      token.cancel();
+
+      await expectLater(
+        request,
+        throwsA(
+          isA<DavException>().having(
+            (error) => error.kind,
+            'kind',
+            DavErrorKind.cancelled,
+          ),
+        ),
+      );
+      expect(client.aborts, 1);
+      expect(client.bodyCancelled, 1);
+    },
+  );
+
+  test(
+    'cancelled concurrency waiter never dispatches or leaks a permit',
+    () async {
+      final client = _AbortObservingClient(hangFirstHeaders: true);
+      final transport = _nextcloudTransport(
+        client,
+        limits: const DavTransportLimits(
+          operationTimeout: Duration(seconds: 1),
+          maximumReadAttempts: 1,
+          maximumConcurrentPerAccount: 1,
+        ),
+      );
+      final firstToken = DavCancellationToken();
+      final first = transport.send(
+        _propfind(
+          Uri.parse(
+            'https://cloud.example.test/nextcloud/remote.php/dav/first',
+          ),
+        ),
+        credential: credential,
+        cancellationToken: firstToken,
+      );
+      await client.firstStarted.future;
+      final waitingToken = DavCancellationToken();
+      final waiting = transport.send(
+        _propfind(
+          Uri.parse(
+            'https://cloud.example.test/nextcloud/remote.php/dav/waiting',
+          ),
+        ),
+        credential: credential,
+        cancellationToken: waitingToken,
+      );
+      waitingToken.cancel();
+      await expectLater(waiting, throwsA(isA<DavException>()));
+      expect(client.calls, 1);
+
+      firstToken.cancel();
+      await expectLater(first, throwsA(isA<DavException>()));
+      final third = await transport.send(
+        _propfind(
+          Uri.parse(
+            'https://cloud.example.test/nextcloud/remote.php/dav/third',
+          ),
+        ),
+        credential: credential,
+      );
+      expect(third.statusCode, 200);
+      expect(client.calls, 2);
+    },
+  );
+
+  test(
+    'operation timeout does not cancel a token shared with a sibling',
+    () async {
+      final client = _AbortObservingClient(hangFirstHeaders: true);
+      final token = DavCancellationToken();
+      final transport = _nextcloudTransport(
+        client,
+        limits: const DavTransportLimits(
+          operationTimeout: Duration(milliseconds: 25),
+          maximumReadAttempts: 1,
+        ),
+      );
+
+      final timedOut = transport.send(
+        _propfind(
+          Uri.parse('https://cloud.example.test/nextcloud/remote.php/dav/slow'),
+        ),
+        credential: credential,
+        cancellationToken: token,
+      );
+      final timedOutExpectation = expectLater(
+        timedOut,
+        throwsA(
+          isA<DavException>().having(
+            (error) => error.code,
+            'code',
+            'DavOperationTimeout',
+          ),
+        ),
+      );
+      await client.firstStarted.future;
+      final sibling = await transport.send(
+        _propfind(
+          Uri.parse(
+            'https://cloud.example.test/nextcloud/remote.php/dav/sibling',
+          ),
+        ),
+        credential: credential,
+        cancellationToken: token,
+      );
+
+      expect(sibling.statusCode, 200);
+      await timedOutExpectation;
+      expect(token.isCancelled, isFalse);
+      expect(client.calls, 2);
+      expect(client.aborts, 1);
+    },
+  );
+}
+
+final class _AbortObservingClient extends http.BaseClient {
+  _AbortObservingClient({
+    this.hangFirstHeaders = false,
+    this.streamBody = false,
+  });
+
+  final bool hangFirstHeaders;
+  final bool streamBody;
+  final Completer<void> firstStarted = Completer<void>();
+  final Completer<void> bodyStarted = Completer<void>();
+  var calls = 0;
+  var aborts = 0;
+  var bodyCancelled = 0;
+
+  @override
+  Future<http.StreamedResponse> send(http.BaseRequest request) {
+    calls += 1;
+    if (!firstStarted.isCompleted) firstStarted.complete();
+    final abortTrigger = request is http.Abortable
+        ? request.abortTrigger
+        : null;
+    if (hangFirstHeaders && calls == 1) {
+      final response = Completer<http.StreamedResponse>();
+      unawaited(
+        abortTrigger!.then((_) {
+          aborts += 1;
+          response.completeError(http.RequestAbortedException(request.url));
+        }),
+      );
+      return response.future;
+    }
+    if (streamBody) {
+      late StreamController<List<int>> body;
+      body = StreamController<List<int>>(
+        onListen: () {
+          if (!bodyStarted.isCompleted) bodyStarted.complete();
+          body.add(utf8.encode('chunk'));
+        },
+        onCancel: () => bodyCancelled += 1,
+      );
+      unawaited(
+        abortTrigger!.then((_) {
+          aborts += 1;
+          if (!body.isClosed) {
+            body.addError(http.RequestAbortedException(request.url));
+            unawaited(body.close());
+          }
+        }),
+      );
+      return Future.value(http.StreamedResponse(body.stream, 200));
+    }
+    return Future.value(
+      http.StreamedResponse(Stream.value(utf8.encode('ok')), 200),
+    );
+  }
 }
 
 DavHttpTransport _nextcloudTransport(

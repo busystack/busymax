@@ -900,35 +900,37 @@ class TasksRepository {
       return;
     }
     final now = _now();
-    final baseline = await _baselineRow(input.sourceTaskListId, input.taskId);
-    await _writeLocalTask(
-      input.sourceTaskListId,
-      input.taskId,
-      TasksCompanion(
-        taskListId: Value(
-          input.destinationTaskListId ?? input.sourceTaskListId,
+    await _database.transaction(() async {
+      final baseline = await _baselineRow(input.sourceTaskListId, input.taskId);
+      await _writeLocalTask(
+        input.sourceTaskListId,
+        input.taskId,
+        TasksCompanion(
+          taskListId: Value(
+            input.destinationTaskListId ?? input.sourceTaskListId,
+          ),
+          parent: Value(input.parentTaskId),
+          pendingMove: const Value(true),
+          localDirty: const Value(true),
+          updatedLocalAtUtc: Value(now),
         ),
-        parent: Value(input.parentTaskId),
-        pendingMove: const Value(true),
-        localDirty: const Value(true),
-        updatedLocalAtUtc: Value(now),
-      ),
-    );
-    await _enqueue(
-      operation: 'move_task',
-      taskListId: input.sourceTaskListId,
-      taskId: input.taskId,
-      request: {
-        if (input.parentTaskId != null) 'parent': input.parentTaskId,
-        if (input.previousSiblingTaskId != null)
-          'previous': input.previousSiblingTaskId,
-        if (input.destinationTaskListId != null)
-          'destinationTasklist': input.destinationTaskListId,
-      },
-      baselineUpdatedUtc: baseline?.updatedUtc,
-      baselineRawJson: baseline?.rawJson,
-      createdAtUtc: now,
-    );
+      );
+      await _enqueue(
+        operation: 'move_task',
+        taskListId: input.sourceTaskListId,
+        taskId: input.taskId,
+        request: {
+          if (input.parentTaskId != null) 'parent': input.parentTaskId,
+          if (input.previousSiblingTaskId != null)
+            'previous': input.previousSiblingTaskId,
+          if (input.destinationTaskListId != null)
+            'destinationTasklist': input.destinationTaskListId,
+        },
+        baselineUpdatedUtc: baseline?.updatedUtc,
+        baselineRawJson: baseline?.rawJson,
+        createdAtUtc: now,
+      );
+    });
     _onMutationQueued?.call();
   }
 
@@ -2515,24 +2517,50 @@ class TasksRepository {
         taskId == null) {
       return null;
     }
-    final pendingCreate = await _pendingTaskCreate(taskId);
-    final pendingLocalId = pendingCreate?.localTempId ?? pendingCreate?.taskId;
     final query = _database.select(_database.pendingOps)
       ..where(
         (row) =>
             row.accountId.equals(_accountId) &
             row.entityType.equals('task') &
             row.operation.isIn(_taskMutationPredecessorOperations) &
-            (pendingLocalId == null
-                ? row.taskListId.equals(taskListId) & row.taskId.equals(taskId)
-                : row.taskId.equals(pendingLocalId) |
-                      row.localTempId.equals(pendingLocalId)),
+            (row.taskId.equals(taskId) | row.localTempId.equals(taskId)),
       )
       ..orderBy([
         (row) => OrderingTerm.desc(row.createdAtUtc),
         (row) => OrderingTerm.desc(row.updatedAtUtc),
+        (row) => OrderingTerm.desc(row.id),
       ]);
-    final operations = await query.get();
+    final allOperations = await query.get();
+    final relevantListIds = <String>{taskListId};
+    var expanded = true;
+    while (expanded) {
+      expanded = false;
+      for (final candidate in allOperations) {
+        if (candidate.operation != 'move_task' ||
+            candidate.taskListId == null) {
+          continue;
+        }
+        final source = candidate.taskListId!;
+        final destination = _pendingRequestOrNull(
+          candidate,
+        )?['destinationTasklist']?.toString();
+        if (!relevantListIds.contains(source) &&
+            (destination == null || !relevantListIds.contains(destination))) {
+          continue;
+        }
+        if (relevantListIds.add(source)) expanded = true;
+        if (destination != null && relevantListIds.add(destination)) {
+          expanded = true;
+        }
+      }
+    }
+    final operations = allOperations
+        .where(
+          (candidate) =>
+              candidate.taskListId == null ||
+              relevantListIds.contains(candidate.taskListId),
+        )
+        .toList(growable: false);
     final predecessorIds = {
       for (final operation in operations)
         if (operation.dependsOnOpId != null) operation.dependsOnOpId!,

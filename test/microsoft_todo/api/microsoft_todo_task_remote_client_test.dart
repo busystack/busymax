@@ -16,6 +16,50 @@ import 'package:drift/drift.dart';
 import 'package:drift/native.dart';
 
 void main() {
+  test('conflict normalization maps aliases without mutating snapshots', () {
+    final adapter = MicrosoftTodoTaskRemoteClient(
+      client: _FakeMicrosoftTodoApiClient(),
+      defaultTimeZone: 'UTC',
+    );
+    final snapshot = <String, Object?>{
+      'displayName': 'Inbox',
+      'body': {'content': 'Notes', 'contentType': 'text'},
+      'dueDateTime': {
+        'dateTime': '2026-06-06T09:00:00.0000000',
+        'timeZone': 'UTC',
+      },
+      'startDateTime': {
+        'dateTime': '2026-06-05T09:00:00.0000000',
+        'timeZone': 'UTC',
+      },
+      'reminderDateTime': {
+        'dateTime': '2026-06-06T08:30:00.0000000',
+        'timeZone': 'UTC',
+      },
+      'completedDateTime': {
+        'dateTime': '2026-06-07T09:00:00.0000000',
+        'timeZone': 'UTC',
+      },
+      'isReminderOn': true,
+    };
+    final before = jsonEncode(snapshot);
+
+    final task = adapter.normalizeTaskConflictSnapshot(snapshot);
+    final list = adapter.normalizeTaskListConflictSnapshot(snapshot);
+
+    expect(task['notes'], 'Notes');
+    expect(task['due'], '2026-06-06');
+    expect(task['microsoftDueTimeZone'], 'UTC');
+    expect(task['microsoftStartTimeZone'], 'UTC');
+    expect(task['microsoftReminderTimeZone'], 'UTC');
+    expect(task['microsoftCompletedTimeZone'], 'UTC');
+    expect(task['microsoftIsReminderOn'], isTrue);
+    expect(list['title'], 'Inbox');
+    expect(jsonEncode(snapshot), before);
+    expect(task, isNot(same(snapshot)));
+    expect(list, isNot(same(snapshot)));
+  });
+
   test(
     'create task maps neutral mutation fields to Microsoft Graph body',
     () async {

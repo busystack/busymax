@@ -152,6 +152,7 @@ class ScheduleWorkspace extends ConsumerStatefulWidget {
   const ScheduleWorkspace({
     super.key,
     this.initialScope = ScheduleScope.all,
+    this.initialDate,
     this.initialTaskAccountId,
     this.initialTaskListId,
     this.initialTaskId,
@@ -159,6 +160,8 @@ class ScheduleWorkspace extends ConsumerStatefulWidget {
   });
 
   final ScheduleScope initialScope;
+  @visibleForTesting
+  final DateTime? initialDate;
   final String? initialTaskAccountId;
   final String? initialTaskListId;
   final String? initialTaskId;
@@ -228,6 +231,9 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
   @override
   void initState() {
     super.initState();
+    if (widget.initialDate != null) {
+      _selectedDate = DateUtils.dateOnly(widget.initialDate!);
+    }
     _scope = widget.initialScope;
     _applyInitialScope();
     _headerBarSession = ref.read(linuxHeaderBarServiceProvider).claimSession();
@@ -1436,14 +1442,11 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
     }
     setState(() {
       _selectedDate = switch (_mode) {
-        ScheduleViewMode.day => _selectedDate.subtract(const Duration(days: 1)),
-        ScheduleViewMode.week => _selectedDate.subtract(
-          const Duration(days: 7),
-        ),
-        ScheduleViewMode.month => DateTime(
-          _selectedDate.year,
-          _selectedDate.month - 1,
-          _selectedDate.day,
+        ScheduleViewMode.day => DateUtils.addDaysToDate(_selectedDate, -1),
+        ScheduleViewMode.week => DateUtils.addDaysToDate(_selectedDate, -7),
+        ScheduleViewMode.month => DateUtils.addMonthsToMonthDate(
+          _selectedDate,
+          -1,
         ),
         ScheduleViewMode.year => DateTime(
           _selectedDate.year - 1,
@@ -1465,12 +1468,11 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
     }
     setState(() {
       _selectedDate = switch (_mode) {
-        ScheduleViewMode.day => _selectedDate.add(const Duration(days: 1)),
-        ScheduleViewMode.week => _selectedDate.add(const Duration(days: 7)),
-        ScheduleViewMode.month => DateTime(
-          _selectedDate.year,
-          _selectedDate.month + 1,
-          _selectedDate.day,
+        ScheduleViewMode.day => DateUtils.addDaysToDate(_selectedDate, 1),
+        ScheduleViewMode.week => DateUtils.addDaysToDate(_selectedDate, 7),
+        ScheduleViewMode.month => DateUtils.addMonthsToMonthDate(
+          _selectedDate,
+          1,
         ),
         ScheduleViewMode.year => DateTime(
           _selectedDate.year + 1,

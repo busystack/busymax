@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:http/http.dart' as http;
 
+import '../../core/http/request_dispatch_exception.dart';
 import 'microsoft_todo_api_error.dart';
 import 'microsoft_todo_api_models.dart';
 import 'microsoft_todo_json.dart';
@@ -316,7 +317,17 @@ class MicrosoftTodoRestApiClient
     );
     final refresh = _unauthorizedRefreshProvider;
     if (response.statusCode == 401 && refresh != null) {
-      await refresh();
+      try {
+        await refresh();
+      } on Object catch (error, stackTrace) {
+        Error.throwWithStackTrace(
+          KnownUnsentRequestException(
+            kind: RequestPreDispatchFailureKind.authentication,
+            cause: error,
+          ),
+          stackTrace,
+        );
+      }
       response = await _sendOnce(
         method,
         uri,
@@ -337,7 +348,18 @@ class MicrosoftTodoRestApiClient
     if (body != null) {
       headers['Content-Type'] = 'application/json; charset=utf-8';
     }
-    final authorizationHeader = await _authorizationHeaderProvider?.call();
+    String? authorizationHeader;
+    try {
+      authorizationHeader = await _authorizationHeaderProvider?.call();
+    } on Object catch (error, stackTrace) {
+      Error.throwWithStackTrace(
+        KnownUnsentRequestException(
+          kind: RequestPreDispatchFailureKind.authentication,
+          cause: error,
+        ),
+        stackTrace,
+      );
+    }
     if (authorizationHeader != null) {
       headers['Authorization'] = authorizationHeader;
     }

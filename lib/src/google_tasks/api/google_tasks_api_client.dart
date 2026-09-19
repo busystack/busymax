@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:http/http.dart' as http;
 
+import '../../core/http/request_dispatch_exception.dart';
 import '../../features/tasks/domain/task_remote_client.dart';
 import '../../features/tasks/domain/task_remote_models.dart';
 import 'google_tasks_api_error.dart';
@@ -257,7 +258,17 @@ class GoogleTasksRestApiClient implements TaskRemoteClient {
     );
     final refresh = _unauthorizedRefreshProvider;
     if (response.statusCode == 401 && refresh != null) {
-      await refresh();
+      try {
+        await refresh();
+      } on Object catch (error, stackTrace) {
+        Error.throwWithStackTrace(
+          KnownUnsentRequestException(
+            kind: RequestPreDispatchFailureKind.authentication,
+            cause: error,
+          ),
+          stackTrace,
+        );
+      }
       response = await _sendOnce(
         method,
         uri,
@@ -278,7 +289,18 @@ class GoogleTasksRestApiClient implements TaskRemoteClient {
     if (body != null) {
       headers['Content-Type'] = 'application/json; charset=utf-8';
     }
-    final authorizationHeader = await _authorizationHeaderProvider?.call();
+    String? authorizationHeader;
+    try {
+      authorizationHeader = await _authorizationHeaderProvider?.call();
+    } on Object catch (error, stackTrace) {
+      Error.throwWithStackTrace(
+        KnownUnsentRequestException(
+          kind: RequestPreDispatchFailureKind.authentication,
+          cause: error,
+        ),
+        stackTrace,
+      );
+    }
     if (authorizationHeader != null) {
       headers['Authorization'] = authorizationHeader;
     }

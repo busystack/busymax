@@ -3,6 +3,7 @@ import 'dart:math';
 
 import 'package:drift/drift.dart';
 
+import '../../core/http/request_dispatch_exception.dart';
 import '../../db/app_database.dart';
 import '../tasks/domain/task_remote_client.dart';
 import '../tasks/domain/task_remote_error.dart';
@@ -97,6 +98,12 @@ class PendingOpsReplayer {
           await _replay(op);
           await _database.pendingOpsDao.deleteOp(op.id);
           applied += 1;
+        } on RequestNotDispatchedException catch (error) {
+          await _scheduleRetry(
+            op,
+            error.code,
+            'The request was not sent and can be retried safely.',
+          );
         } on TaskRemoteError catch (error) {
           if (_isSuccessfulMissingDelete(op, error)) {
             await _applyDeleteSideEffect(op);
@@ -193,9 +200,36 @@ class PendingOpsReplayer {
     }
 
     await _database.transaction(() async {
+      final temporaryList =
+          await (_database.select(_database.taskLists)..where(
+                (row) =>
+                    row.accountId.equals(_accountId) & row.id.equals(tempId),
+              ))
+              .getSingleOrNull();
+      final hasDependent = await _rebaseDependentTaskListMutations(op, dto);
       await _database.taskListsDao.upsertTaskList(
         taskListFromDto(_accountId, dto, _now()),
       );
+      if (temporaryList != null) {
+        await (_database.update(_database.taskLists)..where(
+              (row) => row.accountId.equals(_accountId) & row.id.equals(dto.id),
+            ))
+            .write(
+              TaskListsCompanion(
+                remindersEnabled: Value(temporaryList.remindersEnabled),
+                title: hasDependent
+                    ? Value(temporaryList.title)
+                    : const Value.absent(),
+                localDirty: hasDependent
+                    ? const Value(true)
+                    : const Value.absent(),
+                pendingDelete: hasDependent
+                    ? Value(temporaryList.pendingDelete)
+                    : const Value.absent(),
+                updatedLocalAtUtc: Value(_now()),
+              ),
+            );
+      }
       await _database.customStatement(
         'UPDATE tasks SET task_list_id = ? WHERE account_id = ? '
         'AND task_list_id = ?',
@@ -217,9 +251,7 @@ class PendingOpsReplayer {
       op.taskListId!,
       TaskListPatch(_request(op)),
     );
-    await _database.taskListsDao.upsertTaskList(
-      taskListFromDto(_accountId, dto, _now()),
-    );
+    await _applyTaskListEditResult(op, dto);
   }
 
   Future<void> _updateTaskList(PendingOp op) async {
@@ -228,9 +260,83 @@ class PendingOpsReplayer {
       op.taskListId!,
       TaskListPut(_request(op)),
     );
-    await _database.taskListsDao.upsertTaskList(
-      taskListFromDto(_accountId, dto, _now()),
+    await _applyTaskListEditResult(op, dto);
+  }
+
+  Future<void> _applyTaskListEditResult(
+    PendingOp op,
+    TaskListDto serverList,
+  ) async {
+    await _database.transaction(() async {
+      final local =
+          await (_database.select(_database.taskLists)..where(
+                (row) =>
+                    row.accountId.equals(_accountId) &
+                    row.id.equals(op.taskListId!),
+              ))
+              .getSingleOrNull();
+      final hasDependent = await _rebaseDependentTaskListMutations(
+        op,
+        serverList,
+      );
+      if (hasDependent) return;
+      await _database.taskListsDao.upsertTaskList(
+        taskListFromDto(_accountId, serverList, _now()),
+      );
+      if (local != null) {
+        await (_database.update(_database.taskLists)..where(
+              (row) =>
+                  row.accountId.equals(_accountId) &
+                  row.id.equals(serverList.id),
+            ))
+            .write(
+              TaskListsCompanion(
+                remindersEnabled: Value(local.remindersEnabled),
+              ),
+            );
+      }
+    });
+  }
+
+  Future<bool> _rebaseDependentTaskListMutations(
+    PendingOp completedOp,
+    TaskListDto serverList,
+  ) async {
+    final dependents =
+        await (_database.select(_database.pendingOps)..where(
+              (row) =>
+                  row.accountId.equals(_accountId) &
+                  row.dependsOnOpId.equals(completedOp.id),
+            ))
+            .get();
+    if (dependents.isEmpty) return false;
+
+    final acknowledged = _normalizeTaskListConflictSnapshot(
+      _request(completedOp),
     );
+    final serverSnapshot = _normalizeTaskListConflictSnapshot(
+      serverList.rawJson,
+    );
+    for (final dependent in dependents) {
+      final baseline = _normalizeTaskListConflictSnapshot(
+        _jsonObject(dependent.baselineRawJson ?? '{}'),
+      );
+      for (final field in acknowledged.keys) {
+        baseline[field] = serverSnapshot[field];
+      }
+      await (_database.update(
+        _database.pendingOps,
+      )..where((row) => row.id.equals(dependent.id))).write(
+        PendingOpsCompanion(
+          baselineRawJson: Value(jsonEncode(baseline)),
+          baselineUpdatedUtc: serverList.updated == null
+              ? const Value.absent()
+              : Value(serverList.updated!.toUtc().toIso8601String()),
+          updatedAtUtc: Value(_now()),
+        ),
+      );
+    }
+    return true;
   }
 
   Future<void> _deleteTaskList(PendingOp op) async {
@@ -287,7 +393,7 @@ class PendingOpsReplayer {
 
   Future<void> _applyTaskEditResult(PendingOp op, TaskDto serverTask) async {
     await _database.transaction(() async {
-      final hasDependent = await _rebaseDependentTaskEdits(op, serverTask);
+      final hasDependent = await _rebaseDependentTaskMutations(op, serverTask);
       if (hasDependent) {
         return;
       }
@@ -297,7 +403,7 @@ class PendingOpsReplayer {
     });
   }
 
-  Future<bool> _rebaseDependentTaskEdits(
+  Future<bool> _rebaseDependentTaskMutations(
     PendingOp completedOp,
     TaskDto serverTask,
   ) async {
@@ -361,6 +467,13 @@ class PendingOpsReplayer {
       destinationTaskListId: destinationTaskListId,
     );
     await _database.transaction(() async {
+      final hasDependent = await _rebaseDependentTaskMutations(op, dto);
+      if (hasDependent) {
+        // The repository has already moved the visible projection to the tail
+        // of the local chain. Applying this intermediate response would move
+        // it backwards and erase later local edits.
+        return;
+      }
       await _database.tasksDao.upsertTask(
         taskFromDto(_accountId, targetTaskListId, dto, _now()),
       );
@@ -662,6 +775,8 @@ class PendingOpsReplayer {
       final unblock =
           op.id != completedCreateOpId &&
           referenceChanged &&
+          op.state != 'recovery_required' &&
+          op.lastErrorCode != 'creation_outcome_unknown' &&
           op.nextAttemptAtUtc?.startsWith('9999-12-31') == true;
       if (rewrittenJson == op.requestJson && !unblock) {
         continue;

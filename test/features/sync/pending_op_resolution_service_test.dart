@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:busymax/src/calendar_providers/calendar_mutation.dart';
@@ -9,9 +10,11 @@ import 'package:busymax/src/db/app_database.dart';
 import 'package:busymax/src/features/calendar/data/calendar_repository.dart';
 import 'package:busymax/src/features/calendar/presentation/event_editor_draft.dart';
 import 'package:busymax/src/features/sync/pending_op_resolution_service.dart';
+import 'package:busymax/src/features/sync/pending_ops_replayer.dart';
 import 'package:busymax/src/features/tasks/domain/task_remote_client.dart';
 import 'package:busymax/src/google_tasks/api/google_tasks_api_error.dart';
 import 'package:busymax/src/features/tasks/domain/task_remote_models.dart';
+import 'package:busymax/src/features/tasks/domain/task_checklist_item.dart';
 import 'package:busymax/src/providers/busy_provider.dart';
 
 void main() {
@@ -610,6 +613,319 @@ void main() {
   });
 
   test(
+    'discard uncertain checklist create removes its chain and merges all pages',
+    () async {
+      final localItems = [
+        TaskChecklistItemEntity.fromJson(const {
+          'id': 'local-step',
+          'displayName': 'Uncertain',
+          'isChecked': true,
+        }),
+        TaskChecklistItemEntity.fromJson(const {
+          'id': 'server-sibling',
+          'displayName': 'Sibling local edit',
+          'isChecked': false,
+        }),
+      ];
+      await database.tasksDao.upsertTask(
+        _localTask(
+          'task-1',
+          localDirty: true,
+          checklistItemsJson: encodeTaskChecklistItems(localItems),
+        ),
+      );
+      apiClient.checklistPages = {
+        null: const TaskChecklistItemsPageDto(
+          items: [
+            TaskChecklistItemDto(
+              id: 'server-created',
+              title: 'Uncertain',
+              completed: false,
+              rawJson: {},
+            ),
+          ],
+          nextPageToken: 'page-2',
+          rawJson: {},
+        ),
+        'page-2': const TaskChecklistItemsPageDto(
+          items: [
+            TaskChecklistItemDto(
+              id: 'server-sibling',
+              title: 'Sibling remote',
+              completed: false,
+              rawJson: {},
+            ),
+          ],
+          rawJson: {},
+        ),
+      };
+      await _enqueueBlockedOp(
+        database,
+        id: 'create-step',
+        entityType: 'task_checklist_item',
+        operation: 'create_task_checklist_item',
+        taskListId: 'list-1',
+        taskId: 'task-1',
+        localTempId: 'local-step',
+        state: 'recovery_required',
+        request: const {
+          'checklistItemId': 'local-step',
+          'body': {'displayName': 'Uncertain', 'isChecked': false},
+        },
+      );
+      await _enqueueBlockedOp(
+        database,
+        id: 'patch-step',
+        entityType: 'task_checklist_item',
+        operation: 'patch_task_checklist_item',
+        taskListId: 'list-1',
+        taskId: 'task-1',
+        dependsOnOpId: 'create-step',
+        request: const {
+          'checklistItemId': 'local-step',
+          'body': {'isChecked': true},
+        },
+      );
+      await _enqueueBlockedOp(
+        database,
+        id: 'sibling-step',
+        entityType: 'task_checklist_item',
+        operation: 'patch_task_checklist_item',
+        taskListId: 'list-1',
+        taskId: 'task-1',
+        request: const {
+          'checklistItemId': 'server-sibling',
+          'body': {'displayName': 'Sibling local edit'},
+        },
+      );
+
+      await service.discard('create-step');
+
+      expect(apiClient.checklistPageTokens, [null, 'page-2']);
+      expect(await database.pendingOpsDao.getOp('create-step'), equals(null));
+      expect(await database.pendingOpsDao.getOp('patch-step'), equals(null));
+      expect(
+        await database.pendingOpsDao.getOp('sibling-step'),
+        isNot(equals(null)),
+      );
+      final parent = (await database.tasksDao.listTasks(
+        'account',
+        'list-1',
+      )).single;
+      expect(parent.title, 'Local task');
+      expect(parent.localDirty, isTrue);
+      final items = decodeTaskChecklistItems(
+        parent.microsoftChecklistItemsJson,
+      );
+      expect(items.map((item) => item.id), [
+        'server-created',
+        'server-sibling',
+      ]);
+      expect(
+        items.singleWhere((item) => item.id == 'server-sibling').title,
+        'Sibling local edit',
+      );
+      expect(taskSyncCalls, 1);
+
+      await service.discard('create-step');
+      expect(apiClient.checklistPageTokens, [null, 'page-2']);
+      expect(taskSyncCalls, 1);
+    },
+  );
+
+  test(
+    'failed checklist read keeps recovery operation and projection intact',
+    () async {
+      final projection = encodeTaskChecklistItems([
+        TaskChecklistItemEntity.fromJson(const {
+          'id': 'local-step',
+          'displayName': 'Uncertain',
+          'isChecked': false,
+        }),
+      ]);
+      await database.tasksDao.upsertTask(
+        _localTask('task-1', checklistItemsJson: projection),
+      );
+      apiClient.checklistError = const GoogleTasksApiError(
+        statusCode: 503,
+        message: 'Unavailable',
+      );
+      await _enqueueBlockedOp(
+        database,
+        id: 'create-step',
+        entityType: 'task_checklist_item',
+        operation: 'create_task_checklist_item',
+        taskListId: 'list-1',
+        taskId: 'task-1',
+        localTempId: 'local-step',
+        state: 'recovery_required',
+        request: const {'checklistItemId': 'local-step'},
+      );
+
+      await expectLater(
+        service.discard('create-step'),
+        throwsA(isA<GoogleTasksApiError>()),
+      );
+      expect(
+        await database.pendingOpsDao.getOp('create-step'),
+        isNot(equals(null)),
+      );
+      expect(
+        (await database.tasksDao.listTasks(
+          'account',
+          'list-1',
+        )).single.microsoftChecklistItemsJson,
+        projection,
+      );
+      expect(taskSyncCalls, 0);
+    },
+  );
+
+  test(
+    'discard when no checklist item was created removes only the exact account chain',
+    () async {
+      final localProjection = encodeTaskChecklistItems([
+        TaskChecklistItemEntity.fromJson(const {
+          'id': 'local-step',
+          'displayName': 'Uncertain',
+          'isChecked': true,
+        }),
+      ]);
+      await database.tasksDao.upsertTask(
+        _localTask('task-1', checklistItemsJson: localProjection),
+      );
+      await _enqueueBlockedOp(
+        database,
+        id: 'create-step',
+        entityType: 'task_checklist_item',
+        operation: 'create_task_checklist_item',
+        taskListId: 'list-1',
+        taskId: 'task-1',
+        localTempId: 'local-step',
+        state: 'recovery_required',
+        request: const {'checklistItemId': 'local-step'},
+      );
+      await _enqueueBlockedOp(
+        database,
+        id: 'patch-step',
+        entityType: 'task_checklist_item',
+        operation: 'patch_task_checklist_item',
+        taskListId: 'list-1',
+        taskId: 'task-1',
+        dependsOnOpId: 'create-step',
+        request: const {
+          'checklistItemId': 'local-step',
+          'body': {'isChecked': true},
+        },
+      );
+
+      await _insertAccount(database, accountId: 'other');
+      await database.taskListsDao.upsertTaskList(
+        _localTaskList('list-1', accountId: 'other'),
+      );
+      await database.tasksDao.upsertTask(
+        _localTask(
+          'task-1',
+          accountId: 'other',
+          checklistItemsJson: localProjection,
+        ),
+      );
+      await _enqueueBlockedOp(
+        database,
+        id: 'other-create-step',
+        accountId: 'other',
+        entityType: 'task_checklist_item',
+        operation: 'create_task_checklist_item',
+        taskListId: 'list-1',
+        taskId: 'task-1',
+        localTempId: 'local-step',
+        state: 'recovery_required',
+        request: const {'checklistItemId': 'local-step'},
+      );
+
+      await service.discard('create-step');
+
+      expect(apiClient.checklistPageTokens, [null]);
+      expect(
+        decodeTaskChecklistItems(
+          (await database.tasksDao.listTasks(
+            'account',
+            'list-1',
+          )).single.microsoftChecklistItemsJson,
+        ),
+        isEmpty,
+      );
+      expect(await database.pendingOpsDao.getOp('create-step'), equals(null));
+      expect(await database.pendingOpsDao.getOp('patch-step'), equals(null));
+      expect(
+        await database.pendingOpsDao.getOp('other-create-step'),
+        isNot(equals(null)),
+      );
+      expect(
+        decodeTaskChecklistItems(
+          (await database.tasksDao.listTasks(
+            'other',
+            'list-1',
+          )).single.microsoftChecklistItemsJson,
+        ).single.id,
+        'local-step',
+      );
+    },
+  );
+
+  test('checklist discard remains serialized with replay', () async {
+    final started = Completer<void>();
+    final gate = Completer<void>();
+    apiClient
+      ..checklistReadStarted = started
+      ..checklistReadGate = gate;
+    await database.tasksDao.upsertTask(
+      _localTask(
+        'task-1',
+        checklistItemsJson: encodeTaskChecklistItems([
+          TaskChecklistItemEntity.fromJson(const {
+            'id': 'local-step',
+            'displayName': 'Uncertain',
+            'isChecked': false,
+          }),
+        ]),
+      ),
+    );
+    await _enqueueBlockedOp(
+      database,
+      id: 'create-step',
+      entityType: 'task_checklist_item',
+      operation: 'create_task_checklist_item',
+      taskListId: 'list-1',
+      taskId: 'task-1',
+      localTempId: 'local-step',
+      state: 'recovery_required',
+      request: const {'checklistItemId': 'local-step'},
+    );
+
+    final discard = service.discard('create-step');
+    await started.future;
+    var replayCompleted = false;
+    final replay =
+        PendingOpsReplayer(
+          database: database,
+          apiClient: apiClient,
+          accountId: 'account',
+          nowUtc: () => DateTime.utc(2026, 6, 4),
+        ).replayDueOps().then((value) {
+          replayCompleted = true;
+          return value;
+        });
+    await Future<void>.delayed(Duration.zero);
+    expect(replayCompleted, isFalse);
+
+    gate.complete();
+    await discard;
+    expect(await replay, 0);
+    expect(await database.pendingOpsDao.getOp('create-step'), equals(null));
+  });
+
+  test(
     'retry routes event synchronization through the calendar callback',
     () async {
       var taskSyncCalls = 0;
@@ -635,11 +951,34 @@ void main() {
   );
 }
 
-class _FakeTaskRemoteClient implements TaskRemoteClient {
+class _FakeTaskRemoteClient
+    implements TaskRemoteClient, TaskChecklistRemoteClient {
   TaskDto? remoteTask;
   TaskListDto? remoteTaskList;
   GoogleTasksApiError? getTaskError;
   GoogleTasksApiError? getTaskListError;
+  GoogleTasksApiError? checklistError;
+  Map<String?, TaskChecklistItemsPageDto> checklistPages = const {};
+  final checklistPageTokens = <String?>[];
+  Completer<void>? checklistReadStarted;
+  Completer<void>? checklistReadGate;
+
+  @override
+  Future<TaskChecklistItemsPageDto> listChecklistItemsPage({
+    required String taskListId,
+    required String taskId,
+    String? pageToken,
+  }) async {
+    checklistPageTokens.add(pageToken);
+    if (checklistReadStarted?.isCompleted == false) {
+      checklistReadStarted!.complete();
+    }
+    await checklistReadGate?.future;
+    final error = checklistError;
+    if (error != null) throw error;
+    return checklistPages[pageToken] ??
+        const TaskChecklistItemsPageDto(items: [], rawJson: {});
+  }
 
   @override
   Future<TaskDto> getTask({
@@ -666,17 +1005,20 @@ class _FakeTaskRemoteClient implements TaskRemoteClient {
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 
-Future<void> _insertAccount(AppDatabase database) {
+Future<void> _insertAccount(
+  AppDatabase database, {
+  String accountId = 'account',
+}) {
   return database
       .into(database.accounts)
       .insert(
         AccountsCompanion.insert(
-          id: 'account',
+          id: accountId,
           provider: 'google',
           authority: 'https://accounts.google.com',
-          providerAccountId: 'google-account',
+          providerAccountId: 'google-$accountId',
           credentialKind: 'oauth',
-          email: const Value('google-account@example.com'),
+          email: Value('google-$accountId@example.com'),
           createdAtUtc: _now,
           updatedAtUtc: _now,
         ),
@@ -702,12 +1044,13 @@ Future<void> _blockOperation(AppDatabase database, String operationId) {
 
 TaskListsCompanion _localTaskList(
   String id, {
+  String accountId = 'account',
   String title = 'List',
   bool localDirty = false,
   bool pendingDelete = false,
 }) {
   return TaskListsCompanion.insert(
-    accountId: 'account',
+    accountId: accountId,
     id: id,
     title: title,
     rawJson: '{"id":"$id","title":"$title"}',
@@ -720,13 +1063,15 @@ TaskListsCompanion _localTaskList(
 
 TasksCompanion _localTask(
   String id, {
+  String accountId = 'account',
   String taskListId = 'list-1',
   bool localDirty = false,
   bool pendingDelete = false,
   bool pendingMove = false,
+  String? checklistItemsJson,
 }) {
   return TasksCompanion.insert(
-    accountId: 'account',
+    accountId: accountId,
     taskListId: taskListId,
     id: id,
     title: 'Local task',
@@ -734,6 +1079,7 @@ TasksCompanion _localTask(
     localDirty: Value(localDirty),
     pendingDelete: Value(pendingDelete),
     pendingMove: Value(pendingMove),
+    microsoftChecklistItemsJson: Value(checklistItemsJson),
     createdLocalAtUtc: _now,
     updatedLocalAtUtc: _now,
   );
@@ -741,6 +1087,8 @@ TasksCompanion _localTask(
 
 Future<void> _enqueueBlockedOp(
   AppDatabase database, {
+  String id = 'op-1',
+  String accountId = 'account',
   String entityType = 'task',
   required String operation,
   String? operationType,
@@ -748,17 +1096,21 @@ Future<void> _enqueueBlockedOp(
   String? taskId,
   String? calendarSourceId,
   String state = 'pending',
+  String? localTempId,
+  String? dependsOnOpId,
   Map<String, Object?> request = const {},
 }) {
   return database.pendingOpsDao.enqueue(
     PendingOpsCompanion.insert(
-      id: 'op-1',
-      accountId: 'account',
+      id: id,
+      accountId: accountId,
       entityType: entityType,
       operation: operation,
       operationType: Value(operationType),
       taskListId: Value(taskListId),
       taskId: Value(taskId),
+      localTempId: Value(localTempId),
+      dependsOnOpId: Value(dependsOnOpId),
       calendarSourceId: Value(calendarSourceId),
       requestJson: jsonEncode(request),
       state: Value(state),

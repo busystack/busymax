@@ -14,10 +14,21 @@ enum DavRetryClass { safeRead, conditionalMutation, never }
 
 final class DavCancellationToken {
   bool _cancelled = false;
+  final Completer<void> _cancelledSignal = Completer<void>();
+  final StreamController<void> _cancellations =
+      StreamController<void>.broadcast(sync: true);
 
   bool get isCancelled => _cancelled;
+  Future<void> get whenCancelled => _cancelledSignal.future;
+  Stream<void> get cancellations => _cancellations.stream;
 
-  void cancel() => _cancelled = true;
+  void cancel() {
+    if (_cancelled) return;
+    _cancelled = true;
+    _cancelledSignal.complete();
+    _cancellations.add(null);
+    unawaited(_cancellations.close());
+  }
 
   void throwIfCancelled({String? correlationId}) {
     if (_cancelled) {
@@ -208,29 +219,32 @@ final class DavHttpTransport {
     DavCancellationToken? cancellationToken,
   }) {
     final token = cancellationToken ?? DavCancellationToken();
-    return _withConcurrencyLimit(request, () {
-      return _sendWithRetry(request, credential, token).timeout(
-        _limits.operationTimeout,
-        onTimeout: () => throw DavException(
-          kind: DavErrorKind.timeout,
-          code: 'DavOperationTimeout',
-          safeMessage: 'The DAV operation timed out.',
-          correlationId: request.correlationId,
-        ),
+    return _withConcurrencyLimit(request, token, () async {
+      final context = _DavOperationContext(
+        externalToken: token,
+        timeout: _limits.operationTimeout,
+        correlationId: request.correlationId,
       );
+      try {
+        return await _sendWithRetry(request, credential, context);
+      } finally {
+        context.dispose();
+      }
     });
   }
 
   Future<T> _withConcurrencyLimit<T>(
     DavRequest request,
+    DavCancellationToken token,
     Future<T> Function() action,
   ) async {
     final account = _accountSemaphores.putIfAbsent(
       request.accountId,
       () => _AsyncSemaphore(_limits.maximumConcurrentPerAccount),
     );
-    await account.acquire();
+    await account.acquire(token, correlationId: request.correlationId);
     _AsyncSemaphore? collection;
+    var collectionAcquired = false;
     try {
       final collectionId = request.collectionId;
       if (collectionId != null) {
@@ -238,11 +252,13 @@ final class DavHttpTransport {
           '${request.accountId}|$collectionId',
           () => _AsyncSemaphore(_limits.maximumConcurrentPerCollection),
         );
-        await collection.acquire();
+        await collection.acquire(token, correlationId: request.correlationId);
+        collectionAcquired = true;
       }
+      token.throwIfCancelled(correlationId: request.correlationId);
       return await action();
     } finally {
-      collection?.release();
+      if (collectionAcquired) collection!.release();
       account.release();
     }
   }
@@ -250,19 +266,19 @@ final class DavHttpTransport {
   Future<DavResponse> _sendWithRetry(
     DavRequest request,
     DavBasicCredential credential,
-    DavCancellationToken token,
+    _DavOperationContext context,
   ) async {
     final attempts = request.retryClass == DavRetryClass.safeRead
         ? _limits.maximumReadAttempts
         : 1;
     Object? lastError;
     for (var attempt = 1; attempt <= attempts; attempt += 1) {
-      token.throwIfCancelled(correlationId: request.correlationId);
+      context.throwIfCancelled();
       try {
         final response = await _sendFollowingRedirects(
           request,
           credential,
-          token,
+          context,
         );
         if (!_isRetryableStatus(response.statusCode) || attempt == attempts) {
           return response;
@@ -270,24 +286,28 @@ final class DavHttpTransport {
         final honorsRetryAfter =
             response.statusCode == HttpStatus.tooManyRequests ||
             response.statusCode == HttpStatus.serviceUnavailable;
-        await _delay(
-          _retryDelay(
-            honorsRetryAfter ? response.headers['retry-after'] : null,
-            attempt,
+        await context.waitFor(
+          _delay(
+            _retryDelay(
+              honorsRetryAfter ? response.headers['retry-after'] : null,
+              attempt,
+            ),
           ),
         );
       } on DavException catch (error) {
         lastError = error;
+        if (context.isCancelled) context.throwIfCancelled();
         if (attempt == attempts || !_isRetryableException(error)) {
           rethrow;
         }
-        await _delay(_retryDelay(null, attempt));
+        await context.waitFor(_delay(_retryDelay(null, attempt)));
       } on Object catch (error) {
         lastError = error;
+        if (context.isCancelled) context.throwIfCancelled();
         if (attempt == attempts) {
           throw _networkException(error, request.correlationId);
         }
-        await _delay(_retryDelay(null, attempt));
+        await context.waitFor(_delay(_retryDelay(null, attempt)));
       }
     }
     throw _networkException(lastError, request.correlationId);
@@ -296,7 +316,7 @@ final class DavHttpTransport {
   Future<DavResponse> _sendFollowingRedirects(
     DavRequest request,
     DavBasicCredential credential,
-    DavCancellationToken token,
+    _DavOperationContext context,
   ) async {
     var currentUri = request.uri;
     var method = request.method.toUpperCase();
@@ -308,7 +328,7 @@ final class DavHttpTransport {
       redirectCount <= _limits.maximumRedirects;
       redirectCount += 1
     ) {
-      token.throwIfCancelled(correlationId: request.correlationId);
+      context.throwIfCancelled();
       if (!visited.add(currentUri.toString())) {
         throw DavException(
           kind: DavErrorKind.redirectLoop,
@@ -329,11 +349,13 @@ final class DavHttpTransport {
         );
       }
 
-      final outbound = http.Request(method, currentUri)
-        ..followRedirects = false
-        ..headers.addAll(request.headers)
-        ..headers['authorization'] = credential.authorizationValue
-        ..headers['x-busymax-correlation-id'] = request.correlationId;
+      final abort = Completer<void>();
+      final outbound =
+          http.AbortableRequest(method, currentUri, abortTrigger: abort.future)
+            ..followRedirects = false
+            ..headers.addAll(request.headers)
+            ..headers['authorization'] = credential.authorizationValue
+            ..headers['x-busymax-correlation-id'] = request.correlationId;
       if (_profile.provider == BusyProvider.nextcloud &&
           _serverFeatures.contains('nc-calendar-webcal-cache')) {
         outbound.headers['X-NC-CalDAV-Webcal-Caching'] = 'On';
@@ -342,21 +364,16 @@ final class DavHttpTransport {
         outbound.bodyBytes = body;
       }
 
-      final streamed = await _client
-          .send(outbound)
-          .timeout(
-            _limits.connectTimeout,
-            onTimeout: () => throw DavException(
-              kind: DavErrorKind.timeout,
-              code: 'DavConnectTimeout',
-              safeMessage:
-                  'The DAV server did not accept a connection in time.',
-              correlationId: request.correlationId,
-            ),
-          );
+      final streamed = await _sendAttempt(
+        outbound,
+        abort,
+        context,
+        request.correlationId,
+      );
       final responseBytes = await _readBoundedBody(
         streamed,
-        token,
+        abort,
+        context,
         request.correlationId,
       );
       final headers = <String, String>{
@@ -410,28 +427,134 @@ final class DavHttpTransport {
 
   Future<Uint8List> _readBoundedBody(
     http.StreamedResponse response,
-    DavCancellationToken token,
+    Completer<void> abort,
+    _DavOperationContext context,
     String correlationId,
   ) async {
     final builder = BytesBuilder(copy: false);
     var length = 0;
-    await for (final chunk in response.stream.timeout(
-      _limits.responseTimeout,
-    )) {
-      token.throwIfCancelled(correlationId: correlationId);
-      length += chunk.length;
-      if (length > _limits.maximumResponseBytes) {
-        throw DavException(
-          kind: DavErrorKind.responseTooLarge,
-          code: 'DavResponseTooLarge',
-          safeMessage: 'The DAV response exceeded the configured size limit.',
-          statusCode: response.statusCode,
-          correlationId: correlationId,
-        );
+    final completed = Completer<void>();
+    Timer? responseTimer;
+    StreamSubscription<List<int>>? subscription;
+
+    void abortRequest() {
+      if (!abort.isCompleted) abort.complete();
+    }
+
+    void completeError(Object error, [StackTrace? stackTrace]) {
+      if (completed.isCompleted) return;
+      abortRequest();
+      if (stackTrace == null) {
+        completed.completeError(error);
+      } else {
+        completed.completeError(error, stackTrace);
       }
-      builder.add(chunk);
+      unawaited(subscription?.cancel());
+    }
+
+    void armResponseTimer() {
+      responseTimer?.cancel();
+      responseTimer = Timer(_limits.responseTimeout, () {
+        completeError(
+          DavException(
+            kind: DavErrorKind.timeout,
+            code: 'DavResponseTimeout',
+            safeMessage: 'The DAV response body timed out.',
+            statusCode: response.statusCode,
+            correlationId: correlationId,
+          ),
+        );
+      });
+    }
+
+    armResponseTimer();
+    subscription = response.stream.listen(
+      (chunk) {
+        if (completed.isCompleted) return;
+        armResponseTimer();
+        length += chunk.length;
+        if (length > _limits.maximumResponseBytes) {
+          completeError(
+            DavException(
+              kind: DavErrorKind.responseTooLarge,
+              code: 'DavResponseTooLarge',
+              safeMessage:
+                  'The DAV response exceeded the configured size limit.',
+              statusCode: response.statusCode,
+              correlationId: correlationId,
+            ),
+          );
+          return;
+        }
+        builder.add(chunk);
+      },
+      onError: (Object error, StackTrace stackTrace) {
+        if (context.isCancelled) {
+          completeError(context.cancellationException, stackTrace);
+        } else {
+          completeError(error, stackTrace);
+        }
+      },
+      onDone: () {
+        if (!completed.isCompleted) completed.complete();
+      },
+      cancelOnError: true,
+    );
+    unawaited(
+      context.whenCancelled.then((_) {
+        completeError(context.cancellationException);
+      }),
+    );
+    try {
+      await completed.future;
+    } finally {
+      responseTimer?.cancel();
+      await subscription.cancel();
     }
     return builder.takeBytes();
+  }
+
+  Future<http.StreamedResponse> _sendAttempt(
+    http.AbortableRequest request,
+    Completer<void> abort,
+    _DavOperationContext context,
+    String correlationId,
+  ) async {
+    final connectTimeout = Completer<http.StreamedResponse>();
+    final timer = Timer(_limits.connectTimeout, () {
+      if (!connectTimeout.isCompleted) {
+        connectTimeout.completeError(
+          DavException(
+            kind: DavErrorKind.timeout,
+            code: 'DavConnectTimeout',
+            safeMessage: 'The DAV server did not accept a connection in time.',
+            correlationId: correlationId,
+          ),
+        );
+      }
+    });
+    final sendFuture = _client.send(request);
+    final cancellationFuture = context.whenCancelled
+        .then<http.StreamedResponse>(
+          (_) => throw context.cancellationException,
+        );
+    try {
+      return await Future.any([
+        sendFuture,
+        connectTimeout.future,
+        cancellationFuture,
+      ]);
+    } on Object {
+      if (!abort.isCompleted) abort.complete();
+      try {
+        await sendFuture;
+      } on Object {
+        // The original failure below retains the timeout/cancellation reason.
+      }
+      rethrow;
+    } finally {
+      timer.cancel();
+    }
   }
 
   bool _isRetryableStatus(int statusCode) =>
@@ -500,26 +623,146 @@ final class _AsyncSemaphore {
 
   final int maximum;
   int _available;
-  final _waiters = <Completer<void>>[];
+  final _waiters = <_SemaphoreWaiter>[];
 
-  Future<void> acquire() {
+  Future<void> acquire(
+    DavCancellationToken token, {
+    required String correlationId,
+  }) {
+    token.throwIfCancelled(correlationId: correlationId);
     if (_available > 0) {
       _available -= 1;
       return Future.value();
     }
-    final completer = Completer<void>();
-    _waiters.add(completer);
-    return completer.future;
+    final waiter = _SemaphoreWaiter();
+    _waiters.add(waiter);
+    void cancelWaiter() {
+      if (!waiter.isQueued) return;
+      if (!_waiters.remove(waiter)) return;
+      waiter.cancel(
+        DavException(
+          kind: DavErrorKind.cancelled,
+          code: 'DavOperationCancelled',
+          safeMessage: 'The DAV operation was cancelled.',
+          correlationId: correlationId,
+        ),
+      );
+    }
+
+    waiter.cancellationSubscription = token.cancellations.listen(
+      (_) => cancelWaiter(),
+    );
+    if (token.isCancelled) cancelWaiter();
+    return waiter.future;
   }
 
   void release() {
-    if (_waiters.isNotEmpty) {
-      _waiters.removeAt(0).complete();
-      return;
+    while (_waiters.isNotEmpty) {
+      final waiter = _waiters.removeAt(0);
+      if (waiter.grant()) return;
     }
     if (_available >= maximum) {
       throw StateError('DAV semaphore released more often than acquired.');
     }
     _available += 1;
+  }
+}
+
+final class _SemaphoreWaiter {
+  final Completer<void> _completer = Completer<void>();
+  var _queued = true;
+  StreamSubscription<void>? cancellationSubscription;
+
+  bool get isQueued => _queued;
+  Future<void> get future => _completer.future;
+
+  bool grant() {
+    if (!_queued) return false;
+    _queued = false;
+    unawaited(cancellationSubscription?.cancel());
+    _completer.complete();
+    return true;
+  }
+
+  void cancel(DavException error) {
+    if (!_queued) return;
+    _queued = false;
+    unawaited(cancellationSubscription?.cancel());
+    _completer.completeError(error);
+  }
+}
+
+final class _DavOperationContext {
+  _DavOperationContext({
+    required DavCancellationToken externalToken,
+    required Duration timeout,
+    required this.correlationId,
+  }) {
+    _timer = Timer(timeout, _timeout);
+    _externalCancellationSubscription = externalToken.cancellations.listen(
+      (_) => _cancel(),
+    );
+    if (externalToken.isCancelled) _cancel();
+  }
+
+  final String correlationId;
+  final Completer<void> _cancelled = Completer<void>();
+  late Timer _timer;
+  StreamSubscription<void>? _externalCancellationSubscription;
+  DavException? _exception;
+  var _disposed = false;
+
+  bool get isCancelled => _exception != null;
+  Future<void> get whenCancelled => _cancelled.future;
+  DavException get cancellationException =>
+      _exception ??
+      DavException(
+        kind: DavErrorKind.cancelled,
+        code: 'DavOperationCancelled',
+        safeMessage: 'The DAV operation was cancelled.',
+        correlationId: correlationId,
+      );
+
+  void _timeout() {
+    if (_disposed || _exception != null) return;
+    _exception = DavException(
+      kind: DavErrorKind.timeout,
+      code: 'DavOperationTimeout',
+      safeMessage: 'The DAV operation timed out.',
+      correlationId: correlationId,
+    );
+    _cancelled.complete();
+  }
+
+  void _cancel() {
+    if (_disposed || _exception != null) return;
+    _exception = DavException(
+      kind: DavErrorKind.cancelled,
+      code: 'DavOperationCancelled',
+      safeMessage: 'The DAV operation was cancelled.',
+      correlationId: correlationId,
+    );
+    _cancelled.complete();
+  }
+
+  void throwIfCancelled() {
+    final error = _exception;
+    if (error != null) throw error;
+  }
+
+  Future<T> waitFor<T>(Future<T> future) {
+    throwIfCancelled();
+    return Future.any([
+      future,
+      whenCancelled.then<T>((_) => throw cancellationException),
+    ]);
+  }
+
+  void dispose() {
+    if (_disposed) return;
+    _disposed = true;
+    _timer.cancel();
+    unawaited(_externalCancellationSubscription?.cancel());
+    _externalCancellationSubscription = null;
   }
 }

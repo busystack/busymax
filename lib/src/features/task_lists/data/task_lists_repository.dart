@@ -189,22 +189,25 @@ class TaskListsRepository {
       );
       return;
     }
-    await _updateLocalList(
-      id,
-      TaskListsCompanion(
-        title: Value(title),
-        localDirty: const Value(true),
-        updatedLocalAtUtc: Value(now),
-      ),
-    );
-    await _enqueue(
-      operation: 'patch_task_list',
-      taskListId: id,
-      request: {'title': title},
-      baselineUpdatedUtc: baseline?.updatedUtc,
-      baselineRawJson: baseline?.rawJson,
-      createdAtUtc: now,
-    );
+    await _database.transaction(() async {
+      final current = await _baselineRow(id);
+      await _updateLocalList(
+        id,
+        TaskListsCompanion(
+          title: Value(title),
+          localDirty: const Value(true),
+          updatedLocalAtUtc: Value(now),
+        ),
+      );
+      await _enqueue(
+        operation: 'patch_task_list',
+        taskListId: id,
+        request: {'title': title},
+        baselineUpdatedUtc: current?.updatedUtc,
+        baselineRawJson: current?.rawJson,
+        createdAtUtc: now,
+      );
+    });
     _onMutationQueued?.call();
   }
 
@@ -224,24 +227,27 @@ class TaskListsRepository {
       );
       return;
     }
-    if (title != null) {
-      await _updateLocalList(
-        id,
-        TaskListsCompanion(
-          title: Value(title),
-          localDirty: const Value(true),
-          updatedLocalAtUtc: Value(now),
-        ),
+    await _database.transaction(() async {
+      final current = await _baselineRow(id);
+      if (title != null) {
+        await _updateLocalList(
+          id,
+          TaskListsCompanion(
+            title: Value(title),
+            localDirty: const Value(true),
+            updatedLocalAtUtc: Value(now),
+          ),
+        );
+      }
+      await _enqueue(
+        operation: 'update_task_list',
+        taskListId: id,
+        request: replacement.toJson(),
+        baselineUpdatedUtc: current?.updatedUtc,
+        baselineRawJson: current?.rawJson,
+        createdAtUtc: now,
       );
-    }
-    await _enqueue(
-      operation: 'update_task_list',
-      taskListId: id,
-      request: replacement.toJson(),
-      baselineUpdatedUtc: baseline?.updatedUtc,
-      baselineRawJson: baseline?.rawJson,
-      createdAtUtc: now,
-    );
+    });
     _onMutationQueued?.call();
   }
 
@@ -254,22 +260,25 @@ class TaskListsRepository {
       );
       return;
     }
-    await _updateLocalList(
-      id,
-      TaskListsCompanion(
-        pendingDelete: const Value(true),
-        localDirty: const Value(true),
-        updatedLocalAtUtc: Value(now),
-      ),
-    );
-    await _enqueue(
-      operation: 'delete_task_list',
-      taskListId: id,
-      request: const {},
-      baselineUpdatedUtc: baseline?.updatedUtc,
-      baselineRawJson: baseline?.rawJson,
-      createdAtUtc: now,
-    );
+    await _database.transaction(() async {
+      final current = await _baselineRow(id);
+      await _updateLocalList(
+        id,
+        TaskListsCompanion(
+          pendingDelete: const Value(true),
+          localDirty: const Value(true),
+          updatedLocalAtUtc: Value(now),
+        ),
+      );
+      await _enqueue(
+        operation: 'delete_task_list',
+        taskListId: id,
+        request: const {},
+        baselineUpdatedUtc: current?.updatedUtc,
+        baselineRawJson: current?.rawJson,
+        createdAtUtc: now,
+      );
+    });
     await NotificationScheduleService(
       database: _database,
       nowUtc: _nowUtc,
@@ -324,8 +333,11 @@ class TaskListsRepository {
     String? localTempId,
     String? baselineUpdatedUtc,
     String? baselineRawJson,
-  }) {
-    return _database.pendingOpsDao.enqueue(
+  }) async {
+    final predecessor = taskListId == null
+        ? null
+        : await _latestPendingTaskListOperation(taskListId);
+    await _database.pendingOpsDao.enqueue(
       PendingOpsCompanion.insert(
         id: _uuid.v4(),
         accountId: _accountId,
@@ -333,6 +345,7 @@ class TaskListsRepository {
         operation: operation,
         taskListId: Value(taskListId),
         localTempId: Value(localTempId),
+        dependsOnOpId: Value(predecessor?.id),
         requestJson: jsonEncode(request),
         baselineUpdatedUtc: Value(baselineUpdatedUtc),
         baselineRawJson: Value(baselineRawJson),
@@ -340,6 +353,33 @@ class TaskListsRepository {
         updatedAtUtc: createdAtUtc,
       ),
     );
+  }
+
+  Future<PendingOp?> _latestPendingTaskListOperation(String taskListId) async {
+    final operations =
+        await (_database.select(_database.pendingOps)
+              ..where(
+                (row) =>
+                    row.accountId.equals(_accountId) &
+                    row.entityType.equals('task_list') &
+                    row.operation.isIn(_taskListMutationOperations) &
+                    (row.taskListId.equals(taskListId) |
+                        row.localTempId.equals(taskListId)),
+              )
+              ..orderBy([
+                (row) => OrderingTerm.desc(row.createdAtUtc),
+                (row) => OrderingTerm.desc(row.updatedAtUtc),
+                (row) => OrderingTerm.desc(row.id),
+              ]))
+            .get();
+    final predecessorIds = {
+      for (final operation in operations)
+        if (operation.dependsOnOpId != null) operation.dependsOnOpId!,
+    };
+    for (final operation in operations) {
+      if (!predecessorIds.contains(operation.id)) return operation;
+    }
+    return operations.firstOrNull;
   }
 
   Future<TaskList?> _baselineRow(String id) {
@@ -371,6 +411,13 @@ class TaskListsRepository {
 
   String _now() => _nowUtc().toIso8601String();
 }
+
+const _taskListMutationOperations = {
+  'create_task_list',
+  'patch_task_list',
+  'update_task_list',
+  'delete_task_list',
+};
 
 TaskListsCompanion taskListFromDto(
   String accountId,

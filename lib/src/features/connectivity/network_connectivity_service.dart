@@ -4,12 +4,24 @@ import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:http/http.dart' as http;
 import 'package:logging/logging.dart';
 
+import '../../core/http/request_dispatch_exception.dart';
 import '../../core/logging/redacting_logger.dart';
 
 enum NetworkAvailability { unknown, online, offline }
 
-final class NetworkUnavailableException implements Exception {
+final class NetworkUnavailableException
+    implements RequestNotDispatchedException {
   const NetworkUnavailableException();
+
+  @override
+  RequestPreDispatchFailureKind get kind =>
+      RequestPreDispatchFailureKind.connectivity;
+
+  @override
+  Object? get cause => null;
+
+  @override
+  String get code => 'connectivity_failed_before_dispatch';
 
   @override
   String toString() => 'NetworkUnavailableException';
@@ -206,7 +218,20 @@ final class ConnectivityAwareHttpClient extends http.BaseClient {
 
   @override
   Future<http.StreamedResponse> send(http.BaseRequest request) async {
-    await _requireNetwork();
+    try {
+      await _requireNetwork();
+    } on Object catch (error, stackTrace) {
+      if (error is RequestNotDispatchedException) {
+        Error.throwWithStackTrace(error, stackTrace);
+      }
+      Error.throwWithStackTrace(
+        KnownUnsentRequestException(
+          kind: RequestPreDispatchFailureKind.connectivity,
+          cause: error,
+        ),
+        stackTrace,
+      );
+    }
     return _inner.send(request);
   }
 
