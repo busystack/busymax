@@ -6,7 +6,10 @@ import 'microsoft_todo_api_error.dart';
 import 'microsoft_todo_api_models.dart';
 
 class MicrosoftTodoTaskRemoteClient
-    implements TaskRemoteClient, TaskChecklistRemoteClient {
+    implements
+        TaskRemoteClient,
+        TaskChecklistRemoteClient,
+        TaskConflictSnapshotNormalizer {
   MicrosoftTodoTaskRemoteClient({
     required MicrosoftTodoApiClient client,
     required String defaultTimeZone,
@@ -18,6 +21,69 @@ class MicrosoftTodoTaskRemoteClient
   final MicrosoftTodoApiClient _client;
   final String _defaultTimeZone;
   final DateTime Function() _nowUtc;
+
+  @override
+  Map<String, Object?> normalizeTaskConflictSnapshot(
+    Map<String, Object?> snapshot,
+  ) {
+    final normalized = Map<String, Object?>.from(snapshot);
+    if (!normalized.containsKey('notes') && snapshot.containsKey('body')) {
+      final body = snapshot['body'];
+      final content = body is Map ? body['content']?.toString() ?? '' : '';
+      normalized['notes'] = _htmlToPlainText(content);
+    }
+    _putMicrosoftDateTimeAliases(
+      normalized,
+      snapshot,
+      graphField: 'dueDateTime',
+      dateTimeField: 'microsoftDueDateTime',
+      timeZoneField: 'microsoftDueTimeZone',
+    );
+    if (!normalized.containsKey('due') && snapshot.containsKey('dueDateTime')) {
+      final dueDateTime = _dateTimePart(snapshot['dueDateTime']);
+      normalized['due'] = dueDateTime == null || dueDateTime.length < 10
+          ? dueDateTime
+          : dueDateTime.substring(0, 10);
+    }
+    _putMicrosoftDateTimeAliases(
+      normalized,
+      snapshot,
+      graphField: 'startDateTime',
+      dateTimeField: 'microsoftStartDateTime',
+      timeZoneField: 'microsoftStartTimeZone',
+    );
+    _putMicrosoftDateTimeAliases(
+      normalized,
+      snapshot,
+      graphField: 'reminderDateTime',
+      dateTimeField: 'microsoftReminderDateTime',
+      timeZoneField: 'microsoftReminderTimeZone',
+    );
+    _putMicrosoftDateTimeAliases(
+      normalized,
+      snapshot,
+      graphField: 'completedDateTime',
+      dateTimeField: 'microsoftCompletedDateTime',
+      timeZoneField: 'microsoftCompletedTimeZone',
+    );
+    if (!normalized.containsKey('microsoftIsReminderOn') &&
+        snapshot.containsKey('isReminderOn')) {
+      normalized['microsoftIsReminderOn'] = snapshot['isReminderOn'];
+    }
+    return normalized;
+  }
+
+  @override
+  Map<String, Object?> normalizeTaskListConflictSnapshot(
+    Map<String, Object?> snapshot,
+  ) {
+    final normalized = Map<String, Object?>.from(snapshot);
+    if (!normalized.containsKey('title') &&
+        snapshot.containsKey('displayName')) {
+      normalized['title'] = snapshot['displayName'];
+    }
+    return normalized;
+  }
 
   @override
   Future<TaskListDto> createTaskList({required String title}) async {
@@ -498,4 +564,30 @@ String _htmlEscape(String text) {
       .replaceAll('>', '&gt;')
       .replaceAll('"', '&quot;')
       .replaceAll("'", '&#39;');
+}
+
+void _putMicrosoftDateTimeAliases(
+  Map<String, Object?> normalized,
+  Map<String, Object?> snapshot, {
+  required String graphField,
+  required String dateTimeField,
+  required String timeZoneField,
+}) {
+  if (!snapshot.containsKey(graphField)) return;
+  final value = snapshot[graphField];
+  if (!normalized.containsKey(dateTimeField)) {
+    normalized[dateTimeField] = value;
+  }
+  if (!normalized.containsKey(timeZoneField)) {
+    normalized[timeZoneField] = value is Map
+        ? value['timeZone']?.toString()
+        : null;
+  }
+}
+
+String? _dateTimePart(Object? value) {
+  if (value is Map) {
+    return value['dateTime']?.toString();
+  }
+  return value?.toString();
 }

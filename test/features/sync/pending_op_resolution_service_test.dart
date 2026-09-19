@@ -583,6 +583,32 @@ void main() {
     },
   );
 
+  test('unknown-outcome task creation cannot be retried blindly', () async {
+    await _enqueueBlockedOp(
+      database,
+      operation: 'create_task',
+      taskListId: 'list-1',
+      taskId: 'local-task-1',
+      state: 'recovery_required',
+    );
+
+    await expectLater(
+      service.retryNow('op-1'),
+      throwsA(
+        isA<StateError>().having(
+          (error) => error.message,
+          'message',
+          contains('cannot be retried safely'),
+        ),
+      ),
+    );
+
+    final pending = await database.pendingOpsDao.getOp('op-1');
+    expect(pending!.state, 'recovery_required');
+    expect(pending.nextAttemptAtUtc, startsWith('9999-12-31'));
+    expect(taskSyncCalls, 0);
+  });
+
   test(
     'retry routes event synchronization through the calendar callback',
     () async {
@@ -721,6 +747,7 @@ Future<void> _enqueueBlockedOp(
   String? taskListId,
   String? taskId,
   String? calendarSourceId,
+  String state = 'pending',
   Map<String, Object?> request = const {},
 }) {
   return database.pendingOpsDao.enqueue(
@@ -734,6 +761,7 @@ Future<void> _enqueueBlockedOp(
       taskId: Value(taskId),
       calendarSourceId: Value(calendarSourceId),
       requestJson: jsonEncode(request),
+      state: Value(state),
       nextAttemptAtUtc: const Value('9999-12-31T00:00:00.000Z'),
       lastErrorCode: const Value('conflict'),
       createdAtUtc: _now,

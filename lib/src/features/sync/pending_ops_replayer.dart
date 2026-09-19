@@ -68,8 +68,27 @@ class PendingOpsReplayer {
         if (op.dependsOnOpId != null && await _opExists(op.dependsOnOpId!)) {
           continue;
         }
-        if (op.operation == 'create_task' && !await _claimTaskCreate(op)) {
-          continue;
+        if (_isCreationOp(op)) {
+          if (op.state == 'in_progress') {
+            await _blockUnknownCreationOutcome(
+              op,
+              'The app stopped before the result of this creation request '
+              'was recorded. Check the provider before discarding the '
+              'local operation.',
+            );
+            handledIds.add(op.id);
+            madeProgress = true;
+            continue;
+          }
+          if (op.state == 'recovery_required') {
+            await _restoreUnknownCreationOutcomeBlock(op);
+            handledIds.add(op.id);
+            madeProgress = true;
+            continue;
+          }
+          if (!await _claimCreation(op)) {
+            continue;
+          }
         }
         handledIds.add(op.id);
         madeProgress = true;
@@ -83,6 +102,9 @@ class PendingOpsReplayer {
             await _applyDeleteSideEffect(op);
             await _database.pendingOpsDao.deleteOp(op.id);
             applied += 1;
+          } else if (_isCreationOp(op) &&
+              _hasUnknownCreationOutcome(error.statusCode)) {
+            await _blockUnknownCreationOutcome(op, error.message);
           } else if (_isRetryableStatus(error.statusCode)) {
             await _scheduleRetry(
               op,
@@ -95,11 +117,15 @@ class PendingOpsReplayer {
         } on _PendingOpBlocked {
           continue;
         } on Object catch (error) {
-          await _scheduleRetry(
-            op,
-            error.runtimeType.toString(),
-            error.toString(),
-          );
+          if (_isCreationOp(op)) {
+            await _blockUnknownCreationOutcome(op, error.toString());
+          } else {
+            await _scheduleRetry(
+              op,
+              error.runtimeType.toString(),
+              error.toString(),
+            );
+          }
         }
       }
     }
@@ -111,6 +137,12 @@ class PendingOpsReplayer {
     return op.entityType == 'task' ||
         op.entityType == 'task_list' ||
         op.entityType == 'task_checklist_item';
+  }
+
+  bool _isCreationOp(PendingOp op) {
+    return op.operation == 'create_task_list' ||
+        op.operation == 'create_task' ||
+        op.operation == 'create_task_checklist_item';
   }
 
   Future<void> _replay(PendingOp op) async {
@@ -282,14 +314,17 @@ class PendingOpsReplayer {
 
     final acknowledgedFields = _request(completedOp).keys;
     for (final dependent in dependents) {
-      final baseline = _jsonObject(dependent.baselineRawJson ?? '{}');
+      final baseline = _normalizeTaskConflictSnapshot(
+        _jsonObject(dependent.baselineRawJson ?? '{}'),
+      );
+      final serverSnapshot = _normalizeTaskConflictSnapshot(serverTask.rawJson);
       final usesWholeTaskConflictBoundary =
           dependent.operation == 'move_task' ||
           dependent.operation == 'delete_task';
       // Keep the original timestamp and untouched fields so a provider edit to
       // a different field is still detected by a dependent field-level edit.
       for (final field in acknowledgedFields) {
-        baseline[field] = serverTask.rawJson[field];
+        baseline[field] = serverSnapshot[field];
       }
       await (_database.update(
         _database.pendingOps,
@@ -694,10 +729,8 @@ class PendingOpsReplayer {
       nextAttemptAtUtc: nextAttempt,
       lastErrorCode: errorCode,
       lastErrorMessage: errorMessage,
+      state: _isCreationOp(op) ? 'retry' : null,
     );
-    if (op.operation == 'create_task') {
-      await _setPendingOpState(op.id, 'retry');
-    }
   }
 
   Future<void> _blockOp(
@@ -711,13 +744,45 @@ class PendingOpsReplayer {
       nextAttemptAtUtc: DateTime.utc(9999, 12, 31),
       lastErrorCode: errorCode,
       lastErrorMessage: errorMessage,
+      state: _isCreationOp(op) ? 'failed' : null,
     );
-    if (op.operation == 'create_task') {
-      await _setPendingOpState(op.id, 'failed');
-    }
   }
 
-  Future<bool> _claimTaskCreate(PendingOp op) async {
+  Future<void> _blockUnknownCreationOutcome(
+    PendingOp op,
+    String errorMessage,
+  ) async {
+    await _database.pendingOpsDao.updateAttempt(
+      id: op.id,
+      attemptCount: op.attemptCount + 1,
+      nextAttemptAtUtc: DateTime.utc(9999, 12, 31),
+      lastErrorCode: 'creation_outcome_unknown',
+      lastErrorMessage:
+          'The provider may already have created this item. Automatic replay '
+          'was stopped to avoid a duplicate. $errorMessage',
+      state: 'recovery_required',
+    );
+  }
+
+  Future<void> _restoreUnknownCreationOutcomeBlock(PendingOp op) {
+    return _database.pendingOpsDao.updateAttempt(
+      id: op.id,
+      attemptCount: op.attemptCount,
+      nextAttemptAtUtc: DateTime.utc(9999, 12, 31),
+      lastErrorCode: 'creation_outcome_unknown',
+      lastErrorMessage:
+          op.lastErrorMessage ??
+          'The provider may already have created this item. Automatic replay '
+              'was stopped to avoid a duplicate.',
+      state: 'recovery_required',
+    );
+  }
+
+  bool _hasUnknownCreationOutcome(int statusCode) {
+    return statusCode == 408 || statusCode >= 500;
+  }
+
+  Future<bool> _claimCreation(PendingOp op) async {
     final query = _database.update(_database.pendingOps)
       ..where(
         (row) =>
@@ -731,12 +796,6 @@ class PendingOpsReplayer {
           const PendingOpsCompanion(state: Value('in_progress')),
         ) ==
         1;
-  }
-
-  Future<void> _setPendingOpState(String id, String state) {
-    return (_database.update(_database.pendingOps)
-          ..where((row) => row.id.equals(id)))
-        .write(PendingOpsCompanion(state: Value(state)));
   }
 
   DateTime _nextAttempt(int attemptCount) {
@@ -786,12 +845,16 @@ class PendingOpsReplayer {
     final baselineJson = op.baselineRawJson == null
         ? _jsonObject(local.rawJson)
         : _jsonObject(op.baselineRawJson!);
+    final normalizedBaseline = _normalizeTaskListConflictSnapshot(baselineJson);
+    final normalizedCurrent = _normalizeTaskListConflictSnapshot(
+      current.rawJson,
+    );
     final conflict = const ConflictDetector().detect(
       entityType: 'task_list',
       entityId: op.taskListId!,
       localPendingFields: pendingFields,
-      lastServerJson: baselineJson,
-      currentServerJson: current.rawJson,
+      lastServerJson: normalizedBaseline,
+      currentServerJson: normalizedCurrent,
       baselineUpdatedUtc: baselineUpdatedUtc,
       currentUpdatedUtc: current.updated,
     );
@@ -834,12 +897,14 @@ class PendingOpsReplayer {
     final baselineJson = op.baselineRawJson == null
         ? _jsonObject(local.rawJson)
         : _jsonObject(op.baselineRawJson!);
+    final normalizedBaseline = _normalizeTaskConflictSnapshot(baselineJson);
+    final normalizedCurrent = _normalizeTaskConflictSnapshot(current.rawJson);
     final conflict = const ConflictDetector().detect(
       entityType: 'task',
       entityId: op.taskId!,
       localPendingFields: pendingFields,
-      lastServerJson: baselineJson,
-      currentServerJson: current.rawJson,
+      lastServerJson: normalizedBaseline,
+      currentServerJson: normalizedCurrent,
       baselineUpdatedUtc: baselineUpdatedUtc,
       currentUpdatedUtc: current.updated,
     );
@@ -849,6 +914,26 @@ class PendingOpsReplayer {
         'Remote task changed fields: ${conflict.changedFields.toList()..sort()}',
       );
     }
+  }
+
+  Map<String, Object?> _normalizeTaskConflictSnapshot(
+    Map<String, Object?> snapshot,
+  ) {
+    final client = _apiClient;
+    return client is TaskConflictSnapshotNormalizer
+        ? (client as TaskConflictSnapshotNormalizer)
+              .normalizeTaskConflictSnapshot(snapshot)
+        : snapshot;
+  }
+
+  Map<String, Object?> _normalizeTaskListConflictSnapshot(
+    Map<String, Object?> snapshot,
+  ) {
+    final client = _apiClient;
+    return client is TaskConflictSnapshotNormalizer
+        ? (client as TaskConflictSnapshotNormalizer)
+              .normalizeTaskListConflictSnapshot(snapshot)
+        : snapshot;
   }
 
   Future<void> _ensureTaskListUnchanged(PendingOp op, String action) async {

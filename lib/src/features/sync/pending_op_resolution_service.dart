@@ -43,6 +43,14 @@ class PendingOpResolutionService {
     final op = await _database.pendingOpsDao.getOp(opId);
     if (op == null) return;
     _requireOwnedOperation(op);
+    if (op.state == 'recovery_required' &&
+        _isTaskCreationOperation(op.operation)) {
+      throw StateError(
+        'This creation cannot be retried safely because the provider may '
+        'already have created the item. Check the provider, then discard this '
+        'operation or resolve the duplicate manually.',
+      );
+    }
     if (isDavPendingOperation(op)) {
       await DavPendingOperationQueue(
         database: _database,
@@ -52,6 +60,12 @@ class PendingOpResolutionService {
       await _database.pendingOpsDao.retryNow(opId, _nowUtc());
     }
     await _syncAfterResolution(op);
+  }
+
+  bool _isTaskCreationOperation(String operation) {
+    return operation == 'create_task_list' ||
+        operation == 'create_task' ||
+        operation == 'create_task_checklist_item';
   }
 
   Future<void> discard(String opId) async {

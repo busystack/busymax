@@ -406,7 +406,7 @@ void main() {
     expect(apiClient.calls, ['create_task:list-1']);
   });
 
-  test('task edit waits while its creation is retrying', () async {
+  test('task edit waits while a rate-limited creation is retrying', () async {
     final repository = TasksRepository(
       database: database,
       accountId: 'account',
@@ -426,8 +426,8 @@ void main() {
       const TaskPatchInput({'title': 'Edited offline'}),
     );
     apiClient.createTaskError = const GoogleTasksApiError(
-      statusCode: 503,
-      message: 'Temporarily unavailable',
+      statusCode: 429,
+      message: 'Rate limited',
     );
 
     final firstApplied = await PendingOpsReplayer(
@@ -470,6 +470,106 @@ void main() {
     expect(apiClient.taskPatchFields.single['title'], 'Edited offline');
     operations = await database.select(database.pendingOps).get();
     expect(operations, isEmpty);
+  });
+
+  test('unknown task creation outcome is not submitted again', () async {
+    await database.tasksDao.upsertTask(
+      _task('list-1', 'local-task-1', title: 'Draft'),
+    );
+    await _enqueue(
+      database,
+      id: '01',
+      operation: 'create_task',
+      taskListId: 'list-1',
+      taskId: 'local-task-1',
+      localTempId: 'local-task-1',
+      request: {
+        'body': {'title': 'Draft'},
+      },
+    );
+    apiClient.createTaskError = StateError('response was lost');
+
+    final replayer = PendingOpsReplayer(
+      database: database,
+      apiClient: apiClient,
+      accountId: 'account',
+      random: Random(0),
+      nowUtc: () => DateTime.utc(2026, 6, 4),
+    );
+
+    expect(await replayer.replayDueOps(), 0);
+    final pending = await database.pendingOpsDao.getOp('01');
+    expect(pending!.state, 'recovery_required');
+    expect(pending.lastErrorCode, 'creation_outcome_unknown');
+    expect(pending.nextAttemptAtUtc, startsWith('9999-12-31'));
+
+    await database.pendingOpsDao.retryNow('01', DateTime.utc(2026, 6, 4));
+    expect(await replayer.replayDueOps(), 0);
+    final stillPending = await database.pendingOpsDao.getOp('01');
+    expect(stillPending!.state, 'recovery_required');
+    expect(stillPending.nextAttemptAtUtc, startsWith('9999-12-31'));
+    expect(apiClient.calls, ['create_task:list-1']);
+  });
+
+  test('abandoned in-progress task creation is not submitted again', () async {
+    await _enqueue(
+      database,
+      id: '01',
+      operation: 'create_task',
+      taskListId: 'list-1',
+      taskId: 'local-task-1',
+      localTempId: 'local-task-1',
+      request: {
+        'body': {'title': 'Draft'},
+      },
+    );
+    await (database.update(database.pendingOps)
+          ..where((row) => row.id.equals('01')))
+        .write(const PendingOpsCompanion(state: Value('in_progress')));
+
+    expect(
+      await PendingOpsReplayer(
+        database: database,
+        apiClient: apiClient,
+        accountId: 'account',
+        nowUtc: () => DateTime.utc(2026, 6, 4),
+      ).replayDueOps(),
+      0,
+    );
+
+    final pending = await database.pendingOpsDao.getOp('01');
+    expect(pending!.state, 'recovery_required');
+    expect(pending.lastErrorCode, 'creation_outcome_unknown');
+    expect(apiClient.calls, isEmpty);
+  });
+
+  test('unknown task-list creation outcome is not submitted again', () async {
+    await database.taskListsDao.upsertTaskList(
+      _taskList('local-list', title: 'Draft list'),
+    );
+    await _enqueue(
+      database,
+      id: '01',
+      operation: 'create_task_list',
+      entityType: 'task_list',
+      taskListId: 'local-list',
+      localTempId: 'local-list',
+      request: {'title': 'Draft list'},
+    );
+    apiClient.createTaskListError = StateError('response was lost');
+
+    final replayer = PendingOpsReplayer(
+      database: database,
+      apiClient: apiClient,
+      accountId: 'account',
+      nowUtc: () => DateTime.utc(2026, 6, 4),
+    );
+    expect(await replayer.replayDueOps(), 0);
+    expect(await replayer.replayDueOps(), 0);
+
+    final pending = await database.pendingOpsDao.getOp('01');
+    expect(pending!.state, 'recovery_required');
+    expect(apiClient.calls, ['create_task_list:Draft list']);
   });
 
   test('deleting a task whose create is in flight queues after it', () async {
@@ -951,6 +1051,111 @@ void main() {
     expect(op.lastErrorCode, 'conflict');
     expect(op.lastErrorMessage, contains('Remote task changed fields'));
   });
+
+  for (final conflictCase in [
+    (
+      name: 'notes',
+      field: 'notes',
+      localValue: 'Local notes' as Object?,
+      baseline: <String, Object?>{
+        'body': {'content': '<p>Base notes</p>', 'contentType': 'html'},
+      },
+      current: <String, Object?>{
+        'body': {'content': '<p>Remote notes</p>', 'contentType': 'html'},
+      },
+    ),
+    (
+      name: 'due date',
+      field: 'microsoftDueDateTime',
+      localValue: <String, Object?>{
+        'dateTime': '2026-06-07T09:00:00',
+        'timeZone': 'UTC',
+      },
+      baseline: <String, Object?>{
+        'dueDateTime': {'dateTime': '2026-06-05T09:00:00', 'timeZone': 'UTC'},
+      },
+      current: <String, Object?>{
+        'dueDateTime': {'dateTime': '2026-06-06T09:00:00', 'timeZone': 'UTC'},
+      },
+    ),
+    (
+      name: 'reminder date',
+      field: 'microsoftReminderDateTime',
+      localValue: <String, Object?>{
+        'dateTime': '2026-06-07T08:00:00',
+        'timeZone': 'UTC',
+      },
+      baseline: <String, Object?>{
+        'reminderDateTime': {
+          'dateTime': '2026-06-05T08:00:00',
+          'timeZone': 'UTC',
+        },
+      },
+      current: <String, Object?>{
+        'reminderDateTime': {
+          'dateTime': '2026-06-06T08:00:00',
+          'timeZone': 'UTC',
+        },
+      },
+    ),
+    (
+      name: 'reminder setting',
+      field: 'microsoftIsReminderOn',
+      localValue: true as Object?,
+      baseline: <String, Object?>{'isReminderOn': false},
+      current: <String, Object?>{'isReminderOn': true},
+    ),
+  ]) {
+    test(
+      'Microsoft ${conflictCase.name} overlap is blocked before mutation',
+      () async {
+        final baselineRaw = <String, Object?>{
+          'id': 'task-1',
+          'title': 'Task',
+          'lastModifiedDateTime': '2026-06-04T00:00:00.000Z',
+          ...conflictCase.baseline,
+        };
+        final remoteRaw = <String, Object?>{
+          'id': 'task-1',
+          'title': 'Task',
+          'lastModifiedDateTime': '2026-06-04T00:10:00.000Z',
+          ...conflictCase.current,
+        };
+        await database.tasksDao.upsertTask(
+          _task(
+            'list-1',
+            'task-1',
+            updatedUtc: '2026-06-04T00:00:00.000Z',
+            rawJson: jsonEncode(baselineRaw),
+          ),
+        );
+        await _enqueue(
+          database,
+          id: '01',
+          operation: 'patch_task',
+          taskListId: 'list-1',
+          taskId: 'task-1',
+          request: {conflictCase.field: conflictCase.localValue},
+          baselineUpdatedUtc: '2026-06-04T00:00:00.000Z',
+          baselineRawJson: jsonEncode(baselineRaw),
+        );
+        final graphClient = _ConflictMicrosoftTodoApiClient(remoteRaw);
+
+        final applied = await PendingOpsReplayer(
+          database: database,
+          apiClient: _microsoftAdapter(graphClient),
+          accountId: 'account',
+          nowUtc: () => DateTime.utc(2026, 6, 4, 1),
+        ).replayDueOps();
+
+        final pending = await database.pendingOpsDao.getOp('01');
+        expect(applied, 0);
+        expect(graphClient.updateTaskCalls, 0);
+        expect(pending!.lastErrorCode, 'conflict');
+        expect(pending.lastErrorMessage, contains(conflictCase.field));
+      },
+    );
+  }
 
   test(
     'back-to-back local task patches replay in order without self-conflict',
@@ -1649,6 +1854,37 @@ void main() {
       expect(await database.select(database.pendingOps).get(), isEmpty);
     },
   );
+
+  test('unknown checklist creation outcome is not submitted again', () async {
+    final checklistClient = _ChecklistTaskRemoteClient()
+      ..createChecklistItemError = StateError('response was lost');
+    await _enqueue(
+      database,
+      id: '01',
+      operation: 'create_task_checklist_item',
+      entityType: 'task_checklist_item',
+      taskListId: 'list-1',
+      taskId: 'task-1',
+      localTempId: 'local-step',
+      request: {
+        'checklistItemId': 'local-step',
+        'body': {'displayName': 'Step', 'isChecked': false},
+      },
+    );
+
+    final replayer = PendingOpsReplayer(
+      database: database,
+      apiClient: checklistClient,
+      accountId: 'account',
+      nowUtc: () => DateTime.utc(2026, 6, 4),
+    );
+    expect(await replayer.replayDueOps(), 0);
+    expect(await replayer.replayDueOps(), 0);
+
+    final pending = await database.pendingOpsDao.getOp('01');
+    expect(pending!.state, 'recovery_required');
+    expect(checklistClient.checklistCalls, ['create:Step']);
+  });
 }
 
 MicrosoftTodoTaskRemoteClient _microsoftAdapter(MicrosoftTodoApiClient client) {
@@ -1698,6 +1934,33 @@ class _ThrowingMicrosoftTodoApiClient implements MicrosoftTodoApiClient {
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 
+class _ConflictMicrosoftTodoApiClient implements MicrosoftTodoApiClient {
+  _ConflictMicrosoftTodoApiClient(Map<String, Object?> remoteTask)
+    : remoteTask = MicrosoftTodoTaskDto.fromJson(remoteTask);
+
+  final MicrosoftTodoTaskDto remoteTask;
+  int updateTaskCalls = 0;
+
+  @override
+  Future<MicrosoftTodoTaskDto> getTask({
+    required String taskListId,
+    required String taskId,
+  }) async => remoteTask;
+
+  @override
+  Future<MicrosoftTodoTaskDto> updateTask({
+    required String taskListId,
+    required String taskId,
+    required Map<String, Object?> patch,
+  }) async {
+    updateTaskCalls += 1;
+    return MicrosoftTodoTaskDto.fromJson({...remoteTask.rawJson, ...patch});
+  }
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
+
 class _FakeTaskRemoteClient implements TaskRemoteClient {
   TaskDto? createdTask;
   final calls = <String>[];
@@ -1705,7 +1968,8 @@ class _FakeTaskRemoteClient implements TaskRemoteClient {
   final createParentTaskIds = <String?>[];
   final moveParentTaskIds = <String?>[];
   GoogleTasksApiError? patchTaskListError;
-  GoogleTasksApiError? createTaskError;
+  Object? createTaskListError;
+  Object? createTaskError;
   GoogleTasksApiError? deleteTaskError;
   GoogleTasksApiError? clearCompletedError;
   GoogleTasksApiError? moveTaskError;
@@ -1719,6 +1983,8 @@ class _FakeTaskRemoteClient implements TaskRemoteClient {
   @override
   Future<TaskListDto> createTaskList({required String title}) async {
     calls.add('create_task_list:$title');
+    final error = createTaskListError;
+    if (error != null) throw error;
     return _taskListDto('list-server', title: title);
   }
 
@@ -1882,6 +2148,7 @@ class _FakeTaskRemoteClient implements TaskRemoteClient {
 class _ChecklistTaskRemoteClient extends _FakeTaskRemoteClient
     implements TaskChecklistRemoteClient {
   final checklistCalls = <String>[];
+  Object? createChecklistItemError;
 
   @override
   Future<TaskChecklistItemDto> createChecklistItem({
@@ -1891,6 +2158,8 @@ class _ChecklistTaskRemoteClient extends _FakeTaskRemoteClient
     bool completed = false,
   }) async {
     checklistCalls.add('create:$title');
+    final error = createChecklistItemError;
+    if (error != null) throw error;
     return TaskChecklistItemDto(
       id: 'server-step',
       title: title,
