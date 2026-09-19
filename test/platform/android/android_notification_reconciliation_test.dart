@@ -217,8 +217,16 @@ void main() {
   });
 
   test('quiet-hours deferral survives a second reconciliation', () async {
-    final tomorrow = DateTime.now().add(const Duration(days: 1));
-    final requested = DateTime(tomorrow.year, tomorrow.month, tomorrow.day, 23);
+    final notifications = service();
+    await notifications.initialize(timeZoneId: 'America/Vancouver');
+    final today = tz.TZDateTime.now(tz.local);
+    final requested = tz.TZDateTime(
+      tz.local,
+      today.year,
+      today.month,
+      today.day + 1,
+      23,
+    );
     settings = settings.copyWith(
       quietHoursEnabled: true,
       quietHoursStart: '22:00',
@@ -229,8 +237,6 @@ void main() {
       generation: 'generation-1',
       scheduledAt: requested,
     );
-    final notifications = service();
-    await notifications.initialize(timeZoneId: 'America/Vancouver');
 
     await notifications.reconcile();
     final mapping = await database
