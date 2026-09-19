@@ -1349,6 +1349,61 @@ void main() {
       expect(confirmBody, isNot(contains('return AlertDialog(')));
     });
 
+    test('Linux DAV feature dialogs reuse BusyMax presentation', () {
+      final collection = File(
+        'lib/src/dav/presentation/nextcloud_collection_dialog.dart',
+      ).readAsStringSync();
+      final scheduling = File(
+        'lib/src/dav/presentation/nextcloud_scheduling_dialog.dart',
+      ).readAsStringSync();
+      final accounts = File(
+        'lib/src/dav/auth/dav_account_dialogs.dart',
+      ).readAsStringSync();
+      final settings = File(
+        'lib/src/features/settings/presentation/settings_screen.dart',
+      ).readAsStringSync();
+      final importFlow = File(
+        'lib/src/features/calendar/presentation/ical_import_flow.dart',
+      ).readAsStringSync();
+
+      for (final source in [collection, scheduling]) {
+        expect(source, contains('showBusyMaxModalDialog<void>('));
+        expect(source, contains('BusyMaxDialogShell('));
+        expect(source, isNot(contains('showDialog<')));
+        expect(source, isNot(contains('AlertDialog(')));
+      }
+      expect(collection, contains('BusyMaxEditorHeader('));
+      expect(collection, contains('showBusyMaxConfirm('));
+      expect(scheduling, contains('showBusyMaxConfirm('));
+
+      expect(accounts, contains('BusyMaxGroupedList('));
+      expect(accounts, contains('busyMaxGroupedTextFieldDecoration('));
+      expect(accounts, contains("Key('nextcloud-server-field')"));
+      expect(accounts, contains("Key('apple-account-email-field')"));
+
+      final subscriptionStart = settings.indexOf('class _WebCalAddDialog');
+      final subscriptionEnd = settings.indexOf(
+        'String _refreshModeLabel',
+        subscriptionStart,
+      );
+      final subscription = settings.substring(
+        subscriptionStart,
+        subscriptionEnd,
+      );
+      expect(subscription, contains('BusyMaxGroupedList('));
+      expect(subscription, contains('busyMaxGroupedTextFieldDecoration('));
+      expect(subscription, contains('BusyMaxComboRow<WebCalRefreshMode>('));
+
+      final previewStart = importFlow.indexOf('class _IcalImportPreviewDialog');
+      final previewEnd = importFlow.indexOf(
+        'class _IcalImportReportDialog',
+        previewStart,
+      );
+      final preview = importFlow.substring(previewStart, previewEnd);
+      expect(preview, contains('YaruCheckboxListTile('));
+      expect(preview, isNot(contains('\n          CheckboxListTile(')));
+    });
+
     test(
       'schedule search filters use BusyMax rows without a dedicated native subsystem',
       () {

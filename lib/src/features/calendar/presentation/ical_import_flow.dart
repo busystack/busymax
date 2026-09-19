@@ -1,6 +1,7 @@
 import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:yaru/yaru.dart';
 
 import '../../../app/app_bootstrap.dart';
 import '../../../app/busymax_design.dart';
@@ -9,6 +10,7 @@ import '../../../ical/ical_import_service.dart';
 import '../../../ical/ical_ingestion.dart';
 import '../../../l10n/l10n.dart';
 import '../../../providers/busy_provider.dart';
+import '../../../platform/linux_header_bar_service.dart';
 import '../../../platform/linux_header_bar_provider.dart';
 import '../data/calendar_repository.dart';
 
@@ -43,15 +45,12 @@ Future<void> showIcsImportFlow(
         account.id: account.selectorLabel,
     };
     if (!context.mounted) return;
-    final selection = await showBusyMaxModalDialog<IcalImportSelection>(
+    final selection = await showIcalImportPreviewDialog(
       context,
+      preview: preview,
+      destinations: destinations,
+      accountLabels: accountLabels,
       headerBarService: ref.read(linuxHeaderBarServiceProvider),
-      barrierDismissible: false,
-      builder: (dialogContext) => _IcalImportPreviewDialog(
-        preview: preview,
-        destinations: destinations,
-        accountLabels: accountLabels,
-      ),
     );
     if (selection == null || !context.mounted) return;
     final report = await service.importPreview(
@@ -77,6 +76,25 @@ Future<void> showIcsImportFlow(
       context,
     ).showSnackBar(SnackBar(content: Text(context.l10n.importIcsFailed(code))));
   }
+}
+
+Future<IcalImportSelection?> showIcalImportPreviewDialog(
+  BuildContext context, {
+  required IcalImportPreview preview,
+  required List<CalendarSourceEntity> destinations,
+  required Map<String, String> accountLabels,
+  LinuxHeaderBarService? headerBarService,
+}) {
+  return showBusyMaxModalDialog<IcalImportSelection>(
+    context,
+    headerBarService: headerBarService,
+    barrierDismissible: false,
+    builder: (dialogContext) => _IcalImportPreviewDialog(
+      preview: preview,
+      destinations: destinations,
+      accountLabels: accountLabels,
+    ),
+  );
 }
 
 class _IcalImportPreviewDialog extends StatefulWidget {
@@ -142,11 +160,18 @@ class _IcalImportPreviewDialogState extends State<_IcalImportPreviewDialog> {
           Text(l10n.nextcloudNativeImport),
           if (widget.preview.nativePreview.schedulingMethod != null)
             Text(l10n.nextcloudImportMethod),
-          CheckboxListTile(
-            contentPadding: EdgeInsets.zero,
-            title: Text(l10n.nextcloudImportCopies),
-            value: _newCopies,
-            onChanged: (value) => setState(() => _newCopies = value == true),
+          BusyMaxGroupedList(
+            filled: true,
+            children: [
+              YaruCheckboxListTile(
+                key: const ValueKey('nextcloud-import-copies'),
+                title: Text(l10n.nextcloudImportCopies),
+                value: _newCopies,
+                onChanged: (value) =>
+                    setState(() => _newCopies = value == true),
+                shape: const RoundedRectangleBorder(),
+              ),
+            ],
           ),
         ],
         if (widget.preview.invalidEventCount > 0)

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:yaru/yaru.dart';
 
 import '../../app/busymax_design.dart';
 import '../../app/busymax_dialogs.dart';
@@ -89,53 +90,60 @@ final class _AppleCredentialDialogState extends State<_AppleCredentialDialog> {
       ],
       children: [
         Text(l10n.appleAppSpecificPasswordHelp),
-        const SizedBox(height: BusyMaxSpacing.md),
-        TextField(
-          key: const Key('apple-account-email-field'),
-          controller: _email,
-          focusNode: _emailFocus,
-          autofocus: widget.fixedEmail == null,
-          readOnly: widget.fixedEmail != null,
-          keyboardType: TextInputType.emailAddress,
-          autofillHints: const [AutofillHints.username, AutofillHints.email],
-          textInputAction: TextInputAction.next,
-          onSubmitted: (_) => _passwordFocus.requestFocus(),
-          onChanged: (_) => setState(() {}),
-          decoration: InputDecoration(
-            labelText: l10n.appleAccountEmail,
-            errorText: emailMissing ? l10n.requiredField : null,
-          ),
-        ),
-        const SizedBox(height: BusyMaxSpacing.md),
-        Semantics(
-          textField: true,
-          label: l10n.appleAppSpecificPassword,
-          child: TextField(
-            key: const Key('apple-app-specific-password-field'),
-            controller: _password,
-            focusNode: _passwordFocus,
-            autofocus: widget.fixedEmail != null,
-            obscureText: true,
-            enableSuggestions: false,
-            autocorrect: false,
-            autofillHints: const [AutofillHints.password],
-            textInputAction: TextInputAction.done,
-            onSubmitted: (_) => _submit(),
-            onChanged: (_) => setState(() {}),
-            decoration: InputDecoration(
-              labelText: l10n.appleAppSpecificPassword,
-              errorText: passwordMissing ? l10n.requiredField : null,
+        BusyMaxGroupedList(
+          filled: true,
+          children: [
+            YaruListTile.square(
+              title: TextField(
+                key: const Key('apple-account-email-field'),
+                controller: _email,
+                focusNode: _emailFocus,
+                autofocus: widget.fixedEmail == null,
+                readOnly: widget.fixedEmail != null,
+                keyboardType: TextInputType.emailAddress,
+                autofillHints: const [
+                  AutofillHints.username,
+                  AutofillHints.email,
+                ],
+                textInputAction: TextInputAction.next,
+                onSubmitted: (_) => _passwordFocus.requestFocus(),
+                onChanged: (_) => setState(() {}),
+                decoration: busyMaxGroupedTextFieldDecoration(
+                  context,
+                  labelText: l10n.appleAccountEmail,
+                  errorText: emailMissing ? l10n.requiredField : null,
+                ),
+              ),
             ),
-          ),
+            YaruListTile.square(
+              title: Semantics(
+                textField: true,
+                label: l10n.appleAppSpecificPassword,
+                child: TextField(
+                  key: const Key('apple-app-specific-password-field'),
+                  controller: _password,
+                  focusNode: _passwordFocus,
+                  autofocus: widget.fixedEmail != null,
+                  obscureText: true,
+                  enableSuggestions: false,
+                  autocorrect: false,
+                  autofillHints: const [AutofillHints.password],
+                  textInputAction: TextInputAction.done,
+                  onSubmitted: (_) => _submit(),
+                  onChanged: (_) => setState(() {}),
+                  decoration: busyMaxGroupedTextFieldDecoration(
+                    context,
+                    labelText: l10n.appleAppSpecificPassword,
+                    errorText: passwordMissing ? l10n.requiredField : null,
+                  ),
+                ),
+              ),
+            ),
+          ],
         ),
         const SizedBox(height: BusyMaxSpacing.md),
         Text(
           l10n.appleAppSpecificPasswordResetWarning,
-          style: Theme.of(context).textTheme.bodySmall,
-        ),
-        const SizedBox(height: BusyMaxSpacing.sm),
-        Text(
-          l10n.davCachedOfflineNotice,
           style: Theme.of(context).textTheme.bodySmall,
         ),
       ],
@@ -191,32 +199,40 @@ final class _NextcloudServerDialogState extends State<_NextcloudServerDialog> {
         ),
       ],
       children: [
-        TextField(
-          key: const Key('nextcloud-server-field'),
-          controller: _server,
-          autofocus: true,
-          keyboardType: TextInputType.url,
-          autofillHints: const [AutofillHints.url],
-          textInputAction: TextInputAction.done,
-          onChanged: (_) => setState(() {}),
-          onSubmitted: (_) => _submit(),
-          decoration: InputDecoration(
-            labelText: l10n.nextcloudServerUrl,
-            hintText: 'https://cloud.example.com/remote.php/dav',
-            helperText: l10n.nextcloudServerUrlHelp,
-            helperMaxLines: 2,
-            errorText: _submitted && _server.text.trim().isEmpty
-                ? l10n.requiredField
-                : null,
-          ),
+        BusyMaxGroupedList(
+          filled: true,
+          children: [
+            YaruListTile.square(
+              title: TextField(
+                key: const Key('nextcloud-server-field'),
+                controller: _server,
+                autofocus: true,
+                keyboardType: TextInputType.url,
+                autofillHints: const [AutofillHints.url],
+                textInputAction: TextInputAction.done,
+                onChanged: (_) => setState(() {}),
+                onSubmitted: (_) => _submit(),
+                decoration:
+                    busyMaxGroupedTextFieldDecoration(
+                      context,
+                      labelText: l10n.nextcloudServerUrl,
+                      errorText: _submitted && _server.text.trim().isEmpty
+                          ? l10n.requiredField
+                          : null,
+                    ).copyWith(
+                      hintText: 'https://cloud.example.com/remote.php/dav',
+                    ),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: BusyMaxSpacing.sm),
+        Text(
+          l10n.nextcloudServerUrlHelp,
+          style: Theme.of(context).textTheme.bodySmall,
         ),
         const SizedBox(height: BusyMaxSpacing.md),
         Text(l10n.nextcloudBrowserAuthorizationHelp),
-        const SizedBox(height: BusyMaxSpacing.sm),
-        Text(
-          l10n.davCachedOfflineNotice,
-          style: Theme.of(context).textTheme.bodySmall,
-        ),
       ],
     );
   }

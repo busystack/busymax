@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 import 'dart:ui' as ui;
 
@@ -31,6 +32,8 @@ import 'package:busymax/src/platform/native_menu_service.dart';
 import 'package:busymax/src/features/tasks/presentation/desktop_date_time_fields.dart';
 import 'package:busymax/src/providers/busy_provider.dart';
 import 'package:busymax/src/providers/provider_capabilities.dart';
+import 'package:busymax/src/webcal/webcal_http_client.dart';
+import 'package:busymax/src/webcal/webcal_subscription_service.dart';
 import 'package:busymax/l10n/generated/app_localizations.dart';
 import 'package:drift/native.dart';
 import 'package:http/http.dart' as http;
@@ -625,6 +628,160 @@ void main() {
 
     expect(auth.removalCalls, isEmpty);
     expect(container.read(selectedAccountIdProvider), 'google:g');
+  });
+
+  testWidgets('subscription dialog groups, validates, and submits its form', (
+    tester,
+  ) async {
+    final database = AppDatabase(NativeDatabase.memory());
+    addTearDown(database.close);
+    final transport = _SettingsWebCalTransport();
+    final service = WebCalSubscriptionService(
+      database: database,
+      secretStore: InMemorySecretStore(),
+      httpTransport: transport,
+      idFactory: () => 'settings-subscription',
+      nowUtc: () => DateTime.utc(2026, 9, 19),
+      onNotificationScheduleChanged: () async {},
+    );
+    late BuildContext hostContext;
+    late WidgetRef widgetRef;
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          webCalSubscriptionServiceProvider.overrideWithValue(service),
+          linuxHeaderBarServiceProvider.overrideWith((ref) {
+            final header = LinuxHeaderBarService(isLinux: false);
+            ref.onDispose(header.dispose);
+            return header;
+          }),
+        ],
+        child: localizedTestApp(
+          theme: BusyMaxYaruTheme.build(
+            brightness: Brightness.dark,
+            accentColor: YaruColors.orange,
+          ),
+          child: Consumer(
+            builder: (context, ref, child) {
+              hostContext = context;
+              widgetRef = ref;
+              return const Scaffold(body: SizedBox.expand());
+            },
+          ),
+        ),
+      ),
+    );
+
+    final flow = showAddCalendarSubscriptionFlow(
+      hostContext,
+      widgetRef,
+      initialUrl: 'webcal://calendar.example.test/feed',
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.byType(BusyMaxDialogShell), findsOneWidget);
+    expect(find.byType(BusyMaxGroupedList), findsOneWidget);
+    final fields = find.descendant(
+      of: find.byType(BusyMaxDialogShell),
+      matching: find.byType(TextField),
+    );
+    expect(fields, findsNWidgets(3));
+    expect(
+      tester.widget<TextField>(fields.first).decoration?.border,
+      InputBorder.none,
+    );
+    expect(
+      tester.widget<TextField>(fields.first).controller!.text,
+      'webcal://calendar.example.test/feed',
+    );
+    expect(
+      find.textContaining('https://calendar.example.test'),
+      findsOneWidget,
+    );
+    expect(
+      find.byWidgetPredicate(
+        (widget) => widget is Text && (widget.data ?? '').contains('/feed'),
+      ),
+      findsNothing,
+    );
+
+    await tester.enterText(fields.first, 'not a subscription URL');
+    await tester.pump();
+    expect(
+      tester
+          .widget<ElevatedButton>(
+            find.byKey(const ValueKey('confirm-add-subscription')),
+          )
+          .onPressed,
+      isNull,
+    );
+
+    await tester.enterText(fields.first, 'webcal://calendar.example.test/feed');
+    await tester.enterText(fields.at(1), 'Team schedule');
+    await tester.enterText(fields.at(2), '#336699');
+    await tester.pump();
+    await tester.tap(find.byKey(const ValueKey('confirm-add-subscription')));
+    await tester.runAsync(() => flow);
+    await tester.pump();
+
+    expect(transport.requests, [
+      Uri.parse('https://calendar.example.test/feed'),
+    ]);
+    final subscription = await database
+        .select(database.webCalSubscriptions)
+        .getSingle();
+    final source = await database.select(database.calendarSources).getSingle();
+    expect(subscription.safeOrigin, 'https://calendar.example.test');
+    expect(subscription.refreshMode, WebCalRefreshMode.automatic.storageValue);
+    expect(source.summary, 'Team schedule');
+    expect(source.backgroundColor, '#336699');
+  });
+
+  testWidgets('subscription dialog cancellation performs no request', (
+    tester,
+  ) async {
+    final database = AppDatabase(NativeDatabase.memory());
+    addTearDown(database.close);
+    final transport = _SettingsWebCalTransport();
+    final service = WebCalSubscriptionService(
+      database: database,
+      secretStore: InMemorySecretStore(),
+      httpTransport: transport,
+    );
+    late BuildContext hostContext;
+    late WidgetRef widgetRef;
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          webCalSubscriptionServiceProvider.overrideWithValue(service),
+          linuxHeaderBarServiceProvider.overrideWithValue(
+            LinuxHeaderBarService(isLinux: false),
+          ),
+        ],
+        child: localizedTestApp(
+          child: Consumer(
+            builder: (context, ref, child) {
+              hostContext = context;
+              widgetRef = ref;
+              return const Scaffold(body: SizedBox.expand());
+            },
+          ),
+        ),
+      ),
+    );
+
+    final flow = showAddCalendarSubscriptionFlow(
+      hostContext,
+      widgetRef,
+      initialUrl: 'https://calendar.example.test/feed',
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Cancel'));
+    await tester.pumpAndSettle();
+    await flow;
+
+    expect(transport.requests, isEmpty);
+    expect(await database.select(database.webCalSubscriptions).get(), isEmpty);
   });
 
   testWidgets('Settings exposes one readable dark account-removal action', (
@@ -1724,6 +1881,40 @@ class _FakeAccountsRepository implements AccountsRepository {
 
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
+
+final class _SettingsWebCalTransport implements WebCalHttpTransport {
+  final requests = <Uri>[];
+
+  @override
+  Future<WebCalHttpResponse> get(
+    Uri uri, {
+    WebCalHttpValidators validators = const WebCalHttpValidators(),
+    Uri? validatorTarget,
+  }) async {
+    requests.add(uri);
+    return WebCalHttpResponse(
+      statusCode: 200,
+      finalUri: uri,
+      body: Uint8List.fromList(
+        utf8.encode('''BEGIN:VCALENDAR\r
+VERSION:2.0\r
+PRODID:-//BusyMax Test//EN\r
+BEGIN:VEVENT\r
+UID:settings-subscription-event\r
+DTSTART:20260920T160000Z\r
+DTEND:20260920T170000Z\r
+SUMMARY:Team event\r
+END:VEVENT\r
+END:VCALENDAR\r
+'''),
+      ),
+      etag: '"settings-test"',
+      lastModified: null,
+      contentType: 'text/calendar; charset=utf-8',
+      conditionalRequestSent: false,
+    );
+  }
 }
 
 class _MemorySettingsStore implements LocalSettingsStore {

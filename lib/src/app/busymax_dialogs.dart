@@ -10,6 +10,7 @@ const _modalShortcuts = <ShortcutActivator, Intent>{
   BusyMaxShortcutActivators.keyboardShortcuts:
       DoNothingAndStopPropagationIntent(),
   BusyMaxShortcutActivators.settings: DoNothingAndStopPropagationIntent(),
+  BusyMaxShortcutActivators.back: DoNothingAndStopPropagationIntent(),
 };
 
 /// Prevents application-level navigation shortcuts from escaping a modal

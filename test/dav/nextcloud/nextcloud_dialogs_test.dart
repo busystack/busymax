@@ -1,16 +1,48 @@
 import 'package:busymax/l10n/generated/app_localizations.dart';
 import 'package:busymax/src/app/app_bootstrap.dart';
+import 'package:busymax/src/app/busymax_design.dart';
+import 'package:busymax/src/app/busymax_yaru_theme.dart';
 import 'package:busymax/src/dav/presentation/nextcloud_collection_dialog.dart';
+import 'package:busymax/src/platform/linux_header_bar_provider.dart';
+import 'package:busymax/src/platform/linux_header_bar_service.dart';
 import 'package:busymax/src/ui/windows/windows_nextcloud_dialogs.dart';
 import 'package:fluent_ui/fluent_ui.dart' as fluent;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:yaru/yaru.dart';
 
 import '../../support/memory_settings_store.dart';
+import '../../test_localized_app.dart';
 import 'nextcloud_admin_fixture.dart';
 
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+
+  setUp(() {
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(
+          const MethodChannel('yaru_window'),
+          (call) async => call.method == 'state' ? <String, Object?>{} : null,
+        );
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(
+          const MethodChannel('yaru_window/events'),
+          (call) async => null,
+        );
+  });
+
+  tearDown(() {
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(const MethodChannel('yaru_window'), null);
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(
+          const MethodChannel('yaru_window/events'),
+          null,
+        );
+  });
+
   for (final windows in [false, true]) {
     final platform = windows ? 'Windows' : 'Linux';
     testWidgets(
@@ -28,6 +60,9 @@ void main() {
         } else {
           expect(tester.widget<TextField>(title).enabled, isTrue);
           expect(find.byType(fluent.ContentDialog), findsNothing);
+          expect(find.byType(BusyMaxDialogShell), findsOneWidget);
+          expect(find.byType(BusyMaxGroupedList), findsWidgets);
+          expect(find.byType(AlertDialog), findsNothing);
         }
         expect(fixture.requests.where((r) => r.method == 'PROPPATCH'), isEmpty);
         await tester.enterText(title, 'New name');
@@ -39,6 +74,12 @@ void main() {
           fixture.requests.where((r) => r.method == 'PROPPATCH'),
           hasLength(1),
         );
+        if (!windows) {
+          expect(
+            find.byKey(const ValueKey('nextcloud-collection-dialog')),
+            findsOneWidget,
+          );
+        }
         expect(
           await tester.runAsync(
             () => fixture.database.select(fixture.database.pendingOps).get(),
@@ -70,6 +111,155 @@ void main() {
       await tester.pumpWidget(const SizedBox.shrink());
     });
   }
+
+  testWidgets('nested collection confirmation keeps the parent modal active', (
+    tester,
+  ) async {
+    const channel = MethodChannel('busymax_test/collection_modal_barrier');
+    final calls = <MethodCall>[];
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(channel, (call) async {
+          calls.add(call);
+          return call.method == 'initialize' ? true : null;
+        });
+    addTearDown(() {
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(channel, null);
+    });
+    final service = LinuxHeaderBarService(channel: channel, isLinux: true);
+    addTearDown(service.dispose);
+    await service.initialize();
+    final fixture = NextcloudAdminFixture();
+    await tester.runAsync(fixture.seed);
+    addTearDown(fixture.close);
+    await _pump(tester, fixture, false, headerBarService: service);
+
+    await tester.enterText(
+      find.byKey(const ValueKey('nextcloud-displayname')),
+      'Unsaved',
+    );
+    await tester.tap(find.text('Close'));
+    await tester.pumpAndSettle();
+    expect(find.byType(BusyMaxConfirmDialog), findsOneWidget);
+    expect(
+      calls
+          .where((call) => call.method == 'setModalBarrierState')
+          .map((call) => call.arguments),
+      [
+        {'visible': true, 'shadeDepth': 1},
+        {'visible': true, 'shadeDepth': 2},
+      ],
+    );
+
+    await tester.tap(find.text('Cancel'));
+    await tester.pumpAndSettle();
+    expect(
+      find.byKey(const ValueKey('nextcloud-collection-dialog')),
+      findsOneWidget,
+    );
+    expect(calls.last.arguments, {'visible': true, 'shadeDepth': 1});
+
+    await tester.tap(find.text('Close'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Discard').last);
+    await tester.pumpAndSettle();
+    expect(
+      find.byKey(const ValueKey('nextcloud-collection-dialog')),
+      findsNothing,
+    );
+    expect(calls.last.arguments, {'visible': false, 'shadeDepth': 0});
+    expect(
+      fixture.requests.where((request) => request.method == 'PROPPATCH'),
+      isEmpty,
+    );
+  });
+
+  testWidgets('trash uses shared rows and confirms permanent deletion', (
+    tester,
+  ) async {
+    final fixture = NextcloudAdminFixture();
+    await tester.runAsync(fixture.seed);
+    addTearDown(fixture.close);
+    await _pumpTrash(tester, fixture);
+
+    expect(find.byType(BusyMaxDialogShell), findsOneWidget);
+    expect(find.byType(BusyMaxGroupedList), findsOneWidget);
+    expect(find.text('Deleted event'), findsOneWidget);
+    expect(find.text('Deleted task'), findsOneWidget);
+    expect(find.textContaining('30'), findsOneWidget);
+    expect(find.byType(AlertDialog), findsNothing);
+
+    await tester.tap(find.text('Permanently delete').first);
+    await tester.pumpAndSettle();
+    expect(find.byType(BusyMaxConfirmDialog), findsOneWidget);
+    await tester.tap(find.text('Cancel'));
+    await tester.pumpAndSettle();
+    expect(
+      fixture.requests.where((request) => request.method == 'DELETE'),
+      isEmpty,
+    );
+
+    await tester.tap(find.text('Permanently delete').first);
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(ElevatedButton, 'Permanently delete'));
+    for (var attempt = 0; attempt < 20; attempt++) {
+      await tester.runAsync(
+        () => Future<void>.delayed(const Duration(milliseconds: 50)),
+      );
+      await tester.pump(const Duration(milliseconds: 100));
+      if (fixture.requests.any((request) => request.method == 'DELETE') &&
+          find.byType(YaruCircularProgressIndicator).evaluate().isEmpty) {
+        break;
+      }
+    }
+    expect(
+      fixture.requests.where((request) => request.method == 'DELETE'),
+      hasLength(1),
+    );
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('trash disables operations denied by the server', (tester) async {
+    final fixture = NextcloudAdminFixture()..denyTrashObject = true;
+    await tester.runAsync(fixture.seed);
+    addTearDown(fixture.close);
+    await _pumpTrash(tester, fixture);
+
+    final restore = tester.widget<BusyMaxActionRow>(
+      find.widgetWithText(BusyMaxActionRow, 'Restore').first,
+    );
+    final delete = tester.widget<BusyMaxActionRow>(
+      find.widgetWithText(BusyMaxActionRow, 'Permanently delete').first,
+    );
+    expect(restore.enabled, isFalse);
+    expect(delete.enabled, isFalse);
+  });
+
+  testWidgets('collection dialog scrolls in a narrow enlarged RTL window', (
+    tester,
+  ) async {
+    final fixture = NextcloudAdminFixture();
+    await tester.runAsync(fixture.seed);
+    addTearDown(fixture.close);
+    await _pump(
+      tester,
+      fixture,
+      false,
+      size: const Size(430, 420),
+      brightness: Brightness.dark,
+      locale: const Locale('ar'),
+      textScaler: const TextScaler.linear(1.5),
+    );
+
+    final dialog = find.byKey(const ValueKey('nextcloud-collection-dialog'));
+    expect(dialog, findsOneWidget);
+    expect(Directionality.of(tester.element(dialog)), TextDirection.rtl);
+    expect(
+      find.descendant(of: dialog, matching: find.byType(SingleChildScrollView)),
+      findsOneWidget,
+    );
+    expect(tester.takeException(), isNull);
+  });
 }
 
 Future<void> _settle(WidgetTester tester) async {
@@ -85,9 +275,14 @@ Future<void> _settle(WidgetTester tester) async {
 Future<void> _pump(
   WidgetTester tester,
   NextcloudAdminFixture fixture,
-  bool windows,
-) async {
-  await tester.binding.setSurfaceSize(const Size(1000, 850));
+  bool windows, {
+  LinuxHeaderBarService? headerBarService,
+  Size size = const Size(1000, 850),
+  Brightness brightness = Brightness.light,
+  Locale locale = const Locale('en'),
+  TextScaler? textScaler,
+}) async {
+  await tester.binding.setSurfaceSize(size);
   addTearDown(() => tester.binding.setSurfaceSize(null));
   final home = Builder(
     builder: (context) => Center(
@@ -117,6 +312,8 @@ Future<void> _pump(
         nextcloudSharingServiceProvider(
           'account',
         ).overrideWithValue(fixture.sharing),
+        if (headerBarService != null)
+          linuxHeaderBarServiceProvider.overrideWithValue(headerBarService),
       ],
       child: windows
           ? fluent.FluentApp(
@@ -124,13 +321,56 @@ Future<void> _pump(
               supportedLocales: AppLocalizations.supportedLocales,
               home: home,
             )
-          : MaterialApp(
-              localizationsDelegates: AppLocalizations.localizationsDelegates,
-              supportedLocales: AppLocalizations.supportedLocales,
-              home: Scaffold(body: home),
+          : localizedTestApp(
+              locale: locale,
+              textScaler: textScaler,
+              theme: BusyMaxYaruTheme.build(
+                brightness: brightness,
+                accentColor: YaruColors.orange,
+              ),
+              child: Scaffold(body: home),
             ),
     ),
   );
   await tester.tap(find.text('Open'));
+  await _settle(tester);
+}
+
+Future<void> _pumpTrash(
+  WidgetTester tester,
+  NextcloudAdminFixture fixture,
+) async {
+  await tester.binding.setSurfaceSize(const Size(760, 700));
+  addTearDown(() => tester.binding.setSurfaceSize(null));
+  await tester.pumpWidget(
+    ProviderScope(
+      overrides: [
+        localSettingsStoreProvider.overrideWithValue(MemorySettingsStore()),
+        nextcloudTrashServiceProvider(
+          'account',
+        ).overrideWithValue(fixture.trash),
+      ],
+      child: localizedTestApp(
+        theme: BusyMaxYaruTheme.build(
+          brightness: Brightness.dark,
+          accentColor: YaruColors.orange,
+        ),
+        child: Scaffold(
+          body: Builder(
+            builder: (context) => Center(
+              child: BusyMaxPushButton.standard(
+                onPressed: () => showLinuxNextcloudTrashDialog(
+                  context,
+                  accountId: 'account',
+                ),
+                child: const Text('Open trash'),
+              ),
+            ),
+          ),
+        ),
+      ),
+    ),
+  );
+  await tester.tap(find.text('Open trash'));
   await _settle(tester);
 }

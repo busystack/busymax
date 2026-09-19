@@ -21,7 +21,6 @@ class _RouterRefreshNotifier extends ChangeNotifier {
 
 final appRouterProvider = Provider<GoRouter>((ref) {
   final refreshNotifier = _RouterRefreshNotifier();
-  ref.onDispose(refreshNotifier.dispose);
   ref.listen(authSessionControllerProvider, (_, _) {
     refreshNotifier.refresh();
   });
@@ -34,7 +33,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       ref.read(webCalSubscriptionsProvider).valueOrNull?.isNotEmpty == true;
   final canOpenSchedule = session.isSignedIn || hasSubscriptions;
 
-  return GoRouter(
+  final router = GoRouter(
     navigatorKey: rootNavigatorKey,
     refreshListenable: refreshNotifier,
     initialLocation: session.status == AuthSessionStatus.loading
@@ -111,6 +110,11 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       ),
     ],
   );
+  ref.onDispose(() {
+    router.dispose();
+    refreshNotifier.dispose();
+  });
+  return router;
 });
 
 const _tasksWorkspacePageKey = ValueKey('tasks-workspace');

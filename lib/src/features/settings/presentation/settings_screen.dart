@@ -712,8 +712,11 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       setState(() => _page = page);
     }
     final router = GoRouter.maybeOf(context);
-    final uri = router?.state.uri;
-    if (router == null || uri == null || uri.path != '/settings') {
+    if (router == null) {
+      return;
+    }
+    final uri = GoRouterState.of(context).uri;
+    if (uri.path != '/settings') {
       return;
     }
     final routePage = uri.queryParameters['page'];
@@ -1965,40 +1968,52 @@ class _WebCalAddDialogState extends State<_WebCalAddDialog> {
         ),
       ],
       children: [
-        TextField(
-          key: const ValueKey('subscription-url'),
-          controller: _urlController,
-          autofocus: true,
-          decoration: InputDecoration(
-            labelText: l10n.subscriptionUrl,
-            helperText: l10n.subscriptionUrlHelp,
-            errorText:
-                _urlController.text.trim().isNotEmpty && normalized == null
-                ? l10n.subscriptionUrlInvalid
-                : null,
-          ),
-        ),
-        const SizedBox(height: BusyMaxSpacing.md),
-        TextField(
-          controller: _nameController,
-          decoration: InputDecoration(labelText: l10n.subscriptionName),
-        ),
-        const SizedBox(height: BusyMaxSpacing.md),
-        TextField(
-          controller: _colorController,
-          decoration: InputDecoration(
-            labelText: l10n.subscriptionColor,
-            helperText: l10n.subscriptionColorHelp,
-            errorText: _colorValid ? null : l10n.subscriptionColorInvalid,
-          ),
-        ),
-        const SizedBox(height: BusyMaxSpacing.md),
-        BusyMaxComboRow<WebCalRefreshMode>(
-          title: l10n.subscriptionRefreshMode,
-          values: WebCalRefreshMode.values,
-          selected: _refreshMode,
-          labelFor: (mode) => _refreshModeLabel(context, mode),
-          onSelected: (value) => setState(() => _refreshMode = value),
+        BusyMaxGroupedList(
+          filled: true,
+          children: [
+            YaruListTile.square(
+              title: TextField(
+                key: const ValueKey('subscription-url'),
+                controller: _urlController,
+                autofocus: true,
+                decoration: busyMaxGroupedTextFieldDecoration(
+                  context,
+                  labelText: l10n.subscriptionUrl,
+                  errorText:
+                      _urlController.text.trim().isNotEmpty &&
+                          normalized == null
+                      ? l10n.subscriptionUrlInvalid
+                      : null,
+                ).copyWith(helperText: l10n.subscriptionUrlHelp),
+              ),
+            ),
+            YaruListTile.square(
+              title: TextField(
+                controller: _nameController,
+                decoration: busyMaxGroupedTextFieldDecoration(
+                  context,
+                  labelText: l10n.subscriptionName,
+                ),
+              ),
+            ),
+            YaruListTile.square(
+              title: TextField(
+                controller: _colorController,
+                decoration: busyMaxGroupedTextFieldDecoration(
+                  context,
+                  labelText: l10n.subscriptionColor,
+                  errorText: _colorValid ? null : l10n.subscriptionColorInvalid,
+                ).copyWith(helperText: l10n.subscriptionColorHelp),
+              ),
+            ),
+            BusyMaxComboRow<WebCalRefreshMode>(
+              title: l10n.subscriptionRefreshMode,
+              values: WebCalRefreshMode.values,
+              selected: _refreshMode,
+              labelFor: (mode) => _refreshModeLabel(context, mode),
+              onSelected: (value) => setState(() => _refreshMode = value),
+            ),
+          ],
         ),
         const SizedBox(height: BusyMaxSpacing.md),
         Text(

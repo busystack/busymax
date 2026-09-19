@@ -503,6 +503,28 @@ void main() {
     await _disposeApp(tester);
   });
 
+  testWidgets('provider teardown disposes its GoRouter', (tester) async {
+    await _insertAccount(
+      database,
+      id: 'google:existing',
+      provider: BusyProvider.google,
+    );
+    await _pumpApp(tester, database: database, oAuth: oAuth);
+    await tester.pumpAndSettle();
+
+    final context = tester.element(find.byType(ScheduleWorkspace));
+    final container = ProviderScope.containerOf(context);
+    final router = container.read(appRouterProvider);
+    final routeInformationProvider = router.routeInformationProvider;
+
+    await _disposeApp(tester);
+
+    expect(
+      () => routeInformationProvider.addListener(() {}),
+      throwsFlutterError,
+    );
+  });
+
   testWidgets('WebCal refresh preserves router and Settings URI', (
     tester,
   ) async {
@@ -566,6 +588,86 @@ void main() {
     expect(find.byType(ScheduleWorkspace), findsNothing);
     await _disposeApp(tester);
   });
+
+  testWidgets(
+    'removing an account from pushed Settings preserves return history',
+    (tester) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(1200, 850);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      addTearDown(tester.view.resetPhysicalSize);
+      await _insertAccount(
+        database,
+        id: 'google:remove',
+        provider: BusyProvider.google,
+      );
+      await _insertAccount(
+        database,
+        id: 'microsoft:remain',
+        provider: BusyProvider.microsoft,
+      );
+      await _pumpApp(tester, database: database, oAuth: oAuth);
+      await tester.pumpAndSettle();
+
+      final workspaceFinder = find.byType(
+        ScheduleWorkspace,
+        skipOffstage: false,
+      );
+      final workspaceState = tester.state(workspaceFinder);
+      final workspaceRoute = ModalRoute.of(workspaceState.context)!;
+      final container = ProviderScope.containerOf(workspaceState.context);
+      final router = container.read(appRouterProvider);
+      final navigator = rootNavigatorKey.currentState;
+      expect(workspaceRoute.isCurrent, isTrue);
+
+      unawaited(router.push<void>('/settings'));
+      await tester.pumpAndSettle();
+      expect(workspaceFinder, findsOneWidget);
+      expect(find.byType(ScheduleWorkspace), findsNothing);
+      expect(workspaceRoute.isCurrent, isFalse);
+      await tester.tap(
+        find.byKey(const ValueKey('settings-navigation-accounts')),
+      );
+      await tester.pumpAndSettle();
+
+      final settingsFinder = find.byType(SettingsScreen);
+      final settingsState = tester.state(settingsFinder);
+      final settingsUri = GoRouterState.of(tester.element(settingsFinder)).uri;
+      expect(settingsUri.path, '/settings');
+      expect(settingsUri.queryParameters['page'], 'accounts');
+
+      await tester.tap(find.text('Remove account…').first);
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('confirm-account-removal')));
+      await tester.pumpAndSettle();
+
+      final accounts = await database.select(database.accounts).get();
+      expect(accounts.map((account) => account.id), ['microsoft:remain']);
+      expect(container.read(selectedAccountIdProvider), 'microsoft:remain');
+      expect(container.read(appRouterProvider), same(router));
+      expect(rootNavigatorKey.currentState, same(navigator));
+      expect(tester.state(settingsFinder), same(settingsState));
+      final retainedSettingsUri = GoRouterState.of(
+        tester.element(settingsFinder),
+      ).uri;
+      expect(retainedSettingsUri.path, '/settings');
+      expect(retainedSettingsUri.queryParameters['page'], 'accounts');
+      expect(workspaceFinder, findsOneWidget);
+      expect(find.byType(ScheduleWorkspace), findsNothing);
+      expect(workspaceRoute.isCurrent, isFalse);
+      expect(router.canPop(), isTrue);
+
+      await _sendAltLeft(tester);
+
+      expect(settingsFinder, findsNothing);
+      expect(workspaceFinder, findsOneWidget);
+      expect(tester.state(workspaceFinder), same(workspaceState));
+      expect(workspaceRoute.isCurrent, isTrue);
+      expect(router.routeInformationProvider.value.uri.path, '/schedule');
+      expect(router.canPop(), isFalse);
+      await _disposeApp(tester);
+    },
+  );
 
   testWidgets(
     'adding an account keeps Settings open during and after cancellation',

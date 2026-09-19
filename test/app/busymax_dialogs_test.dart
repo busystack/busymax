@@ -686,6 +686,7 @@ void main() {
       localizedTestApp(
         child: Shortcuts(
           shortcuts: const {
+            BusyMaxShortcutActivators.back: _ApplicationNavigationIntent(),
             BusyMaxShortcutActivators.settings: _ApplicationNavigationIntent(),
             BusyMaxShortcutActivators.keyboardShortcuts:
                 _ApplicationNavigationIntent(),
@@ -716,8 +717,58 @@ void main() {
       await tester.sendKeyUpEvent(LogicalKeyboardKey.altLeft);
       await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
     }
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.altLeft);
+    await tester.sendKeyEvent(LogicalKeyboardKey.arrowLeft);
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.altLeft);
 
     expect(applicationNavigationCount, 0);
+  });
+
+  testWidgets('closing the final modal restores the previous focus', (
+    tester,
+  ) async {
+    final hostFocus = FocusNode();
+    final dialogFocus = FocusNode();
+    addTearDown(hostFocus.dispose);
+    addTearDown(dialogFocus.dispose);
+    late BuildContext hostContext;
+    await tester.pumpWidget(
+      localizedTestApp(
+        child: Builder(
+          builder: (context) {
+            hostContext = context;
+            return Scaffold(
+              body: TextField(focusNode: hostFocus, autofocus: true),
+            );
+          },
+        ),
+      ),
+    );
+    await tester.pump();
+    expect(hostFocus.hasFocus, isTrue);
+
+    final result = showBusyMaxModalDialog<void>(
+      hostContext,
+      builder: (dialogContext) => BusyMaxDialogShell(
+        title: 'Keep editing?',
+        actions: [
+          BusyMaxPushButton.standard(
+            onPressed: () => Navigator.of(dialogContext).pop(),
+            child: const Text('Close'),
+          ),
+        ],
+        children: [TextField(focusNode: dialogFocus, autofocus: true)],
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(hostFocus.hasFocus, isFalse);
+    expect(dialogFocus.hasFocus, isTrue);
+
+    await tester.tap(find.text('Close'));
+    await tester.pumpAndSettle();
+
+    await result;
+    expect(hostFocus.hasFocus, isTrue);
   });
 }
 
