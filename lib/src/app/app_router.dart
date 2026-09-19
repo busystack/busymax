@@ -15,22 +15,40 @@ import 'busymax_surface_colors.dart';
 
 final rootNavigatorKey = GlobalKey<NavigatorState>();
 
+class _RouterRefreshNotifier extends ChangeNotifier {
+  void refresh() => notifyListeners();
+}
+
 final appRouterProvider = Provider<GoRouter>((ref) {
-  final session = ref.watch(authSessionControllerProvider);
+  final refreshNotifier = _RouterRefreshNotifier();
+  ref.onDispose(refreshNotifier.dispose);
+  ref.listen(authSessionControllerProvider, (_, _) {
+    refreshNotifier.refresh();
+  });
+  ref.listen(webCalSubscriptionsProvider, (_, _) {
+    refreshNotifier.refresh();
+  });
+
+  final session = ref.read(authSessionControllerProvider);
   final hasSubscriptions =
-      ref.watch(webCalSubscriptionsProvider).valueOrNull?.isNotEmpty == true;
+      ref.read(webCalSubscriptionsProvider).valueOrNull?.isNotEmpty == true;
   final canOpenSchedule = session.isSignedIn || hasSubscriptions;
 
   return GoRouter(
     navigatorKey: rootNavigatorKey,
+    refreshListenable: refreshNotifier,
     initialLocation: session.status == AuthSessionStatus.loading
         ? '/'
         : canOpenSchedule
         ? '/schedule'
         : '/sign-in',
     redirect: (context, state) {
+      final session = ref.read(authSessionControllerProvider);
+      final hasSubscriptions =
+          ref.read(webCalSubscriptionsProvider).valueOrNull?.isNotEmpty == true;
+      final canOpenSchedule = session.isSignedIn || hasSubscriptions;
       if (session.status == AuthSessionStatus.loading) {
-        return state.matchedLocation == '/' ? null : '/';
+        return null;
       }
 
       if (state.matchedLocation == '/') {

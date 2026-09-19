@@ -13,6 +13,7 @@ import '../../../app/app_bootstrap.dart';
 import '../../../app/busymax_design.dart';
 import '../../../app/busymax_glyphs.dart';
 import '../../../app/busymax_keyboard_shortcuts_dialog.dart';
+import '../../../app/busymax_shortcuts.dart';
 import '../../../app/busymax_yaru_theme.dart';
 import '../../../dav/auth/dav_account_dialogs.dart';
 import '../../../dav/dav_errors.dart';
@@ -91,128 +92,142 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
           ),
           _OnboardingStep.preferences => true,
         };
-    return Scaffold(
-      body: ColoredBox(
-        color: BusyMaxSurfaceColors.of(context).window,
-        child: SafeArea(
-          top: !Platform.isLinux || !_nativeHeaderBarAvailable,
-          child: LayoutBuilder(
-            builder: (context, constraints) {
-              final compact = constraints.maxWidth < 720;
-              final horizontalPadding = compact
-                  ? BusyMaxSpacing.md
-                  : BusyMaxSpacing.xxl;
-              final verticalPadding = compact
-                  ? BusyMaxSpacing.md
-                  : BusyMaxSpacing.xxl;
-              final availableWidth = math.max(
-                0.0,
-                constraints.maxWidth - horizontalPadding * 2,
-              );
-              final shadowGutter = math.min(
-                BusyMaxSpacing.sm,
-                availableWidth / 2,
-              );
-              final contentRailWidth = math.min<double>(
-                busyMaxOnboardingContentMaxWidth.toDouble(),
-                math.max(0.0, availableWidth - shadowGutter * 2),
-              );
-              final scrollViewportWidth = contentRailWidth + shadowGutter * 2;
-              _updateHeaderBar(
-                canGoBack: canGoBack,
-                canContinue: canContinue,
-                backLabel: backLabel,
-                continueLabel: continueLabel,
-                contentWidth: contentRailWidth.round(),
-              );
+    return CallbackShortcuts(
+      bindings: {BusyMaxShortcutActivators.back: _previousStep},
+      child: Focus(
+        autofocus: true,
+        child: Scaffold(
+          body: ColoredBox(
+            color: BusyMaxSurfaceColors.of(context).window,
+            child: SafeArea(
+              top: !Platform.isLinux || !_nativeHeaderBarAvailable,
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  final compact = constraints.maxWidth < 720;
+                  final horizontalPadding = compact
+                      ? BusyMaxSpacing.md
+                      : BusyMaxSpacing.xxl;
+                  final verticalPadding = compact
+                      ? BusyMaxSpacing.md
+                      : BusyMaxSpacing.xxl;
+                  final availableWidth = math.max(
+                    0.0,
+                    constraints.maxWidth - horizontalPadding * 2,
+                  );
+                  final shadowGutter = math.min(
+                    BusyMaxSpacing.sm,
+                    availableWidth / 2,
+                  );
+                  final contentRailWidth = math.min<double>(
+                    busyMaxOnboardingContentMaxWidth.toDouble(),
+                    math.max(0.0, availableWidth - shadowGutter * 2),
+                  );
+                  final scrollViewportWidth =
+                      contentRailWidth + shadowGutter * 2;
+                  _updateHeaderBar(
+                    canGoBack: canGoBack,
+                    canContinue: canContinue,
+                    backLabel: backLabel,
+                    continueLabel: continueLabel,
+                    contentWidth: contentRailWidth.round(),
+                  );
 
-              return Padding(
-                padding: EdgeInsets.symmetric(
-                  horizontal: horizontalPadding,
-                  vertical: verticalPadding,
-                ),
-                child: Center(
-                  child: SizedBox(
-                    width: scrollViewportWidth,
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        Flexible(
-                          child: SingleChildScrollView(
-                            key: const ValueKey('onboarding-scroll-viewport'),
-                            padding: EdgeInsets.symmetric(
-                              horizontal: shadowGutter,
-                            ),
-                            child: SizedBox(
-                              key: const ValueKey('onboarding-content-rail'),
-                              width: contentRailWidth,
-                              child: switch (_step) {
-                                _OnboardingStep.accounts =>
-                                  _AccountsOnboardingStep(
-                                    accounts: accounts,
-                                    googleConfigured:
-                                        config.hasGoogleOAuthClientId,
-                                    microsoftConfigured:
-                                        config.hasMicrosoftOAuthClientId,
-                                    isGoogleSigningIn:
-                                        _signingInProvider ==
-                                        _OnboardingProvider.google,
-                                    isMicrosoftSigningIn:
-                                        _signingInProvider ==
-                                        _OnboardingProvider.microsoft,
-                                    isAppleSigningIn:
-                                        _signingInProvider ==
-                                        _OnboardingProvider.appleICloud,
-                                    isNextcloudSigningIn:
-                                        _signingInProvider ==
-                                        _OnboardingProvider.nextcloud,
-                                    errorMessage: _errorMessage,
-                                    missingConfigMessage: kReleaseMode
-                                        ? l10n.providerNotConfigured
-                                        : config.missingClientIdMessage,
-                                    onAddGoogle: () =>
-                                        _signIn(_OnboardingProvider.google),
-                                    onAddMicrosoft: () =>
-                                        _signIn(_OnboardingProvider.microsoft),
-                                    onAddApple: () => _signIn(
-                                      _OnboardingProvider.appleICloud,
-                                    ),
-                                    onAddNextcloud: () =>
-                                        _signIn(_OnboardingProvider.nextcloud),
-                                    onAddSubscription: () =>
-                                        context.go('/settings?page=accounts'),
-                                    onCancelSignIn: _cancelSignIn,
-                                  ),
-                                _OnboardingStep.preferences =>
-                                  _PreferencesOnboardingStep(
-                                    settings: settings,
-                                    settingsController: settingsController,
-                                  ),
-                              },
-                            ),
-                          ),
-                        ),
-                        if (_showFlutterFooterFallback)
-                          Padding(
-                            padding: EdgeInsets.symmetric(
-                              horizontal: shadowGutter,
-                            ),
-                            child: _OnboardingFooter(
-                              canGoBack: canGoBack,
-                              canContinue: canContinue,
-                              backLabel: backLabel,
-                              continueLabel: continueLabel,
-                              onBack: _previousStep,
-                              onContinue: _nextStep,
-                            ),
-                          ),
-                      ],
+                  return Padding(
+                    padding: EdgeInsets.symmetric(
+                      horizontal: horizontalPadding,
+                      vertical: verticalPadding,
                     ),
-                  ),
-                ),
-              );
-            },
+                    child: Center(
+                      child: SizedBox(
+                        width: scrollViewportWidth,
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            Flexible(
+                              child: SingleChildScrollView(
+                                key: const ValueKey(
+                                  'onboarding-scroll-viewport',
+                                ),
+                                padding: EdgeInsets.symmetric(
+                                  horizontal: shadowGutter,
+                                ),
+                                child: SizedBox(
+                                  key: const ValueKey(
+                                    'onboarding-content-rail',
+                                  ),
+                                  width: contentRailWidth,
+                                  child: switch (_step) {
+                                    _OnboardingStep.accounts =>
+                                      _AccountsOnboardingStep(
+                                        accounts: accounts,
+                                        googleConfigured:
+                                            config.hasGoogleOAuthClientId,
+                                        microsoftConfigured:
+                                            config.hasMicrosoftOAuthClientId,
+                                        isGoogleSigningIn:
+                                            _signingInProvider ==
+                                            _OnboardingProvider.google,
+                                        isMicrosoftSigningIn:
+                                            _signingInProvider ==
+                                            _OnboardingProvider.microsoft,
+                                        isAppleSigningIn:
+                                            _signingInProvider ==
+                                            _OnboardingProvider.appleICloud,
+                                        isNextcloudSigningIn:
+                                            _signingInProvider ==
+                                            _OnboardingProvider.nextcloud,
+                                        errorMessage: _errorMessage,
+                                        missingConfigMessage: kReleaseMode
+                                            ? l10n.providerNotConfigured
+                                            : config.missingClientIdMessage,
+                                        onAddGoogle: () =>
+                                            _signIn(_OnboardingProvider.google),
+                                        onAddMicrosoft: () => _signIn(
+                                          _OnboardingProvider.microsoft,
+                                        ),
+                                        onAddApple: () => _signIn(
+                                          _OnboardingProvider.appleICloud,
+                                        ),
+                                        onAddNextcloud: () => _signIn(
+                                          _OnboardingProvider.nextcloud,
+                                        ),
+                                        onAddSubscription: () => context.go(
+                                          '/settings?page=accounts',
+                                        ),
+                                        onCancelSignIn: _cancelSignIn,
+                                      ),
+                                    _OnboardingStep.preferences =>
+                                      _PreferencesOnboardingStep(
+                                        settings: settings,
+                                        settingsController: settingsController,
+                                      ),
+                                  },
+                                ),
+                              ),
+                            ),
+                            if (_showFlutterFooterFallback)
+                              Padding(
+                                padding: EdgeInsets.symmetric(
+                                  horizontal: shadowGutter,
+                                ),
+                                child: _OnboardingFooter(
+                                  canGoBack: canGoBack,
+                                  canContinue: canContinue,
+                                  backLabel: backLabel,
+                                  continueLabel: continueLabel,
+                                  onBack: _previousStep,
+                                  onContinue: _nextStep,
+                                ),
+                              ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
           ),
         ),
       ),
@@ -900,44 +915,21 @@ class _OnboardingFooter extends StatelessWidget {
       padding: const EdgeInsets.only(top: BusyMaxSpacing.xl),
       child: Row(
         children: [
-          TextButton(
+          BusyMaxPushButton.standard(
             key: const ValueKey('onboarding-back-button'),
             onPressed: canGoBack ? onBack : null,
-            style: _onboardingTextButtonStyle(context),
             child: Text(backLabel),
           ),
           const Spacer(),
-          TextButton(
+          BusyMaxPushButton.suggested(
             key: const ValueKey('onboarding-continue-button'),
             onPressed: canContinue ? onContinue : null,
-            style: _onboardingTextButtonStyle(context),
             child: Text(continueLabel),
           ),
         ],
       ),
     );
   }
-}
-
-ButtonStyle _onboardingTextButtonStyle(BuildContext context) {
-  final labelStyle = Theme.of(context).textTheme.labelLarge;
-  return ButtonStyle(
-    padding: const WidgetStatePropertyAll(EdgeInsets.zero),
-    minimumSize: const WidgetStatePropertyAll(Size.zero),
-    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-    backgroundColor: const WidgetStatePropertyAll(Colors.transparent),
-    overlayColor: const WidgetStatePropertyAll(Colors.transparent),
-    elevation: const WidgetStatePropertyAll(0),
-    textStyle: WidgetStateProperty.resolveWith((states) {
-      final emphasize =
-          !states.contains(WidgetState.disabled) &&
-          (states.contains(WidgetState.hovered) ||
-              states.contains(WidgetState.focused));
-      return labelStyle?.copyWith(
-        decoration: emphasize ? TextDecoration.underline : TextDecoration.none,
-      );
-    }),
-  );
 }
 
 String _onboardingErrorMessage(BuildContext context, Object error) {

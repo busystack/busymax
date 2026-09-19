@@ -29,6 +29,8 @@ void main() {
     expect(find.text('Ctrl+Alt+S'), findsOneWidget);
     expect(find.text('Ctrl+F'), findsOneWidget);
     expect(find.text('F9'), findsOneWidget);
+    expect(find.text('Back'), findsOneWidget);
+    expect(find.text('Alt+Left'), findsOneWidget);
     expect(find.text('Ctrl+N'), findsNothing);
     expect(find.text('Shift+Right'), findsOneWidget);
     expect(find.text('Shift+Left'), findsOneWidget);

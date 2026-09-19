@@ -118,6 +118,7 @@ BusyMaxHeaderBarConfiguration _configuration({required bool dark}) {
       showSidebarPanel: 'Show sidebar panel',
       hideSidebarPanel: 'Hide sidebar panel',
       back: 'Back',
+      backShortcut: 'Alt+Left',
       settings: 'Settings',
       keyboardShortcuts: 'Keyboard shortcuts',
       reportIssue: 'Report an issue',

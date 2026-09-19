@@ -76,6 +76,13 @@ class BusyMaxKeyboardShortcutsDialog extends StatelessWidget {
             filled: true,
             children: [
               BusyMaxActionRow(
+                title: MaterialLocalizations.of(context).backButtonTooltip,
+                leading: const Icon(Icons.arrow_back),
+                trailing: const _KeyboardShortcutBadge(
+                  BusyMaxShortcutLabels.back,
+                ),
+              ),
+              BusyMaxActionRow(
                 title: l10n.toggleSidebar,
                 leading: const Icon(Icons.vertical_split_outlined),
                 trailing: const _KeyboardShortcutBadge(

@@ -4,6 +4,7 @@ import 'package:flutter/widgets.dart';
 import '../schedule/schedule_view_mode.dart';
 
 abstract final class BusyMaxShortcutActivators {
+  static const back = SingleActivator(LogicalKeyboardKey.arrowLeft, alt: true);
   static const keyboardShortcuts = SingleActivator(
     LogicalKeyboardKey.keyK,
     control: true,
@@ -20,6 +21,7 @@ abstract final class BusyMaxShortcutActivators {
 }
 
 abstract final class BusyMaxShortcutLabels {
+  static const back = 'Alt+Left';
   static const keyboardShortcuts = 'Ctrl+Alt+K';
   static const settings = 'Ctrl+Alt+S';
   static const search = 'Ctrl+F';

@@ -627,7 +627,7 @@ void main() {
     expect(container.read(selectedAccountIdProvider), 'google:g');
   });
 
-  testWidgets('Settings exposes one clear account-removal action', (
+  testWidgets('Settings exposes one readable dark account-removal action', (
     tester,
   ) async {
     final container = _container(
@@ -637,7 +637,20 @@ void main() {
     );
     addTearDown(container.dispose);
 
-    await _pumpSettings(tester, container);
+    final theme = BusyMaxYaruTheme.build(
+      brightness: Brightness.dark,
+      accentColor: YaruColors.orange,
+    );
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: localizedTestApp(
+          theme: theme,
+          child: const SettingsScreen(initialPage: SettingsPage.accounts),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
 
     expect(find.text('Remove account…'), findsOneWidget);
     expect(
@@ -649,6 +662,36 @@ void main() {
     expect(find.text('Sign out this account'), findsNothing);
     expect(find.text('Disconnect this account'), findsNothing);
     expect(find.text('Delete local data for this account'), findsNothing);
+
+    final removeRowFinder = find.ancestor(
+      of: find.text('Remove account…'),
+      matching: find.byType(BusyMaxActionRow),
+    );
+    final removeRow = tester.widget<BusyMaxActionRow>(removeRowFinder);
+    final removeTitle = tester.widget<Text>(find.text('Remove account…'));
+    final trash = tester.widget<Icon>(
+      find.descendant(
+        of: removeRowFinder,
+        matching: find.byIcon(YaruIcons.trash),
+      ),
+    );
+    expect(removeRow.destructive, isFalse);
+    expect(removeTitle.style?.color, isNot(theme.colorScheme.error));
+    expect(trash.color, theme.colorScheme.error);
+
+    await tester.tap(find.text('Remove account…'));
+    await tester.pumpAndSettle();
+    final confirm = tester.widget<ElevatedButton>(
+      find.byKey(const Key('confirm-account-removal')),
+    );
+    expect(
+      confirm.style?.backgroundColor?.resolve(const <WidgetState>{}),
+      theme.colorScheme.error,
+    );
+    expect(
+      confirm.style?.foregroundColor?.resolve(const <WidgetState>{}),
+      theme.colorScheme.onError,
+    );
   });
 
   testWidgets('Settings reports a local account-removal failure in place', (
@@ -694,6 +737,13 @@ void main() {
 
     expect(auth.removalCalls, hasLength(1));
     expect(find.text('Removing account…'), findsOneWidget);
+    final removingRow = tester.widget<BusyMaxActionRow>(
+      find.ancestor(
+        of: find.text('Removing account…'),
+        matching: find.byType(BusyMaxActionRow),
+      ),
+    );
+    expect(removingRow.enabled, isFalse);
     await tester.tap(find.text('Removing account…'), warnIfMissed: false);
     await tester.pump();
     expect(auth.removalCalls, hasLength(1));
@@ -1325,6 +1375,20 @@ void main() {
     expect(find.text('schedule route'), findsOneWidget);
   });
 
+  testWidgets('Alt+Left uses Settings schedule fallback', (tester) async {
+    final container = _container(
+      selectedAccountId: 'google:g',
+      authRepository: _FakeAuthRepository(),
+      accounts: const [_googleAccount],
+    );
+    addTearDown(container.dispose);
+
+    await _pumpRoutedSettings(tester, container);
+    await _sendAltLeft(tester);
+
+    expect(find.text('schedule route'), findsOneWidget);
+  });
+
   testWidgets('Settings back returns to the route that opened it', (
     tester,
   ) async {
@@ -1353,6 +1417,29 @@ void main() {
         .read(linuxHeaderBarServiceProvider)
         .handleNativeMethodCall(const MethodCall('back'));
     await tester.pumpAndSettle();
+
+    expect(find.text('tasks route'), findsOneWidget);
+  });
+
+  testWidgets('Alt+Left pops Settings to the route that opened it', (
+    tester,
+  ) async {
+    final container = _container(
+      selectedAccountId: 'google:g',
+      authRepository: _FakeAuthRepository(),
+      accounts: const [_googleAccount],
+    );
+    addTearDown(container.dispose);
+
+    final router = await _pumpRoutedSettings(
+      tester,
+      container,
+      initialLocation: '/tasks',
+    );
+    unawaited(router.push('/settings'));
+    await tester.pumpAndSettle();
+
+    await _sendAltLeft(tester);
 
     expect(find.text('tasks route'), findsOneWidget);
   });
@@ -1396,6 +1483,14 @@ Future<void> _openAccountRemovalDialog(WidgetTester tester) async {
   await tester.tap(removeAction);
   await tester.pumpAndSettle();
   expect(find.textContaining('from BusyMax?'), findsOneWidget);
+}
+
+Future<void> _sendAltLeft(WidgetTester tester) async {
+  await tester.sendKeyDownEvent(LogicalKeyboardKey.altLeft);
+  await tester.sendKeyDownEvent(LogicalKeyboardKey.arrowLeft);
+  await tester.sendKeyUpEvent(LogicalKeyboardKey.arrowLeft);
+  await tester.sendKeyUpEvent(LogicalKeyboardKey.altLeft);
+  await tester.pumpAndSettle();
 }
 
 ProviderContainer _container({

@@ -1780,7 +1780,7 @@ void main() {
     expect(source, isNot(contains('class _OnboardingHeader')));
     expect(source, isNot(contains('class _OnboardingProgressDots')));
     expect(source, isNot(contains('Border(top: BorderSide')));
-    expect(source, contains("key: const ValueKey('onboarding-content-rail')"));
+    expect(source, contains("'onboarding-content-rail'"));
     expect(source, contains('busyMaxOnboardingContentMaxWidth'));
     expect(source, contains('width: contentRailWidth'));
   });

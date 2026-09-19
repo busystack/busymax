@@ -933,10 +933,15 @@ void main() {
       expect(source, isNot(contains('busymax-header-view-mode-item-active')));
       expect(source, isNot(contains('create_header_popup_window')));
       expect(source, contains('gtk_menu_button_set_menu_model'));
-      expect(source, isNot(contains('GTK_STYLE_CLASS_SUGGESTED_ACTION')));
-      expect(source, contains('kHeaderOnboardingTextButtonStyleClass'));
-      expect(source, contains('"padding: 0;"'));
-      expect(source, contains('"background-color: transparent;"'));
+      expect(source, contains('GTK_STYLE_CLASS_SUGGESTED_ACTION'));
+      expect(source, contains('create_onboarding_button("Continue", TRUE)'));
+      expect(source, contains('create_onboarding_button("Back", FALSE)'));
+      expect(source, isNot(contains('kHeaderOnboardingTextButtonStyleClass')));
+      expect(source, isNot(contains('busymax-onboarding-text-button')));
+      expect(
+        source,
+        contains('.busymax-header-control:not(.suggested-action)'),
+      );
       expect(source, isNot(contains('busymax-header-primary-button')));
       expect(
         source,

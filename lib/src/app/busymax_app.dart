@@ -442,6 +442,7 @@ class _BusyMaxAppState extends ConsumerState<LinuxBusyMaxApp> {
       showSidebarPanel: l10n.showSidebar,
       hideSidebarPanel: l10n.hideSidebar,
       back: materialL10n.backButtonTooltip,
+      backShortcut: BusyMaxShortcutLabels.back,
       settings: l10n.settings,
       keyboardShortcuts: l10n.keyboardShortcuts,
       reportIssue: l10n.reportAnIssue,

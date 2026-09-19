@@ -73,8 +73,6 @@ constexpr gdouble kTooltipBorderWidth = 1.0;
 // border-to-text padding as Flutter tooltips.
 constexpr gdouble kGtkTooltipContainerInset = 6.0;
 constexpr char kHeaderControlStyleClass[] = "busymax-header-control";
-constexpr char kHeaderOnboardingTextButtonStyleClass[] =
-    "busymax-onboarding-text-button";
 constexpr char kMenuAccelAttribute[] = "accel";
 constexpr char kLtrIsolateStart[] = "\xE2\x81\xA6";
 constexpr char kBidiIsolateEnd[] = "\xE2\x81\xA9";
@@ -201,6 +199,7 @@ struct _MyApplication {
   gchar* header_keyboard_shortcuts_label;
   gchar* header_report_issue_label;
   gchar* header_about_label;
+  gchar* header_back_shortcut;
   gchar* header_day_shortcut;
   gchar* header_week_shortcut;
   gchar* header_month_shortcut;
@@ -2420,21 +2419,6 @@ static void refresh_header_bar_css(MyApplication* self) {
       "background-color: alpha(currentColor, 0.19);"
       "background-image: none;"
       "}"
-      ".busymax-titlebar .busymax-onboarding-text-button,"
-      ".busymax-titlebar .busymax-onboarding-text-button:hover,"
-      ".busymax-titlebar .busymax-onboarding-text-button:active,"
-      ".busymax-titlebar .busymax-onboarding-text-button:disabled {"
-      "min-width: 0;"
-      "min-height: 0;"
-      "padding: 0;"
-      "border: none;"
-      "background-color: transparent;"
-      "background-image: none;"
-      "box-shadow: none;"
-      "}"
-      ".busymax-titlebar .busymax-onboarding-text-button:hover label {"
-      "text-decoration-line: underline;"
-      "}"
       // While a modal route is present, transient and checked control
       // surfaces must not remain painted above the dimmed titlebar. The
       // controls stay sensitive so GTK does not substitute disabled colors;
@@ -2852,6 +2836,36 @@ static void focus_flutter_view(MyApplication* self) {
   }
 }
 
+static gboolean main_window_key_press_event_cb(GtkWidget*,
+                                               GdkEventKey* event,
+                                               gpointer user_data) {
+  MyApplication* self = MY_APPLICATION(user_data);
+  const GdkModifierType modifiers = static_cast<GdkModifierType>(
+      event->state & gtk_accelerator_get_default_mod_mask());
+  if ((event->keyval != GDK_KEY_Left && event->keyval != GDK_KEY_KP_Left) ||
+      modifiers != GDK_MOD1_MASK) {
+    return FALSE;
+  }
+  if (self->suppress_header_bar_actions ||
+      self->header_bar_modal_barrier_visible ||
+      self->header_bar_channel == nullptr) {
+    return FALSE;
+  }
+
+  if (self->header_onboarding_controls_visible) {
+    if (self->onboarding_back_button == nullptr ||
+        !gtk_widget_get_sensitive(self->onboarding_back_button)) {
+      return FALSE;
+    }
+  } else if (!self->header_back_visible) {
+    return FALSE;
+  }
+
+  focus_flutter_view(self);
+  invoke_header_bar_action(self, "back");
+  return TRUE;
+}
+
 static void header_bar_action_clicked_cb(GtkWidget* widget,
                                          gpointer user_data) {
   MyApplication* self = MY_APPLICATION(user_data);
@@ -3223,10 +3237,24 @@ static GtkWidget* create_header_toggle_icon_button(const gchar* icon_name,
 }
 
 static GtkWidget* create_header_text_button(const gchar* label,
+                                            const gchar* tooltip)
+    G_GNUC_UNUSED;
+
+static GtkWidget* create_header_text_button(const gchar* label,
                                             const gchar* tooltip) {
   GtkWidget* button = gtk_button_new_with_label(label);
   gtk_widget_set_tooltip_text(button, tooltip);
   style_header_control(button);
+  return button;
+}
+
+static GtkWidget* create_onboarding_button(const gchar* label,
+                                           gboolean suggested) {
+  GtkWidget* button = gtk_button_new_with_label(label);
+  if (suggested) {
+    gtk_style_context_add_class(gtk_widget_get_style_context(button),
+                                GTK_STYLE_CLASS_SUGGESTED_ACTION);
+  }
   return button;
 }
 
@@ -3628,6 +3656,8 @@ static void set_header_onboarding_controls(MyApplication* self, FlValue* args) {
   set_widget_sensitive(self->onboarding_continue_button, can_continue);
   set_button_label_and_tooltip(self->onboarding_back_button, back_label,
                                back_label);
+  set_widget_tooltip_with_shortcut(self->onboarding_back_button, back_label,
+                                   self->header_back_shortcut);
   set_button_label_and_tooltip(self->onboarding_continue_button,
                                continue_label, continue_label);
   update_header_title_box_geometry(self);
@@ -3785,6 +3815,8 @@ static void set_header_localized_labels(MyApplication* self, FlValue* args) {
   const gchar* hide_sidebar_panel =
       fl_lookup_string_arg(args, "hideSidebarPanel");
   const gchar* back = fl_lookup_string_arg(args, "back");
+  const gchar* back_shortcut =
+      fl_lookup_string_arg(args, "backShortcut");
   const gchar* settings = fl_lookup_string_arg(args, "settings");
   const gchar* keyboard_shortcuts =
       fl_lookup_string_arg(args, "keyboardShortcuts");
@@ -3815,6 +3847,7 @@ static void set_header_localized_labels(MyApplication* self, FlValue* args) {
       fl_lookup_string_arg(args, "keyboardShortcutsShortcut");
 
   replace_header_label(&self->header_day_shortcut, day_shortcut);
+  replace_header_label(&self->header_back_shortcut, back_shortcut);
   replace_header_label(&self->header_week_shortcut, week_shortcut);
   replace_header_label(&self->header_month_shortcut, month_shortcut);
   replace_header_label(&self->header_year_shortcut, year_shortcut);
@@ -3835,7 +3868,8 @@ static void set_header_localized_labels(MyApplication* self, FlValue* args) {
   set_widget_accessible_name(self->today_button, today);
   set_widget_tooltip_with_shortcut(self->today_button, today, today_shortcut);
   set_header_view_mode_labels(self, day, week, month, year, agenda);
-  set_widget_tooltip(self->back_button, back);
+  set_widget_tooltip_with_shortcut(self->back_button, back,
+                                   self->header_back_shortcut);
   set_widget_tooltip_with_shortcut(self->search_button, search,
                                    search_shortcut);
   if (self->search_entry != nullptr && GTK_IS_ENTRY(self->search_entry) &&
@@ -3972,10 +4006,9 @@ static GtkWidget* create_busymax_titlebar(MyApplication* self) {
   gtk_widget_set_visible(self->onboarding_back_slot, FALSE);
 
   track_widget_pointer(&self->onboarding_back_button,
-                       create_header_text_button("Back", "Back"));
-  gtk_style_context_add_class(
-      gtk_widget_get_style_context(self->onboarding_back_button),
-      kHeaderOnboardingTextButtonStyleClass);
+                       create_onboarding_button("Back", FALSE));
+  set_widget_tooltip_with_shortcut(self->onboarding_back_button, "Back",
+                                   self->header_back_shortcut);
   connect_header_bar_action(self, self->onboarding_back_button, "back");
   gtk_widget_set_visible(self->onboarding_back_button, FALSE);
   gtk_box_pack_start(GTK_BOX(self->onboarding_back_slot),
@@ -4029,10 +4062,7 @@ static GtkWidget* create_busymax_titlebar(MyApplication* self) {
   gtk_widget_set_visible(self->onboarding_continue_slot, FALSE);
 
   track_widget_pointer(&self->onboarding_continue_button,
-                       create_header_text_button("Continue", "Continue"));
-  gtk_style_context_add_class(
-      gtk_widget_get_style_context(self->onboarding_continue_button),
-      kHeaderOnboardingTextButtonStyleClass);
+                       create_onboarding_button("Continue", TRUE));
   connect_header_bar_action(self, self->onboarding_continue_button,
                             "continueSetup");
   gtk_widget_set_visible(self->onboarding_continue_button, FALSE);
@@ -5065,6 +5095,8 @@ static void my_application_activate(GApplication* application) {
   g_signal_connect(
       window, "notify::is-active",
       G_CALLBACK(header_focus_window_is_active_notify_cb), self);
+  g_signal_connect(window, "key-press-event",
+                   G_CALLBACK(main_window_key_press_event_cb), self);
 
   g_autoptr(FlDartProject) project = fl_dart_project_new();
   fl_dart_project_set_dart_entrypoint_arguments(
@@ -5279,6 +5311,7 @@ static void my_application_dispose(GObject* object) {
   g_clear_pointer(&self->header_keyboard_shortcuts_label, g_free);
   g_clear_pointer(&self->header_report_issue_label, g_free);
   g_clear_pointer(&self->header_about_label, g_free);
+  g_clear_pointer(&self->header_back_shortcut, g_free);
   g_clear_pointer(&self->header_day_shortcut, g_free);
   g_clear_pointer(&self->header_week_shortcut, g_free);
   g_clear_pointer(&self->header_month_shortcut, g_free);
@@ -5420,6 +5453,7 @@ static void my_application_init(MyApplication* self) {
   self->header_keyboard_shortcuts_label = g_strdup("Keyboard Shortcuts");
   self->header_report_issue_label = g_strdup("Report an issue");
   self->header_about_label = g_strdup("About BusyMax");
+  self->header_back_shortcut = g_strdup("Alt+Left");
   self->header_day_shortcut = g_strdup("1");
   self->header_week_shortcut = g_strdup("2");
   self->header_month_shortcut = g_strdup("3");

@@ -81,6 +81,7 @@ class BusyMaxHeaderBarLabels {
     required this.showSidebarPanel,
     required this.hideSidebarPanel,
     required this.back,
+    required this.backShortcut,
     required this.settings,
     required this.keyboardShortcuts,
     required this.reportIssue,
@@ -118,6 +119,7 @@ class BusyMaxHeaderBarLabels {
   final String showSidebarPanel;
   final String hideSidebarPanel;
   final String back;
+  final String backShortcut;
   final String settings;
   final String keyboardShortcuts;
   final String reportIssue;
@@ -156,6 +158,7 @@ class BusyMaxHeaderBarLabels {
       'showSidebarPanel': showSidebarPanel,
       'hideSidebarPanel': hideSidebarPanel,
       'back': back,
+      'backShortcut': backShortcut,
       'settings': settings,
       'keyboardShortcuts': keyboardShortcuts,
       'reportIssue': reportIssue,
@@ -198,6 +201,7 @@ class BusyMaxHeaderBarLabels {
             showSidebarPanel == other.showSidebarPanel &&
             hideSidebarPanel == other.hideSidebarPanel &&
             back == other.back &&
+            backShortcut == other.backShortcut &&
             settings == other.settings &&
             keyboardShortcuts == other.keyboardShortcuts &&
             reportIssue == other.reportIssue &&
@@ -237,6 +241,7 @@ class BusyMaxHeaderBarLabels {
     showSidebarPanel,
     hideSidebarPanel,
     back,
+    backShortcut,
     settings,
     keyboardShortcuts,
     reportIssue,

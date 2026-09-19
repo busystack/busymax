@@ -17,6 +17,7 @@ import '../../../app/busymax_dialogs.dart';
 import '../../../app/busymax_glyphs.dart';
 import '../../../app/busymax_keyboard_shortcuts_dialog.dart';
 import '../../../app/busymax_layout.dart';
+import '../../../app/busymax_shortcuts.dart';
 import '../../../core/logging/redacting_logger.dart';
 import '../../../dav/auth/dav_account_dialogs.dart';
 import '../../../dav/presentation/nextcloud_collection_dialog.dart';
@@ -433,74 +434,80 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       ),
     };
 
-    return Scaffold(
-      backgroundColor: BusyMaxSurfaceColors.of(context).window,
-      body: LayoutBuilder(
-        builder: (context, constraints) {
-          final showSidebar = BusyMaxLayoutRules.showSettingsSidebar(
-            constraints.maxWidth,
-          );
-          _updateSettingsHeaderBar(
-            context,
-            title,
-            settings: settings,
-            showSidebar: showSidebar,
-          );
-          final content = Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              if (_showFallbackHeader)
-                _SettingsFallbackHeader(title: title, onBack: _goBack),
-              if (ref.watch(appSettingsPersistenceFailedProvider))
-                MaterialBanner(
-                  content: Text(l10n.settingsSaveFailed),
-                  actions: [
-                    TextButton(
-                      onPressed: () =>
-                          unawaited(settingsController.retrySave()),
-                      child: Text(l10n.retry),
+    return CallbackShortcuts(
+      bindings: {BusyMaxShortcutActivators.back: _goBack},
+      child: Focus(
+        autofocus: true,
+        child: Scaffold(
+          backgroundColor: BusyMaxSurfaceColors.of(context).window,
+          body: LayoutBuilder(
+            builder: (context, constraints) {
+              final showSidebar = BusyMaxLayoutRules.showSettingsSidebar(
+                constraints.maxWidth,
+              );
+              _updateSettingsHeaderBar(
+                context,
+                title,
+                settings: settings,
+                showSidebar: showSidebar,
+              );
+              final content = Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  if (_showFallbackHeader)
+                    _SettingsFallbackHeader(title: title, onBack: _goBack),
+                  if (ref.watch(appSettingsPersistenceFailedProvider))
+                    MaterialBanner(
+                      content: Text(l10n.settingsSaveFailed),
+                      actions: [
+                        TextButton(
+                          onPressed: () =>
+                              unawaited(settingsController.retrySave()),
+                          child: Text(l10n.retry),
+                        ),
+                      ],
                     ),
-                  ],
-                ),
-              if (!showSidebar)
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(
-                    BusyMaxSpacing.lg,
-                    BusyMaxSpacing.md,
-                    BusyMaxSpacing.lg,
-                    0,
+                  if (!showSidebar)
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(
+                        BusyMaxSpacing.lg,
+                        BusyMaxSpacing.md,
+                        BusyMaxSpacing.lg,
+                        0,
+                      ),
+                      child: _SettingsPageSelector(
+                        selected: _page,
+                        onSelected: _selectPage,
+                      ),
+                    ),
+                  Expanded(
+                    child: BusyMaxClamp(
+                      maxWidth: 760,
+                      margin: EdgeInsets.zero,
+                      padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+                      child: pageBody,
+                    ),
                   ),
-                  child: _SettingsPageSelector(
-                    selected: _page,
-                    onSelected: _selectPage,
+                ],
+              );
+              if (!showSidebar) {
+                return content;
+              }
+              return Row(
+                children: [
+                  SizedBox(
+                    width: BusyMaxSizes.sidebarWidth,
+                    child: _SettingsSidebar(
+                      selected: _page,
+                      onSelected: _selectPage,
+                    ),
                   ),
-                ),
-              Expanded(
-                child: BusyMaxClamp(
-                  maxWidth: 760,
-                  margin: EdgeInsets.zero,
-                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
-                  child: pageBody,
-                ),
-              ),
-            ],
-          );
-          if (!showSidebar) {
-            return content;
-          }
-          return Row(
-            children: [
-              SizedBox(
-                width: BusyMaxSizes.sidebarWidth,
-                child: _SettingsSidebar(
-                  selected: _page,
-                  onSelected: _selectPage,
-                ),
-              ),
-              Expanded(child: content),
-            ],
-          );
-        },
+                  Expanded(child: content),
+                ],
+              );
+            },
+          ),
+        ),
       ),
     );
   }
@@ -2125,7 +2132,7 @@ class _AccountManagementCard extends StatelessWidget {
             YaruIcons.trash,
             color: Theme.of(context).colorScheme.error,
           ),
-          destructive: true,
+          enabled: !removing,
           onTap: removing ? null : onRemoveAccount,
         ),
       ],

@@ -36,6 +36,39 @@ const _settingsHeaderState = BusyMaxHeaderBarState(
   backVisible: true,
 );
 
+BusyMaxHeaderBarLabels _labels({String backShortcut = 'Alt+Left'}) {
+  return BusyMaxHeaderBarLabels(
+    today: 'Today',
+    day: 'Day',
+    week: 'Week',
+    month: 'Month',
+    year: 'Year',
+    agenda: 'Agenda',
+    search: 'Search',
+    create: 'Create',
+    createEvent: 'Event',
+    createTask: 'Task',
+    refresh: 'Refresh',
+    menu: 'Menu',
+    previous: 'Previous',
+    next: 'Next',
+    showSidebarPanel: 'Show sidebar panel',
+    hideSidebarPanel: 'Hide sidebar panel',
+    back: 'Back',
+    backShortcut: backShortcut,
+    settings: 'Settings',
+    keyboardShortcuts: 'Keyboard Shortcuts',
+    reportIssue: 'Report an issue',
+    aboutBusyMax: 'About BusyMax',
+    todayShortcut: 'Shift+T',
+    dayShortcut: '1',
+    sidebarShortcut: 'F9',
+    createEventShortcut: 'E',
+    settingsShortcut: 'Ctrl+Alt+S',
+    keyboardShortcutsShortcut: 'Ctrl+Alt+K',
+  );
+}
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
@@ -61,37 +94,7 @@ void main() {
     addTearDown(session.dispose);
 
     await service.initialize();
-    await service.setLocalizedLabels(
-      const BusyMaxHeaderBarLabels(
-        today: 'Today',
-        day: 'Day',
-        week: 'Week',
-        month: 'Month',
-        year: 'Year',
-        agenda: 'Agenda',
-        search: 'Search',
-        create: 'Create',
-        createEvent: 'Event',
-        createTask: 'Task',
-        refresh: 'Refresh',
-        menu: 'Menu',
-        previous: 'Previous',
-        next: 'Next',
-        showSidebarPanel: 'Show sidebar panel',
-        hideSidebarPanel: 'Hide sidebar panel',
-        back: 'Back',
-        settings: 'Settings',
-        keyboardShortcuts: 'Keyboard Shortcuts',
-        reportIssue: 'Report an issue',
-        aboutBusyMax: 'About BusyMax',
-        todayShortcut: 'Shift+T',
-        dayShortcut: '1',
-        sidebarShortcut: 'F9',
-        createEventShortcut: 'E',
-        settingsShortcut: 'Ctrl+Alt+S',
-        keyboardShortcutsShortcut: 'Ctrl+Alt+K',
-      ),
-    );
+    await service.setLocalizedLabels(_labels());
     await service.setSidebarWidth(300);
     await service.setTextDirection(TextDirection.rtl);
     await session.setOnboardingControls(
@@ -161,6 +164,7 @@ void main() {
       containsPair('hideSidebarPanel', 'Hide sidebar panel'),
     );
     expect(calls[1].arguments, containsPair('back', 'Back'));
+    expect(calls[1].arguments, containsPair('backShortcut', 'Alt+Left'));
     expect(calls[1].arguments, containsPair('settings', 'Settings'));
     expect(
       calls[1].arguments,
@@ -212,6 +216,18 @@ void main() {
         },
       }),
     );
+  });
+
+  test('Back shortcut participates in label value semantics', () {
+    final first = _labels();
+    final equal = _labels();
+    final changed = _labels(backShortcut: 'Alt+Backspace');
+
+    expect(first.toJson(), containsPair('backShortcut', 'Alt+Left'));
+    expect(first, equal);
+    expect(first.hashCode, equal.hashCode);
+    expect(first, isNot(changed));
+    expect(first.hashCode, isNot(changed.hashCode));
   });
 
   test('serializes CSS colors for native headerbar', () {
@@ -818,8 +834,44 @@ void main() {
     expect(source, contains('g_menu_item_set_action_and_target'));
     expect(source, contains('g_simple_action_new_stateful'));
     expect(source, contains('GTK_STYLE_CLASS_FLAT'));
-    expect(source, isNot(contains('GTK_STYLE_CLASS_SUGGESTED_ACTION')));
-    expect(source, contains('kHeaderOnboardingTextButtonStyleClass'));
+    expect(source, contains('GTK_STYLE_CLASS_SUGGESTED_ACTION'));
+    expect(source, contains('create_onboarding_button("Continue", TRUE)'));
+    expect(source, contains('create_onboarding_button("Back", FALSE)'));
+    expect(source, isNot(contains('kHeaderOnboardingTextButtonStyleClass')));
+    expect(source, isNot(contains('busymax-onboarding-text-button')));
+    expect(source, contains('.busymax-header-control:not(.suggested-action)'));
+    expect(source, contains('main_window_key_press_event_cb'));
+    final handlerStart = source.indexOf(
+      'static gboolean main_window_key_press_event_cb',
+    );
+    final handlerEnd = source.indexOf(
+      'static void header_bar_action_clicked_cb',
+      handlerStart,
+    );
+    final backHandler = source.substring(handlerStart, handlerEnd);
+    expect(backHandler, contains('gtk_accelerator_get_default_mod_mask()'));
+    expect(backHandler, contains('modifiers != GDK_MOD1_MASK'));
+    expect(backHandler, contains('self->header_bar_modal_barrier_visible'));
+    expect(backHandler, contains('self->suppress_header_bar_actions'));
+    expect(backHandler, contains('self->header_onboarding_controls_visible'));
+    expect(
+      backHandler,
+      contains('gtk_widget_get_sensitive(self->onboarding_back_button)'),
+    );
+    expect(backHandler, contains('self->header_back_visible'));
+    expect(backHandler, contains('focus_flutter_view(self);'));
+    expect(backHandler, contains('invoke_header_bar_action(self, "back")'));
+    expect(
+      source,
+      contains('set_widget_tooltip_with_shortcut(self->back_button, back,'),
+    );
+    expect(
+      source,
+      contains(
+        'set_widget_tooltip_with_shortcut(self->onboarding_back_button, '
+        'back_label,',
+      ),
+    );
     expect(
       source,
       isNot(contains('button.busymax-header-view-mode-button:focus {"')),
