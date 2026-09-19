@@ -100,6 +100,14 @@ jobs:
             linux/runner/tests/first_weekday_test.cc \
             -o build/linux/native-tests/first_weekday_test
           build/linux/native-tests/first_weekday_test
+          LC_ALL=C.UTF-8 MALLOC_PERTURB_=165 \
+            build/linux/native-tests/first_weekday_test
+          g++ -std=c++17 -Wall -Wextra -Werror \
+            -fsanitize=address -fno-omit-frame-pointer \
+            linux/runner/tests/first_weekday_test.cc \
+            -o build/linux/native-tests/first_weekday_test_asan
+          ASAN_OPTIONS=detect_leaks=0 \
+            build/linux/native-tests/first_weekday_test_asan
           g++ -std=c++17 -Wall -Wextra -Werror \
             linux/runner/tests/time_picker_test.cc \
             -o build/linux/native-tests/time_picker_test \

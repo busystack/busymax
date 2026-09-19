@@ -62,13 +62,12 @@ Future<DateTime?> showBusyMaxDatePicker({
   anchorPoint: anchorPoint,
   builder: (pickerContext, child) {
     final actual = MaterialLocalizations.of(pickerContext);
-    final firstWeekday =
-        BusyMaxWeekPreferencesScope.firstWeekdayOf(pickerContext);
+    final firstWeekday = BusyMaxWeekPreferencesScope.firstWeekdayOf(
+      pickerContext,
+    );
     final localizedChild = Localizations.override(
       context: pickerContext,
-      delegates: [
-        _BusyMaxPickerLocalizationsDelegate(actual, firstWeekday),
-      ],
+      delegates: [_BusyMaxPickerLocalizationsDelegate(actual, firstWeekday)],
       child: child!,
     );
     return builder?.call(pickerContext, localizedChild) ?? localizedChild;
@@ -97,10 +96,7 @@ class _BusyMaxPickerLocalizationsDelegate
 }
 
 class _BusyMaxPickerMaterialLocalizations implements MaterialLocalizations {
-  const _BusyMaxPickerMaterialLocalizations(
-    this._delegate,
-    this._firstWeekday,
-  );
+  const _BusyMaxPickerMaterialLocalizations(this._delegate, this._firstWeekday);
 
   final MaterialLocalizations _delegate;
   final int _firstWeekday;
@@ -132,19 +128,33 @@ class _BusyMaxPickerMaterialLocalizations implements MaterialLocalizations {
   @override
   String get showMenuTooltip => _delegate.showMenuTooltip;
   @override
-  String aboutListTileTitle(String applicationName) => _delegate.aboutListTileTitle(applicationName);
+  String aboutListTileTitle(String applicationName) =>
+      _delegate.aboutListTileTitle(applicationName);
   @override
   String get licensesPageTitle => _delegate.licensesPageTitle;
   @override
-  String licensesPackageDetailText(int licenseCount) => _delegate.licensesPackageDetailText(licenseCount);
+  String licensesPackageDetailText(int licenseCount) =>
+      _delegate.licensesPackageDetailText(licenseCount);
   @override
-  String pageRowsInfoTitle(int firstRow, int lastRow, int rowCount, bool rowCountIsApproximate) => _delegate.pageRowsInfoTitle(firstRow, lastRow, rowCount, rowCountIsApproximate);
+  String pageRowsInfoTitle(
+    int firstRow,
+    int lastRow,
+    int rowCount,
+    bool rowCountIsApproximate,
+  ) => _delegate.pageRowsInfoTitle(
+    firstRow,
+    lastRow,
+    rowCount,
+    rowCountIsApproximate,
+  );
   @override
   String get rowsPerPageTitle => _delegate.rowsPerPageTitle;
   @override
-  String tabLabel({required int tabIndex, required int tabCount}) => _delegate.tabLabel(tabIndex: tabIndex, tabCount: tabCount);
+  String tabLabel({required int tabIndex, required int tabCount}) =>
+      _delegate.tabLabel(tabIndex: tabIndex, tabCount: tabCount);
   @override
-  String selectedRowCountTitle(int selectedRowCount) => _delegate.selectedRowCountTitle(selectedRowCount);
+  String selectedRowCountTitle(int selectedRowCount) =>
+      _delegate.selectedRowCountTitle(selectedRowCount);
   @override
   String get cancelButtonLabel => _delegate.cancelButtonLabel;
   @override
@@ -176,9 +186,11 @@ class _BusyMaxPickerMaterialLocalizations implements MaterialLocalizations {
   @override
   String get postMeridiemAbbreviation => _delegate.postMeridiemAbbreviation;
   @override
-  String get timePickerHourModeAnnouncement => _delegate.timePickerHourModeAnnouncement;
+  String get timePickerHourModeAnnouncement =>
+      _delegate.timePickerHourModeAnnouncement;
   @override
-  String get timePickerMinuteModeAnnouncement => _delegate.timePickerMinuteModeAnnouncement;
+  String get timePickerMinuteModeAnnouncement =>
+      _delegate.timePickerMinuteModeAnnouncement;
   @override
   String get modalBarrierDismissLabel => _delegate.modalBarrierDismissLabel;
   @override
@@ -204,19 +216,33 @@ class _BusyMaxPickerMaterialLocalizations implements MaterialLocalizations {
   @override
   String get bottomSheetLabel => _delegate.bottomSheetLabel;
   @override
-  String scrimOnTapHint(String modalRouteContentName) => _delegate.scrimOnTapHint(modalRouteContentName);
+  String scrimOnTapHint(String modalRouteContentName) =>
+      _delegate.scrimOnTapHint(modalRouteContentName);
   @override
-  TimeOfDayFormat timeOfDayFormat({bool alwaysUse24HourFormat = false}) => _delegate.timeOfDayFormat(alwaysUse24HourFormat: alwaysUse24HourFormat);
+  TimeOfDayFormat timeOfDayFormat({bool alwaysUse24HourFormat = false}) =>
+      _delegate.timeOfDayFormat(alwaysUse24HourFormat: alwaysUse24HourFormat);
   @override
   ScriptCategory get scriptCategory => _delegate.scriptCategory;
   @override
   String formatDecimal(int number) => _delegate.formatDecimal(number);
   @override
-  String formatHour(TimeOfDay timeOfDay, {bool alwaysUse24HourFormat = false}) => _delegate.formatHour(timeOfDay, alwaysUse24HourFormat: alwaysUse24HourFormat);
+  String formatHour(
+    TimeOfDay timeOfDay, {
+    bool alwaysUse24HourFormat = false,
+  }) => _delegate.formatHour(
+    timeOfDay,
+    alwaysUse24HourFormat: alwaysUse24HourFormat,
+  );
   @override
   String formatMinute(TimeOfDay timeOfDay) => _delegate.formatMinute(timeOfDay);
   @override
-  String formatTimeOfDay(TimeOfDay timeOfDay, {bool alwaysUse24HourFormat = false}) => _delegate.formatTimeOfDay(timeOfDay, alwaysUse24HourFormat: alwaysUse24HourFormat);
+  String formatTimeOfDay(
+    TimeOfDay timeOfDay, {
+    bool alwaysUse24HourFormat = false,
+  }) => _delegate.formatTimeOfDay(
+    timeOfDay,
+    alwaysUse24HourFormat: alwaysUse24HourFormat,
+  );
   @override
   String formatYear(DateTime date) => _delegate.formatYear(date);
   @override
@@ -230,13 +256,16 @@ class _BusyMaxPickerMaterialLocalizations implements MaterialLocalizations {
   @override
   String formatMonthYear(DateTime date) => _delegate.formatMonthYear(date);
   @override
-  String formatShortMonthDay(DateTime date) => _delegate.formatShortMonthDay(date);
+  String formatShortMonthDay(DateTime date) =>
+      _delegate.formatShortMonthDay(date);
   @override
-  DateTime? parseCompactDate(String? inputString) => _delegate.parseCompactDate(inputString);
+  DateTime? parseCompactDate(String? inputString) =>
+      _delegate.parseCompactDate(inputString);
   @override
   List<String> get narrowWeekdays => _delegate.narrowWeekdays;
   @override
-  int get firstDayOfWeekIndex => _firstWeekday == DateTime.sunday ? 0 : _firstWeekday;
+  int get firstDayOfWeekIndex =>
+      _firstWeekday == DateTime.sunday ? 0 : _firstWeekday;
   @override
   String get dateSeparator => _delegate.dateSeparator;
   @override
@@ -254,9 +283,11 @@ class _BusyMaxPickerMaterialLocalizations implements MaterialLocalizations {
   @override
   String get dateRangeEndLabel => _delegate.dateRangeEndLabel;
   @override
-  String dateRangeStartDateSemanticLabel(String formattedDate) => _delegate.dateRangeStartDateSemanticLabel(formattedDate);
+  String dateRangeStartDateSemanticLabel(String formattedDate) =>
+      _delegate.dateRangeStartDateSemanticLabel(formattedDate);
   @override
-  String dateRangeEndDateSemanticLabel(String formattedDate) => _delegate.dateRangeEndDateSemanticLabel(formattedDate);
+  String dateRangeEndDateSemanticLabel(String formattedDate) =>
+      _delegate.dateRangeEndDateSemanticLabel(formattedDate);
   @override
   String get invalidDateFormatLabel => _delegate.invalidDateFormatLabel;
   @override
@@ -314,17 +345,21 @@ class _BusyMaxPickerMaterialLocalizations implements MaterialLocalizations {
   @override
   String get expansionTileCollapsedHint => _delegate.expansionTileCollapsedHint;
   @override
-  String get expansionTileExpandedTapHint => _delegate.expansionTileExpandedTapHint;
+  String get expansionTileExpandedTapHint =>
+      _delegate.expansionTileExpandedTapHint;
   @override
-  String get expansionTileCollapsedTapHint => _delegate.expansionTileCollapsedTapHint;
+  String get expansionTileCollapsedTapHint =>
+      _delegate.expansionTileCollapsedTapHint;
   @override
   String get expandedHint => _delegate.expandedHint;
   @override
   String get collapsedHint => _delegate.collapsedHint;
   @override
-  String remainingTextFieldCharacterCount(int remaining) => _delegate.remainingTextFieldCharacterCount(remaining);
+  String remainingTextFieldCharacterCount(int remaining) =>
+      _delegate.remainingTextFieldCharacterCount(remaining);
   @override
-  String get refreshIndicatorSemanticLabel => _delegate.refreshIndicatorSemanticLabel;
+  String get refreshIndicatorSemanticLabel =>
+      _delegate.refreshIndicatorSemanticLabel;
   @override
   String get keyboardKeyAlt => _delegate.keyboardKeyAlt;
   @override
@@ -398,7 +433,8 @@ class _BusyMaxPickerMaterialLocalizations implements MaterialLocalizations {
   @override
   String get keyboardKeyNumpadParenLeft => _delegate.keyboardKeyNumpadParenLeft;
   @override
-  String get keyboardKeyNumpadParenRight => _delegate.keyboardKeyNumpadParenRight;
+  String get keyboardKeyNumpadParenRight =>
+      _delegate.keyboardKeyNumpadParenRight;
   @override
   String get keyboardKeyNumpadSubtract => _delegate.keyboardKeyNumpadSubtract;
   @override

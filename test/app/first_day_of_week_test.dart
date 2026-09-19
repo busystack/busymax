@@ -221,6 +221,7 @@ void main() {
 
     source.reads.single.complete(DateTime.saturday);
     await tester.pump();
+    await tester.pump();
 
     expect(controller.isInitialized, isTrue);
     expect(find.text('calendar: 6'), findsOneWidget);

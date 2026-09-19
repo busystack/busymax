@@ -26,6 +26,7 @@ import 'package:busymax/src/ui/windows/windows_schedule_search_pane.dart';
 import 'package:busymax/src/ui/windows/windows_schedule_source_pane.dart';
 import 'package:drift/drift.dart' hide Column, isNull, isNotNull;
 import 'package:fluent_ui/fluent_ui.dart' as fluent;
+import 'package:flutter/foundation.dart' show ValueListenable;
 import 'package:flutter/material.dart';
 import 'package:yaru/yaru.dart';
 import 'package:busymax/src/android/presentation/android_schedule_search_filters.dart';

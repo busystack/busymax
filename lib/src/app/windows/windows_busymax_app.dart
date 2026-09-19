@@ -3,9 +3,11 @@ import 'dart:async';
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:logging/logging.dart';
 
 import '../../../l10n/generated/app_localizations.dart';
 import '../../features/auth/data/auth_repository.dart';
+import '../../core/logging/redacting_logger.dart';
 import '../../l10n/locale_resolution.dart';
 import '../../l10n/time_format_scope.dart';
 import '../../l10n/week_preferences_scope.dart';
@@ -20,6 +22,7 @@ import '../../ui/windows/windows_workspace_shell.dart';
 import '../../ui/windows/windows_desktop_runtime.dart';
 import '../../ui/windows/windows_calendar_activation_flows.dart';
 import '../app_bootstrap.dart';
+import '../common/desktop_calendar_open_readiness.dart';
 
 final windowsRootNavigatorKey = GlobalKey<NavigatorState>();
 
@@ -69,11 +72,14 @@ class WindowsBusyMaxApp extends ConsumerStatefulWidget {
 
 class _WindowsBusyMaxAppState extends ConsumerState<WindowsBusyMaxApp>
     with WidgetsBindingObserver {
+  final _logger = RedactingLogger(Logger('WindowsBusyMaxApp'));
+  final _calendarOpenReadiness = DesktopCalendarOpenReadiness();
   StreamSubscription<DesktopActivation>? _activationSubscription;
   StreamSubscription<DesktopNavigationRequest>? _navigationSubscription;
   StreamSubscription<void>? _appearanceSubscription;
   late final WindowsClockPreference _clockPreference;
   late final BusyMaxSystemFirstWeekdayController _firstWeekdayController;
+  Future<void> _calendarOpenTail = Future<void>.value();
 
   @override
   void initState() {
@@ -109,6 +115,11 @@ class _WindowsBusyMaxAppState extends ConsumerState<WindowsBusyMaxApp>
 
   Future<void> _handleActivation(DesktopActivation activation) async {
     if (!activation.isValid) return;
+    if (activation.kind == DesktopActivationKind.icsFile ||
+        activation.kind == DesktopActivationKind.webCal) {
+      _queueCalendarOpen(activation);
+      return;
+    }
     if (activation.requiresVisibleWindow) {
       await ref.read(desktopWindowServiceProvider).showWindow();
     }
@@ -118,27 +129,8 @@ class _WindowsBusyMaxAppState extends ConsumerState<WindowsBusyMaxApp>
       case DesktopActivationKind.startMinimized:
         return;
       case DesktopActivationKind.icsFile:
-        windowsAppRouter.go('/schedule');
-        await WidgetsBinding.instance.endOfFrame;
-        final context = windowsRootNavigatorKey.currentContext;
-        if (context != null && context.mounted) {
-          await showWindowsIcsImportFlow(
-            context,
-            ref,
-            filePath: activation.value,
-          );
-        }
       case DesktopActivationKind.webCal:
-        windowsAppRouter.go('/settings');
-        await WidgetsBinding.instance.endOfFrame;
-        final context = windowsRootNavigatorKey.currentContext;
-        if (context != null && context.mounted) {
-          await showWindowsWebCalSubscriptionFlow(
-            context,
-            ref,
-            initialUrl: activation.value,
-          );
-        }
+        return;
       case DesktopActivationKind.notification:
         final destination = activation.notificationDestination;
         if (destination != null) {
@@ -161,6 +153,80 @@ class _WindowsBusyMaxAppState extends ConsumerState<WindowsBusyMaxApp>
     }
   }
 
+  void _queueCalendarOpen(DesktopActivation activation) {
+    final operation = _calendarOpenTail.then((_) async {
+      if (!mounted || !_calendarOpenReadiness.isActive) return;
+      await ref.read(desktopWindowServiceProvider).showWindow();
+      if (!mounted || !_calendarOpenReadiness.isActive) return;
+      await _openCalendarActivation(activation);
+    });
+    _calendarOpenTail = operation.catchError((Object error) {
+      _logger.warning('Calendar-open operation failed (${error.runtimeType}).');
+    });
+  }
+
+  Future<void> _openCalendarActivation(DesktopActivation activation) async {
+    if (!mounted || !_calendarOpenReadiness.isActive) return;
+    if (!await _calendarOpenReadiness.waitFor(
+      ref.read(appSettingsControllerProvider.notifier).ready,
+    )) {
+      return;
+    }
+    if (!mounted || !_calendarOpenReadiness.isActive) return;
+    final settings = ref.read(appSettingsControllerProvider);
+    if (settings.firstDayOfWeekPreference ==
+            BusyMaxFirstDayOfWeekPreference.system &&
+        !_firstWeekdayController.isInitialized) {
+      if (!await _calendarOpenReadiness.waitFor(
+        _firstWeekdayController.ready,
+      )) {
+        return;
+      }
+    }
+    if (!mounted || !_calendarOpenReadiness.isActive) return;
+
+    switch (activation.kind) {
+      case DesktopActivationKind.icsFile:
+        windowsAppRouter.go('/schedule');
+      case DesktopActivationKind.webCal:
+        windowsAppRouter.go('/settings');
+      case DesktopActivationKind.normalLaunch:
+      case DesktopActivationKind.startMinimized:
+      case DesktopActivationKind.notification:
+        return;
+    }
+    final context = await _calendarOpenReadiness.waitForRootNavigator(
+      windowsRootNavigatorKey,
+    );
+    if (!mounted ||
+        context == null ||
+        !context.mounted ||
+        !_calendarOpenReadiness.isUsableRootNavigator(
+          windowsRootNavigatorKey,
+          context,
+        )) {
+      return;
+    }
+    switch (activation.kind) {
+      case DesktopActivationKind.icsFile:
+        await showWindowsIcsImportFlow(
+          context,
+          ref,
+          filePath: activation.value,
+        );
+      case DesktopActivationKind.webCal:
+        await showWindowsWebCalSubscriptionFlow(
+          context,
+          ref,
+          initialUrl: activation.value,
+        );
+      case DesktopActivationKind.normalLaunch:
+      case DesktopActivationKind.startMinimized:
+      case DesktopActivationKind.notification:
+        return;
+    }
+  }
+
   void _handleNavigation(DesktopNavigationRequest request) {
     windowsAppRouter.go(switch (request.destination) {
       DesktopNavigationDestination.schedule => '/schedule',
@@ -172,6 +238,7 @@ class _WindowsBusyMaxAppState extends ConsumerState<WindowsBusyMaxApp>
 
   @override
   void dispose() {
+    _calendarOpenReadiness.dispose();
     WidgetsBinding.instance.removeObserver(this);
     _clockPreference.dispose();
     _firstWeekdayController
