@@ -1,5 +1,6 @@
 #include "flutter_window.h"
 #include "clock_preference.h"
+#include "weekday_preference.h"
 
 #include <appmodel.h>
 #include <flutter/standard_method_codec.h>
@@ -76,6 +77,24 @@ bool FlutterWindow::OnCreate() {
       result->Success(flutter::EncodableValue(uses_24_hour_clock_));
     } else {
       result->NotImplemented();
+    }
+  });
+
+  weekday_channel_ =
+      std::make_unique<flutter::MethodChannel<flutter::EncodableValue>>(
+          flutter_controller_->engine()->messenger(), "busymax/windows_weekday",
+          &flutter::StandardMethodCodec::GetInstance());
+  RefreshFirstWeekday();
+  weekday_channel_->SetMethodCallHandler([this](const auto& call, auto result) {
+    if (call.method_name() != "getFirstWeekday") {
+      result->NotImplemented();
+      return;
+    }
+    RefreshFirstWeekday();
+    if (first_weekday_) {
+      result->Success(flutter::EncodableValue(*first_weekday_));
+    } else {
+      result->Success();
     }
   });
 
@@ -250,6 +269,7 @@ void FlutterWindow::QueueActivation(std::string activation) {
 
 void FlutterWindow::OnDestroy() {
   clock_channel_.reset();
+  weekday_channel_.reset();
   if (flutter_controller_) {
     flutter_controller_ = nullptr;
   }
@@ -264,6 +284,7 @@ FlutterWindow::MessageHandler(HWND hwnd, UINT const message,
   // Observe before plugin processing, but retain all existing message handling.
   if (BusyMaxClockRefreshMessage(message, wparam, lparam)) {
     RefreshClockPreference();
+    RefreshFirstWeekday();
   }
   // Give Flutter, including plugins, an opportunity to handle window messages.
   if (flutter_controller_) {
@@ -326,5 +347,19 @@ void FlutterWindow::RefreshClockPreference() {
   if (clock_channel_) {
     clock_channel_->InvokeMethod("clockChanged",
         std::make_unique<flutter::EncodableValue>(current));
+  }
+}
+
+void FlutterWindow::RefreshFirstWeekday() {
+  const auto current = BusyMaxReadFirstWeekday();
+  if (current == first_weekday_) return;
+  first_weekday_ = current;
+  if (!weekday_channel_) return;
+  if (current) {
+    weekday_channel_->InvokeMethod(
+        "weekdayChanged",
+        std::make_unique<flutter::EncodableValue>(*current));
+  } else {
+    weekday_channel_->InvokeMethod("weekdayChanged", nullptr);
   }
 }

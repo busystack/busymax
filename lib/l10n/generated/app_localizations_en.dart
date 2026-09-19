@@ -13,7 +13,22 @@ class AppLocalizationsEn extends AppLocalizations {
   AppLocalizationsEn([String locale = 'en']) : super(locale);
 
   @override
+  String get launchAtLoginManagedExternally =>
+      'BusyMax was launched by your desktop\'s startup settings. Remove its entry there, then quit and reopen BusyMax to use this switch.';
+
+  @override
   String get timeFormat => 'Time format';
+
+  @override
+  String get firstDayOfWeek => 'First day of the week';
+
+  @override
+  String get systemDefault => 'System Default';
+
+  @override
+  String systemDefaultResolved(String weekday) {
+    return 'System Default ($weekday)';
+  }
 
   @override
   String get timeFormatTwelveHour => '12-hour';
@@ -2953,4 +2968,52 @@ class AppLocalizationsEn extends AppLocalizations {
     });
     return '$frequency $_temp0';
   }
+
+  @override
+  String get searchFilters => 'Search filters';
+
+  @override
+  String get searchType => 'Type';
+
+  @override
+  String get searchDate => 'Date';
+
+  @override
+  String get searchAnyDate => 'Any date';
+
+  @override
+  String get searchThisWeek => 'This week';
+
+  @override
+  String get searchCustomRange => 'Custom range';
+
+  @override
+  String get searchTaskStatus => 'Task status';
+
+  @override
+  String get searchTaskDue => 'Task due';
+
+  @override
+  String get searchAnyDueState => 'Any due state';
+
+  @override
+  String get searchNoDueDate => 'No due date';
+
+  @override
+  String get searchPerson => 'Person';
+
+  @override
+  String get searchSources => 'Sources';
+
+  @override
+  String get searchClearFilters => 'Clear filters';
+
+  @override
+  String get searchFiltersAction => 'Filters';
+
+  @override
+  String get searchNoSources => 'No search sources selected';
+
+  @override
+  String get searchClearText => 'Clear text';
 }

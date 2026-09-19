@@ -19,6 +19,8 @@ import 'schedule_item.dart';
 import 'schedule_projection.dart';
 import 'schedule_range.dart';
 import 'schedule_sorting.dart';
+import 'schedule_search_match.dart';
+export 'schedule_search_match.dart' show matchesScheduleQuery;
 
 class ScheduleRepository {
   const ScheduleRepository(
@@ -129,21 +131,21 @@ class ScheduleRepository {
     required ScheduleRange range,
     ScheduleFilters filters = const ScheduleFilters(),
   }) async {
-    if (filters.includeCalendarEvents) {
+    if (filters.includeCalendarEvents && !filters.ignoreDateRange) {
       await _ensureProjectionCoverage?.call(range);
     }
     final context = await _accountContext(filters);
     if (context == null) {
       return const [];
     }
-    final searching = filters.query.trim().isNotEmpty;
+    final ignoreDateRange = filters.ignoreDateRange;
 
     final items = <ScheduleItem>[
       if (filters.includeCalendarEvents)
         ...await _calendarItems(
           range,
           filters,
-          searching,
+          ignoreDateRange,
           context.accountIds,
           context.providers,
           context.accountDisplayNames,
@@ -153,18 +155,16 @@ class ScheduleRepository {
         ...await _taskItems(
           range,
           filters,
-          searching,
+          ignoreDateRange,
           context.accountIds,
           context.providers,
           context.accountDisplayNames,
           context.accountEmails,
         ),
     ];
-    final filtered = filters.query.trim().isEmpty
-        ? items
-        : items
-              .where((item) => matchesScheduleQuery(item, filters.query))
-              .toList();
+    final filtered = items
+        .where((item) => matchesScheduleFilters(item, filters, range: range))
+        .toList();
     filtered.sort(compareScheduleItems);
     return filtered;
   }
@@ -178,7 +178,7 @@ class ScheduleRepository {
   Future<List<TaskScheduleItem>> listAllTasks({
     ScheduleFilters filters = const ScheduleFilters(
       includeCalendarEvents: false,
-      showCompletedTasks: true,
+      taskCompletion: ScheduleTaskCompletion.all,
       showNoDateTasks: true,
     ),
   }) async {
@@ -186,8 +186,7 @@ class ScheduleRepository {
     final context = await _accountContext(filters);
     if (context == null) return const [];
 
-    // `_taskItems` ignores this range when `searching` is true. Here that flag
-    // deliberately requests the same unbounded query used by global search.
+    // The Tasks workspace explicitly requests every local task.
     final items = await _taskItems(
       ScheduleRange.day(DateTime.now()),
       filters,
@@ -394,7 +393,7 @@ class ScheduleRepository {
   Future<List<ScheduleItem>> _calendarItems(
     ScheduleRange range,
     ScheduleFilters filters,
-    bool searching,
+    bool ignoreDateRange,
     List<String> accountIds,
     Map<String, BusyProvider> providers,
     Map<String, String?> accountDisplayNames,
@@ -455,7 +454,7 @@ class ScheduleRepository {
       final davCapabilities = collection == null
           ? null
           : collectionCapabilitiesFromStored(collection);
-      if (!searching && !_intersects(range, start, end)) {
+      if (!ignoreDateRange && !_intersects(range, start, end)) {
         continue;
       }
       items.add(
@@ -548,7 +547,7 @@ class ScheduleRepository {
   Future<List<ScheduleItem>> _taskItems(
     ScheduleRange range,
     ScheduleFilters filters,
-    bool searching,
+    bool ignoreDateRange,
     List<String> accountIds,
     Map<String, BusyProvider> providers,
     Map<String, String?> accountDisplayNames,
@@ -595,10 +594,15 @@ class ScheduleRepository {
     if (filters.taskListFilterActive) {
       query.where(_taskListFilter(filters.taskListKeys));
     }
-    if (!filters.showCompletedTasks) {
-      query.where(_taskIncomplete());
+    switch (filters.taskCompletion) {
+      case ScheduleTaskCompletion.open:
+        query.where(_taskIncomplete());
+      case ScheduleTaskCompletion.completed:
+        query.where(_database.tasks.status.equals('completed'));
+      case ScheduleTaskCompletion.all:
+        break;
     }
-    if (!searching) {
+    if (!ignoreDateRange && !filters.useTaskDueDate) {
       final inRange =
           _taskScheduledInRange(range) |
           _database.tasks.davCollectionId.isNotNull();
@@ -615,15 +619,20 @@ class ScheduleRepository {
         accountEmails,
         hierarchy,
       );
-      if (!filters.showCompletedTasks && item.completed) {
+      if (!matchesTaskCompletion(item, filters.taskCompletion)) {
         continue;
       }
       final start = item.start;
       final end = item.end;
-      if (start == null && !filters.showNoDateTasks) {
+      if (!filters.useTaskDueDate &&
+          start == null &&
+          !filters.showNoDateTasks) {
         continue;
       }
-      if (start != null && !searching && !_intersects(range, start, end)) {
+      if (!filters.useTaskDueDate &&
+          start != null &&
+          !ignoreDateRange &&
+          !_intersects(range, start, end)) {
         continue;
       }
       items.add(item);
@@ -696,8 +705,13 @@ class ScheduleRepository {
     if (filters.taskListFilterActive) {
       query.where(_taskListFilter(filters.taskListKeys));
     }
-    if (!filters.showCompletedTasks) {
-      query.where(_taskIncomplete());
+    switch (filters.taskCompletion) {
+      case ScheduleTaskCompletion.open:
+        query.where(_taskIncomplete());
+      case ScheduleTaskCompletion.completed:
+        query.where(_database.tasks.status.equals('completed'));
+      case ScheduleTaskCompletion.all:
+        break;
     }
     query.orderBy([
       OrderingTerm.asc(_database.tasks.dueUtc),
@@ -720,7 +734,7 @@ class ScheduleRepository {
         context.accountEmails,
         hierarchy,
       );
-      if (!filters.showCompletedTasks && item.completed) {
+      if (!matchesTaskCompletion(item, filters.taskCompletion)) {
         continue;
       }
       if (!itemFilter(item)) {
@@ -768,6 +782,7 @@ class ScheduleRepository {
       allDay: _taskAllDay(task, provider),
       start: start,
       end: _taskEnd(task, provider),
+      due: _taskDue(task, provider),
       notes: task.notes ?? task.bodyContent,
       location: task.taskLocation,
       locationPoint: GeographicPoint.tryParse(
@@ -1031,35 +1046,26 @@ String _dateKey(DateTime value) {
   return (contentType: contentType, html: html);
 }
 
-bool matchesScheduleQuery(ScheduleItem item, String query) {
-  final terms = query
-      .trim()
-      .toLowerCase()
-      .split(RegExp(r'\s+'))
-      .where((term) => term.isNotEmpty)
-      .toList();
-  if (terms.isEmpty) {
-    return true;
+DateTime? _taskDue(Task task, BusyProvider provider) {
+  if (provider == BusyProvider.microsoft) {
+    return providerDateTimeAsLocal(
+      task.microsoftDueDateTime,
+      task.microsoftDueTimeZone,
+    );
   }
-  final fields = <String>[
-    item.title,
-    item.sourceName ?? '',
-    item.provider.displayName,
-    item.accountDisplayName ?? '',
-    item.accountEmail ?? '',
-    if (item is CalendarScheduleItem) ...[
-      item.location ?? '',
-      item.description ?? '',
-      ...item.categories,
-    ],
-    if (item is TaskScheduleItem) ...[
-      item.notes ?? '',
-      item.parentTitle ?? '',
-      ...item.categories,
-      ...item.checklistItems.map((subtask) => subtask.title),
-    ],
-  ].map((value) => value.toLowerCase()).toList();
-  return terms.every((term) => fields.any((field) => field.contains(term)));
+  if (_isDavProvider(provider)) {
+    final due = _davTaskScheduleTemporal(task, dueOnly: true);
+    if (due != null) return _parseDavTaskTemporal(due);
+    // DAV's legacy dueUtc projection can contain DTSTART when DUE is absent.
+    if (_jsonMapFromString(
+          task.providerMetadataJson,
+        )?.containsKey('nativeStart') ==
+        true) {
+      return null;
+    }
+    return _parseDateTime(task.dueUtc);
+  }
+  return _parseDate(task.dueUtc);
 }
 
 DateTime? _taskStart(Task task, BusyProvider provider) {
@@ -1107,7 +1113,7 @@ bool _isDateOnly(String value) => !value.contains('T');
 bool _isDavProvider(BusyProvider provider) =>
     provider == BusyProvider.appleICloud || provider == BusyProvider.nextcloud;
 
-_DavTaskTemporal? _davTaskScheduleTemporal(Task task) {
+_DavTaskTemporal? _davTaskScheduleTemporal(Task task, {bool dueOnly = false}) {
   final source = task.providerMetadataJson;
   if (source == null || source.isEmpty) return null;
   try {
@@ -1117,6 +1123,7 @@ _DavTaskTemporal? _davTaskScheduleTemporal(Task task) {
       (nativeKey: 'nativeStart', utcKey: 'startUtc'),
       (nativeKey: 'nativeDue', utcKey: 'dueUtc'),
     ]) {
+      if (dueOnly && entry.nativeKey != 'nativeDue') continue;
       final value = decoded[entry.nativeKey];
       if (value is! Map) continue;
       final raw = value['raw'];

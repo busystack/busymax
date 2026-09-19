@@ -20,8 +20,9 @@ void main() {
         await tester.pumpWidget(
           _app(
             WindowsScheduleMonthView(
+              firstWeekday: DateTime.monday,
               selectedDate: _day,
-              range: ScheduleRange.month(_day),
+              range: ScheduleRange.month(_day, firstWeekday: DateTime.monday),
               items: items,
               locale: 'en',
               onOpen: (item) => opened = item,
@@ -82,8 +83,9 @@ void main() {
         child: SizedBox(
           height: height,
           child: WindowsScheduleMonthView(
+            firstWeekday: DateTime.monday,
             selectedDate: _day,
-            range: ScheduleRange.month(_day),
+            range: ScheduleRange.month(_day, firstWeekday: DateTime.monday),
             items: items,
             locale: 'en',
             onOpen: (_) {},
@@ -112,6 +114,7 @@ void main() {
       await tester.pumpWidget(
         _app(
           WindowsScheduleYearView(
+            firstWeekday: DateTime.monday,
             selectedDate: DateTime(2026, 1, 1),
             items: [
               _event(

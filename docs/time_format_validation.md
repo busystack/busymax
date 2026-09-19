@@ -1,6 +1,6 @@
 # Time-format correction
 
-Validated against this checkout with Flutter 3.47.2, Dart 3.13.2,
+Validated against this checkout with Flutter 3.47.4, Dart 3.13.3,
 intl 0.20.2, and fluent_ui 4.16.1. The reported Linux picker, parser,
 Fluent picker, schedule boundary, and Windows tray-cache defects were present.
 

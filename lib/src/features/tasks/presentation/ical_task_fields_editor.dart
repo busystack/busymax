@@ -220,7 +220,6 @@ class _IcalTaskFieldsEditorState extends ConsumerState<IcalTaskFieldsEditor> {
             enabled: widget.enabled,
             onChanged: _setCompletionDate,
             onClear: () => _setCompletionDate(null),
-            useNativePicker: widget.useNativeDatePicker,
           ),
           if (draft.completedDate != null)
             DesktopTimeValueRow(
@@ -929,7 +928,6 @@ class _TaskReminderDialogState extends State<_TaskReminderDialog> {
               DesktopDateValueRow(
                 label: l10n.reminderDate,
                 date: _dateString(_absoluteLocal),
-                useNativePicker: widget.useNativeDatePicker,
                 onChanged: _setAbsoluteDate,
               ),
               DesktopTimeValueRow(

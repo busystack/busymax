@@ -10,6 +10,8 @@ import 'package:busymax/src/providers/busy_provider.dart';
 import 'package:busymax/src/features/tasks/domain/task_capabilities.dart';
 
 import '../core/time/provider_date_time.dart';
+import '../core/auth/account_token_broker.dart';
+import '../core/http/native_terminating_http_client.dart';
 import '../core/time/stored_temporal_projection.dart';
 import '../dav/nextcloud/nextcloud_native_export.dart';
 import '../config/build_config.dart';
@@ -44,6 +46,7 @@ import '../features/notifications/notification_cancellation_queue.dart';
 import '../features/notifications/due_today_notification_scheduler.dart';
 import '../features/notifications/notification_schedule_service.dart';
 import '../features/notifications/notification_scheduler.dart';
+import '../features/notifications/notification_reconciler.dart';
 import '../features/sync/account_sync_operations.dart';
 import '../features/sync/all_accounts_sync_scheduler.dart';
 import '../features/sync/calendar_sync_engine.dart';
@@ -119,7 +122,7 @@ final networkReconnectSyncCoordinatorProvider =
 
 final baseHttpClientProvider = Provider<http.Client>((ref) {
   final client = ConnectivityAwareHttpClient(
-    inner: http.Client(),
+    inner: NativeTerminatingHttpClient(),
     requireNetwork: ref
         .watch(networkConnectivityMonitorProvider)
         .requireNetwork,
@@ -234,9 +237,16 @@ final microsoftOAuthServiceProvider = Provider<MicrosoftOAuthService>((ref) {
 });
 
 final applicationMicrosoftOAuthServiceProvider =
-    Provider<MicrosoftOAuthService?>(
+    Provider<MicrosoftOAuthGateway?>(
       (ref) => ref.watch(microsoftOAuthServiceProvider),
     );
+
+final accountTokenBrokerProvider = Provider<AccountTokenBroker>((ref) {
+  return DesktopAccountTokenBroker(
+    google: ref.watch(applicationOAuthServiceProvider),
+    microsoft: ref.watch(microsoftOAuthServiceProvider),
+  );
+});
 
 final authenticatedHttpClientProvider = Provider<http.Client>((ref) {
   return AuthenticatedHttpClient(
@@ -275,6 +285,15 @@ final desktopNotificationServiceProvider = Provider<DesktopNotificationService>(
     );
   },
 );
+
+final operationalNotificationReporterProvider =
+    Provider<OperationalNotificationReporter>((ref) {
+      final desktop = ref.watch(desktopNotificationServiceProvider);
+      return CallbackOperationalNotificationReporter(
+        onSyncFailure: desktop.notifySyncFailure,
+        onConflict: desktop.notifyConflict,
+      );
+    });
 
 final desktopWindowServiceProvider = Provider<DesktopWindowService>(
   (ref) => const NoOpDesktopWindowService(),
@@ -376,7 +395,7 @@ final davSettingsRepositoryProvider = Provider<DavSettingsRepository>((ref) {
   return DavSettingsRepository(
     database: ref.watch(databaseProvider),
     onVisibilityChanged: (_) =>
-        ref.read(notificationSchedulerProvider).checkNow(),
+        ref.read(notificationReconcilerProvider).reconcile(),
   );
 });
 
@@ -452,7 +471,14 @@ final localTimeZoneSourceProvider = Provider<LocalTimeZoneSource>(
   (ref) => const FixedLocalTimeZoneSource('Etc/UTC'),
 );
 
-final localTimeZoneProvider = Provider<String>((ref) => 'Etc/UTC');
+final androidLocalTimeZoneStateProvider = StateProvider<String>(
+  (ref) => 'Etc/UTC',
+);
+final androidSystemUses24HourProvider = StateProvider<bool>((ref) => false);
+
+final localTimeZoneProvider = Provider<String>(
+  (ref) => ref.watch(androidLocalTimeZoneStateProvider),
+);
 
 final googleTasksApiClientForAccountProvider =
     Provider.family<TaskRemoteClient, String>((ref, accountId) {
@@ -461,11 +487,11 @@ final googleTasksApiClientForAccountProvider =
         httpClient: ref.watch(retryingHttpClientProvider),
         baseUri: Uri.parse(config.googleApiBaseUrl),
         authorizationHeaderProvider: () => ref
-            .read(applicationOAuthServiceProvider)
-            .authorizationHeaderForAccount(accountId),
+            .read(accountTokenBrokerProvider)
+            .authorizationHeader(BusyProvider.google, accountId),
         unauthorizedRefreshProvider: () => ref
-            .read(applicationOAuthServiceProvider)
-            .refreshTokenForAccount(accountId),
+            .read(accountTokenBrokerProvider)
+            .recoverUnauthorized(BusyProvider.google, accountId),
       );
     });
 
@@ -476,11 +502,11 @@ final googleCalendarApiClientForAccountProvider =
         httpClient: ref.watch(retryingHttpClientProvider),
         baseUri: Uri.parse(config.googleApiBaseUrl),
         authorizationHeaderProvider: () => ref
-            .read(applicationOAuthServiceProvider)
-            .authorizationHeaderForAccount(accountId),
+            .read(accountTokenBrokerProvider)
+            .authorizationHeader(BusyProvider.google, accountId),
         unauthorizedRefreshProvider: () => ref
-            .read(applicationOAuthServiceProvider)
-            .refreshTokenForAccount(accountId),
+            .read(accountTokenBrokerProvider)
+            .recoverUnauthorized(BusyProvider.google, accountId),
       );
     });
 
@@ -491,11 +517,11 @@ final microsoftTodoApiClientForAccountProvider =
         httpClient: ref.watch(retryingHttpClientProvider),
         baseUri: Uri.parse(config.microsoftGraphBaseUrl),
         authorizationHeaderProvider: () => ref
-            .read(microsoftOAuthServiceProvider)
-            .authorizationHeaderForAccount(accountId),
+            .read(accountTokenBrokerProvider)
+            .authorizationHeader(BusyProvider.microsoft, accountId),
         unauthorizedRefreshProvider: () => ref
-            .read(microsoftOAuthServiceProvider)
-            .refreshTokenForAccount(accountId),
+            .read(accountTokenBrokerProvider)
+            .recoverUnauthorized(BusyProvider.microsoft, accountId),
       );
     });
 
@@ -507,11 +533,11 @@ final microsoftCalendarApiClientForAccountProvider =
         baseUri: Uri.parse(config.microsoftGraphBaseUrl),
         responseTimeZone: ref.watch(localTimeZoneProvider),
         authorizationHeaderProvider: () => ref
-            .read(microsoftOAuthServiceProvider)
-            .authorizationHeaderForAccount(accountId),
+            .read(accountTokenBrokerProvider)
+            .authorizationHeader(BusyProvider.microsoft, accountId),
         unauthorizedRefreshProvider: () => ref
-            .read(microsoftOAuthServiceProvider)
-            .refreshTokenForAccount(accountId),
+            .read(accountTokenBrokerProvider)
+            .recoverUnauthorized(BusyProvider.microsoft, accountId),
       );
     });
 
@@ -609,7 +635,7 @@ final syncEngineForAccountFactoryProvider =
                 accountId: accountId,
               ),
           onConflictBlocked: ref
-              .read(desktopNotificationServiceProvider)
+              .read(operationalNotificationReporterProvider)
               .notifyConflict,
         );
       };
@@ -649,10 +675,10 @@ final calendarSyncEngineForAccountFactoryProvider =
                 accountId: accountId,
               ),
           onConflictBlocked: ref
-              .read(desktopNotificationServiceProvider)
+              .read(operationalNotificationReporterProvider)
               .notifyConflict,
           onNotificationScheduleChanged: () =>
-              ref.read(notificationSchedulerProvider).checkNow(),
+              ref.read(notificationReconcilerProvider).reconcile(),
         );
       };
     });
@@ -671,10 +697,10 @@ final davAccountSyncEngineFactoryProvider =
           await NotificationScheduleService(
             database: ref.read(databaseProvider),
           ).rebuildUpcomingNotifications(accountId);
-          await ref.read(notificationSchedulerProvider).checkNow();
+          await ref.read(notificationReconcilerProvider).reconcile();
         },
         reportPendingMutationFailure: (accountId, error) => ref
-            .read(desktopNotificationServiceProvider)
+            .read(operationalNotificationReporterProvider)
             .notifySyncFailure(error),
       );
     });
@@ -689,6 +715,10 @@ final accountSyncCoordinatorProvider = Provider<AccountSyncCoordinator>((ref) {
   ref.onDispose(() => unawaited(coordinator.dispose()));
   return coordinator;
 });
+
+final crossEngineAccountGateProvider = Provider<CrossEngineAccountGate>(
+  (ref) => const InProcessAccountGate(),
+);
 
 final accountSyncOperationsProvider = Provider<AccountSyncOperations>((ref) {
   final accountsRepository = ref.watch(accountsRepositoryProvider);
@@ -740,11 +770,14 @@ final accountSyncOperationsProvider = Provider<AccountSyncOperations>((ref) {
       }
     },
   );
-  return CoordinatedAccountSyncOperations(
-    coordinator: syncCoordinator,
-    inner: ConnectivityAwareAccountSyncOperations(
-      inner: routing,
-      requireNetwork: connectivity.requireNetwork,
+  return CrossEngineCoordinatedAccountSyncOperations(
+    gate: ref.watch(crossEngineAccountGateProvider),
+    inner: CoordinatedAccountSyncOperations(
+      coordinator: syncCoordinator,
+      inner: ConnectivityAwareAccountSyncOperations(
+        inner: routing,
+        requireNetwork: connectivity.requireNetwork,
+      ),
     ),
   );
 });
@@ -782,7 +815,7 @@ final allAccountsSyncRunnerProvider = Provider<AllAccountsSyncRunner>((ref) {
           .listSyncEligibleAccounts,
       syncAccount: syncAccount,
       onSyncFailure: ref
-          .read(desktopNotificationServiceProvider)
+          .read(operationalNotificationReporterProvider)
           .notifySyncFailure,
       onAccountSyncFailure: (accountId, error) =>
           _markAccountReconnectRequiredForSyncError(ref, accountId, error),
@@ -808,7 +841,7 @@ final calendarRepositoryProvider = Provider<CalendarRepository>((ref) {
     nextcloudCollections: (accountId) =>
         ref.read(nextcloudCollectionServiceProvider(accountId)),
     onNotificationScheduleChanged: () =>
-        ref.read(notificationSchedulerProvider).checkNow(),
+        ref.read(notificationReconcilerProvider).reconcile(),
   );
 });
 
@@ -834,7 +867,7 @@ final webCalSubscriptionServiceProvider = Provider<WebCalSubscriptionService>((
     secretStore: ref.watch(secretStoreProvider),
     httpTransport: ref.watch(webCalHttpTransportProvider),
     onNotificationScheduleChanged: () =>
-        ref.read(notificationSchedulerProvider).checkNow(),
+        ref.read(notificationReconcilerProvider).reconcile(),
   );
 });
 
@@ -852,7 +885,7 @@ final icalImportServiceProvider = Provider<IcalImportService>((ref) {
         await NotificationScheduleService(
           database: ref.read(databaseProvider),
         ).rebuildUpcomingNotifications(accountId);
-        await ref.read(notificationSchedulerProvider).checkNow();
+        await ref.read(notificationReconcilerProvider).reconcile();
       } finally {
         ref
             .read(
@@ -1034,7 +1067,7 @@ final taskListsRepositoryProvider = Provider<TaskListsRepository?>((ref) {
     ),
     onMutationQueued: ref.watch(pendingMutationSyncRequesterProvider)?.request,
     onNotificationScheduleChanged: () =>
-        ref.read(notificationSchedulerProvider).checkNow(),
+        ref.read(notificationReconcilerProvider).reconcile(),
   );
 });
 
@@ -1051,7 +1084,7 @@ final taskListsRepositoryForAccountProvider =
             .watch(pendingMutationSyncRequesterForAccountProvider(accountId))
             .request,
         onNotificationScheduleChanged: () =>
-            ref.read(notificationSchedulerProvider).checkNow(),
+            ref.read(notificationReconcilerProvider).reconcile(),
       );
     });
 
@@ -1066,7 +1099,7 @@ final tasksRepositoryProvider = Provider<TasksRepository?>((ref) {
     apiClient: ref.watch(googleTasksApiClientProvider),
     onMutationQueued: ref.watch(pendingMutationSyncRequesterProvider)?.request,
     onNotificationScheduleChanged: () =>
-        ref.read(notificationSchedulerProvider).checkNow(),
+        ref.read(notificationReconcilerProvider).reconcile(),
   );
 });
 
@@ -1080,7 +1113,7 @@ final tasksRepositoryForAccountProvider =
             .watch(pendingMutationSyncRequesterForAccountProvider(accountId))
             .request,
         onNotificationScheduleChanged: () =>
-            ref.read(notificationSchedulerProvider).checkNow(),
+            ref.read(notificationReconcilerProvider).reconcile(),
       );
     });
 
@@ -1096,7 +1129,7 @@ final pendingMutationSyncRequesterProvider =
             .read(accountSyncOperationsProvider)
             .syncTasks(accountId, full: false),
         onSyncFailure: ref
-            .watch(desktopNotificationServiceProvider)
+            .watch(operationalNotificationReporterProvider)
             .notifySyncFailure,
         onSyncError: (error) =>
             _markAccountReconnectRequiredForSyncError(ref, accountId, error),
@@ -1113,7 +1146,7 @@ final pendingMutationSyncRequesterForAccountProvider =
             .read(accountSyncOperationsProvider)
             .syncTasks(accountId, full: false),
         onSyncFailure: ref
-            .watch(desktopNotificationServiceProvider)
+            .watch(operationalNotificationReporterProvider)
             .notifySyncFailure,
         onSyncError: (error) =>
             _markAccountReconnectRequiredForSyncError(ref, accountId, error),
@@ -1130,7 +1163,7 @@ final pendingCalendarMutationSyncRequesterForAccountProvider =
             .read(accountSyncOperationsProvider)
             .syncCalendar(accountId, full: false),
         onSyncFailure: ref
-            .watch(desktopNotificationServiceProvider)
+            .watch(operationalNotificationReporterProvider)
             .notifySyncFailure,
         onSyncError: (error) =>
             _markAccountReconnectRequiredForSyncError(ref, accountId, error),
@@ -1156,7 +1189,7 @@ final pendingOpResolutionServiceForAccountProvider =
             .read(accountSyncOperationsProvider)
             .syncCalendar(accountId, full: false),
         onNotificationScheduleChanged: () =>
-            ref.read(notificationSchedulerProvider).checkNow(),
+            ref.read(notificationReconcilerProvider).reconcile(),
       );
     });
 
@@ -1182,7 +1215,7 @@ final syncSchedulerProvider = Provider<AllAccountsSyncScheduler>((ref) {
         .listSyncEligibleAccounts,
     syncAccount: syncAccount,
     onSyncFailure: ref
-        .watch(desktopNotificationServiceProvider)
+        .watch(operationalNotificationReporterProvider)
         .notifySyncFailure,
     onAccountSyncFailure: (accountId, error) =>
         _markAccountReconnectRequiredForSyncError(ref, accountId, error),
@@ -1275,6 +1308,12 @@ final Provider<NotificationScheduler> notificationSchedulerProvider =
       ref.onDispose(scheduler.stop);
       return scheduler;
     });
+
+final notificationReconcilerProvider = Provider<NotificationReconciler>(
+  (ref) => CallbackNotificationReconciler(
+    ref.watch(notificationSchedulerProvider).checkNow,
+  ),
+);
 
 final _notificationOpenSequenceProvider = StateProvider<int>((ref) => 0);
 

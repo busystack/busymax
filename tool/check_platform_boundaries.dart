@@ -14,6 +14,14 @@ const _fluentPackages = <String>[
   'package:fluentui_system_icons/',
 ];
 
+const _desktopOnlyPackages = <String>[
+  ..._linuxOnlyPackages,
+  ..._fluentPackages,
+  'package:flutter_timezone/',
+  'package:tray_manager/',
+  'package:yaru_window/',
+];
+
 final _importPattern = RegExp(
   r'''^\s*(?:import|export)\s+['"]([^'"]+)['"]''',
   multiLine: true,
@@ -79,9 +87,55 @@ List<String> findPlatformBoundaryViolations(Directory root) {
   }
 
   _checkWindowsReachability(root, failures);
+  _checkAndroidReachability(root, failures);
   _checkNativePluginIsolation(root, failures);
   failures.sort();
   return failures;
+}
+
+void _checkAndroidReachability(Directory root, List<String> failures) {
+  for (final entry in const [
+    'lib/main_android.dart',
+    'lib/src/android/android_background.dart',
+  ]) {
+    _checkReachability(
+      root,
+      entry,
+      entry == 'lib/main_android.dart'
+          ? 'Android foreground graph'
+          : 'Android headless graph',
+      failures,
+    );
+  }
+}
+
+void _checkReachability(
+  Directory root,
+  String entry,
+  String label,
+  List<String> failures,
+) {
+  final entrypoint = File('${root.path}/$entry');
+  if (!entrypoint.existsSync()) {
+    failures.add('$label entrypoint is missing: $entry');
+    return;
+  }
+  final queue = <File>[entrypoint];
+  final visited = <String>{};
+  while (queue.isNotEmpty) {
+    final file = queue.removeLast();
+    if (!visited.add(file.path) || !file.existsSync()) continue;
+    final relative = _relative(root.path, file.path);
+    for (final match in _importPattern.allMatches(file.readAsStringSync())) {
+      final import = match.group(1)!;
+      if (_desktopOnlyPackages.any(import.startsWith) ||
+          _isDesktopSourceImport(import)) {
+        failures.add('$label: $relative reaches desktop-only $import');
+      }
+      final resolved = _resolveLocalImport(root, file, import);
+      if (resolved != null) queue.add(resolved);
+    }
+  }
 }
 
 void _checkNativePluginIsolation(Directory root, List<String> failures) {
@@ -140,10 +194,23 @@ void _checkWindowsReachability(Directory root, List<String> failures) {
 
 File? _resolveLocalImport(Directory root, File source, String import) {
   if (import.startsWith('package:busymax/')) {
-    return File('${root.path}/${import.substring('package:busymax/'.length)}');
+    return File(
+      '${root.path}/lib/${import.substring('package:busymax/'.length)}',
+    );
   }
   if (import.startsWith('dart:') || import.startsWith('package:')) return null;
   return File(Uri.file(source.path).resolve(import).toFilePath());
+}
+
+bool _isDesktopSourceImport(String import) {
+  final normalized = import.replaceAll('\\', '/').toLowerCase();
+  return normalized.endsWith('/main_linux.dart') ||
+      normalized.endsWith('/main_windows.dart') ||
+      normalized.contains('/ui/linux/') ||
+      normalized.contains('/ui/windows/') ||
+      normalized.contains('/platform/linux/') ||
+      normalized.contains('/platform/windows/') ||
+      normalized.contains('/app/windows/');
 }
 
 bool _isLinuxSourceImport(String import) {
@@ -162,8 +229,12 @@ bool _isLegacyLinuxPresentation(String relative) {
 }
 
 String _relative(String root, String path) {
-  final prefix = root.endsWith(Platform.pathSeparator)
-      ? root
-      : '$root${Platform.pathSeparator}';
-  return path.startsWith(prefix) ? path.substring(prefix.length) : path;
+  final normalizedRoot = root
+      .replaceAll('\\', '/')
+      .replaceAll(RegExp(r'/+$'), '');
+  final normalizedPath = path.replaceAll('\\', '/');
+  final prefix = '$normalizedRoot/';
+  return normalizedPath.startsWith(prefix)
+      ? normalizedPath.substring(prefix.length)
+      : normalizedPath;
 }

@@ -13,7 +13,22 @@ class AppLocalizationsFa extends AppLocalizations {
   AppLocalizationsFa([String locale = 'fa']) : super(locale);
 
   @override
+  String get launchAtLoginManagedExternally =>
+      'BusyMax از تنظیمات راه‌اندازی خودکار میزکار شما اجرا شده است. ورودی آن را در آنجا حذف کنید، سپس از BusyMax خارج شوید و دوباره آن را باز کنید تا بتوانید از این کلید استفاده کنید.';
+
+  @override
   String get timeFormat => 'قالب زمان';
+
+  @override
+  String get firstDayOfWeek => 'روز اول هفته';
+
+  @override
+  String get systemDefault => 'پیش‌فرض سیستم';
+
+  @override
+  String systemDefaultResolved(String weekday) {
+    return 'پیش‌فرض سیستم (⁨$weekday⁩)';
+  }
 
   @override
   String get timeFormatTwelveHour => '۱۲ ساعته';
@@ -2956,4 +2971,52 @@ class AppLocalizationsFa extends AppLocalizations {
     });
     return '$frequency در $_temp0 $days ماه‌های $months';
   }
+
+  @override
+  String get searchFilters => 'فیلترهای جستجو';
+
+  @override
+  String get searchType => 'نوع';
+
+  @override
+  String get searchDate => 'تاریخ';
+
+  @override
+  String get searchAnyDate => 'هر تاریخی';
+
+  @override
+  String get searchThisWeek => 'این هفته';
+
+  @override
+  String get searchCustomRange => 'بازهٔ دلخواه';
+
+  @override
+  String get searchTaskStatus => 'وضعیت کار';
+
+  @override
+  String get searchTaskDue => 'سررسید کار';
+
+  @override
+  String get searchAnyDueState => 'هر وضعیت سررسید';
+
+  @override
+  String get searchNoDueDate => 'بدون تاریخ سررسید';
+
+  @override
+  String get searchPerson => 'شخص';
+
+  @override
+  String get searchSources => 'منابع';
+
+  @override
+  String get searchClearFilters => 'بازنشانی فیلترها';
+
+  @override
+  String get searchFiltersAction => 'فیلترها';
+
+  @override
+  String get searchNoSources => 'هیچ منبع جستجویی انتخاب نشده است';
+
+  @override
+  String get searchClearText => 'پاک کردن متن';
 }

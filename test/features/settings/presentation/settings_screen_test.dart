@@ -280,6 +280,30 @@ void main() {
     },
   );
 
+  testWidgets('external startup is shown as on with desktop instructions', (
+    tester,
+  ) async {
+    final service = FakeAutostartService()
+      ..current = DesktopAutostartState.enabledExternally;
+    final container = _autostartContainer(service);
+    addTearDown(container.dispose);
+    await _pumpDefaultSettings(
+      tester,
+      container,
+      logicalSize: const Size(1000, 900),
+    );
+    expect(_launchSwitch(tester).value, isTrue);
+    expect(_launchSwitch(tester).onChanged, isNull);
+    expect(
+      find.text(
+        "BusyMax was launched by your desktop's startup settings. "
+        'Remove its entry there, then quit and reopen BusyMax to use this switch.',
+      ),
+      findsOneWidget,
+    );
+    expect(service.writes, isEmpty);
+  });
+
   testWidgets('Settings inventories visible and provider-hidden calendars', (
     tester,
   ) async {
@@ -1197,6 +1221,38 @@ void main() {
 
     expect(second.state.scheduleDayStartMinute, 23 * 60);
     expect(second.state.scheduleDayEndMinute, 24 * 60);
+  });
+
+  testWidgets('Linux schedule settings exposes and persists first weekday', (
+    tester,
+  ) async {
+    final container = _container(
+      selectedAccountId: 'google:g',
+      authRepository: _FakeAuthRepository(),
+      accounts: const [_googleAccount],
+    );
+    addTearDown(container.dispose);
+    await _pumpSettings(
+      tester,
+      container,
+      initialPage: SettingsPage.schedule,
+      logicalSize: const Size(1000, 800),
+    );
+
+    final row = tester.widget<BusyMaxComboRow<BusyMaxFirstDayOfWeekPreference>>(
+      find.byWidgetPredicate(
+        (widget) => widget is BusyMaxComboRow<BusyMaxFirstDayOfWeekPreference>,
+      ),
+    );
+    expect(row.values, BusyMaxFirstDayOfWeekPreference.values);
+    expect(row.selected, BusyMaxFirstDayOfWeekPreference.system);
+    expect(row.labelFor(row.selected), startsWith('System Default ('));
+    row.onSelected(BusyMaxFirstDayOfWeekPreference.saturday);
+    await tester.pumpAndSettle();
+    expect(
+      container.read(appSettingsControllerProvider).firstDayOfWeekPreference,
+      BusyMaxFirstDayOfWeekPreference.saturday,
+    );
   });
 
   testWidgets('Settings owns calendar import but not task-list creation', (

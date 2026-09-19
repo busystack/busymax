@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:yaru/yaru.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
@@ -24,6 +25,7 @@ import '../../../features/feedback/presentation/feedback_dialog.dart';
 import '../../../features/sync/sync_auth_error.dart';
 import '../../../l10n/l10n.dart';
 import '../../../l10n/localized_formatters.dart';
+import '../../../l10n/week_preferences_scope.dart';
 import '../../../platform/linux_header_bar_service.dart';
 import '../../../platform/linux_header_bar_provider.dart';
 import '../../../schedule/schedule_commands.dart';
@@ -59,6 +61,8 @@ import 'schedule_item_exporter.dart';
 import 'schedule_item_selection.dart';
 import 'schedule_month_view.dart';
 import 'schedule_sidebar.dart';
+import 'schedule_search_filters.dart';
+import '../../../schedule/schedule_search_criteria.dart';
 import 'schedule_toolbar.dart';
 import 'schedule_year_view.dart';
 
@@ -148,6 +152,7 @@ class ScheduleWorkspace extends ConsumerStatefulWidget {
   const ScheduleWorkspace({
     super.key,
     this.initialScope = ScheduleScope.all,
+    this.initialDate,
     this.initialTaskAccountId,
     this.initialTaskListId,
     this.initialTaskId,
@@ -155,6 +160,8 @@ class ScheduleWorkspace extends ConsumerStatefulWidget {
   });
 
   final ScheduleScope initialScope;
+  @visibleForTesting
+  final DateTime? initialDate;
   final String? initialTaskAccountId;
   final String? initialTaskListId;
   final String? initialTaskId;
@@ -183,7 +190,15 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
   var _sidebarCollapsed = false;
   var _searchActive = false;
   var _searchQuery = '';
+  bool? _sidebarBeforeSearch;
+  ScheduleSearchCriteria? _searchCriteria;
+  ScheduleSearchCriteria? _initialSearchCriteria;
+  var _searchFirstWeekday = DateTime.monday;
+  List<CalendarSourceEntity> _searchSources = const [];
+  List<TaskListEntity> _searchTaskLists = const [];
+  ScheduleSourceVisibility? _searchVisibility;
   final _searchController = TextEditingController();
+  final _workspaceFocusNode = FocusNode();
   var _fallbackSearchFocusRequest = 0;
   var _latestCanShowSidebar = false;
   var _latestAccounts = const <AccountEntity>[];
@@ -216,6 +231,9 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
   @override
   void initState() {
     super.initState();
+    if (widget.initialDate != null) {
+      _selectedDate = DateUtils.dateOnly(widget.initialDate!);
+    }
     _scope = widget.initialScope;
     _applyInitialScope();
     _headerBarSession = ref.read(linuxHeaderBarServiceProvider).claimSession();
@@ -246,7 +264,20 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
     unawaited(_headerBarSearchEvents?.cancel());
     unawaited(_initialTaskTargetSubscription?.cancel());
     _searchController.dispose();
+    _workspaceFocusNode.dispose();
     super.dispose();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final firstWeekday = _firstWeekday(context);
+    if (_searchFirstWeekday == firstWeekday) return;
+    _searchFirstWeekday = firstWeekday;
+    _searchCriteria = _searchCriteria?.copyWith(firstWeekday: firstWeekday);
+    _initialSearchCriteria = _initialSearchCriteria?.copyWith(
+      firstWeekday: firstWeekday,
+    );
   }
 
   @override
@@ -270,7 +301,7 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
     final settings = ref.watch(appSettingsControllerProvider);
     _syncModeFromSettings(settings.scheduleViewMode);
     final range = _range(context);
-    final searchHasQuery = _searchQuery.trim().isNotEmpty;
+    final searchActive = _searchActive;
     final accountsState = ref.watch(accountsStreamProvider);
     final accounts = accountsState.valueOrNull ?? const [];
     final accountsLoading =
@@ -310,6 +341,15 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
                   taskLists: taskLists,
                   settings: settings,
                 );
+                _searchSources = sources;
+                _searchTaskLists = taskLists;
+                _searchVisibility = visibility;
+                if (_searchActive &&
+                    _searchCriteria == null &&
+                    !sourcesLoading &&
+                    !taskListsLoading) {
+                  _initializeSearch();
+                }
                 final firstWeekday = _firstWeekday(context);
                 final revealed = _revealedNotificationTarget;
                 final visibleSourceIds = {
@@ -356,7 +396,7 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
                   future: _scheduleItems(
                     repository: ref.watch(scheduleRepositoryProvider),
                     range: range,
-                    searchHasQuery: searchHasQuery,
+                    searchActive: searchActive,
                     accountIds: accountIds.toSet(),
                     sourceIds: visibleSourceIds,
                     taskListKeys: visibleTaskListKeys,
@@ -364,7 +404,7 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
                   builder: (context, snapshot) {
                     final itemsLoading =
                         snapshot.connectionState == ConnectionState.waiting &&
-                        !snapshot.hasData;
+                        (searchActive || !snapshot.hasData);
                     final scheduleLoading =
                         accountsLoading ||
                         sourcesLoading ||
@@ -375,39 +415,45 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
                         sourcesUnavailable ||
                         taskListsUnavailable ||
                         (snapshot.hasError && !snapshot.hasData);
-                    final scopedItems = ScheduleProjection.filterByScope(
-                      snapshot.data?.items ?? const <ScheduleItem>[],
-                      _scope,
-                    );
+                    final scopedItems = searchActive
+                        ? snapshot.data?.items ?? const <ScheduleItem>[]
+                        : ScheduleProjection.filterByScope(
+                            snapshot.data?.items ?? const <ScheduleItem>[],
+                            _scope,
+                          );
                     final items =
-                        !searchHasQuery && _mode == ScheduleViewMode.agenda
+                        !searchActive && _mode == ScheduleViewMode.agenda
                         ? _agendaItems(scopedItems, range)
                         : scopedItems;
                     _latestItems = items;
-                    final miniCalendarItemsFuture = ref
-                        .watch(scheduleRepositoryProvider)
-                        .listItems(
-                          range: ScheduleRange.month(
-                            _selectedDate,
-                            firstWeekday: firstWeekday,
-                          ),
-                          filters: ScheduleFilters(
-                            accountIds: accountIds.toSet(),
-                            sourceIds: visibility.visibleCalendarSourceIds,
-                            taskListKeys: visibleTaskListKeys,
-                            sourceFilterActive: true,
-                            taskListFilterActive: true,
-                            includeCalendarEvents:
-                                _scope != ScheduleScope.tasks,
-                            includeTasks: _scope != ScheduleScope.events,
-                            showCompletedTasks: true,
-                            showNoDateTasks: false,
-                          ),
-                        );
-                    final displayRange = searchHasQuery
-                        ? _rangeForSearchResults(items, range)
+                    final miniCalendarItemsFuture = searchActive
+                        ? Future<List<ScheduleItem>>.value(const [])
+                        : ref
+                              .watch(scheduleRepositoryProvider)
+                              .listItems(
+                                range: ScheduleRange.month(
+                                  _selectedDate,
+                                  firstWeekday: firstWeekday,
+                                ),
+                                filters: ScheduleFilters(
+                                  accountIds: accountIds.toSet(),
+                                  sourceIds:
+                                      visibility.visibleCalendarSourceIds,
+                                  taskListKeys: visibleTaskListKeys,
+                                  sourceFilterActive: true,
+                                  taskListFilterActive: true,
+                                  includeCalendarEvents:
+                                      _scope != ScheduleScope.tasks,
+                                  includeTasks: _scope != ScheduleScope.events,
+                                  taskCompletion: ScheduleTaskCompletion.all,
+                                  showNoDateTasks: false,
+                                ),
+                              );
+                    final displayRange = searchActive
+                        ? _searchCriteria?.range ??
+                              _rangeForSearchResults(items, range)
                         : range;
-                    final displayMode = searchHasQuery
+                    final displayMode = searchActive
                         ? ScheduleViewMode.agenda
                         : _mode;
                     _consumePendingCommand(visibleSources, accounts, sources);
@@ -417,6 +463,12 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
                           MediaQuery.sizeOf(context).width,
                         );
                     Widget buildSidebar() {
+                      if (searchActive && _searchCriteria != null) {
+                        return SizedBox(
+                          width: BusyMaxSizes.sidebarWidth,
+                          child: _searchFilterPanel(),
+                        );
+                      }
                       return SizedBox(
                         width: BusyMaxSizes.sidebarWidth,
                         child: FutureBuilder<List<ScheduleItem>>(
@@ -450,15 +502,33 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
                                 horizontal: BusyMaxSpacing.md,
                                 vertical: BusyMaxSpacing.sm,
                               ),
-                              child: BusyMaxSearchField(
-                                controller: _searchController,
-                                autofocus: true,
-                                focusRequest: _fallbackSearchFocusRequest,
-                                hintText: MaterialLocalizations.of(
-                                  context,
-                                ).searchFieldLabel,
-                                onChanged: _setSearchQuery,
-                                onClear: _clearSearchQuery,
+                              child: Row(
+                                children: [
+                                  Expanded(
+                                    child: BusyMaxSearchField(
+                                      controller: _searchController,
+                                      autofocus: true,
+                                      focusRequest: _fallbackSearchFocusRequest,
+                                      hintText: MaterialLocalizations.of(
+                                        context,
+                                      ).searchFieldLabel,
+                                      onChanged: _setSearchQuery,
+                                      onClear: _clearSearchQuery,
+                                    ),
+                                  ),
+                                  if (!canShowFallbackSidebar ||
+                                      _sidebarCollapsed)
+                                    YaruIconButton(
+                                      tooltip: context.l10n.searchFiltersAction,
+                                      icon: const Icon(Icons.filter_list),
+                                      onPressed: _showSearchFilters,
+                                    ),
+                                  YaruIconButton(
+                                    tooltip: context.l10n.close,
+                                    icon: const Icon(Icons.close),
+                                    onPressed: _closeSearch,
+                                  ),
+                                ],
                               ),
                             )
                           else
@@ -509,7 +579,7 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
                               isUnavailable: scheduleUnavailable,
                               mode: displayMode,
                               range: displayRange,
-                              selectedDate: searchHasQuery
+                              selectedDate: searchActive
                                   ? displayRange.start
                                   : _selectedDate,
                               firstWeekday: _firstWeekday(context),
@@ -566,25 +636,25 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
                               onPrevious: _previous,
                               onNext: _next,
                               onAgendaLoadMore:
-                                  !searchHasQuery &&
+                                  !searchActive &&
                                       _mode == ScheduleViewMode.agenda
                                   ? _loadMoreAgendaDays
                                   : null,
                               hasMoreAgendaOverdueTasks:
-                                  !searchHasQuery &&
+                                  !searchActive &&
                                   _mode == ScheduleViewMode.agenda &&
                                   (snapshot.data?.hasMoreOverdueTasks ?? false),
                               hasMoreAgendaNoDateTasks:
-                                  !searchHasQuery &&
+                                  !searchActive &&
                                   _mode == ScheduleViewMode.agenda &&
                                   (snapshot.data?.hasMoreNoDateTasks ?? false),
                               onAgendaLoadMoreOverdue:
-                                  !searchHasQuery &&
+                                  !searchActive &&
                                       _mode == ScheduleViewMode.agenda
                                   ? _loadMoreAgendaOverdueTasks
                                   : null,
                               onAgendaLoadMoreNoDate:
-                                  !searchHasQuery &&
+                                  !searchActive &&
                                       _mode == ScheduleViewMode.agenda
                                   ? _loadMoreAgendaNoDateTasks
                                   : null,
@@ -594,7 +664,9 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
                                         _openItem(
                                           context,
                                           item,
-                                          visibleSources,
+                                          searchActive
+                                              ? sources
+                                              : visibleSources,
                                           globalPosition: globalPosition,
                                         ),
                                       ),
@@ -604,7 +676,9 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
                                   _setChecklistItemCompleted,
                               canCreateEvent: writableSources.isNotEmpty,
                               canCreateTask: canCreateTask,
-                              searchActive: searchHasQuery,
+                              searchActive: searchActive,
+                              searchCriteria: _searchCriteria,
+                              searchQuery: _searchQuery,
                             ),
                           ),
                         ),
@@ -668,7 +742,11 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
       shortcuts: _scheduleShortcuts,
       child: Actions(
         actions: {_ScheduleShortcutIntent: _ScheduleShortcutAction(this)},
-        child: Focus(autofocus: true, child: child),
+        child: Focus(
+          focusNode: _workspaceFocusNode,
+          autofocus: true,
+          child: child,
+        ),
       ),
     );
   }
@@ -731,9 +809,9 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
       canCreateTask: canCreateTask,
       searchActive: _searchActive,
       searchQuery: _searchQuery,
-      canShowSidebar: showSidebar,
+      canShowSidebar: showSidebar || _searchActive,
       sidebarVisible: sidebarVisible,
-      navigationVisible: _mode != ScheduleViewMode.agenda,
+      navigationVisible: !_searchActive && _mode != ScheduleViewMode.agenda,
       scheduleControlsVisible: true,
       backVisible: false,
     );
@@ -780,10 +858,10 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
     switch (event) {
       case BusyMaxHeaderBarSearchQueryChanged(:final query):
         _setSearchQuery(query);
-      case BusyMaxHeaderBarSearchFocusChanged():
-        // Native focus is presentation state. The event is still exposed by
-        // the route-owned bridge so callers can observe focus without making
-        // it part of the durable header state.
+      case BusyMaxHeaderBarSearchFocusChanged(:final focused):
+        // Leave text editing while retaining a target for workspace shortcuts
+        // when GTK returns keyboard focus to the Flutter view.
+        if (focused) _workspaceFocusNode.requestFocus();
         return;
       case BusyMaxHeaderBarSearchCleared():
         _clearSearchQuery();
@@ -831,6 +909,7 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
         return;
       case BusyMaxHeaderBarAction.sidebarToggle:
         if (!_latestCanShowSidebar) {
+          if (_searchActive) unawaited(_showSearchFilters());
           return;
         }
         setState(() => _sidebarCollapsed = !_sidebarCollapsed);
@@ -860,7 +939,7 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
         if (_searchActive) {
           _closeSearch();
         } else {
-          setState(() => _searchActive = true);
+          _openSearch();
           _focusSearch();
         }
       case BusyMaxHeaderBarAction.createEvent:
@@ -953,14 +1032,120 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
     );
   }
 
+  void _initializeSearch() {
+    final visibility = _searchVisibility;
+    if (visibility == null) return;
+    _initialSearchCriteria = ScheduleSearchCriteria(
+      type: switch (_scope) {
+        ScheduleScope.events => ScheduleSearchType.events,
+        ScheduleScope.tasks => ScheduleSearchType.tasks,
+        _ => ScheduleSearchType.all,
+      },
+      referenceDate: _day(DateTime.now()),
+      firstWeekday: _firstWeekday(context),
+      sourceIds: visibility.visibleCalendarSourceIds,
+      taskListKeys: visibility.visibleTaskListKeys,
+    );
+    _searchCriteria = _initialSearchCriteria;
+  }
+
+  void _openSearch() {
+    setState(() {
+      _sidebarBeforeSearch = _sidebarCollapsed;
+      _searchActive = true;
+      _initializeSearch();
+    });
+  }
+
+  void _focusSearchFilters() {
+    if (_nativeHeaderBarAvailable) unawaited(_headerBarSession.focusContent());
+  }
+
+  Widget _searchFilterPanel({VoidCallback? refresh, bool sidebar = true}) =>
+      Listener(
+        onPointerDown: (_) => _focusSearchFilters(),
+        child: Focus(
+          onFocusChange: (focused) {
+            if (focused) _focusSearchFilters();
+          },
+          child: ScheduleSearchFilters(
+            value: _searchCriteria!,
+            accounts: _latestAccounts,
+            sources: _searchSources,
+            taskLists: _searchTaskLists,
+            sidebar: sidebar,
+            onChanged: (value) {
+              setState(
+                () => _searchCriteria = value.copyWith(
+                  firstWeekday: _firstWeekday(context),
+                ),
+              );
+              refresh?.call();
+            },
+            onClear: () {
+              setState(
+                () => _searchCriteria = _initialSearchCriteria?.copyWith(
+                  firstWeekday: _firstWeekday(context),
+                ),
+              );
+              refresh?.call();
+            },
+          ),
+        ),
+      );
+
+  Future<void> _showSearchFilters() async {
+    if (_searchCriteria == null) return;
+    final dismissWhenWide = !BusyMaxLayoutRules.showSidebar(
+      MediaQuery.sizeOf(context).width,
+    );
+    var dismissScheduled = false;
+    await showBusyMaxModalDialog<void>(
+      context,
+      headerBarService: ref.read(linuxHeaderBarServiceProvider),
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, update) {
+          if (dismissWhenWide &&
+              BusyMaxLayoutRules.showSidebar(
+                MediaQuery.sizeOf(context).width,
+              )) {
+            if (!dismissScheduled) {
+              dismissScheduled = true;
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                if (context.mounted) Navigator.of(context).maybePop();
+              });
+            }
+            return const SizedBox.shrink();
+          }
+          return BusyMaxDialogShell(
+            title: dialogContext.l10n.searchFilters,
+            children: [
+              _searchFilterPanel(sidebar: false, refresh: () => update(() {})),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
   Future<_ScheduleItemsResult> _scheduleItems({
     required ScheduleRepository repository,
     required ScheduleRange range,
-    required bool searchHasQuery,
+    required bool searchActive,
     required Set<String> accountIds,
     required Set<String> sourceIds,
     required Set<ScheduleTaskListKey> taskListKeys,
   }) async {
+    if (searchActive) {
+      final criteria = _searchCriteria;
+      if (criteria == null) return const _ScheduleItemsResult(items: []);
+      return _ScheduleItemsResult(
+        items: await repository.listItems(
+          range: criteria.range ?? range,
+          filters: criteria.filters(_searchQuery),
+        ),
+      );
+    }
     final currentItems = repository.listItems(
       range: range,
       filters: ScheduleFilters(
@@ -972,11 +1157,11 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
         taskListFilterActive: true,
         includeCalendarEvents: _scope != ScheduleScope.tasks,
         includeTasks: _scope != ScheduleScope.events,
-        showCompletedTasks: true,
-        showNoDateTasks: searchHasQuery || _mode != ScheduleViewMode.agenda,
+        taskCompletion: ScheduleTaskCompletion.all,
+        showNoDateTasks: searchActive || _mode != ScheduleViewMode.agenda,
       ),
     );
-    if (searchHasQuery || _mode != ScheduleViewMode.agenda) {
+    if (searchActive || _mode != ScheduleViewMode.agenda) {
       return _ScheduleItemsResult(items: await currentItems);
     }
 
@@ -988,7 +1173,7 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
         taskListKeys: taskListKeys,
         taskListFilterActive: true,
         includeTasks: _scope != ScheduleScope.events,
-        showCompletedTasks: false,
+        taskCompletion: ScheduleTaskCompletion.open,
       ),
     );
     final noDateTasks = repository.listNoDateTasks(
@@ -998,7 +1183,7 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
         taskListKeys: taskListKeys,
         taskListFilterActive: true,
         includeTasks: _scope != ScheduleScope.events,
-        showCompletedTasks: true,
+        taskCompletion: ScheduleTaskCompletion.all,
       ),
     );
     final datedItems = await currentItems;
@@ -1168,6 +1353,7 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
   }
 
   void _goToToday() {
+    if (_searchActive) return;
     setState(() {
       _selectedDate = _day(DateTime.now());
       if (_mode == ScheduleViewMode.agenda) {
@@ -1180,6 +1366,7 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
   }
 
   void _setMode(ScheduleViewMode mode, {DateTime? agendaDate}) {
+    if (_searchActive) return;
     if (_mode == mode) {
       if (mode == ScheduleViewMode.agenda && agendaDate != null) {
         _setDate(agendaDate);
@@ -1238,28 +1425,28 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
   void _closeSearch() {
     setState(() {
       _searchActive = false;
+      _sidebarCollapsed = _sidebarBeforeSearch ?? _sidebarCollapsed;
+      _sidebarBeforeSearch = null;
+      _searchCriteria = null;
+      _initialSearchCriteria = null;
       _searchQuery = '';
       _searchController.clear();
     });
-    if (!_nativeHeaderBarAvailable) {
-      FocusManager.instance.primaryFocus?.unfocus();
-    }
+    _workspaceFocusNode.requestFocus();
   }
 
   void _previous() {
+    if (_searchActive) return;
     if (_mode == ScheduleViewMode.agenda) {
       return;
     }
     setState(() {
       _selectedDate = switch (_mode) {
-        ScheduleViewMode.day => _selectedDate.subtract(const Duration(days: 1)),
-        ScheduleViewMode.week => _selectedDate.subtract(
-          const Duration(days: 7),
-        ),
-        ScheduleViewMode.month => DateTime(
-          _selectedDate.year,
-          _selectedDate.month - 1,
-          _selectedDate.day,
+        ScheduleViewMode.day => DateUtils.addDaysToDate(_selectedDate, -1),
+        ScheduleViewMode.week => DateUtils.addDaysToDate(_selectedDate, -7),
+        ScheduleViewMode.month => DateUtils.addMonthsToMonthDate(
+          _selectedDate,
+          -1,
         ),
         ScheduleViewMode.year => DateTime(
           _selectedDate.year - 1,
@@ -1275,17 +1462,17 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
   }
 
   void _next() {
+    if (_searchActive) return;
     if (_mode == ScheduleViewMode.agenda) {
       return;
     }
     setState(() {
       _selectedDate = switch (_mode) {
-        ScheduleViewMode.day => _selectedDate.add(const Duration(days: 1)),
-        ScheduleViewMode.week => _selectedDate.add(const Duration(days: 7)),
-        ScheduleViewMode.month => DateTime(
-          _selectedDate.year,
-          _selectedDate.month + 1,
-          _selectedDate.day,
+        ScheduleViewMode.day => DateUtils.addDaysToDate(_selectedDate, 1),
+        ScheduleViewMode.week => DateUtils.addDaysToDate(_selectedDate, 7),
+        ScheduleViewMode.month => DateUtils.addMonthsToMonthDate(
+          _selectedDate,
+          1,
         ),
         ScheduleViewMode.year => DateTime(
           _selectedDate.year + 1,
@@ -1306,7 +1493,7 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
     }
     return switch (command) {
       _ScheduleShortcut.search => true,
-      _ScheduleShortcut.sidebar => _latestCanShowSidebar,
+      _ScheduleShortcut.sidebar => _latestCanShowSidebar || _searchActive,
       _ScheduleShortcut.dismissSearch => _searchActive,
       _ScheduleShortcut.newEvent =>
         _canHandleScheduleShortcut() && _latestWritableSources.isNotEmpty,
@@ -1327,11 +1514,11 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
     switch (command) {
       case _ScheduleShortcut.search:
         if (!_searchActive) {
-          setState(() => _searchActive = true);
+          _openSearch();
         }
         _focusSearch();
       case _ScheduleShortcut.sidebar:
-        setState(() => _sidebarCollapsed = !_sidebarCollapsed);
+        _handleHeaderBarAction(BusyMaxHeaderBarAction.sidebarToggle);
       case _ScheduleShortcut.dismissSearch:
         _closeSearch();
       case _ScheduleShortcut.previous:
@@ -2516,6 +2703,10 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
       _revealedNotificationTarget = command;
       _scope = ScheduleScope.all;
       _searchActive = false;
+      _sidebarCollapsed = _sidebarBeforeSearch ?? _sidebarCollapsed;
+      _sidebarBeforeSearch = null;
+      _searchCriteria = null;
+      _initialSearchCriteria = null;
       _searchQuery = '';
       _searchController.clear();
     });
@@ -2669,6 +2860,8 @@ class _ScheduleBody extends StatelessWidget {
     required this.canCreateEvent,
     required this.canCreateTask,
     required this.searchActive,
+    this.searchCriteria,
+    this.searchQuery = '',
   });
 
   final bool isLoading;
@@ -2715,6 +2908,8 @@ class _ScheduleBody extends StatelessWidget {
   final bool canCreateEvent;
   final bool canCreateTask;
   final bool searchActive;
+  final ScheduleSearchCriteria? searchCriteria;
+  final String searchQuery;
 
   @override
   Widget build(BuildContext context) {
@@ -2724,7 +2919,7 @@ class _ScheduleBody extends StatelessWidget {
     if (isLoading) {
       return const ScheduleLoadingState();
     }
-    if (!hasAnySources) {
+    if (!hasAnySources && !searchActive) {
       return ScheduleNoSourcesState(
         hasAccounts: hasAccounts,
         onOpenSettings: onOpenSettings,
@@ -2732,6 +2927,9 @@ class _ScheduleBody extends StatelessWidget {
       );
     }
     if (items.isEmpty && searchActive) {
+      if (searchCriteria?.hasSources == false) {
+        return Center(child: Text(context.l10n.searchNoSources));
+      }
       return const ScheduleSearchEmptyState();
     }
     if (items.isEmpty && mode == ScheduleViewMode.agenda) {
@@ -2800,6 +2998,8 @@ class _ScheduleBody extends StatelessWidget {
         ),
       ),
       ScheduleViewMode.agenda => ScheduleAgendaView(
+        searchCriteria: searchCriteria,
+        searchQuery: searchQuery,
         range: range,
         items: items,
         hasMoreOverdueTasks: hasMoreAgendaOverdueTasks,
@@ -3042,8 +3242,7 @@ class _ScheduleShortcutAction extends ContextAction<_ScheduleShortcutIntent> {
 }
 
 int _firstWeekday(BuildContext context) {
-  final index = MaterialLocalizations.of(context).firstDayOfWeekIndex;
-  return index == 0 ? DateTime.sunday : index;
+  return BusyMaxWeekPreferencesScope.firstWeekdayOf(context);
 }
 
 DateTime _day(DateTime date) => DateTime(date.year, date.month, date.day);

@@ -90,7 +90,7 @@ class AuthRepository {
     required OAuthGateway oAuth,
     required AppDatabase database,
     AccountsRepository? accountsRepository,
-    MicrosoftOAuthService? microsoftOAuth,
+    MicrosoftOAuthGateway? microsoftOAuth,
     DateTime Function()? nowUtc,
   }) : _oAuth = oAuth,
        _database = database,
@@ -102,7 +102,7 @@ class AuthRepository {
   final OAuthGateway _oAuth;
   final AppDatabase _database;
   final AccountsRepository _accountsRepository;
-  final MicrosoftOAuthService? _microsoftOAuth;
+  final MicrosoftOAuthGateway? _microsoftOAuth;
   final RedactingLogger _logger = RedactingLogger(Logger('AuthRepository'));
 
   Future<AuthSessionState> loadSession() async {
@@ -144,7 +144,7 @@ class AuthRepository {
         'Microsoft sign-in is not available.',
       );
     }
-    final result = await microsoftOAuth.signIn();
+    final result = await microsoftOAuth.signInWithMicrosoft();
     if (!_hasRequiredMicrosoftScopes(result.tokenSet)) {
       await _bestEffortInsufficientScopeCleanup(
         'Microsoft',

@@ -10,8 +10,10 @@ import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 
 import '../l10n/app_locale.dart';
+import '../l10n/first_day_of_week.dart';
 import '../l10n/time_format.dart';
 
+export '../l10n/first_day_of_week.dart' show BusyMaxFirstDayOfWeekPreference;
 export '../l10n/time_format.dart' show BusyMaxTimeFormatPreference;
 import '../core/logging/redacting_logger.dart';
 import '../schedule/schedule_sidebar_order.dart';
@@ -43,6 +45,7 @@ class AppSettings {
     required this.themeModePreference,
     required this.localeTag,
     this.timeFormatPreference = BusyMaxTimeFormatPreference.system,
+    this.firstDayOfWeekPreference = BusyMaxFirstDayOfWeekPreference.system,
     required this.notifySyncFailures,
     required this.notifyConflicts,
     required this.notifyDueToday,
@@ -60,6 +63,7 @@ class AppSettings {
     required this.lastDueTodayNotificationDate,
     required this.taskListScheduleVisibility,
     required this.scheduleViewMode,
+    this.androidScheduleViewMode,
     required this.scheduleDayStartMinute,
     required this.scheduleDayEndMinute,
     this.sidebarOrder = const ScheduleSidebarOrder.empty(),
@@ -71,6 +75,7 @@ class AppSettings {
       themeModePreference: BusyMaxThemeModePreference.system,
       localeTag: null,
       timeFormatPreference: BusyMaxTimeFormatPreference.system,
+      firstDayOfWeekPreference: BusyMaxFirstDayOfWeekPreference.system,
       notifySyncFailures: true,
       notifyConflicts: true,
       notifyDueToday: false,
@@ -162,6 +167,11 @@ class AppSettings {
         json['timeFormatPreference'],
         defaults.timeFormatPreference,
       ),
+      firstDayOfWeekPreference: _enumFromName(
+        BusyMaxFirstDayOfWeekPreference.values,
+        json['firstDayOfWeekPreference'],
+        defaults.firstDayOfWeekPreference,
+      ),
       notifySyncFailures:
           json['notifySyncFailures'] as bool? ?? defaults.notifySyncFailures,
       notifyConflicts:
@@ -195,6 +205,10 @@ class AppSettings {
         json['scheduleViewMode'],
         defaults.scheduleViewMode,
       ),
+      androidScheduleViewMode: _enumFromNameOrNull(
+        ScheduleViewMode.values,
+        json['androidScheduleViewMode'],
+      ),
       scheduleDayStartMinute: scheduleDayStartMinute,
       scheduleDayEndMinute: scheduleDayEndMinute,
     );
@@ -204,6 +218,7 @@ class AppSettings {
   final BusyMaxThemeModePreference themeModePreference;
   final String? localeTag;
   final BusyMaxTimeFormatPreference timeFormatPreference;
+  final BusyMaxFirstDayOfWeekPreference firstDayOfWeekPreference;
   final bool notifySyncFailures;
   final bool notifyConflicts;
   final bool notifyDueToday;
@@ -222,6 +237,7 @@ class AppSettings {
   final Map<String, bool> taskListScheduleVisibility;
   final ScheduleSidebarOrder sidebarOrder;
   final ScheduleViewMode scheduleViewMode;
+  final ScheduleViewMode? androidScheduleViewMode;
   final int scheduleDayStartMinute;
   final int scheduleDayEndMinute;
 
@@ -235,6 +251,7 @@ class AppSettings {
       'themeModePreference': themeModePreference.name,
       'localeTag': localeTag,
       'timeFormatPreference': timeFormatPreference.name,
+      'firstDayOfWeekPreference': firstDayOfWeekPreference.name,
       'notifySyncFailures': notifySyncFailures,
       'notifyConflicts': notifyConflicts,
       'notifyDueToday': notifyDueToday,
@@ -253,6 +270,7 @@ class AppSettings {
       'taskListScheduleVisibility': taskListScheduleVisibility,
       'sidebarOrder': sidebarOrder.toJson(),
       'scheduleViewMode': scheduleViewMode.name,
+      'androidScheduleViewMode': androidScheduleViewMode?.name,
       'scheduleDayStartMinute': scheduleDayStartMinute,
       'scheduleDayEndMinute': scheduleDayEndMinute,
     };
@@ -263,6 +281,7 @@ class AppSettings {
     BusyMaxThemeModePreference? themeModePreference,
     Object? localeTag = _unset,
     BusyMaxTimeFormatPreference? timeFormatPreference,
+    BusyMaxFirstDayOfWeekPreference? firstDayOfWeekPreference,
     bool? notifySyncFailures,
     bool? notifyConflicts,
     bool? notifyDueToday,
@@ -281,6 +300,7 @@ class AppSettings {
     Map<String, bool>? taskListScheduleVisibility,
     ScheduleSidebarOrder? sidebarOrder,
     ScheduleViewMode? scheduleViewMode,
+    Object? androidScheduleViewMode = _unset,
     int? scheduleDayStartMinute,
     int? scheduleDayEndMinute,
     bool clearLastDueTodayNotificationDate = false,
@@ -297,6 +317,8 @@ class AppSettings {
     return AppSettings(
       themeFamily: themeFamily ?? this.themeFamily,
       timeFormatPreference: timeFormatPreference ?? this.timeFormatPreference,
+      firstDayOfWeekPreference:
+          firstDayOfWeekPreference ?? this.firstDayOfWeekPreference,
       themeModePreference: themeModePreference ?? this.themeModePreference,
       localeTag: identical(localeTag, _unset)
           ? this.localeTag
@@ -325,6 +347,9 @@ class AppSettings {
           taskListScheduleVisibility ?? this.taskListScheduleVisibility,
       sidebarOrder: sidebarOrder ?? this.sidebarOrder,
       scheduleViewMode: scheduleViewMode ?? this.scheduleViewMode,
+      androidScheduleViewMode: identical(androidScheduleViewMode, _unset)
+          ? this.androidScheduleViewMode
+          : androidScheduleViewMode as ScheduleViewMode?,
       scheduleDayStartMinute: resolvedScheduleDayStartMinute,
       scheduleDayEndMinute: resolvedScheduleDayEndMinute,
     );
@@ -364,7 +389,9 @@ class JsonFileLocalSettingsStore implements LocalSettingsStore {
   Future<void> save(Map<String, Object?> json) async {
     final file = await _settingsFile();
     await file.parent.create(recursive: true);
-    await file.writeAsString(jsonEncode(json));
+    final temporary = File('${file.path}.tmp');
+    await temporary.writeAsString(jsonEncode(json), flush: true);
+    await temporary.rename(file.path);
   }
 
   Future<File> _settingsFile() async {
@@ -408,6 +435,10 @@ class AppSettingsController extends StateNotifier<AppSettings> {
 
   Future<void> setTimeFormatPreference(BusyMaxTimeFormatPreference value) =>
       _mutate((current) => current.copyWith(timeFormatPreference: value));
+
+  Future<void> setFirstDayOfWeekPreference(
+    BusyMaxFirstDayOfWeekPreference value,
+  ) => _mutate((current) => current.copyWith(firstDayOfWeekPreference: value));
 
   Future<void> registerSidebarIds(
     SidebarOrderSection section,
@@ -472,6 +503,12 @@ class AppSettingsController extends StateNotifier<AppSettings> {
 
   Future<void> setScheduleViewMode(ScheduleViewMode mode) {
     return _mutate((current) => current.copyWith(scheduleViewMode: mode));
+  }
+
+  Future<void> setAndroidScheduleViewMode(ScheduleViewMode mode) {
+    return _mutate(
+      (current) => current.copyWith(androidScheduleViewMode: mode),
+    );
   }
 
   Future<void> setScheduleDayStartMinute(int minute) {

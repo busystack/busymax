@@ -13,7 +13,22 @@ class AppLocalizationsRu extends AppLocalizations {
   AppLocalizationsRu([String locale = 'ru']) : super(locale);
 
   @override
+  String get launchAtLoginManagedExternally =>
+      'BusyMax запущен через настройки автозапуска рабочего стола. Удалите его запись там, затем полностью завершите и снова откройте BusyMax, чтобы использовать этот переключатель.';
+
+  @override
   String get timeFormat => 'Формат времени';
+
+  @override
+  String get firstDayOfWeek => 'Первый день недели';
+
+  @override
+  String get systemDefault => 'Системное значение';
+
+  @override
+  String systemDefaultResolved(String weekday) {
+    return 'Системное значение ($weekday)';
+  }
 
   @override
   String get timeFormatTwelveHour => '12 часов';
@@ -2945,4 +2960,52 @@ class AppLocalizationsRu extends AppLocalizations {
     });
     return '$frequency: $months, $_temp0';
   }
+
+  @override
+  String get searchFilters => 'Фильтры поиска';
+
+  @override
+  String get searchType => 'Тип';
+
+  @override
+  String get searchDate => 'Дата';
+
+  @override
+  String get searchAnyDate => 'Любая дата';
+
+  @override
+  String get searchThisWeek => 'Эта неделя';
+
+  @override
+  String get searchCustomRange => 'Свой диапазон';
+
+  @override
+  String get searchTaskStatus => 'Статус задач';
+
+  @override
+  String get searchTaskDue => 'Срок задач';
+
+  @override
+  String get searchAnyDueState => 'Любой срок';
+
+  @override
+  String get searchNoDueDate => 'Без срока';
+
+  @override
+  String get searchPerson => 'Участник';
+
+  @override
+  String get searchSources => 'Источники';
+
+  @override
+  String get searchClearFilters => 'Сбросить фильтры';
+
+  @override
+  String get searchFiltersAction => 'Фильтры';
+
+  @override
+  String get searchNoSources => 'Источники поиска не выбраны';
+
+  @override
+  String get searchClearText => 'Очистить текст';
 }

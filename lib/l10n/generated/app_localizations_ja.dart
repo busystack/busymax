@@ -13,7 +13,22 @@ class AppLocalizationsJa extends AppLocalizations {
   AppLocalizationsJa([String locale = 'ja']) : super(locale);
 
   @override
+  String get launchAtLoginManagedExternally =>
+      'BusyMax はデスクトップの自動起動設定によって起動されました。このスイッチを使うには、そこで BusyMax の項目を削除してから、BusyMax を終了して開き直してください。';
+
+  @override
   String get timeFormat => '時刻の表示形式';
+
+  @override
+  String get firstDayOfWeek => '週の最初の曜日';
+
+  @override
+  String get systemDefault => 'システムの既定値';
+
+  @override
+  String systemDefaultResolved(String weekday) {
+    return 'システムの既定値（$weekday）';
+  }
 
   @override
   String get timeFormatTwelveHour => '12時間表示';
@@ -2858,4 +2873,52 @@ class AppLocalizationsJa extends AppLocalizations {
     });
     return '$frequency$monthsの$_temp0';
   }
+
+  @override
+  String get searchFilters => '検索フィルター';
+
+  @override
+  String get searchType => '種類';
+
+  @override
+  String get searchDate => '日付';
+
+  @override
+  String get searchAnyDate => 'すべての日付';
+
+  @override
+  String get searchThisWeek => '今週';
+
+  @override
+  String get searchCustomRange => '期間を指定';
+
+  @override
+  String get searchTaskStatus => 'タスクの状態';
+
+  @override
+  String get searchTaskDue => 'タスクの期限';
+
+  @override
+  String get searchAnyDueState => 'すべての期限状態';
+
+  @override
+  String get searchNoDueDate => '期限なし';
+
+  @override
+  String get searchPerson => '人物';
+
+  @override
+  String get searchSources => '検索元';
+
+  @override
+  String get searchClearFilters => 'フィルターをリセット';
+
+  @override
+  String get searchFiltersAction => 'フィルター';
+
+  @override
+  String get searchNoSources => '検索元が選択されていません';
+
+  @override
+  String get searchClearText => 'テキストを消去';
 }

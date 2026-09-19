@@ -84,8 +84,12 @@ void main() {
       supportedLocales: AppLocalizations.supportedLocales,
       home: ScaffoldPage(
         content: WindowsScheduleMonthView(
+          firstWeekday: DateTime.monday,
           selectedDate: PlannerGestureScenario.day,
-          range: ScheduleRange.month(PlannerGestureScenario.day),
+          range: ScheduleRange.month(
+            PlannerGestureScenario.day,
+            firstWeekday: DateTime.monday,
+          ),
           items: scenario.items,
           locale: 'en',
           onOpen: scenario.opened.add,

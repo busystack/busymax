@@ -40,6 +40,26 @@ void main() {
       );
     },
   );
+  test('all first-day preferences persist by stable name', () {
+    for (final preference in BusyMaxFirstDayOfWeekPreference.values) {
+      final settings = AppSettings.defaults().copyWith(
+        firstDayOfWeekPreference: preference,
+        localeTag: 'en',
+      );
+      final json = settings.toJson();
+      expect(json['firstDayOfWeekPreference'], preference.name);
+      expect(AppSettings.fromJson(json).firstDayOfWeekPreference, preference);
+      expect(AppSettings.fromJson(json).localeTag, 'en');
+    }
+    for (final invalid in [null, 'Monday', 'unknown', 1]) {
+      expect(
+        AppSettings.fromJson({
+          'firstDayOfWeekPreference': invalid,
+        }).firstDayOfWeekPreference,
+        BusyMaxFirstDayOfWeekPreference.system,
+      );
+    }
+  });
   test('sidebar order defaults, serialization and copyWith are immutable', () {
     expect(AppSettings.defaults().sidebarOrder.accountIds, isEmpty);
     expect(AppSettings.fromJson(const {}).sidebarOrder.accountIds, isEmpty);

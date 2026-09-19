@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<schemalist>
+  <schema id="org.gnome.desktop.calendar" path="/org/gnome/desktop/calendar/">
+    <key name="week-start-day" type="s">
+      <default>'default'</default>
+    </key>
+  </schema>
+</schemalist>

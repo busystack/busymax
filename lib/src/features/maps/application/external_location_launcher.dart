@@ -23,7 +23,7 @@ Future<bool> _launchLinuxExternalUri(
       false;
 }
 
-enum ExternalLocationPlatform { linux, windows }
+enum ExternalLocationPlatform { linux, windows, android }
 
 enum ExternalLocationLaunchResult {
   opened,
@@ -105,6 +105,13 @@ final class ExternalLocationLauncher {
       }
     }
 
+    if (currentPlatform == ExternalLocationPlatform.android) {
+      final nativeUri = androidLocationUri(destination);
+      if (await _launch(nativeUri, useLinuxLauncher: false)) {
+        return ExternalLocationLaunchResult.opened;
+      }
+    }
+
     final browserUri = googleMapsSearchUri(destination.searchQuery);
     if (browserUri.toString().length > googleMapsUrlLimit) {
       return ExternalLocationLaunchResult.browserUrlTooLong;
@@ -131,7 +138,14 @@ final class ExternalLocationLauncher {
 
 ExternalLocationPlatform currentExternalLocationPlatform() => Platform.isLinux
     ? ExternalLocationPlatform.linux
+    : Platform.isAndroid
+    ? ExternalLocationPlatform.android
     : ExternalLocationPlatform.windows;
+
+Uri androidLocationUri(ExternalLocationDestination destination) {
+  final query = destination.searchQuery;
+  return Uri.parse('geo:0,0?q=${Uri.encodeComponent(query)}');
+}
 
 Uri linuxLocationUri(ExternalLocationDestination destination) {
   return switch (destination.kind) {

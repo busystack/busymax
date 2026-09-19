@@ -1,5 +1,9 @@
 {
+  "launchAtLoginManagedExternally": "O BusyMax foi iniciado pelas definições de arranque do ambiente de trabalho. Remova a respetiva entrada, depois saia do BusyMax e volte a abri-lo para utilizar este interruptor.",
   "timeFormat": "Formato da hora",
+  "firstDayOfWeek": "Primeiro dia da semana",
+  "systemDefault": "Predefinição do sistema",
+  "systemDefaultResolved": "Predefinição do sistema ({weekday})",
   "timeFormatTwelveHour": "12 horas",
   "timeFormatTwentyFourHour": "24 horas",
   "timeEndOfDay": "fim do dia",
@@ -1024,5 +1028,21 @@
       "position": {"type": "String"},
       "days": {"type": "String"}
     }
-  }
+  },
+  "searchFilters": "Filtros de pesquisa",
+  "searchType": "Tipo",
+  "searchDate": "Data",
+  "searchAnyDate": "Qualquer data",
+  "searchThisWeek": "Esta semana",
+  "searchCustomRange": "Intervalo personalizado",
+  "searchTaskStatus": "Estado das tarefas",
+  "searchTaskDue": "Prazo das tarefas",
+  "searchAnyDueState": "Qualquer prazo",
+  "searchNoDueDate": "Sem data de conclusão",
+  "searchPerson": "Pessoa",
+  "searchSources": "Origens",
+  "searchClearFilters": "Repor filtros",
+  "searchFiltersAction": "Filtros",
+  "searchNoSources": "Nenhuma origem de pesquisa selecionada",
+  "searchClearText": "Limpar texto"
 }

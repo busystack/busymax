@@ -36,6 +36,14 @@ DAV-backed events preserve data BusyMax does not edit, including recurrence
 exceptions, alarms, timezones, parameters, and provider extensions. See the
 [iCalendar and DAV data model](icalendar_data_model.md).
 
+On Android, supported invitation responses are visible from an invitation's
+Schedule detail sheet. Google and capability-enabled Nextcloud guest
+availability is visible in the event editor after at least one guest and a
+valid interval are present. Microsoft availability is intentionally absent
+because it is not part of the provider contract. A capability-enabled
+Nextcloud calendar exposes its scheduling inbox from **Settings > calendar >
+Scheduling inbox**.
+
 ## Task objects
 
 | Capability | Google Tasks | Microsoft To Do | Nextcloud Tasks |

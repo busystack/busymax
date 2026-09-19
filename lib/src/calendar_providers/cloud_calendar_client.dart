@@ -99,6 +99,16 @@ abstract interface class CompleteRecurringInstanceClient {
   });
 }
 
+/// Optional capability for providers whose batch free/busy endpoint reports
+/// success or failure independently for every requested calendar.
+abstract interface class DetailedFreeBusyClient {
+  Future<List<FreeBusyCalendarResultDto>> freeBusyDetails({
+    required List<String> calendarIds,
+    required DateTime rangeStart,
+    required DateTime rangeEnd,
+  });
+}
+
 /// User-specific calendar-list operations supported by providers that expose
 /// calendar metadata separately from the signed-in user's personalization.
 abstract interface class CalendarListManagementClient {

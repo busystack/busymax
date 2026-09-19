@@ -1,0 +1,20 @@
+# Public Android registration values. Copy this file to
+# android/busymax.android.properties and never put secrets in it.
+#
+# Google Identity Services uses the package name and certificate fingerprints
+# registered in Google Cloud; it does not use the desktop OAuth client secret.
+google.androidPackage=io.busystack.busymax
+google.debugSha256=
+google.releaseSha256=
+google.playSha256=
+
+# MSAL public-client registration. microsoft.signatureHash is the Base64
+# signer hash used in the msauth redirect URI, not a secret.
+microsoft.clientId=
+microsoft.authorityTenant=common
+microsoft.signatureHash=
+
+# Public links embedded in the Flutter release by tool/android scripts.
+busymax.privacyPolicyUrl=https://busystack.org/privacy
+busymax.supportUrl=https://busystack.org/support
+busymax.homepageUrl=https://busystack.org

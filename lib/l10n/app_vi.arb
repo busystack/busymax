@@ -1,5 +1,9 @@
 {
+  "launchAtLoginManagedExternally": "BusyMax được mở bởi cài đặt khởi động của môi trường máy tính. Xóa mục BusyMax ở đó, rồi thoát hẳn và mở lại BusyMax để dùng công tắc này.",
   "timeFormat": "Định dạng giờ",
+  "firstDayOfWeek": "Ngày đầu tuần",
+  "systemDefault": "Mặc định hệ thống",
+  "systemDefaultResolved": "Mặc định hệ thống ({weekday})",
   "timeFormatTwelveHour": "12 giờ",
   "timeFormatTwentyFourHour": "24 giờ",
   "timeEndOfDay": "cuối ngày",
@@ -1024,5 +1028,21 @@
       "position": {"type": "String"},
       "days": {"type": "String"}
     }
-  }
+  },
+  "searchFilters": "Bộ lọc tìm kiếm",
+  "searchType": "Loại",
+  "searchDate": "Ngày",
+  "searchAnyDate": "Mọi ngày",
+  "searchThisWeek": "Tuần này",
+  "searchCustomRange": "Khoảng tùy chọn",
+  "searchTaskStatus": "Trạng thái công việc",
+  "searchTaskDue": "Hạn công việc",
+  "searchAnyDueState": "Mọi trạng thái hạn",
+  "searchNoDueDate": "Không có hạn",
+  "searchPerson": "Người",
+  "searchSources": "Nguồn",
+  "searchClearFilters": "Đặt lại bộ lọc",
+  "searchFiltersAction": "Bộ lọc",
+  "searchNoSources": "Chưa chọn nguồn tìm kiếm",
+  "searchClearText": "Xóa văn bản"
 }

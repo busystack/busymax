@@ -8,6 +8,7 @@
 #include <functional>
 #include <memory>
 #include <mutex>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -41,8 +42,12 @@ class FlutterWindow : public Win32Window {
   std::unique_ptr<flutter::MethodChannel<flutter::EncodableValue>>
       desktop_channel_;
   std::unique_ptr<flutter::MethodChannel<flutter::EncodableValue>> clock_channel_;
+  std::unique_ptr<flutter::MethodChannel<flutter::EncodableValue>>
+      weekday_channel_;
   bool uses_24_hour_clock_ = false;
+  std::optional<int> first_weekday_;
   void RefreshClockPreference();
+  void RefreshFirstWeekday();
   std::mutex activation_mutex_;
   std::vector<std::string> pending_activations_;
   bool activation_ready_ = false;

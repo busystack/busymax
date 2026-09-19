@@ -9,6 +9,7 @@ import 'package:busymax/src/core/time/time_zone_catalog.dart';
 import 'package:busymax/src/l10n/l10n.dart';
 import 'package:busymax/src/l10n/localized_formatters.dart';
 import 'package:busymax/src/l10n/time_format_scope.dart';
+import 'package:busymax/src/l10n/week_preferences_scope.dart';
 import 'package:busymax/src/features/schedule/presentation/mini_calendar.dart';
 import 'package:busymax/src/features/schedule/presentation/schedule_anchored_popover.dart';
 import 'package:busymax/src/features/tasks/presentation/time_zone_selection_dialog.dart';
@@ -40,21 +41,7 @@ class NativeDateTimePicker {
 
   static const _channel = MethodChannel(nativeDateTimePickerChannelName);
 
-  Future<NativeDatePickResult> pickDate({
-    required String title,
-    required String? initialDate,
-    required String cancelLabel,
-    required String okLabel,
-  }) async {
-    return _invoke('pickDate', {
-      'title': title,
-      'initialDate': initialDate,
-      'cancelLabel': cancelLabel,
-      'okLabel': okLabel,
-    });
-  }
-
-  Future<NativeDatePickResult> pickTime({
+  Future<NativeTimePickResult> pickTime({
     required String title,
     required String? initialTime,
     required String cancelLabel,
@@ -80,24 +67,23 @@ class NativeDateTimePicker {
     });
   }
 
-  Future<NativeDatePickResult> _invoke(
+  Future<NativeTimePickResult> _invoke(
     String method,
     Map<String, Object?> arguments,
   ) async {
     try {
       final value = await _channel.invokeMethod<String>(method, arguments);
-      return NativeDatePickResult(available: true, date: value, time: value);
+      return NativeTimePickResult(available: true, time: value);
     } on MissingPluginException {
-      return const NativeDatePickResult(available: false);
+      return const NativeTimePickResult(available: false);
     }
   }
 }
 
-class NativeDatePickResult {
-  const NativeDatePickResult({required this.available, this.date, this.time});
+class NativeTimePickResult {
+  const NativeTimePickResult({required this.available, this.time});
 
   final bool available;
-  final String? date;
   final String? time;
 }
 
@@ -109,7 +95,6 @@ class DesktopDateField extends StatefulWidget {
     required this.onChanged,
     this.enabled = true,
     this.onClear,
-    this.useNativePicker = false,
   });
 
   final String label;
@@ -117,7 +102,6 @@ class DesktopDateField extends StatefulWidget {
   final ValueChanged<String> onChanged;
   final bool enabled;
   final VoidCallback? onClear;
-  final bool useNativePicker;
 
   @override
   State<DesktopDateField> createState() => _DesktopDateFieldState();
@@ -131,7 +115,6 @@ class DesktopDateValueRow extends StatelessWidget {
     required this.onChanged,
     this.enabled = true,
     this.onClear,
-    this.useNativePicker = false,
   });
 
   final String label;
@@ -139,7 +122,6 @@ class DesktopDateValueRow extends StatelessWidget {
   final ValueChanged<String> onChanged;
   final bool enabled;
   final VoidCallback? onClear;
-  final bool useNativePicker;
 
   @override
   Widget build(BuildContext context) {
@@ -149,7 +131,6 @@ class DesktopDateValueRow extends StatelessWidget {
       onChanged: onChanged,
       enabled: enabled,
       onClear: onClear,
-      useNativePicker: useNativePicker,
     );
   }
 }
@@ -199,9 +180,7 @@ class _DesktopDateFieldState extends State<DesktopDateField> {
             context,
             labelText: widget.label,
           ),
-          onTap: widget.enabled
-              ? () => _pickNativeDate(context, fieldContext)
-              : null,
+          onTap: widget.enabled ? () => _pickDate(context, fieldContext) : null,
         ),
       ),
       trailingIcons: [
@@ -215,7 +194,7 @@ class _DesktopDateFieldState extends State<DesktopDateField> {
           builder: (buttonContext) => YaruIconButton(
             tooltip: widget.label,
             onPressed: widget.enabled
-                ? () => _pickNativeDate(context, buttonContext)
+                ? () => _pickDate(context, buttonContext)
                 : null,
             icon: const Icon(YaruIcons.calendar),
           ),
@@ -236,50 +215,21 @@ class _DesktopDateFieldState extends State<DesktopDateField> {
     );
   }
 
-  Future<void> _pickNativeDate(
+  Future<void> _pickDate(
     BuildContext context,
     BuildContext anchorContext,
   ) async {
     if (!widget.enabled) {
       return;
     }
-    if (!widget.useNativePicker) {
-      final fallbackPicked = await showBusyMaxDateValueDialog(
-        context,
-        label: widget.label,
-        initialDate: widget.date,
-        anchorContext: anchorContext,
-      );
-      if (mounted && fallbackPicked != null) {
-        _applyPickedDate(fallbackPicked);
-      }
-      return;
-    }
-    final localizations = MaterialLocalizations.of(context);
-    final picked = await _nativeDateTimePicker.pickDate(
-      title: widget.label,
-      initialDate: widget.date,
-      cancelLabel: localizations.cancelButtonLabel,
-      okLabel: localizations.okButtonLabel,
-    );
-    if (!context.mounted) {
-      return;
-    }
-    if (picked.date != null) {
-      _applyPickedDate(picked.date!);
-      return;
-    }
-    if (picked.available) {
-      return;
-    }
-    final fallbackPicked = await showBusyMaxDateValueDialog(
+    final picked = await showBusyMaxDateValueDialog(
       context,
       label: widget.label,
       initialDate: widget.date,
       anchorContext: anchorContext,
     );
-    if (mounted && fallbackPicked != null) {
-      _applyPickedDate(fallbackPicked);
+    if (mounted && picked != null) {
+      _applyPickedDate(picked);
     }
   }
 
@@ -393,8 +343,9 @@ class _DesktopDateValueDialog extends StatefulWidget {
 }
 
 class _DesktopDateValueDialogState extends State<_DesktopDateValueDialog> {
-  static final _firstDate = DateTime(1900);
-  static final _lastDate = DateTime(2100, 12, 31);
+  // Match the date-only domain accepted by the prior GTK path.
+  static final _firstDate = DateTime(1);
+  static final _lastDate = DateTime(9999, 12, 31);
   late DateTime _selected;
   late DateTime _displayedMonth;
 
@@ -634,8 +585,7 @@ class _DesktopDateValueDialogState extends State<_DesktopDateValueDialog> {
   }
 
   int _firstWeekday(BuildContext context) {
-    final index = MaterialLocalizations.of(context).firstDayOfWeekIndex;
-    return index == 0 ? DateTime.sunday : index;
+    return BusyMaxWeekPreferencesScope.firstWeekdayOf(context);
   }
 
   DateTime _supportedInitialDate(String? encodedDate) {

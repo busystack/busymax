@@ -470,7 +470,6 @@ class _RecurrenceEditorDialogState extends State<RecurrenceEditorDialog> {
                   date:
                       _value.untilDateFor(timeZone: widget.timeZone) ??
                       _dateString(_oneMonthAfter(widget.baseDate)),
-                  useNativePicker: widget.useNativeDatePicker,
                   onChanged: _setUntilDate,
                 ),
               if (_end == _RecurrenceEnd.count)

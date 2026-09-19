@@ -6,6 +6,9 @@ analyzer:
     - tool/google_tasks_discovery/cache/**
     - windows/**
     - linux/**
+    - android/**
+    - packages/**/example/**
+    - packages/busymax_android_platform/example/**
 
 linter:
   rules:

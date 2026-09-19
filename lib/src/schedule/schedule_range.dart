@@ -6,10 +6,7 @@ class ScheduleRange {
     return ScheduleRange(start: start, end: _addCalendarDays(start, 1));
   }
 
-  factory ScheduleRange.week(
-    DateTime day, {
-    int firstWeekday = DateTime.monday,
-  }) {
+  factory ScheduleRange.week(DateTime day, {required int firstWeekday}) {
     final date = _addCalendarDays(day, 0);
     final offset = (date.weekday - firstWeekday) % DateTime.daysPerWeek;
     final start = _addCalendarDays(date, -offset);
@@ -19,10 +16,7 @@ class ScheduleRange {
     );
   }
 
-  factory ScheduleRange.month(
-    DateTime day, {
-    int firstWeekday = DateTime.monday,
-  }) {
+  factory ScheduleRange.month(DateTime day, {required int firstWeekday}) {
     final first = DateTime(day.year, day.month);
     final offset = (first.weekday - firstWeekday) % DateTime.daysPerWeek;
     final start = _addCalendarDays(first, -offset);

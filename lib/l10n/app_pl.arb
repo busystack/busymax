@@ -1,5 +1,9 @@
 {
+  "launchAtLoginManagedExternally": "BusyMax został uruchomiony przez ustawienia autostartu pulpitu. Usuń stamtąd jego wpis, a następnie zakończ i ponownie uruchom BusyMax, aby użyć tego przełącznika.",
   "timeFormat": "Format czasu",
+  "firstDayOfWeek": "Pierwszy dzień tygodnia",
+  "systemDefault": "Domyślne ustawienie systemu",
+  "systemDefaultResolved": "Domyślne ustawienie systemu ({weekday})",
   "timeFormatTwelveHour": "12-godzinny",
   "timeFormatTwentyFourHour": "24-godzinny",
   "timeEndOfDay": "koniec dnia",
@@ -1734,5 +1738,21 @@
         "type": "String"
       }
     }
-  }
+  },
+  "searchFilters": "Filtry wyszukiwania",
+  "searchType": "Typ",
+  "searchDate": "Data",
+  "searchAnyDate": "Dowolna data",
+  "searchThisWeek": "Ten tydzień",
+  "searchCustomRange": "Zakres niestandardowy",
+  "searchTaskStatus": "Stan zadania",
+  "searchTaskDue": "Termin zadania",
+  "searchAnyDueState": "Dowolny stan terminu",
+  "searchNoDueDate": "Bez terminu",
+  "searchPerson": "Osoba",
+  "searchSources": "Źródła",
+  "searchClearFilters": "Resetuj filtry",
+  "searchFiltersAction": "Filtry",
+  "searchNoSources": "Nie wybrano źródeł wyszukiwania",
+  "searchClearText": "Wyczyść tekst"
 }

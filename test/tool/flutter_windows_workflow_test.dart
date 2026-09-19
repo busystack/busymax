@@ -37,7 +37,7 @@ void main() {
       'tool/windows/check_prerequisites.ps1',
     ).readAsStringSync();
 
-    expect(workflow, contains("flutter-version: '3.47.2'"));
+    expect(workflow, contains("flutter-version: '3.47.4'"));
 
     for (final name in [
       'Verify x64 Windows build host',
@@ -120,8 +120,8 @@ void main() {
     expect(prerequisiteScript, contains('-All'));
     expect(prerequisiteScript, contains("'cache\\dart-sdk\\bin\\dart.exe'"));
     expect(prerequisiteScript, contains('verify_flutter_sdk.dart'));
-    expect(prerequisiteScript, contains("flutterVersion -ne '3.47.2'"));
-    expect(prerequisiteScript, contains("dartVersion -ne '3.13.2'"));
+    expect(prerequisiteScript, contains("flutterVersion -ne '3.47.4'"));
+    expect(prerequisiteScript, contains("dartVersion -ne '3.13.3'"));
     expect(prerequisiteScript, isNot(contains('Get-Command dart')));
     expect(prerequisiteScript, isNot(contains(r'$flutterBin -ne $dartBin')));
   });

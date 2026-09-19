@@ -889,7 +889,7 @@ void main() {
   });
 
   testWidgets(
-    'fallback date dialog safely bounds an unsupported initial date',
+    'BusyMax date popover preserves dates accepted by the former native path',
     (tester) async {
       late BuildContext hostContext;
       await tester.pumpWidget(
@@ -910,7 +910,7 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      expect(find.byTooltip('Friday, December 31, 2100'), findsOneWidget);
+      expect(find.byTooltip('Wednesday, January 1, 2200'), findsOneWidget);
       expect(tester.takeException(), isNull);
 
       await tester.sendKeyEvent(LogicalKeyboardKey.escape);

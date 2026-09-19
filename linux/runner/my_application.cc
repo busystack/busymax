@@ -1,15 +1,19 @@
 #include "time_picker.h"
 #include "my_application.h"
+#include "first_weekday_preference.h"
 
 #include <flutter_linux/flutter_linux.h>
 #include <gdk-pixbuf/gdk-pixbuf.h>
 #include <gio/gio.h>
 #include <handy.h>
+#include <langinfo.h>
 #include <pango/pango.h>
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
+#include <cstdint>
 #include <cstring>
+#include <memory>
 #include "flutter/generated_plugin_registrant.h"
 
 constexpr char kApplicationDisplayName[] = "BusyMax";
@@ -28,6 +32,8 @@ constexpr char kGtkFontSettingsEventChannel[] =
     "io.busystack.busymax/gtk_font_settings";
 constexpr char kGtkThemeColorsEventChannel[] =
     "io.busystack.busymax/gtk_theme_colors";
+constexpr char kFirstWeekdayEventChannel[] =
+    "io.busystack.busymax/first_weekday";
 constexpr gint64 kHeaderBarStateSchemaVersion = 3;
 constexpr gint kHeaderButtonHeight = 34;
 constexpr gint kHeaderButtonSpacing = 6;
@@ -110,11 +116,14 @@ struct _MyApplication {
   gboolean external_calendar_open_ready;
   FlEventChannel* gtk_font_settings_event_channel;
   FlEventChannel* gtk_theme_colors_event_channel;
+  FlEventChannel* first_weekday_event_channel;
+  BusyMaxLinuxFirstWeekdayPreference* first_weekday_preference;
   gulong gtk_font_settings_signal_id;
   gulong gtk_theme_name_signal_id;
   gulong gtk_theme_dark_signal_id;
   gboolean gtk_font_settings_listening;
   gboolean gtk_theme_colors_listening;
+  gboolean first_weekday_listening;
   GtkCssProvider* header_bar_css_provider;
   gchar* header_bar_window_background_color;
   gchar* header_bar_background_color;
@@ -425,29 +434,6 @@ static FlValue* fl_lookup_map_arg(FlValue* args, const gchar* key) {
              : nullptr;
 }
 
-static gboolean parse_date(const gchar* value,
-                           guint* year,
-                           guint* month,
-                           guint* day) {
-  if (value == nullptr) {
-    return FALSE;
-  }
-  unsigned int parsed_year = 0;
-  unsigned int parsed_month = 0;
-  unsigned int parsed_day = 0;
-  if (sscanf(value, "%u-%u-%u", &parsed_year, &parsed_month, &parsed_day) != 3) {
-    return FALSE;
-  }
-  if (parsed_year < 1 || parsed_month < 1 || parsed_month > 12 ||
-      parsed_day < 1 || parsed_day > 31) {
-    return FALSE;
-  }
-  *year = parsed_year;
-  *month = parsed_month;
-  *day = parsed_day;
-  return TRUE;
-}
-
 static gboolean parse_time(const gchar* value, guint* hour, guint* minute) {
   return busymax_time_picker::ParseCanonical(value, hour, minute);
 }
@@ -466,55 +452,6 @@ static void style_native_dialog(GtkWidget* dialog) {
         gtk_widget_get_style_context(gtk_dialog_get_content_area(GTK_DIALOG(dialog)));
     gtk_style_context_add_class(content_context, "busymax-native-dialog-content");
   }
-}
-
-static void handle_pick_date(FlMethodCall* method_call,
-                             FlValue* args,
-                             GtkWindow* parent) {
-  const gchar* title = fl_lookup_string_arg(args, "title");
-  const gchar* initial_date = fl_lookup_string_arg(args, "initialDate");
-  const gchar* cancel_label = fl_lookup_string_arg(args, "cancelLabel");
-  const gchar* ok_label = fl_lookup_string_arg(args, "okLabel");
-  GtkWidget* dialog = gtk_dialog_new_with_buttons(
-      title != nullptr ? title : "Date", parent,
-      static_cast<GtkDialogFlags>(GTK_DIALOG_MODAL |
-                                  GTK_DIALOG_DESTROY_WITH_PARENT |
-                                  GTK_DIALOG_USE_HEADER_BAR),
-      cancel_label != nullptr && cancel_label[0] != '\0' ? cancel_label : "Cancel",
-      GTK_RESPONSE_CANCEL,
-      ok_label != nullptr && ok_label[0] != '\0' ? ok_label : "OK",
-      GTK_RESPONSE_OK,
-      nullptr);
-  style_native_dialog(dialog);
-  gtk_dialog_set_default_response(GTK_DIALOG(dialog), GTK_RESPONSE_OK);
-  gtk_window_set_resizable(GTK_WINDOW(dialog), FALSE);
-
-  GtkWidget* content = gtk_dialog_get_content_area(GTK_DIALOG(dialog));
-  GtkWidget* calendar = gtk_calendar_new();
-  gtk_container_set_border_width(GTK_CONTAINER(content), 12);
-  gtk_container_add(GTK_CONTAINER(content), calendar);
-
-  guint year = 0;
-  guint month = 0;
-  guint day = 0;
-  if (parse_date(initial_date, &year, &month, &day)) {
-    gtk_calendar_select_month(GTK_CALENDAR(calendar), month - 1, year);
-    gtk_calendar_select_day(GTK_CALENDAR(calendar), day);
-  }
-
-  gtk_widget_show_all(dialog);
-  const gint response = gtk_dialog_run(GTK_DIALOG(dialog));
-
-  if (response == GTK_RESPONSE_OK) {
-    gtk_calendar_get_date(GTK_CALENDAR(calendar), &year, &month, &day);
-    g_autofree gchar* result =
-        g_strdup_printf("%04u-%02u-%02u", year, month + 1, day);
-    respond_string(method_call, result);
-  } else {
-    respond_string(method_call, nullptr);
-  }
-
-  gtk_widget_destroy(dialog);
 }
 
 static void handle_pick_time(FlMethodCall* method_call,
@@ -583,9 +520,7 @@ static void native_date_time_picker_method_call_cb(FlMethodChannel* channel,
   GtkWindow* parent = GTK_WINDOW(user_data);
   const gchar* method = fl_method_call_get_name(method_call);
   FlValue* args = fl_method_call_get_args(method_call);
-  if (strcmp(method, "pickDate") == 0) {
-    handle_pick_date(method_call, args, parent);
-  } else if (strcmp(method, "pickTime") == 0) {
+  if (strcmp(method, "pickTime") == 0) {
     handle_pick_time(method_call, args, parent);
   } else {
     fl_method_call_respond_not_implemented(method_call, nullptr);
@@ -4285,6 +4220,9 @@ static void header_bar_method_call_cb(FlMethodChannel* channel,
     set_header_search_state(self, fl_method_bool_arg(args),
                             self->header_search_query);
     respond_success(method_call);
+  } else if (strcmp(method, "focusContent") == 0) {
+    focus_flutter_view(self);
+    respond_bool(method_call, TRUE);
   } else if (strcmp(method, "focusSearch") == 0) {
     respond_bool(method_call, focus_header_search_entry(self));
   } else if (strcmp(method, "setCanShowSidebar") == 0) {
@@ -4659,11 +4597,25 @@ static void apply_gtk_theme_to_bootstrap_chrome(MyApplication* self) {
 static void gtk_settings_method_call_cb(FlMethodChannel* channel,
                                         FlMethodCall* method_call,
                                         gpointer user_data) {
+  MyApplication* self = MY_APPLICATION(user_data);
   const gchar* method = fl_method_call_get_name(method_call);
   FlValue* args = fl_method_call_get_args(method_call);
   if (strcmp(method, "getGtkFont") == 0) {
     g_autoptr(FlValue) result = get_gtk_font_settings();
     fl_method_call_respond_success(method_call, result, nullptr);
+  } else if (strcmp(method, "getFirstWeekday") == 0) {
+    auto pending = std::shared_ptr<FlMethodCall>(
+        static_cast<FlMethodCall*>(g_object_ref(method_call)),
+        [](FlMethodCall* call) { g_object_unref(call); });
+    self->first_weekday_preference->Read(
+        [pending](std::optional<int> weekday) {
+          g_autoptr(FlValue) result =
+              weekday ? fl_value_new_int(*weekday) : nullptr;
+          fl_method_call_respond_success(pending.get(), result, nullptr);
+        });
+  } else if (strcmp(method, "cancelFirstWeekdayReads") == 0) {
+    self->first_weekday_preference->CancelRead();
+    fl_method_call_respond_success(method_call, nullptr, nullptr);
   } else if (strcmp(method, "getGtkThemeColors") == 0) {
     g_autoptr(FlValue) result = get_gtk_theme_colors();
     fl_method_call_respond_success(method_call, result, nullptr);
@@ -4673,6 +4625,37 @@ static void gtk_settings_method_call_cb(FlMethodChannel* channel,
   } else {
     fl_method_call_respond_not_implemented(method_call, nullptr);
   }
+}
+
+static void send_first_weekday_event(MyApplication* self) {
+  if (!self->first_weekday_listening ||
+      self->first_weekday_event_channel == nullptr) {
+    return;
+  }
+  g_autoptr(FlValue) event = fl_value_new_null();
+  g_autoptr(GError) error = nullptr;
+  if (!fl_event_channel_send(self->first_weekday_event_channel, event, nullptr,
+                             &error)) {
+    const gchar* message = error != nullptr ? error->message : "unknown error";
+    g_warning("Failed to send first-weekday event: %s", message);
+  }
+}
+
+static FlMethodErrorResponse* first_weekday_listen_cb(
+    FlEventChannel*, FlValue*, gpointer user_data) {
+  MyApplication* self = MY_APPLICATION(user_data);
+  self->first_weekday_listening = TRUE;
+  self->first_weekday_preference->StartWatching(
+      [self]() { send_first_weekday_event(self); });
+  return nullptr;
+}
+
+static FlMethodErrorResponse* first_weekday_cancel_cb(
+    FlEventChannel*, FlValue*, gpointer user_data) {
+  MyApplication* self = MY_APPLICATION(user_data);
+  self->first_weekday_listening = FALSE;
+  self->first_weekday_preference->StopWatching();
+  return nullptr;
 }
 
 static void disconnect_gtk_font_settings_signal(MyApplication* self) {
@@ -4816,6 +4799,14 @@ static void register_gtk_settings_channel(MyApplication* self, FlView* view) {
       messenger, kGtkSettingsChannel, FL_METHOD_CODEC(codec));
   fl_method_channel_set_method_call_handler(
       self->gtk_settings_channel, gtk_settings_method_call_cb, self, nullptr);
+
+  self->first_weekday_preference =
+      new BusyMaxLinuxFirstWeekdayPreference();
+  self->first_weekday_event_channel = fl_event_channel_new(
+      messenger, kFirstWeekdayEventChannel, FL_METHOD_CODEC(codec));
+  fl_event_channel_set_stream_handlers(
+      self->first_weekday_event_channel, first_weekday_listen_cb,
+      first_weekday_cancel_cb, self, nullptr);
 
   self->gtk_font_settings_event_channel = fl_event_channel_new(
       messenger, kGtkFontSettingsEventChannel, FL_METHOD_CODEC(codec));
@@ -5204,7 +5195,11 @@ static void my_application_dispose(GObject* object) {
   g_clear_object(&self->native_menu_channel);
   g_clear_object(&self->window_channel);
   g_clear_object(&self->header_bar_channel);
+  self->first_weekday_listening = FALSE;
+  delete self->first_weekday_preference;
+  self->first_weekday_preference = nullptr;
   g_clear_object(&self->gtk_settings_channel);
+  g_clear_object(&self->first_weekday_event_channel);
   g_clear_object(&self->external_calendar_open_channel);
   g_clear_object(&self->external_uri_launcher_channel);
   disconnect_gtk_font_settings_signal(self);
@@ -5328,11 +5323,14 @@ static void my_application_init(MyApplication* self) {
   self->external_calendar_open_ready = FALSE;
   self->gtk_font_settings_event_channel = nullptr;
   self->gtk_theme_colors_event_channel = nullptr;
+  self->first_weekday_event_channel = nullptr;
+  self->first_weekday_preference = nullptr;
   self->gtk_font_settings_signal_id = 0;
   self->gtk_theme_name_signal_id = 0;
   self->gtk_theme_dark_signal_id = 0;
   self->gtk_font_settings_listening = FALSE;
   self->gtk_theme_colors_listening = FALSE;
+  self->first_weekday_listening = FALSE;
   self->hide_on_close = FALSE;
   self->suppress_header_bar_actions = FALSE;
   self->header_schedule_controls_visible = TRUE;

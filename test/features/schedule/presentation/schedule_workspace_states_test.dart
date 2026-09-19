@@ -8,6 +8,7 @@ import 'package:busymax/src/db/app_database.dart';
 import 'package:busymax/src/features/accounts/data/accounts_repository.dart';
 import 'package:busymax/src/features/schedule/presentation/schedule_empty_states.dart';
 import 'package:busymax/src/features/schedule/presentation/schedule_sidebar.dart';
+import 'package:busymax/src/features/schedule/presentation/schedule_search_filters.dart';
 import 'package:busymax/src/features/schedule/presentation/schedule_workspace.dart';
 import 'package:busymax/src/platform/linux_header_bar_service.dart';
 import 'package:busymax/src/platform/linux_header_bar_provider.dart';
@@ -187,14 +188,28 @@ void main() {
     await tester.pumpAndSettle();
     expect(_searchFieldHasPrimaryFocus(tester), isTrue);
 
-    await tester.enterText(find.byType(TextField), 'planning');
+    await tester.enterText(
+      find.descendant(
+        of: find.byType(BusyMaxSearchField),
+        matching: find.byType(TextField),
+      ),
+      'planning',
+    );
     await tester.pump();
     await tester.tap(find.byIcon(YaruIcons.edit_clear));
     await tester.pump();
 
     expect(find.byType(BusyMaxSearchField), findsOneWidget);
     expect(
-      tester.widget<TextField>(find.byType(TextField)).controller!.text,
+      tester
+          .widget<TextField>(
+            find.descendant(
+              of: find.byType(BusyMaxSearchField),
+              matching: find.byType(TextField),
+            ),
+          )
+          .controller!
+          .text,
       '',
     );
 
@@ -256,6 +271,14 @@ void main() {
         calls.where((call) => call.method == 'setState').last.arguments,
         containsPair('searchActive', true),
       );
+      expect(find.byType(ScheduleSearchFilters), findsOneWidget);
+
+      await tester.sendKeyEvent(LogicalKeyboardKey.f9);
+      await tester.pumpAndSettle();
+      expect(find.byType(ScheduleSearchFilters), findsNothing);
+      await tester.sendKeyEvent(LogicalKeyboardKey.f9);
+      await tester.pumpAndSettle();
+      expect(find.byType(ScheduleSearchFilters), findsOneWidget);
 
       await headerBarService.handleNativeMethodCall(
         const MethodCall('searchQueryChanged', 'planning'),
@@ -264,6 +287,32 @@ void main() {
       expect(
         calls.where((call) => call.method == 'setState').last.arguments,
         containsPair('searchQuery', 'planning'),
+      );
+
+      await tester.tap(find.byType(TextField).first);
+      await tester.pumpAndSettle();
+      expect(calls.where((call) => call.method == 'focusContent'), isNotEmpty);
+      await tester.enterText(find.byType(TextField).first, 'Taylor');
+      await tester.pumpAndSettle();
+      expect(
+        tester
+            .widget<ScheduleSearchFilters>(find.byType(ScheduleSearchFilters))
+            .value
+            .person,
+        'Taylor',
+      );
+      expect(
+        calls.where((call) => call.method == 'setState').last.arguments,
+        containsPair('searchQuery', 'planning'),
+      );
+
+      await headerBarService.handleNativeMethodCall(
+        const MethodCall('searchFocusChanged', true),
+      );
+      await tester.pumpAndSettle();
+      expect(
+        FocusManager.instance.primaryFocus?.context?.widget,
+        isNot(isA<EditableText>()),
       );
 
       await headerBarService.handleNativeMethodCall(
@@ -285,6 +334,17 @@ void main() {
         calls.where((call) => call.method == 'setState').last.arguments,
         containsPair('searchActive', false),
       );
+
+      // Native entry focus must not strand Flutter focus outside the
+      // workspace's shortcuts after the search session closes.
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
+      await tester.sendKeyEvent(LogicalKeyboardKey.keyF);
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
+      await tester.pumpAndSettle();
+      expect(find.byType(ScheduleSearchFilters), findsOneWidget);
+      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+      await tester.pumpAndSettle();
+      expect(find.byType(ScheduleSidebar), findsOneWidget);
     },
     skip: !Platform.isLinux,
   );

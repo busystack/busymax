@@ -1,5 +1,9 @@
 {
+  "launchAtLoginManagedExternally": "BusyMax запущен через настройки автозапуска рабочего стола. Удалите его запись там, затем полностью завершите и снова откройте BusyMax, чтобы использовать этот переключатель.",
   "timeFormat": "Формат времени",
+  "firstDayOfWeek": "Первый день недели",
+  "systemDefault": "Системное значение",
+  "systemDefaultResolved": "Системное значение ({weekday})",
   "timeFormatTwelveHour": "12 часов",
   "timeFormatTwentyFourHour": "24 часа",
   "timeEndOfDay": "конец дня",
@@ -1024,5 +1028,21 @@
       "position": {"type": "String"},
       "days": {"type": "String"}
     }
-  }
+  },
+  "searchFilters": "Фильтры поиска",
+  "searchType": "Тип",
+  "searchDate": "Дата",
+  "searchAnyDate": "Любая дата",
+  "searchThisWeek": "Эта неделя",
+  "searchCustomRange": "Свой диапазон",
+  "searchTaskStatus": "Статус задач",
+  "searchTaskDue": "Срок задач",
+  "searchAnyDueState": "Любой срок",
+  "searchNoDueDate": "Без срока",
+  "searchPerson": "Участник",
+  "searchSources": "Источники",
+  "searchClearFilters": "Сбросить фильтры",
+  "searchFiltersAction": "Фильтры",
+  "searchNoSources": "Источники поиска не выбраны",
+  "searchClearText": "Очистить текст"
 }

@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:logging/logging.dart';
 import 'package:system_theme/system_theme.dart';
 import 'package:ubuntu_localizations/ubuntu_localizations.dart';
 
@@ -9,12 +10,14 @@ import '../platform/busymax_tray_service.dart';
 import '../features/tray/domain/tray_presentation.dart';
 import '../features/tray/domain/tray_presentation_formatter.dart';
 import '../platform/gtk_font_service.dart';
+import '../platform/linux_first_weekday_source.dart';
 import '../platform/linux_header_bar_configuration_synchronizer.dart';
 import '../platform/linux_header_bar_provider.dart';
 import '../platform/linux_header_bar_service.dart';
 import '../platform/common/desktop_services.dart';
 import '../l10n/locale_resolution.dart';
 import '../l10n/time_format_scope.dart';
+import '../l10n/week_preferences_scope.dart';
 import '../schedule/schedule_commands.dart';
 import 'app_bootstrap.dart';
 import 'desktop_startup_policy.dart';
@@ -28,6 +31,8 @@ import 'system_accent.dart';
 import 'app_theme.dart';
 import '../features/settings/presentation/settings_screen.dart';
 import '../features/calendar/presentation/ical_import_flow.dart';
+import '../core/logging/redacting_logger.dart';
+import 'common/desktop_calendar_open_readiness.dart';
 
 typedef BusyMaxTrayServiceFactory =
     BusyMaxTrayService Function(BusyMaxTrayServiceConfiguration configuration);
@@ -87,6 +92,9 @@ class BusyMaxApp extends LinuxBusyMaxApp {
 }
 
 class _BusyMaxAppState extends ConsumerState<LinuxBusyMaxApp> {
+  final _logger = RedactingLogger(Logger('LinuxBusyMaxApp'));
+  final _calendarOpenReadiness = DesktopCalendarOpenReadiness();
+  late final BusyMaxSystemFirstWeekdayController _firstWeekdayController;
   BusyMaxTrayService? _trayService;
   bool? _lastHideOnClose;
   bool? _lastTrayEnabled;
@@ -107,6 +115,9 @@ class _BusyMaxAppState extends ConsumerState<LinuxBusyMaxApp> {
   @override
   void initState() {
     super.initState();
+    _firstWeekdayController = BusyMaxSystemFirstWeekdayController(
+      const LinuxFirstWeekdaySource(),
+    )..addListener(_weekPreferenceChanged);
     _headerBarConfigurationSynchronizer =
         BusyMaxHeaderBarConfigurationSynchronizer(
           ref.read(linuxHeaderBarServiceProvider),
@@ -115,9 +126,14 @@ class _BusyMaxAppState extends ConsumerState<LinuxBusyMaxApp> {
         .read(desktopActivationServiceProvider)
         .activations
         .listen((request) {
-          _externalOpenTail = _externalOpenTail
-              .catchError((Object _) {})
-              .then((_) => _handleExternalCalendarOpen(request));
+          final operation = _externalOpenTail.then(
+            (_) => _handleExternalCalendarOpen(request),
+          );
+          _externalOpenTail = operation.catchError((Object error) {
+            _logger.warning(
+              'Calendar-open operation failed (${error.runtimeType}).',
+            );
+          });
         });
     _navigationSubscription = ref
         .read(desktopNavigationServiceProvider)
@@ -128,6 +144,10 @@ class _BusyMaxAppState extends ConsumerState<LinuxBusyMaxApp> {
 
   @override
   void dispose() {
+    _calendarOpenReadiness.dispose();
+    _firstWeekdayController
+      ..removeListener(_weekPreferenceChanged)
+      ..dispose();
     _headerBarConfigurationSynchronizer.dispose();
     unawaited(_externalOpenSubscription?.cancel());
     unawaited(_navigationSubscription?.cancel());
@@ -138,8 +158,34 @@ class _BusyMaxAppState extends ConsumerState<LinuxBusyMaxApp> {
     super.dispose();
   }
 
+  void _weekPreferenceChanged() {
+    if (mounted) setState(() {});
+  }
+
   Future<void> _handleExternalCalendarOpen(DesktopActivation request) async {
-    if (!mounted) return;
+    if (request.kind != DesktopActivationKind.webCal &&
+        request.kind != DesktopActivationKind.icsFile) {
+      return;
+    }
+    if (!mounted || !_calendarOpenReadiness.isActive) return;
+    if (!await _calendarOpenReadiness.waitFor(
+      ref.read(appSettingsControllerProvider.notifier).ready,
+    )) {
+      return;
+    }
+    if (!mounted || !_calendarOpenReadiness.isActive) return;
+    final settings = ref.read(appSettingsControllerProvider);
+    if (settings.firstDayOfWeekPreference ==
+            BusyMaxFirstDayOfWeekPreference.system &&
+        !_firstWeekdayController.isInitialized) {
+      if (!await _calendarOpenReadiness.waitFor(
+        _firstWeekdayController.ready,
+      )) {
+        return;
+      }
+    }
+    if (!mounted || !_calendarOpenReadiness.isActive) return;
+
     final router = ref.read(appRouterProvider);
     switch (request.kind) {
       case DesktopActivationKind.webCal:
@@ -152,10 +198,18 @@ class _BusyMaxAppState extends ConsumerState<LinuxBusyMaxApp> {
       case DesktopActivationKind.notification:
         return;
     }
-    await WidgetsBinding.instance.endOfFrame;
-    if (!mounted) return;
-    final dialogContext = rootNavigatorKey.currentContext;
-    if (dialogContext == null || !dialogContext.mounted) return;
+    final dialogContext = await _calendarOpenReadiness.waitForRootNavigator(
+      rootNavigatorKey,
+    );
+    if (!mounted ||
+        dialogContext == null ||
+        !dialogContext.mounted ||
+        !_calendarOpenReadiness.isUsableRootNavigator(
+          rootNavigatorKey,
+          dialogContext,
+        )) {
+      return;
+    }
     switch (request.kind) {
       case DesktopActivationKind.webCal:
         await showAddCalendarSubscriptionFlow(
@@ -335,11 +389,25 @@ class _BusyMaxAppState extends ConsumerState<LinuxBusyMaxApp> {
                   color: BusyMaxSurfaceColors.of(context).window,
                   child: BusyMaxTimeFormatScope(
                     formatter: clock,
-                    child: MediaQuery(
-                      data: MediaQuery.of(
-                        context,
-                      ).copyWith(alwaysUse24HourFormat: clock.use24Hour),
-                      child: child ?? const SizedBox.shrink(),
+                    child: BusyMaxWeekPreferencesScope(
+                      preference: settings.firstDayOfWeekPreference,
+                      systemWeekday: _firstWeekdayController.value,
+                      platformLocaleTag: WidgetsBinding
+                          .instance
+                          .platformDispatcher
+                          .locale
+                          .toLanguageTag(),
+                      child: BusyMaxWeekPreferencesStartupGate(
+                        preference: settings.firstDayOfWeekPreference,
+                        systemValueInitialized:
+                            _firstWeekdayController.isInitialized,
+                        child: MediaQuery(
+                          data: MediaQuery.of(
+                            context,
+                          ).copyWith(alwaysUse24HourFormat: clock.use24Hour),
+                          child: child ?? const SizedBox.shrink(),
+                        ),
+                      ),
                     ),
                   ),
                 ),

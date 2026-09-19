@@ -1,5 +1,9 @@
 {
+  "launchAtLoginManagedExternally": "데스크톱의 시작 프로그램 설정에 의해 BusyMax가 실행되었습니다. 이 스위치를 사용하려면 해당 설정에서 BusyMax 항목을 제거한 다음 BusyMax를 완전히 종료하고 다시 여세요.",
   "timeFormat": "시간 형식",
+  "firstDayOfWeek": "한 주의 시작 요일",
+  "systemDefault": "시스템 기본값",
+  "systemDefaultResolved": "시스템 기본값({weekday})",
   "timeFormatTwelveHour": "12시간",
   "timeFormatTwentyFourHour": "24시간",
   "timeEndOfDay": "하루의 끝",
@@ -1024,5 +1028,21 @@
       "position": {"type": "String"},
       "days": {"type": "String"}
     }
-  }
+  },
+  "searchFilters": "검색 필터",
+  "searchType": "유형",
+  "searchDate": "날짜",
+  "searchAnyDate": "모든 날짜",
+  "searchThisWeek": "이번 주",
+  "searchCustomRange": "사용자 지정 기간",
+  "searchTaskStatus": "작업 상태",
+  "searchTaskDue": "작업 기한",
+  "searchAnyDueState": "모든 기한 상태",
+  "searchNoDueDate": "기한 없음",
+  "searchPerson": "사람",
+  "searchSources": "검색 소스",
+  "searchClearFilters": "필터 초기화",
+  "searchFiltersAction": "필터",
+  "searchNoSources": "선택한 검색 소스가 없습니다",
+  "searchClearText": "텍스트 지우기"
 }

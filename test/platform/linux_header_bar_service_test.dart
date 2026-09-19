@@ -615,7 +615,9 @@ void main() {
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(channel, (call) async {
           calls.add(call);
-          if (call.method == 'initialize' || call.method == 'focusSearch') {
+          if (call.method == 'initialize' ||
+              call.method == 'focusSearch' ||
+              call.method == 'focusContent') {
             return true;
           }
           return null;
@@ -635,6 +637,9 @@ void main() {
     expect(await coveredSession.focusSearch(), isFalse);
     expect(await activeSession.focusSearch(), isTrue);
     expect(calls.where((call) => call.method == 'focusSearch'), hasLength(1));
+    expect(await coveredSession.focusContent(), isFalse);
+    expect(await activeSession.focusContent(), isTrue);
+    expect(calls.where((call) => call.method == 'focusContent'), hasLength(1));
   });
 
   test('native search uses responsive GTK geometry with a scoped Yaru shim', () {

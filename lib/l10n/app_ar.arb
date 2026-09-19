@@ -1,5 +1,9 @@
 {
+  "launchAtLoginManagedExternally": "تم تشغيل BusyMax من إعدادات بدء التشغيل في سطح المكتب. أزل إدخاله هناك، ثم أنهِ BusyMax وافتحه مجددًا لاستخدام هذا المفتاح.",
   "timeFormat": "تنسيق الوقت",
+  "firstDayOfWeek": "أول أيام الأسبوع",
+  "systemDefault": "الإعداد الافتراضي للنظام",
+  "systemDefaultResolved": "الإعداد الافتراضي للنظام (⁨{weekday}⁩)",
   "timeFormatTwelveHour": "12 ساعة",
   "timeFormatTwentyFourHour": "24 ساعة",
   "timeEndOfDay": "نهاية اليوم",
@@ -1024,5 +1028,21 @@
       "position": {"type": "String"},
       "days": {"type": "String"}
     }
-  }
+  },
+  "searchFilters": "عوامل تصفية البحث",
+  "searchType": "النوع",
+  "searchDate": "التاريخ",
+  "searchAnyDate": "أي تاريخ",
+  "searchThisWeek": "هذا الأسبوع",
+  "searchCustomRange": "نطاق مخصص",
+  "searchTaskStatus": "حالة المهمة",
+  "searchTaskDue": "استحقاق المهمة",
+  "searchAnyDueState": "أي حالة استحقاق",
+  "searchNoDueDate": "بلا تاريخ استحقاق",
+  "searchPerson": "الشخص",
+  "searchSources": "المصادر",
+  "searchClearFilters": "إعادة ضبط عوامل التصفية",
+  "searchFiltersAction": "عوامل التصفية",
+  "searchNoSources": "لم يتم تحديد مصادر للبحث",
+  "searchClearText": "مسح النص"
 }

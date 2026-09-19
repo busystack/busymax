@@ -61,7 +61,9 @@ class _WindowsTasksPageState extends ConsumerState<WindowsTasksPage> {
       taskListFilterActive: _listKey != null,
       includeCalendarEvents: false,
       includeTasks: true,
-      showCompletedTasks: _showCompleted,
+      taskCompletion: _showCompleted
+          ? ScheduleTaskCompletion.all
+          : ScheduleTaskCompletion.open,
       showNoDateTasks: true,
     );
     return repository.listAllTasks(filters: filters);

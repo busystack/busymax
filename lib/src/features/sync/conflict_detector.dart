@@ -1,3 +1,5 @@
+import 'package:collection/collection.dart';
+
 import '../../google_tasks/api/google_tasks_json.dart';
 import 'conflict_models.dart';
 
@@ -27,7 +29,7 @@ class ConflictDetector {
     for (final field in localPendingFields.keys) {
       final lastValue = _comparableValue(field, lastServerJson[field]);
       final currentValue = _comparableValue(field, currentServerJson[field]);
-      if (lastValue != currentValue) {
+      if (!const DeepCollectionEquality().equals(lastValue, currentValue)) {
         overlapping.add(field);
       }
     }

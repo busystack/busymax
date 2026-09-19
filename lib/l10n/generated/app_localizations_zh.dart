@@ -13,7 +13,22 @@ class AppLocalizationsZh extends AppLocalizations {
   AppLocalizationsZh([String locale = 'zh']) : super(locale);
 
   @override
+  String get launchAtLoginManagedExternally =>
+      'BusyMax 由桌面的启动设置启动。请在那里移除 BusyMax 的条目，然后完全退出并重新打开 BusyMax，以使用此开关。';
+
+  @override
   String get timeFormat => '时间格式';
+
+  @override
+  String get firstDayOfWeek => '一周的第一天';
+
+  @override
+  String get systemDefault => '系统默认';
+
+  @override
+  String systemDefaultResolved(String weekday) {
+    return '系统默认（$weekday）';
+  }
 
   @override
   String get timeFormatTwelveHour => '12小时制';
@@ -2821,6 +2836,54 @@ class AppLocalizationsZh extends AppLocalizations {
     });
     return '$frequency$months的$_temp0';
   }
+
+  @override
+  String get searchFilters => '搜索筛选条件';
+
+  @override
+  String get searchType => '类型';
+
+  @override
+  String get searchDate => '日期';
+
+  @override
+  String get searchAnyDate => '任何日期';
+
+  @override
+  String get searchThisWeek => '本周';
+
+  @override
+  String get searchCustomRange => '自定义范围';
+
+  @override
+  String get searchTaskStatus => '任务状态';
+
+  @override
+  String get searchTaskDue => '任务到期状态';
+
+  @override
+  String get searchAnyDueState => '任何到期状态';
+
+  @override
+  String get searchNoDueDate => '无截止日期';
+
+  @override
+  String get searchPerson => '人员';
+
+  @override
+  String get searchSources => '来源';
+
+  @override
+  String get searchClearFilters => '重置筛选条件';
+
+  @override
+  String get searchFiltersAction => '筛选';
+
+  @override
+  String get searchNoSources => '未选择搜索来源';
+
+  @override
+  String get searchClearText => '清除文字';
 }
 
 /// The translations for Chinese, using the Han script (`zh_Hans`).
@@ -2828,7 +2891,22 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
   AppLocalizationsZhHans() : super('zh_Hans');
 
   @override
+  String get launchAtLoginManagedExternally =>
+      'BusyMax 由桌面的启动设置启动。请在那里移除 BusyMax 的条目，然后完全退出并重新打开 BusyMax，以使用此开关。';
+
+  @override
   String get timeFormat => '时间格式';
+
+  @override
+  String get firstDayOfWeek => '一周的第一天';
+
+  @override
+  String get systemDefault => '系统默认';
+
+  @override
+  String systemDefaultResolved(String weekday) {
+    return '系统默认（$weekday）';
+  }
 
   @override
   String get timeFormatTwelveHour => '12小时制';
@@ -5636,6 +5714,54 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
     });
     return '$frequency$months的$_temp0';
   }
+
+  @override
+  String get searchFilters => '搜索筛选条件';
+
+  @override
+  String get searchType => '类型';
+
+  @override
+  String get searchDate => '日期';
+
+  @override
+  String get searchAnyDate => '任何日期';
+
+  @override
+  String get searchThisWeek => '本周';
+
+  @override
+  String get searchCustomRange => '自定义范围';
+
+  @override
+  String get searchTaskStatus => '任务状态';
+
+  @override
+  String get searchTaskDue => '任务到期状态';
+
+  @override
+  String get searchAnyDueState => '任何到期状态';
+
+  @override
+  String get searchNoDueDate => '无截止日期';
+
+  @override
+  String get searchPerson => '人员';
+
+  @override
+  String get searchSources => '来源';
+
+  @override
+  String get searchClearFilters => '重置筛选条件';
+
+  @override
+  String get searchFiltersAction => '筛选';
+
+  @override
+  String get searchNoSources => '未选择搜索来源';
+
+  @override
+  String get searchClearText => '清除文字';
 }
 
 /// The translations for Chinese, using the Han script (`zh_Hant`).
@@ -5643,7 +5769,22 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   AppLocalizationsZhHant() : super('zh_Hant');
 
   @override
+  String get launchAtLoginManagedExternally =>
+      'BusyMax 由桌面的啟動設定啟動。請在那裡移除 BusyMax 的項目，然後完全結束並重新開啟 BusyMax，以使用此開關。';
+
+  @override
   String get timeFormat => '時間格式';
+
+  @override
+  String get firstDayOfWeek => '一週的第一天';
+
+  @override
+  String get systemDefault => '系統預設';
+
+  @override
+  String systemDefaultResolved(String weekday) {
+    return '系統預設（$weekday）';
+  }
 
   @override
   String get timeFormatTwelveHour => '12小時制';
@@ -8452,4 +8593,52 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
     });
     return '$frequency$months的$_temp0';
   }
+
+  @override
+  String get searchFilters => '搜尋篩選條件';
+
+  @override
+  String get searchType => '類型';
+
+  @override
+  String get searchDate => '日期';
+
+  @override
+  String get searchAnyDate => '任何日期';
+
+  @override
+  String get searchThisWeek => '本週';
+
+  @override
+  String get searchCustomRange => '自訂範圍';
+
+  @override
+  String get searchTaskStatus => '工作狀態';
+
+  @override
+  String get searchTaskDue => '工作到期狀態';
+
+  @override
+  String get searchAnyDueState => '任何到期狀態';
+
+  @override
+  String get searchNoDueDate => '無截止日期';
+
+  @override
+  String get searchPerson => '人員';
+
+  @override
+  String get searchSources => '來源';
+
+  @override
+  String get searchClearFilters => '重設篩選條件';
+
+  @override
+  String get searchFiltersAction => '篩選';
+
+  @override
+  String get searchNoSources => '未選取搜尋來源';
+
+  @override
+  String get searchClearText => '清除文字';
 }

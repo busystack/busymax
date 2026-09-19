@@ -51,7 +51,7 @@ Use a 64-bit Windows 11 PowerShell prompt:
   -ConfigPath config\windows_store.local.json
 ```
 
-The script verifies Flutter 3.47.2 and bundled Dart 3.13.2, Visual Studio x64
+The script verifies Flutter 3.47.4 and bundled Dart 3.13.3, Visual Studio x64
 C++ tools, and Windows SDK 10.0.26100.0 or newer. It runs source generation,
 formatting, analysis, Dart/Flutter and PowerShell tests, platform-boundary and
 native tests, builds `lib/main_windows.dart`, stages runtime files, validates

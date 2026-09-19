@@ -139,6 +139,28 @@ void main() {
     expect(mutationQueuedCalls, 1);
   });
 
+  test('rename followed by full update forms an explicit list chain', () async {
+    await database.taskListsDao.upsertTaskList(_taskList('list-1'));
+    await repository.renameTaskList('list-1', 'First');
+    await repository.updateTaskListFull(
+      'list-1',
+      const TaskListPut({'title': 'Second'}),
+    );
+
+    final operations = await database.select(database.pendingOps).get();
+    final rename = operations.singleWhere(
+      (operation) => operation.operation == 'patch_task_list',
+    );
+    final update = operations.singleWhere(
+      (operation) => operation.operation == 'update_task_list',
+    );
+    expect(update.dependsOnOpId, rename.id);
+    expect(
+      (await database.taskListsDao.listTaskLists('account')).single.title,
+      'Second',
+    );
+  });
+
   test(
     'offline list deletion cancels pending and displayed reminders',
     () async {

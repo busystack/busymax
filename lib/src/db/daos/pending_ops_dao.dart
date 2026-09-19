@@ -124,6 +124,7 @@ class PendingOpsDao extends DatabaseAccessor<AppDatabase>
     required DateTime nextAttemptAtUtc,
     String? lastErrorCode,
     String? lastErrorMessage,
+    String? state,
   }) {
     final query = update(pendingOps)..where((row) => row.id.equals(id));
     return query.write(
@@ -132,6 +133,7 @@ class PendingOpsDao extends DatabaseAccessor<AppDatabase>
         nextAttemptAtUtc: Value(nextAttemptAtUtc.toIso8601String()),
         lastErrorCode: Value(lastErrorCode),
         lastErrorMessage: Value(lastErrorMessage),
+        state: state == null ? const Value.absent() : Value(state),
         updatedAtUtc: Value(DateTime.now().toUtc().toIso8601String()),
       ),
     );

@@ -2,6 +2,8 @@ import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:busymax/src/features/tasks/domain/task_remote_models.dart';
+import 'package:busymax/src/core/http/request_dispatch_exception.dart';
+import 'package:busymax/src/google_tasks/api/google_tasks_api_client.dart';
 
 import 'test_api_client_support.dart';
 
@@ -37,5 +39,29 @@ void main() {
       'due': '2026-06-05T00:00:00.000Z',
     });
     expectBearer(request);
+  });
+
+  test('authorization failure is reported before create dispatch', () async {
+    final httpClient = RecordingClient(taskJson());
+    final client = GoogleTasksRestApiClient(
+      httpClient: httpClient,
+      baseUri: Uri.parse('https://tasks.googleapis.com'),
+      authorizationHeaderProvider: () async => throw StateError('signed out'),
+    );
+
+    await expectLater(
+      client.createTask(
+        taskListId: 'list-1',
+        create: TaskCreate(title: 'Task'),
+      ),
+      throwsA(
+        isA<RequestNotDispatchedException>().having(
+          (error) => error.kind,
+          'kind',
+          RequestPreDispatchFailureKind.authentication,
+        ),
+      ),
+    );
+    expect(httpClient.requests, isEmpty);
   });
 }

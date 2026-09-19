@@ -17,6 +17,7 @@ class BuildConfig {
     this.windowsAppUserModelId = '',
     this.windowsPackageVersion = '',
     this.windowsStoreMode = false,
+    this.androidNativeAuthorization = false,
     String? apiBaseUrl,
     required this.oauthAuthorizationEndpoint,
     required this.oauthTokenEndpoint,
@@ -98,6 +99,28 @@ class BuildConfig {
     );
   }
 
+  /// Android uses Google Identity Services and MSAL rather than embedded
+  /// desktop OAuth client secrets or loopback redirect listeners.
+  factory BuildConfig.forAndroid() {
+    final environment = BuildConfig.fromEnvironment();
+    return BuildConfig(
+      googleOAuthClientId: environment.googleOAuthClientId,
+      googleOAuthClientSecret: '',
+      microsoftOAuthClientId: environment.microsoftOAuthClientId,
+      microsoftOAuthAuthorityTenant: environment.microsoftOAuthAuthorityTenant,
+      microsoftGraphBaseUrl: environment.microsoftGraphBaseUrl,
+      googleApiBaseUrl: environment.googleApiBaseUrl,
+      feedbackEndpoint: environment.feedbackEndpoint,
+      privacyPolicyUrl: environment.privacyPolicyUrl,
+      supportUrl: environment.supportUrl,
+      homepageUrl: environment.homepageUrl,
+      oauthAuthorizationEndpoint: environment.oauthAuthorizationEndpoint,
+      oauthTokenEndpoint: environment.oauthTokenEndpoint,
+      oauthRevocationEndpoint: environment.oauthRevocationEndpoint,
+      androidNativeAuthorization: true,
+    );
+  }
+
   final String googleOAuthClientId;
   final String googleOAuthClientSecret;
   final String microsoftOAuthClientId;
@@ -111,6 +134,7 @@ class BuildConfig {
   final String windowsAppUserModelId;
   final String windowsPackageVersion;
   final bool windowsStoreMode;
+  final bool androidNativeAuthorization;
   final String apiBaseUrl;
   final String oauthAuthorizationEndpoint;
   final String oauthTokenEndpoint;
@@ -119,9 +143,12 @@ class BuildConfig {
   final BusyMaxDemoTheme demoTheme;
 
   bool get hasGoogleOAuthClientId =>
-      useFakeProviderData || googleOAuthClientId.trim().isNotEmpty;
+      useFakeProviderData ||
+      androidNativeAuthorization ||
+      googleOAuthClientId.trim().isNotEmpty;
   bool get hasMicrosoftOAuthClientId =>
-      !useFakeProviderData && microsoftOAuthClientId.trim().isNotEmpty;
+      !useFakeProviderData &&
+      (androidNativeAuthorization || microsoftOAuthClientId.trim().isNotEmpty);
   bool get hasAppleICloudProvider => !useFakeProviderData;
   bool get hasNextcloudProvider => !useFakeProviderData;
   bool get hasAnyProviderConfigured =>

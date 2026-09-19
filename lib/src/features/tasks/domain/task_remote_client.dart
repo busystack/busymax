@@ -58,6 +58,21 @@ abstract interface class TaskRemoteClient {
   });
 }
 
+/// Adapts provider-native task JSON into the field names used by queued
+/// BusyMax mutations before conflict detection compares snapshots.
+///
+/// Providers only need to implement this when their resource schema uses
+/// different names or representations from [TaskPatch] and [TaskListPatch].
+abstract interface class TaskConflictSnapshotNormalizer {
+  Map<String, Object?> normalizeTaskConflictSnapshot(
+    Map<String, Object?> snapshot,
+  );
+
+  Map<String, Object?> normalizeTaskListConflictSnapshot(
+    Map<String, Object?> snapshot,
+  );
+}
+
 /// Child-item boundary used by providers whose subtasks are not task
 /// resources. Microsoft Graph models Microsoft To Do steps as checklistItem
 /// children of a todoTask.

@@ -13,7 +13,22 @@ class AppLocalizationsAr extends AppLocalizations {
   AppLocalizationsAr([String locale = 'ar']) : super(locale);
 
   @override
+  String get launchAtLoginManagedExternally =>
+      'تم تشغيل BusyMax من إعدادات بدء التشغيل في سطح المكتب. أزل إدخاله هناك، ثم أنهِ BusyMax وافتحه مجددًا لاستخدام هذا المفتاح.';
+
+  @override
   String get timeFormat => 'تنسيق الوقت';
+
+  @override
+  String get firstDayOfWeek => 'أول أيام الأسبوع';
+
+  @override
+  String get systemDefault => 'الإعداد الافتراضي للنظام';
+
+  @override
+  String systemDefaultResolved(String weekday) {
+    return 'الإعداد الافتراضي للنظام (⁨$weekday⁩)';
+  }
 
   @override
   String get timeFormatTwelveHour => '12 ساعة';
@@ -2985,4 +3000,52 @@ class AppLocalizationsAr extends AppLocalizations {
     });
     return '$frequency $_temp0';
   }
+
+  @override
+  String get searchFilters => 'عوامل تصفية البحث';
+
+  @override
+  String get searchType => 'النوع';
+
+  @override
+  String get searchDate => 'التاريخ';
+
+  @override
+  String get searchAnyDate => 'أي تاريخ';
+
+  @override
+  String get searchThisWeek => 'هذا الأسبوع';
+
+  @override
+  String get searchCustomRange => 'نطاق مخصص';
+
+  @override
+  String get searchTaskStatus => 'حالة المهمة';
+
+  @override
+  String get searchTaskDue => 'استحقاق المهمة';
+
+  @override
+  String get searchAnyDueState => 'أي حالة استحقاق';
+
+  @override
+  String get searchNoDueDate => 'بلا تاريخ استحقاق';
+
+  @override
+  String get searchPerson => 'الشخص';
+
+  @override
+  String get searchSources => 'المصادر';
+
+  @override
+  String get searchClearFilters => 'إعادة ضبط عوامل التصفية';
+
+  @override
+  String get searchFiltersAction => 'عوامل التصفية';
+
+  @override
+  String get searchNoSources => 'لم يتم تحديد مصادر للبحث';
+
+  @override
+  String get searchClearText => 'مسح النص';
 }

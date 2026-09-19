@@ -1,5 +1,9 @@
 {
+  "launchAtLoginManagedExternally": "BusyMax a été lancé par les paramètres de démarrage de votre bureau. Supprimez son entrée à cet endroit, puis quittez et rouvrez BusyMax pour utiliser cet interrupteur.",
   "timeFormat": "Format de l’heure",
+  "firstDayOfWeek": "Premier jour de la semaine",
+  "systemDefault": "Valeur par défaut du système",
+  "systemDefaultResolved": "Valeur par défaut du système ({weekday})",
   "timeFormatTwelveHour": "12 heures",
   "timeFormatTwentyFourHour": "24 heures",
   "timeEndOfDay": "fin de journée",
@@ -1087,5 +1091,21 @@
       "position": {"type": "String"},
       "days": {"type": "String"}
     }
-  }
+  },
+  "searchFilters": "Filtres de recherche",
+  "searchType": "Type d’élément",
+  "searchDate": "Date de recherche",
+  "searchAnyDate": "Toutes les dates",
+  "searchThisWeek": "Cette semaine",
+  "searchCustomRange": "Période personnalisée",
+  "searchTaskStatus": "État des tâches",
+  "searchTaskDue": "Échéance des tâches",
+  "searchAnyDueState": "Toute échéance",
+  "searchNoDueDate": "Sans échéance",
+  "searchPerson": "Personne",
+  "searchSources": "Sources de recherche",
+  "searchClearFilters": "Réinitialiser les filtres",
+  "searchFiltersAction": "Filtres",
+  "searchNoSources": "Aucune source de recherche sélectionnée",
+  "searchClearText": "Effacer le texte"
 }

@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:busymax/src/core/http/terminating_http_client.dart';
 import 'package:busymax/src/features/connectivity/network_connectivity_service.dart';
 import 'package:busymax/src/features/sync/account_sync_operations.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
@@ -180,6 +181,27 @@ void main() {
     },
   );
 
+  test('connectivity wrapper preserves terminating dispatch', () async {
+    final inner = _RecordingTerminatingHttpClient();
+    final client = ConnectivityAwareHttpClient(
+      inner: inner,
+      requireNetwork: () async {},
+    );
+    addTearDown(client.close);
+    final terminate = Completer<void>();
+
+    final response = await client.sendTerminating(
+      http.Request('GET', Uri.parse('https://example.test')),
+      terminate: terminate.future,
+      connectionTimeout: const Duration(seconds: 7),
+    );
+
+    expect(response.statusCode, 204);
+    expect(inner.terminatingCalls, 1);
+    expect(inner.connectionTimeout, const Duration(seconds: 7));
+    expect(inner.terminate, same(terminate.future));
+  });
+
   test(
     'connectivity-aware account sync rejects every sync entry point',
     () async {
@@ -216,6 +238,30 @@ final class _RecordingHttpClient extends http.BaseClient {
   @override
   Future<http.StreamedResponse> send(http.BaseRequest request) async {
     onSend();
+    return http.StreamedResponse(const Stream<List<int>>.empty(), 204);
+  }
+}
+
+final class _RecordingTerminatingHttpClient extends http.BaseClient
+    implements TerminatingHttpClient {
+  var terminatingCalls = 0;
+  Duration? connectionTimeout;
+  Future<void>? terminate;
+
+  @override
+  Future<http.StreamedResponse> send(http.BaseRequest request) async {
+    return http.StreamedResponse(const Stream<List<int>>.empty(), 204);
+  }
+
+  @override
+  Future<http.StreamedResponse> sendTerminating(
+    http.BaseRequest request, {
+    required Future<void> terminate,
+    required Duration connectionTimeout,
+  }) async {
+    terminatingCalls += 1;
+    this.terminate = terminate;
+    this.connectionTimeout = connectionTimeout;
     return http.StreamedResponse(const Stream<List<int>>.empty(), 204);
   }
 }

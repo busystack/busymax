@@ -29,6 +29,7 @@ import 'package:busymax/src/features/maps/domain/geographic_point.dart';
 import 'package:busymax/src/platform/gtk_font_service.dart';
 import 'package:busymax/src/schedule/schedule_item.dart';
 import 'package:busymax/src/schedule/schedule_range.dart';
+import 'package:busymax/src/schedule/schedule_search_criteria.dart';
 import 'package:busymax/src/providers/busy_provider.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
@@ -44,7 +45,9 @@ import '../../../support/schedule_planner_gesture_suite.dart';
 import '../../../support/schedule_date_gesture_suite.dart';
 
 Widget _emptyPlanner(DateTime day, {required int days}) => ScheduleDayWeekView(
-  range: days == 1 ? ScheduleRange.day(day) : ScheduleRange.week(day),
+  range: days == 1
+      ? ScheduleRange.day(day)
+      : ScheduleRange.week(day, firstWeekday: DateTime.monday),
   selectedDate: day,
   daysShowed: days,
   items: const [],
@@ -79,7 +82,10 @@ void main() {
     (scenario) => localizedTestApp(
       child: Scaffold(
         body: ScheduleMonthView(
-          range: ScheduleRange.month(PlannerGestureScenario.day),
+          range: ScheduleRange.month(
+            PlannerGestureScenario.day,
+            firstWeekday: DateTime.monday,
+          ),
           selectedDate: PlannerGestureScenario.day,
           items: scenario.items,
           firstWeekday: DateTime.monday,
@@ -103,7 +109,10 @@ void main() {
           child: ScheduleDayWeekView(
             range: scenario.days == 1
                 ? ScheduleRange.day(PlannerGestureScenario.day)
-                : ScheduleRange.week(PlannerGestureScenario.day),
+                : ScheduleRange.week(
+                    PlannerGestureScenario.day,
+                    firstWeekday: DateTime.monday,
+                  ),
             selectedDate: PlannerGestureScenario.day,
             daysShowed: scenario.days,
             items: scenario.items,
@@ -462,7 +471,10 @@ void main() {
                 child: ScheduleDayWeekView(
                   range: configuration.daysShowed == 1
                       ? ScheduleRange.day(selectedDate)
-                      : ScheduleRange.week(selectedDate),
+                      : ScheduleRange.week(
+                          selectedDate,
+                          firstWeekday: DateTime.monday,
+                        ),
                   selectedDate: selectedDate,
                   daysShowed: configuration.daysShowed,
                   items: _itemsFor(selectedDate),
@@ -522,7 +534,10 @@ void main() {
             width: 1000,
             height: 720,
             child: ScheduleDayWeekView(
-              range: ScheduleRange.week(selectedDate),
+              range: ScheduleRange.week(
+                selectedDate,
+                firstWeekday: DateTime.monday,
+              ),
               selectedDate: selectedDate,
               daysShowed: 7,
               items: _itemsFor(selectedDate),
@@ -567,7 +582,10 @@ void main() {
             width: 1000,
             height: 720,
             child: ScheduleMonthView(
-              range: ScheduleRange.month(selectedDate),
+              range: ScheduleRange.month(
+                selectedDate,
+                firstWeekday: DateTime.monday,
+              ),
               selectedDate: selectedDate,
               items: _itemsFor(selectedDate),
               firstWeekday: DateTime.monday,
@@ -711,7 +729,10 @@ void main() {
             width: 1000,
             height: 720,
             child: ScheduleMonthView(
-              range: ScheduleRange.month(selectedDate),
+              range: ScheduleRange.month(
+                selectedDate,
+                firstWeekday: DateTime.monday,
+              ),
               selectedDate: selectedDate,
               firstWeekday: DateTime.monday,
               items: const [],
@@ -1071,7 +1092,10 @@ void main() {
             width: 1000,
             height: 720,
             child: ScheduleMonthView(
-              range: ScheduleRange.month(selectedDate),
+              range: ScheduleRange.month(
+                selectedDate,
+                firstWeekday: DateTime.monday,
+              ),
               selectedDate: selectedDate,
               firstWeekday: DateTime.monday,
               items: _itemsFor(selectedDate),
@@ -1104,7 +1128,10 @@ void main() {
             width: 1000,
             height: 720,
             child: ScheduleMonthView(
-              range: ScheduleRange.month(selectedDate),
+              range: ScheduleRange.month(
+                selectedDate,
+                firstWeekday: DateTime.monday,
+              ),
               selectedDate: selectedDate,
               firstWeekday: DateTime.monday,
               items: const [],
@@ -1168,7 +1195,10 @@ void main() {
             width: 1000,
             height: 720,
             child: ScheduleMonthView(
-              range: ScheduleRange.month(selectedDate),
+              range: ScheduleRange.month(
+                selectedDate,
+                firstWeekday: DateTime.monday,
+              ),
               selectedDate: selectedDate,
               firstWeekday: DateTime.monday,
               items: const [],
@@ -1307,7 +1337,10 @@ void main() {
             width: 700,
             height: 120,
             child: ScheduleMonthView(
-              range: ScheduleRange.month(selectedDate),
+              range: ScheduleRange.month(
+                selectedDate,
+                firstWeekday: DateTime.monday,
+              ),
               selectedDate: selectedDate,
               firstWeekday: DateTime.monday,
               items: _sameSlotItemsFor(selectedDate),
@@ -1338,7 +1371,10 @@ void main() {
             width: 700,
             height: 720,
             child: ScheduleMonthView(
-              range: ScheduleRange.month(selectedDate),
+              range: ScheduleRange.month(
+                selectedDate,
+                firstWeekday: DateTime.monday,
+              ),
               selectedDate: selectedDate,
               firstWeekday: DateTime.monday,
               items: _manyAllDayItemsFor(selectedDate),
@@ -2802,6 +2838,260 @@ void main() {
     );
   });
 
+  testWidgets(
+    'search results reuse Agenda groups and use task due dates without an overdue bucket',
+    (tester) async {
+      final criteria = ScheduleSearchCriteria(
+        referenceDate: DateTime(2040, 6, 15),
+        firstWeekday: DateTime.monday,
+        sourceIds: const {'calendar'},
+        taskListKeys: {
+          const ScheduleTaskListKey(
+            accountId: 'microsoft:m',
+            taskListId: 'tasks',
+          ),
+        },
+      );
+      final dueFirstTask = TaskScheduleItem(
+        id: 'due-first',
+        accountId: 'microsoft:m',
+        provider: BusyProvider.microsoft,
+        sourceId: 'tasks',
+        title: 'Due-first task',
+        completed: false,
+        allDay: true,
+        start: DateTime(2040, 6, 20),
+        due: DateTime(2040, 6, 12),
+        sourceName: 'Tasks',
+      );
+      final startFallbackTask = TaskScheduleItem(
+        id: 'start-fallback',
+        accountId: 'microsoft:m',
+        provider: BusyProvider.microsoft,
+        sourceId: 'tasks',
+        title: 'Start fallback task',
+        completed: false,
+        allDay: true,
+        start: DateTime(2040, 6, 14),
+        sourceName: 'Tasks',
+      );
+      const undatedTask = TaskScheduleItem(
+        id: 'undated',
+        accountId: 'microsoft:m',
+        provider: BusyProvider.microsoft,
+        sourceId: 'tasks',
+        title: 'Undated task',
+        completed: false,
+        allDay: true,
+        sourceName: 'Tasks',
+      );
+
+      await tester.pumpWidget(
+        localizedTestApp(
+          child: Scaffold(
+            body: ScheduleAgendaView(
+              range: ScheduleRange.week(
+                criteria.referenceDate,
+                firstWeekday: DateTime.monday,
+              ),
+              items: [undatedTask, startFallbackTask, dueFirstTask],
+              searchCriteria: criteria,
+              searchQuery: 'task',
+              onItemSelected: (_, _, [_]) {},
+              onTaskCompletionChanged: (_, _) {},
+            ),
+          ),
+        ),
+      );
+
+      expect(
+        find.byKey(const ValueKey('schedule-search-results')),
+        findsOneWidget,
+      );
+      expect(find.byType(BusyMaxGroupedList), findsNWidgets(3));
+      final dueGroup = tester.widget<BusyMaxGroupedList>(
+        find.ancestor(
+          of: find.text('Due-first task'),
+          matching: find.byType(BusyMaxGroupedList),
+        ),
+      );
+      final startGroup = tester.widget<BusyMaxGroupedList>(
+        find.ancestor(
+          of: find.text('Start fallback task'),
+          matching: find.byType(BusyMaxGroupedList),
+        ),
+      );
+      final undatedGroup = tester.widget<BusyMaxGroupedList>(
+        find.ancestor(
+          of: find.text('Undated task'),
+          matching: find.byType(BusyMaxGroupedList),
+        ),
+      );
+      expect(
+        dueGroup.title,
+        DateFormat.yMMMMEEEEd('en').format(DateTime(2040, 6, 12)),
+      );
+      expect(
+        startGroup.title,
+        DateFormat.yMMMMEEEEd('en').format(DateTime(2040, 6, 14)),
+      );
+      expect(undatedGroup.title, 'No date');
+      expect(find.text('Overdue'), findsNothing);
+      expect(
+        tester.getTopLeft(find.text('Due-first task')).dy,
+        lessThan(tester.getTopLeft(find.text('Start fallback task')).dy),
+      );
+      expect(
+        tester.getTopLeft(find.text('Start fallback task')).dy,
+        lessThan(tester.getTopLeft(find.text('Undated task')).dy),
+      );
+    },
+  );
+
+  testWidgets('search Agenda keeps matched task hierarchy and context', (
+    tester,
+  ) async {
+    final day = DateTime(2040, 6, 12);
+    final criteria = ScheduleSearchCriteria(
+      referenceDate: day,
+      firstWeekday: DateTime.monday,
+      sourceIds: const {},
+      taskListKeys: {
+        const ScheduleTaskListKey(accountId: 'google:g', taskListId: 'tasks'),
+      },
+    );
+    final parent = TaskScheduleItem(
+      id: 'parent',
+      accountId: 'google:g',
+      provider: BusyProvider.google,
+      sourceId: 'tasks',
+      title: 'Matching parent',
+      completed: false,
+      allDay: true,
+      start: day,
+      due: day,
+      hasSubtasks: true,
+      sourceName: 'Projects',
+    );
+    final child = TaskScheduleItem(
+      id: 'child',
+      accountId: 'google:g',
+      provider: BusyProvider.google,
+      sourceId: 'tasks',
+      title: 'Matching child',
+      completed: false,
+      allDay: true,
+      start: day,
+      due: day,
+      notes: 'Needle appears in child notes',
+      parentId: 'parent',
+      parentTitle: 'Matching parent',
+      hierarchyDepth: 1,
+      sourceName: 'Projects',
+    );
+
+    await tester.pumpWidget(
+      localizedTestApp(
+        child: Scaffold(
+          body: ScheduleAgendaView(
+            range: ScheduleRange.day(day),
+            items: [child, parent],
+            searchCriteria: criteria,
+            searchQuery: 'needle',
+            onItemSelected: (_, _, [_]) {},
+            onTaskCompletionChanged: (_, _) {},
+          ),
+        ),
+      ),
+    );
+
+    final group = find.byKey(
+      const ValueKey('agenda-task-group-google:g-tasks-parent'),
+    );
+    final childRow = find.byKey(
+      const ValueKey('agenda-subtask-google:g-tasks-child'),
+    );
+    expect(group, findsOneWidget);
+    expect(find.descendant(of: group, matching: childRow), findsOneWidget);
+    expect(
+      find.textContaining('Needle appears in child notes'),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('search Agenda keeps cross-date children in their own section', (
+    tester,
+  ) async {
+    final parentDay = DateTime(2040, 6, 12);
+    final childDay = DateTime(2040, 6, 20);
+    final criteria = ScheduleSearchCriteria(
+      referenceDate: parentDay,
+      firstWeekday: DateTime.monday,
+      sourceIds: const {},
+      taskListKeys: {
+        const ScheduleTaskListKey(accountId: 'google:g', taskListId: 'tasks'),
+      },
+    );
+    final parent = TaskScheduleItem(
+      id: 'parent',
+      accountId: 'google:g',
+      provider: BusyProvider.google,
+      sourceId: 'tasks',
+      title: 'June parent',
+      completed: false,
+      allDay: true,
+      start: parentDay,
+      due: parentDay,
+      hasSubtasks: true,
+      sourceName: 'Projects',
+    );
+    final child = TaskScheduleItem(
+      id: 'child',
+      accountId: 'google:g',
+      provider: BusyProvider.google,
+      sourceId: 'tasks',
+      title: 'Later child',
+      completed: false,
+      allDay: true,
+      start: childDay,
+      due: childDay,
+      parentId: 'parent',
+      parentTitle: 'June parent',
+      hierarchyDepth: 1,
+      sourceName: 'Projects',
+    );
+
+    await tester.pumpWidget(
+      localizedTestApp(
+        child: Scaffold(
+          body: ScheduleAgendaView(
+            range: ScheduleRange.day(parentDay),
+            items: [child, parent],
+            searchCriteria: criteria,
+            onItemSelected: (_, _, [_]) {},
+            onTaskCompletionChanged: (_, _) {},
+          ),
+        ),
+      ),
+    );
+
+    final parentGroup = tester.widget<BusyMaxGroupedList>(
+      find.ancestor(
+        of: find.text('June parent'),
+        matching: find.byType(BusyMaxGroupedList),
+      ),
+    );
+    final childGroup = tester.widget<BusyMaxGroupedList>(
+      find.ancestor(
+        of: find.text('Later child'),
+        matching: find.byType(BusyMaxGroupedList),
+      ),
+    );
+    expect(parentGroup.title, DateFormat.yMMMMEEEEd('en').format(parentDay));
+    expect(childGroup.title, DateFormat.yMMMMEEEEd('en').format(childDay));
+    expect(find.text('Parent: June parent'), findsOneWidget);
+  });
+
   testWidgets('agenda nests task children and Microsoft checklist steps', (
     tester,
   ) async {
@@ -2876,7 +3166,10 @@ void main() {
             width: 800,
             height: 700,
             child: ScheduleAgendaView(
-              range: ScheduleRange.week(selectedDate),
+              range: ScheduleRange.week(
+                selectedDate,
+                firstWeekday: DateTime.monday,
+              ),
               items: const [
                 googleGrandchild,
                 googleChild,
@@ -2990,7 +3283,10 @@ void main() {
             width: 800,
             height: 700,
             child: ScheduleAgendaView(
-              range: ScheduleRange.week(selectedDate),
+              range: ScheduleRange.week(
+                selectedDate,
+                firstWeekday: DateTime.monday,
+              ),
               items: const [firstChild, secondChild],
               onItemSelected: (_, _, [_]) {},
               onTaskCompletionChanged: (_, _) {},
@@ -3114,7 +3410,10 @@ void main() {
             width: 1000,
             height: 720,
             child: ScheduleAgendaView(
-              range: ScheduleRange.week(selectedDate),
+              range: ScheduleRange.week(
+                selectedDate,
+                firstWeekday: DateTime.monday,
+              ),
               items: const [],
               onItemSelected: (_, _, [_]) {},
               onTaskCompletionChanged: (_, _) {},
@@ -3142,7 +3441,10 @@ void main() {
             width: 1000,
             height: 720,
             child: ScheduleAgendaView(
-              range: ScheduleRange.week(selectedDate),
+              range: ScheduleRange.week(
+                selectedDate,
+                firstWeekday: DateTime.monday,
+              ),
               items: _itemsFor(selectedDate),
               onItemSelected: (_, _, [_]) {},
               onItemAnchorAvailable: (item, context) {
@@ -3472,40 +3774,6 @@ void main() {
     expect(popover, isNot(contains('BoxShadow(')));
   });
 
-  test(
-    'schedule search renders query results instead of current range only',
-    () {
-      final workspace = File(
-        'lib/src/features/schedule/presentation/schedule_workspace.dart',
-      ).readAsStringSync();
-      final agenda = File(
-        'lib/src/features/schedule/presentation/schedule_agenda_view.dart',
-      ).readAsStringSync();
-      final repository = File(
-        'lib/src/schedule/schedule_repository.dart',
-      ).readAsStringSync();
-
-      expect(
-        workspace,
-        contains('final searchHasQuery = _searchQuery.trim().isNotEmpty'),
-      );
-      expect(workspace, contains('_rangeForSearchResults(items, range)'));
-      expect(workspace, contains('? ScheduleViewMode.agenda'));
-      expect(
-        repository,
-        contains('final searching = filters.query.trim().isNotEmpty'),
-      );
-      expect(repository, contains('!searching && !_intersects'));
-      expect(agenda, contains('groups.keys'));
-      expect(agenda, contains('ColoredBox('));
-      expect(
-        agenda,
-        contains('color: BusyMaxSurfaceColors.of(context).window'),
-      );
-      expect(agenda, isNot(contains('_daysInRange')));
-    },
-  );
-
   test('agenda list groups use the shared grouped row surface', () {
     final agenda = File(
       'lib/src/features/schedule/presentation/schedule_agenda_view.dart',
@@ -3524,6 +3792,27 @@ void main() {
     expect(design, contains('CardTheme.of(context)'));
     expect(design, isNot(contains('lightSurfaceShadowMinimum')));
     expect(design, isNot(contains('class _BusyMaxRowTile')));
+  });
+
+  test('search results use each platform Agenda presentation', () {
+    final linux = File(
+      'lib/src/features/schedule/presentation/schedule_agenda_view.dart',
+    ).readAsStringSync();
+    final windows = File(
+      'lib/src/ui/windows/windows_schedule_page.dart',
+    ).readAsStringSync();
+    final android = File(
+      'lib/src/android/presentation/android_schedule_screen.dart',
+    ).readAsStringSync();
+
+    expect(linux, isNot(contains('ListView.builder(')));
+    expect('BusyMaxGroupedList('.allMatches(linux), hasLength(1));
+    expect(linux, contains('scheduleSearchResultDisplayDate(item)'));
+    expect(windows, isNot(contains('groupByDate')));
+    expect(windows, contains('scheduleSearchResultDisplayDate(item)'));
+    expect(android, contains('scheduleSearchResultDisplayDate(item)'));
+    expect(windows, isNot(contains('class _SearchResultList')));
+    expect(android, isNot(contains('class _SearchResultList')));
   });
 
   test('sidebar does not render redundant provider group titles', () {
@@ -4217,7 +4506,7 @@ void main() {
     expect(sidebar, contains('required this.firstWeekday'));
     expect(sidebar, contains('firstWeekday: firstWeekday'));
     expect(workspace, contains('firstWeekday: _firstWeekday(context)'));
-    expect(workspace, contains('final miniCalendarItemsFuture = ref'));
+    expect(workspace, contains('final miniCalendarItemsFuture ='));
     expect(workspace, contains('ScheduleRange.month('));
     expect(workspace, contains('showNoDateTasks: false'));
     expect(workspace, contains('items: miniCalendarItems'));
@@ -4576,7 +4865,9 @@ void main() {
     expect(toolbar, contains('agendaLabel: context.l10n.viewAgenda'));
     expect(
       workspace,
-      contains('navigationVisible: _mode != ScheduleViewMode.agenda'),
+      contains(
+        'navigationVisible: !_searchActive && _mode != ScheduleViewMode.agenda',
+      ),
     );
     expect(
       workspace,
@@ -4600,7 +4891,7 @@ void main() {
     expect(
       source,
       contains(
-        'showNoDateTasks: searchHasQuery || '
+        'showNoDateTasks: searchActive || '
         '_mode != ScheduleViewMode.agenda',
       ),
     );
@@ -4612,7 +4903,7 @@ void main() {
     expect(source, contains('limit: _agendaOverdueTaskLimit'));
     expect(source, contains('final noDateTasks = repository.listNoDateTasks'));
     expect(source, contains('limit: _agendaNoDateTaskLimit'));
-    expect(source, contains('showCompletedTasks: false'));
+    expect(source, contains('taskCompletion: ScheduleTaskCompletion.open'));
     expect(source, contains('repository.includeTaskAncestors'));
     expect(source, contains('hasMoreOverdueTasks: overduePage.hasMore'));
     expect(source, contains('hasMoreNoDateTasks: noDatePage.hasMore'));

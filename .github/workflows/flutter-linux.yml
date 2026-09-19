@@ -32,13 +32,15 @@ jobs:
             libsecret-1-dev \
             libjsoncpp-dev \
             liblzma-dev \
+            locales \
             xvfb
+          sudo locale-gen en_US.UTF-8 en_GB.UTF-8
 
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
           channel: stable
-          flutter-version: '3.47.2'
+          flutter-version: '3.47.4'
           cache: true
 
       - name: Verify pinned Flutter and bundled Dart
@@ -50,8 +52,8 @@ jobs:
           "$dart_executable" tool/verify_flutter_sdk.dart \
             --flutter "$flutter_executable" \
             --dart "$dart_executable" \
-            --expected-flutter 3.47.2 \
-            --expected-dart 3.13.2
+            --expected-flutter 3.47.4 \
+            --expected-dart 3.13.3
           printf 'BUSYMAX_FLUTTER_EXECUTABLE=%s\n' "$flutter_executable" >> "$GITHUB_ENV"
           printf 'BUSYMAX_DART_EXECUTABLE=%s\n' "$dart_executable" >> "$GITHUB_ENV"
 
@@ -87,13 +89,36 @@ jobs:
       - name: Test
         run: '"$BUSYMAX_FLUTTER_EXECUTABLE" test'
 
-      - name: Test native clock patterns and optional GTK time picker
+      - name: Test native clock patterns, weekday locale, and GTK time picker
         run: |
           mkdir -p build/linux/native-tests
           g++ -std=c++17 -Wall -Wextra -Werror \
             windows/runner/tests/short_time_pattern_test.cpp \
             -o build/linux/native-tests/short_time_pattern_test
           build/linux/native-tests/short_time_pattern_test
+          g++ -std=c++17 -Wall -Wextra -Werror \
+            linux/runner/tests/first_weekday_test.cc \
+            -o build/linux/native-tests/first_weekday_test
+          build/linux/native-tests/first_weekday_test
+          mkdir -p build/linux/native-tests/weekday-schemas
+          glib-compile-schemas --strict \
+            --targetdir=build/linux/native-tests/weekday-schemas \
+            linux/runner/tests/schemas
+          g++ -std=c++17 -Wall -Wextra -Werror \
+            linux/runner/tests/first_weekday_preference_test.cc \
+            linux/runner/first_weekday_preference.cc \
+            -o build/linux/native-tests/first_weekday_preference_test \
+            $(pkg-config --cflags --libs gio-2.0)
+          build/linux/native-tests/first_weekday_preference_test \
+            build/linux/native-tests/weekday-schemas
+          LC_ALL=C.UTF-8 MALLOC_PERTURB_=165 \
+            build/linux/native-tests/first_weekday_test
+          g++ -std=c++17 -Wall -Wextra -Werror \
+            -fsanitize=address -fno-omit-frame-pointer \
+            linux/runner/tests/first_weekday_test.cc \
+            -o build/linux/native-tests/first_weekday_test_asan
+          ASAN_OPTIONS=detect_leaks=0 \
+            build/linux/native-tests/first_weekday_test_asan
           g++ -std=c++17 -Wall -Wextra -Werror \
             linux/runner/tests/time_picker_test.cc \
             -o build/linux/native-tests/time_picker_test \

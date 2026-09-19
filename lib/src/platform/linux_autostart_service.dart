@@ -11,25 +11,30 @@ final class LinuxAutostartService implements DesktopAutostartService {
     Map<String, String>? environment,
     String? executable,
     bool? isLinux,
+    int? processId,
   }) : _environment = environment ?? Platform.environment,
        _executable = executable ?? Platform.resolvedExecutable,
-       _isLinux = isLinux ?? Platform.isLinux;
+       _isLinux = isLinux ?? Platform.isLinux,
+       _processId = processId ?? pid;
 
   final Map<String, String> _environment;
   final String _executable;
   final bool _isLinux;
+  final int _processId;
   Future<void> _mutationTail = Future<void>.value();
 
-  Future<bool> isEnabled() async {
-    if (!_isLinux) return false;
-    final file = _autostartFile();
-    final String contents;
+  Future<bool> isEnabled() async => (await state()).isEnabled;
+
+  Future<String?> _readEntry(File file) async {
     try {
-      contents = await file.readAsString();
+      return await file.readAsString();
     } on FileSystemException catch (error) {
-      if (error.osError?.errorCode == 2) return false; // ENOENT
+      if (error.osError?.errorCode == 2) return null; // ENOENT
       rethrow;
     }
+  }
+
+  Future<bool> _entryIsEnabled(String contents) async {
     final entry = <String, String>{};
     var inDesktopEntry = false;
     for (final rawLine in contents.split('\n')) {
@@ -91,9 +96,19 @@ final class LinuxAutostartService implements DesktopAutostartService {
   @override
   Future<DesktopAutostartState> state() async {
     if (!_isLinux) return DesktopAutostartState.unavailable;
-    return await isEnabled()
-        ? DesktopAutostartState.enabled
-        : DesktopAutostartState.disabled;
+    if (_wasStartedByExternalDesktopEntry) {
+      return DesktopAutostartState.enabledExternally;
+    }
+    // XDG uses the first existing entry, even when it is hidden or disabled.
+    // Snap's autostart mechanism only uses its own user configuration file.
+    for (final file in [_autostartFile(), ..._systemAutostartFiles()]) {
+      final contents = await _readEntry(file);
+      if (contents == null) continue;
+      return await _entryIsEnabled(contents)
+          ? DesktopAutostartState.enabled
+          : DesktopAutostartState.disabled;
+    }
+    return DesktopAutostartState.disabled;
   }
 
   @override
@@ -113,19 +128,37 @@ final class LinuxAutostartService implements DesktopAutostartService {
     if (!_isLinux) {
       throw UnsupportedError('Launch at login is supported only on Linux.');
     }
+    if (_wasStartedByExternalDesktopEntry) {
+      throw StateError('Launch at login is managed by the desktop.');
+    }
     final file = _autostartFile();
     if (!enabled) {
+      for (final systemFile in _systemAutostartFiles()) {
+        if (await _readEntry(systemFile) != null) {
+          // Deleting the user entry would expose an inherited entry again.
+          await _writeEntry(file, '''[Desktop Entry]
+Type=Application
+Name=BusyMax
+Hidden=true
+''');
+          return;
+        }
+      }
       if (await file.exists()) await file.delete();
       return;
     }
 
+    await _writeEntry(file, _desktopEntry());
+  }
+
+  Future<void> _writeEntry(File file, String contents) async {
     await file.parent.create(recursive: true);
     final temporaryDirectory = await file.parent.createTemp(
       '.busymax-autostart-',
     );
     final temporary = File(path.join(temporaryDirectory.path, 'entry.desktop'));
     try {
-      await temporary.writeAsString(_desktopEntry());
+      await temporary.writeAsString(contents);
       await temporary.rename(file.path);
     } finally {
       if (await temporary.exists()) await temporary.delete();
@@ -136,6 +169,39 @@ final class LinuxAutostartService implements DesktopAutostartService {
   File _autostartFile() {
     final configHome = _configHome();
     return File(path.join(configHome, 'autostart', busyMaxAutostartFileName));
+  }
+
+  bool get _isSnap => _environment['SNAP']?.trim().isNotEmpty ?? false;
+
+  bool get _wasStartedByExternalDesktopEntry {
+    if (!_isSnap) return false;
+    // GIO metadata can be inherited from an IDE or terminal. Only use it when
+    // it identifies this process, and never read/write paths outside the Snap.
+    if (_environment['GIO_LAUNCHED_DESKTOP_FILE_PID'] != '$_processId') {
+      return false;
+    }
+    final launchedFile = _environment['GIO_LAUNCHED_DESKTOP_FILE'];
+    if (launchedFile == null || !path.isAbsolute(launchedFile)) return false;
+    final normalized = path.normalize(launchedFile);
+    return path.extension(normalized) == '.desktop' &&
+        path.basename(path.dirname(normalized)) == 'autostart' &&
+        !path.equals(
+          path.dirname(normalized),
+          path.normalize(path.join(_configHome(), 'autostart')),
+        );
+  }
+
+  Iterable<File> _systemAutostartFiles() sync* {
+    if (_isSnap) return;
+    final configured = _environment['XDG_CONFIG_DIRS'];
+    final directories = configured == null || configured.isEmpty
+        ? ['/etc/xdg']
+        : configured.split(':');
+    for (final directory in directories.toSet()) {
+      // The XDG base directory specification ignores relative paths.
+      if (!path.isAbsolute(directory)) continue;
+      yield File(path.join(directory, 'autostart', busyMaxAutostartFileName));
+    }
   }
 
   String _configHome() {
@@ -158,8 +224,7 @@ final class LinuxAutostartService implements DesktopAutostartService {
   }
 
   String _desktopEntry() {
-    final snap = _environment['SNAP']?.trim().isNotEmpty ?? false;
-    final command = snap
+    final command = _isSnap
         ? 'busymax $busyMaxStartMinimizedArgument'
         : '${_desktopExecArgument(_executable)} '
               '$busyMaxStartMinimizedArgument';

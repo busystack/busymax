@@ -1,5 +1,10 @@
 {
+  "launchAtLoginManagedExternally": "BusyMax was launched by your desktop's startup settings. Remove its entry there, then quit and reopen BusyMax to use this switch.",
   "timeFormat": "Time format",
+  "firstDayOfWeek": "First day of the week",
+  "systemDefault": "System Default",
+  "systemDefaultResolved": "System Default ({weekday})",
+  "@systemDefaultResolved": {"placeholders": {"weekday": {"type": "String"}}},
   "timeFormatTwelveHour": "12-hour",
   "timeFormatTwentyFourHour": "24-hour",
   "timeEndOfDay": "end of day",
@@ -1563,5 +1568,21 @@
       "position": {"type": "String"},
       "days": {"type": "String"}
     }
-  }
+  },
+  "searchFilters": "Search filters",
+  "searchType": "Type",
+  "searchDate": "Date",
+  "searchAnyDate": "Any date",
+  "searchThisWeek": "This week",
+  "searchCustomRange": "Custom range",
+  "searchTaskStatus": "Task status",
+  "searchTaskDue": "Task due",
+  "searchAnyDueState": "Any due state",
+  "searchNoDueDate": "No due date",
+  "searchPerson": "Person",
+  "searchSources": "Sources",
+  "searchClearFilters": "Clear filters",
+  "searchFiltersAction": "Filters",
+  "searchNoSources": "No search sources selected",
+  "searchClearText": "Clear text"
 }

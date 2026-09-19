@@ -13,7 +13,22 @@ class AppLocalizationsFi extends AppLocalizations {
   AppLocalizationsFi([String locale = 'fi']) : super(locale);
 
   @override
+  String get launchAtLoginManagedExternally =>
+      'BusyMax käynnistettiin työpöydän automaattisen käynnistyksen asetuksista. Poista sen merkintä sieltä, lopeta BusyMax ja avaa se uudelleen, jotta voit käyttää tätä kytkintä.';
+
+  @override
   String get timeFormat => 'Aikamuoto';
+
+  @override
+  String get firstDayOfWeek => 'Viikon ensimmäinen päivä';
+
+  @override
+  String get systemDefault => 'Järjestelmän oletus';
+
+  @override
+  String systemDefaultResolved(String weekday) {
+    return 'Järjestelmän oletus ($weekday)';
+  }
 
   @override
   String get timeFormatTwelveHour => '12 tuntia';
@@ -2950,4 +2965,52 @@ class AppLocalizationsFi extends AppLocalizations {
     });
     return '$frequency $months $_temp0 $days';
   }
+
+  @override
+  String get searchFilters => 'Hakusuodattimet';
+
+  @override
+  String get searchType => 'Tyyppi';
+
+  @override
+  String get searchDate => 'Päivämäärä';
+
+  @override
+  String get searchAnyDate => 'Kaikki päivämäärät';
+
+  @override
+  String get searchThisWeek => 'Tämä viikko';
+
+  @override
+  String get searchCustomRange => 'Mukautettu aikaväli';
+
+  @override
+  String get searchTaskStatus => 'Tehtävän tila';
+
+  @override
+  String get searchTaskDue => 'Tehtävän erääntyminen';
+
+  @override
+  String get searchAnyDueState => 'Kaikki erääntymistilat';
+
+  @override
+  String get searchNoDueDate => 'Ei eräpäivää';
+
+  @override
+  String get searchPerson => 'Henkilö';
+
+  @override
+  String get searchSources => 'Lähteet';
+
+  @override
+  String get searchClearFilters => 'Nollaa suodattimet';
+
+  @override
+  String get searchFiltersAction => 'Suodattimet';
+
+  @override
+  String get searchNoSources => 'Hakulähteitä ei ole valittu';
+
+  @override
+  String get searchClearText => 'Tyhjennä teksti';
 }

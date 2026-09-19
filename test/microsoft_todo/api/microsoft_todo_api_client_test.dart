@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:busymax/src/microsoft_todo/api/microsoft_todo_api_client.dart';
+import 'package:busymax/src/core/http/request_dispatch_exception.dart';
 
 void main() {
   test('list lists sends GET /me/todo/lists', () async {
@@ -193,6 +194,34 @@ void main() {
     expect(refreshes, 1);
     expect(headers, ['Bearer old-token', 'Bearer new-token']);
   });
+
+  test(
+    '401 followed by refresh failure is known safe before retry dispatch',
+    () async {
+      var calls = 0;
+      final client = MicrosoftTodoRestApiClient(
+        httpClient: MockClient((_) async {
+          calls += 1;
+          return http.Response('unauthorized', 401);
+        }),
+        baseUri: Uri.parse('https://graph.microsoft.com/v1.0'),
+        authorizationHeaderProvider: () async => 'Bearer token',
+        unauthorizedRefreshProvider: () async => throw StateError('signed out'),
+      );
+
+      await expectLater(
+        client.createTaskList(displayName: 'Inbox'),
+        throwsA(
+          isA<RequestNotDispatchedException>().having(
+            (error) => error.kind,
+            'kind',
+            RequestPreDispatchFailureKind.authentication,
+          ),
+        ),
+      );
+      expect(calls, 1);
+    },
+  );
 }
 
 MicrosoftTodoRestApiClient _client(

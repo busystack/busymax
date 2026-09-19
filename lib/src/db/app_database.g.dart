@@ -25163,6 +25163,944 @@ class NotificationScheduleCompanion
   }
 }
 
+class $AndroidNotificationMappingsTable extends AndroidNotificationMappings
+    with
+        TableInfo<
+          $AndroidNotificationMappingsTable,
+          AndroidNotificationMapping
+        > {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $AndroidNotificationMappingsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _scheduleIdMeta = const VerificationMeta(
+    'scheduleId',
+  );
+  @override
+  late final GeneratedColumn<String> scheduleId = GeneratedColumn<String>(
+    'schedule_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES notification_schedule (id) ON DELETE CASCADE',
+    ),
+  );
+  static const VerificationMeta _generationMeta = const VerificationMeta(
+    'generation',
+  );
+  @override
+  late final GeneratedColumn<String> generation = GeneratedColumn<String>(
+    'generation',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _platformIdMeta = const VerificationMeta(
+    'platformId',
+  );
+  @override
+  late final GeneratedColumn<int> platformId = GeneratedColumn<int>(
+    'platform_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways('UNIQUE'),
+  );
+  static const VerificationMeta _scheduledAtUtcMeta = const VerificationMeta(
+    'scheduledAtUtc',
+  );
+  @override
+  late final GeneratedColumn<int> scheduledAtUtc = GeneratedColumn<int>(
+    'scheduled_at_utc',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _stateMeta = const VerificationMeta('state');
+  @override
+  late final GeneratedColumn<String> state = GeneratedColumn<String>(
+    'state',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('scheduled'),
+  );
+  static const VerificationMeta _updatedAtUtcMeta = const VerificationMeta(
+    'updatedAtUtc',
+  );
+  @override
+  late final GeneratedColumn<int> updatedAtUtc = GeneratedColumn<int>(
+    'updated_at_utc',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    scheduleId,
+    generation,
+    platformId,
+    scheduledAtUtc,
+    state,
+    updatedAtUtc,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'android_notification_mappings';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<AndroidNotificationMapping> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('schedule_id')) {
+      context.handle(
+        _scheduleIdMeta,
+        scheduleId.isAcceptableOrUnknown(data['schedule_id']!, _scheduleIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_scheduleIdMeta);
+    }
+    if (data.containsKey('generation')) {
+      context.handle(
+        _generationMeta,
+        generation.isAcceptableOrUnknown(data['generation']!, _generationMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_generationMeta);
+    }
+    if (data.containsKey('platform_id')) {
+      context.handle(
+        _platformIdMeta,
+        platformId.isAcceptableOrUnknown(data['platform_id']!, _platformIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_platformIdMeta);
+    }
+    if (data.containsKey('scheduled_at_utc')) {
+      context.handle(
+        _scheduledAtUtcMeta,
+        scheduledAtUtc.isAcceptableOrUnknown(
+          data['scheduled_at_utc']!,
+          _scheduledAtUtcMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_scheduledAtUtcMeta);
+    }
+    if (data.containsKey('state')) {
+      context.handle(
+        _stateMeta,
+        state.isAcceptableOrUnknown(data['state']!, _stateMeta),
+      );
+    }
+    if (data.containsKey('updated_at_utc')) {
+      context.handle(
+        _updatedAtUtcMeta,
+        updatedAtUtc.isAcceptableOrUnknown(
+          data['updated_at_utc']!,
+          _updatedAtUtcMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_updatedAtUtcMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {scheduleId};
+  @override
+  AndroidNotificationMapping map(
+    Map<String, dynamic> data, {
+    String? tablePrefix,
+  }) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return AndroidNotificationMapping(
+      scheduleId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}schedule_id'],
+      )!,
+      generation: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}generation'],
+      )!,
+      platformId: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}platform_id'],
+      )!,
+      scheduledAtUtc: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}scheduled_at_utc'],
+      )!,
+      state: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}state'],
+      )!,
+      updatedAtUtc: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}updated_at_utc'],
+      )!,
+    );
+  }
+
+  @override
+  $AndroidNotificationMappingsTable createAlias(String alias) {
+    return $AndroidNotificationMappingsTable(attachedDatabase, alias);
+  }
+}
+
+class AndroidNotificationMapping extends DataClass
+    implements Insertable<AndroidNotificationMapping> {
+  final String scheduleId;
+  final String generation;
+  final int platformId;
+  final int scheduledAtUtc;
+  final String state;
+  final int updatedAtUtc;
+  const AndroidNotificationMapping({
+    required this.scheduleId,
+    required this.generation,
+    required this.platformId,
+    required this.scheduledAtUtc,
+    required this.state,
+    required this.updatedAtUtc,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['schedule_id'] = Variable<String>(scheduleId);
+    map['generation'] = Variable<String>(generation);
+    map['platform_id'] = Variable<int>(platformId);
+    map['scheduled_at_utc'] = Variable<int>(scheduledAtUtc);
+    map['state'] = Variable<String>(state);
+    map['updated_at_utc'] = Variable<int>(updatedAtUtc);
+    return map;
+  }
+
+  AndroidNotificationMappingsCompanion toCompanion(bool nullToAbsent) {
+    return AndroidNotificationMappingsCompanion(
+      scheduleId: Value(scheduleId),
+      generation: Value(generation),
+      platformId: Value(platformId),
+      scheduledAtUtc: Value(scheduledAtUtc),
+      state: Value(state),
+      updatedAtUtc: Value(updatedAtUtc),
+    );
+  }
+
+  factory AndroidNotificationMapping.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return AndroidNotificationMapping(
+      scheduleId: serializer.fromJson<String>(json['scheduleId']),
+      generation: serializer.fromJson<String>(json['generation']),
+      platformId: serializer.fromJson<int>(json['platformId']),
+      scheduledAtUtc: serializer.fromJson<int>(json['scheduledAtUtc']),
+      state: serializer.fromJson<String>(json['state']),
+      updatedAtUtc: serializer.fromJson<int>(json['updatedAtUtc']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'scheduleId': serializer.toJson<String>(scheduleId),
+      'generation': serializer.toJson<String>(generation),
+      'platformId': serializer.toJson<int>(platformId),
+      'scheduledAtUtc': serializer.toJson<int>(scheduledAtUtc),
+      'state': serializer.toJson<String>(state),
+      'updatedAtUtc': serializer.toJson<int>(updatedAtUtc),
+    };
+  }
+
+  AndroidNotificationMapping copyWith({
+    String? scheduleId,
+    String? generation,
+    int? platformId,
+    int? scheduledAtUtc,
+    String? state,
+    int? updatedAtUtc,
+  }) => AndroidNotificationMapping(
+    scheduleId: scheduleId ?? this.scheduleId,
+    generation: generation ?? this.generation,
+    platformId: platformId ?? this.platformId,
+    scheduledAtUtc: scheduledAtUtc ?? this.scheduledAtUtc,
+    state: state ?? this.state,
+    updatedAtUtc: updatedAtUtc ?? this.updatedAtUtc,
+  );
+  AndroidNotificationMapping copyWithCompanion(
+    AndroidNotificationMappingsCompanion data,
+  ) {
+    return AndroidNotificationMapping(
+      scheduleId: data.scheduleId.present
+          ? data.scheduleId.value
+          : this.scheduleId,
+      generation: data.generation.present
+          ? data.generation.value
+          : this.generation,
+      platformId: data.platformId.present
+          ? data.platformId.value
+          : this.platformId,
+      scheduledAtUtc: data.scheduledAtUtc.present
+          ? data.scheduledAtUtc.value
+          : this.scheduledAtUtc,
+      state: data.state.present ? data.state.value : this.state,
+      updatedAtUtc: data.updatedAtUtc.present
+          ? data.updatedAtUtc.value
+          : this.updatedAtUtc,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('AndroidNotificationMapping(')
+          ..write('scheduleId: $scheduleId, ')
+          ..write('generation: $generation, ')
+          ..write('platformId: $platformId, ')
+          ..write('scheduledAtUtc: $scheduledAtUtc, ')
+          ..write('state: $state, ')
+          ..write('updatedAtUtc: $updatedAtUtc')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    scheduleId,
+    generation,
+    platformId,
+    scheduledAtUtc,
+    state,
+    updatedAtUtc,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is AndroidNotificationMapping &&
+          other.scheduleId == this.scheduleId &&
+          other.generation == this.generation &&
+          other.platformId == this.platformId &&
+          other.scheduledAtUtc == this.scheduledAtUtc &&
+          other.state == this.state &&
+          other.updatedAtUtc == this.updatedAtUtc);
+}
+
+class AndroidNotificationMappingsCompanion
+    extends UpdateCompanion<AndroidNotificationMapping> {
+  final Value<String> scheduleId;
+  final Value<String> generation;
+  final Value<int> platformId;
+  final Value<int> scheduledAtUtc;
+  final Value<String> state;
+  final Value<int> updatedAtUtc;
+  final Value<int> rowid;
+  const AndroidNotificationMappingsCompanion({
+    this.scheduleId = const Value.absent(),
+    this.generation = const Value.absent(),
+    this.platformId = const Value.absent(),
+    this.scheduledAtUtc = const Value.absent(),
+    this.state = const Value.absent(),
+    this.updatedAtUtc = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  AndroidNotificationMappingsCompanion.insert({
+    required String scheduleId,
+    required String generation,
+    required int platformId,
+    required int scheduledAtUtc,
+    this.state = const Value.absent(),
+    required int updatedAtUtc,
+    this.rowid = const Value.absent(),
+  }) : scheduleId = Value(scheduleId),
+       generation = Value(generation),
+       platformId = Value(platformId),
+       scheduledAtUtc = Value(scheduledAtUtc),
+       updatedAtUtc = Value(updatedAtUtc);
+  static Insertable<AndroidNotificationMapping> custom({
+    Expression<String>? scheduleId,
+    Expression<String>? generation,
+    Expression<int>? platformId,
+    Expression<int>? scheduledAtUtc,
+    Expression<String>? state,
+    Expression<int>? updatedAtUtc,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (scheduleId != null) 'schedule_id': scheduleId,
+      if (generation != null) 'generation': generation,
+      if (platformId != null) 'platform_id': platformId,
+      if (scheduledAtUtc != null) 'scheduled_at_utc': scheduledAtUtc,
+      if (state != null) 'state': state,
+      if (updatedAtUtc != null) 'updated_at_utc': updatedAtUtc,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  AndroidNotificationMappingsCompanion copyWith({
+    Value<String>? scheduleId,
+    Value<String>? generation,
+    Value<int>? platformId,
+    Value<int>? scheduledAtUtc,
+    Value<String>? state,
+    Value<int>? updatedAtUtc,
+    Value<int>? rowid,
+  }) {
+    return AndroidNotificationMappingsCompanion(
+      scheduleId: scheduleId ?? this.scheduleId,
+      generation: generation ?? this.generation,
+      platformId: platformId ?? this.platformId,
+      scheduledAtUtc: scheduledAtUtc ?? this.scheduledAtUtc,
+      state: state ?? this.state,
+      updatedAtUtc: updatedAtUtc ?? this.updatedAtUtc,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (scheduleId.present) {
+      map['schedule_id'] = Variable<String>(scheduleId.value);
+    }
+    if (generation.present) {
+      map['generation'] = Variable<String>(generation.value);
+    }
+    if (platformId.present) {
+      map['platform_id'] = Variable<int>(platformId.value);
+    }
+    if (scheduledAtUtc.present) {
+      map['scheduled_at_utc'] = Variable<int>(scheduledAtUtc.value);
+    }
+    if (state.present) {
+      map['state'] = Variable<String>(state.value);
+    }
+    if (updatedAtUtc.present) {
+      map['updated_at_utc'] = Variable<int>(updatedAtUtc.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('AndroidNotificationMappingsCompanion(')
+          ..write('scheduleId: $scheduleId, ')
+          ..write('generation: $generation, ')
+          ..write('platformId: $platformId, ')
+          ..write('scheduledAtUtc: $scheduledAtUtc, ')
+          ..write('state: $state, ')
+          ..write('updatedAtUtc: $updatedAtUtc, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $AndroidDailySummarySchedulesTable extends AndroidDailySummarySchedules
+    with
+        TableInfo<
+          $AndroidDailySummarySchedulesTable,
+          AndroidDailySummarySchedule
+        > {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $AndroidDailySummarySchedulesTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _localDateMeta = const VerificationMeta(
+    'localDate',
+  );
+  @override
+  late final GeneratedColumn<String> localDate = GeneratedColumn<String>(
+    'local_date',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _platformIdMeta = const VerificationMeta(
+    'platformId',
+  );
+  @override
+  late final GeneratedColumn<int> platformId = GeneratedColumn<int>(
+    'platform_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _generationMeta = const VerificationMeta(
+    'generation',
+  );
+  @override
+  late final GeneratedColumn<String> generation = GeneratedColumn<String>(
+    'generation',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _scheduledAtUtcMeta = const VerificationMeta(
+    'scheduledAtUtc',
+  );
+  @override
+  late final GeneratedColumn<int> scheduledAtUtc = GeneratedColumn<int>(
+    'scheduled_at_utc',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _taskCountMeta = const VerificationMeta(
+    'taskCount',
+  );
+  @override
+  late final GeneratedColumn<int> taskCount = GeneratedColumn<int>(
+    'task_count',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _stateMeta = const VerificationMeta('state');
+  @override
+  late final GeneratedColumn<String> state = GeneratedColumn<String>(
+    'state',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('scheduled'),
+  );
+  static const VerificationMeta _updatedAtUtcMeta = const VerificationMeta(
+    'updatedAtUtc',
+  );
+  @override
+  late final GeneratedColumn<int> updatedAtUtc = GeneratedColumn<int>(
+    'updated_at_utc',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    localDate,
+    platformId,
+    generation,
+    scheduledAtUtc,
+    taskCount,
+    state,
+    updatedAtUtc,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'android_daily_summary_schedules';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<AndroidDailySummarySchedule> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('local_date')) {
+      context.handle(
+        _localDateMeta,
+        localDate.isAcceptableOrUnknown(data['local_date']!, _localDateMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_localDateMeta);
+    }
+    if (data.containsKey('platform_id')) {
+      context.handle(
+        _platformIdMeta,
+        platformId.isAcceptableOrUnknown(data['platform_id']!, _platformIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_platformIdMeta);
+    }
+    if (data.containsKey('generation')) {
+      context.handle(
+        _generationMeta,
+        generation.isAcceptableOrUnknown(data['generation']!, _generationMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_generationMeta);
+    }
+    if (data.containsKey('scheduled_at_utc')) {
+      context.handle(
+        _scheduledAtUtcMeta,
+        scheduledAtUtc.isAcceptableOrUnknown(
+          data['scheduled_at_utc']!,
+          _scheduledAtUtcMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_scheduledAtUtcMeta);
+    }
+    if (data.containsKey('task_count')) {
+      context.handle(
+        _taskCountMeta,
+        taskCount.isAcceptableOrUnknown(data['task_count']!, _taskCountMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_taskCountMeta);
+    }
+    if (data.containsKey('state')) {
+      context.handle(
+        _stateMeta,
+        state.isAcceptableOrUnknown(data['state']!, _stateMeta),
+      );
+    }
+    if (data.containsKey('updated_at_utc')) {
+      context.handle(
+        _updatedAtUtcMeta,
+        updatedAtUtc.isAcceptableOrUnknown(
+          data['updated_at_utc']!,
+          _updatedAtUtcMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_updatedAtUtcMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {localDate};
+  @override
+  AndroidDailySummarySchedule map(
+    Map<String, dynamic> data, {
+    String? tablePrefix,
+  }) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return AndroidDailySummarySchedule(
+      localDate: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}local_date'],
+      )!,
+      platformId: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}platform_id'],
+      )!,
+      generation: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}generation'],
+      )!,
+      scheduledAtUtc: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}scheduled_at_utc'],
+      )!,
+      taskCount: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}task_count'],
+      )!,
+      state: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}state'],
+      )!,
+      updatedAtUtc: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}updated_at_utc'],
+      )!,
+    );
+  }
+
+  @override
+  $AndroidDailySummarySchedulesTable createAlias(String alias) {
+    return $AndroidDailySummarySchedulesTable(attachedDatabase, alias);
+  }
+}
+
+class AndroidDailySummarySchedule extends DataClass
+    implements Insertable<AndroidDailySummarySchedule> {
+  final String localDate;
+  final int platformId;
+  final String generation;
+  final int scheduledAtUtc;
+  final int taskCount;
+  final String state;
+  final int updatedAtUtc;
+  const AndroidDailySummarySchedule({
+    required this.localDate,
+    required this.platformId,
+    required this.generation,
+    required this.scheduledAtUtc,
+    required this.taskCount,
+    required this.state,
+    required this.updatedAtUtc,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['local_date'] = Variable<String>(localDate);
+    map['platform_id'] = Variable<int>(platformId);
+    map['generation'] = Variable<String>(generation);
+    map['scheduled_at_utc'] = Variable<int>(scheduledAtUtc);
+    map['task_count'] = Variable<int>(taskCount);
+    map['state'] = Variable<String>(state);
+    map['updated_at_utc'] = Variable<int>(updatedAtUtc);
+    return map;
+  }
+
+  AndroidDailySummarySchedulesCompanion toCompanion(bool nullToAbsent) {
+    return AndroidDailySummarySchedulesCompanion(
+      localDate: Value(localDate),
+      platformId: Value(platformId),
+      generation: Value(generation),
+      scheduledAtUtc: Value(scheduledAtUtc),
+      taskCount: Value(taskCount),
+      state: Value(state),
+      updatedAtUtc: Value(updatedAtUtc),
+    );
+  }
+
+  factory AndroidDailySummarySchedule.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return AndroidDailySummarySchedule(
+      localDate: serializer.fromJson<String>(json['localDate']),
+      platformId: serializer.fromJson<int>(json['platformId']),
+      generation: serializer.fromJson<String>(json['generation']),
+      scheduledAtUtc: serializer.fromJson<int>(json['scheduledAtUtc']),
+      taskCount: serializer.fromJson<int>(json['taskCount']),
+      state: serializer.fromJson<String>(json['state']),
+      updatedAtUtc: serializer.fromJson<int>(json['updatedAtUtc']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'localDate': serializer.toJson<String>(localDate),
+      'platformId': serializer.toJson<int>(platformId),
+      'generation': serializer.toJson<String>(generation),
+      'scheduledAtUtc': serializer.toJson<int>(scheduledAtUtc),
+      'taskCount': serializer.toJson<int>(taskCount),
+      'state': serializer.toJson<String>(state),
+      'updatedAtUtc': serializer.toJson<int>(updatedAtUtc),
+    };
+  }
+
+  AndroidDailySummarySchedule copyWith({
+    String? localDate,
+    int? platformId,
+    String? generation,
+    int? scheduledAtUtc,
+    int? taskCount,
+    String? state,
+    int? updatedAtUtc,
+  }) => AndroidDailySummarySchedule(
+    localDate: localDate ?? this.localDate,
+    platformId: platformId ?? this.platformId,
+    generation: generation ?? this.generation,
+    scheduledAtUtc: scheduledAtUtc ?? this.scheduledAtUtc,
+    taskCount: taskCount ?? this.taskCount,
+    state: state ?? this.state,
+    updatedAtUtc: updatedAtUtc ?? this.updatedAtUtc,
+  );
+  AndroidDailySummarySchedule copyWithCompanion(
+    AndroidDailySummarySchedulesCompanion data,
+  ) {
+    return AndroidDailySummarySchedule(
+      localDate: data.localDate.present ? data.localDate.value : this.localDate,
+      platformId: data.platformId.present
+          ? data.platformId.value
+          : this.platformId,
+      generation: data.generation.present
+          ? data.generation.value
+          : this.generation,
+      scheduledAtUtc: data.scheduledAtUtc.present
+          ? data.scheduledAtUtc.value
+          : this.scheduledAtUtc,
+      taskCount: data.taskCount.present ? data.taskCount.value : this.taskCount,
+      state: data.state.present ? data.state.value : this.state,
+      updatedAtUtc: data.updatedAtUtc.present
+          ? data.updatedAtUtc.value
+          : this.updatedAtUtc,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('AndroidDailySummarySchedule(')
+          ..write('localDate: $localDate, ')
+          ..write('platformId: $platformId, ')
+          ..write('generation: $generation, ')
+          ..write('scheduledAtUtc: $scheduledAtUtc, ')
+          ..write('taskCount: $taskCount, ')
+          ..write('state: $state, ')
+          ..write('updatedAtUtc: $updatedAtUtc')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    localDate,
+    platformId,
+    generation,
+    scheduledAtUtc,
+    taskCount,
+    state,
+    updatedAtUtc,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is AndroidDailySummarySchedule &&
+          other.localDate == this.localDate &&
+          other.platformId == this.platformId &&
+          other.generation == this.generation &&
+          other.scheduledAtUtc == this.scheduledAtUtc &&
+          other.taskCount == this.taskCount &&
+          other.state == this.state &&
+          other.updatedAtUtc == this.updatedAtUtc);
+}
+
+class AndroidDailySummarySchedulesCompanion
+    extends UpdateCompanion<AndroidDailySummarySchedule> {
+  final Value<String> localDate;
+  final Value<int> platformId;
+  final Value<String> generation;
+  final Value<int> scheduledAtUtc;
+  final Value<int> taskCount;
+  final Value<String> state;
+  final Value<int> updatedAtUtc;
+  final Value<int> rowid;
+  const AndroidDailySummarySchedulesCompanion({
+    this.localDate = const Value.absent(),
+    this.platformId = const Value.absent(),
+    this.generation = const Value.absent(),
+    this.scheduledAtUtc = const Value.absent(),
+    this.taskCount = const Value.absent(),
+    this.state = const Value.absent(),
+    this.updatedAtUtc = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  AndroidDailySummarySchedulesCompanion.insert({
+    required String localDate,
+    required int platformId,
+    required String generation,
+    required int scheduledAtUtc,
+    required int taskCount,
+    this.state = const Value.absent(),
+    required int updatedAtUtc,
+    this.rowid = const Value.absent(),
+  }) : localDate = Value(localDate),
+       platformId = Value(platformId),
+       generation = Value(generation),
+       scheduledAtUtc = Value(scheduledAtUtc),
+       taskCount = Value(taskCount),
+       updatedAtUtc = Value(updatedAtUtc);
+  static Insertable<AndroidDailySummarySchedule> custom({
+    Expression<String>? localDate,
+    Expression<int>? platformId,
+    Expression<String>? generation,
+    Expression<int>? scheduledAtUtc,
+    Expression<int>? taskCount,
+    Expression<String>? state,
+    Expression<int>? updatedAtUtc,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (localDate != null) 'local_date': localDate,
+      if (platformId != null) 'platform_id': platformId,
+      if (generation != null) 'generation': generation,
+      if (scheduledAtUtc != null) 'scheduled_at_utc': scheduledAtUtc,
+      if (taskCount != null) 'task_count': taskCount,
+      if (state != null) 'state': state,
+      if (updatedAtUtc != null) 'updated_at_utc': updatedAtUtc,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  AndroidDailySummarySchedulesCompanion copyWith({
+    Value<String>? localDate,
+    Value<int>? platformId,
+    Value<String>? generation,
+    Value<int>? scheduledAtUtc,
+    Value<int>? taskCount,
+    Value<String>? state,
+    Value<int>? updatedAtUtc,
+    Value<int>? rowid,
+  }) {
+    return AndroidDailySummarySchedulesCompanion(
+      localDate: localDate ?? this.localDate,
+      platformId: platformId ?? this.platformId,
+      generation: generation ?? this.generation,
+      scheduledAtUtc: scheduledAtUtc ?? this.scheduledAtUtc,
+      taskCount: taskCount ?? this.taskCount,
+      state: state ?? this.state,
+      updatedAtUtc: updatedAtUtc ?? this.updatedAtUtc,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (localDate.present) {
+      map['local_date'] = Variable<String>(localDate.value);
+    }
+    if (platformId.present) {
+      map['platform_id'] = Variable<int>(platformId.value);
+    }
+    if (generation.present) {
+      map['generation'] = Variable<String>(generation.value);
+    }
+    if (scheduledAtUtc.present) {
+      map['scheduled_at_utc'] = Variable<int>(scheduledAtUtc.value);
+    }
+    if (taskCount.present) {
+      map['task_count'] = Variable<int>(taskCount.value);
+    }
+    if (state.present) {
+      map['state'] = Variable<String>(state.value);
+    }
+    if (updatedAtUtc.present) {
+      map['updated_at_utc'] = Variable<int>(updatedAtUtc.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('AndroidDailySummarySchedulesCompanion(')
+          ..write('localDate: $localDate, ')
+          ..write('platformId: $platformId, ')
+          ..write('generation: $generation, ')
+          ..write('scheduledAtUtc: $scheduledAtUtc, ')
+          ..write('taskCount: $taskCount, ')
+          ..write('state: $state, ')
+          ..write('updatedAtUtc: $updatedAtUtc, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
 class $LocationResolutionsTable extends LocationResolutions
     with TableInfo<$LocationResolutionsTable, LocationResolution> {
   @override
@@ -25816,6 +26754,10 @@ abstract class _$AppDatabase extends GeneratedDatabase {
       $ScheduleItemOverridesTable(this);
   late final $NotificationScheduleTable notificationSchedule =
       $NotificationScheduleTable(this);
+  late final $AndroidNotificationMappingsTable androidNotificationMappings =
+      $AndroidNotificationMappingsTable(this);
+  late final $AndroidDailySummarySchedulesTable androidDailySummarySchedules =
+      $AndroidDailySummarySchedulesTable(this);
   late final $LocationResolutionsTable locationResolutions =
       $LocationResolutionsTable(this);
   late final TaskListsDao taskListsDao = TaskListsDao(this as AppDatabase);
@@ -25847,6 +26789,8 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     calendarColors,
     scheduleItemOverrides,
     notificationSchedule,
+    androidNotificationMappings,
+    androidDailySummarySchedules,
     locationResolutions,
   ];
   @override
@@ -26116,6 +27060,15 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     ),
     WritePropagation(
       on: TableUpdateQuery.onTableName(
+        'notification_schedule',
+        limitUpdateKind: UpdateKind.delete,
+      ),
+      result: [
+        TableUpdate('android_notification_mappings', kind: UpdateKind.delete),
+      ],
+    ),
+    WritePropagation(
+      on: TableUpdateQuery.onTableName(
         'accounts',
         limitUpdateKind: UpdateKind.delete,
       ),
@@ -26181,10 +27134,7 @@ final class $$AccountsTableReferences
   _davAccountServicesRefsTable(_$AppDatabase db) =>
       MultiTypedResultKey.fromTable(
         db.davAccountServices,
-        aliasName: $_aliasNameGenerator(
-          db.accounts.id,
-          db.davAccountServices.accountId,
-        ),
+        aliasName: 'accounts__id__dav_account_services__account_id',
       );
 
   $$DavAccountServicesTableProcessedTableManager get davAccountServicesRefs {
@@ -26204,10 +27154,7 @@ final class $$AccountsTableReferences
   static MultiTypedResultKey<$DavCollectionsTable, List<DavCollection>>
   _davCollectionsRefsTable(_$AppDatabase db) => MultiTypedResultKey.fromTable(
     db.davCollections,
-    aliasName: $_aliasNameGenerator(
-      db.accounts.id,
-      db.davCollections.accountId,
-    ),
+    aliasName: 'accounts__id__dav_collections__account_id',
   );
 
   $$DavCollectionsTableProcessedTableManager get davCollectionsRefs {
@@ -26225,7 +27172,7 @@ final class $$AccountsTableReferences
   static MultiTypedResultKey<$DavObjectsTable, List<DavObject>>
   _davObjectsRefsTable(_$AppDatabase db) => MultiTypedResultKey.fromTable(
     db.davObjects,
-    aliasName: $_aliasNameGenerator(db.accounts.id, db.davObjects.accountId),
+    aliasName: 'accounts__id__dav_objects__account_id',
   );
 
   $$DavObjectsTableProcessedTableManager get davObjectsRefs {
@@ -26247,10 +27194,7 @@ final class $$AccountsTableReferences
   _davConflictSnapshotsRefsTable(_$AppDatabase db) =>
       MultiTypedResultKey.fromTable(
         db.davConflictSnapshots,
-        aliasName: $_aliasNameGenerator(
-          db.accounts.id,
-          db.davConflictSnapshots.accountId,
-        ),
+        aliasName: 'accounts__id__dav_conflict_snapshots__account_id',
       );
 
   $$DavConflictSnapshotsTableProcessedTableManager
@@ -26271,7 +27215,7 @@ final class $$AccountsTableReferences
   static MultiTypedResultKey<$TaskListsTable, List<TaskList>>
   _taskListsRefsTable(_$AppDatabase db) => MultiTypedResultKey.fromTable(
     db.taskLists,
-    aliasName: $_aliasNameGenerator(db.accounts.id, db.taskLists.accountId),
+    aliasName: 'accounts__id__task_lists__account_id',
   );
 
   $$TaskListsTableProcessedTableManager get taskListsRefs {
@@ -26290,7 +27234,7 @@ final class $$AccountsTableReferences
     _$AppDatabase db,
   ) => MultiTypedResultKey.fromTable(
     db.tasks,
-    aliasName: $_aliasNameGenerator(db.accounts.id, db.tasks.accountId),
+    aliasName: 'accounts__id__tasks__account_id',
   );
 
   $$TasksTableProcessedTableManager get tasksRefs {
@@ -26308,7 +27252,7 @@ final class $$AccountsTableReferences
   static MultiTypedResultKey<$PendingOpsTable, List<PendingOp>>
   _pendingOpsRefsTable(_$AppDatabase db) => MultiTypedResultKey.fromTable(
     db.pendingOps,
-    aliasName: $_aliasNameGenerator(db.accounts.id, db.pendingOps.accountId),
+    aliasName: 'accounts__id__pending_ops__account_id',
   );
 
   $$PendingOpsTableProcessedTableManager get pendingOpsRefs {
@@ -26327,7 +27271,7 @@ final class $$AccountsTableReferences
     _$AppDatabase db,
   ) => MultiTypedResultKey.fromTable(
     db.syncRuns,
-    aliasName: $_aliasNameGenerator(db.accounts.id, db.syncRuns.accountId),
+    aliasName: 'accounts__id__sync_runs__account_id',
   );
 
   $$SyncRunsTableProcessedTableManager get syncRunsRefs {
@@ -26345,10 +27289,7 @@ final class $$AccountsTableReferences
   static MultiTypedResultKey<$CalendarSourcesTable, List<CalendarSource>>
   _calendarSourcesRefsTable(_$AppDatabase db) => MultiTypedResultKey.fromTable(
     db.calendarSources,
-    aliasName: $_aliasNameGenerator(
-      db.accounts.id,
-      db.calendarSources.accountId,
-    ),
+    aliasName: 'accounts__id__calendar_sources__account_id',
   );
 
   $$CalendarSourcesTableProcessedTableManager get calendarSourcesRefs {
@@ -26368,10 +27309,7 @@ final class $$AccountsTableReferences
   static MultiTypedResultKey<$CalendarEventsTable, List<CalendarEvent>>
   _calendarEventsRefsTable(_$AppDatabase db) => MultiTypedResultKey.fromTable(
     db.calendarEvents,
-    aliasName: $_aliasNameGenerator(
-      db.accounts.id,
-      db.calendarEvents.accountId,
-    ),
+    aliasName: 'accounts__id__calendar_events__account_id',
   );
 
   $$CalendarEventsTableProcessedTableManager get calendarEventsRefs {
@@ -26393,10 +27331,7 @@ final class $$AccountsTableReferences
   _webCalSubscriptionsRefsTable(_$AppDatabase db) =>
       MultiTypedResultKey.fromTable(
         db.webCalSubscriptions,
-        aliasName: $_aliasNameGenerator(
-          db.accounts.id,
-          db.webCalSubscriptions.accountId,
-        ),
+        aliasName: 'accounts__id__web_cal_subscriptions__account_id',
       );
 
   $$WebCalSubscriptionsTableProcessedTableManager get webCalSubscriptionsRefs {
@@ -26416,7 +27351,7 @@ final class $$AccountsTableReferences
   static MultiTypedResultKey<$SyncCursorsTable, List<SyncCursor>>
   _syncCursorsRefsTable(_$AppDatabase db) => MultiTypedResultKey.fromTable(
     db.syncCursors,
-    aliasName: $_aliasNameGenerator(db.accounts.id, db.syncCursors.accountId),
+    aliasName: 'accounts__id__sync_cursors__account_id',
   );
 
   $$SyncCursorsTableProcessedTableManager get syncCursorsRefs {
@@ -26438,10 +27373,7 @@ final class $$AccountsTableReferences
   _scheduleItemOverridesRefsTable(_$AppDatabase db) =>
       MultiTypedResultKey.fromTable(
         db.scheduleItemOverrides,
-        aliasName: $_aliasNameGenerator(
-          db.accounts.id,
-          db.scheduleItemOverrides.accountId,
-        ),
+        aliasName: 'accounts__id__schedule_item_overrides__account_id',
       );
 
   $$ScheduleItemOverridesTableProcessedTableManager
@@ -26466,10 +27398,7 @@ final class $$AccountsTableReferences
   _notificationScheduleRefsTable(_$AppDatabase db) =>
       MultiTypedResultKey.fromTable(
         db.notificationSchedule,
-        aliasName: $_aliasNameGenerator(
-          db.accounts.id,
-          db.notificationSchedule.accountId,
-        ),
+        aliasName: 'accounts__id__notification_schedule__account_id',
       );
 
   $$NotificationScheduleTableProcessedTableManager
@@ -26494,10 +27423,7 @@ final class $$AccountsTableReferences
   _locationResolutionsRefsTable(_$AppDatabase db) =>
       MultiTypedResultKey.fromTable(
         db.locationResolutions,
-        aliasName: $_aliasNameGenerator(
-          db.accounts.id,
-          db.locationResolutions.accountId,
-        ),
+        aliasName: 'accounts__id__location_resolutions__account_id',
       );
 
   $$LocationResolutionsTableProcessedTableManager get locationResolutionsRefs {
@@ -27727,7 +28653,7 @@ class $$AccountsTableTableManager
           withReferenceMapper: (p0) => p0
               .map(
                 (e) => (
-                  e.readTable(table),
+                  e.readTable<$AccountsTable, Account>(table),
                   $$AccountsTableReferences(db, table, e),
                 ),
               )
@@ -28176,9 +29102,7 @@ final class $$DavAccountServicesTableReferences
   );
 
   static $AccountsTable _accountIdTable(_$AppDatabase db) =>
-      db.accounts.createAlias(
-        $_aliasNameGenerator(db.davAccountServices.accountId, db.accounts.id),
-      );
+      db.accounts.createAlias('dav_account_services__account_id__accounts__id');
 
   $$AccountsTableProcessedTableManager get accountId {
     final $_column = $_itemColumn<String>('account_id')!;
@@ -28591,7 +29515,9 @@ class $$DavAccountServicesTableTableManager
           withReferenceMapper: (p0) => p0
               .map(
                 (e) => (
-                  e.readTable(table),
+                  e.readTable<$DavAccountServicesTable, DavAccountService>(
+                    table,
+                  ),
                   $$DavAccountServicesTableReferences(db, table, e),
                 ),
               )
@@ -28745,9 +29671,7 @@ final class $$DavCollectionsTableReferences
   );
 
   static $AccountsTable _accountIdTable(_$AppDatabase db) =>
-      db.accounts.createAlias(
-        $_aliasNameGenerator(db.davCollections.accountId, db.accounts.id),
-      );
+      db.accounts.createAlias('dav_collections__account_id__accounts__id');
 
   $$AccountsTableProcessedTableManager get accountId {
     final $_column = $_itemColumn<String>('account_id')!;
@@ -28766,10 +29690,7 @@ final class $$DavCollectionsTableReferences
   static MultiTypedResultKey<$DavObjectsTable, List<DavObject>>
   _davObjectsRefsTable(_$AppDatabase db) => MultiTypedResultKey.fromTable(
     db.davObjects,
-    aliasName: $_aliasNameGenerator(
-      db.davCollections.id,
-      db.davObjects.collectionId,
-    ),
+    aliasName: 'dav_collections__id__dav_objects__collection_id',
   );
 
   $$DavObjectsTableProcessedTableManager get davObjectsRefs {
@@ -28791,10 +29712,8 @@ final class $$DavCollectionsTableReferences
   _davConflictSnapshotsRefsTable(_$AppDatabase db) =>
       MultiTypedResultKey.fromTable(
         db.davConflictSnapshots,
-        aliasName: $_aliasNameGenerator(
-          db.davCollections.id,
-          db.davConflictSnapshots.davCollectionId,
-        ),
+        aliasName:
+            'dav_collections__id__dav_conflict_snapshots__dav_collection_id',
       );
 
   $$DavConflictSnapshotsTableProcessedTableManager
@@ -28818,10 +29737,7 @@ final class $$DavCollectionsTableReferences
   static MultiTypedResultKey<$TaskListsTable, List<TaskList>>
   _taskListsRefsTable(_$AppDatabase db) => MultiTypedResultKey.fromTable(
     db.taskLists,
-    aliasName: $_aliasNameGenerator(
-      db.davCollections.id,
-      db.taskLists.davCollectionId,
-    ),
+    aliasName: 'dav_collections__id__task_lists__dav_collection_id',
   );
 
   $$TaskListsTableProcessedTableManager get taskListsRefs {
@@ -28839,10 +29755,7 @@ final class $$DavCollectionsTableReferences
     _$AppDatabase db,
   ) => MultiTypedResultKey.fromTable(
     db.tasks,
-    aliasName: $_aliasNameGenerator(
-      db.davCollections.id,
-      db.tasks.davCollectionId,
-    ),
+    aliasName: 'dav_collections__id__tasks__dav_collection_id',
   );
 
   $$TasksTableProcessedTableManager get tasksRefs {
@@ -28859,10 +29772,7 @@ final class $$DavCollectionsTableReferences
   static MultiTypedResultKey<$CalendarSourcesTable, List<CalendarSource>>
   _calendarSourcesRefsTable(_$AppDatabase db) => MultiTypedResultKey.fromTable(
     db.calendarSources,
-    aliasName: $_aliasNameGenerator(
-      db.davCollections.id,
-      db.calendarSources.davCollectionId,
-    ),
+    aliasName: 'dav_collections__id__calendar_sources__dav_collection_id',
   );
 
   $$CalendarSourcesTableProcessedTableManager get calendarSourcesRefs {
@@ -28882,10 +29792,7 @@ final class $$DavCollectionsTableReferences
   static MultiTypedResultKey<$CalendarEventsTable, List<CalendarEvent>>
   _calendarEventsRefsTable(_$AppDatabase db) => MultiTypedResultKey.fromTable(
     db.calendarEvents,
-    aliasName: $_aliasNameGenerator(
-      db.davCollections.id,
-      db.calendarEvents.davCollectionId,
-    ),
+    aliasName: 'dav_collections__id__calendar_events__dav_collection_id',
   );
 
   $$CalendarEventsTableProcessedTableManager get calendarEventsRefs {
@@ -28903,10 +29810,7 @@ final class $$DavCollectionsTableReferences
   static MultiTypedResultKey<$SyncCursorsTable, List<SyncCursor>>
   _syncCursorsRefsTable(_$AppDatabase db) => MultiTypedResultKey.fromTable(
     db.syncCursors,
-    aliasName: $_aliasNameGenerator(
-      db.davCollections.id,
-      db.syncCursors.davCollectionId,
-    ),
+    aliasName: 'dav_collections__id__sync_cursors__dav_collection_id',
   );
 
   $$SyncCursorsTableProcessedTableManager get syncCursorsRefs {
@@ -30056,7 +30960,7 @@ class $$DavCollectionsTableTableManager
           withReferenceMapper: (p0) => p0
               .map(
                 (e) => (
-                  e.readTable(table),
+                  e.readTable<$DavCollectionsTable, DavCollection>(table),
                   $$DavCollectionsTableReferences(db, table, e),
                 ),
               )
@@ -30353,9 +31257,7 @@ final class $$DavObjectsTableReferences
   $$DavObjectsTableReferences(super.$_db, super.$_table, super.$_typedResult);
 
   static $AccountsTable _accountIdTable(_$AppDatabase db) =>
-      db.accounts.createAlias(
-        $_aliasNameGenerator(db.davObjects.accountId, db.accounts.id),
-      );
+      db.accounts.createAlias('dav_objects__account_id__accounts__id');
 
   $$AccountsTableProcessedTableManager get accountId {
     final $_column = $_itemColumn<String>('account_id')!;
@@ -30371,10 +31273,9 @@ final class $$DavObjectsTableReferences
     );
   }
 
-  static $DavCollectionsTable _collectionIdTable(_$AppDatabase db) =>
-      db.davCollections.createAlias(
-        $_aliasNameGenerator(db.davObjects.collectionId, db.davCollections.id),
-      );
+  static $DavCollectionsTable _collectionIdTable(_$AppDatabase db) => db
+      .davCollections
+      .createAlias('dav_objects__collection_id__dav_collections__id');
 
   $$DavCollectionsTableProcessedTableManager get collectionId {
     final $_column = $_itemColumn<String>('collection_id')!;
@@ -30397,10 +31298,7 @@ final class $$DavObjectsTableReferences
   _davObjectComponentsRefsTable(_$AppDatabase db) =>
       MultiTypedResultKey.fromTable(
         db.davObjectComponents,
-        aliasName: $_aliasNameGenerator(
-          db.davObjects.id,
-          db.davObjectComponents.davObjectId,
-        ),
+        aliasName: 'dav_objects__id__dav_object_components__dav_object_id',
       );
 
   $$DavObjectComponentsTableProcessedTableManager get davObjectComponentsRefs {
@@ -30424,10 +31322,7 @@ final class $$DavObjectsTableReferences
   _davConflictSnapshotsRefsTable(_$AppDatabase db) =>
       MultiTypedResultKey.fromTable(
         db.davConflictSnapshots,
-        aliasName: $_aliasNameGenerator(
-          db.davObjects.id,
-          db.davConflictSnapshots.davObjectId,
-        ),
+        aliasName: 'dav_objects__id__dav_conflict_snapshots__dav_object_id',
       );
 
   $$DavConflictSnapshotsTableProcessedTableManager
@@ -30449,7 +31344,7 @@ final class $$DavObjectsTableReferences
     _$AppDatabase db,
   ) => MultiTypedResultKey.fromTable(
     db.tasks,
-    aliasName: $_aliasNameGenerator(db.davObjects.id, db.tasks.davObjectId),
+    aliasName: 'dav_objects__id__tasks__dav_object_id',
   );
 
   $$TasksTableProcessedTableManager get tasksRefs {
@@ -30467,10 +31362,7 @@ final class $$DavObjectsTableReferences
   static MultiTypedResultKey<$PendingOpsTable, List<PendingOp>>
   _pendingOpsRefsTable(_$AppDatabase db) => MultiTypedResultKey.fromTable(
     db.pendingOps,
-    aliasName: $_aliasNameGenerator(
-      db.davObjects.id,
-      db.pendingOps.davObjectId,
-    ),
+    aliasName: 'dav_objects__id__pending_ops__dav_object_id',
   );
 
   $$PendingOpsTableProcessedTableManager get pendingOpsRefs {
@@ -30488,10 +31380,7 @@ final class $$DavObjectsTableReferences
   static MultiTypedResultKey<$CalendarEventsTable, List<CalendarEvent>>
   _calendarEventsRefsTable(_$AppDatabase db) => MultiTypedResultKey.fromTable(
     db.calendarEvents,
-    aliasName: $_aliasNameGenerator(
-      db.davObjects.id,
-      db.calendarEvents.davObjectId,
-    ),
+    aliasName: 'dav_objects__id__calendar_events__dav_object_id',
   );
 
   $$CalendarEventsTableProcessedTableManager get calendarEventsRefs {
@@ -31339,7 +32228,7 @@ class $$DavObjectsTableTableManager
           withReferenceMapper: (p0) => p0
               .map(
                 (e) => (
-                  e.readTable(table),
+                  e.readTable<$DavObjectsTable, DavObject>(table),
                   $$DavObjectsTableReferences(db, table, e),
                 ),
               )
@@ -31589,13 +32478,8 @@ final class $$DavObjectComponentsTableReferences
     super.$_typedResult,
   );
 
-  static $DavObjectsTable _davObjectIdTable(_$AppDatabase db) =>
-      db.davObjects.createAlias(
-        $_aliasNameGenerator(
-          db.davObjectComponents.davObjectId,
-          db.davObjects.id,
-        ),
-      );
+  static $DavObjectsTable _davObjectIdTable(_$AppDatabase db) => db.davObjects
+      .createAlias('dav_object_components__dav_object_id__dav_objects__id');
 
   $$DavObjectsTableProcessedTableManager get davObjectId {
     final $_column = $_itemColumn<String>('dav_object_id')!;
@@ -31615,10 +32499,7 @@ final class $$DavObjectComponentsTableReferences
     _$AppDatabase db,
   ) => MultiTypedResultKey.fromTable(
     db.tasks,
-    aliasName: $_aliasNameGenerator(
-      db.davObjectComponents.id,
-      db.tasks.davComponentId,
-    ),
+    aliasName: 'dav_object_components__id__tasks__dav_component_id',
   );
 
   $$TasksTableProcessedTableManager get tasksRefs {
@@ -31636,10 +32517,7 @@ final class $$DavObjectComponentsTableReferences
   static MultiTypedResultKey<$CalendarEventsTable, List<CalendarEvent>>
   _calendarEventsRefsTable(_$AppDatabase db) => MultiTypedResultKey.fromTable(
     db.calendarEvents,
-    aliasName: $_aliasNameGenerator(
-      db.davObjectComponents.id,
-      db.calendarEvents.davComponentId,
-    ),
+    aliasName: 'dav_object_components__id__calendar_events__dav_component_id',
   );
 
   $$CalendarEventsTableProcessedTableManager get calendarEventsRefs {
@@ -32076,7 +32954,9 @@ class $$DavObjectComponentsTableTableManager
           withReferenceMapper: (p0) => p0
               .map(
                 (e) => (
-                  e.readTable(table),
+                  e.readTable<$DavObjectComponentsTable, DavObjectComponent>(
+                    table,
+                  ),
                   $$DavObjectComponentsTableReferences(db, table, e),
                 ),
               )
@@ -32245,10 +33125,8 @@ final class $$DavConflictSnapshotsTableReferences
     super.$_typedResult,
   );
 
-  static $AccountsTable _accountIdTable(_$AppDatabase db) =>
-      db.accounts.createAlias(
-        $_aliasNameGenerator(db.davConflictSnapshots.accountId, db.accounts.id),
-      );
+  static $AccountsTable _accountIdTable(_$AppDatabase db) => db.accounts
+      .createAlias('dav_conflict_snapshots__account_id__accounts__id');
 
   $$AccountsTableProcessedTableManager get accountId {
     final $_column = $_itemColumn<String>('account_id')!;
@@ -32266,10 +33144,7 @@ final class $$DavConflictSnapshotsTableReferences
 
   static $DavCollectionsTable _davCollectionIdTable(_$AppDatabase db) =>
       db.davCollections.createAlias(
-        $_aliasNameGenerator(
-          db.davConflictSnapshots.davCollectionId,
-          db.davCollections.id,
-        ),
+        'dav_conflict_snapshots__dav_collection_id__dav_collections__id',
       );
 
   $$DavCollectionsTableProcessedTableManager? get davCollectionId {
@@ -32286,13 +33161,8 @@ final class $$DavConflictSnapshotsTableReferences
     );
   }
 
-  static $DavObjectsTable _davObjectIdTable(_$AppDatabase db) =>
-      db.davObjects.createAlias(
-        $_aliasNameGenerator(
-          db.davConflictSnapshots.davObjectId,
-          db.davObjects.id,
-        ),
-      );
+  static $DavObjectsTable _davObjectIdTable(_$AppDatabase db) => db.davObjects
+      .createAlias('dav_conflict_snapshots__dav_object_id__dav_objects__id');
 
   $$DavObjectsTableProcessedTableManager? get davObjectId {
     final $_column = $_itemColumn<String>('dav_object_id');
@@ -32311,10 +33181,7 @@ final class $$DavConflictSnapshotsTableReferences
   static MultiTypedResultKey<$PendingOpsTable, List<PendingOp>>
   _pendingOpsRefsTable(_$AppDatabase db) => MultiTypedResultKey.fromTable(
     db.pendingOps,
-    aliasName: $_aliasNameGenerator(
-      db.davConflictSnapshots.id,
-      db.pendingOps.conflictSnapshotId,
-    ),
+    aliasName: 'dav_conflict_snapshots__id__pending_ops__conflict_snapshot_id',
   );
 
   $$PendingOpsTableProcessedTableManager get pendingOpsRefs {
@@ -32870,7 +33737,9 @@ class $$DavConflictSnapshotsTableTableManager
           withReferenceMapper: (p0) => p0
               .map(
                 (e) => (
-                  e.readTable(table),
+                  e.readTable<$DavConflictSnapshotsTable, DavConflictSnapshot>(
+                    table,
+                  ),
                   $$DavConflictSnapshotsTableReferences(db, table, e),
                 ),
               )
@@ -33055,9 +33924,7 @@ final class $$TaskListsTableReferences
   $$TaskListsTableReferences(super.$_db, super.$_table, super.$_typedResult);
 
   static $AccountsTable _accountIdTable(_$AppDatabase db) =>
-      db.accounts.createAlias(
-        $_aliasNameGenerator(db.taskLists.accountId, db.accounts.id),
-      );
+      db.accounts.createAlias('task_lists__account_id__accounts__id');
 
   $$AccountsTableProcessedTableManager get accountId {
     final $_column = $_itemColumn<String>('account_id')!;
@@ -33073,13 +33940,9 @@ final class $$TaskListsTableReferences
     );
   }
 
-  static $DavCollectionsTable _davCollectionIdTable(_$AppDatabase db) =>
-      db.davCollections.createAlias(
-        $_aliasNameGenerator(
-          db.taskLists.davCollectionId,
-          db.davCollections.id,
-        ),
-      );
+  static $DavCollectionsTable _davCollectionIdTable(_$AppDatabase db) => db
+      .davCollections
+      .createAlias('task_lists__dav_collection_id__dav_collections__id');
 
   $$DavCollectionsTableProcessedTableManager? get davCollectionId {
     final $_column = $_itemColumn<String>('dav_collection_id');
@@ -33656,7 +34519,7 @@ class $$TaskListsTableTableManager
           withReferenceMapper: (p0) => p0
               .map(
                 (e) => (
-                  e.readTable(table),
+                  e.readTable<$TaskListsTable, TaskList>(table),
                   $$TaskListsTableReferences(db, table, e),
                 ),
               )
@@ -33881,8 +34744,8 @@ final class $$TasksTableReferences
     extends BaseReferences<_$AppDatabase, $TasksTable, Task> {
   $$TasksTableReferences(super.$_db, super.$_table, super.$_typedResult);
 
-  static $AccountsTable _accountIdTable(_$AppDatabase db) => db.accounts
-      .createAlias($_aliasNameGenerator(db.tasks.accountId, db.accounts.id));
+  static $AccountsTable _accountIdTable(_$AppDatabase db) =>
+      db.accounts.createAlias('tasks__account_id__accounts__id');
 
   $$AccountsTableProcessedTableManager get accountId {
     final $_column = $_itemColumn<String>('account_id')!;
@@ -33898,10 +34761,9 @@ final class $$TasksTableReferences
     );
   }
 
-  static $DavCollectionsTable _davCollectionIdTable(_$AppDatabase db) =>
-      db.davCollections.createAlias(
-        $_aliasNameGenerator(db.tasks.davCollectionId, db.davCollections.id),
-      );
+  static $DavCollectionsTable _davCollectionIdTable(_$AppDatabase db) => db
+      .davCollections
+      .createAlias('tasks__dav_collection_id__dav_collections__id');
 
   $$DavCollectionsTableProcessedTableManager? get davCollectionId {
     final $_column = $_itemColumn<String>('dav_collection_id');
@@ -33918,9 +34780,7 @@ final class $$TasksTableReferences
   }
 
   static $DavObjectsTable _davObjectIdTable(_$AppDatabase db) =>
-      db.davObjects.createAlias(
-        $_aliasNameGenerator(db.tasks.davObjectId, db.davObjects.id),
-      );
+      db.davObjects.createAlias('tasks__dav_object_id__dav_objects__id');
 
   $$DavObjectsTableProcessedTableManager? get davObjectId {
     final $_column = $_itemColumn<String>('dav_object_id');
@@ -33936,13 +34796,9 @@ final class $$TasksTableReferences
     );
   }
 
-  static $DavObjectComponentsTable _davComponentIdTable(_$AppDatabase db) =>
-      db.davObjectComponents.createAlias(
-        $_aliasNameGenerator(
-          db.tasks.davComponentId,
-          db.davObjectComponents.id,
-        ),
-      );
+  static $DavObjectComponentsTable _davComponentIdTable(_$AppDatabase db) => db
+      .davObjectComponents
+      .createAlias('tasks__dav_component_id__dav_object_components__id');
 
   $$DavObjectComponentsTableProcessedTableManager? get davComponentId {
     final $_column = $_itemColumn<String>('dav_component_id');
@@ -35501,8 +36357,10 @@ class $$TasksTableTableManager
               ),
           withReferenceMapper: (p0) => p0
               .map(
-                (e) =>
-                    (e.readTable(table), $$TasksTableReferences(db, table, e)),
+                (e) => (
+                  e.readTable<$TasksTable, Task>(table),
+                  $$TasksTableReferences(db, table, e),
+                ),
               )
               .toList(),
           prefetchHooksCallback:
@@ -35708,9 +36566,7 @@ final class $$PendingOpsTableReferences
   $$PendingOpsTableReferences(super.$_db, super.$_table, super.$_typedResult);
 
   static $AccountsTable _accountIdTable(_$AppDatabase db) =>
-      db.accounts.createAlias(
-        $_aliasNameGenerator(db.pendingOps.accountId, db.accounts.id),
-      );
+      db.accounts.createAlias('pending_ops__account_id__accounts__id');
 
   $$AccountsTableProcessedTableManager get accountId {
     final $_column = $_itemColumn<String>('account_id')!;
@@ -35726,13 +36582,9 @@ final class $$PendingOpsTableReferences
     );
   }
 
-  static $DavCollectionsTable _davCollectionIdTable(_$AppDatabase db) =>
-      db.davCollections.createAlias(
-        $_aliasNameGenerator(
-          db.pendingOps.davCollectionId,
-          db.davCollections.id,
-        ),
-      );
+  static $DavCollectionsTable _davCollectionIdTable(_$AppDatabase db) => db
+      .davCollections
+      .createAlias('pending_ops__dav_collection_id__dav_collections__id');
 
   $$DavCollectionsTableProcessedTableManager? get davCollectionId {
     final $_column = $_itemColumn<String>('dav_collection_id');
@@ -35749,9 +36601,7 @@ final class $$PendingOpsTableReferences
   }
 
   static $DavObjectsTable _davObjectIdTable(_$AppDatabase db) =>
-      db.davObjects.createAlias(
-        $_aliasNameGenerator(db.pendingOps.davObjectId, db.davObjects.id),
-      );
+      db.davObjects.createAlias('pending_ops__dav_object_id__dav_objects__id');
 
   $$DavObjectsTableProcessedTableManager? get davObjectId {
     final $_column = $_itemColumn<String>('dav_object_id');
@@ -35769,10 +36619,7 @@ final class $$PendingOpsTableReferences
 
   static $DavCollectionsTable _destinationCollectionIdTable(_$AppDatabase db) =>
       db.davCollections.createAlias(
-        $_aliasNameGenerator(
-          db.pendingOps.destinationCollectionId,
-          db.davCollections.id,
-        ),
+        'pending_ops__destination_collection_id__dav_collections__id',
       );
 
   $$DavCollectionsTableProcessedTableManager? get destinationCollectionId {
@@ -35794,10 +36641,7 @@ final class $$PendingOpsTableReferences
   static $DavConflictSnapshotsTable _conflictSnapshotIdTable(
     _$AppDatabase db,
   ) => db.davConflictSnapshots.createAlias(
-    $_aliasNameGenerator(
-      db.pendingOps.conflictSnapshotId,
-      db.davConflictSnapshots.id,
-    ),
+    'pending_ops__conflict_snapshot_id__dav_conflict_snapshots__id',
   );
 
   $$DavConflictSnapshotsTableProcessedTableManager? get conflictSnapshotId {
@@ -36910,7 +37754,7 @@ class $$PendingOpsTableTableManager
           withReferenceMapper: (p0) => p0
               .map(
                 (e) => (
-                  e.readTable(table),
+                  e.readTable<$PendingOpsTable, PendingOp>(table),
                   $$PendingOpsTableReferences(db, table, e),
                 ),
               )
@@ -37082,8 +37926,8 @@ final class $$SyncRunsTableReferences
     extends BaseReferences<_$AppDatabase, $SyncRunsTable, SyncRun> {
   $$SyncRunsTableReferences(super.$_db, super.$_table, super.$_typedResult);
 
-  static $AccountsTable _accountIdTable(_$AppDatabase db) => db.accounts
-      .createAlias($_aliasNameGenerator(db.syncRuns.accountId, db.accounts.id));
+  static $AccountsTable _accountIdTable(_$AppDatabase db) =>
+      db.accounts.createAlias('sync_runs__account_id__accounts__id');
 
   $$AccountsTableProcessedTableManager get accountId {
     final $_column = $_itemColumn<String>('account_id')!;
@@ -37441,7 +38285,7 @@ class $$SyncRunsTableTableManager
           withReferenceMapper: (p0) => p0
               .map(
                 (e) => (
-                  e.readTable(table),
+                  e.readTable<$SyncRunsTable, SyncRun>(table),
                   $$SyncRunsTableReferences(db, table, e),
                 ),
               )
@@ -37570,9 +38414,7 @@ final class $$CalendarSourcesTableReferences
   );
 
   static $AccountsTable _accountIdTable(_$AppDatabase db) =>
-      db.accounts.createAlias(
-        $_aliasNameGenerator(db.calendarSources.accountId, db.accounts.id),
-      );
+      db.accounts.createAlias('calendar_sources__account_id__accounts__id');
 
   $$AccountsTableProcessedTableManager get accountId {
     final $_column = $_itemColumn<String>('account_id')!;
@@ -37588,13 +38430,9 @@ final class $$CalendarSourcesTableReferences
     );
   }
 
-  static $DavCollectionsTable _davCollectionIdTable(_$AppDatabase db) =>
-      db.davCollections.createAlias(
-        $_aliasNameGenerator(
-          db.calendarSources.davCollectionId,
-          db.davCollections.id,
-        ),
-      );
+  static $DavCollectionsTable _davCollectionIdTable(_$AppDatabase db) => db
+      .davCollections
+      .createAlias('calendar_sources__dav_collection_id__dav_collections__id');
 
   $$DavCollectionsTableProcessedTableManager? get davCollectionId {
     final $_column = $_itemColumn<String>('dav_collection_id');
@@ -37613,10 +38451,7 @@ final class $$CalendarSourcesTableReferences
   static MultiTypedResultKey<$CalendarEventsTable, List<CalendarEvent>>
   _calendarEventsRefsTable(_$AppDatabase db) => MultiTypedResultKey.fromTable(
     db.calendarEvents,
-    aliasName: $_aliasNameGenerator(
-      db.calendarSources.id,
-      db.calendarEvents.calendarSourceId,
-    ),
+    aliasName: 'calendar_sources__id__calendar_events__calendar_source_id',
   );
 
   $$CalendarEventsTableProcessedTableManager get calendarEventsRefs {
@@ -37635,10 +38470,8 @@ final class $$CalendarSourcesTableReferences
   _icalImportReceiptsRefsTable(_$AppDatabase db) =>
       MultiTypedResultKey.fromTable(
         db.icalImportReceipts,
-        aliasName: $_aliasNameGenerator(
-          db.calendarSources.id,
-          db.icalImportReceipts.calendarSourceId,
-        ),
+        aliasName:
+            'calendar_sources__id__ical_import_receipts__calendar_source_id',
       );
 
   $$IcalImportReceiptsTableProcessedTableManager get icalImportReceiptsRefs {
@@ -37665,10 +38498,8 @@ final class $$CalendarSourcesTableReferences
   _webCalSubscriptionsRefsTable(_$AppDatabase db) =>
       MultiTypedResultKey.fromTable(
         db.webCalSubscriptions,
-        aliasName: $_aliasNameGenerator(
-          db.calendarSources.id,
-          db.webCalSubscriptions.calendarSourceId,
-        ),
+        aliasName:
+            'calendar_sources__id__web_cal_subscriptions__calendar_source_id',
       );
 
   $$WebCalSubscriptionsTableProcessedTableManager get webCalSubscriptionsRefs {
@@ -37691,10 +38522,7 @@ final class $$CalendarSourcesTableReferences
   static MultiTypedResultKey<$SyncCursorsTable, List<SyncCursor>>
   _syncCursorsRefsTable(_$AppDatabase db) => MultiTypedResultKey.fromTable(
     db.syncCursors,
-    aliasName: $_aliasNameGenerator(
-      db.calendarSources.id,
-      db.syncCursors.projectionSourceId,
-    ),
+    aliasName: 'calendar_sources__id__sync_cursors__projection_source_id',
   );
 
   $$SyncCursorsTableProcessedTableManager get syncCursorsRefs {
@@ -38515,7 +39343,7 @@ class $$CalendarSourcesTableTableManager
           withReferenceMapper: (p0) => p0
               .map(
                 (e) => (
-                  e.readTable(table),
+                  e.readTable<$CalendarSourcesTable, CalendarSource>(table),
                   $$CalendarSourcesTableReferences(db, table, e),
                 ),
               )
@@ -38823,9 +39651,7 @@ final class $$CalendarEventsTableReferences
   );
 
   static $AccountsTable _accountIdTable(_$AppDatabase db) =>
-      db.accounts.createAlias(
-        $_aliasNameGenerator(db.calendarEvents.accountId, db.accounts.id),
-      );
+      db.accounts.createAlias('calendar_events__account_id__accounts__id');
 
   $$AccountsTableProcessedTableManager get accountId {
     final $_column = $_itemColumn<String>('account_id')!;
@@ -38841,13 +39667,9 @@ final class $$CalendarEventsTableReferences
     );
   }
 
-  static $CalendarSourcesTable _calendarSourceIdTable(_$AppDatabase db) =>
-      db.calendarSources.createAlias(
-        $_aliasNameGenerator(
-          db.calendarEvents.calendarSourceId,
-          db.calendarSources.id,
-        ),
-      );
+  static $CalendarSourcesTable _calendarSourceIdTable(_$AppDatabase db) => db
+      .calendarSources
+      .createAlias('calendar_events__calendar_source_id__calendar_sources__id');
 
   $$CalendarSourcesTableProcessedTableManager get calendarSourceId {
     final $_column = $_itemColumn<String>('calendar_source_id')!;
@@ -38863,13 +39685,9 @@ final class $$CalendarEventsTableReferences
     );
   }
 
-  static $DavCollectionsTable _davCollectionIdTable(_$AppDatabase db) =>
-      db.davCollections.createAlias(
-        $_aliasNameGenerator(
-          db.calendarEvents.davCollectionId,
-          db.davCollections.id,
-        ),
-      );
+  static $DavCollectionsTable _davCollectionIdTable(_$AppDatabase db) => db
+      .davCollections
+      .createAlias('calendar_events__dav_collection_id__dav_collections__id');
 
   $$DavCollectionsTableProcessedTableManager? get davCollectionId {
     final $_column = $_itemColumn<String>('dav_collection_id');
@@ -38885,10 +39703,8 @@ final class $$CalendarEventsTableReferences
     );
   }
 
-  static $DavObjectsTable _davObjectIdTable(_$AppDatabase db) =>
-      db.davObjects.createAlias(
-        $_aliasNameGenerator(db.calendarEvents.davObjectId, db.davObjects.id),
-      );
+  static $DavObjectsTable _davObjectIdTable(_$AppDatabase db) => db.davObjects
+      .createAlias('calendar_events__dav_object_id__dav_objects__id');
 
   $$DavObjectsTableProcessedTableManager? get davObjectId {
     final $_column = $_itemColumn<String>('dav_object_id');
@@ -38906,10 +39722,7 @@ final class $$CalendarEventsTableReferences
 
   static $DavObjectComponentsTable _davComponentIdTable(_$AppDatabase db) =>
       db.davObjectComponents.createAlias(
-        $_aliasNameGenerator(
-          db.calendarEvents.davComponentId,
-          db.davObjectComponents.id,
-        ),
+        'calendar_events__dav_component_id__dav_object_components__id',
       );
 
   $$DavObjectComponentsTableProcessedTableManager? get davComponentId {
@@ -38933,10 +39746,8 @@ final class $$CalendarEventsTableReferences
   _calendarEventAttendeesRefsTable(_$AppDatabase db) =>
       MultiTypedResultKey.fromTable(
         db.calendarEventAttendees,
-        aliasName: $_aliasNameGenerator(
-          db.calendarEvents.id,
-          db.calendarEventAttendees.calendarEventId,
-        ),
+        aliasName:
+            'calendar_events__id__calendar_event_attendees__calendar_event_id',
       );
 
   $$CalendarEventAttendeesTableProcessedTableManager
@@ -38964,10 +39775,8 @@ final class $$CalendarEventsTableReferences
   _calendarEventRemindersRefsTable(_$AppDatabase db) =>
       MultiTypedResultKey.fromTable(
         db.calendarEventReminders,
-        aliasName: $_aliasNameGenerator(
-          db.calendarEvents.id,
-          db.calendarEventReminders.calendarEventId,
-        ),
+        aliasName:
+            'calendar_events__id__calendar_event_reminders__calendar_event_id',
       );
 
   $$CalendarEventRemindersTableProcessedTableManager
@@ -40404,7 +41213,7 @@ class $$CalendarEventsTableTableManager
           withReferenceMapper: (p0) => p0
               .map(
                 (e) => (
-                  e.readTable(table),
+                  e.readTable<$CalendarEventsTable, CalendarEvent>(table),
                   $$CalendarEventsTableReferences(db, table, e),
                 ),
               )
@@ -40625,10 +41434,7 @@ final class $$IcalImportReceiptsTableReferences
 
   static $CalendarSourcesTable _calendarSourceIdTable(_$AppDatabase db) =>
       db.calendarSources.createAlias(
-        $_aliasNameGenerator(
-          db.icalImportReceipts.calendarSourceId,
-          db.calendarSources.id,
-        ),
+        'ical_import_receipts__calendar_source_id__calendar_sources__id',
       );
 
   $$CalendarSourcesTableProcessedTableManager get calendarSourceId {
@@ -40848,7 +41654,9 @@ class $$IcalImportReceiptsTableTableManager
           withReferenceMapper: (p0) => p0
               .map(
                 (e) => (
-                  e.readTable(table),
+                  e.readTable<$IcalImportReceiptsTable, IcalImportReceipt>(
+                    table,
+                  ),
                   $$IcalImportReceiptsTableReferences(db, table, e),
                 ),
               )
@@ -40992,10 +41800,8 @@ final class $$WebCalSubscriptionsTableReferences
     super.$_typedResult,
   );
 
-  static $AccountsTable _accountIdTable(_$AppDatabase db) =>
-      db.accounts.createAlias(
-        $_aliasNameGenerator(db.webCalSubscriptions.accountId, db.accounts.id),
-      );
+  static $AccountsTable _accountIdTable(_$AppDatabase db) => db.accounts
+      .createAlias('web_cal_subscriptions__account_id__accounts__id');
 
   $$AccountsTableProcessedTableManager get accountId {
     final $_column = $_itemColumn<String>('account_id')!;
@@ -41013,10 +41819,7 @@ final class $$WebCalSubscriptionsTableReferences
 
   static $CalendarSourcesTable _calendarSourceIdTable(_$AppDatabase db) =>
       db.calendarSources.createAlias(
-        $_aliasNameGenerator(
-          db.webCalSubscriptions.calendarSourceId,
-          db.calendarSources.id,
-        ),
+        'web_cal_subscriptions__calendar_source_id__calendar_sources__id',
       );
 
   $$CalendarSourcesTableProcessedTableManager get calendarSourceId {
@@ -41751,7 +42554,9 @@ class $$WebCalSubscriptionsTableTableManager
           withReferenceMapper: (p0) => p0
               .map(
                 (e) => (
-                  e.readTable(table),
+                  e.readTable<$WebCalSubscriptionsTable, WebCalSubscription>(
+                    table,
+                  ),
                   $$WebCalSubscriptionsTableReferences(db, table, e),
                 ),
               )
@@ -41875,10 +42680,7 @@ final class $$CalendarEventAttendeesTableReferences
 
   static $CalendarEventsTable _calendarEventIdTable(_$AppDatabase db) =>
       db.calendarEvents.createAlias(
-        $_aliasNameGenerator(
-          db.calendarEventAttendees.calendarEventId,
-          db.calendarEvents.id,
-        ),
+        'calendar_event_attendees__calendar_event_id__calendar_events__id',
       );
 
   $$CalendarEventsTableProcessedTableManager get calendarEventId {
@@ -42191,7 +42993,10 @@ class $$CalendarEventAttendeesTableTableManager
           withReferenceMapper: (p0) => p0
               .map(
                 (e) => (
-                  e.readTable(table),
+                  e.readTable<
+                    $CalendarEventAttendeesTable,
+                    CalendarEventAttendee
+                  >(table),
                   $$CalendarEventAttendeesTableReferences(db, table, e),
                 ),
               )
@@ -42297,10 +43102,7 @@ final class $$CalendarEventRemindersTableReferences
 
   static $CalendarEventsTable _calendarEventIdTable(_$AppDatabase db) =>
       db.calendarEvents.createAlias(
-        $_aliasNameGenerator(
-          db.calendarEventReminders.calendarEventId,
-          db.calendarEvents.id,
-        ),
+        'calendar_event_reminders__calendar_event_id__calendar_events__id',
       );
 
   $$CalendarEventsTableProcessedTableManager get calendarEventId {
@@ -42596,7 +43398,10 @@ class $$CalendarEventRemindersTableTableManager
           withReferenceMapper: (p0) => p0
               .map(
                 (e) => (
-                  e.readTable(table),
+                  e.readTable<
+                    $CalendarEventRemindersTable,
+                    CalendarEventReminder
+                  >(table),
                   $$CalendarEventRemindersTableReferences(db, table, e),
                 ),
               )
@@ -42712,9 +43517,7 @@ final class $$SyncCursorsTableReferences
   $$SyncCursorsTableReferences(super.$_db, super.$_table, super.$_typedResult);
 
   static $AccountsTable _accountIdTable(_$AppDatabase db) =>
-      db.accounts.createAlias(
-        $_aliasNameGenerator(db.syncCursors.accountId, db.accounts.id),
-      );
+      db.accounts.createAlias('sync_cursors__account_id__accounts__id');
 
   $$AccountsTableProcessedTableManager get accountId {
     final $_column = $_itemColumn<String>('account_id')!;
@@ -42730,13 +43533,9 @@ final class $$SyncCursorsTableReferences
     );
   }
 
-  static $CalendarSourcesTable _projectionSourceIdTable(_$AppDatabase db) =>
-      db.calendarSources.createAlias(
-        $_aliasNameGenerator(
-          db.syncCursors.projectionSourceId,
-          db.calendarSources.id,
-        ),
-      );
+  static $CalendarSourcesTable _projectionSourceIdTable(_$AppDatabase db) => db
+      .calendarSources
+      .createAlias('sync_cursors__projection_source_id__calendar_sources__id');
 
   $$CalendarSourcesTableProcessedTableManager? get projectionSourceId {
     final $_column = $_itemColumn<String>('projection_source_id');
@@ -42752,13 +43551,9 @@ final class $$SyncCursorsTableReferences
     );
   }
 
-  static $DavCollectionsTable _davCollectionIdTable(_$AppDatabase db) =>
-      db.davCollections.createAlias(
-        $_aliasNameGenerator(
-          db.syncCursors.davCollectionId,
-          db.davCollections.id,
-        ),
-      );
+  static $DavCollectionsTable _davCollectionIdTable(_$AppDatabase db) => db
+      .davCollections
+      .createAlias('sync_cursors__dav_collection_id__dav_collections__id');
 
   $$DavCollectionsTableProcessedTableManager? get davCollectionId {
     final $_column = $_itemColumn<String>('dav_collection_id');
@@ -43344,7 +44139,7 @@ class $$SyncCursorsTableTableManager
           withReferenceMapper: (p0) => p0
               .map(
                 (e) => (
-                  e.readTable(table),
+                  e.readTable<$SyncCursorsTable, SyncCursor>(table),
                   $$SyncCursorsTableReferences(db, table, e),
                 ),
               )
@@ -43650,7 +44445,16 @@ class $$CalendarColorsTableTableManager
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0
-              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .map(
+                (e) => (
+                  e.readTable<$CalendarColorsTable, CalendarColor>(table),
+                  BaseReferences<
+                    _$AppDatabase,
+                    $CalendarColorsTable,
+                    CalendarColor
+                  >(db, table, e),
+                ),
+              )
               .toList(),
           prefetchHooksCallback: null,
         ),
@@ -43710,13 +44514,8 @@ final class $$ScheduleItemOverridesTableReferences
     super.$_typedResult,
   );
 
-  static $AccountsTable _accountIdTable(_$AppDatabase db) =>
-      db.accounts.createAlias(
-        $_aliasNameGenerator(
-          db.scheduleItemOverrides.accountId,
-          db.accounts.id,
-        ),
-      );
+  static $AccountsTable _accountIdTable(_$AppDatabase db) => db.accounts
+      .createAlias('schedule_item_overrides__account_id__accounts__id');
 
   $$AccountsTableProcessedTableManager get accountId {
     final $_column = $_itemColumn<String>('account_id')!;
@@ -43998,7 +44797,10 @@ class $$ScheduleItemOverridesTableTableManager
           withReferenceMapper: (p0) => p0
               .map(
                 (e) => (
-                  e.readTable(table),
+                  e.readTable<
+                    $ScheduleItemOverridesTable,
+                    ScheduleItemOverride
+                  >(table),
                   $$ScheduleItemOverridesTableReferences(db, table, e),
                 ),
               )
@@ -44112,10 +44914,8 @@ final class $$NotificationScheduleTableReferences
     super.$_typedResult,
   );
 
-  static $AccountsTable _accountIdTable(_$AppDatabase db) =>
-      db.accounts.createAlias(
-        $_aliasNameGenerator(db.notificationSchedule.accountId, db.accounts.id),
-      );
+  static $AccountsTable _accountIdTable(_$AppDatabase db) => db.accounts
+      .createAlias('notification_schedule__account_id__accounts__id');
 
   $$AccountsTableProcessedTableManager get accountId {
     final $_column = $_itemColumn<String>('account_id')!;
@@ -44128,6 +44928,33 @@ final class $$NotificationScheduleTableReferences
     if (item == null) return manager;
     return ProcessedTableManager(
       manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+
+  static MultiTypedResultKey<
+    $AndroidNotificationMappingsTable,
+    List<AndroidNotificationMapping>
+  >
+  _androidNotificationMappingsRefsTable(
+    _$AppDatabase db,
+  ) => MultiTypedResultKey.fromTable(
+    db.androidNotificationMappings,
+    aliasName:
+        'notification_schedule__id__android_notification_mappings__schedule_id',
+  );
+
+  $$AndroidNotificationMappingsTableProcessedTableManager
+  get androidNotificationMappingsRefs {
+    final manager = $$AndroidNotificationMappingsTableTableManager(
+      $_db,
+      $_db.androidNotificationMappings,
+    ).filter((f) => f.scheduleId.id.sqlEquals($_itemColumn<String>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(
+      _androidNotificationMappingsRefsTable($_db),
+    );
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
     );
   }
 }
@@ -44222,6 +45049,35 @@ class $$NotificationScheduleTableFilterComposer
           ),
     );
     return composer;
+  }
+
+  Expression<bool> androidNotificationMappingsRefs(
+    Expression<bool> Function(
+      $$AndroidNotificationMappingsTableFilterComposer f,
+    )
+    f,
+  ) {
+    final $$AndroidNotificationMappingsTableFilterComposer composer =
+        $composerBuilder(
+          composer: this,
+          getCurrentColumn: (t) => t.id,
+          referencedTable: $db.androidNotificationMappings,
+          getReferencedColumn: (t) => t.scheduleId,
+          builder:
+              (
+                joinBuilder, {
+                $addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer,
+              }) => $$AndroidNotificationMappingsTableFilterComposer(
+                $db: $db,
+                $table: $db.androidNotificationMappings,
+                $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+                joinBuilder: joinBuilder,
+                $removeJoinBuilderFromRootComposer:
+                    $removeJoinBuilderFromRootComposer,
+              ),
+        );
+    return f(composer);
   }
 }
 
@@ -44399,6 +45255,35 @@ class $$NotificationScheduleTableAnnotationComposer
     );
     return composer;
   }
+
+  Expression<T> androidNotificationMappingsRefs<T extends Object>(
+    Expression<T> Function(
+      $$AndroidNotificationMappingsTableAnnotationComposer a,
+    )
+    f,
+  ) {
+    final $$AndroidNotificationMappingsTableAnnotationComposer composer =
+        $composerBuilder(
+          composer: this,
+          getCurrentColumn: (t) => t.id,
+          referencedTable: $db.androidNotificationMappings,
+          getReferencedColumn: (t) => t.scheduleId,
+          builder:
+              (
+                joinBuilder, {
+                $addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer,
+              }) => $$AndroidNotificationMappingsTableAnnotationComposer(
+                $db: $db,
+                $table: $db.androidNotificationMappings,
+                $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+                joinBuilder: joinBuilder,
+                $removeJoinBuilderFromRootComposer:
+                    $removeJoinBuilderFromRootComposer,
+              ),
+        );
+    return f(composer);
+  }
 }
 
 class $$NotificationScheduleTableTableManager
@@ -44414,7 +45299,10 @@ class $$NotificationScheduleTableTableManager
           $$NotificationScheduleTableUpdateCompanionBuilder,
           (NotificationScheduleData, $$NotificationScheduleTableReferences),
           NotificationScheduleData,
-          PrefetchHooks Function({bool accountId})
+          PrefetchHooks Function({
+            bool accountId,
+            bool androidNotificationMappingsRefs,
+          })
         > {
   $$NotificationScheduleTableTableManager(
     _$AppDatabase db,
@@ -44502,12 +45390,420 @@ class $$NotificationScheduleTableTableManager
           withReferenceMapper: (p0) => p0
               .map(
                 (e) => (
-                  e.readTable(table),
+                  e.readTable<
+                    $NotificationScheduleTable,
+                    NotificationScheduleData
+                  >(table),
                   $$NotificationScheduleTableReferences(db, table, e),
                 ),
               )
               .toList(),
-          prefetchHooksCallback: ({accountId = false}) {
+          prefetchHooksCallback:
+              ({accountId = false, androidNotificationMappingsRefs = false}) {
+                return PrefetchHooks(
+                  db: db,
+                  explicitlyWatchedTables: [
+                    if (androidNotificationMappingsRefs)
+                      db.androidNotificationMappings,
+                  ],
+                  addJoins:
+                      <
+                        T extends TableManagerState<
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic
+                        >
+                      >(state) {
+                        if (accountId) {
+                          state =
+                              state.withJoin(
+                                    currentTable: table,
+                                    currentColumn: table.accountId,
+                                    referencedTable:
+                                        $$NotificationScheduleTableReferences
+                                            ._accountIdTable(db),
+                                    referencedColumn:
+                                        $$NotificationScheduleTableReferences
+                                            ._accountIdTable(db)
+                                            .id,
+                                  )
+                                  as T;
+                        }
+
+                        return state;
+                      },
+                  getPrefetchedDataCallback: (items) async {
+                    return [
+                      if (androidNotificationMappingsRefs)
+                        await $_getPrefetchedData<
+                          NotificationScheduleData,
+                          $NotificationScheduleTable,
+                          AndroidNotificationMapping
+                        >(
+                          currentTable: table,
+                          referencedTable: $$NotificationScheduleTableReferences
+                              ._androidNotificationMappingsRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$NotificationScheduleTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).androidNotificationMappingsRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.scheduleId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
+                    ];
+                  },
+                );
+              },
+        ),
+      );
+}
+
+typedef $$NotificationScheduleTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $NotificationScheduleTable,
+      NotificationScheduleData,
+      $$NotificationScheduleTableFilterComposer,
+      $$NotificationScheduleTableOrderingComposer,
+      $$NotificationScheduleTableAnnotationComposer,
+      $$NotificationScheduleTableCreateCompanionBuilder,
+      $$NotificationScheduleTableUpdateCompanionBuilder,
+      (NotificationScheduleData, $$NotificationScheduleTableReferences),
+      NotificationScheduleData,
+      PrefetchHooks Function({
+        bool accountId,
+        bool androidNotificationMappingsRefs,
+      })
+    >;
+typedef $$AndroidNotificationMappingsTableCreateCompanionBuilder =
+    AndroidNotificationMappingsCompanion Function({
+      required String scheduleId,
+      required String generation,
+      required int platformId,
+      required int scheduledAtUtc,
+      Value<String> state,
+      required int updatedAtUtc,
+      Value<int> rowid,
+    });
+typedef $$AndroidNotificationMappingsTableUpdateCompanionBuilder =
+    AndroidNotificationMappingsCompanion Function({
+      Value<String> scheduleId,
+      Value<String> generation,
+      Value<int> platformId,
+      Value<int> scheduledAtUtc,
+      Value<String> state,
+      Value<int> updatedAtUtc,
+      Value<int> rowid,
+    });
+
+final class $$AndroidNotificationMappingsTableReferences
+    extends
+        BaseReferences<
+          _$AppDatabase,
+          $AndroidNotificationMappingsTable,
+          AndroidNotificationMapping
+        > {
+  $$AndroidNotificationMappingsTableReferences(
+    super.$_db,
+    super.$_table,
+    super.$_typedResult,
+  );
+
+  static $NotificationScheduleTable _scheduleIdTable(_$AppDatabase db) =>
+      db.notificationSchedule.createAlias(
+        'android_notification_mappings__schedule_id__notification_schedule__id',
+      );
+
+  $$NotificationScheduleTableProcessedTableManager get scheduleId {
+    final $_column = $_itemColumn<String>('schedule_id')!;
+
+    final manager = $$NotificationScheduleTableTableManager(
+      $_db,
+      $_db.notificationSchedule,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_scheduleIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+}
+
+class $$AndroidNotificationMappingsTableFilterComposer
+    extends Composer<_$AppDatabase, $AndroidNotificationMappingsTable> {
+  $$AndroidNotificationMappingsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get generation => $composableBuilder(
+    column: $table.generation,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get platformId => $composableBuilder(
+    column: $table.platformId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get scheduledAtUtc => $composableBuilder(
+    column: $table.scheduledAtUtc,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get state => $composableBuilder(
+    column: $table.state,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get updatedAtUtc => $composableBuilder(
+    column: $table.updatedAtUtc,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  $$NotificationScheduleTableFilterComposer get scheduleId {
+    final $$NotificationScheduleTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.scheduleId,
+      referencedTable: $db.notificationSchedule,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$NotificationScheduleTableFilterComposer(
+            $db: $db,
+            $table: $db.notificationSchedule,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$AndroidNotificationMappingsTableOrderingComposer
+    extends Composer<_$AppDatabase, $AndroidNotificationMappingsTable> {
+  $$AndroidNotificationMappingsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get generation => $composableBuilder(
+    column: $table.generation,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get platformId => $composableBuilder(
+    column: $table.platformId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get scheduledAtUtc => $composableBuilder(
+    column: $table.scheduledAtUtc,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get state => $composableBuilder(
+    column: $table.state,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get updatedAtUtc => $composableBuilder(
+    column: $table.updatedAtUtc,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  $$NotificationScheduleTableOrderingComposer get scheduleId {
+    final $$NotificationScheduleTableOrderingComposer composer =
+        $composerBuilder(
+          composer: this,
+          getCurrentColumn: (t) => t.scheduleId,
+          referencedTable: $db.notificationSchedule,
+          getReferencedColumn: (t) => t.id,
+          builder:
+              (
+                joinBuilder, {
+                $addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer,
+              }) => $$NotificationScheduleTableOrderingComposer(
+                $db: $db,
+                $table: $db.notificationSchedule,
+                $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+                joinBuilder: joinBuilder,
+                $removeJoinBuilderFromRootComposer:
+                    $removeJoinBuilderFromRootComposer,
+              ),
+        );
+    return composer;
+  }
+}
+
+class $$AndroidNotificationMappingsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $AndroidNotificationMappingsTable> {
+  $$AndroidNotificationMappingsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get generation => $composableBuilder(
+    column: $table.generation,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get platformId => $composableBuilder(
+    column: $table.platformId,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get scheduledAtUtc => $composableBuilder(
+    column: $table.scheduledAtUtc,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get state =>
+      $composableBuilder(column: $table.state, builder: (column) => column);
+
+  GeneratedColumn<int> get updatedAtUtc => $composableBuilder(
+    column: $table.updatedAtUtc,
+    builder: (column) => column,
+  );
+
+  $$NotificationScheduleTableAnnotationComposer get scheduleId {
+    final $$NotificationScheduleTableAnnotationComposer composer =
+        $composerBuilder(
+          composer: this,
+          getCurrentColumn: (t) => t.scheduleId,
+          referencedTable: $db.notificationSchedule,
+          getReferencedColumn: (t) => t.id,
+          builder:
+              (
+                joinBuilder, {
+                $addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer,
+              }) => $$NotificationScheduleTableAnnotationComposer(
+                $db: $db,
+                $table: $db.notificationSchedule,
+                $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+                joinBuilder: joinBuilder,
+                $removeJoinBuilderFromRootComposer:
+                    $removeJoinBuilderFromRootComposer,
+              ),
+        );
+    return composer;
+  }
+}
+
+class $$AndroidNotificationMappingsTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $AndroidNotificationMappingsTable,
+          AndroidNotificationMapping,
+          $$AndroidNotificationMappingsTableFilterComposer,
+          $$AndroidNotificationMappingsTableOrderingComposer,
+          $$AndroidNotificationMappingsTableAnnotationComposer,
+          $$AndroidNotificationMappingsTableCreateCompanionBuilder,
+          $$AndroidNotificationMappingsTableUpdateCompanionBuilder,
+          (
+            AndroidNotificationMapping,
+            $$AndroidNotificationMappingsTableReferences,
+          ),
+          AndroidNotificationMapping,
+          PrefetchHooks Function({bool scheduleId})
+        > {
+  $$AndroidNotificationMappingsTableTableManager(
+    _$AppDatabase db,
+    $AndroidNotificationMappingsTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$AndroidNotificationMappingsTableFilterComposer(
+                $db: db,
+                $table: table,
+              ),
+          createOrderingComposer: () =>
+              $$AndroidNotificationMappingsTableOrderingComposer(
+                $db: db,
+                $table: table,
+              ),
+          createComputedFieldComposer: () =>
+              $$AndroidNotificationMappingsTableAnnotationComposer(
+                $db: db,
+                $table: table,
+              ),
+          updateCompanionCallback:
+              ({
+                Value<String> scheduleId = const Value.absent(),
+                Value<String> generation = const Value.absent(),
+                Value<int> platformId = const Value.absent(),
+                Value<int> scheduledAtUtc = const Value.absent(),
+                Value<String> state = const Value.absent(),
+                Value<int> updatedAtUtc = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => AndroidNotificationMappingsCompanion(
+                scheduleId: scheduleId,
+                generation: generation,
+                platformId: platformId,
+                scheduledAtUtc: scheduledAtUtc,
+                state: state,
+                updatedAtUtc: updatedAtUtc,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String scheduleId,
+                required String generation,
+                required int platformId,
+                required int scheduledAtUtc,
+                Value<String> state = const Value.absent(),
+                required int updatedAtUtc,
+                Value<int> rowid = const Value.absent(),
+              }) => AndroidNotificationMappingsCompanion.insert(
+                scheduleId: scheduleId,
+                generation: generation,
+                platformId: platformId,
+                scheduledAtUtc: scheduledAtUtc,
+                state: state,
+                updatedAtUtc: updatedAtUtc,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable<
+                    $AndroidNotificationMappingsTable,
+                    AndroidNotificationMapping
+                  >(table),
+                  $$AndroidNotificationMappingsTableReferences(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: ({scheduleId = false}) {
             return PrefetchHooks(
               db: db,
               explicitlyWatchedTables: [],
@@ -44527,17 +45823,17 @@ class $$NotificationScheduleTableTableManager
                       dynamic
                     >
                   >(state) {
-                    if (accountId) {
+                    if (scheduleId) {
                       state =
                           state.withJoin(
                                 currentTable: table,
-                                currentColumn: table.accountId,
+                                currentColumn: table.scheduleId,
                                 referencedTable:
-                                    $$NotificationScheduleTableReferences
-                                        ._accountIdTable(db),
+                                    $$AndroidNotificationMappingsTableReferences
+                                        ._scheduleIdTable(db),
                                 referencedColumn:
-                                    $$NotificationScheduleTableReferences
-                                        ._accountIdTable(db)
+                                    $$AndroidNotificationMappingsTableReferences
+                                        ._scheduleIdTable(db)
                                         .id,
                               )
                               as T;
@@ -44554,19 +45850,299 @@ class $$NotificationScheduleTableTableManager
       );
 }
 
-typedef $$NotificationScheduleTableProcessedTableManager =
+typedef $$AndroidNotificationMappingsTableProcessedTableManager =
     ProcessedTableManager<
       _$AppDatabase,
-      $NotificationScheduleTable,
-      NotificationScheduleData,
-      $$NotificationScheduleTableFilterComposer,
-      $$NotificationScheduleTableOrderingComposer,
-      $$NotificationScheduleTableAnnotationComposer,
-      $$NotificationScheduleTableCreateCompanionBuilder,
-      $$NotificationScheduleTableUpdateCompanionBuilder,
-      (NotificationScheduleData, $$NotificationScheduleTableReferences),
-      NotificationScheduleData,
-      PrefetchHooks Function({bool accountId})
+      $AndroidNotificationMappingsTable,
+      AndroidNotificationMapping,
+      $$AndroidNotificationMappingsTableFilterComposer,
+      $$AndroidNotificationMappingsTableOrderingComposer,
+      $$AndroidNotificationMappingsTableAnnotationComposer,
+      $$AndroidNotificationMappingsTableCreateCompanionBuilder,
+      $$AndroidNotificationMappingsTableUpdateCompanionBuilder,
+      (
+        AndroidNotificationMapping,
+        $$AndroidNotificationMappingsTableReferences,
+      ),
+      AndroidNotificationMapping,
+      PrefetchHooks Function({bool scheduleId})
+    >;
+typedef $$AndroidDailySummarySchedulesTableCreateCompanionBuilder =
+    AndroidDailySummarySchedulesCompanion Function({
+      required String localDate,
+      required int platformId,
+      required String generation,
+      required int scheduledAtUtc,
+      required int taskCount,
+      Value<String> state,
+      required int updatedAtUtc,
+      Value<int> rowid,
+    });
+typedef $$AndroidDailySummarySchedulesTableUpdateCompanionBuilder =
+    AndroidDailySummarySchedulesCompanion Function({
+      Value<String> localDate,
+      Value<int> platformId,
+      Value<String> generation,
+      Value<int> scheduledAtUtc,
+      Value<int> taskCount,
+      Value<String> state,
+      Value<int> updatedAtUtc,
+      Value<int> rowid,
+    });
+
+class $$AndroidDailySummarySchedulesTableFilterComposer
+    extends Composer<_$AppDatabase, $AndroidDailySummarySchedulesTable> {
+  $$AndroidDailySummarySchedulesTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get localDate => $composableBuilder(
+    column: $table.localDate,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get platformId => $composableBuilder(
+    column: $table.platformId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get generation => $composableBuilder(
+    column: $table.generation,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get scheduledAtUtc => $composableBuilder(
+    column: $table.scheduledAtUtc,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get taskCount => $composableBuilder(
+    column: $table.taskCount,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get state => $composableBuilder(
+    column: $table.state,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get updatedAtUtc => $composableBuilder(
+    column: $table.updatedAtUtc,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$AndroidDailySummarySchedulesTableOrderingComposer
+    extends Composer<_$AppDatabase, $AndroidDailySummarySchedulesTable> {
+  $$AndroidDailySummarySchedulesTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get localDate => $composableBuilder(
+    column: $table.localDate,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get platformId => $composableBuilder(
+    column: $table.platformId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get generation => $composableBuilder(
+    column: $table.generation,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get scheduledAtUtc => $composableBuilder(
+    column: $table.scheduledAtUtc,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get taskCount => $composableBuilder(
+    column: $table.taskCount,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get state => $composableBuilder(
+    column: $table.state,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get updatedAtUtc => $composableBuilder(
+    column: $table.updatedAtUtc,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$AndroidDailySummarySchedulesTableAnnotationComposer
+    extends Composer<_$AppDatabase, $AndroidDailySummarySchedulesTable> {
+  $$AndroidDailySummarySchedulesTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get localDate =>
+      $composableBuilder(column: $table.localDate, builder: (column) => column);
+
+  GeneratedColumn<int> get platformId => $composableBuilder(
+    column: $table.platformId,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get generation => $composableBuilder(
+    column: $table.generation,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get scheduledAtUtc => $composableBuilder(
+    column: $table.scheduledAtUtc,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get taskCount =>
+      $composableBuilder(column: $table.taskCount, builder: (column) => column);
+
+  GeneratedColumn<String> get state =>
+      $composableBuilder(column: $table.state, builder: (column) => column);
+
+  GeneratedColumn<int> get updatedAtUtc => $composableBuilder(
+    column: $table.updatedAtUtc,
+    builder: (column) => column,
+  );
+}
+
+class $$AndroidDailySummarySchedulesTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $AndroidDailySummarySchedulesTable,
+          AndroidDailySummarySchedule,
+          $$AndroidDailySummarySchedulesTableFilterComposer,
+          $$AndroidDailySummarySchedulesTableOrderingComposer,
+          $$AndroidDailySummarySchedulesTableAnnotationComposer,
+          $$AndroidDailySummarySchedulesTableCreateCompanionBuilder,
+          $$AndroidDailySummarySchedulesTableUpdateCompanionBuilder,
+          (
+            AndroidDailySummarySchedule,
+            BaseReferences<
+              _$AppDatabase,
+              $AndroidDailySummarySchedulesTable,
+              AndroidDailySummarySchedule
+            >,
+          ),
+          AndroidDailySummarySchedule,
+          PrefetchHooks Function()
+        > {
+  $$AndroidDailySummarySchedulesTableTableManager(
+    _$AppDatabase db,
+    $AndroidDailySummarySchedulesTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$AndroidDailySummarySchedulesTableFilterComposer(
+                $db: db,
+                $table: table,
+              ),
+          createOrderingComposer: () =>
+              $$AndroidDailySummarySchedulesTableOrderingComposer(
+                $db: db,
+                $table: table,
+              ),
+          createComputedFieldComposer: () =>
+              $$AndroidDailySummarySchedulesTableAnnotationComposer(
+                $db: db,
+                $table: table,
+              ),
+          updateCompanionCallback:
+              ({
+                Value<String> localDate = const Value.absent(),
+                Value<int> platformId = const Value.absent(),
+                Value<String> generation = const Value.absent(),
+                Value<int> scheduledAtUtc = const Value.absent(),
+                Value<int> taskCount = const Value.absent(),
+                Value<String> state = const Value.absent(),
+                Value<int> updatedAtUtc = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => AndroidDailySummarySchedulesCompanion(
+                localDate: localDate,
+                platformId: platformId,
+                generation: generation,
+                scheduledAtUtc: scheduledAtUtc,
+                taskCount: taskCount,
+                state: state,
+                updatedAtUtc: updatedAtUtc,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String localDate,
+                required int platformId,
+                required String generation,
+                required int scheduledAtUtc,
+                required int taskCount,
+                Value<String> state = const Value.absent(),
+                required int updatedAtUtc,
+                Value<int> rowid = const Value.absent(),
+              }) => AndroidDailySummarySchedulesCompanion.insert(
+                localDate: localDate,
+                platformId: platformId,
+                generation: generation,
+                scheduledAtUtc: scheduledAtUtc,
+                taskCount: taskCount,
+                state: state,
+                updatedAtUtc: updatedAtUtc,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable<
+                    $AndroidDailySummarySchedulesTable,
+                    AndroidDailySummarySchedule
+                  >(table),
+                  BaseReferences<
+                    _$AppDatabase,
+                    $AndroidDailySummarySchedulesTable,
+                    AndroidDailySummarySchedule
+                  >(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$AndroidDailySummarySchedulesTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $AndroidDailySummarySchedulesTable,
+      AndroidDailySummarySchedule,
+      $$AndroidDailySummarySchedulesTableFilterComposer,
+      $$AndroidDailySummarySchedulesTableOrderingComposer,
+      $$AndroidDailySummarySchedulesTableAnnotationComposer,
+      $$AndroidDailySummarySchedulesTableCreateCompanionBuilder,
+      $$AndroidDailySummarySchedulesTableUpdateCompanionBuilder,
+      (
+        AndroidDailySummarySchedule,
+        BaseReferences<
+          _$AppDatabase,
+          $AndroidDailySummarySchedulesTable,
+          AndroidDailySummarySchedule
+        >,
+      ),
+      AndroidDailySummarySchedule,
+      PrefetchHooks Function()
     >;
 typedef $$LocationResolutionsTableCreateCompanionBuilder =
     LocationResolutionsCompanion Function({
@@ -44611,9 +46187,7 @@ final class $$LocationResolutionsTableReferences
   );
 
   static $AccountsTable _accountIdTable(_$AppDatabase db) =>
-      db.accounts.createAlias(
-        $_aliasNameGenerator(db.locationResolutions.accountId, db.accounts.id),
-      );
+      db.accounts.createAlias('location_resolutions__account_id__accounts__id');
 
   $$AccountsTableProcessedTableManager get accountId {
     final $_column = $_itemColumn<String>('account_id')!;
@@ -44939,7 +46513,9 @@ class $$LocationResolutionsTableTableManager
           withReferenceMapper: (p0) => p0
               .map(
                 (e) => (
-                  e.readTable(table),
+                  e.readTable<$LocationResolutionsTable, LocationResolution>(
+                    table,
+                  ),
                   $$LocationResolutionsTableReferences(db, table, e),
                 ),
               )
@@ -45055,6 +46631,18 @@ class $AppDatabaseManager {
       $$ScheduleItemOverridesTableTableManager(_db, _db.scheduleItemOverrides);
   $$NotificationScheduleTableTableManager get notificationSchedule =>
       $$NotificationScheduleTableTableManager(_db, _db.notificationSchedule);
+  $$AndroidNotificationMappingsTableTableManager
+  get androidNotificationMappings =>
+      $$AndroidNotificationMappingsTableTableManager(
+        _db,
+        _db.androidNotificationMappings,
+      );
+  $$AndroidDailySummarySchedulesTableTableManager
+  get androidDailySummarySchedules =>
+      $$AndroidDailySummarySchedulesTableTableManager(
+        _db,
+        _db.androidDailySummarySchedules,
+      );
   $$LocationResolutionsTableTableManager get locationResolutions =>
       $$LocationResolutionsTableTableManager(_db, _db.locationResolutions);
 }

@@ -1344,6 +1344,49 @@ void main() {
       expect(confirmBody, isNot(contains('return AlertDialog(')));
     });
 
+    test(
+      'schedule search filters use BusyMax rows without a dedicated native subsystem',
+      () {
+        final runner = File(
+          'linux/runner/my_application.cc',
+        ).readAsStringSync();
+        final workspace = File(
+          'lib/src/features/schedule/presentation/schedule_workspace.dart',
+        ).readAsStringSync();
+        final filters = File(
+          'lib/src/features/schedule/presentation/schedule_search_filters.dart',
+        ).readAsStringSync();
+
+        expect(runner, isNot(contains('native_schedule_search_filters')));
+        expect(runner, isNot(contains('NativeScheduleFilter')));
+        expect(runner, isNot(contains('content_overlay')));
+        expect(
+          File(
+            'lib/src/platform/linux_schedule_search_filter_service.dart',
+          ).existsSync(),
+          isFalse,
+        );
+        expect(
+          File(
+            'test/platform/linux_schedule_search_filter_service_test.dart',
+          ).existsSync(),
+          isFalse,
+        );
+
+        expect(filters, contains('BusyMaxSidebarSurface('));
+        expect(filters, contains('BusyMaxGroupedList('));
+        expect(filters, contains('BusyMaxComboRow<'));
+        expect(filters, contains('BusyMaxSwitchRow('));
+        expect(filters, contains('BusyMaxActionRow('));
+        expect(filters, contains('DesktopDateValueRow('));
+        expect(filters, contains('busyMaxGroupedTextFieldDecoration('));
+        expect(workspace, contains('ScheduleSearchFilters('));
+        expect(workspace, contains('showBusyMaxModalDialog<void>('));
+        expect(workspace, contains('BusyMaxDialogShell('));
+        expect(workspace, isNot(contains('linux-native-search-filter-spacer')));
+      },
+    );
+
     test('timezone selection uses native GTK and Handy controls on Linux', () {
       final runner = File('linux/runner/my_application.cc').readAsStringSync();
       final service = File(
@@ -1945,8 +1988,8 @@ void main() {
       expect(source, contains('style_native_dialog(GtkWidget* dialog)'));
       expect(
         'style_native_dialog(dialog);'.allMatches(source).length,
-        2,
-        reason: 'native date and time pickers share dialog styling',
+        1,
+        reason: 'the remaining native time picker uses dialog styling',
       );
       expect(source, contains('style_native_dialog(window);'));
       expect(

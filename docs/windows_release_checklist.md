@@ -10,7 +10,7 @@ person/date responsible for each result.
 
 ## Automated gates
 
-- [ ] A clean checkout uses Flutter 3.47.2 and its bundled Dart 3.13.2.
+- [ ] A clean checkout uses Flutter 3.47.4 and its bundled Dart 3.13.3.
 - [ ] Dependency resolution, localization generation, and Drift generation
       follow [Development](development.md) and leave committed outputs clean.
 - [ ] The non-writing formatting check, analyzer, normal tests, and

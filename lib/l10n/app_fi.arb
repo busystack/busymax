@@ -1,5 +1,9 @@
 {
+  "launchAtLoginManagedExternally": "BusyMax käynnistettiin työpöydän automaattisen käynnistyksen asetuksista. Poista sen merkintä sieltä, lopeta BusyMax ja avaa se uudelleen, jotta voit käyttää tätä kytkintä.",
   "timeFormat": "Aikamuoto",
+  "firstDayOfWeek": "Viikon ensimmäinen päivä",
+  "systemDefault": "Järjestelmän oletus",
+  "systemDefaultResolved": "Järjestelmän oletus ({weekday})",
   "timeFormatTwelveHour": "12 tuntia",
   "timeFormatTwentyFourHour": "24 tuntia",
   "timeEndOfDay": "vuorokauden loppu",
@@ -1024,5 +1028,21 @@
       "position": {"type": "String"},
       "days": {"type": "String"}
     }
-  }
+  },
+  "searchFilters": "Hakusuodattimet",
+  "searchType": "Tyyppi",
+  "searchDate": "Päivämäärä",
+  "searchAnyDate": "Kaikki päivämäärät",
+  "searchThisWeek": "Tämä viikko",
+  "searchCustomRange": "Mukautettu aikaväli",
+  "searchTaskStatus": "Tehtävän tila",
+  "searchTaskDue": "Tehtävän erääntyminen",
+  "searchAnyDueState": "Kaikki erääntymistilat",
+  "searchNoDueDate": "Ei eräpäivää",
+  "searchPerson": "Henkilö",
+  "searchSources": "Lähteet",
+  "searchClearFilters": "Nollaa suodattimet",
+  "searchFiltersAction": "Suodattimet",
+  "searchNoSources": "Hakulähteitä ei ole valittu",
+  "searchClearText": "Tyhjennä teksti"
 }
