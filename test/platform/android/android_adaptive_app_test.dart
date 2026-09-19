@@ -1374,8 +1374,8 @@ void main() {
     PackageInfo.setMockInitialValues(
       appName: 'BusyMax',
       packageName: 'io.busystack.busymax',
-      version: '0.2.2',
-      buildNumber: '2',
+      version: '0.2.3',
+      buildNumber: '3',
       buildSignature: '',
     );
     final feedback = _RecordingFeedbackService();
