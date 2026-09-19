@@ -165,6 +165,16 @@ class PortalService {
     }
   }
 
+  bool CompleteNextDelayed(const char* value) {
+    if (delayed_.empty()) return false;
+    auto* invocation = delayed_.front();
+    delayed_.erase(delayed_.begin());
+    g_dbus_method_invocation_return_value(
+        invocation,
+        g_variant_new("(v)", g_variant_new_string(value)));
+    return true;
+  }
+
   int reads() const { return reads_; }
   bool arguments_valid() const { return arguments_valid_; }
 
@@ -241,6 +251,7 @@ void SetSetting(GSettings* settings, const char* value) {
 void TestPortalValues(PortalService& portal,
                       GSettingsSchemaSource* schemas) {
   portal.SetAvailable(true);
+  g_autoptr(GSettings) settings = TestSettings(schemas);
   BusyMaxLinuxFirstWeekdayPreference reader(Configuration(portal, schemas));
   const std::vector<std::pair<const char*, int>> weekdays = {
       {"monday", 1},   {"tuesday", 2}, {"wednesday", 3},
@@ -251,11 +262,69 @@ void TestPortalValues(PortalService& portal,
     portal.set_value(value);
     Check(Read(reader) == expected, "portal weekday maps to Dart numbering");
   }
+  SetSetting(settings, "tuesday");
   portal.set_value("default");
-  Check(Read(reader) == 7, "portal default uses locale convention");
+  Check(Read(reader) == 7,
+        "portal default bypasses stale direct GSettings and uses locale");
   portal.set_value("not-a-weekday");
-  Check(Read(reader) == 7, "malformed portal value uses locale convention");
+  Check(Read(reader) == 7,
+        "malformed successful portal value bypasses stale direct GSettings "
+        "and uses locale");
   Check(portal.arguments_valid(), "portal receives exact namespace and key");
+}
+
+void TestSupersededRead(PortalService& portal,
+                        GSettingsSchemaSource* schemas) {
+  portal.SetAvailable(true);
+  portal.set_delay(true);
+  auto configuration = Configuration(portal, schemas);
+  configuration.portal_timeout_milliseconds = 1000;
+  BusyMaxLinuxFirstWeekdayPreference reader(std::move(configuration));
+
+  int first_callbacks = 0;
+  int second_callbacks = 0;
+  int third_callbacks = 0;
+  std::optional<int> first_result;
+  std::optional<int> second_result;
+  std::optional<int> third_result;
+  const int reads_before_first = portal.reads();
+  reader.Read([&](std::optional<int> value) {
+    ++first_callbacks;
+    first_result = value;
+  });
+  Check(SpinUntil([&] { return portal.reads() > reads_before_first; }),
+        "first superseded read reaches the delayed portal");
+
+  portal.set_delay(false);
+  portal.set_value("wednesday");
+  reader.Read([&](std::optional<int> value) {
+    ++second_callbacks;
+    second_result = value;
+  });
+  Check(first_callbacks == 1 && !first_result.has_value(),
+        "superseded first read completes once without an authoritative value");
+  Check(SpinUntil([&] { return second_callbacks == 1; }),
+        "newer read completes while the first portal request is unresolved");
+  Check(second_result == 3, "newer read returns Wednesday");
+
+  Check(portal.CompleteNextDelayed("sunday"),
+        "stale first portal request remains available for late completion");
+  portal.set_value("monday");
+  reader.Read([&](std::optional<int> value) {
+    ++third_callbacks;
+    third_result = value;
+  });
+  Check(SpinUntil([&] { return third_callbacks == 1; }),
+        "reader remains usable after the stale portal request terminates");
+  while (g_main_context_iteration(nullptr, FALSE)) {
+  }
+
+  Check(first_callbacks == 1,
+        "late first portal completion does not invoke its callback twice");
+  Check(second_callbacks == 1 && second_result == 3,
+        "late first portal completion does not replace the newer result");
+  Check(third_callbacks == 1 && third_result == 1,
+        "fresh read after supersession returns Monday exactly once");
 }
 
 void TestPackagedPortalWins(PortalService& portal,
@@ -408,6 +477,7 @@ int main(int argc, char** argv) {
   {
     PortalService portal(g_test_dbus_get_bus_address(bus));
     TestPortalValues(portal, schemas);
+    TestSupersededRead(portal, schemas);
     TestPackagedPortalWins(portal, schemas);
     TestDirectAndFallbacks(portal, schemas);
     TestDirectNotifications(portal, schemas);
