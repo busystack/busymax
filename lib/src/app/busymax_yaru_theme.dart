@@ -115,7 +115,6 @@ class BusyMaxYaruTheme {
       textTheme.labelLarge?.copyWith(fontWeight: FontWeight.bold),
     );
     final standardFocusColor = accentColor;
-    final emphasizedFocusColor = onAccent;
     final outlinedButtonStyle = _semanticPushButtonStyle(
       base.outlinedButtonTheme.style,
       foreground: colors.foreground,
@@ -148,7 +147,8 @@ class BusyMaxYaruTheme {
       disabledForeground: colors.disabledForeground,
       disabledBackground: colors.disabledControl,
       textStyle: pushButtonTextStyle,
-      focusColor: emphasizedFocusColor,
+      focusColor: accentColor,
+      focusPlacement: BusyMaxPushButtonFocusPlacement.outside,
     );
     final textButtonStyle = _semanticPushButtonStyle(
       base.textButtonTheme.style,
@@ -1180,6 +1180,8 @@ ButtonStyle _semanticPushButtonStyle(
   required Color disabledBackground,
   required WidgetStateProperty<TextStyle?> textStyle,
   required Color focusColor,
+  BusyMaxPushButtonFocusPlacement focusPlacement =
+      BusyMaxPushButtonFocusPlacement.inset,
 }) {
   return _yaruDesktopPushButtonStyle(base, textStyle: textStyle).copyWith(
     foregroundColor: WidgetStateProperty.resolveWith((states) {
@@ -1210,7 +1212,10 @@ ButtonStyle _semanticPushButtonStyle(
     // The resolver above owns the complete surface state. Suppress Material's
     // additional tint and ripple so it cannot double-composite those colors.
     overlayColor: const WidgetStatePropertyAll(Colors.transparent),
-    backgroundBuilder: busyMaxPushButtonFocusBuilder(focusColor),
+    backgroundBuilder: busyMaxPushButtonFocusBuilder(
+      focusColor,
+      placement: focusPlacement,
+    ),
   );
 }
 

@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:ui' as ui;
 
 import 'package:busymax/src/app/busymax_design.dart';
 import 'package:busymax/src/features/feedback/data/feedback_api_client.dart';
@@ -141,10 +142,17 @@ void main() {
   testWidgets('shows loading state and prevents duplicate submission', (
     tester,
   ) async {
+    final semantics = tester.ensureSemantics();
     final completion = Completer<FeedbackReceipt>();
     final service = _FakeFeedbackService((_) => completion.future);
     await _pumpDialog(tester, service);
     await _enterValidRequiredFields(tester);
+
+    final submitButton = find.byType(ElevatedButton);
+    var submitSemantics = tester.getSemantics(submitButton).getSemanticsData();
+    expect(submitSemantics.label, 'Submit');
+    expect(submitSemantics.flagsCollection.isEnabled, ui.Tristate.isTrue);
+    expect(submitSemantics.hasAction(ui.SemanticsAction.tap), isTrue);
 
     await tester.tap(find.text('Submit'));
     await tester.pump();
@@ -160,10 +168,23 @@ void main() {
           .opacity,
       0,
     );
+    expect(
+      tester
+          .widget<Opacity>(
+            find.ancestor(of: submitLabel, matching: find.byType(Opacity)),
+          )
+          .alwaysIncludeSemantics,
+      isTrue,
+    );
+    submitSemantics = tester.getSemantics(submitButton).getSemanticsData();
+    expect(submitSemantics.label, 'Submit');
+    expect(submitSemantics.flagsCollection.isEnabled, ui.Tristate.isFalse);
+    expect(submitSemantics.hasAction(ui.SemanticsAction.tap), isFalse);
     expect(service.submissions, hasLength(1));
 
     completion.complete(const FeedbackReceipt(id: 'BM-100'));
     await tester.pumpAndSettle();
+    semantics.dispose();
   });
 
   testWidgets('disables Cancel while a submission is in progress', (

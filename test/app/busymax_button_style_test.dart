@@ -155,117 +155,155 @@ void main() {
     }
   });
 
-  testWidgets(
-    'rendered button has stable layout and whole-control focus ring',
-    (tester) async {
-      final previousStrategy = FocusManager.instance.highlightStrategy;
-      FocusManager.instance.highlightStrategy =
-          FocusHighlightStrategy.alwaysTraditional;
-      addTearDown(() {
-        FocusManager.instance.highlightStrategy = previousStrategy;
-      });
-      final states = WidgetStatesController();
-      addTearDown(states.dispose);
+  testWidgets('focus geometry is role-aware and layout-stable', (tester) async {
+    final standardStates = WidgetStatesController();
+    final suggestedStates = WidgetStatesController();
+    addTearDown(standardStates.dispose);
+    addTearDown(suggestedStates.dispose);
 
-      await tester.pumpWidget(
-        MaterialApp(
-          theme: _theme(brightness: Brightness.dark),
-          home: Center(
-            child: BusyMaxPushButton.standard(
-              key: const ValueKey('button'),
-              statesController: states,
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: _theme(brightness: Brightness.dark),
+        home: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            BusyMaxPushButton.standard(
+              key: const ValueKey('standard'),
+              statesController: standardStates,
               onPressed: () {},
-              child: const Text('Action'),
+              child: const Text('Standard'),
             ),
-          ),
+            BusyMaxPushButton.suggested(
+              key: const ValueKey('suggested'),
+              statesController: suggestedStates,
+              onPressed: () {},
+              child: const Text('Suggested'),
+            ),
+          ],
         ),
-      );
+      ),
+    );
 
-      final button = find.byKey(const ValueKey('button'));
-      final restingSize = tester.getSize(button);
-      final restingRect = tester.getRect(button);
-      for (final state in [
-        WidgetState.hovered,
-        WidgetState.pressed,
-        WidgetState.focused,
-      ]) {
-        states.value = {state};
-        await tester.pump();
-        expect(tester.getSize(button), restingSize);
-        expect(tester.getRect(button), restingRect);
-      }
+    final standard = find.byKey(const ValueKey('standard'));
+    final suggested = find.byKey(const ValueKey('suggested'));
+    final restingStandardSize = tester.getSize(standard);
+    final restingSuggestedSize = tester.getSize(suggested);
+    await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+    standardStates.value = {WidgetState.focused};
+    suggestedStates.value = {WidgetState.focused};
+    await tester.pump();
 
-      final decoration = _focusDecoration(tester, button);
-      final border = decoration.border! as Border;
-      expect(border.top.width, 2);
-      expect(border.top.strokeAlign, BorderSide.strokeAlignInside);
-      expect(border.top.color.a, closeTo(0.50, 0.001));
-      expect(decoration.borderRadius, BorderRadius.circular(BusyMaxRadius.sm));
+    expect(tester.getSize(standard), restingStandardSize);
+    expect(tester.getSize(suggested), restingSuggestedSize);
+    final standardPainter = _focusPainter(tester, standard);
+    final suggestedPainter = _focusPainter(tester, suggested);
+    expect(standardPainter.placement, BusyMaxPushButtonFocusPlacement.inset);
+    expect(standardPainter.outlineOffset, -2);
+    expect(suggestedPainter.placement, BusyMaxPushButtonFocusPlacement.outside);
+    expect(suggestedPainter.outlineOffset, 1);
+    expect(BusyMaxPushButtonFocusPainter.outlineWidth, 2);
+    expect(standardPainter.color.a, closeTo(0.50, 0.001));
+    expect(suggestedPainter.color.a, closeTo(0.50, 0.001));
+    expect(suggestedPainter.color, _accent.withValues(alpha: 0.50));
+    expect(tester.widget<ElevatedButton>(suggested).clipBehavior, Clip.none);
+  });
 
-      FocusManager.instance.highlightStrategy =
-          FocusHighlightStrategy.alwaysTouch;
-      states.value = {};
-      await tester.pump();
-      states.value = {WidgetState.focused};
-      await tester.pump();
-      expect(_focusBorder(tester, button).top.color, Colors.transparent);
-    },
-  );
-
-  testWidgets(
-    'real hover, press, focus, and keyboard activation are preserved',
-    (tester) async {
-      final previousStrategy = FocusManager.instance.highlightStrategy;
-      FocusManager.instance.highlightStrategy =
-          FocusHighlightStrategy.alwaysTraditional;
-      addTearDown(() {
-        FocusManager.instance.highlightStrategy = previousStrategy;
-      });
-      var activations = 0;
-      await tester.pumpWidget(
-        MaterialApp(
-          theme: _theme(brightness: Brightness.light),
-          home: Scaffold(
-            body: Center(
-              child: BusyMaxPushButton.standard(
-                autofocus: true,
-                onPressed: () => activations += 1,
-                child: const Text('Activate'),
+  testWidgets('mouse focus stays quiet while Tab and Shift+Tab show the ring', (
+    tester,
+  ) async {
+    final previousStrategy = FocusManager.instance.highlightStrategy;
+    FocusManager.instance.highlightStrategy = FocusHighlightStrategy.automatic;
+    addTearDown(() {
+      FocusManager.instance.highlightStrategy = previousStrategy;
+    });
+    final standardFocus = FocusNode();
+    final suggestedFocus = FocusNode();
+    addTearDown(standardFocus.dispose);
+    addTearDown(suggestedFocus.dispose);
+    var activations = 0;
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: _theme(brightness: Brightness.light),
+        home: Scaffold(
+          body: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              BusyMaxPushButton.standard(
+                key: const ValueKey('mouse-standard'),
+                focusNode: standardFocus,
+                onPressed: () {
+                  activations += 1;
+                  standardFocus.requestFocus();
+                },
+                child: const Text('Standard'),
               ),
-            ),
+              BusyMaxPushButton.suggested(
+                key: const ValueKey('mouse-suggested'),
+                focusNode: suggestedFocus,
+                onPressed: () {
+                  activations += 1;
+                  suggestedFocus.requestFocus();
+                },
+                child: const Text('Suggested'),
+              ),
+            ],
           ),
         ),
-      );
-      await tester.pump();
+      ),
+    );
+    await tester.pump();
 
-      final button = find.byType(FilledButton);
-      expect(_focusBorder(tester, button).top.color.a, closeTo(0.50, 0.001));
+    final standard = find.byKey(const ValueKey('mouse-standard'));
+    final suggested = find.byKey(const ValueKey('mouse-suggested'));
+    final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+    addTearDown(mouse.removePointer);
+    await mouse.addPointer(location: Offset.zero);
+    await mouse.moveTo(tester.getCenter(standard));
+    await tester.pumpAndSettle();
+    final colors = _theme(
+      brightness: Brightness.light,
+    ).extension<BusyMaxSurfaceColors>()!;
+    expect(_buttonMaterial(tester, standard).color, colors.controlHover);
 
-      final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
-      addTearDown(mouse.removePointer);
-      await mouse.addPointer(location: Offset.zero);
-      await mouse.moveTo(tester.getCenter(button));
-      await tester.pumpAndSettle();
-      final colors = _theme(
-        brightness: Brightness.light,
-      ).extension<BusyMaxSurfaceColors>()!;
-      expect(_buttonMaterial(tester, button).color, colors.controlHover);
+    await mouse.down(tester.getCenter(standard));
+    await tester.pump();
+    expect(_buttonMaterial(tester, standard).color, colors.controlActive);
+    await mouse.up();
+    await tester.pump();
+    expect(activations, 1);
+    expect(standardFocus.hasFocus, isTrue);
+    expect(_focusPainter(tester, standard).color, Colors.transparent);
 
-      await mouse.down(tester.getCenter(button));
-      await tester.pump();
-      expect(_buttonMaterial(tester, button).color, colors.controlActive);
-      await mouse.up();
-      await tester.pump();
-      expect(activations, 1);
+    await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+    await tester.pump();
+    expect(suggestedFocus.hasFocus, isTrue);
+    expect(_focusPainter(tester, suggested).color.a, closeTo(0.50, 0.001));
+    expect(_focusPainter(tester, suggested).outlineOffset, 1);
 
-      await tester.sendKeyEvent(LogicalKeyboardKey.enter);
-      await tester.pump();
-      expect(activations, 2);
-      await tester.sendKeyEvent(LogicalKeyboardKey.space);
-      await tester.pump();
-      expect(activations, 3);
-    },
-  );
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.shiftLeft);
+    await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.shiftLeft);
+    await tester.pump();
+    expect(standardFocus.hasFocus, isTrue);
+    expect(_focusPainter(tester, standard).color.a, closeTo(0.50, 0.001));
+    expect(_focusPainter(tester, standard).outlineOffset, -2);
+
+    await mouse.moveTo(tester.getCenter(suggested));
+    await mouse.down(tester.getCenter(suggested));
+    await mouse.up();
+    await tester.pump();
+    expect(activations, 2);
+    expect(suggestedFocus.hasFocus, isTrue);
+    expect(_focusPainter(tester, suggested).color, Colors.transparent);
+
+    await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+    await tester.pump();
+    expect(activations, 3);
+    expect(_focusPainter(tester, suggested).color.a, closeTo(0.50, 0.001));
+    await tester.sendKeyEvent(LogicalKeyboardKey.space);
+    await tester.pump();
+    expect(activations, 4);
+  });
 
   testWidgets('disabled action exposes no activation semantics', (
     tester,
@@ -287,63 +325,90 @@ void main() {
     semantics.dispose();
   });
 
-  testWidgets(
-    'editor header actions match shared buttons and loading is stable',
-    (tester) async {
-      Future<
-        ({Size cancel, Size save, TextStyle cancelText, TextStyle saveText})
-      >
-      measure({required bool saving}) async {
-        await tester.pumpWidget(
-          MaterialApp(
-            theme: _theme(brightness: Brightness.dark),
-            home: Column(
-              children: [
-                BusyMaxEditorHeader(
-                  title: 'Editor',
-                  cancelLabel: 'Cancel',
-                  saveLabel: 'Save changes',
-                  onCancel: () {},
-                  onSave: () {},
-                  saving: saving,
-                ),
-                BusyMaxPushButton.standard(
-                  key: const ValueKey('ordinary-cancel'),
-                  onPressed: () {},
-                  child: const Text('Cancel'),
-                ),
-              ],
-            ),
+  testWidgets('editor header loading stays stable, labelled, and disabled', (
+    tester,
+  ) async {
+    final semantics = tester.ensureSemantics();
+    Future<
+      ({
+        Size cancel,
+        Size save,
+        TextStyle cancelText,
+        TextStyle saveText,
+        String semanticsLabel,
+        Tristate semanticsEnabled,
+        bool hasTapAction,
+      })
+    >
+    measure({required bool saving}) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: _theme(brightness: Brightness.dark),
+          home: Column(
+            children: [
+              BusyMaxEditorHeader(
+                title: 'Editor',
+                cancelLabel: 'Cancel',
+                saveLabel: 'Save changes',
+                onCancel: () {},
+                onSave: saving ? null : () {},
+                saving: saving,
+              ),
+              BusyMaxPushButton.standard(
+                key: const ValueKey('ordinary-cancel'),
+                onPressed: () {},
+                child: const Text('Cancel'),
+              ),
+            ],
           ),
-        );
-        await tester.pump();
-        final cancel = find.widgetWithText(FilledButton, 'Cancel').first;
-        final save = find.byType(ElevatedButton).first;
-        final cancelText = tester.widget<RichText>(
-          find.descendant(of: cancel, matching: find.byType(RichText)).first,
-        );
-        final saveText = tester.widget<RichText>(
-          find.descendant(of: save, matching: find.byType(RichText)).first,
-        );
-        return (
-          cancel: tester.getSize(cancel),
-          save: tester.getSize(save),
-          cancelText: cancelText.text.style!,
-          saveText: saveText.text.style!,
-        );
-      }
+        ),
+      );
+      await tester.pump();
+      final cancel = find.widgetWithText(FilledButton, 'Cancel').first;
+      final save = find.byType(ElevatedButton).first;
+      final cancelText = tester.widget<RichText>(
+        find.descendant(of: cancel, matching: find.byType(RichText)).first,
+      );
+      final saveText = tester.widget<RichText>(
+        find.descendant(of: save, matching: find.byType(RichText)).first,
+      );
+      final saveSemantics = tester.getSemantics(save).getSemanticsData();
+      return (
+        cancel: tester.getSize(cancel),
+        save: tester.getSize(save),
+        cancelText: cancelText.text.style!,
+        saveText: saveText.text.style!,
+        semanticsLabel: saveSemantics.label,
+        semanticsEnabled: saveSemantics.flagsCollection.isEnabled,
+        hasTapAction: saveSemantics.hasAction(SemanticsAction.tap),
+      );
+    }
 
-      final resting = await measure(saving: false);
-      final loading = await measure(saving: true);
-      expect(resting.cancel.height, 34);
-      expect(resting.save.height, 34);
-      expect(resting.cancelText.fontWeight, FontWeight.bold);
-      expect(resting.saveText.fontWeight, FontWeight.bold);
-      expect(resting.cancelText.fontSize, resting.saveText.fontSize);
-      expect(loading.save, resting.save);
-      expect(find.text('Save changes'), findsOneWidget);
-    },
-  );
+    final resting = await measure(saving: false);
+    final loading = await measure(saving: true);
+    expect(resting.cancel.height, 34);
+    expect(resting.save.height, 34);
+    expect(resting.cancelText.fontWeight, FontWeight.bold);
+    expect(resting.saveText.fontWeight, FontWeight.bold);
+    expect(resting.cancelText.fontSize, resting.saveText.fontSize);
+    expect(loading.save, resting.save);
+    expect(find.text('Save changes'), findsOneWidget);
+    expect(resting.semanticsLabel, 'Save changes');
+    expect(resting.semanticsEnabled, Tristate.isTrue);
+    expect(resting.hasTapAction, isTrue);
+    expect(loading.semanticsLabel, 'Save changes');
+    expect(loading.semanticsEnabled, Tristate.isFalse);
+    expect(loading.hasTapAction, isFalse);
+    final hiddenLabel = tester.widget<Opacity>(
+      find.ancestor(
+        of: find.text('Save changes'),
+        matching: find.byType(Opacity),
+      ),
+    );
+    expect(hiddenLabel.opacity, 0);
+    expect(hiddenLabel.alwaysIncludeSemantics, isTrue);
+    semantics.dispose();
+  });
 
   testWidgets('mounted button follows live accent and GTK font changes', (
     tester,
@@ -495,21 +560,17 @@ ThemeData _theme({required Brightness brightness, bool highContrast = false}) {
   );
 }
 
-BoxDecoration _focusDecoration(WidgetTester tester, Finder button) {
+BusyMaxPushButtonFocusPainter _focusPainter(
+  WidgetTester tester,
+  Finder button,
+) {
   return tester
-      .widgetList<DecoratedBox>(
-        find.descendant(of: button, matching: find.byType(DecoratedBox)),
+      .widgetList<CustomPaint>(
+        find.descendant(of: button, matching: find.byType(CustomPaint)),
       )
-      .map((widget) => widget.decoration)
-      .whereType<BoxDecoration>()
-      .firstWhere((decoration) {
-        final border = decoration.border;
-        return border is Border && border.top.width == 2;
-      });
-}
-
-Border _focusBorder(WidgetTester tester, Finder button) {
-  return _focusDecoration(tester, button).border! as Border;
+      .map((widget) => widget.foregroundPainter)
+      .whereType<BusyMaxPushButtonFocusPainter>()
+      .single;
 }
 
 Material _buttonMaterial(WidgetTester tester, Finder button) {

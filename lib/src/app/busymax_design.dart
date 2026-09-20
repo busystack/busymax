@@ -692,34 +692,132 @@ WidgetStateProperty<Color?> busyMaxHeaderButtonBackground(
   });
 }
 
-/// Paints the shared Ubuntu keyboard-focus outline over the complete button.
+enum BusyMaxPushButtonFocusPlacement {
+  /// The ordinary libadwaita button outline: 2 px at offset -2.
+  inset,
+
+  /// The opaque/suggested-action outline: 2 px at offset +1.
+  outside,
+}
+
+/// Paints the role-aware Ubuntu keyboard-focus outline over the complete
+/// button without changing its layout.
 ///
 /// A [ButtonStyle.backgroundBuilder] receives the overall button bounds; using
 /// it here avoids the label-sized outline produced by a foreground builder.
-/// The inside-aligned stroke neither changes layout nor extends into a parent
-/// surface's clip. Pointer focus stays quiet through Flutter's highlight mode.
-ButtonLayerBuilder busyMaxPushButtonFocusBuilder(Color focusColor) {
+/// Focus visibility is tracked from actual key and pointer input because
+/// Flutter's [FocusHighlightMode.traditional] includes both mouse and keyboard.
+ButtonLayerBuilder busyMaxPushButtonFocusBuilder(
+  Color focusColor, {
+  BusyMaxPushButtonFocusPlacement placement =
+      BusyMaxPushButtonFocusPlacement.inset,
+}) {
   return (context, states, child) {
-    final keyboardFocused =
+    final focused =
         states.contains(WidgetState.focused) &&
-        !states.contains(WidgetState.disabled) &&
-        FocusManager.instance.highlightMode == FocusHighlightMode.traditional;
-    final opacity = Theme.of(context).colorScheme.isHighContrast ? 0.80 : 0.50;
-    return DecoratedBox(
-      position: DecorationPosition.foreground,
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(BusyMaxRadius.sm),
-        border: Border.all(
-          color: keyboardFocused
-              ? focusColor.withValues(alpha: focusColor.a * opacity)
-              : Colors.transparent,
-          width: 2,
-          strokeAlign: BorderSide.strokeAlignInside,
-        ),
-      ),
+        !states.contains(WidgetState.disabled);
+    final focusVisibility = _BusyMaxKeyboardFocusVisibility.instance
+      ..ensureRegistered();
+    return ValueListenableBuilder<bool>(
+      valueListenable: focusVisibility,
+      builder: (context, keyboardInput, child) {
+        final opacity = Theme.of(context).colorScheme.isHighContrast
+            ? 0.80
+            : 0.50;
+        return CustomPaint(
+          foregroundPainter: BusyMaxPushButtonFocusPainter(
+            color: focused && keyboardInput
+                ? focusColor.withValues(alpha: focusColor.a * opacity)
+                : Colors.transparent,
+            placement: placement,
+          ),
+          child: child,
+        );
+      },
       child: child,
     );
   };
+}
+
+/// The concrete focus geometry used by the shared button layer.
+///
+/// This is public so rendering tests can verify the native outline offset
+/// without inferring it from a fixture-only style.
+class BusyMaxPushButtonFocusPainter extends CustomPainter {
+  const BusyMaxPushButtonFocusPainter({
+    required this.color,
+    required this.placement,
+  });
+
+  static const double outlineWidth = 2;
+
+  final Color color;
+  final BusyMaxPushButtonFocusPlacement placement;
+
+  double get outlineOffset => switch (placement) {
+    BusyMaxPushButtonFocusPlacement.inset => -2,
+    BusyMaxPushButtonFocusPlacement.outside => 1,
+  };
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (color.a == 0 || size.isEmpty) {
+      return;
+    }
+    final centerOffset = outlineOffset + outlineWidth / 2;
+    final bounds = (Offset.zero & size).inflate(centerOffset);
+    final radius = math.max(0.0, BusyMaxRadius.sm + centerOffset);
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(bounds, Radius.circular(radius)),
+      Paint()
+        ..color = color
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = outlineWidth,
+    );
+  }
+
+  @override
+  bool shouldRepaint(BusyMaxPushButtonFocusPainter oldDelegate) {
+    return color != oldDelegate.color || placement != oldDelegate.placement;
+  }
+}
+
+/// Tracks focus-visible input modality for BusyMax push buttons.
+///
+/// Desktop starts keyboard-visible so initial programmatic/autofocus remains
+/// discoverable. A pointer press hides the ring before any focus request made
+/// by that interaction; a hardware key restores it before traversal runs.
+class _BusyMaxKeyboardFocusVisibility extends ValueNotifier<bool> {
+  _BusyMaxKeyboardFocusVisibility() : super(true) {
+    GestureBinding.instance.pointerRouter.addGlobalRoute(_handlePointerEvent);
+  }
+
+  static final instance = _BusyMaxKeyboardFocusVisibility();
+
+  FocusManager? _registeredFocusManager;
+
+  void ensureRegistered() {
+    final focusManager = FocusManager.instance;
+    if (identical(_registeredFocusManager, focusManager)) {
+      return;
+    }
+    _registeredFocusManager?.removeEarlyKeyEventHandler(_handleKeyEvent);
+    focusManager.addEarlyKeyEventHandler(_handleKeyEvent);
+    _registeredFocusManager = focusManager;
+  }
+
+  void _handlePointerEvent(PointerEvent event) {
+    if (event is PointerDownEvent && value) {
+      value = false;
+    }
+  }
+
+  KeyEventResult _handleKeyEvent(KeyEvent event) {
+    if ((event is KeyDownEvent || event is KeyRepeatEvent) && !value) {
+      value = true;
+    }
+    return KeyEventResult.ignored;
+  }
 }
 
 /// BusyMax's cross-platform fallback for a native desktop search entry.
@@ -3394,7 +3492,11 @@ class BusyMaxEditorHeader extends StatelessWidget {
                 child: Stack(
                   alignment: Alignment.center,
                   children: [
-                    Opacity(opacity: saving ? 0 : 1, child: Text(saveLabel)),
+                    Opacity(
+                      opacity: saving ? 0 : 1,
+                      alwaysIncludeSemantics: true,
+                      child: Text(saveLabel),
+                    ),
                     if (saving)
                       const ExcludeSemantics(
                         child: SizedBox.square(
