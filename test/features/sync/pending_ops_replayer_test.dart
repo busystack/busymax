@@ -971,6 +971,112 @@ void main() {
   });
 
   test(
+    'new task moved and edited before creation sync has one destination row',
+    () async {
+      await database.taskListsDao.upsertTaskList(_taskList('list-2'));
+      final repository = TasksRepository(
+        database: database,
+        accountId: 'account',
+        nowUtc: () => DateTime.utc(2026, 6, 4),
+      );
+      await repository.createTask(
+        'list-1',
+        const TaskCreateInput(title: 'Draft'),
+      );
+      final localTask = (await database.tasksDao.listTasks(
+        'account',
+        'list-1',
+      )).single;
+      await repository.moveTask(
+        TaskMoveInput(
+          sourceTaskListId: 'list-1',
+          taskId: localTask.id,
+          destinationTaskListId: 'list-2',
+        ),
+      );
+      await repository.patchTask(
+        'list-2',
+        localTask.id,
+        const TaskPatchInput({'title': 'Edited after move'}),
+      );
+
+      expect(
+        await PendingOpsReplayer(
+          database: database,
+          apiClient: apiClient,
+          accountId: 'account',
+          nowUtc: () => DateTime.utc(2026, 6, 4, 1),
+        ).replayDueOps(),
+        3,
+      );
+
+      expect(apiClient.calls, [
+        'create_task:list-1',
+        'move_task:task-server',
+        'patch_task:task-server',
+      ]);
+      expect(await database.tasksDao.listTasks('account', 'list-1'), isEmpty);
+      final tasks = await database.select(database.tasks).get();
+      expect(tasks, hasLength(1));
+      expect(tasks.single.taskListId, 'list-2');
+      expect(tasks.single.id, 'task-server');
+      expect(tasks.single.title, 'Edited after move');
+      expect(tasks.single.localDirty, isFalse);
+    },
+  );
+
+  test(
+    'move replay repairs a source projection before a dependent edit',
+    () async {
+      await database.taskListsDao.upsertTaskList(_taskList('list-2'));
+      await database.tasksDao.upsertTask(
+        _task('list-1', 'task-1', title: 'Original'),
+      );
+      final repository = TasksRepository(
+        database: database,
+        accountId: 'account',
+        nowUtc: () => DateTime.utc(2026, 6, 4),
+      );
+      await repository.moveTask(
+        const TaskMoveInput(
+          sourceTaskListId: 'list-1',
+          taskId: 'task-1',
+          destinationTaskListId: 'list-2',
+        ),
+      );
+      await repository.patchTask(
+        'list-2',
+        'task-1',
+        const TaskPatchInput({'title': 'Edited after move'}),
+      );
+      await (database.update(database.tasks)..where(
+            (row) =>
+                row.accountId.equals('account') &
+                row.taskListId.equals('list-2') &
+                row.id.equals('task-1'),
+          ))
+          .write(const TasksCompanion(taskListId: Value('list-1')));
+
+      expect(
+        await PendingOpsReplayer(
+          database: database,
+          apiClient: apiClient,
+          accountId: 'account',
+          nowUtc: () => DateTime.utc(2026, 6, 4, 1),
+        ).replayDueOps(),
+        2,
+      );
+
+      expect(await database.tasksDao.listTasks('account', 'list-1'), isEmpty);
+      final tasks = await database.select(database.tasks).get();
+      expect(tasks, hasLength(1));
+      expect(tasks.single.taskListId, 'list-2');
+      expect(tasks.single.title, 'Edited after move');
+      expect(tasks.single.localDirty, isFalse);
+    },
+  );
+
+  test(
     'cross-list move orders an equal-timestamp edit and preserves projection',
     () async {
       await database.taskListsDao.upsertTaskList(_taskList('list-2'));

@@ -529,6 +529,7 @@ class PendingOpsReplayer {
         // The repository has already moved the visible projection to the tail
         // of the local chain. Applying this intermediate response would move
         // it backwards and erase later local edits.
+        await _preserveDependentMoveProjection(op, targetTaskListId);
         return;
       }
       await _database.tasksDao.upsertTask(
@@ -542,6 +543,76 @@ class PendingOpsReplayer {
         );
       }
     });
+  }
+
+  Future<void> _preserveDependentMoveProjection(
+    PendingOp op,
+    String targetTaskListId,
+  ) async {
+    final projectionTaskListId = await _dependentTaskProjectionListId(
+      op,
+      targetTaskListId,
+    );
+    if (projectionTaskListId == op.taskListId) return;
+    final sourceTask =
+        await (_database.select(_database.tasks)..where(
+              (row) =>
+                  row.accountId.equals(_accountId) &
+                  row.taskListId.equals(op.taskListId!) &
+                  row.id.equals(op.taskId!),
+            ))
+            .getSingleOrNull();
+    if (sourceTask == null) return;
+    final destinationTask =
+        await (_database.select(_database.tasks)..where(
+              (row) =>
+                  row.accountId.equals(_accountId) &
+                  row.taskListId.equals(projectionTaskListId) &
+                  row.id.equals(op.taskId!),
+            ))
+            .getSingleOrNull();
+    if (destinationTask == null) {
+      await (_database.update(_database.tasks)..where(
+            (row) =>
+                row.accountId.equals(_accountId) &
+                row.taskListId.equals(op.taskListId!) &
+                row.id.equals(op.taskId!),
+          ))
+          .write(TasksCompanion(taskListId: Value(projectionTaskListId)));
+      return;
+    }
+    await _database.tasksDao.deleteTask(_accountId, op.taskListId!, op.taskId!);
+  }
+
+  Future<String> _dependentTaskProjectionListId(
+    PendingOp completedOp,
+    String initialTaskListId,
+  ) async {
+    final operations = await (_database.select(
+      _database.pendingOps,
+    )..where((row) => row.accountId.equals(_accountId))).get();
+    final dependencyIds = <String>{completedOp.id};
+    var projectionTaskListId = initialTaskListId;
+    var foundDependent = true;
+    while (foundDependent) {
+      foundDependent = false;
+      for (final candidate in operations) {
+        if (dependencyIds.contains(candidate.id) ||
+            !dependencyIds.contains(candidate.dependsOnOpId) ||
+            !_mutatesSameTask(completedOp, candidate)) {
+          continue;
+        }
+        dependencyIds.add(candidate.id);
+        foundDependent = true;
+        final request = _request(candidate);
+        projectionTaskListId = candidate.operation == 'move_task'
+            ? request['destinationTasklist']?.toString() ??
+                  candidate.taskListId ??
+                  projectionTaskListId
+            : candidate.taskListId ?? projectionTaskListId;
+      }
+    }
+    return projectionTaskListId;
   }
 
   Future<void> _clearCompleted(PendingOp op) async {
@@ -774,14 +845,17 @@ class PendingOpsReplayer {
         createOperation,
         serverTask,
       );
+      // A queued cross-list move has already relocated the temporary row.
+      // Keep that visible projection in place while replacing its identity.
+      final projectionTaskListId = localTask?.taskListId ?? taskListId;
       await _database.tasksDao.upsertTask(
-        taskFromDto(_accountId, taskListId, serverTask, _now()),
+        taskFromDto(_accountId, projectionTaskListId, serverTask, _now()),
       );
       if (localTask != null && hasDependent) {
         await (_database.update(_database.tasks)..where(
               (row) =>
                   row.accountId.equals(_accountId) &
-                  row.taskListId.equals(taskListId) &
+                  row.taskListId.equals(projectionTaskListId) &
                   row.id.equals(serverTask.id),
             ))
             .write(_pendingLocalTaskProjection(localTask));
@@ -789,7 +863,7 @@ class PendingOpsReplayer {
         await (_database.update(_database.tasks)..where(
               (row) =>
                   row.accountId.equals(_accountId) &
-                  row.taskListId.equals(taskListId) &
+                  row.taskListId.equals(projectionTaskListId) &
                   row.id.equals(serverTask.id),
             ))
             .write(
