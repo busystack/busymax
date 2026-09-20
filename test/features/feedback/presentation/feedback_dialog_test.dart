@@ -150,7 +150,16 @@ void main() {
     await tester.pump();
 
     expect(find.byType(CircularProgressIndicator), findsOneWidget);
-    expect(find.text('Submit'), findsNothing);
+    final submitLabel = find.text('Submit');
+    expect(submitLabel, findsOneWidget);
+    expect(
+      tester
+          .widget<Opacity>(
+            find.ancestor(of: submitLabel, matching: find.byType(Opacity)),
+          )
+          .opacity,
+      0,
+    );
     expect(service.submissions, hasLength(1));
 
     completion.complete(const FeedbackReceipt(id: 'BM-100'));

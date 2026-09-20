@@ -692,6 +692,36 @@ WidgetStateProperty<Color?> busyMaxHeaderButtonBackground(
   });
 }
 
+/// Paints the shared Ubuntu keyboard-focus outline over the complete button.
+///
+/// A [ButtonStyle.backgroundBuilder] receives the overall button bounds; using
+/// it here avoids the label-sized outline produced by a foreground builder.
+/// The inside-aligned stroke neither changes layout nor extends into a parent
+/// surface's clip. Pointer focus stays quiet through Flutter's highlight mode.
+ButtonLayerBuilder busyMaxPushButtonFocusBuilder(Color focusColor) {
+  return (context, states, child) {
+    final keyboardFocused =
+        states.contains(WidgetState.focused) &&
+        !states.contains(WidgetState.disabled) &&
+        FocusManager.instance.highlightMode == FocusHighlightMode.traditional;
+    final opacity = Theme.of(context).colorScheme.isHighContrast ? 0.80 : 0.50;
+    return DecoratedBox(
+      position: DecorationPosition.foreground,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(BusyMaxRadius.sm),
+        border: Border.all(
+          color: keyboardFocused
+              ? focusColor.withValues(alpha: focusColor.a * opacity)
+              : Colors.transparent,
+          width: 2,
+          strokeAlign: BorderSide.strokeAlignInside,
+        ),
+      ),
+      child: child,
+    );
+  };
+}
+
 /// BusyMax's cross-platform fallback for a native desktop search entry.
 ///
 /// Linux header bars use `GtkSearchEntry`. Flutter-owned layouts delegate
@@ -955,17 +985,52 @@ abstract final class BusyMaxPushButton {
     Key? key,
   }) {
     final colorScheme = Theme.of(context).colorScheme;
+    final colors = BusyMaxSurfaceColors.of(context);
+    final background = colorScheme.error;
+    final foreground = colorScheme.onError;
+    final destructiveStyle = ButtonStyle(
+      foregroundColor: WidgetStateProperty.resolveWith((states) {
+        return states.contains(WidgetState.disabled)
+            ? colors.disabledForeground
+            : foreground;
+      }),
+      iconColor: WidgetStateProperty.resolveWith((states) {
+        return states.contains(WidgetState.disabled)
+            ? colors.disabledForeground
+            : foreground;
+      }),
+      backgroundColor: WidgetStateProperty.resolveWith((states) {
+        if (states.contains(WidgetState.disabled)) {
+          return colors.disabledControl;
+        }
+        if (states.contains(WidgetState.pressed)) {
+          return Color.alphaBlend(
+            Colors.black.withValues(alpha: 0.20),
+            background,
+          );
+        }
+        if (states.contains(WidgetState.hovered)) {
+          return Color.alphaBlend(
+            foreground.withValues(alpha: 0.10),
+            background,
+          );
+        }
+        return background;
+      }),
+      overlayColor: const WidgetStatePropertyAll(Colors.transparent),
+      elevation: const WidgetStatePropertyAll(0),
+      shadowColor: const WidgetStatePropertyAll(Colors.transparent),
+      surfaceTintColor: const WidgetStatePropertyAll(Colors.transparent),
+      splashFactory: NoSplash.splashFactory,
+      backgroundBuilder: busyMaxPushButtonFocusBuilder(foreground),
+    ).merge(style);
     return ElevatedButton(
       key: key,
       onPressed: onPressed,
       onLongPress: onLongPress,
       onHover: onHover,
       onFocusChange: onFocusChange,
-      style: ElevatedButton.styleFrom(
-        backgroundColor: colorScheme.error,
-        foregroundColor: colorScheme.onError,
-        iconColor: colorScheme.onError,
-      ).merge(style),
+      style: destructiveStyle,
       focusNode: focusNode,
       autofocus: autofocus,
       clipBehavior: clipBehavior,
@@ -3291,9 +3356,6 @@ class BusyMaxEditorHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final actionStyle = ButtonStyle(
-      textStyle: WidgetStatePropertyAll(Theme.of(context).textTheme.titleSmall),
-    );
     return Padding(
       padding: const EdgeInsets.fromLTRB(
         BusyMaxSpacing.headerInset,
@@ -3310,8 +3372,7 @@ class BusyMaxEditorHeader extends StatelessWidget {
               heightFactor: 1,
               child: BusyMaxPushButton.standard(
                 onPressed: cancelEnabled ? onCancel : null,
-                style: actionStyle,
-                child: Text(cancelLabel, overflow: TextOverflow.ellipsis),
+                child: Text(cancelLabel),
               ),
             ),
           ),
@@ -3330,15 +3391,19 @@ class BusyMaxEditorHeader extends StatelessWidget {
               heightFactor: 1,
               child: BusyMaxPushButton.suggested(
                 onPressed: onSave,
-                style: actionStyle,
-                child: saving
-                    ? const ExcludeSemantics(
+                child: Stack(
+                  alignment: Alignment.center,
+                  children: [
+                    Opacity(opacity: saving ? 0 : 1, child: Text(saveLabel)),
+                    if (saving)
+                      const ExcludeSemantics(
                         child: SizedBox.square(
                           dimension: 16,
                           child: CircularProgressIndicator(strokeWidth: 2),
                         ),
-                      )
-                    : Text(saveLabel, overflow: TextOverflow.ellipsis),
+                      ),
+                  ],
+                ),
               ),
             ),
           ),

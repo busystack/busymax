@@ -182,8 +182,10 @@ void main() {
     expect(saveButton.style?.minimumSize, isNull);
     final cancelContext = tester.element(find.text('Cancel'));
     expect(
-      cancelButton.style?.textStyle?.resolve(const {})?.fontWeight,
-      Theme.of(cancelContext).textTheme.titleSmall?.fontWeight,
+      Theme.of(
+        cancelContext,
+      ).filledButtonTheme.style?.textStyle?.resolve(const {})?.fontWeight,
+      FontWeight.bold,
     );
   });
 
@@ -2451,7 +2453,8 @@ void main() {
     expect(header, contains('AlignmentDirectional.centerEnd'));
     expect(header, contains('child: BusyMaxPushButton.suggested('));
     expect(header, contains('heightFactor: 1'));
-    expect(header, contains('textTheme.titleSmall'));
+    expect(header, isNot(contains('textTheme.titleSmall')));
+    expect(header, isNot(contains('style: actionStyle')));
     expect(header, isNot(contains('child: FilledButton(')));
     expect(header, isNot(contains('child: ElevatedButton(')));
     expect(header, isNot(contains('NavigationToolbar(')));

@@ -2038,6 +2038,7 @@ void main() {
     expect(tester.getSize(save).width, lessThan(slotWidth));
     expect(tester.getSize(cancel).height, kYaruButtonHeight);
     expect(tester.getSize(save).height, kYaruButtonHeight);
+    final restingSaveWidth = tester.getSize(save).width;
     final headerBottom = tester
         .getBottomRight(find.byType(BusyMaxEditorHeader))
         .dy;
@@ -2045,8 +2046,17 @@ void main() {
     expect(headerBottom - actionBottom, BusyMaxSpacing.headerInset);
     final cancelButton = tester.widget<FilledButton>(cancel);
     final saveButton = tester.widget<ElevatedButton>(save);
-    final actionTextStyle = Theme.of(tester.element(save)).textTheme.titleSmall;
-    expect(saveButton.style?.textStyle?.resolve(const {}), actionTextStyle);
+    final theme = Theme.of(tester.element(save));
+    expect(cancelButton.style?.textStyle, isNull);
+    expect(saveButton.style?.textStyle, isNull);
+    expect(
+      theme.filledButtonTheme.style?.textStyle?.resolve(const {})?.fontWeight,
+      FontWeight.bold,
+    );
+    expect(
+      theme.elevatedButtonTheme.style?.textStyle?.resolve(const {})?.fontWeight,
+      FontWeight.bold,
+    );
     for (final style in [cancelButton.style, saveButton.style]) {
       expect(style?.minimumSize, isNull);
       expect(style?.fixedSize, isNull);
@@ -2059,10 +2069,10 @@ void main() {
     await tester.pumpWidget(_linuxTestApp(header(saving: true)));
     await tester.pump();
 
-    expect(tester.getSize(save).width, lessThan(slotWidth));
+    expect(tester.getSize(save).width, restingSaveWidth);
     expect(tester.getSize(save).height, kYaruButtonHeight);
     expect(find.byType(CircularProgressIndicator), findsOneWidget);
-    expect(find.text('Save'), findsNothing);
+    expect(find.text('Save'), findsOneWidget);
   });
 
   testWidgets('custom dialogs announce their title as route semantics', (

@@ -111,54 +111,55 @@ class BusyMaxYaruTheme {
       normalizer: normalizer,
       textTheme: textTheme,
     );
-    final outlinedButtonStyle = _semanticButtonStyle(
-      _yaruDesktopButtonStyle(base.outlinedButtonTheme.style),
+    final pushButtonTextStyle = WidgetStatePropertyAll(
+      textTheme.labelLarge?.copyWith(fontWeight: FontWeight.bold),
+    );
+    final standardFocusColor = accentColor;
+    final emphasizedFocusColor = onAccent;
+    final outlinedButtonStyle = _semanticPushButtonStyle(
+      base.outlinedButtonTheme.style,
       foreground: colors.foreground,
       background: Colors.transparent,
+      hoveredBackground: colors.controlHover,
+      pressedBackground: colors.controlActive,
       disabledForeground: colors.disabledForeground,
       disabledBackground: Colors.transparent,
-      textStyle: _normalizeTextStyleProperty(
-        base.outlinedButtonTheme.style?.textStyle,
-        normalizer: normalizer,
-        fallback: textTheme.labelLarge,
-      ),
+      textStyle: pushButtonTextStyle,
+      focusColor: standardFocusColor,
     );
-    final filledButtonStyle = _semanticButtonStyle(
-      _yaruDesktopButtonStyle(base.filledButtonTheme.style),
+    final filledButtonStyle = _semanticPushButtonStyle(
+      base.filledButtonTheme.style,
       foreground: colors.foreground,
       background: colors.control,
+      hoveredBackground: colors.controlHover,
+      pressedBackground: colors.controlActive,
       selectedBackground: colors.controlActive,
       disabledForeground: colors.disabledForeground,
       disabledBackground: colors.disabledControl,
-      textStyle: _normalizeTextStyleProperty(
-        base.filledButtonTheme.style?.textStyle,
-        normalizer: normalizer,
-        fallback: textTheme.labelLarge,
-      ),
+      textStyle: pushButtonTextStyle,
+      focusColor: standardFocusColor,
     );
-    final elevatedButtonStyle = _semanticButtonStyle(
-      _yaruDesktopButtonStyle(base.elevatedButtonTheme.style),
+    final elevatedButtonStyle = _semanticPushButtonStyle(
+      base.elevatedButtonTheme.style,
       foreground: onAccent,
       background: accentColor,
+      hoveredBackground: _opaqueButtonHover(accentColor, onAccent),
+      pressedBackground: _opaqueButtonPressed(accentColor),
       disabledForeground: colors.disabledForeground,
       disabledBackground: colors.disabledControl,
-      textStyle: _normalizeTextStyleProperty(
-        base.elevatedButtonTheme.style?.textStyle,
-        normalizer: normalizer,
-        fallback: textTheme.labelLarge,
-      ),
+      textStyle: pushButtonTextStyle,
+      focusColor: emphasizedFocusColor,
     );
-    final textButtonStyle = _semanticButtonStyle(
-      _yaruDesktopButtonStyle(base.textButtonTheme.style),
+    final textButtonStyle = _semanticPushButtonStyle(
+      base.textButtonTheme.style,
       foreground: accentColor,
       background: Colors.transparent,
+      hoveredBackground: colors.controlHover,
+      pressedBackground: colors.controlActive,
       disabledForeground: colors.disabledForeground,
       disabledBackground: Colors.transparent,
-      textStyle: _normalizeTextStyleProperty(
-        base.textButtonTheme.style?.textStyle,
-        normalizer: normalizer,
-        fallback: textTheme.labelLarge,
-      ),
+      textStyle: pushButtonTextStyle,
+      focusColor: standardFocusColor,
     );
     final popoverSurfaceSide = BorderSide(
       color: highContrast ? colors.border : colors.floatingBorder,
@@ -1127,20 +1128,17 @@ MenuStyle _semanticMenuSurfaceStyle(
   );
 }
 
-/// Keeps Yaru's horizontal breathing room while allowing its own minimum
-/// button height to remain the control height.
+/// Applies the modern Ubuntu text-button content box to Yaru's shared shape.
 ///
-/// Yaru 10.2 applies its common padding on every edge. For a single-line
-/// desktop action that vertical padding grows the control beyond Yaru's
-/// declared button-height token. GTK-style buttons use the height token as
-/// their metric, so normalize only that incompatible axis here, once, instead
-/// of constraining individual buttons.
-ButtonStyle? _yaruDesktopButtonStyle(ButtonStyle? base) {
-  final sourcePadding = base?.padding;
-  if (base == null || sourcePadding == null) {
-    return base;
-  }
-  return base.copyWith(
+/// GTK's 24 px content minimum plus 5 px vertical padding produces the 34 px
+/// normal control height. Flutter's minimum size already includes padding, so
+/// the same values are declared here without adding a second outer inset.
+ButtonStyle _yaruDesktopPushButtonStyle(
+  ButtonStyle? base, {
+  required WidgetStateProperty<TextStyle?> textStyle,
+}) {
+  return (base ?? const ButtonStyle()).copyWith(
+    textStyle: textStyle,
     // Flutter's Linux-wide compact density would otherwise reduce Yaru's
     // declared 34 px button minimum to 26 px. Yaru already defines the native
     // control metric, so do not apply a second density reduction to buttons.
@@ -1149,19 +1147,70 @@ ButtonStyle? _yaruDesktopButtonStyle(ButtonStyle? base) {
     // declaring it on the shared button style keeps widget tests and fallback
     // shells from adding a mobile-only 48 px tap-target wrapper.
     tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-    padding: WidgetStateProperty.resolveWith((states) {
-      return switch (sourcePadding.resolve(states)) {
-        final EdgeInsets padding => EdgeInsets.only(
-          left: padding.left,
-          right: padding.right,
-        ),
-        final EdgeInsetsDirectional padding => EdgeInsetsDirectional.only(
-          start: padding.start,
-          end: padding.end,
-        ),
-        final padding => padding,
-      };
+    minimumSize: const WidgetStatePropertyAll(Size(34, 34)),
+    padding: const WidgetStatePropertyAll(
+      EdgeInsets.symmetric(horizontal: 17, vertical: 5),
+    ),
+    elevation: const WidgetStatePropertyAll(0),
+    shadowColor: const WidgetStatePropertyAll(Colors.transparent),
+    surfaceTintColor: const WidgetStatePropertyAll(Colors.transparent),
+    splashFactory: NoSplash.splashFactory,
+  );
+}
+
+Color _opaqueButtonHover(Color background, Color foreground) {
+  return Color.alphaBlend(foreground.withValues(alpha: 0.10), background);
+}
+
+Color _opaqueButtonPressed(Color background) {
+  return Color.alphaBlend(Colors.black.withValues(alpha: 0.20), background);
+}
+
+/// Defines the complete visual state contract for Flutter-rendered push
+/// buttons. Icon buttons intentionally continue to use [_semanticButtonStyle]
+/// so push-button padding and typography cannot leak into compact controls.
+ButtonStyle _semanticPushButtonStyle(
+  ButtonStyle? base, {
+  required Color foreground,
+  required Color background,
+  required Color hoveredBackground,
+  required Color pressedBackground,
+  Color? selectedBackground,
+  required Color disabledForeground,
+  required Color disabledBackground,
+  required WidgetStateProperty<TextStyle?> textStyle,
+  required Color focusColor,
+}) {
+  return _yaruDesktopPushButtonStyle(base, textStyle: textStyle).copyWith(
+    foregroundColor: WidgetStateProperty.resolveWith((states) {
+      return states.contains(WidgetState.disabled)
+          ? disabledForeground
+          : foreground;
     }),
+    iconColor: WidgetStateProperty.resolveWith((states) {
+      return states.contains(WidgetState.disabled)
+          ? disabledForeground
+          : foreground;
+    }),
+    backgroundColor: WidgetStateProperty.resolveWith((states) {
+      if (states.contains(WidgetState.disabled)) {
+        return disabledBackground;
+      }
+      if (states.contains(WidgetState.pressed)) {
+        return pressedBackground;
+      }
+      if (states.contains(WidgetState.hovered)) {
+        return hoveredBackground;
+      }
+      if (selectedBackground != null && states.contains(WidgetState.selected)) {
+        return selectedBackground;
+      }
+      return background;
+    }),
+    // The resolver above owns the complete surface state. Suppress Material's
+    // additional tint and ripple so it cannot double-composite those colors.
+    overlayColor: const WidgetStatePropertyAll(Colors.transparent),
+    backgroundBuilder: busyMaxPushButtonFocusBuilder(focusColor),
   );
 }
 

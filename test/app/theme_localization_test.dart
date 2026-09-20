@@ -162,11 +162,10 @@ void main() {
         {WidgetState.focused},
         {WidgetState.pressed},
       ]) {
-        expect(
-          pair.$1?.overlayColor?.resolve(states),
-          pair.$2?.overlayColor?.resolve(states),
-        );
+        expect(pair.$1?.overlayColor?.resolve(states), Colors.transparent);
       }
+      expect(pair.$1?.splashFactory, NoSplash.splashFactory);
+      expect(pair.$1?.backgroundBuilder, isNotNull);
     }
   });
 
@@ -297,15 +296,12 @@ void main() {
       (theme.textButtonTheme.style, base.textButtonTheme.style),
     ]) {
       final padding = pair.$1?.padding?.resolve(const {})! as EdgeInsets;
-      final basePadding = pair.$2?.padding?.resolve(const {})! as EdgeInsets;
-      expect(padding.horizontal, basePadding.horizontal);
-      expect(padding.vertical, 0);
-      expect(
-        pair.$1?.minimumSize?.resolve(const {}),
-        pair.$2?.minimumSize?.resolve(const {}),
-      );
+      expect(padding, const EdgeInsets.symmetric(horizontal: 17, vertical: 5));
+      expect(pair.$1?.minimumSize?.resolve(const {}), const Size(34, 34));
       expect(pair.$1?.visualDensity, VisualDensity.standard);
       expect(pair.$1?.tapTargetSize, MaterialTapTargetSize.shrinkWrap);
+      expect(pair.$1?.elevation?.resolve(const {}), 0);
+      expect(pair.$1?.surfaceTintColor?.resolve(const {}), Colors.transparent);
     }
 
     final checkboxShape = theme.checkboxTheme.shape! as RoundedRectangleBorder;
@@ -842,19 +838,18 @@ void main() {
       scale: scale,
     );
 
-    for (final pair in [
-      (theme.outlinedButtonTheme.style, base.outlinedButtonTheme.style),
-      (theme.filledButtonTheme.style, base.filledButtonTheme.style),
-      (theme.elevatedButtonTheme.style, base.elevatedButtonTheme.style),
-      (theme.textButtonTheme.style, base.textButtonTheme.style),
+    for (final style in [
+      theme.outlinedButtonTheme.style,
+      theme.filledButtonTheme.style,
+      theme.elevatedButtonTheme.style,
+      theme.textButtonTheme.style,
     ]) {
-      _expectComponentStyleUsesTypography(
-        pair.$1?.textStyle?.resolve(buttonStates),
-        baseStyle: pair.$2?.textStyle?.resolve(buttonStates),
-        fallback: textTheme.labelLarge,
-        family: gtkFamily,
-        scale: scale,
-      );
+      final actual = style?.textStyle?.resolve(buttonStates);
+      expect(actual?.fontFamily, gtkFamily);
+      expect(actual?.fontSize, textTheme.labelLarge?.fontSize);
+      expect(actual?.fontWeight, FontWeight.bold);
+      expect(actual?.letterSpacing, textTheme.labelLarge?.letterSpacing);
+      expect(actual?.height, textTheme.labelLarge?.height);
     }
 
     _expectComponentStyleUsesTypography(

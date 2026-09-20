@@ -598,7 +598,7 @@ class _EventEditorState extends ConsumerState<EventEditor> {
                 currentSource.davEffectivePermissions['canQueryFreeBusy'] ==
                     true &&
                 _draft.attendees.isNotEmpty)
-              TextButton(
+              BusyMaxPushButton.standard(
                 onPressed: () => showLinuxNextcloudSchedulingDialog(
                   context,
                   accountId: currentSource!.accountId,

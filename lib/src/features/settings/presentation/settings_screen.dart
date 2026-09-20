@@ -460,7 +460,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                     MaterialBanner(
                       content: Text(l10n.settingsSaveFailed),
                       actions: [
-                        TextButton(
+                        BusyMaxPushButton.standard(
                           onPressed: () =>
                               unawaited(settingsController.retrySave()),
                           child: Text(l10n.retry),
