@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:math';
 
+import 'package:collection/collection.dart';
 import 'package:drift/drift.dart';
 
 import '../../core/http/request_dispatch_exception.dart';
@@ -449,11 +450,30 @@ class PendingOpsReplayer {
     }
 
     final completedRequest = _request(completedOp);
-    final acknowledgedFields =
-        completedOp.operation == 'create_task' &&
-            completedRequest['body'] is Map
-        ? (completedRequest['body'] as Map).keys.map((key) => key.toString())
-        : completedRequest.keys;
+    final acknowledgedFields = <String>{
+      ...(completedOp.operation == 'create_task' &&
+              completedRequest['body'] is Map
+          ? (completedRequest['body'] as Map).keys.map((key) => key.toString())
+          : completedRequest.keys),
+    };
+    if (acknowledgedFields.contains('status')) {
+      acknowledgedFields.addAll({
+        'completed',
+        'microsoftCompletedDateTime',
+        'microsoftCompletedTimeZone',
+      });
+    }
+    if (acknowledgedFields.contains('due') ||
+        acknowledgedFields.contains('microsoftDueDateTime')) {
+      acknowledgedFields.addAll({
+        'due',
+        'microsoftDueDateTime',
+        'microsoftDueTimeZone',
+      });
+    }
+    if (completedOp.operation == 'move_task') {
+      acknowledgedFields.addAll({'parent', 'position'});
+    }
     final serverSnapshot = _normalizeTaskConflictSnapshot(serverTask.rawJson);
     for (final dependent in dependents) {
       final initializesServerBaseline =
@@ -1161,9 +1181,13 @@ class PendingOpsReplayer {
     Map<String, Object?> pendingFields,
   ) async {
     final baselineUpdatedUtc = _parseUtc(op.baselineUpdatedUtc);
-    if (baselineUpdatedUtc == null || op.taskListId == null) {
+    if (op.taskListId == null) {
       return;
     }
+    final compareWithoutRevision =
+        baselineUpdatedUtc == null &&
+        _apiClient is RevisionlessTaskListConflictClient;
+    if (baselineUpdatedUtc == null && !compareWithoutRevision) return;
 
     final local =
         await (_database.select(_database.taskLists)..where(
@@ -1192,6 +1216,7 @@ class PendingOpsReplayer {
       currentServerJson: normalizedCurrent,
       baselineUpdatedUtc: baselineUpdatedUtc,
       currentUpdatedUtc: current.updated,
+      compareWithoutRevision: compareWithoutRevision,
     );
     if (conflict.hasConflict) {
       await _blockConflict(
@@ -1272,12 +1297,27 @@ class PendingOpsReplayer {
 
   Future<void> _ensureTaskListUnchanged(PendingOp op, String action) async {
     final baselineUpdatedUtc = _parseUtc(op.baselineUpdatedUtc);
-    if (baselineUpdatedUtc == null || op.taskListId == null) {
+    if (op.taskListId == null) {
       return;
     }
+    final compareWithoutRevision =
+        baselineUpdatedUtc == null &&
+        _apiClient is RevisionlessTaskListConflictClient;
+    if (baselineUpdatedUtc == null && !compareWithoutRevision) return;
 
     final current = await _apiClient.getTaskList(op.taskListId!);
-    if (_remoteChangedAfterBaseline(current.updated, baselineUpdatedUtc)) {
+    final baselineRawJson = op.baselineRawJson;
+    final contentChanged =
+        compareWithoutRevision &&
+        baselineRawJson != null &&
+        !const DeepCollectionEquality().equals(
+          _semanticTaskListConflictSnapshot(_jsonObject(baselineRawJson)),
+          _semanticTaskListConflictSnapshot(current.rawJson),
+        );
+    final revisionChanged =
+        baselineUpdatedUtc != null &&
+        _remoteChangedAfterBaseline(current.updated, baselineUpdatedUtc);
+    if (contentChanged || revisionChanged) {
       await _blockConflict(
         op,
         'Remote task list changed since local $action was queued.',
@@ -1297,7 +1337,18 @@ class PendingOpsReplayer {
       taskListId: op.taskListId!,
       taskId: op.taskId!,
     );
-    if (_remoteChangedAfterBaseline(current.updated, baselineUpdatedUtc)) {
+    final baselineRawJson = op.baselineRawJson;
+    final contentChanged =
+        baselineRawJson != null &&
+        !const DeepCollectionEquality().equals(
+          _semanticTaskConflictSnapshot(_jsonObject(baselineRawJson)),
+          _semanticTaskConflictSnapshot(current.rawJson),
+        );
+    final revisionChanged = _remoteChangedAfterBaseline(
+      current.updated,
+      baselineUpdatedUtc,
+    );
+    if (contentChanged || revisionChanged) {
       await _blockConflict(
         op,
         'Remote task changed since local $action was queued.',
@@ -1310,9 +1361,21 @@ class PendingOpsReplayer {
     String action,
   ) async {
     final request = _request(op);
+    if (request.containsKey(_childTaskConflictBaselinesKey)) {
+      await _ensureChildTaskSnapshotsUnchanged(op, action, request);
+      return;
+    }
     final childBaseline = request[_childTaskConflictBaselineKey]?.toString();
     final baselineUpdatedUtc =
         _parseUtc(childBaseline) ?? _parseUtc(op.baselineUpdatedUtc);
+    if (baselineUpdatedUtc == null &&
+        _apiClient is RevisionlessTaskListConflictClient) {
+      await _blockConflict(
+        op,
+        'Remote tasks in this list cannot be verified against the local '
+        '$action baseline.',
+      );
+    }
     if (baselineUpdatedUtc == null || op.taskListId == null) {
       return;
     }
@@ -1341,6 +1404,111 @@ class PendingOpsReplayer {
 
       pageToken = page.nextPageToken;
     } while (pageToken != null && pageToken.isNotEmpty);
+  }
+
+  Future<void> _ensureChildTaskSnapshotsUnchanged(
+    PendingOp op,
+    String action,
+    Map<String, Object?> request,
+  ) async {
+    if (op.taskListId == null) return;
+    final encodedBaselines = request[_childTaskConflictBaselinesKey];
+    if (encodedBaselines is! Map) return;
+    final baselines = <String, Map<String, Object?>>{
+      for (final entry in encodedBaselines.entries)
+        if (entry.value is Map)
+          entry.key.toString(): (entry.value as Map).cast<String, Object?>(),
+    };
+    final currentTasks = <String, TaskDto>{};
+    String? pageToken;
+    do {
+      final page = await _apiClient.listTasksPage(
+        taskListId: op.taskListId!,
+        maxResults: 100,
+        pageToken: pageToken,
+        showCompleted: true,
+        showDeleted: true,
+        showHidden: true,
+        showAssigned: true,
+      );
+      for (final task in page.items) {
+        currentTasks[task.id] = task;
+      }
+      pageToken = page.nextPageToken;
+    } while (pageToken != null && pageToken.isNotEmpty);
+
+    var changed = baselines.length != currentTasks.length;
+    if (!changed) {
+      for (final entry in baselines.entries) {
+        final current = currentTasks[entry.key];
+        if (current == null) {
+          changed = true;
+          break;
+        }
+        final baselineUpdatedUtc = _parseUtc(
+          entry.value['updatedUtc']?.toString(),
+        );
+        final baselineRaw = entry.value['rawJson'];
+        final revisionChanged =
+            baselineUpdatedUtc != null &&
+            _remoteChangedAfterBaseline(current.updated, baselineUpdatedUtc);
+        final contentChanged =
+            baselineRaw is Map &&
+            !const DeepCollectionEquality().equals(
+              _semanticTaskConflictSnapshot(
+                baselineRaw.cast<String, Object?>(),
+              ),
+              _semanticTaskConflictSnapshot(current.rawJson),
+            );
+        if (revisionChanged || contentChanged) {
+          changed = true;
+          break;
+        }
+      }
+    }
+    if (changed) {
+      await _blockConflict(
+        op,
+        'Remote task in list changed since local $action was queued.',
+      );
+    }
+  }
+
+  Map<String, Object?> _semanticTaskConflictSnapshot(
+    Map<String, Object?> snapshot,
+  ) {
+    final semantic = Map<String, Object?>.from(
+      _normalizeTaskConflictSnapshot(snapshot),
+    );
+    semantic.removeWhere((key, _) => _taskRevisionFields.contains(key));
+    if (semantic.containsKey('notes')) semantic.remove('body');
+    if (semantic.containsKey('microsoftDueDateTime')) {
+      semantic.remove('dueDateTime');
+    }
+    if (semantic.containsKey('microsoftStartDateTime')) {
+      semantic.remove('startDateTime');
+    }
+    if (semantic.containsKey('microsoftReminderDateTime')) {
+      semantic.remove('reminderDateTime');
+    }
+    if (semantic.containsKey('microsoftCompletedDateTime')) {
+      semantic.remove('completedDateTime');
+    }
+    if (semantic.containsKey('microsoftIsReminderOn')) {
+      semantic.remove('isReminderOn');
+    }
+    return semantic;
+  }
+
+  Map<String, Object?> _semanticTaskListConflictSnapshot(
+    Map<String, Object?> snapshot,
+  ) {
+    final semantic = Map<String, Object?>.from(
+      _normalizeTaskListConflictSnapshot(snapshot),
+    );
+    semantic.removeWhere((key, _) => _taskListRevisionFields.contains(key));
+    if (semantic.containsKey('title')) semantic.remove('displayName');
+    return semantic;
   }
 
   Future<void> _ensureNoCompletedTaskConflict(PendingOp op) async {
@@ -1400,6 +1568,22 @@ class PendingOpsReplayer {
 
 const _childTaskConflictBaselineKey =
     '_busymaxChildTaskConflictBaselineUpdatedUtc';
+const _childTaskConflictBaselinesKey = '_busymaxChildTaskConflictBaselines';
+
+const _taskRevisionFields = {
+  'etag',
+  '@odata.etag',
+  'updated',
+  'lastModifiedDateTime',
+  'bodyLastModifiedDateTime',
+};
+
+const _taskListRevisionFields = {
+  'etag',
+  '@odata.etag',
+  'updated',
+  'lastModifiedDateTime',
+};
 
 const _pendingOpReferenceKeys = {
   'id',

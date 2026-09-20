@@ -885,6 +885,88 @@ void main() {
   );
 
   test(
+    'discard uncertain list restores repeated move chain from remote origin',
+    () async {
+      const temporaryTaskListId = 'list-b';
+      apiClient.remoteTasksByList['list-a'] = TaskDto.fromJson(const {
+        'id': 'existing-task',
+        'title': 'Existing remote task',
+        'updated': '2025-01-01T00:00:00.000Z',
+      });
+      await database.taskListsDao.upsertTaskList(
+        _localTaskList(
+          temporaryTaskListId,
+          title: 'Offline list',
+          localDirty: true,
+        ),
+      );
+      await database.taskListsDao.upsertTaskList(
+        _localTaskList('list-a', title: 'Source list'),
+      );
+      await database.taskListsDao.upsertTaskList(
+        _localTaskList('list-c', title: 'Intermediate list'),
+      );
+      await database.tasksDao.upsertTask(
+        _localTask(
+          'existing-task',
+          taskListId: temporaryTaskListId,
+          localDirty: true,
+          pendingMove: true,
+        ),
+      );
+      await _enqueueBlockedOp(
+        database,
+        id: 'create-list',
+        entityType: 'task_list',
+        operation: 'create_task_list',
+        taskListId: temporaryTaskListId,
+        localTempId: temporaryTaskListId,
+        state: 'recovery_required',
+        request: const {'title': 'Offline list'},
+      );
+      await _enqueueBlockedOp(
+        database,
+        id: 'move-a-b',
+        operation: 'move_task',
+        taskListId: 'list-a',
+        taskId: 'existing-task',
+        request: const {'destinationTasklist': temporaryTaskListId},
+      );
+      await _enqueueBlockedOp(
+        database,
+        id: 'move-b-c',
+        operation: 'move_task',
+        taskListId: temporaryTaskListId,
+        taskId: 'existing-task',
+        dependsOnOpId: 'move-a-b',
+        request: const {'destinationTasklist': 'list-c'},
+      );
+      await _enqueueBlockedOp(
+        database,
+        id: 'move-c-b',
+        operation: 'move_task',
+        taskListId: 'list-c',
+        taskId: 'existing-task',
+        dependsOnOpId: 'move-b-c',
+        request: const {'destinationTasklist': temporaryTaskListId},
+      );
+
+      await service.discard('create-list');
+
+      final restored = await database.select(database.tasks).get();
+      expect(restored, hasLength(1));
+      expect(restored.single.id, 'existing-task');
+      expect(restored.single.taskListId, 'list-a');
+      expect(restored.single.title, 'Existing remote task');
+      expect(restored.single.pendingMove, isFalse);
+      expect(restored.single.localDirty, isFalse);
+      expect(await database.select(database.pendingOps).get(), isEmpty);
+      expect(apiClient.getTaskTaskListIds, ['list-a']);
+      expect(taskSyncCalls, 1);
+    },
+  );
+
+  test(
     'discard uncertain checklist create removes its chain and merges all pages',
     () async {
       final localItems = [
@@ -1226,6 +1308,7 @@ void main() {
 class _FakeTaskRemoteClient
     implements TaskRemoteClient, TaskChecklistRemoteClient {
   TaskDto? remoteTask;
+  final remoteTasksByList = <String, TaskDto>{};
   TaskListDto? remoteTaskList;
   GoogleTasksApiError? getTaskError;
   GoogleTasksApiError? getTaskListError;
@@ -1233,6 +1316,7 @@ class _FakeTaskRemoteClient
   Map<String?, TaskChecklistItemsPageDto> checklistPages = const {};
   final checklistPageTokens = <String?>[];
   final getTaskIds = <String>[];
+  final getTaskTaskListIds = <String>[];
   final getTaskListIds = <String>[];
   final patchedTaskIds = <String>[];
   final patchedTaskListIds = <String>[];
@@ -1263,9 +1347,15 @@ class _FakeTaskRemoteClient
     required String taskId,
   }) async {
     getTaskIds.add(taskId);
+    getTaskTaskListIds.add(taskListId);
     final error = getTaskError;
     if (error != null) {
       throw error;
+    }
+    if (remoteTasksByList.isNotEmpty) {
+      final task = remoteTasksByList[taskListId];
+      if (task != null) return task;
+      throw const GoogleTasksApiError(statusCode: 404, message: 'Not found');
     }
     return remoteTask ?? _taskDto(taskId);
   }
