@@ -1063,7 +1063,7 @@ void main() {
         'final fullDayBarHeight = showFullDayBar ? _fullDayBarHeight : 0.0;',
       ),
     );
-    expect(source, contains('fullDayEventsBarVisibility: showFullDayBar'));
+    expect(source, contains('fullDayEventsBarVisibility: true'));
     expect(source, contains('fullDayEventsBarHeight: fullDayBarHeight'));
     expect(source, contains('fullDayEventHeight: showFullDayBar ? 24 : 0'));
     expect(source, contains('fullDayEventsBuilder: (events, width)'));

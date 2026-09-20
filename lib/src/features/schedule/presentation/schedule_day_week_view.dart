@@ -141,7 +141,9 @@ class _ScheduleDayWeekViewState extends State<ScheduleDayWeekView> {
       ),
       fullDayParam: icv.FullDayParam(
         showMultiDayEvents: false,
-        fullDayEventsBarVisibility: showFullDayBar,
+        // Keep the zero-height bar mounted so its horizontal scroll position
+        // stays synchronized while moving through days without all-day items.
+        fullDayEventsBarVisibility: true,
         fullDayEventsBarHeight: fullDayBarHeight,
         fullDayEventHeight: showFullDayBar ? 24 : 0,
         fullDayEventsBarLeftWidget: Center(
@@ -397,6 +399,14 @@ class _ScheduleDayWeekViewState extends State<ScheduleDayWeekView> {
         return;
       }
       _plannerKey.currentState?.jumpToDate(date);
+      // The planner reuses its stateful day cells while scrolling, but those
+      // cells do not reload their cached events when their day changes. Notify
+      // them again after the jump has rebuilt the cells for the destination.
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          _reloadEvents();
+        }
+      });
     });
   }
 

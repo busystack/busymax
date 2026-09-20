@@ -1,8 +1,10 @@
 import 'dart:io';
 
 import 'package:busymax/src/app/app_bootstrap.dart';
+import 'package:busymax/src/calendar_providers/calendar_sync_dto.dart';
 import 'package:busymax/src/db/app_database.dart';
 import 'package:busymax/src/features/accounts/data/accounts_repository.dart';
+import 'package:busymax/src/features/calendar/data/calendar_repository.dart';
 import 'package:busymax/src/features/schedule/presentation/schedule_day_week_view.dart';
 import 'package:busymax/src/features/schedule/presentation/schedule_month_view.dart';
 import 'package:busymax/src/features/schedule/presentation/schedule_workspace.dart';
@@ -22,6 +24,47 @@ import '../../../support/process_time_zone.dart';
 import '../../../test_localized_app.dart';
 
 void main() {
+  testWidgets(
+    'previous and next day navigation render the destination all-day event',
+    (tester) async {
+      for (final scenario in [
+        (start: DateTime(2026, 9, 13), next: true),
+        (start: DateTime(2026, 9, 19), next: false),
+      ]) {
+        final harness = await _pumpWorkspace(
+          tester,
+          scenario.start,
+          includeSeptemberBirthday: true,
+        );
+        await tester.sendKeyEvent(LogicalKeyboardKey.digit1);
+        await tester.pumpAndSettle();
+
+        for (var index = 0; index < 3; index++) {
+          await _navigate(tester, next: scenario.next);
+          await tester.pumpAndSettle();
+        }
+
+        final view = tester.widget<ScheduleDayWeekView>(
+          find.byType(ScheduleDayWeekView),
+        );
+        expect(view.selectedDate, DateTime(2026, 9, 16));
+        expect(
+          view.items.map((item) => item.title),
+          contains("Ildar's Birthday"),
+        );
+        expect(
+          find.text("Ildar's Birthday", skipOffstage: false),
+          findsOneWidget,
+        );
+
+        await tester.pumpWidget(const SizedBox.shrink());
+        await tester.pump(const Duration(milliseconds: 1));
+        harness.headerBar.dispose();
+        await harness.database.close();
+      }
+    },
+  );
+
   testWidgets(
     'workspace month commands always select the adjacent month first',
     (tester) async {
@@ -116,7 +159,11 @@ Future<void> _navigate(WidgetTester tester, {required bool next}) async {
 }
 
 Future<({AppDatabase database, LinuxHeaderBarService headerBar})>
-_pumpWorkspace(WidgetTester tester, DateTime initialDate) async {
+_pumpWorkspace(
+  WidgetTester tester,
+  DateTime initialDate, {
+  bool includeSeptemberBirthday = false,
+}) async {
   final database = AppDatabase.memoryForTests();
   await database
       .into(database.accounts)
@@ -142,6 +189,29 @@ _pumpWorkspace(WidgetTester tester, DateTime initialDate) async {
       updatedLocalAtUtc: _now,
     ),
   );
+  if (includeSeptemberBirthday) {
+    final calendar = CalendarRepository(database: database);
+    await calendar.upsertSource(
+      accountId: 'account',
+      source: const CalendarSourceDto(
+        provider: BusyProvider.google,
+        providerCalendarId: 'birthdays',
+        summary: 'Birthdays',
+      ),
+    );
+    await calendar.upsertEvent(
+      accountId: 'account',
+      event: const CalendarEventDto(
+        provider: BusyProvider.google,
+        providerCalendarId: 'birthdays',
+        providerEventId: 'birthday-2026',
+        title: "Ildar's Birthday",
+        allDay: true,
+        startDate: '2026-09-16',
+        endDate: '2026-09-17',
+      ),
+    );
+  }
   const account = AccountEntity(
     id: 'account',
     provider: BusyProvider.google,
