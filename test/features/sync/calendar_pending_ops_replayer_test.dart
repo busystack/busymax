@@ -4255,6 +4255,66 @@ END:VEVENT
   });
 
   test(
+    'definitely rejected calendar creation can be manually retried',
+    () async {
+      final repository = CalendarRepository(
+        database: database,
+        now: () => DateTime.utc(2026, 6, 8),
+      );
+      await repository.createLocalSource(
+        accountId: 'account',
+        summary: 'Project',
+      );
+      final operation = await database.select(database.pendingOps).getSingle();
+      client.calendarCreateError = const GoogleCalendarApiError(
+        statusCode: 403,
+        code: 'PERMISSION_DENIED',
+        message: 'Calendar creation is not permitted.',
+      );
+
+      expect(
+        await CalendarPendingOpsReplayer(
+          database: database,
+          client: client,
+          accountId: 'account',
+          nowUtc: () => DateTime.utc(2026, 6, 8),
+        ).replayDueOps(),
+        0,
+      );
+      final rejected = await database.pendingOpsDao.getOp(operation.id);
+      expect(rejected!.state, 'failed');
+      expect(rejected.lastErrorCode, 'PERMISSION_DENIED');
+
+      client.calendarCreateError = null;
+      var taskSyncCalls = 0;
+      var calendarSyncCalls = 0;
+      await PendingOpResolutionService(
+        database: database,
+        accountId: 'account',
+        syncTasks: () async => taskSyncCalls += 1,
+        syncCalendar: () async {
+          calendarSyncCalls += 1;
+          await CalendarPendingOpsReplayer(
+            database: database,
+            client: client,
+            accountId: 'account',
+            nowUtc: () => DateTime.utc(2026, 6, 9),
+          ).replayDueOps();
+        },
+        nowUtc: () => DateTime.utc(2026, 6, 9),
+      ).retryNow(operation.id);
+
+      expect(calendarSyncCalls, 1);
+      expect(taskSyncCalls, 0);
+      expect(
+        client.calls.where((call) => call == 'createCalendar:Project'),
+        hasLength(2),
+      );
+      expect(await database.pendingOpsDao.getOp(operation.id), equals(null));
+    },
+  );
+
+  test(
     'calendar color retry is separate from acknowledged calendar creation',
     () async {
       final repository = CalendarRepository(

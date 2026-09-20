@@ -2074,6 +2074,7 @@ class CalendarPendingOpsReplayer {
       nextAttemptAtUtc: nextAttemptAtUtc,
       lastErrorCode: errorCode,
       lastErrorMessage: errorMessage,
+      state: _isCalendarCreation(op) ? 'failed' : null,
     );
     return true;
   }
