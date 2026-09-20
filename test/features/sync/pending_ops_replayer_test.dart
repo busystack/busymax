@@ -523,6 +523,88 @@ void main() {
     );
   });
 
+  test(
+    'remote edit after creation conflicts with a delayed dependent patch',
+    () async {
+      final createdUpdated = DateTime.utc(2026, 6, 4, 0, 5);
+      final createdTask = _taskDto(
+        'task-server',
+        title: 'Draft',
+        updated: createdUpdated,
+      );
+      apiClient
+        ..createdTask = createdTask
+        ..remoteTask = createdTask
+        ..patchTaskError = const GoogleTasksApiError(
+          statusCode: 503,
+          message: 'Temporary failure',
+        );
+      final repository = TasksRepository(
+        database: database,
+        accountId: 'account',
+        nowUtc: () => DateTime.utc(2026, 6, 4),
+      );
+      await repository.createTask(
+        'list-1',
+        const TaskCreateInput(title: 'Draft'),
+      );
+      final temporary = (await database.tasksDao.listTasks(
+        'account',
+        'list-1',
+      )).single;
+      await repository.patchTask(
+        'list-1',
+        temporary.id,
+        const TaskPatchInput({'title': 'Local title'}),
+      );
+
+      expect(
+        await PendingOpsReplayer(
+          database: database,
+          apiClient: apiClient,
+          accountId: 'account',
+          random: Random(0),
+          nowUtc: () => DateTime.utc(2026, 6, 4, 1),
+        ).replayDueOps(),
+        1,
+      );
+
+      var pending = await database.select(database.pendingOps).getSingle();
+      expect(pending.operation, 'patch_task');
+      expect(pending.state, 'pending');
+      expect(pending.attemptCount, 1);
+      expect(pending.nextAttemptAtUtc, isNot(equals(null)));
+      expect(pending.lastErrorCode, '503');
+      expect(pending.baselineUpdatedUtc, createdUpdated.toIso8601String());
+      expect(jsonDecode(pending.baselineRawJson!)['title'], 'Draft');
+
+      apiClient
+        ..patchTaskError = null
+        ..remoteTask = _taskDto(
+          'task-server',
+          title: 'Competing remote title',
+          updated: DateTime.utc(2026, 6, 4, 0, 10),
+        );
+
+      expect(
+        await PendingOpsReplayer(
+          database: database,
+          apiClient: apiClient,
+          accountId: 'account',
+          random: Random(0),
+          nowUtc: () => DateTime.utc(2026, 6, 5),
+        ).replayDueOps(),
+        0,
+      );
+
+      pending = await database.select(database.pendingOps).getSingle();
+      expect(pending.lastErrorCode, 'conflict');
+      expect(pending.lastErrorMessage, contains('title'));
+      expect(apiClient.taskPatchFields, isEmpty);
+      expect(apiClient.remoteTask!.title, 'Competing remote title');
+    },
+  );
+
   for (final entity in ['task', 'task list']) {
     test(
       '$entity creation restart after identity persistence stays acknowledged',

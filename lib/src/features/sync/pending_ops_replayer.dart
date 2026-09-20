@@ -454,26 +454,35 @@ class PendingOpsReplayer {
             completedRequest['body'] is Map
         ? (completedRequest['body'] as Map).keys.map((key) => key.toString())
         : completedRequest.keys;
+    final serverSnapshot = _normalizeTaskConflictSnapshot(serverTask.rawJson);
     for (final dependent in dependents) {
-      final baseline = _normalizeTaskConflictSnapshot(
-        _jsonObject(dependent.baselineRawJson ?? '{}'),
-      );
-      final serverSnapshot = _normalizeTaskConflictSnapshot(serverTask.rawJson);
+      final initializesServerBaseline =
+          completedOp.operation == 'create_task' &&
+          dependent.baselineUpdatedUtc == null;
+      final baseline = initializesServerBaseline
+          ? Map<String, Object?>.from(serverSnapshot)
+          : _normalizeTaskConflictSnapshot(
+              _jsonObject(dependent.baselineRawJson ?? '{}'),
+            );
       final usesWholeTaskConflictBoundary =
           dependent.operation == 'move_task' ||
           dependent.operation == 'delete_task';
-      // Keep the original timestamp and untouched fields so a provider edit to
-      // a different field is still detected by a dependent field-level edit.
-      for (final field in acknowledgedFields) {
-        baseline[field] = serverSnapshot[field];
+      if (!initializesServerBaseline) {
+        // Keep the original timestamp and untouched fields so a provider edit
+        // to a different field is still detected by a dependent field edit.
+        for (final field in acknowledgedFields) {
+          baseline[field] = serverSnapshot[field];
+        }
       }
       await (_database.update(
         _database.pendingOps,
       )..where((row) => row.id.equals(dependent.id))).write(
         PendingOpsCompanion(
           baselineRawJson: Value(jsonEncode(baseline)),
-          // Whole-task checks must advance past the acknowledged local write.
-          baselineUpdatedUtc: usesWholeTaskConflictBoundary
+          // Creation supplies the first server boundary for local-only edits.
+          // Whole-task checks must also advance past an acknowledged write.
+          baselineUpdatedUtc:
+              initializesServerBaseline || usesWholeTaskConflictBoundary
               ? Value(serverTask.updated?.toUtc().toIso8601String())
               : const Value.absent(),
           updatedAtUtc: Value(_now()),
