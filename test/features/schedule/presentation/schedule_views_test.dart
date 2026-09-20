@@ -931,8 +931,10 @@ void main() {
       matching: find.byType(InkWell),
     );
     expect(
-      tester.widget<InkWell>(taskInkWell).mouseCursor,
-      SystemMouseCursors.click,
+      tester
+          .widgetList<InkWell>(taskInkWell)
+          .where((inkWell) => inkWell.mouseCursor == SystemMouseCursors.click),
+      hasLength(1),
     );
   });
 

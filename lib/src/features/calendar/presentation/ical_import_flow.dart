@@ -163,13 +163,25 @@ class _IcalImportPreviewDialogState extends State<_IcalImportPreviewDialog> {
           BusyMaxGroupedList(
             filled: true,
             children: [
-              YaruCheckboxListTile(
-                key: const ValueKey('nextcloud-import-copies'),
-                title: Text(l10n.nextcloudImportCopies),
-                value: _newCopies,
-                onChanged: (value) =>
-                    setState(() => _newCopies = value == true),
-                shape: const RoundedRectangleBorder(),
+              BusyMaxYaruFocusBorder(
+                borderStrokeAlign: BorderSide.strokeAlignInside,
+                builder: (context, rowFocusNode) => YaruCheckboxListTile(
+                  key: const ValueKey('nextcloud-import-copies'),
+                  title: Text(l10n.nextcloudImportCopies),
+                  value: _newCopies,
+                  onChanged: _onNewCopiesChanged,
+                  focusNode: rowFocusNode,
+                  control: BusyMaxYaruFocusBorder(
+                    builder: (context, controlFocusNode) => YaruCheckbox(
+                      value: _newCopies,
+                      onChanged: _onNewCopiesChanged,
+                      focusNode: controlFocusNode,
+                      hasFocusBorder: false,
+                    ),
+                  ),
+                  shape: const RoundedRectangleBorder(),
+                  hasFocusBorder: false,
+                ),
               ),
             ],
           ),
@@ -193,6 +205,10 @@ class _IcalImportPreviewDialogState extends State<_IcalImportPreviewDialog> {
           ),
       ],
     );
+  }
+
+  void _onNewCopiesChanged(bool? value) {
+    setState(() => _newCopies = value == true);
   }
 }
 

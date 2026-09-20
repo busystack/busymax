@@ -2467,6 +2467,87 @@ class BusyMaxComboRow<T> extends StatelessWidget {
   }
 }
 
+typedef BusyMaxYaruFocusedControlBuilder =
+    Widget Function(BuildContext context, FocusNode focusNode);
+
+/// Presents Yaru's outline around the existing focus target during keyboard
+/// navigation without adding another focus node or interaction handler.
+///
+/// Yaru 10.2.0's selection controls and toggle list tiles do not propagate
+/// their internal target's focus to the [YaruFocusBorder] installed by
+/// `hasFocusBorder`. Driving the same outline from the target's [FocusNode]
+/// keeps the supported presentation while preserving traversal and gestures.
+class BusyMaxYaruFocusBorder extends StatefulWidget {
+  const BusyMaxYaruFocusBorder({
+    super.key,
+    required this.builder,
+    this.focusNode,
+    this.borderStrokeAlign,
+  });
+
+  final BusyMaxYaruFocusedControlBuilder builder;
+  final FocusNode? focusNode;
+  final double? borderStrokeAlign;
+
+  @override
+  State<BusyMaxYaruFocusBorder> createState() => _BusyMaxYaruFocusBorderState();
+}
+
+class _BusyMaxYaruFocusBorderState extends State<BusyMaxYaruFocusBorder> {
+  late FocusNode _focusNode;
+
+  @override
+  void initState() {
+    super.initState();
+    _updateFocusNode();
+  }
+
+  @override
+  void didUpdateWidget(covariant BusyMaxYaruFocusBorder oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.focusNode != widget.focusNode) {
+      _focusNode.removeListener(_handleFocusChange);
+      if (oldWidget.focusNode == null) _focusNode.dispose();
+      _updateFocusNode();
+    }
+  }
+
+  @override
+  void dispose() {
+    _focusNode.removeListener(_handleFocusChange);
+    if (widget.focusNode == null) _focusNode.dispose();
+    super.dispose();
+  }
+
+  void _updateFocusNode() {
+    _focusNode = widget.focusNode ?? FocusNode();
+    _focusNode.addListener(_handleFocusChange);
+  }
+
+  void _handleFocusChange() {
+    if (mounted) setState(() {});
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final focusVisibility = _BusyMaxKeyboardFocusVisibility.instance
+      ..ensureRegistered();
+    return ValueListenableBuilder<bool>(
+      valueListenable: focusVisibility,
+      builder: (context, keyboardInput, child) => YaruFocusBorder.primary(
+        focused: true,
+        onFocusChange: (_) {},
+        borderColor: _focusNode.hasPrimaryFocus && keyboardInput
+            ? null
+            : Colors.transparent,
+        borderStrokeAlign: widget.borderStrokeAlign,
+        child: child!,
+      ),
+      child: widget.builder(context, _focusNode),
+    );
+  }
+}
+
 class BusyMaxSwitchRow extends StatelessWidget {
   const BusyMaxSwitchRow({
     super.key,
@@ -2487,20 +2568,34 @@ class BusyMaxSwitchRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return YaruSwitchListTile(
-      value: value,
-      onChanged: enabled ? onChanged : null,
-      secondary: leading,
-      title: Text(title),
-      subtitle: subtitle == null
-          ? null
-          : _busyMaxGroupedRowSubtitle(
-              context,
-              Text(subtitle!),
-              enabled: enabled,
-            ),
-      shape: const RoundedRectangleBorder(),
-      hoverColor: busyMaxRowHoverColor(context),
+    final effectiveOnChanged = enabled ? onChanged : null;
+    return BusyMaxYaruFocusBorder(
+      borderStrokeAlign: BorderSide.strokeAlignInside,
+      builder: (context, rowFocusNode) => YaruSwitchListTile(
+        value: value,
+        onChanged: effectiveOnChanged,
+        focusNode: rowFocusNode,
+        control: BusyMaxYaruFocusBorder(
+          builder: (context, controlFocusNode) => YaruSwitch(
+            value: value,
+            onChanged: effectiveOnChanged,
+            focusNode: controlFocusNode,
+            hasFocusBorder: false,
+          ),
+        ),
+        secondary: leading,
+        title: Text(title),
+        subtitle: subtitle == null
+            ? null
+            : _busyMaxGroupedRowSubtitle(
+                context,
+                Text(subtitle!),
+                enabled: enabled,
+              ),
+        shape: const RoundedRectangleBorder(),
+        hoverColor: busyMaxRowHoverColor(context),
+        hasFocusBorder: false,
+      ),
     );
   }
 }

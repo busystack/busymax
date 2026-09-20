@@ -1684,24 +1684,32 @@ class _CalendarSettingsRow extends StatelessWidget {
             ),
             _CalendarSettingsSwitchCell(
               message: l10n.showInSchedule,
-              child: YaruSwitch(
-                key: ValueKey('settings-calendar-schedule-${source.id}'),
-                value: source.selected && !source.hidden,
-                onChanged: source.hidden
-                    ? null
-                    : (selected) => onSelected(source, selected),
+              child: BusyMaxYaruFocusBorder(
+                builder: (context, focusNode) => YaruSwitch(
+                  key: ValueKey('settings-calendar-schedule-${source.id}'),
+                  value: source.selected && !source.hidden,
+                  focusNode: focusNode,
+                  hasFocusBorder: false,
+                  onChanged: source.hidden
+                      ? null
+                      : (selected) => onSelected(source, selected),
+                ),
               ),
             ),
             if (showsProviderVisibility)
               _CalendarSettingsSwitchCell(
                 message: l10n.visibility,
-                child: YaruSwitch(
-                  key: ValueKey('settings-calendar-provider-${source.id}'),
-                  value: !source.hidden,
-                  onChanged: canChangeProviderVisibility
-                      ? (visible) =>
-                            onProviderVisibilityChanged(source, visible)
-                      : null,
+                child: BusyMaxYaruFocusBorder(
+                  builder: (context, focusNode) => YaruSwitch(
+                    key: ValueKey('settings-calendar-provider-${source.id}'),
+                    value: !source.hidden,
+                    focusNode: focusNode,
+                    hasFocusBorder: false,
+                    onChanged: canChangeProviderVisibility
+                        ? (visible) =>
+                              onProviderVisibilityChanged(source, visible)
+                        : null,
+                  ),
                 ),
               ),
           ],

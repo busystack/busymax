@@ -498,11 +498,15 @@ class _AgendaRow extends StatelessWidget {
       leading: _AgendaItemMarker(item: item),
       trailing: task == null
           ? null
-          : YaruCheckbox(
-              value: task.completed,
-              onChanged: onTaskCompletionChanged == null
-                  ? null
-                  : (value) => onTaskCompletionChanged!(value ?? false),
+          : BusyMaxYaruFocusBorder(
+              builder: (context, focusNode) => YaruCheckbox(
+                value: task.completed,
+                focusNode: focusNode,
+                hasFocusBorder: false,
+                onChanged: onTaskCompletionChanged == null
+                    ? null
+                    : (value) => onTaskCompletionChanged!(value ?? false),
+              ),
             ),
       onActivated: onTap,
     );
@@ -612,11 +616,15 @@ class _AgendaSubtaskRow extends StatelessWidget {
               size: BusyMaxSizes.iconSm,
               color: colors.mutedForeground,
             ),
-            trailing: YaruCheckbox(
-              value: completed,
-              onChanged: onCompletionChanged == null
-                  ? null
-                  : (value) => onCompletionChanged!(value ?? false),
+            trailing: BusyMaxYaruFocusBorder(
+              builder: (context, focusNode) => YaruCheckbox(
+                value: completed,
+                focusNode: focusNode,
+                hasFocusBorder: false,
+                onChanged: onCompletionChanged == null
+                    ? null
+                    : (value) => onCompletionChanged!(value ?? false),
+              ),
             ),
             onActivated: onTap,
           ),

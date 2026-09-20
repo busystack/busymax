@@ -73,18 +73,33 @@ class _AccountRemovalDialogState extends State<_AccountRemovalDialog> {
         Text(l10n.removeAccountConfirmation),
         if (widget.canRevokeGoogleAuthorization) ...[
           const SizedBox(height: BusyMaxSpacing.lg),
-          YaruCheckboxListTile(
-            key: const Key('revoke-google-authorization'),
-            value: _revokeGoogleAuthorization,
-            onChanged: (value) {
-              setState(() => _revokeGoogleAuthorization = value ?? false);
-            },
-            title: Text(l10n.revokeGoogleAccess),
-            subtitle: Text(l10n.revokeGoogleAccessDescription),
-            shape: const RoundedRectangleBorder(),
+          BusyMaxYaruFocusBorder(
+            borderStrokeAlign: BorderSide.strokeAlignInside,
+            builder: (context, rowFocusNode) => YaruCheckboxListTile(
+              key: const Key('revoke-google-authorization'),
+              value: _revokeGoogleAuthorization,
+              onChanged: _onRevokeGoogleAuthorizationChanged,
+              focusNode: rowFocusNode,
+              control: BusyMaxYaruFocusBorder(
+                builder: (context, controlFocusNode) => YaruCheckbox(
+                  value: _revokeGoogleAuthorization,
+                  onChanged: _onRevokeGoogleAuthorizationChanged,
+                  focusNode: controlFocusNode,
+                  hasFocusBorder: false,
+                ),
+              ),
+              title: Text(l10n.revokeGoogleAccess),
+              subtitle: Text(l10n.revokeGoogleAccessDescription),
+              shape: const RoundedRectangleBorder(),
+              hasFocusBorder: false,
+            ),
           ),
         ],
       ],
     );
+  }
+
+  void _onRevokeGoogleAuthorizationChanged(bool? value) {
+    setState(() => _revokeGoogleAuthorization = value ?? false);
   }
 }

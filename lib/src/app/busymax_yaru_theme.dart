@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:yaru/theme.dart';
+import 'package:yaru/widgets.dart'
+    show YaruCheckboxThemeData, YaruRadioThemeData, YaruSwitchThemeData;
 
 import '../platform/gtk_font_service.dart';
 import 'busymax_design.dart';
@@ -206,6 +208,24 @@ class BusyMaxYaruTheme {
       constraints: BusyMaxTooltipStyle.constraints,
       waitDuration: BusyMaxMotion.tooltipWait,
     );
+    const transparentIndicator = WidgetStatePropertyAll<Color?>(
+      Colors.transparent,
+    );
+    final yaruRadioTheme =
+        base.extension<YaruRadioThemeData>()?.copyWith(
+          indicatorColor: transparentIndicator,
+        ) ??
+        const YaruRadioThemeData(indicatorColor: transparentIndicator);
+    final yaruCheckboxTheme =
+        base.extension<YaruCheckboxThemeData>()?.copyWith(
+          indicatorColor: transparentIndicator,
+        ) ??
+        const YaruCheckboxThemeData(indicatorColor: transparentIndicator);
+    final yaruSwitchTheme =
+        base.extension<YaruSwitchThemeData>()?.copyWith(
+          indicatorColor: transparentIndicator,
+        ) ??
+        const YaruSwitchThemeData(indicatorColor: transparentIndicator);
 
     return base.copyWith(
       brightness: brightness,
@@ -218,8 +238,15 @@ class BusyMaxYaruTheme {
       cardTheme: cardTheme,
       extensions: [
         for (final extension in base.extensions.values)
-          if (extension is! BusyMaxSurfaceColors) extension,
+          if (extension is! BusyMaxSurfaceColors &&
+              extension is! YaruRadioThemeData &&
+              extension is! YaruCheckboxThemeData &&
+              extension is! YaruSwitchThemeData)
+            extension,
         colors,
+        yaruRadioTheme,
+        yaruCheckboxTheme,
+        yaruSwitchTheme,
       ],
       dividerColor: colors.divider,
       appBarTheme: base.appBarTheme.copyWith(

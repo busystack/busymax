@@ -98,6 +98,9 @@ class _BusyMaxFeedbackDialogState extends State<BusyMaxFeedbackDialog> {
   @override
   Widget build(BuildContext context) {
     final l10n = context.l10n;
+    final technicalDetailsOnChanged = _submitting
+        ? null
+        : _onTechnicalDetailsChanged;
     final categoryInvalid =
         _validationAttempted && !FeedbackValidation.categoryIsValid(_category);
     final subjectInvalid =
@@ -213,20 +216,26 @@ class _BusyMaxFeedbackDialogState extends State<BusyMaxFeedbackDialog> {
               BusyMaxGroupedList(
                 filled: true,
                 children: [
-                  YaruCheckboxListTile(
-                    key: const Key('feedback-technical-details'),
-                    value: _includeTechnicalDetails,
-                    onChanged: _submitting
-                        ? null
-                        : (value) {
-                            setState(() {
-                              _includeTechnicalDetails = value ?? false;
-                              _draftChanged();
-                            });
-                          },
-                    title: Text(l10n.feedbackIncludeTechnicalDetails),
-                    subtitle: Text(l10n.feedbackTechnicalDetailsDisclosure),
-                    shape: const RoundedRectangleBorder(),
+                  BusyMaxYaruFocusBorder(
+                    borderStrokeAlign: BorderSide.strokeAlignInside,
+                    builder: (context, rowFocusNode) => YaruCheckboxListTile(
+                      key: const Key('feedback-technical-details'),
+                      value: _includeTechnicalDetails,
+                      onChanged: technicalDetailsOnChanged,
+                      focusNode: rowFocusNode,
+                      control: BusyMaxYaruFocusBorder(
+                        builder: (context, controlFocusNode) => YaruCheckbox(
+                          value: _includeTechnicalDetails,
+                          onChanged: technicalDetailsOnChanged,
+                          focusNode: controlFocusNode,
+                          hasFocusBorder: false,
+                        ),
+                      ),
+                      title: Text(l10n.feedbackIncludeTechnicalDetails),
+                      subtitle: Text(l10n.feedbackTechnicalDetailsDisclosure),
+                      shape: const RoundedRectangleBorder(),
+                      hasFocusBorder: false,
+                    ),
                   ),
                 ],
               ),
@@ -251,6 +260,13 @@ class _BusyMaxFeedbackDialogState extends State<BusyMaxFeedbackDialog> {
         ),
       ),
     );
+  }
+
+  void _onTechnicalDetailsChanged(bool? value) {
+    setState(() {
+      _includeTechnicalDetails = value ?? false;
+      _draftChanged();
+    });
   }
 
   Future<void> _cancel() async {

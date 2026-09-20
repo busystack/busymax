@@ -1015,13 +1015,20 @@ class _TaskDetailsEditorState extends State<TaskDetailsEditor> {
       trailing: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          YaruCheckbox(
-            value: subtask.completed,
-            onChanged: !canToggle
-                ? null
-                : (value) => unawaited(
-                    widget.onSubtaskCompletionChanged!(subtask, value ?? false),
-                  ),
+          BusyMaxYaruFocusBorder(
+            builder: (context, focusNode) => YaruCheckbox(
+              value: subtask.completed,
+              focusNode: focusNode,
+              hasFocusBorder: false,
+              onChanged: !canToggle
+                  ? null
+                  : (value) => unawaited(
+                      widget.onSubtaskCompletionChanged!(
+                        subtask,
+                        value ?? false,
+                      ),
+                    ),
+            ),
           ),
           if (task != null)
             Icon(BusyMaxGlyphs.chevronForwardFor(Directionality.of(context)))
