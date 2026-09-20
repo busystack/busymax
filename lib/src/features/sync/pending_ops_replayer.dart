@@ -644,6 +644,8 @@ class PendingOpsReplayer {
           newValue: item.id,
         );
       }
+      // Commit the server identity and creation acknowledgement together.
+      await _database.pendingOpsDao.deleteOp(op.id);
     });
   }
 

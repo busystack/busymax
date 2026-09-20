@@ -715,6 +715,119 @@ void main() {
     );
   }
 
+  test(
+    'checklist creation restart after identity persistence stays acknowledged',
+    () async {
+      final directory = await Directory.systemTemp.createTemp(
+        'busymax-checklist-create-ack-',
+      );
+      final databaseFile = File('${directory.path}/busymax.sqlite');
+      final previousDatabaseWarningSetting =
+          driftRuntimeOptions.dontWarnAboutMultipleDatabases;
+      driftRuntimeOptions.dontWarnAboutMultipleDatabases = true;
+      final commitInterruption = _CommitInterruption();
+      final interruptedDatabase = AppDatabase(
+        NativeDatabase(databaseFile).interceptWith(commitInterruption),
+      );
+      AppDatabase? restartedDatabase;
+      Future<int>? interruptedReplay;
+      addTearDown(() async {
+        commitInterruption.resume();
+        await interruptedReplay;
+        await restartedDatabase?.close();
+        await interruptedDatabase.close();
+        await directory.delete(recursive: true);
+        driftRuntimeOptions.dontWarnAboutMultipleDatabases =
+            previousDatabaseWarningSetting;
+      });
+
+      await _insertAccount(interruptedDatabase);
+      await interruptedDatabase.taskListsDao.upsertTaskList(
+        _taskList('list-1'),
+      );
+      await interruptedDatabase.tasksDao.upsertTask(
+        _task(
+          'list-1',
+          'task-1',
+          checklistItemsJson: jsonEncode([
+            {'id': 'local-step', 'displayName': 'Step', 'isChecked': false},
+          ]),
+        ),
+      );
+      await _enqueue(
+        interruptedDatabase,
+        id: 'create',
+        operation: 'create_task_checklist_item',
+        entityType: 'task_checklist_item',
+        taskListId: 'list-1',
+        taskId: 'task-1',
+        localTempId: 'local-step',
+        request: {
+          'checklistItemId': 'local-step',
+          'body': {'displayName': 'Step', 'isChecked': false},
+        },
+      );
+      await _enqueue(
+        interruptedDatabase,
+        id: 'patch',
+        operation: 'patch_task_checklist_item',
+        entityType: 'task_checklist_item',
+        taskListId: 'list-1',
+        taskId: 'task-1',
+        dependsOnOpId: 'create',
+        request: {
+          'checklistItemId': 'local-step',
+          'body': {'isChecked': true},
+        },
+      );
+
+      final interruptedClient = _ChecklistTaskRemoteClient();
+      commitInterruption.arm();
+      interruptedReplay = PendingOpsReplayer(
+        database: interruptedDatabase,
+        apiClient: interruptedClient,
+        accountId: 'account',
+        nowUtc: () => DateTime.utc(2026, 6, 4),
+      ).replayDueOps();
+      await commitInterruption.commitReached.future;
+
+      restartedDatabase = AppDatabase(NativeDatabase(databaseFile));
+      final restartedClient = _ChecklistTaskRemoteClient();
+      expect(
+        await PendingOpsReplayer(
+          database: restartedDatabase,
+          apiClient: restartedClient,
+          accountId: 'account',
+          nowUtc: () => DateTime.utc(2026, 6, 4, 1),
+        ).replayDueOps(),
+        1,
+      );
+
+      expect(
+        await restartedDatabase.pendingOpsDao.getOp('create'),
+        equals(null),
+      );
+      expect(restartedClient.checklistCalls, ['update:server-step:true']);
+      final task = (await restartedDatabase.tasksDao.listTasks(
+        'account',
+        'list-1',
+      )).single;
+      final item = decodeTaskChecklistItems(
+        task.microsoftChecklistItemsJson,
+      ).single;
+      expect(item.id, 'server-step');
+      expect(item.completed, isTrue);
+      expect(
+        await restartedDatabase.select(restartedDatabase.pendingOps).get(),
+        isEmpty,
+      );
+
+      commitInterruption.resume();
+      expect(await interruptedReplay, 1);
+      expect(interruptedClient.checklistCalls, ['create:Step']);
+    },
+  );
+
   test('unknown task creation outcome is not submitted again', () async {
     await database.tasksDao.upsertTask(
       _task('list-1', 'local-task-1', title: 'Draft'),
@@ -3890,6 +4003,7 @@ Future<void> _enqueue(
   String? taskListId,
   String? taskId,
   String? localTempId,
+  String? dependsOnOpId,
   String? baselineUpdatedUtc,
   String? baselineRawJson,
 }) {
@@ -3903,6 +4017,7 @@ Future<void> _enqueue(
       taskListId: Value(taskListId),
       taskId: Value(taskId),
       localTempId: Value(localTempId),
+      dependsOnOpId: Value(dependsOnOpId),
       baselineUpdatedUtc: Value(baselineUpdatedUtc),
       baselineRawJson: Value(baselineRawJson),
       requestJson: jsonEncode(request),
