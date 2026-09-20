@@ -224,6 +224,55 @@ class PendingOpResolutionService {
       );
     }
 
+    final operations = await (_database.select(
+      _database.pendingOps,
+    )..where((row) => row.accountId.equals(_accountId))).get();
+    final discardedIds = _taskListCreationDiscardedOperationIds(
+      operations,
+      rootOperationId: snapshot.id,
+      temporaryTaskListId: temporaryTaskListId,
+    );
+    final locallyCreatedTaskIds = {
+      for (final operation in operations)
+        if (discardedIds.contains(operation.id) &&
+            operation.operation == 'create_task')
+          operation.localTempId ?? operation.taskId,
+    }..remove(null);
+    final movedServerTasks = <String, _MovedTaskRestoration>{};
+    for (final operation in operations) {
+      final taskId = operation.taskId;
+      if (!discardedIds.contains(operation.id) ||
+          operation.operation != 'move_task' ||
+          taskId == null ||
+          locallyCreatedTaskIds.contains(taskId) ||
+          operation.taskListId == temporaryTaskListId ||
+          _destinationTaskListId(operation) != temporaryTaskListId) {
+        continue;
+      }
+      TaskDto? serverTask;
+      try {
+        serverTask = await _requiredTaskClient.getTask(
+          taskListId: operation.taskListId!,
+          taskId: taskId,
+        );
+      } on TaskRemoteError catch (error) {
+        if (error.statusCode != 404) rethrow;
+      }
+      movedServerTasks[taskId] = _MovedTaskRestoration(
+        sourceTaskListId: operation.taskListId!,
+        serverTask: serverTask,
+        discardedDestinationTaskListIds: {
+          temporaryTaskListId,
+          for (final discardedOperation in operations)
+            if (discardedIds.contains(discardedOperation.id) &&
+                discardedOperation.operation == 'move_task' &&
+                discardedOperation.taskId == taskId &&
+                _destinationTaskListId(discardedOperation) != null)
+              _destinationTaskListId(discardedOperation)!,
+        },
+      );
+    }
+
     var discarded = false;
     await _database.transaction(() async {
       final current = await _database.pendingOpsDao.getOp(snapshot.id);
@@ -234,46 +283,54 @@ class PendingOpResolutionService {
         throw StateError('The task-list creation recovery operation changed.');
       }
 
-      final operations = await (_database.select(
+      final currentOperations = await (_database.select(
         _database.pendingOps,
       )..where((row) => row.accountId.equals(_accountId))).get();
-      final discardedIds = <String>{current.id};
-      var expanded = true;
-      while (expanded) {
-        expanded = false;
-        for (final operation in operations) {
-          if (discardedIds.contains(operation.id)) continue;
-          final targetsDiscardedTaskList =
-              operation.taskListId == temporaryTaskListId ||
-              operation.localTempId == temporaryTaskListId ||
-              (operation.operation == 'move_task' &&
-                  _destinationTaskListId(operation) == temporaryTaskListId);
-          if (!targetsDiscardedTaskList &&
-              !discardedIds.contains(operation.dependsOnOpId)) {
-            continue;
-          }
-          discardedIds.add(operation.id);
-          expanded = true;
-        }
+      final currentDiscardedIds = _taskListCreationDiscardedOperationIds(
+        currentOperations,
+        rootOperationId: current.id,
+        temporaryTaskListId: temporaryTaskListId,
+      );
+      if (discardedIds.length != currentDiscardedIds.length ||
+          !discardedIds.containsAll(currentDiscardedIds)) {
+        throw StateError('The task-list creation recovery operation changed.');
       }
 
-      final affectedTaskIds = {
-        for (final operation in operations)
-          if (discardedIds.contains(operation.id) &&
-              (operation.entityType == 'task' ||
-                  operation.entityType == 'task_checklist_item'))
-            operation.taskId,
-      }..remove(null);
       await (_database.delete(
         _database.pendingOps,
-      )..where((row) => row.id.isIn(discardedIds))).go();
-      if (affectedTaskIds.isNotEmpty) {
+      )..where((row) => row.id.isIn(currentDiscardedIds))).go();
+      if (locallyCreatedTaskIds.isNotEmpty) {
         await (_database.delete(_database.tasks)..where(
               (row) =>
                   row.accountId.equals(_accountId) &
-                  row.id.isIn(affectedTaskIds.cast<String>()),
+                  row.id.isIn(locallyCreatedTaskIds.cast<String>()),
             ))
             .go();
+      }
+      for (final MapEntry(key: taskId, value: restoration)
+          in movedServerTasks.entries) {
+        final taskListIdsToRemove = {
+          ...restoration.discardedDestinationTaskListIds,
+          if (restoration.serverTask == null) restoration.sourceTaskListId,
+        };
+        await (_database.delete(_database.tasks)..where(
+              (row) =>
+                  row.accountId.equals(_accountId) &
+                  row.id.equals(taskId) &
+                  row.taskListId.isIn(taskListIdsToRemove),
+            ))
+            .go();
+        final serverTask = restoration.serverTask;
+        if (serverTask != null) {
+          await _database.tasksDao.upsertTask(
+            taskFromDto(
+              _accountId,
+              restoration.sourceTaskListId,
+              serverTask,
+              _now(),
+            ),
+          );
+        }
       }
       await _database.taskListsDao.deleteTaskList(
         _accountId,
@@ -282,6 +339,33 @@ class PendingOpResolutionService {
       discarded = true;
     });
     return discarded;
+  }
+
+  Set<String> _taskListCreationDiscardedOperationIds(
+    List<PendingOp> operations, {
+    required String rootOperationId,
+    required String temporaryTaskListId,
+  }) {
+    final discardedIds = <String>{rootOperationId};
+    var expanded = true;
+    while (expanded) {
+      expanded = false;
+      for (final operation in operations) {
+        if (discardedIds.contains(operation.id)) continue;
+        final targetsDiscardedTaskList =
+            operation.taskListId == temporaryTaskListId ||
+            operation.localTempId == temporaryTaskListId ||
+            (operation.operation == 'move_task' &&
+                _destinationTaskListId(operation) == temporaryTaskListId);
+        if (!targetsDiscardedTaskList &&
+            !discardedIds.contains(operation.dependsOnOpId)) {
+          continue;
+        }
+        discardedIds.add(operation.id);
+        expanded = true;
+      }
+    }
+    return discardedIds;
   }
 
   Future<Set<String>> _dependentTaskOperationIds(String rootId) async {
@@ -655,4 +739,16 @@ class PendingOpResolutionService {
   }
 
   String _now() => _nowUtc().toIso8601String();
+}
+
+class _MovedTaskRestoration {
+  const _MovedTaskRestoration({
+    required this.sourceTaskListId,
+    required this.serverTask,
+    required this.discardedDestinationTaskListIds,
+  });
+
+  final String sourceTaskListId;
+  final TaskDto? serverTask;
+  final Set<String> discardedDestinationTaskListIds;
 }

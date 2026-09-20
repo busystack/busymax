@@ -822,6 +822,69 @@ void main() {
   );
 
   test(
+    'discard uncertain task-list create restores an old moved server task',
+    () async {
+      const temporaryTaskListId = 'local-tasklist-1';
+      apiClient.remoteTask = TaskDto.fromJson(const {
+        'id': 'existing-task',
+        'title': 'Existing remote task',
+        'updated': '2025-01-01T00:00:00.000Z',
+      });
+      await database.taskListsDao.upsertTaskList(
+        _localTaskList(
+          temporaryTaskListId,
+          title: 'Offline list',
+          localDirty: true,
+        ),
+      );
+      await database.tasksDao.upsertTask(
+        _localTask(
+          'existing-task',
+          taskListId: temporaryTaskListId,
+          localDirty: true,
+          pendingMove: true,
+        ),
+      );
+      await _enqueueBlockedOp(
+        database,
+        id: 'create-list',
+        entityType: 'task_list',
+        operation: 'create_task_list',
+        taskListId: temporaryTaskListId,
+        localTempId: temporaryTaskListId,
+        state: 'recovery_required',
+        request: const {'title': 'Offline list'},
+      );
+      await _enqueueBlockedOp(
+        database,
+        id: 'move-existing-task',
+        operation: 'move_task',
+        taskListId: 'list-1',
+        taskId: 'existing-task',
+        request: const {'destinationTasklist': temporaryTaskListId},
+      );
+
+      await service.discard('create-list');
+
+      final sourceTasks = await database.tasksDao.listTasks(
+        'account',
+        'list-1',
+      );
+      expect(sourceTasks, hasLength(1));
+      expect(sourceTasks.single.title, 'Existing remote task');
+      expect(sourceTasks.single.pendingMove, isFalse);
+      expect(sourceTasks.single.localDirty, isFalse);
+      expect(
+        await database.tasksDao.listTasks('account', temporaryTaskListId),
+        isEmpty,
+      );
+      expect(await database.select(database.pendingOps).get(), isEmpty);
+      expect(apiClient.getTaskIds, ['existing-task']);
+      expect(taskSyncCalls, 1);
+    },
+  );
+
+  test(
     'discard uncertain checklist create removes its chain and merges all pages',
     () async {
       final localItems = [
