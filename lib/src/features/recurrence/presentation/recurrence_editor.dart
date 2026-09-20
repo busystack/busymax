@@ -494,7 +494,6 @@ class _RecurrenceEditorDialogState extends State<RecurrenceEditorDialog> {
                 ),
             ],
           ),
-        const SizedBox(height: BusyMaxSpacing.lg),
       ],
     );
   }

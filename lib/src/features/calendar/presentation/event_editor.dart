@@ -684,7 +684,6 @@ class _EventEditorState extends ConsumerState<EventEditor> {
                   ),
                 ],
               ),
-            const SizedBox(height: BusyMaxSpacing.lg),
           ],
         ),
       ),

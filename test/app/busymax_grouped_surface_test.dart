@@ -2162,6 +2162,40 @@ void main() {
     expect(tester.getTopLeft(find.text('Edit event')).dy, titleTop);
   });
 
+  testWidgets('modal editor body keeps page padding below its content', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      _testApp(
+        BusyMaxModalEditorScaffold(
+          title: 'Recurring event scope',
+          cancelLabel: 'Cancel',
+          saveLabel: 'Save',
+          onCancel: () {},
+          onSave: null,
+          children: const [Text('This event')],
+        ),
+      ),
+    );
+
+    final clamp = tester.widget<BusyMaxClamp>(
+      find.descendant(
+        of: find.byType(BusyMaxModalEditorScaffold),
+        matching: find.byType(BusyMaxClamp),
+      ),
+    );
+
+    expect(
+      clamp.padding,
+      const EdgeInsets.fromLTRB(
+        BusyMaxSpacing.lg,
+        BusyMaxSpacing.headerInset,
+        BusyMaxSpacing.lg,
+        BusyMaxSpacing.lg,
+      ),
+    );
+  });
+
   testWidgets('dialog actions wrap at narrow localized text widths', (
     tester,
   ) async {

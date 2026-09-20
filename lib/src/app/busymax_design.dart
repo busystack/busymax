@@ -3765,7 +3765,7 @@ class BusyMaxEditorScrollBody extends StatelessWidget {
           BusyMaxSpacing.lg,
           BusyMaxSpacing.headerInset,
           BusyMaxSpacing.lg,
-          0,
+          BusyMaxSpacing.lg,
         ),
         controller: controller,
         child: child,

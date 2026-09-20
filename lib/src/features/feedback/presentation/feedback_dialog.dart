@@ -254,7 +254,6 @@ class _BusyMaxFeedbackDialogState extends State<BusyMaxFeedbackDialog> {
                   ),
                 ),
               ],
-              const SizedBox(height: BusyMaxSpacing.lg),
             ],
           ),
         ),

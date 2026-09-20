@@ -454,7 +454,6 @@ class _TaskDetailsEditorState extends State<TaskDetailsEditor> {
                         ],
                       ),
                     ],
-                    const SizedBox(height: BusyMaxSpacing.lg),
                   ],
                 ),
               ),
