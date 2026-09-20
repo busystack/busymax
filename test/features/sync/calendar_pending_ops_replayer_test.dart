@@ -415,6 +415,98 @@ void main() {
     },
   );
 
+  test(
+    'creation acknowledgement versions every queued edit descendant',
+    () async {
+      final repository = CalendarRepository(
+        database: database,
+        now: () => DateTime.utc(2026, 6, 8),
+      );
+      final createId = await repository.createLocalEvent(
+        EventEditorDraft.newEvent(
+          accountId: 'account',
+          sourceId: 'account|google|cal-1',
+          providerCalendarId: 'cal-1',
+          start: DateTime.utc(2026, 6, 8, 9),
+          end: DateTime.utc(2026, 6, 8, 10),
+        ).copyWith(title: 'Draft'),
+      );
+      var local = await database.select(database.calendarEvents).getSingle();
+      var detail = (await repository.loadEventDetail(local.id))!;
+      await repository.updateLocalEvent(
+        EventEditorDraft.fromEventDetail(detail).copyWith(title: 'Revised'),
+      );
+      detail = (await repository.loadEventDetail(local.id))!;
+      await repository.updateLocalEvent(
+        EventEditorDraft.fromEventDetail(
+          detail,
+        ).copyWith(location: 'Local room'),
+      );
+      final queued = await database.select(database.pendingOps).get();
+      final create = queued.singleWhere(
+        (operation) => operation.operationType == 'event.create',
+      );
+      final edits = queued
+          .where((operation) => operation.operationType == 'event.patch')
+          .toList();
+      expect(edits, hasLength(2));
+      expect(edits.first.dependsOnOpId, create.id);
+      expect(edits.last.dependsOnOpId, edits.first.id);
+
+      client.createEventOverride = (calendarId, mutation) => client._event(
+        mutation.providerEventId!,
+        title: mutation.title!,
+        providerCalendarId: calendarId,
+        etagOrChangeKey: '"created"',
+      );
+      client
+        ..persistEventUpdates = true
+        ..transientUpdateFailureCall = 2;
+
+      expect(
+        await CalendarPendingOpsReplayer(
+          database: database,
+          client: client,
+          accountId: 'account',
+          random: Random(0),
+          nowUtc: () => DateTime.utc(2026, 6, 8),
+        ).replayDueOps(),
+        2,
+      );
+      final pending = await database.select(database.pendingOps).getSingle();
+      expect(pending.operationType, 'event.patch');
+      expect(pending.baselineUpdatedUtc, isNotNull);
+      expect(
+        jsonDecode(pending.baselineRawJson!)[calendarEventSemanticBaselineKey],
+        containsPair('title', 'Revised'),
+      );
+      local = await database.select(database.calendarEvents).getSingle();
+      expect(local.title, 'Revised');
+      expect(local.location, 'Local room');
+
+      final providerEventId = googleCalendarCreateEventId(createId);
+      client._createdEventsByIdentity[providerEventId] = client._event(
+        providerEventId,
+        title: 'Revised',
+        location: 'Remote room',
+        updatedAtServer: '2026-06-08T00:10:00.000Z',
+        etagOrChangeKey: '"remote"',
+      );
+      expect(
+        await CalendarPendingOpsReplayer(
+          database: database,
+          client: client,
+          accountId: 'account',
+          nowUtc: () => DateTime.utc(2026, 6, 9),
+        ).replayDueOps(),
+        0,
+      );
+      final blocked = await database.select(database.pendingOps).getSingle();
+      expect(blocked.lastErrorCode, 'conflict');
+      expect(client.updatedMutations, hasLength(2));
+    },
+  );
+
   test('Microsoft create retry reuses its transaction ID', () async {
     final repository = CalendarRepository(database: database);
     await repository.upsertSource(
@@ -4982,6 +5074,8 @@ class _FakeCalendarClient
   final Map<String, CalendarEventDto> _createdEventsByIdentity = {};
   int _createdCount = 0;
   int transientUpdateFailures = 0;
+  int? transientUpdateFailureCall;
+  int _updateEventCallCount = 0;
   CalendarEventDto? syncEvent;
   CalendarEventDto? remoteEvent;
   final Map<String, CalendarEventDto> remoteEventsById = {};
@@ -5081,19 +5175,30 @@ class _FakeCalendarClient
         CalendarGuestUpdatePolicy.send,
     String? ifMatch,
   }) async {
+    _updateEventCallCount += 1;
     calls.add('updateEvent:$calendarId:$eventId:${mutation.title}');
     updatedMutations.add(mutation);
     guestUpdatePolicies.add(guestUpdatePolicy);
     ifMatches.add(ifMatch);
-    if (transientUpdateFailures > 0) {
-      transientUpdateFailures -= 1;
+    if (transientUpdateFailures > 0 ||
+        transientUpdateFailureCall == _updateEventCallCount) {
+      if (transientUpdateFailures > 0) transientUpdateFailures -= 1;
       throw const GoogleCalendarApiError(
         statusCode: 500,
         code: 'backendError',
         message: 'Temporary provider failure',
       );
     }
-    final current = remoteEventsById[eventId] ?? remoteEvent;
+    String? createdIdentity;
+    CalendarEventDto? createdEvent;
+    for (final entry in _createdEventsByIdentity.entries) {
+      if (entry.value.providerEventId == eventId) {
+        createdIdentity = entry.key;
+        createdEvent = entry.value;
+        break;
+      }
+    }
+    final current = createdEvent ?? remoteEventsById[eventId] ?? remoteEvent;
     final event = _event(
       eventId,
       title: persistEventUpdates
@@ -5109,6 +5214,7 @@ class _FakeCalendarClient
           ? mutation.reminders ?? current?.remindersJson
           : mutation.reminders,
       organizerJson: persistEventUpdates ? current?.organizerJson : null,
+      etagOrChangeKey: current?.etagOrChangeKey,
       updatedAtServer: persistEventUpdates
           ? DateTime.utc(
               2026,
@@ -5125,7 +5231,9 @@ class _FakeCalendarClient
       endDateTime: mutation.endDateTime ?? current?.endDateTime,
     );
     if (persistEventUpdates) {
-      if (remoteEventsById.containsKey(eventId)) {
+      if (createdIdentity != null) {
+        _createdEventsByIdentity[createdIdentity] = event;
+      } else if (remoteEventsById.containsKey(eventId)) {
         remoteEventsById[eventId] = event;
       } else {
         remoteEvent = event;

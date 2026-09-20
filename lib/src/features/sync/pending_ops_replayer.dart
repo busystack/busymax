@@ -643,7 +643,13 @@ class PendingOpsReplayer {
             );
       if (!pendingDelete) items.add(item);
     } else {
-      items[index] = item;
+      // Retain the temporary identity long enough for a local action that
+      // started before this acknowledgement to resolve the new server item.
+      var replacement = item.withLocalIdentityAlias(oldItemId);
+      for (final alias in items[index].localIdentityAliases) {
+        replacement = replacement.withLocalIdentityAlias(alias);
+      }
+      items[index] = replacement;
     }
     await (_database.update(_database.tasks)..where(
           (row) =>

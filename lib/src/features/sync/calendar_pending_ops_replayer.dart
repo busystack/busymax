@@ -1095,21 +1095,16 @@ class CalendarPendingOpsReplayer {
     );
 
     await _database.transaction(() async {
-      final dependents =
-          await (_database.select(_database.pendingOps)..where(
-                (row) =>
-                    row.accountId.equals(_accountId) &
-                    row.dependsOnOpId.equals(op.id) &
-                    row.entityType.equals('event') &
-                    (tempEventId == null
-                        ? const Constant(false)
-                        : row.eventId.equals(tempEventId)),
-              ))
-              .get();
-      for (final dependent in dependents) {
+      final descendants = await _sameEventMutationDescendants(
+        creation: op,
+        temporaryEventId: tempEventId,
+        temporaryProviderEventId: tempProviderEventId,
+        serverEvent: serverEvent,
+      );
+      for (final descendant in descendants) {
         await (_database.update(
           _database.pendingOps,
-        )..where((row) => row.id.equals(dependent.id))).write(
+        )..where((row) => row.id.equals(descendant.id))).write(
           PendingOpsCompanion(
             baselineUpdatedUtc: Value(serverEvent.updatedAtServer),
             baselineRawJson: Value(jsonEncode(serverEvent.rawJson)),
@@ -1160,7 +1155,7 @@ class CalendarPendingOpsReplayer {
               old.providerRecurringEventId == null) {
             await resolutions.reconcileGoogleSeriesMaster(replacement);
           }
-          if (dependents.isNotEmpty) {
+          if (descendants.isNotEmpty) {
             await (_database.update(_database.calendarEvents)
                   ..where((row) => row.id.equals(serverEventId)))
                 .write(_pendingLocalEventProjection(old));
@@ -1193,6 +1188,48 @@ class CalendarPendingOpsReplayer {
         );
       }
     });
+  }
+
+  Future<List<PendingOp>> _sameEventMutationDescendants({
+    required PendingOp creation,
+    required String? temporaryEventId,
+    required String? temporaryProviderEventId,
+    required CalendarEventDto serverEvent,
+  }) async {
+    if (temporaryEventId == null) return const [];
+    final operations = await (_database.select(
+      _database.pendingOps,
+    )..where((row) => row.accountId.equals(_accountId))).get();
+    final descendantIds = <String>{creation.id};
+    var expanded = true;
+    while (expanded) {
+      expanded = false;
+      for (final operation in operations) {
+        if (descendantIds.contains(operation.id) ||
+            !descendantIds.contains(operation.dependsOnOpId)) {
+          continue;
+        }
+        descendantIds.add(operation.id);
+        expanded = true;
+      }
+    }
+    return operations
+        .where((operation) {
+          if (operation.id == creation.id ||
+              !descendantIds.contains(operation.id) ||
+              operation.entityType != 'event' ||
+              operation.eventId != temporaryEventId) {
+            return false;
+          }
+          final target = _request(
+            operation,
+          )[calendarEventTargetProviderIdKey]?.toString().trim();
+          return target == null ||
+              target.isEmpty ||
+              target == temporaryProviderEventId ||
+              target == serverEvent.providerEventId;
+        })
+        .toList(growable: false);
   }
 
   CalendarEventsCompanion _pendingLocalEventProjection(CalendarEvent local) {

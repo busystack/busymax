@@ -2800,6 +2800,97 @@ void main() {
     },
   );
 
+  test(
+    'checklist deletion resolves a creation acknowledged before its transaction',
+    () async {
+      final checklistClient = _ChecklistTaskRemoteClient();
+      final deleteReached = Completer<void>();
+      final releaseDelete = Completer<void>();
+      final repository = TasksRepository(
+        database: database,
+        accountId: 'account',
+        apiClient: checklistClient,
+        nowUtc: () => DateTime.utc(2026, 6, 4),
+        beforeChecklistDeleteTransaction: () async {
+          deleteReached.complete();
+          await releaseDelete.future;
+        },
+      );
+      await database.tasksDao.upsertTask(_task('list-1', 'task-1'));
+      await repository.createSubtask(
+        taskListId: 'list-1',
+        parentTaskId: 'task-1',
+        title: 'Step',
+      );
+      final localItem = decodeTaskChecklistItems(
+        (await database.tasksDao.listTasks(
+          'account',
+          'list-1',
+        )).single.microsoftChecklistItemsJson,
+      ).single;
+
+      final deletion = repository.deleteChecklistSubtask(
+        taskListId: 'list-1',
+        parentTaskId: 'task-1',
+        checklistItemId: localItem.id,
+      );
+      await deleteReached.future;
+      expect(
+        await PendingOpsReplayer(
+          database: database,
+          apiClient: checklistClient,
+          accountId: 'account',
+          nowUtc: () => DateTime.utc(2026, 6, 4, 1),
+        ).replayDueOps(),
+        1,
+      );
+      expect(await database.select(database.pendingOps).get(), isEmpty);
+      expect(
+        decodeTaskChecklistItems(
+          (await database.tasksDao.listTasks(
+            'account',
+            'list-1',
+          )).single.microsoftChecklistItemsJson,
+        ).single.id,
+        'server-step',
+      );
+
+      releaseDelete.complete();
+      await deletion;
+      final pendingDelete = await database
+          .select(database.pendingOps)
+          .getSingle();
+      expect(pendingDelete.operation, 'delete_task_checklist_item');
+      expect(
+        jsonDecode(pendingDelete.requestJson)['checklistItemId'],
+        'server-step',
+      );
+      expect(
+        decodeTaskChecklistItems(
+          (await database.tasksDao.listTasks(
+            'account',
+            'list-1',
+          )).single.microsoftChecklistItemsJson,
+        ),
+        isEmpty,
+      );
+      expect(
+        await PendingOpsReplayer(
+          database: database,
+          apiClient: checklistClient,
+          accountId: 'account',
+          nowUtc: () => DateTime.utc(2026, 6, 4, 2),
+        ).replayDueOps(),
+        1,
+      );
+      expect(checklistClient.checklistCalls, [
+        'create:Step',
+        'delete:server-step',
+      ]);
+      expect(await database.select(database.pendingOps).get(), isEmpty);
+    },
+  );
+
   test('unknown checklist creation outcome is not submitted again', () async {
     final checklistClient = _ChecklistTaskRemoteClient()
       ..createChecklistItemError = StateError('response was lost');

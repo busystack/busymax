@@ -676,34 +676,52 @@ class TasksRepository {
     final items = List<TaskChecklistItemEntity>.of(
       decodeTaskChecklistItems(task.microsoftChecklistItemsJson),
     );
-    final index = items.indexWhere((item) => item.id == checklistItemId);
+    final index = items.indexWhere(
+      (item) => item.matchesIdentity(checklistItemId),
+    );
     if (index < 0) {
       throw StateError('The checklist subtask is unavailable.');
     }
     final now = _now();
-    final raw = items[index].toJson();
-    if (normalizedTitle != null) raw['displayName'] = normalizedTitle;
-    if (completed != null) {
-      raw['isChecked'] = completed;
-      if (completed) {
-        raw['checkedDateTime'] = now;
-      } else {
-        raw.remove('checkedDateTime');
-      }
-    }
-    items[index] = TaskChecklistItemEntity.fromJson(raw);
     final body = <String, Object?>{
       if (normalizedTitle != null) 'displayName': normalizedTitle,
       if (completed != null) 'isChecked': completed,
     };
     await _database.transaction(() async {
-      await _writeChecklistProjection(taskListId, parentTaskId, items, now);
+      final currentTask = await _requiredTask(taskListId, parentTaskId);
+      final currentItems = List<TaskChecklistItemEntity>.of(
+        decodeTaskChecklistItems(currentTask.microsoftChecklistItemsJson),
+      );
+      final currentIndex = currentItems.indexWhere(
+        (item) => item.matchesIdentity(checklistItemId),
+      );
+      if (currentIndex < 0) {
+        throw StateError('The checklist subtask is unavailable.');
+      }
+      final currentItemId = currentItems[currentIndex].id;
+      final raw = currentItems[currentIndex].toJson();
+      if (normalizedTitle != null) raw['displayName'] = normalizedTitle;
+      if (completed != null) {
+        raw['isChecked'] = completed;
+        if (completed) {
+          raw['checkedDateTime'] = now;
+        } else {
+          raw.remove('checkedDateTime');
+        }
+      }
+      currentItems[currentIndex] = TaskChecklistItemEntity.fromJson(raw);
+      await _writeChecklistProjection(
+        taskListId,
+        parentTaskId,
+        currentItems,
+        now,
+      );
       await _enqueueChecklistOperation(
         operation: 'patch_task_checklist_item',
         taskListId: taskListId,
         parentTaskId: parentTaskId,
-        checklistItemId: checklistItemId,
-        request: {'checklistItemId': checklistItemId, 'body': body},
+        checklistItemId: currentItemId,
+        request: {'checklistItemId': currentItemId, 'body': body},
         createdAtUtc: now,
       );
     });
@@ -726,14 +744,25 @@ class TasksRepository {
     final now = _now();
     await _beforeChecklistDeleteTransaction?.call();
     await _database.transaction(() async {
+      final currentTask = await _requiredTask(taskListId, parentTaskId);
+      final currentItems = decodeTaskChecklistItems(
+        currentTask.microsoftChecklistItemsJson,
+      );
+      final currentItem = currentItems.firstWhereOrNull(
+        (item) => item.matchesIdentity(checklistItemId),
+      );
+      if (currentItem == null) {
+        throw StateError('The checklist subtask is unavailable.');
+      }
+      final currentItemId = currentItem.id;
       await _writeChecklistProjection(taskListId, parentTaskId, [
-        for (final item in items)
-          if (item.id != checklistItemId) item,
+        for (final item in currentItems)
+          if (item.id != currentItemId) item,
       ], now);
       final pendingCreate = await _pendingChecklistCreate(
         taskListId,
         parentTaskId,
-        checklistItemId,
+        currentItemId,
       );
       var cancelled = false;
       if (pendingCreate != null &&
@@ -742,7 +771,7 @@ class TasksRepository {
         cancelled = await _deleteChecklistOperationChain(
           create: pendingCreate,
           parentTaskId: parentTaskId,
-          checklistItemId: checklistItemId,
+          checklistItemId: currentItemId,
         );
       }
       if (!cancelled) {
@@ -750,8 +779,8 @@ class TasksRepository {
           operation: 'delete_task_checklist_item',
           taskListId: taskListId,
           parentTaskId: parentTaskId,
-          checklistItemId: checklistItemId,
-          request: {'checklistItemId': checklistItemId},
+          checklistItemId: currentItemId,
+          request: {'checklistItemId': currentItemId},
           createdAtUtc: now,
         );
       }
@@ -2831,10 +2860,16 @@ List<TaskChecklistItemEntity> mergeTaskChecklistProjection({
   required Iterable<TaskChecklistItemEntity> localItems,
   required Iterable<PendingOp> pendingOperations,
 }) {
-  final items = <String, TaskChecklistItemEntity>{
-    for (final item in serverItems.map(taskChecklistItemFromDto)) item.id: item,
-  };
   final localById = {for (final item in localItems) item.id: item};
+  final items = <String, TaskChecklistItemEntity>{};
+  for (final serverItem in serverItems.map(taskChecklistItemFromDto)) {
+    var merged = serverItem;
+    for (final alias
+        in localById[serverItem.id]?.localIdentityAliases ?? const <String>{}) {
+      merged = merged.withLocalIdentityAlias(alias);
+    }
+    items[serverItem.id] = merged;
+  }
   for (final operation in pendingOperations) {
     final itemId = _checklistItemIdFromOperation(operation);
     if (itemId == null) continue;
