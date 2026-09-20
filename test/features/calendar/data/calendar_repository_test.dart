@@ -122,6 +122,57 @@ void main() {
   );
 
   test(
+    'regular event with stale recurrence metadata moves without a scope prompt',
+    () async {
+      await _seedScheduledEvent(repository, database);
+      await database
+          .update(database.calendarEvents)
+          .write(
+            const CalendarEventsCompanion(
+              providerRecurringEventId: Value('stale-series-id'),
+              providerOriginalStartKey: Value('2026-06-08T09:00:00.000Z'),
+              rawJson: Value('{"id":"regular-event"}'),
+            ),
+          );
+
+      final item = (await ScheduleRepository(database).listItems(
+        range: ScheduleRange.day(DateTime(2026, 6, 8)),
+      )).whereType<CalendarScheduleItem>().single;
+      expect(item.providerRecurringEventId, equals(null));
+
+      var scopeRequests = 0;
+      final result =
+          await ScheduleReschedulingCoordinator(
+            repository: repository,
+            chooseScope: (_, _) async {
+              scopeRequests++;
+              return RecurringEventMutationScope.singleOccurrence;
+            },
+            chooseGuestUpdates: (_) async => throw StateError('No guests'),
+            requestSync: (_) async {},
+          ).commit(
+            ScheduleRescheduleRequest(
+              item: item,
+              interval: ScheduleInterval(
+                item.start!.add(const Duration(minutes: 15)),
+                item.end!.add(const Duration(minutes: 15)),
+              ),
+            ),
+          );
+
+      expect(result, ScheduleRescheduleResult.saved);
+      expect(scopeRequests, 0);
+      final request =
+          jsonDecode(
+                (await database.select(database.pendingOps).getSingle())
+                    .requestJson,
+              )
+              as Map;
+      expect(request.containsKey(calendarEventRecurringScopeKey), isFalse);
+    },
+  );
+
+  test(
     'Tokyo series loads through ScheduleRepository and reschedules across the host DST gap',
     () async {
       final hostZone = ProcessTimeZone();

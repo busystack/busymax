@@ -2061,7 +2061,7 @@ class CalendarRepository {
       return true;
     }
     final provider = BusyProviderCodec.requireStorageValue(source.provider);
-    final recurringOccurrence = existing.providerRecurringEventId != null;
+    final recurringOccurrence = _eventRequiresRecurringScope(existing);
     final recurringScope = draft.recurringMutationScope;
     if (recurringOccurrence && recurringScope == null) {
       throw UnsupportedError('A recurring-event editing scope is required.');
@@ -2100,8 +2100,9 @@ class CalendarRepository {
       _localTimeZone,
     );
     final seriesMutation =
-        recurringScope == RecurringEventMutationScope.entireSeries ||
-        recurringScope == RecurringEventMutationScope.thisAndFuture;
+        recurringOccurrence &&
+        (recurringScope == RecurringEventMutationScope.entireSeries ||
+            recurringScope == RecurringEventMutationScope.thisAndFuture);
     final request = _eventDeltaRequest(
       draft,
       editBaseline,
@@ -2246,7 +2247,7 @@ class CalendarRepository {
     final destinationProvider = BusyProviderCodec.requireStorageValue(
       destinationSource.provider,
     );
-    final recurring = existing.providerRecurringEventId != null;
+    final recurring = _eventRequiresRecurringScope(existing);
     final scope = draft.recurringMutationScope;
     if (recurring && scope == null) {
       throw UnsupportedError('A recurring-event movement scope is required.');
@@ -2332,7 +2333,7 @@ class CalendarRepository {
     required EventEditorDraft draft,
     required CalendarGuestUpdatePolicy guestUpdatePolicy,
   }) async {
-    final recurring = existing.providerRecurringEventId != null;
+    final recurring = _eventRequiresRecurringScope(existing);
     final scope = draft.recurringMutationScope;
     final provider = BusyProvider.google;
     final startTimeZone = _effectiveStartTimeZone(
@@ -2510,7 +2511,7 @@ class CalendarRepository {
       collectionId: sourceCollectionId,
       objectId: objectId,
     );
-    final recurring = existing.providerRecurringEventId != null;
+    final recurring = _eventRequiresRecurringScope(existing);
     final target = IcalComponentKey(
       componentType: 'VEVENT',
       uid: uid,
@@ -2665,7 +2666,7 @@ class CalendarRepository {
     required BusyProvider destinationProvider,
     required LocationResult? effectiveSelection,
   }) {
-    final recurring = existing.providerRecurringEventId != null;
+    final recurring = _eventRequiresRecurringScope(existing);
     final scope = draft.recurringMutationScope;
     Object? recurrence = draft.recurrence;
     if (recurring && scope == RecurringEventMutationScope.singleOccurrence) {
@@ -3332,7 +3333,7 @@ class CalendarRepository {
       );
     }
     final provider = BusyProviderCodec.requireStorageValue(existing.provider);
-    final recurringOccurrence = existing.providerRecurringEventId != null;
+    final recurringOccurrence = _eventRequiresRecurringScope(existing);
     if (recurringOccurrence && recurringScope == null) {
       throw UnsupportedError('A recurring-event deletion scope is required.');
     }
@@ -3344,8 +3345,9 @@ class CalendarRepository {
       );
     }
     final seriesMutation =
-        recurringScope == RecurringEventMutationScope.entireSeries ||
-        recurringScope == RecurringEventMutationScope.thisAndFuture;
+        recurringOccurrence &&
+        (recurringScope == RecurringEventMutationScope.entireSeries ||
+            recurringScope == RecurringEventMutationScope.thisAndFuture);
     final request = <String, Object?>{
       calendarEventGuestUpdatePolicyKey: guestUpdatePolicy.name,
       if (recurringScope != null)
@@ -3537,7 +3539,7 @@ class CalendarRepository {
         source.davCollectionId == null) {
       throw schedulingDenied('DavAttendeeResponseUnavailable');
     }
-    final recurring = existing.providerRecurringEventId != null;
+    final recurring = _eventRequiresRecurringScope(existing);
     if (recurring &&
         (recurringScope == null ||
             recurringScope == RecurringEventMutationScope.thisAndFuture)) {
@@ -3760,7 +3762,7 @@ class CalendarRepository {
     if (collectionId == null || uid == null || start == null || end == null) {
       throw StateError('The DAV event projection is incomplete.');
     }
-    final recurring = existing.providerRecurringEventId != null;
+    final recurring = _eventRequiresRecurringScope(existing);
     final recurringScope = draft.recurringMutationScope;
     if (recurring && recurringScope == null) {
       throw UnsupportedError(
@@ -3927,7 +3929,7 @@ class CalendarRepository {
     if (collectionId == null || uid == null) {
       throw StateError('The DAV event projection is incomplete.');
     }
-    final recurring = existing.providerRecurringEventId != null;
+    final recurring = _eventRequiresRecurringScope(existing);
     final scheduling = await _davSchedulingPolicy(source);
     if (recurringScope == RecurringEventMutationScope.singleOccurrence &&
         scheduling?.canReply == true &&
@@ -5423,6 +5425,9 @@ String? _storedEventStart(CalendarEvent event) =>
 
 String? _storedEventEnd(CalendarEvent event) =>
     event.allDay ? event.endDate : event.endDateTime;
+
+bool _eventRequiresRecurringScope(CalendarEvent event) =>
+    CalendarEventDetail.fromRow(event).requiresRecurringMutationScope;
 
 DateTime? _storedEventStartDateTime(CalendarEvent event) =>
     providerDateTimeAsCivilTime(_storedEventStart(event), event.startTimeZone);

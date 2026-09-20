@@ -146,6 +146,43 @@ final class CalendarEventDetail {
   final int projectionVersion;
   final String? providerRecurringEventId;
   final String? providerOriginalStartKey;
+
+  /// Whether this row has enough authoritative recurrence identity to require
+  /// the user to choose an occurrence/series mutation scope.
+  ///
+  /// The denormalized provider ID is not sufficient on its own: an old or
+  /// partially recovered row can retain that value after the provider payload
+  /// describes an ordinary event. Cloud rows therefore have to agree with the
+  /// stored provider payload. DAV rows use their projected iCalendar
+  /// recurrence semantics.
+  bool get requiresRecurringMutationScope {
+    final seriesId = providerRecurringEventId?.trim();
+    if (seriesId == null || seriesId.isEmpty) return false;
+    return switch (provider) {
+      BusyProvider.google => _cloudRecurrenceIdentityMatches(
+        raw: raw,
+        seriesId: seriesId,
+        seriesKey: 'recurringEventId',
+        originalStartKey: 'originalStartTime',
+        storedOriginalStart: providerOriginalStartKey,
+      ),
+      BusyProvider.microsoft => _cloudRecurrenceIdentityMatches(
+        raw: raw,
+        seriesId: seriesId,
+        seriesKey: 'seriesMasterId',
+        originalStartKey: 'originalStart',
+        storedOriginalStart: providerOriginalStartKey,
+      ),
+      BusyProvider.appleICloud ||
+      BusyProvider.nextcloud ||
+      BusyProvider.webCal =>
+        _hasProjectedIcalRecurrence(recurrence) ||
+            (recurrenceIdKey?.trim().isNotEmpty ?? false),
+    };
+  }
+
+  String? get recurringMutationSeriesId =>
+      requiresRecurringMutationScope ? providerRecurringEventId!.trim() : null;
   final String? etagOrChangeKey;
   final String? status;
   final String title;
@@ -192,6 +229,44 @@ final class CalendarEventDetail {
   final int updatedAtLocal;
   final String syncStatus;
   final Object? baselineRaw;
+}
+
+bool _cloudRecurrenceIdentityMatches({
+  required Object? raw,
+  required String seriesId,
+  required String seriesKey,
+  required String originalStartKey,
+  required String? storedOriginalStart,
+}) {
+  final storedStart = storedOriginalStart?.trim();
+  final hasStoredStart = storedStart != null && storedStart.isNotEmpty;
+  if (raw is! Map || raw.isEmpty) {
+    // Legacy and synthetic rows may not retain a provider payload. Requiring
+    // the occurrence's original-start identity still prevents a bare stale
+    // series ID from turning a regular event into a recurring one.
+    return hasStoredStart;
+  }
+  final rawSeriesId = raw[seriesKey]?.toString().trim();
+  if (rawSeriesId == null || rawSeriesId.isEmpty || rawSeriesId != seriesId) {
+    return false;
+  }
+  final rawStart = raw[originalStartKey];
+  final hasRawStart = switch (rawStart) {
+    final String value => value.trim().isNotEmpty,
+    final Map value => value.isNotEmpty,
+    _ => false,
+  };
+  return hasRawStart || hasStoredStart;
+}
+
+bool _hasProjectedIcalRecurrence(Object? recurrence) {
+  if (recurrence is List) return recurrence.isNotEmpty;
+  if (recurrence is! Map) return false;
+  for (final key in const ['rules', 'dates', 'excludedDates']) {
+    final values = recurrence[key];
+    if (values is List && values.isNotEmpty) return true;
+  }
+  return false;
 }
 
 Object? _decodeJson(String? value) {

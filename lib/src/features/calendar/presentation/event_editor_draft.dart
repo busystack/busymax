@@ -225,7 +225,7 @@ class EventEditorDraft {
       accountId: detail.accountId,
       sourceId: detail.sourceId,
       providerCalendarId: detail.providerCalendarId,
-      providerRecurringEventId: detail.providerRecurringEventId,
+      providerRecurringEventId: detail.recurringMutationSeriesId,
       eventType: detail.eventType,
       title: detail.title,
       allDay: detail.allDay,
