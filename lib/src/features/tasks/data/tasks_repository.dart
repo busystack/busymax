@@ -736,11 +736,6 @@ class TasksRepository {
     if (_apiClient is! TaskChecklistRemoteClient) {
       throw UnsupportedError('This provider does not use checklist subtasks.');
     }
-    final task = await _requiredTask(taskListId, parentTaskId);
-    final items = decodeTaskChecklistItems(task.microsoftChecklistItemsJson);
-    if (!items.any((item) => item.id == checklistItemId)) {
-      throw StateError('The checklist subtask is unavailable.');
-    }
     final now = _now();
     await _beforeChecklistDeleteTransaction?.call();
     await _database.transaction(() async {

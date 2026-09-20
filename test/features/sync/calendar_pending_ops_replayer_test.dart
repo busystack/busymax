@@ -507,6 +507,91 @@ void main() {
     },
   );
 
+  test(
+    'acknowledged event fields propagate through every later edit',
+    () async {
+      final repository = CalendarRepository(
+        database: database,
+        now: () => DateTime.utc(2026, 6, 8),
+      );
+      final createId = await repository.createLocalEvent(
+        EventEditorDraft.newEvent(
+          accountId: 'account',
+          sourceId: 'account|google|cal-1',
+          providerCalendarId: 'cal-1',
+          start: DateTime.utc(2026, 6, 8, 9),
+          end: DateTime.utc(2026, 6, 8, 10),
+        ).copyWith(title: 'Draft'),
+      );
+      final local = await database.select(database.calendarEvents).getSingle();
+      var detail = (await repository.loadEventDetail(local.id))!;
+      await repository.updateLocalEvent(
+        EventEditorDraft.fromEventDetail(detail).copyWith(title: 'Revised'),
+      );
+      detail = (await repository.loadEventDetail(local.id))!;
+      await repository.updateLocalEvent(
+        EventEditorDraft.fromEventDetail(detail).copyWith(location: 'Room A'),
+      );
+      detail = (await repository.loadEventDetail(local.id))!;
+      await repository.updateLocalEvent(
+        EventEditorDraft.fromEventDetail(detail).copyWith(title: 'Final'),
+      );
+
+      final queued = await database.pendingOpsDao.pendingOpsForReplay(
+        'account',
+        _later,
+      );
+      expect(queued, hasLength(4));
+      expect(queued.map((operation) => operation.operationType), [
+        'event.create',
+        'event.patch',
+        'event.patch',
+        'event.patch',
+      ]);
+      expect(
+        jsonDecode(queued[2].requestJson),
+        containsPair('location', 'Room A'),
+      );
+      expect(jsonDecode(queued[2].requestJson), isNot(contains('title')));
+      expect(jsonDecode(queued[3].requestJson), containsPair('title', 'Final'));
+      expect(jsonDecode(queued[3].requestJson), isNot(contains('location')));
+
+      client.createEventOverride = (calendarId, mutation) => client._event(
+        mutation.providerEventId!,
+        title: mutation.title!,
+        providerCalendarId: calendarId,
+        etagOrChangeKey: '"created"',
+      );
+      client.persistEventUpdates = true;
+
+      expect(
+        await CalendarPendingOpsReplayer(
+          database: database,
+          client: client,
+          accountId: 'account',
+          nowUtc: () => DateTime.utc(2026, 6, 9),
+        ).replayDueOps(),
+        4,
+      );
+
+      expect(client.updatedMutations.map((mutation) => mutation.title), [
+        'Revised',
+        null,
+        'Final',
+      ]);
+      expect(client.updatedMutations.map((mutation) => mutation.location), [
+        null,
+        'Room A',
+        null,
+      ]);
+      final providerEventId = googleCalendarCreateEventId(createId);
+      final remote = client._createdEventsByIdentity[providerEventId]!;
+      expect(remote.title, 'Final');
+      expect(remote.location, 'Room A');
+      expect(await database.select(database.pendingOps).get(), isEmpty);
+    },
+  );
+
   test('Microsoft create retry reuses its transaction ID', () async {
     final repository = CalendarRepository(database: database);
     await repository.upsertSource(

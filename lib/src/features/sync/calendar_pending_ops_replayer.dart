@@ -541,14 +541,8 @@ class CalendarPendingOpsReplayer {
     PendingOp completedOp,
     CalendarEventDto serverEvent,
   ) async {
-    final dependents =
-        await (_database.select(_database.pendingOps)..where(
-              (row) =>
-                  row.accountId.equals(_accountId) &
-                  row.dependsOnOpId.equals(completedOp.id),
-            ))
-            .get();
-    if (dependents.isEmpty) {
+    final descendants = await _eventMutationDescendants(completedOp);
+    if (descendants.isEmpty) {
       return false;
     }
 
@@ -560,19 +554,19 @@ class CalendarPendingOpsReplayer {
       _client.provider,
       serverEvent.rawJson,
     );
-    for (final dependent in dependents) {
-      final dependentResourceId = await _pendingEventResourceId(dependent);
-      if (dependent.providerCalendarId != serverEvent.providerCalendarId ||
-          dependentResourceId != serverEvent.providerEventId) {
+    for (final descendant in descendants) {
+      final descendantResourceId = await _pendingEventResourceId(descendant);
+      if (descendant.providerCalendarId != serverEvent.providerCalendarId ||
+          descendantResourceId != serverEvent.providerEventId) {
         // This is only an execution dependency. An occurrence response must
         // never become the acknowledged baseline for its recurring master (or
         // vice versa).
         continue;
       }
-      final wholeEventBoundary = _operationType(dependent) == 'event.delete';
+      final wholeEventBoundary = _operationType(descendant) == 'event.delete';
       final baseline = _eventBaselineSnapshot(
         _client.provider,
-        dependent.baselineRawJson ?? '{}',
+        descendant.baselineRawJson ?? '{}',
       );
       // Keep the original timestamp and untouched fields so a provider edit to
       // a different field is still detected by the dependent operation.
@@ -581,7 +575,7 @@ class CalendarPendingOpsReplayer {
       }
       await (_database.update(
         _database.pendingOps,
-      )..where((row) => row.id.equals(dependent.id))).write(
+      )..where((row) => row.id.equals(descendant.id))).write(
         PendingOpsCompanion(
           baselineRawJson: Value(
             wholeEventBoundary
@@ -596,6 +590,36 @@ class CalendarPendingOpsReplayer {
       );
     }
     return true;
+  }
+
+  Future<List<PendingOp>> _eventMutationDescendants(PendingOp ancestor) async {
+    final operations =
+        await (_database.select(_database.pendingOps)..where(
+              (row) =>
+                  row.accountId.equals(_accountId) &
+                  row.entityType.equals('event'),
+            ))
+            .get();
+    final descendantIds = <String>{ancestor.id};
+    var expanded = true;
+    while (expanded) {
+      expanded = false;
+      for (final operation in operations) {
+        if (descendantIds.contains(operation.id) ||
+            !descendantIds.contains(operation.dependsOnOpId)) {
+          continue;
+        }
+        descendantIds.add(operation.id);
+        expanded = true;
+      }
+    }
+    return operations
+        .where(
+          (operation) =>
+              operation.id != ancestor.id &&
+              descendantIds.contains(operation.id),
+        )
+        .toList(growable: false);
   }
 
   Future<String?> _pendingEventResourceId(PendingOp operation) async {
@@ -1197,28 +1221,9 @@ class CalendarPendingOpsReplayer {
     required CalendarEventDto serverEvent,
   }) async {
     if (temporaryEventId == null) return const [];
-    final operations = await (_database.select(
-      _database.pendingOps,
-    )..where((row) => row.accountId.equals(_accountId))).get();
-    final descendantIds = <String>{creation.id};
-    var expanded = true;
-    while (expanded) {
-      expanded = false;
-      for (final operation in operations) {
-        if (descendantIds.contains(operation.id) ||
-            !descendantIds.contains(operation.dependsOnOpId)) {
-          continue;
-        }
-        descendantIds.add(operation.id);
-        expanded = true;
-      }
-    }
-    return operations
+    return (await _eventMutationDescendants(creation))
         .where((operation) {
-          if (operation.id == creation.id ||
-              !descendantIds.contains(operation.id) ||
-              operation.entityType != 'event' ||
-              operation.eventId != temporaryEventId) {
+          if (operation.eventId != temporaryEventId) {
             return false;
           }
           final target = _request(
