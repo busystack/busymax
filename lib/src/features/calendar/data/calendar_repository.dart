@@ -4493,8 +4493,9 @@ class CalendarRepository {
     }
   }
 
-  Future<void> markGoogleRecurringMastersDeleted({
+  Future<void> markExpandedRecurringMastersDeleted({
     required String accountId,
+    required BusyProvider provider,
     required String providerCalendarId,
     required Set<String> providerRecurringEventIds,
   }) async {
@@ -4503,7 +4504,7 @@ class CalendarRepository {
     }
     final source = sourceId(
       accountId: accountId,
-      provider: BusyProvider.google,
+      provider: provider,
       providerCalendarId: providerCalendarId,
     );
     await _database.transaction(() async {
@@ -4512,7 +4513,7 @@ class CalendarRepository {
                 (row) =>
                     row.accountId.equals(accountId) &
                     row.calendarSourceId.equals(source) &
-                    row.provider.equals(BusyProvider.google.storageValue) &
+                    row.provider.equals(provider.storageValue) &
                     row.providerEventId.isIn(providerRecurringEventIds) &
                     row.providerRecurringEventId.isNull() &
                     row.syncStatus.equals('synced') &
@@ -4521,9 +4522,11 @@ class CalendarRepository {
               .get();
       if (masters.isEmpty) return;
 
-      final resolutions = LocationResolutionRepository(_database);
-      for (final master in masters) {
-        await resolutions.reconcileGoogleSeriesMaster(master);
+      if (provider == BusyProvider.google) {
+        final resolutions = LocationResolutionRepository(_database);
+        for (final master in masters) {
+          await resolutions.reconcileGoogleSeriesMaster(master);
+        }
       }
 
       await (_database.update(

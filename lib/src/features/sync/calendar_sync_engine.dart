@@ -184,7 +184,8 @@ class CalendarSyncEngine {
           preservePendingLocalChanges: true,
         );
         final recurringMasterId = event.providerRecurringEventId;
-        if (provider == BusyProvider.google &&
+        if ((provider == BusyProvider.google ||
+                provider == BusyProvider.microsoft) &&
             recurringMasterId != null &&
             recurringMasterId.isNotEmpty) {
           expandedRecurringMasterIds.add(recurringMasterId);
@@ -243,9 +244,9 @@ class CalendarSyncEngine {
       }
     }
 
-    if (provider == BusyProvider.google) {
-      // Google expanded-event synchronization (`singleEvents=true`) returns
-      // instances but omits their recurring masters. Retain the authoritative
+    if (provider == BusyProvider.google || provider == BusyProvider.microsoft) {
+      // Expanded Google synchronization and Microsoft calendar views return
+      // instances but omit their recurring masters. Retain the authoritative
       // master snapshots separately so later whole-series mutations have a
       // real conflict baseline instead of borrowing one from an occurrence.
       for (final recurringMasterId in expandedRecurringMasterIds) {
@@ -259,8 +260,9 @@ class CalendarSyncEngine {
           preservePendingLocalChanges: true,
         );
       }
-      await _repository.markGoogleRecurringMastersDeleted(
+      await _repository.markExpandedRecurringMastersDeleted(
         accountId: _accountId,
+        provider: provider,
         providerCalendarId: providerCalendarId,
         providerRecurringEventIds: expandedRecurringMasterIds,
       );

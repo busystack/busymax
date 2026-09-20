@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'package:busymax/src/app/app_settings.dart';
 import 'package:busymax/src/features/notifications/desktop_notification_service.dart';
 import 'package:busymax/src/features/notifications/notification_scheduler.dart';
@@ -620,6 +621,124 @@ void main() {
       final operation = await database.select(database.pendingOps).getSingle();
       expect(operation.baselineUpdatedUtc, master.updatedAtServer);
       expect(operation.baselineRawJson, contains('"id":"series-1"'));
+    },
+  );
+
+  test(
+    'Microsoft calendar-view occurrences hydrate their master for whole-series mutations',
+    () async {
+      const source = CalendarSourceDto(
+        provider: BusyProvider.microsoft,
+        providerCalendarId: 'cal-1',
+        summary: 'Work',
+      );
+      await _insertAccount(database, provider: BusyProvider.microsoft);
+      const master = CalendarEventDto(
+        provider: BusyProvider.microsoft,
+        providerCalendarId: 'cal-1',
+        providerEventId: 'series-1',
+        title: 'Weekly planning',
+        startDateTime: '2026-07-14T09:00:00.000Z',
+        endDateTime: '2026-07-14T10:00:00.000Z',
+        recurrenceJson: {
+          'pattern': {'type': 'weekly', 'interval': 1},
+          'range': {'type': 'noEnd', 'startDate': '2026-07-14'},
+        },
+        eventType: 'seriesMaster',
+        updatedAtServer: '2026-07-01T00:00:00.000Z',
+        rawJson: {
+          'id': 'series-1',
+          'subject': 'Weekly planning',
+          'type': 'seriesMaster',
+          'lastModifiedDateTime': '2026-07-01T00:00:00.000Z',
+        },
+      );
+      const occurrence = CalendarEventDto(
+        provider: BusyProvider.microsoft,
+        providerCalendarId: 'cal-1',
+        providerEventId: 'occurrence-1',
+        providerRecurringEventId: 'series-1',
+        providerOriginalStartKey: '2026-07-14T09:00:00.000Z',
+        title: 'Weekly planning',
+        startDateTime: '2026-07-14T09:00:00.000Z',
+        endDateTime: '2026-07-14T10:00:00.000Z',
+        eventType: 'occurrence',
+        updatedAtServer: '2026-07-10T00:00:00.000Z',
+        rawJson: {
+          'id': 'occurrence-1',
+          'seriesMasterId': 'series-1',
+          'originalStart': '2026-07-14T09:00:00.000Z',
+          'type': 'occurrence',
+          'lastModifiedDateTime': '2026-07-10T00:00:00.000Z',
+          'isOrganizer': true,
+        },
+      );
+      final client = _FakeCalendarClient(
+        provider: BusyProvider.microsoft,
+        calendars: const [source],
+        eventsById: const {'series-1': master},
+        pages: const [
+          CalendarSyncPageDto(events: [occurrence]),
+        ],
+      );
+
+      await CalendarSyncEngine(
+        database: database,
+        client: client,
+        accountId: 'account',
+        nowUtc: () => DateTime.utc(2026, 7, 10),
+      ).fullSync();
+
+      final occurrenceId = CalendarRepository.eventId(
+        accountId: 'account',
+        provider: BusyProvider.microsoft,
+        providerCalendarId: source.providerCalendarId,
+        providerEventId: occurrence.providerEventId,
+        providerOriginalStartKey: occurrence.providerOriginalStartKey,
+      );
+      final masterId = CalendarRepository.eventId(
+        accountId: 'account',
+        provider: BusyProvider.microsoft,
+        providerCalendarId: source.providerCalendarId,
+        providerEventId: master.providerEventId,
+      );
+      final storedMaster = await (database.select(
+        database.calendarEvents,
+      )..where((row) => row.id.equals(masterId))).getSingle();
+      expect(storedMaster.isDeleted, isTrue);
+      expect(storedMaster.updatedAtServer, master.updatedAtServer);
+      expect((jsonDecode(storedMaster.rawJson!) as Map)['id'], 'series-1');
+      final repository = CalendarRepository(database: database);
+      final detail = await repository.loadEventDetail(occurrenceId);
+      await repository.updateLocalEvent(
+        EventEditorDraft.fromEventDetail(detail!).copyWith(
+          title: 'Renamed series',
+          recurringMutationScope: RecurringEventMutationScope.entireSeries,
+        ),
+      );
+      await repository.deleteLocalEvent(
+        occurrenceId,
+        recurringScope: RecurringEventMutationScope.entireSeries,
+      );
+
+      final operations = await (database.select(
+        database.pendingOps,
+      )..orderBy([(row) => OrderingTerm.asc(row.createdAtUtc)])).get();
+      expect(operations, hasLength(2));
+      expect(operations.map((operation) => operation.operationType), [
+        'event.patch',
+        'event.delete',
+      ]);
+      expect(
+        operations.map((operation) => operation.baselineUpdatedUtc),
+        everyElement(master.updatedAtServer),
+      );
+      expect(
+        operations.map(
+          (operation) => (jsonDecode(operation.baselineRawJson!) as Map)['id'],
+        ),
+        everyElement(master.providerEventId),
+      );
     },
   );
 
