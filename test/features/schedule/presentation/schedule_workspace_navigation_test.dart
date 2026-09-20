@@ -45,17 +45,14 @@ void main() {
         }
 
         final view = tester.widget<ScheduleDayWeekView>(
-          find.byType(ScheduleDayWeekView),
+          find.byKey(const ValueKey('schedule-day-planner')),
         );
         expect(view.selectedDate, DateTime(2026, 9, 16));
         expect(
           view.items.map((item) => item.title),
           contains("Ildar's Birthday"),
         );
-        expect(
-          find.text("Ildar's Birthday", skipOffstage: false),
-          findsOneWidget,
-        );
+        expect(find.text("Ildar's Birthday"), findsOneWidget);
 
         await tester.pumpWidget(const SizedBox.shrink());
         await tester.pump(const Duration(milliseconds: 1));
@@ -128,7 +125,13 @@ void main() {
             await tester.pump();
             await _navigate(tester, next: scenario.next);
             final view = tester.widget<ScheduleDayWeekView>(
-              find.byType(ScheduleDayWeekView),
+              find.byKey(
+                ValueKey(
+                  scenario.days == 1
+                      ? 'schedule-day-planner'
+                      : 'schedule-week-planner',
+                ),
+              ),
             );
             final direction = scenario.next ? 1 : -1;
             final expected = DateTime(

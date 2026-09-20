@@ -23,8 +23,41 @@ import 'task_details_editor.dart';
 typedef TasksRepositoryForAccount = TasksRepository Function(String accountId);
 typedef TaskListsRepositoryForAccount =
     TaskListsRepository Function(String accountId);
+
+enum TaskMutationKind {
+  updated,
+  deleted,
+  duplicated,
+  createdSubtask,
+  completion,
+  checklistUpdated,
+  checklistDeleted,
+  reordered,
+}
+
+@immutable
+class TaskMutationResult {
+  const TaskMutationResult({
+    required this.kind,
+    required this.accountId,
+    required this.taskListId,
+    required this.taskId,
+    this.checklistItemId,
+    this.createdTaskId,
+    this.completed,
+  });
+
+  final TaskMutationKind kind;
+  final String accountId;
+  final String taskListId;
+  final String taskId;
+  final String? checklistItemId;
+  final String? createdTaskId;
+  final bool? completed;
+}
+
 typedef TaskMutationCommittedCallback =
-    FutureOr<void> Function(String accountId);
+    FutureOr<void> Function(TaskMutationResult result);
 
 class TaskDetailsPane extends ConsumerStatefulWidget {
   const TaskDetailsPane({
@@ -342,7 +375,14 @@ class _TaskDetailsPaneState extends ConsumerState<TaskDetailsPane> {
       mutated = true;
     }
     if (mutated) {
-      await widget.onTaskMutationCommitted?.call(task.accountId);
+      await widget.onTaskMutationCommitted?.call(
+        TaskMutationResult(
+          kind: TaskMutationKind.updated,
+          accountId: task.accountId,
+          taskListId: draft.taskListId,
+          taskId: task.id,
+        ),
+      );
     }
   }
 
@@ -384,7 +424,14 @@ class _TaskDetailsPaneState extends ConsumerState<TaskDetailsPane> {
       onExport: () => _exportTask(repository, task),
       onDelete: () async {
         await repository.deleteTask(task.taskListId, task.id);
-        await widget.onTaskMutationCommitted?.call(task.accountId);
+        await widget.onTaskMutationCommitted?.call(
+          TaskMutationResult(
+            kind: TaskMutationKind.deleted,
+            accountId: task.accountId,
+            taskListId: task.taskListId,
+            taskId: task.id,
+          ),
+        );
         widget.onClose?.call();
       },
       onCancel: () => widget.onClose?.call(),
@@ -408,7 +455,14 @@ class _TaskDetailsPaneState extends ConsumerState<TaskDetailsPane> {
         parentTaskId: task.id,
         title: title,
       );
-      await widget.onTaskMutationCommitted?.call(task.accountId);
+      await widget.onTaskMutationCommitted?.call(
+        TaskMutationResult(
+          kind: TaskMutationKind.createdSubtask,
+          accountId: task.accountId,
+          taskListId: task.taskListId,
+          taskId: task.id,
+        ),
+      );
     } on Object catch (error) {
       _showTaskMutationError(error);
     }
@@ -449,7 +503,19 @@ class _TaskDetailsPaneState extends ConsumerState<TaskDetailsPane> {
           completed: completed,
         );
       }
-      await widget.onTaskMutationCommitted?.call(parent.accountId);
+      final affectedTask = subtask.task;
+      await widget.onTaskMutationCommitted?.call(
+        TaskMutationResult(
+          kind: TaskMutationKind.completion,
+          accountId: parent.accountId,
+          taskListId: affectedTask?.taskListId ?? parent.taskListId,
+          taskId: affectedTask?.id ?? parent.id,
+          checklistItemId: subtask.kind == TaskSubtaskKind.checklistItem
+              ? subtask.id
+              : null,
+          completed: completed,
+        ),
+      );
     } on Object catch (error) {
       _showTaskMutationError(error);
     }
@@ -468,7 +534,15 @@ class _TaskDetailsPaneState extends ConsumerState<TaskDetailsPane> {
         checklistItemId: subtask.id,
         title: title,
       );
-      await widget.onTaskMutationCommitted?.call(parent.accountId);
+      await widget.onTaskMutationCommitted?.call(
+        TaskMutationResult(
+          kind: TaskMutationKind.checklistUpdated,
+          accountId: parent.accountId,
+          taskListId: parent.taskListId,
+          taskId: parent.id,
+          checklistItemId: subtask.id,
+        ),
+      );
     } on Object catch (error) {
       _showTaskMutationError(error);
     }
@@ -485,7 +559,15 @@ class _TaskDetailsPaneState extends ConsumerState<TaskDetailsPane> {
         parentTaskId: parent.id,
         checklistItemId: subtask.id,
       );
-      await widget.onTaskMutationCommitted?.call(parent.accountId);
+      await widget.onTaskMutationCommitted?.call(
+        TaskMutationResult(
+          kind: TaskMutationKind.checklistDeleted,
+          accountId: parent.accountId,
+          taskListId: parent.taskListId,
+          taskId: parent.id,
+          checklistItemId: subtask.id,
+        ),
+      );
     } on Object catch (error) {
       _showTaskMutationError(error);
     }
@@ -511,7 +593,14 @@ class _TaskDetailsPaneState extends ConsumerState<TaskDetailsPane> {
     await repository.moveTask(
       TaskMoveInput(sourceTaskListId: task.taskListId, taskId: task.id),
     );
-    await widget.onTaskMutationCommitted?.call(task.accountId);
+    await widget.onTaskMutationCommitted?.call(
+      TaskMutationResult(
+        kind: TaskMutationKind.reordered,
+        accountId: task.accountId,
+        taskListId: task.taskListId,
+        taskId: task.id,
+      ),
+    );
   }
 
   Future<void> _duplicateTask(
@@ -519,8 +608,19 @@ class _TaskDetailsPaneState extends ConsumerState<TaskDetailsPane> {
     TaskEntity task,
   ) async {
     try {
-      await repository.duplicateTask(task.taskListId, task.id);
-      await widget.onTaskMutationCommitted?.call(task.accountId);
+      final duplicateId = await repository.duplicateTask(
+        task.taskListId,
+        task.id,
+      );
+      await widget.onTaskMutationCommitted?.call(
+        TaskMutationResult(
+          kind: TaskMutationKind.duplicated,
+          accountId: task.accountId,
+          taskListId: task.taskListId,
+          taskId: task.id,
+          createdTaskId: duplicateId,
+        ),
+      );
       if (!mounted) return;
       ScaffoldMessenger.of(
         context,

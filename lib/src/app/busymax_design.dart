@@ -11,6 +11,9 @@ import '../l10n/l10n.dart';
 import '../platform/native_menu_service.dart';
 import 'busymax_glyphs.dart';
 import 'busymax_surface_colors.dart';
+import 'common/busymax_design_values.dart';
+
+export 'common/busymax_design_values.dart' show BusyMaxMotion;
 
 abstract final class BusyMaxSpacing {
   static const double xxs = 2;
@@ -85,12 +88,6 @@ abstract final class BusyMaxAlpha {
   static const double groupedRowLightHoverStrength = 0.50;
   static const double tooltipBackground = 0.80;
   static const double tooltipBorder = 0.10;
-}
-
-abstract final class BusyMaxMotion {
-  static const Duration dialogInsets = Duration(milliseconds: 160);
-  static const Curve dialogInsetsCurve = Curves.easeOutCubic;
-  static const Duration tooltipWait = Duration(milliseconds: 500);
 }
 
 /// Cross-toolkit tooltip visuals.

@@ -33,6 +33,23 @@ abstract final class BusyMaxMotion {
   static const Duration fast = Duration(milliseconds: 100);
   static const Duration normal = Duration(milliseconds: 167);
   static const Duration slow = Duration(milliseconds: 250);
+
+  static const Duration dialogInsets = Duration(milliseconds: 160);
+  static const Curve dialogInsetsCurve = Curves.easeOutCubic;
+
+  /// Behavioral delay; unlike presentation durations this is never disabled.
+  static const Duration tooltipWait = Duration(milliseconds: 500);
+
+  static const Duration sidebar = Duration(milliseconds: 200);
+  static const Duration search = Duration(milliseconds: 160);
+  static const Duration calendarPeriod = Duration(milliseconds: 200);
+  static const Duration crossfade = Duration(milliseconds: 140);
+  static const Duration accountDisclosure = Duration(milliseconds: 160);
+  static const Duration taskCompletion = Duration(milliseconds: 120);
+  static const Duration taskListMutation = Duration(milliseconds: 180);
+  static const Duration taskEditorOpen = Duration(milliseconds: 180);
+  static const Duration taskEditorClose = Duration(milliseconds: 140);
+  static const Curve presentationCurve = Curves.easeOutCubic;
 }
 
 enum BusyMaxSemanticColorRole {

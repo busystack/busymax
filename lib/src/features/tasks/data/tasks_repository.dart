@@ -563,7 +563,7 @@ class TasksRepository {
     });
   }
 
-  Future<void> createTask(String taskListId, TaskCreateInput input) async {
+  Future<String> createTask(String taskListId, TaskCreateInput input) async {
     final taskList = await _requiredTaskList(taskListId);
     if (taskList.davCollectionId != null) {
       return _createDavTask(taskList, input);
@@ -631,6 +631,7 @@ class TasksRepository {
     });
     await _rebuildTaskNotifications();
     _onMutationQueued?.call();
+    return localId;
   }
 
   Future<void> createSubtask({
@@ -1036,7 +1037,10 @@ class TasksRepository {
     );
   }
 
-  Future<void> _createDavTask(TaskList taskList, TaskCreateInput input) async {
+  Future<String> _createDavTask(
+    TaskList taskList,
+    TaskCreateInput input,
+  ) async {
     final collectionId = taskList.davCollectionId!;
     final fields = Map<String, Object?>.from(input.toFields());
     await _ensureDavCreateAllowed(taskList, fields);
@@ -1104,6 +1108,7 @@ class TasksRepository {
     });
     await _rebuildTaskNotifications();
     _onMutationQueued?.call();
+    return localId;
   }
 
   Future<({String localId, String uid, String lastOperationId})>

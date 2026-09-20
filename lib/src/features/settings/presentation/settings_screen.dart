@@ -13,6 +13,7 @@ import '../../../app/busymax_about_dialog.dart';
 import '../../../app/busymax_yaru_theme.dart';
 import '../../../app/app_bootstrap.dart';
 import '../../../app/busymax_design.dart';
+import '../../../app/common/busymax_motion_widgets.dart';
 import '../../../app/busymax_dialogs.dart';
 import '../../../app/busymax_glyphs.dart';
 import '../../../app/busymax_keyboard_shortcuts_dialog.dart';
@@ -485,7 +486,10 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                       maxWidth: 760,
                       margin: EdgeInsets.zero,
                       padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
-                      child: pageBody,
+                      child: BusyMaxKeyedCrossfade(
+                        transitionKey: _page,
+                        child: pageBody,
+                      ),
                     ),
                   ),
                 ],

@@ -3848,9 +3848,14 @@ void main() {
     );
     expect(sidebar, contains("'schedule-calendar'"));
     expect(sidebar, contains("'schedule-task-list'"));
-    expect(sidebar, contains('AnimatedRotation'));
+    expect(sidebar, contains('AnimationController _expansion'));
+    expect(sidebar, contains('BusyMaxMotion.accountDisclosure * distance'));
+    expect(sidebar, contains('heightFactor: _expansion.value'));
+    expect(sidebar, contains('Transform.rotate'));
+    expect(sidebar, contains('ExcludeFocus('));
+    expect(sidebar, contains('ExcludeSemantics('));
     expect(sidebar, contains('BusyMaxGlyphs.collapsedFor'));
-    expect(sidebar, contains('if (_expanded)'));
+    expect(sidebar, isNot(contains('if (_expanded)')));
     expect(sidebar, contains('MiniCalendar('));
     expect(sidebar, isNot(contains('BusyMaxGroupedList(')));
     expect(sidebar, isNot(contains('hoverColor: Colors.transparent')));

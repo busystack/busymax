@@ -20,6 +20,7 @@ import 'src/features/notifications/desktop_notification_backend.dart';
 import 'src/platform/common/desktop_services.dart';
 import 'src/platform/external_calendar_open_service.dart';
 import 'src/platform/gtk_font_service.dart';
+import 'src/platform/gtk_animation_settings_service.dart';
 import 'src/platform/linux/linux_notification_backend.dart';
 import 'src/platform/linux/linux_network_connectivity_monitor.dart';
 import 'src/platform/linux/linux_secret_storage_presentation.dart';
@@ -49,6 +50,8 @@ Future<void> main(List<String> arguments) async {
 
   final systemAccentFuture = SystemTheme.accentColor.load();
   final initialGtkFontFuture = const GtkFontService().getGtkFont();
+  final initialGtkAnimationsFuture = const GtkAnimationSettingsService()
+      .getAnimationsEnabled();
   final initialAppSettingsFuture = loadInitialAppSettings(settingsStore);
   final initialAppSettings = await initialAppSettingsFuture;
   final gtkThemeService = const GtkThemeService();
@@ -63,11 +66,13 @@ Future<void> main(List<String> arguments) async {
     systemAccentFuture,
     initialGtkFontFuture,
     gtkThemeService.getGtkThemeColors(),
+    initialGtkAnimationsFuture,
   ]);
   configureLogging();
 
   final initialGtkFont = desktopSettings[1] as GtkFontSettings?;
   final initialGtkThemeColors = desktopSettings[2] as GtkThemeColors?;
+  final initialGtkAnimationsEnabled = desktopSettings[3] as bool?;
   await _applyInitialNativeHeaderBarTheme(
     settings: initialAppSettings,
     gtkFont: initialGtkFont,
@@ -80,6 +85,9 @@ Future<void> main(List<String> arguments) async {
     initialAppSettingsProvider.overrideWithValue(initialAppSettings),
     initialGtkFontSettingsProvider.overrideWithValue(initialGtkFont),
     initialGtkThemeColorsProvider.overrideWithValue(initialGtkThemeColors),
+    initialGtkAnimationsEnabledProvider.overrideWithValue(
+      initialGtkAnimationsEnabled,
+    ),
     networkConnectivityMonitorProvider.overrideWith((ref) {
       final monitor = createLinuxNetworkConnectivityMonitor();
       ref.onDispose(() => unawaited(monitor.dispose()));

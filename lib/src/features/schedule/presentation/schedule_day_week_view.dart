@@ -16,6 +16,7 @@ import '../../../ui/common/schedule/schedule_interactions.dart';
 import '../../../ui/common/schedule/schedule_preview_label.dart';
 import '../../../ui/common/schedule/schedule_planner_events.dart';
 import '../../../schedule/schedule_range.dart';
+import '../../../schedule/schedule_navigation_intent.dart';
 import 'schedule_event_block.dart';
 import 'schedule_item_chip.dart';
 import 'schedule_item_selection.dart';
@@ -41,6 +42,7 @@ class ScheduleDayWeekView extends StatefulWidget {
     this.dayEndMinute = defaultScheduleDayEndMinute,
     this.onRangeCreated,
     this.onReschedule,
+    this.navigationIntent,
   });
 
   final ScheduleRange range;
@@ -56,6 +58,7 @@ class ScheduleDayWeekView extends StatefulWidget {
   final int dayEndMinute;
   final ValueChanged<ScheduleInterval>? onRangeCreated;
   final ScheduleRescheduleCallback? onReschedule;
+  final ScheduleNavigationIntent? navigationIntent;
 
   @override
   State<ScheduleDayWeekView> createState() => _ScheduleDayWeekViewState();
@@ -67,6 +70,8 @@ class _ScheduleDayWeekViewState extends State<ScheduleDayWeekView> {
   final _interactionKey = GlobalKey<ScheduleInteractionRegionState>();
   var _fullDayBarHeight = _fullDayBarDefaultHeight;
   var _heightPerMinute = _defaultHeightPerMinute;
+  int? _activeNavigationGeneration;
+  bool _disableAnimations = false;
 
   @override
   void initState() {
@@ -78,6 +83,13 @@ class _ScheduleDayWeekViewState extends State<ScheduleDayWeekView> {
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
+    final disabled = MediaQuery.disableAnimationsOf(context);
+    if (disabled != _disableAnimations) {
+      _disableAnimations = disabled;
+      if (disabled && _activeNavigationGeneration != null) {
+        _settleNavigation(widget.navigationIntent);
+      }
+    }
     _reloadEvents();
   }
 
@@ -87,7 +99,14 @@ class _ScheduleDayWeekViewState extends State<ScheduleDayWeekView> {
     _reloadEvents();
     if (oldWidget.daysShowed != widget.daysShowed ||
         !_sameDay(_plannerStartDate(oldWidget), _plannerStartDate(widget))) {
-      _jumpToDate(_plannerStartDate(widget));
+      final intent = widget.navigationIntent;
+      if (intent != null &&
+          intent.cause == ScheduleNavigationCause.adjacentPeriod &&
+          intent.generation != oldWidget.navigationIntent?.generation) {
+        _animateToDate(_plannerStartDate(widget), intent);
+      } else {
+        _jumpToDate(_plannerStartDate(widget));
+      }
     }
     if (oldWidget.dayStartMinute != widget.dayStartMinute ||
         oldWidget.dayEndMinute != widget.dayEndMinute) {
@@ -130,7 +149,11 @@ class _ScheduleDayWeekViewState extends State<ScheduleDayWeekView> {
       initialVerticalScrollOffset: visibleMinutes.start * _heightPerMinute,
       daySeparationWidth: 1,
       dayEventsArranger: const SchedulePlannerEventArranger(),
-      onDayChange: (day) => widget.onDaySelected(_day(day)),
+      onDayChange: (day) {
+        if (_activeNavigationGeneration == null) {
+          widget.onDaySelected(_day(day));
+        }
+      },
       daysHeaderParam: icv.DaysHeaderParam(
         daysHeaderHeight: widget.daysShowed == 1 ? 0 : 50,
         daysHeaderColor: workspaceColor,
@@ -318,57 +341,66 @@ class _ScheduleDayWeekViewState extends State<ScheduleDayWeekView> {
         },
       ),
     );
-    return ScheduleInteractionRegion(
-      key: _interactionKey,
-      coordinates: SchedulePlannerCoordinates(
-        key: _plannerKey,
-        headerHeight: daysHeaderHeight,
-        allDayHeight: fullDayBarHeight,
-      ),
-      onRangeCreated: widget.onRangeCreated,
-      onEmptySlot: widget.onEmptySlot,
-      onReschedule: widget.onReschedule,
-      previewColor: colorScheme.primary,
-      previewBuilder: (context, interval, allDay) => Padding(
-        padding: const EdgeInsets.all(4),
-        child: Text(
-          schedulePreviewLabel(context, interval, allDay),
-          style: Theme.of(context).textTheme.labelSmall,
-          maxLines: 2,
-          overflow: TextOverflow.ellipsis,
+    return NotificationListener<ScrollStartNotification>(
+      onNotification: (notification) {
+        if (notification.metrics.axis == Axis.horizontal &&
+            notification.dragDetails != null) {
+          _interruptNavigation();
+        }
+        return false;
+      },
+      child: ScheduleInteractionRegion(
+        key: _interactionKey,
+        coordinates: SchedulePlannerCoordinates(
+          key: _plannerKey,
+          headerHeight: daysHeaderHeight,
+          allDayHeight: fullDayBarHeight,
         ),
-      ),
-      child: Stack(
-        clipBehavior: Clip.none,
-        children: [
-          planner,
-          if (showFullDayBar)
-            Positioned(
-              top:
-                  daysHeaderHeight +
-                  fullDayBarHeight -
-                  _allDayResizeHandleHeight / 2,
-              left: clockRulerWidth(
-                context,
-                Theme.of(context).textTheme.bodySmall ?? const TextStyle(),
-              ),
-              right: 0,
-              child: Center(
-                child: ScheduleInteractionBlocker(
-                  child: _AllDayResizeHandle(
-                    onTap: _toggleFullDayBarHeight,
-                    onVerticalDragUpdate: (delta) {
-                      setState(() {
-                        _fullDayBarHeight = (_fullDayBarHeight + delta)
-                            .clamp(_fullDayBarMinHeight, _fullDayBarMaxHeight)
-                            .toDouble();
-                      });
-                    },
+        onRangeCreated: widget.onRangeCreated,
+        onEmptySlot: widget.onEmptySlot,
+        onReschedule: widget.onReschedule,
+        previewColor: colorScheme.primary,
+        previewBuilder: (context, interval, allDay) => Padding(
+          padding: const EdgeInsets.all(4),
+          child: Text(
+            schedulePreviewLabel(context, interval, allDay),
+            style: Theme.of(context).textTheme.labelSmall,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
+        child: Stack(
+          clipBehavior: Clip.none,
+          children: [
+            planner,
+            if (showFullDayBar)
+              Positioned(
+                top:
+                    daysHeaderHeight +
+                    fullDayBarHeight -
+                    _allDayResizeHandleHeight / 2,
+                left: clockRulerWidth(
+                  context,
+                  Theme.of(context).textTheme.bodySmall ?? const TextStyle(),
+                ),
+                right: 0,
+                child: Center(
+                  child: ScheduleInteractionBlocker(
+                    child: _AllDayResizeHandle(
+                      onTap: _toggleFullDayBarHeight,
+                      onVerticalDragUpdate: (delta) {
+                        setState(() {
+                          _fullDayBarHeight = (_fullDayBarHeight + delta)
+                              .clamp(_fullDayBarMinHeight, _fullDayBarMaxHeight)
+                              .toDouble();
+                        });
+                      },
+                    ),
                   ),
                 ),
               ),
-            ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -410,6 +442,80 @@ class _ScheduleDayWeekViewState extends State<ScheduleDayWeekView> {
     });
   }
 
+  void _animateToDate(DateTime date, ScheduleNavigationIntent intent) {
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      if (!mounted || (_interactionKey.currentState?.active ?? false)) return;
+      final planner = _plannerKey.currentState;
+      if (planner == null || !planner.mainHorizontalController.hasClients) {
+        _jumpToDate(date);
+        return;
+      }
+      _activeNavigationGeneration = intent.generation;
+      final difference = _calendarDayDifference(planner.initialDate, date);
+      final index = planner.widget.textDirection == TextDirection.rtl
+          ? -difference
+          : difference;
+      final target = planner.dayWidthCalculator.offsetForIndex(index);
+      if (_disableAnimations) {
+        planner.mainHorizontalController.jumpTo(target);
+        _finishNavigation(intent.generation);
+        return;
+      }
+      final distance = (target - planner.mainHorizontalController.offset).abs();
+      final page = planner.dayWidth * widget.daysShowed;
+      final fraction = page <= 0 ? 1.0 : (distance / page).clamp(0.0, 1.0);
+      if (fraction == 0) {
+        _finishNavigation(intent.generation);
+        return;
+      }
+      try {
+        await planner.mainHorizontalController.animateTo(
+          target,
+          duration: BusyMaxMotion.calendarPeriod * fraction,
+          curve: BusyMaxMotion.presentationCurve,
+        );
+      } finally {
+        _finishNavigation(intent.generation);
+      }
+    });
+  }
+
+  void _settleNavigation(ScheduleNavigationIntent? intent) {
+    if (intent == null) return;
+    final planner = _plannerKey.currentState;
+    if (planner == null || !planner.mainHorizontalController.hasClients) return;
+    final difference = _calendarDayDifference(
+      planner.initialDate,
+      _plannerStartDate(widget),
+    );
+    final index = planner.widget.textDirection == TextDirection.rtl
+        ? -difference
+        : difference;
+    planner.mainHorizontalController.jumpTo(
+      planner.dayWidthCalculator.offsetForIndex(index),
+    );
+    _finishNavigation(intent.generation);
+  }
+
+  void _interruptNavigation() {
+    if (_activeNavigationGeneration == null) return;
+    final controller = _plannerKey.currentState?.mainHorizontalController;
+    if (controller?.hasClients ?? false) {
+      controller!.jumpTo(controller.offset);
+    }
+    _activeNavigationGeneration = null;
+  }
+
+  void _finishNavigation(int generation) {
+    if (!mounted || _activeNavigationGeneration != generation) return;
+    _activeNavigationGeneration = null;
+    // Destination day cells cache their events in the dependency. Refresh
+    // after their dates have changed, preserving the existing correction.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _reloadEvents();
+    });
+  }
+
   void _jumpToVisibleDayStart() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) {
@@ -422,6 +528,12 @@ class _ScheduleDayWeekViewState extends State<ScheduleDayWeekView> {
     });
   }
 }
+
+int _calendarDayDifference(DateTime origin, DateTime target) => DateTime.utc(
+  target.year,
+  target.month,
+  target.day,
+).difference(DateTime.utc(origin.year, origin.month, origin.day)).inDays;
 
 DateTime _plannerStartDate(ScheduleDayWeekView widget) {
   return widget.daysShowed == 1

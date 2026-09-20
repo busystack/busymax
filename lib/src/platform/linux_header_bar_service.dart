@@ -419,9 +419,10 @@ class BusyMaxHeaderBarState {
     required this.navigationVisible,
     required this.scheduleControlsVisible,
     required this.backVisible,
+    this.sidebarTransitionGeneration = 0,
   });
 
-  static const int schemaVersion = 3;
+  static const int schemaVersion = 4;
 
   final String title;
   final ScheduleViewMode viewMode;
@@ -442,6 +443,7 @@ class BusyMaxHeaderBarState {
   final bool navigationVisible;
   final bool scheduleControlsVisible;
   final bool backVisible;
+  final int sidebarTransitionGeneration;
 
   Map<String, Object> toJson() {
     return <String, Object>{
@@ -458,6 +460,7 @@ class BusyMaxHeaderBarState {
       'navigationVisible': navigationVisible,
       'scheduleControlsVisible': scheduleControlsVisible,
       'backVisible': backVisible,
+      'sidebarTransitionGeneration': sidebarTransitionGeneration,
     };
   }
 
@@ -474,6 +477,7 @@ class BusyMaxHeaderBarState {
     bool? navigationVisible,
     bool? scheduleControlsVisible,
     bool? backVisible,
+    int? sidebarTransitionGeneration,
   }) {
     return BusyMaxHeaderBarState(
       title: title ?? this.title,
@@ -489,6 +493,8 @@ class BusyMaxHeaderBarState {
       scheduleControlsVisible:
           scheduleControlsVisible ?? this.scheduleControlsVisible,
       backVisible: backVisible ?? this.backVisible,
+      sidebarTransitionGeneration:
+          sidebarTransitionGeneration ?? this.sidebarTransitionGeneration,
     );
   }
 
@@ -507,7 +513,8 @@ class BusyMaxHeaderBarState {
             sidebarVisible == other.sidebarVisible &&
             navigationVisible == other.navigationVisible &&
             scheduleControlsVisible == other.scheduleControlsVisible &&
-            backVisible == other.backVisible;
+            backVisible == other.backVisible &&
+            sidebarTransitionGeneration == other.sidebarTransitionGeneration;
   }
 
   @override
@@ -524,6 +531,7 @@ class BusyMaxHeaderBarState {
     navigationVisible,
     scheduleControlsVisible,
     backVisible,
+    sidebarTransitionGeneration,
   );
 }
 

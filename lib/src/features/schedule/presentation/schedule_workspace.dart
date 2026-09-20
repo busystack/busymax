@@ -11,6 +11,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../../app/app_bootstrap.dart';
 import '../../../app/busymax_about_dialog.dart';
 import '../../../app/busymax_design.dart';
+import '../../../app/common/busymax_motion_widgets.dart';
 import '../../../app/busymax_dialogs.dart';
 import '../../../app/busymax_keyboard_shortcuts_dialog.dart';
 import '../../../app/busymax_layout.dart';
@@ -36,6 +37,8 @@ import '../../../ui/common/schedule/schedule_interactions.dart';
 import '../../calendar/domain/event_timing_policy.dart';
 import '../../../schedule/schedule_projection.dart';
 import '../../../schedule/schedule_range.dart';
+import '../../../schedule/schedule_navigation_intent.dart';
+import '../../../schedule/task_list_mutation_intent.dart';
 import '../../../schedule/schedule_repository.dart';
 import '../../../schedule/schedule_scope.dart';
 import '../../../schedule/schedule_source_visibility.dart';
@@ -188,6 +191,7 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
   var _headerBarReady = false;
   var _nativeHeaderBarAvailable = false;
   var _sidebarCollapsed = false;
+  var _sidebarTransitionGeneration = 0;
   var _searchActive = false;
   var _searchQuery = '';
   bool? _sidebarBeforeSearch;
@@ -227,6 +231,14 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
   var _taskDetailsDirty = false;
   final _anchoredPopoverController = ScheduleAnchoredPopoverController();
   var _handlingModalHeaderAction = false;
+  final _taskDetailsOverlayKey = GlobalKey<_ScheduleTaskDetailsOverlayState>();
+  var _taskDetailsBarrierHeld = false;
+  var _taskDetailsLifecycleGeneration = 0;
+  Future<void>? _taskDetailsDismissal;
+  var _navigationGeneration = 0;
+  ScheduleNavigationIntent? _navigationIntent;
+  var _taskListMutationGeneration = 0;
+  TaskListMutationIntent? _taskListMutationIntent;
 
   @override
   void initState() {
@@ -255,7 +267,8 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
       unawaited(createChoiceMenuSession.dismiss());
     }
     _headerBarSession.dispose();
-    if (_taskDetailsTarget != null) {
+    if (_taskDetailsBarrierHeld) {
+      _taskDetailsBarrierHeld = false;
       unawaited(
         releaseBusyMaxModalBarrier(ref.read(linuxHeaderBarServiceProvider)),
       );
@@ -493,196 +506,220 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
                       );
                     }
 
-                    final main = Column(
-                      children: [
-                        if (showFallbackHeader) ...[
-                          if (_searchActive)
-                            Padding(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: BusyMaxSpacing.md,
-                                vertical: BusyMaxSpacing.sm,
-                              ),
-                              child: Row(
-                                children: [
-                                  Expanded(
-                                    child: BusyMaxSearchField(
-                                      controller: _searchController,
-                                      autofocus: true,
-                                      focusRequest: _fallbackSearchFocusRequest,
-                                      hintText: MaterialLocalizations.of(
-                                        context,
-                                      ).searchFieldLabel,
-                                      onChanged: _setSearchQuery,
-                                      onClear: _clearSearchQuery,
-                                    ),
-                                  ),
-                                  if (!canShowFallbackSidebar ||
-                                      _sidebarCollapsed)
-                                    YaruIconButton(
-                                      tooltip: context.l10n.searchFiltersAction,
-                                      icon: const Icon(Icons.filter_list),
-                                      onPressed: _showSearchFilters,
-                                    ),
-                                  YaruIconButton(
-                                    tooltip: context.l10n.close,
-                                    icon: const Icon(Icons.close),
-                                    onPressed: _closeSearch,
-                                  ),
-                                ],
-                              ),
-                            )
-                          else
-                            ScheduleToolbar(
-                              mode: _mode,
-                              range: range,
-                              selectedDate: _selectedDate,
-                              onToday: _goToToday,
-                              onPrevious: _previous,
-                              onNext: _next,
-                              onModeChanged: _setMode,
-                              canCreateEvent: writableSources.isNotEmpty,
-                              canCreateTask: canCreateTask,
-                              onCreateEvent: () => unawaited(
-                                _openNewEvent(
-                                  writableSources,
-                                  _defaultSelectedDateStart(),
+                    final main = BusyMaxBinaryPresentation(
+                      alternateActive: searchActive,
+                      child: Column(
+                        children: [
+                          if (showFallbackHeader) ...[
+                            if (_searchActive)
+                              Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: BusyMaxSpacing.md,
+                                  vertical: BusyMaxSpacing.sm,
                                 ),
-                              ),
-                              onCreateTask: () => unawaited(
-                                _openNewTask(
-                                  accounts,
-                                  due: _day(_defaultSelectedDateStart()),
-                                ),
-                              ),
-                              createMenuController: _createMenuController,
-                              onRefresh: () => unawaited(_refreshAll()),
-                              canRefresh: accounts.isNotEmpty,
-                              canShowSidebar: canShowFallbackSidebar,
-                              sidebarVisible:
-                                  canShowFallbackSidebar && !_sidebarCollapsed,
-                              onToggleSidebar: () => _handleHeaderBarAction(
-                                BusyMaxHeaderBarAction.sidebarToggle,
-                              ),
-                              onSearch: () => _handleHeaderBarAction(
-                                BusyMaxHeaderBarAction.search,
-                              ),
-                              onMenuSelected: _handleFallbackToolbarMenu,
-                            ),
-                          const Divider(height: 1),
-                        ],
-                        Expanded(
-                          child: Listener(
-                            behavior: HitTestBehavior.translucent,
-                            onPointerDown: _recordSchedulePointer,
-                            child: _ScheduleBody(
-                              isLoading: scheduleLoading,
-                              isUnavailable: scheduleUnavailable,
-                              mode: displayMode,
-                              range: displayRange,
-                              selectedDate: searchActive
-                                  ? displayRange.start
-                                  : _selectedDate,
-                              firstWeekday: _firstWeekday(context),
-                              dayStartMinute: settings.scheduleDayStartMinute,
-                              dayEndMinute: settings.scheduleDayEndMinute,
-                              hasAnySources:
-                                  visibility.hasCalendarSources ||
-                                  visibility.hasTaskLists,
-                              hasAccounts: accounts.isNotEmpty,
-                              items: items,
-                              onOpenSettings: () =>
-                                  unawaited(context.push<void>('/settings')),
-                              onRetry: _retrySchedule,
-                              onRefresh: accounts.isEmpty
-                                  ? null
-                                  : () => unawaited(_refreshAll()),
-                              onDaySelected: _setDate,
-                              onYearDaySelected: _openDay,
-                              onMonthSelected: _setMonth,
-                              onWeekSelected: _setWeek,
-                              onEmptySlot: (start) => unawaited(
-                                _openCreateChoice(
-                                  accounts,
-                                  visibleSources,
-                                  start,
-                                  canCreateTask: canCreateTask,
-                                ),
-                              ),
-                              onRangeCreated: writableSources.isNotEmpty
-                                  ? (interval) => unawaited(
-                                      _openNewEvent(
-                                        visibleSources,
-                                        interval.start,
-                                        end: interval.end,
-                                      ),
-                                    )
-                                  : null,
-                              onReschedule: _rescheduleEvent,
-                              onCreateAtDay: (day, {anchorContext}) =>
-                                  unawaited(
-                                    _openCreateChoice(
-                                      accounts,
-                                      visibleSources,
-                                      DateTime(day.year, day.month, day.day, 9),
-                                      canCreateTask: canCreateTask,
-                                      anchorContext: anchorContext,
-                                    ),
-                                  ),
-                              onNewEvent: () => unawaited(
-                                _openNewEvent(visibleSources, _selectedDate),
-                              ),
-                              onNewTask: () =>
-                                  unawaited(_openNewTask(accounts)),
-                              onPrevious: _previous,
-                              onNext: _next,
-                              onAgendaLoadMore:
-                                  !searchActive &&
-                                      _mode == ScheduleViewMode.agenda
-                                  ? _loadMoreAgendaDays
-                                  : null,
-                              hasMoreAgendaOverdueTasks:
-                                  !searchActive &&
-                                  _mode == ScheduleViewMode.agenda &&
-                                  (snapshot.data?.hasMoreOverdueTasks ?? false),
-                              hasMoreAgendaNoDateTasks:
-                                  !searchActive &&
-                                  _mode == ScheduleViewMode.agenda &&
-                                  (snapshot.data?.hasMoreNoDateTasks ?? false),
-                              onAgendaLoadMoreOverdue:
-                                  !searchActive &&
-                                      _mode == ScheduleViewMode.agenda
-                                  ? _loadMoreAgendaOverdueTasks
-                                  : null,
-                              onAgendaLoadMoreNoDate:
-                                  !searchActive &&
-                                      _mode == ScheduleViewMode.agenda
-                                  ? _loadMoreAgendaNoDateTasks
-                                  : null,
-                              onItemSelected:
-                                  (context, item, [globalPosition]) =>
-                                      unawaited(
-                                        _openItem(
+                                child: Row(
+                                  children: [
+                                    Expanded(
+                                      child: BusyMaxSearchField(
+                                        controller: _searchController,
+                                        autofocus: true,
+                                        focusRequest:
+                                            _fallbackSearchFocusRequest,
+                                        hintText: MaterialLocalizations.of(
                                           context,
-                                          item,
-                                          searchActive
-                                              ? sources
-                                              : visibleSources,
-                                          globalPosition: globalPosition,
-                                        ),
+                                        ).searchFieldLabel,
+                                        onChanged: _setSearchQuery,
+                                        onClear: _clearSearchQuery,
                                       ),
-                              onItemAnchorAvailable: _handleItemAnchorAvailable,
-                              onTaskCompletionChanged: _setTaskCompleted,
-                              onChecklistItemCompletionChanged:
-                                  _setChecklistItemCompleted,
-                              canCreateEvent: writableSources.isNotEmpty,
-                              canCreateTask: canCreateTask,
-                              searchActive: searchActive,
-                              searchCriteria: _searchCriteria,
-                              searchQuery: _searchQuery,
+                                    ),
+                                    if (!canShowFallbackSidebar ||
+                                        _sidebarCollapsed)
+                                      YaruIconButton(
+                                        tooltip:
+                                            context.l10n.searchFiltersAction,
+                                        icon: const Icon(Icons.filter_list),
+                                        onPressed: _showSearchFilters,
+                                      ),
+                                    YaruIconButton(
+                                      tooltip: context.l10n.close,
+                                      icon: const Icon(Icons.close),
+                                      onPressed: _closeSearch,
+                                    ),
+                                  ],
+                                ),
+                              )
+                            else
+                              ScheduleToolbar(
+                                mode: _mode,
+                                range: range,
+                                selectedDate: _selectedDate,
+                                onToday: _goToToday,
+                                onPrevious: _previous,
+                                onNext: _next,
+                                onModeChanged: _setMode,
+                                canCreateEvent: writableSources.isNotEmpty,
+                                canCreateTask: canCreateTask,
+                                onCreateEvent: () => unawaited(
+                                  _openNewEvent(
+                                    writableSources,
+                                    _defaultSelectedDateStart(),
+                                  ),
+                                ),
+                                onCreateTask: () => unawaited(
+                                  _openNewTask(
+                                    accounts,
+                                    due: _day(_defaultSelectedDateStart()),
+                                  ),
+                                ),
+                                createMenuController: _createMenuController,
+                                onRefresh: () => unawaited(_refreshAll()),
+                                canRefresh: accounts.isNotEmpty,
+                                canShowSidebar: canShowFallbackSidebar,
+                                sidebarVisible:
+                                    canShowFallbackSidebar &&
+                                    !_sidebarCollapsed,
+                                onToggleSidebar: () => _handleHeaderBarAction(
+                                  BusyMaxHeaderBarAction.sidebarToggle,
+                                ),
+                                onSearch: () => _handleHeaderBarAction(
+                                  BusyMaxHeaderBarAction.search,
+                                ),
+                                onMenuSelected: _handleFallbackToolbarMenu,
+                              ),
+                            const Divider(height: 1),
+                          ],
+                          Expanded(
+                            child: Listener(
+                              behavior: HitTestBehavior.translucent,
+                              onPointerDown: _recordSchedulePointer,
+                              child: _ScheduleBody(
+                                isLoading: scheduleLoading,
+                                isUnavailable: scheduleUnavailable,
+                                mode: displayMode,
+                                range: displayRange,
+                                selectedDate: searchActive
+                                    ? displayRange.start
+                                    : _selectedDate,
+                                firstWeekday: _firstWeekday(context),
+                                dayStartMinute: settings.scheduleDayStartMinute,
+                                dayEndMinute: settings.scheduleDayEndMinute,
+                                hasAnySources:
+                                    visibility.hasCalendarSources ||
+                                    visibility.hasTaskLists,
+                                hasAccounts: accounts.isNotEmpty,
+                                items: items,
+                                onOpenSettings: () =>
+                                    unawaited(context.push<void>('/settings')),
+                                onRetry: _retrySchedule,
+                                onRefresh: accounts.isEmpty
+                                    ? null
+                                    : () => unawaited(_refreshAll()),
+                                onDaySelected: _setDate,
+                                onYearDaySelected: _openDay,
+                                onMonthSelected: _setMonth,
+                                onWeekSelected: _setWeek,
+                                onEmptySlot: (start) => unawaited(
+                                  _openCreateChoice(
+                                    accounts,
+                                    visibleSources,
+                                    start,
+                                    canCreateTask: canCreateTask,
+                                  ),
+                                ),
+                                onRangeCreated: writableSources.isNotEmpty
+                                    ? (interval) => unawaited(
+                                        _openNewEvent(
+                                          visibleSources,
+                                          interval.start,
+                                          end: interval.end,
+                                        ),
+                                      )
+                                    : null,
+                                onReschedule: _rescheduleEvent,
+                                onCreateAtDay: (day, {anchorContext}) =>
+                                    unawaited(
+                                      _openCreateChoice(
+                                        accounts,
+                                        visibleSources,
+                                        DateTime(
+                                          day.year,
+                                          day.month,
+                                          day.day,
+                                          9,
+                                        ),
+                                        canCreateTask: canCreateTask,
+                                        anchorContext: anchorContext,
+                                      ),
+                                    ),
+                                onNewEvent: () => unawaited(
+                                  _openNewEvent(visibleSources, _selectedDate),
+                                ),
+                                onNewTask: () =>
+                                    unawaited(_openNewTask(accounts)),
+                                onPrevious: _previous,
+                                onNext: _next,
+                                onAgendaLoadMore:
+                                    !searchActive &&
+                                        _mode == ScheduleViewMode.agenda
+                                    ? _loadMoreAgendaDays
+                                    : null,
+                                hasMoreAgendaOverdueTasks:
+                                    !searchActive &&
+                                    _mode == ScheduleViewMode.agenda &&
+                                    (snapshot.data?.hasMoreOverdueTasks ??
+                                        false),
+                                hasMoreAgendaNoDateTasks:
+                                    !searchActive &&
+                                    _mode == ScheduleViewMode.agenda &&
+                                    (snapshot.data?.hasMoreNoDateTasks ??
+                                        false),
+                                onAgendaLoadMoreOverdue:
+                                    !searchActive &&
+                                        _mode == ScheduleViewMode.agenda
+                                    ? _loadMoreAgendaOverdueTasks
+                                    : null,
+                                onAgendaLoadMoreNoDate:
+                                    !searchActive &&
+                                        _mode == ScheduleViewMode.agenda
+                                    ? _loadMoreAgendaNoDateTasks
+                                    : null,
+                                onItemSelected:
+                                    (context, item, [globalPosition]) =>
+                                        unawaited(
+                                          _openItem(
+                                            context,
+                                            item,
+                                            searchActive
+                                                ? sources
+                                                : visibleSources,
+                                            globalPosition: globalPosition,
+                                          ),
+                                        ),
+                                onItemAnchorAvailable:
+                                    _handleItemAnchorAvailable,
+                                onTaskCompletionChanged: _setTaskCompleted,
+                                onChecklistItemCompletionChanged:
+                                    _setChecklistItemCompleted,
+                                canCreateEvent: writableSources.isNotEmpty,
+                                canCreateTask: canCreateTask,
+                                searchActive: searchActive,
+                                searchCriteria: _searchCriteria,
+                                searchQuery: _searchQuery,
+                                navigationIntent: _navigationIntent,
+                                taskListMutationIntent: _taskListMutationIntent,
+                                onTaskListMutationConsumed: (intent) {
+                                  if (_taskListMutationIntent?.generation ==
+                                      intent.generation) {
+                                    setState(
+                                      () => _taskListMutationIntent = null,
+                                    );
+                                  }
+                                },
+                              ),
                             ),
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
                     );
                     return Scaffold(
                       backgroundColor: BusyMaxSurfaceColors.of(context).window,
@@ -699,24 +736,32 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
                             canCreateTask: canCreateTask,
                             showSidebar: showSidebar,
                           );
-                          final body = !showSidebar || _sidebarCollapsed
-                              ? main
-                              : Row(
-                                  children: [
-                                    buildSidebar(),
-                                    Expanded(child: main),
-                                  ],
-                                );
+                          final sidebar = BusyMaxBinaryPresentation(
+                            alternateActive:
+                                searchActive && _searchCriteria != null,
+                            child: buildSidebar(),
+                          );
+                          final body = Row(
+                            children: [
+                              BusyMaxHorizontalReveal(
+                                visible: showSidebar && !_sidebarCollapsed,
+                                width: BusyMaxSizes.sidebarWidth,
+                                transitionGeneration:
+                                    _sidebarTransitionGeneration,
+                                child: sidebar,
+                              ),
+                              Expanded(child: main),
+                            ],
+                          );
                           return _ScheduleTaskDetailsOverlay(
+                            key: _taskDetailsOverlayKey,
                             target: _taskDetailsTarget,
                             onClose: () =>
                                 unawaited(_requestCloseTaskDetails()),
                             onDirtyChanged: (dirty) {
                               _taskDetailsDirty = dirty;
                             },
-                            onMutationCommitted: () {
-                              if (mounted) setState(() {});
-                            },
+                            onMutationCommitted: _handleEditorTaskMutation,
                             child: body,
                           );
                         },
@@ -814,6 +859,7 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
       navigationVisible: !_searchActive && _mode != ScheduleViewMode.agenda,
       scheduleControlsVisible: true,
       backVisible: false,
+      sidebarTransitionGeneration: _sidebarTransitionGeneration,
     );
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) {
@@ -884,8 +930,7 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
         if (!await _confirmDiscardTaskDetails()) {
           return;
         }
-        _closeTaskDetails();
-        await WidgetsBinding.instance.endOfFrame;
+        await _closeTaskDetails();
       } else if (_anchoredPopoverController.isOpen) {
         await _anchoredPopoverController.dismiss();
       } else {
@@ -912,7 +957,10 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
           if (_searchActive) unawaited(_showSearchFilters());
           return;
         }
-        setState(() => _sidebarCollapsed = !_sidebarCollapsed);
+        setState(() {
+          _sidebarCollapsed = !_sidebarCollapsed;
+          _sidebarTransitionGeneration += 1;
+        });
       case BusyMaxHeaderBarAction.today:
         _goToToday();
       case BusyMaxHeaderBarAction.previous:
@@ -1244,6 +1292,7 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
 
   void _setDate(DateTime date) {
     setState(() {
+      _navigationIntent = null;
       if (_scope == ScheduleScope.today || _scope == ScheduleScope.upcoming) {
         _scope = ScheduleScope.all;
       }
@@ -1355,6 +1404,12 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
   void _goToToday() {
     if (_searchActive) return;
     setState(() {
+      _navigationIntent = ScheduleNavigationIntent(
+        cause: ScheduleNavigationCause.today,
+        target: _day(DateTime.now()),
+        direction: 0,
+        generation: ++_navigationGeneration,
+      );
       _selectedDate = _day(DateTime.now());
       if (_mode == ScheduleViewMode.agenda) {
         _resetAgendaLoadedDays();
@@ -1374,6 +1429,7 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
       return;
     }
     setState(() {
+      _navigationIntent = null;
       _mode = mode;
       _lastSettingsMode = mode;
       if (mode == ScheduleViewMode.agenda) {
@@ -1441,7 +1497,7 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
       return;
     }
     setState(() {
-      _selectedDate = switch (_mode) {
+      final target = switch (_mode) {
         ScheduleViewMode.day => DateUtils.addDaysToDate(_selectedDate, -1),
         ScheduleViewMode.week => DateUtils.addDaysToDate(_selectedDate, -7),
         ScheduleViewMode.month => DateUtils.addMonthsToMonthDate(
@@ -1455,6 +1511,13 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
         ),
         ScheduleViewMode.agenda => _selectedDate,
       };
+      _selectedDate = target;
+      _navigationIntent = ScheduleNavigationIntent(
+        cause: ScheduleNavigationCause.adjacentPeriod,
+        target: target,
+        direction: -1,
+        generation: ++_navigationGeneration,
+      );
       if (_scope == ScheduleScope.today || _scope == ScheduleScope.upcoming) {
         _scope = ScheduleScope.all;
       }
@@ -1467,7 +1530,7 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
       return;
     }
     setState(() {
-      _selectedDate = switch (_mode) {
+      final target = switch (_mode) {
         ScheduleViewMode.day => DateUtils.addDaysToDate(_selectedDate, 1),
         ScheduleViewMode.week => DateUtils.addDaysToDate(_selectedDate, 7),
         ScheduleViewMode.month => DateUtils.addMonthsToMonthDate(
@@ -1481,6 +1544,13 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
         ),
         ScheduleViewMode.agenda => _selectedDate,
       };
+      _selectedDate = target;
+      _navigationIntent = ScheduleNavigationIntent(
+        cause: ScheduleNavigationCause.adjacentPeriod,
+        target: target,
+        direction: 1,
+        generation: ++_navigationGeneration,
+      );
       if (_scope == ScheduleScope.today || _scope == ScheduleScope.upcoming) {
         _scope = ScheduleScope.all;
       }
@@ -1897,6 +1967,8 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
     bool Function()? isRequestCurrent,
   }) async {
     if (_taskDetailsTarget == target) {
+      _taskDetailsLifecycleGeneration += 1;
+      _taskDetailsOverlayKey.currentState?.present();
       return true;
     }
     final replacingOpenTarget = _taskDetailsTarget != null;
@@ -1906,16 +1978,22 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
     if (!mounted || !(isRequestCurrent?.call() ?? true)) {
       return false;
     }
+    if (!replacingOpenTarget && !_taskDetailsBarrierHeld) {
+      await acquireBusyMaxModalBarrier(ref.read(linuxHeaderBarServiceProvider));
+      if (!mounted || !(isRequestCurrent?.call() ?? true)) {
+        await releaseBusyMaxModalBarrier(
+          ref.read(linuxHeaderBarServiceProvider),
+        );
+        return false;
+      }
+      _taskDetailsBarrierHeld = true;
+    }
+    _taskDetailsLifecycleGeneration += 1;
     setState(() {
       _taskDetailsTarget = target;
       _taskDetailsDirty = false;
     });
-    if (replacingOpenTarget) {
-      return true;
-    }
-    unawaited(
-      acquireBusyMaxModalBarrier(ref.read(linuxHeaderBarServiceProvider)),
-    );
+    _taskDetailsOverlayKey.currentState?.present();
     return true;
   }
 
@@ -2012,7 +2090,7 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
         _taskDetailsTarget != visibleTarget) {
       return false;
     }
-    _closeTaskDetails();
+    await _closeTaskDetails();
     return true;
   }
 
@@ -2035,7 +2113,7 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
         _taskDetailsTarget != visibleTarget) {
       return;
     }
-    _closeTaskDetails();
+    await _closeTaskDetails();
   }
 
   Future<void> _handleInitialTaskUnavailable(
@@ -2058,7 +2136,7 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
         _taskDetailsTarget != visibleTarget) {
       return;
     }
-    _closeTaskDetails();
+    await _closeTaskDetails();
   }
 
   Future<void> _handleInitialTaskTarget(
@@ -2105,7 +2183,7 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
     if (!await _confirmDiscardTaskDetails()) {
       return;
     }
-    _closeTaskDetails();
+    await _closeTaskDetails();
   }
 
   Future<bool> _confirmDiscardTaskDetails() async {
@@ -2123,18 +2201,35 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
     );
   }
 
-  void _closeTaskDetails() {
+  Future<void> _closeTaskDetails() {
+    final pending = _taskDetailsDismissal;
+    if (pending != null) return pending;
+    final operation = _performTaskDetailsDismissal();
+    _taskDetailsDismissal = operation;
+    return operation.whenComplete(() {
+      if (identical(_taskDetailsDismissal, operation)) {
+        _taskDetailsDismissal = null;
+      }
+    });
+  }
+
+  Future<void> _performTaskDetailsDismissal() async {
     final target = _taskDetailsTarget;
     if (target == null) {
       return;
     }
+    final generation = ++_taskDetailsLifecycleGeneration;
+    await _taskDetailsOverlayKey.currentState?.dismiss();
+    if (!mounted || generation != _taskDetailsLifecycleGeneration) return;
     setState(() {
       _taskDetailsTarget = null;
       _taskDetailsDirty = false;
     });
-    unawaited(
-      releaseBusyMaxModalBarrier(ref.read(linuxHeaderBarServiceProvider)),
-    );
+    if (_taskDetailsBarrierHeld) {
+      _taskDetailsBarrierHeld = false;
+      await releaseBusyMaxModalBarrier(ref.read(linuxHeaderBarServiceProvider));
+    }
+    if (!mounted || generation != _taskDetailsLifecycleGeneration) return;
     if (_initialTaskRouteTarget == target.scheduleTarget) {
       _goToTaskListRoute(target);
     }
@@ -2380,11 +2475,25 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
       return;
     }
     if (item is TaskScheduleItem) {
-      await ref
-          .read(tasksRepositoryForAccountProvider(item.accountId))
-          .deleteTask(item.sourceId, item.id);
-      if (mounted) {
-        setState(() {});
+      final intent = TaskListMutationIntent(
+        presentation: TaskListMutationPresentation.removal,
+        accountId: item.accountId,
+        taskListId: item.sourceId,
+        taskId: item.id,
+        generation: ++_taskListMutationGeneration,
+      );
+      setState(() => _taskListMutationIntent = intent);
+      try {
+        await ref
+            .read(tasksRepositoryForAccountProvider(item.accountId))
+            .deleteTask(item.sourceId, item.id);
+        if (mounted) setState(() {});
+      } on Object {
+        if (mounted &&
+            _taskListMutationIntent?.generation == intent.generation) {
+          setState(() => _taskListMutationIntent = null);
+        }
+        rethrow;
       }
     }
   }
@@ -2549,11 +2658,19 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
     if (draft == null) {
       return;
     }
-    await ref
+    final taskId = await ref
         .read(tasksRepositoryForAccountProvider(draft.accountId))
         .createTask(draft.taskListId, draft.input);
     if (mounted) {
-      setState(() {});
+      setState(() {
+        _taskListMutationIntent = TaskListMutationIntent(
+          presentation: TaskListMutationPresentation.insertion,
+          accountId: draft.accountId,
+          taskListId: draft.taskListId,
+          taskId: taskId,
+          generation: ++_taskListMutationGeneration,
+        );
+      });
     }
   }
 
@@ -2581,12 +2698,47 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
       'status': completed ? 'completed' : 'needsAction',
       'completed': completed ? DateTime.now().toUtc().toIso8601String() : null,
     };
-    await ref
-        .read(tasksRepositoryForAccountProvider(item.accountId))
-        .patchTask(item.sourceId, item.id, TaskPatchInput(fields));
-    if (mounted) {
-      setState(() {});
+    final intent = TaskListMutationIntent(
+      presentation: TaskListMutationPresentation.completion,
+      accountId: item.accountId,
+      taskListId: item.sourceId,
+      taskId: item.id,
+      completed: completed,
+      generation: ++_taskListMutationGeneration,
+    );
+    setState(() => _taskListMutationIntent = intent);
+    try {
+      await ref
+          .read(tasksRepositoryForAccountProvider(item.accountId))
+          .patchTask(item.sourceId, item.id, TaskPatchInput(fields));
+    } on Object {
+      if (mounted && _taskListMutationIntent?.generation == intent.generation) {
+        setState(() => _taskListMutationIntent = null);
+      }
+      rethrow;
     }
+  }
+
+  void _handleEditorTaskMutation(TaskMutationResult result) {
+    if (!mounted) return;
+    final createdId = result.createdTaskId;
+    setState(() {
+      _taskListMutationIntent = TaskListMutationIntent(
+        presentation: switch (result.kind) {
+          TaskMutationKind.deleted => TaskListMutationPresentation.removal,
+          TaskMutationKind.duplicated => TaskListMutationPresentation.insertion,
+          TaskMutationKind.completion =>
+            TaskListMutationPresentation.completion,
+          _ => TaskListMutationPresentation.completion,
+        },
+        accountId: result.accountId,
+        taskListId: result.taskListId,
+        taskId: createdId ?? result.taskId,
+        checklistItemId: result.checklistItemId,
+        completed: result.completed,
+        generation: ++_taskListMutationGeneration,
+      );
+    });
   }
 
   Future<void> _setChecklistItemCompleted(
@@ -2594,6 +2746,16 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
     TaskChecklistItemEntity item,
     bool completed,
   ) async {
+    final intent = TaskListMutationIntent(
+      presentation: TaskListMutationPresentation.completion,
+      accountId: parent.accountId,
+      taskListId: parent.sourceId,
+      taskId: parent.id,
+      checklistItemId: item.id,
+      completed: completed,
+      generation: ++_taskListMutationGeneration,
+    );
+    setState(() => _taskListMutationIntent = intent);
     try {
       await ref
           .read(tasksRepositoryForAccountProvider(parent.accountId))
@@ -2603,9 +2765,11 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
             checklistItemId: item.id,
             completed: completed,
           );
-      if (mounted) setState(() {});
     } on Object catch (error) {
       if (!mounted) return;
+      if (_taskListMutationIntent?.generation == intent.generation) {
+        setState(() => _taskListMutationIntent = null);
+      }
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
@@ -2860,6 +3024,9 @@ class _ScheduleBody extends StatelessWidget {
     required this.canCreateEvent,
     required this.canCreateTask,
     required this.searchActive,
+    this.navigationIntent,
+    this.taskListMutationIntent,
+    this.onTaskListMutationConsumed,
     this.searchCriteria,
     this.searchQuery = '',
   });
@@ -2908,6 +3075,9 @@ class _ScheduleBody extends StatelessWidget {
   final bool canCreateEvent;
   final bool canCreateTask;
   final bool searchActive;
+  final ScheduleNavigationIntent? navigationIntent;
+  final TaskListMutationIntent? taskListMutationIntent;
+  final ValueChanged<TaskListMutationIntent>? onTaskListMutationConsumed;
   final ScheduleSearchCriteria? searchCriteria;
   final String searchQuery;
 
@@ -2938,81 +3108,99 @@ class _ScheduleBody extends StatelessWidget {
         onNewTask: canCreateTask ? onNewTask : null,
       );
     }
-    return switch (mode) {
-      ScheduleViewMode.day => ScheduleDayWeekView(
-        key: const ValueKey('schedule-day-planner'),
-        range: range,
-        selectedDate: selectedDate,
-        daysShowed: 1,
-        dayStartMinute: dayStartMinute,
-        dayEndMinute: dayEndMinute,
-        items: items,
-        onDaySelected: onDaySelected,
-        onEmptySlot: onEmptySlot,
-        onRangeCreated: onRangeCreated,
-        onReschedule: onReschedule,
-        onItemSelected: onItemSelected,
-        onTaskCompletionChanged: onTaskCompletionChanged,
-      ),
-      ScheduleViewMode.week => ScheduleDayWeekView(
-        key: const ValueKey('schedule-week-planner'),
-        range: range,
-        selectedDate: selectedDate,
-        daysShowed: 7,
-        dayStartMinute: dayStartMinute,
-        dayEndMinute: dayEndMinute,
-        items: items,
-        onDaySelected: onDaySelected,
-        onEmptySlot: onEmptySlot,
-        onRangeCreated: onRangeCreated,
-        onReschedule: onReschedule,
-        onItemSelected: onItemSelected,
-        onTaskCompletionChanged: onTaskCompletionChanged,
-      ),
-      ScheduleViewMode.month => _HorizontalSchedulePager(
-        onPrevious: onPrevious,
-        onNext: onNext,
-        child: ScheduleMonthView(
+    final modeView = BusyMaxKeyedCrossfade(
+      transitionKey: mode,
+      child: switch (mode) {
+        ScheduleViewMode.day => ScheduleDayWeekView(
+          key: const ValueKey('schedule-day-planner'),
           range: range,
           selectedDate: selectedDate,
+          daysShowed: 1,
+          dayStartMinute: dayStartMinute,
+          dayEndMinute: dayEndMinute,
           items: items,
-          firstWeekday: firstWeekday,
           onDaySelected: onDaySelected,
-          onCreateAtDay: onCreateAtDay,
+          onEmptySlot: onEmptySlot,
+          onRangeCreated: onRangeCreated,
           onReschedule: onReschedule,
           onItemSelected: onItemSelected,
           onTaskCompletionChanged: onTaskCompletionChanged,
+          navigationIntent: navigationIntent,
         ),
-      ),
-      ScheduleViewMode.year => _HorizontalSchedulePager(
-        onPrevious: onPrevious,
-        onNext: onNext,
-        child: ScheduleYearView(
+        ScheduleViewMode.week => ScheduleDayWeekView(
+          key: const ValueKey('schedule-week-planner'),
+          range: range,
           selectedDate: selectedDate,
+          daysShowed: 7,
+          dayStartMinute: dayStartMinute,
+          dayEndMinute: dayEndMinute,
           items: items,
-          firstWeekday: firstWeekday,
-          onDaySelected: onYearDaySelected,
-          onMonthSelected: onMonthSelected,
-          onWeekSelected: onWeekSelected,
-          onCreateAtDay: (day) => onCreateAtDay(day),
+          onDaySelected: onDaySelected,
+          onEmptySlot: onEmptySlot,
+          onRangeCreated: onRangeCreated,
+          onReschedule: onReschedule,
+          onItemSelected: onItemSelected,
+          onTaskCompletionChanged: onTaskCompletionChanged,
+          navigationIntent: navigationIntent,
         ),
-      ),
-      ScheduleViewMode.agenda => ScheduleAgendaView(
-        searchCriteria: searchCriteria,
-        searchQuery: searchQuery,
-        range: range,
-        items: items,
-        hasMoreOverdueTasks: hasMoreAgendaOverdueTasks,
-        hasMoreNoDateTasks: hasMoreAgendaNoDateTasks,
-        onLoadMore: onAgendaLoadMore,
-        onLoadMoreOverdue: onAgendaLoadMoreOverdue,
-        onLoadMoreNoDate: onAgendaLoadMoreNoDate,
-        onItemSelected: onItemSelected,
-        onItemAnchorAvailable: onItemAnchorAvailable,
-        onTaskCompletionChanged: onTaskCompletionChanged,
-        onChecklistItemCompletionChanged: onChecklistItemCompletionChanged,
-      ),
-    };
+        ScheduleViewMode.month => _HorizontalSchedulePager(
+          onPrevious: onPrevious,
+          onNext: onNext,
+          child: ScheduleMonthView(
+            range: range,
+            selectedDate: selectedDate,
+            items: items,
+            firstWeekday: firstWeekday,
+            onDaySelected: onDaySelected,
+            onCreateAtDay: onCreateAtDay,
+            onReschedule: onReschedule,
+            onItemSelected: onItemSelected,
+            onTaskCompletionChanged: onTaskCompletionChanged,
+          ),
+        ),
+        ScheduleViewMode.year => _HorizontalSchedulePager(
+          onPrevious: onPrevious,
+          onNext: onNext,
+          child: ScheduleYearView(
+            selectedDate: selectedDate,
+            items: items,
+            firstWeekday: firstWeekday,
+            onDaySelected: onYearDaySelected,
+            onMonthSelected: onMonthSelected,
+            onWeekSelected: onWeekSelected,
+            onCreateAtDay: (day) => onCreateAtDay(day),
+          ),
+        ),
+        ScheduleViewMode.agenda => ScheduleAgendaView(
+          searchCriteria: searchCriteria,
+          searchQuery: searchQuery,
+          range: range,
+          items: items,
+          hasMoreOverdueTasks: hasMoreAgendaOverdueTasks,
+          hasMoreNoDateTasks: hasMoreAgendaNoDateTasks,
+          onLoadMore: onAgendaLoadMore,
+          onLoadMoreOverdue: onAgendaLoadMoreOverdue,
+          onLoadMoreNoDate: onAgendaLoadMoreNoDate,
+          onItemSelected: onItemSelected,
+          onItemAnchorAvailable: onItemAnchorAvailable,
+          onTaskCompletionChanged: onTaskCompletionChanged,
+          onChecklistItemCompletionChanged: onChecklistItemCompletionChanged,
+          taskListMutationIntent: taskListMutationIntent,
+          onTaskListMutationConsumed: onTaskListMutationConsumed,
+        ),
+      },
+    );
+    final intent = navigationIntent;
+    if (intent != null &&
+        intent.cause == ScheduleNavigationCause.adjacentPeriod &&
+        (mode == ScheduleViewMode.month || mode == ScheduleViewMode.year)) {
+      return BusyMaxDirectionalSwitcher(
+        generation: intent.generation,
+        direction: intent.direction,
+        child: modeView,
+      );
+    }
+    return modeView;
   }
 }
 
@@ -3049,6 +3237,7 @@ class _HorizontalSchedulePager extends StatelessWidget {
 
 class _ScheduleTaskDetailsOverlay extends StatefulWidget {
   const _ScheduleTaskDetailsOverlay({
+    super.key,
     required this.child,
     required this.target,
     required this.onClose,
@@ -3060,7 +3249,7 @@ class _ScheduleTaskDetailsOverlay extends StatefulWidget {
   final _TaskDetailsTarget? target;
   final VoidCallback onClose;
   final ValueChanged<bool> onDirtyChanged;
-  final VoidCallback onMutationCommitted;
+  final ValueChanged<TaskMutationResult> onMutationCommitted;
 
   @override
   State<_ScheduleTaskDetailsOverlay> createState() =>
@@ -3068,20 +3257,38 @@ class _ScheduleTaskDetailsOverlay extends StatefulWidget {
 }
 
 class _ScheduleTaskDetailsOverlayState
-    extends State<_ScheduleTaskDetailsOverlay> {
+    extends State<_ScheduleTaskDetailsOverlay>
+    with SingleTickerProviderStateMixin {
   final _modalFocusNode = FocusNode(debugLabel: 'scheduleTaskDetails');
   FocusNode? _previousFocus;
+  late final AnimationController _controller = AnimationController(
+    vsync: this,
+    animationBehavior: AnimationBehavior.preserve,
+    value: widget.target == null ? 0 : 1,
+  );
+  _TaskDetailsTarget? _displayedTarget;
+  bool _exiting = false;
+  bool _disableAnimations = false;
 
   @override
   void initState() {
     super.initState();
     if (widget.target != null) {
+      _displayedTarget = widget.target;
       _previousFocus = FocusManager.instance.primaryFocus;
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) {
-          _modalFocusNode.requestFocus();
-        }
-      });
+      _requestEditorFocus();
+    }
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final disabled = MediaQuery.disableAnimationsOf(context);
+    if (disabled != _disableAnimations) {
+      _disableAnimations = disabled;
+      if (disabled) {
+        _controller.value = _exiting || widget.target == null ? 0 : 1;
+      }
     }
   }
 
@@ -3089,81 +3296,129 @@ class _ScheduleTaskDetailsOverlayState
   void didUpdateWidget(covariant _ScheduleTaskDetailsOverlay oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.target == null && widget.target != null) {
+      _displayedTarget = widget.target;
+      _exiting = false;
       _previousFocus = FocusManager.instance.primaryFocus;
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) {
-          _modalFocusNode.requestFocus();
-        }
-      });
+      _requestEditorFocus();
+      present();
+    } else if (oldWidget.target != widget.target && widget.target != null) {
+      _displayedTarget = widget.target;
+      _exiting = false;
+      _requestEditorFocus();
+      present();
     } else if (oldWidget.target != null && widget.target == null) {
+      _displayedTarget = null;
+      _exiting = false;
       final previousFocus = _previousFocus;
       _previousFocus = null;
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted && (previousFocus?.context?.mounted ?? false)) {
+        if (mounted &&
+            widget.target == null &&
+            (previousFocus?.context?.mounted ?? false)) {
           previousFocus!.requestFocus();
         }
       });
     }
   }
 
+  void _requestEditorFocus() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted && widget.target != null && !_exiting) {
+        _modalFocusNode.requestFocus();
+      }
+    });
+  }
+
+  void present() {
+    _exiting = false;
+    if (_disableAnimations) {
+      _controller.value = 1;
+      return;
+    }
+    final distance = (1 - _controller.value).abs();
+    if (distance == 0) return;
+    _controller.animateTo(
+      1,
+      duration: BusyMaxMotion.taskEditorOpen * distance,
+      curve: BusyMaxMotion.presentationCurve,
+    );
+  }
+
+  Future<void> dismiss() async {
+    if (_displayedTarget == null) return;
+    if (mounted) setState(() => _exiting = true);
+    if (_disableAnimations) {
+      _controller.value = 0;
+      return;
+    }
+    final distance = _controller.value.abs();
+    if (distance == 0) return;
+    try {
+      await _controller
+          .animateBack(
+            0,
+            duration: BusyMaxMotion.taskEditorClose * distance,
+            curve: BusyMaxMotion.presentationCurve,
+          )
+          .orCancel;
+    } on TickerCanceled {
+      // A new editor request reversed the dismissal from its current value.
+    }
+  }
+
   @override
   void dispose() {
+    _controller.dispose();
     _modalFocusNode.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    final target = widget.target;
-    if (target == null) {
-      return widget.child;
-    }
-    return Stack(
-      children: [
-        ExcludeFocus(child: ExcludeSemantics(child: widget.child)),
-        ModalBarrier(
-          color: busyMaxModalBarrierColor(context),
-          dismissible: false,
-        ),
-        BlockSemantics(
-          child: Semantics(
-            scopesRoute: true,
-            namesRoute: true,
-            label: context.l10n.editTask,
-            explicitChildNodes: true,
-            child: BusyMaxModalShortcutBoundary(
-              child: Shortcuts(
-                shortcuts: const {
-                  BusyMaxShortcutActivators.dismiss: DismissIntent(),
-                },
-                child: Actions(
-                  actions: {
-                    DismissIntent: CallbackAction<DismissIntent>(
-                      onInvoke: (_) {
-                        widget.onClose();
-                        return null;
-                      },
-                    ),
+    final target = _displayedTarget ?? widget.target;
+    final modalActive = target != null;
+    final editor = target == null
+        ? const SizedBox.shrink()
+        : BlockSemantics(
+            child: Semantics(
+              scopesRoute: true,
+              namesRoute: true,
+              label: context.l10n.editTask,
+              explicitChildNodes: true,
+              child: BusyMaxModalShortcutBoundary(
+                child: Shortcuts(
+                  shortcuts: const {
+                    BusyMaxShortcutActivators.dismiss: DismissIntent(),
                   },
-                  child: FocusTraversalGroup(
-                    policy: WidgetOrderTraversalPolicy(),
-                    child: Focus(
-                      autofocus: true,
-                      focusNode: _modalFocusNode,
-                      child: Center(
-                        child: BusyMaxModalEditorSurface(
-                          maxWidth: BusyMaxSizes.compactDetailsWidth,
-                          maxHeight: 760,
-                          child: TaskDetailsPane(
-                            key: ValueKey(target),
-                            accountId: target.accountId,
-                            taskListId: target.taskListId,
-                            taskId: target.taskId,
-                            onClose: widget.onClose,
-                            onDirtyChanged: widget.onDirtyChanged,
-                            onTaskMutationCommitted: (_) =>
-                                widget.onMutationCommitted(),
-                            dialogBarrierColor: Colors.transparent,
+                  child: Actions(
+                    actions: {
+                      DismissIntent: CallbackAction<DismissIntent>(
+                        onInvoke: (_) {
+                          widget.onClose();
+                          return null;
+                        },
+                      ),
+                    },
+                    child: FocusTraversalGroup(
+                      policy: WidgetOrderTraversalPolicy(),
+                      child: Focus(
+                        autofocus: true,
+                        focusNode: _modalFocusNode,
+                        child: Center(
+                          child: BusyMaxModalEditorSurface(
+                            maxWidth: BusyMaxSizes.compactDetailsWidth,
+                            maxHeight: 760,
+                            child: TaskDetailsPane(
+                              key: ValueKey(target),
+                              accountId: target.accountId,
+                              taskListId: target.taskListId,
+                              taskId: target.taskId,
+                              onClose: widget.onClose,
+                              onDirtyChanged: widget.onDirtyChanged,
+                              onTaskMutationCommitted:
+                                  widget.onMutationCommitted,
+                              dialogBarrierColor: Colors.transparent,
+                            ),
                           ),
                         ),
                       ),
@@ -3172,9 +3427,42 @@ class _ScheduleTaskDetailsOverlayState
                 ),
               ),
             ),
+          );
+    return AnimatedBuilder(
+      animation: _controller,
+      child: widget.child,
+      builder: (context, child) => Stack(
+        children: [
+          ExcludeFocus(
+            excluding: modalActive,
+            child: ExcludeSemantics(excluding: modalActive, child: child!),
           ),
-        ),
-      ],
+          if (modalActive) ...[
+            ModalBarrier(
+              color: busyMaxModalBarrierColor(context).withValues(
+                alpha: busyMaxModalBarrierColor(context).a * _controller.value,
+              ),
+              dismissible: false,
+            ),
+            IgnorePointer(
+              ignoring: _exiting,
+              child: ExcludeFocus(
+                excluding: _exiting,
+                child: ExcludeSemantics(
+                  excluding: _exiting,
+                  child: Opacity(
+                    opacity: _controller.value,
+                    child: Transform.scale(
+                      scale: .985 + .015 * _controller.value,
+                      child: editor,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ],
+      ),
     );
   }
 }

@@ -256,35 +256,38 @@ void main() {
         await _searchShortcut(tester);
         expect(
           platform == 'linux'
-              ? find.byType(ScheduleSearchFilters)
-              : find.byType(WindowsScheduleSearchPane),
+              ? find.byType(ScheduleSearchFilters).hitTestable()
+              : find.byType(WindowsScheduleSearchPane).hitTestable(),
           findsNothing,
         );
         await tester.sendKeyEvent(LogicalKeyboardKey.f9);
         await tester.pumpAndSettle();
         expect(
           platform == 'linux'
-              ? find.byType(ScheduleSearchFilters)
-              : find.byType(WindowsScheduleSearchPane),
+              ? find.byType(ScheduleSearchFilters).hitTestable()
+              : find.byType(WindowsScheduleSearchPane).hitTestable(),
           findsOneWidget,
         );
         if (platform == 'linux') {
+          final visibleFilters = find
+              .byType(ScheduleSearchFilters)
+              .hitTestable();
           expect(find.byType(BusyMaxDialogShell), findsOneWidget);
-          expect(find.byType(BusyMaxSidebarSurface), findsNothing);
           expect(
-            tester
-                .widget<ScheduleSearchFilters>(
-                  find.byType(ScheduleSearchFilters),
-                )
-                .sidebar,
+            find.byType(BusyMaxSidebarSurface).hitTestable(),
+            findsNothing,
+          );
+          expect(
+            tester.widget<ScheduleSearchFilters>(visibleFilters).sidebar,
             isFalse,
           );
-          Navigator.of(
-            tester.element(find.byType(ScheduleSearchFilters)),
-          ).pop();
+          Navigator.of(tester.element(visibleFilters)).pop();
           await tester.pumpAndSettle();
           expect(find.byType(BusyMaxDialogShell), findsNothing);
-          expect(find.byType(ScheduleSearchFilters), findsNothing);
+          expect(
+            find.byType(ScheduleSearchFilters).hitTestable(),
+            findsNothing,
+          );
           expect(
             find.byKey(const ValueKey('schedule-search-results')),
             findsOneWidget,
@@ -297,7 +300,10 @@ void main() {
           await tester.pumpAndSettle();
           expect(find.byType(BusyMaxDialogShell), findsNothing);
           expect(find.byType(ScheduleSearchFilters), findsOneWidget);
-          expect(find.byType(BusyMaxSidebarSurface), findsOneWidget);
+          expect(
+            find.byType(BusyMaxSidebarSurface).hitTestable(),
+            findsOneWidget,
+          );
         }
         expect(
           find.text('Custom range'),
@@ -472,7 +478,7 @@ void main() {
 
     await tester.sendKeyEvent(LogicalKeyboardKey.f9);
     await tester.pumpAndSettle();
-    final pane = find.byType(WindowsScheduleSourcePane);
+    final pane = find.byType(WindowsScheduleSourcePane).hitTestable();
     expect(pane, findsOneWidget);
     expect(
       tester.widget<WindowsScheduleSourcePane>(pane).firstWeekday,

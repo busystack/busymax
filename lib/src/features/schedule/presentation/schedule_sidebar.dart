@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 import '../../../dav/presentation/nextcloud_collection_dialog.dart';
 import '../../../dav/nextcloud/nextcloud_dav_context.dart';
 
@@ -372,17 +373,41 @@ class _AccountSourcesGroup extends ConsumerStatefulWidget {
       _AccountSourcesGroupState();
 }
 
-class _AccountSourcesGroupState extends ConsumerState<_AccountSourcesGroup> {
+class _AccountSourcesGroupState extends ConsumerState<_AccountSourcesGroup>
+    with SingleTickerProviderStateMixin {
   var _expanded = true;
   var _creatingCalendar = false;
   var _creatingTaskList = false;
+  late final AnimationController _expansion = AnimationController(
+    vsync: this,
+    animationBehavior: AnimationBehavior.preserve,
+    value: 1,
+  );
+  bool _disableAnimations = false;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final disabled = MediaQuery.disableAnimationsOf(context);
+    if (disabled != _disableAnimations) {
+      _disableAnimations = disabled;
+      if (disabled) _expansion.value = _expanded ? 1 : 0;
+    }
+  }
 
   @override
   void didUpdateWidget(covariant _AccountSourcesGroup oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.account.id != widget.account.id) {
       _expanded = true;
+      _expansion.value = 1;
     }
+  }
+
+  @override
+  void dispose() {
+    _expansion.dispose();
+    super.dispose();
   }
 
   @override
@@ -424,59 +449,92 @@ class _AccountSourcesGroupState extends ConsumerState<_AccountSourcesGroup> {
           enabled: capabilities.taskListActionEnabled,
         ),
     ];
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
+    final children = Column(
       children: [
-        _AccountHeaderRow(
-          account: account,
-          expanded: _expanded,
-          onToggleExpanded: _toggleExpanded,
-          actions: headerActions,
-          onActionSelected: _handleCollectionAction,
+        _AccountCalendarSources(account: account),
+        Builder(
+          builder: (context) {
+            final lists = ref
+                .watch(appSettingsControllerProvider)
+                .sidebarOrder
+                .apply(
+                  SidebarOrderSection.taskLists,
+                  ref.watch(sidebarTaskListsProvider(account.id)).valueOrNull ??
+                      const <TaskListEntity>[],
+                  (list) => list.id,
+                  accountId: account.id,
+                );
+            if (lists.isEmpty) {
+              return BusyMaxActionRow(title: context.l10n.noTaskListsSynced);
+            }
+            return Column(
+              children: [
+                for (final list in lists)
+                  _TaskListScheduleRow(
+                    key: ValueKey((
+                      'schedule-task-list',
+                      list.accountId,
+                      list.id,
+                    )),
+                    account: account,
+                    list: list,
+                    siblingIds: lists.map((list) => list.id).toList(),
+                  ),
+              ],
+            );
+          },
         ),
-        if (_expanded) ...[
-          _AccountCalendarSources(account: account),
-          Builder(
-            builder: (context) {
-              final lists = ref
-                  .watch(appSettingsControllerProvider)
-                  .sidebarOrder
-                  .apply(
-                    SidebarOrderSection.taskLists,
-                    ref
-                            .watch(sidebarTaskListsProvider(account.id))
-                            .valueOrNull ??
-                        const <TaskListEntity>[],
-                    (list) => list.id,
-                    accountId: account.id,
-                  );
-              if (lists.isEmpty) {
-                return BusyMaxActionRow(title: context.l10n.noTaskListsSynced);
-              }
-              return Column(
-                children: [
-                  for (final list in lists)
-                    _TaskListScheduleRow(
-                      key: ValueKey((
-                        'schedule-task-list',
-                        list.accountId,
-                        list.id,
-                      )),
-                      account: account,
-                      list: list,
-                      siblingIds: lists.map((list) => list.id).toList(),
-                    ),
-                ],
-              );
-            },
+      ],
+    );
+    return AnimatedBuilder(
+      animation: _expansion,
+      child: children,
+      builder: (context, child) => Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          _AccountHeaderRow(
+            account: account,
+            expanded: _expanded,
+            expansionProgress: _expansion.value,
+            onToggleExpanded: _toggleExpanded,
+            actions: headerActions,
+            onActionSelected: _handleCollectionAction,
+          ),
+          ClipRect(
+            child: Align(
+              alignment: Alignment.topCenter,
+              heightFactor: _expansion.value,
+              child: IgnorePointer(
+                ignoring: !_expanded,
+                child: ExcludeFocus(
+                  excluding: !_expanded,
+                  child: ExcludeSemantics(
+                    excluding: !_expanded,
+                    child: TickerMode(enabled: _expanded, child: child!),
+                  ),
+                ),
+              ),
+            ),
           ),
         ],
-      ],
+      ),
     );
   }
 
   void _toggleExpanded() {
     setState(() => _expanded = !_expanded);
+    final target = _expanded ? 1.0 : 0.0;
+    if (_disableAnimations) {
+      _expansion.value = target;
+      return;
+    }
+    final distance = (target - _expansion.value).abs();
+    if (distance == 0) return;
+    _expansion.animateTo(
+      target,
+      duration: BusyMaxMotion.accountDisclosure * distance,
+      curve: BusyMaxMotion.presentationCurve,
+    );
   }
 
   Future<void> _handleCollectionAction(
@@ -650,6 +708,7 @@ class _AccountHeaderRow extends StatelessWidget {
   const _AccountHeaderRow({
     required this.account,
     required this.expanded,
+    required this.expansionProgress,
     required this.onToggleExpanded,
     required this.actions,
     required this.onActionSelected,
@@ -657,6 +716,7 @@ class _AccountHeaderRow extends StatelessWidget {
 
   final AccountEntity account;
   final bool expanded;
+  final double expansionProgress;
   final VoidCallback onToggleExpanded;
   final List<_AccountHeaderCollectionAction> actions;
   final ValueChanged<AccountHeaderCollectionAction> onActionSelected;
@@ -794,9 +854,8 @@ class _AccountHeaderRow extends StatelessWidget {
                 ? MaterialLocalizations.of(context).expandedIconTapHint
                 : MaterialLocalizations.of(context).collapsedIconTapHint,
             iconSize: BusyMaxSizes.sidebarActionIcon,
-            icon: AnimatedRotation(
-              turns: expanded ? 0.25 : 0,
-              duration: const Duration(milliseconds: 160),
+            icon: Transform.rotate(
+              angle: expansionProgress * math.pi / 2,
               child: Icon(
                 BusyMaxGlyphs.collapsedFor(Directionality.of(context)),
                 size: 16,

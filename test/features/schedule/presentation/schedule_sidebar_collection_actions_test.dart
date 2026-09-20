@@ -169,7 +169,9 @@ void main() {
         ('schedule-account', 'a'),
       ]);
       expect(
-        find.byKey(const ValueKey(('schedule-calendar', 'a', 'c2'))),
+        find
+            .byKey(const ValueKey(('schedule-calendar', 'a', 'c2')))
+            .hitTestable(),
         findsNothing,
       );
       expect(
@@ -553,13 +555,13 @@ void main() {
       find.byKey(const ValueKey(('account-collapse', accountId))),
     );
     await tester.pumpAndSettle();
-    expect(find.text('No calendars synced yet.'), findsNothing);
+    expect(find.text('No calendars synced yet.').hitTestable(), findsNothing);
     expect(find.byTooltip('Options'), findsOneWidget);
 
     await tester.tap(find.byTooltip('Options'));
     await tester.pumpAndSettle();
     expect(find.text('New calendar…'), findsOneWidget);
-    expect(find.text('No calendars synced yet.'), findsNothing);
+    expect(find.text('No calendars synced yet.').hitTestable(), findsNothing);
   });
 
   testWidgets('creation actions stay in the header for empty accounts', (

@@ -19,7 +19,19 @@ import 'windows_recurrence_dialog.dart';
 import '../../features/tasks/presentation/task_details_draft.dart';
 import 'windows_time_zone_dialog.dart';
 
-Future<bool> showWindowsTaskEditorDialog(
+class WindowsTaskEditorResult {
+  const WindowsTaskEditorResult({
+    required this.accountId,
+    required this.taskListId,
+    required this.taskId,
+  });
+
+  final String accountId;
+  final String taskListId;
+  final String taskId;
+}
+
+Future<WindowsTaskEditorResult?> showWindowsTaskEditorDialog(
   BuildContext context,
   WidgetRef ref, {
   String? initialAccountId,
@@ -53,7 +65,7 @@ Future<bool> showWindowsTaskEditorDialog(
       }
     }
   }
-  if (!context.mounted) return false;
+  if (!context.mounted) return null;
   if (lists.isEmpty) {
     await showDialog<void>(
       context: context,
@@ -68,7 +80,7 @@ Future<bool> showWindowsTaskEditorDialog(
         ],
       ),
     );
-    return false;
+    return null;
   }
 
   final title = TextEditingController();
@@ -101,7 +113,7 @@ Future<bool> showWindowsTaskEditorDialog(
   var hideSubtasks = false;
   var hideCompletedSubtasks = false;
   var saving = false;
-  var saved = false;
+  WindowsTaskEditorResult? result;
   var allowPop = false;
   String? error;
   final initialListId = selectedList.id;
@@ -726,7 +738,7 @@ Future<bool> showWindowsTaskEditorDialog(
                           error = null;
                         });
                         try {
-                          await ref
+                          final taskId = await ref
                               .read(
                                 tasksRepositoryForAccountProvider(
                                   selectedList.accountId,
@@ -739,7 +751,11 @@ Future<bool> showWindowsTaskEditorDialog(
                                   localTimeZone: selectedTimeZone,
                                 ),
                               );
-                          saved = true;
+                          result = WindowsTaskEditorResult(
+                            accountId: selectedList.accountId,
+                            taskListId: selectedList.id,
+                            taskId: taskId,
+                          );
                           closeDialog();
                         } on Object catch (_) {
                           setState(() {
@@ -767,7 +783,7 @@ Future<bool> showWindowsTaskEditorDialog(
   location.dispose();
   taskUrl.dispose();
   categories.dispose();
-  return saved;
+  return result;
 }
 
 class _DateTimeField extends StatelessWidget {

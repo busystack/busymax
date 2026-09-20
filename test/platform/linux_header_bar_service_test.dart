@@ -357,10 +357,11 @@ void main() {
         'navigationVisible': true,
         'scheduleControlsVisible': true,
         'backVisible': false,
+        'sidebarTransitionGeneration': 0,
       });
       expect(calls[2].arguments, containsPair('title', 'August 2026'));
       expect(state.canCreate, isTrue);
-      expect(BusyMaxHeaderBarState.schemaVersion, 3);
+      expect(BusyMaxHeaderBarState.schemaVersion, 4);
     },
   );
 

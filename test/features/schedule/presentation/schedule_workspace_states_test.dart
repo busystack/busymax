@@ -216,7 +216,7 @@ void main() {
     await tester.sendKeyEvent(LogicalKeyboardKey.escape);
     await tester.pump();
 
-    expect(find.byType(BusyMaxSearchField), findsNothing);
+    expect(find.byType(BusyMaxSearchField).hitTestable(), findsNothing);
   });
 
   testWidgets('F9 hides and shows the schedule sidebar', (tester) async {
@@ -226,15 +226,15 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.byType(ScheduleSidebar), findsOneWidget);
+    expect(find.byType(ScheduleSidebar).hitTestable(), findsOneWidget);
 
     await tester.sendKeyEvent(LogicalKeyboardKey.f9);
     await tester.pumpAndSettle();
-    expect(find.byType(ScheduleSidebar), findsNothing);
+    expect(find.byType(ScheduleSidebar).hitTestable(), findsNothing);
 
     await tester.sendKeyEvent(LogicalKeyboardKey.f9);
     await tester.pumpAndSettle();
-    expect(find.byType(ScheduleSidebar), findsOneWidget);
+    expect(find.byType(ScheduleSidebar).hitTestable(), findsOneWidget);
   });
 
   testWidgets(
@@ -271,14 +271,14 @@ void main() {
         calls.where((call) => call.method == 'setState').last.arguments,
         containsPair('searchActive', true),
       );
-      expect(find.byType(ScheduleSearchFilters), findsOneWidget);
+      expect(find.byType(ScheduleSearchFilters).hitTestable(), findsOneWidget);
 
       await tester.sendKeyEvent(LogicalKeyboardKey.f9);
       await tester.pumpAndSettle();
-      expect(find.byType(ScheduleSearchFilters), findsNothing);
+      expect(find.byType(ScheduleSearchFilters).hitTestable(), findsNothing);
       await tester.sendKeyEvent(LogicalKeyboardKey.f9);
       await tester.pumpAndSettle();
-      expect(find.byType(ScheduleSearchFilters), findsOneWidget);
+      expect(find.byType(ScheduleSearchFilters).hitTestable(), findsOneWidget);
 
       await headerBarService.handleNativeMethodCall(
         const MethodCall('searchQueryChanged', 'planning'),
@@ -296,7 +296,9 @@ void main() {
       await tester.pumpAndSettle();
       expect(
         tester
-            .widget<ScheduleSearchFilters>(find.byType(ScheduleSearchFilters))
+            .widget<ScheduleSearchFilters>(
+              find.byType(ScheduleSearchFilters).hitTestable(),
+            )
             .value
             .person,
         'Taylor',
@@ -341,7 +343,7 @@ void main() {
       await tester.sendKeyEvent(LogicalKeyboardKey.keyF);
       await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
       await tester.pumpAndSettle();
-      expect(find.byType(ScheduleSearchFilters), findsOneWidget);
+      expect(find.byType(ScheduleSearchFilters).hitTestable(), findsOneWidget);
       await tester.sendKeyEvent(LogicalKeyboardKey.escape);
       await tester.pumpAndSettle();
       expect(find.byType(ScheduleSidebar), findsOneWidget);

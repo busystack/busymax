@@ -32,9 +32,11 @@ constexpr char kGtkFontSettingsEventChannel[] =
     "io.busystack.busymax/gtk_font_settings";
 constexpr char kGtkThemeColorsEventChannel[] =
     "io.busystack.busymax/gtk_theme_colors";
+constexpr char kGtkAnimationSettingsEventChannel[] =
+    "io.busystack.busymax/gtk_animation_settings";
 constexpr char kFirstWeekdayEventChannel[] =
     "io.busystack.busymax/first_weekday";
-constexpr gint64 kHeaderBarStateSchemaVersion = 3;
+constexpr gint64 kHeaderBarStateSchemaVersion = 4;
 constexpr gint kHeaderButtonHeight = 34;
 constexpr gint kHeaderButtonSpacing = 6;
 constexpr gint kHeaderCenterMaximumWidthChars = 48;
@@ -114,13 +116,16 @@ struct _MyApplication {
   gboolean external_calendar_open_ready;
   FlEventChannel* gtk_font_settings_event_channel;
   FlEventChannel* gtk_theme_colors_event_channel;
+  FlEventChannel* gtk_animation_settings_event_channel;
   FlEventChannel* first_weekday_event_channel;
   BusyMaxLinuxFirstWeekdayPreference* first_weekday_preference;
   gulong gtk_font_settings_signal_id;
   gulong gtk_theme_name_signal_id;
   gulong gtk_theme_dark_signal_id;
+  gulong gtk_animation_settings_signal_id;
   gboolean gtk_font_settings_listening;
   gboolean gtk_theme_colors_listening;
+  gboolean gtk_animation_settings_listening;
   gboolean first_weekday_listening;
   GtkCssProvider* header_bar_css_provider;
   gchar* header_bar_window_background_color;
@@ -141,6 +146,12 @@ struct _MyApplication {
   gdouble header_bar_tooltip_minimum_height;
   gboolean header_bar_high_contrast;
   gint header_bar_sidebar_width;
+  gdouble header_bar_sidebar_presented_width;
+  gdouble header_bar_sidebar_animation_from;
+  gdouble header_bar_sidebar_animation_to;
+  gint64 header_bar_sidebar_animation_started_at;
+  guint header_bar_sidebar_tick_id;
+  gint64 header_bar_sidebar_transition_generation;
   gboolean header_bar_can_show_sidebar;
   gboolean header_bar_sidebar_visible;
   gboolean header_bar_modal_barrier_visible;
@@ -162,6 +173,7 @@ struct _MyApplication {
   GtkWidget* onboarding_continue_slot;
   GtkWidget* onboarding_continue_button;
   GtkWidget* header_sidebar_brand_box;
+  GtkWidget* header_sidebar_brand_content;
   GtkWidget* header_brand_label;
   GtkWidget* settings_menu_button;
   GtkWidget* settings_menu;
@@ -2007,12 +2019,82 @@ static void set_main_flutter_view_background(MyApplication* self) {
                          self->header_bar_background_color));
 }
 
+static gboolean get_gtk_animations_enabled();
+static void update_header_sidebar_brand_geometry(MyApplication* self);
+static void
+refresh_header_bar_css(MyApplication* self);
+
 static gint header_sidebar_effective_width(MyApplication* self) {
-  if (!self->header_bar_can_show_sidebar ||
-      !self->header_bar_sidebar_visible) {
-    return 0;
+  return static_cast<gint>(
+      std::round(self->header_bar_sidebar_presented_width));
+}
+
+static void cancel_header_sidebar_animation(MyApplication* self) {
+  if (self->header_bar_sidebar_tick_id != 0 &&
+      self->titlebar_handle != nullptr &&
+      GTK_IS_WIDGET(self->titlebar_handle)) {
+    gtk_widget_remove_tick_callback(self->titlebar_handle,
+                                    self->header_bar_sidebar_tick_id);
   }
-  return self->header_bar_sidebar_width;
+  self->header_bar_sidebar_tick_id = 0;
+  self->header_bar_sidebar_animation_started_at = 0;
+}
+
+static gboolean header_sidebar_animation_tick(GtkWidget*, GdkFrameClock* clock,
+                                              gpointer user_data) {
+  MyApplication* self = MY_APPLICATION(user_data);
+  const gint64 now = gdk_frame_clock_get_frame_time(clock);
+  if (self->header_bar_sidebar_animation_started_at == 0) {
+    self->header_bar_sidebar_animation_started_at = now;
+  }
+  const gdouble progress = std::clamp(
+      static_cast<gdouble>(now - self->header_bar_sidebar_animation_started_at) /
+          200000.0,
+      0.0, 1.0);
+  const gdouble inverse = 1.0 - progress;
+  const gdouble eased = 1.0 - inverse * inverse * inverse;
+  self->header_bar_sidebar_presented_width =
+      self->header_bar_sidebar_animation_from +
+      (self->header_bar_sidebar_animation_to -
+       self->header_bar_sidebar_animation_from) *
+          eased;
+  update_header_sidebar_brand_geometry(self);
+  refresh_header_bar_css(self);
+  if (progress >= 1.0) {
+    self->header_bar_sidebar_presented_width =
+        self->header_bar_sidebar_animation_to;
+    self->header_bar_sidebar_tick_id = 0;
+    self->header_bar_sidebar_animation_started_at = 0;
+    return G_SOURCE_REMOVE;
+  }
+  return G_SOURCE_CONTINUE;
+}
+
+static void present_header_sidebar_width(MyApplication* self,
+                                         gboolean animate) {
+  const gdouble target = self->header_bar_can_show_sidebar &&
+                                 self->header_bar_sidebar_visible
+                             ? self->header_bar_sidebar_width
+                             : 0.0;
+  if (std::abs(target - self->header_bar_sidebar_presented_width) < 0.5) {
+    self->header_bar_sidebar_presented_width = target;
+    return;
+  }
+  cancel_header_sidebar_animation(self);
+  if (!animate || !get_gtk_animations_enabled() ||
+      self->titlebar_handle == nullptr ||
+      !GTK_IS_WIDGET(self->titlebar_handle)) {
+    self->header_bar_sidebar_presented_width = target;
+    update_header_sidebar_brand_geometry(self);
+    refresh_header_bar_css(self);
+    return;
+  }
+  self->header_bar_sidebar_animation_from =
+      self->header_bar_sidebar_presented_width;
+  self->header_bar_sidebar_animation_to = target;
+  self->header_bar_sidebar_animation_started_at = 0;
+  self->header_bar_sidebar_tick_id = gtk_widget_add_tick_callback(
+      self->titlebar_handle, header_sidebar_animation_tick, self, nullptr);
 }
 
 static gboolean current_gtk_theme_uses_legacy_yaru_shadow() {
@@ -3352,6 +3434,12 @@ static void update_header_sidebar_brand_geometry(MyApplication* self) {
   }
   const gint width = header_sidebar_effective_width(self);
   gtk_widget_set_size_request(self->header_sidebar_brand_box, width, -1);
+  if (self->header_sidebar_brand_content != nullptr &&
+      GTK_IS_WIDGET(self->header_sidebar_brand_content)) {
+    // Animate the outer clip while retaining the brand's full-width layout.
+    gtk_widget_set_size_request(self->header_sidebar_brand_content,
+                                self->header_bar_sidebar_width, -1);
+  }
   set_widget_visible(self->header_sidebar_brand_box, width > 0);
 }
 
@@ -3675,16 +3763,14 @@ static void set_header_sidebar_visible(MyApplication* self, gboolean visible) {
   self->header_bar_sidebar_visible = visible;
   set_toggle_button_active(self, self->sidebar_collapsed_toggle_button, visible);
   update_header_sidebar_presentation(self);
-  update_header_sidebar_brand_geometry(self);
-  refresh_header_bar_css(self);
+  present_header_sidebar_width(self, FALSE);
 }
 
 static void set_header_can_show_sidebar(MyApplication* self,
                                         gboolean can_show_sidebar) {
   self->header_bar_can_show_sidebar = can_show_sidebar;
   update_header_control_visibility(self);
-  update_header_sidebar_brand_geometry(self);
-  refresh_header_bar_css(self);
+  present_header_sidebar_width(self, FALSE);
 }
 
 static void set_header_sidebar_width(MyApplication* self, gdouble width) {
@@ -3692,6 +3778,11 @@ static void set_header_sidebar_width(MyApplication* self, gdouble width) {
     return;
   }
   self->header_bar_sidebar_width = static_cast<gint>(width);
+  if (self->header_bar_sidebar_tick_id == 0 &&
+      self->header_bar_can_show_sidebar &&
+      self->header_bar_sidebar_visible) {
+    self->header_bar_sidebar_presented_width = width;
+  }
   update_header_sidebar_brand_geometry(self);
   refresh_header_bar_css(self);
 }
@@ -3709,6 +3800,7 @@ static void set_header_text_direction(MyApplication* self,
       self->header_title_box,
       self->header_title_stack,
       self->header_sidebar_brand_box,
+      self->header_sidebar_brand_content,
       self->settings_menu_button,
       self->settings_menu,
       self->header_view_box,
@@ -3767,7 +3859,15 @@ static void set_header_bar_state(MyApplication* self, FlValue* args) {
     set_header_create_capabilities(self, can_create_event, can_create_task);
   }
 
-  const gint previous_sidebar_width = header_sidebar_effective_width(self);
+  gint64 sidebar_transition_generation =
+      self->header_bar_sidebar_transition_generation;
+  fl_lookup_int_arg(args, "sidebarTransitionGeneration",
+                    &sidebar_transition_generation);
+  const gboolean animate_sidebar =
+      sidebar_transition_generation !=
+      self->header_bar_sidebar_transition_generation;
+  self->header_bar_sidebar_transition_generation =
+      sidebar_transition_generation;
   if (fl_lookup_optional_bool_arg(args, "canShowSidebar", &value)) {
     self->header_bar_can_show_sidebar = value;
   }
@@ -3788,11 +3888,7 @@ static void set_header_bar_state(MyApplication* self, FlValue* args) {
 
   set_header_search_state(self, search_active, search_query);
   update_header_control_visibility(self);
-  const gint sidebar_width = header_sidebar_effective_width(self);
-  if (sidebar_width != previous_sidebar_width) {
-    update_header_sidebar_brand_geometry(self);
-    refresh_header_bar_css(self);
-  }
+  present_header_sidebar_width(self, animate_sidebar);
 }
 
 static void set_header_localized_labels(MyApplication* self, FlValue* args) {
@@ -3908,13 +4004,24 @@ static GtkWidget* create_busymax_titlebar(MyApplication* self) {
                    G_CALLBACK(header_bar_size_allocate_cb), self);
 
   track_widget_pointer(&self->header_sidebar_brand_box,
-                       gtk_box_new(GTK_ORIENTATION_HORIZONTAL,
-                                   kHeaderButtonSpacing));
+                       gtk_scrolled_window_new(nullptr, nullptr));
   gtk_widget_set_halign(self->header_sidebar_brand_box, GTK_ALIGN_FILL);
   gtk_widget_set_hexpand(self->header_sidebar_brand_box, FALSE);
+  gtk_scrolled_window_set_policy(
+      GTK_SCROLLED_WINDOW(self->header_sidebar_brand_box), GTK_POLICY_NEVER,
+      GTK_POLICY_NEVER);
+  gtk_scrolled_window_set_shadow_type(
+      GTK_SCROLLED_WINDOW(self->header_sidebar_brand_box), GTK_SHADOW_NONE);
+  gtk_scrolled_window_set_propagate_natural_width(
+      GTK_SCROLLED_WINDOW(self->header_sidebar_brand_box), FALSE);
   gtk_style_context_add_class(
       gtk_widget_get_style_context(self->header_sidebar_brand_box),
       "busymax-header-brand");
+  track_widget_pointer(&self->header_sidebar_brand_content,
+                       gtk_box_new(GTK_ORIENTATION_HORIZONTAL,
+                                   kHeaderButtonSpacing));
+  gtk_widget_set_halign(self->header_sidebar_brand_content, GTK_ALIGN_FILL);
+  gtk_widget_set_hexpand(self->header_sidebar_brand_content, FALSE);
   track_widget_pointer(
       &self->search_button,
       create_header_toggle_icon_button("system-search-symbolic", ""));
@@ -3946,8 +4053,10 @@ static GtkWidget* create_busymax_titlebar(MyApplication* self) {
                             kHeaderSidebarContentInset);
   rebuild_header_settings_menu_model(self);
 
-  gtk_box_pack_start(GTK_BOX(self->header_sidebar_brand_box),
+  gtk_box_pack_start(GTK_BOX(self->header_sidebar_brand_content),
                      brand_center_box, TRUE, TRUE, 0);
+  gtk_container_add(GTK_CONTAINER(self->header_sidebar_brand_box),
+                    self->header_sidebar_brand_content);
   gtk_box_pack_start(GTK_BOX(self->titlebar_box),
                      self->header_sidebar_brand_box, FALSE, FALSE, 0);
 
@@ -3997,7 +4106,8 @@ static GtkWidget* create_busymax_titlebar(MyApplication* self) {
   gtk_widget_set_hexpand(self->header_title_stack, TRUE);
   gtk_stack_set_hhomogeneous(GTK_STACK(self->header_title_stack), FALSE);
   gtk_stack_set_transition_type(GTK_STACK(self->header_title_stack),
-                                GTK_STACK_TRANSITION_TYPE_NONE);
+                                GTK_STACK_TRANSITION_TYPE_CROSSFADE);
+  gtk_stack_set_transition_duration(GTK_STACK(self->header_title_stack), 160);
 
   track_widget_pointer(&self->onboarding_back_slot,
                        gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 0));
@@ -4350,6 +4460,15 @@ static FlValue* get_gtk_font_settings() {
   return result;
 }
 
+static gboolean get_gtk_animations_enabled() {
+  GtkSettings* settings = gtk_settings_get_default();
+  gboolean enabled = TRUE;
+  if (settings != nullptr) {
+    g_object_get(settings, "gtk-enable-animations", &enabled, nullptr);
+  }
+  return enabled;
+}
+
 static guint color_channel(double value) {
   if (value <= 0) {
     return 0;
@@ -4649,6 +4768,10 @@ static void gtk_settings_method_call_cb(FlMethodChannel* channel,
   } else if (strcmp(method, "getGtkThemeColors") == 0) {
     g_autoptr(FlValue) result = get_gtk_theme_colors();
     fl_method_call_respond_success(method_call, result, nullptr);
+  } else if (strcmp(method, "getGtkAnimationsEnabled") == 0) {
+    g_autoptr(FlValue) result =
+        fl_value_new_bool(get_gtk_animations_enabled());
+    fl_method_call_respond_success(method_call, result, nullptr);
   } else if (strcmp(method, "setGtkThemePreference") == 0) {
     set_gtk_theme_preference(fl_method_bool_arg(args));
     fl_method_call_respond_success(method_call, nullptr, nullptr);
@@ -4821,6 +4944,69 @@ static FlMethodErrorResponse* gtk_theme_colors_cancel_cb(
   return nullptr;
 }
 
+static void disconnect_gtk_animation_settings_signal(MyApplication* self) {
+  if (self->gtk_animation_settings_signal_id == 0) {
+    return;
+  }
+  GtkSettings* settings = gtk_settings_get_default();
+  if (settings != nullptr) {
+    g_signal_handler_disconnect(settings,
+                                self->gtk_animation_settings_signal_id);
+  }
+  self->gtk_animation_settings_signal_id = 0;
+}
+
+static void send_gtk_animation_settings_event(MyApplication* self) {
+  if (!self->gtk_animation_settings_listening ||
+      self->gtk_animation_settings_event_channel == nullptr) {
+    return;
+  }
+  g_autoptr(FlValue) value =
+      fl_value_new_bool(get_gtk_animations_enabled());
+  g_autoptr(GError) error = nullptr;
+  if (!fl_event_channel_send(self->gtk_animation_settings_event_channel,
+                             value, nullptr, &error)) {
+    const gchar* message = error != nullptr ? error->message : "unknown error";
+    g_warning("Failed to send GTK animation settings event: %s", message);
+  }
+}
+
+static void gtk_animation_settings_notify_cb(GObject*, GParamSpec*,
+                                             gpointer user_data) {
+  MyApplication* self = MY_APPLICATION(user_data);
+  if (!get_gtk_animations_enabled() &&
+      self->header_bar_sidebar_tick_id != 0) {
+    cancel_header_sidebar_animation(self);
+    self->header_bar_sidebar_presented_width =
+        self->header_bar_sidebar_animation_to;
+    update_header_sidebar_brand_geometry(self);
+    refresh_header_bar_css(self);
+  }
+  send_gtk_animation_settings_event(self);
+}
+
+static FlMethodErrorResponse* gtk_animation_settings_listen_cb(
+    FlEventChannel*, FlValue*, gpointer user_data) {
+  MyApplication* self = MY_APPLICATION(user_data);
+  self->gtk_animation_settings_listening = TRUE;
+  GtkSettings* settings = gtk_settings_get_default();
+  if (settings != nullptr && self->gtk_animation_settings_signal_id == 0) {
+    self->gtk_animation_settings_signal_id = g_signal_connect(
+        settings, "notify::gtk-enable-animations",
+        G_CALLBACK(gtk_animation_settings_notify_cb), self);
+  }
+  send_gtk_animation_settings_event(self);
+  return nullptr;
+}
+
+static FlMethodErrorResponse* gtk_animation_settings_cancel_cb(
+    FlEventChannel*, FlValue*, gpointer user_data) {
+  MyApplication* self = MY_APPLICATION(user_data);
+  self->gtk_animation_settings_listening = FALSE;
+  disconnect_gtk_animation_settings_signal(self);
+  return nullptr;
+}
+
 static void register_gtk_settings_channel(MyApplication* self, FlView* view) {
   g_autoptr(FlStandardMethodCodec) codec = fl_standard_method_codec_new();
   FlBinaryMessenger* messenger =
@@ -4849,6 +5035,13 @@ static void register_gtk_settings_channel(MyApplication* self, FlView* view) {
   fl_event_channel_set_stream_handlers(
       self->gtk_theme_colors_event_channel, gtk_theme_colors_listen_cb,
       gtk_theme_colors_cancel_cb, self, nullptr);
+
+  self->gtk_animation_settings_event_channel = fl_event_channel_new(
+      messenger, kGtkAnimationSettingsEventChannel, FL_METHOD_CODEC(codec));
+  fl_event_channel_set_stream_handlers(
+      self->gtk_animation_settings_event_channel,
+      gtk_animation_settings_listen_cb,
+      gtk_animation_settings_cancel_cb, self, nullptr);
 }
 
 static gboolean window_delete_event_cb(GtkWidget* widget,
@@ -5216,6 +5409,7 @@ static void my_application_shutdown(GApplication* application) {
 // Implements GObject::dispose.
 static void my_application_dispose(GObject* object) {
   MyApplication* self = MY_APPLICATION(object);
+  cancel_header_sidebar_animation(self);
   disconnect_gtk_theme_colors_signals(self);
   if (self->header_bar_css_provider != nullptr) {
     gtk_style_context_remove_provider_for_screen(
@@ -5235,8 +5429,10 @@ static void my_application_dispose(GObject* object) {
   g_clear_object(&self->external_calendar_open_channel);
   g_clear_object(&self->external_uri_launcher_channel);
   disconnect_gtk_font_settings_signal(self);
+  disconnect_gtk_animation_settings_signal(self);
   g_clear_object(&self->gtk_font_settings_event_channel);
   g_clear_object(&self->gtk_theme_colors_event_channel);
+  g_clear_object(&self->gtk_animation_settings_event_channel);
   if (self->main_window != nullptr && GTK_IS_WIDGET(self->main_window)) {
     gtk_widget_insert_action_group(GTK_WIDGET(self->main_window), "header",
                                    nullptr);
@@ -5267,6 +5463,7 @@ static void my_application_dispose(GObject* object) {
   clear_widget_pointer(&self->onboarding_continue_slot);
   clear_widget_pointer(&self->onboarding_continue_button);
   clear_widget_pointer(&self->header_sidebar_brand_box);
+  clear_widget_pointer(&self->header_sidebar_brand_content);
   clear_widget_pointer(&self->header_brand_label);
   clear_widget_pointer(&self->settings_menu_button);
   clear_widget_pointer(&self->settings_menu);
@@ -5356,13 +5553,16 @@ static void my_application_init(MyApplication* self) {
   self->external_calendar_open_ready = FALSE;
   self->gtk_font_settings_event_channel = nullptr;
   self->gtk_theme_colors_event_channel = nullptr;
+  self->gtk_animation_settings_event_channel = nullptr;
   self->first_weekday_event_channel = nullptr;
   self->first_weekday_preference = nullptr;
   self->gtk_font_settings_signal_id = 0;
   self->gtk_theme_name_signal_id = 0;
   self->gtk_theme_dark_signal_id = 0;
+  self->gtk_animation_settings_signal_id = 0;
   self->gtk_font_settings_listening = FALSE;
   self->gtk_theme_colors_listening = FALSE;
+  self->gtk_animation_settings_listening = FALSE;
   self->first_weekday_listening = FALSE;
   self->hide_on_close = FALSE;
   self->suppress_header_bar_actions = FALSE;
@@ -5395,6 +5595,12 @@ static void my_application_init(MyApplication* self) {
   self->header_bar_tooltip_minimum_height = kDefaultTooltipMinimumHeight;
   self->header_bar_high_contrast = FALSE;
   self->header_bar_sidebar_width = 300;
+  self->header_bar_sidebar_presented_width = 300;
+  self->header_bar_sidebar_animation_from = 300;
+  self->header_bar_sidebar_animation_to = 300;
+  self->header_bar_sidebar_animation_started_at = 0;
+  self->header_bar_sidebar_tick_id = 0;
+  self->header_bar_sidebar_transition_generation = 0;
   self->header_bar_can_show_sidebar = TRUE;
   self->header_bar_sidebar_visible = TRUE;
   self->header_bar_modal_barrier_visible = FALSE;
@@ -5416,6 +5622,7 @@ static void my_application_init(MyApplication* self) {
   self->onboarding_continue_slot = nullptr;
   self->onboarding_continue_button = nullptr;
   self->header_sidebar_brand_box = nullptr;
+  self->header_sidebar_brand_content = nullptr;
   self->header_brand_label = nullptr;
   self->settings_menu_button = nullptr;
   self->settings_menu = nullptr;

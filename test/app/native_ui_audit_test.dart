@@ -793,7 +793,8 @@ void main() {
       expect(source, contains('setSidebarWidth'));
       expect(source, contains('setTextDirection'));
       expect(source, contains('setTheme'));
-      expect(source, contains('kHeaderBarStateSchemaVersion = 3'));
+      expect(source, contains('kHeaderBarStateSchemaVersion = 4'));
+      expect(source, contains('args, "sidebarTransitionGeneration"'));
       expect(source, contains('fl_lookup_int_arg(args, "schemaVersion"'));
       expect(
         source,

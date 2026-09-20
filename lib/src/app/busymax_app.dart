@@ -10,6 +10,7 @@ import '../platform/busymax_tray_service.dart';
 import '../features/tray/domain/tray_presentation.dart';
 import '../features/tray/domain/tray_presentation_formatter.dart';
 import '../platform/gtk_font_service.dart';
+import '../platform/gtk_animation_settings_service.dart';
 import '../platform/linux_first_weekday_source.dart';
 import '../platform/linux_header_bar_configuration_synchronizer.dart';
 import '../platform/linux_header_bar_provider.dart';
@@ -254,6 +255,8 @@ class _BusyMaxAppState extends ConsumerState<LinuxBusyMaxApp> {
         .valueOrNull;
     final gtkFont = ref.watch(gtkFontSettingsProvider).valueOrNull;
     final gtkThemeColors = ref.watch(gtkThemeColorsProvider).valueOrNull;
+    final gtkAnimationsEnabled =
+        ref.watch(gtkAnimationsEnabledProvider).valueOrNull ?? true;
     ref.watch(networkAvailabilityProvider);
     ref.watch(syncSchedulerProvider);
     ref.watch(syncSchedulerRunningProvider);
@@ -402,9 +405,12 @@ class _BusyMaxAppState extends ConsumerState<LinuxBusyMaxApp> {
                         systemValueInitialized:
                             _firstWeekdayController.isInitialized,
                         child: MediaQuery(
-                          data: MediaQuery.of(
-                            context,
-                          ).copyWith(alwaysUse24HourFormat: clock.use24Hour),
+                          data: MediaQuery.of(context).copyWith(
+                            alwaysUse24HourFormat: clock.use24Hour,
+                            disableAnimations:
+                                MediaQuery.disableAnimationsOf(context) ||
+                                !gtkAnimationsEnabled,
+                          ),
                           child: child ?? const SizedBox.shrink(),
                         ),
                       ),
