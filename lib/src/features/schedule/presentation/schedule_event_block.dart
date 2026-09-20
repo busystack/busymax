@@ -7,7 +7,6 @@ import '../../../app/busymax_surface_colors.dart';
 import '../../../l10n/l10n.dart';
 import '../../../schedule/schedule_item.dart';
 import '../../../schedule/schedule_projection.dart';
-import '../../../ui/common/schedule/schedule_interactions.dart';
 import 'schedule_item_selection.dart';
 
 class ScheduleEventBlock extends StatefulWidget {
@@ -53,9 +52,6 @@ class _ScheduleEventBlockState extends State<ScheduleEventBlock> {
     final titleMaxLines = showTime || contentHeight < 36 ? 1 : 2;
     final tooltipDetails = _tooltipDetails(context);
     final interactive = widget.onTap != null;
-    final canDrag =
-        widget.item.canReschedule &&
-        ScheduleInteractionRegion.maybeOf(context)?.widget.onReschedule != null;
     final focusBorder = BorderSide(color: colorScheme.primary, width: 2);
     final sourceAccent = ScheduleProjection.colorForItem(
       widget.item,
@@ -73,8 +69,6 @@ class _ScheduleEventBlockState extends State<ScheduleEventBlock> {
         enabled: interactive,
         mouseCursor: !interactive
             ? MouseCursor.defer
-            : canDrag
-            ? SystemMouseCursors.move
             : SystemMouseCursors.click,
         shortcuts: _activationShortcuts,
         actions: <Type, Action<Intent>>{

@@ -246,6 +246,7 @@ class ScheduleInteractionRegionState extends State<ScheduleInteractionRegion>
   ScheduleInterval? _preview;
   Timer? _scroll;
   bool _saving = false;
+  bool _moveCursorActive = false;
   bool get active => _token != null;
   bool get canMove => widget.onReschedule != null && !active;
   ScheduleInterval? get preview => _preview;
@@ -314,6 +315,7 @@ class ScheduleInteractionRegionState extends State<ScheduleInteractionRegion>
     _token = data.token = Object();
     _drag = data;
     _action = action;
+    _moveCursorActive = action == ScheduleTimingAction.move;
     _anchor = data.grab;
     _pointer = data.pointerDown;
     _preview = data.original;
@@ -401,6 +403,7 @@ class ScheduleInteractionRegionState extends State<ScheduleInteractionRegion>
       cancel();
       return;
     }
+    _clearMoveCursor(token: _token);
     _saving = true;
     final token = _token;
     final request = ScheduleRescheduleRequest(
@@ -422,7 +425,15 @@ class ScheduleInteractionRegionState extends State<ScheduleInteractionRegion>
 
   /// Drag-end is cleanup only. It must never act as an accepted drop.
   void dragEnded(ScheduleEventDragData data) {
-    if (!_saving && identical(data.token, _token)) cancel();
+    if (!identical(data.token, _token)) return;
+    _clearMoveCursor(token: data.token);
+    if (!_saving) cancel();
+  }
+
+  void _clearMoveCursor({required Object? token}) {
+    if (!identical(token, _token) || !_moveCursorActive) return;
+    _moveCursorActive = false;
+    if (mounted) _notify();
   }
 
   void cancel() {
@@ -433,6 +444,7 @@ class ScheduleInteractionRegionState extends State<ScheduleInteractionRegion>
     _pointer = null;
     _preview = null;
     _saving = false;
+    _moveCursorActive = false;
     if (mounted) _notify();
   }
 
@@ -508,6 +520,20 @@ class ScheduleInteractionRegionState extends State<ScheduleInteractionRegion>
                   );
                 },
               ),
+            ),
+          ),
+          Positioned.fill(
+            child: ListenableBuilder(
+              listenable: changes,
+              builder: (context, _) {
+                if (!_moveCursorActive) return const SizedBox.shrink();
+                return const MouseRegion(
+                  cursor: SystemMouseCursors.move,
+                  opaque: false,
+                  hitTestBehavior: HitTestBehavior.translucent,
+                  child: SizedBox.expand(),
+                );
+              },
             ),
           ),
         ],
@@ -755,7 +781,7 @@ class _ScheduleEventInteractionState extends State<ScheduleEventInteraction> {
           if (region.owns(_data)) region.cancel();
         },
         child: MouseRegion(
-          cursor: SystemMouseCursors.move,
+          cursor: MouseCursor.defer,
           child: Stack(
             fit: widget.dateOnly ? StackFit.loose : StackFit.expand,
             children: [

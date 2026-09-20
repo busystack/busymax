@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:ui' show ViewFocusEvent, ViewFocusState, ViewFocusDirection;
 
 import 'package:busymax/src/providers/busy_provider.dart';
@@ -5,6 +6,7 @@ import 'package:busymax/src/schedule/schedule_event_rescheduling.dart';
 import 'package:busymax/src/schedule/schedule_item.dart';
 import 'package:busymax/src/ui/common/schedule/schedule_interactions.dart';
 import 'package:flutter/gestures.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -25,11 +27,13 @@ class PlannerGestureScenario {
   final clicks = <DateTime>[];
   final opened = <ScheduleItem>[];
   final completed = <bool>[];
+  Completer<void>? saveCompleter;
   Future<void> save(
     ScheduleRescheduleRequest request,
     bool Function() active,
   ) async {
     if (active()) edits.add(request);
+    await saveCompleter?.future;
   }
 
   static CalendarScheduleItem event({
@@ -85,6 +89,11 @@ void schedulePlannerGestureTests(
       .hitTestable();
   ScheduleInteractionRegionState region(WidgetTester tester) =>
       tester.state(find.byType(ScheduleInteractionRegion));
+  MouseCursor? cursor(int device) =>
+      RendererBinding.instance.mouseTracker.debugDeviceActiveCursor(device);
+  final idleEventCursor = platform == 'Linux'
+      ? SystemMouseCursors.click
+      : SystemMouseCursors.basic;
   icv.EventsPlannerState planner(WidgetTester tester) =>
       tester.state(find.byType(icv.EventsPlanner));
   Offset slot(WidgetTester tester, int minute, {int dayIndex = 0}) {
@@ -125,6 +134,254 @@ void schedulePlannerGestureTests(
     await tester.pumpAndSettle();
     await tester.pump(const Duration(milliseconds: 1));
   }
+
+  testWidgets(
+    '$platform event body keeps its opening cursor through an ordinary click',
+    (tester) async {
+      const device = 1;
+      final scenario = PlannerGestureScenario();
+      await mount(tester, scenario);
+      final event = tile();
+      final eventRect = tester.getRect(event);
+      final title = find.descendant(
+        of: event,
+        matching: find.text('drag-event'),
+      );
+      final positions = <Offset>[
+        tester.getCenter(title),
+        Offset(eventRect.left + 6, eventRect.center.dy),
+      ];
+      final icons = find.descendant(of: event, matching: find.byType(Icon));
+      if (icons.evaluate().isNotEmpty) {
+        positions.add(tester.getCenter(icons.first));
+      }
+
+      final mouse = await tester.createGesture(
+        pointer: 71,
+        kind: PointerDeviceKind.mouse,
+      );
+      await mouse.addPointer(location: positions.first);
+      await tester.pump();
+      for (final position in positions) {
+        await mouse.moveTo(position);
+        await tester.pump();
+        expect(cursor(device), idleEventCursor);
+      }
+      expect(scenario.opened, isEmpty);
+      expect(scenario.edits, isEmpty);
+
+      final down = positions.first;
+      await mouse.down(down);
+      await tester.pump();
+      expect(cursor(device), idleEventCursor);
+      expect(scenario.opened, isEmpty);
+      expect(region(tester).active, isFalse);
+
+      await mouse.moveBy(const Offset(1, 0));
+      await tester.pump();
+      expect(cursor(device), idleEventCursor);
+      expect(region(tester).active, isFalse);
+      expect(scenario.edits, isEmpty);
+
+      await mouse.up();
+      await tester.pump(kDoubleTapTimeout + const Duration(milliseconds: 1));
+      await tester.pumpAndSettle();
+      expect(scenario.opened, hasLength(1));
+      expect(scenario.edits, isEmpty);
+      expect(cursor(device), idleEventCursor);
+      await mouse.removePointer();
+    },
+  );
+
+  testWidgets('$platform readonly event keeps details and its opening cursor', (
+    tester,
+  ) async {
+    const device = 1;
+    final scenario = PlannerGestureScenario(
+      items: [PlannerGestureScenario.event(readOnly: true)],
+    );
+    await mount(tester, scenario);
+    final mouse = await tester.createGesture(
+      pointer: 72,
+      kind: PointerDeviceKind.mouse,
+    );
+    final center = tester.getCenter(tile());
+    await mouse.addPointer(location: center);
+    await tester.pump();
+    expect(cursor(device), idleEventCursor);
+    expect(find.byType(Draggable<ScheduleEventDragData>), findsNothing);
+    await mouse.down(center);
+    await mouse.up();
+    await tester.pump(kDoubleTapTimeout + const Duration(milliseconds: 1));
+    await tester.pumpAndSettle();
+    expect(scenario.opened, hasLength(1));
+    expect(scenario.edits, isEmpty);
+    await mouse.removePointer();
+  });
+
+  testWidgets(
+    '$platform owned move overrides the surface and restores over another event',
+    (tester) async {
+      const device = 1;
+      final scenario = PlannerGestureScenario(
+        items: [
+          PlannerGestureScenario.event(),
+          PlannerGestureScenario.event(
+            id: 'destination-event',
+            start: DateTime(2026, 1, 12, 11),
+            end: DateTime(2026, 1, 12, 12),
+          ),
+        ],
+      );
+      await mount(tester, scenario);
+      final source = tester.getCenter(tile());
+      final destination = tester.getCenter(tile('destination-event'));
+      final mouse = await tester.createGesture(
+        pointer: 73,
+        kind: PointerDeviceKind.mouse,
+      );
+      await mouse.addPointer(location: source);
+      await tester.pump();
+      expect(cursor(device), idleEventCursor);
+      await mouse.down(source);
+      await tester.pump();
+      expect(cursor(device), idleEventCursor);
+      await mouse.moveTo(Offset.lerp(source, destination, .55)!);
+      await tester.pump();
+      expect(region(tester).active, isTrue);
+      expect(cursor(device), SystemMouseCursors.move);
+      await mouse.moveTo(destination);
+      await tester.pump();
+      expect(cursor(device), SystemMouseCursors.move);
+      expect(region(tester).preview?.start, DateTime(2026, 1, 12, 11));
+
+      await mouse.up();
+      await tester.pump();
+      expect(cursor(device), idleEventCursor);
+      await tester.pumpAndSettle();
+      expect(scenario.edits, hasLength(1));
+      expect(scenario.edits.single.item.id, 'drag-event');
+      expect(scenario.opened, isEmpty);
+      expect(region(tester).active, isFalse);
+      expect(cursor(device), idleEventCursor);
+      await mouse.removePointer();
+    },
+  );
+
+  testWidgets('$platform release restores cursor while save remains pending', (
+    tester,
+  ) async {
+    const device = 1;
+    final scenario = PlannerGestureScenario();
+    scenario.saveCompleter = Completer<void>();
+    await mount(tester, scenario);
+    final source = tester.getCenter(tile());
+    final destination =
+        source + Offset(0, 60 * planner(tester).heightPerMinute);
+    final mouse = await tester.createGesture(
+      pointer: 74,
+      kind: PointerDeviceKind.mouse,
+    );
+    await mouse.addPointer(location: source);
+    await mouse.down(source);
+    await mouse.moveTo(destination);
+    await tester.pump();
+    expect(cursor(device), SystemMouseCursors.move);
+
+    await mouse.up();
+    await tester.pump();
+    expect(cursor(device), SystemMouseCursors.basic);
+    expect(scenario.edits, hasLength(1));
+    expect(region(tester).active, isTrue);
+    expect(region(tester).canMove, isFalse);
+
+    scenario.saveCompleter!.complete();
+    await tester.pumpAndSettle();
+    expect(scenario.edits, hasLength(1));
+    expect(region(tester).active, isFalse);
+    expect(cursor(device), SystemMouseCursors.basic);
+    await mouse.removePointer();
+  });
+
+  for (final allDay in [false, true]) {
+    testWidgets(
+      '$platform ${allDay ? 'all-day' : 'timed'} resize keeps its directional cursor',
+      (tester) async {
+        const device = 1;
+        final scenario = PlannerGestureScenario(
+          days: allDay ? 7 : 1,
+          items: [
+            PlannerGestureScenario.event(
+              allDay: allDay,
+              start: allDay ? DateTime(2026, 1, 12) : null,
+              end: allDay ? DateTime(2026, 1, 13) : null,
+            ),
+          ],
+        );
+        await mount(tester, scenario);
+        final handle = find
+            .byKey(const ValueKey('schedule-resizeStart-drag-event'))
+            .hitTestable();
+        final down = tester.getCenter(handle);
+        final mouse = await tester.createGesture(
+          pointer: allDay ? 76 : 75,
+          kind: PointerDeviceKind.mouse,
+        );
+        await mouse.addPointer(location: down);
+        await tester.pump();
+        expect(
+          cursor(device),
+          allDay
+              ? SystemMouseCursors.resizeLeftRight
+              : SystemMouseCursors.resizeUpDown,
+        );
+        await mouse.down(down);
+        await mouse.moveTo(
+          down +
+              (allDay
+                  ? Offset(planner(tester).dayWidth, 0)
+                  : Offset(0, -30 * planner(tester).heightPerMinute)),
+        );
+        await tester.pump();
+        expect(region(tester).active, isTrue);
+        expect(cursor(device), isNot(SystemMouseCursors.move));
+        await mouse.cancel();
+        await tester.pump(kDoubleTapTimeout + const Duration(milliseconds: 1));
+        await tester.pumpAndSettle();
+        expect(region(tester).active, isFalse);
+        expect(scenario.edits, isEmpty);
+        await mouse.removePointer();
+      },
+    );
+  }
+
+  testWidgets('$platform background range selection never uses move cursor', (
+    tester,
+  ) async {
+    const device = 1;
+    final scenario = PlannerGestureScenario(items: []);
+    await mount(tester, scenario);
+    final start = slot(tester, 9 * 60);
+    final end = slot(tester, 9 * 60 + 45);
+    final mouse = await tester.createGesture(
+      pointer: 77,
+      kind: PointerDeviceKind.mouse,
+    );
+    await mouse.addPointer(location: start);
+    await tester.pump();
+    expect(cursor(device), SystemMouseCursors.basic);
+    await mouse.down(start);
+    await mouse.moveTo(end);
+    await tester.pump();
+    expect(region(tester).active, isTrue);
+    expect(cursor(device), SystemMouseCursors.basic);
+    await mouse.cancel();
+    await tester.pump(kDoubleTapTimeout + const Duration(milliseconds: 1));
+    await tester.pumpAndSettle();
+    expect(region(tester).active, isFalse);
+    expect(scenario.selections, isEmpty);
+    await mouse.removePointer();
+  });
 
   testWidgets(
     '$platform mouse event move preserves grab offset and commits once',
@@ -196,7 +453,9 @@ void schedulePlannerGestureTests(
     final target = down + Offset(-p.dayWidth, 30 * p.heightPerMinute);
     final expectedDate = region(tester).widget.coordinates!.at(target)!.wall;
     final gesture = await begin(tester, down, target);
+    expect(cursor(1), SystemMouseCursors.move);
     await release(tester, gesture);
+    expect(cursor(1), SystemMouseCursors.basic);
     expect(scenario.edits, hasLength(1));
     expect(
       scenario.edits.single.interval.start,
@@ -275,6 +534,7 @@ void schedulePlannerGestureTests(
       await mount(tester, scenario);
       final down = tester.getCenter(tile());
       final gesture = await begin(tester, down, down + const Offset(0, 54));
+      expect(cursor(1), SystemMouseCursors.move);
       if (cancellation == 'escape') {
         await tester.sendKeyEvent(LogicalKeyboardKey.escape);
         await gesture.up();
@@ -297,17 +557,20 @@ void schedulePlannerGestureTests(
       await tester.pump(const Duration(milliseconds: 1));
       expect(scenario.edits, isEmpty);
       expect(region(tester).active, isFalse);
+      expect(cursor(1), SystemMouseCursors.basic);
       final nextDown = tester.getCenter(tile());
       final next = await begin(
         tester,
         nextDown,
         nextDown + Offset(0, 60 * planner(tester).heightPerMinute),
       );
+      expect(cursor(1), SystemMouseCursors.move);
       await release(tester, next);
       expect(scenario.edits, hasLength(1));
       expect(scenario.edits.single.interval.start, DateTime(2026, 1, 12, 10));
       expect(scenario.edits.single.interval.end, DateTime(2026, 1, 12, 11));
       expect(region(tester).active, isFalse);
+      expect(cursor(1), SystemMouseCursors.basic);
       expect(tester.takeException(), isNull);
     });
   }
@@ -426,20 +689,24 @@ void schedulePlannerGestureTests(
       await mount(tester, scenario);
       final down = tester.getCenter(tile());
       final gesture = await begin(tester, down, down + const Offset(0, 40));
+      expect(cursor(1), SystemMouseCursors.move);
       await gesture.moveTo(down);
       await release(tester, gesture);
       expect(scenario.edits, isEmpty);
       expect(region(tester).active, isFalse);
+      expect(cursor(1), idleEventCursor);
       final next = await begin(
         tester,
         down,
         down + Offset(0, 60 * planner(tester).heightPerMinute),
       );
+      expect(cursor(1), SystemMouseCursors.move);
       await release(tester, next);
       expect(scenario.edits, hasLength(1));
       expect(scenario.edits.single.interval.start, DateTime(2026, 1, 12, 10));
       expect(scenario.edits.single.interval.end, DateTime(2026, 1, 12, 11));
       expect(region(tester).active, isFalse);
+      expect(cursor(1), SystemMouseCursors.basic);
       expect(tester.takeException(), isNull);
     },
   );
@@ -490,6 +757,7 @@ void schedulePlannerGestureTests(
     await mount(tester, scenario);
     final down = tester.getCenter(tile());
     final gesture = await begin(tester, down, down + const Offset(0, 54));
+    expect(cursor(1), SystemMouseCursors.move);
     final interval = region(tester).preview!;
     scenario.items = [
       ...scenario.items,
@@ -502,9 +770,40 @@ void schedulePlannerGestureTests(
     await tester.pumpWidget(harness(scenario));
     await tester.pump();
     expect(region(tester).preview!.sameAs(interval), isTrue);
+    expect(cursor(1), SystemMouseCursors.move);
     await release(tester, gesture);
     expect(scenario.edits, hasLength(1));
     expect(scenario.edits.single.interval.sameAs(interval), isTrue);
+    expect(cursor(1), SystemMouseCursors.basic);
+  });
+
+  testWidgets('$platform region disposal clears move cursor for a later drag', (
+    tester,
+  ) async {
+    final scenario = PlannerGestureScenario();
+    await mount(tester, scenario);
+    final down = tester.getCenter(tile());
+    await begin(tester, down, down + const Offset(0, 54));
+    expect(cursor(1), SystemMouseCursors.move);
+
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump();
+    expect(cursor(1), SystemMouseCursors.basic);
+    expect(tester.takeException(), isNull, reason: 'during region disposal');
+
+    final nextScenario = PlannerGestureScenario();
+    await mount(tester, nextScenario);
+    final nextDown = tester.getCenter(tile());
+    final next = await begin(
+      tester,
+      nextDown,
+      nextDown + Offset(0, 60 * planner(tester).heightPerMinute),
+    );
+    expect(cursor(1), SystemMouseCursors.move);
+    await release(tester, next);
+    expect(nextScenario.edits, hasLength(1));
+    expect(cursor(1), SystemMouseCursors.basic);
+    expect(tester.takeException(), isNull);
   });
 
   testWidgets(
@@ -578,6 +877,7 @@ void schedulePlannerGestureTests(
         expect(region(tester), same(interaction));
         expect(interaction.active, isTrue);
         expect(interaction.preview!.sameAs(preview), isTrue);
+        expect(cursor(1), SystemMouseCursors.move);
         if (drop == 'outside') {
           await gesture.moveTo(const Offset(-40, -40));
         } else if (drop == 'gutter') {
@@ -599,6 +899,7 @@ void schedulePlannerGestureTests(
         }
         expect(interaction.active, isFalse);
         expect(interaction.canMove, isTrue);
+        expect(cursor(1), SystemMouseCursors.basic);
         final nextDown = tester.getCenter(tile('neighbor'));
         final next = await begin(
           tester,
