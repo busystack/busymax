@@ -308,13 +308,25 @@ class PendingOpsReplayer {
     PendingOp completedOp,
     TaskListDto serverList,
   ) async {
-    final dependents =
-        await (_database.select(_database.pendingOps)..where(
-              (row) =>
-                  row.accountId.equals(_accountId) &
-                  row.dependsOnOpId.equals(completedOp.id),
-            ))
-            .get();
+    final operations = await (_database.select(
+      _database.pendingOps,
+    )..where((row) => row.accountId.equals(_accountId))).get();
+    final dependencyIds = <String>{completedOp.id};
+    final dependents = <PendingOp>[];
+    var foundDependent = true;
+    while (foundDependent) {
+      foundDependent = false;
+      for (final candidate in operations) {
+        if (dependencyIds.contains(candidate.id) ||
+            !dependencyIds.contains(candidate.dependsOnOpId) ||
+            candidate.entityType != 'task_list') {
+          continue;
+        }
+        dependencyIds.add(candidate.id);
+        dependents.add(candidate);
+        foundDependent = true;
+      }
+    }
     if (dependents.isEmpty) return false;
 
     final acknowledged = _normalizeTaskListConflictSnapshot(
@@ -333,11 +345,21 @@ class PendingOpsReplayer {
         dependentRequest[_childTaskConflictBaselineKey] =
             dependent.baselineUpdatedUtc;
       }
-      final baseline = _normalizeTaskListConflictSnapshot(
-        _jsonObject(dependent.baselineRawJson ?? '{}'),
-      );
-      for (final field in acknowledged.keys) {
-        baseline[field] = serverSnapshot[field];
+      final initializesServerBaseline =
+          completedOp.operation == 'create_task_list';
+      final baseline = initializesServerBaseline
+          ? Map<String, Object?>.from(serverSnapshot)
+          : _normalizeTaskListConflictSnapshot(
+              _jsonObject(dependent.baselineRawJson ?? '{}'),
+            );
+      if (!initializesServerBaseline) {
+        for (final field in acknowledged.keys) {
+          if (serverSnapshot.containsKey(field)) {
+            baseline[field] = serverSnapshot[field];
+          } else {
+            baseline.remove(field);
+          }
+        }
       }
       await (_database.update(
         _database.pendingOps,
@@ -345,9 +367,10 @@ class PendingOpsReplayer {
         PendingOpsCompanion(
           requestJson: Value(jsonEncode(dependentRequest)),
           baselineRawJson: Value(jsonEncode(baseline)),
-          baselineUpdatedUtc: serverList.updated == null
+          baselineUpdatedUtc:
+              !initializesServerBaseline && serverList.updated == null
               ? const Value.absent()
-              : Value(serverList.updated!.toUtc().toIso8601String()),
+              : Value(serverList.updated?.toUtc().toIso8601String()),
           updatedAtUtc: Value(_now()),
         ),
       );
@@ -374,6 +397,7 @@ class PendingOpsReplayer {
     final tempId = op.localTempId ?? op.taskId;
     if (tempId == null) {
       await _database.transaction(() async {
+        await _rebasePendingListDeletionChildBaselines(op, serverTask: dto);
         await _database.tasksDao.upsertTask(
           taskFromDto(_accountId, op.taskListId!, dto, _now()),
         );
@@ -413,6 +437,10 @@ class PendingOpsReplayer {
   Future<void> _applyTaskEditResult(PendingOp op, TaskDto serverTask) async {
     await _database.transaction(() async {
       final hasDependent = await _rebaseDependentTaskMutations(op, serverTask);
+      await _rebasePendingListDeletionChildBaselines(
+        op,
+        serverTask: serverTask,
+      );
       if (hasDependent) {
         return;
       }
@@ -449,51 +477,20 @@ class PendingOpsReplayer {
       return false;
     }
 
-    final completedRequest = _request(completedOp);
-    final acknowledgedFields = <String>{
-      ...(completedOp.operation == 'create_task' &&
-              completedRequest['body'] is Map
-          ? (completedRequest['body'] as Map).keys.map((key) => key.toString())
-          : completedRequest.keys),
-    };
-    if (acknowledgedFields.contains('status')) {
-      acknowledgedFields.addAll({
-        'completed',
-        'microsoftCompletedDateTime',
-        'microsoftCompletedTimeZone',
-      });
-    }
-    if (acknowledgedFields.contains('due') ||
-        acknowledgedFields.contains('microsoftDueDateTime')) {
-      acknowledgedFields.addAll({
-        'due',
-        'microsoftDueDateTime',
-        'microsoftDueTimeZone',
-      });
-    }
-    if (completedOp.operation == 'move_task') {
-      acknowledgedFields.addAll({'parent', 'position'});
-    }
     final serverSnapshot = _normalizeTaskConflictSnapshot(serverTask.rawJson);
     for (final dependent in dependents) {
       final initializesServerBaseline =
           completedOp.operation == 'create_task' &&
           dependent.baselineUpdatedUtc == null;
-      final baseline = initializesServerBaseline
-          ? Map<String, Object?>.from(serverSnapshot)
-          : _normalizeTaskConflictSnapshot(
-              _jsonObject(dependent.baselineRawJson ?? '{}'),
-            );
+      final baseline = _rebaseAcknowledgedTaskSnapshot(
+        completedOp,
+        _jsonObject(dependent.baselineRawJson ?? '{}'),
+        serverSnapshot,
+        initialize: initializesServerBaseline,
+      );
       final usesWholeTaskConflictBoundary =
           dependent.operation == 'move_task' ||
           dependent.operation == 'delete_task';
-      if (!initializesServerBaseline) {
-        // Keep the original timestamp and untouched fields so a provider edit
-        // to a different field is still detected by a dependent field edit.
-        for (final field in acknowledgedFields) {
-          baseline[field] = serverSnapshot[field];
-        }
-      }
       await (_database.update(
         _database.pendingOps,
       )..where((row) => row.id.equals(dependent.id))).write(
@@ -512,6 +509,167 @@ class PendingOpsReplayer {
     return true;
   }
 
+  Map<String, Object?> _rebaseAcknowledgedTaskSnapshot(
+    PendingOp completedOp,
+    Map<String, Object?> originalBaseline,
+    Map<String, Object?> normalizedServerSnapshot, {
+    bool initialize = false,
+  }) {
+    if (initialize) {
+      return Map<String, Object?>.from(normalizedServerSnapshot);
+    }
+
+    final completedRequest = _request(completedOp);
+    final requestedFields =
+        completedOp.operation == 'create_task' &&
+            completedRequest['body'] is Map
+        ? (completedRequest['body'] as Map).keys.map((key) => key.toString())
+        : completedRequest.keys;
+    final acknowledgedFields = <String>{
+      for (final field in requestedFields)
+        if (!_taskOperationArgumentFields.contains(field)) field,
+    };
+    final baseline = _normalizeTaskConflictSnapshot(originalBaseline);
+
+    void acknowledgeProviderFields(Iterable<String> fields) {
+      for (final field in fields) {
+        if (baseline.containsKey(field) ||
+            normalizedServerSnapshot.containsKey(field)) {
+          acknowledgedFields.add(field);
+        }
+      }
+    }
+
+    if (acknowledgedFields.contains('status')) {
+      acknowledgeProviderFields({
+        'completed',
+        'microsoftCompletedDateTime',
+        'microsoftCompletedTimeZone',
+      });
+    }
+    if (acknowledgedFields.contains('due') ||
+        acknowledgedFields.contains('microsoftDueDateTime')) {
+      acknowledgeProviderFields({
+        'due',
+        'microsoftDueDateTime',
+        'microsoftDueTimeZone',
+      });
+    }
+    if (completedOp.operation == 'move_task') {
+      acknowledgedFields.addAll({'parent', 'position'});
+    }
+
+    // Keep untouched fields at their original values so an independent
+    // remote change remains visible to a later whole-task check. Missing
+    // acknowledged values mean the provider cleared/omitted that field; do
+    // not manufacture null aliases from another provider's schema.
+    for (final field in acknowledgedFields) {
+      if (normalizedServerSnapshot.containsKey(field)) {
+        baseline[field] = normalizedServerSnapshot[field];
+      } else {
+        baseline.remove(field);
+      }
+    }
+    return baseline;
+  }
+
+  Future<void> _rebasePendingListDeletionChildBaselines(
+    PendingOp completedOp, {
+    TaskDto? serverTask,
+  }) async {
+    final sourceListId = completedOp.taskListId;
+    final taskId = serverTask?.id ?? completedOp.taskId;
+    if (sourceListId == null || taskId == null) return;
+
+    final request = _request(completedOp);
+    final destinationListId = completedOp.operation == 'move_task'
+        ? request['destinationTasklist']?.toString() ?? sourceListId
+        : sourceListId;
+    final listDeletes =
+        await (_database.select(_database.pendingOps)..where(
+              (row) =>
+                  row.accountId.equals(_accountId) &
+                  row.entityType.equals('task_list') &
+                  row.operation.equals('delete_task_list'),
+            ))
+            .get();
+
+    for (final listDelete in listDeletes) {
+      final deleteRequest = _request(listDelete);
+      final encoded = deleteRequest[_childTaskConflictBaselinesKey];
+      if (encoded is! Map) continue;
+      final baselines = <String, Object?>{
+        for (final entry in encoded.entries) entry.key.toString(): entry.value,
+      };
+      var changed = false;
+
+      void removeTask() {
+        changed = baselines.remove(taskId) != null || changed;
+        final localId = completedOp.localTempId;
+        if (localId != null) {
+          changed = baselines.remove(localId) != null || changed;
+        }
+      }
+
+      void putServerTask({required bool initialize}) {
+        final task = serverTask;
+        if (task == null) return;
+        final existing = baselines[taskId];
+        if (!initialize && existing is! Map) return;
+        final existingEntry = existing is Map
+            ? existing.cast<String, Object?>()
+            : const <String, Object?>{};
+        final baselineRaw = existingEntry['rawJson'];
+        final normalizedServer = _normalizeTaskConflictSnapshot(task.rawJson);
+        final rebasedRaw = initialize || baselineRaw is! Map
+            ? Map<String, Object?>.from(normalizedServer)
+            : _rebaseAcknowledgedTaskSnapshot(
+                completedOp,
+                baselineRaw.cast<String, Object?>(),
+                normalizedServer,
+              );
+        baselines[taskId] = {
+          'updatedUtc': task.updated?.toUtc().toIso8601String(),
+          'rawJson': rebasedRaw,
+        };
+        changed = true;
+      }
+
+      final deletingSource = listDelete.taskListId == sourceListId;
+      final deletingDestination = listDelete.taskListId == destinationListId;
+      switch (completedOp.operation) {
+        case 'create_task':
+          if (deletingSource) putServerTask(initialize: true);
+          break;
+        case 'patch_task':
+        case 'update_task':
+          if (deletingSource) putServerTask(initialize: false);
+          break;
+        case 'delete_task':
+          if (deletingSource) removeTask();
+          break;
+        case 'move_task':
+          if (sourceListId == destinationListId) {
+            if (deletingSource) putServerTask(initialize: false);
+          } else {
+            if (deletingSource) removeTask();
+            if (deletingDestination) putServerTask(initialize: true);
+          }
+          break;
+      }
+      if (!changed) continue;
+      deleteRequest[_childTaskConflictBaselinesKey] = baselines;
+      await (_database.update(
+        _database.pendingOps,
+      )..where((row) => row.id.equals(listDelete.id))).write(
+        PendingOpsCompanion(
+          requestJson: Value(jsonEncode(deleteRequest)),
+          updatedAtUtc: Value(_now()),
+        ),
+      );
+    }
+  }
+
   bool _mutatesSameTask(PendingOp completed, PendingOp dependent) {
     final identities = {
       if (completed.taskId != null) completed.taskId!,
@@ -528,7 +686,14 @@ class PendingOpsReplayer {
   Future<void> _deleteTask(PendingOp op) async {
     await _ensureTaskUnchanged(op, 'delete');
     await _apiClient.deleteTask(taskListId: op.taskListId!, taskId: op.taskId!);
-    await _database.tasksDao.deleteTask(_accountId, op.taskListId!, op.taskId!);
+    await _database.transaction(() async {
+      await _rebasePendingListDeletionChildBaselines(op);
+      await _database.tasksDao.deleteTask(
+        _accountId,
+        op.taskListId!,
+        op.taskId!,
+      );
+    });
   }
 
   Future<void> _moveTask(PendingOp op) async {
@@ -545,6 +710,7 @@ class PendingOpsReplayer {
     );
     await _database.transaction(() async {
       final hasDependent = await _rebaseDependentTaskMutations(op, dto);
+      await _rebasePendingListDeletionChildBaselines(op, serverTask: dto);
       if (hasDependent) {
         // The repository has already moved the visible projection to the tail
         // of the local chain. Applying this intermediate response would move
@@ -867,6 +1033,10 @@ class PendingOpsReplayer {
         createOperation,
         serverTask,
       );
+      await _rebasePendingListDeletionChildBaselines(
+        createOperation,
+        serverTask: serverTask,
+      );
       // A queued cross-list move has already relocated the temporary row.
       // Keep that visible projection in place while replacing its identity.
       final projectionTaskListId = localTask?.taskListId ?? taskListId;
@@ -1026,11 +1196,14 @@ class PendingOpsReplayer {
     if (op.operation == 'delete_task' &&
         op.taskListId != null &&
         op.taskId != null) {
-      await _database.tasksDao.deleteTask(
-        _accountId,
-        op.taskListId!,
-        op.taskId!,
-      );
+      await _database.transaction(() async {
+        await _rebasePendingListDeletionChildBaselines(op);
+        await _database.tasksDao.deleteTask(
+          _accountId,
+          op.taskListId!,
+          op.taskId!,
+        );
+      });
     }
     if (op.operation == 'delete_task_checklist_item' &&
         op.taskListId != null &&
@@ -1480,7 +1653,13 @@ class PendingOpsReplayer {
     final semantic = Map<String, Object?>.from(
       _normalizeTaskConflictSnapshot(snapshot),
     );
-    semantic.removeWhere((key, _) => _taskRevisionFields.contains(key));
+    semantic.removeWhere(
+      (key, _) =>
+          _taskRevisionFields.contains(key) ||
+          _taskOperationArgumentFields.contains(key) ||
+          key.startsWith('@odata.') ||
+          key.startsWith('_busymax'),
+    );
     if (semantic.containsKey('notes')) semantic.remove('body');
     if (semantic.containsKey('microsoftDueDateTime')) {
       semantic.remove('dueDateTime');
@@ -1497,7 +1676,7 @@ class PendingOpsReplayer {
     if (semantic.containsKey('microsoftIsReminderOn')) {
       semantic.remove('isReminderOn');
     }
-    return semantic;
+    return _canonicalConflictMap(semantic);
   }
 
   Map<String, Object?> _semanticTaskListConflictSnapshot(
@@ -1506,9 +1685,34 @@ class PendingOpsReplayer {
     final semantic = Map<String, Object?>.from(
       _normalizeTaskListConflictSnapshot(snapshot),
     );
-    semantic.removeWhere((key, _) => _taskListRevisionFields.contains(key));
+    semantic.removeWhere(
+      (key, _) =>
+          _taskListRevisionFields.contains(key) ||
+          key.startsWith('@odata.') ||
+          key.startsWith('_busymax'),
+    );
     if (semantic.containsKey('title')) semantic.remove('displayName');
-    return semantic;
+    return _canonicalConflictMap(semantic);
+  }
+
+  Map<String, Object?> _canonicalConflictMap(Map<String, Object?> value) {
+    final result = <String, Object?>{};
+    for (final entry in value.entries) {
+      final canonical = _canonicalConflictValue(entry.value);
+      if (canonical != null) result[entry.key] = canonical;
+    }
+    return result;
+  }
+
+  Object? _canonicalConflictValue(Object? value) {
+    if (value is Map) {
+      final nested = _canonicalConflictMap(value.cast<String, Object?>());
+      return nested.isEmpty ? null : nested;
+    }
+    if (value is List) {
+      return [for (final item in value) _canonicalConflictValue(item)];
+    }
+    return value;
   }
 
   Future<void> _ensureNoCompletedTaskConflict(PendingOp op) async {
@@ -1576,6 +1780,14 @@ const _taskRevisionFields = {
   'updated',
   'lastModifiedDateTime',
   'bodyLastModifiedDateTime',
+};
+
+const _taskOperationArgumentFields = {
+  'previous',
+  'destinationTasklist',
+  'taskListId',
+  'tasklist',
+  'checklistItemId',
 };
 
 const _taskListRevisionFields = {

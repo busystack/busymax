@@ -2771,6 +2771,280 @@ void main() {
     },
   );
 
+  for (final editCase in [
+    (name: 'completion', fields: <String, Object?>{'status': 'completed'}),
+    (
+      name: 'due date',
+      fields: <String, Object?>{'due': DateTime.utc(2026, 6, 10)},
+    ),
+  ]) {
+    test(
+      'Google ${editCase.name} followed by deletion does not self-conflict',
+      () async {
+        const baselineUpdatedUtc = '2026-06-04T00:00:00.000Z';
+        final baselineRaw = <String, Object?>{
+          'kind': 'tasks#task',
+          'id': 'task-1',
+          'title': 'Task',
+          'notes': 'Base notes',
+          'status': 'needsAction',
+          'updated': baselineUpdatedUtc,
+        };
+        apiClient
+          ..persistTaskPatches = true
+          ..remoteTask = TaskDto.fromJson(baselineRaw);
+        await database.tasksDao.upsertTask(
+          _task(
+            'list-1',
+            'task-1',
+            updatedUtc: baselineUpdatedUtc,
+            rawJson: jsonEncode(baselineRaw),
+          ),
+        );
+        var edit = 0;
+        final repository = TasksRepository(
+          database: database,
+          accountId: 'account',
+          nowUtc: () => DateTime.utc(2026, 6, 4, 0, 0, ++edit),
+        );
+        await repository.patchTask(
+          'list-1',
+          'task-1',
+          TaskPatchInput(editCase.fields),
+        );
+        await repository.deleteTask('list-1', 'task-1');
+
+        final applied = await PendingOpsReplayer(
+          database: database,
+          apiClient: apiClient,
+          accountId: 'account',
+          nowUtc: () => DateTime.utc(2026, 6, 4, 1),
+        ).replayDueOps();
+
+        expect(applied, 2);
+        expect(await database.select(database.pendingOps).get(), isEmpty);
+        expect(apiClient.calls, ['patch_task:task-1', 'delete_task:task-1']);
+      },
+    );
+
+    test(
+      'Google ${editCase.name} does not hide an unrelated deletion conflict',
+      () async {
+        const baselineUpdatedUtc = '2026-06-04T00:00:00.000Z';
+        final baselineRaw = <String, Object?>{
+          'kind': 'tasks#task',
+          'id': 'task-1',
+          'title': 'Task',
+          'notes': 'Base notes',
+          'status': 'needsAction',
+          'updated': baselineUpdatedUtc,
+        };
+        apiClient
+          ..persistTaskPatches = true
+          ..remoteTask = TaskDto.fromJson({
+            ...baselineRaw,
+            'notes': 'Remote notes',
+            'updated': '2026-06-04T00:03:00.000Z',
+          });
+        await database.tasksDao.upsertTask(
+          _task(
+            'list-1',
+            'task-1',
+            updatedUtc: baselineUpdatedUtc,
+            rawJson: jsonEncode(baselineRaw),
+          ),
+        );
+        var edit = 0;
+        final repository = TasksRepository(
+          database: database,
+          accountId: 'account',
+          nowUtc: () => DateTime.utc(2026, 6, 4, 0, 0, ++edit),
+        );
+        await repository.patchTask(
+          'list-1',
+          'task-1',
+          TaskPatchInput(editCase.fields),
+        );
+        await repository.deleteTask('list-1', 'task-1');
+
+        final applied = await PendingOpsReplayer(
+          database: database,
+          apiClient: apiClient,
+          accountId: 'account',
+          nowUtc: () => DateTime.utc(2026, 6, 4, 1),
+        ).replayDueOps();
+
+        expect(applied, 1);
+        expect(apiClient.calls, ['patch_task:task-1']);
+        final pending = await database.select(database.pendingOps).getSingle();
+        expect(pending.operation, 'delete_task');
+        expect(pending.lastErrorCode, 'conflict');
+      },
+    );
+  }
+
+  test('queued move followed by deletion does not self-conflict', () async {
+    const baselineUpdatedUtc = '2026-06-04T00:00:00.000Z';
+    final baselineRaw = <String, Object?>{
+      'kind': 'tasks#task',
+      'id': 'task-1',
+      'title': 'Task',
+      'position': 'old-position',
+      'updated': baselineUpdatedUtc,
+    };
+    apiClient.remoteTask = TaskDto.fromJson(baselineRaw);
+    await database.tasksDao.upsertTask(
+      _task(
+        'list-1',
+        'task-1',
+        updatedUtc: baselineUpdatedUtc,
+        rawJson: jsonEncode(baselineRaw),
+      ),
+    );
+    var edit = 0;
+    final repository = TasksRepository(
+      database: database,
+      accountId: 'account',
+      nowUtc: () => DateTime.utc(2026, 6, 4, 0, 0, ++edit),
+    );
+    await repository.moveTask(
+      const TaskMoveInput(
+        sourceTaskListId: 'list-1',
+        taskId: 'task-1',
+        previousSiblingTaskId: 'task-0',
+      ),
+    );
+    await repository.deleteTask('list-1', 'task-1');
+
+    final applied = await PendingOpsReplayer(
+      database: database,
+      apiClient: apiClient,
+      accountId: 'account',
+      nowUtc: () => DateTime.utc(2026, 6, 4, 1),
+    ).replayDueOps();
+
+    expect(applied, 2);
+    expect(apiClient.calls, ['move_task:task-1', 'delete_task:task-1']);
+    expect(await database.select(database.pendingOps).get(), isEmpty);
+  });
+
+  test(
+    'queued move followed by deletion preserves a remote notes conflict',
+    () async {
+      const baselineUpdatedUtc = '2026-06-04T00:00:00.000Z';
+      final baselineRaw = <String, Object?>{
+        'kind': 'tasks#task',
+        'id': 'task-1',
+        'title': 'Task',
+        'notes': 'Base notes',
+        'position': 'old-position',
+        'updated': baselineUpdatedUtc,
+      };
+      apiClient
+        ..remoteTask = TaskDto.fromJson(baselineRaw)
+        ..remoteTaskAfterMove = TaskDto.fromJson({
+          ...baselineRaw,
+          'notes': 'Remote notes',
+          'position': 'moved-position',
+          'updated': '2026-06-04T00:10:00.000Z',
+        });
+      await database.tasksDao.upsertTask(
+        _task(
+          'list-1',
+          'task-1',
+          updatedUtc: baselineUpdatedUtc,
+          rawJson: jsonEncode(baselineRaw),
+        ),
+      );
+      var edit = 0;
+      final repository = TasksRepository(
+        database: database,
+        accountId: 'account',
+        nowUtc: () => DateTime.utc(2026, 6, 4, 0, 0, ++edit),
+      );
+      await repository.moveTask(
+        const TaskMoveInput(
+          sourceTaskListId: 'list-1',
+          taskId: 'task-1',
+          previousSiblingTaskId: 'task-0',
+        ),
+      );
+      await repository.deleteTask('list-1', 'task-1');
+
+      final applied = await PendingOpsReplayer(
+        database: database,
+        apiClient: apiClient,
+        accountId: 'account',
+        nowUtc: () => DateTime.utc(2026, 6, 4, 1),
+      ).replayDueOps();
+
+      expect(applied, 1);
+      expect(apiClient.calls, ['move_task:task-1']);
+      final pending = await database.select(database.pendingOps).getSingle();
+      expect(pending.operation, 'delete_task');
+      expect(pending.lastErrorCode, 'conflict');
+    },
+  );
+
+  for (final remoteTitle in ['Task', 'Remote task']) {
+    final conflicts = remoteTitle != 'Task';
+    test(
+      'Microsoft collection-to-GET annotation ${conflicts ? 'preserves a real conflict' : 'does not create a conflict'}',
+      () async {
+        const baselineUpdatedUtc = '2026-06-04T00:00:00.000Z';
+        final baselineRaw = <String, Object?>{
+          'id': 'task-1',
+          'title': 'Task',
+          'status': 'notStarted',
+          'lastModifiedDateTime': baselineUpdatedUtc,
+          'body': {'content': 'Notes', 'contentType': 'text'},
+        };
+        await database.tasksDao.upsertTask(
+          _task(
+            'list-1',
+            'task-1',
+            updatedUtc: baselineUpdatedUtc,
+            rawJson: jsonEncode(baselineRaw),
+          ),
+        );
+        await _enqueue(
+          database,
+          id: '01',
+          operation: 'delete_task',
+          taskListId: 'list-1',
+          taskId: 'task-1',
+          request: const {},
+          baselineUpdatedUtc: baselineUpdatedUtc,
+          baselineRawJson: jsonEncode(baselineRaw),
+        );
+        final graphClient = _ConflictMicrosoftTodoApiClient({
+          ...baselineRaw,
+          '@odata.context':
+              r'https://graph.microsoft.com/v1.0/$metadata#tasks/$entity',
+          'title': remoteTitle,
+        });
+
+        final applied = await PendingOpsReplayer(
+          database: database,
+          apiClient: _microsoftAdapter(graphClient),
+          accountId: 'account',
+          nowUtc: () => DateTime.utc(2026, 6, 4, 1),
+        ).replayDueOps();
+
+        expect(applied, conflicts ? 0 : 1);
+        expect(graphClient.deleteTaskCalls, conflicts ? 0 : 1);
+        if (conflicts) {
+          expect(
+            (await database.pendingOpsDao.getOp('01'))!.lastErrorCode,
+            'conflict',
+          );
+        } else {
+          expect(await database.pendingOpsDao.getOp('01'), equals(null));
+        }
+      },
+    );
+  }
+
   test(
     'Microsoft list rename without updated timestamp detects conflict',
     () async {
@@ -2868,6 +3142,358 @@ void main() {
       final pending = await database.select(database.pendingOps).getSingle();
       expect(pending.lastErrorCode, 'conflict');
       expect(pending.lastErrorMessage, contains('Remote task in list'));
+    },
+  );
+
+  test(
+    'Microsoft list deletion detects an independently added remote child',
+    () async {
+      await database.taskListsDao.upsertTaskList(
+        _taskList(
+          'list-1',
+          rawJson: jsonEncode(const {
+            'id': 'list-1',
+            'displayName': 'Base list',
+          }),
+        ),
+      );
+      final repository = TaskListsRepository(
+        database: database,
+        accountId: 'account',
+        nowUtc: () => DateTime.utc(2026, 6, 4),
+      );
+      await repository.deleteTaskList('list-1');
+      final graphClient = _ConflictMicrosoftTaskListApiClient(
+        list: const {'id': 'list-1', 'displayName': 'Base list'},
+        tasks: const [
+          {
+            'id': 'remote-task',
+            'title': 'Remote task',
+            'lastModifiedDateTime': '2026-06-04T00:10:00.000Z',
+          },
+        ],
+      );
+
+      final applied = await PendingOpsReplayer(
+        database: database,
+        apiClient: _microsoftAdapter(graphClient),
+        accountId: 'account',
+        nowUtc: () => DateTime.utc(2026, 6, 4, 1),
+      ).replayDueOps();
+
+      expect(applied, 0);
+      expect(graphClient.deleteTaskListCalls, 0);
+      final pending = await database.select(database.pendingOps).getSingle();
+      expect(pending.lastErrorCode, 'conflict');
+    },
+  );
+
+  for (final renameBeforeDelete in [false, true]) {
+    test(
+      'Microsoft create${renameBeforeDelete ? ' rename' : ''} delete list uses the server identity baseline',
+      () async {
+        await (database.update(database.accounts)
+              ..where((row) => row.id.equals('account')))
+            .write(const AccountsCompanion(provider: Value('microsoft')));
+        var mutation = 0;
+        final repository = TaskListsRepository(
+          database: database,
+          accountId: 'account',
+          nowUtc: () => DateTime.utc(2026, 6, 4, 0, 0, ++mutation),
+        );
+        await repository.createTaskList('Draft list');
+        final localList = (await database.taskListsDao.listTaskLists(
+          'account',
+        )).singleWhere((list) => list.id.startsWith('local-tasklist-'));
+        if (renameBeforeDelete) {
+          await repository.renameTaskList(localList.id, 'Renamed list');
+        }
+        await repository.deleteTaskList(localList.id);
+        final graphClient = _ConflictMicrosoftTaskListApiClient(
+          list: const {'id': 'list-server', 'displayName': 'Draft list'},
+        );
+
+        final applied = await PendingOpsReplayer(
+          database: database,
+          apiClient: _microsoftAdapter(graphClient),
+          accountId: 'account',
+          nowUtc: () => DateTime.utc(2026, 6, 4, 1),
+        ).replayDueOps();
+
+        expect(applied, renameBeforeDelete ? 3 : 2);
+        expect(graphClient.createTaskListCalls, 1);
+        expect(graphClient.updateTaskListCalls, renameBeforeDelete ? 1 : 0);
+        expect(graphClient.deleteTaskListCalls, 1);
+        expect(await database.select(database.pendingOps).get(), isEmpty);
+      },
+    );
+  }
+
+  test(
+    'Microsoft create delete list still detects a post-create remote rename',
+    () async {
+      await (database.update(database.accounts)
+            ..where((row) => row.id.equals('account')))
+          .write(const AccountsCompanion(provider: Value('microsoft')));
+      var mutation = 0;
+      final repository = TaskListsRepository(
+        database: database,
+        accountId: 'account',
+        nowUtc: () => DateTime.utc(2026, 6, 4, 0, 0, ++mutation),
+      );
+      await repository.createTaskList('Draft list');
+      final localList = (await database.taskListsDao.listTaskLists(
+        'account',
+      )).singleWhere((list) => list.id.startsWith('local-tasklist-'));
+      await repository.deleteTaskList(localList.id);
+      final graphClient = _ConflictMicrosoftTaskListApiClient(
+        list: const {'id': 'list-server', 'displayName': 'Draft list'},
+        listAfterCreate: const {'displayName': 'Remote list'},
+      );
+
+      final applied = await PendingOpsReplayer(
+        database: database,
+        apiClient: _microsoftAdapter(graphClient),
+        accountId: 'account',
+        nowUtc: () => DateTime.utc(2026, 6, 4, 1),
+      ).replayDueOps();
+
+      expect(applied, 1);
+      expect(graphClient.deleteTaskListCalls, 0);
+      final pending = await database.select(database.pendingOps).getSingle();
+      expect(pending.operation, 'delete_task_list');
+      expect(pending.lastErrorCode, 'conflict');
+    },
+  );
+
+  test(
+    'Microsoft child edit followed by list deletion does not self-conflict',
+    () async {
+      const baselineUpdatedUtc = '2026-06-04T00:00:00.000Z';
+      final taskRaw = <String, Object?>{
+        'id': 'task-1',
+        'title': 'A',
+        'status': 'notStarted',
+        'lastModifiedDateTime': baselineUpdatedUtc,
+        'body': {'content': 'Notes', 'contentType': 'text'},
+      };
+      await database.taskListsDao.upsertTaskList(
+        _taskList(
+          'list-1',
+          rawJson: jsonEncode(const {'id': 'list-1', 'displayName': 'List'}),
+        ),
+      );
+      await database.tasksDao.upsertTask(
+        _task(
+          'list-1',
+          'task-1',
+          title: 'A',
+          updatedUtc: baselineUpdatedUtc,
+          rawJson: jsonEncode(taskRaw),
+        ),
+      );
+      var mutation = 0;
+      final tasks = TasksRepository(
+        database: database,
+        accountId: 'account',
+        nowUtc: () => DateTime.utc(2026, 6, 4, 0, 0, ++mutation),
+      );
+      final lists = TaskListsRepository(
+        database: database,
+        accountId: 'account',
+        nowUtc: () => DateTime.utc(2026, 6, 4, 0, 0, ++mutation),
+      );
+      await tasks.patchTask(
+        'list-1',
+        'task-1',
+        const TaskPatchInput({'title': 'B'}),
+      );
+      await lists.deleteTaskList('list-1');
+      final graphClient = _ConflictMicrosoftTaskListApiClient(
+        list: const {'id': 'list-1', 'displayName': 'List'},
+        tasks: [taskRaw],
+      );
+
+      final applied = await PendingOpsReplayer(
+        database: database,
+        apiClient: _microsoftAdapter(graphClient),
+        accountId: 'account',
+        nowUtc: () => DateTime.utc(2026, 6, 4, 1),
+      ).replayDueOps();
+
+      expect(applied, 2);
+      expect(graphClient.updateTaskCalls, 1);
+      expect(graphClient.deleteTaskListCalls, 1);
+      expect(await database.select(database.pendingOps).get(), isEmpty);
+    },
+  );
+
+  test(
+    'Microsoft child creation followed by list deletion rebases membership',
+    () async {
+      await database.taskListsDao.upsertTaskList(
+        _taskList(
+          'list-1',
+          rawJson: jsonEncode(const {'id': 'list-1', 'displayName': 'List'}),
+        ),
+      );
+      var mutation = 0;
+      final tasks = TasksRepository(
+        database: database,
+        accountId: 'account',
+        nowUtc: () => DateTime.utc(2026, 6, 4, 0, 0, ++mutation),
+      );
+      final lists = TaskListsRepository(
+        database: database,
+        accountId: 'account',
+        nowUtc: () => DateTime.utc(2026, 6, 4, 0, 0, ++mutation),
+      );
+      await tasks.createTask(
+        'list-1',
+        const TaskCreateInput(title: 'New task'),
+      );
+      await lists.deleteTaskList('list-1');
+      final graphClient = _ConflictMicrosoftTaskListApiClient(
+        list: const {'id': 'list-1', 'displayName': 'List'},
+      );
+
+      final applied = await PendingOpsReplayer(
+        database: database,
+        apiClient: _microsoftAdapter(graphClient),
+        accountId: 'account',
+        nowUtc: () => DateTime.utc(2026, 6, 4, 1),
+      ).replayDueOps();
+
+      expect(applied, 2);
+      expect(graphClient.createTaskCalls, 1);
+      expect(graphClient.deleteTaskListCalls, 1);
+      expect(await database.select(database.pendingOps).get(), isEmpty);
+    },
+  );
+
+  test(
+    'Microsoft child deletion followed by list deletion rebases membership',
+    () async {
+      const baselineUpdatedUtc = '2026-06-04T00:00:00.000Z';
+      final taskRaw = <String, Object?>{
+        'id': 'task-1',
+        'title': 'Task',
+        'status': 'notStarted',
+        'lastModifiedDateTime': baselineUpdatedUtc,
+      };
+      await database.taskListsDao.upsertTaskList(
+        _taskList(
+          'list-1',
+          rawJson: jsonEncode(const {'id': 'list-1', 'displayName': 'List'}),
+        ),
+      );
+      await database.tasksDao.upsertTask(
+        _task(
+          'list-1',
+          'task-1',
+          updatedUtc: baselineUpdatedUtc,
+          rawJson: jsonEncode(taskRaw),
+        ),
+      );
+      var mutation = 0;
+      final tasks = TasksRepository(
+        database: database,
+        accountId: 'account',
+        nowUtc: () => DateTime.utc(2026, 6, 4, 0, 0, ++mutation),
+      );
+      final lists = TaskListsRepository(
+        database: database,
+        accountId: 'account',
+        nowUtc: () => DateTime.utc(2026, 6, 4, 0, 0, ++mutation),
+      );
+      await tasks.deleteTask('list-1', 'task-1');
+      await lists.deleteTaskList('list-1');
+      final graphClient = _ConflictMicrosoftTaskListApiClient(
+        list: const {'id': 'list-1', 'displayName': 'List'},
+        tasks: [taskRaw],
+      );
+
+      final applied = await PendingOpsReplayer(
+        database: database,
+        apiClient: _microsoftAdapter(graphClient),
+        accountId: 'account',
+        nowUtc: () => DateTime.utc(2026, 6, 4, 1),
+      ).replayDueOps();
+
+      expect(applied, 2);
+      expect(graphClient.deleteTaskCalls, 1);
+      expect(graphClient.deleteTaskListCalls, 1);
+      expect(await database.select(database.pendingOps).get(), isEmpty);
+    },
+  );
+
+  test(
+    'Microsoft acknowledged child edit preserves a remote notes conflict',
+    () async {
+      const baselineUpdatedUtc = '2026-06-04T00:00:00.000Z';
+      final baselineRaw = <String, Object?>{
+        'id': 'task-1',
+        'title': 'A',
+        'status': 'notStarted',
+        'lastModifiedDateTime': baselineUpdatedUtc,
+        'body': {'content': 'Base notes', 'contentType': 'text'},
+      };
+      await database.taskListsDao.upsertTaskList(
+        _taskList(
+          'list-1',
+          rawJson: jsonEncode(const {'id': 'list-1', 'displayName': 'List'}),
+        ),
+      );
+      await database.tasksDao.upsertTask(
+        _task(
+          'list-1',
+          'task-1',
+          title: 'A',
+          updatedUtc: baselineUpdatedUtc,
+          rawJson: jsonEncode(baselineRaw),
+        ),
+      );
+      var mutation = 0;
+      final tasks = TasksRepository(
+        database: database,
+        accountId: 'account',
+        nowUtc: () => DateTime.utc(2026, 6, 4, 0, 0, ++mutation),
+      );
+      final lists = TaskListsRepository(
+        database: database,
+        accountId: 'account',
+        nowUtc: () => DateTime.utc(2026, 6, 4, 0, 0, ++mutation),
+      );
+      await tasks.patchTask(
+        'list-1',
+        'task-1',
+        const TaskPatchInput({'title': 'B'}),
+      );
+      await lists.deleteTaskList('list-1');
+      final graphClient = _ConflictMicrosoftTaskListApiClient(
+        list: const {'id': 'list-1', 'displayName': 'List'},
+        tasks: [
+          {
+            ...baselineRaw,
+            'lastModifiedDateTime': '2026-06-04T00:03:00.000Z',
+            'body': {'content': 'Remote notes', 'contentType': 'text'},
+          },
+        ],
+      );
+
+      final applied = await PendingOpsReplayer(
+        database: database,
+        apiClient: _microsoftAdapter(graphClient),
+        accountId: 'account',
+        nowUtc: () => DateTime.utc(2026, 6, 4, 1),
+      ).replayDueOps();
+
+      expect(applied, 1);
+      expect(graphClient.updateTaskCalls, 1);
+      expect(graphClient.deleteTaskListCalls, 0);
+      final pending = await database.select(database.pendingOps).getSingle();
+      expect(pending.operation, 'delete_task_list');
+      expect(pending.lastErrorCode, 'conflict');
     },
   );
 
@@ -3805,6 +4431,7 @@ class _ConflictMicrosoftTodoApiClient implements MicrosoftTodoApiClient {
 
   final MicrosoftTodoTaskDto remoteTask;
   int updateTaskCalls = 0;
+  int deleteTaskCalls = 0;
 
   @override
   Future<MicrosoftTodoTaskDto> getTask({
@@ -3823,6 +4450,14 @@ class _ConflictMicrosoftTodoApiClient implements MicrosoftTodoApiClient {
   }
 
   @override
+  Future<void> deleteTask({
+    required String taskListId,
+    required String taskId,
+  }) async {
+    deleteTaskCalls += 1;
+  }
+
+  @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 
@@ -3830,13 +4465,35 @@ class _ConflictMicrosoftTaskListApiClient implements MicrosoftTodoApiClient {
   _ConflictMicrosoftTaskListApiClient({
     required Map<String, Object?> list,
     List<Map<String, Object?>> tasks = const [],
+    this.listAfterCreate,
   }) : _list = Map<String, Object?>.from(list),
        _tasks = tasks.map(Map<String, Object?>.from).toList();
 
   Map<String, Object?> _list;
   final List<Map<String, Object?>> _tasks;
+  final Map<String, Object?>? listAfterCreate;
+  int createTaskListCalls = 0;
   int updateTaskListCalls = 0;
   int deleteTaskListCalls = 0;
+  int createTaskCalls = 0;
+  int updateTaskCalls = 0;
+  int deleteTaskCalls = 0;
+
+  @override
+  Future<MicrosoftTodoTaskListDto> createTaskList({
+    required String displayName,
+  }) async {
+    createTaskListCalls += 1;
+    final created = <String, Object?>{
+      ..._list,
+      'id': _list['id'] ?? 'list-server',
+      'displayName': displayName,
+    };
+    _list = listAfterCreate == null
+        ? Map<String, Object?>.from(created)
+        : {...created, ...listAfterCreate!};
+    return MicrosoftTodoTaskListDto.fromJson(created);
+  }
 
   @override
   Future<MicrosoftTodoTaskListsPageDto> listTaskListsPage({
@@ -3868,6 +4525,59 @@ class _ConflictMicrosoftTaskListApiClient implements MicrosoftTodoApiClient {
     String? nextLink,
   }) async {
     return MicrosoftTodoTasksPageDto.fromJson({'value': _tasks});
+  }
+
+  @override
+  Future<MicrosoftTodoTaskDto> createTask({
+    required String taskListId,
+    required Map<String, Object?> body,
+  }) async {
+    createTaskCalls += 1;
+    final created = <String, Object?>{
+      'id': 'task-server',
+      'title': body['title'] ?? '',
+      'status': body['status'] ?? 'notStarted',
+      'lastModifiedDateTime': '2026-06-04T00:05:00.000Z',
+      ...body,
+    };
+    _tasks.add(created);
+    return MicrosoftTodoTaskDto.fromJson(created);
+  }
+
+  @override
+  Future<MicrosoftTodoTaskDto> getTask({
+    required String taskListId,
+    required String taskId,
+  }) async {
+    return MicrosoftTodoTaskDto.fromJson(
+      _tasks.singleWhere((task) => task['id'] == taskId),
+    );
+  }
+
+  @override
+  Future<MicrosoftTodoTaskDto> updateTask({
+    required String taskListId,
+    required String taskId,
+    required Map<String, Object?> patch,
+  }) async {
+    updateTaskCalls += 1;
+    final index = _tasks.indexWhere((task) => task['id'] == taskId);
+    final updated = <String, Object?>{
+      ..._tasks[index],
+      ...patch,
+      'lastModifiedDateTime': '2026-06-04T00:05:00.000Z',
+    };
+    _tasks[index] = updated;
+    return MicrosoftTodoTaskDto.fromJson(updated);
+  }
+
+  @override
+  Future<void> deleteTask({
+    required String taskListId,
+    required String taskId,
+  }) async {
+    deleteTaskCalls += 1;
+    _tasks.removeWhere((task) => task['id'] == taskId);
   }
 
   @override
@@ -4011,17 +4721,22 @@ class _FakeTaskRemoteClient implements TaskRemoteClient {
     taskPatchFields.add(patch.fields);
     calls.add('patch_task:$taskId');
     final current = remoteTask;
+    final revision = DateTime.utc(2026, 6, 4, 0, ++_taskPatchRevision + 5);
+    final patchedRaw = <String, Object?>{
+      ...?current?.rawJson,
+      'id': taskId,
+      ...patch.fields,
+      'updated': revision.toIso8601String(),
+    };
+    if (patch.fields['status'] == 'completed' &&
+        !patchedRaw.containsKey('completed')) {
+      patchedRaw['completed'] = revision.toIso8601String();
+    } else if (patch.fields.containsKey('status') &&
+        patch.fields['status'] != 'completed') {
+      patchedRaw.remove('completed');
+    }
     final dto = persistTaskPatches
-        ? _taskDto(
-            taskId,
-            title: patch.fields.containsKey('title')
-                ? patch.fields['title']?.toString() ?? ''
-                : current?.title ?? '',
-            notes: patch.fields.containsKey('notes')
-                ? patch.fields['notes']?.toString()
-                : current?.notes,
-            updated: DateTime.utc(2026, 6, 4, 0, ++_taskPatchRevision + 5),
-          )
+        ? TaskDto.fromJson(patchedRaw)
         : _taskDto(taskId, title: patch.fields['title'].toString());
     if (persistTaskPatches) {
       remoteTask = dto;
@@ -4066,7 +4781,18 @@ class _FakeTaskRemoteClient implements TaskRemoteClient {
     moveParentTaskIds.add(parentTaskId);
     final error = moveTaskError;
     if (error != null) throw error;
-    final result = _taskDto(taskId, title: 'Moved', parent: parentTaskId);
+    final current = remoteTask;
+    final movedRaw = <String, Object?>{
+      ...?current?.rawJson,
+      'id': taskId,
+      'title': current?.title ?? 'Task',
+      'position': 'moved-position',
+      'updated': DateTime.utc(2026, 6, 4, 0, 5).toIso8601String(),
+      if (parentTaskId != null) 'parent': parentTaskId,
+    };
+    if (parentTaskId == null) movedRaw.remove('parent');
+    final result = TaskDto.fromJson(movedRaw);
+    remoteTask = result;
     final afterMove = remoteTaskAfterMove;
     if (afterMove != null) remoteTask = afterMove;
     return result;
