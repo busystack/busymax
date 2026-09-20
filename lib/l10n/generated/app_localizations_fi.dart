@@ -2437,10 +2437,6 @@ class AppLocalizationsFi extends AppLocalizations {
       'Tili poistettiin paikallisesti, mutta Nextcloudin sovellussalasanaa ei voitu kumota.';
 
   @override
-  String get davCachedOfflineNotice =>
-      'Kalenteri- ja tehtävätiedot tallennetaan paikallisesti offline-käyttöä varten.';
-
-  @override
   String get davReauthenticationRequired =>
       'Yhdistä tämä tili uudelleen jatkaaksesi synkronointia.';
 

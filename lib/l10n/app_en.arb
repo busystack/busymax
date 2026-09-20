@@ -1150,7 +1150,6 @@
   "connectAccountAction": "Connect",
   "cancelAccountConnection": "Cancel connection",
   "nextcloudAccountRemovedRevokeFailed": "The account was removed locally, but its Nextcloud app password could not be revoked.",
-  "davCachedOfflineNotice": "Calendar and task data is cached locally for offline use.",
   "davReauthenticationRequired": "Reconnect this account to resume synchronization.",
   "davTemporarilyUnavailable": "This account is temporarily unavailable.",
   "davPermissionChanged": "Server permissions changed. Pending edits are paused.",

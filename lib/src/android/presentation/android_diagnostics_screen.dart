@@ -43,7 +43,6 @@ class AndroidDiagnosticsScreen extends ConsumerWidget {
                 ListTile(
                   leading: const Icon(Icons.sync),
                   title: Text(context.l10n.sync),
-                  subtitle: Text(context.l10n.davCachedOfflineNotice),
                   onTap: () => unawaited(enqueueImmediateBusyMaxSync()),
                 ),
               ],

@@ -589,7 +589,6 @@
   "connectAccountAction": "Yhdistä",
   "cancelAccountConnection": "Peruuta yhteys",
   "nextcloudAccountRemovedRevokeFailed": "Tili poistettiin paikallisesti, mutta Nextcloudin sovellussalasanaa ei voitu kumota.",
-  "davCachedOfflineNotice": "Kalenteri- ja tehtävätiedot tallennetaan paikallisesti offline-käyttöä varten.",
   "davReauthenticationRequired": "Yhdistä tämä tili uudelleen jatkaaksesi synkronointia.",
   "davTemporarilyUnavailable": "Tämä tili ei ole tilapäisesti käytettävissä.",
   "davPermissionChanged": "Palvelimen käyttöoikeudet muuttuivat. Odottavat muokkaukset on keskeytetty.",

@@ -2439,10 +2439,6 @@ class AppLocalizationsPt extends AppLocalizations {
       'The account was removed locally, but its Nextcloud app password could not be revoked.';
 
   @override
-  String get davCachedOfflineNotice =>
-      'Calendar and task data is cached locally for offline use.';
-
-  @override
   String get davReauthenticationRequired =>
       'Reconnect this account to resume synchronization.';
 
@@ -5451,10 +5447,6 @@ class AppLocalizationsPtPt extends AppLocalizationsPt {
   @override
   String get nextcloudAccountRemovedRevokeFailed =>
       'A conta foi removida localmente, mas não foi possível revogar a palavra-passe da aplicação Nextcloud.';
-
-  @override
-  String get davCachedOfflineNotice =>
-      'Os dados de calendários e tarefas são colocados em cache localmente para utilização offline.';
 
   @override
   String get davReauthenticationRequired =>

@@ -2424,10 +2424,6 @@ class AppLocalizationsVi extends AppLocalizations {
       'Tài khoản đã bị xóa cục bộ nhưng không thể thu hồi mật khẩu ứng dụng Nextcloud.';
 
   @override
-  String get davCachedOfflineNotice =>
-      'Dữ liệu lịch và công việc được lưu trong bộ nhớ đệm cục bộ để sử dụng ngoại tuyến.';
-
-  @override
   String get davReauthenticationRequired =>
       'Kết nối lại tài khoản này để tiếp tục đồng bộ.';
 

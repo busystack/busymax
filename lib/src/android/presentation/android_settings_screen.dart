@@ -517,7 +517,6 @@ class _AndroidSettingsScreenState extends ConsumerState<AndroidSettingsScreen> {
                       )
                     : const Icon(Icons.sync),
                 title: Text(context.l10n.sync),
-                subtitle: Text(context.l10n.davCachedOfflineNotice),
                 enabled: !_syncing,
                 onTap: _syncing ? null : () => unawaited(_syncAll()),
               ),

@@ -2576,10 +2576,6 @@ class AppLocalizationsPl extends AppLocalizations {
       'Konto usunięto lokalnie, ale nie udało się unieważnić jego hasła aplikacji Nextcloud.';
 
   @override
-  String get davCachedOfflineNotice =>
-      'Dane kalendarzy i zadań są zapisywane lokalnie, aby można było korzystać z nich offline.';
-
-  @override
   String get davReauthenticationRequired =>
       'Połącz to konto ponownie, aby wznowić synchronizację.';
 

@@ -589,7 +589,6 @@
   "connectAccountAction": "कनेक्ट करें",
   "cancelAccountConnection": "कनेक्शन रद्द करें",
   "nextcloudAccountRemovedRevokeFailed": "खाता स्थानीय रूप से हटाया गया, लेकिन Nextcloud ऐप पासवर्ड रद्द नहीं किया जा सका।",
-  "davCachedOfflineNotice": "ऑफ़लाइन उपयोग के लिए कैलेंडर और कार्य डेटा स्थानीय रूप से कैश किया जाता है।",
   "davReauthenticationRequired": "सिंक फिर से शुरू करने के लिए इस खाते को दोबारा कनेक्ट करें।",
   "davTemporarilyUnavailable": "यह खाता अस्थायी रूप से उपलब्ध नहीं है।",
   "davPermissionChanged": "सर्वर अनुमतियाँ बदल गई हैं। लंबित संपादन रोक दिए गए हैं।",

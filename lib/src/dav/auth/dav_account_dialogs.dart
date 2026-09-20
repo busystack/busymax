@@ -146,11 +146,6 @@ final class _AppleCredentialDialogState extends State<_AppleCredentialDialog> {
           l10n.appleAppSpecificPasswordResetWarning,
           style: Theme.of(context).textTheme.bodySmall,
         ),
-        const SizedBox(height: BusyMaxSpacing.sm),
-        Text(
-          l10n.davCachedOfflineNotice,
-          style: Theme.of(context).textTheme.bodySmall,
-        ),
       ],
     );
   }
@@ -237,10 +232,8 @@ final class _NextcloudServerDialogState extends State<_NextcloudServerDialog> {
           style: Theme.of(context).textTheme.bodySmall,
         ),
         const SizedBox(height: BusyMaxSpacing.md),
-        Text(l10n.nextcloudBrowserAuthorizationHelp),
-        const SizedBox(height: BusyMaxSpacing.sm),
         Text(
-          l10n.davCachedOfflineNotice,
+          l10n.nextcloudBrowserAuthorizationHelp,
           style: Theme.of(context).textTheme.bodySmall,
         ),
       ],

@@ -2424,10 +2424,6 @@ class AppLocalizationsHi extends AppLocalizations {
       'खाता स्थानीय रूप से हटाया गया, लेकिन Nextcloud ऐप पासवर्ड रद्द नहीं किया जा सका।';
 
   @override
-  String get davCachedOfflineNotice =>
-      'ऑफ़लाइन उपयोग के लिए कैलेंडर और कार्य डेटा स्थानीय रूप से कैश किया जाता है।';
-
-  @override
   String get davReauthenticationRequired =>
       'सिंक फिर से शुरू करने के लिए इस खाते को दोबारा कनेक्ट करें।';
 

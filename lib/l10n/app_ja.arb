@@ -589,7 +589,6 @@
   "connectAccountAction": "接続",
   "cancelAccountConnection": "接続をキャンセル",
   "nextcloudAccountRemovedRevokeFailed": "アカウントはローカルから削除されましたが、Nextcloud の App パスワードを無効にできませんでした。",
-  "davCachedOfflineNotice": "オフラインで使用できるよう、カレンダーとタスクのデータはローカルにキャッシュされます。",
   "davReauthenticationRequired": "同期を再開するには、このアカウントを再接続してください。",
   "davTemporarilyUnavailable": "このアカウントは一時的に利用できません。",
   "davPermissionChanged": "サーバーの権限が変更されました。保留中の編集は一時停止されています。",

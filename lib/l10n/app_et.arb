@@ -760,7 +760,6 @@
   "connectAccountAction": "Ühenda",
   "cancelAccountConnection": "Tühista ühendus",
   "nextcloudAccountRemovedRevokeFailed": "Konto eemaldati kohalikult, kuid Nextcloudi rakenduse parooli ei saanud tühistada.",
-  "davCachedOfflineNotice": "Kalendri- ja ülesandeandmed salvestatakse võrguühenduseta kasutamiseks kohapeal.",
   "davReauthenticationRequired": "Sünkroonimise jätkamiseks ühenda see konto uuesti.",
   "davTemporarilyUnavailable": "See konto pole ajutiselt saadaval.",
   "davPermissionChanged": "Serveriõigused muutusid. Ootel muudatused on peatatud.",

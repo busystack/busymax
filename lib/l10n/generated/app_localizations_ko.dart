@@ -2377,9 +2377,6 @@ class AppLocalizationsKo extends AppLocalizations {
       '계정은 로컬에서 삭제되었지만 Nextcloud 앱 암호를 취소할 수 없습니다.';
 
   @override
-  String get davCachedOfflineNotice => '오프라인 사용을 위해 캘린더 및 할 일 데이터가 로컬에 캐시됩니다.';
-
-  @override
   String get davReauthenticationRequired => '동기화를 재개하려면 이 계정을 다시 연결하세요.';
 
   @override

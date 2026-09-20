@@ -645,7 +645,6 @@
   "connectAccountAction": "Verbinden",
   "cancelAccountConnection": "Verbindung abbrechen",
   "nextcloudAccountRemovedRevokeFailed": "Das Konto wurde lokal entfernt, aber das Nextcloud-App-Passwort konnte nicht widerrufen werden.",
-  "davCachedOfflineNotice": "Kalender- und Aufgabendaten werden für die Offline-Nutzung lokal zwischengespeichert.",
   "davReauthenticationRequired": "Verbinden Sie dieses Konto erneut, um die Synchronisierung fortzusetzen.",
   "davTemporarilyUnavailable": "Dieses Konto ist vorübergehend nicht verfügbar.",
   "davPermissionChanged": "Die Serverberechtigungen wurden geändert. Ausstehende Bearbeitungen sind pausiert.",

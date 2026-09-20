@@ -2492,10 +2492,6 @@ class AppLocalizationsAr extends AppLocalizations {
       'تمت إزالة الحساب محليًا، لكن تعذّر إبطال كلمة مرور تطبيق Nextcloud.';
 
   @override
-  String get davCachedOfflineNotice =>
-      'تُخزّن بيانات التقويم والمهام محليًا للاستخدام دون اتصال.';
-
-  @override
   String get davReauthenticationRequired =>
       'أعد ربط هذا الحساب لاستئناف المزامنة.';
 

@@ -589,7 +589,6 @@
   "connectAccountAction": "Подключить",
   "cancelAccountConnection": "Отменить подключение",
   "nextcloudAccountRemovedRevokeFailed": "Аккаунт удалён локально, но пароль приложения Nextcloud не удалось отозвать.",
-  "davCachedOfflineNotice": "Данные календаря и задач кэшируются локально для работы без подключения.",
   "davReauthenticationRequired": "Подключите аккаунт заново, чтобы возобновить синхронизацию.",
   "davTemporarilyUnavailable": "Этот аккаунт временно недоступен.",
   "davPermissionChanged": "Разрешения сервера изменились. Ожидающие изменения приостановлены.",

@@ -589,7 +589,6 @@
   "connectAccountAction": "连接",
   "cancelAccountConnection": "取消连接",
   "nextcloudAccountRemovedRevokeFailed": "账户已在本地移除，但无法撤销 Nextcloud App 密码。",
-  "davCachedOfflineNotice": "日历和任务数据会缓存在本地，以供离线使用。",
   "davReauthenticationRequired": "重新连接此账户以恢复同步。",
   "davTemporarilyUnavailable": "此账户暂时不可用。",
   "davPermissionChanged": "服务器权限已更改。待处理的编辑已暂停。",

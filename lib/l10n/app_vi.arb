@@ -589,7 +589,6 @@
   "connectAccountAction": "Kết nối",
   "cancelAccountConnection": "Hủy kết nối",
   "nextcloudAccountRemovedRevokeFailed": "Tài khoản đã bị xóa cục bộ nhưng không thể thu hồi mật khẩu ứng dụng Nextcloud.",
-  "davCachedOfflineNotice": "Dữ liệu lịch và công việc được lưu trong bộ nhớ đệm cục bộ để sử dụng ngoại tuyến.",
   "davReauthenticationRequired": "Kết nối lại tài khoản này để tiếp tục đồng bộ.",
   "davTemporarilyUnavailable": "Tài khoản này tạm thời không khả dụng.",
   "davPermissionChanged": "Quyền máy chủ đã thay đổi. Các chỉnh sửa đang chờ bị tạm dừng.",

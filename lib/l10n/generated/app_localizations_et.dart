@@ -2390,10 +2390,6 @@ class AppLocalizationsEt extends AppLocalizations {
       'Konto eemaldati kohalikult, kuid Nextcloudi rakenduse parooli ei saanud tühistada.';
 
   @override
-  String get davCachedOfflineNotice =>
-      'Kalendri- ja ülesandeandmed salvestatakse võrguühenduseta kasutamiseks kohapeal.';
-
-  @override
   String get davReauthenticationRequired =>
       'Sünkroonimise jätkamiseks ühenda see konto uuesti.';
 

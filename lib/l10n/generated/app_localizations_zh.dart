@@ -2345,9 +2345,6 @@ class AppLocalizationsZh extends AppLocalizations {
       '账户已在本地移除，但无法撤销 Nextcloud App 密码。';
 
   @override
-  String get davCachedOfflineNotice => '日历和任务数据会缓存在本地，以供离线使用。';
-
-  @override
   String get davReauthenticationRequired => '重新连接此账户以恢复同步。';
 
   @override
@@ -5221,9 +5218,6 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
   @override
   String get nextcloudAccountRemovedRevokeFailed =>
       '账户已在本地移除，但无法撤销 Nextcloud App 密码。';
-
-  @override
-  String get davCachedOfflineNotice => '日历和任务数据会缓存在本地，以供离线使用。';
 
   @override
   String get davReauthenticationRequired => '重新连接此账户以恢复同步。';
@@ -8100,9 +8094,6 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   @override
   String get nextcloudAccountRemovedRevokeFailed =>
       '賬戶已在本地移除，但無法撤銷 Nextcloud App 密碼。';
-
-  @override
-  String get davCachedOfflineNotice => '日曆和任務數據會緩存在本地，以供離線使用。';
 
   @override
   String get davReauthenticationRequired => '重新連接此賬戶以恢復同步。';

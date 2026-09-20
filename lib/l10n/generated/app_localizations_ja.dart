@@ -2373,10 +2373,6 @@ class AppLocalizationsJa extends AppLocalizations {
       'アカウントはローカルから削除されましたが、Nextcloud の App パスワードを無効にできませんでした。';
 
   @override
-  String get davCachedOfflineNotice =>
-      'オフラインで使用できるよう、カレンダーとタスクのデータはローカルにキャッシュされます。';
-
-  @override
   String get davReauthenticationRequired => '同期を再開するには、このアカウントを再接続してください。';
 
   @override

@@ -2446,10 +2446,6 @@ class AppLocalizationsIt extends AppLocalizations {
       'L’account è stato rimosso localmente, ma non è stato possibile revocare la password dell’app Nextcloud.';
 
   @override
-  String get davCachedOfflineNotice =>
-      'I dati di calendari e attività vengono memorizzati localmente per l’uso offline.';
-
-  @override
   String get davReauthenticationRequired =>
       'Ricollega questo account per riprendere la sincronizzazione.';
 

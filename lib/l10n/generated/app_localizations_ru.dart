@@ -2448,10 +2448,6 @@ class AppLocalizationsRu extends AppLocalizations {
       'Аккаунт удалён локально, но пароль приложения Nextcloud не удалось отозвать.';
 
   @override
-  String get davCachedOfflineNotice =>
-      'Данные календаря и задач кэшируются локально для работы без подключения.';
-
-  @override
   String get davReauthenticationRequired =>
       'Подключите аккаунт заново, чтобы возобновить синхронизацию.';
 

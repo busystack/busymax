@@ -2443,10 +2443,6 @@ class AppLocalizationsFa extends AppLocalizations {
       'حساب به‌صورت محلی حذف شد، اما ابطال گذرواژهٔ برنامهٔ Nextcloud ممکن نیست.';
 
   @override
-  String get davCachedOfflineNotice =>
-      'داده‌های تقویم و کار برای استفادهٔ آفلاین به‌صورت محلی ذخیره می‌شوند.';
-
-  @override
   String get davReauthenticationRequired =>
       'برای ادامهٔ همگام‌سازی، این حساب را دوباره متصل کنید.';
 

@@ -2426,10 +2426,6 @@ class AppLocalizationsFr extends AppLocalizations {
       'Le compte a été supprimé localement, mais le mot de passe d’app Nextcloud n’a pas pu être révoqué.';
 
   @override
-  String get davCachedOfflineNotice =>
-      'Les données des calendriers et des tâches sont mises en cache localement pour une utilisation hors connexion.';
-
-  @override
   String get davReauthenticationRequired =>
       'Reconnectez ce compte pour reprendre la synchronisation.';
 

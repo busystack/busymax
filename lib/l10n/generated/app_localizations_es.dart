@@ -2427,10 +2427,6 @@ class AppLocalizationsEs extends AppLocalizations {
       'La cuenta se quitó localmente, pero no se pudo revocar la contraseña de app de Nextcloud.';
 
   @override
-  String get davCachedOfflineNotice =>
-      'Los datos del calendario y las tareas se almacenan localmente para usarlos sin conexión.';
-
-  @override
   String get davReauthenticationRequired =>
       'Vuelve a conectar esta cuenta para reanudar la sincronización.';
 

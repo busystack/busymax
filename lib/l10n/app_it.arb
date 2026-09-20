@@ -589,7 +589,6 @@
   "connectAccountAction": "Collega",
   "cancelAccountConnection": "Annulla connessione",
   "nextcloudAccountRemovedRevokeFailed": "L’account è stato rimosso localmente, ma non è stato possibile revocare la password dell’app Nextcloud.",
-  "davCachedOfflineNotice": "I dati di calendari e attività vengono memorizzati localmente per l’uso offline.",
   "davReauthenticationRequired": "Ricollega questo account per riprendere la sincronizzazione.",
   "davTemporarilyUnavailable": "Questo account è temporaneamente non disponibile.",
   "davPermissionChanged": "Le autorizzazioni del server sono cambiate. Le modifiche in sospeso sono in pausa.",

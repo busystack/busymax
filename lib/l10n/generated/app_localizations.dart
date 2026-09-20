@@ -4128,12 +4128,6 @@ abstract class AppLocalizations {
   /// **'The account was removed locally, but its Nextcloud app password could not be revoked.'**
   String get nextcloudAccountRemovedRevokeFailed;
 
-  /// No description provided for @davCachedOfflineNotice.
-  ///
-  /// In en, this message translates to:
-  /// **'Calendar and task data is cached locally for offline use.'**
-  String get davCachedOfflineNotice;
-
   /// No description provided for @davReauthenticationRequired.
   ///
   /// In en, this message translates to:

@@ -37,10 +37,19 @@ void main() {
     expect(field.decoration?.helperText, isNull);
     expect(field.decoration?.border, InputBorder.none);
     expect(field.decoration?.filled, isFalse);
-    expect(
-      find.text('Calendar and task data is cached locally for offline use.'),
-      findsOneWidget,
+    final serverHelp = tester.widget<Text>(
+      find.text(
+        'Enter your Nextcloud server URL, or paste the primary CalDAV address '
+        'copied from Nextcloud.',
+      ),
     );
+    final authorizationHelp = tester.widget<Text>(
+      find.text(
+        'BusyMax will open your browser. Approve access there, then return to '
+        'BusyMax.',
+      ),
+    );
+    expect(serverHelp.style, authorizationHelp.style);
 
     const copiedAddress = ' https://cloud.example.test/remote.php/dav ';
     await tester.enterText(
@@ -105,11 +114,6 @@ void main() {
       expect(password.enableSuggestions, isFalse);
       expect(password.autocorrect, isFalse);
       expect(password.decoration?.border, InputBorder.none);
-      expect(
-        find.text('Calendar and task data is cached locally for offline use.'),
-        findsOneWidget,
-      );
-
       await tester.tap(find.text('Connect'));
       await tester.pumpAndSettle();
       expect(

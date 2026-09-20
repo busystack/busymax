@@ -2421,10 +2421,6 @@ class AppLocalizationsDe extends AppLocalizations {
       'Das Konto wurde lokal entfernt, aber das Nextcloud-App-Passwort konnte nicht widerrufen werden.';
 
   @override
-  String get davCachedOfflineNotice =>
-      'Kalender- und Aufgabendaten werden für die Offline-Nutzung lokal zwischengespeichert.';
-
-  @override
   String get davReauthenticationRequired =>
       'Verbinden Sie dieses Konto erneut, um die Synchronisierung fortzusetzen.';
 

@@ -1243,7 +1243,6 @@
   "connectAccountAction": "Połącz",
   "cancelAccountConnection": "Anuluj łączenie",
   "nextcloudAccountRemovedRevokeFailed": "Konto usunięto lokalnie, ale nie udało się unieważnić jego hasła aplikacji Nextcloud.",
-  "davCachedOfflineNotice": "Dane kalendarzy i zadań są zapisywane lokalnie, aby można było korzystać z nich offline.",
   "davReauthenticationRequired": "Połącz to konto ponownie, aby wznowić synchronizację.",
   "davTemporarilyUnavailable": "To konto jest tymczasowo niedostępne.",
   "davPermissionChanged": "Uprawnienia na serwerze uległy zmianie. Oczekujące zmiany zostały wstrzymane.",
