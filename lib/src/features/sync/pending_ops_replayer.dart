@@ -193,9 +193,12 @@ class PendingOpsReplayer {
     );
     final tempId = op.localTempId ?? op.taskListId;
     if (tempId == null) {
-      await _database.taskListsDao.upsertTaskList(
-        taskListFromDto(_accountId, dto, _now()),
-      );
+      await _database.transaction(() async {
+        await _database.taskListsDao.upsertTaskList(
+          taskListFromDto(_accountId, dto, _now()),
+        );
+        await _database.pendingOpsDao.deleteOp(op.id);
+      });
       return;
     }
 
@@ -241,6 +244,8 @@ class PendingOpsReplayer {
         completedCreateOpId: op.id,
       );
       await _database.taskListsDao.deleteTaskList(_accountId, tempId);
+      // Commit the server identity and creation acknowledgement together.
+      await _database.pendingOpsDao.deleteOp(op.id);
     });
     await notifyCollectionIdReplacement(_onTaskListIdReplaced, tempId, dto.id);
   }
@@ -367,9 +372,12 @@ class PendingOpsReplayer {
     );
     final tempId = op.localTempId ?? op.taskId;
     if (tempId == null) {
-      await _database.tasksDao.upsertTask(
-        taskFromDto(_accountId, op.taskListId!, dto, _now()),
-      );
+      await _database.transaction(() async {
+        await _database.tasksDao.upsertTask(
+          taskFromDto(_accountId, op.taskListId!, dto, _now()),
+        );
+        await _database.pendingOpsDao.deleteOp(op.id);
+      });
       return;
     }
 
@@ -807,6 +815,8 @@ class PendingOpsReplayer {
         localTask?.taskListId ?? taskListId,
         tempTaskId,
       );
+      // Commit the server identity and creation acknowledgement together.
+      await _database.pendingOpsDao.deleteOp(completedCreateOpId);
     });
   }
 

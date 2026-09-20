@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 import 'dart:math';
 
 import 'package:busymax/src/features/notifications/notification_schedule_service.dart';
@@ -521,6 +522,116 @@ void main() {
       'patch_task',
     );
   });
+
+  for (final entity in ['task', 'task list']) {
+    test(
+      '$entity creation restart after identity persistence stays acknowledged',
+      () async {
+        final directory = await Directory.systemTemp.createTemp(
+          'busymax-$entity-create-ack-',
+        );
+        final databaseFile = File('${directory.path}/busymax.sqlite');
+        final previousDatabaseWarningSetting =
+            driftRuntimeOptions.dontWarnAboutMultipleDatabases;
+        driftRuntimeOptions.dontWarnAboutMultipleDatabases = true;
+        final commitInterruption = _CommitInterruption();
+        final interruptedDatabase = AppDatabase(
+          NativeDatabase(databaseFile).interceptWith(commitInterruption),
+        );
+        AppDatabase? restartedDatabase;
+        Future<int>? interruptedReplay;
+        addTearDown(() async {
+          commitInterruption.resume();
+          await interruptedReplay;
+          await restartedDatabase?.close();
+          await interruptedDatabase.close();
+          await directory.delete(recursive: true);
+          driftRuntimeOptions.dontWarnAboutMultipleDatabases =
+              previousDatabaseWarningSetting;
+        });
+
+        await _insertAccount(interruptedDatabase);
+        await interruptedDatabase.taskListsDao.upsertTaskList(
+          _taskList('list-1'),
+        );
+        if (entity == 'task') {
+          await interruptedDatabase.tasksDao.upsertTask(
+            _task('list-1', 'local-task-1', title: 'Draft'),
+          );
+          await _enqueue(
+            interruptedDatabase,
+            id: 'create',
+            operation: 'create_task',
+            taskListId: 'list-1',
+            taskId: 'local-task-1',
+            localTempId: 'local-task-1',
+            request: {
+              'body': {'title': 'Draft'},
+            },
+          );
+        } else {
+          await interruptedDatabase.taskListsDao.upsertTaskList(
+            _taskList('local-list', title: 'Draft list'),
+          );
+          await _enqueue(
+            interruptedDatabase,
+            id: 'create',
+            operation: 'create_task_list',
+            entityType: 'task_list',
+            taskListId: 'local-list',
+            localTempId: 'local-list',
+            request: {'title': 'Draft list'},
+          );
+        }
+
+        final interruptedClient = _FakeTaskRemoteClient();
+        commitInterruption.arm();
+        interruptedReplay = PendingOpsReplayer(
+          database: interruptedDatabase,
+          apiClient: interruptedClient,
+          accountId: 'account',
+          nowUtc: () => DateTime.utc(2026, 6, 4),
+        ).replayDueOps();
+        await commitInterruption.commitReached.future;
+
+        restartedDatabase = AppDatabase(NativeDatabase(databaseFile));
+        final restartedClient = _FakeTaskRemoteClient();
+        expect(
+          await PendingOpsReplayer(
+            database: restartedDatabase,
+            apiClient: restartedClient,
+            accountId: 'account',
+            nowUtc: () => DateTime.utc(2026, 6, 4, 1),
+          ).replayDueOps(),
+          0,
+        );
+
+        expect(
+          await restartedDatabase.pendingOpsDao.getOp('create'),
+          equals(null),
+        );
+        expect(restartedClient.calls, isEmpty);
+        if (entity == 'task') {
+          final tasks = await restartedDatabase.tasksDao.listTasks(
+            'account',
+            'list-1',
+          );
+          expect(tasks.map((task) => task.id), ['task-server']);
+          expect(interruptedClient.calls, ['create_task:list-1']);
+        } else {
+          final lists = await restartedDatabase.taskListsDao.listTaskLists(
+            'account',
+          );
+          expect(lists.map((list) => list.id), contains('list-server'));
+          expect(lists.map((list) => list.id), isNot(contains('local-list')));
+          expect(interruptedClient.calls, ['create_task_list:Draft list']);
+        }
+
+        commitInterruption.resume();
+        expect(await interruptedReplay, 1);
+      },
+    );
+  }
 
   test('unknown task creation outcome is not submitted again', () async {
     await database.tasksDao.upsertTask(
@@ -3209,6 +3320,27 @@ class _ConflictMicrosoftTodoApiClient implements MicrosoftTodoApiClient {
 
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
+
+class _CommitInterruption extends QueryInterceptor {
+  final commitReached = Completer<void>();
+  final _resume = Completer<void>();
+  var _armed = false;
+
+  void arm() => _armed = true;
+
+  void resume() {
+    if (!_resume.isCompleted) _resume.complete();
+  }
+
+  @override
+  Future<void> commitTransaction(TransactionExecutor inner) async {
+    await super.commitTransaction(inner);
+    if (!_armed) return;
+    _armed = false;
+    commitReached.complete();
+    await _resume.future;
+  }
 }
 
 class _FakeTaskRemoteClient implements TaskRemoteClient {
