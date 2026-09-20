@@ -3827,8 +3827,18 @@ END:VEVENT
     'offline event edit followed by delete does not self-conflict',
     () async {
       final repository = CalendarRepository(database: database);
-      final eventId = await _insertEvent(
-        database,
+      await repository.upsertEvent(
+        accountId: 'account',
+        event: client._event(
+          'provider-event',
+          title: 'Base',
+          organizerJson: const {'self': true},
+        ),
+      );
+      final eventId = CalendarRepository.eventId(
+        accountId: 'account',
+        provider: BusyProvider.google,
+        providerCalendarId: 'cal-1',
         providerEventId: 'provider-event',
       );
       final detail = (await repository.loadEventDetail(eventId))!;
@@ -3859,6 +3869,59 @@ END:VEVENT
       );
       expect(await database.select(database.pendingOps).get(), isEmpty);
       expect(client.calls.last, 'deleteEvent:cal-1:provider-event');
+    },
+  );
+
+  test(
+    'event edit followed by delete preserves an unrelated remote conflict',
+    () async {
+      final repository = CalendarRepository(database: database);
+      await repository.upsertEvent(
+        accountId: 'account',
+        event: client._event(
+          'provider-event',
+          title: 'Base',
+          description: 'Base description',
+          organizerJson: const {'self': true},
+        ),
+      );
+      final eventId = CalendarRepository.eventId(
+        accountId: 'account',
+        provider: BusyProvider.google,
+        providerCalendarId: 'cal-1',
+        providerEventId: 'provider-event',
+      );
+      final detail = (await repository.loadEventDetail(eventId))!;
+      await repository.updateLocalEvent(
+        EventEditorDraft.fromEventDetail(detail).copyWith(title: 'Edited'),
+      );
+      await repository.deleteLocalEvent(eventId);
+      client
+        ..remoteEvent = client._event(
+          'provider-event',
+          title: 'Base',
+          description: 'Remote description',
+          updatedAtServer: '2026-06-08T00:05:00.000Z',
+        )
+        ..persistEventUpdates = true;
+
+      expect(
+        await CalendarPendingOpsReplayer(
+          database: database,
+          client: client,
+          accountId: 'account',
+          nowUtc: () => DateTime.utc(2026, 6, 8, 1),
+        ).replayDueOps(),
+        1,
+      );
+
+      final remaining = await database.select(database.pendingOps).getSingle();
+      expect(remaining.operationType, 'event.delete');
+      expect(remaining.lastErrorCode, 'conflict');
+      expect(remaining.lastErrorMessage, contains('description'));
+      expect(client.remoteEvent!.title, 'Edited');
+      expect(client.remoteEvent!.description, 'Remote description');
+      expect(client.calls, isNot(contains('deleteEvent:cal-1:provider-event')));
     },
   );
 

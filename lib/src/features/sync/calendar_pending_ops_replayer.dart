@@ -578,9 +578,7 @@ class CalendarPendingOpsReplayer {
       )..where((row) => row.id.equals(descendant.id))).write(
         PendingOpsCompanion(
           baselineRawJson: Value(
-            wholeEventBoundary
-                ? jsonEncode(serverEvent.rawJson)
-                : jsonEncode({calendarEventSemanticBaselineKey: baseline}),
+            jsonEncode({calendarEventSemanticBaselineKey: baseline}),
           ),
           baselineUpdatedUtc: wholeEventBoundary
               ? Value(serverEvent.updatedAtServer)
@@ -1660,6 +1658,24 @@ class CalendarPendingOpsReplayer {
       calendarId: op.providerCalendarId ?? local.providerCalendarId,
       eventId: await _providerEventId(op, local),
     );
+    final encodedBaseline = op.baselineRawJson ?? local.baselineRawJson ?? '{}';
+    final rawBaseline = _jsonObject(encodedBaseline);
+    final semanticBaseline = rawBaseline[calendarEventSemanticBaselineKey];
+    if (semanticBaseline is Map) {
+      final baseline = semanticBaseline.cast<String, Object?>();
+      final remote = _semanticSnapshot(_client.provider, current.rawJson);
+      final changed = {
+        for (final field in {...baseline.keys, ...remote.keys})
+          if (!_deepEquals(baseline[field], remote[field])) field,
+      };
+      if (changed.isNotEmpty) {
+        await _blockConflict(
+          op,
+          'Remote event changed fields since local $action was queued: '
+          '${changed.toList()..sort()}',
+        );
+      }
+    }
     final currentUpdatedUtc = _parseUtc(current.updatedAtServer);
     if (currentUpdatedUtc != null &&
         currentUpdatedUtc.isAfter(baselineUpdatedUtc)) {

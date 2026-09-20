@@ -134,6 +134,10 @@ class PendingOpResolutionService {
     if (current.operation == 'create_task_checklist_item') {
       return _discardUncertainChecklistCreation(current);
     }
+    if (current.operation == 'patch_task_checklist_item' ||
+        current.operation == 'delete_task_checklist_item') {
+      return _discardChecklistMutation(current);
+    }
     if (current.operation == 'create_task') {
       return _discardTaskCreation(current);
     }
@@ -580,6 +584,114 @@ class PendingOpResolutionService {
       await (_database.delete(
         _database.pendingOps,
       )..where((row) => row.id.isIn(discardedIds))).go();
+      discarded = true;
+    });
+    return discarded;
+  }
+
+  Future<bool> _discardChecklistMutation(PendingOp snapshot) async {
+    final taskListId = snapshot.taskListId;
+    final parentTaskId = snapshot.taskId;
+    final checklistItemId = _checklistItemId(snapshot);
+    if (taskListId == null ||
+        parentTaskId == null ||
+        checklistItemId == null ||
+        checklistItemId.isEmpty) {
+      throw StateError('The checklist recovery operation is incomplete.');
+    }
+
+    final serverItems = <TaskChecklistItemDto>[];
+    var parentMissing = false;
+    String? pageToken;
+    try {
+      do {
+        final page = await _requiredChecklistClient.listChecklistItemsPage(
+          taskListId: taskListId,
+          taskId: parentTaskId,
+          pageToken: pageToken,
+        );
+        serverItems.addAll(page.items);
+        pageToken = page.nextPageToken;
+      } while (pageToken != null && pageToken.isNotEmpty);
+    } on TaskRemoteError catch (error) {
+      if (error.statusCode != 404) rethrow;
+      parentMissing = true;
+    }
+
+    var discarded = false;
+    await _database.transaction(() async {
+      final current = await _database.pendingOpsDao.getOp(snapshot.id);
+      if (current == null) return;
+      if (current.accountId != _accountId ||
+          (current.operation != 'patch_task_checklist_item' &&
+              current.operation != 'delete_task_checklist_item') ||
+          current.operation != snapshot.operation ||
+          current.taskListId != taskListId ||
+          current.taskId != parentTaskId ||
+          _checklistItemId(current) != checklistItemId) {
+        throw StateError('The checklist recovery operation changed.');
+      }
+
+      final operations =
+          await (_database.select(_database.pendingOps)
+                ..where(
+                  (row) =>
+                      row.accountId.equals(_accountId) &
+                      row.entityType.equals('task_checklist_item') &
+                      row.taskListId.equals(taskListId) &
+                      row.taskId.equals(parentTaskId),
+                )
+                ..orderBy([
+                  (row) => OrderingTerm.asc(row.createdAtUtc),
+                  (row) => OrderingTerm.asc(row.updatedAtUtc),
+                  (row) => OrderingTerm.asc(row.id),
+                ]))
+              .get();
+      final remaining = [
+        for (final operation in operations)
+          if (operation.id != current.id) operation,
+      ];
+
+      if (parentMissing) {
+        await _database.tasksDao.deleteTask(
+          _accountId,
+          taskListId,
+          parentTaskId,
+        );
+      } else {
+        final task =
+            await (_database.select(_database.tasks)..where(
+                  (row) =>
+                      row.accountId.equals(_accountId) &
+                      row.taskListId.equals(taskListId) &
+                      row.id.equals(parentTaskId),
+                ))
+                .getSingleOrNull();
+        if (task != null) {
+          final merged = mergeTaskChecklistProjection(
+            serverItems: serverItems,
+            localItems: decodeTaskChecklistItems(
+              task.microsoftChecklistItemsJson,
+            ),
+            pendingOperations: remaining,
+          );
+          await (_database.update(_database.tasks)..where(
+                (row) =>
+                    row.accountId.equals(_accountId) &
+                    row.taskListId.equals(taskListId) &
+                    row.id.equals(parentTaskId),
+              ))
+              .write(
+                TasksCompanion(
+                  microsoftChecklistItemsJson: Value(
+                    encodeTaskChecklistItems(merged),
+                  ),
+                  updatedLocalAtUtc: Value(_now()),
+                ),
+              );
+        }
+      }
+      await _database.pendingOpsDao.deleteOp(current.id);
       discarded = true;
     });
     return discarded;

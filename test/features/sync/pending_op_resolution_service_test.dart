@@ -967,6 +967,187 @@ void main() {
   );
 
   test(
+    'discard checklist patch restores provider item and preserves sibling edit',
+    () async {
+      await database.tasksDao.upsertTask(
+        _localTask(
+          'task-1',
+          checklistItemsJson: encodeTaskChecklistItems([
+            TaskChecklistItemEntity.fromJson(const {
+              'id': 'target-step',
+              'displayName': 'Rejected local title',
+              'isChecked': true,
+            }),
+            TaskChecklistItemEntity.fromJson(const {
+              'id': 'sibling-step',
+              'displayName': 'Pending sibling title',
+              'isChecked': false,
+            }),
+          ]),
+        ),
+      );
+      apiClient.checklistPages = {
+        null: const TaskChecklistItemsPageDto(
+          items: [
+            TaskChecklistItemDto(
+              id: 'target-step',
+              title: 'Provider title',
+              completed: false,
+              rawJson: {},
+            ),
+            TaskChecklistItemDto(
+              id: 'sibling-step',
+              title: 'Provider sibling title',
+              completed: false,
+              rawJson: {},
+            ),
+          ],
+          rawJson: {},
+        ),
+      };
+      await _enqueueBlockedOp(
+        database,
+        id: 'target-patch',
+        entityType: 'task_checklist_item',
+        operation: 'patch_task_checklist_item',
+        taskListId: 'list-1',
+        taskId: 'task-1',
+        request: const {
+          'checklistItemId': 'target-step',
+          'body': {'displayName': 'Rejected local title', 'isChecked': true},
+        },
+      );
+      await _enqueueBlockedOp(
+        database,
+        id: 'sibling-patch',
+        entityType: 'task_checklist_item',
+        operation: 'patch_task_checklist_item',
+        taskListId: 'list-1',
+        taskId: 'task-1',
+        request: const {
+          'checklistItemId': 'sibling-step',
+          'body': {'displayName': 'Pending sibling title'},
+        },
+      );
+
+      await service.discard('target-patch');
+
+      final items = decodeTaskChecklistItems(
+        (await database.tasksDao.listTasks(
+          'account',
+          'list-1',
+        )).single.microsoftChecklistItemsJson,
+      );
+      final target = items.singleWhere((item) => item.id == 'target-step');
+      final sibling = items.singleWhere((item) => item.id == 'sibling-step');
+      expect(target.title, 'Provider title');
+      expect(target.completed, isFalse);
+      expect(sibling.title, 'Pending sibling title');
+      expect(await database.pendingOpsDao.getOp('target-patch'), equals(null));
+      expect(
+        await database.pendingOpsDao.getOp('sibling-patch'),
+        isNot(equals(null)),
+      );
+      expect(taskSyncCalls, 1);
+    },
+  );
+
+  test('discard checklist deletion restores the provider item', () async {
+    await database.tasksDao.upsertTask(
+      _localTask(
+        'task-1',
+        checklistItemsJson: encodeTaskChecklistItems(const []),
+      ),
+    );
+    apiClient.checklistPages = {
+      null: const TaskChecklistItemsPageDto(
+        items: [
+          TaskChecklistItemDto(
+            id: 'target-step',
+            title: 'Provider title',
+            completed: true,
+            rawJson: {},
+          ),
+        ],
+        rawJson: {},
+      ),
+    };
+    await _enqueueBlockedOp(
+      database,
+      id: 'target-delete',
+      entityType: 'task_checklist_item',
+      operation: 'delete_task_checklist_item',
+      taskListId: 'list-1',
+      taskId: 'task-1',
+      request: const {'checklistItemId': 'target-step'},
+    );
+
+    await service.discard('target-delete');
+
+    final item = decodeTaskChecklistItems(
+      (await database.tasksDao.listTasks(
+        'account',
+        'list-1',
+      )).single.microsoftChecklistItemsJson,
+    ).single;
+    expect(item.id, 'target-step');
+    expect(item.title, 'Provider title');
+    expect(item.completed, isTrue);
+    expect(await database.pendingOpsDao.getOp('target-delete'), equals(null));
+    expect(taskSyncCalls, 1);
+  });
+
+  test(
+    'failed checklist patch reconciliation keeps operation and projection',
+    () async {
+      final projection = encodeTaskChecklistItems([
+        TaskChecklistItemEntity.fromJson(const {
+          'id': 'target-step',
+          'displayName': 'Rejected local title',
+          'isChecked': true,
+        }),
+      ]);
+      await database.tasksDao.upsertTask(
+        _localTask('task-1', checklistItemsJson: projection),
+      );
+      apiClient.checklistError = const GoogleTasksApiError(
+        statusCode: 503,
+        message: 'Unavailable',
+      );
+      await _enqueueBlockedOp(
+        database,
+        id: 'target-patch',
+        entityType: 'task_checklist_item',
+        operation: 'patch_task_checklist_item',
+        taskListId: 'list-1',
+        taskId: 'task-1',
+        request: const {
+          'checklistItemId': 'target-step',
+          'body': {'displayName': 'Rejected local title', 'isChecked': true},
+        },
+      );
+
+      await expectLater(
+        service.discard('target-patch'),
+        throwsA(isA<GoogleTasksApiError>()),
+      );
+
+      expect(
+        await database.pendingOpsDao.getOp('target-patch'),
+        isNot(equals(null)),
+      );
+      expect(
+        (await database.tasksDao.listTasks(
+          'account',
+          'list-1',
+        )).single.microsoftChecklistItemsJson,
+        projection,
+      );
+      expect(taskSyncCalls, 0);
+    },
+  );
+
+  test(
     'discard uncertain checklist create removes its chain and merges all pages',
     () async {
       final localItems = [
