@@ -3648,6 +3648,250 @@ END:VEVENT
     },
   );
 
+  test('Microsoft location rename followed by deletion succeeds', () async {
+    await _insertMicrosoftAccountAndSource(database);
+    final microsoftClient = _FakeMicrosoftCalendarClient()
+      ..persistEventUpdates = true;
+    final repository = CalendarRepository(database: database);
+    final initialLocation = <String, Object?>{'displayName': 'Room A'};
+    final baseline = microsoftClient.microsoftEvent(
+      'ms-rename-delete',
+      location: initialLocation,
+      locations: [initialLocation],
+    );
+    microsoftClient.remoteEvent = baseline;
+    await repository.upsertEvent(
+      accountId: 'microsoft-account',
+      event: baseline,
+    );
+    final eventId = CalendarRepository.eventId(
+      accountId: 'microsoft-account',
+      provider: BusyProvider.microsoft,
+      providerCalendarId: 'ms-cal-1',
+      providerEventId: 'ms-rename-delete',
+    );
+    final detail = (await repository.loadEventDetail(eventId))!;
+    await repository.updateLocalEvent(
+      EventEditorDraft.fromEventDetail(detail).copyWith(
+        location: 'Room B',
+        locationChange: LocationChange.replace(
+          LocationResult(
+            label: 'Room B',
+            point: GeographicPoint(latitude: 1, longitude: 2),
+          ),
+        ),
+      ),
+    );
+    await repository.deleteLocalEvent(eventId);
+    final queued = await database.select(database.pendingOps).get();
+    final patch = queued.singleWhere(
+      (operation) => operation.operationType == 'event.patch',
+    );
+    final delete = queued.singleWhere(
+      (operation) => operation.operationType == 'event.delete',
+    );
+    expect(delete.dependsOnOpId, patch.id);
+
+    expect(
+      await CalendarPendingOpsReplayer(
+        database: database,
+        client: microsoftClient,
+        accountId: 'microsoft-account',
+        nowUtc: () => DateTime.utc(2026, 6, 9),
+      ).replayDueOps(),
+      2,
+    );
+
+    expect(microsoftClient.updatedMutations, hasLength(1));
+    expect(
+      microsoftClient.calls.where(
+        (call) => call == 'deleteEvent:ms-cal-1:ms-rename-delete',
+      ),
+      hasLength(1),
+    );
+    expect(await database.select(database.pendingOps).get(), isEmpty);
+  });
+
+  test('Microsoft location clear followed by deletion succeeds', () async {
+    await _insertMicrosoftAccountAndSource(database);
+    final microsoftClient = _FakeMicrosoftCalendarClient()
+      ..persistEventUpdates = true;
+    final repository = CalendarRepository(database: database);
+    final initialLocation = <String, Object?>{'displayName': 'Room A'};
+    final baseline = microsoftClient.microsoftEvent(
+      'ms-clear-delete',
+      location: initialLocation,
+      locations: [initialLocation],
+    );
+    microsoftClient.remoteEvent = baseline;
+    await repository.upsertEvent(
+      accountId: 'microsoft-account',
+      event: baseline,
+    );
+    final eventId = CalendarRepository.eventId(
+      accountId: 'microsoft-account',
+      provider: BusyProvider.microsoft,
+      providerCalendarId: 'ms-cal-1',
+      providerEventId: 'ms-clear-delete',
+    );
+    final detail = (await repository.loadEventDetail(eventId))!;
+    await repository.updateLocalEvent(
+      EventEditorDraft.fromEventDetail(detail).copyWith(clearLocation: true),
+    );
+    await repository.deleteLocalEvent(eventId);
+
+    expect(
+      await CalendarPendingOpsReplayer(
+        database: database,
+        client: microsoftClient,
+        accountId: 'microsoft-account',
+        nowUtc: () => DateTime.utc(2026, 6, 9),
+      ).replayDueOps(),
+      2,
+    );
+
+    expect(microsoftClient.updatedMutations, hasLength(1));
+    expect(
+      microsoftClient.calls.where(
+        (call) => call == 'deleteEvent:ms-cal-1:ms-clear-delete',
+      ),
+      hasLength(1),
+    );
+    expect(await database.select(database.pendingOps).get(), isEmpty);
+  });
+
+  test(
+    'Microsoft consecutive location edits followed by deletion succeed',
+    () async {
+      await _insertMicrosoftAccountAndSource(database);
+      final microsoftClient = _FakeMicrosoftCalendarClient()
+        ..persistEventUpdates = true;
+      final repository = CalendarRepository(database: database);
+      final initialLocation = <String, Object?>{'displayName': 'Room A'};
+      final baseline = microsoftClient.microsoftEvent(
+        'ms-consecutive-location-delete',
+        location: initialLocation,
+        locations: [initialLocation],
+      );
+      microsoftClient.remoteEvent = baseline;
+      await repository.upsertEvent(
+        accountId: 'microsoft-account',
+        event: baseline,
+      );
+      final eventId = CalendarRepository.eventId(
+        accountId: 'microsoft-account',
+        provider: BusyProvider.microsoft,
+        providerCalendarId: 'ms-cal-1',
+        providerEventId: 'ms-consecutive-location-delete',
+      );
+      var detail = (await repository.loadEventDetail(eventId))!;
+      await repository.updateLocalEvent(
+        EventEditorDraft.fromEventDetail(detail).copyWith(
+          location: 'Room B',
+          locationChange: LocationChange.replace(
+            LocationResult(
+              label: 'Room B',
+              point: GeographicPoint(latitude: 1, longitude: 2),
+            ),
+          ),
+        ),
+      );
+      detail = (await repository.loadEventDetail(eventId))!;
+      await repository.updateLocalEvent(
+        EventEditorDraft.fromEventDetail(detail).copyWith(
+          location: 'Room C',
+          locationChange: LocationChange.replace(
+            LocationResult(
+              label: 'Room C',
+              point: GeographicPoint(latitude: 3, longitude: 4),
+            ),
+          ),
+        ),
+      );
+      await repository.deleteLocalEvent(eventId);
+
+      expect(
+        await CalendarPendingOpsReplayer(
+          database: database,
+          client: microsoftClient,
+          accountId: 'microsoft-account',
+          nowUtc: () => DateTime.utc(2026, 6, 9),
+        ).replayDueOps(),
+        3,
+      );
+
+      expect(microsoftClient.updatedMutations, hasLength(2));
+      expect(
+        microsoftClient.calls.where(
+          (call) =>
+              call == 'deleteEvent:ms-cal-1:ms-consecutive-location-delete',
+        ),
+        hasLength(1),
+      );
+      expect(await database.select(database.pendingOps).get(), isEmpty);
+    },
+  );
+
+  test(
+    'Microsoft unrelated remote location change still blocks deletion',
+    () async {
+      await _insertMicrosoftAccountAndSource(database);
+      final microsoftClient = _FakeMicrosoftCalendarClient()
+        ..persistEventUpdates = true;
+      final repository = CalendarRepository(database: database);
+      final initialLocation = <String, Object?>{'displayName': 'Room A'};
+      final baseline = microsoftClient.microsoftEvent(
+        'ms-title-location-conflict-delete',
+        location: initialLocation,
+        locations: [initialLocation],
+      );
+      await repository.upsertEvent(
+        accountId: 'microsoft-account',
+        event: baseline,
+      );
+      final eventId = CalendarRepository.eventId(
+        accountId: 'microsoft-account',
+        provider: BusyProvider.microsoft,
+        providerCalendarId: 'ms-cal-1',
+        providerEventId: 'ms-title-location-conflict-delete',
+      );
+      final detail = (await repository.loadEventDetail(eventId))!;
+      await repository.updateLocalEvent(
+        EventEditorDraft.fromEventDetail(detail).copyWith(title: 'Edited'),
+      );
+      await repository.deleteLocalEvent(eventId);
+      final remoteLocation = <String, Object?>{'displayName': 'Remote room'};
+      microsoftClient.remoteEvent = microsoftClient.microsoftEvent(
+        'ms-title-location-conflict-delete',
+        location: remoteLocation,
+        locations: [remoteLocation],
+        updatedAtServer: '2026-06-08T00:05:00.000Z',
+      );
+
+      expect(
+        await CalendarPendingOpsReplayer(
+          database: database,
+          client: microsoftClient,
+          accountId: 'microsoft-account',
+          nowUtc: () => DateTime.utc(2026, 6, 9),
+        ).replayDueOps(),
+        1,
+      );
+
+      expect(microsoftClient.updatedMutations, hasLength(1));
+      final remaining = await database.select(database.pendingOps).getSingle();
+      expect(remaining.operationType, 'event.delete');
+      expect(remaining.lastErrorCode, 'conflict');
+      expect(remaining.lastErrorMessage, contains('location'));
+      expect(
+        microsoftClient.calls,
+        isNot(
+          contains('deleteEvent:ms-cal-1:ms-title-location-conflict-delete'),
+        ),
+      );
+    },
+  );
+
   test(
     'discarding a rebased blocked edit restores the complete remote event',
     () async {
@@ -3924,6 +4168,213 @@ END:VEVENT
       expect(client.calls, isNot(contains('deleteEvent:cal-1:provider-event')));
     },
   );
+
+  test(
+    'event edit followed by delete preserves a remote attachment addition',
+    () async {
+      final repository = CalendarRepository(database: database);
+      await repository.upsertEvent(
+        accountId: 'account',
+        event: client._event(
+          'provider-event',
+          title: 'Base',
+          organizerJson: const {'self': true},
+        ),
+      );
+      final eventId = CalendarRepository.eventId(
+        accountId: 'account',
+        provider: BusyProvider.google,
+        providerCalendarId: 'cal-1',
+        providerEventId: 'provider-event',
+      );
+      final detail = (await repository.loadEventDetail(eventId))!;
+      await repository.updateLocalEvent(
+        EventEditorDraft.fromEventDetail(detail).copyWith(title: 'Edited'),
+      );
+      await repository.deleteLocalEvent(eventId);
+      final queued = await database.select(database.pendingOps).get();
+      final patch = queued.singleWhere(
+        (operation) => operation.operationType == 'event.patch',
+      );
+      final delete = queued.singleWhere(
+        (operation) => operation.operationType == 'event.delete',
+      );
+      expect(delete.dependsOnOpId, patch.id);
+      const remoteAttachments = [
+        {
+          'fileId': 'file-a',
+          'fileUrl': 'https://example.test/files/a',
+          'title': 'Agenda',
+          'mimeType': 'application/pdf',
+        },
+      ];
+      client
+        ..remoteEvent = client._event(
+          'provider-event',
+          title: 'Base',
+          attachmentsJson: remoteAttachments,
+          updatedAtServer: '2026-06-08T00:05:00.000Z',
+        )
+        ..persistEventUpdates = true;
+
+      expect(
+        await CalendarPendingOpsReplayer(
+          database: database,
+          client: client,
+          accountId: 'account',
+          nowUtc: () => DateTime.utc(2026, 6, 8, 1),
+        ).replayDueOps(),
+        1,
+      );
+
+      final remaining = await database.select(database.pendingOps).getSingle();
+      expect(remaining.operationType, 'event.delete');
+      expect(remaining.lastErrorCode, 'conflict');
+      expect(remaining.lastErrorMessage, contains('attachmentsJson'));
+      expect(client.remoteEvent!.title, 'Edited');
+      expect(client.remoteEvent!.attachmentsJson, remoteAttachments);
+      expect(client.remoteEvent!.rawJson['attachments'], remoteAttachments);
+      expect(client.calls, isNot(contains('deleteEvent:cal-1:provider-event')));
+    },
+  );
+
+  for (final attachmentChange in ['removal', 'replacement']) {
+    test(
+      'event edit followed by delete preserves a remote attachment $attachmentChange',
+      () async {
+        final repository = CalendarRepository(database: database);
+        const attachmentA = [
+          {
+            'fileId': 'file-a',
+            'fileUrl': 'https://example.test/files/a',
+            'title': 'Agenda A',
+          },
+        ];
+        await repository.upsertEvent(
+          accountId: 'account',
+          event: client._event(
+            'provider-event',
+            title: 'Base',
+            attachmentsJson: attachmentA,
+            organizerJson: const {'self': true},
+          ),
+        );
+        final eventId = CalendarRepository.eventId(
+          accountId: 'account',
+          provider: BusyProvider.google,
+          providerCalendarId: 'cal-1',
+          providerEventId: 'provider-event',
+        );
+        final detail = (await repository.loadEventDetail(eventId))!;
+        await repository.updateLocalEvent(
+          EventEditorDraft.fromEventDetail(detail).copyWith(title: 'Edited'),
+        );
+        await repository.deleteLocalEvent(eventId);
+        const attachmentB = [
+          {
+            'fileId': 'file-b',
+            'fileUrl': 'https://example.test/files/b',
+            'title': 'Agenda B',
+          },
+        ];
+        final remoteAttachments = attachmentChange == 'removal'
+            ? null
+            : attachmentB;
+        client
+          ..remoteEvent = client._event(
+            'provider-event',
+            title: 'Base',
+            attachmentsJson: remoteAttachments,
+            updatedAtServer: '2026-06-08T00:05:00.000Z',
+          )
+          ..persistEventUpdates = true;
+
+        expect(
+          await CalendarPendingOpsReplayer(
+            database: database,
+            client: client,
+            accountId: 'account',
+            nowUtc: () => DateTime.utc(2026, 6, 8, 1),
+          ).replayDueOps(),
+          1,
+        );
+
+        final remaining = await database
+            .select(database.pendingOps)
+            .getSingle();
+        expect(remaining.operationType, 'event.delete');
+        expect(remaining.lastErrorCode, 'conflict');
+        expect(remaining.lastErrorMessage, contains('attachmentsJson'));
+        expect(client.remoteEvent!.title, 'Edited');
+        expect(client.remoteEvent!.attachmentsJson, remoteAttachments);
+        expect(
+          client.calls,
+          isNot(contains('deleteEvent:cal-1:provider-event')),
+        );
+      },
+    );
+  }
+
+  test('event edit followed by delete accepts unchanged attachments', () async {
+    final repository = CalendarRepository(database: database);
+    final baselineAttachments = <Object?>[
+      <String, Object?>{
+        'fileId': 'file-a',
+        'fileUrl': 'https://example.test/files/a',
+        'title': 'Agenda',
+      },
+    ];
+    await repository.upsertEvent(
+      accountId: 'account',
+      event: client._event(
+        'provider-event',
+        title: 'Base',
+        attachmentsJson: baselineAttachments,
+        organizerJson: const {'self': true},
+      ),
+    );
+    final eventId = CalendarRepository.eventId(
+      accountId: 'account',
+      provider: BusyProvider.google,
+      providerCalendarId: 'cal-1',
+      providerEventId: 'provider-event',
+    );
+    final detail = (await repository.loadEventDetail(eventId))!;
+    await repository.updateLocalEvent(
+      EventEditorDraft.fromEventDetail(detail).copyWith(title: 'Edited'),
+    );
+    await repository.deleteLocalEvent(eventId);
+    final remoteAttachments = <Object?>[
+      <String, Object?>{
+        'fileId': 'file-a',
+        'fileUrl': 'https://example.test/files/a',
+        'title': 'Agenda',
+      },
+    ];
+    client
+      ..remoteEvent = client._event(
+        'provider-event',
+        title: 'Base',
+        attachmentsJson: remoteAttachments,
+      )
+      ..persistEventUpdates = true;
+
+    expect(
+      await CalendarPendingOpsReplayer(
+        database: database,
+        client: client,
+        accountId: 'account',
+        nowUtc: () => DateTime.utc(2026, 6, 8, 1),
+      ).replayDueOps(),
+      2,
+    );
+
+    expect(
+      client.calls.where((call) => call == 'deleteEvent:cal-1:provider-event'),
+      hasLength(1),
+    );
+    expect(await database.select(database.pendingOps).get(), isEmpty);
+  });
 
   test('entire-series delete marks the master and every occurrence', () async {
     final repository = CalendarRepository(database: database);
@@ -5421,6 +5872,7 @@ class _FakeCalendarClient
       remindersJson: persistEventUpdates
           ? mutation.reminders ?? current?.remindersJson
           : mutation.reminders,
+      attachmentsJson: persistEventUpdates ? current?.attachmentsJson : null,
       organizerJson: persistEventUpdates ? current?.organizerJson : null,
       etagOrChangeKey: current?.etagOrChangeKey,
       updatedAtServer: persistEventUpdates
@@ -5550,6 +6002,7 @@ class _FakeCalendarClient
     String? startDateTime,
     String? endDateTime,
     Object? recurrenceJson,
+    Object? attachmentsJson,
   }) {
     return CalendarEventDto(
       provider: provider,
@@ -5565,6 +6018,7 @@ class _FakeCalendarClient
       endTimeZone: endTimeZone ?? 'UTC',
       recurrenceJson: recurrenceJson,
       remindersJson: remindersJson,
+      attachmentsJson: attachmentsJson,
       organizerJson: organizerJson,
       updatedAtServer: updatedAtServer,
       rawJson: {
@@ -5583,6 +6037,7 @@ class _FakeCalendarClient
         },
         if (recurrenceJson != null) 'recurrence': recurrenceJson,
         if (remindersJson != null) 'reminders': remindersJson,
+        if (attachmentsJson != null) 'attachments': attachmentsJson,
         if (organizerJson != null) 'organizer': organizerJson,
         'updated': updatedAtServer,
       },

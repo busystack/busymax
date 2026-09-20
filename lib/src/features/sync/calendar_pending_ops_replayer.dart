@@ -550,6 +550,10 @@ class CalendarPendingOpsReplayer {
       _request(completedOp),
       _client.provider,
     );
+    if (_client.provider == BusyProvider.microsoft &&
+        acknowledgedFields.contains(_microsoftLocationStateField)) {
+      acknowledgedFields.add('location');
+    }
     final serverSnapshot = _semanticSnapshot(
       _client.provider,
       serverEvent.rawJson,
@@ -1768,6 +1772,7 @@ class CalendarPendingOpsReplayer {
         'recurrenceJson': raw['recurrence'],
         'remindersJson': raw['reminders'],
         'attendeesJson': raw['attendees'],
+        'attachmentsJson': raw['attachments'],
         'colorId': raw['colorId'],
         'visibility': raw['visibility'],
         'transparencyOrShowAs': raw['transparency'],
