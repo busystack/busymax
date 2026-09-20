@@ -124,22 +124,83 @@ void main() {
   test(
     'regular event with stale recurrence metadata moves without a scope prompt',
     () async {
-      await _seedScheduledEvent(repository, database);
-      await database
-          .update(database.calendarEvents)
-          .write(
-            const CalendarEventsCompanion(
-              providerRecurringEventId: Value('stale-series-id'),
-              providerOriginalStartKey: Value('2026-06-08T09:00:00.000Z'),
-              rawJson: Value('{"id":"regular-event"}'),
-            ),
-          );
+      await _expectStaleRegularEventMovesWithoutScope(
+        repository,
+        database,
+        rawJson: '{"id":"regular-event"}',
+      );
+    },
+  );
+
+  test(
+    'regular event with missing payload and stale recurrence metadata moves without a scope prompt',
+    () async {
+      await _expectStaleRegularEventMovesWithoutScope(
+        repository,
+        database,
+        rawJson: '{}',
+      );
+    },
+  );
+
+  test(
+    'recovery baseline does not promote stale regular-event metadata to recurrence',
+    () async {
+      const start = '2026-06-08T09:00:00.000Z';
+      const end = '2026-06-08T10:00:00.000Z';
+      await _upsertSource(repository);
+      await repository.upsertEvent(
+        accountId: 'google:g',
+        event: const CalendarEventDto(
+          provider: BusyProvider.google,
+          providerCalendarId: 'calendar-1',
+          providerEventId: 'regular-recovery-event',
+          providerRecurringEventId: 'stale-series-id',
+          providerOriginalStartKey: start,
+          title: 'Regular event',
+          organizerJson: {'self': true},
+          startDateTime: start,
+          startTimeZone: 'UTC',
+          endDateTime: end,
+          endTimeZone: 'UTC',
+          rawJson: {
+            'id': 'regular-recovery-event',
+            'summary': 'Regular event',
+            'organizer': {'self': true},
+            'start': {'dateTime': start, 'timeZone': 'UTC'},
+            'end': {'dateTime': end, 'timeZone': 'UTC'},
+          },
+        ),
+      );
+      final eventId = CalendarRepository.eventId(
+        accountId: 'google:g',
+        provider: BusyProvider.google,
+        providerCalendarId: 'calendar-1',
+        providerEventId: 'regular-recovery-event',
+        providerOriginalStartKey: start,
+      );
+      final initial = (await repository.loadEventDetail(eventId))!;
+      expect(initial.requiresRecurringMutationScope, isFalse);
+
+      await repository.updateLocalEvent(
+        EventEditorDraft.fromEventDetail(
+          initial,
+        ).copyWith(title: 'Optimistic title'),
+      );
+      final discardedOperation = await database
+          .select(database.pendingOps)
+          .getSingle();
+      await repository.restoreEventAfterMutationDiscard(discardedOperation);
+      await database.pendingOpsDao.deleteOp(discardedOperation.id);
+
+      final restored = (await repository.loadEventDetail(eventId))!;
+      expect(restored.providerRecurringEventId, equals(null));
+      expect(restored.requiresRecurringMutationScope, isFalse);
+      expect((restored.raw as Map).containsKey('recurringEventId'), isFalse);
 
       final item = (await ScheduleRepository(database).listItems(
         range: ScheduleRange.day(DateTime(2026, 6, 8)),
       )).whereType<CalendarScheduleItem>().single;
-      expect(item.providerRecurringEventId, equals(null));
-
       var scopeRequests = 0;
       final result =
           await ScheduleReschedulingCoordinator(
@@ -159,7 +220,6 @@ void main() {
               ),
             ),
           );
-
       expect(result, ScheduleRescheduleResult.saved);
       expect(scopeRequests, 0);
       final request =
@@ -194,6 +254,19 @@ void main() {
           endDateTime: '2026-03-08T03:30:00',
           startTimeZone: 'Asia/Tokyo',
           endTimeZone: 'Asia/Tokyo',
+          rawJson: {
+            'id': 'tokyo-occurrence',
+            'recurringEventId': 'tokyo-series',
+            'originalStartTime': {'dateTime': '2026-03-08T02:30:00+09:00'},
+            'start': {
+              'dateTime': '2026-03-08T02:30:00',
+              'timeZone': 'Asia/Tokyo',
+            },
+            'end': {
+              'dateTime': '2026-03-08T03:30:00',
+              'timeZone': 'Asia/Tokyo',
+            },
+          },
         ),
       );
       final schedule = ScheduleRepository(database);
@@ -2152,4 +2225,56 @@ Future<void> _seedScheduledEvent(
     await database.select(database.notificationSchedule).get(),
     hasLength(1),
   );
+}
+
+Future<void> _expectStaleRegularEventMovesWithoutScope(
+  CalendarRepository repository,
+  AppDatabase database, {
+  required String rawJson,
+}) async {
+  await _seedScheduledEvent(repository, database);
+  await database
+      .update(database.calendarEvents)
+      .write(
+        CalendarEventsCompanion(
+          providerRecurringEventId: const Value('stale-series-id'),
+          providerOriginalStartKey: const Value('2026-06-08T09:00:00.000Z'),
+          rawJson: Value(rawJson),
+        ),
+      );
+
+  final item = (await ScheduleRepository(database).listItems(
+    range: ScheduleRange.day(DateTime(2026, 6, 8)),
+  )).whereType<CalendarScheduleItem>().single;
+  expect(item.providerRecurringEventId, equals(null));
+
+  var scopeRequests = 0;
+  final result =
+      await ScheduleReschedulingCoordinator(
+        repository: repository,
+        chooseScope: (_, _) async {
+          scopeRequests++;
+          return RecurringEventMutationScope.singleOccurrence;
+        },
+        chooseGuestUpdates: (_) async => throw StateError('No guests'),
+        requestSync: (_) async {},
+      ).commit(
+        ScheduleRescheduleRequest(
+          item: item,
+          interval: ScheduleInterval(
+            item.start!.add(const Duration(minutes: 15)),
+            item.end!.add(const Duration(minutes: 15)),
+          ),
+        ),
+      );
+
+  expect(result, ScheduleRescheduleResult.saved);
+  expect(scopeRequests, 0);
+  final request =
+      jsonDecode(
+            (await database.select(database.pendingOps).getSingle())
+                .requestJson,
+          )
+          as Map;
+  expect(request.containsKey(calendarEventRecurringScopeKey), isFalse);
 }

@@ -161,17 +161,17 @@ final class CalendarEventDetail {
     return switch (provider) {
       BusyProvider.google => _cloudRecurrenceIdentityMatches(
         raw: raw,
+        baselineRaw: baselineRaw,
         seriesId: seriesId,
         seriesKey: 'recurringEventId',
         originalStartKey: 'originalStartTime',
-        storedOriginalStart: providerOriginalStartKey,
       ),
       BusyProvider.microsoft => _cloudRecurrenceIdentityMatches(
         raw: raw,
+        baselineRaw: baselineRaw,
         seriesId: seriesId,
         seriesKey: 'seriesMasterId',
         originalStartKey: 'originalStart',
-        storedOriginalStart: providerOriginalStartKey,
       ),
       BusyProvider.appleICloud ||
       BusyProvider.nextcloud ||
@@ -233,30 +233,27 @@ final class CalendarEventDetail {
 
 bool _cloudRecurrenceIdentityMatches({
   required Object? raw,
+  required Object? baselineRaw,
   required String seriesId,
   required String seriesKey,
   required String originalStartKey,
-  required String? storedOriginalStart,
 }) {
-  final storedStart = storedOriginalStart?.trim();
-  final hasStoredStart = storedStart != null && storedStart.isNotEmpty;
-  if (raw is! Map || raw.isEmpty) {
-    // Legacy and synthetic rows may not retain a provider payload. Requiring
-    // the occurrence's original-start identity still prevents a bare stale
-    // series ID from turning a regular event into a recurring one.
-    return hasStoredStart;
-  }
-  final rawSeriesId = raw[seriesKey]?.toString().trim();
+  // Prefer the current provider payload. A stored provider baseline is a valid
+  // fallback only when the current payload is unavailable; denormalized
+  // columns are never used as proof of recurrence because they can be stale.
+  final payload = raw is Map && raw.isNotEmpty ? raw : baselineRaw;
+  if (payload is! Map || payload.isEmpty) return false;
+  final rawSeriesId = payload[seriesKey]?.toString().trim();
   if (rawSeriesId == null || rawSeriesId.isEmpty || rawSeriesId != seriesId) {
     return false;
   }
-  final rawStart = raw[originalStartKey];
+  final rawStart = payload[originalStartKey];
   final hasRawStart = switch (rawStart) {
     final String value => value.trim().isNotEmpty,
     final Map value => value.isNotEmpty,
     _ => false,
   };
-  return hasRawStart || hasStoredStart;
+  return hasRawStart;
 }
 
 bool _hasProjectedIcalRecurrence(Object? recurrence) {

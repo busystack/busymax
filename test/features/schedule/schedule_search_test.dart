@@ -793,11 +793,17 @@ void main() {
         providerCalendarId: 'calendar',
         providerEventId: 'event',
         providerRecurringEventId: 'series-master',
+        providerOriginalStartKey: '2026-06-11T04:20:00.0000000',
         title: 'Planning',
         startDateTime: '2026-06-11T04:20:00.0000000',
         startTimeZone: 'Pacific Standard Time',
         endDateTime: '2026-06-11T04:50:00.0000000',
         endTimeZone: 'Pacific Standard Time',
+        rawJson: {
+          'id': 'event',
+          'seriesMasterId': 'series-master',
+          'originalStart': '2026-06-11T04:20:00.0000000',
+        },
       ),
     );
 

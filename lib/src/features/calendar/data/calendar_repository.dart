@@ -1328,11 +1328,11 @@ class CalendarRepository {
       throw StateError('A complete event recovery baseline is unavailable.');
     }
     baseline.putIfAbsent('id', () => event.providerEventId);
+    // Preserve the original-start component of the local row identity for
+    // legacy occurrence rows, but never manufacture a series identity. The
+    // provider baseline alone decides whether the restored event is recurring.
     switch (provider) {
       case BusyProvider.google:
-        if (event.providerRecurringEventId case final recurringId?) {
-          baseline.putIfAbsent('recurringEventId', () => recurringId);
-        }
         if (event.providerOriginalStartKey case final originalStart?) {
           baseline.putIfAbsent(
             'originalStartTime',
@@ -1342,9 +1342,6 @@ class CalendarRepository {
           );
         }
       case BusyProvider.microsoft:
-        if (event.providerRecurringEventId case final recurringId?) {
-          baseline.putIfAbsent('seriesMasterId', () => recurringId);
-        }
         if (event.providerOriginalStartKey case final originalStart?) {
           baseline.putIfAbsent('originalStart', () => originalStart);
         }
