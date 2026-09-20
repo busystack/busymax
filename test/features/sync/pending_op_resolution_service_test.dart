@@ -288,6 +288,44 @@ void main() {
     },
   );
 
+  test('discarding a cross-list move discards its dependent edits', () async {
+    apiClient.remoteTask = _taskDto('task-1', title: 'Remote source task');
+    await database.taskListsDao.upsertTaskList(_localTaskList('list-2'));
+    await database.tasksDao.upsertTask(
+      _localTask(
+        'task-1',
+        taskListId: 'list-2',
+        localDirty: true,
+        pendingMove: true,
+      ),
+    );
+    await _enqueueBlockedOp(
+      database,
+      operation: 'move_task',
+      taskListId: 'list-1',
+      taskId: 'task-1',
+      request: {'destinationTasklist': 'list-2'},
+    );
+    await _enqueueBlockedOp(
+      database,
+      id: 'dependent-edit',
+      operation: 'patch_task',
+      taskListId: 'list-2',
+      taskId: 'task-1',
+      dependsOnOpId: 'op-1',
+      request: {'title': 'Destination edit'},
+    );
+
+    await service.discard('op-1');
+
+    expect(await database.select(database.pendingOps).get(), isEmpty);
+    expect(
+      (await database.tasksDao.listTasks('account', 'list-1')).single.title,
+      'Remote source task',
+    );
+    expect(await database.tasksDao.listTasks('account', 'list-2'), isEmpty);
+  });
+
   test(
     'discard blocked cross-list move with remote 404 removes both rows',
     () async {

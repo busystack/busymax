@@ -40,6 +40,7 @@ abstract interface class CloudCalendarClient {
     required CalendarEventMutation mutation,
     CalendarGuestUpdatePolicy guestUpdatePolicy =
         CalendarGuestUpdatePolicy.send,
+    String? ifMatch,
   });
 
   Future<void> deleteEvent({
@@ -47,6 +48,7 @@ abstract interface class CloudCalendarClient {
     required String eventId,
     CalendarGuestUpdatePolicy guestUpdatePolicy =
         CalendarGuestUpdatePolicy.send,
+    String? ifMatch,
   });
 
   Future<CalendarEventDto> moveEvent({

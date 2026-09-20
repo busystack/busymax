@@ -235,6 +235,32 @@ END:VEVENT
     },
   );
 
+  test('validates cross-zone duration by represented instants', () async {
+    final preview = importService.parsePreview(
+      utf8.encode(
+        _calendar('''
+BEGIN:VEVENT
+UID:cross-zone-order
+DTSTART;TZID=Asia/Tokyo:20260830T230000
+DTEND;TZID=America/Vancouver:20260830T080000
+SUMMARY:Cross-zone event
+END:VEVENT
+'''),
+      ),
+    );
+
+    final report = await importService.importPreview(
+      preview: preview,
+      destination: (await importService.writableDestinations()).single,
+    );
+
+    expect(report.queued, 1);
+    expect(report.unsupportedRecurrenceSets, isEmpty);
+    final event = await database.select(database.calendarEvents).getSingle();
+    expect(event.startTimeZone, 'Asia/Tokyo');
+    expect(event.endTimeZone, 'America/Vancouver');
+  });
+
   test('writable destinations exclude read-only and WebCal sources', () async {
     await database
         .into(database.accounts)

@@ -14,6 +14,7 @@ import 'package:busymax/src/core/auth/oauth_models.dart';
 import 'package:busymax/src/google_tasks/oauth/oauth_service.dart';
 import 'package:busymax/src/core/secrets/secret_store.dart';
 import 'package:busymax/src/microsoft_todo/oauth/microsoft_oauth_service.dart';
+import 'package:busymax/src/microsoft_todo/api/microsoft_todo_api_models.dart';
 import 'package:busymax/src/providers/busy_provider.dart';
 
 void main() {
@@ -108,6 +109,65 @@ void main() {
     expect(oAuth.revoked, isTrue);
     expect(oAuth.revokedAccountId, 'account-1');
     expect(await database.select(database.accounts).get(), isEmpty);
+  });
+
+  for (final qualified in [false, true]) {
+    test(
+      'Microsoft sign-in accepts ${qualified ? 'qualified' : 'unqualified'} Graph scopes',
+      () async {
+        final microsoftOAuth = _FakeMicrosoftOAuthService()
+          ..nextTokenSet = _tokenSet(
+            scopes: {
+              if (qualified)
+                'https://graph.microsoft.com/User.Read'
+              else
+                'User.Read',
+              if (qualified)
+                'https://graph.microsoft.com/Tasks.ReadWrite'
+              else
+                'Tasks.ReadWrite',
+              if (qualified)
+                'https://graph.microsoft.com/Calendars.ReadWrite'
+              else
+                'Calendars.ReadWrite',
+            },
+          );
+        repository = AuthRepository(
+          oAuth: oAuth,
+          database: database,
+          microsoftOAuth: microsoftOAuth,
+          nowUtc: () => DateTime.utc(2026, 6, 4),
+        );
+
+        final state = await repository.signInWithMicrosoft();
+
+        expect(state.accountId, 'microsoft:user-1');
+        expect(microsoftOAuth.signOutAccountIds, isEmpty);
+      },
+    );
+  }
+
+  test('Microsoft sign-in rejects a genuinely missing permission', () async {
+    final microsoftOAuth = _FakeMicrosoftOAuthService()
+      ..nextTokenSet = _tokenSet(scopes: {'User.Read', 'Tasks.ReadWrite'});
+    repository = AuthRepository(
+      oAuth: oAuth,
+      database: database,
+      microsoftOAuth: microsoftOAuth,
+      nowUtc: () => DateTime.utc(2026, 6, 4),
+    );
+
+    await expectLater(
+      repository.signInWithMicrosoft(),
+      throwsA(
+        isA<OAuthException>().having(
+          (error) => error.code,
+          'code',
+          'MicrosoftOAuthMissingRequiredScope',
+        ),
+      ),
+    );
+    expect(microsoftOAuth.signOutAccountIds, ['microsoft:user-1']);
   });
 
   test('revocation failure does not mask missing-scope guidance', () async {
@@ -504,6 +564,21 @@ class _FakeMicrosoftOAuthService extends MicrosoftOAuthService {
       );
 
   final signOutAccountIds = <String>[];
+  OAuthTokenSet nextTokenSet = _tokenSet();
+
+  @override
+  Future<MicrosoftOAuthSignInResult> signInWithMicrosoft() async {
+    return MicrosoftOAuthSignInResult(
+      accountId: 'microsoft:user-1',
+      tokenSet: nextTokenSet,
+      user: const MicrosoftTodoUserDto(
+        id: 'user-1',
+        displayName: 'Microsoft User',
+        mail: 'user@example.test',
+        rawJson: {'id': 'user-1'},
+      ),
+    );
+  }
 
   @override
   Future<void> signOutAccount(String accountId) async {

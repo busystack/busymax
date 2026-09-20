@@ -653,7 +653,7 @@ DateTime? _eventEditorDateTime({
 }) {
   final value = allDay ? date ?? dateTime : dateTime;
   if (value == null || value.isEmpty) return null;
-  return providerDateTimeAsWallTime(value, timeZone);
+  return providerDateTimeAsCivilTime(value, timeZone);
 }
 
 Map<String, Object?> _jsonMap(Object? value) {

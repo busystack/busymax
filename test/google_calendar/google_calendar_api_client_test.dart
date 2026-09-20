@@ -178,11 +178,13 @@ void main() {
       eventId: 'event-1',
       mutation: const CalendarEventMutation(title: 'Updated'),
       guestUpdatePolicy: CalendarGuestUpdatePolicy.doNotSend,
+      ifMatch: '"update-version"',
     );
     await client.deleteEvent(
       calendarId: 'calendar@example.com',
       eventId: 'event-1',
       guestUpdatePolicy: CalendarGuestUpdatePolicy.doNotSend,
+      ifMatch: '"delete-version"',
     );
 
     expect(requests[0].url.queryParameters['sendUpdates'], 'all');
@@ -191,6 +193,8 @@ void main() {
     expect(requests[0].url.queryParameters['conferenceDataVersion'], '1');
     expect(requests[1].url.queryParameters['conferenceDataVersion'], '1');
     expect(jsonDecode(requests[1].body), {'summary': 'Updated'});
+    expect(requests[1].headers['if-match'], '"update-version"');
+    expect(requests[2].headers['if-match'], '"delete-version"');
   });
 
   test('native event move sends destination and guest update policy', () async {

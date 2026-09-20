@@ -474,6 +474,54 @@ void main() {
     expect(operations, isEmpty);
   });
 
+  test('task creation acknowledgment preserves a newer queued edit', () async {
+    final repository = TasksRepository(
+      database: database,
+      accountId: 'account',
+      nowUtc: () => DateTime.utc(2026, 6, 4),
+    );
+    await repository.createTask(
+      'list-1',
+      const TaskCreateInput(title: 'Draft'),
+    );
+    final temporary = (await database.tasksDao.listTasks(
+      'account',
+      'list-1',
+    )).single;
+    await repository.patchTask(
+      'list-1',
+      temporary.id,
+      const TaskPatchInput({'title': 'Revised'}),
+    );
+    apiClient.patchTaskError = const GoogleTasksApiError(
+      statusCode: 503,
+      message: 'Temporary failure',
+    );
+
+    expect(
+      await PendingOpsReplayer(
+        database: database,
+        apiClient: apiClient,
+        accountId: 'account',
+        random: Random(0),
+        nowUtc: () => DateTime.utc(2026, 6, 4, 1),
+      ).replayDueOps(),
+      1,
+    );
+
+    final visible = (await database.tasksDao.listTasks(
+      'account',
+      'list-1',
+    )).single;
+    expect(visible.id, 'task-server');
+    expect(visible.title, 'Revised');
+    expect(visible.localDirty, isTrue);
+    expect(
+      (await database.select(database.pendingOps).get()).single.operation,
+      'patch_task',
+    );
+  });
+
   test('unknown task creation outcome is not submitted again', () async {
     await database.tasksDao.upsertTask(
       _task('list-1', 'local-task-1', title: 'Draft'),
@@ -2533,6 +2581,78 @@ void main() {
     },
   );
 
+  test(
+    'deleting an in-flight checklist create queues a server delete',
+    () async {
+      final checklistClient = _ChecklistTaskRemoteClient();
+      final repository = TasksRepository(
+        database: database,
+        accountId: 'account',
+        apiClient: checklistClient,
+        nowUtc: () => DateTime.utc(2026, 6, 4),
+      );
+      await database.tasksDao.upsertTask(_task('list-1', 'task-1'));
+      await repository.createSubtask(
+        taskListId: 'list-1',
+        parentTaskId: 'task-1',
+        title: 'Step',
+      );
+      final localItem = decodeTaskChecklistItems(
+        (await database.tasksDao.listTasks(
+          'account',
+          'list-1',
+        )).single.microsoftChecklistItemsJson,
+      ).single;
+      final gate = Completer<void>();
+      checklistClient.createChecklistGate = gate;
+      final replay = PendingOpsReplayer(
+        database: database,
+        apiClient: checklistClient,
+        accountId: 'account',
+        nowUtc: () => DateTime.utc(2026, 6, 4, 1),
+      ).replayDueOps();
+      await _waitFor(() => checklistClient.checklistCalls.isNotEmpty);
+
+      await repository.deleteChecklistSubtask(
+        taskListId: 'list-1',
+        parentTaskId: 'task-1',
+        checklistItemId: localItem.id,
+      );
+      final queued = await database.select(database.pendingOps).get();
+      final create = queued.singleWhere(
+        (operation) => operation.operation == 'create_task_checklist_item',
+      );
+      final delete = queued.singleWhere(
+        (operation) => operation.operation == 'delete_task_checklist_item',
+      );
+      expect(create.state, 'in_progress');
+      expect(delete.dependsOnOpId, create.id);
+
+      gate.complete();
+      expect(await replay, 1);
+      final afterCreate = decodeTaskChecklistItems(
+        (await database.tasksDao.listTasks(
+          'account',
+          'list-1',
+        )).single.microsoftChecklistItemsJson,
+      );
+      expect(afterCreate, isEmpty);
+      expect(
+        await PendingOpsReplayer(
+          database: database,
+          apiClient: checklistClient,
+          accountId: 'account',
+          nowUtc: () => DateTime.utc(2026, 6, 4, 2),
+        ).replayDueOps(),
+        1,
+      );
+      expect(checklistClient.checklistCalls, [
+        'create:Step',
+        'delete:server-step',
+      ]);
+    },
+  );
+
   test('unknown checklist creation outcome is not submitted again', () async {
     final checklistClient = _ChecklistTaskRemoteClient()
       ..createChecklistItemError = StateError('response was lost');
@@ -2649,6 +2769,7 @@ class _FakeTaskRemoteClient implements TaskRemoteClient {
   GoogleTasksApiError? patchTaskListError;
   Object? createTaskListError;
   Object? createTaskError;
+  Object? patchTaskError;
   GoogleTasksApiError? deleteTaskError;
   GoogleTasksApiError? clearCompletedError;
   GoogleTasksApiError? moveTaskError;
@@ -2743,6 +2864,8 @@ class _FakeTaskRemoteClient implements TaskRemoteClient {
     required String taskId,
     required TaskPatch patch,
   }) async {
+    final error = patchTaskError;
+    if (error != null) throw error;
     taskPatchFields.add(patch.fields);
     calls.add('patch_task:$taskId');
     final current = remoteTask;
@@ -2856,6 +2979,7 @@ class _ChecklistTaskRemoteClient extends _FakeTaskRemoteClient
     implements TaskChecklistRemoteClient {
   final checklistCalls = <String>[];
   Object? createChecklistItemError;
+  Completer<void>? createChecklistGate;
 
   @override
   Future<TaskChecklistItemDto> createChecklistItem({
@@ -2865,6 +2989,7 @@ class _ChecklistTaskRemoteClient extends _FakeTaskRemoteClient
     bool completed = false,
   }) async {
     checklistCalls.add('create:$title');
+    await createChecklistGate?.future;
     final error = createChecklistItemError;
     if (error != null) throw error;
     return TaskChecklistItemDto(

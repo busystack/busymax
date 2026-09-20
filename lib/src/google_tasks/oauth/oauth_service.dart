@@ -55,6 +55,7 @@ class OAuthService implements OAuthGateway {
   final DateTime Function() _nowUtc;
   final Duration _authorizationRevocationTimeout;
   final RedactingLogger _logger = RedactingLogger(Logger('OAuthService'));
+  final Map<String, int> _credentialGenerations = {};
 
   @override
   Future<String?> get activeAccountId => _tokenStore.readActiveAccountId();
@@ -218,6 +219,7 @@ class OAuthService implements OAuthGateway {
   }
 
   Future<OAuthTokenSet> refreshTokenForAccount(String accountId) async {
+    final generation = _credentialGenerations[accountId] ?? 0;
     final current = await _readTokenSet(accountId);
     if (current == null || !current.canRefresh) {
       throw const OAuthException(
@@ -228,6 +230,12 @@ class OAuthService implements OAuthGateway {
 
     try {
       final refreshed = await refreshToken(current);
+      if ((_credentialGenerations[accountId] ?? 0) != generation) {
+        throw const OAuthException(
+          'OAuthRefreshCancelled',
+          'The account was removed while its credential was refreshing.',
+        );
+      }
       await _tokenStore.saveOAuthTokenSet(
         accountId,
         BusyProvider.google,
@@ -338,6 +346,7 @@ class OAuthService implements OAuthGateway {
     final targetAccountId =
         accountId ?? await _tokenStore.readActiveAccountId();
     if (targetAccountId != null) {
+      _invalidateCredentialWrites(targetAccountId);
       await _tokenStore.deleteCredential(targetAccountId);
     }
     if (targetAccountId == null ||
@@ -347,11 +356,17 @@ class OAuthService implements OAuthGateway {
   }
 
   Future<void> _clearAccountAfterInvalidRefresh(String accountId) async {
+    _invalidateCredentialWrites(accountId);
     final active = await _tokenStore.readActiveAccountId();
     await _tokenStore.deleteCredential(accountId);
     if (active == accountId) {
       await _tokenStore.clearActiveAccount();
     }
+  }
+
+  void _invalidateCredentialWrites(String accountId) {
+    _credentialGenerations[accountId] =
+        (_credentialGenerations[accountId] ?? 0) + 1;
   }
 
   Future<OAuthTokenSet?> _readTokenSet(String accountId) async {

@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:math';
 
 import 'package:busymax/src/calendar_providers/calendar_colors.dart';
 import 'package:busymax/src/app/app_settings.dart';
@@ -304,6 +305,58 @@ void main() {
     expect(await database.pendingOpsDao.getOp(operationId), equals(null));
   });
 
+  test('event edit waits for a retrying creation and then completes', () async {
+    final repository = CalendarRepository(
+      database: database,
+      now: () => DateTime.utc(2026, 6, 8),
+    );
+    await repository.createLocalEvent(
+      EventEditorDraft.newEvent(
+        accountId: 'account',
+        sourceId: 'account|google|cal-1',
+        providerCalendarId: 'cal-1',
+        start: DateTime.utc(2026, 6, 8, 9),
+        end: DateTime.utc(2026, 6, 8, 10),
+      ).copyWith(title: 'Draft'),
+    );
+    final local = await database.select(database.calendarEvents).getSingle();
+    final detail = (await repository.loadEventDetail(local.id))!;
+    await repository.updateLocalEvent(
+      EventEditorDraft.fromEventDetail(detail).copyWith(title: 'Revised'),
+    );
+    final queued = await database.select(database.pendingOps).get();
+    final create = queued.singleWhere(
+      (operation) => operation.operationType == 'event.create',
+    );
+    final edit = queued.singleWhere(
+      (operation) => operation.operationType == 'event.patch',
+    );
+    expect(edit.dependsOnOpId, create.id);
+    client.createEventResponseError = StateError('response lost');
+
+    expect(
+      await CalendarPendingOpsReplayer(
+        database: database,
+        client: client,
+        accountId: 'account',
+        random: Random(0),
+        nowUtc: () => DateTime.utc(2026, 6, 8),
+      ).replayDueOps(),
+      0,
+    );
+    expect(
+      await CalendarPendingOpsReplayer(
+        database: database,
+        client: client,
+        accountId: 'account',
+        nowUtc: () => DateTime.utc(2026, 6, 9),
+      ).replayDueOps(),
+      2,
+    );
+    expect(await database.select(database.pendingOps).get(), isEmpty);
+    expect(client.updatedMutations.single.title, 'Revised');
+  });
+
   test('Microsoft create retry reuses its transaction ID', () async {
     final repository = CalendarRepository(database: database);
     await repository.upsertSource(
@@ -514,6 +567,68 @@ void main() {
         calendarEventGuestUpdatePolicyKey: 'send',
       });
     },
+  );
+
+  test(
+    'end-only edit preserves a foreign-zone start in the host DST gap',
+    () async {
+      final hostZone = ProcessTimeZone();
+      hostZone.set('America/Vancouver');
+      addTearDown(hostZone.restore);
+      expect(DateTime(2026, 3, 8, 2, 30).hour, isNot(2));
+      final repository = CalendarRepository(database: database);
+      await repository.upsertEvent(
+        accountId: 'account',
+        event: const CalendarEventDto(
+          provider: BusyProvider.google,
+          providerCalendarId: 'cal-1',
+          providerEventId: 'tokyo-event',
+          title: 'Tokyo event',
+          organizerJson: {'self': true},
+          startDateTime: '2026-03-08T02:30:00',
+          startTimeZone: 'Asia/Tokyo',
+          endDateTime: '2026-03-08T03:30:00',
+          endTimeZone: 'Asia/Tokyo',
+          updatedAtServer: '2026-03-01T00:00:00.000Z',
+          rawJson: {
+            'id': 'tokyo-event',
+            'summary': 'Tokyo event',
+            'start': {
+              'dateTime': '2026-03-08T02:30:00',
+              'timeZone': 'Asia/Tokyo',
+            },
+            'end': {
+              'dateTime': '2026-03-08T03:30:00',
+              'timeZone': 'Asia/Tokyo',
+            },
+            'updated': '2026-03-01T00:00:00.000Z',
+          },
+        ),
+      );
+      final eventId = CalendarRepository.eventId(
+        accountId: 'account',
+        provider: BusyProvider.google,
+        providerCalendarId: 'cal-1',
+        providerEventId: 'tokyo-event',
+      );
+      final detail = (await repository.loadEventDetail(eventId))!;
+      final draft = EventEditorDraft.fromEventDetail(detail);
+      expect(draft.start!.hour, 2);
+
+      await repository.updateLocalEvent(
+        draft.copyWith(end: providerCivilDateTime(DateTime.utc(2026, 3, 8, 4))),
+      );
+
+      final request =
+          jsonDecode(
+                (await database.select(database.pendingOps).getSingle())
+                    .requestJson,
+              )
+              as Map<String, Object?>;
+      expect(request['start'], '2026-03-08T02:30:00.000');
+      expect(request['end'], '2026-03-08T04:00:00.000');
+    },
+    skip: !(Platform.isLinux || Platform.isMacOS),
   );
 
   test('same-account Google move uses the native provider operation', () async {
@@ -1970,6 +2085,37 @@ END:VEVENT
     },
   );
 
+  test('Google event patch binds the write to the checked ETag', () async {
+    final eventId = await _insertEvent(
+      database,
+      providerEventId: 'provider-event',
+    );
+    await _enqueueEventOp(
+      database,
+      id: 'op-etag',
+      operation: 'patch',
+      operationType: 'event.patch',
+      eventId: eventId,
+      request: {'title': 'Patched'},
+    );
+    client.remoteEvent = client._event(
+      'provider-event',
+      title: 'Base',
+      etagOrChangeKey: '"checked"',
+    );
+
+    expect(
+      await CalendarPendingOpsReplayer(
+        database: database,
+        client: client,
+        accountId: 'account',
+        nowUtc: () => DateTime.utc(2026, 6, 8),
+      ).replayDueOps(),
+      1,
+    );
+    expect(client.ifMatches, ['"checked"']);
+  });
+
   test('zoned guarded series edit replays the same civil delta', () async {
     final repository = CalendarRepository(database: database);
     final id = await _insertGoogleOccurrence(repository, day: 8);
@@ -2149,6 +2295,38 @@ END:VEVENT
   });
 
   test(
+    'entire-series edit conflicts with an overlapping master edit',
+    () async {
+      final repository = CalendarRepository(database: database);
+      final occurrenceId = await _insertGoogleOccurrence(repository, day: 8);
+      final detail = (await repository.loadEventDetail(occurrenceId))!;
+      await repository.updateLocalEvent(
+        EventEditorDraft.fromEventDetail(detail).copyWith(
+          title: 'Local title',
+          recurringMutationScope: RecurringEventMutationScope.entireSeries,
+        ),
+      );
+      client.remoteEvent = _googleSeriesMaster(
+        title: 'Remote title',
+        updatedAtServer: '2026-06-01T00:00:00.000Z',
+      );
+
+      expect(
+        await CalendarPendingOpsReplayer(
+          database: database,
+          client: client,
+          accountId: 'account',
+          nowUtc: () => DateTime.utc(2026, 6, 8),
+        ).replayDueOps(),
+        0,
+      );
+      final operation = await database.select(database.pendingOps).getSingle();
+      expect(operation.lastErrorCode, 'conflict');
+      expect(client.updatedMutations, isEmpty);
+    },
+  );
+
+  test(
     'entire-series retry does not apply the occurrence delta twice',
     () async {
       final repository = CalendarRepository(database: database);
@@ -2194,7 +2372,7 @@ END:VEVENT
       );
       expect(
         client.calls.where((call) => call.startsWith('getEvent:')),
-        hasLength(1),
+        hasLength(2),
       );
     },
   );
@@ -2748,7 +2926,7 @@ END:VEVENT
               (row) => OrderingTerm.asc(row.providerOriginalStartKey),
             ]))
             .get();
-    expect(rows.map((row) => row.isDeleted), [false, true, true]);
+    expect(rows.map((row) => row.isDeleted), [false, false, true, true]);
     expect(rows.map((row) => row.syncStatus), everyElement('synced'));
     expect(await database.select(database.pendingOps).get(), isEmpty);
   });
@@ -3334,6 +3512,45 @@ END:VEVENT
     expect(row.isDeleted, isTrue);
   });
 
+  test(
+    'offline event edit followed by delete does not self-conflict',
+    () async {
+      final repository = CalendarRepository(database: database);
+      final eventId = await _insertEvent(
+        database,
+        providerEventId: 'provider-event',
+      );
+      final detail = (await repository.loadEventDetail(eventId))!;
+      await repository.updateLocalEvent(
+        EventEditorDraft.fromEventDetail(detail).copyWith(title: 'Edited'),
+      );
+      await repository.deleteLocalEvent(eventId);
+      final queued = await database.select(database.pendingOps).get();
+      final patch = queued.singleWhere(
+        (operation) => operation.operationType == 'event.patch',
+      );
+      final delete = queued.singleWhere(
+        (operation) => operation.operationType == 'event.delete',
+      );
+      expect(delete.dependsOnOpId, patch.id);
+      client
+        ..remoteEvent = client._event('provider-event', title: 'Base')
+        ..persistEventUpdates = true;
+
+      expect(
+        await CalendarPendingOpsReplayer(
+          database: database,
+          client: client,
+          accountId: 'account',
+          nowUtc: () => DateTime.utc(2026, 6, 8),
+        ).replayDueOps(),
+        2,
+      );
+      expect(await database.select(database.pendingOps).get(), isEmpty);
+      expect(client.calls.last, 'deleteEvent:cal-1:provider-event');
+    },
+  );
+
   test('entire-series delete marks the master and every occurrence', () async {
     final repository = CalendarRepository(database: database);
     await repository.upsertEvent(
@@ -3347,6 +3564,7 @@ END:VEVENT
       occurrenceId,
       recurringScope: RecurringEventMutationScope.entireSeries,
     );
+    client.remoteEvent = _googleSeriesMaster();
     await CalendarPendingOpsReplayer(
       database: database,
       client: client,
@@ -3354,11 +3572,40 @@ END:VEVENT
       nowUtc: () => DateTime.utc(2026, 6, 8),
     ).replayDueOps();
 
-    expect(client.calls, ['deleteEvent:cal-1:series-master']);
+    expect(client.calls, [
+      'getEvent:cal-1:series-master',
+      'deleteEvent:cal-1:series-master',
+    ]);
     final rows = await database.select(database.calendarEvents).get();
     expect(rows, hasLength(3));
     expect(rows.map((row) => row.isDeleted), everyElement(isTrue));
     expect(rows.map((row) => row.syncStatus), everyElement('synced'));
+  });
+
+  test('entire-series delete conflicts with a changed master', () async {
+    final repository = CalendarRepository(database: database);
+    final occurrenceId = await _insertGoogleOccurrence(repository, day: 8);
+    await repository.deleteLocalEvent(
+      occurrenceId,
+      recurringScope: RecurringEventMutationScope.entireSeries,
+    );
+    client.remoteEvent = _googleSeriesMaster(
+      title: 'Remote title',
+      updatedAtServer: '2026-06-01T00:00:00.000Z',
+    );
+
+    expect(
+      await CalendarPendingOpsReplayer(
+        database: database,
+        client: client,
+        accountId: 'account',
+        nowUtc: () => DateTime.utc(2026, 6, 8),
+      ).replayDueOps(),
+      0,
+    );
+    final operation = await database.select(database.pendingOps).getSingle();
+    expect(operation.lastErrorCode, 'conflict');
+    expect(client.calls, ['getEvent:cal-1:series-master']);
   });
 
   test('provider missing delete is treated as success', () async {
@@ -3612,6 +3859,32 @@ END:VEVENT
       );
     },
   );
+
+  test('unknown calendar creation outcome is not posted again', () async {
+    final repository = CalendarRepository(
+      database: database,
+      now: () => DateTime.utc(2026, 6, 8),
+    );
+    await repository.createLocalSource(
+      accountId: 'account',
+      summary: 'Project',
+    );
+    client.calendarCreateError = StateError('response lost');
+    final replayer = CalendarPendingOpsReplayer(
+      database: database,
+      client: client,
+      accountId: 'account',
+      nowUtc: () => DateTime.utc(2026, 6, 8),
+    );
+
+    expect(await replayer.replayDueOps(), 0);
+    expect(await replayer.replayDueOps(), 0);
+
+    final operation = await database.select(database.pendingOps).getSingle();
+    expect(operation.state, 'recovery_required');
+    expect(operation.lastErrorCode, 'calendar_creation_outcome_unknown');
+    expect(client.calls, ['createCalendar:Project']);
+  });
 
   test('calendar delete pending op calls provider deleteCalendar', () async {
     await database.pendingOpsDao.enqueue(
@@ -4118,6 +4391,10 @@ Future<String> _insertEvent(
       'id': providerEventId,
       'summary': 'Base',
       'updated': '2026-06-08T00:00:00.000Z',
+      if (providerRecurringEventId != null) ...{
+        'recurringEventId': providerRecurringEventId,
+        'originalStartTime': {'dateTime': '2026-06-08T09:00:00.000Z'},
+      },
     },
   );
   await CalendarRepository(
@@ -4143,6 +4420,18 @@ Future<String> _insertGoogleOccurrence(
   start ??= '2026-06-${date}T09:00:00.000Z';
   end ??= '2026-06-${date}T10:00:00.000Z';
   final providerEventId = 'occurrence-$date';
+  final masterId = CalendarRepository.eventId(
+    accountId: 'account',
+    provider: BusyProvider.google,
+    providerCalendarId: 'cal-1',
+    providerEventId: 'series-master',
+  );
+  if (await repository.loadEventDetail(masterId) == null) {
+    await repository.upsertEvent(
+      accountId: 'account',
+      event: _googleSeriesMaster(timeZone: timeZone, location: location),
+    );
+  }
   await repository.upsertEvent(
     accountId: 'account',
     event: CalendarEventDto(
@@ -4201,6 +4490,8 @@ CalendarEventDto _googleSeriesMaster({
   String timeZone = 'UTC',
   String start = '2026-06-01T09:00:00.000Z',
   String end = '2026-06-01T10:00:00.000Z',
+  String title = 'Base',
+  String updatedAtServer = '2026-05-30T00:00:00.000Z',
   String? location,
 }) {
   const recurrence = ['RRULE:FREQ=WEEKLY;INTERVAL=1;BYDAY=MO;COUNT=5'];
@@ -4208,7 +4499,7 @@ CalendarEventDto _googleSeriesMaster({
     provider: BusyProvider.google,
     providerCalendarId: 'cal-1',
     providerEventId: 'series-master',
-    title: 'Base',
+    title: title,
     location: location,
     organizerJson: {'self': true},
     startDateTime: start,
@@ -4216,15 +4507,15 @@ CalendarEventDto _googleSeriesMaster({
     endDateTime: end,
     endTimeZone: timeZone,
     recurrenceJson: recurrence,
-    updatedAtServer: '2026-05-30T00:00:00.000Z',
+    updatedAtServer: updatedAtServer,
     rawJson: {
       'id': 'series-master',
-      'summary': 'Base',
+      'summary': title,
       if (location != null) 'location': location,
       'start': {'dateTime': start, 'timeZone': timeZone},
       'end': {'dateTime': end, 'timeZone': timeZone},
       'recurrence': recurrence,
-      'updated': '2026-05-30T00:00:00.000Z',
+      'updated': updatedAtServer,
     },
   );
 }
@@ -4341,6 +4632,7 @@ class _FakeCalendarClient
   final updatedMutations = <CalendarEventMutation>[];
   final calendarMutations = <CalendarMutation>[];
   final guestUpdatePolicies = <CalendarGuestUpdatePolicy>[];
+  final ifMatches = <String?>[];
   final invitationResponses = <CalendarInvitationResponse>[];
   final Map<String, CalendarEventDto> _createdEventsByIdentity = {};
   int _createdCount = 0;
@@ -4352,6 +4644,7 @@ class _FakeCalendarClient
   int _eventUpdateRevision = 0;
   GoogleCalendarApiError? deleteError;
   Object? calendarDeleteError;
+  Object? calendarCreateError;
   GoogleCalendarApiError? calendarListDeleteError;
   Completer<void>? createEventGate;
   Completer<void>? calendarPatchGate;
@@ -4438,10 +4731,12 @@ class _FakeCalendarClient
     required CalendarEventMutation mutation,
     CalendarGuestUpdatePolicy guestUpdatePolicy =
         CalendarGuestUpdatePolicy.send,
+    String? ifMatch,
   }) async {
     calls.add('updateEvent:$calendarId:$eventId:${mutation.title}');
     updatedMutations.add(mutation);
     guestUpdatePolicies.add(guestUpdatePolicy);
+    ifMatches.add(ifMatch);
     if (transientUpdateFailures > 0) {
       transientUpdateFailures -= 1;
       throw const GoogleCalendarApiError(
@@ -4509,9 +4804,11 @@ class _FakeCalendarClient
     required String eventId,
     CalendarGuestUpdatePolicy guestUpdatePolicy =
         CalendarGuestUpdatePolicy.send,
+    String? ifMatch,
   }) async {
     calls.add('deleteEvent:$calendarId:$eventId');
     guestUpdatePolicies.add(guestUpdatePolicy);
+    ifMatches.add(ifMatch);
     final error = deleteError;
     if (error != null) {
       throw error;
@@ -4622,6 +4919,8 @@ class _FakeCalendarClient
   @override
   Future<CalendarSourceDto> createCalendar(CalendarMutation mutation) async {
     calls.add('createCalendar:${mutation.summary}');
+    final error = calendarCreateError;
+    if (error != null) throw error;
     return CalendarSourceDto(
       provider: BusyProvider.google,
       providerCalendarId: 'cal-created',
@@ -4775,6 +5074,7 @@ class _FakeMicrosoftCalendarClient extends _FakeCalendarClient {
     required CalendarEventMutation mutation,
     CalendarGuestUpdatePolicy guestUpdatePolicy =
         CalendarGuestUpdatePolicy.send,
+    String? ifMatch,
   }) async {
     calls.add('updateEvent:$calendarId:$eventId:${mutation.title}');
     updatedMutations.add(mutation);

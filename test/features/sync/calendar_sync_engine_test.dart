@@ -1159,6 +1159,7 @@ class _FakeCalendarClient implements CloudCalendarClient {
     required String eventId,
     CalendarGuestUpdatePolicy guestUpdatePolicy =
         CalendarGuestUpdatePolicy.send,
+    String? ifMatch,
   }) {
     throw UnimplementedError();
   }
@@ -1217,6 +1218,7 @@ class _FakeCalendarClient implements CloudCalendarClient {
     required CalendarEventMutation mutation,
     CalendarGuestUpdatePolicy guestUpdatePolicy =
         CalendarGuestUpdatePolicy.send,
+    String? ifMatch,
   }) {
     throw UnimplementedError();
   }

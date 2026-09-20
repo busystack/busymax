@@ -591,6 +591,9 @@ class TasksRepository {
         ),
       );
       await _patchLocalTask(taskListId, localId, fields, now);
+      final parentCreate = input.parentTaskId == null
+          ? null
+          : await _pendingTaskCreate(input.parentTaskId!);
       final createOperationId = await _enqueue(
         operation: 'create_task',
         taskListId: taskListId,
@@ -603,6 +606,7 @@ class TasksRepository {
             'previous': input.previousSiblingTaskId,
         },
         createdAtUtc: now,
+        dependsOnOpId: parentCreate?.id,
       );
       if (input.parentTaskId != null) {
         final moveCreatedAt = DateTime.parse(
@@ -727,7 +731,9 @@ class TasksRepository {
         for (final item in items)
           if (item.id != checklistItemId) item,
       ], now);
-      if (pendingCreate != null) {
+      if (pendingCreate != null &&
+          pendingCreate.state == 'pending' &&
+          pendingCreate.attemptCount == 0) {
         await _deleteChecklistOperationChain(
           parentTaskId: parentTaskId,
           checklistItemId: checklistItemId,
@@ -2620,12 +2626,20 @@ class TasksRepository {
         changed = true;
       }
     }
+    final discardedLocalTaskIds = {
+      localTaskId,
+      for (final operation in operations)
+        if (discardedIds.contains(operation.id) &&
+            operation.operation == 'create_task')
+          operation.localTempId ?? operation.taskId,
+    }..remove(null);
     await (_database.delete(
       _database.pendingOps,
     )..where((row) => row.id.isIn(discardedIds))).go();
     await (_database.delete(_database.tasks)..where(
           (row) =>
-              row.accountId.equals(_accountId) & row.id.equals(localTaskId),
+              row.accountId.equals(_accountId) &
+              row.id.isIn(discardedLocalTaskIds.cast<String>()),
         ))
         .go();
   }

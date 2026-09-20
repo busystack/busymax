@@ -52,6 +52,7 @@ class MicrosoftOAuthService implements MicrosoftOAuthGateway {
   final RedactingLogger _logger = RedactingLogger(
     Logger('MicrosoftOAuthService'),
   );
+  final Map<String, int> _credentialGenerations = {};
 
   Future<MicrosoftOAuthSignInResult> signIn() async {
     final clientId = _config.microsoftOAuthClientId.trim();
@@ -186,6 +187,7 @@ class MicrosoftOAuthService implements MicrosoftOAuthGateway {
   }
 
   Future<OAuthTokenSet> refreshTokenForAccount(String accountId) async {
+    final generation = _credentialGenerations[accountId] ?? 0;
     final current = await _readTokenSet(accountId);
     if (current == null || !current.canRefresh) {
       throw const OAuthException(
@@ -195,6 +197,12 @@ class MicrosoftOAuthService implements MicrosoftOAuthGateway {
     }
 
     final refreshed = await refreshToken(current);
+    if ((_credentialGenerations[accountId] ?? 0) != generation) {
+      throw const OAuthException(
+        'MicrosoftOAuthRefreshCancelled',
+        'The account was removed while its credential was refreshing.',
+      );
+    }
     await _tokenStore.saveOAuthTokenSet(
       accountId,
       BusyProvider.microsoft,
@@ -249,6 +257,8 @@ class MicrosoftOAuthService implements MicrosoftOAuthGateway {
 
   @override
   Future<void> signOutAccount(String accountId) async {
+    _credentialGenerations[accountId] =
+        (_credentialGenerations[accountId] ?? 0) + 1;
     await _tokenStore.deleteCredential(accountId);
     if (await _tokenStore.readActiveAccountId() == accountId) {
       await _tokenStore.clearActiveAccount();

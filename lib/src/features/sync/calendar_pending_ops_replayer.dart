@@ -11,6 +11,7 @@ import '../../calendar_providers/calendar_mutation.dart';
 import '../../calendar_providers/calendar_sync_dto.dart';
 import '../../calendar_providers/cloud_calendar_client.dart';
 import '../../core/time/provider_date_time.dart';
+import '../../core/http/request_dispatch_exception.dart';
 import '../../db/app_database.dart';
 import '../../google_calendar/google_calendar_errors.dart';
 import '../../google_calendar/google_calendar_mapper.dart';
@@ -77,12 +78,25 @@ class CalendarPendingOpsReplayer {
     var applied = 0;
 
     for (final originalOp in ops) {
-      final op = await _readOp(originalOp.id);
+      var op = await _readOp(originalOp.id);
       if (op == null || !_isCalendarOp(op)) {
         continue;
       }
       if (op.dependsOnOpId != null && await _opExists(op.dependsOnOpId!)) {
         continue;
+      }
+      if (_isCalendarCreation(op)) {
+        if (op.state == 'in_progress') {
+          await _blockUnknownCalendarCreation(
+            op,
+            'The app stopped before the creation response was recorded.',
+          );
+          continue;
+        }
+        if (op.state == 'recovery_required') continue;
+        if (!await _claimCalendarCreation(op)) continue;
+        op = await _readOp(op.id);
+        if (op == null) continue;
       }
       if (_copyConfirmationMissing(op)) {
         await _blockOp(
@@ -97,11 +111,28 @@ class CalendarPendingOpsReplayer {
         await _replay(op);
         await _acknowledge(op);
         applied += 1;
+      } on RequestNotDispatchedException catch (error) {
+        await _scheduleRetry(
+          op,
+          error.code,
+          'The calendar creation request was not sent and can be retried.',
+        );
       } on GoogleCalendarApiError catch (error) {
         if (_isSuccessfulMissingDelete(op, error.statusCode)) {
           await _applyDeleteSideEffect(op);
           await _database.pendingOpsDao.deleteOp(op.id);
           applied += 1;
+        } else if (error.statusCode == 412 &&
+            (_operationType(op) == 'event.patch' ||
+                _operationType(op) == 'event.delete')) {
+          const message =
+              'The remote event changed before the pending write was applied.';
+          if (await _blockOp(op, 'conflict', message)) {
+            await _onConflictBlocked?.call(message);
+          }
+        } else if (_isCalendarCreation(op) &&
+            (error.statusCode == 408 || error.statusCode >= 500)) {
+          await _blockUnknownCalendarCreation(op, error.message);
         } else if (_isRetryableStatus(error.statusCode)) {
           await _scheduleRetry(op, error.code, error.message);
         } else {
@@ -112,6 +143,9 @@ class CalendarPendingOpsReplayer {
           await _applyDeleteSideEffect(op);
           await _database.pendingOpsDao.deleteOp(op.id);
           applied += 1;
+        } else if (_isCalendarCreation(op) &&
+            (error.statusCode == 408 || error.statusCode >= 500)) {
+          await _blockUnknownCalendarCreation(op, error.message);
         } else if (_isRetryableStatus(error.statusCode)) {
           await _scheduleRetry(op, error.code, error.message);
         } else {
@@ -120,11 +154,15 @@ class CalendarPendingOpsReplayer {
       } on _PendingOpBlocked {
         continue;
       } on Object catch (error) {
-        await _scheduleRetry(
-          op,
-          error.runtimeType.toString(),
-          error.toString(),
-        );
+        if (_isCalendarCreation(op)) {
+          await _blockUnknownCalendarCreation(op, error.toString());
+        } else {
+          await _scheduleRetry(
+            op,
+            error.runtimeType.toString(),
+            error.toString(),
+          );
+        }
       }
     }
 
@@ -420,22 +458,29 @@ class CalendarPendingOpsReplayer {
     final local = await _localEvent(op);
     final request = _request(op);
     final recurringScope = request[calendarEventRecurringScopeKey]?.toString();
+    final providerEventId = await _providerEventId(op, local);
+    final checkedVersion = await _ensureNoEventConflict(op, local, request);
     if (recurringScope == 'thisAndFuture') {
-      await _patchGoogleFollowingEvents(op, local: local, request: request);
+      await _patchGoogleFollowingEvents(
+        op,
+        local: local,
+        request: request,
+        checkedVersion: checkedVersion,
+      );
       return;
     }
-    final providerEventId = await _providerEventId(op, local);
-    await _ensureNoEventConflict(op, local, request);
     var mutationRequest = request;
     if (recurringScope == 'entireSeries') {
       final resolved = request[_seriesResolvedRequestKey];
       if (resolved is Map) {
         mutationRequest = resolved.cast<String, Object?>();
       } else {
-        final master = await _client.getEvent(
-          calendarId: providerCalendarId,
-          eventId: providerEventId,
-        );
+        final master =
+            checkedVersion ??
+            await _client.getEvent(
+              calendarId: providerCalendarId,
+              eventId: providerEventId,
+            );
         mutationRequest = _seriesRequestForMaster(
           request,
           master,
@@ -460,8 +505,12 @@ class CalendarPendingOpsReplayer {
         fallbackTimeZone: await _fallbackTimeZone(op, local: local),
       ),
       guestUpdatePolicy: _guestUpdatePolicy(request),
+      ifMatch: _client.provider == BusyProvider.google
+          ? checkedVersion?.etagOrChangeKey
+          : null,
     );
     if (recurringScope == 'entireSeries') {
+      await _database.transaction(() => _rebaseDependentEventEdits(op, event));
       await _repository.upsertEvent(accountId: _accountId, event: event);
       await _markRecurringRowsSynced(op, local);
       return;
@@ -499,6 +548,7 @@ class CalendarPendingOpsReplayer {
       serverEvent.rawJson,
     );
     for (final dependent in dependents) {
+      final wholeEventBoundary = _operationType(dependent) == 'event.delete';
       final baseline = _eventBaselineSnapshot(
         _client.provider,
         dependent.baselineRawJson ?? '{}',
@@ -513,8 +563,13 @@ class CalendarPendingOpsReplayer {
       )..where((row) => row.id.equals(dependent.id))).write(
         PendingOpsCompanion(
           baselineRawJson: Value(
-            jsonEncode({calendarEventSemanticBaselineKey: baseline}),
+            wholeEventBoundary
+                ? jsonEncode(serverEvent.rawJson)
+                : jsonEncode({calendarEventSemanticBaselineKey: baseline}),
           ),
+          baselineUpdatedUtc: wholeEventBoundary
+              ? Value(serverEvent.updatedAtServer)
+              : const Value.absent(),
           updatedAtUtc: Value(_nowUtc().toIso8601String()),
         ),
       );
@@ -526,18 +581,26 @@ class CalendarPendingOpsReplayer {
     final providerCalendarId = _require(op.providerCalendarId, 'calendarId');
     final local = await _localEvent(op);
     final request = _request(op);
+    final providerEventId = await _providerEventId(op, local);
+    final checkedVersion = await _ensureEventUnchanged(op, local, 'delete');
     if (request[calendarEventRecurringScopeKey]?.toString() ==
         'thisAndFuture') {
-      await _deleteGoogleFollowingEvents(op, local: local, request: request);
+      await _deleteGoogleFollowingEvents(
+        op,
+        local: local,
+        request: request,
+        checkedVersion: checkedVersion,
+      );
       await _applyDeleteSideEffect(op);
       return;
     }
-    final providerEventId = await _providerEventId(op, local);
-    await _ensureEventUnchanged(op, local, 'delete');
     await _client.deleteEvent(
       calendarId: providerCalendarId,
       eventId: providerEventId,
       guestUpdatePolicy: _guestUpdatePolicy(request),
+      ifMatch: _client.provider == BusyProvider.google
+          ? checkedVersion?.etagOrChangeKey
+          : null,
     );
     await _applyDeleteSideEffect(op);
   }
@@ -613,6 +676,7 @@ class CalendarPendingOpsReplayer {
     PendingOp op, {
     required CalendarEvent local,
     required Map<String, Object?> request,
+    required CalendarEventDto? checkedVersion,
   }) async {
     if (_client.provider != BusyProvider.google) {
       await _blockOp(
@@ -627,10 +691,9 @@ class CalendarPendingOpsReplayer {
       request[calendarEventTargetProviderIdKey]?.toString(),
       'recurringEventId',
     );
-    final currentMaster = await _client.getEvent(
-      calendarId: calendarId,
-      eventId: masterId,
-    );
+    final currentMaster =
+        checkedVersion ??
+        await _client.getEvent(calendarId: calendarId, eventId: masterId);
     final snapshotValue = request[_googleSplitMasterRawKey];
     late final CalendarEventDto originalMaster;
     if (snapshotValue is Map) {
@@ -676,6 +739,7 @@ class CalendarPendingOpsReplayer {
           fallbackTimeZone: await _fallbackTimeZone(op, local: local),
         ),
         guestUpdatePolicy: _guestUpdatePolicy(request),
+        ifMatch: checkedVersion?.etagOrChangeKey,
       );
       if (request.containsKey('location')) {
         await LocationResolutionRepository(
@@ -745,6 +809,7 @@ class CalendarPendingOpsReplayer {
       eventId: masterId,
       mutation: CalendarEventMutation(recurrence: trimmedRecurrence),
       guestUpdatePolicy: _guestUpdatePolicy(request),
+      ifMatch: checkedVersion?.etagOrChangeKey,
     );
 
     final splitRequest = {
@@ -816,6 +881,7 @@ class CalendarPendingOpsReplayer {
     PendingOp op, {
     required CalendarEvent local,
     required Map<String, Object?> request,
+    required CalendarEventDto? checkedVersion,
   }) async {
     if (_client.provider != BusyProvider.google) {
       await _blockOp(
@@ -830,10 +896,9 @@ class CalendarPendingOpsReplayer {
       request[calendarEventTargetProviderIdKey]?.toString(),
       'recurringEventId',
     );
-    final master = await _client.getEvent(
-      calendarId: calendarId,
-      eventId: masterId,
-    );
+    final master =
+        checkedVersion ??
+        await _client.getEvent(calendarId: calendarId, eventId: masterId);
     final masterStart = _dtoStart(master);
     if (masterStart == null) {
       throw StateError('The recurring master start is unavailable.');
@@ -847,6 +912,7 @@ class CalendarPendingOpsReplayer {
         calendarId: calendarId,
         eventId: masterId,
         guestUpdatePolicy: _guestUpdatePolicy(request),
+        ifMatch: checkedVersion?.etagOrChangeKey,
       );
       await LocationResolutionRepository(_database).removeGoogleSeriesSource(
         accountId: local.accountId,
@@ -888,6 +954,7 @@ class CalendarPendingOpsReplayer {
         ),
       ),
       guestUpdatePolicy: _guestUpdatePolicy(request),
+      ifMatch: checkedVersion?.etagOrChangeKey,
     );
     await _markRecurringRowsSynced(op, local);
   }
@@ -1334,14 +1401,14 @@ class CalendarPendingOpsReplayer {
     );
   }
 
-  Future<void> _ensureNoEventConflict(
+  Future<CalendarEventDto?> _ensureNoEventConflict(
     PendingOp op,
     CalendarEvent local,
     Map<String, Object?> request,
   ) async {
     final baselineUpdatedUtc = _parseUtc(op.baselineUpdatedUtc);
     if (baselineUpdatedUtc == null) {
-      return;
+      return null;
     }
     final current = await _client.getEvent(
       calendarId: op.providerCalendarId ?? local.providerCalendarId,
@@ -1350,7 +1417,7 @@ class CalendarPendingOpsReplayer {
     final currentUpdatedUtc = _parseUtc(current.updatedAtServer);
     if (currentUpdatedUtc == null ||
         !currentUpdatedUtc.isAfter(baselineUpdatedUtc)) {
-      return;
+      return current;
     }
     final baseline = _eventBaselineSnapshot(
       _client.provider,
@@ -1364,22 +1431,23 @@ class CalendarPendingOpsReplayer {
       _client.provider,
     );
     if (changed.isEmpty) {
-      return;
+      return current;
     }
     await _blockConflict(
       op,
       'Remote event changed fields: ${changed.toList()..sort()}',
     );
+    return null;
   }
 
-  Future<void> _ensureEventUnchanged(
+  Future<CalendarEventDto?> _ensureEventUnchanged(
     PendingOp op,
     CalendarEvent local,
     String action,
   ) async {
     final baselineUpdatedUtc = _parseUtc(op.baselineUpdatedUtc);
     if (baselineUpdatedUtc == null) {
-      return;
+      return null;
     }
     final current = await _client.getEvent(
       calendarId: op.providerCalendarId ?? local.providerCalendarId,
@@ -1393,6 +1461,7 @@ class CalendarPendingOpsReplayer {
         'Remote event changed since local $action was queued.',
       );
     }
+    return current;
   }
 
   Set<String> _changedSemanticFields(
@@ -1703,6 +1772,38 @@ class CalendarPendingOpsReplayer {
     return statusCode == 429 || statusCode >= 500;
   }
 
+  bool _isCalendarCreation(PendingOp op) =>
+      _operationType(op) == 'calendar.create';
+
+  Future<bool> _claimCalendarCreation(PendingOp op) async {
+    final query = _database.update(_database.pendingOps)
+      ..where(
+        (row) =>
+            row.id.equals(op.id) &
+            row.state.equals(op.state) &
+            row.attemptCount.equals(op.attemptCount) &
+            row.requestJson.equals(op.requestJson) &
+            row.updatedAtUtc.equals(op.updatedAtUtc),
+      );
+    return await query.write(
+          const PendingOpsCompanion(state: Value('in_progress')),
+        ) ==
+        1;
+  }
+
+  Future<void> _blockUnknownCalendarCreation(PendingOp op, String detail) {
+    return _database.pendingOpsDao.updateAttempt(
+      id: op.id,
+      attemptCount: op.attemptCount + 1,
+      nextAttemptAtUtc: DateTime.utc(9999, 12, 31),
+      lastErrorCode: 'calendar_creation_outcome_unknown',
+      lastErrorMessage:
+          'The provider may already have created this calendar. Automatic '
+          'replay was stopped to avoid a duplicate. $detail',
+      state: 'recovery_required',
+    );
+  }
+
   Future<void> _scheduleRetry(
     PendingOp op,
     String errorCode,
@@ -1725,6 +1826,7 @@ class CalendarPendingOpsReplayer {
       nextAttemptAtUtc: nextAttempt,
       lastErrorCode: errorCode,
       lastErrorMessage: errorMessage,
+      state: _isCalendarCreation(op) ? 'retry' : null,
     );
   }
 

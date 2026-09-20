@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
@@ -786,6 +787,45 @@ void main() {
       isNotNull,
     );
     expect(await tokenStore.readActiveAccountId(), 'google-b');
+  });
+
+  test('refresh completion cannot restore a removed credential', () async {
+    final tokenStore = InMemorySecretStore();
+    final started = Completer<void>();
+    final release = Completer<void>();
+    final service = OAuthService(
+      config: _config,
+      httpClient: MockClient((request) async {
+        started.complete();
+        await release.future;
+        return http.Response(
+          jsonEncode({
+            'access_token': 'new-access',
+            'refresh_token': 'new-refresh',
+            'expires_in': 3600,
+            'scope': googleBusyMaxOAuthScopes.join(' '),
+            'token_type': 'Bearer',
+          }),
+          200,
+        );
+      }),
+      tokenStore: tokenStore,
+      loopbackFlow: OAuthLoopbackFlow(),
+      nowUtc: () => DateTime.utc(2026, 6, 4),
+    );
+    await tokenStore.saveOAuthTokenSet(
+      'google-a',
+      BusyProvider.google,
+      const OAuthTokenSetFixture().tokenSet,
+    );
+
+    final refresh = service.refreshTokenForAccount('google-a');
+    await started.future;
+    await service.clearLocalSession(accountId: 'google-a');
+    release.complete();
+
+    await expectLater(refresh, throwsA(isA<OAuthException>()));
+    expect(await tokenStore.readCredential('google-a'), isNull);
   });
 
   test('refresh endpoint 400 JSON body is surfaced without secrets', () async {

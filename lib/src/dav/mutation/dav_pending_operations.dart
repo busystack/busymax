@@ -374,29 +374,41 @@ final class DavPendingOperationQueue {
       updatedRaw,
       silent: object.suppressScheduling,
     );
-    await (_database.update(
-      _database.pendingOps,
-    )..where((row) => row.id.equals(operation.id))).write(
-      PendingOpsCompanion(
-        requestJson: Value(
-          jsonEncode({
-            'schemaVersion': davPendingOperationSchemaVersion,
-            'uid': object.uid,
-            'initialMemberName': object.initialMemberName,
-            'rawIcs': updatedRaw,
-            'componentType': object.componentType.toUpperCase(),
-            if (object.suppressScheduling) 'suppressScheduling': true,
-          }),
-        ),
-        state: Value(DavPendingState.pending.storageValue),
-        retryClassification: const Value('conditional_create'),
-        nextAttemptAtUtc: const Value(null),
-        lastErrorCode: const Value(null),
-        lastErrorMessage: const Value(null),
-        lastError: const Value(null),
-        updatedAtUtc: Value(nowUtc.toIso8601String()),
-      ),
-    );
+    final updated =
+        await (_database.update(_database.pendingOps)..where(
+              (row) =>
+                  row.id.equals(operation.id) &
+                  row.state.equals(operation.state) &
+                  row.attemptCount.equals(operation.attemptCount) &
+                  row.requestJson.equals(operation.requestJson) &
+                  row.updatedAtUtc.equals(operation.updatedAtUtc),
+            ))
+            .write(
+              PendingOpsCompanion(
+                requestJson: Value(
+                  jsonEncode({
+                    'schemaVersion': davPendingOperationSchemaVersion,
+                    'uid': object.uid,
+                    'initialMemberName': object.initialMemberName,
+                    'rawIcs': updatedRaw,
+                    'componentType': object.componentType.toUpperCase(),
+                    if (object.suppressScheduling) 'suppressScheduling': true,
+                  }),
+                ),
+                state: Value(DavPendingState.pending.storageValue),
+                retryClassification: const Value('conditional_create'),
+                nextAttemptAtUtc: const Value(null),
+                lastErrorCode: const Value(null),
+                lastErrorMessage: const Value(null),
+                lastError: const Value(null),
+                updatedAtUtc: Value(nowUtc.toIso8601String()),
+              ),
+            );
+    if (updated != 1) {
+      throw StateError(
+        'The DAV creation changed before the edit could be saved.',
+      );
+    }
   }
 
   /// Cancels a create only while it is provably unsent.
@@ -412,7 +424,17 @@ final class DavPendingOperationQueue {
       localProjectionId: localProjectionId,
     );
     if (operation == null) return false;
-    await _database.pendingOpsDao.deleteOp(operation.id);
+    final deleted =
+        await (_database.delete(_database.pendingOps)..where(
+              (row) =>
+                  row.id.equals(operation.id) &
+                  row.state.equals(operation.state) &
+                  row.attemptCount.equals(operation.attemptCount) &
+                  row.requestJson.equals(operation.requestJson) &
+                  row.updatedAtUtc.equals(operation.updatedAtUtc),
+            ))
+            .go();
+    if (deleted != 1) return false;
     return true;
   }
 
@@ -1179,11 +1201,14 @@ final class DavPendingOperationsReplayer {
     final changedCollections = <String>{};
 
     for (final listed in operations) {
-      final op = await _database.pendingOpsDao.getOp(listed.id);
-      if (op == null || !isDavPendingOperation(op)) continue;
-      if (op.dependsOnOpId != null && await _opExists(op.dependsOnOpId!)) {
+      final candidate = await _database.pendingOpsDao.getOp(listed.id);
+      if (candidate == null || !isDavPendingOperation(candidate)) continue;
+      if (candidate.dependsOnOpId != null &&
+          await _opExists(candidate.dependsOnOpId!)) {
         continue;
       }
+      final op = await _claimCurrentOperation(candidate);
+      if (op == null) continue;
       if (_copyConfirmationMissing(op)) {
         final error = const DavException(
           kind: DavErrorKind.protocol,
@@ -1196,7 +1221,6 @@ final class DavPendingOperationsReplayer {
         continue;
       }
       try {
-        await _markInProgress(op);
         final result = await _replay(op);
         if (result.outcome == DavMutationOutcome.conflict) {
           await _recordConflict(op, result);
@@ -1759,19 +1783,43 @@ final class DavPendingOperationsReplayer {
     await _setAccountState(AccountConnectionState.temporarilyUnavailable);
   }
 
-  Future<void> _markInProgress(PendingOp op) {
-    return (_database.update(
-      _database.pendingOps,
-    )..where((row) => row.id.equals(op.id))).write(
-      PendingOpsCompanion(
-        state: Value(DavPendingState.inProgress.storageValue),
-        nextAttemptAtUtc: const Value(null),
-        requestJson: op.operationType == 'dav.move'
-            ? Value(_markMoveMayHaveCompleted(op.requestJson))
-            : const Value.absent(),
-        updatedAtUtc: Value(_nowUtc().toUtc().toIso8601String()),
-      ),
-    );
+  Future<PendingOp?> _claimCurrentOperation(PendingOp snapshot) {
+    return _database.transaction(() async {
+      final timestamp = _nowUtc().toUtc().toIso8601String();
+      final requestJson = snapshot.operationType == 'dav.move'
+          ? _markMoveMayHaveCompleted(snapshot.requestJson)
+          : snapshot.requestJson;
+      final updated =
+          await (_database.update(_database.pendingOps)..where(
+                (row) =>
+                    row.id.equals(snapshot.id) &
+                    row.state.equals(snapshot.state) &
+                    row.attemptCount.equals(snapshot.attemptCount) &
+                    row.requestJson.equals(snapshot.requestJson) &
+                    row.updatedAtUtc.equals(snapshot.updatedAtUtc),
+              ))
+              .write(
+                PendingOpsCompanion(
+                  state: Value(DavPendingState.inProgress.storageValue),
+                  nextAttemptAtUtc: const Value(null),
+                  requestJson: Value(requestJson),
+                  updatedAtUtc: Value(timestamp),
+                ),
+              );
+      if (updated != 1) return null;
+      final claimed = await _database.pendingOpsDao.getOp(snapshot.id);
+      // Replay decisions distinguish a fresh pending request from a request
+      // recovered after an interrupted dispatch. The database row is claimed
+      // in_progress, while this immutable payload retains the pre-claim state
+      // for that decision.
+      return claimed?.copyWith(
+        state: snapshot.state,
+        // The marker is durable crash-recovery bookkeeping, not part of the
+        // first dispatch decision. The CAS above proves this is still the
+        // payload that was claimed.
+        requestJson: snapshot.requestJson,
+      );
+    });
   }
 
   Future<void> _setAccountState(AccountConnectionState state) {

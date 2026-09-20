@@ -428,7 +428,12 @@ class PendingOpsReplayer {
       return false;
     }
 
-    final acknowledgedFields = _request(completedOp).keys;
+    final completedRequest = _request(completedOp);
+    final acknowledgedFields =
+        completedOp.operation == 'create_task' &&
+            completedRequest['body'] is Map
+        ? (completedRequest['body'] as Map).keys.map((key) => key.toString())
+        : completedRequest.keys;
     for (final dependent in dependents) {
       final baseline = _normalizeTaskConflictSnapshot(
         _jsonObject(dependent.baselineRawJson ?? '{}'),
@@ -614,7 +619,13 @@ class PendingOpsReplayer {
         ? -1
         : items.indexWhere((candidate) => candidate.id == oldItemId);
     if (index < 0) {
-      items.add(item);
+      final pendingDelete = oldItemId == null
+          ? false
+          : await _hasPendingChecklistDelete(
+              parentTaskId: parentTaskId,
+              checklistItemId: oldItemId,
+            );
+      if (!pendingDelete) items.add(item);
     } else {
       items[index] = item;
     }
@@ -705,10 +716,28 @@ class PendingOpsReplayer {
                     row.id.equals(tempTaskId),
               ))
               .getSingleOrNull();
+      final createOperation = await _database.pendingOpsDao.getOp(
+        completedCreateOpId,
+      );
+      if (createOperation == null) {
+        throw StateError('The task creation operation is unavailable.');
+      }
+      final hasDependent = await _rebaseDependentTaskMutations(
+        createOperation,
+        serverTask,
+      );
       await _database.tasksDao.upsertTask(
         taskFromDto(_accountId, taskListId, serverTask, _now()),
       );
-      if (localTask?.microsoftChecklistItemsJson != null) {
+      if (localTask != null && hasDependent) {
+        await (_database.update(_database.tasks)..where(
+              (row) =>
+                  row.accountId.equals(_accountId) &
+                  row.taskListId.equals(taskListId) &
+                  row.id.equals(serverTask.id),
+            ))
+            .write(_pendingLocalTaskProjection(localTask));
+      } else if (localTask?.microsoftChecklistItemsJson != null) {
         await (_database.update(_database.tasks)..where(
               (row) =>
                   row.accountId.equals(_accountId) &
@@ -748,6 +777,42 @@ class PendingOpsReplayer {
         tempTaskId,
       );
     });
+  }
+
+  TasksCompanion _pendingLocalTaskProjection(Task local) {
+    return TasksCompanion(
+      title: Value(local.title),
+      parent: Value(local.parent),
+      position: Value(local.position),
+      notes: Value(local.notes),
+      status: Value(local.status),
+      dueUtc: Value(local.dueUtc),
+      completedUtc: Value(local.completedUtc),
+      providerStatus: Value(local.providerStatus),
+      bodyContent: Value(local.bodyContent),
+      bodyContentType: Value(local.bodyContentType),
+      microsoftDueDateTime: Value(local.microsoftDueDateTime),
+      microsoftDueTimeZone: Value(local.microsoftDueTimeZone),
+      microsoftStartDateTime: Value(local.microsoftStartDateTime),
+      microsoftStartTimeZone: Value(local.microsoftStartTimeZone),
+      microsoftReminderDateTime: Value(local.microsoftReminderDateTime),
+      microsoftReminderTimeZone: Value(local.microsoftReminderTimeZone),
+      microsoftIsReminderOn: Value(local.microsoftIsReminderOn),
+      microsoftCompletedDateTime: Value(local.microsoftCompletedDateTime),
+      microsoftCompletedTimeZone: Value(local.microsoftCompletedTimeZone),
+      microsoftChecklistItemsJson: Value(local.microsoftChecklistItemsJson),
+      recurrenceJson: Value(local.recurrenceJson),
+      importance: Value(local.importance),
+      categoriesJson: Value(local.categoriesJson),
+      deleted: Value(local.deleted),
+      hidden: Value(local.hidden),
+      localDirty: const Value(true),
+      pendingDelete: Value(local.pendingDelete),
+      pendingMove: Value(local.pendingMove),
+      localCreated: const Value(false),
+      createdLocalAtUtc: Value(local.createdLocalAtUtc),
+      updatedLocalAtUtc: Value(local.updatedLocalAtUtc),
+    );
   }
 
   Future<void> _replacePendingReference(
@@ -855,6 +920,25 @@ class PendingOpsReplayer {
       lastErrorCode: errorCode,
       lastErrorMessage: errorMessage,
       state: _isCreationOp(op) ? 'retry' : null,
+    );
+  }
+
+  Future<bool> _hasPendingChecklistDelete({
+    required String parentTaskId,
+    required String checklistItemId,
+  }) async {
+    final operations =
+        await (_database.select(_database.pendingOps)..where(
+              (row) =>
+                  row.accountId.equals(_accountId) &
+                  row.entityType.equals('task_checklist_item') &
+                  row.taskId.equals(parentTaskId) &
+                  row.operation.equals('delete_task_checklist_item'),
+            ))
+            .get();
+    return operations.any(
+      (operation) =>
+          _request(operation)['checklistItemId']?.toString() == checklistItemId,
     );
   }
 

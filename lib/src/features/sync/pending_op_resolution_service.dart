@@ -48,8 +48,7 @@ class PendingOpResolutionService {
     final op = await _database.pendingOpsDao.getOp(opId);
     if (op == null) return;
     _requireOwnedOperation(op);
-    if (op.state == 'recovery_required' &&
-        _isTaskCreationOperation(op.operation)) {
+    if (op.state == 'recovery_required' && _isCreationOperation(op)) {
       throw StateError(
         'This creation cannot be retried safely because the provider may '
         'already have created the item. Check the provider, then discard this '
@@ -67,10 +66,12 @@ class PendingOpResolutionService {
     await _syncAfterResolution(op);
   }
 
-  bool _isTaskCreationOperation(String operation) {
-    return operation == 'create_task_list' ||
-        operation == 'create_task' ||
-        operation == 'create_task_checklist_item';
+  bool _isCreationOperation(PendingOp op) {
+    return op.operation == 'create_task_list' ||
+        op.operation == 'create_task' ||
+        op.operation == 'create_task_checklist_item' ||
+        op.operationType == 'calendar.create' ||
+        (op.entityType == 'calendar' && op.operation == 'create');
   }
 
   Future<void> discard(String opId) async {
@@ -133,9 +134,81 @@ class PendingOpResolutionService {
     if (current.operation == 'create_task_checklist_item') {
       return _discardUncertainChecklistCreation(current);
     }
+    final discardedIds = current.operation == 'move_task'
+        ? await _dependentTaskOperationIds(current.id)
+        : {current.id};
+    if (current.operation == 'move_task') {
+      return _discardMoveAndDependents(current, discardedIds);
+    }
     final syncAfterDiscard = await _refreshOrRemoveLocalState(current);
-    await _database.pendingOpsDao.deleteOp(current.id);
+    await (_database.delete(
+      _database.pendingOps,
+    )..where((row) => row.id.isIn(discardedIds))).go();
     return syncAfterDiscard;
+  }
+
+  Future<Set<String>> _dependentTaskOperationIds(String rootId) async {
+    final operations = await (_database.select(
+      _database.pendingOps,
+    )..where((row) => row.accountId.equals(_accountId))).get();
+    final discarded = <String>{rootId};
+    var changed = true;
+    while (changed) {
+      changed = false;
+      for (final operation in operations) {
+        if (discarded.contains(operation.id) ||
+            !discarded.contains(operation.dependsOnOpId)) {
+          continue;
+        }
+        discarded.add(operation.id);
+        changed = true;
+      }
+    }
+    return discarded;
+  }
+
+  Future<bool> _discardMoveAndDependents(
+    PendingOp operation,
+    Set<String> discardedIds,
+  ) async {
+    final sourceTaskListId = operation.taskListId!;
+    final taskId = operation.taskId!;
+    final destinationTaskListId = _destinationTaskListId(operation);
+    TaskDto? serverTask;
+    try {
+      serverTask = await _requiredTaskClient.getTask(
+        taskListId: sourceTaskListId,
+        taskId: taskId,
+      );
+    } on TaskRemoteError catch (error) {
+      if (error.statusCode != 404) rethrow;
+    }
+
+    await _database.transaction(() async {
+      if (serverTask == null) {
+        await _database.tasksDao.deleteTask(
+          _accountId,
+          sourceTaskListId,
+          taskId,
+        );
+      } else {
+        await _database.tasksDao.upsertTask(
+          taskFromDto(_accountId, sourceTaskListId, serverTask, _now()),
+        );
+      }
+      if (destinationTaskListId != null &&
+          destinationTaskListId != sourceTaskListId) {
+        await _database.tasksDao.deleteTask(
+          _accountId,
+          destinationTaskListId,
+          taskId,
+        );
+      }
+      await (_database.delete(
+        _database.pendingOps,
+      )..where((row) => row.id.isIn(discardedIds))).go();
+    });
+    return true;
   }
 
   Future<bool> _discardUncertainChecklistCreation(PendingOp snapshot) async {

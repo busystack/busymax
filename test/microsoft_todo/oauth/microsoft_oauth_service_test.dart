@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
@@ -8,6 +9,7 @@ import 'package:busymax/src/google_tasks/oauth/oauth_loopback_flow.dart';
 import 'package:busymax/src/core/auth/oauth_models.dart';
 import 'package:busymax/src/core/secrets/secret_store.dart';
 import 'package:busymax/src/microsoft_todo/oauth/microsoft_oauth_service.dart';
+import 'package:busymax/src/providers/busy_provider.dart';
 
 void main() {
   test('authorization URL uses Microsoft public desktop OAuth parameters', () {
@@ -124,6 +126,43 @@ void main() {
     );
   });
 
+  test('refresh completion cannot restore a removed credential', () async {
+    final store = InMemorySecretStore();
+    final started = Completer<void>();
+    final release = Completer<void>();
+    final service = MicrosoftOAuthService(
+      config: _config,
+      httpClient: MockClient((request) async {
+        started.complete();
+        await release.future;
+        return _tokenResponse();
+      }),
+      tokenStore: store,
+      loopbackFlow: OAuthLoopbackFlow(authorizationLauncher: (_) async => true),
+      nowUtc: () => DateTime.utc(2026, 6, 6),
+    );
+    final original = OAuthTokenSet(
+      accessToken: 'old-access',
+      refreshToken: 'old-refresh',
+      expiresAtUtc: DateTime.utc(2026, 6, 6),
+      tokenType: 'Bearer',
+      scopes: const {'User.Read'},
+    );
+    await store.saveOAuthTokenSet(
+      'microsoft:user-1',
+      BusyProvider.microsoft,
+      original,
+    );
+
+    final refresh = service.refreshTokenForAccount('microsoft:user-1');
+    await started.future;
+    await service.signOutAccount('microsoft:user-1');
+    release.complete();
+
+    await expectLater(refresh, throwsA(isA<OAuthException>()));
+    expect(await store.readCredential('microsoft:user-1'), isNull);
+  });
+
   test(
     'token endpoint 400 surfaces sanitized Microsoft OAuth exception',
     () async {
@@ -170,22 +209,23 @@ MicrosoftOAuthService _service(
   Future<http.Response> Function(http.Request request) handler,
 ) {
   return MicrosoftOAuthService(
-    config: const BuildConfig(
-      googleOAuthClientId: '',
-      googleOAuthClientSecret: '',
-      microsoftOAuthClientId: 'microsoft-client-id',
-      apiBaseUrl: 'https://tasks.googleapis.com',
-      oauthAuthorizationEndpoint:
-          'https://accounts.google.com/o/oauth2/v2/auth',
-      oauthTokenEndpoint: 'https://oauth2.googleapis.com/token',
-      oauthRevocationEndpoint: 'https://oauth2.googleapis.com/revoke',
-    ),
+    config: _config,
     httpClient: MockClient(handler),
     tokenStore: InMemorySecretStore(),
     loopbackFlow: OAuthLoopbackFlow(authorizationLauncher: (_) async => true),
     nowUtc: () => DateTime.utc(2026, 6, 6),
   );
 }
+
+const _config = BuildConfig(
+  googleOAuthClientId: '',
+  googleOAuthClientSecret: '',
+  microsoftOAuthClientId: 'microsoft-client-id',
+  apiBaseUrl: 'https://tasks.googleapis.com',
+  oauthAuthorizationEndpoint: 'https://accounts.google.com/o/oauth2/v2/auth',
+  oauthTokenEndpoint: 'https://oauth2.googleapis.com/token',
+  oauthRevocationEndpoint: 'https://oauth2.googleapis.com/revoke',
+);
 
 http.Response _tokenResponse() {
   return http.Response(
