@@ -417,13 +417,16 @@ class PendingOpsReplayer {
     PendingOp completedOp,
     TaskDto serverTask,
   ) async {
-    final dependents =
+    final dependencyRows =
         await (_database.select(_database.pendingOps)..where(
               (row) =>
                   row.accountId.equals(_accountId) &
                   row.dependsOnOpId.equals(completedOp.id),
             ))
             .get();
+    final dependents = dependencyRows
+        .where((dependent) => _mutatesSameTask(completedOp, dependent))
+        .toList(growable: false);
     if (dependents.isEmpty) {
       return false;
     }
@@ -461,6 +464,19 @@ class PendingOpsReplayer {
       );
     }
     return true;
+  }
+
+  bool _mutatesSameTask(PendingOp completed, PendingOp dependent) {
+    final identities = {
+      if (completed.taskId != null) completed.taskId!,
+      if (completed.localTempId != null) completed.localTempId!,
+    };
+    if (dependent.entityType == 'task_checklist_item') {
+      return identities.contains(dependent.taskId);
+    }
+    return dependent.entityType == 'task' &&
+        (identities.contains(dependent.taskId) ||
+            identities.contains(dependent.localTempId));
   }
 
   Future<void> _deleteTask(PendingOp op) async {

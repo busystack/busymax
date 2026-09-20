@@ -272,10 +272,23 @@ class CalendarPendingOpsReplayer {
       await _blockOp(op, 'unsupported_calendar_operation', _operationType(op));
       throw const _PendingOpBlocked();
     }
-    final source = await _client.createCalendar(
-      _calendarMutation(_request(op)),
+    final request = _request(op);
+    final source = await _client.createCalendar(_calendarMutation(request));
+    final followUp = _client.provider == BusyProvider.google
+        ? <String, Object?>{
+            if (request['backgroundColor'] != null)
+              'backgroundColor': request['backgroundColor'],
+            if (request['foregroundColor'] != null)
+              'foregroundColor': request['foregroundColor'],
+            if (request['colorId'] != null) 'colorId': request['colorId'],
+            calendarMutationScopeKey: calendarMutationScopePersonal,
+          }
+        : const <String, Object?>{};
+    await _replaceLocalCalendar(
+      op,
+      source,
+      followUpRequest: followUp.length > 1 ? followUp : null,
     );
-    await _replaceLocalCalendar(op, source);
   }
 
   Future<void> _deleteCalendar(PendingOp op) async {
@@ -548,6 +561,14 @@ class CalendarPendingOpsReplayer {
       serverEvent.rawJson,
     );
     for (final dependent in dependents) {
+      final dependentResourceId = await _pendingEventResourceId(dependent);
+      if (dependent.providerCalendarId != serverEvent.providerCalendarId ||
+          dependentResourceId != serverEvent.providerEventId) {
+        // This is only an execution dependency. An occurrence response must
+        // never become the acknowledged baseline for its recurring master (or
+        // vice versa).
+        continue;
+      }
       final wholeEventBoundary = _operationType(dependent) == 'event.delete';
       final baseline = _eventBaselineSnapshot(
         _client.provider,
@@ -575,6 +596,19 @@ class CalendarPendingOpsReplayer {
       );
     }
     return true;
+  }
+
+  Future<String?> _pendingEventResourceId(PendingOp operation) async {
+    final target = _request(
+      operation,
+    )[calendarEventTargetProviderIdKey]?.toString().trim();
+    if (target != null && target.isNotEmpty) return target;
+    final eventId = operation.eventId;
+    if (eventId == null) return operation.localTempId;
+    final local = await (_database.select(
+      _database.calendarEvents,
+    )..where((row) => row.id.equals(eventId))).getSingleOrNull();
+    return local?.providerEventId ?? operation.localTempId;
   }
 
   Future<void> _deleteEvent(PendingOp op) async {
@@ -1061,11 +1095,36 @@ class CalendarPendingOpsReplayer {
     );
 
     await _database.transaction(() async {
-      await _repository.upsertEvent(accountId: _accountId, event: serverEvent);
+      final dependents =
+          await (_database.select(_database.pendingOps)..where(
+                (row) =>
+                    row.accountId.equals(_accountId) &
+                    row.dependsOnOpId.equals(op.id) &
+                    row.entityType.equals('event') &
+                    (tempEventId == null
+                        ? const Constant(false)
+                        : row.eventId.equals(tempEventId)),
+              ))
+              .get();
+      for (final dependent in dependents) {
+        await (_database.update(
+          _database.pendingOps,
+        )..where((row) => row.id.equals(dependent.id))).write(
+          PendingOpsCompanion(
+            baselineUpdatedUtc: Value(serverEvent.updatedAtServer),
+            baselineRawJson: Value(jsonEncode(serverEvent.rawJson)),
+            updatedAtUtc: Value(_nowUtc().toIso8601String()),
+          ),
+        );
+      }
       if (tempEventId != null) {
         final old = await (_database.select(
           _database.calendarEvents,
         )..where((r) => r.id.equals(tempEventId))).getSingleOrNull();
+        await _repository.upsertEvent(
+          accountId: _accountId,
+          event: serverEvent,
+        );
         final replacement = await (_database.select(
           _database.calendarEvents,
         )..where((r) => r.id.equals(serverEventId))).getSingle();
@@ -1101,7 +1160,17 @@ class CalendarPendingOpsReplayer {
               old.providerRecurringEventId == null) {
             await resolutions.reconcileGoogleSeriesMaster(replacement);
           }
+          if (dependents.isNotEmpty) {
+            await (_database.update(_database.calendarEvents)
+                  ..where((row) => row.id.equals(serverEventId)))
+                .write(_pendingLocalEventProjection(old));
+          }
         }
+      } else {
+        await _repository.upsertEvent(
+          accountId: _accountId,
+          event: serverEvent,
+        );
       }
       await _removeMovedSeriesSourceRows(op);
       await _confirmDependentCopyDeletes(op, serverEventId);
@@ -1126,10 +1195,46 @@ class CalendarPendingOpsReplayer {
     });
   }
 
+  CalendarEventsCompanion _pendingLocalEventProjection(CalendarEvent local) {
+    return CalendarEventsCompanion(
+      title: Value(local.title),
+      description: Value(local.description),
+      location: Value(local.location),
+      locationLatitude: Value(local.locationLatitude),
+      locationLongitude: Value(local.locationLongitude),
+      allDay: Value(local.allDay),
+      startDate: Value(local.startDate),
+      startDateTime: Value(local.startDateTime),
+      startTimeZone: Value(local.startTimeZone),
+      endDate: Value(local.endDate),
+      endDateTime: Value(local.endDateTime),
+      endTimeZone: Value(local.endTimeZone),
+      recurrenceJson: Value(local.recurrenceJson),
+      remindersJson: Value(local.remindersJson),
+      attendeesJson: Value(local.attendeesJson),
+      categoriesJson: Value(local.categoriesJson),
+      organizerJson: Value(local.organizerJson),
+      creatorJson: Value(local.creatorJson),
+      colorId: Value(local.colorId),
+      colorHex: Value(local.colorHex),
+      visibility: Value(local.visibility),
+      transparencyOrShowAs: Value(local.transparencyOrShowAs),
+      conferenceJson: Value(local.conferenceJson),
+      attachmentsJson: Value(local.attachmentsJson),
+      isCancelled: Value(local.isCancelled),
+      isDeleted: Value(local.isDeleted),
+      rawJson: Value(local.rawJson),
+      createdAtLocal: Value(local.createdAtLocal),
+      updatedAtLocal: Value(local.updatedAtLocal),
+      syncStatus: const Value('pending'),
+    );
+  }
+
   Future<void> _replaceLocalCalendar(
     PendingOp op,
-    CalendarSourceDto serverSource,
-  ) async {
+    CalendarSourceDto serverSource, {
+    Map<String, Object?>? followUpRequest,
+  }) async {
     final temporarySourceId = op.calendarSourceId;
     final temporaryProviderCalendarId = op.localTempId ?? op.providerCalendarId;
     final localSource = temporarySourceId == null
@@ -1215,6 +1320,17 @@ class CalendarPendingOpsReplayer {
         oldProviderCalendarId: temporaryProviderCalendarId,
         newProviderCalendarId: serverSource.providerCalendarId,
       );
+      if (followUpRequest != null) {
+        await _queueCalendarCreationFollowUp(
+          completedCreate: op,
+          serverSourceId: serverSourceId,
+          serverSource: serverSource,
+          request: followUpRequest,
+        );
+      }
+      // Identity persistence and creation acknowledgement are one commit. A
+      // crash after this point cannot replay the creation POST.
+      await _database.pendingOpsDao.deleteOp(op.id);
       if (temporarySourceId != null && temporarySourceId != serverSourceId) {
         await (_database.delete(
           _database.calendarSources,
@@ -1228,6 +1344,55 @@ class CalendarPendingOpsReplayer {
         serverSourceId,
       );
     }
+  }
+
+  Future<void> _queueCalendarCreationFollowUp({
+    required PendingOp completedCreate,
+    required String serverSourceId,
+    required CalendarSourceDto serverSource,
+    required Map<String, Object?> request,
+  }) async {
+    final existing =
+        await (_database.select(_database.pendingOps)..where(
+              (row) =>
+                  row.accountId.equals(_accountId) &
+                  row.calendarSourceId.equals(serverSourceId) &
+                  row.operationType.equals('calendar.patch'),
+            ))
+            .get();
+    for (final operation in existing) {
+      final current = _request(operation);
+      if (current[calendarMutationScopeKey] != calendarMutationScopePersonal) {
+        continue;
+      }
+      await (_database.update(
+        _database.pendingOps,
+      )..where((row) => row.id.equals(operation.id))).write(
+        PendingOpsCompanion(
+          requestJson: Value(jsonEncode({...current, ...request})),
+          dependsOnOpId: const Value(null),
+          updatedAtUtc: Value(_nowUtc().toIso8601String()),
+        ),
+      );
+      return;
+    }
+    final now = _nowUtc().toIso8601String();
+    await _database.pendingOpsDao.enqueue(
+      PendingOpsCompanion.insert(
+        id: '${completedCreate.id}:calendar-list-follow-up',
+        accountId: _accountId,
+        provider: Value(serverSource.provider.storageValue),
+        entityType: 'calendar',
+        operation: 'patch',
+        operationType: const Value('calendar.patch'),
+        calendarSourceId: Value(serverSourceId),
+        providerCalendarId: Value(serverSource.providerCalendarId),
+        requestJson: jsonEncode(request),
+        baselineRawJson: Value(jsonEncode(serverSource.rawJson)),
+        createdAtUtc: now,
+        updatedAtUtc: now,
+      ),
+    );
   }
 
   Future<void> _rewriteCalendarPendingReferences({

@@ -11,6 +11,7 @@ import 'package:busymax/src/calendar_providers/calendar_mutation.dart';
 import 'package:busymax/src/calendar_providers/calendar_provider_capabilities.dart';
 import 'package:busymax/src/calendar_providers/calendar_sync_dto.dart';
 import 'package:busymax/src/core/time/provider_date_time.dart';
+import 'package:busymax/src/core/http/request_dispatch_exception.dart';
 import 'package:busymax/src/calendar_providers/cloud_calendar_client.dart';
 import 'package:busymax/src/db/app_database.dart';
 import 'package:busymax/src/features/calendar/data/calendar_repository.dart';
@@ -357,6 +358,63 @@ void main() {
     expect(client.updatedMutations.single.title, 'Revised');
   });
 
+  test(
+    'creation acknowledgement preserves a newer event edit and rebases it',
+    () async {
+      final repository = CalendarRepository(
+        database: database,
+        now: () => DateTime.utc(2026, 6, 8),
+      );
+      final createId = await repository.createLocalEvent(
+        EventEditorDraft.newEvent(
+          accountId: 'account',
+          sourceId: 'account|google|cal-1',
+          providerCalendarId: 'cal-1',
+          start: DateTime.utc(2026, 6, 8, 9),
+          end: DateTime.utc(2026, 6, 8, 10),
+        ).copyWith(title: 'Draft'),
+      );
+      final temporary = await database
+          .select(database.calendarEvents)
+          .getSingle();
+      final detail = (await repository.loadEventDetail(temporary.id))!;
+      await repository.updateLocalEvent(
+        EventEditorDraft.fromEventDetail(detail).copyWith(title: 'Revised'),
+      );
+      client.createEventOverride = (calendarId, mutation) => client._event(
+        mutation.providerEventId!,
+        title: mutation.title!,
+        providerCalendarId: calendarId,
+        etagOrChangeKey: '"created"',
+      );
+      client.transientUpdateFailures = 1;
+
+      expect(
+        await CalendarPendingOpsReplayer(
+          database: database,
+          client: client,
+          accountId: 'account',
+          random: Random(0),
+          nowUtc: () => DateTime.utc(2026, 6, 8),
+        ).replayDueOps(),
+        1,
+      );
+
+      final local = await database.select(database.calendarEvents).getSingle();
+      expect(local.providerEventId, googleCalendarCreateEventId(createId));
+      expect(local.title, 'Revised');
+      expect(local.syncStatus, 'pending');
+      final pending = await database.select(database.pendingOps).getSingle();
+      expect(pending.operationType, 'event.patch');
+      expect(pending.baselineUpdatedUtc, '2026-06-08T00:00:00.000Z');
+      expect(
+        jsonDecode(pending.baselineRawJson!)['id'],
+        googleCalendarCreateEventId(createId),
+      );
+      expect(client.ifMatches, ['"created"']);
+    },
+  );
+
   test('Microsoft create retry reuses its transaction ID', () async {
     final repository = CalendarRepository(database: database);
     await repository.upsertSource(
@@ -682,6 +740,7 @@ void main() {
     expect(client.calls, [
       'getEvent:cal-1:provider-event',
       'moveEvent:cal-1:provider-event:cal-2',
+      'getEvent:cal-2:provider-event',
       'updateEvent:cal-2:provider-event:Moved',
     ]);
     expect(
@@ -1049,6 +1108,81 @@ void main() {
       )..where((row) => row.accountId.equals('microsoft-account'))).getSingle();
       expect(copy.title, 'Copied meeting');
       expect(copy.conferenceJson, equals(null));
+    },
+  );
+
+  test(
+    'cross-account copy persists civil wall times without a fake offset',
+    () async {
+      await _insertMicrosoftAccountAndSource(database);
+      final repository = CalendarRepository(database: database);
+      const original = CalendarEventDto(
+        provider: BusyProvider.google,
+        providerCalendarId: 'cal-1',
+        providerEventId: 'tokyo-event',
+        title: 'Tokyo meeting',
+        organizerJson: {'self': true},
+        startDateTime: '2026-03-08T02:30:00.000',
+        startTimeZone: 'Asia/Tokyo',
+        endDateTime: '2026-03-08T03:30:00.000',
+        endTimeZone: 'Asia/Tokyo',
+        updatedAtServer: '2026-03-01T00:00:00.000Z',
+        rawJson: {
+          'id': 'tokyo-event',
+          'summary': 'Tokyo meeting',
+          'start': {
+            'dateTime': '2026-03-08T02:30:00.000',
+            'timeZone': 'Asia/Tokyo',
+          },
+          'end': {
+            'dateTime': '2026-03-08T03:30:00.000',
+            'timeZone': 'Asia/Tokyo',
+          },
+        },
+      );
+      await repository.upsertEvent(accountId: 'account', event: original);
+      final originalId = CalendarRepository.eventId(
+        accountId: 'account',
+        provider: BusyProvider.google,
+        providerCalendarId: 'cal-1',
+        providerEventId: 'tokyo-event',
+      );
+      final detail = (await repository.loadEventDetail(originalId))!;
+
+      await repository.updateLocalEvent(
+        EventEditorDraft.fromEventDetail(detail).copyWith(
+          accountId: 'microsoft-account',
+          sourceId: 'microsoft-account|microsoft|ms-cal-1',
+          providerCalendarId: 'ms-cal-1',
+        ),
+      );
+
+      final copied =
+          await (database.select(database.calendarEvents)..where(
+                (row) =>
+                    row.accountId.equals('microsoft-account') &
+                    row.providerEventId.like('local:%'),
+              ))
+              .getSingle();
+      expect(copied.startDateTime, '2026-03-08T02:30:00.000');
+      expect(copied.endDateTime, '2026-03-08T03:30:00.000');
+      expect(
+        providerDateTimeAsUtcInstant(
+          copied.startDateTime,
+          copied.startTimeZone,
+        ),
+        providerDateTimeAsUtcInstant(
+          original.startDateTime,
+          original.startTimeZone,
+        ),
+      );
+      expect(
+        providerDateTimeAsUtcInstant(copied.endDateTime, copied.endTimeZone),
+        providerDateTimeAsUtcInstant(
+          original.endDateTime,
+          original.endTimeZone,
+        ),
+      );
     },
   );
 
@@ -3608,6 +3742,63 @@ END:VEVENT
     expect(client.calls, ['getEvent:cal-1:series-master']);
   });
 
+  test(
+    'occurrence acknowledgement cannot replace a series deletion baseline',
+    () async {
+      final repository = CalendarRepository(database: database);
+      final occurrenceId = await _insertGoogleOccurrence(repository, day: 8);
+      final detail = (await repository.loadEventDetail(occurrenceId))!;
+      await repository.updateLocalEvent(
+        EventEditorDraft.fromEventDetail(detail).copyWith(
+          location: 'Local room',
+          recurringMutationScope: RecurringEventMutationScope.singleOccurrence,
+        ),
+      );
+      await repository.deleteLocalEvent(
+        occurrenceId,
+        recurringScope: RecurringEventMutationScope.entireSeries,
+      );
+      final queued = await database.select(database.pendingOps).get();
+      final patch = queued.singleWhere(
+        (operation) => operation.operationType == 'event.patch',
+      );
+      final delete = queued.singleWhere(
+        (operation) => operation.operationType == 'event.delete',
+      );
+      expect(delete.dependsOnOpId, patch.id);
+      expect(jsonDecode(delete.baselineRawJson!)['id'], 'series-master');
+
+      client
+        ..persistEventUpdates = true
+        ..remoteEventsById['occurrence-08'] = client._event(
+          'occurrence-08',
+          title: 'Base',
+          updatedAtServer: '2026-05-30T00:00:00.000Z',
+        )
+        ..remoteEventsById['series-master'] = _googleSeriesMaster(
+          title: 'Remote title',
+          updatedAtServer: '2026-06-01T00:00:00.000Z',
+        );
+
+      expect(
+        await CalendarPendingOpsReplayer(
+          database: database,
+          client: client,
+          accountId: 'account',
+          nowUtc: () => DateTime.utc(2026, 6, 8),
+        ).replayDueOps(),
+        1,
+      );
+      final remaining = await database.select(database.pendingOps).getSingle();
+      expect(remaining.operationType, 'event.delete');
+      expect(remaining.lastErrorCode, 'conflict');
+      expect(remaining.baselineUpdatedUtc, '2026-05-30T00:00:00.000Z');
+      expect(jsonDecode(remaining.baselineRawJson!)['id'], 'series-master');
+      expect(client.calls, contains('getEvent:cal-1:series-master'));
+      expect(client.calls, isNot(contains('deleteEvent:cal-1:series-master')));
+    },
+  );
+
   test('provider missing delete is treated as success', () async {
     client.deleteError = const GoogleCalendarApiError(
       statusCode: 404,
@@ -3885,6 +4076,160 @@ END:VEVENT
     expect(operation.lastErrorCode, 'calendar_creation_outcome_unknown');
     expect(client.calls, ['createCalendar:Project']);
   });
+
+  test(
+    'calendar color retry is separate from acknowledged calendar creation',
+    () async {
+      final repository = CalendarRepository(
+        database: database,
+        now: () => DateTime.utc(2026, 6, 8),
+      );
+      await repository.createLocalSource(
+        accountId: 'account',
+        summary: 'Project',
+      );
+      final create = await database.select(database.pendingOps).getSingle();
+      await (database.update(
+        database.pendingOps,
+      )..where((row) => row.id.equals(create.id))).write(
+        PendingOpsCompanion(
+          requestJson: Value(
+            jsonEncode({
+              'summary': 'Project',
+              'backgroundColor': '#3584e4',
+              'foregroundColor': '#ffffff',
+            }),
+          ),
+        ),
+      );
+      client.calendarListPatchFailures = 1;
+
+      expect(
+        await CalendarPendingOpsReplayer(
+          database: database,
+          client: client,
+          accountId: 'account',
+          nowUtc: () => DateTime.utc(2026, 6, 8),
+        ).replayDueOps(),
+        1,
+      );
+      var pending = await database.select(database.pendingOps).getSingle();
+      expect(pending.operationType, 'calendar.patch');
+      expect(pending.providerCalendarId, 'cal-created');
+
+      expect(
+        await CalendarPendingOpsReplayer(
+          database: database,
+          client: client,
+          accountId: 'account',
+          random: Random(0),
+          nowUtc: () => DateTime.utc(2026, 6, 8),
+        ).replayDueOps(),
+        0,
+      );
+      pending = await database.select(database.pendingOps).getSingle();
+      expect(pending.attemptCount, 1);
+      expect(
+        DateTime.parse(
+          pending.nextAttemptAtUtc!,
+        ).isAfter(DateTime.utc(2026, 6, 8)),
+        isTrue,
+      );
+      expect(
+        await CalendarPendingOpsReplayer(
+          database: database,
+          client: client,
+          accountId: 'account',
+          nowUtc: () => DateTime.utc(2026, 6, 9),
+        ).replayDueOps(),
+        1,
+      );
+      expect(
+        client.calls.where((call) => call == 'createCalendar:Project'),
+        hasLength(1),
+      );
+      expect(
+        client.calls.where(
+          (call) => call == 'updateCalendarListEntry:cal-created:null',
+        ),
+        hasLength(2),
+      );
+      expect(await database.select(database.pendingOps).get(), isEmpty);
+    },
+  );
+
+  test(
+    'event created during calendar backoff waits for that creation',
+    () async {
+      final repository = CalendarRepository(
+        database: database,
+        now: () => DateTime.utc(2026, 6, 8),
+      );
+      final sourceId = await repository.createLocalSource(
+        accountId: 'account',
+        summary: 'Project',
+      );
+      client.calendarCreateError = const KnownUnsentRequestException(
+        kind: RequestPreDispatchFailureKind.connectivity,
+      );
+      expect(
+        await CalendarPendingOpsReplayer(
+          database: database,
+          client: client,
+          accountId: 'account',
+          random: Random(0),
+          nowUtc: () => DateTime.utc(2026, 6, 8),
+        ).replayDueOps(),
+        0,
+      );
+      final create = await database.select(database.pendingOps).getSingle();
+      expect(create.state, 'retry');
+      final source = await (database.select(
+        database.calendarSources,
+      )..where((row) => row.id.equals(sourceId))).getSingle();
+      await repository.createLocalEvent(
+        EventEditorDraft.newEvent(
+          accountId: 'account',
+          sourceId: sourceId,
+          providerCalendarId: source.providerCalendarId,
+          start: DateTime.utc(2026, 6, 8, 9),
+          end: DateTime.utc(2026, 6, 8, 10),
+        ).copyWith(title: 'Planning'),
+      );
+      final eventCreate = (await database.select(database.pendingOps).get())
+          .singleWhere(
+            (operation) => operation.operationType == 'event.create',
+          );
+      expect(eventCreate.dependsOnOpId, create.id);
+
+      client.calendarCreateError = null;
+      expect(
+        await CalendarPendingOpsReplayer(
+          database: database,
+          client: client,
+          accountId: 'account',
+          nowUtc: () => DateTime.utc(2026, 6, 8),
+        ).replayDueOps(),
+        0,
+      );
+      expect(client.calls, ['createCalendar:Project']);
+      expect(
+        await CalendarPendingOpsReplayer(
+          database: database,
+          client: client,
+          accountId: 'account',
+          nowUtc: () => DateTime.utc(2026, 6, 9),
+        ).replayDueOps(),
+        2,
+      );
+      expect(client.calls, [
+        'createCalendar:Project',
+        'createCalendar:Project',
+        'createEvent:cal-created:Planning',
+      ]);
+      expect(await database.select(database.pendingOps).get(), isEmpty);
+    },
+  );
 
   test('calendar delete pending op calls provider deleteCalendar', () async {
     await database.pendingOpsDao.enqueue(
@@ -4639,12 +4984,14 @@ class _FakeCalendarClient
   int transientUpdateFailures = 0;
   CalendarEventDto? syncEvent;
   CalendarEventDto? remoteEvent;
+  final Map<String, CalendarEventDto> remoteEventsById = {};
   List<CalendarEventDto> eventInstances = const [];
   bool persistEventUpdates = false;
   int _eventUpdateRevision = 0;
   GoogleCalendarApiError? deleteError;
   Object? calendarDeleteError;
   Object? calendarCreateError;
+  int calendarListPatchFailures = 0;
   GoogleCalendarApiError? calendarListDeleteError;
   Completer<void>? createEventGate;
   Completer<void>? calendarPatchGate;
@@ -4714,6 +5061,7 @@ class _FakeCalendarClient
           location: mutation.location,
           startTimeZone: mutation.startTimeZone,
           endTimeZone: mutation.endTimeZone,
+          recurrenceJson: mutation.recurrence,
         );
     if (identity != null) {
       _createdEventsByIdentity[identity] = event;
@@ -4745,7 +5093,7 @@ class _FakeCalendarClient
         message: 'Temporary provider failure',
       );
     }
-    final current = remoteEvent;
+    final current = remoteEventsById[eventId] ?? remoteEvent;
     final event = _event(
       eventId,
       title: persistEventUpdates
@@ -4777,7 +5125,11 @@ class _FakeCalendarClient
       endDateTime: mutation.endDateTime ?? current?.endDateTime,
     );
     if (persistEventUpdates) {
-      remoteEvent = event;
+      if (remoteEventsById.containsKey(eventId)) {
+        remoteEventsById[eventId] = event;
+      } else {
+        remoteEvent = event;
+      }
     }
     return event;
   }
@@ -4793,6 +5145,8 @@ class _FakeCalendarClient
     for (final created in _createdEventsByIdentity.values) {
       if (created.providerEventId == eventId) return created;
     }
+    final mapped = remoteEventsById[eventId];
+    if (mapped != null) return mapped;
     final remote = remoteEvent;
     if (remote != null) return remote;
     return _event(eventId, title: 'Base');
@@ -4879,6 +5233,7 @@ class _FakeCalendarClient
     String? endTimeZone,
     String? startDateTime,
     String? endDateTime,
+    Object? recurrenceJson,
   }) {
     return CalendarEventDto(
       provider: provider,
@@ -4892,6 +5247,7 @@ class _FakeCalendarClient
       startTimeZone: startTimeZone ?? 'UTC',
       endDateTime: endDateTime ?? '2026-06-08T10:00:00.000Z',
       endTimeZone: endTimeZone ?? 'UTC',
+      recurrenceJson: recurrenceJson,
       remindersJson: remindersJson,
       organizerJson: organizerJson,
       updatedAtServer: updatedAtServer,
@@ -4909,6 +5265,7 @@ class _FakeCalendarClient
           'dateTime': endDateTime ?? '2026-06-08T10:00:00.000Z',
           'timeZone': endTimeZone ?? 'UTC',
         },
+        if (recurrenceJson != null) 'recurrence': recurrenceJson,
         if (remindersJson != null) 'reminders': remindersJson,
         if (organizerJson != null) 'organizer': organizerJson,
         'updated': updatedAtServer,
@@ -5018,6 +5375,14 @@ class _FakeCalendarClient
     calls.add('updateCalendarListEntry:$calendarId:${mutation.summary}');
     calendarMutations.add(mutation);
     await calendarPatchGate?.future;
+    if (calendarListPatchFailures > 0) {
+      calendarListPatchFailures -= 1;
+      throw const GoogleCalendarApiError(
+        statusCode: 429,
+        code: 'rateLimitExceeded',
+        message: 'Rate limited',
+      );
+    }
     return CalendarSourceDto(
       provider: BusyProvider.google,
       providerCalendarId: calendarId,

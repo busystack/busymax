@@ -326,6 +326,46 @@ void main() {
     expect(await database.tasksDao.listTasks('account', 'list-2'), isEmpty);
   });
 
+  test('discarding A to B to C removes every destination projection', () async {
+    apiClient.remoteTask = _taskDto('task-1', title: 'Remote source task');
+    await database.taskListsDao.upsertTaskList(_localTaskList('list-2'));
+    await database.taskListsDao.upsertTaskList(_localTaskList('list-3'));
+    await database.tasksDao.upsertTask(
+      _localTask(
+        'task-1',
+        taskListId: 'list-3',
+        localDirty: true,
+        pendingMove: true,
+      ),
+    );
+    await _enqueueBlockedOp(
+      database,
+      operation: 'move_task',
+      taskListId: 'list-1',
+      taskId: 'task-1',
+      request: {'destinationTasklist': 'list-2'},
+    );
+    await _enqueueBlockedOp(
+      database,
+      id: 'move-to-c',
+      operation: 'move_task',
+      taskListId: 'list-2',
+      taskId: 'task-1',
+      dependsOnOpId: 'op-1',
+      request: {'destinationTasklist': 'list-3'},
+    );
+
+    await service.discard('op-1');
+
+    final source = await database.tasksDao.listTasks('account', 'list-1');
+    expect(source, hasLength(1));
+    expect(source.single.title, 'Remote source task');
+    expect(source.single.localDirty, isFalse);
+    expect(await database.tasksDao.listTasks('account', 'list-2'), isEmpty);
+    expect(await database.tasksDao.listTasks('account', 'list-3'), isEmpty);
+    expect(await database.select(database.pendingOps).get(), isEmpty);
+  });
+
   test(
     'discard blocked cross-list move with remote 404 removes both rows',
     () async {

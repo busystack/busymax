@@ -1454,6 +1454,78 @@ void main() {
   }
 
   test(
+    'parent identity dependency does not leave the parent locally dirty',
+    () async {
+      final repository = TasksRepository(
+        database: database,
+        accountId: 'account',
+        apiClient: apiClient,
+        nowUtc: () => DateTime.utc(2026, 6, 4),
+      );
+      await repository.createTask(
+        'list-1',
+        const TaskCreateInput(title: 'Parent'),
+      );
+      final temporaryParent = (await database.tasksDao.listTasks(
+        'account',
+        'list-1',
+      )).single;
+      await repository.createSubtask(
+        taskListId: 'list-1',
+        parentTaskId: temporaryParent.id,
+        title: 'Child',
+      );
+      apiClient.createdTasks.addAll([
+        _taskDto('parent-server', title: 'Parent'),
+        _taskDto('child-server', title: 'Child'),
+      ]);
+
+      expect(
+        await PendingOpsReplayer(
+          database: database,
+          apiClient: apiClient,
+          accountId: 'account',
+          nowUtc: () => DateTime.utc(2026, 6, 4, 1),
+        ).replayDueOps(),
+        3,
+      );
+      var tasks = await database.tasksDao.listTasks('account', 'list-1');
+      expect(tasks, hasLength(2));
+      expect(tasks.map((task) => task.localDirty), everyElement(isFalse));
+      expect(await database.select(database.pendingOps).get(), isEmpty);
+      expect(apiClient.createParentTaskIds, [null, 'parent-server']);
+
+      apiClient
+        ..remoteTaskListsPage = TaskListsPageDto(
+          items: [_taskListDto('list-1')],
+          rawJson: const {},
+        )
+        ..remoteTasksPage = TasksPageDto(
+          items: [
+            _taskDto(
+              'parent-server',
+              title: 'Parent changed remotely',
+              updated: DateTime.utc(2026, 6, 4, 2),
+            ),
+            _taskDto('child-server', title: 'Child', parent: 'parent-server'),
+          ],
+          rawJson: const {},
+        );
+      await SyncEngine(
+        database: database,
+        apiClient: apiClient,
+        accountId: 'account',
+        nowUtc: () => DateTime.utc(2026, 6, 4, 3),
+      ).fullSync();
+      tasks = await database.tasksDao.listTasks('account', 'list-1');
+      expect(
+        tasks.singleWhere((task) => task.id == 'parent-server').title,
+        'Parent changed remotely',
+      );
+    },
+  );
+
+  test(
     'Google subtask is moved under its parent after a root insert',
     () async {
       await database.tasksDao.upsertTask(_task('list-1', 'parent'));
@@ -2653,6 +2725,81 @@ void main() {
     },
   );
 
+  test(
+    'checklist claim invalidates a cancellation snapshot before its transaction',
+    () async {
+      final checklistClient = _ChecklistTaskRemoteClient();
+      final deleteReached = Completer<void>();
+      final releaseDelete = Completer<void>();
+      final repository = TasksRepository(
+        database: database,
+        accountId: 'account',
+        apiClient: checklistClient,
+        nowUtc: () => DateTime.utc(2026, 6, 4),
+        beforeChecklistDeleteTransaction: () async {
+          deleteReached.complete();
+          await releaseDelete.future;
+        },
+      );
+      await database.tasksDao.upsertTask(_task('list-1', 'task-1'));
+      await repository.createSubtask(
+        taskListId: 'list-1',
+        parentTaskId: 'task-1',
+        title: 'Step',
+      );
+      final localItem = decodeTaskChecklistItems(
+        (await database.tasksDao.listTasks(
+          'account',
+          'list-1',
+        )).single.microsoftChecklistItemsJson,
+      ).single;
+
+      final deletion = repository.deleteChecklistSubtask(
+        taskListId: 'list-1',
+        parentTaskId: 'task-1',
+        checklistItemId: localItem.id,
+      );
+      await deleteReached.future;
+      final createGate = Completer<void>();
+      checklistClient.createChecklistGate = createGate;
+      final replay = PendingOpsReplayer(
+        database: database,
+        apiClient: checklistClient,
+        accountId: 'account',
+        nowUtc: () => DateTime.utc(2026, 6, 4, 1),
+      ).replayDueOps();
+      await _waitFor(() => checklistClient.checklistCalls.isNotEmpty);
+      releaseDelete.complete();
+      await deletion;
+
+      final queued = await database.select(database.pendingOps).get();
+      final create = queued.singleWhere(
+        (operation) => operation.operation == 'create_task_checklist_item',
+      );
+      final delete = queued.singleWhere(
+        (operation) => operation.operation == 'delete_task_checklist_item',
+      );
+      expect(create.state, 'in_progress');
+      expect(delete.dependsOnOpId, create.id);
+
+      createGate.complete();
+      expect(await replay, 1);
+      expect(
+        await PendingOpsReplayer(
+          database: database,
+          apiClient: checklistClient,
+          accountId: 'account',
+          nowUtc: () => DateTime.utc(2026, 6, 4, 2),
+        ).replayDueOps(),
+        1,
+      );
+      expect(checklistClient.checklistCalls, [
+        'create:Step',
+        'delete:server-step',
+      ]);
+    },
+  );
+
   test('unknown checklist creation outcome is not submitted again', () async {
     final checklistClient = _ChecklistTaskRemoteClient()
       ..createChecklistItemError = StateError('response was lost');
@@ -2761,6 +2908,7 @@ class _ConflictMicrosoftTodoApiClient implements MicrosoftTodoApiClient {
 
 class _FakeTaskRemoteClient implements TaskRemoteClient {
   TaskDto? createdTask;
+  final List<TaskDto> createdTasks = [];
   final calls = <String>[];
   final taskPatchFields = <Map<String, Object?>>[];
   final createParentTaskIds = <String?>[];
@@ -2787,6 +2935,10 @@ class _FakeTaskRemoteClient implements TaskRemoteClient {
   bool persistTaskListPatches = false;
   int _taskPatchRevision = 0;
   TasksPageDto remoteTasksPage = const TasksPageDto(items: [], rawJson: {});
+  TaskListsPageDto remoteTaskListsPage = const TaskListsPageDto(
+    items: [],
+    rawJson: {},
+  );
 
   @override
   Future<TaskListDto> createTaskList({required String title}) async {
@@ -2854,7 +3006,7 @@ class _FakeTaskRemoteClient implements TaskRemoteClient {
     await createTaskGate?.future;
     final error = createTaskError;
     if (error != null) throw error;
-    return createdTask ??
+    return (createdTasks.isNotEmpty ? createdTasks.removeAt(0) : createdTask) ??
         _taskDto('task-server', title: create.fields['title'].toString());
   }
 
@@ -2953,7 +3105,7 @@ class _FakeTaskRemoteClient implements TaskRemoteClient {
   Future<TaskListsPageDto> listTaskListsPage({
     int maxResults = 1000,
     String? pageToken,
-  }) async => const TaskListsPageDto(items: [], rawJson: {});
+  }) async => remoteTaskListsPage;
 
   @override
   Future<TasksPageDto> listTasksPage({

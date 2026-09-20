@@ -383,8 +383,7 @@ class CalendarRepository {
         _database.pendingOps.calendarSourceId.equalsExp(
               _database.calendarSources.id,
             ) &
-            _database.pendingOps.operationType.equals('calendar.create') &
-            _database.pendingOps.state.equals('pending'),
+            _database.pendingOps.operationType.equals('calendar.create'),
       ),
     ]);
     query.where(
@@ -699,17 +698,29 @@ class CalendarRepository {
           updatedAtLocal: Value(now.millisecondsSinceEpoch),
         ),
       );
-      if (createOp != null) {
-        final request = _calendarPendingRequest(createOp)..['summary'] = title;
-        await (_database.update(
-          _database.pendingOps,
-        )..where((row) => row.id.equals(createOp.id))).write(
-          PendingOpsCompanion(
-            requestJson: Value(jsonEncode(request)),
-            updatedAtUtc: Value(nowUtc),
-          ),
-        );
-      } else {
+      var rewroteCreate = false;
+      if (_isProvablyUnsentCalendarCreate(createOp)) {
+        final createSnapshot = createOp!;
+        final request = _calendarPendingRequest(createSnapshot)
+          ..['summary'] = title;
+        rewroteCreate =
+            await (_database.update(_database.pendingOps)..where(
+                  (row) =>
+                      row.id.equals(createSnapshot.id) &
+                      row.state.equals(createSnapshot.state) &
+                      row.attemptCount.equals(createSnapshot.attemptCount) &
+                      row.requestJson.equals(createSnapshot.requestJson) &
+                      row.updatedAtUtc.equals(createSnapshot.updatedAtUtc),
+                ))
+                .write(
+                  PendingOpsCompanion(
+                    requestJson: Value(jsonEncode(request)),
+                    updatedAtUtc: Value(nowUtc),
+                  ),
+                ) ==
+            1;
+      }
+      if (!rewroteCreate) {
         await _enqueueOrMergeCalendarPatch(
           source,
           request: {
@@ -720,6 +731,7 @@ class CalendarRepository {
                 : calendarMutationScopeGlobal,
           },
           nowUtc: nowUtc,
+          dependsOnOpId: createOp?.id,
         );
       }
     });
@@ -835,7 +847,22 @@ class CalendarRepository {
     final now = _now();
     final nowUtc = now.toUtc().toIso8601String();
     await _database.transaction(() async {
-      if (createOp != null) {
+      if (_isProvablyUnsentCalendarCreate(createOp)) {
+        final deleted =
+            await (_database.delete(_database.pendingOps)..where(
+                  (row) =>
+                      row.id.equals(createOp!.id) &
+                      row.state.equals(createOp.state) &
+                      row.attemptCount.equals(createOp.attemptCount) &
+                      row.requestJson.equals(createOp.requestJson) &
+                      row.updatedAtUtc.equals(createOp.updatedAtUtc),
+                ))
+                .go();
+        if (deleted != 1) {
+          throw StateError(
+            'The calendar creation is no longer safe to cancel locally.',
+          );
+        }
         await (_database.delete(_database.pendingOps)..where(
               (row) =>
                   row.accountId.equals(source.accountId) &
@@ -847,7 +874,10 @@ class CalendarRepository {
         )..where((row) => row.id.equals(sourceId))).go();
         return;
       }
-      if ((await _pendingCalendarWork(source.id)).isNotEmpty) {
+      final otherWork = (await _pendingCalendarWork(
+        source.id,
+      )).where((operation) => operation.id != createOp?.id);
+      if (otherWork.isNotEmpty) {
         throw CalendarMutationNotAllowed(
           operation: removalMode == CalendarRemovalMode.removeFromList
               ? CalendarMutationOperation.removeCalendar
@@ -881,6 +911,7 @@ class CalendarRepository {
           ),
           calendarSourceId: Value(source.id),
           providerCalendarId: Value(source.providerCalendarId),
+          dependsOnOpId: Value(createOp?.id),
           requestJson: jsonEncode({
             calendarRemovalPreviousHiddenKey: source.hidden,
           }),
@@ -1800,12 +1831,16 @@ class CalendarRepository {
               allDay: Value(draft.allDay),
               startDate: Value(draft.allDay ? _date(draft.start) : null),
               startDateTime: Value(
-                draft.allDay ? null : draft.start?.toIso8601String(),
+                draft.allDay
+                    ? null
+                    : _eventDateTimeWireValue(draft.start, startTimeZone),
               ),
               startTimeZone: Value(startTimeZone),
               endDate: Value(draft.allDay ? _date(draft.end) : null),
               endDateTime: Value(
-                draft.allDay ? null : draft.end?.toIso8601String(),
+                draft.allDay
+                    ? null
+                    : _eventDateTimeWireValue(draft.end, endTimeZone),
               ),
               endTimeZone: Value(endTimeZone),
               recurrenceJson: Value(_json(draft.recurrence)),
@@ -4226,11 +4261,15 @@ class CalendarRepository {
         allDay: Value(draft.allDay),
         startDate: Value(draft.allDay ? _date(draft.start) : null),
         startDateTime: Value(
-          draft.allDay ? null : draft.start?.toIso8601String(),
+          draft.allDay
+              ? null
+              : _eventDateTimeWireValue(draft.start, startTimeZone),
         ),
         startTimeZone: Value(startTimeZone),
         endDate: Value(draft.allDay ? _date(draft.end) : null),
-        endDateTime: Value(draft.allDay ? null : draft.end?.toIso8601String()),
+        endDateTime: Value(
+          draft.allDay ? null : _eventDateTimeWireValue(draft.end, endTimeZone),
+        ),
         endTimeZone: Value(endTimeZone),
         recurrenceJson: draft.recurrenceChanged
             ? Value(_json(draft.recurrence))
@@ -4260,21 +4299,22 @@ class CalendarRepository {
           ..where(
             (row) =>
                 row.calendarSourceId.equals(sourceId) &
-                row.operationType.equals('calendar.create') &
-                row.state.equals('pending'),
+                row.operationType.equals('calendar.create'),
           )
           ..limit(1))
         .getSingleOrNull();
   }
 
   Future<List<PendingOp>> _pendingCalendarWork(String sourceId) {
-    return (_database.select(_database.pendingOps)..where(
-          (row) =>
-              row.calendarSourceId.equals(sourceId) &
-              row.state.equals('pending'),
-        ))
-        .get();
+    return (_database.select(
+      _database.pendingOps,
+    )..where((row) => row.calendarSourceId.equals(sourceId))).get();
   }
+
+  bool _isProvablyUnsentCalendarCreate(PendingOp? operation) =>
+      operation != null &&
+      operation.state == 'pending' &&
+      operation.attemptCount == 0;
 
   Future<Set<String>> _pendingCalendarPatchFields(String sourceId) async {
     final operations =

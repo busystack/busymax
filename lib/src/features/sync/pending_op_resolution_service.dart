@@ -173,7 +173,18 @@ class PendingOpResolutionService {
   ) async {
     final sourceTaskListId = operation.taskListId!;
     final taskId = operation.taskId!;
-    final destinationTaskListId = _destinationTaskListId(operation);
+    final discardedOperations = await (_database.select(
+      _database.pendingOps,
+    )..where((row) => row.id.isIn(discardedIds))).get();
+    final destinationTaskListIds =
+        {
+          for (final discarded in discardedOperations)
+            if (discarded.operation == 'move_task')
+              _destinationTaskListId(discarded),
+        }..removeWhere(
+          (destination) =>
+              destination == null || destination == sourceTaskListId,
+        );
     TaskDto? serverTask;
     try {
       serverTask = await _requiredTaskClient.getTask(
@@ -196,13 +207,14 @@ class PendingOpResolutionService {
           taskFromDto(_accountId, sourceTaskListId, serverTask, _now()),
         );
       }
-      if (destinationTaskListId != null &&
-          destinationTaskListId != sourceTaskListId) {
-        await _database.tasksDao.deleteTask(
-          _accountId,
-          destinationTaskListId,
-          taskId,
-        );
+      if (destinationTaskListIds.isNotEmpty) {
+        await (_database.delete(_database.tasks)..where(
+              (row) =>
+                  row.accountId.equals(_accountId) &
+                  row.id.equals(taskId) &
+                  row.taskListId.isIn(destinationTaskListIds.cast<String>()),
+            ))
+            .go();
       }
       await (_database.delete(
         _database.pendingOps,

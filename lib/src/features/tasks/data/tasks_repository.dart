@@ -409,6 +409,7 @@ class TasksRepository {
     TaskRemoteClient? apiClient,
     void Function()? onMutationQueued,
     Future<void> Function()? onNotificationScheduleChanged,
+    Future<void> Function()? beforeChecklistDeleteTransaction,
     Uuid uuid = const Uuid(),
     DateTime Function()? nowUtc,
   }) : _database = database,
@@ -416,6 +417,7 @@ class TasksRepository {
        _apiClient = apiClient,
        _onMutationQueued = onMutationQueued,
        _onNotificationScheduleChanged = onNotificationScheduleChanged,
+       _beforeChecklistDeleteTransaction = beforeChecklistDeleteTransaction,
        _uuid = uuid,
        _nowUtc = nowUtc ?? (() => DateTime.now().toUtc());
 
@@ -424,6 +426,7 @@ class TasksRepository {
   final TaskRemoteClient? _apiClient;
   final void Function()? _onMutationQueued;
   final Future<void> Function()? _onNotificationScheduleChanged;
+  final Future<void> Function()? _beforeChecklistDeleteTransaction;
   final Uuid _uuid;
   final DateTime Function() _nowUtc;
 
@@ -721,24 +724,28 @@ class TasksRepository {
       throw StateError('The checklist subtask is unavailable.');
     }
     final now = _now();
-    final pendingCreate = await _pendingChecklistCreate(
-      taskListId,
-      parentTaskId,
-      checklistItemId,
-    );
+    await _beforeChecklistDeleteTransaction?.call();
     await _database.transaction(() async {
       await _writeChecklistProjection(taskListId, parentTaskId, [
         for (final item in items)
           if (item.id != checklistItemId) item,
       ], now);
+      final pendingCreate = await _pendingChecklistCreate(
+        taskListId,
+        parentTaskId,
+        checklistItemId,
+      );
+      var cancelled = false;
       if (pendingCreate != null &&
           pendingCreate.state == 'pending' &&
           pendingCreate.attemptCount == 0) {
-        await _deleteChecklistOperationChain(
+        cancelled = await _deleteChecklistOperationChain(
+          create: pendingCreate,
           parentTaskId: parentTaskId,
           checklistItemId: checklistItemId,
         );
-      } else {
+      }
+      if (!cancelled) {
         await _enqueueChecklistOperation(
           operation: 'delete_task_checklist_item',
           taskListId: taskListId,
@@ -2455,10 +2462,22 @@ class TasksRepository {
     );
   }
 
-  Future<void> _deleteChecklistOperationChain({
+  Future<bool> _deleteChecklistOperationChain({
+    required PendingOp create,
     required String parentTaskId,
     required String checklistItemId,
   }) async {
+    final deletedCreate =
+        await (_database.delete(_database.pendingOps)..where(
+              (row) =>
+                  row.id.equals(create.id) &
+                  row.state.equals(create.state) &
+                  row.attemptCount.equals(create.attemptCount) &
+                  row.requestJson.equals(create.requestJson) &
+                  row.updatedAtUtc.equals(create.updatedAtUtc),
+            ))
+            .go();
+    if (deletedCreate != 1) return false;
     final operations =
         await (_database.select(_database.pendingOps)..where(
               (row) =>
@@ -2468,10 +2487,12 @@ class TasksRepository {
             ))
             .get();
     for (final operation in operations) {
-      if (_checklistItemIdFromOperation(operation) == checklistItemId) {
+      if (operation.id != create.id &&
+          _checklistItemIdFromOperation(operation) == checklistItemId) {
         await _database.pendingOpsDao.deleteOp(operation.id);
       }
     }
+    return true;
   }
 
   Future<String> _enqueue({

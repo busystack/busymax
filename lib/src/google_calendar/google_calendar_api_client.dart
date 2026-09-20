@@ -76,12 +76,9 @@ class GoogleCalendarApiClient
       _uri('/calendar/v3/calendars'),
       body: googleCalendarMutationToJson(mutation),
     );
-    final calendarId = json['id']?.toString();
-    if (calendarId != null &&
-        calendarId.isNotEmpty &&
-        _hasCalendarListColor(mutation)) {
-      return _updateCalendarListColor(calendarId, mutation);
-    }
+    // Calendar-list color is a separate resource mutation. The replay layer
+    // persists this acknowledged identity before queueing that follow-up, so a
+    // color failure can never cause another calendar creation POST.
     return googleCalendarSourceFromJson(json);
   }
 

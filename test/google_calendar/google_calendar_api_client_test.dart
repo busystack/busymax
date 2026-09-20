@@ -5,6 +5,7 @@ import 'package:busymax/src/calendar_providers/calendar_sync_dto.dart';
 import 'package:busymax/src/db/app_database.dart';
 import 'package:busymax/src/features/sync/calendar_sync_engine.dart';
 import 'package:busymax/src/google_calendar/google_calendar_api_client.dart';
+import 'package:busymax/src/google_calendar/google_calendar_errors.dart';
 import 'package:busymax/src/schedule/schedule_range.dart';
 import 'package:busymax/src/schedule/schedule_repository.dart';
 import 'package:drift/drift.dart';
@@ -14,6 +15,68 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 
 void main() {
+  test(
+    'calendar color retry never repeats an acknowledged creation POST',
+    () async {
+      final requests = <http.Request>[];
+      var colorAttempts = 0;
+      final client = _client((request) {
+        requests.add(request);
+        if (request.method == 'POST') {
+          return _json({'id': 'created@example.com', 'summary': 'Project'});
+        }
+        colorAttempts += 1;
+        if (colorAttempts == 1) {
+          return http.Response(
+            jsonEncode({
+              'error': {'code': 429, 'message': 'Rate limited'},
+            }),
+            429,
+            headers: {'Content-Type': 'application/json'},
+          );
+        }
+        return _json({
+          'id': 'created@example.com',
+          'summary': 'Project',
+          'backgroundColor': '#3584e4',
+          'foregroundColor': '#ffffff',
+          'accessRole': 'owner',
+        });
+      });
+      const mutation = CalendarMutation(
+        summary: 'Project',
+        backgroundColor: '#3584e4',
+        foregroundColor: '#ffffff',
+      );
+
+      final created = await client.createCalendar(mutation);
+      expect(created.providerCalendarId, 'created@example.com');
+      await expectLater(
+        client.updateCalendarListEntry(created.providerCalendarId, mutation),
+        throwsA(
+          isA<GoogleCalendarApiError>().having(
+            (error) => error.statusCode,
+            'statusCode',
+            429,
+          ),
+        ),
+      );
+      await client.updateCalendarListEntry(
+        created.providerCalendarId,
+        mutation,
+      );
+
+      expect(
+        requests.where((request) => request.method == 'POST'),
+        hasLength(1),
+      );
+      expect(
+        requests.where((request) => request.method == 'PATCH'),
+        hasLength(2),
+      );
+    },
+  );
+
   test('calendar RGB color updates the Google CalendarList entry', () async {
     late http.Request captured;
     final client = _client((request) {
@@ -373,6 +436,9 @@ void main() {
             ],
           });
         }
+        if (request.url.path.endsWith('/events/series-1')) {
+          return _json(_recurringMaster());
+        }
         eventsRequest = request;
         final expandsInstances =
             request.url.queryParameters['singleEvents'] == 'true';
@@ -393,15 +459,22 @@ void main() {
 
       expect(eventsRequest.url.queryParameters['singleEvents'], 'true');
       final rows = await database.select(database.calendarEvents).get();
-      expect(rows, hasLength(2));
+      expect(rows, hasLength(3));
+      final instances = rows
+          .where((row) => row.providerRecurringEventId != null)
+          .toList();
       expect(
-        rows.map((row) => row.providerRecurringEventId),
+        instances.map((row) => row.providerRecurringEventId),
         everyElement('series-1'),
       );
-      expect(rows.map((row) => row.providerOriginalStartKey).toSet(), {
+      expect(instances.map((row) => row.providerOriginalStartKey).toSet(), {
         '2026-07-14T09:00:00-07:00',
         '2026-07-21T09:00:00-07:00',
       });
+      expect(
+        rows.singleWhere((row) => row.providerRecurringEventId == null).isDeleted,
+        isTrue,
+      );
 
       final schedule = await ScheduleRepository(database).listItems(
         range: ScheduleRange(

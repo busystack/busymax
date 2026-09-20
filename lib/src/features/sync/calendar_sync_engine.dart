@@ -244,6 +244,21 @@ class CalendarSyncEngine {
     }
 
     if (provider == BusyProvider.google) {
+      // Google expanded-event synchronization (`singleEvents=true`) returns
+      // instances but omits their recurring masters. Retain the authoritative
+      // master snapshots separately so later whole-series mutations have a
+      // real conflict baseline instead of borrowing one from an occurrence.
+      for (final recurringMasterId in expandedRecurringMasterIds) {
+        final master = await _client.getEvent(
+          calendarId: providerCalendarId,
+          eventId: recurringMasterId,
+        );
+        await _repository.upsertEvent(
+          accountId: _accountId,
+          event: master,
+          preservePendingLocalChanges: true,
+        );
+      }
       await _repository.markGoogleRecurringMastersDeleted(
         accountId: _accountId,
         providerCalendarId: providerCalendarId,

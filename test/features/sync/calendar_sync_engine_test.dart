@@ -9,6 +9,7 @@ import 'package:busymax/src/calendar_providers/calendar_sync_dto.dart';
 import 'package:busymax/src/calendar_providers/cloud_calendar_client.dart';
 import 'package:busymax/src/db/app_database.dart';
 import 'package:busymax/src/features/calendar/data/calendar_repository.dart';
+import 'package:busymax/src/features/calendar/presentation/event_editor_draft.dart';
 import 'package:busymax/src/features/notifications/notification_schedule_service.dart';
 import 'package:busymax/src/features/sync/calendar_sync_engine.dart';
 import 'package:busymax/src/providers/busy_provider.dart';
@@ -540,7 +541,6 @@ void main() {
           'recurrence': ['RRULE:FREQ=WEEKLY'],
         },
       );
-      await repository.upsertEvent(accountId: 'account', event: master);
       await repository.saveSyncState(
         accountId: 'account',
         provider: BusyProvider.google,
@@ -576,6 +576,7 @@ void main() {
       final client = _FakeCalendarClient(
         provider: BusyProvider.google,
         calendars: const [source],
+        eventsById: const {'series-1': master},
         pages: const [
           CalendarSyncPageDto(
             events: [instance],
@@ -611,6 +612,14 @@ void main() {
       expect(masterRow.isDeleted, isTrue);
       expect(instanceRow.isDeleted, isFalse);
       expect(instanceRow.providerRecurringEventId, master.providerEventId);
+
+      await repository.deleteLocalEvent(
+        instanceId,
+        recurringScope: RecurringEventMutationScope.entireSeries,
+      );
+      final operation = await database.select(database.pendingOps).getSingle();
+      expect(operation.baselineUpdatedUtc, master.updatedAtServer);
+      expect(operation.baselineRawJson, contains('"id":"series-1"'));
     },
   );
 
@@ -1079,11 +1088,13 @@ class _FakeCalendarClient implements CloudCalendarClient {
     required this.provider,
     required this.calendars,
     required List<CalendarSyncPageDto> pages,
+    this.eventsById = const {},
   }) : _pages = List.of(pages);
 
   @override
   final BusyProvider provider;
   final List<CalendarSourceDto> calendars;
+  final Map<String, CalendarEventDto> eventsById;
   final List<CalendarSyncPageDto> _pages;
   final List<_SyncCall> syncCalls = [];
   Completer<void>? secondPageStarted;
@@ -1179,8 +1190,12 @@ class _FakeCalendarClient implements CloudCalendarClient {
   Future<CalendarEventDto> getEvent({
     required String calendarId,
     required String eventId,
-  }) {
-    throw UnimplementedError();
+  }) async {
+    final event = eventsById[eventId];
+    if (event == null) {
+      throw StateError('No fake event exists for $eventId.');
+    }
+    return event;
   }
 
   @override
