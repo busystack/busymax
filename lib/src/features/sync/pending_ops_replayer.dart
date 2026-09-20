@@ -417,16 +417,25 @@ class PendingOpsReplayer {
     PendingOp completedOp,
     TaskDto serverTask,
   ) async {
-    final dependencyRows =
-        await (_database.select(_database.pendingOps)..where(
-              (row) =>
-                  row.accountId.equals(_accountId) &
-                  row.dependsOnOpId.equals(completedOp.id),
-            ))
-            .get();
-    final dependents = dependencyRows
-        .where((dependent) => _mutatesSameTask(completedOp, dependent))
-        .toList(growable: false);
+    final operations = await (_database.select(
+      _database.pendingOps,
+    )..where((row) => row.accountId.equals(_accountId))).get();
+    final dependencyIds = <String>{completedOp.id};
+    final dependents = <PendingOp>[];
+    var foundDependent = true;
+    while (foundDependent) {
+      foundDependent = false;
+      for (final candidate in operations) {
+        if (dependencyIds.contains(candidate.id) ||
+            !dependencyIds.contains(candidate.dependsOnOpId) ||
+            !_mutatesSameTask(completedOp, candidate)) {
+          continue;
+        }
+        dependencyIds.add(candidate.id);
+        dependents.add(candidate);
+        foundDependent = true;
+      }
+    }
     if (dependents.isEmpty) {
       return false;
     }

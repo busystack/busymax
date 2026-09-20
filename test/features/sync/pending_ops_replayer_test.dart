@@ -2035,6 +2035,148 @@ void main() {
     },
   );
 
+  test('title notes title task patches replay without self-conflict', () async {
+    const baselineUpdatedUtc = '2026-06-04T00:00:00.000Z';
+    final baselineRawJson = jsonEncode({
+      'id': 'task-1',
+      'title': 'A',
+      'notes': 'Base notes',
+      'updated': baselineUpdatedUtc,
+    });
+    apiClient
+      ..persistTaskPatches = true
+      ..remoteTask = _taskDto(
+        'task-1',
+        title: 'A',
+        notes: 'Base notes',
+        updated: DateTime.parse(baselineUpdatedUtc),
+      );
+    await database.tasksDao.upsertTask(
+      _task(
+        'list-1',
+        'task-1',
+        title: 'A',
+        updatedUtc: baselineUpdatedUtc,
+        rawJson: baselineRawJson,
+      ),
+    );
+    var localEdit = 0;
+    final repository = TasksRepository(
+      database: database,
+      accountId: 'account',
+      nowUtc: () => DateTime.utc(2026, 6, 4, 0, 0, ++localEdit),
+    );
+
+    await repository.patchTask(
+      'list-1',
+      'task-1',
+      const TaskPatchInput({'title': 'B'}),
+    );
+    await repository.patchTask(
+      'list-1',
+      'task-1',
+      const TaskPatchInput({'notes': 'Local notes'}),
+    );
+    await repository.patchTask(
+      'list-1',
+      'task-1',
+      const TaskPatchInput({'title': 'C'}),
+    );
+
+    final applied = await PendingOpsReplayer(
+      database: database,
+      apiClient: apiClient,
+      accountId: 'account',
+      random: Random(0),
+      nowUtc: () => DateTime.utc(2026, 6, 4, 1),
+    ).replayDueOps();
+
+    expect(applied, 3);
+    expect(apiClient.taskPatchFields, [
+      {'title': 'B'},
+      {'notes': 'Local notes'},
+      {'title': 'C'},
+    ]);
+    expect(apiClient.remoteTask!.title, 'C');
+    expect(await database.select(database.pendingOps).get(), isEmpty);
+  });
+
+  test(
+    'title notes title task patches preserve a genuine remote title conflict',
+    () async {
+      const baselineUpdatedUtc = '2026-06-04T00:00:00.000Z';
+      final baselineRawJson = jsonEncode({
+        'id': 'task-1',
+        'title': 'A',
+        'notes': 'Base notes',
+        'updated': baselineUpdatedUtc,
+      });
+      apiClient
+        ..persistTaskPatches = true
+        ..remoteTask = _taskDto(
+          'task-1',
+          title: 'A',
+          notes: 'Base notes',
+          updated: DateTime.parse(baselineUpdatedUtc),
+        )
+        ..remoteTaskAfterSecondPatch = _taskDto(
+          'task-1',
+          title: 'External title',
+          notes: 'Local notes',
+          updated: DateTime.utc(2026, 6, 4, 0, 8),
+        );
+      await database.tasksDao.upsertTask(
+        _task(
+          'list-1',
+          'task-1',
+          title: 'A',
+          updatedUtc: baselineUpdatedUtc,
+          rawJson: baselineRawJson,
+        ),
+      );
+      var localEdit = 0;
+      final repository = TasksRepository(
+        database: database,
+        accountId: 'account',
+        nowUtc: () => DateTime.utc(2026, 6, 4, 0, 0, ++localEdit),
+      );
+
+      await repository.patchTask(
+        'list-1',
+        'task-1',
+        const TaskPatchInput({'title': 'B'}),
+      );
+      await repository.patchTask(
+        'list-1',
+        'task-1',
+        const TaskPatchInput({'notes': 'Local notes'}),
+      );
+      await repository.patchTask(
+        'list-1',
+        'task-1',
+        const TaskPatchInput({'title': 'C'}),
+      );
+
+      final applied = await PendingOpsReplayer(
+        database: database,
+        apiClient: apiClient,
+        accountId: 'account',
+        random: Random(0),
+        nowUtc: () => DateTime.utc(2026, 6, 4, 1),
+      ).replayDueOps();
+
+      expect(applied, 2);
+      expect(apiClient.taskPatchFields, [
+        {'title': 'B'},
+        {'notes': 'Local notes'},
+      ]);
+      expect(apiClient.remoteTask!.title, 'External title');
+      final pending = await database.select(database.pendingOps).getSingle();
+      expect(pending.lastErrorCode, 'conflict');
+      expect(pending.lastErrorMessage, contains('title'));
+    },
+  );
+
   for (final dependentOperation in ['delete_task', 'move_task']) {
     final action = dependentOperation == 'delete_task' ? 'delete' : 'move';
     test(
@@ -3086,6 +3228,7 @@ class _FakeTaskRemoteClient implements TaskRemoteClient {
   GoogleTasksApiError? moveTaskError;
   TaskListDto? remoteTaskList;
   TaskDto? remoteTask;
+  TaskDto? remoteTaskAfterSecondPatch;
   TaskDto? remoteTaskAfterMove;
   DateTime? taskListPatchResultUpdated;
   final taskListPageUpdatedMins = <DateTime?>[];
@@ -3198,6 +3341,9 @@ class _FakeTaskRemoteClient implements TaskRemoteClient {
         : _taskDto(taskId, title: patch.fields['title'].toString());
     if (persistTaskPatches) {
       remoteTask = dto;
+      if (taskPatchFields.length == 2 && remoteTaskAfterSecondPatch != null) {
+        remoteTask = remoteTaskAfterSecondPatch;
+      }
     }
     return dto;
   }
