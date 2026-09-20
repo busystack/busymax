@@ -113,12 +113,21 @@ void schedulePlannerGestureTests(
   Future<TestGesture> begin(
     WidgetTester tester,
     Offset down,
-    Offset target,
-  ) async {
-    final gesture = await tester.startGesture(
-      down,
-      kind: PointerDeviceKind.mouse,
-    );
+    Offset target, {
+    int? device,
+  }) async {
+    final TestGesture gesture;
+    if (device == null) {
+      gesture = await tester.startGesture(down, kind: PointerDeviceKind.mouse);
+    } else {
+      gesture = TestGesture(
+        dispatcher: tester.sendEventToBinding,
+        kind: PointerDeviceKind.mouse,
+        pointer: device,
+        device: device,
+      );
+      await gesture.down(down);
+    }
     await tester.pump();
     await gesture.moveTo(Offset.lerp(down, target, .55)!);
     await tester.pump();
@@ -780,15 +789,26 @@ void schedulePlannerGestureTests(
   testWidgets('$platform region disposal clears move cursor for a later drag', (
     tester,
   ) async {
-    final scenario = PlannerGestureScenario();
+    const removedSourceDevice = 41;
+    const replacementDevice = 42;
+    // The all-day source is outside the planner's independent zoom Listener,
+    // keeping this regression focused on the shared event interaction wrapper.
+    final scenario = PlannerGestureScenario(
+      items: [PlannerGestureScenario.event(allDay: true)],
+    );
     await mount(tester, scenario);
     final down = tester.getCenter(tile());
-    await begin(tester, down, down + const Offset(0, 54));
-    expect(cursor(1), SystemMouseCursors.move);
+    final removedSourceGesture = await begin(
+      tester,
+      down,
+      down + const Offset(0, 54),
+      device: removedSourceDevice,
+    );
+    expect(cursor(removedSourceDevice), SystemMouseCursors.move);
 
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pump();
-    expect(cursor(1), SystemMouseCursors.basic);
+    expect(cursor(removedSourceDevice), SystemMouseCursors.basic);
     expect(tester.takeException(), isNull, reason: 'during region disposal');
 
     final nextScenario = PlannerGestureScenario();
@@ -798,11 +818,24 @@ void schedulePlannerGestureTests(
       tester,
       nextDown,
       nextDown + Offset(0, 60 * planner(tester).heightPerMinute),
+      device: replacementDevice,
     );
-    expect(cursor(1), SystemMouseCursors.move);
+    expect(cursor(replacementDevice), SystemMouseCursors.move);
+
+    await removedSourceGesture.cancel();
+    await tester.pump();
+    expect(
+      tester.takeException(),
+      isNull,
+      reason: 'during the removed source gesture late cancellation',
+    );
+    expect(region(tester).active, isTrue);
+    expect(cursor(replacementDevice), SystemMouseCursors.move);
+    expect(nextScenario.edits, isEmpty);
+
     await release(tester, next);
     expect(nextScenario.edits, hasLength(1));
-    expect(cursor(1), SystemMouseCursors.basic);
+    expect(cursor(replacementDevice), SystemMouseCursors.basic);
     expect(tester.takeException(), isNull);
   });
 
