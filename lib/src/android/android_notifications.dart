@@ -700,6 +700,7 @@ final class AndroidNotificationService
                 (table) =>
                     table.accountId.isIn(eligibleAccounts) &
                     table.pendingDelete.equals(false) &
+                    table.serverMissing.equals(false) &
                     (table.deleted.isNull() | table.deleted.equals(false)) &
                     (table.hidden.isNull() | table.hidden.equals(false)),
               ))
