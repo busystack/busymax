@@ -5,6 +5,7 @@ import 'package:busymax/src/features/accounts/data/accounts_repository.dart';
 import 'package:busymax/src/features/task_lists/data/task_lists_repository.dart';
 import 'package:busymax/src/features/tasks/data/tasks_repository.dart';
 import 'package:busymax/src/features/tasks/domain/task_capabilities.dart';
+import 'package:busymax/src/features/tasks/domain/task_mutation_result.dart';
 import 'package:busymax/src/features/maps/application/external_location_launcher.dart';
 import 'package:busymax/src/features/maps/data/location_resolution_repository.dart';
 import 'package:busymax/src/features/maps/domain/geographic_point.dart';
@@ -58,6 +59,9 @@ void main() {
       nowUtc: () => DateTime.utc(2026, 8, 31),
     );
     Object? openError;
+    final startedMutations = <TaskMutationResult>[];
+    final committedMutations = <TaskMutationResult>[];
+    var dialogPresentAtCommit = false;
 
     await tester.pumpWidget(
       ProviderScope(
@@ -93,6 +97,14 @@ void main() {
                       completed: false,
                       allDay: true,
                     ),
+                    onTaskMutationStarted: startedMutations.add,
+                    onTaskMutationCommitted: (result) {
+                      committedMutations.add(result);
+                      dialogPresentAtCommit = find
+                          .byType(ContentDialog)
+                          .evaluate()
+                          .isNotEmpty;
+                    },
                   );
                 } on Object catch (error) {
                   openError = error;
@@ -161,6 +173,17 @@ void main() {
     await tester.tap(find.widgetWithText(FilledButton, 'Discard').last);
     await tester.pumpAndSettle();
     expect(tasks.watchedTaskIds.last, 'parent');
+
+    final delete = find.widgetWithText(Button, 'Delete');
+    await tester.ensureVisible(delete);
+    await tester.tap(delete);
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(FilledButton, 'Delete'));
+    await tester.pumpAndSettle();
+    expect(tasks.deletedTaskIds, ['parent']);
+    expect(startedMutations.single.kind, TaskMutationKind.deleted);
+    expect(committedMutations.single.kind, TaskMutationKind.deleted);
+    expect(dialogPresentAtCommit, isTrue);
     expect(tester.takeException(), isNull);
   });
 
@@ -395,6 +418,7 @@ class _TestTasksRepository extends TasksRepository {
     : super(database: database, accountId: 'account-1');
 
   final createdSubtaskTitles = <String>[];
+  final deletedTaskIds = <String>[];
   final watchedTaskIds = <String>[];
   final _parent = const TaskEntity(
     accountId: 'account-1',
@@ -466,6 +490,11 @@ class _TestTasksRepository extends TasksRepository {
         hasChildren: false,
       ),
     );
+  }
+
+  @override
+  Future<void> deleteTask(String taskListId, String taskId) async {
+    deletedTaskIds.add(taskId);
   }
 }
 

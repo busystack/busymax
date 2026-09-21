@@ -52,6 +52,7 @@ constexpr gdouble kHeaderDisabledBackdropForegroundOpacity =
     kHeaderDisabledForegroundOpacity * kHeaderBackdropForegroundOpacity;
 constexpr gint kHeaderSidebarContentInset = kHeaderButtonSpacing;
 constexpr gint kHeaderMainContentStartInset = kHeaderSidebarContentInset;
+constexpr gint64 kHeaderSidebarTransitionDurationMicros = 200000;
 constexpr gint kMainWindowDefaultWidth = 1280;
 constexpr gint kMainWindowDefaultHeight = 720;
 constexpr char kDefaultWindowBackgroundColor[] = "#2C2C2C";
@@ -150,6 +151,7 @@ struct _MyApplication {
   gdouble header_bar_sidebar_animation_from;
   gdouble header_bar_sidebar_animation_to;
   gint64 header_bar_sidebar_animation_started_at;
+  gint64 header_bar_sidebar_animation_duration;
   guint header_bar_sidebar_tick_id;
   gint64 header_bar_sidebar_transition_generation;
   gboolean header_bar_can_show_sidebar;
@@ -2049,7 +2051,9 @@ static gboolean header_sidebar_animation_tick(GtkWidget*, GdkFrameClock* clock,
   }
   const gdouble progress = std::clamp(
       static_cast<gdouble>(now - self->header_bar_sidebar_animation_started_at) /
-          200000.0,
+          static_cast<gdouble>(
+              std::max<int64_t>(self->header_bar_sidebar_animation_duration,
+                                1)),
       0.0, 1.0);
   const gdouble inverse = 1.0 - progress;
   const gdouble eased = 1.0 - inverse * inverse * inverse;
@@ -2077,7 +2081,12 @@ static void present_header_sidebar_width(MyApplication* self,
                              ? self->header_bar_sidebar_width
                              : 0.0;
   if (std::abs(target - self->header_bar_sidebar_presented_width) < 0.5) {
+    // A same-frame reversal can target the current endpoint while the
+    // previous tick callback is still headed away from it.
+    cancel_header_sidebar_animation(self);
     self->header_bar_sidebar_presented_width = target;
+    update_header_sidebar_brand_geometry(self);
+    refresh_header_bar_css(self);
     return;
   }
   cancel_header_sidebar_animation(self);
@@ -2092,6 +2101,15 @@ static void present_header_sidebar_width(MyApplication* self,
   self->header_bar_sidebar_animation_from =
       self->header_bar_sidebar_presented_width;
   self->header_bar_sidebar_animation_to = target;
+  const gdouble full_width =
+      std::max<gdouble>(self->header_bar_sidebar_width, 1.0);
+  const gdouble distance = std::abs(
+      self->header_bar_sidebar_animation_to -
+      self->header_bar_sidebar_animation_from);
+  self->header_bar_sidebar_animation_duration = std::max<int64_t>(
+      1, static_cast<int64_t>(std::llround(
+             kHeaderSidebarTransitionDurationMicros *
+             std::clamp(distance / full_width, 0.0, 1.0))));
   self->header_bar_sidebar_animation_started_at = 0;
   self->header_bar_sidebar_tick_id = gtk_widget_add_tick_callback(
       self->titlebar_handle, header_sidebar_animation_tick, self, nullptr);
@@ -3859,6 +3877,8 @@ static void set_header_bar_state(MyApplication* self, FlValue* args) {
     set_header_create_capabilities(self, can_create_event, can_create_task);
   }
 
+  const gboolean previous_sidebar_target_visible =
+      self->header_bar_can_show_sidebar && self->header_bar_sidebar_visible;
   gint64 sidebar_transition_generation =
       self->header_bar_sidebar_transition_generation;
   fl_lookup_int_arg(args, "sidebarTransitionGeneration",
@@ -3888,7 +3908,15 @@ static void set_header_bar_state(MyApplication* self, FlValue* args) {
 
   set_header_search_state(self, search_active, search_query);
   update_header_control_visibility(self);
-  present_header_sidebar_width(self, animate_sidebar);
+  const gboolean sidebar_target_visible =
+      self->header_bar_can_show_sidebar && self->header_bar_sidebar_visible;
+  if (animate_sidebar) {
+    present_header_sidebar_width(self, TRUE);
+  } else if (sidebar_target_visible != previous_sidebar_target_visible) {
+    // Responsive/layout changes do not animate, but unrelated state updates
+    // must leave an in-flight semantic transition untouched.
+    present_header_sidebar_width(self, FALSE);
+  }
 }
 
 static void set_header_localized_labels(MyApplication* self, FlValue* args) {
@@ -4008,7 +4036,7 @@ static GtkWidget* create_busymax_titlebar(MyApplication* self) {
   gtk_widget_set_halign(self->header_sidebar_brand_box, GTK_ALIGN_FILL);
   gtk_widget_set_hexpand(self->header_sidebar_brand_box, FALSE);
   gtk_scrolled_window_set_policy(
-      GTK_SCROLLED_WINDOW(self->header_sidebar_brand_box), GTK_POLICY_NEVER,
+      GTK_SCROLLED_WINDOW(self->header_sidebar_brand_box), GTK_POLICY_EXTERNAL,
       GTK_POLICY_NEVER);
   gtk_scrolled_window_set_shadow_type(
       GTK_SCROLLED_WINDOW(self->header_sidebar_brand_box), GTK_SHADOW_NONE);
@@ -5599,6 +5627,8 @@ static void my_application_init(MyApplication* self) {
   self->header_bar_sidebar_animation_from = 300;
   self->header_bar_sidebar_animation_to = 300;
   self->header_bar_sidebar_animation_started_at = 0;
+  self->header_bar_sidebar_animation_duration =
+      kHeaderSidebarTransitionDurationMicros;
   self->header_bar_sidebar_tick_id = 0;
   self->header_bar_sidebar_transition_generation = 0;
   self->header_bar_can_show_sidebar = TRUE;

@@ -14,6 +14,7 @@ import '../../schedule/task_list_mutation_intent.dart';
 import '../../schedule/schedule_filters.dart';
 import '../../schedule/schedule_item.dart';
 import '../../features/tasks/data/tasks_repository.dart';
+import '../../features/tasks/domain/task_mutation_result.dart';
 import '../common/busymax_glyph.dart';
 import 'windows_busymax_glyphs.dart';
 import 'windows_task_details_dialog.dart';
@@ -147,6 +148,45 @@ class _WindowsTasksPageState extends ConsumerState<WindowsTasksPage> {
       });
       _reload();
     }
+  }
+
+  void _beginDetailsMutation(TaskMutationResult result) {
+    if (!mounted) return;
+    final presentation = switch (result.kind) {
+      TaskMutationKind.deleted ||
+      TaskMutationKind.moved => TaskListMutationPresentation.removal,
+      TaskMutationKind.duplicated => TaskListMutationPresentation.insertion,
+      _ => TaskListMutationPresentation.completion,
+    };
+    final taskId = result.createdTaskId ?? result.taskId;
+    final current = _mutationIntent;
+    if (current?.presentation == presentation &&
+        current?.accountId == result.accountId &&
+        current?.taskListId == result.taskListId &&
+        current?.taskId == taskId &&
+        current?.completed == result.completed) {
+      return;
+    }
+    setState(() {
+      _mutationIntent = TaskListMutationIntent(
+        presentation: presentation,
+        accountId: result.accountId,
+        taskListId: result.taskListId,
+        taskId: taskId,
+        checklistItemId: result.checklistItemId,
+        completed: result.completed,
+        generation: ++_mutationGeneration,
+      );
+    });
+  }
+
+  void _commitDetailsMutation(TaskMutationResult result) {
+    _beginDetailsMutation(result);
+    if (mounted) _reload();
+  }
+
+  void _failDetailsMutation() {
+    if (mounted) setState(() => _mutationIntent = null);
   }
 
   Future<void> _setCompleted(TaskScheduleItem task, bool completed) async {
@@ -452,6 +492,7 @@ class _WindowsTasksPageState extends ConsumerState<WindowsTasksPage> {
                         mutation.completed == null ||
                         task.completed == mutation.completed,
                     onMutationConsumed: (mutation) {
+                      if (!mounted) return;
                       if (_mutationIntent?.generation == mutation.generation) {
                         setState(() => _mutationIntent = null);
                       }
@@ -533,6 +574,9 @@ class _WindowsTasksPageState extends ConsumerState<WindowsTasksPage> {
                                 context,
                                 ref,
                                 task,
+                                onTaskMutationStarted: _beginDetailsMutation,
+                                onTaskMutationCommitted: _commitDetailsMutation,
+                                onTaskMutationFailed: _failDetailsMutation,
                               ).then((changed) {
                                 if (changed) _reload();
                               }),

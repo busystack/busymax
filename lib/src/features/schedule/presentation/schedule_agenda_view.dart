@@ -36,6 +36,7 @@ class ScheduleAgendaView extends StatefulWidget {
     this.searchQuery = '',
     this.taskListMutationIntent,
     this.onTaskListMutationConsumed,
+    this.emptyBuilder,
   });
 
   final ScheduleSearchCriteria? searchCriteria;
@@ -59,6 +60,7 @@ class ScheduleAgendaView extends StatefulWidget {
   final ScheduleItemAnchorCallback? onItemAnchorAvailable;
   final TaskListMutationIntent? taskListMutationIntent;
   final ValueChanged<TaskListMutationIntent>? onTaskListMutationConsumed;
+  final WidgetBuilder? emptyBuilder;
 
   @override
   State<ScheduleAgendaView> createState() => _ScheduleAgendaViewState();
@@ -166,6 +168,9 @@ class _ScheduleAgendaViewState extends State<ScheduleAgendaView> {
         outgoing.index.clamp(0, presentedItems.length),
         outgoing.item,
       );
+    }
+    if (presentedItems.isEmpty && widget.emptyBuilder != null) {
+      return widget.emptyBuilder!(context);
     }
     final sections = widget.searchCriteria == null
         ? _ordinarySections(context, presentedItems)

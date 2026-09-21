@@ -708,6 +708,7 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
                                 navigationIntent: _navigationIntent,
                                 taskListMutationIntent: _taskListMutationIntent,
                                 onTaskListMutationConsumed: (intent) {
+                                  if (!mounted) return;
                                   if (_taskListMutationIntent?.generation ==
                                       intent.generation) {
                                     setState(
@@ -2726,6 +2727,7 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
       _taskListMutationIntent = TaskListMutationIntent(
         presentation: switch (result.kind) {
           TaskMutationKind.deleted => TaskListMutationPresentation.removal,
+          TaskMutationKind.moved => TaskListMutationPresentation.removal,
           TaskMutationKind.duplicated => TaskListMutationPresentation.insertion,
           TaskMutationKind.completion =>
             TaskListMutationPresentation.completion,
@@ -3096,18 +3098,6 @@ class _ScheduleBody extends StatelessWidget {
         onRefresh: onRefresh,
       );
     }
-    if (items.isEmpty && searchActive) {
-      if (searchCriteria?.hasSources == false) {
-        return Center(child: Text(context.l10n.searchNoSources));
-      }
-      return const ScheduleSearchEmptyState();
-    }
-    if (items.isEmpty && mode == ScheduleViewMode.agenda) {
-      return ScheduleEmptyState(
-        onNewEvent: canCreateEvent ? onNewEvent : null,
-        onNewTask: canCreateTask ? onNewTask : null,
-      );
-    }
     final modeView = BusyMaxKeyedCrossfade(
       transitionKey: mode,
       child: switch (mode) {
@@ -3187,16 +3177,25 @@ class _ScheduleBody extends StatelessWidget {
           onChecklistItemCompletionChanged: onChecklistItemCompletionChanged,
           taskListMutationIntent: taskListMutationIntent,
           onTaskListMutationConsumed: onTaskListMutationConsumed,
+          emptyBuilder: searchActive
+              ? (context) => searchCriteria?.hasSources == false
+                    ? Center(child: Text(context.l10n.searchNoSources))
+                    : const ScheduleSearchEmptyState()
+              : (context) => ScheduleEmptyState(
+                  onNewEvent: canCreateEvent ? onNewEvent : null,
+                  onNewTask: canCreateTask ? onNewTask : null,
+                ),
         ),
       },
     );
     final intent = navigationIntent;
-    if (intent != null &&
-        intent.cause == ScheduleNavigationCause.adjacentPeriod &&
-        (mode == ScheduleViewMode.month || mode == ScheduleViewMode.year)) {
+    if (mode == ScheduleViewMode.month || mode == ScheduleViewMode.year) {
+      final adjacent = intent?.cause == ScheduleNavigationCause.adjacentPeriod
+          ? intent
+          : null;
       return BusyMaxDirectionalSwitcher(
-        generation: intent.generation,
-        direction: intent.direction,
+        generation: adjacent?.generation ?? 0,
+        direction: adjacent?.direction ?? 0,
         child: modeView,
       );
     }

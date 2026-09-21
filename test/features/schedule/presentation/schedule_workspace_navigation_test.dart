@@ -79,9 +79,13 @@ void main() {
         await tester.sendKeyEvent(LogicalKeyboardKey.digit3);
         await tester.pump();
         await _navigate(tester, next: scenario.next);
-        final view = tester.widget<ScheduleMonthView>(
-          find.byType(ScheduleMonthView),
+        final destination = find.byWidgetPredicate(
+          (widget) =>
+              widget is ScheduleMonthView &&
+              widget.selectedDate == scenario.expected,
         );
+        expect(destination, findsOneWidget);
+        final view = tester.widget<ScheduleMonthView>(destination);
         expect(view.selectedDate, scenario.expected);
         expect(view.selectedDate.hour, 0);
         await tester.pumpWidget(const SizedBox.shrink());

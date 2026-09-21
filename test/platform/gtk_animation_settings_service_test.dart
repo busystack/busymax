@@ -92,6 +92,34 @@ void main() {
       expect(
         source,
         contains(
+          'cancel_header_sidebar_animation(self);\n'
+          '    self->header_bar_sidebar_presented_width = target;',
+        ),
+      );
+      expect(
+        source,
+        contains(
+          'GTK_SCROLLED_WINDOW(self->header_sidebar_brand_box), '
+          'GTK_POLICY_EXTERNAL,',
+        ),
+      );
+      expect(
+        source,
+        contains(
+          'kHeaderSidebarTransitionDurationMicros *\n'
+          '             std::clamp(distance / full_width, 0.0, 1.0)',
+        ),
+      );
+      expect(
+        source,
+        contains(
+          'else if (sidebar_target_visible != '
+          'previous_sidebar_target_visible)',
+        ),
+      );
+      expect(
+        source,
+        contains(
           'gtk_scrolled_window_set_propagate_natural_width(\n'
           '      GTK_SCROLLED_WINDOW(self->header_sidebar_brand_box), FALSE);',
         ),

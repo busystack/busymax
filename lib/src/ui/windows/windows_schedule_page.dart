@@ -30,6 +30,7 @@ import '../../features/schedule/application/saved_schedule_location.dart';
 import '../../schedule/schedule_event_rescheduling.dart';
 import '../../features/calendar/domain/event_timing_policy.dart';
 import '../../features/tasks/data/tasks_repository.dart';
+import '../../features/tasks/domain/task_mutation_result.dart';
 import '../common/schedule/schedule_interactions.dart';
 import '../common/schedule/schedule_preview_label.dart';
 import 'windows_schedule_day_week_view.dart';
@@ -77,8 +78,10 @@ class _WindowsSchedulePageState extends ConsumerState<WindowsSchedulePage> {
   var _refreshRevision = 0;
   String? _taskListsKey;
   Future<List<TaskListEntity>>? _taskListsFuture;
-  Object? _itemsKey;
-  Future<List<ScheduleItem>>? _itemsFuture;
+  Object? _normalItemsKey;
+  Future<List<ScheduleItem>>? _normalItemsFuture;
+  Object? _searchItemsKey;
+  Future<List<ScheduleItem>>? _searchItemsFuture;
   var _sourcePaneCollapsed = false;
   var _sourcePaneTransitionGeneration = 0;
   Timer? _searchDebounce;
@@ -158,7 +161,8 @@ class _WindowsSchedulePageState extends ConsumerState<WindowsSchedulePage> {
     _initialSearchCriteria = _initialSearchCriteria?.copyWith(
       firstWeekday: firstWeekday,
     );
-    _itemsKey = null;
+    _normalItemsKey = null;
+    _searchItemsKey = null;
   }
 
   Future<void> _revealPendingCommand() async {
@@ -219,8 +223,10 @@ class _WindowsSchedulePageState extends ConsumerState<WindowsSchedulePage> {
       _refreshRevision += 1;
       _taskListsKey = null;
       _taskListsFuture = null;
-      _itemsKey = null;
-      _itemsFuture = null;
+      _normalItemsKey = null;
+      _normalItemsFuture = null;
+      _searchItemsKey = null;
+      _searchItemsFuture = null;
     });
   }
 
@@ -307,6 +313,43 @@ class _WindowsSchedulePageState extends ConsumerState<WindowsSchedulePage> {
     final l10n = AppLocalizations.of(context);
     final locale = Localizations.localeOf(context).toLanguageTag();
     final range = _rangeForMode();
+    final presentationMode = _mode;
+    final presentationDate = _selectedDate;
+    final presentationFirstWeekday = _firstWeekday;
+    final presentationNavigationIntent = _navigationIntent;
+    final presentationMutationIntent = _taskMutationIntent;
+    final searchCriteria = _searchCriteria;
+    final searchQuery = _query;
+    final presentation = _searchActive && searchCriteria != null
+        ? _buildSearchPresentation(
+            future: _searchItemsFor(
+              range: range,
+              accounts: accounts,
+              criteria: searchCriteria,
+              query: searchQuery,
+            ),
+            criteria: searchCriteria,
+            query: searchQuery,
+            locale: locale,
+            mutationIntent: presentationMutationIntent,
+          )
+        : _buildNormalPresentation(
+            future: _normalItemsFor(
+              range: range,
+              accounts: accounts,
+              visibility: visibility,
+              mode: presentationMode,
+              agendaTaskLimit: _agendaTaskLimit,
+            ),
+            mode: presentationMode,
+            selectedDate: presentationDate,
+            firstWeekday: presentationFirstWeekday,
+            range: range,
+            locale: locale,
+            sources: sources,
+            navigationIntent: presentationNavigationIntent,
+            mutationIntent: presentationMutationIntent,
+          );
     return LayoutBuilder(
       builder: (context, constraints) {
         final canShowSourcePane = BusyMaxBreakpoints.showsSourcePane(
@@ -572,90 +615,7 @@ class _WindowsSchedulePageState extends ConsumerState<WindowsSchedulePage> {
                         Expanded(
                           child: BusyMaxBinaryPresentation(
                             alternateActive: _searchActive,
-                            child: FutureBuilder<List<ScheduleItem>>(
-                              future: _itemsFor(
-                                range: range,
-                                accounts: accounts,
-                                visibility: visibility,
-                              ),
-                              builder: (context, snapshot) {
-                                if (snapshot.connectionState !=
-                                        ConnectionState.done &&
-                                    (_searchActive || !snapshot.hasData)) {
-                                  return const Center(child: ProgressRing());
-                                }
-                                if (snapshot.hasError) {
-                                  return Center(
-                                    child: InfoBar(
-                                      title: Text(l10n.scheduleUnavailable),
-                                      severity: InfoBarSeverity.error,
-                                      action: Button(
-                                        onPressed: _reload,
-                                        child: Text(l10n.retry),
-                                      ),
-                                    ),
-                                  );
-                                }
-                                final items = snapshot.data ?? const [];
-                                if (items.isEmpty && _searchActive) {
-                                  return _WindowsScheduleEmptyState(
-                                    searching: _searchActive,
-                                    noVisibleSources:
-                                        _searchCriteria?.hasSources == false,
-                                  );
-                                }
-                                if (_searchActive) {
-                                  return _AgendaList(
-                                    key: const ValueKey(
-                                      'windows-search-results',
-                                    ),
-                                    items: items,
-                                    locale: locale,
-                                    onOpen: _showItemDetails,
-                                    searchCriteria: _searchCriteria,
-                                    searchQuery: _query,
-                                    taskMutationIntent: _taskMutationIntent,
-                                    onTaskMutationConsumed:
-                                        _consumeTaskMutation,
-                                  );
-                                }
-                                return BusyMaxKeyedCrossfade(
-                                  transitionKey: _mode,
-                                  child: _ScheduleModeView(
-                                    firstWeekday: _firstWeekday,
-                                    mode: _mode,
-                                    selectedDate: _selectedDate,
-                                    range: range,
-                                    items: items,
-                                    locale: locale,
-                                    onOpen: _showItemDetails,
-                                    onSelectDate: _openDay,
-                                    onLoadMoreAgenda: _loadMoreAgenda,
-                                    onVisibleDateChanged: _selectDate,
-                                    navigationIntent: _navigationIntent,
-                                    taskMutationIntent: _taskMutationIntent,
-                                    onTaskMutationConsumed:
-                                        _consumeTaskMutation,
-                                    onEmptySlot: (start) =>
-                                        unawaited(_createEvent(start: start)),
-                                    onRangeCreated:
-                                        writableCalendarSources(sources).isEmpty
-                                        ? null
-                                        : (interval) => unawaited(
-                                            _createEvent(interval: interval),
-                                          ),
-                                    onReschedule: _rescheduleEvent,
-                                    onTaskCompletionChanged: _setTaskCompleted,
-                                    dayStartMinute: ref
-                                        .read(appSettingsControllerProvider)
-                                        .scheduleDayStartMinute,
-                                    dayEndMinute: ref
-                                        .read(appSettingsControllerProvider)
-                                        .scheduleDayEndMinute,
-                                  ),
-                                );
-                              },
-                            ),
+                            child: presentation,
                           ),
                         ),
                       ],
@@ -669,6 +629,105 @@ class _WindowsSchedulePageState extends ConsumerState<WindowsSchedulePage> {
       },
     );
   }
+
+  Widget _buildSearchPresentation({
+    required Future<List<ScheduleItem>> future,
+    required ScheduleSearchCriteria criteria,
+    required String query,
+    required String locale,
+    required TaskListMutationIntent? mutationIntent,
+  }) => FutureBuilder<List<ScheduleItem>>(
+    key: const ValueKey('windows-search-presentation'),
+    future: future,
+    builder: (context, snapshot) {
+      if (snapshot.connectionState != ConnectionState.done &&
+          !snapshot.hasData) {
+        return const Center(child: ProgressRing());
+      }
+      if (snapshot.hasError) {
+        return _scheduleLoadError(context);
+      }
+      return _AgendaList(
+        key: const ValueKey('windows-search-results'),
+        items: snapshot.data ?? const [],
+        locale: locale,
+        onOpen: _showItemDetails,
+        searchCriteria: criteria,
+        searchQuery: query,
+        taskMutationIntent: mutationIntent,
+        onTaskMutationConsumed: _consumeTaskMutation,
+        emptyBuilder: (context) => _WindowsScheduleEmptyState(
+          searching: true,
+          noVisibleSources: !criteria.hasSources,
+        ),
+      );
+    },
+  );
+
+  Widget _buildNormalPresentation({
+    required Future<List<ScheduleItem>> future,
+    required ScheduleViewMode mode,
+    required DateTime selectedDate,
+    required int firstWeekday,
+    required ScheduleRange range,
+    required String locale,
+    required List<CalendarSourceEntity> sources,
+    required ScheduleNavigationIntent? navigationIntent,
+    required TaskListMutationIntent? mutationIntent,
+  }) => FutureBuilder<List<ScheduleItem>>(
+    key: const ValueKey('windows-normal-presentation'),
+    future: future,
+    builder: (context, snapshot) {
+      if (snapshot.connectionState != ConnectionState.done &&
+          !snapshot.hasData) {
+        return const Center(child: ProgressRing());
+      }
+      if (snapshot.hasError) {
+        return _scheduleLoadError(context);
+      }
+      return BusyMaxKeyedCrossfade(
+        transitionKey: mode,
+        child: _ScheduleModeView(
+          firstWeekday: firstWeekday,
+          mode: mode,
+          selectedDate: selectedDate,
+          range: range,
+          items: snapshot.data ?? const [],
+          locale: locale,
+          onOpen: _showItemDetails,
+          onSelectDate: _openDay,
+          onLoadMoreAgenda: _loadMoreAgenda,
+          onVisibleDateChanged: _selectDate,
+          navigationIntent: navigationIntent,
+          taskMutationIntent: mutationIntent,
+          onTaskMutationConsumed: _consumeTaskMutation,
+          onEmptySlot: (start) => unawaited(_createEvent(start: start)),
+          onRangeCreated: writableCalendarSources(sources).isEmpty
+              ? null
+              : (interval) => unawaited(_createEvent(interval: interval)),
+          onReschedule: _rescheduleEvent,
+          onTaskCompletionChanged: _setTaskCompleted,
+          dayStartMinute: ref
+              .read(appSettingsControllerProvider)
+              .scheduleDayStartMinute,
+          dayEndMinute: ref
+              .read(appSettingsControllerProvider)
+              .scheduleDayEndMinute,
+        ),
+      );
+    },
+  );
+
+  Widget _scheduleLoadError(BuildContext context) => Center(
+    child: InfoBar(
+      title: Text(AppLocalizations.of(context).scheduleUnavailable),
+      severity: InfoBarSeverity.error,
+      action: Button(
+        onPressed: _reload,
+        child: Text(AppLocalizations.of(context).retry),
+      ),
+    ),
+  );
 
   Future<void> _createEvent({
     DateTime? start,
@@ -797,9 +856,50 @@ class _WindowsSchedulePageState extends ConsumerState<WindowsSchedulePage> {
   }
 
   void _consumeTaskMutation(TaskListMutationIntent intent) {
+    if (!mounted) return;
     if (_taskMutationIntent?.generation == intent.generation) {
       setState(() => _taskMutationIntent = null);
     }
+  }
+
+  void _beginDetailsMutation(TaskMutationResult result) {
+    if (!mounted) return;
+    final presentation = switch (result.kind) {
+      TaskMutationKind.deleted ||
+      TaskMutationKind.moved => TaskListMutationPresentation.removal,
+      TaskMutationKind.duplicated => TaskListMutationPresentation.insertion,
+      _ => TaskListMutationPresentation.completion,
+    };
+    final taskId = result.createdTaskId ?? result.taskId;
+    final current = _taskMutationIntent;
+    if (current?.presentation == presentation &&
+        current?.accountId == result.accountId &&
+        current?.taskListId == result.taskListId &&
+        current?.taskId == taskId &&
+        current?.checklistItemId == result.checklistItemId &&
+        current?.completed == result.completed) {
+      return;
+    }
+    setState(() {
+      _taskMutationIntent = TaskListMutationIntent(
+        presentation: presentation,
+        accountId: result.accountId,
+        taskListId: result.taskListId,
+        taskId: taskId,
+        checklistItemId: result.checklistItemId,
+        completed: result.completed,
+        generation: ++_taskMutationGeneration,
+      );
+    });
+  }
+
+  void _commitDetailsMutation(TaskMutationResult result) {
+    _beginDetailsMutation(result);
+    if (mounted) _reload();
+  }
+
+  void _failDetailsMutation() {
+    if (mounted) setState(() => _taskMutationIntent = null);
   }
 
   void _initializeSearch() {
@@ -911,10 +1011,12 @@ class _WindowsSchedulePageState extends ConsumerState<WindowsSchedulePage> {
     return _taskListsFuture!;
   }
 
-  Future<List<ScheduleItem>> _itemsFor({
+  Future<List<ScheduleItem>> _normalItemsFor({
     required ScheduleRange range,
     required List<AccountEntity> accounts,
     required ScheduleSourceVisibility visibility,
+    required ScheduleViewMode mode,
+    required int agendaTaskLimit,
   }) {
     final calendarIds = visibility.visibleCalendarSourceIds.toList()..sort();
     final taskKeys =
@@ -925,19 +1027,19 @@ class _WindowsSchedulePageState extends ConsumerState<WindowsSchedulePage> {
     final accountIds = [for (final account in accounts) account.id]..sort();
     final normalKey = [
       _refreshRevision,
-      _mode.name,
+      mode.name,
       range.start.toIso8601String(),
       range.end.toIso8601String(),
-      _query,
       accountIds.join(','),
       calendarIds.join(','),
       taskKeys.join(','),
     ].join('|');
-    final key = (normalKey, _searchActive, _searchCriteria);
-    if (_itemsKey == key && _itemsFuture != null) return _itemsFuture!;
-    _itemsKey = key;
+    if (_normalItemsKey == normalKey && _normalItemsFuture != null) {
+      return _normalItemsFuture!;
+    }
+    _normalItemsKey = normalKey;
     final filters = ScheduleFilters(
-      query: _query,
+      query: '',
       accountIds: accountIds.toSet(),
       sourceIds: visibility.visibleCalendarSourceIds,
       taskListKeys: visibility.visibleTaskListKeys,
@@ -946,35 +1048,63 @@ class _WindowsSchedulePageState extends ConsumerState<WindowsSchedulePage> {
       includeCalendarEvents: true,
       includeTasks: true,
       taskCompletion: ScheduleTaskCompletion.all,
-      showNoDateTasks: _mode == ScheduleViewMode.agenda,
+      showNoDateTasks: mode == ScheduleViewMode.agenda,
     );
-    _itemsFuture = _searchActive && _searchCriteria != null
-        ? ref
-              .read(scheduleRepositoryProvider)
-              .listItems(
-                range: _searchCriteria!.range ?? range,
-                filters: _searchCriteria!.filters(_query),
-              )
-        : _loadItems(range, filters);
-    return _itemsFuture!;
+    _normalItemsFuture = _loadItems(
+      range,
+      filters,
+      mode: mode,
+      agendaTaskLimit: agendaTaskLimit,
+    );
+    return _normalItemsFuture!;
+  }
+
+  Future<List<ScheduleItem>> _searchItemsFor({
+    required ScheduleRange range,
+    required List<AccountEntity> accounts,
+    required ScheduleSearchCriteria criteria,
+    required String query,
+  }) {
+    final accountIds = [for (final account in accounts) account.id]..sort();
+    final key = (
+      _refreshRevision,
+      range.start,
+      range.end,
+      accountIds.join(','),
+      criteria,
+      query,
+    );
+    if (_searchItemsKey == key && _searchItemsFuture != null) {
+      return _searchItemsFuture!;
+    }
+    _searchItemsKey = key;
+    _searchItemsFuture = ref
+        .read(scheduleRepositoryProvider)
+        .listItems(
+          range: criteria.range ?? range,
+          filters: criteria.filters(query),
+        );
+    return _searchItemsFuture!;
   }
 
   Future<List<ScheduleItem>> _loadItems(
     ScheduleRange range,
-    ScheduleFilters filters,
-  ) async {
+    ScheduleFilters filters, {
+    required ScheduleViewMode mode,
+    required int agendaTaskLimit,
+  }) async {
     final repository = ref.read(scheduleRepositoryProvider);
     final items = <ScheduleItem>[
       ...await repository.listItems(range: range, filters: filters),
     ];
-    if (_mode == ScheduleViewMode.agenda) {
+    if (mode == ScheduleViewMode.agenda) {
       final overdue = await repository.listOverdueTasks(
         before: range.start,
-        limit: _agendaTaskLimit,
+        limit: agendaTaskLimit,
         filters: filters,
       );
       final noDate = await repository.listNoDateTasks(
-        limit: _agendaTaskLimit,
+        limit: agendaTaskLimit,
         filters: filters,
       );
       items.addAll(overdue.items);
@@ -1038,7 +1168,7 @@ class _WindowsSchedulePageState extends ConsumerState<WindowsSchedulePage> {
     setState(() {
       _navigationIntent = null;
       _selectedDate = _dateOnly(date);
-      _itemsKey = null;
+      _normalItemsKey = null;
     });
   }
 
@@ -1073,7 +1203,7 @@ class _WindowsSchedulePageState extends ConsumerState<WindowsSchedulePage> {
     };
     setState(() {
       _selectedDate = _dateOnly(next);
-      _itemsKey = null;
+      _normalItemsKey = null;
       _navigationIntent = ScheduleNavigationIntent(
         cause: ScheduleNavigationCause.adjacentPeriod,
         target: _selectedDate,
@@ -1088,7 +1218,7 @@ class _WindowsSchedulePageState extends ConsumerState<WindowsSchedulePage> {
     setState(() {
       _navigationIntent = null;
       _mode = mode;
-      _itemsKey = null;
+      _normalItemsKey = null;
     });
     unawaited(
       ref
@@ -1101,7 +1231,7 @@ class _WindowsSchedulePageState extends ConsumerState<WindowsSchedulePage> {
     setState(() {
       _agendaDays += 30;
       _agendaTaskLimit += 100;
-      _itemsKey = null;
+      _normalItemsKey = null;
     });
   }
 
@@ -1438,7 +1568,14 @@ class _WindowsSchedulePageState extends ConsumerState<WindowsSchedulePage> {
         eventId: item.id,
       );
     } else if (item is TaskScheduleItem) {
-      changed = await showWindowsTaskDetailsDialog(currentContext, ref, item);
+      changed = await showWindowsTaskDetailsDialog(
+        currentContext,
+        ref,
+        item,
+        onTaskMutationStarted: _beginDetailsMutation,
+        onTaskMutationCommitted: _commitDetailsMutation,
+        onTaskMutationFailed: _failDetailsMutation,
+      );
     } else {
       return;
     }
@@ -1799,12 +1936,13 @@ class _ScheduleModeView extends StatelessWidget {
       ),
     };
     final intent = navigationIntent;
-    if (intent != null &&
-        intent.cause == ScheduleNavigationCause.adjacentPeriod &&
-        (mode == ScheduleViewMode.month || mode == ScheduleViewMode.year)) {
+    if (mode == ScheduleViewMode.month || mode == ScheduleViewMode.year) {
+      final adjacent = intent?.cause == ScheduleNavigationCause.adjacentPeriod
+          ? intent
+          : null;
       return BusyMaxDirectionalSwitcher(
-        generation: intent.generation,
-        direction: intent.direction,
+        generation: adjacent?.generation ?? 0,
+        direction: adjacent?.direction ?? 0,
         child: view,
       );
     }
@@ -1823,6 +1961,7 @@ class _AgendaList extends StatelessWidget {
     this.onLoadMore,
     this.taskMutationIntent,
     this.onTaskMutationConsumed,
+    this.emptyBuilder,
   });
 
   final ScheduleSearchCriteria? searchCriteria;
@@ -1833,6 +1972,7 @@ class _AgendaList extends StatelessWidget {
   final VoidCallback? onLoadMore;
   final TaskListMutationIntent? taskMutationIntent;
   final ValueChanged<TaskListMutationIntent>? onTaskMutationConsumed;
+  final WidgetBuilder? emptyBuilder;
 
   @override
   Widget build(BuildContext context) {
@@ -1851,8 +1991,10 @@ class _AgendaList extends StatelessWidget {
           mutation.completed == null ||
           item.completed == mutation.completed,
       onMutationConsumed: onTaskMutationConsumed,
-      emptyBuilder: (context) =>
-          Center(child: Text(AppLocalizations.of(context).noEventsOrTasks)),
+      emptyBuilder:
+          emptyBuilder ??
+          (context) =>
+              Center(child: Text(AppLocalizations.of(context).noEventsOrTasks)),
       padding: const EdgeInsetsDirectional.fromSTEB(20, 0, 20, 24),
       footer: onLoadMore == null
           ? null

@@ -83,6 +83,7 @@ class AndroidTaskEditorResult {
     required this.taskListId,
     required this.taskId,
     this.previousTaskListId,
+    this.completed,
   });
 
   final AndroidTaskEditorAction action;
@@ -90,6 +91,7 @@ class AndroidTaskEditorResult {
   final String taskListId;
   final String taskId;
   final String? previousTaskListId;
+  final bool? completed;
 }
 
 class _AndroidTasksScreenState extends ConsumerState<AndroidTasksScreen> {
@@ -234,6 +236,7 @@ class _AndroidTasksScreenState extends ConsumerState<AndroidTasksScreen> {
               mutation.completed == null ||
               task.completed == mutation.completed,
           onMutationConsumed: (mutation) {
+            if (!mounted) return;
             if (_mutationIntent?.generation == mutation.generation) {
               setState(() => _mutationIntent = null);
             }
@@ -388,13 +391,23 @@ class _AndroidTasksScreenState extends ConsumerState<AndroidTasksScreen> {
       ref,
       creationList: selected,
       creationProvider: account.provider,
+      onMutationStarted: _consumeEditorResult,
+      onMutationCommitted: _consumeEditorResult,
+      onMutationFailed: _clearEditorMutation,
     );
-    if (result != null && mounted) _consumeEditorResult(result);
+    // The callbacks report the mutation before route cleanup can delay it.
+    if (result == null) return;
   }
 
   Future<void> _edit(TaskScheduleItem task) async {
-    final result = await showAndroidTaskEditor(context, ref, task: task);
-    if (result != null && mounted) _consumeEditorResult(result);
+    await showAndroidTaskEditor(
+      context,
+      ref,
+      task: task,
+      onMutationStarted: _consumeEditorResult,
+      onMutationCommitted: _consumeEditorResult,
+      onMutationFailed: _clearEditorMutation,
+    );
   }
 
   void _consumeEditorResult(AndroidTaskEditorResult result) {
@@ -405,15 +418,29 @@ class _AndroidTasksScreenState extends ConsumerState<AndroidTasksScreen> {
       AndroidTaskEditorAction.updated =>
         TaskListMutationPresentation.completion,
     };
+    final taskListId = result.previousTaskListId ?? result.taskListId;
+    final current = _mutationIntent;
+    if (current?.presentation == presentation &&
+        current?.accountId == result.accountId &&
+        current?.taskListId == taskListId &&
+        current?.taskId == result.taskId &&
+        current?.completed == result.completed) {
+      return;
+    }
     setState(() {
       _mutationIntent = TaskListMutationIntent(
         presentation: presentation,
         accountId: result.accountId,
-        taskListId: result.previousTaskListId ?? result.taskListId,
+        taskListId: taskListId,
         taskId: result.taskId,
+        completed: result.completed,
         generation: ++_mutationGeneration,
       );
     });
+  }
+
+  void _clearEditorMutation() {
+    if (mounted) setState(() => _mutationIntent = null);
   }
 }
 
@@ -452,6 +479,9 @@ Future<AndroidTaskEditorResult?> showAndroidTaskEditor(
   TaskListEntity? creationList,
   BusyProvider? creationProvider,
   DateTime? initialDue,
+  ValueChanged<AndroidTaskEditorResult>? onMutationStarted,
+  ValueChanged<AndroidTaskEditorResult>? onMutationCommitted,
+  VoidCallback? onMutationFailed,
 }) async {
   TaskEntity? entity;
   TaskListEntity? selectedList = creationList;
@@ -483,6 +513,9 @@ Future<AndroidTaskEditorResult?> showAndroidTaskEditor(
         initialDue: initialDue,
         accountLabel: account?.displayLabel,
         listLabel: selectedList?.title,
+        onMutationStarted: onMutationStarted,
+        onMutationCommitted: onMutationCommitted,
+        onMutationFailed: onMutationFailed,
       ),
     ),
   );
@@ -498,6 +531,9 @@ class AndroidTaskEditor extends ConsumerStatefulWidget {
     this.initialDue,
     this.accountLabel,
     this.listLabel,
+    this.onMutationStarted,
+    this.onMutationCommitted,
+    this.onMutationFailed,
   });
   final String accountId;
   final BusyProvider provider;
@@ -506,6 +542,9 @@ class AndroidTaskEditor extends ConsumerStatefulWidget {
   final DateTime? initialDue;
   final String? accountLabel;
   final String? listLabel;
+  final ValueChanged<AndroidTaskEditorResult>? onMutationStarted;
+  final ValueChanged<AndroidTaskEditorResult>? onMutationCommitted;
+  final VoidCallback? onMutationFailed;
   @override
   ConsumerState<AndroidTaskEditor> createState() => _AndroidTaskEditorState();
 }
@@ -1184,6 +1223,9 @@ class _AndroidTaskEditorState extends ConsumerState<AndroidTaskEditor> {
           task: task,
           accountLabel: widget.accountLabel,
           listLabel: widget.listLabel,
+          onMutationStarted: widget.onMutationStarted,
+          onMutationCommitted: widget.onMutationCommitted,
+          onMutationFailed: widget.onMutationFailed,
         ),
       ),
     );
@@ -1547,25 +1589,42 @@ class _AndroidTaskEditorState extends ConsumerState<AndroidTaskEditor> {
     setState(_syncDraftFromControllers);
     if (!_draftIsValid) return;
     setState(() => _saving = true);
+    final existing = widget.task;
+    final pendingResult = existing == null
+        ? null
+        : AndroidTaskEditorResult(
+            action: AndroidTaskEditorAction.updated,
+            accountId: widget.accountId,
+            taskListId: _draft.taskListId,
+            taskId: existing.id,
+            completed: _draftCompletion,
+          );
+    if (pendingResult != null) {
+      widget.onMutationStarted?.call(pendingResult);
+    }
+    var mutationPersisted = false;
     try {
       final taskId = await _persistTaskDraft();
+      mutationPersisted = true;
+      final result =
+          pendingResult ??
+          AndroidTaskEditorResult(
+            action: AndroidTaskEditorAction.created,
+            accountId: widget.accountId,
+            taskListId: _draft.taskListId,
+            taskId: taskId,
+          );
+      widget.onMutationCommitted?.call(result);
       if (mounted) {
         await _clearRecovery(finalCleanup: true);
         if (!mounted) return;
         setState(() => _allowPop = true);
-        Navigator.pop(
-          context,
-          AndroidTaskEditorResult(
-            action: widget.task == null
-                ? AndroidTaskEditorAction.created
-                : AndroidTaskEditorAction.updated,
-            accountId: widget.accountId,
-            taskListId: _draft.taskListId,
-            taskId: taskId,
-          ),
-        );
+        Navigator.pop(context, result);
       }
     } on Object catch (error) {
+      if (pendingResult != null && !mutationPersisted) {
+        widget.onMutationFailed?.call();
+      }
       if (mounted) {
         ScaffoldMessenger.of(
           context,
@@ -1574,6 +1633,19 @@ class _AndroidTaskEditorState extends ConsumerState<AndroidTaskEditor> {
     } finally {
       if (mounted) setState(() => _saving = false);
     }
+  }
+
+  bool? get _draftCompletion {
+    final original = widget.task;
+    if (original == null) return null;
+    final originalCompleted =
+        original.status?.toLowerCase() == 'completed' ||
+        original.status?.toUpperCase() == 'COMPLETED' ||
+        original.percentComplete == 100;
+    final completed =
+        _draft.taskStatus?.toUpperCase() == 'COMPLETED' ||
+        _draft.percentComplete == 100;
+    return completed == originalCompleted ? null : completed;
   }
 
   void _syncDraftFromControllers() {
@@ -1718,25 +1790,28 @@ class _AndroidTaskEditorState extends ConsumerState<AndroidTaskEditor> {
     );
     if (confirmed != true) return;
     setState(() => _saving = true);
+    final result = AndroidTaskEditorResult(
+      action: AndroidTaskEditorAction.deleted,
+      accountId: widget.accountId,
+      taskListId: widget.task!.taskListId,
+      taskId: widget.task!.id,
+    );
+    widget.onMutationStarted?.call(result);
+    var mutationPersisted = false;
     try {
       await ref
           .read(tasksRepositoryForAccountProvider(widget.accountId))
           .deleteTask(widget.task!.taskListId, widget.task!.id);
+      mutationPersisted = true;
+      widget.onMutationCommitted?.call(result);
       if (mounted) {
         await _clearRecovery(finalCleanup: true);
         if (!mounted) return;
         setState(() => _allowPop = true);
-        Navigator.pop(
-          context,
-          AndroidTaskEditorResult(
-            action: AndroidTaskEditorAction.deleted,
-            accountId: widget.accountId,
-            taskListId: widget.task!.taskListId,
-            taskId: widget.task!.id,
-          ),
-        );
+        Navigator.pop(context, result);
       }
     } on Object catch (error) {
+      if (!mutationPersisted) widget.onMutationFailed?.call();
       if (mounted) {
         ScaffoldMessenger.of(
           context,
@@ -1750,9 +1825,17 @@ class _AndroidTaskEditorState extends ConsumerState<AndroidTaskEditor> {
   Future<void> _duplicate() async {
     setState(() => _saving = true);
     try {
-      await ref
+      final duplicateId = await ref
           .read(tasksRepositoryForAccountProvider(widget.accountId))
           .duplicateTask(_draft.taskListId, widget.task!.id);
+      widget.onMutationCommitted?.call(
+        AndroidTaskEditorResult(
+          action: AndroidTaskEditorAction.created,
+          accountId: widget.accountId,
+          taskListId: _draft.taskListId,
+          taskId: duplicateId,
+        ),
+      );
       if (mounted) {
         ScaffoldMessenger.of(
           context,
@@ -1826,6 +1909,15 @@ class _AndroidTaskEditorState extends ConsumerState<AndroidTaskEditor> {
       if (saveEdits && !_draftIsValid) return;
     }
     setState(() => _saving = true);
+    final result = AndroidTaskEditorResult(
+      action: AndroidTaskEditorAction.moved,
+      accountId: widget.accountId,
+      taskListId: destination.id,
+      taskId: widget.task!.id,
+      previousTaskListId: _draft.taskListId,
+    );
+    widget.onMutationStarted?.call(result);
+    var mutationPersisted = false;
     try {
       final repository = ref.read(
         tasksRepositoryForAccountProvider(widget.accountId),
@@ -1838,20 +1930,14 @@ class _AndroidTaskEditorState extends ConsumerState<AndroidTaskEditor> {
           taskId: widget.task!.id,
         ),
       );
+      mutationPersisted = true;
+      widget.onMutationCommitted?.call(result);
       await _clearRecovery(finalCleanup: true);
       if (!mounted) return;
       setState(() => _allowPop = true);
-      Navigator.pop(
-        context,
-        AndroidTaskEditorResult(
-          action: AndroidTaskEditorAction.moved,
-          accountId: widget.accountId,
-          taskListId: destination.id,
-          taskId: widget.task!.id,
-          previousTaskListId: _draft.taskListId,
-        ),
-      );
+      Navigator.pop(context, result);
     } on Object catch (error) {
+      if (!mutationPersisted) widget.onMutationFailed?.call();
       if (mounted) {
         ScaffoldMessenger.of(
           context,

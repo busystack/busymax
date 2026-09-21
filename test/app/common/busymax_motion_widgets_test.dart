@@ -105,6 +105,141 @@ void main() {
     expect(_revealProgress(tester), 0);
   });
 
+  testWidgets('same-frame sidebar reversal cancels the obsolete direction', (
+    tester,
+  ) async {
+    var visible = true;
+    var generation = 0;
+    late StateSetter update;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: StatefulBuilder(
+          builder: (context, setState) {
+            update = setState;
+            return BusyMaxHorizontalReveal(
+              key: const ValueKey('reveal'),
+              visible: visible,
+              width: 200,
+              transitionGeneration: generation,
+              child: const SizedBox(width: 200, height: 40),
+            );
+          },
+        ),
+      ),
+    );
+
+    update(() {
+      visible = false;
+      generation = 1;
+    });
+    await tester.pump();
+    update(() {
+      visible = true;
+      generation = 2;
+    });
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 80));
+
+    expect(_revealProgress(tester), 1);
+    expect(tester.binding.hasScheduledFrame, isFalse);
+  });
+
+  testWidgets('unchanged-generation rebuild preserves reveal progress', (
+    tester,
+  ) async {
+    var visible = true;
+    var generation = 0;
+    var unrelated = 0;
+    late StateSetter update;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: StatefulBuilder(
+          builder: (context, setState) {
+            update = setState;
+            return Column(
+              children: [
+                Text('data-$unrelated'),
+                BusyMaxHorizontalReveal(
+                  key: const ValueKey('reveal'),
+                  visible: visible,
+                  width: 200,
+                  transitionGeneration: generation,
+                  child: const SizedBox(width: 200, height: 40),
+                ),
+              ],
+            );
+          },
+        ),
+      ),
+    );
+
+    update(() {
+      visible = false;
+      generation = 1;
+    });
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 80));
+    final beforeRebuild = _revealProgress(tester);
+    expect(beforeRebuild, inExclusiveRange(0, 1));
+
+    update(() => unrelated += 1);
+    await tester.pump();
+    expect(_revealProgress(tester), closeTo(beforeRebuild, .001));
+    await tester.pump(const Duration(milliseconds: 20));
+    expect(_revealProgress(tester), lessThan(beforeRebuild));
+    await tester.pumpAndSettle();
+    expect(_revealProgress(tester), 0);
+  });
+
+  testWidgets('first directional generation animates from a mounted host', (
+    tester,
+  ) async {
+    var generation = 0;
+    var direction = 0;
+    var label = 'January';
+    late StateSetter update;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: StatefulBuilder(
+          builder: (context, setState) {
+            update = setState;
+            return SizedBox(
+              width: 300,
+              height: 200,
+              child: BusyMaxDirectionalSwitcher(
+                generation: generation,
+                direction: direction,
+                child: ColoredBox(
+                  key: ValueKey(label),
+                  color: Colors.blue,
+                  child: Text(label),
+                ),
+              ),
+            );
+          },
+        ),
+      ),
+    );
+
+    update(() {
+      generation = 1;
+      direction = 1;
+      label = 'February';
+    });
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 80));
+
+    final translations = tester
+        .widgetList<FractionalTranslation>(find.byType(FractionalTranslation))
+        .map((widget) => widget.translation.dx)
+        .toList();
+    expect(translations.any((value) => value.abs() > 0), isTrue);
+    final opacity = tester
+        .widgetList<Opacity>(find.byType(Opacity))
+        .map((widget) => widget.opacity);
+    expect(opacity.any((value) => value > 0 && value < 1), isTrue);
+  });
+
   testWidgets('retained crossfade keeps two live pages and hides outgoing UI', (
     tester,
   ) async {
@@ -164,6 +299,90 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('draft'), findsOneWidget);
     expect(counts, {'A': 1, 'B': 1});
+  });
+
+  testWidgets('keyed crossfade retains three semantic destinations', (
+    tester,
+  ) async {
+    final counts = <String, int>{};
+    var destination = 'Week';
+    late StateSetter update;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: StatefulBuilder(
+            builder: (context, setState) {
+              update = setState;
+              return SizedBox(
+                width: 300,
+                height: 200,
+                child: BusyMaxKeyedCrossfade(
+                  transitionKey: destination,
+                  child: _TrackedPage(
+                    key: ValueKey('page-$destination'),
+                    name: destination,
+                    counts: counts,
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
+      ),
+    );
+    await tester.enterText(
+      find.byKey(const ValueKey('field-Week')),
+      'retained planner state',
+    );
+    final weekState = tester.state(
+      find.byKey(const ValueKey('page-Week'), skipOffstage: false),
+    );
+
+    update(() => destination = 'Month');
+    await tester.pump();
+    expect(counts, {'Week': 1, 'Month': 1});
+    expect(
+      tester.state(
+        find.byKey(const ValueKey('page-Week'), skipOffstage: false),
+      ),
+      same(weekState),
+    );
+    await tester.pump(const Duration(milliseconds: 30));
+    update(() => destination = 'Year');
+    await tester.pump();
+    expect(counts, {'Week': 1, 'Month': 1, 'Year': 1});
+    expect(
+      tester.state(
+        find.byKey(const ValueKey('page-Week'), skipOffstage: false),
+      ),
+      same(weekState),
+    );
+    await tester.pump(const Duration(milliseconds: 30));
+    update(() => destination = 'Week');
+    await tester.pump();
+    await tester.pumpAndSettle();
+
+    expect(
+      find.byKey(const ValueKey('field-Week'), skipOffstage: false),
+      findsOneWidget,
+    );
+    expect(
+      tester.state(find.byKey(const ValueKey('page-Week'))),
+      same(weekState),
+    );
+    expect(counts, {'Week': 1, 'Month': 1, 'Year': 1});
+    expect(
+      tester
+          .widget<EditableText>(
+            find.descendant(
+              of: find.byKey(const ValueKey('field-Week')),
+              matching: find.byType(EditableText),
+            ),
+          )
+          .controller
+          .text,
+      'retained planner state',
+    );
   });
 }
 

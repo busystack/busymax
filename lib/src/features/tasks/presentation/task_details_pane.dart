@@ -17,47 +17,15 @@ import '../../maps/application/external_location_launcher.dart';
 import '../../sync/sync_auth_error.dart';
 import '../../task_lists/data/task_lists_repository.dart';
 import '../data/tasks_repository.dart';
+import '../domain/task_mutation_result.dart';
 import 'task_details_draft.dart';
 import 'task_details_editor.dart';
+
+export '../domain/task_mutation_result.dart';
 
 typedef TasksRepositoryForAccount = TasksRepository Function(String accountId);
 typedef TaskListsRepositoryForAccount =
     TaskListsRepository Function(String accountId);
-
-enum TaskMutationKind {
-  updated,
-  deleted,
-  duplicated,
-  createdSubtask,
-  completion,
-  checklistUpdated,
-  checklistDeleted,
-  reordered,
-}
-
-@immutable
-class TaskMutationResult {
-  const TaskMutationResult({
-    required this.kind,
-    required this.accountId,
-    required this.taskListId,
-    required this.taskId,
-    this.checklistItemId,
-    this.createdTaskId,
-    this.completed,
-  });
-
-  final TaskMutationKind kind;
-  final String accountId;
-  final String taskListId;
-  final String taskId;
-  final String? checklistItemId;
-  final String? createdTaskId;
-  final bool? completed;
-}
-
-typedef TaskMutationCommittedCallback =
-    FutureOr<void> Function(TaskMutationResult result);
 
 class TaskDetailsPane extends ConsumerStatefulWidget {
   const TaskDetailsPane({
@@ -375,12 +343,25 @@ class _TaskDetailsPaneState extends ConsumerState<TaskDetailsPane> {
       mutated = true;
     }
     if (mutated) {
+      final moving = draft.taskListId != task.taskListId;
+      final patchedStatus = patch['status']?.toString().toLowerCase();
+      final originalCompleted = task.status?.toLowerCase() == 'completed';
+      final bool? completed = patchedStatus == null
+          ? null
+          : (patchedStatus == 'completed') == originalCompleted
+          ? null
+          : patchedStatus == 'completed';
       await widget.onTaskMutationCommitted?.call(
         TaskMutationResult(
-          kind: TaskMutationKind.updated,
+          kind: moving
+              ? TaskMutationKind.moved
+              : completed != null
+              ? TaskMutationKind.completion
+              : TaskMutationKind.updated,
           accountId: task.accountId,
-          taskListId: draft.taskListId,
+          taskListId: moving ? task.taskListId : draft.taskListId,
           taskId: task.id,
+          completed: completed,
         ),
       );
     }

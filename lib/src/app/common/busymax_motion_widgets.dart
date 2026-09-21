@@ -61,7 +61,14 @@ class _BusyMaxHorizontalRevealState extends State<BusyMaxHorizontalReveal>
     super.didUpdateWidget(oldWidget);
     final target = widget.visible ? 1.0 : 0.0;
     if (widget.transitionGeneration == _generation) {
-      _controller.value = target;
+      // Ordinary data/theme rebuilds must not terminate an in-flight reveal.
+      // A visibility change without a semantic generation is a responsive
+      // layout change and intentionally settles without animation.
+      if (widget.visible != oldWidget.visible) {
+        _controller
+          ..stop()
+          ..value = target;
+      }
       return;
     }
     _generation = widget.transitionGeneration;
@@ -70,7 +77,14 @@ class _BusyMaxHorizontalRevealState extends State<BusyMaxHorizontalReveal>
       return;
     }
     final distance = (target - _controller.value).abs();
-    if (distance == 0) return;
+    if (distance == 0) {
+      // A same-frame reversal can target the current endpoint while an older
+      // simulation is still headed away from it.
+      _controller
+        ..stop()
+        ..value = target;
+      return;
+    }
     _controller.animateTo(
       target,
       duration: widget.duration * distance,
@@ -482,8 +496,9 @@ class _BusyMaxBinaryPresentationState extends State<BusyMaxBinaryPresentation> {
   }
 }
 
-/// A bounded, semantic switcher: data rebuilds update the active child while
-/// only a changed [transitionKey] starts a crossfade.
+/// A semantic destination host: data rebuilds update the active destination,
+/// while every previously visited destination keeps its live element state.
+/// Only a changed [transitionKey] starts a crossfade.
 class BusyMaxKeyedCrossfade extends StatefulWidget {
   const BusyMaxKeyedCrossfade({
     super.key,
@@ -501,33 +516,50 @@ class BusyMaxKeyedCrossfade extends StatefulWidget {
 }
 
 class _BusyMaxKeyedCrossfadeState extends State<BusyMaxKeyedCrossfade> {
-  late Object _key;
-  late final List<Widget> _slots = [widget.child, const SizedBox.shrink()];
+  late final List<Object> _keys;
+  late final List<GlobalKey> _destinationKeys;
+  late final List<Widget> _destinations;
   var _index = 0;
 
   @override
   void initState() {
     super.initState();
-    _key = widget.transitionKey;
+    final key = GlobalKey(
+      debugLabel: 'busymax-destination-${widget.transitionKey}',
+    );
+    _keys = [widget.transitionKey];
+    _destinationKeys = [key];
+    _destinations = [KeyedSubtree(key: key, child: widget.child)];
   }
 
   @override
   void didUpdateWidget(covariant BusyMaxKeyedCrossfade oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (widget.transitionKey == _key) {
-      _slots[_index] = widget.child;
-      return;
+    final destination = _keys.indexOf(widget.transitionKey);
+    if (destination < 0) {
+      _keys.add(widget.transitionKey);
+      final key = GlobalKey(
+        debugLabel: 'busymax-destination-${widget.transitionKey}',
+      );
+      _destinationKeys.add(key);
+      _destinations.add(KeyedSubtree(key: key, child: widget.child));
+      _index = _keys.length - 1;
+    } else {
+      _index = destination;
+      _destinations[destination] = KeyedSubtree(
+        key: _destinationKeys[destination],
+        child: widget.child,
+      );
     }
-    _key = widget.transitionKey;
-    _index = 1 - _index;
-    _slots[_index] = widget.child;
   }
 
   @override
   Widget build(BuildContext context) => BusyMaxRetainedCrossfade(
     index: _index,
     duration: widget.duration,
-    children: _slots,
+    // Widgets are immutable. Do not let an older retained host observe later
+    // in-place destination-list edits during element reconciliation.
+    children: List<Widget>.of(_destinations, growable: false),
   );
 }
 
@@ -623,6 +655,7 @@ class _BusyMaxRetainedCrossfadeState extends State<BusyMaxRetainedCrossfade>
         children: [
           for (var index = 0; index < widget.children.length; index++)
             _RetainedPage(
+              key: ValueKey(('busymax-retained-page', index)),
               active: index == _current,
               outgoing: index == _outgoing,
               opacity: index == _current
@@ -640,6 +673,7 @@ class _BusyMaxRetainedCrossfadeState extends State<BusyMaxRetainedCrossfade>
 
 class _RetainedPage extends StatelessWidget {
   const _RetainedPage({
+    super.key,
     required this.active,
     required this.outgoing,
     required this.opacity,
