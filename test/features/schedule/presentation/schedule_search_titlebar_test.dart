@@ -2,12 +2,14 @@ import 'dart:async';
 
 import 'package:busymax/src/app/app_bootstrap.dart';
 import 'package:busymax/src/app/busymax_design.dart';
+import 'package:busymax/src/app/linux/linux_header_style.dart';
 import 'package:busymax/src/app/linux/linux_window_host.dart';
 import 'package:busymax/src/db/app_database.dart';
 import 'package:busymax/src/features/accounts/data/accounts_repository.dart';
 import 'package:busymax/src/features/schedule/presentation/schedule_sidebar.dart';
 import 'package:busymax/src/features/schedule/presentation/schedule_workspace.dart';
 import 'package:busymax/src/platform/gtk_window_preferences_service.dart';
+import 'package:busymax/src/platform/gtk_header_icon_service.dart';
 import 'package:busymax/src/platform/native_menu_service.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
@@ -122,6 +124,26 @@ void main() {
     }
     expect(rect(keys.first).left - fieldRect.right, BusyMaxSpacing.headerInset);
     expect(650 - rect(keys.last).right, BusyMaxSpacing.headerInset);
+    BusyMaxLinuxHeaderIcon iconFor(String key) => tester
+        .widget<BusyMaxGtkHeaderIcon>(
+          find.descendant(
+            of: find.byKey(ValueKey(key)),
+            matching: find.byType(BusyMaxGtkHeaderIcon),
+          ),
+        )
+        .icon;
+    expect(
+      iconFor('schedule-search-filter-button'),
+      BusyMaxLinuxHeaderIcon.filter,
+    );
+    expect(
+      iconFor('schedule-search-close-button'),
+      BusyMaxLinuxHeaderIcon.close,
+    );
+    expect(
+      iconFor('busymax-main-menu-button'),
+      BusyMaxLinuxHeaderIcon.mainMenu,
+    );
   });
 
   testWidgets('only the explicit empty search region drags the window', (

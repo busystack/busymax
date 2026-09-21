@@ -10,6 +10,7 @@ import 'package:busymax/src/app/linux/linux_page_frame.dart';
 import 'package:busymax/src/app/linux/linux_window_host.dart';
 import 'package:busymax/src/features/schedule/presentation/schedule_toolbar.dart';
 import 'package:busymax/src/platform/gtk_window_preferences_service.dart';
+import 'package:busymax/src/platform/gtk_header_icon_service.dart';
 import 'package:busymax/src/platform/linux_window_service.dart';
 import 'package:busymax/src/schedule/schedule_range.dart';
 import 'package:busymax/src/schedule/schedule_view_mode.dart';
@@ -21,35 +22,70 @@ import 'package:yaru/yaru.dart';
 const _referenceAccent = Color(0xFFE95464);
 const _systemControlsWidth = 120.0;
 const _screenshotPath = String.fromEnvironment('BUSYMAX_HEADER_SCREENSHOT');
+const _updatedScreenshotPath = String.fromEnvironment(
+  'BUSYMAX_HEADER_UPDATED_SCREENSHOT',
+);
+const _rtl = bool.fromEnvironment('BUSYMAX_HEADER_RTL');
 final _comparisonBoundaryKey = GlobalKey();
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   FocusManager.instance.highlightStrategy =
       FocusHighlightStrategy.alwaysTraditional;
-  runApp(const LinuxHeaderComparisonFixture());
+  final iconService = GtkHeaderIconService();
+  await iconService.initialize();
+  final searchAsset = iconService.catalog.assetFor(
+    BusyMaxLinuxHeaderIcon.search,
+    TextDirection.ltr,
+  );
+  debugPrint(
+    'GTK header icons: scale=${iconService.catalog.scale}, '
+    'search=${searchAsset?.resolvedName}, '
+    'pixels=${searchAsset?.pixelWidth}x${searchAsset?.pixelHeight}',
+  );
+  if (_updatedScreenshotPath.isNotEmpty) {
+    final initialRevision = iconService.catalog.revision;
+    void captureUpdatedCatalog() {
+      if (iconService.catalog.revision <= initialRevision) return;
+      iconService.removeListener(captureUpdatedCatalog);
+      WidgetsBinding.instance.addPostFrameCallback((_) async {
+        await Future<void>.delayed(const Duration(milliseconds: 500));
+        await _writeScreenshot(_updatedScreenshotPath);
+      });
+    }
+
+    iconService.addListener(captureUpdatedCatalog);
+  }
+  runApp(LinuxHeaderComparisonFixture(iconService: iconService));
   await WidgetsBinding.instance.endOfFrame;
   await const LinuxWindowService().showWindow();
   if (_screenshotPath.isNotEmpty) {
     await Future<void>.delayed(const Duration(milliseconds: 500));
-    final boundary =
-        _comparisonBoundaryKey.currentContext?.findRenderObject()
-            as RenderRepaintBoundary?;
-    if (boundary == null) {
-      throw StateError('Header comparison boundary is not mounted.');
-    }
-    final image = await boundary.toImage();
-    final bytes = await image.toByteData(format: ui.ImageByteFormat.png);
-    if (bytes == null) {
-      throw StateError('Could not encode the header comparison image.');
-    }
-    await File(_screenshotPath).writeAsBytes(bytes.buffer.asUint8List());
+    await _writeScreenshot(_screenshotPath);
   }
+}
+
+Future<void> _writeScreenshot(String path) async {
+  final boundary =
+      _comparisonBoundaryKey.currentContext?.findRenderObject()
+          as RenderRepaintBoundary?;
+  if (boundary == null) {
+    throw StateError('Header comparison boundary is not mounted.');
+  }
+  final image = await boundary.toImage();
+  final bytes = await image.toByteData(format: ui.ImageByteFormat.png);
+  if (bytes == null) {
+    throw StateError('Could not encode the header comparison image.');
+  }
+  await File(path).writeAsBytes(bytes.buffer.asUint8List());
+  debugPrint('Wrote GTK header comparison screenshot: $path');
 }
 
 /// Focused visual fixture for the production Linux application-header pieces.
 class LinuxHeaderComparisonFixture extends StatefulWidget {
-  const LinuxHeaderComparisonFixture({super.key});
+  const LinuxHeaderComparisonFixture({super.key, this.iconService});
+
+  final GtkHeaderIconService? iconService;
 
   @override
   State<LinuxHeaderComparisonFixture> createState() =>
@@ -76,44 +112,50 @@ class _LinuxHeaderComparisonFixtureState
       gtkFontFamily: 'Ubuntu Sans',
       gtkFontSize: 11,
     );
-    return MaterialApp(
-      debugShowCheckedModeBanner: false,
-      theme: theme,
-      locale: const Locale('en'),
-      localizationsDelegates: const [
-        ...AppLocalizations.localizationsDelegates,
-        ...GlobalUbuntuLocalizations.delegates,
-      ],
-      supportedLocales: AppLocalizations.supportedLocales,
-      home: LinuxWindowMetricsScope(
-        leftControlInset: 0,
-        rightControlInset: _systemControlsWidth,
-        windowActive: true,
-        preferences: GtkWindowPreferences.defaults(),
-        child: Builder(
-          builder: (context) {
-            final colors = BusyMaxSurfaceColors.of(context);
-            return RepaintBoundary(
-              key: _comparisonBoundaryKey,
-              child: Scaffold(
-                backgroundColor: colors.window,
-                body: Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 18),
-                  child: Column(
-                    children: [
-                      _scheduleHeader(colors),
-                      const SizedBox(height: 20),
-                      _settingsHeader(colors),
-                      const SizedBox(height: 20),
-                      _inactiveHeader(colors),
-                      const SizedBox(height: 20),
-                      _searchHeader(colors),
-                    ],
+    return GtkHeaderIconScope(
+      service: widget.iconService ?? GtkHeaderIconService.fallbackInstance,
+      child: MaterialApp(
+        debugShowCheckedModeBanner: false,
+        theme: theme,
+        locale: const Locale('en'),
+        localizationsDelegates: const [
+          ...AppLocalizations.localizationsDelegates,
+          ...GlobalUbuntuLocalizations.delegates,
+        ],
+        supportedLocales: AppLocalizations.supportedLocales,
+        home: LinuxWindowMetricsScope(
+          leftControlInset: 0,
+          rightControlInset: _systemControlsWidth,
+          windowActive: true,
+          preferences: GtkWindowPreferences.defaults(),
+          child: Directionality(
+            textDirection: _rtl ? TextDirection.rtl : TextDirection.ltr,
+            child: Builder(
+              builder: (context) {
+                final colors = BusyMaxSurfaceColors.of(context);
+                return RepaintBoundary(
+                  key: _comparisonBoundaryKey,
+                  child: Scaffold(
+                    backgroundColor: colors.window,
+                    body: Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 18),
+                      child: Column(
+                        children: [
+                          _scheduleHeader(colors),
+                          const SizedBox(height: 20),
+                          _settingsHeader(colors),
+                          const SizedBox(height: 20),
+                          _inactiveHeader(colors),
+                          const SizedBox(height: 20),
+                          _searchHeader(colors),
+                        ],
+                      ),
+                    ),
                   ),
-                ),
-              ),
-            );
-          },
+                );
+              },
+            ),
+          ),
         ),
       ),
     );
@@ -158,7 +200,7 @@ class _LinuxHeaderComparisonFixtureState
         leading: const BusyMaxLinuxHeaderControlGroup(
           children: [
             BusyMaxLinuxHeaderIconButton(
-              icon: Icon(YaruIcons.go_previous),
+              icon: BusyMaxLinuxHeaderIcon.back,
               tooltip: 'Back',
               onPressed: _noop,
             ),
@@ -169,7 +211,7 @@ class _LinuxHeaderComparisonFixtureState
           children: [
             BusyMaxLinuxHeaderIconButton(
               key: ValueKey('reviewed-open-menu'),
-              icon: Icon(YaruIcons.view_more),
+              icon: BusyMaxLinuxHeaderIcon.mainMenu,
               tooltip: 'Open menu',
               selected: true,
               onPressed: _noop,
@@ -192,12 +234,12 @@ class _LinuxHeaderComparisonFixtureState
           leading: BusyMaxLinuxHeaderControlGroup(
             children: [
               BusyMaxLinuxHeaderIconButton(
-                icon: Icon(YaruIcons.sidebar),
+                icon: BusyMaxLinuxHeaderIcon.sidebar,
                 tooltip: 'Sidebar',
                 onPressed: _noop,
               ),
               BusyMaxLinuxHeaderIconButton(
-                icon: Icon(YaruIcons.calendar),
+                icon: BusyMaxLinuxHeaderIcon.today,
                 tooltip: 'Today',
                 onPressed: _noop,
               ),
@@ -207,17 +249,17 @@ class _LinuxHeaderComparisonFixtureState
           trailing: BusyMaxLinuxHeaderControlGroup(
             children: [
               BusyMaxLinuxHeaderIconButton(
-                icon: Icon(YaruIcons.plus),
+                icon: BusyMaxLinuxHeaderIcon.create,
                 tooltip: 'Disabled create',
                 onPressed: null,
               ),
               BusyMaxLinuxHeaderIconButton(
-                icon: Icon(YaruIcons.search),
+                icon: BusyMaxLinuxHeaderIcon.search,
                 tooltip: 'Search',
                 onPressed: _noop,
               ),
               BusyMaxLinuxHeaderIconButton(
-                icon: Icon(YaruIcons.view_more),
+                icon: BusyMaxLinuxHeaderIcon.mainMenu,
                 tooltip: 'Menu',
                 onPressed: _noop,
               ),
@@ -250,17 +292,17 @@ class _LinuxHeaderComparisonFixtureState
                 children: [
                   SizedBox.square(dimension: BusyMaxSizes.headerIconButton),
                   BusyMaxLinuxHeaderIconButton(
-                    icon: Icon(Icons.filter_list),
+                    icon: BusyMaxLinuxHeaderIcon.filter,
                     tooltip: 'Filters',
                     onPressed: _noop,
                   ),
                   BusyMaxLinuxHeaderIconButton(
-                    icon: Icon(YaruIcons.window_close),
+                    icon: BusyMaxLinuxHeaderIcon.close,
                     tooltip: 'Close',
                     onPressed: _noop,
                   ),
                   BusyMaxLinuxHeaderIconButton(
-                    icon: Icon(YaruIcons.view_more),
+                    icon: BusyMaxLinuxHeaderIcon.mainMenu,
                     tooltip: 'Menu',
                     onPressed: _noop,
                   ),

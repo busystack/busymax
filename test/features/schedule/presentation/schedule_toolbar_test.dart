@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:busymax/src/app/busymax_design.dart';
 import 'package:busymax/src/app/linux/linux_header_style.dart';
 import 'package:busymax/src/features/schedule/presentation/schedule_toolbar.dart';
+import 'package:busymax/src/platform/gtk_header_icon_service.dart';
 import 'package:busymax/src/platform/native_menu_service.dart';
 import 'package:busymax/src/schedule/schedule_range.dart';
 import 'package:busymax/src/schedule/schedule_view_mode.dart';
@@ -159,7 +160,14 @@ void main() {
     );
 
     expect(find.text('Today'), findsNothing);
-    expect(find.byIcon(YaruIcons.calendar), findsOneWidget);
+    expect(
+      find.byWidgetPredicate(
+        (widget) =>
+            widget is BusyMaxGtkHeaderIcon &&
+            widget.icon == BusyMaxLinuxHeaderIcon.today,
+      ),
+      findsOneWidget,
+    );
     expect(find.byTooltip('Today (Shift+T)'), findsOneWidget);
     expect(find.bySemanticsLabel('Today'), findsOneWidget);
 
@@ -211,28 +219,52 @@ void main() {
       tester.getSize(find.byType(ScheduleToolbar)).height,
       BusyMaxSizes.toolbarHeight,
     );
-    const controlKeys = [
+    const squareControlKeys = [
       'schedule-sidebar-button',
       'schedule-today-button',
       'schedule-previous-button',
       'schedule-next-button',
-      'schedule-view-button',
       'schedule-create-button',
       'schedule-refresh-button',
       'schedule-search-button',
       'busymax-main-menu-button',
     ];
-    for (final key in controlKeys) {
+    for (final key in squareControlKeys) {
       expect(
         tester.getSize(find.byKey(ValueKey(key))),
         const Size.square(BusyMaxSizes.headerIconButton),
       );
     }
-    for (final button in tester.widgetList<IconButton>(
-      find.byType(IconButton),
+    final view = find.byKey(const ValueKey('schedule-view-button'));
+    expect(tester.getSize(view).height, BusyMaxSizes.headerIconButton);
+    expect(
+      tester.getSize(view).width,
+      greaterThan(BusyMaxSizes.headerIconButton),
+    );
+    final viewIcons = find.descendant(
+      of: view,
+      matching: find.byType(BusyMaxGtkHeaderIcon),
+    );
+    expect(viewIcons, findsNWidgets(2));
+    final viewIconWidgets = tester
+        .widgetList<BusyMaxGtkHeaderIcon>(viewIcons)
+        .toList();
+    expect(viewIconWidgets.first.icon, BusyMaxLinuxHeaderIcon.viewWeek);
+    expect(viewIconWidgets.last.icon, BusyMaxLinuxHeaderIcon.viewMenuArrow);
+    for (final icon in tester.widgetList<BusyMaxGtkHeaderIcon>(
+      find.byType(BusyMaxGtkHeaderIcon),
     )) {
-      expect(button.iconSize, BusyMaxSizes.headerIcon);
+      expect(
+        tester.getSize(find.byWidget(icon)),
+        const Size.square(BusyMaxLinuxHeaderStyle.symbolicIconSize),
+      );
     }
+    final firstViewIcon = tester.getRect(viewIcons.at(0));
+    final secondViewIcon = tester.getRect(viewIcons.at(1));
+    expect(
+      secondViewIcon.left - firstViewIcon.right,
+      BusyMaxLinuxHeaderStyle.viewIconGap,
+    );
 
     Rect rect(String key) => tester.getRect(find.byKey(ValueKey(key)));
     expect(rect('schedule-sidebar-button').left, BusyMaxSpacing.headerInset);
@@ -258,6 +290,29 @@ void main() {
     expect(
       rect('schedule-create-button').left - rect('schedule-view-button').right,
       BusyMaxSpacing.headerInset,
+    );
+
+    void expectHeaderIcon(String key, BusyMaxLinuxHeaderIcon icon) {
+      final icons = find.descendant(
+        of: find.byKey(ValueKey(key)),
+        matching: find.byType(BusyMaxGtkHeaderIcon),
+      );
+      expect(tester.widget<BusyMaxGtkHeaderIcon>(icons.first).icon, icon);
+    }
+
+    expectHeaderIcon('schedule-sidebar-button', BusyMaxLinuxHeaderIcon.sidebar);
+    expectHeaderIcon('schedule-today-button', BusyMaxLinuxHeaderIcon.today);
+    expectHeaderIcon(
+      'schedule-previous-button',
+      BusyMaxLinuxHeaderIcon.previous,
+    );
+    expectHeaderIcon('schedule-next-button', BusyMaxLinuxHeaderIcon.next);
+    expectHeaderIcon('schedule-create-button', BusyMaxLinuxHeaderIcon.create);
+    expectHeaderIcon('schedule-refresh-button', BusyMaxLinuxHeaderIcon.refresh);
+    expectHeaderIcon('schedule-search-button', BusyMaxLinuxHeaderIcon.search);
+    expectHeaderIcon(
+      'busymax-main-menu-button',
+      BusyMaxLinuxHeaderIcon.mainMenu,
     );
   });
 
@@ -310,7 +365,6 @@ void main() {
     );
 
     for (final key in const [
-      'schedule-view-button',
       'schedule-create-button',
       'busymax-main-menu-button',
     ]) {
@@ -340,6 +394,19 @@ void main() {
       await tester.pumpAndSettle();
       pendingSelection = null;
     }
+
+    final viewMenu = find.byKey(const ValueKey('schedule-view-button'));
+    await tester.tap(viewMenu);
+    await tester.pump();
+    final viewButton = tester.widget<TextButton>(
+      find.descendant(of: viewMenu, matching: find.byType(TextButton)),
+    );
+    final viewContext = tester.element(viewMenu);
+    final foreground = viewButton.style!.foregroundColor!.resolve(const {});
+    expect(foreground, busyMaxLinuxHeaderForeground(viewContext));
+    expect(foreground, isNot(Theme.of(viewContext).colorScheme.primary));
+    pendingSelection!.complete();
+    await tester.pumpAndSettle();
   });
 
   testWidgets('toolbar delegates create selection to the native menu host', (

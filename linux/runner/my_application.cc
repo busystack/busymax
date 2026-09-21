@@ -1,6 +1,7 @@
 #include "time_picker.h"
 #include "my_application.h"
 #include "first_weekday_preference.h"
+#include "gtk_header_icons.h"
 #include "gtk_window_preferences.h"
 
 #include <flutter_linux/flutter_linux.h>
@@ -24,6 +25,10 @@ constexpr char kNativeDialogChannel[] = "busymax/native_dialogs";
 constexpr char kNativeMenuChannel[] = "busymax/native_menus";
 constexpr char kWindowChannel[] = "io.busystack.busymax/window";
 constexpr char kGtkSettingsChannel[] = "io.busystack.busymax/gtk_settings";
+constexpr char kGtkHeaderIconsChannel[] =
+    "io.busystack.busymax/gtk_header_icons";
+constexpr char kGtkHeaderIconsChangedEventChannel[] =
+    "io.busystack.busymax/gtk_header_icons_changed";
 constexpr char kExternalCalendarOpenChannel[] =
     "io.busystack.busymax/external_calendar_open";
 constexpr char kExternalUriLauncherChannel[] =
@@ -79,6 +84,7 @@ struct _MyApplication {
   FlMethodChannel* native_menu_channel;
   FlMethodChannel* window_channel;
   FlMethodChannel* gtk_settings_channel;
+  FlMethodChannel* gtk_header_icons_channel;
   FlMethodChannel* external_calendar_open_channel;
   FlMethodChannel* external_uri_launcher_channel;
   GQueue* pending_external_opens;
@@ -87,9 +93,11 @@ struct _MyApplication {
   FlEventChannel* gtk_theme_colors_event_channel;
   FlEventChannel* gtk_animation_settings_event_channel;
   FlEventChannel* gtk_window_preferences_event_channel;
+  FlEventChannel* gtk_header_icons_changed_event_channel;
   FlEventChannel* first_weekday_event_channel;
   BusyMaxLinuxFirstWeekdayPreference* first_weekday_preference;
   BusyMaxGtkWindowPreferencesWatcher* gtk_window_preferences;
+  BusyMaxGtkHeaderIcons* gtk_header_icons;
   gulong gtk_font_settings_signal_id;
   gulong gtk_theme_name_signal_id;
   gulong gtk_theme_dark_signal_id;
@@ -98,6 +106,8 @@ struct _MyApplication {
   gboolean gtk_theme_colors_listening;
   gboolean gtk_animation_settings_listening;
   gboolean gtk_window_preferences_listening;
+  gboolean gtk_header_icons_listening;
+  gint64 gtk_header_icons_revision;
   gboolean first_weekday_listening;
   GtkCssProvider* native_surface_css_provider;
   gchar* native_surface_window_background_color;
@@ -2624,6 +2634,165 @@ static FlMethodErrorResponse* gtk_window_preferences_cancel_cb(
   return nullptr;
 }
 
+static void send_gtk_header_icons_changed_event(MyApplication* self) {
+  if (!self->gtk_header_icons_listening ||
+      self->gtk_header_icons_changed_event_channel == nullptr ||
+      self->gtk_header_icons == nullptr) {
+    return;
+  }
+  g_autoptr(FlValue) event = fl_value_new_map();
+  fl_value_set_string_take(
+      event, "revision",
+      fl_value_new_int(self->gtk_header_icons_revision));
+  fl_value_set_string_take(event, "scale",
+                           fl_value_new_int(self->gtk_header_icons->scale()));
+  g_autoptr(GError) error = nullptr;
+  if (!fl_event_channel_send(self->gtk_header_icons_changed_event_channel,
+                             event, nullptr, &error)) {
+    const gchar* message = error != nullptr ? error->message : "unknown error";
+    g_warning("Failed to send GTK header-icon invalidation: %s", message);
+  }
+}
+
+static FlMethodErrorResponse* gtk_header_icons_listen_cb(
+    FlEventChannel*, FlValue*, gpointer user_data) {
+  MyApplication* self = MY_APPLICATION(user_data);
+  self->gtk_header_icons_listening = TRUE;
+  if (self->gtk_header_icons_revision > 0) {
+    send_gtk_header_icons_changed_event(self);
+  }
+  return nullptr;
+}
+
+static FlMethodErrorResponse* gtk_header_icons_cancel_cb(
+    FlEventChannel*, FlValue*, gpointer user_data) {
+  MyApplication* self = MY_APPLICATION(user_data);
+  self->gtk_header_icons_listening = FALSE;
+  return nullptr;
+}
+
+static gboolean parse_gtk_header_icon_request(
+    FlValue* request,
+    const gchar** key_out,
+    std::vector<std::string>* names_out,
+    BusyMaxGtkIconDirection* direction_out) {
+  if (request == nullptr || fl_value_get_type(request) != FL_VALUE_TYPE_MAP) {
+    return FALSE;
+  }
+  FlValue* key = fl_value_lookup_string(request, "key");
+  FlValue* names = fl_value_lookup_string(request, "names");
+  FlValue* direction = fl_value_lookup_string(request, "direction");
+  if (key == nullptr || fl_value_get_type(key) != FL_VALUE_TYPE_STRING ||
+      names == nullptr || fl_value_get_type(names) != FL_VALUE_TYPE_LIST ||
+      fl_value_get_length(names) == 0 || direction == nullptr ||
+      fl_value_get_type(direction) != FL_VALUE_TYPE_STRING) {
+    return FALSE;
+  }
+  names_out->clear();
+  for (size_t index = 0; index < fl_value_get_length(names); index++) {
+    FlValue* name = fl_value_get_list_value(names, index);
+    if (name == nullptr || fl_value_get_type(name) != FL_VALUE_TYPE_STRING) {
+      return FALSE;
+    }
+    names_out->emplace_back(fl_value_get_string(name));
+  }
+  const gchar* direction_value = fl_value_get_string(direction);
+  if (g_strcmp0(direction_value, "ltr") == 0) {
+    *direction_out = BusyMaxGtkIconDirection::kLtr;
+  } else if (g_strcmp0(direction_value, "rtl") == 0) {
+    *direction_out = BusyMaxGtkIconDirection::kRtl;
+  } else {
+    return FALSE;
+  }
+  *key_out = fl_value_get_string(key);
+  return TRUE;
+}
+
+static FlValue* gtk_header_icon_asset_to_fl_value(
+    const BusyMaxGtkHeaderIconAsset& asset) {
+  FlValue* value = fl_value_new_map();
+  fl_value_set_string_take(
+      value, "bytes",
+      fl_value_new_uint8_list(asset.png_bytes.data(), asset.png_bytes.size()));
+  fl_value_set_string_take(
+      value, "resolvedName",
+      fl_value_new_string(asset.resolved_name.c_str()));
+  fl_value_set_string_take(value, "scale", fl_value_new_int(asset.scale));
+  fl_value_set_string_take(value, "pixelWidth",
+                           fl_value_new_int(asset.pixel_width));
+  fl_value_set_string_take(value, "pixelHeight",
+                           fl_value_new_int(asset.pixel_height));
+  return value;
+}
+
+static void gtk_header_icons_method_call_cb(FlMethodChannel*,
+                                            FlMethodCall* method_call,
+                                            gpointer user_data) {
+  MyApplication* self = MY_APPLICATION(user_data);
+  if (g_strcmp0(fl_method_call_get_name(method_call), "loadIcons") != 0) {
+    fl_method_call_respond_not_implemented(method_call, nullptr);
+    return;
+  }
+  FlValue* requests = fl_method_call_get_args(method_call);
+  if (requests == nullptr ||
+      fl_value_get_type(requests) != FL_VALUE_TYPE_LIST) {
+    fl_method_call_respond_error(
+        method_call, "invalid-arguments",
+        "loadIcons requires a list of keyed icon requests.", nullptr,
+        nullptr);
+    return;
+  }
+
+  g_autoptr(FlValue) result = fl_value_new_map();
+  for (size_t index = 0; index < fl_value_get_length(requests); index++) {
+    const gchar* key = nullptr;
+    std::vector<std::string> names;
+    BusyMaxGtkIconDirection direction = BusyMaxGtkIconDirection::kLtr;
+    if (!parse_gtk_header_icon_request(
+            fl_value_get_list_value(requests, index), &key, &names,
+            &direction)) {
+      fl_method_call_respond_error(
+          method_call, "invalid-arguments",
+          "Each icon request requires key, non-empty names, and ltr/rtl "
+          "direction.",
+          nullptr, nullptr);
+      return;
+    }
+    const auto asset = self->gtk_header_icons->Load(names, direction);
+    if (asset) {
+      fl_value_set_string_take(
+          result, key, gtk_header_icon_asset_to_fl_value(*asset));
+    } else {
+      g_warning("GTK could not resolve BusyMax header icon '%s'",
+                names.front().c_str());
+      fl_value_set_string_take(result, key, fl_value_new_null());
+    }
+  }
+  fl_method_call_respond_success(method_call, result, nullptr);
+}
+
+static void register_gtk_header_icons(MyApplication* self, FlView* view) {
+  g_autoptr(FlStandardMethodCodec) codec = fl_standard_method_codec_new();
+  FlBinaryMessenger* messenger =
+      fl_engine_get_binary_messenger(fl_view_get_engine(view));
+  self->gtk_header_icons_channel = fl_method_channel_new(
+      messenger, kGtkHeaderIconsChannel, FL_METHOD_CODEC(codec));
+  fl_method_channel_set_method_call_handler(
+      self->gtk_header_icons_channel, gtk_header_icons_method_call_cb, self,
+      nullptr);
+  self->gtk_header_icons_changed_event_channel = fl_event_channel_new(
+      messenger, kGtkHeaderIconsChangedEventChannel, FL_METHOD_CODEC(codec));
+  fl_event_channel_set_stream_handlers(
+      self->gtk_header_icons_changed_event_channel,
+      gtk_header_icons_listen_cb, gtk_header_icons_cancel_cb, self, nullptr);
+
+  self->gtk_header_icons = new BusyMaxGtkHeaderIcons(GTK_WIDGET(view));
+  self->gtk_header_icons->Start([self]() {
+    self->gtk_header_icons_revision += 1;
+    send_gtk_header_icons_changed_event(self);
+  });
+}
+
 static void register_gtk_settings_channel(MyApplication* self, FlView* view) {
   g_autoptr(FlStandardMethodCodec) codec = fl_standard_method_codec_new();
   FlBinaryMessenger* messenger =
@@ -2936,6 +3105,7 @@ static void my_application_activate(GApplication* application) {
   register_external_uri_launcher_channel(self, view);
   register_window_channel(self, view);
   register_gtk_settings_channel(self, view);
+  register_gtk_header_icons(self, view);
 
   gtk_widget_grab_focus(GTK_WIDGET(view));
 }
@@ -3028,6 +3198,9 @@ static void my_application_dispose(GObject* object) {
   if (self->gtk_window_preferences != nullptr) {
     self->gtk_window_preferences->Stop();
   }
+  if (self->gtk_header_icons != nullptr) {
+    self->gtk_header_icons->Stop();
+  }
   GdkScreen* screen = gdk_screen_get_default();
   if (screen != nullptr && self->native_surface_css_provider != nullptr) {
     gtk_style_context_remove_provider_for_screen(
@@ -3039,6 +3212,7 @@ static void my_application_dispose(GObject* object) {
   g_clear_object(&self->native_menu_channel);
   g_clear_object(&self->window_channel);
   g_clear_object(&self->gtk_settings_channel);
+  g_clear_object(&self->gtk_header_icons_channel);
   g_clear_object(&self->first_weekday_event_channel);
   g_clear_object(&self->external_calendar_open_channel);
   g_clear_object(&self->external_uri_launcher_channel);
@@ -3046,11 +3220,14 @@ static void my_application_dispose(GObject* object) {
   g_clear_object(&self->gtk_theme_colors_event_channel);
   g_clear_object(&self->gtk_animation_settings_event_channel);
   g_clear_object(&self->gtk_window_preferences_event_channel);
+  g_clear_object(&self->gtk_header_icons_changed_event_channel);
   self->first_weekday_listening = FALSE;
   delete self->first_weekday_preference;
   self->first_weekday_preference = nullptr;
   delete self->gtk_window_preferences;
   self->gtk_window_preferences = nullptr;
+  delete self->gtk_header_icons;
+  self->gtk_header_icons = nullptr;
   if (self->flutter_view != nullptr && G_IS_OBJECT(self->flutter_view)) {
     g_object_remove_weak_pointer(
         G_OBJECT(self->flutter_view),
@@ -3090,6 +3267,7 @@ static void my_application_init(MyApplication* self) {
   self->native_menu_channel = nullptr;
   self->window_channel = nullptr;
   self->gtk_settings_channel = nullptr;
+  self->gtk_header_icons_channel = nullptr;
   self->external_calendar_open_channel = nullptr;
   self->external_uri_launcher_channel = nullptr;
   self->pending_external_opens = g_queue_new();
@@ -3098,10 +3276,12 @@ static void my_application_init(MyApplication* self) {
   self->gtk_theme_colors_event_channel = nullptr;
   self->gtk_animation_settings_event_channel = nullptr;
   self->gtk_window_preferences_event_channel = nullptr;
+  self->gtk_header_icons_changed_event_channel = nullptr;
   self->first_weekday_event_channel = nullptr;
   self->first_weekday_preference = nullptr;
   self->gtk_window_preferences =
       new BusyMaxGtkWindowPreferencesWatcher();
+  self->gtk_header_icons = nullptr;
   self->gtk_font_settings_signal_id = 0;
   self->gtk_theme_name_signal_id = 0;
   self->gtk_theme_dark_signal_id = 0;
@@ -3110,6 +3290,8 @@ static void my_application_init(MyApplication* self) {
   self->gtk_theme_colors_listening = FALSE;
   self->gtk_animation_settings_listening = FALSE;
   self->gtk_window_preferences_listening = FALSE;
+  self->gtk_header_icons_listening = FALSE;
+  self->gtk_header_icons_revision = 0;
   self->first_weekday_listening = FALSE;
   self->native_surface_css_provider = nullptr;
   self->native_surface_window_background_color =

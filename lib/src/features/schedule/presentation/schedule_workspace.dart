@@ -28,6 +28,7 @@ import '../../../features/feedback/presentation/feedback_dialog.dart';
 import '../../../features/sync/sync_auth_error.dart';
 import '../../../l10n/l10n.dart';
 import '../../../l10n/week_preferences_scope.dart';
+import '../../../platform/gtk_header_icon_service.dart';
 import '../../../schedule/schedule_commands.dart';
 import '../../../schedule/schedule_filters.dart';
 import '../../../schedule/schedule_item.dart';
@@ -539,9 +540,8 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
                                               tooltip: context
                                                   .l10n
                                                   .searchFiltersAction,
-                                              icon: const Icon(
-                                                Icons.filter_list,
-                                              ),
+                                              icon:
+                                                  BusyMaxLinuxHeaderIcon.filter,
                                               onPressed: _showSearchFilters,
                                             ),
                                           BusyMaxLinuxHeaderIconButton(
@@ -549,9 +549,7 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
                                               'schedule-search-close-button',
                                             ),
                                             tooltip: context.l10n.close,
-                                            icon: const Icon(
-                                              BusyMaxLinuxHeaderGlyphs.close,
-                                            ),
+                                            icon: BusyMaxLinuxHeaderIcon.close,
                                             onPressed: _closeSearch,
                                           ),
                                           BusyMaxMainMenuButton(

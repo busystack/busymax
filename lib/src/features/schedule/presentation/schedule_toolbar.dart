@@ -6,6 +6,7 @@ import '../../../app/busymax_shortcuts.dart';
 import '../../../app/linux/linux_header_style.dart';
 import '../../../l10n/l10n.dart';
 import '../../../l10n/localized_formatters.dart';
+import '../../../platform/gtk_header_icon_service.dart';
 import '../../../schedule/schedule_range.dart';
 import '../../../schedule/schedule_view_mode.dart';
 
@@ -82,7 +83,7 @@ class ScheduleToolbar extends StatelessWidget {
                         : context.l10n.showSidebar,
                     BusyMaxShortcutLabels.sidebar,
                   ),
-                  icon: const Icon(BusyMaxLinuxHeaderGlyphs.sidebar),
+                  icon: BusyMaxLinuxHeaderIcon.sidebar,
                   selected: sidebarVisible,
                   onPressed: onToggleSidebar,
                 ),
@@ -92,10 +93,8 @@ class ScheduleToolbar extends StatelessWidget {
                   context.l10n.today,
                   BusyMaxShortcutLabels.today,
                 ),
-                icon: Icon(
-                  BusyMaxLinuxHeaderGlyphs.today,
-                  semanticLabel: context.l10n.today,
-                ),
+                semanticLabel: context.l10n.today,
+                icon: BusyMaxLinuxHeaderIcon.today,
                 onPressed: onToday,
               ),
               if (showPaging) ...[
@@ -105,11 +104,7 @@ class ScheduleToolbar extends StatelessWidget {
                     MaterialLocalizations.of(context).previousPageTooltip,
                     BusyMaxShortcutLabels.previousPeriod,
                   ),
-                  icon: Icon(
-                    BusyMaxLinuxHeaderGlyphs.previousFor(
-                      Directionality.of(context),
-                    ),
-                  ),
+                  icon: BusyMaxLinuxHeaderIcon.previous,
                   onPressed: onPrevious,
                 ),
                 BusyMaxLinuxHeaderIconButton(
@@ -118,11 +113,7 @@ class ScheduleToolbar extends StatelessWidget {
                     MaterialLocalizations.of(context).nextPageTooltip,
                     BusyMaxShortcutLabels.nextPeriod,
                   ),
-                  icon: Icon(
-                    BusyMaxLinuxHeaderGlyphs.nextFor(
-                      Directionality.of(context),
-                    ),
-                  ),
+                  icon: BusyMaxLinuxHeaderIcon.next,
                   onPressed: onNext,
                 ),
               ],
@@ -141,19 +132,19 @@ class ScheduleToolbar extends StatelessWidget {
           trailing: BusyMaxLinuxHeaderControlGroup(
             key: const ValueKey('schedule-header-trailing-actions'),
             children: [
-              BusyMaxLinuxHeaderMenuButton<ScheduleViewMode>(
+              BusyMaxLinuxViewMenuButton<ScheduleViewMode>(
                 key: const ValueKey('schedule-view-button'),
                 tooltip: _shortcutTooltip(
                   _modeLabel(context, mode),
                   BusyMaxShortcutLabels.forViewMode(mode),
                 ),
-                icon: Icon(_modeIcon(mode)),
+                icon: _modeHeaderIcon(mode),
                 entries: [
                   for (final value in ScheduleViewMode.values)
                     BusyMaxMenuEntry(
                       value: value,
                       label: _modeLabel(context, value),
-                      icon: _modeIcon(value),
+                      icon: _modeMenuIcon(value),
                       role: BusyMaxMenuEntryRole.radio,
                       selected: mode == value,
                       shortcut: BusyMaxShortcutLabels.forViewMode(value),
@@ -164,7 +155,7 @@ class ScheduleToolbar extends StatelessWidget {
               BusyMaxLinuxHeaderMenuButton<_ScheduleCreateAction>(
                 key: const ValueKey('schedule-create-button'),
                 tooltip: context.l10n.create,
-                icon: const Icon(YaruIcons.plus),
+                icon: BusyMaxLinuxHeaderIcon.create,
                 controller: createMenuController,
                 enabled: canCreateEvent || canCreateTask,
                 entries: [
@@ -196,7 +187,7 @@ class ScheduleToolbar extends StatelessWidget {
                 BusyMaxLinuxHeaderIconButton(
                   key: const ValueKey('schedule-refresh-button'),
                   tooltip: context.l10n.refreshAll,
-                  icon: const Icon(BusyMaxLinuxHeaderGlyphs.refresh),
+                  icon: BusyMaxLinuxHeaderIcon.refresh,
                   onPressed: canRefresh ? onRefresh : null,
                 ),
               if (onSearch != null)
@@ -206,7 +197,7 @@ class ScheduleToolbar extends StatelessWidget {
                     MaterialLocalizations.of(context).searchFieldLabel,
                     BusyMaxShortcutLabels.search,
                   ),
-                  icon: const Icon(BusyMaxLinuxHeaderGlyphs.search),
+                  icon: BusyMaxLinuxHeaderIcon.search,
                   onPressed: onSearch,
                 ),
               if (onMenuSelected != null)
@@ -242,7 +233,7 @@ class BusyMaxMainMenuButton extends StatelessWidget {
     return BusyMaxLinuxHeaderMenuButton<ScheduleToolbarMenuAction>(
       key: const ValueKey('busymax-main-menu-button'),
       tooltip: context.l10n.mainMenu,
-      icon: const Icon(BusyMaxLinuxHeaderGlyphs.menu),
+      icon: BusyMaxLinuxHeaderIcon.mainMenu,
       entries: [
         if (includeRefresh)
           BusyMaxMenuEntry(
@@ -304,7 +295,17 @@ Widget _fittingRangeTitle(BuildContext context, String title) {
   );
 }
 
-IconData _modeIcon(ScheduleViewMode mode) {
+BusyMaxLinuxHeaderIcon _modeHeaderIcon(ScheduleViewMode mode) {
+  return switch (mode) {
+    ScheduleViewMode.day => BusyMaxLinuxHeaderIcon.viewDay,
+    ScheduleViewMode.week => BusyMaxLinuxHeaderIcon.viewWeek,
+    ScheduleViewMode.month => BusyMaxLinuxHeaderIcon.viewMonth,
+    ScheduleViewMode.year => BusyMaxLinuxHeaderIcon.viewYear,
+    ScheduleViewMode.agenda => BusyMaxLinuxHeaderIcon.viewAgenda,
+  };
+}
+
+IconData _modeMenuIcon(ScheduleViewMode mode) {
   return switch (mode) {
     ScheduleViewMode.day => Icons.calendar_view_day_outlined,
     ScheduleViewMode.week => Icons.view_week_outlined,

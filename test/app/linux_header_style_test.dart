@@ -1,6 +1,7 @@
 import 'package:busymax/src/app/busymax_design.dart';
 import 'package:busymax/src/app/linux/linux_header_style.dart';
 import 'package:busymax/src/app/linux/linux_window_host.dart';
+import 'package:busymax/src/platform/gtk_header_icon_service.dart';
 import 'package:busymax/src/platform/gtk_window_preferences_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -106,13 +107,13 @@ void main() {
               ),
               BusyMaxLinuxHeaderIconButton(
                 key: ValueKey('enabled'),
-                icon: Icon(YaruIcons.search),
+                icon: BusyMaxLinuxHeaderIcon.search,
                 tooltip: 'Enabled',
                 onPressed: _noop,
               ),
               BusyMaxLinuxHeaderIconButton(
                 key: ValueKey('disabled'),
-                icon: Icon(YaruIcons.plus),
+                icon: BusyMaxLinuxHeaderIcon.create,
                 tooltip: 'Disabled',
                 onPressed: null,
               ),
@@ -157,7 +158,7 @@ void main() {
             builder: (context) {
               testContext = context;
               return const BusyMaxLinuxHeaderIconButton(
-                icon: Icon(YaruIcons.view_more),
+                icon: BusyMaxLinuxHeaderIcon.mainMenu,
                 tooltip: 'Menu',
                 selected: true,
                 onPressed: _noop,

@@ -27,6 +27,7 @@ import 'package:busymax/src/features/calendar/data/calendar_repository.dart';
 import 'package:busymax/src/features/settings/presentation/settings_screen.dart';
 import 'package:busymax/src/features/sync/sync_auth_error.dart';
 import 'package:busymax/src/platform/gtk_font_service.dart';
+import 'package:busymax/src/platform/gtk_header_icon_service.dart';
 import 'package:busymax/src/platform/native_menu_service.dart';
 import 'package:busymax/src/features/tasks/presentation/desktop_date_time_fields.dart';
 import 'package:busymax/src/providers/busy_provider.dart';
@@ -492,6 +493,19 @@ void main() {
     );
     final header = tester.getRect(find.byType(BusyMaxLinuxHeaderLayout));
     expect(tester.getRect(titleRoot).center.dx, closeTo(header.center.dx, .01));
+    BusyMaxLinuxHeaderIcon iconFor(String key) => tester
+        .widget<BusyMaxGtkHeaderIcon>(
+          find.descendant(
+            of: find.byKey(ValueKey(key)),
+            matching: find.byType(BusyMaxGtkHeaderIcon),
+          ),
+        )
+        .icon;
+    expect(iconFor('settings-header-back-button'), BusyMaxLinuxHeaderIcon.back);
+    expect(
+      iconFor('busymax-main-menu-button'),
+      BusyMaxLinuxHeaderIcon.mainMenu,
+    );
   });
 
   testWidgets('Settings removes the selected Microsoft account', (

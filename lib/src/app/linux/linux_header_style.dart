@@ -5,9 +5,14 @@ import 'package:yaru/yaru.dart';
 
 import '../busymax_design.dart';
 import '../busymax_surface_colors.dart';
+import '../../platform/gtk_header_icon_service.dart';
 import 'linux_window_host.dart';
 
 abstract final class BusyMaxLinuxHeaderStyle {
+  static const double symbolicIconSize = 16;
+  static const double compoundButtonHorizontalPadding = 9;
+  static const double compoundButtonVerticalPadding = 4;
+  static const double viewIconGap = 6;
   static const double controlRadius = 6;
   static const double activeForegroundOpacity = 1;
   static const double inactiveForegroundOpacity = .50;
@@ -123,24 +128,30 @@ class BusyMaxLinuxHeaderIconButton extends StatelessWidget {
     this.focusNode,
     this.selected = false,
     this.selectedIcon,
+    this.semanticLabel,
   });
 
-  final Widget icon;
+  final BusyMaxLinuxHeaderIcon icon;
   final String? tooltip;
   final VoidCallback? onPressed;
   final FocusNode? focusNode;
   final bool selected;
-  final Widget? selectedIcon;
+  final BusyMaxLinuxHeaderIcon? selectedIcon;
+  final String? semanticLabel;
 
   @override
   Widget build(BuildContext context) {
-    return BusyMaxHeaderIconButton(
-      icon: icon,
+    final button = BusyMaxHeaderIconButton(
+      icon: BusyMaxGtkHeaderIcon(icon),
       tooltip: tooltip,
       onPressed: onPressed,
       focusNode: focusNode,
       isSelected: selected,
-      selectedIcon: selectedIcon,
+      selectedIcon: selectedIcon == null
+          ? null
+          : BusyMaxGtkHeaderIcon(selectedIcon!),
+      iconSize: BusyMaxLinuxHeaderStyle.symbolicIconSize,
+      fixedSize: const Size.square(BusyMaxSizes.headerIconButton),
       foregroundColor: busyMaxLinuxHeaderForeground(context),
       disabledForegroundColor: busyMaxLinuxHeaderForeground(
         context,
@@ -155,6 +166,14 @@ class BusyMaxLinuxHeaderIconButton extends StatelessWidget {
       ),
       focusBorderRadius: BusyMaxLinuxHeaderStyle.controlRadius,
     );
+    return semanticLabel == null
+        ? button
+        : Semantics(
+            label: semanticLabel,
+            button: true,
+            enabled: onPressed != null,
+            child: button,
+          );
   }
 }
 
@@ -164,14 +183,14 @@ class BusyMaxLinuxHeaderMenuButton<T> extends StatelessWidget {
     required this.tooltip,
     required this.entries,
     required this.onSelected,
-    this.icon = const Icon(YaruIcons.view_more),
+    this.icon = BusyMaxLinuxHeaderIcon.mainMenu,
     this.controller,
     this.enabled = true,
     this.highlightWhenOpen = true,
   });
 
   final String tooltip;
-  final Widget icon;
+  final BusyMaxLinuxHeaderIcon icon;
   final List<BusyMaxMenuEntry<T>> entries;
   final ValueChanged<T> onSelected;
   final BusyMaxMenuController? controller;
@@ -182,7 +201,7 @@ class BusyMaxLinuxHeaderMenuButton<T> extends StatelessWidget {
   Widget build(BuildContext context) {
     return BusyMaxMenuButton<T>(
       tooltip: tooltip,
-      icon: icon,
+      icon: BusyMaxGtkHeaderIcon(icon),
       entries: entries,
       onSelected: onSelected,
       controller: controller,
@@ -199,6 +218,224 @@ class BusyMaxLinuxHeaderMenuButton<T> extends StatelessWidget {
       ),
     );
   }
+}
+
+class BusyMaxLinuxViewMenuButton<T> extends StatelessWidget {
+  const BusyMaxLinuxViewMenuButton({
+    super.key,
+    required this.tooltip,
+    required this.icon,
+    required this.entries,
+    required this.onSelected,
+    this.controller,
+    this.enabled = true,
+  });
+
+  final String tooltip;
+  final BusyMaxLinuxHeaderIcon icon;
+  final List<BusyMaxMenuEntry<T>> entries;
+  final ValueChanged<T> onSelected;
+  final BusyMaxMenuController? controller;
+  final bool enabled;
+
+  @override
+  Widget build(BuildContext context) {
+    return BusyMaxMenuButton<T>(
+      tooltip: tooltip,
+      icon: BusyMaxGtkHeaderIcon(icon),
+      entries: entries,
+      onSelected: onSelected,
+      controller: controller,
+      enabled: enabled,
+      triggerBuilder: (context, trigger) => trigger.anchor(
+        child: _BusyMaxLinuxViewMenuTrigger(
+          tooltip: tooltip,
+          icon: icon,
+          focusNode: trigger.focusNode,
+          selected: trigger.isOpen,
+          onPressed: trigger.onPressed,
+        ),
+      ),
+    );
+  }
+}
+
+class _BusyMaxLinuxViewMenuTrigger extends StatelessWidget {
+  const _BusyMaxLinuxViewMenuTrigger({
+    required this.tooltip,
+    required this.icon,
+    required this.focusNode,
+    required this.selected,
+    required this.onPressed,
+  });
+
+  final String tooltip;
+  final BusyMaxLinuxHeaderIcon icon;
+  final FocusNode focusNode;
+  final bool selected;
+  final VoidCallback? onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    final foreground = busyMaxLinuxHeaderForeground(context);
+    final disabledForeground = busyMaxLinuxHeaderForeground(
+      context,
+      disabled: true,
+    );
+    final baseBackground = busyMaxLinuxHeaderControlBackground(context);
+    final style = ButtonStyle(
+      minimumSize: const WidgetStatePropertyAll(
+        Size(0, BusyMaxSizes.headerIconButton),
+      ),
+      maximumSize: const WidgetStatePropertyAll(
+        Size(double.infinity, BusyMaxSizes.headerIconButton),
+      ),
+      padding: const WidgetStatePropertyAll(
+        EdgeInsets.symmetric(
+          horizontal: BusyMaxLinuxHeaderStyle.compoundButtonHorizontalPadding,
+          vertical: BusyMaxLinuxHeaderStyle.compoundButtonVerticalPadding,
+        ),
+      ),
+      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+      foregroundColor: WidgetStateProperty.resolveWith(
+        (states) => states.contains(WidgetState.disabled)
+            ? disabledForeground
+            : foreground,
+      ),
+      backgroundColor: WidgetStateProperty.resolveWith(
+        (states) => baseBackground.resolve({
+          ...states,
+          if (selected) WidgetState.selected,
+        }),
+      ),
+      overlayColor: const WidgetStatePropertyAll(Colors.transparent),
+      shape: WidgetStatePropertyAll(
+        RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(
+            BusyMaxLinuxHeaderStyle.controlRadius,
+          ),
+        ),
+      ),
+      animationDuration: BusyMaxMotion.fast,
+      splashFactory: NoSplash.splashFactory,
+    );
+    final button = SizedBox(
+      height: BusyMaxSizes.headerIconButton,
+      child: TextButton(
+        focusNode: focusNode,
+        onPressed: onPressed,
+        style: style,
+        child: Builder(
+          builder: (context) => IconTheme(
+            data: IconThemeData(
+              color: DefaultTextStyle.of(context).style.color,
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                BusyMaxGtkHeaderIcon(icon),
+                const SizedBox(width: BusyMaxLinuxHeaderStyle.viewIconGap),
+                const BusyMaxGtkHeaderIcon(
+                  BusyMaxLinuxHeaderIcon.viewMenuArrow,
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+    final focused = YaruTheme.maybeOf(context)?.focusBorders == true
+        ? YaruFocusBorder.primary(
+            borderRadius: BorderRadius.circular(
+              BusyMaxLinuxHeaderStyle.controlRadius,
+            ),
+            child: button,
+          )
+        : button;
+    return Tooltip(message: tooltip, child: focused);
+  }
+}
+
+class BusyMaxGtkHeaderIcon extends StatelessWidget {
+  const BusyMaxGtkHeaderIcon(this.icon, {super.key, this.direction});
+
+  final BusyMaxLinuxHeaderIcon icon;
+  final TextDirection? direction;
+
+  @override
+  Widget build(BuildContext context) {
+    final effectiveDirection = direction ?? Directionality.of(context);
+    final asset = GtkHeaderIconScope.of(
+      context,
+    ).catalog.assetFor(icon, effectiveDirection);
+    final color = IconTheme.of(context).color;
+    return ExcludeSemantics(
+      child: SizedBox.square(
+        dimension: BusyMaxLinuxHeaderStyle.symbolicIconSize,
+        child: asset == null
+            ? CustomPaint(
+                size: const Size.square(
+                  BusyMaxLinuxHeaderStyle.symbolicIconSize,
+                ),
+                painter: _BusyMaxGtkHeaderFallbackPainter(
+                  icon: icon,
+                  color: color ?? const Color(0xFF000000),
+                ),
+              )
+            : Image.memory(
+                asset.bytes,
+                width: BusyMaxLinuxHeaderStyle.symbolicIconSize,
+                height: BusyMaxLinuxHeaderStyle.symbolicIconSize,
+                fit: BoxFit.contain,
+                color: color,
+                colorBlendMode: BlendMode.srcIn,
+                filterQuality: FilterQuality.medium,
+                gaplessPlayback: true,
+                excludeFromSemantics: true,
+              ),
+      ),
+    );
+  }
+}
+
+class _BusyMaxGtkHeaderFallbackPainter extends CustomPainter {
+  const _BusyMaxGtkHeaderFallbackPainter({
+    required this.icon,
+    required this.color,
+  });
+
+  final BusyMaxLinuxHeaderIcon icon;
+  final Color color;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = color
+      ..strokeWidth = 1.5
+      ..strokeCap = StrokeCap.round
+      ..strokeJoin = StrokeJoin.round;
+    if (icon == BusyMaxLinuxHeaderIcon.filter) {
+      final path = Path()
+        ..moveTo(2, 3)
+        ..lineTo(14, 3)
+        ..lineTo(9.25, 8.25)
+        ..lineTo(9.25, 12.25)
+        ..lineTo(6.75, 13.5)
+        ..lineTo(6.75, 8.25)
+        ..close();
+      canvas.drawPath(path, paint..style = PaintingStyle.fill);
+      return;
+    }
+    paint.style = PaintingStyle.stroke;
+    canvas
+      ..drawRect(const Rect.fromLTWH(2.5, 2.5, 11, 11), paint)
+      ..drawLine(const Offset(4.5, 4.5), const Offset(11.5, 11.5), paint)
+      ..drawLine(const Offset(11.5, 4.5), const Offset(4.5, 11.5), paint);
+  }
+
+  @override
+  bool shouldRepaint(_BusyMaxGtkHeaderFallbackPainter oldDelegate) =>
+      icon != oldDelegate.icon || color != oldDelegate.color;
 }
 
 class BusyMaxLinuxHeaderControlGroup extends StatelessWidget {
@@ -455,23 +692,4 @@ class BusyMaxLinuxHeaderTextButton extends StatelessWidget {
             child: Text(label),
           );
   }
-}
-
-abstract final class BusyMaxLinuxHeaderGlyphs {
-  static const sidebar = YaruIcons.sidebar;
-  static const today = YaruIcons.calendar;
-  static const search = YaruIcons.search;
-  static const refresh = YaruIcons.refresh;
-  static const menu = YaruIcons.view_more;
-  static const close = YaruIcons.window_close;
-
-  static IconData previousFor(TextDirection direction) =>
-      direction == TextDirection.ltr
-      ? YaruIcons.go_previous
-      : YaruIcons.go_next;
-
-  static IconData nextFor(TextDirection direction) =>
-      direction == TextDirection.ltr
-      ? YaruIcons.go_next
-      : YaruIcons.go_previous;
 }

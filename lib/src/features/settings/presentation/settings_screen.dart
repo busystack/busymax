@@ -30,6 +30,7 @@ import 'package:busymax/src/core/auth/oauth_models.dart';
 import '../../../l10n/app_locale.dart';
 import '../../../l10n/l10n.dart';
 import '../../../platform/common/desktop_services.dart';
+import '../../../platform/gtk_header_icon_service.dart';
 import '../../../webcal/webcal_subscription_service.dart';
 import '../../../webcal/webcal_uri.dart';
 import 'package:busymax/src/providers/busy_provider.dart';
@@ -1069,9 +1070,7 @@ class _SettingsHeader extends StatelessWidget {
           BusyMaxLinuxHeaderIconButton(
             key: const ValueKey('settings-header-back-button'),
             tooltip: MaterialLocalizations.of(context).backButtonTooltip,
-            icon: Icon(
-              BusyMaxLinuxHeaderGlyphs.previousFor(Directionality.of(context)),
-            ),
+            icon: BusyMaxLinuxHeaderIcon.back,
             onPressed: onBack,
           ),
         ],

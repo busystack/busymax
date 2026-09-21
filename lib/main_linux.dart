@@ -21,6 +21,7 @@ import 'src/features/notifications/desktop_notification_backend.dart';
 import 'src/platform/common/desktop_services.dart';
 import 'src/platform/external_calendar_open_service.dart';
 import 'src/platform/gtk_font_service.dart';
+import 'src/platform/gtk_header_icon_service.dart';
 import 'src/platform/gtk_animation_settings_service.dart';
 import 'src/platform/gtk_window_preferences_service.dart';
 import 'src/platform/linux/linux_notification_backend.dart';
@@ -52,6 +53,8 @@ Future<void> main(List<String> arguments) async {
   await activationService.initialize();
 
   final systemAccentFuture = SystemTheme.accentColor.load();
+  final gtkHeaderIconService = GtkHeaderIconService();
+  final initialGtkHeaderIconsFuture = gtkHeaderIconService.initialize();
   final initialGtkFontFuture = const GtkFontService().getGtkFont();
   final initialGtkAnimationsFuture = const GtkAnimationSettingsService()
       .getAnimationsEnabled();
@@ -73,6 +76,7 @@ Future<void> main(List<String> arguments) async {
     gtkThemeService.getGtkThemeColors(),
     initialGtkAnimationsFuture,
     initialGtkWindowPreferencesFuture,
+    initialGtkHeaderIconsFuture,
   ]);
   configureLogging();
 
@@ -99,6 +103,10 @@ Future<void> main(List<String> arguments) async {
     initialGtkWindowPreferencesProvider.overrideWithValue(
       initialGtkWindowPreferences,
     ),
+    gtkHeaderIconServiceProvider.overrideWith((ref) {
+      ref.onDispose(gtkHeaderIconService.dispose);
+      return gtkHeaderIconService;
+    }),
     networkConnectivityMonitorProvider.overrideWith((ref) {
       final monitor = createLinuxNetworkConnectivityMonitor();
       ref.onDispose(() => unawaited(monitor.dispose()));

@@ -411,6 +411,59 @@ void main() {
       }
     });
 
+    test('top-level Linux header triggers use semantic GTK icon assets', () {
+      final style = File(
+        'lib/src/app/linux/linux_header_style.dart',
+      ).readAsStringSync();
+      final toolbar = File(
+        'lib/src/features/schedule/presentation/schedule_toolbar.dart',
+      ).readAsStringSync();
+      final workspace = File(
+        'lib/src/features/schedule/presentation/schedule_workspace.dart',
+      ).readAsStringSync();
+      final settings = File(
+        'lib/src/features/settings/presentation/settings_screen.dart',
+      ).readAsStringSync();
+      final menuRowsStart = toolbar.indexOf('IconData _modeMenuIcon(');
+      expect(menuRowsStart, isNonNegative);
+      final topLevelToolbar = toolbar.substring(0, menuRowsStart);
+      final settingsHeaderStart = settings.indexOf('class _SettingsHeader');
+      final settingsHeaderEnd = settings.indexOf(
+        'class _SettingsPageLayout',
+        settingsHeaderStart,
+      );
+      expect(settingsHeaderStart, isNonNegative);
+      expect(settingsHeaderEnd, greaterThan(settingsHeaderStart));
+      final settingsHeader = settings.substring(
+        settingsHeaderStart,
+        settingsHeaderEnd,
+      );
+
+      expect(style, contains('class BusyMaxGtkHeaderIcon'));
+      expect(style, contains('BusyMaxLinuxHeaderStyle.symbolicIconSize'));
+      expect(style, isNot(contains('BusyMaxLinuxHeaderGlyphs')));
+      expect(style, isNot(contains('YaruIcons.')));
+      for (final forbidden in const [
+        'Icons.calendar_view_day_outlined',
+        'Icons.view_week_outlined',
+        'Icons.calendar_view_month',
+        'Icons.calendar_today_outlined',
+        'Icons.view_agenda_outlined',
+        'YaruIcons.plus',
+        'YaruIcons.view_more',
+      ]) {
+        expect(
+          topLevelToolbar,
+          isNot(contains(forbidden)),
+          reason: 'Top-level Schedule header must not use $forbidden.',
+        );
+      }
+      expect(workspace, isNot(contains('icon: const Icon(Icons.filter_list)')));
+      expect(workspace, isNot(contains('BusyMaxLinuxHeaderGlyphs')));
+      expect(settingsHeader, isNot(contains('Icon(')));
+      expect(settingsHeader, isNot(contains('BusyMaxLinuxHeaderGlyphs')));
+    });
+
     test('native GTK window preferences notify and clean up safely', () {
       final runner = File('linux/runner/my_application.cc').readAsStringSync();
       final helper = File(

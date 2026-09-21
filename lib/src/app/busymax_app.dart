@@ -10,6 +10,7 @@ import '../platform/busymax_tray_service.dart';
 import '../features/tray/domain/tray_presentation.dart';
 import '../features/tray/domain/tray_presentation_formatter.dart';
 import '../platform/gtk_font_service.dart';
+import '../platform/gtk_header_icon_service.dart';
 import '../platform/gtk_animation_settings_service.dart';
 import '../platform/linux_first_weekday_source.dart';
 import '../platform/native_style.dart';
@@ -341,60 +342,64 @@ class _BusyMaxAppState extends ConsumerState<LinuxBusyMaxApp> {
             _trayPresentationFormatter = trayFormatter;
             _configureNativeSurfaceTheme(context);
             _configureBackgroundServices(ref, settings, trayFormatter);
-            return LinuxApplicationMediaQuery(
-              alwaysUse24HourFormat: clock.use24Hour,
-              gtkAnimationsEnabled: gtkAnimationsEnabled,
-              child: LinuxWindowHost(
-                closeCoordinator: _windowCloseCoordinator,
-                child: Shortcuts(
-                  shortcuts: const {
-                    BusyMaxShortcutActivators.keyboardShortcuts:
-                        _KeyboardShortcutsIntent(),
-                    BusyMaxShortcutActivators.settings: _OpenSettingsIntent(),
-                  },
-                  child: Actions(
-                    actions: {
-                      _KeyboardShortcutsIntent:
-                          CallbackAction<_KeyboardShortcutsIntent>(
-                            onInvoke: (intent) {
-                              final navigatorContext =
-                                  rootNavigatorKey.currentContext;
-                              if (navigatorContext != null) {
-                                unawaited(
-                                  showBusyMaxKeyboardShortcutsDialog(
-                                    navigatorContext,
-                                  ),
-                                );
-                              }
-                              return null;
-                            },
-                          ),
-                      _OpenSettingsIntent: CallbackAction<_OpenSettingsIntent>(
-                        onInvoke: (intent) {
-                          if (router.state.uri.path != '/settings') {
-                            unawaited(router.push<void>('/settings'));
-                          }
-                          return null;
-                        },
-                      ),
+            return GtkHeaderIconScope(
+              service: ref.watch(gtkHeaderIconServiceProvider),
+              child: LinuxApplicationMediaQuery(
+                alwaysUse24HourFormat: clock.use24Hour,
+                gtkAnimationsEnabled: gtkAnimationsEnabled,
+                child: LinuxWindowHost(
+                  closeCoordinator: _windowCloseCoordinator,
+                  child: Shortcuts(
+                    shortcuts: const {
+                      BusyMaxShortcutActivators.keyboardShortcuts:
+                          _KeyboardShortcutsIntent(),
+                      BusyMaxShortcutActivators.settings: _OpenSettingsIntent(),
                     },
-                    child: ColoredBox(
-                      color: BusyMaxSurfaceColors.of(context).window,
-                      child: BusyMaxTimeFormatScope(
-                        formatter: clock,
-                        child: BusyMaxWeekPreferencesScope(
-                          preference: settings.firstDayOfWeekPreference,
-                          systemWeekday: _firstWeekdayController.value,
-                          platformLocaleTag: WidgetsBinding
-                              .instance
-                              .platformDispatcher
-                              .locale
-                              .toLanguageTag(),
-                          child: BusyMaxWeekPreferencesStartupGate(
+                    child: Actions(
+                      actions: {
+                        _KeyboardShortcutsIntent:
+                            CallbackAction<_KeyboardShortcutsIntent>(
+                              onInvoke: (intent) {
+                                final navigatorContext =
+                                    rootNavigatorKey.currentContext;
+                                if (navigatorContext != null) {
+                                  unawaited(
+                                    showBusyMaxKeyboardShortcutsDialog(
+                                      navigatorContext,
+                                    ),
+                                  );
+                                }
+                                return null;
+                              },
+                            ),
+                        _OpenSettingsIntent:
+                            CallbackAction<_OpenSettingsIntent>(
+                              onInvoke: (intent) {
+                                if (router.state.uri.path != '/settings') {
+                                  unawaited(router.push<void>('/settings'));
+                                }
+                                return null;
+                              },
+                            ),
+                      },
+                      child: ColoredBox(
+                        color: BusyMaxSurfaceColors.of(context).window,
+                        child: BusyMaxTimeFormatScope(
+                          formatter: clock,
+                          child: BusyMaxWeekPreferencesScope(
                             preference: settings.firstDayOfWeekPreference,
-                            systemValueInitialized:
-                                _firstWeekdayController.isInitialized,
-                            child: child ?? const SizedBox.shrink(),
+                            systemWeekday: _firstWeekdayController.value,
+                            platformLocaleTag: WidgetsBinding
+                                .instance
+                                .platformDispatcher
+                                .locale
+                                .toLanguageTag(),
+                            child: BusyMaxWeekPreferencesStartupGate(
+                              preference: settings.firstDayOfWeekPreference,
+                              systemValueInitialized:
+                                  _firstWeekdayController.isInitialized,
+                              child: child ?? const SizedBox.shrink(),
+                            ),
                           ),
                         ),
                       ),

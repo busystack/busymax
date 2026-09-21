@@ -4633,7 +4633,7 @@ void main() {
       expect(sidebar, isNot(contains('PushButton.filled')));
       expect(toolbar, isNot(contains('BusyMaxShortcutLabels.create')));
       expect(toolbar, contains('tooltip: context.l10n.create'));
-      expect(toolbar, contains('icon: const Icon(YaruIcons.plus)'));
+      expect(toolbar, contains('icon: BusyMaxLinuxHeaderIcon.create'));
       expect(toolbar, contains('tooltip: context.l10n.refreshAll'));
     },
   );

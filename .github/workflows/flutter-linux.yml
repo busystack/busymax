@@ -89,6 +89,11 @@ jobs:
       - name: Test
         run: '"$BUSYMAX_FLUTTER_EXECUTABLE" test'
 
+      - name: Test GTK header-icon bridge
+        run: >-
+          xvfb-run -a "$BUSYMAX_FLUTTER_EXECUTABLE" test
+          integration_test/gtk_header_icons_integration_test.dart -d linux
+
       - name: Test native clock patterns, weekday locale, and GTK time picker
         run: |
           mkdir -p build/linux/native-tests
@@ -130,6 +135,12 @@ jobs:
             -o build/linux/native-tests/gtk_window_preferences_test \
             $(pkg-config --cflags --libs gtk+-3.0)
           xvfb-run -a build/linux/native-tests/gtk_window_preferences_test
+          g++ -std=c++17 -Wall -Wextra -Werror \
+            linux/runner/tests/gtk_header_icons_test.cc \
+            linux/runner/gtk_header_icons.cc \
+            -o build/linux/native-tests/gtk_header_icons_test \
+            $(pkg-config --cflags --libs gtk+-3.0)
+          xvfb-run -a sh -c 'build/linux/native-tests/gtk_header_icons_test'
 
       - name: Validate release provider configuration
         if: github.event_name == 'push'
