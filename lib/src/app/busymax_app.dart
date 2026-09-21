@@ -23,6 +23,7 @@ import 'desktop_startup_policy.dart';
 import 'app_router.dart';
 import 'busymax_keyboard_shortcuts_dialog.dart';
 import 'busymax_shortcuts.dart';
+import 'busymax_window_close.dart';
 import '../../l10n/generated/app_localizations.dart';
 import 'busymax_yaru_theme.dart';
 import 'busymax_design.dart';
@@ -84,6 +85,7 @@ class BusyMaxApp extends LinuxBusyMaxApp {
 class _BusyMaxAppState extends ConsumerState<LinuxBusyMaxApp> {
   final _logger = RedactingLogger(Logger('LinuxBusyMaxApp'));
   final _calendarOpenReadiness = DesktopCalendarOpenReadiness();
+  final _windowCloseCoordinator = BusyMaxWindowCloseCoordinator();
   late final BusyMaxSystemFirstWeekdayController _firstWeekdayController;
   BusyMaxTrayService? _trayService;
   bool? _lastHideOnClose;
@@ -101,6 +103,7 @@ class _BusyMaxAppState extends ConsumerState<LinuxBusyMaxApp> {
   Future<void> _externalOpenTail = Future<void>.value();
   BusyMaxNativeSurfaceTheme? _nativeSurfaceTheme;
   var _nativeSurfaceThemeRevision = 0;
+  Future<void>? _quitRequest;
 
   @override
   void initState() {
@@ -342,6 +345,7 @@ class _BusyMaxAppState extends ConsumerState<LinuxBusyMaxApp> {
               alwaysUse24HourFormat: clock.use24Hour,
               gtkAnimationsEnabled: gtkAnimationsEnabled,
               child: LinuxWindowHost(
+                closeCoordinator: _windowCloseCoordinator,
                 child: Shortcuts(
                   shortcuts: const {
                     BusyMaxShortcutActivators.keyboardShortcuts:
@@ -521,7 +525,7 @@ class _BusyMaxAppState extends ConsumerState<LinuxBusyMaxApp> {
         openTodayAgenda: () => _openMainAgenda(windowService),
         synchronize: () => ref.read(syncSchedulerProvider).runNow(),
         openSettings: () => _openTraySettings(windowService),
-        quitBusyMax: windowService.quitApp,
+        quitBusyMax: () => _requestQuit(windowService),
       ),
     );
     final factory = widget.trayServiceFactory;
@@ -543,6 +547,27 @@ class _BusyMaxAppState extends ConsumerState<LinuxBusyMaxApp> {
     await windowService.showWindow();
     ref.read(appRouterProvider).go('/schedule');
     _issueScheduleCommand(ScheduleWorkspaceCommandKind.newEvent);
+  }
+
+  Future<void> _requestQuit(DesktopWindowService windowService) {
+    final pending = _quitRequest;
+    if (pending != null) return pending;
+    final request = _performQuitRequest(windowService);
+    _quitRequest = request;
+    return request.whenComplete(() {
+      if (identical(_quitRequest, request)) {
+        _quitRequest = null;
+      }
+    });
+  }
+
+  Future<void> _performQuitRequest(DesktopWindowService windowService) async {
+    if (_windowCloseCoordinator.hasActiveHandler) {
+      await windowService.showWindow();
+    }
+    if (await _windowCloseCoordinator.requestClose()) {
+      await windowService.quitApp();
+    }
   }
 
   Future<void> _openTrayNewTask(DesktopWindowService windowService) async {

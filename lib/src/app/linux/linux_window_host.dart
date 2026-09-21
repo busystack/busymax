@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:ui' show AppExitResponse;
 
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
@@ -9,6 +10,7 @@ import '../../l10n/l10n.dart';
 import '../../platform/gtk_window_preferences_service.dart';
 import '../busymax_design.dart';
 import '../busymax_surface_colors.dart';
+import '../busymax_window_close.dart';
 
 /// Shared dimensions for Flutter-owned Linux chrome.
 abstract final class BusyMaxLinuxWindowMetrics {
@@ -73,17 +75,37 @@ class LinuxWindowMetricsScope extends InheritedWidget {
 /// header content remains inside page routes and is therefore covered by
 /// ordinary dialog barriers.
 class LinuxWindowHost extends ConsumerStatefulWidget {
-  const LinuxWindowHost({super.key, required this.child});
+  const LinuxWindowHost({
+    super.key,
+    required this.child,
+    this.closeCoordinator,
+  });
 
   final Widget child;
+  final BusyMaxWindowCloseCoordinator? closeCoordinator;
 
   @override
   ConsumerState<LinuxWindowHost> createState() => _LinuxWindowHostState();
 }
 
 class _LinuxWindowHostState extends ConsumerState<LinuxWindowHost> {
+  final _localCloseCoordinator = BusyMaxWindowCloseCoordinator();
+  late final AppLifecycleListener _lifecycleListener;
   YaruWindowInstance? _window;
   Stream<YaruWindowState>? _windowStates;
+
+  BusyMaxWindowCloseCoordinator get _closeCoordinator =>
+      widget.closeCoordinator ?? _localCloseCoordinator;
+
+  @override
+  void initState() {
+    super.initState();
+    _lifecycleListener = AppLifecycleListener(
+      onExitRequested: () async => await _closeCoordinator.requestClose()
+          ? AppExitResponse.exit
+          : AppExitResponse.cancel,
+    );
+  }
 
   @override
   void didChangeDependencies() {
@@ -95,40 +117,49 @@ class _LinuxWindowHostState extends ConsumerState<LinuxWindowHost> {
   }
 
   @override
+  void dispose() {
+    _lifecycleListener.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     final preferences =
         ref.watch(gtkWindowPreferencesProvider).valueOrNull ??
         GtkWindowPreferences.defaults();
-    return StreamBuilder<YaruWindowState>(
-      stream: _windowStates,
-      builder: (context, snapshot) {
-        final state = snapshot.data ?? const YaruWindowState();
-        final leftDecorations = _meaningfulDecorations(
-          preferences.decorationLayout.left,
-          state,
-        );
-        final rightDecorations = _meaningfulDecorations(
-          preferences.decorationLayout.right,
-          state,
-        );
-        final leftInset = BusyMaxLinuxWindowMetrics.clusterWidth(
-          leftDecorations,
-        );
-        final rightInset = BusyMaxLinuxWindowMetrics.clusterWidth(
-          rightDecorations,
-        );
-        return LinuxWindowMetricsScope(
-          leftControlInset: leftInset,
-          rightControlInset: rightInset,
-          preferences: preferences,
-          child: _LinuxWindowOverlay(
-            leftDecorations: leftDecorations,
-            rightDecorations: rightDecorations,
-            state: state,
-            child: widget.child,
-          ),
-        );
-      },
+    return BusyMaxWindowCloseScope(
+      coordinator: _closeCoordinator,
+      child: StreamBuilder<YaruWindowState>(
+        stream: _windowStates,
+        builder: (context, snapshot) {
+          final state = snapshot.data ?? const YaruWindowState();
+          final leftDecorations = _meaningfulDecorations(
+            preferences.decorationLayout.left,
+            state,
+          );
+          final rightDecorations = _meaningfulDecorations(
+            preferences.decorationLayout.right,
+            state,
+          );
+          final leftInset = BusyMaxLinuxWindowMetrics.clusterWidth(
+            leftDecorations,
+          );
+          final rightInset = BusyMaxLinuxWindowMetrics.clusterWidth(
+            rightDecorations,
+          );
+          return LinuxWindowMetricsScope(
+            leftControlInset: leftInset,
+            rightControlInset: rightInset,
+            preferences: preferences,
+            child: _LinuxWindowOverlay(
+              leftDecorations: leftDecorations,
+              rightDecorations: rightDecorations,
+              state: state,
+              child: widget.child,
+            ),
+          );
+        },
+      ),
     );
   }
 }

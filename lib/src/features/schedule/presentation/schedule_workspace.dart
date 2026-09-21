@@ -16,6 +16,7 @@ import '../../../app/busymax_keyboard_shortcuts_dialog.dart';
 import '../../../app/busymax_layout.dart';
 import '../../../app/busymax_shortcuts.dart';
 import '../../../app/busymax_surface_colors.dart';
+import '../../../app/busymax_window_close.dart';
 import '../../../app/linux/linux_page_frame.dart';
 import '../../../app/linux/linux_window_host.dart';
 import '../../../core/logging/redacting_logger.dart';
@@ -708,6 +709,7 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
                             target: _taskDetailsTarget,
                             onClose: () =>
                                 unawaited(_requestCloseTaskDetails()),
+                            onWindowCloseRequested: _confirmDiscardTaskDetails,
                             onDirtyChanged: (dirty) {
                               _taskDetailsDirty = dirty;
                             },
@@ -3037,6 +3039,7 @@ class _ScheduleTaskDetailsOverlay extends StatefulWidget {
     required this.child,
     required this.target,
     required this.onClose,
+    required this.onWindowCloseRequested,
     required this.onDirtyChanged,
     required this.onMutationCommitted,
   });
@@ -3044,6 +3047,7 @@ class _ScheduleTaskDetailsOverlay extends StatefulWidget {
   final Widget child;
   final _TaskDetailsTarget? target;
   final VoidCallback onClose;
+  final BusyMaxWindowCloseHandler onWindowCloseRequested;
   final ValueChanged<bool> onDirtyChanged;
   final ValueChanged<TaskMutationResult> onMutationCommitted;
 
@@ -3204,16 +3208,19 @@ class _ScheduleTaskDetailsOverlayState
                           child: BusyMaxModalEditorSurface(
                             maxWidth: BusyMaxSizes.compactDetailsWidth,
                             maxHeight: 760,
-                            child: TaskDetailsPane(
-                              key: ValueKey(target),
-                              accountId: target.accountId,
-                              taskListId: target.taskListId,
-                              taskId: target.taskId,
-                              onClose: widget.onClose,
-                              onDirtyChanged: widget.onDirtyChanged,
-                              onTaskMutationCommitted:
-                                  widget.onMutationCommitted,
-                              dialogBarrierColor: Colors.transparent,
+                            child: BusyMaxWindowCloseGuard(
+                              onCloseRequested: widget.onWindowCloseRequested,
+                              child: TaskDetailsPane(
+                                key: ValueKey(target),
+                                accountId: target.accountId,
+                                taskListId: target.taskListId,
+                                taskId: target.taskId,
+                                onClose: widget.onClose,
+                                onDirtyChanged: widget.onDirtyChanged,
+                                onTaskMutationCommitted:
+                                    widget.onMutationCommitted,
+                                dialogBarrierColor: Colors.transparent,
+                              ),
                             ),
                           ),
                         ),

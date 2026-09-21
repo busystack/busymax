@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import 'busymax_design.dart';
 import 'busymax_shortcuts.dart';
+import 'busymax_window_close.dart';
 
 const _modalShortcuts = <ShortcutActivator, Intent>{
   BusyMaxShortcutActivators.keyboardShortcuts:
@@ -54,10 +55,12 @@ Future<T?> _showBusyMaxFlutterDialog<T>(
 }) async {
   final navigator = Navigator.of(context, rootNavigator: true);
   final themes = InheritedTheme.capture(from: context, to: navigator.context);
+  final closeCoordinator = BusyMaxWindowCloseScope.maybeOf(context);
   final route = _BusyMaxDialogRoute<T>(
     context: context,
     builder: builder,
     themes: themes,
+    closeCoordinator: closeCoordinator,
     fixedBarrierColor: barrierColor,
     initialBarrierColor: barrierColor ?? busyMaxModalBarrierColor(context),
     barrierDismissible: barrierDismissible,
@@ -72,14 +75,25 @@ class _BusyMaxDialogRoute<T> extends DialogRoute<T> {
     required super.context,
     required WidgetBuilder builder,
     required CapturedThemes themes,
+    required BusyMaxWindowCloseCoordinator? closeCoordinator,
     required Color? fixedBarrierColor,
     required Color initialBarrierColor,
     required super.barrierDismissible,
   }) : _fixedBarrierColor = fixedBarrierColor,
        _initialBarrierColor = initialBarrierColor,
        super(
-         builder: (dialogContext) =>
-             BusyMaxModalShortcutBoundary(child: builder(dialogContext)),
+         builder: (dialogContext) {
+           final dialog = BusyMaxWindowCloseGuard(
+             onCloseRequested: () => false,
+             child: BusyMaxModalShortcutBoundary(child: builder(dialogContext)),
+           );
+           return closeCoordinator == null
+               ? dialog
+               : BusyMaxWindowCloseScope(
+                   coordinator: closeCoordinator,
+                   child: dialog,
+                 );
+         },
          themes: themes,
          barrierColor: initialBarrierColor,
          traversalEdgeBehavior: TraversalEdgeBehavior.closedLoop,

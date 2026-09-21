@@ -11,6 +11,7 @@ import 'package:busymax/src/features/recurrence/domain/recurrence_rule.dart';
 import 'package:busymax/src/features/recurrence/presentation/recurrence_editor.dart';
 import 'package:busymax/src/features/tasks/presentation/desktop_date_time_fields.dart';
 import 'package:busymax/src/app/busymax_design.dart';
+import 'package:busymax/src/app/busymax_window_close.dart';
 import 'package:busymax/src/app/busymax_yaru_theme.dart';
 import 'package:busymax/src/platform/native_dialog_service.dart';
 import 'package:busymax/src/platform/native_menu_service.dart';
@@ -529,6 +530,57 @@ void main() {
       expect(saveCalls, 0);
     },
   );
+
+  testWidgets('dirty event resolves a destructive window close request', (
+    tester,
+  ) async {
+    final closeCoordinator = BusyMaxWindowCloseCoordinator();
+    var cancelled = false;
+    await tester.pumpWidget(
+      localizedTestApp(
+        child: BusyMaxWindowCloseScope(
+          coordinator: closeCoordinator,
+          child: Scaffold(
+            body: EventEditor(
+              initialDraft: EventEditorDraft.existing(
+                eventId: 'event-1',
+                accountId: 'account',
+                sourceId: 'source',
+                providerCalendarId: 'cal-1',
+                title: 'Planning',
+                allDay: false,
+                start: DateTime.utc(2026, 6, 8, 9),
+                end: DateTime.utc(2026, 6, 8, 10),
+              ),
+              sources: _sources,
+              onCancel: () => cancelled = true,
+              onSave: (_) {},
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.enterText(find.byType(TextFormField).first, 'Unsaved event');
+    await tester.pump();
+
+    final cancelledClose = closeCoordinator.requestClose();
+    await tester.pumpAndSettle();
+    expect(find.text('Discard changes?'), findsOneWidget);
+    await tester.tap(find.text('Cancel').last);
+    await tester.pumpAndSettle();
+
+    expect(await cancelledClose, isFalse);
+    expect(cancelled, isFalse);
+    expect(find.text('Unsaved event'), findsOneWidget);
+
+    final confirmedClose = closeCoordinator.requestClose();
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Discard'));
+    await tester.pumpAndSettle();
+
+    expect(await confirmedClose, isTrue);
+    expect(cancelled, isFalse);
+  });
 
   testWidgets('switching an invalid timed event to all-day clears validity', (
     tester,

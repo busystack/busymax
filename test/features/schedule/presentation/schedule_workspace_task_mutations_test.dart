@@ -1,5 +1,6 @@
 import 'package:busymax/src/app/app_bootstrap.dart';
 import 'package:busymax/src/app/busymax_design.dart';
+import 'package:busymax/src/app/busymax_window_close.dart';
 import 'package:busymax/src/db/app_database.dart';
 import 'package:busymax/src/features/accounts/data/accounts_repository.dart';
 import 'package:busymax/src/features/schedule/presentation/schedule_workspace.dart';
@@ -204,6 +205,38 @@ void main() {
         .where((barrier) => (barrier.color?.a ?? 0) > 0);
     expect(visibleBarriers, isEmpty);
   });
+
+  testWidgets('dirty task resolves a destructive window close request', (
+    tester,
+  ) async {
+    final harness = await _pumpScheduleWorkspace(
+      tester,
+      taskTitle: 'Protected draft',
+      initialTaskAccountId: _accountId,
+      initialTaskListId: _taskListId,
+      initialTaskId: 'task-1',
+    );
+    await tester.enterText(find.byType(TextField).first, 'Unsaved window edit');
+    await tester.pump();
+
+    final cancelledClose = harness.closeCoordinator.requestClose();
+    await tester.pumpAndSettle();
+    expect(find.text('Discard changes?'), findsOneWidget);
+    await tester.tap(find.text('Cancel').last);
+    await tester.pumpAndSettle();
+
+    expect(await cancelledClose, isFalse);
+    expect(find.text('Edit Task'), findsOneWidget);
+    expect(find.text('Unsaved window edit'), findsOneWidget);
+
+    final confirmedClose = harness.closeCoordinator.requestClose();
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Discard'));
+    await tester.pumpAndSettle();
+
+    expect(await confirmedClose, isTrue);
+    expect(find.text('Edit Task'), findsOneWidget);
+  });
 }
 
 Future<_ScheduleHarness> _pumpScheduleWorkspace(
@@ -275,6 +308,7 @@ Future<_ScheduleHarness> _pumpScheduleWorkspace(
     displayName: 'Schedule test',
     email: 'schedule@example.test',
   );
+  final closeCoordinator = BusyMaxWindowCloseCoordinator();
   await tester.pumpWidget(
     ProviderScope(
       overrides: [
@@ -291,17 +325,20 @@ Future<_ScheduleHarness> _pumpScheduleWorkspace(
         }),
       ],
       child: localizedTestApp(
-        child: ScheduleWorkspace(
-          initialScope: ScheduleScope.tasks,
-          initialTaskAccountId: initialTaskAccountId,
-          initialTaskListId: initialTaskListId,
-          initialTaskId: initialTaskId,
+        child: BusyMaxWindowCloseScope(
+          coordinator: closeCoordinator,
+          child: ScheduleWorkspace(
+            initialScope: ScheduleScope.tasks,
+            initialTaskAccountId: initialTaskAccountId,
+            initialTaskListId: initialTaskListId,
+            initialTaskId: initialTaskId,
+          ),
         ),
       ),
     ),
   );
   await tester.pumpAndSettle();
-  return _ScheduleHarness(database);
+  return _ScheduleHarness(database, closeCoordinator);
 }
 
 String _todayUtc() {
@@ -310,9 +347,10 @@ String _todayUtc() {
 }
 
 class _ScheduleHarness {
-  const _ScheduleHarness(this.database);
+  const _ScheduleHarness(this.database, this.closeCoordinator);
 
   final AppDatabase database;
+  final BusyMaxWindowCloseCoordinator closeCoordinator;
 }
 
 class _MemorySettingsStore implements LocalSettingsStore {

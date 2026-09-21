@@ -1,9 +1,12 @@
 import 'dart:async';
+import 'dart:ui' show AppExitResponse;
 
 import 'package:busymax/l10n/generated/app_localizations.dart';
 import 'package:busymax/src/app/busymax_app.dart';
 import 'package:busymax/src/app/busymax_design.dart';
+import 'package:busymax/src/app/busymax_dialogs.dart';
 import 'package:busymax/src/app/linux/linux_window_host.dart';
+import 'package:busymax/src/app/busymax_window_close.dart';
 import 'package:busymax/src/platform/gtk_window_preferences_service.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
@@ -211,6 +214,84 @@ void main() {
     );
     expect(control.type, YaruWindowControlType.restore);
     expect(_callCount(windowCalls, 'state'), initialStateCalls);
+  });
+
+  testWidgets('window Close and platform exit use the guarded boundary', (
+    tester,
+  ) async {
+    var allowClose = false;
+    var closeRequests = 0;
+    await _pumpHost(
+      tester,
+      child: BusyMaxWindowCloseGuard(
+        onCloseRequested: () {
+          closeRequests += 1;
+          return allowClose;
+        },
+        child: const SizedBox(),
+      ),
+    );
+
+    await tester.tap(find.byType(YaruWindowControl));
+    await tester.pump();
+
+    expect(_callCount(windowCalls, 'close'), 1);
+    expect(closeRequests, 0);
+    expect(await tester.binding.handleRequestAppExit(), AppExitResponse.cancel);
+    expect(closeRequests, 1);
+
+    allowClose = true;
+    expect(await tester.binding.handleRequestAppExit(), AppExitResponse.exit);
+    expect(closeRequests, 2);
+  });
+
+  testWidgets('root dialogs retain the host close coordinator', (tester) async {
+    final coordinator = BusyMaxWindowCloseCoordinator();
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          gtkWindowPreferencesProvider.overrideWith(
+            (ref) => Stream.value(
+              const GtkWindowPreferences(
+                decorationLayout: GtkDecorationLayout(left: [], right: []),
+                doubleClick: GtkTitlebarAction.toggleMaximize,
+                middleClick: GtkTitlebarAction.none,
+                rightClick: GtkTitlebarAction.menu,
+              ),
+            ),
+          ),
+        ],
+        child: MaterialApp(
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          builder: (context, child) => LinuxWindowHost(
+            closeCoordinator: coordinator,
+            child: child ?? const SizedBox.shrink(),
+          ),
+          home: Builder(
+            builder: (context) => TextButton(
+              onPressed: () => unawaited(
+                showBusyMaxModalDialog<void>(
+                  context,
+                  builder: (_) =>
+                      const AlertDialog(content: Text('Window modal')),
+                ),
+              ),
+              child: const Text('Open modal'),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+    await tester.pump();
+
+    await tester.tap(find.text('Open modal'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Window modal'), findsOneWidget);
+    expect(coordinator.hasActiveHandler, isTrue);
+    expect(await coordinator.requestClose(), isFalse);
   });
 
   for (final scenario

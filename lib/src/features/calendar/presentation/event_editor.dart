@@ -8,6 +8,7 @@ import 'package:yaru/yaru.dart';
 
 import '../../../app/busymax_design.dart';
 import '../../../app/busymax_dialogs.dart';
+import '../../../app/busymax_window_close.dart';
 import '../../../calendar_providers/calendar_colors.dart';
 import '../../../calendar_providers/calendar_mutation.dart';
 import '../../../l10n/l10n.dart';
@@ -344,6 +345,13 @@ class _EventEditorState extends ConsumerState<EventEditor> {
 
   @override
   Widget build(BuildContext context) {
+    return BusyMaxWindowCloseGuard(
+      onCloseRequested: _confirmWindowClose,
+      child: _buildEditor(context),
+    );
+  }
+
+  Widget _buildEditor(BuildContext context) {
     final l10n = context.l10n;
     final dirty = _hasUnsavedChanges;
     final title = widget.initialDraft.eventId == null
@@ -678,26 +686,28 @@ class _EventEditorState extends ConsumerState<EventEditor> {
   }
 
   Future<void> _cancel() async {
-    if (_confirmingCancel) {
-      return;
-    }
-    if (!_hasUnsavedChanges) {
+    if (await _confirmWindowClose() && mounted) {
       widget.onCancel();
-      return;
+    }
+  }
+
+  Future<bool> _confirmWindowClose() async {
+    if (!_hasUnsavedChanges) {
+      return true;
+    }
+    if (_confirmingCancel) {
+      return false;
     }
 
     _confirmingCancel = true;
     try {
-      final discard = await showBusyMaxConfirm(
+      return await showBusyMaxConfirm(
         context,
         title: context.l10n.discardChanges,
         message: context.l10n.discardChangesConfirmation,
         confirmLabel: context.l10n.discardChangesAction,
         destructive: true,
       );
-      if (discard && mounted) {
-        widget.onCancel();
-      }
     } finally {
       _confirmingCancel = false;
     }

@@ -16,6 +16,7 @@ import 'package:busymax/src/app/busymax_yaru_theme.dart';
 import 'package:busymax/src/app/app_theme.dart';
 import 'package:busymax/src/app/busymax_app.dart';
 import 'package:busymax/src/app/busymax_design.dart';
+import 'package:busymax/src/app/busymax_dialogs.dart';
 import 'package:busymax/src/config/build_config.dart';
 import 'package:busymax/src/db/app_database.dart';
 import 'package:busymax/src/features/connectivity/network_connectivity_service.dart';
@@ -2184,6 +2185,47 @@ void main() {
     expect(syncEnumerations, 1);
     expect(windowService.showWindowCalls, showsBeforeSync);
 
+    await trayService.configuration.actions.quitBusyMax();
+    expect(windowService.quitAppCalls, 1);
+  });
+
+  testWidgets('tray Quit honors the active window-close guard', (tester) async {
+    final database = AppDatabase.memoryForTests();
+    addTearDown(database.close);
+    final windowService = _RecordingWindowService()..visible = false;
+    late _RecordingTrayService trayService;
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          buildConfigProvider.overrideWithValue(_missingConfig),
+          databaseProvider.overrideWithValue(database),
+          localSettingsStoreProvider.overrideWithValue(_MemorySettingsStore()),
+          linuxWindowServiceProvider.overrideWithValue(windowService),
+        ],
+        child: BusyMaxApp(
+          trayServiceFactory: (configuration) =>
+              trayService = _RecordingTrayService(configuration),
+        ),
+      ),
+    );
+    await tester.pump();
+    await tester.pump();
+
+    unawaited(
+      showBusyMaxModalDialog<void>(
+        rootNavigatorKey.currentContext!,
+        builder: (_) => const AlertDialog(content: Text('Guarded dialog')),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await trayService.configuration.actions.quitBusyMax();
+    expect(windowService.showWindowCalls, 1);
+    expect(windowService.quitAppCalls, 0);
+
+    Navigator.of(tester.element(find.text('Guarded dialog'))).pop();
+    await tester.pumpAndSettle();
     await trayService.configuration.actions.quitBusyMax();
     expect(windowService.quitAppCalls, 1);
   });
