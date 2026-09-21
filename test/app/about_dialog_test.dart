@@ -33,7 +33,8 @@ void main() {
     expect(find.text('https://github.com/busystack/busymax/'), findsOneWidget);
     expect(find.text('Send feedback'), findsNothing);
     expect(find.text('Report an issue'), findsNothing);
-    expect(find.text('v1.2.3+45'), findsOneWidget);
+    expect(find.text('v1.2.3'), findsOneWidget);
+    expect(find.textContaining('+45'), findsNothing);
     expect(find.byType(YaruDialogTitleBar), findsOneWidget);
     expect(find.byType(YaruWindowControl), findsOneWidget);
     expect(find.text('Close'), findsNothing);

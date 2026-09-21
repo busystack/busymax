@@ -1413,13 +1413,10 @@ class _AndroidSettingsScreenState extends ConsumerState<AndroidSettingsScreen> {
   Future<void> _showAbout() async {
     final info = await PackageInfo.fromPlatform();
     if (!mounted) return;
-    final build = info.buildNumber.trim();
     showAboutDialog(
       context: context,
       applicationName: info.appName.isEmpty ? 'BusyMax' : info.appName,
-      applicationVersion: build.isEmpty
-          ? info.version
-          : '${info.version}+$build',
+      applicationVersion: info.version,
       applicationLegalese: '© BusyStack',
     );
   }

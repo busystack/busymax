@@ -111,18 +111,10 @@ class _BusyMaxLogo extends StatelessWidget {
 
 String _formatVersion(PackageInfo info) {
   final version = info.version.trim();
-  final buildNumber = info.buildNumber.trim();
-  if (version.isEmpty && buildNumber.isEmpty) {
+  if (version.isEmpty) {
     return '';
   }
-  final versionWithBuild = switch ((version, buildNumber)) {
-    ('', final build) => build,
-    (final release, '') => release,
-    (final release, final build) => '$release+$build',
-  };
-  return versionWithBuild.startsWith('v')
-      ? versionWithBuild
-      : 'v$versionWithBuild';
+  return version.startsWith('v') ? version : 'v$version';
 }
 
 class _VersionTag extends StatelessWidget {

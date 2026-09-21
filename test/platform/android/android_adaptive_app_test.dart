@@ -693,6 +693,13 @@ void main() {
   testWidgets('Android Settings exposes diagnostics and feedback routes', (
     tester,
   ) async {
+    PackageInfo.setMockInitialValues(
+      appName: 'BusyMax',
+      packageName: 'io.busystack.busymax',
+      version: '0.2.3',
+      buildNumber: '3',
+      buildSignature: '',
+    );
     final harness = await _pumpApp(tester, AppSettings.defaults());
     addTearDown(harness.dispose);
     harness.container.read(androidSelectedDestinationProvider.notifier).state =
@@ -726,6 +733,21 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.byType(AndroidDiagnosticsScreen), findsOneWidget);
     tester.state<NavigatorState>(find.byType(Navigator).first).pop();
+    await tester.pumpAndSettle();
+
+    final about = find.text('About BusyMax');
+    await _scrollUntilBuilt(tester, about);
+    await tester.tap(about);
+    await tester.pumpAndSettle();
+    expect(find.text('0.2.3'), findsOneWidget);
+    expect(
+      find.descendant(
+        of: find.byType(AboutDialog),
+        matching: find.textContaining('+'),
+      ),
+      findsNothing,
+    );
+    await tester.tap(find.widgetWithText(TextButton, 'Close'));
     await tester.pumpAndSettle();
 
     final feedback = find.text('Send feedback');

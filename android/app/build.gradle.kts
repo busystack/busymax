@@ -58,11 +58,13 @@ android {
         applicationId = "io.busystack.busymax"
         minSdk = 24
         targetSdk = 37
-        // Uses the version code from pubspec.yaml. When using split APKs, 1000 * ABI_VERSION
-        // is added automatically by Flutter. (https://developer.android.com/studio/build/configure-apk-splits#configure-APK-versions)
+        // Keep Android's required monotonic package code separate from the
+        // public 0.2.3 version declared in pubspec.yaml. When using split APKs,
+        // 1000 * ABI_VERSION is added automatically by Flutter.
+        // (https://developer.android.com/studio/build/configure-apk-splits#configure-APK-versions)
         // You can force using the value of versionCode by specifying the `-P force-version-code-ignoring-abi=true`
         // flag during build.
-        versionCode = flutter.versionCode
+        versionCode = 3
         versionName = flutter.versionName
         manifestPlaceholders["busymaxMsalRedirectHost"] = applicationId!!
         manifestPlaceholders["busymaxMsalSignatureHash"] = msalSignatureHash
