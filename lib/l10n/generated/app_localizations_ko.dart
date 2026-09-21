@@ -1054,6 +1054,9 @@ class AppLocalizationsKo extends AppLocalizations {
   String get shortcutGroupView => '보기';
 
   @override
+  String get viewSelector => '보기';
+
+  @override
   String get shortcutDayView => '일간 보기';
 
   @override

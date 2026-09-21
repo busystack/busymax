@@ -26,6 +26,9 @@ void main() {
     expect(BusyMaxLinuxHeaderIcon.search.gtkNames, const [
       'system-search-symbolic',
     ]);
+    expect(BusyMaxLinuxHeaderIcon.searchClear.gtkNames, const [
+      'edit-clear-symbolic',
+    ]);
     expect(BusyMaxLinuxHeaderIcon.mainMenu.gtkNames, const [
       'open-menu-symbolic',
     ]);
@@ -38,9 +41,11 @@ void main() {
     ]);
     expect(BusyMaxLinuxHeaderIcon.viewWeek.gtkNames, const [
       'calendar-week-symbolic',
+      'x-office-calendar-symbolic',
     ]);
     expect(BusyMaxLinuxHeaderIcon.viewMonth.gtkNames, const [
       'calendar-month-symbolic',
+      'x-office-calendar-symbolic',
     ]);
     expect(BusyMaxLinuxHeaderIcon.viewYear.gtkNames, const [
       'view-app-grid-symbolic',
@@ -83,6 +88,18 @@ void main() {
         'x-office-calendar-symbolic',
       ]);
       expect(today['direction'], 'ltr');
+      expect(today['allowMissing'], isFalse);
+
+      final filter = observedRequests.singleWhere(
+        (request) => request['key'] == 'filter.ltr',
+      );
+      expect(filter['allowMissing'], isTrue);
+      expect(
+        observedRequests
+            .where((request) => request['key'] != 'filter.ltr')
+            .every((request) => request['allowMissing'] == false),
+        isTrue,
+      );
 
       for (final icon in const [
         BusyMaxLinuxHeaderIcon.back,

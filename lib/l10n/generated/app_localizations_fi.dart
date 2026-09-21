@@ -1085,6 +1085,9 @@ class AppLocalizationsFi extends AppLocalizations {
   String get shortcutGroupView => 'Näkymä';
 
   @override
+  String get viewSelector => 'Näkymä';
+
+  @override
   String get shortcutDayView => 'Päivänäkymä';
 
   @override

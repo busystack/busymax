@@ -308,6 +308,7 @@
   "shortcutPreviousPeriodDescription": "Предыдущая неделя в представлении недели, предыдущий месяц в представлении месяца и так далее",
   "shortcutJumpToToday": "Перейти к сегодняшнему дню",
   "shortcutGroupView": "Представление",
+  "viewSelector": "Представление",
   "shortcutDayView": "Представление дня",
   "shortcutWeekView": "Представление недели",
   "shortcutMonthView": "Представление месяца",

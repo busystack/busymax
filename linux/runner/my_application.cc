@@ -2675,17 +2675,21 @@ static gboolean parse_gtk_header_icon_request(
     FlValue* request,
     const gchar** key_out,
     std::vector<std::string>* names_out,
-    BusyMaxGtkIconDirection* direction_out) {
+    BusyMaxGtkIconDirection* direction_out,
+    gboolean* allow_missing_out) {
   if (request == nullptr || fl_value_get_type(request) != FL_VALUE_TYPE_MAP) {
     return FALSE;
   }
   FlValue* key = fl_value_lookup_string(request, "key");
   FlValue* names = fl_value_lookup_string(request, "names");
   FlValue* direction = fl_value_lookup_string(request, "direction");
+  FlValue* allow_missing = fl_value_lookup_string(request, "allowMissing");
   if (key == nullptr || fl_value_get_type(key) != FL_VALUE_TYPE_STRING ||
       names == nullptr || fl_value_get_type(names) != FL_VALUE_TYPE_LIST ||
       fl_value_get_length(names) == 0 || direction == nullptr ||
-      fl_value_get_type(direction) != FL_VALUE_TYPE_STRING) {
+      fl_value_get_type(direction) != FL_VALUE_TYPE_STRING ||
+      (allow_missing != nullptr &&
+       fl_value_get_type(allow_missing) != FL_VALUE_TYPE_BOOL)) {
     return FALSE;
   }
   names_out->clear();
@@ -2704,6 +2708,8 @@ static gboolean parse_gtk_header_icon_request(
   } else {
     return FALSE;
   }
+  *allow_missing_out =
+      allow_missing == nullptr ? FALSE : fl_value_get_bool(allow_missing);
   *key_out = fl_value_get_string(key);
   return TRUE;
 }
@@ -2748,23 +2754,23 @@ static void gtk_header_icons_method_call_cb(FlMethodChannel*,
     const gchar* key = nullptr;
     std::vector<std::string> names;
     BusyMaxGtkIconDirection direction = BusyMaxGtkIconDirection::kLtr;
+    gboolean allow_missing = FALSE;
     if (!parse_gtk_header_icon_request(
             fl_value_get_list_value(requests, index), &key, &names,
-            &direction)) {
+            &direction, &allow_missing)) {
       fl_method_call_respond_error(
           method_call, "invalid-arguments",
-          "Each icon request requires key, non-empty names, and ltr/rtl "
-          "direction.",
+          "Each icon request requires key, non-empty names, ltr/rtl "
+          "direction, and an optional boolean allowMissing.",
           nullptr, nullptr);
       return;
     }
-    const auto asset = self->gtk_header_icons->Load(names, direction);
+    const auto asset = self->gtk_header_icons->Load(
+        names, direction, 0, allow_missing);
     if (asset) {
       fl_value_set_string_take(
           result, key, gtk_header_icon_asset_to_fl_value(*asset));
     } else {
-      g_warning("GTK could not resolve BusyMax header icon '%s'",
-                names.front().c_str());
       fl_value_set_string_take(result, key, fl_value_new_null());
     }
   }

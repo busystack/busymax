@@ -17,8 +17,6 @@ import '../../../app/busymax_shortcuts.dart';
 import '../../../app/busymax_surface_colors.dart';
 import '../../../app/busymax_window_close.dart';
 import '../../../app/linux/linux_page_frame.dart';
-import '../../../app/linux/linux_header_style.dart';
-import '../../../app/linux/linux_window_host.dart';
 import '../../../core/logging/redacting_logger.dart';
 import '../../../calendar_providers/calendar_mutation.dart';
 import '../../../features/accounts/data/accounts_repository.dart';
@@ -28,7 +26,6 @@ import '../../../features/feedback/presentation/feedback_dialog.dart';
 import '../../../features/sync/sync_auth_error.dart';
 import '../../../l10n/l10n.dart';
 import '../../../l10n/week_preferences_scope.dart';
-import '../../../platform/gtk_header_icon_service.dart';
 import '../../../schedule/schedule_commands.dart';
 import '../../../schedule/schedule_filters.dart';
 import '../../../schedule/schedule_item.dart';
@@ -471,6 +468,7 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
                               selectedDate: _selectedDate,
                               firstWeekday: firstWeekday,
                               items: miniCalendarItems,
+                              showEndBorder: false,
                               onDateSelected: _openDay,
                               onMonthSelected: _setMonth,
                               onYearSelected: _setYear,
@@ -481,125 +479,48 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
                       );
                     }
 
-                    final header = BusyMaxBinaryPresentation(
-                      alternateActive: searchActive,
-                      child: searchActive
-                          ? Builder(
-                              builder: (context) {
-                                final insets = LinuxPageHeaderInsetsScope.of(
-                                  context,
-                                );
-                                return Padding(
-                                  key: const ValueKey('schedule-search-header'),
-                                  padding: EdgeInsets.fromLTRB(
-                                    insets.leftObstruction +
-                                        BusyMaxSpacing.headerInset,
-                                    BusyMaxSpacing.headerInset,
-                                    insets.rightObstruction +
-                                        BusyMaxSpacing.headerInset,
-                                    BusyMaxSpacing.headerInset,
-                                  ),
-                                  child: Row(
-                                    children: [
-                                      Expanded(
-                                        child: BusyMaxSearchField(
-                                          controller: _searchController,
-                                          autofocus: true,
-                                          focusRequest:
-                                              _fallbackSearchFocusRequest,
-                                          hintText: MaterialLocalizations.of(
-                                            context,
-                                          ).searchFieldLabel,
-                                          onChanged: _setSearchQuery,
-                                          onClear: _clearSearchQuery,
-                                        ),
-                                      ),
-                                      const SizedBox(
-                                        width: BusyMaxSpacing.headerInset,
-                                      ),
-                                      BusyMaxLinuxHeaderControlGroup(
-                                        key: const ValueKey(
-                                          'schedule-search-header-actions',
-                                        ),
-                                        children: [
-                                          LinuxTitlebarGestureRegion(
-                                            key: const ValueKey(
-                                              'schedule-search-titlebar-drag-area',
-                                            ),
-                                            child: const SizedBox.square(
-                                              dimension:
-                                                  BusyMaxSizes.headerIconButton,
-                                            ),
-                                          ),
-                                          if (!canShowSidebar ||
-                                              _sidebarCollapsed)
-                                            BusyMaxLinuxHeaderIconButton(
-                                              key: const ValueKey(
-                                                'schedule-search-filter-button',
-                                              ),
-                                              tooltip: context
-                                                  .l10n
-                                                  .searchFiltersAction,
-                                              icon:
-                                                  BusyMaxLinuxHeaderIcon.filter,
-                                              onPressed: _showSearchFilters,
-                                            ),
-                                          BusyMaxLinuxHeaderIconButton(
-                                            key: const ValueKey(
-                                              'schedule-search-close-button',
-                                            ),
-                                            tooltip: context.l10n.close,
-                                            icon: BusyMaxLinuxHeaderIcon.close,
-                                            onPressed: _closeSearch,
-                                          ),
-                                          BusyMaxMainMenuButton(
-                                            includeRefresh: true,
-                                            canRefresh: accounts.isNotEmpty,
-                                            onSelected: _handleToolbarMenu,
-                                          ),
-                                        ],
-                                      ),
-                                    ],
-                                  ),
-                                );
-                              },
-                            )
-                          : ScheduleToolbar(
-                              mode: _mode,
-                              range: range,
-                              selectedDate: _selectedDate,
-                              onToday: _goToToday,
-                              onPrevious: _previous,
-                              onNext: _next,
-                              onModeChanged: _setMode,
-                              canCreateEvent: writableSources.isNotEmpty,
-                              canCreateTask: canCreateTask,
-                              onCreateEvent: () => unawaited(
-                                _openNewEvent(
-                                  writableSources,
-                                  _defaultSelectedDateStart(),
-                                ),
-                              ),
-                              onCreateTask: () => unawaited(
-                                _openNewTask(
-                                  accounts,
-                                  due: _day(_defaultSelectedDateStart()),
-                                ),
-                              ),
-                              createMenuController: _createMenuController,
-                              onRefresh: () => unawaited(_refreshAll()),
-                              canRefresh: accounts.isNotEmpty,
-                              canShowSidebar: canShowSidebar,
-                              sidebarVisible:
-                                  canShowSidebar && !_sidebarCollapsed,
-                              onToggleSidebar: () => _handleHeaderAction(
-                                BusyMaxHeaderAction.sidebarToggle,
-                              ),
-                              onSearch: () => _handleHeaderAction(
-                                BusyMaxHeaderAction.search,
-                              ),
-                              onMenuSelected: _handleToolbarMenu,
-                            ),
+                    final header = ScheduleToolbar(
+                      mode: _mode,
+                      range: range,
+                      selectedDate: _selectedDate,
+                      onToday: _goToToday,
+                      onPrevious: _previous,
+                      onNext: _next,
+                      onModeChanged: _setMode,
+                      canCreateEvent: writableSources.isNotEmpty,
+                      canCreateTask: canCreateTask,
+                      onCreateEvent: () => unawaited(
+                        _openNewEvent(
+                          writableSources,
+                          _defaultSelectedDateStart(),
+                        ),
+                      ),
+                      onCreateTask: () => unawaited(
+                        _openNewTask(
+                          accounts,
+                          due: _day(_defaultSelectedDateStart()),
+                        ),
+                      ),
+                      createMenuController: _createMenuController,
+                      onRefresh: () => unawaited(_refreshAll()),
+                      canRefresh: accounts.isNotEmpty,
+                      canShowSidebar: canShowSidebar,
+                      sidebarVisible: canShowSidebar && !_sidebarCollapsed,
+                      onToggleSidebar: () => _handleHeaderAction(
+                        BusyMaxHeaderAction.sidebarToggle,
+                      ),
+                      onSearch: () =>
+                          _handleHeaderAction(BusyMaxHeaderAction.search),
+                      searchActive: searchActive,
+                      searchController: _searchController,
+                      searchFocusRequest: _fallbackSearchFocusRequest,
+                      onSearchChanged: _setSearchQuery,
+                      onClearSearch: _clearSearchQuery,
+                      onSearchFilters:
+                          searchActive && (!canShowSidebar || _sidebarCollapsed)
+                          ? _showSearchFilters
+                          : null,
+                      onMenuSelected: _handleToolbarMenu,
                     );
                     final main = BusyMaxBinaryPresentation(
                       alternateActive: searchActive,
@@ -872,7 +793,7 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
         _setMode(ScheduleViewMode.agenda);
       case BusyMaxHeaderAction.search:
         if (_searchActive) {
-          _focusSearch();
+          _closeSearch();
         } else {
           _openSearch();
           _focusSearch();
@@ -988,6 +909,7 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
         sources: _searchSources,
         taskLists: _searchTaskLists,
         sidebar: sidebar,
+        showEndBorder: false,
         onChanged: (value) {
           setState(
             () => _searchCriteria = value.copyWith(

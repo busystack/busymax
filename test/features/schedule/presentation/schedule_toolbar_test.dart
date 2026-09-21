@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:busymax/src/app/busymax_design.dart';
 import 'package:busymax/src/app/linux/linux_header_style.dart';
@@ -15,6 +16,9 @@ import 'package:yaru/yaru.dart';
 import '../../../test_localized_app.dart';
 
 const _nativeMenuChannel = MethodChannel(nativeMenuChannelName);
+
+String _viewLabel(int index) =>
+    const ['Day', 'Week', 'Month', 'Year', 'Agenda'][index];
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -175,6 +179,111 @@ void main() {
     expect(activations, 1);
     semantics.dispose();
   });
+
+  testWidgets(
+    'View trigger and all native rows share one resolved icon presentation',
+    (tester) async {
+      const semanticIcons = <ScheduleViewMode, BusyMaxLinuxHeaderIcon>{
+        ScheduleViewMode.day: BusyMaxLinuxHeaderIcon.viewDay,
+        ScheduleViewMode.week: BusyMaxLinuxHeaderIcon.viewWeek,
+        ScheduleViewMode.month: BusyMaxLinuxHeaderIcon.viewMonth,
+        ScheduleViewMode.year: BusyMaxLinuxHeaderIcon.viewYear,
+        ScheduleViewMode.agenda: BusyMaxLinuxHeaderIcon.viewAgenda,
+      };
+      const resolvedNames = <BusyMaxLinuxHeaderIcon, String>{
+        BusyMaxLinuxHeaderIcon.viewDay: 'resolved-view-continuous-symbolic',
+        BusyMaxLinuxHeaderIcon.viewWeek: 'resolved-calendar-week-symbolic',
+        BusyMaxLinuxHeaderIcon.viewMonth: 'resolved-calendar-month-symbolic',
+        BusyMaxLinuxHeaderIcon.viewYear: 'resolved-view-app-grid-symbolic',
+        BusyMaxLinuxHeaderIcon.viewAgenda: 'resolved-view-list-symbolic',
+      };
+      final png = base64Decode(
+        'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVQIHWP4z8DwHwAFgAI/ScL1WQAAAABJRU5ErkJggg==',
+      );
+      final service = GtkHeaderIconService.testing(
+        initialCatalog: GtkHeaderIconCatalog({
+          for (final entry in resolvedNames.entries)
+            '${entry.key.name}.ltr': GtkHeaderIconAsset(
+              bytes: png,
+              resolvedName: entry.value,
+              scale: 1,
+              pixelWidth: 16,
+              pixelHeight: 16,
+            ),
+        }, revision: 1),
+      );
+      addTearDown(service.dispose);
+      MethodCall? nativeCall;
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(_nativeMenuChannel, (call) async {
+            nativeCall = call;
+            return null;
+          });
+
+      for (final mode in ScheduleViewMode.values) {
+        await tester.pumpWidget(
+          GtkHeaderIconScope(
+            service: service,
+            child: localizedTestApp(
+              child: Scaffold(
+                body: SizedBox(
+                  width: 1200,
+                  child: ScheduleToolbar(
+                    mode: mode,
+                    range: ScheduleRange.week(
+                      DateTime(2026, 7, 22),
+                      firstWeekday: DateTime.monday,
+                    ),
+                    selectedDate: DateTime(2026, 7, 22),
+                    onToday: () {},
+                    onPrevious: () {},
+                    onNext: () {},
+                    onModeChanged: (_) {},
+                    canCreateEvent: true,
+                    canCreateTask: true,
+                    onCreateEvent: () {},
+                    onCreateTask: () {},
+                    onRefresh: () {},
+                  ),
+                ),
+              ),
+            ),
+          ),
+        );
+
+        final trigger = find.byKey(const ValueKey('schedule-view-button'));
+        final triggerIcons = tester.widgetList<BusyMaxGtkHeaderIcon>(
+          find.descendant(
+            of: trigger,
+            matching: find.byType(BusyMaxGtkHeaderIcon),
+          ),
+        );
+        expect(triggerIcons.first.icon, semanticIcons[mode]);
+        expect(find.byTooltip('View'), findsOneWidget);
+        for (var index = 0; index < ScheduleViewMode.values.length; index++) {
+          expect(
+            find.byTooltip('${_viewLabel(index)} (${index + 1})'),
+            findsNothing,
+          );
+        }
+
+        nativeCall = null;
+        await tester.tap(trigger);
+        await tester.pumpAndSettle();
+        expect(nativeCall?.method, 'show');
+        final entries =
+            (nativeCall!.arguments as Map<Object?, Object?>)['entries']!
+                as List<Object?>;
+        expect(entries, hasLength(ScheduleViewMode.values.length));
+        for (var index = 0; index < entries.length; index++) {
+          final entry = entries[index]! as Map<Object?, Object?>;
+          final semantic = semanticIcons[ScheduleViewMode.values[index]]!;
+          expect(entry['icon'], resolvedNames[semantic]);
+          expect(entry['shortcut'], '${index + 1}');
+        }
+      }
+    },
+  );
 
   testWidgets('Linux application controls use native header geometry', (
     tester,
@@ -478,6 +587,45 @@ void main() {
     );
   });
 
+  testWidgets('main header menu uses the pre-migration GTK icon names', (
+    tester,
+  ) async {
+    MethodCall? nativeCall;
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(_nativeMenuChannel, (call) async {
+          nativeCall = call;
+          return null;
+        });
+
+    await tester.pumpWidget(
+      localizedTestApp(
+        child: Scaffold(
+          body: BusyMaxMainMenuButton(
+            includeRefresh: true,
+            canRefresh: true,
+            onSelected: (_) {},
+          ),
+        ),
+      ),
+    );
+    await tester.tap(find.byTooltip('Main Menu'));
+    await tester.pumpAndSettle();
+
+    final entries =
+        (nativeCall!.arguments as Map<Object?, Object?>)['entries']!
+            as List<Object?>;
+    expect(
+      [for (final entry in entries) (entry! as Map<Object?, Object?>)['icon']],
+      const [
+        'view-refresh-symbolic',
+        'preferences-system-symbolic',
+        'input-keyboard-symbolic',
+        'dialog-warning-symbolic',
+        'help-about-symbolic',
+      ],
+    );
+  });
+
   testWidgets('fallback toolbar hides a range title that does not fit', (
     tester,
   ) async {
@@ -600,7 +748,7 @@ void main() {
     expect(events, 1);
     expect(tasks, 0);
 
-    await tester.tap(find.byTooltip('Week (2)'));
+    await tester.tap(find.byTooltip('View'));
     await tester.pumpAndSettle();
     expect(
       find.byWidgetPredicate((widget) => widget is PopupMenuItem<int>),
@@ -611,6 +759,9 @@ void main() {
       findsNWidgets(ScheduleViewMode.values.length),
     );
     expect(find.text('Compact'), findsNothing);
+    for (var shortcut = 1; shortcut <= 5; shortcut++) {
+      expect(find.text('$shortcut'), findsOneWidget);
+    }
     await tester.tap(
       find.ancestor(
         of: find.text('Month'),

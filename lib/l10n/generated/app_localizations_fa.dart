@@ -1095,6 +1095,9 @@ class AppLocalizationsFa extends AppLocalizations {
   String get shortcutGroupView => 'نما';
 
   @override
+  String get viewSelector => 'نما';
+
+  @override
   String get shortcutDayView => 'نمای روز';
 
   @override

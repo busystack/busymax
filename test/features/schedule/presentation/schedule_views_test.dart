@@ -4847,7 +4847,7 @@ void main() {
       toolbar,
       contains('final showPaging = mode != ScheduleViewMode.agenda'),
     );
-    expect(toolbar, contains('if (showPaging)'));
+    expect(toolbar, contains('if (!searchActive && showPaging)'));
     expect(toolbar, contains('agendaLabel: context.l10n.viewAgenda'));
     expect(workspace, contains('_mode != ScheduleViewMode.agenda'));
     expect(workspace, contains('ScheduleToolbar('));

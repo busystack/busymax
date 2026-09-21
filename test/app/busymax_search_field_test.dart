@@ -84,11 +84,20 @@ void main() {
     final schedule = File(
       'lib/src/features/schedule/presentation/schedule_workspace.dart',
     ).readAsStringSync();
+    final toolbar = File(
+      'lib/src/features/schedule/presentation/schedule_toolbar.dart',
+    ).readAsStringSync();
+    final linuxHeader = File(
+      'lib/src/app/linux/linux_header_style.dart',
+    ).readAsStringSync();
 
     expect(design, contains('class BusyMaxSearchField'));
     expect(RegExp(r'YaruSearchField\(').allMatches(design), hasLength(1));
-    expect(schedule, contains('BusyMaxSearchField('));
+    expect(linuxHeader, contains('BusyMaxSearchField('));
+    expect(toolbar, contains('BusyMaxLinuxHeaderSearchField('));
     expect(schedule, isNot(contains('class _ScheduleSearchField')));
     expect(schedule, isNot(contains('YaruSearchField(')));
+    expect(toolbar, isNot(contains('YaruSearchField(')));
+    expect(linuxHeader, isNot(contains('YaruSearchField(')));
   });
 }

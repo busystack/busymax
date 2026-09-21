@@ -45,6 +45,7 @@ class ScheduleSidebar extends ConsumerWidget {
     required this.onMonthSelected,
     required this.onYearSelected,
     required this.onWeekSelected,
+    this.showEndBorder = true,
   });
 
   final DateTime selectedDate;
@@ -54,6 +55,7 @@ class ScheduleSidebar extends ConsumerWidget {
   final ValueChanged<DateTime> onMonthSelected;
   final ValueChanged<DateTime> onYearSelected;
   final ValueChanged<DateTime> onWeekSelected;
+  final bool showEndBorder;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -72,6 +74,7 @@ class ScheduleSidebar extends ConsumerWidget {
         if (!account.isSubscription) account.id,
     ];
     return BusyMaxSidebarSurface(
+      showEndBorder: showEndBorder,
       child: Column(
         children: [
           MiniCalendar(

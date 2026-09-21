@@ -1058,6 +1058,9 @@ class AppLocalizationsEt extends AppLocalizations {
   String get shortcutGroupView => 'Vaade';
 
   @override
+  String get viewSelector => 'Vaade';
+
+  @override
   String get shortcutDayView => 'Päevavaade';
 
   @override

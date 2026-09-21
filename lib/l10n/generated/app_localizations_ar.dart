@@ -1105,6 +1105,9 @@ class AppLocalizationsAr extends AppLocalizations {
   String get shortcutGroupView => 'العرض';
 
   @override
+  String get viewSelector => 'العرض';
+
+  @override
   String get shortcutDayView => 'عرض اليوم';
 
   @override

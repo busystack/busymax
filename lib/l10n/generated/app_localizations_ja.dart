@@ -1051,6 +1051,9 @@ class AppLocalizationsJa extends AppLocalizations {
   String get shortcutGroupView => '表示';
 
   @override
+  String get viewSelector => '表示';
+
+  @override
   String get shortcutDayView => '日表示';
 
   @override

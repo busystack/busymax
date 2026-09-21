@@ -158,6 +158,7 @@ class BusyMaxStartupView extends StatelessWidget {
             sidebarHeader: const BusyMaxLinuxBrandHeader(),
             sidebarBody: const BusyMaxSidebarSurface(
               key: ValueKey('startup-sidebar'),
+              showEndBorder: false,
               child: SizedBox.expand(),
             ),
             sidebarAvailable: BusyMaxLayoutRules.showSidebar(

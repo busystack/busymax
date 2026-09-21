@@ -1083,6 +1083,9 @@ class AppLocalizationsIt extends AppLocalizations {
   String get shortcutGroupView => 'Vista';
 
   @override
+  String get viewSelector => 'Vista';
+
+  @override
   String get shortcutDayView => 'Vista giornaliera';
 
   @override

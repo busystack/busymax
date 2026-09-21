@@ -308,6 +308,7 @@
   "shortcutPreviousPeriodDescription": "Semana anterior na vista semanal, mês anterior na vista mensal e assim por diante",
   "shortcutJumpToToday": "Ir para hoje",
   "shortcutGroupView": "Vista",
+  "viewSelector": "Vista",
   "shortcutDayView": "Vista diária",
   "shortcutWeekView": "Vista semanal",
   "shortcutMonthView": "Vista mensal",

@@ -1076,6 +1076,9 @@ class AppLocalizationsVi extends AppLocalizations {
   String get shortcutGroupView => 'Chế độ xem';
 
   @override
+  String get viewSelector => 'Chế độ xem';
+
+  @override
   String get shortcutDayView => 'Chế độ xem ngày';
 
   @override

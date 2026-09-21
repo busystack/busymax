@@ -14,6 +14,10 @@ bool Check(bool condition, const char* message) {
   return false;
 }
 
+void CountWarning(const gchar*, GLogLevelFlags, const gchar*, gpointer data) {
+  *static_cast<int*>(data) += 1;
+}
+
 }  // namespace
 
 int main(int argc, char** argv) {
@@ -90,6 +94,27 @@ int main(int argc, char** argv) {
                      secondary->resolved_name == "go-next-symbolic",
                  "Missing primary did not fall through to valid secondary") &&
            passed;
+
+  const std::vector<std::string> missing = {
+      "busymax-deliberately-missing-symbolic"};
+  int warning_count = 0;
+  const guint warning_handler = g_log_set_handler(
+      nullptr, G_LOG_LEVEL_WARNING, CountWarning, &warning_count);
+  const auto required_missing =
+      icons.Load(missing, BusyMaxGtkIconDirection::kLtr, 1, false);
+  passed = Check(!required_missing.has_value(),
+                 "Required missing icon unexpectedly resolved") &&
+           Check(warning_count == 1,
+                 "Required missing icon did not retain its warning path") &&
+           passed;
+  const auto optional_missing =
+      icons.Load(missing, BusyMaxGtkIconDirection::kLtr, 1, true);
+  passed = Check(!optional_missing.has_value(),
+                 "Optional missing icon unexpectedly resolved") &&
+           Check(warning_count == 1,
+                 "Optional missing icon emitted a warning") &&
+           passed;
+  g_log_remove_handler(nullptr, warning_handler);
 
   int callback_count = 0;
   passed = Check(icons.Start([&callback_count]() { callback_count += 1; }),

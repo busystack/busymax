@@ -308,6 +308,7 @@
   "shortcutPreviousPeriodDescription": "週表示では前の週、月表示では前の月というように移動します",
   "shortcutJumpToToday": "今日に移動",
   "shortcutGroupView": "表示",
+  "viewSelector": "表示",
   "shortcutDayView": "日表示",
   "shortcutWeekView": "週表示",
   "shortcutMonthView": "月表示",

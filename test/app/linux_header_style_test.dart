@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:busymax/src/app/busymax_design.dart';
 import 'package:busymax/src/app/linux/linux_header_style.dart';
 import 'package:busymax/src/app/linux/linux_window_host.dart';
@@ -212,6 +214,91 @@ void main() {
     expect(
       focusBorder.borderRadius,
       BorderRadius.circular(BusyMaxLinuxHeaderStyle.controlRadius),
+    );
+  });
+
+  testWidgets('header Search uses bounded GTK search and clear artwork', (
+    tester,
+  ) async {
+    final controller = TextEditingController(text: 'planning');
+    addTearDown(controller.dispose);
+    final png = base64Decode(
+      'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVQIHWP4z8DwHwAFgAI/ScL1WQAAAABJRU5ErkJggg==',
+    );
+    final service = GtkHeaderIconService.testing(
+      initialCatalog: GtkHeaderIconCatalog({
+        'search.ltr': GtkHeaderIconAsset(
+          bytes: png,
+          resolvedName: 'system-search-symbolic',
+          scale: 1,
+          pixelWidth: 16,
+          pixelHeight: 16,
+        ),
+        'searchClear.ltr': GtkHeaderIconAsset(
+          bytes: png,
+          resolvedName: 'edit-clear-symbolic',
+          scale: 1,
+          pixelWidth: 16,
+          pixelHeight: 16,
+        ),
+      }, revision: 1),
+    );
+    addTearDown(service.dispose);
+
+    await tester.pumpWidget(
+      GtkHeaderIconScope(
+        service: service,
+        child: _testApp(
+          child: Align(
+            child: SizedBox(
+              width: 1000,
+              child: Align(
+                child: BusyMaxLinuxHeaderSearchField(
+                  controller: controller,
+                  focusRequest: 0,
+                  hintText: 'Search',
+                  onChanged: (_) {},
+                  onClear: controller.clear,
+                  autofocus: false,
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    final field = find.byType(BusyMaxSearchField);
+    expect(tester.getSize(field).height, BusyMaxSizes.headerIconButton);
+    expect(tester.getSize(field).width, lessThan(800));
+    final icons = tester
+        .widgetList<BusyMaxGtkHeaderIcon>(
+          find.descendant(
+            of: field,
+            matching: find.byType(BusyMaxGtkHeaderIcon),
+          ),
+        )
+        .toList();
+    expect(
+      icons.map((icon) => icon.icon),
+      containsAll(const [
+        BusyMaxLinuxHeaderIcon.search,
+        BusyMaxLinuxHeaderIcon.searchClear,
+      ]),
+    );
+    for (final icon in icons) {
+      expect(
+        tester.getSize(find.byWidget(icon)),
+        const Size.square(BusyMaxLinuxHeaderStyle.symbolicIconSize),
+      );
+    }
+    expect(
+      find.descendant(of: field, matching: find.byType(Image)),
+      findsNWidgets(2),
+    );
+    expect(
+      find.descendant(of: field, matching: find.byType(Icon)),
+      findsNothing,
     );
   });
 }

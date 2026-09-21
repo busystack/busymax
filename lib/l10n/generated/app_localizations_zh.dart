@@ -1032,6 +1032,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get shortcutGroupView => '视图';
 
   @override
+  String get viewSelector => '视图';
+
+  @override
   String get shortcutDayView => '日视图';
 
   @override
@@ -3916,6 +3919,9 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
   String get shortcutGroupView => '视图';
 
   @override
+  String get viewSelector => '视图';
+
+  @override
   String get shortcutDayView => '日视图';
 
   @override
@@ -6798,6 +6804,9 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get shortcutGroupView => '檢視';
+
+  @override
+  String get viewSelector => '檢視';
 
   @override
   String get shortcutDayView => '日檢視';

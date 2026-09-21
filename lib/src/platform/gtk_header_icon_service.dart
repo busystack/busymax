@@ -34,6 +34,7 @@ enum BusyMaxLinuxHeaderIcon {
   previous,
   next,
   search,
+  searchClear,
   mainMenu,
   create,
   refresh,
@@ -58,12 +59,19 @@ extension BusyMaxLinuxHeaderIconNames on BusyMaxLinuxHeaderIcon {
     BusyMaxLinuxHeaderIcon.previous => const ['go-previous-symbolic'],
     BusyMaxLinuxHeaderIcon.next => const ['go-next-symbolic'],
     BusyMaxLinuxHeaderIcon.search => const ['system-search-symbolic'],
+    BusyMaxLinuxHeaderIcon.searchClear => const ['edit-clear-symbolic'],
     BusyMaxLinuxHeaderIcon.mainMenu => const ['open-menu-symbolic'],
     BusyMaxLinuxHeaderIcon.create => const ['list-add-symbolic'],
     BusyMaxLinuxHeaderIcon.refresh => const ['view-refresh-symbolic'],
     BusyMaxLinuxHeaderIcon.viewDay => const ['view-continuous-symbolic'],
-    BusyMaxLinuxHeaderIcon.viewWeek => const ['calendar-week-symbolic'],
-    BusyMaxLinuxHeaderIcon.viewMonth => const ['calendar-month-symbolic'],
+    BusyMaxLinuxHeaderIcon.viewWeek => const [
+      'calendar-week-symbolic',
+      'x-office-calendar-symbolic',
+    ],
+    BusyMaxLinuxHeaderIcon.viewMonth => const [
+      'calendar-month-symbolic',
+      'x-office-calendar-symbolic',
+    ],
     BusyMaxLinuxHeaderIcon.viewYear => const ['view-app-grid-symbolic'],
     BusyMaxLinuxHeaderIcon.viewAgenda => const ['view-list-symbolic'],
     BusyMaxLinuxHeaderIcon.viewMenuArrow => const ['pan-down-symbolic'],
@@ -78,6 +86,8 @@ extension BusyMaxLinuxHeaderIconNames on BusyMaxLinuxHeaderIcon {
     BusyMaxLinuxHeaderIcon.next => true,
     _ => false,
   };
+
+  bool get allowMissing => this == BusyMaxLinuxHeaderIcon.filter;
 }
 
 final class GtkHeaderIconCatalog {
@@ -269,6 +279,7 @@ class GtkHeaderIconService extends ChangeNotifier {
             'key': _catalogKey(icon, direction),
             'names': icon.gtkNames,
             'direction': direction == TextDirection.rtl ? 'rtl' : 'ltr',
+            'allowMissing': icon.allowMissing,
           },
     ];
   }
@@ -308,4 +319,14 @@ class GtkHeaderIconScope extends InheritedNotifier<GtkHeaderIconService> {
             ?.notifier ??
         GtkHeaderIconService.fallbackInstance;
   }
+}
+
+String resolvedNativeHeaderIconName(
+  BuildContext context,
+  BusyMaxLinuxHeaderIcon icon,
+) {
+  final asset = GtkHeaderIconScope.of(
+    context,
+  ).catalog.assetFor(icon, Directionality.of(context));
+  return asset?.resolvedName ?? icon.gtkNames.first;
 }

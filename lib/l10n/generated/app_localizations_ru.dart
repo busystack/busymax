@@ -1088,6 +1088,9 @@ class AppLocalizationsRu extends AppLocalizations {
   String get shortcutGroupView => 'Представление';
 
   @override
+  String get viewSelector => 'Представление';
+
+  @override
   String get shortcutDayView => 'Представление дня';
 
   @override

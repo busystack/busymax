@@ -1096,6 +1096,9 @@ class AppLocalizationsPt extends AppLocalizations {
   String get shortcutGroupView => 'View';
 
   @override
+  String get viewSelector => 'View';
+
+  @override
   String get shortcutDayView => 'Day view';
 
   @override
@@ -4096,6 +4099,9 @@ class AppLocalizationsPtPt extends AppLocalizationsPt {
 
   @override
   String get shortcutGroupView => 'Vista';
+
+  @override
+  String get viewSelector => 'Vista';
 
   @override
   String get shortcutDayView => 'Vista diária';

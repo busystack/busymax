@@ -25,6 +25,7 @@ class ScheduleSearchFilters extends StatelessWidget {
     required this.sources,
     required this.taskLists,
     this.sidebar = true,
+    this.showEndBorder = true,
   });
 
   final ScheduleSearchCriteria value;
@@ -39,6 +40,7 @@ class ScheduleSearchFilters extends StatelessWidget {
   /// The narrow dialog sets this to false because [BusyMaxDialogShell] owns
   /// its surface and scrolling.
   final bool sidebar;
+  final bool showEndBorder;
 
   @override
   Widget build(BuildContext context) {
@@ -150,6 +152,7 @@ class ScheduleSearchFilters extends StatelessWidget {
     }
 
     return BusyMaxSidebarSurface(
+      showEndBorder: showEndBorder,
       child: ListView(
         key: const ValueKey('schedule-search-filters'),
         padding: const EdgeInsetsDirectional.symmetric(

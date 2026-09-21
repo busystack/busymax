@@ -192,7 +192,12 @@ void main() {
       'planning',
     );
     await tester.pump();
-    await tester.tap(find.byIcon(YaruIcons.edit_clear));
+    await tester.tap(
+      find.descendant(
+        of: find.byType(BusyMaxSearchField),
+        matching: find.byType(IconButton),
+      ),
+    );
     await tester.pump();
 
     expect(find.byType(BusyMaxSearchField), findsOneWidget);
@@ -223,6 +228,12 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.byType(ScheduleSidebar).hitTestable(), findsOneWidget);
+    expect(
+      tester
+          .widgetList<BusyMaxSidebarSurface>(find.byType(BusyMaxSidebarSurface))
+          .every((surface) => !surface.showEndBorder),
+      isTrue,
+    );
 
     await tester.sendKeyEvent(LogicalKeyboardKey.f9);
     await tester.pumpAndSettle();

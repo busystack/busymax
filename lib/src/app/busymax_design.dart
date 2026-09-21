@@ -835,11 +835,11 @@ class _BusyMaxKeyboardFocusVisibility extends ValueNotifier<bool> {
   }
 }
 
-/// BusyMax's cross-platform fallback for a native desktop search entry.
+/// BusyMax's shared Yaru-backed desktop search entry.
 ///
-/// Linux header bars use `GtkSearchEntry`. Flutter-owned layouts delegate
-/// geometry, icons, and interaction states to Yaru instead of restyling a raw
-/// [TextField].
+/// Flutter-owned Linux header layouts delegate geometry and interaction states
+/// to Yaru instead of restyling a raw [TextField]. Header callers may supply
+/// GTK-themed artwork through the optional leading and clear slots.
 class BusyMaxSearchField extends StatefulWidget {
   const BusyMaxSearchField({
     super.key,
@@ -851,6 +851,8 @@ class BusyMaxSearchField extends StatefulWidget {
     this.onSubmitted,
     this.onClear,
     this.clearButtonSemanticLabel,
+    this.leadingIcon,
+    this.clearIcon,
   });
 
   final TextEditingController? controller;
@@ -864,6 +866,8 @@ class BusyMaxSearchField extends StatefulWidget {
   final ValueChanged<String?>? onSubmitted;
   final VoidCallback? onClear;
   final String? clearButtonSemanticLabel;
+  final Widget? leadingIcon;
+  final Widget? clearIcon;
 
   @override
   State<BusyMaxSearchField> createState() => _BusyMaxSearchFieldState();
@@ -959,14 +963,15 @@ class _BusyMaxSearchFieldState extends State<BusyMaxSearchField> {
     final clearLabel =
         widget.clearButtonSemanticLabel ??
         MaterialLocalizations.of(context).clearButtonTooltip;
+    final hasLeadingIcon = widget.leadingIcon != null;
     final contentPadding = switch (Directionality.of(context)) {
-      TextDirection.ltr => const EdgeInsets.only(
-        left: BusyMaxSpacing.md,
+      TextDirection.ltr => EdgeInsets.only(
+        left: hasLeadingIcon ? kYaruTitleBarItemHeight : BusyMaxSpacing.md,
         right: kYaruTitleBarItemHeight,
       ),
-      TextDirection.rtl => const EdgeInsets.only(
+      TextDirection.rtl => EdgeInsets.only(
         left: kYaruTitleBarItemHeight,
-        right: BusyMaxSpacing.md,
+        right: hasLeadingIcon ? kYaruTitleBarItemHeight : BusyMaxSpacing.md,
       ),
     };
     return FocusScope(
@@ -987,6 +992,18 @@ class _BusyMaxSearchFieldState extends State<BusyMaxSearchField> {
               onSubmitted: widget.onSubmitted,
               clearIconSemanticLabel: clearLabel,
             ),
+            if (widget.leadingIcon != null)
+              Align(
+                alignment: AlignmentDirectional.centerStart,
+                child: IgnorePointer(
+                  child: Padding(
+                    padding: const EdgeInsetsDirectional.only(
+                      start: BusyMaxSpacing.md,
+                    ),
+                    child: widget.leadingIcon,
+                  ),
+                ),
+              ),
             if (widget.onClear != null && !_isEmpty)
               Align(
                 alignment: AlignmentDirectional.centerEnd,
@@ -996,7 +1013,7 @@ class _BusyMaxSearchFieldState extends State<BusyMaxSearchField> {
                   ),
                   child: BusyMaxHeaderIconButton(
                     tooltip: clearLabel,
-                    icon: const Icon(YaruIcons.edit_clear),
+                    icon: widget.clearIcon ?? const Icon(YaruIcons.edit_clear),
                     iconSize: BusyMaxSizes.iconSm,
                     fixedSize: const Size.square(
                       kYaruTitleBarItemHeight - BusyMaxSpacing.headerInset,
@@ -1602,28 +1619,33 @@ class BusyMaxGroupedSurface extends StatelessWidget {
 }
 
 class BusyMaxSidebarSurface extends StatelessWidget {
-  const BusyMaxSidebarSurface({super.key, required this.child});
+  const BusyMaxSidebarSurface({
+    super.key,
+    required this.child,
+    this.showEndBorder = true,
+  });
 
   final Widget child;
+  final bool showEndBorder;
 
   @override
   Widget build(BuildContext context) {
     final surfaceColors = BusyMaxSurfaceColors.of(context);
-    return Material(
-      color: surfaceColors.sidebar,
-      child: DecoratedBox(
-        position: DecorationPosition.foreground,
-        decoration: BoxDecoration(
-          border: BorderDirectional(
-            end: BorderSide(
-              color: surfaceColors.sidebarBorder,
-              width: BusyMaxStroke.outline,
+    final content = showEndBorder
+        ? DecoratedBox(
+            position: DecorationPosition.foreground,
+            decoration: BoxDecoration(
+              border: BorderDirectional(
+                end: BorderSide(
+                  color: surfaceColors.sidebarBorder,
+                  width: BusyMaxStroke.outline,
+                ),
+              ),
             ),
-          ),
-        ),
-        child: child,
-      ),
-    );
+            child: child,
+          )
+        : child;
+    return Material(color: surfaceColors.sidebar, child: content);
   }
 }
 
@@ -2628,6 +2650,7 @@ class BusyMaxMenuEntry<T> {
     required this.value,
     required this.label,
     this.icon,
+    this.nativeIconName,
     this.child,
     this.shortcut,
     this.enabled = true,
@@ -2640,6 +2663,7 @@ class BusyMaxMenuEntry<T> {
   final T value;
   final String label;
   final IconData? icon;
+  final String? nativeIconName;
   final Widget? child;
   final String? shortcut;
   final bool enabled;
@@ -2847,7 +2871,9 @@ List<NativeMenuEntry> _nativeMenuEntries<T>(List<BusyMaxMenuEntry<T>> entries) {
     for (final entry in entries)
       NativeMenuEntry(
         label: entry.label,
-        iconName: BusyMaxGlyphs.nativeMenuIconName(entry.icon),
+        iconName:
+            entry.nativeIconName ??
+            BusyMaxGlyphs.nativeMenuIconName(entry.icon),
         enabled: entry.enabled,
         role: switch (entry.role) {
           BusyMaxMenuEntryRole.command => NativeMenuEntryRole.command,

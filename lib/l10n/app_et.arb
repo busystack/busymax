@@ -343,6 +343,7 @@
   "shortcutPreviousPeriodDescription": "Nädalavaates eelmine nädal, kuuvaates eelmine kuu jne",
   "shortcutJumpToToday": "Mine tänasele kuupäevale",
   "shortcutGroupView": "Vaade",
+  "viewSelector": "Vaade",
   "shortcutDayView": "Päevavaade",
   "shortcutWeekView": "Nädalavaade",
   "shortcutMonthView": "Kuuvaade",

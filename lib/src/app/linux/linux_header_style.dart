@@ -615,6 +615,74 @@ class BusyMaxLinuxHeaderTitle extends StatelessWidget {
   }
 }
 
+/// The bounded center-slot presentation corresponding to the former native
+/// `GtkSearchEntry` title-stack child.
+class BusyMaxLinuxHeaderSearchField extends StatelessWidget {
+  const BusyMaxLinuxHeaderSearchField({
+    super.key,
+    required this.controller,
+    required this.focusRequest,
+    required this.hintText,
+    required this.onChanged,
+    required this.onClear,
+    this.autofocus = true,
+  });
+
+  static const int maximumWidthChars = 48;
+
+  final TextEditingController controller;
+  final int focusRequest;
+  final String hintText;
+  final ValueChanged<String> onChanged;
+  final VoidCallback onClear;
+  final bool autofocus;
+
+  @override
+  Widget build(BuildContext context) {
+    final textStyle = Theme.of(context).textTheme.bodyMedium;
+    final widthProbe = TextPainter(
+      text: TextSpan(
+        text: List.filled(maximumWidthChars, '0').join(),
+        style: textStyle,
+      ),
+      maxLines: 1,
+      textDirection: Directionality.of(context),
+      textScaler: MediaQuery.textScalerOf(context),
+    )..layout();
+    final desiredWidth =
+        widthProbe.width +
+        BusyMaxSpacing.md * 2 +
+        BusyMaxLinuxHeaderStyle.symbolicIconSize * 2;
+    widthProbe.dispose();
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final width = math.min(constraints.maxWidth, desiredWidth);
+        return SizedBox(
+          width: width,
+          height: BusyMaxSizes.headerIconButton,
+          child: IconTheme(
+            data: IconThemeData(color: busyMaxLinuxHeaderForeground(context)),
+            child: BusyMaxSearchField(
+              controller: controller,
+              autofocus: autofocus,
+              focusRequest: focusRequest,
+              hintText: hintText,
+              onChanged: onChanged,
+              onClear: onClear,
+              leadingIcon: const BusyMaxGtkHeaderIcon(
+                BusyMaxLinuxHeaderIcon.search,
+              ),
+              clearIcon: const BusyMaxGtkHeaderIcon(
+                BusyMaxLinuxHeaderIcon.searchClear,
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
 ButtonStyle busyMaxLinuxHeaderTextButtonStyle(
   BuildContext context, {
   required bool suggested,

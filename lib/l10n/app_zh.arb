@@ -308,6 +308,7 @@
   "shortcutPreviousPeriodDescription": "在周视图中前往上一周，在月视图中前往上个月，依此类推",
   "shortcutJumpToToday": "跳转到今天",
   "shortcutGroupView": "视图",
+  "viewSelector": "视图",
   "shortcutDayView": "日视图",
   "shortcutWeekView": "周视图",
   "shortcutMonthView": "月视图",

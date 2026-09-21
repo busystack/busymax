@@ -308,6 +308,7 @@
   "shortcutPreviousPeriodDescription": "주간 보기에서는 이전 주, 월간 보기에서는 이전 달로 이동하는 식입니다",
   "shortcutJumpToToday": "오늘로 이동",
   "shortcutGroupView": "보기",
+  "viewSelector": "보기",
   "shortcutDayView": "일간 보기",
   "shortcutWeekView": "주간 보기",
   "shortcutMonthView": "월간 보기",

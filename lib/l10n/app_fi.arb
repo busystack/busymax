@@ -308,6 +308,7 @@
   "shortcutPreviousPeriodDescription": "Edellinen viikko viikkonäkymässä, edellinen kuukausi kuukausinäkymässä ja niin edelleen",
   "shortcutJumpToToday": "Siirry tähän päivään",
   "shortcutGroupView": "Näkymä",
+  "viewSelector": "Näkymä",
   "shortcutDayView": "Päivänäkymä",
   "shortcutWeekView": "Viikkonäkymä",
   "shortcutMonthView": "Kuukausinäkymä",

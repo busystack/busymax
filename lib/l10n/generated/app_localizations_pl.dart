@@ -1121,6 +1121,9 @@ class AppLocalizationsPl extends AppLocalizations {
   String get shortcutGroupView => 'Widok';
 
   @override
+  String get viewSelector => 'Widok';
+
+  @override
   String get shortcutDayView => 'Widok dnia';
 
   @override

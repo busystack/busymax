@@ -6,8 +6,8 @@ import 'package:busymax/src/app/linux/linux_header_style.dart';
 import 'package:busymax/src/app/linux/linux_window_host.dart';
 import 'package:busymax/src/db/app_database.dart';
 import 'package:busymax/src/features/accounts/data/accounts_repository.dart';
-import 'package:busymax/src/features/schedule/presentation/schedule_sidebar.dart';
 import 'package:busymax/src/features/schedule/presentation/schedule_workspace.dart';
+import 'package:busymax/src/features/schedule/presentation/schedule_toolbar.dart';
 import 'package:busymax/src/platform/gtk_window_preferences_service.dart';
 import 'package:busymax/src/platform/gtk_header_icon_service.dart';
 import 'package:busymax/src/platform/native_menu_service.dart';
@@ -16,7 +16,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:yaru/yaru.dart';
 
 import '../../../test_localized_app.dart';
 
@@ -51,22 +50,112 @@ void main() {
     messenger.setMockMethodCallHandler(nativeMenuChannel, null);
   });
 
-  testWidgets('search drag area exists with the sidebar expanded', (
+  testWidgets(
+    'Search changes only the center and schedule control visibility',
+    (tester) async {
+      await _pumpWorkspace(tester, width: 1100);
+
+      for (final key in const [
+        'schedule-sidebar-button',
+        'schedule-today-button',
+        'schedule-previous-button',
+        'schedule-next-button',
+        'schedule-view-button',
+        'schedule-create-button',
+        'schedule-refresh-button',
+        'schedule-search-button',
+        'busymax-main-menu-button',
+      ]) {
+        expect(find.byKey(ValueKey(key)).hitTestable(), findsOneWidget);
+      }
+
+      await _openSearch(tester);
+
+      expect(find.byType(ScheduleToolbar), findsOneWidget);
+      expect(find.byType(BusyMaxLinuxHeaderLayout), findsOneWidget);
+      expect(find.byType(BusyMaxSearchField).hitTestable(), findsOneWidget);
+      for (final key in const [
+        'schedule-sidebar-button',
+        'schedule-search-button',
+        'busymax-main-menu-button',
+      ]) {
+        expect(find.byKey(ValueKey(key)).hitTestable(), findsOneWidget);
+      }
+      for (final key in const [
+        'schedule-today-button',
+        'schedule-previous-button',
+        'schedule-next-button',
+        'schedule-view-button',
+        'schedule-create-button',
+        'schedule-refresh-button',
+        'schedule-search-filter-button',
+        'schedule-search-close-button',
+        'schedule-search-titlebar-drag-area',
+      ]) {
+        expect(find.byKey(ValueKey(key)).hitTestable(), findsNothing);
+      }
+      final searchButton = tester.widget<BusyMaxLinuxHeaderIconButton>(
+        find.byKey(const ValueKey('schedule-search-button')),
+      );
+      expect(searchButton.selected, isTrue);
+      final headerRect = tester.getRect(find.byType(ScheduleToolbar));
+      final fieldRect = tester.getRect(find.byType(BusyMaxSearchField));
+      expect(headerRect.height, BusyMaxSizes.toolbarHeight);
+      expect(fieldRect.height, BusyMaxSizes.headerIconButton);
+      expect(fieldRect.center.dx, closeTo(headerRect.center.dx, .01));
+      expect(fieldRect.width, lessThan(headerRect.width));
+
+      await tester.tap(find.byTooltip('Search (Ctrl+F)'));
+      await tester.pumpAndSettle();
+      expect(find.byType(BusyMaxSearchField).hitTestable(), findsNothing);
+
+      await _openSearch(tester);
+      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+      await tester.pumpAndSettle();
+      expect(find.byType(BusyMaxSearchField).hitTestable(), findsNothing);
+    },
+  );
+
+  testWidgets('bounded Search geometry remains centered in LTR and RTL', (
     tester,
   ) async {
-    await _pumpWorkspace(tester, width: 1100);
-    await _openSearch(tester);
+    for (final direction in TextDirection.values) {
+      await _pumpWorkspace(tester, width: 650, direction: direction);
+      await _openSearch(tester);
 
-    expect(
-      tester
-          .getSize(find.byKey(const ValueKey('linux-sidebar-viewport')))
-          .width,
-      BusyMaxSizes.sidebarWidth,
-    );
-    _expectSearchDragArea(tester);
+      final headerRect = tester.getRect(find.byType(ScheduleToolbar));
+      final fieldRect = tester.getRect(find.byType(BusyMaxSearchField));
+      expect(headerRect.height, BusyMaxSizes.toolbarHeight);
+      expect(fieldRect.height, BusyMaxSizes.headerIconButton);
+      expect(fieldRect.center.dx, closeTo(headerRect.center.dx, .01));
+      expect(fieldRect.width, lessThan(headerRect.width));
+
+      const keys = [
+        ValueKey('schedule-search-filter-button'),
+        ValueKey('schedule-search-button'),
+        ValueKey('busymax-main-menu-button'),
+      ];
+      final controlRects = <Rect>[];
+      for (final key in keys) {
+        expect(
+          tester.getSize(find.byKey(key)),
+          const Size.square(BusyMaxSizes.headerIconButton),
+        );
+        final rect = tester.getRect(find.byKey(key));
+        expect(fieldRect.overlaps(rect), isFalse);
+        controlRects.add(rect);
+      }
+      controlRects.sort((a, b) => a.left.compareTo(b.left));
+      for (var index = 1; index < controlRects.length; index++) {
+        expect(
+          controlRects[index].left - controlRects[index - 1].right,
+          BusyMaxSpacing.headerInset,
+        );
+      }
+    }
   });
 
-  testWidgets('search drag area exists with the sidebar collapsed', (
+  testWidgets('Search inputs do not steal the empty titlebar drag behavior', (
     tester,
   ) async {
     await _pumpWorkspace(tester, width: 1100);
@@ -74,89 +163,18 @@ void main() {
     await tester.pumpAndSettle();
     await _openSearch(tester);
 
-    expect(find.byType(ScheduleSidebar).hitTestable(), findsNothing);
-    _expectSearchDragArea(tester);
-  });
-
-  testWidgets('narrow search retains its own drag area without a sidebar', (
-    tester,
-  ) async {
-    await _pumpWorkspace(tester, width: 650);
-    await _openSearch(tester);
-
-    expect(find.byType(ScheduleSidebar).hitTestable(), findsNothing);
-    _expectSearchDragArea(tester);
-  });
-
-  testWidgets('search header keeps native titlebar geometry and spacing', (
-    tester,
-  ) async {
-    await _pumpWorkspace(tester, width: 650);
-    await _openSearch(tester);
-
-    expect(
-      tester
-          .getSize(find.byKey(const ValueKey('schedule-search-header')))
-          .height,
-      BusyMaxSizes.toolbarHeight,
+    final field = _searchTextField();
+    final fieldRect = tester.getRect(field);
+    final sidebarRect = tester.getRect(
+      find.byKey(const ValueKey('schedule-sidebar-button')),
     );
-    final fieldRect = tester.getRect(find.byType(BusyMaxSearchField));
-    expect(fieldRect.height, BusyMaxSizes.headerIconButton);
-
-    const keys = [
-      _searchDragAreaKey,
-      ValueKey('schedule-search-filter-button'),
-      ValueKey('schedule-search-close-button'),
-      ValueKey('busymax-main-menu-button'),
-    ];
-    for (final key in keys) {
-      expect(
-        tester.getSize(find.byKey(key)),
-        const Size.square(BusyMaxSizes.headerIconButton),
-      );
-    }
-    Rect rect(Key key) => tester.getRect(find.byKey(key));
-    for (var index = 1; index < keys.length; index++) {
-      expect(
-        rect(keys[index]).left - rect(keys[index - 1]).right,
-        BusyMaxSpacing.headerInset,
-      );
-    }
-    expect(rect(keys.first).left - fieldRect.right, BusyMaxSpacing.headerInset);
-    expect(650 - rect(keys.last).right, BusyMaxSpacing.headerInset);
-    BusyMaxLinuxHeaderIcon iconFor(String key) => tester
-        .widget<BusyMaxGtkHeaderIcon>(
-          find.descendant(
-            of: find.byKey(ValueKey(key)),
-            matching: find.byType(BusyMaxGtkHeaderIcon),
-          ),
-        )
-        .icon;
-    expect(
-      iconFor('schedule-search-filter-button'),
-      BusyMaxLinuxHeaderIcon.filter,
+    final emptyTitlebarPoint = Offset(
+      (sidebarRect.right + fieldRect.left) / 2,
+      fieldRect.center.dy,
     );
-    expect(
-      iconFor('schedule-search-close-button'),
-      BusyMaxLinuxHeaderIcon.close,
-    );
-    expect(
-      iconFor('busymax-main-menu-button'),
-      BusyMaxLinuxHeaderIcon.mainMenu,
-    );
-  });
-
-  testWidgets('only the explicit empty search region drags the window', (
-    tester,
-  ) async {
-    await _pumpWorkspace(tester, width: 1100);
-    await tester.sendKeyEvent(LogicalKeyboardKey.f9);
-    await tester.pumpAndSettle();
-    await _openSearch(tester);
-    final dragArea = find.byKey(_searchDragAreaKey);
 
     final titlebarDrag = await tester.startGesture(
-      tester.getCenter(dragArea),
+      emptyTitlebarPoint,
       kind: PointerDeviceKind.mouse,
     );
     await titlebarDrag.moveBy(const Offset(18, 0));
@@ -165,7 +183,6 @@ void main() {
     expect(_dragCalls(windowCalls), 1);
 
     windowCalls.clear();
-    final field = _searchTextField();
     await tester.enterText(field, 'selection survives');
     final fieldDrag = await tester.startGesture(
       tester.getCenter(field),
@@ -176,23 +193,43 @@ void main() {
     await fieldDrag.up();
     expect(_dragCalls(windowCalls), 0);
 
+    await tester.tap(field);
+    await tester.pump(const Duration(milliseconds: 40));
+    await tester.tap(field);
+    await tester.pump();
+    expect(_dragCalls(windowCalls), 0);
+
+    await _dragControl(tester, 'schedule-search-filter-button');
+    await _dragControl(tester, 'schedule-search-button');
+    await _dragControl(tester, 'busymax-main-menu-button');
+    expect(_dragCalls(windowCalls), 0);
+
     await tester.tap(find.byTooltip('Filters'));
     await tester.pumpAndSettle();
     expect(_dragCalls(windowCalls), 0);
     Navigator.of(tester.element(find.byType(BusyMaxDialogShell))).pop();
     await tester.pumpAndSettle();
 
-    await tester.tap(find.byIcon(YaruIcons.edit_clear));
+    final clearIcon = find.byWidgetPredicate(
+      (widget) =>
+          widget is BusyMaxGtkHeaderIcon &&
+          widget.icon == BusyMaxLinuxHeaderIcon.searchClear,
+    );
+    await tester.tap(
+      find.ancestor(of: clearIcon, matching: find.byType(IconButton)),
+    );
     await tester.pump();
     expect(_dragCalls(windowCalls), 0);
+    expect(tester.widget<TextField>(field).controller!.text, isEmpty);
 
     await tester.tap(find.byTooltip('Main Menu'));
     await tester.pump();
     expect(_dragCalls(windowCalls), 0);
 
-    await tester.tap(find.byTooltip('Close'));
-    await tester.pump();
+    await tester.tap(find.byTooltip('Search (Ctrl+F)'));
+    await tester.pumpAndSettle();
     expect(_dragCalls(windowCalls), 0);
+    expect(find.byType(BusyMaxSearchField).hitTestable(), findsNothing);
   });
 
   testWidgets('search text selection and focus survive an unrelated rebuild', (
@@ -234,20 +271,14 @@ void main() {
   });
 }
 
-const _searchDragAreaKey = ValueKey('schedule-search-titlebar-drag-area');
-
-void _expectSearchDragArea(WidgetTester tester) {
-  final area = find.byKey(_searchDragAreaKey);
-  expect(area, findsOneWidget);
-  expect(
-    tester.getSize(area),
-    const Size.square(BusyMaxSizes.headerIconButton),
+Future<void> _dragControl(WidgetTester tester, String key) async {
+  final gesture = await tester.startGesture(
+    tester.getCenter(find.byKey(ValueKey(key))),
+    kind: PointerDeviceKind.mouse,
   );
-  expect(
-    find.descendant(of: area, matching: find.byType(TextField)),
-    findsNothing,
-  );
-  expect(find.descendant(of: area, matching: find.byType(Focus)), findsNothing);
+  await gesture.moveBy(const Offset(30, 0));
+  await tester.pump();
+  await gesture.up();
 }
 
 Finder _searchTextField() => find.descendant(
@@ -270,6 +301,7 @@ Future<void> _pumpWorkspace(
   WidgetTester tester, {
   required double width,
   GlobalKey<_WorkspaceHarnessState>? harnessKey,
+  TextDirection direction = TextDirection.ltr,
 }) async {
   tester.view
     ..devicePixelRatio = 1
@@ -291,7 +323,12 @@ Future<void> _pumpWorkspace(
           (ref) => Stream.value(_testWindowPreferences),
         ),
       ],
-      child: localizedTestApp(child: _WorkspaceHarness(key: harnessKey)),
+      child: localizedTestApp(
+        child: Directionality(
+          textDirection: direction,
+          child: _WorkspaceHarness(key: harnessKey),
+        ),
+      ),
     ),
   );
   await tester.pumpAndSettle();

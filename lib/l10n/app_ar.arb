@@ -308,6 +308,7 @@
   "shortcutPreviousPeriodDescription": "الأسبوع السابق في عرض الأسبوع، والشهر السابق في عرض الشهر، وهكذا",
   "shortcutJumpToToday": "الانتقال إلى اليوم",
   "shortcutGroupView": "العرض",
+  "viewSelector": "العرض",
   "shortcutDayView": "عرض اليوم",
   "shortcutWeekView": "عرض الأسبوع",
   "shortcutMonthView": "عرض الشهر",

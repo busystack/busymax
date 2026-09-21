@@ -424,9 +424,11 @@ void main() {
       final settings = File(
         'lib/src/features/settings/presentation/settings_screen.dart',
       ).readAsStringSync();
-      final menuRowsStart = toolbar.indexOf('IconData _modeMenuIcon(');
-      expect(menuRowsStart, isNonNegative);
-      final topLevelToolbar = toolbar.substring(0, menuRowsStart);
+      final presentationStart = toolbar.indexOf(
+        'final class _ScheduleViewPresentation',
+      );
+      expect(presentationStart, isNonNegative);
+      final topLevelToolbar = toolbar.substring(0, presentationStart);
       final settingsHeaderStart = settings.indexOf('class _SettingsHeader');
       final settingsHeaderEnd = settings.indexOf(
         'class _SettingsPageLayout',
@@ -443,6 +445,9 @@ void main() {
       expect(style, contains('BusyMaxLinuxHeaderStyle.symbolicIconSize'));
       expect(style, isNot(contains('BusyMaxLinuxHeaderGlyphs')));
       expect(style, isNot(contains('YaruIcons.')));
+      expect(toolbar, isNot(contains('_modeHeaderIcon')));
+      expect(toolbar, isNot(contains('_modeMenuIcon')));
+      expect(toolbar, contains('resolvedNativeHeaderIconName('));
       for (final forbidden in const [
         'Icons.calendar_view_day_outlined',
         'Icons.view_week_outlined',
@@ -462,6 +467,40 @@ void main() {
       expect(workspace, isNot(contains('BusyMaxLinuxHeaderGlyphs')));
       expect(settingsHeader, isNot(contains('Icon(')));
       expect(settingsHeader, isNot(contains('BusyMaxLinuxHeaderGlyphs')));
+    });
+
+    test('schedule Search retains one Flutter header architecture', () {
+      final toolbar = File(
+        'lib/src/features/schedule/presentation/schedule_toolbar.dart',
+      ).readAsStringSync();
+      final workspace = File(
+        'lib/src/features/schedule/presentation/schedule_workspace.dart',
+      ).readAsStringSync();
+      final iconService = File(
+        'lib/src/platform/gtk_header_icon_service.dart',
+      ).readAsStringSync();
+      final runner = File('linux/runner/my_application.cc').readAsStringSync();
+      final nativeIcons = File(
+        'linux/runner/gtk_header_icons.cc',
+      ).readAsStringSync();
+
+      expect(workspace, contains('final header = ScheduleToolbar('));
+      expect(workspace, isNot(contains("'schedule-search-close-button'")));
+      expect(
+        workspace,
+        isNot(contains("'schedule-search-titlebar-drag-area'")),
+      );
+      expect(toolbar, contains('title: BusyMaxBinaryPresentation('));
+      expect(toolbar, contains('alternateActive: searchActive'));
+      expect(toolbar, contains('selected: searchActive'));
+      expect(toolbar, contains('BusyMaxLinuxHeaderSearchField('));
+      expect(toolbar, isNot(contains('BusyMaxLinuxHeaderIcon.close')));
+      expect(iconService, contains("'allowMissing': icon.allowMissing"));
+      expect(
+        runner,
+        contains('fl_value_lookup_string(request, "allowMissing")'),
+      );
+      expect(nativeIcons, contains('if (!allow_missing)'));
     });
 
     test('native GTK window preferences notify and clean up safely', () {

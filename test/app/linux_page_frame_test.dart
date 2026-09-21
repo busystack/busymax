@@ -194,6 +194,26 @@ void main() {
     expect(insets().leftObstruction, 0);
     expect(insets().rightObstruction, 100);
   });
+
+  testWidgets('frame is the single owner of the full-height sidebar seam', (
+    tester,
+  ) async {
+    final harnessKey = GlobalKey<_FrameHarnessState>();
+    await tester.pumpWidget(_testApp(_FrameHarness(key: harnessKey)));
+
+    final surface = tester.widget<BusyMaxSidebarSurface>(
+      find.byKey(const ValueKey('frame-sidebar-surface')),
+    );
+    expect(surface.showEndBorder, isFalse);
+    expect(_dividerAlpha(tester), 0);
+    expect(_seamDecorations(tester), hasLength(1));
+
+    harnessKey.currentState!.toggle();
+    await tester.pumpAndSettle();
+    expect(_dividerAlpha(tester), 1);
+    expect(_seamDecorations(tester), hasLength(1));
+    _expectSharedEdge(tester, expectedWidth: BusyMaxSizes.sidebarWidth);
+  });
 }
 
 Widget _testApp(
@@ -238,6 +258,20 @@ double _dividerAlpha(WidgetTester tester) {
   final border = decoration.border! as BorderDirectional;
   return border.end.color.a;
 }
+
+List<DecoratedBox> _seamDecorations(WidgetTester tester) => tester
+    .widgetList<DecoratedBox>(
+      find.descendant(
+        of: find.byType(LinuxPageFrame),
+        matching: find.byType(DecoratedBox),
+      ),
+    )
+    .where(
+      (box) =>
+          box.decoration is BoxDecoration &&
+          (box.decoration as BoxDecoration).border is BorderDirectional,
+    )
+    .toList();
 
 void _expectSharedEdge(
   WidgetTester tester, {
@@ -302,7 +336,11 @@ class _FrameHarnessState extends State<_FrameHarness> {
         ),
         body: const _RetainedBody(key: ValueKey('frame-main')),
         sidebarHeader: const SizedBox(height: 46),
-        sidebarBody: const _RetainedSidebar(),
+        sidebarBody: const BusyMaxSidebarSurface(
+          key: ValueKey('frame-sidebar-surface'),
+          showEndBorder: false,
+          child: _RetainedSidebar(),
+        ),
         sidebarAvailable: available,
         sidebarExpanded: expanded,
         sidebarTransitionGeneration: generation,

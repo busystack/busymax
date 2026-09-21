@@ -24,10 +24,13 @@ void main() {
       BusyMaxLinuxHeaderIcon.previous,
       BusyMaxLinuxHeaderIcon.next,
       BusyMaxLinuxHeaderIcon.search,
+      BusyMaxLinuxHeaderIcon.searchClear,
       BusyMaxLinuxHeaderIcon.mainMenu,
       BusyMaxLinuxHeaderIcon.create,
       BusyMaxLinuxHeaderIcon.refresh,
       BusyMaxLinuxHeaderIcon.viewDay,
+      BusyMaxLinuxHeaderIcon.viewWeek,
+      BusyMaxLinuxHeaderIcon.viewMonth,
       BusyMaxLinuxHeaderIcon.viewYear,
       BusyMaxLinuxHeaderIcon.viewAgenda,
       BusyMaxLinuxHeaderIcon.viewMenuArrow,
@@ -45,6 +48,21 @@ void main() {
           .assetFor(BusyMaxLinuxHeaderIcon.today, TextDirection.ltr)!
           .resolvedName,
       anyOf('today-symbolic', 'x-office-calendar-symbolic'),
+    );
+    for (final icon in const [
+      BusyMaxLinuxHeaderIcon.viewWeek,
+      BusyMaxLinuxHeaderIcon.viewMonth,
+    ]) {
+      expect(
+        catalog.assetFor(icon, TextDirection.ltr)!.resolvedName,
+        isIn(icon.gtkNames),
+      );
+    }
+    debugPrint(
+      'GTK header icon catalog: '
+      '${{
+        for (final icon in const [BusyMaxLinuxHeaderIcon.viewDay, BusyMaxLinuxHeaderIcon.viewWeek, BusyMaxLinuxHeaderIcon.viewMonth, BusyMaxLinuxHeaderIcon.viewYear, BusyMaxLinuxHeaderIcon.viewAgenda, BusyMaxLinuxHeaderIcon.filter]) icon.name: catalog.assetFor(icon, TextDirection.ltr)?.resolvedName ?? 'missing-optional',
+      }}',
     );
 
     await tester.pumpWidget(

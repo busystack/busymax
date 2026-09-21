@@ -1096,6 +1096,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get shortcutGroupView => 'View';
 
   @override
+  String get viewSelector => 'View';
+
+  @override
   String get shortcutDayView => 'Day view';
 
   @override

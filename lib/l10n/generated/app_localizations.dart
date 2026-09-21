@@ -1890,6 +1890,12 @@ abstract class AppLocalizations {
   /// **'View'**
   String get shortcutGroupView;
 
+  /// No description provided for @viewSelector.
+  ///
+  /// In en, this message translates to:
+  /// **'View'**
+  String get viewSelector;
+
   /// No description provided for @shortcutDayView.
   ///
   /// In en, this message translates to:

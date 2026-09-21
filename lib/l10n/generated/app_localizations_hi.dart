@@ -1078,6 +1078,9 @@ class AppLocalizationsHi extends AppLocalizations {
   String get shortcutGroupView => 'दृश्य';
 
   @override
+  String get viewSelector => 'दृश्य';
+
+  @override
   String get shortcutDayView => 'दिन का दृश्य';
 
   @override

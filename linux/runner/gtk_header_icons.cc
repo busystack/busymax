@@ -41,10 +41,17 @@ BusyMaxGtkHeaderIcons::~BusyMaxGtkHeaderIcons() {
 std::optional<BusyMaxGtkHeaderIconAsset> BusyMaxGtkHeaderIcons::Load(
     const std::vector<std::string>& candidate_names,
     BusyMaxGtkIconDirection direction,
-    int scale_override) const {
+    int scale_override,
+    bool allow_missing) const {
   if (candidate_names.empty()) return std::nullopt;
   GtkIconTheme* theme = icon_theme_ != nullptr ? icon_theme_ : ResolveTheme();
-  if (theme == nullptr) return std::nullopt;
+  if (theme == nullptr) {
+    if (!allow_missing) {
+      g_warning("GTK could not resolve BusyMax header icon '%s'",
+                candidate_names.front().c_str());
+    }
+    return std::nullopt;
+  }
 
   const int requested_scale =
       scale_override > 0 ? scale_override : scale();
@@ -65,7 +72,13 @@ std::optional<BusyMaxGtkHeaderIconAsset> BusyMaxGtkHeaderIcons::Load(
         theme, names.data(), kBusyMaxGtkHeaderIconLogicalSize,
         requested_scale, LookupFlags(direction));
   }
-  if (info == nullptr) return std::nullopt;
+  if (info == nullptr) {
+    if (!allow_missing) {
+      g_warning("GTK could not resolve BusyMax header icon '%s'",
+                candidate_names.front().c_str());
+    }
+    return std::nullopt;
+  }
   g_autoptr(GtkIconInfo) owned_info = info;
 
   const GdkRGBA white = {1.0, 1.0, 1.0, 1.0};

@@ -978,6 +978,7 @@ class _SettingsSidebar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return BusyMaxSidebarSurface(
+      showEndBorder: false,
       child: BusyMaxSidebarNavigation(
         children: [
           for (final page in SettingsPage.values)

@@ -3,6 +3,7 @@ import 'package:yaru/yaru.dart';
 
 import '../../../app/busymax_design.dart';
 import '../../../app/busymax_shortcuts.dart';
+import '../../../app/common/busymax_motion_widgets.dart';
 import '../../../app/linux/linux_header_style.dart';
 import '../../../l10n/l10n.dart';
 import '../../../l10n/localized_formatters.dart';
@@ -40,9 +41,17 @@ class ScheduleToolbar extends StatelessWidget {
     this.sidebarVisible = false,
     this.onToggleSidebar,
     this.onSearch,
+    this.searchActive = false,
+    this.searchController,
+    this.searchFocusRequest = 0,
+    this.onSearchChanged,
+    this.onClearSearch,
+    this.onSearchFilters,
     this.onMenuSelected,
     this.createMenuController,
-  });
+  }) : assert(!searchActive || searchController != null),
+       assert(!searchActive || onSearchChanged != null),
+       assert(!searchActive || onClearSearch != null);
 
   final ScheduleViewMode mode;
   final ScheduleRange range;
@@ -61,12 +70,23 @@ class ScheduleToolbar extends StatelessWidget {
   final bool sidebarVisible;
   final VoidCallback? onToggleSidebar;
   final VoidCallback? onSearch;
+  final bool searchActive;
+  final TextEditingController? searchController;
+  final int searchFocusRequest;
+  final ValueChanged<String>? onSearchChanged;
+  final VoidCallback? onClearSearch;
+  final VoidCallback? onSearchFilters;
   final ValueChanged<ScheduleToolbarMenuAction>? onMenuSelected;
   final BusyMaxMenuController? createMenuController;
 
   @override
   Widget build(BuildContext context) {
     final showPaging = mode != ScheduleViewMode.agenda;
+    final viewPresentations = [
+      for (final value in ScheduleViewMode.values)
+        _scheduleViewPresentation(context, value),
+    ];
+    final currentView = viewPresentations[mode.index];
     return LayoutBuilder(
       builder: (context, constraints) {
         final compact = constraints.maxWidth < 760;
@@ -87,17 +107,18 @@ class ScheduleToolbar extends StatelessWidget {
                   selected: sidebarVisible,
                   onPressed: onToggleSidebar,
                 ),
-              BusyMaxLinuxHeaderIconButton(
-                key: const ValueKey('schedule-today-button'),
-                tooltip: _shortcutTooltip(
-                  context.l10n.today,
-                  BusyMaxShortcutLabels.today,
+              if (!searchActive)
+                BusyMaxLinuxHeaderIconButton(
+                  key: const ValueKey('schedule-today-button'),
+                  tooltip: _shortcutTooltip(
+                    context.l10n.today,
+                    BusyMaxShortcutLabels.today,
+                  ),
+                  semanticLabel: context.l10n.today,
+                  icon: BusyMaxLinuxHeaderIcon.today,
+                  onPressed: onToday,
                 ),
-                semanticLabel: context.l10n.today,
-                icon: BusyMaxLinuxHeaderIcon.today,
-                onPressed: onToday,
-              ),
-              if (showPaging) ...[
+              if (!searchActive && showPaging) ...[
                 BusyMaxLinuxHeaderIconButton(
                   key: const ValueKey('schedule-previous-button'),
                   tooltip: _shortcutTooltip(
@@ -119,76 +140,106 @@ class ScheduleToolbar extends StatelessWidget {
               ],
             ],
           ),
-          title: _fittingRangeTitle(
-            context,
-            localizedScheduleHeading(
-              Localizations.localeOf(context).toLanguageTag(),
-              mode,
-              range,
-              selectedDate,
-              agendaLabel: context.l10n.viewAgenda,
-            ),
+          title: BusyMaxBinaryPresentation(
+            alternateActive: searchActive,
+            child: searchActive
+                ? BusyMaxLinuxHeaderSearchField(
+                    key: const ValueKey('schedule-header-search-field'),
+                    controller: searchController!,
+                    focusRequest: searchFocusRequest,
+                    hintText: MaterialLocalizations.of(
+                      context,
+                    ).searchFieldLabel,
+                    onChanged: onSearchChanged!,
+                    onClear: onClearSearch!,
+                  )
+                : _fittingRangeTitle(
+                    context,
+                    localizedScheduleHeading(
+                      Localizations.localeOf(context).toLanguageTag(),
+                      mode,
+                      range,
+                      selectedDate,
+                      agendaLabel: context.l10n.viewAgenda,
+                    ),
+                  ),
           ),
           trailing: BusyMaxLinuxHeaderControlGroup(
             key: const ValueKey('schedule-header-trailing-actions'),
             children: [
-              BusyMaxLinuxViewMenuButton<ScheduleViewMode>(
-                key: const ValueKey('schedule-view-button'),
-                tooltip: _shortcutTooltip(
-                  _modeLabel(context, mode),
-                  BusyMaxShortcutLabels.forViewMode(mode),
+              if (!searchActive) ...[
+                BusyMaxLinuxViewMenuButton<ScheduleViewMode>(
+                  key: const ValueKey('schedule-view-button'),
+                  tooltip: context.l10n.viewSelector,
+                  icon: currentView.headerIcon,
+                  entries: [
+                    for (
+                      var index = 0;
+                      index < viewPresentations.length;
+                      index++
+                    )
+                      BusyMaxMenuEntry(
+                        value: ScheduleViewMode.values[index],
+                        label: viewPresentations[index].label,
+                        icon: viewPresentations[index].fallbackIcon,
+                        nativeIconName: resolvedNativeHeaderIconName(
+                          context,
+                          viewPresentations[index].headerIcon,
+                        ),
+                        role: BusyMaxMenuEntryRole.radio,
+                        selected: mode == ScheduleViewMode.values[index],
+                        shortcut: viewPresentations[index].shortcut,
+                      ),
+                  ],
+                  onSelected: onModeChanged,
                 ),
-                icon: _modeHeaderIcon(mode),
-                entries: [
-                  for (final value in ScheduleViewMode.values)
+                BusyMaxLinuxHeaderMenuButton<_ScheduleCreateAction>(
+                  key: const ValueKey('schedule-create-button'),
+                  tooltip: context.l10n.create,
+                  icon: BusyMaxLinuxHeaderIcon.create,
+                  controller: createMenuController,
+                  enabled: canCreateEvent || canCreateTask,
+                  entries: [
                     BusyMaxMenuEntry(
-                      value: value,
-                      label: _modeLabel(context, value),
-                      icon: _modeMenuIcon(value),
-                      role: BusyMaxMenuEntryRole.radio,
-                      selected: mode == value,
-                      shortcut: BusyMaxShortcutLabels.forViewMode(value),
+                      value: _ScheduleCreateAction.event,
+                      label: context.l10n.createEventAtTime,
+                      icon: Icons.event_outlined,
+                      nativeIconName: 'x-office-calendar-symbolic',
+                      enabled: canCreateEvent,
+                      shortcut: BusyMaxShortcutLabels.newEvent,
                     ),
-                ],
-                onSelected: onModeChanged,
-              ),
-              BusyMaxLinuxHeaderMenuButton<_ScheduleCreateAction>(
-                key: const ValueKey('schedule-create-button'),
-                tooltip: context.l10n.create,
-                icon: BusyMaxLinuxHeaderIcon.create,
-                controller: createMenuController,
-                enabled: canCreateEvent || canCreateTask,
-                entries: [
-                  BusyMaxMenuEntry(
-                    value: _ScheduleCreateAction.event,
-                    label: context.l10n.createEventAtTime,
-                    icon: Icons.event_outlined,
-                    enabled: canCreateEvent,
-                    shortcut: BusyMaxShortcutLabels.newEvent,
-                  ),
-                  BusyMaxMenuEntry(
-                    value: _ScheduleCreateAction.task,
-                    label: context.l10n.createTaskAtDate,
-                    icon: Icons.task_alt_outlined,
-                    enabled: canCreateTask,
-                    shortcut: BusyMaxShortcutLabels.newTask,
-                  ),
-                ],
-                onSelected: (value) {
-                  switch (value) {
-                    case _ScheduleCreateAction.event:
-                      onCreateEvent();
-                    case _ScheduleCreateAction.task:
-                      onCreateTask();
-                  }
-                },
-              ),
-              if (!compact)
+                    BusyMaxMenuEntry(
+                      value: _ScheduleCreateAction.task,
+                      label: context.l10n.createTaskAtDate,
+                      icon: Icons.task_alt_outlined,
+                      nativeIconName: 'checkbox-checked-symbolic',
+                      enabled: canCreateTask,
+                      shortcut: BusyMaxShortcutLabels.newTask,
+                    ),
+                  ],
+                  onSelected: (value) {
+                    switch (value) {
+                      case _ScheduleCreateAction.event:
+                        onCreateEvent();
+                      case _ScheduleCreateAction.task:
+                        onCreateTask();
+                    }
+                  },
+                ),
+              ],
+              if (!searchActive && !compact)
                 BusyMaxLinuxHeaderIconButton(
                   key: const ValueKey('schedule-refresh-button'),
                   tooltip: context.l10n.refreshAll,
                   icon: BusyMaxLinuxHeaderIcon.refresh,
                   onPressed: canRefresh ? onRefresh : null,
+                ),
+              if (searchActive && onSearchFilters != null)
+                BusyMaxLinuxHeaderIconButton(
+                  key: const ValueKey('schedule-search-filter-button'),
+                  tooltip: context.l10n.searchFiltersAction,
+                  icon: BusyMaxLinuxHeaderIcon.filter,
+                  onPressed: onSearchFilters,
                 ),
               if (onSearch != null)
                 BusyMaxLinuxHeaderIconButton(
@@ -198,11 +249,12 @@ class ScheduleToolbar extends StatelessWidget {
                     BusyMaxShortcutLabels.search,
                   ),
                   icon: BusyMaxLinuxHeaderIcon.search,
+                  selected: searchActive,
                   onPressed: onSearch,
                 ),
               if (onMenuSelected != null)
                 BusyMaxMainMenuButton(
-                  includeRefresh: compact,
+                  includeRefresh: compact && !searchActive,
                   canRefresh: canRefresh,
                   onSelected: onMenuSelected!,
                 ),
@@ -240,12 +292,14 @@ class BusyMaxMainMenuButton extends StatelessWidget {
             value: ScheduleToolbarMenuAction.refresh,
             label: context.l10n.refreshAll,
             icon: YaruIcons.refresh,
+            nativeIconName: 'view-refresh-symbolic',
             enabled: canRefresh,
           ),
         BusyMaxMenuEntry(
           value: ScheduleToolbarMenuAction.settings,
           label: context.l10n.settings,
           icon: YaruIcons.settings,
+          nativeIconName: 'preferences-system-symbolic',
           enabled: !settingsSelected,
           shortcut: BusyMaxShortcutLabels.settings,
         ),
@@ -253,17 +307,20 @@ class BusyMaxMainMenuButton extends StatelessWidget {
           value: ScheduleToolbarMenuAction.keyboardShortcuts,
           label: context.l10n.keyboardShortcuts,
           icon: Icons.keyboard_alt_outlined,
+          nativeIconName: 'input-keyboard-symbolic',
           shortcut: BusyMaxShortcutLabels.keyboardShortcuts,
         ),
         BusyMaxMenuEntry(
           value: ScheduleToolbarMenuAction.reportIssue,
           label: context.l10n.reportAnIssue,
           icon: YaruIcons.warning,
+          nativeIconName: 'dialog-warning-symbolic',
         ),
         BusyMaxMenuEntry(
           value: ScheduleToolbarMenuAction.about,
           label: context.l10n.aboutBusyMax,
           icon: Icons.info_outline,
+          nativeIconName: 'help-about-symbolic',
         ),
       ],
       onSelected: onSelected,
@@ -295,33 +352,56 @@ Widget _fittingRangeTitle(BuildContext context, String title) {
   );
 }
 
-BusyMaxLinuxHeaderIcon _modeHeaderIcon(ScheduleViewMode mode) {
-  return switch (mode) {
-    ScheduleViewMode.day => BusyMaxLinuxHeaderIcon.viewDay,
-    ScheduleViewMode.week => BusyMaxLinuxHeaderIcon.viewWeek,
-    ScheduleViewMode.month => BusyMaxLinuxHeaderIcon.viewMonth,
-    ScheduleViewMode.year => BusyMaxLinuxHeaderIcon.viewYear,
-    ScheduleViewMode.agenda => BusyMaxLinuxHeaderIcon.viewAgenda,
-  };
+final class _ScheduleViewPresentation {
+  const _ScheduleViewPresentation({
+    required this.headerIcon,
+    required this.fallbackIcon,
+    required this.label,
+    required this.shortcut,
+  });
+
+  final BusyMaxLinuxHeaderIcon headerIcon;
+  final IconData fallbackIcon;
+  final String label;
+  final String shortcut;
 }
 
-IconData _modeMenuIcon(ScheduleViewMode mode) {
+_ScheduleViewPresentation _scheduleViewPresentation(
+  BuildContext context,
+  ScheduleViewMode mode,
+) {
+  final shortcut = BusyMaxShortcutLabels.forViewMode(mode);
   return switch (mode) {
-    ScheduleViewMode.day => Icons.calendar_view_day_outlined,
-    ScheduleViewMode.week => Icons.view_week_outlined,
-    ScheduleViewMode.month => Icons.calendar_view_month,
-    ScheduleViewMode.year => Icons.calendar_today_outlined,
-    ScheduleViewMode.agenda => Icons.view_agenda_outlined,
-  };
-}
-
-String _modeLabel(BuildContext context, ScheduleViewMode mode) {
-  return switch (mode) {
-    ScheduleViewMode.day => context.l10n.viewDay,
-    ScheduleViewMode.week => context.l10n.viewWeek,
-    ScheduleViewMode.month => context.l10n.viewMonth,
-    ScheduleViewMode.year => context.l10n.viewYear,
-    ScheduleViewMode.agenda => context.l10n.viewAgenda,
+    ScheduleViewMode.day => _ScheduleViewPresentation(
+      headerIcon: BusyMaxLinuxHeaderIcon.viewDay,
+      fallbackIcon: Icons.calendar_view_day_outlined,
+      label: context.l10n.viewDay,
+      shortcut: shortcut,
+    ),
+    ScheduleViewMode.week => _ScheduleViewPresentation(
+      headerIcon: BusyMaxLinuxHeaderIcon.viewWeek,
+      fallbackIcon: Icons.view_week_outlined,
+      label: context.l10n.viewWeek,
+      shortcut: shortcut,
+    ),
+    ScheduleViewMode.month => _ScheduleViewPresentation(
+      headerIcon: BusyMaxLinuxHeaderIcon.viewMonth,
+      fallbackIcon: Icons.calendar_view_month,
+      label: context.l10n.viewMonth,
+      shortcut: shortcut,
+    ),
+    ScheduleViewMode.year => _ScheduleViewPresentation(
+      headerIcon: BusyMaxLinuxHeaderIcon.viewYear,
+      fallbackIcon: Icons.calendar_today_outlined,
+      label: context.l10n.viewYear,
+      shortcut: shortcut,
+    ),
+    ScheduleViewMode.agenda => _ScheduleViewPresentation(
+      headerIcon: BusyMaxLinuxHeaderIcon.viewAgenda,
+      fallbackIcon: Icons.view_agenda_outlined,
+      label: context.l10n.viewAgenda,
+      shortcut: shortcut,
+    ),
   };
 }
 

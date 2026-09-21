@@ -37,7 +37,8 @@ class BusyMaxGtkHeaderIcons {
   std::optional<BusyMaxGtkHeaderIconAsset> Load(
       const std::vector<std::string>& candidate_names,
       BusyMaxGtkIconDirection direction,
-      int scale_override = 0) const;
+      int scale_override = 0,
+      bool allow_missing = false) const;
 
   bool Start(InvalidatedCallback callback);
   void Stop();

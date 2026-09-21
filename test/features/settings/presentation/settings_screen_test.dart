@@ -1322,6 +1322,12 @@ void main() {
     );
     expect(find.byType(YaruNavigationRail), findsNothing);
     expect(find.byType(BusyMaxSidebarSurface), findsOneWidget);
+    expect(
+      tester
+          .widget<BusyMaxSidebarSurface>(find.byType(BusyMaxSidebarSurface))
+          .showEndBorder,
+      isFalse,
+    );
     final navigationTiles = tester
         .widgetList<BusyMaxSidebarNavigationTile>(
           find.byType(BusyMaxSidebarNavigationTile),
