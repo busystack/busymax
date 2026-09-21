@@ -10,6 +10,17 @@ const accountReconnectRequiredActionLabel = 'Reconnect this account';
 const syncTemporarilyUnavailableMessage =
     'Synchronization is temporarily unavailable.';
 
+/// Raised when an application-facing sync or recovery entry point observes
+/// that the account is no longer eligible at dispatch time.
+class AccountNotSyncEligibleException implements Exception {
+  const AccountNotSyncEligibleException({required this.needsReconnect});
+
+  final bool needsReconnect;
+
+  @override
+  String toString() => 'The account is not eligible for synchronization.';
+}
+
 bool isMissingOAuthTokenError(Object error) {
   final effectiveError = resolveEffectiveSyncFailure(error);
   return (effectiveError is OAuthException &&
@@ -28,6 +39,11 @@ String syncFailureMessage(
   final effectiveError = resolveEffectiveSyncFailure(error);
   if (effectiveError is NetworkUnavailableException) {
     return networkUnavailableMessage;
+  }
+  if (effectiveError is AccountNotSyncEligibleException) {
+    return effectiveError.needsReconnect
+        ? accountReconnectRequiredSyncMessage
+        : syncTemporarilyUnavailableMessage;
   }
   if (isMissingOAuthTokenError(effectiveError) ||
       (effectiveError is OAuthRefreshException &&

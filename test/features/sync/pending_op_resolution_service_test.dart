@@ -7,10 +7,12 @@ import 'package:drift/drift.dart';
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:busymax/src/db/app_database.dart';
+import 'package:busymax/src/features/accounts/data/accounts_repository.dart';
 import 'package:busymax/src/features/calendar/data/calendar_repository.dart';
 import 'package:busymax/src/features/calendar/presentation/event_editor_draft.dart';
 import 'package:busymax/src/features/sync/pending_op_resolution_service.dart';
 import 'package:busymax/src/features/sync/pending_ops_replayer.dart';
+import 'package:busymax/src/features/sync/sync_auth_error.dart';
 import 'package:busymax/src/features/tasks/domain/task_remote_client.dart';
 import 'package:busymax/src/google_tasks/api/google_tasks_api_error.dart';
 import 'package:busymax/src/features/tasks/domain/task_remote_models.dart';
@@ -45,6 +47,72 @@ void main() {
   tearDown(() async {
     await database.close();
   });
+
+  test(
+    'retry leaves the operation blocked when account needs reconnect',
+    () async {
+      await _enqueueBlockedOp(
+        database,
+        operation: 'patch_task',
+        taskListId: 'list-1',
+        taskId: 'task-1',
+      );
+      final before = await database.pendingOpsDao.getOp('op-1');
+      await AccountsRepository(
+        database: database,
+      ).markReconnectRequired('account');
+
+      await expectLater(
+        service.retryNow('op-1'),
+        throwsA(
+          isA<AccountNotSyncEligibleException>().having(
+            (error) => error.needsReconnect,
+            'needsReconnect',
+            isTrue,
+          ),
+        ),
+      );
+
+      final after = await database.pendingOpsDao.getOp('op-1');
+      expect(after?.state, before?.state);
+      expect(after?.retryClassification, before?.retryClassification);
+      expect(after?.nextAttemptAtUtc, before?.nextAttemptAtUtc);
+      expect(taskSyncCalls, 0);
+      expect(calendarSyncCalls, 0);
+    },
+  );
+
+  test(
+    'provider-dependent discard does not read provider state when account needs reconnect',
+    () async {
+      await database.tasksDao.upsertTask(
+        _localTask('task-1', localDirty: true),
+      );
+      await _enqueueBlockedOp(
+        database,
+        operation: 'patch_task',
+        taskListId: 'list-1',
+        taskId: 'task-1',
+      );
+      await AccountsRepository(
+        database: database,
+      ).markReconnectRequired('account');
+
+      await expectLater(
+        service.discard('op-1'),
+        throwsA(isA<AccountNotSyncEligibleException>()),
+      );
+
+      expect(apiClient.getTaskIds, isEmpty);
+      expect(await database.pendingOpsDao.getOp('op-1'), isNot(equals(null)));
+      expect(
+        await database.tasksDao.listTasks('account', 'list-1'),
+        hasLength(1),
+      );
+      expect(taskSyncCalls, 0);
+      expect(calendarSyncCalls, 0);
+    },
+  );
 
   test(
     'discard blocked task patch refreshes task and clears dirty flags',
@@ -1605,6 +1673,7 @@ Future<void> _insertAccount(
           providerAccountId: 'google-$accountId',
           credentialKind: 'oauth',
           email: Value('google-$accountId@example.com'),
+          authState: const Value(accountAuthStateSignedIn),
           createdAtUtc: _now,
           updatedAtUtc: _now,
         ),

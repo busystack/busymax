@@ -267,6 +267,30 @@ void main() {
   });
 
   group('sync failure messages', () {
+    test('current-state eligibility failures use controlled messages', () {
+      const reconnect = AccountNotSyncEligibleException(needsReconnect: true);
+      const unavailable = AccountNotSyncEligibleException(
+        needsReconnect: false,
+      );
+
+      expect(
+        syncFailureNotificationDisposition(reconnect),
+        SyncFailureNotificationDisposition.reconnectRequired,
+      );
+      expect(
+        syncFailureMessage(reconnect),
+        accountReconnectRequiredSyncMessage,
+      );
+      expect(
+        syncFailureNotificationDisposition(unavailable),
+        SyncFailureNotificationDisposition.temporarilyUnavailable,
+      );
+      expect(
+        syncFailureMessage(unavailable),
+        syncTemporarilyUnavailableMessage,
+      );
+    });
+
     test('wrapped authentication failures use the reconnect message', () {
       const invalidGrant = KnownUnsentRequestException(
         kind: RequestPreDispatchFailureKind.authentication,

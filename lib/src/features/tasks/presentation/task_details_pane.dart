@@ -400,9 +400,7 @@ class _TaskDetailsPaneState extends ConsumerState<TaskDetailsPane> {
       localTimeZone: localTimeZone,
       categorySuggestions: categorySuggestions,
       accountLabel: _accountEditorLabel(context, account),
-      onRefresh: account.isSyncEligible
-          ? () => unawaited(_refreshTask(repository, task))
-          : null,
+      onRefresh: () => unawaited(_refreshTask(repository, task)),
       onSave: (draft, patch) => _saveDraft(repository, task, draft, patch),
       hierarchy: hierarchy,
       onCreateSubtask: (title) => _createSubtask(repository, task, title),

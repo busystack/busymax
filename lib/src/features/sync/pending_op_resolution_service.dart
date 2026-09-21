@@ -6,6 +6,7 @@ import '../../calendar_providers/cloud_calendar_client.dart';
 import '../../dav/mutation/dav_pending_operation_selection.dart';
 import '../../dav/mutation/dav_pending_operations.dart';
 import '../../db/app_database.dart';
+import '../accounts/data/accounts_repository.dart';
 import '../calendar/data/calendar_repository.dart';
 import '../notifications/notification_schedule_service.dart';
 import '../task_lists/data/task_lists_repository.dart';
@@ -15,6 +16,7 @@ import '../tasks/domain/task_remote_error.dart';
 import '../tasks/domain/task_checklist_item.dart';
 import '../tasks/domain/task_remote_models.dart';
 import 'pending_ops_replay_coordinator.dart';
+import 'sync_auth_error.dart';
 
 class PendingOpResolutionService {
   PendingOpResolutionService({
@@ -48,6 +50,7 @@ class PendingOpResolutionService {
     final op = await _database.pendingOpsDao.getOp(opId);
     if (op == null) return;
     _requireOwnedOperation(op);
+    await _requireAccountSyncEligible();
     if (op.state == 'recovery_required' && _isCreationOperation(op)) {
       throw StateError(
         'This creation cannot be retried safely because the provider may '
@@ -80,6 +83,7 @@ class PendingOpResolutionService {
       return;
     }
     _requireOwnedOperation(op);
+    await _requireAccountSyncEligible();
 
     if (isDavPendingOperation(op)) {
       final partiallyCompletedMove = isDavPartiallyCompletedMove(op);
@@ -752,6 +756,18 @@ class PendingOpResolutionService {
       return;
     }
     await _syncTasks();
+  }
+
+  Future<void> _requireAccountSyncEligible() async {
+    final account = await AccountsRepository(
+      database: _database,
+    ).accountById(_accountId);
+    if (account?.isSyncEligible == true) {
+      return;
+    }
+    throw AccountNotSyncEligibleException(
+      needsReconnect: account?.needsReconnect == true,
+    );
   }
 
   Future<void> _rebuildNotificationSchedule() async {

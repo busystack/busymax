@@ -240,9 +240,16 @@ class _BlockedPendingOpTile extends StatelessWidget {
       if (!context.mounted) {
         return;
       }
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(redactForLog(error.toString()))));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            syncFailureMessage(
+              error,
+              networkUnavailableMessage: context.l10n.networkOfflineTryAgain,
+            ),
+          ),
+        ),
+      );
     }
   }
 }

@@ -175,8 +175,7 @@ void main() {
     final refresh = tester
         .widget<TaskDetailsEditor>(find.byType(TaskDetailsEditor))
         .onRefresh;
-    expect(refresh, isNotNull);
-    refresh!();
+    refresh();
     await tester.pumpAndSettle();
 
     expect(repository.refreshCalls, 1);
@@ -216,7 +215,7 @@ void main() {
 
     final refresh = tester
         .widget<TaskDetailsEditor>(find.byType(TaskDetailsEditor))
-        .onRefresh!;
+        .onRefresh;
     refresh();
     await tester.pumpAndSettle();
 
@@ -238,7 +237,7 @@ void main() {
     expect(repository.refreshCalls, 1);
   });
 
-  testWidgets('task refresh disables and guards a reconnect-required account', (
+  testWidgets('task refresh guards a reconnect-required account at runtime', (
     tester,
   ) async {
     final database = AppDatabase(NativeDatabase.memory());
@@ -261,7 +260,7 @@ void main() {
     );
     final staleRefresh = tester
         .widget<TaskDetailsEditor>(find.byType(TaskDetailsEditor))
-        .onRefresh!;
+        .onRefresh;
 
     await accounts.markReconnectRequired('google:g');
     staleRefresh();
@@ -271,26 +270,6 @@ void main() {
     expect(
       find.text('Refresh failed: This account needs to be reconnected.'),
       findsOneWidget,
-    );
-
-    await tester.pumpWidget(const SizedBox.shrink());
-    await tester.pump();
-    await _pumpDetails(
-      tester,
-      googleTaskCollectionCapabilities,
-      repository: repository,
-      database: database,
-      authRepository: AuthRepository(
-        oAuth: _TaskDetailsOAuthGateway(),
-        database: database,
-      ),
-      accountsStream: Stream.value([(await accounts.accountById('google:g'))!]),
-    );
-    expect(
-      tester
-          .widget<TaskDetailsEditor>(find.byType(TaskDetailsEditor))
-          .onRefresh,
-      isNull,
     );
     expect(repository.refreshCalls, 0);
   });

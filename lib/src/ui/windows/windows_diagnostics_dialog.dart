@@ -424,7 +424,15 @@ class _PendingOperationTile extends StatelessWidget {
         );
       }
     } on Object catch (error) {
-      if (context.mounted) await _showResult(context, redactForLog('$error'));
+      if (context.mounted) {
+        await _showResult(
+          context,
+          syncFailureMessage(
+            error,
+            networkUnavailableMessage: l10n.networkOfflineTryAgain,
+          ),
+        );
+      }
     }
   }
 

@@ -29,6 +29,11 @@ SyncFailureNotificationDisposition syncFailureNotificationDisposition(
   if (effectiveError is DavAccountSyncException) {
     return _aggregateDavFailures(effectiveError.failures);
   }
+  if (effectiveError is AccountNotSyncEligibleException) {
+    return effectiveError.needsReconnect
+        ? SyncFailureNotificationDisposition.reconnectRequired
+        : SyncFailureNotificationDisposition.temporarilyUnavailable;
+  }
   if (effectiveError is DavException) {
     return _davDisposition(effectiveError);
   }
