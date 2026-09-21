@@ -10,7 +10,6 @@ import 'package:yaru/yaru.dart';
 import '../../../app/busymax_design.dart';
 import '../../../app/busymax_dialogs.dart';
 import '../../../l10n/l10n.dart';
-import '../../../platform/linux_header_bar_service.dart';
 import '../data/feedback_api_client.dart';
 import '../data/feedback_submission.dart';
 import '../../connectivity/network_connectivity_service.dart';
@@ -29,16 +28,13 @@ class FeedbackAppMetadata {
 Future<void> showBusyMaxFeedbackDialog(
   BuildContext context, {
   required FeedbackSubmissionService submissionService,
-  LinuxHeaderBarService? headerBarService,
 }) {
   return showBusyMaxModalEditorDialog<void>(
     context,
-    headerBarService: headerBarService,
     maxWidth: 680,
     maxHeight: 760,
     builder: (dialogContext) => BusyMaxFeedbackDialog(
       submissionService: submissionService,
-      headerBarService: headerBarService,
       onCancel: () => Navigator.of(dialogContext).pop(),
     ),
   );
@@ -52,7 +48,6 @@ class BusyMaxFeedbackDialog extends StatefulWidget {
     this.metadataLoader,
     this.submissionIdGenerator,
     this.osVersionProvider,
-    this.headerBarService,
   });
 
   final FeedbackSubmissionService submissionService;
@@ -60,7 +55,6 @@ class BusyMaxFeedbackDialog extends StatefulWidget {
   final FeedbackAppMetadataLoader? metadataLoader;
   final FeedbackSubmissionIdGenerator? submissionIdGenerator;
   final FeedbackOsVersionProvider? osVersionProvider;
-  final LinuxHeaderBarService? headerBarService;
 
   @override
   State<BusyMaxFeedbackDialog> createState() => _BusyMaxFeedbackDialogState();
@@ -292,7 +286,6 @@ class _BusyMaxFeedbackDialogState extends State<BusyMaxFeedbackDialog> {
         confirmLabel: context.l10n.discardChangesAction,
         destructive: true,
         barrierColor: Colors.transparent,
-        headerBarService: widget.headerBarService,
       );
       if (discard && mounted) {
         widget.onCancel();

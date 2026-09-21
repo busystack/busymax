@@ -453,6 +453,15 @@ class AppLocalizationsPt extends AppLocalizations {
   String get close => 'Close';
 
   @override
+  String get windowMinimize => 'Minimize';
+
+  @override
+  String get windowMaximize => 'Maximize';
+
+  @override
+  String get windowRestore => 'Restore';
+
+  @override
   String get exit => 'Exit';
 
   @override
@@ -3461,6 +3470,15 @@ class AppLocalizationsPtPt extends AppLocalizationsPt {
 
   @override
   String get close => 'Fechar';
+
+  @override
+  String get windowMinimize => 'Minimizar';
+
+  @override
+  String get windowMaximize => 'Maximizar';
+
+  @override
+  String get windowRestore => 'Restaurar';
 
   @override
   String get exit => 'Sair';

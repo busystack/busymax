@@ -458,6 +458,15 @@ class AppLocalizationsIt extends AppLocalizations {
   String get close => 'Chiudi';
 
   @override
+  String get windowMinimize => 'Riduci';
+
+  @override
+  String get windowMaximize => 'Ingrandisci';
+
+  @override
+  String get windowRestore => 'Ripristina';
+
+  @override
   String get exit => 'Esci';
 
   @override

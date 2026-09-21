@@ -1,7 +1,6 @@
 import 'package:busymax/src/l10n/time_format_scope.dart';
 import 'package:busymax/src/l10n/week_preferences_scope.dart';
 import 'dart:async';
-import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -19,6 +18,8 @@ import '../../../app/busymax_glyphs.dart';
 import '../../../app/busymax_keyboard_shortcuts_dialog.dart';
 import '../../../app/busymax_layout.dart';
 import '../../../app/busymax_shortcuts.dart';
+import '../../../app/linux/linux_page_frame.dart';
+import '../../../app/linux/linux_window_host.dart';
 import '../../../core/logging/redacting_logger.dart';
 import '../../../dav/auth/dav_account_dialogs.dart';
 import '../../../dav/presentation/nextcloud_collection_dialog.dart';
@@ -29,9 +30,7 @@ import '../../../dav/storage/dav_settings_repository.dart';
 import 'package:busymax/src/core/auth/oauth_models.dart';
 import '../../../l10n/app_locale.dart';
 import '../../../l10n/l10n.dart';
-import '../../../platform/linux_header_bar_service.dart';
 import '../../../platform/common/desktop_services.dart';
-import '../../../platform/linux_header_bar_provider.dart';
 import '../../../webcal/webcal_subscription_service.dart';
 import '../../../webcal/webcal_uri.dart';
 import 'package:busymax/src/providers/busy_provider.dart';
@@ -45,6 +44,7 @@ import '../../diagnostics/presentation/diagnostics_screen.dart';
 import '../../feedback/presentation/feedback_dialog.dart';
 import '../../sync/sync_auth_error.dart';
 import '../../tasks/presentation/desktop_date_time_fields.dart';
+import '../../schedule/presentation/schedule_toolbar.dart';
 import 'account_removal_dialog.dart';
 import 'launch_at_login_refresh.dart';
 
@@ -62,10 +62,6 @@ class SettingsScreen extends ConsumerStatefulWidget {
 
 class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   late var _page = widget.initialPage;
-  late final LinuxHeaderBarSession _headerBarSession;
-  StreamSubscription<BusyMaxHeaderBarAction>? _headerBarActions;
-  var _headerBarReady = false;
-  var _nativeHeaderBarAvailable = false;
   BusyProvider? _connectingProvider;
   DavCancellationToken? _davCancellation;
   final _removingAccountIds = <String>{};
@@ -78,19 +74,12 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     _autostartRefresh = LaunchAtLoginRefreshObserver(
       () => ref.invalidate(launchAtLoginStateProvider),
     );
-    _headerBarSession = ref.read(linuxHeaderBarServiceProvider).claimSession();
-    _headerBarActions = _headerBarSession.actions.listen(
-      _handleHeaderBarAction,
-    );
-    unawaited(_initializeHeaderBar());
   }
 
   @override
   void dispose() {
     _autostartRefresh.dispose();
     _davCancellation?.cancel();
-    _headerBarSession.dispose();
-    unawaited(_headerBarActions?.cancel());
     super.dispose();
   }
 
@@ -446,17 +435,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               final showSidebar = BusyMaxLayoutRules.showSettingsSidebar(
                 constraints.maxWidth,
               );
-              _updateSettingsHeaderBar(
-                context,
-                title,
-                settings: settings,
-                showSidebar: showSidebar,
-              );
               final content = Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  if (_showFallbackHeader)
-                    _SettingsFallbackHeader(title: title, onBack: _goBack),
                   if (ref.watch(appSettingsPersistenceFailedProvider))
                     MaterialBanner(
                       content: Text(l10n.settingsSaveFailed),
@@ -494,20 +475,20 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   ),
                 ],
               );
-              if (!showSidebar) {
-                return content;
-              }
-              return Row(
-                children: [
-                  SizedBox(
-                    width: BusyMaxSizes.sidebarWidth,
-                    child: _SettingsSidebar(
-                      selected: _page,
-                      onSelected: _selectPage,
-                    ),
-                  ),
-                  Expanded(child: content),
-                ],
+              return LinuxPageFrame(
+                header: _SettingsHeader(
+                  title: title,
+                  onBack: _goBack,
+                  onMenuSelected: _handleMenuAction,
+                ),
+                body: content,
+                sidebarHeader: const BusyMaxLinuxBrandHeader(),
+                sidebarBody: _SettingsSidebar(
+                  selected: _page,
+                  onSelected: _selectPage,
+                ),
+                sidebarAvailable: showSidebar,
+                sidebarExpanded: true,
               );
             },
           ),
@@ -539,7 +520,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       label: context.l10n.subscriptionName,
       actionLabel: context.l10n.rename,
       initialValue: subscription.name,
-      headerBarService: ref.read(linuxHeaderBarServiceProvider),
     );
     if (value == null || !mounted) return;
     await _runSubscriptionOperation(subscription.id, () async {
@@ -559,7 +539,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       actionLabel: context.l10n.save,
       initialValue: subscription.color,
       message: context.l10n.subscriptionColorHelp,
-      headerBarService: ref.read(linuxHeaderBarServiceProvider),
     );
     if (value == null || !mounted) return;
     await _runSubscriptionOperation(subscription.id, () async {
@@ -576,7 +555,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       message: context.l10n.unsubscribeCalendarConfirmation,
       confirmLabel: context.l10n.unsubscribe,
       destructive: true,
-      headerBarService: ref.read(linuxHeaderBarServiceProvider),
     );
     if (!confirmed || !mounted) return;
     await _runSubscriptionOperation(subscription.id, () async {
@@ -629,74 +607,23 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     }
   }
 
-  bool get _showFallbackHeader {
-    if (!Platform.isLinux) {
-      return true;
-    }
-    return _headerBarReady && !_nativeHeaderBarAvailable;
-  }
-
-  Future<void> _initializeHeaderBar() async {
-    await _headerBarSession.initialize();
-    if (!mounted) {
-      return;
-    }
-    setState(() {
-      _headerBarReady = true;
-      _nativeHeaderBarAvailable = _headerBarSession.isAvailable;
-    });
-    if (_headerBarSession.isAvailable) {
-      unawaited(
-        _headerBarSession.setOnboardingControls(
-          visible: false,
-          canGoBack: false,
-          canContinue: false,
-          backLabel: '',
-          continueLabel: '',
-          force: true,
-        ),
-      );
-    }
-  }
-
-  void _handleHeaderBarAction(BusyMaxHeaderBarAction action) {
-    if (!_headerBarSession.isCurrent) {
-      return;
-    }
-    if (action == BusyMaxHeaderBarAction.back) {
-      _goBack();
-      return;
-    }
-    if (action == BusyMaxHeaderBarAction.settings) {
-      _selectPage(SettingsPage.system);
-      return;
-    }
-    if (action == BusyMaxHeaderBarAction.keyboardShortcuts) {
-      unawaited(
-        showBusyMaxKeyboardShortcutsDialog(
-          context,
-          headerBarService: ref.read(linuxHeaderBarServiceProvider),
-        ),
-      );
-      return;
-    }
-    if (action == BusyMaxHeaderBarAction.reportIssue) {
-      unawaited(
-        showBusyMaxFeedbackDialog(
-          context,
-          submissionService: ref.read(feedbackSubmissionServiceProvider),
-          headerBarService: ref.read(linuxHeaderBarServiceProvider),
-        ),
-      );
-      return;
-    }
-    if (action == BusyMaxHeaderBarAction.aboutBusyMax) {
-      unawaited(
-        showBusyMaxAboutDialog(
-          context,
-          headerBarService: ref.read(linuxHeaderBarServiceProvider),
-        ),
-      );
+  void _handleMenuAction(ScheduleToolbarMenuAction action) {
+    switch (action) {
+      case ScheduleToolbarMenuAction.refresh:
+        return;
+      case ScheduleToolbarMenuAction.settings:
+        _selectPage(SettingsPage.system);
+      case ScheduleToolbarMenuAction.keyboardShortcuts:
+        unawaited(showBusyMaxKeyboardShortcutsDialog(context));
+      case ScheduleToolbarMenuAction.reportIssue:
+        unawaited(
+          showBusyMaxFeedbackDialog(
+            context,
+            submissionService: ref.read(feedbackSubmissionServiceProvider),
+          ),
+        );
+      case ScheduleToolbarMenuAction.about:
+        unawaited(showBusyMaxAboutDialog(context));
     }
   }
 
@@ -741,40 +668,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     );
   }
 
-  void _updateSettingsHeaderBar(
-    BuildContext context,
-    String title, {
-    required AppSettings settings,
-    required bool showSidebar,
-  }) {
-    if (!_nativeHeaderBarAvailable) {
-      return;
-    }
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) {
-        return;
-      }
-      unawaited(
-        _headerBarSession.updateState(
-          BusyMaxHeaderBarState(
-            title: title,
-            viewMode: settings.scheduleViewMode,
-            canRefresh: false,
-            canCreateEvent: false,
-            canCreateTask: false,
-            searchActive: false,
-            searchQuery: '',
-            canShowSidebar: showSidebar,
-            sidebarVisible: showSidebar,
-            navigationVisible: false,
-            scheduleControlsVisible: false,
-            backVisible: true,
-          ),
-        ),
-      );
-    });
-  }
-
   Future<void> _connectAccount(
     BusyProvider provider, {
     AccountEntity? reconnecting,
@@ -788,14 +681,12 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       appleInput = await showAppleICloudCredentialDialog(
         context,
         fixedEmail: reconnecting?.email ?? reconnecting?.providerAccountId,
-        headerBarService: ref.read(linuxHeaderBarServiceProvider),
       );
       if (appleInput == null || !mounted) return;
     } else if (provider == BusyProvider.nextcloud) {
       nextcloudServer = await showNextcloudServerDialog(
         context,
         initialServer: reconnecting?.authority,
-        headerBarService: ref.read(linuxHeaderBarServiceProvider),
       );
       if (nextcloudServer == null || !mounted) return;
     }
@@ -904,7 +795,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       accountLabel: account.displayLabel,
       canRevokeGoogleAuthorization:
           account.provider == BusyProvider.google && account.isSignedIn,
-      headerBarService: ref.read(linuxHeaderBarServiceProvider),
     );
     if (!context.mounted || options == null) {
       return;
@@ -1142,11 +1032,16 @@ class _SettingsPageSelector extends StatelessWidget {
   }
 }
 
-class _SettingsFallbackHeader extends StatelessWidget {
-  const _SettingsFallbackHeader({required this.title, required this.onBack});
+class _SettingsHeader extends StatelessWidget {
+  const _SettingsHeader({
+    required this.title,
+    required this.onBack,
+    required this.onMenuSelected,
+  });
 
   final String title;
   final VoidCallback onBack;
+  final ValueChanged<ScheduleToolbarMenuAction> onMenuSelected;
 
   @override
   Widget build(BuildContext context) {
@@ -1162,16 +1057,23 @@ class _SettingsFallbackHeader extends StatelessWidget {
           ),
           const SizedBox(width: BusyMaxSpacing.sm),
           Expanded(
-            child: Text(
-              title,
-              textAlign: TextAlign.center,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: busyMaxHeaderTitleStyle(context),
+            child: LinuxTitlebarGestureRegion(
+              child: Center(
+                child: Text(
+                  title,
+                  textAlign: TextAlign.center,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: busyMaxHeaderTitleStyle(context),
+                ),
+              ),
             ),
           ),
-          const SizedBox(width: BusyMaxSizes.headerIconButton),
-          const SizedBox(width: BusyMaxSpacing.md),
+          BusyMaxMainMenuButton(
+            settingsSelected: true,
+            onSelected: onMenuSelected,
+          ),
+          const SizedBox(width: BusyMaxSpacing.sm),
         ],
       ),
     );
@@ -2054,7 +1956,6 @@ Future<void> showAddCalendarSubscriptionFlow(
 }) async {
   final input = await showBusyMaxModalDialog<_WebCalAddInput>(
     context,
-    headerBarService: ref.read(linuxHeaderBarServiceProvider),
     barrierDismissible: false,
     builder: (dialogContext) => _WebCalAddDialog(initialUrl: initialUrl),
   );

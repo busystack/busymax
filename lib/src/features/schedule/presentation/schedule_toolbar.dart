@@ -4,6 +4,7 @@ import 'package:yaru/yaru.dart';
 import '../../../app/busymax_design.dart';
 import '../../../app/busymax_glyphs.dart';
 import '../../../app/busymax_shortcuts.dart';
+import '../../../app/linux/linux_window_host.dart';
 import '../../../l10n/l10n.dart';
 import '../../../l10n/localized_formatters.dart';
 import '../../../schedule/schedule_range.dart';
@@ -127,14 +128,16 @@ class ScheduleToolbar extends StatelessWidget {
                 const SizedBox(width: BusyMaxSpacing.sm),
               ],
               Expanded(
-                child: _fittingRangeTitle(
-                  context,
-                  localizedScheduleHeading(
-                    Localizations.localeOf(context).toLanguageTag(),
-                    mode,
-                    range,
-                    selectedDate,
-                    agendaLabel: context.l10n.viewAgenda,
+                child: LinuxTitlebarGestureRegion(
+                  child: _fittingRangeTitle(
+                    context,
+                    localizedScheduleHeading(
+                      Localizations.localeOf(context).toLanguageTag(),
+                      mode,
+                      range,
+                      selectedDate,
+                      agendaLabel: context.l10n.viewAgenda,
+                    ),
                   ),
                 ),
               ),
@@ -203,39 +206,9 @@ class ScheduleToolbar extends StatelessWidget {
                   onPressed: onSearch,
                 ),
               if (onMenuSelected != null)
-                BusyMaxMenuButton<ScheduleToolbarMenuAction>(
-                  tooltip: context.l10n.mainMenu,
-                  entries: [
-                    if (compact)
-                      BusyMaxMenuEntry(
-                        value: ScheduleToolbarMenuAction.refresh,
-                        label: context.l10n.refreshAll,
-                        icon: YaruIcons.refresh,
-                        enabled: canRefresh,
-                      ),
-                    BusyMaxMenuEntry(
-                      value: ScheduleToolbarMenuAction.settings,
-                      label: context.l10n.settings,
-                      icon: YaruIcons.settings,
-                      shortcut: BusyMaxShortcutLabels.settings,
-                    ),
-                    BusyMaxMenuEntry(
-                      value: ScheduleToolbarMenuAction.keyboardShortcuts,
-                      label: context.l10n.keyboardShortcuts,
-                      icon: Icons.keyboard_alt_outlined,
-                      shortcut: BusyMaxShortcutLabels.keyboardShortcuts,
-                    ),
-                    BusyMaxMenuEntry(
-                      value: ScheduleToolbarMenuAction.reportIssue,
-                      label: context.l10n.reportAnIssue,
-                      icon: YaruIcons.warning,
-                    ),
-                    BusyMaxMenuEntry(
-                      value: ScheduleToolbarMenuAction.about,
-                      label: context.l10n.aboutBusyMax,
-                      icon: Icons.info_outline,
-                    ),
-                  ],
+                BusyMaxMainMenuButton(
+                  includeRefresh: compact,
+                  canRefresh: canRefresh,
                   onSelected: onMenuSelected!,
                 ),
               const SizedBox(width: BusyMaxSpacing.sm),
@@ -243,6 +216,61 @@ class ScheduleToolbar extends StatelessWidget {
           ),
         );
       },
+    );
+  }
+}
+
+class BusyMaxMainMenuButton extends StatelessWidget {
+  const BusyMaxMainMenuButton({
+    super.key,
+    required this.onSelected,
+    this.includeRefresh = false,
+    this.canRefresh = false,
+    this.settingsSelected = false,
+  });
+
+  final ValueChanged<ScheduleToolbarMenuAction> onSelected;
+  final bool includeRefresh;
+  final bool canRefresh;
+  final bool settingsSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    return BusyMaxMenuButton<ScheduleToolbarMenuAction>(
+      tooltip: context.l10n.mainMenu,
+      entries: [
+        if (includeRefresh)
+          BusyMaxMenuEntry(
+            value: ScheduleToolbarMenuAction.refresh,
+            label: context.l10n.refreshAll,
+            icon: YaruIcons.refresh,
+            enabled: canRefresh,
+          ),
+        BusyMaxMenuEntry(
+          value: ScheduleToolbarMenuAction.settings,
+          label: context.l10n.settings,
+          icon: YaruIcons.settings,
+          enabled: !settingsSelected,
+          shortcut: BusyMaxShortcutLabels.settings,
+        ),
+        BusyMaxMenuEntry(
+          value: ScheduleToolbarMenuAction.keyboardShortcuts,
+          label: context.l10n.keyboardShortcuts,
+          icon: Icons.keyboard_alt_outlined,
+          shortcut: BusyMaxShortcutLabels.keyboardShortcuts,
+        ),
+        BusyMaxMenuEntry(
+          value: ScheduleToolbarMenuAction.reportIssue,
+          label: context.l10n.reportAnIssue,
+          icon: YaruIcons.warning,
+        ),
+        BusyMaxMenuEntry(
+          value: ScheduleToolbarMenuAction.about,
+          label: context.l10n.aboutBusyMax,
+          icon: Icons.info_outline,
+        ),
+      ],
+      onSelected: onSelected,
     );
   }
 }

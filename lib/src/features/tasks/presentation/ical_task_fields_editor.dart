@@ -12,7 +12,6 @@ import '../../../app/busymax_dialogs.dart';
 import '../../../app/app_bootstrap.dart';
 import '../../../dav/ical/ical_task_alarm.dart';
 import '../../../l10n/l10n.dart';
-import '../../../platform/linux_header_bar_service.dart';
 import '../../recurrence/domain/recurrence_rule.dart';
 import '../../recurrence/presentation/recurrence_editor.dart';
 import '../domain/task_capabilities.dart';
@@ -33,7 +32,6 @@ class IcalTaskFieldsEditor extends ConsumerStatefulWidget {
     required this.onChanged,
     this.useNativeDatePicker = false,
     this.dialogBarrierColor,
-    this.headerBarService,
     this.savedLocation,
     this.savedPoint,
     this.savedIdentity,
@@ -46,7 +44,6 @@ class IcalTaskFieldsEditor extends ConsumerStatefulWidget {
   final ValueChanged<TaskDetailsDraft> onChanged;
   final bool useNativeDatePicker;
   final Color? dialogBarrierColor;
-  final LinuxHeaderBarService? headerBarService;
   final String? savedLocation;
   final GeographicPoint? savedPoint;
   final LocationItemIdentity? savedIdentity;
@@ -639,7 +636,6 @@ class _IcalTaskFieldsEditorState extends ConsumerState<IcalTaskFieldsEditor> {
     return showBusyMaxModalEditorDialog<IcalTaskAlarm>(
       context,
       barrierColor: widget.dialogBarrierColor,
-      headerBarService: widget.headerBarService,
       maxWidth: 520,
       maxHeight: 680,
       builder: (context) => _TaskReminderDialog(
@@ -676,7 +672,6 @@ class _IcalTaskFieldsEditorState extends ConsumerState<IcalTaskFieldsEditor> {
       timeZone: widget.draft.microsoftStartTimeZone,
       useNativeDatePicker: widget.useNativeDatePicker,
       barrierColor: widget.dialogBarrierColor,
-      headerBarService: widget.headerBarService,
     );
     if (result == null || !mounted) return;
     widget.onChanged(

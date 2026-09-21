@@ -4,7 +4,6 @@ import 'package:yaru/yaru.dart';
 import '../../app/busymax_design.dart';
 import '../../app/busymax_dialogs.dart';
 import '../../l10n/l10n.dart';
-import '../../platform/linux_header_bar_service.dart';
 
 final class AppleICloudCredentialInput {
   AppleICloudCredentialInput({required this.email, required this.password});
@@ -20,11 +19,9 @@ final class AppleICloudCredentialInput {
 Future<AppleICloudCredentialInput?> showAppleICloudCredentialDialog(
   BuildContext context, {
   String? fixedEmail,
-  LinuxHeaderBarService? headerBarService,
 }) {
   return showBusyMaxModalDialog<AppleICloudCredentialInput>(
     context,
-    headerBarService: headerBarService,
     barrierDismissible: false,
     builder: (context) => _AppleCredentialDialog(fixedEmail: fixedEmail),
   );
@@ -33,11 +30,9 @@ Future<AppleICloudCredentialInput?> showAppleICloudCredentialDialog(
 Future<String?> showNextcloudServerDialog(
   BuildContext context, {
   String? initialServer,
-  LinuxHeaderBarService? headerBarService,
 }) {
   return showBusyMaxModalDialog<String>(
     context,
-    headerBarService: headerBarService,
     barrierDismissible: false,
     builder: (context) => _NextcloudServerDialog(initialServer: initialServer),
   );

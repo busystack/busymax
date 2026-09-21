@@ -12,9 +12,7 @@ import '../features/tray/domain/tray_presentation_formatter.dart';
 import '../platform/gtk_font_service.dart';
 import '../platform/gtk_animation_settings_service.dart';
 import '../platform/linux_first_weekday_source.dart';
-import '../platform/linux_header_bar_configuration_synchronizer.dart';
-import '../platform/linux_header_bar_provider.dart';
-import '../platform/linux_header_bar_service.dart';
+import '../platform/native_style.dart';
 import '../platform/common/desktop_services.dart';
 import '../l10n/locale_resolution.dart';
 import '../l10n/time_format_scope.dart';
@@ -30,6 +28,7 @@ import 'busymax_yaru_theme.dart';
 import 'busymax_design.dart';
 import 'system_accent.dart';
 import 'app_theme.dart';
+import 'linux/linux_window_host.dart';
 import '../features/settings/presentation/settings_screen.dart';
 import '../features/calendar/presentation/ical_import_flow.dart';
 import '../core/logging/redacting_logger.dart';
@@ -38,34 +37,24 @@ import 'common/desktop_calendar_open_readiness.dart';
 typedef BusyMaxTrayServiceFactory =
     BusyMaxTrayService Function(BusyMaxTrayServiceConfiguration configuration);
 
-BusyMaxHeaderBarTheme busyMaxHeaderBarThemeFor(
+BusyMaxNativeSurfaceTheme busyMaxNativeSurfaceThemeFor(
   ThemeData theme, {
   required bool highContrast,
 }) {
   final colors = theme.extension<BusyMaxSurfaceColors>()!;
-  return BusyMaxHeaderBarTheme(
-    preferDark: theme.brightness == Brightness.dark,
+  return BusyMaxNativeSurfaceTheme(
     highContrast: highContrast,
     windowBackgroundColor: colors.window,
-    // This header is deliberately borderless and visually continuous with
-    // the main workspace, so both use the window surface role.
-    backgroundColor: colors.window,
-    sidebarBackgroundColor: colors.sidebar,
-    foregroundColor: colors.foreground,
-    sidebarBorderColor: colors.sidebarBorder,
     dialogBackgroundColor: colors.dialog,
     dialogOutlineColor: colors.dialogOutline,
-    modalBarrierColor: colors.shade,
-    tooltip: BusyMaxHeaderBarTooltipTheme(
-      backgroundColor: BusyMaxTooltipStyle.background,
-      foregroundColor: BusyMaxTooltipStyle.foreground,
-      borderColor: BusyMaxTooltipStyle.border,
-      borderRadius: BusyMaxRadius.tooltip,
-      fontSize: theme.tooltipTheme.textStyle?.fontSize ?? 14,
-      horizontalPadding: BusyMaxSpacing.tooltipHorizontal,
-      verticalPadding: BusyMaxSpacing.tooltipVertical,
-      minimumHeight: BusyMaxSizes.tooltipMinHeight,
-    ),
+    tooltipBackgroundColor: BusyMaxTooltipStyle.background,
+    tooltipForegroundColor: BusyMaxTooltipStyle.foreground,
+    tooltipBorderColor: BusyMaxTooltipStyle.border,
+    tooltipRadius: BusyMaxRadius.tooltip,
+    tooltipFontSize: theme.tooltipTheme.textStyle?.fontSize ?? 14,
+    tooltipHorizontalPadding: BusyMaxSpacing.tooltipHorizontal,
+    tooltipVerticalPadding: BusyMaxSpacing.tooltipVertical,
+    tooltipMinimumHeight: BusyMaxSizes.tooltipMinHeight,
   );
 }
 
@@ -110,8 +99,8 @@ class _BusyMaxAppState extends ConsumerState<LinuxBusyMaxApp> {
   StreamSubscription<DesktopActivation>? _externalOpenSubscription;
   StreamSubscription<DesktopNavigationRequest>? _navigationSubscription;
   Future<void> _externalOpenTail = Future<void>.value();
-  late final BusyMaxHeaderBarConfigurationSynchronizer
-  _headerBarConfigurationSynchronizer;
+  BusyMaxNativeSurfaceTheme? _nativeSurfaceTheme;
+  var _nativeSurfaceThemeRevision = 0;
 
   @override
   void initState() {
@@ -119,10 +108,6 @@ class _BusyMaxAppState extends ConsumerState<LinuxBusyMaxApp> {
     _firstWeekdayController = BusyMaxSystemFirstWeekdayController(
       const LinuxFirstWeekdaySource(),
     )..addListener(_weekPreferenceChanged);
-    _headerBarConfigurationSynchronizer =
-        BusyMaxHeaderBarConfigurationSynchronizer(
-          ref.read(linuxHeaderBarServiceProvider),
-        );
     _externalOpenSubscription = ref
         .read(desktopActivationServiceProvider)
         .activations
@@ -149,7 +134,7 @@ class _BusyMaxAppState extends ConsumerState<LinuxBusyMaxApp> {
     _firstWeekdayController
       ..removeListener(_weekPreferenceChanged)
       ..dispose();
-    _headerBarConfigurationSynchronizer.dispose();
+    _nativeSurfaceThemeRevision += 1;
     unawaited(_externalOpenSubscription?.cancel());
     unawaited(_navigationSubscription?.cancel());
     final tray = _trayService;
@@ -351,67 +336,66 @@ class _BusyMaxAppState extends ConsumerState<LinuxBusyMaxApp> {
               ),
             );
             _trayPresentationFormatter = trayFormatter;
-            _configureNativeHeaderBarTheme(context);
+            _configureNativeSurfaceTheme(context);
             _configureBackgroundServices(ref, settings, trayFormatter);
-            return Shortcuts(
-              shortcuts: const {
-                BusyMaxShortcutActivators.keyboardShortcuts:
-                    _KeyboardShortcutsIntent(),
-                BusyMaxShortcutActivators.settings: _OpenSettingsIntent(),
-              },
-              child: Actions(
-                actions: {
-                  _KeyboardShortcutsIntent:
-                      CallbackAction<_KeyboardShortcutsIntent>(
-                        onInvoke: (intent) {
-                          final navigatorContext =
-                              rootNavigatorKey.currentContext;
-                          if (navigatorContext != null) {
-                            unawaited(
-                              showBusyMaxKeyboardShortcutsDialog(
-                                navigatorContext,
-                                headerBarService: ref.read(
-                                  linuxHeaderBarServiceProvider,
-                                ),
-                              ),
-                            );
-                          }
-                          return null;
-                        },
-                      ),
-                  _OpenSettingsIntent: CallbackAction<_OpenSettingsIntent>(
-                    onInvoke: (intent) {
-                      if (router.state.uri.path != '/settings') {
-                        unawaited(router.push<void>('/settings'));
-                      }
-                      return null;
-                    },
-                  ),
+            return LinuxWindowHost(
+              child: Shortcuts(
+                shortcuts: const {
+                  BusyMaxShortcutActivators.keyboardShortcuts:
+                      _KeyboardShortcutsIntent(),
+                  BusyMaxShortcutActivators.settings: _OpenSettingsIntent(),
                 },
-                child: ColoredBox(
-                  color: BusyMaxSurfaceColors.of(context).window,
-                  child: BusyMaxTimeFormatScope(
-                    formatter: clock,
-                    child: BusyMaxWeekPreferencesScope(
-                      preference: settings.firstDayOfWeekPreference,
-                      systemWeekday: _firstWeekdayController.value,
-                      platformLocaleTag: WidgetsBinding
-                          .instance
-                          .platformDispatcher
-                          .locale
-                          .toLanguageTag(),
-                      child: BusyMaxWeekPreferencesStartupGate(
+                child: Actions(
+                  actions: {
+                    _KeyboardShortcutsIntent:
+                        CallbackAction<_KeyboardShortcutsIntent>(
+                          onInvoke: (intent) {
+                            final navigatorContext =
+                                rootNavigatorKey.currentContext;
+                            if (navigatorContext != null) {
+                              unawaited(
+                                showBusyMaxKeyboardShortcutsDialog(
+                                  navigatorContext,
+                                ),
+                              );
+                            }
+                            return null;
+                          },
+                        ),
+                    _OpenSettingsIntent: CallbackAction<_OpenSettingsIntent>(
+                      onInvoke: (intent) {
+                        if (router.state.uri.path != '/settings') {
+                          unawaited(router.push<void>('/settings'));
+                        }
+                        return null;
+                      },
+                    ),
+                  },
+                  child: ColoredBox(
+                    color: BusyMaxSurfaceColors.of(context).window,
+                    child: BusyMaxTimeFormatScope(
+                      formatter: clock,
+                      child: BusyMaxWeekPreferencesScope(
                         preference: settings.firstDayOfWeekPreference,
-                        systemValueInitialized:
-                            _firstWeekdayController.isInitialized,
-                        child: MediaQuery(
-                          data: MediaQuery.of(context).copyWith(
-                            alwaysUse24HourFormat: clock.use24Hour,
-                            disableAnimations:
-                                MediaQuery.disableAnimationsOf(context) ||
-                                !gtkAnimationsEnabled,
+                        systemWeekday: _firstWeekdayController.value,
+                        platformLocaleTag: WidgetsBinding
+                            .instance
+                            .platformDispatcher
+                            .locale
+                            .toLanguageTag(),
+                        child: BusyMaxWeekPreferencesStartupGate(
+                          preference: settings.firstDayOfWeekPreference,
+                          systemValueInitialized:
+                              _firstWeekdayController.isInitialized,
+                          child: MediaQuery(
+                            data: MediaQuery.of(context).copyWith(
+                              alwaysUse24HourFormat: clock.use24Hour,
+                              disableAnimations:
+                                  MediaQuery.disableAnimationsOf(context) ||
+                                  !gtkAnimationsEnabled,
+                            ),
+                            child: child ?? const SizedBox.shrink(),
                           ),
-                          child: child ?? const SizedBox.shrink(),
                         ),
                       ),
                     ),
@@ -426,59 +410,19 @@ class _BusyMaxAppState extends ConsumerState<LinuxBusyMaxApp> {
     );
   }
 
-  void _configureNativeHeaderBarTheme(BuildContext context) {
-    final l10n = AppLocalizations.of(context);
-    final materialL10n = MaterialLocalizations.of(context);
+  void _configureNativeSurfaceTheme(BuildContext context) {
     final theme = Theme.of(context);
-    final labels = BusyMaxHeaderBarLabels(
-      today: l10n.today,
-      day: l10n.viewDay,
-      week: l10n.viewWeek,
-      month: l10n.viewMonth,
-      year: l10n.viewYear,
-      agenda: l10n.viewAgenda,
-      search: materialL10n.searchFieldLabel,
-      create: l10n.create,
-      createEvent: l10n.createEventAtTime,
-      createTask: l10n.createTaskAtDate,
-      refresh: l10n.refreshAll,
-      menu: l10n.mainMenu,
-      previous: materialL10n.previousPageTooltip,
-      next: materialL10n.nextPageTooltip,
-      showSidebarPanel: l10n.showSidebar,
-      hideSidebarPanel: l10n.hideSidebar,
-      back: materialL10n.backButtonTooltip,
-      backShortcut: BusyMaxShortcutLabels.back,
-      settings: l10n.settings,
-      keyboardShortcuts: l10n.keyboardShortcuts,
-      reportIssue: l10n.reportAnIssue,
-      aboutBusyMax: l10n.aboutBusyMax,
-      todayShortcut: BusyMaxShortcutLabels.today,
-      dayShortcut: BusyMaxShortcutLabels.dayView,
-      weekShortcut: BusyMaxShortcutLabels.weekView,
-      monthShortcut: BusyMaxShortcutLabels.monthView,
-      yearShortcut: BusyMaxShortcutLabels.yearView,
-      agendaShortcut: BusyMaxShortcutLabels.agendaView,
-      searchShortcut: BusyMaxShortcutLabels.search,
-      sidebarShortcut: BusyMaxShortcutLabels.sidebar,
-      createEventShortcut: BusyMaxShortcutLabels.newEvent,
-      createTaskShortcut: BusyMaxShortcutLabels.newTask,
-      previousShortcut: BusyMaxShortcutLabels.previousPeriod,
-      nextShortcut: BusyMaxShortcutLabels.nextPeriod,
-      settingsShortcut: BusyMaxShortcutLabels.settings,
-      keyboardShortcutsShortcut: BusyMaxShortcutLabels.keyboardShortcuts,
+    final value = busyMaxNativeSurfaceThemeFor(
+      theme,
+      highContrast: MediaQuery.highContrastOf(context),
     );
-    _headerBarConfigurationSynchronizer.schedule(
-      BusyMaxHeaderBarConfiguration(
-        labels: labels,
-        sidebarWidth: BusyMaxSizes.sidebarWidth,
-        textDirection: Directionality.of(context),
-        theme: busyMaxHeaderBarThemeFor(
-          theme,
-          highContrast: MediaQuery.highContrastOf(context),
-        ),
-      ),
-    );
+    if (_nativeSurfaceTheme == value) return;
+    _nativeSurfaceTheme = value;
+    final revision = ++_nativeSurfaceThemeRevision;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || revision != _nativeSurfaceThemeRevision) return;
+      unawaited(const NativeSurfaceStyleService().setTheme(value));
+    });
   }
 
   void _configureBackgroundServices(

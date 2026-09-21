@@ -4,7 +4,6 @@ import 'package:yaru/yaru.dart';
 import '../../../app/busymax_design.dart';
 import '../../../app/busymax_dialogs.dart';
 import '../../../l10n/l10n.dart';
-import '../../../platform/linux_header_bar_service.dart';
 
 @immutable
 class AccountRemovalOptions {
@@ -17,11 +16,9 @@ Future<AccountRemovalOptions?> showBusyMaxAccountRemovalDialog(
   BuildContext context, {
   required String accountLabel,
   required bool canRevokeGoogleAuthorization,
-  LinuxHeaderBarService? headerBarService,
 }) {
   return showBusyMaxModalDialog<AccountRemovalOptions>(
     context,
-    headerBarService: headerBarService,
     barrierDismissible: false,
     builder: (dialogContext) => _AccountRemovalDialog(
       accountLabel: accountLabel,

@@ -1106,5 +1106,8 @@
   "searchClearFilters": "Filter zurücksetzen",
   "searchFiltersAction": "Suchfilter öffnen",
   "searchNoSources": "Keine Suchquellen ausgewählt",
-  "searchClearText": "Text löschen"
+  "searchClearText": "Text löschen",
+  "windowMinimize": "Minimieren",
+  "windowMaximize": "Maximieren",
+  "windowRestore": "Wiederherstellen"
 }

@@ -1043,5 +1043,8 @@
   "searchClearFilters": "Repor filtros",
   "searchFiltersAction": "Filtros",
   "searchNoSources": "Nenhuma origem de pesquisa selecionada",
-  "searchClearText": "Limpar texto"
+  "searchClearText": "Limpar texto",
+  "windowMinimize": "Minimizar",
+  "windowMaximize": "Maximizar",
+  "windowRestore": "Restaurar"
 }

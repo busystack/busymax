@@ -1043,5 +1043,8 @@
   "searchClearFilters": "Nollaa suodattimet",
   "searchFiltersAction": "Suodattimet",
   "searchNoSources": "Hakulähteitä ei ole valittu",
-  "searchClearText": "Tyhjennä teksti"
+  "searchClearText": "Tyhjennä teksti",
+  "windowMinimize": "Pienennä",
+  "windowMaximize": "Suurenna",
+  "windowRestore": "Palauta"
 }

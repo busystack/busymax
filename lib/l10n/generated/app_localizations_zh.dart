@@ -424,6 +424,15 @@ class AppLocalizationsZh extends AppLocalizations {
   String get close => '关闭';
 
   @override
+  String get windowMinimize => '最小化';
+
+  @override
+  String get windowMaximize => '最大化';
+
+  @override
+  String get windowRestore => '还原';
+
+  @override
   String get exit => '退出';
 
   @override
@@ -3299,6 +3308,15 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
   String get close => '关闭';
 
   @override
+  String get windowMinimize => '最小化';
+
+  @override
+  String get windowMaximize => '最大化';
+
+  @override
+  String get windowRestore => '还原';
+
+  @override
   String get exit => '退出';
 
   @override
@@ -6172,6 +6190,15 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get close => '關閉';
+
+  @override
+  String get windowMinimize => '最小化';
+
+  @override
+  String get windowMaximize => '最大化';
+
+  @override
+  String get windowRestore => '還原';
 
   @override
   String get exit => '結束';

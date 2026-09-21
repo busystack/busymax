@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:system_theme/system_theme.dart';
+import 'package:yaru/yaru.dart';
 
 import 'src/app/app_bootstrap.dart';
 import 'src/app/app_theme.dart';
@@ -21,16 +22,18 @@ import 'src/platform/common/desktop_services.dart';
 import 'src/platform/external_calendar_open_service.dart';
 import 'src/platform/gtk_font_service.dart';
 import 'src/platform/gtk_animation_settings_service.dart';
+import 'src/platform/gtk_window_preferences_service.dart';
 import 'src/platform/linux/linux_notification_backend.dart';
 import 'src/platform/linux/linux_network_connectivity_monitor.dart';
 import 'src/platform/linux/linux_secret_storage_presentation.dart';
 import 'src/platform/linux_autostart_service.dart';
-import 'src/platform/linux_header_bar_service.dart';
 import 'src/platform/linux_window_service.dart';
+import 'src/platform/native_style.dart';
 
 Future<void> main(List<String> arguments) async {
   final binding = WidgetsFlutterBinding.ensureInitialized();
   binding.deferFirstFrame();
+  await YaruWindowTitleBar.ensureInitialized();
   final buildConfig = BuildConfig.fromEnvironment();
   final LocalSettingsStore settingsStore;
   if (buildConfig.useFakeProviderData) {
@@ -52,6 +55,8 @@ Future<void> main(List<String> arguments) async {
   final initialGtkFontFuture = const GtkFontService().getGtkFont();
   final initialGtkAnimationsFuture = const GtkAnimationSettingsService()
       .getAnimationsEnabled();
+  final initialGtkWindowPreferencesFuture = const GtkWindowPreferencesService()
+      .load();
   final initialAppSettingsFuture = loadInitialAppSettings(settingsStore);
   final initialAppSettings = await initialAppSettingsFuture;
   final gtkThemeService = const GtkThemeService();
@@ -67,13 +72,16 @@ Future<void> main(List<String> arguments) async {
     initialGtkFontFuture,
     gtkThemeService.getGtkThemeColors(),
     initialGtkAnimationsFuture,
+    initialGtkWindowPreferencesFuture,
   ]);
   configureLogging();
 
   final initialGtkFont = desktopSettings[1] as GtkFontSettings?;
   final initialGtkThemeColors = desktopSettings[2] as GtkThemeColors?;
   final initialGtkAnimationsEnabled = desktopSettings[3] as bool?;
-  await _applyInitialNativeHeaderBarTheme(
+  final initialGtkWindowPreferences =
+      desktopSettings[4] as GtkWindowPreferences?;
+  await _applyInitialNativeSurfaceTheme(
     settings: initialAppSettings,
     gtkFont: initialGtkFont,
     gtkThemeColors: initialGtkThemeColors,
@@ -87,6 +95,9 @@ Future<void> main(List<String> arguments) async {
     initialGtkThemeColorsProvider.overrideWithValue(initialGtkThemeColors),
     initialGtkAnimationsEnabledProvider.overrideWithValue(
       initialGtkAnimationsEnabled,
+    ),
+    initialGtkWindowPreferencesProvider.overrideWithValue(
+      initialGtkWindowPreferences,
     ),
     networkConnectivityMonitorProvider.overrideWith((ref) {
       final monitor = createLinuxNetworkConnectivityMonitor();
@@ -140,7 +151,7 @@ Future<void> main(List<String> arguments) async {
   binding.allowFirstFrame();
 }
 
-Future<void> _applyInitialNativeHeaderBarTheme({
+Future<void> _applyInitialNativeSurfaceTheme({
   required AppSettings settings,
   required GtkFontSettings? gtkFont,
   required GtkThemeColors? gtkThemeColors,
@@ -161,13 +172,7 @@ Future<void> _applyInitialNativeHeaderBarTheme({
     gtkThemeColors: gtkThemeColors,
     highContrast: highContrast,
   );
-  final headerBarService = LinuxHeaderBarService();
-  try {
-    await headerBarService.initialize();
-    await headerBarService.setTheme(
-      busyMaxHeaderBarThemeFor(theme, highContrast: highContrast),
-    );
-  } finally {
-    headerBarService.dispose();
-  }
+  await const NativeSurfaceStyleService().setTheme(
+    busyMaxNativeSurfaceThemeFor(theme, highContrast: highContrast),
+  );
 }

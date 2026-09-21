@@ -26,8 +26,6 @@ import 'package:busymax/src/features/calendar/data/calendar_repository.dart';
 import 'package:busymax/src/features/settings/presentation/settings_screen.dart';
 import 'package:busymax/src/features/sync/sync_auth_error.dart';
 import 'package:busymax/src/platform/gtk_font_service.dart';
-import 'package:busymax/src/platform/linux_header_bar_service.dart';
-import 'package:busymax/src/platform/linux_header_bar_provider.dart';
 import 'package:busymax/src/platform/native_menu_service.dart';
 import 'package:busymax/src/features/tasks/presentation/desktop_date_time_fields.dart';
 import 'package:busymax/src/providers/busy_provider.dart';
@@ -462,14 +460,13 @@ void main() {
     await tester.pump(const Duration(milliseconds: 1));
   });
 
-  testWidgets('Settings fallback header uses the semantic title style', (
+  testWidgets('Settings Flutter header uses the semantic title style', (
     tester,
   ) async {
     final container = _container(
       selectedAccountId: 'google:g',
       authRepository: _FakeAuthRepository(),
       accounts: const [_googleAccount],
-      useFlutterHeader: true,
     );
     addTearDown(container.dispose);
 
@@ -650,11 +647,6 @@ void main() {
       ProviderScope(
         overrides: [
           webCalSubscriptionServiceProvider.overrideWithValue(service),
-          linuxHeaderBarServiceProvider.overrideWith((ref) {
-            final header = LinuxHeaderBarService(isLinux: false);
-            ref.onDispose(header.dispose);
-            return header;
-          }),
         ],
         child: localizedTestApp(
           theme: BusyMaxYaruTheme.build(
@@ -721,8 +713,8 @@ void main() {
     await tester.enterText(fields.at(2), '#336699');
     await tester.pump();
     await tester.tap(find.byKey(const ValueKey('confirm-add-subscription')));
-    await tester.runAsync(() => flow);
-    await tester.pump();
+    await tester.pumpAndSettle();
+    await flow;
 
     expect(transport.requests, [
       Uri.parse('https://calendar.example.test/feed'),
@@ -754,9 +746,6 @@ void main() {
       ProviderScope(
         overrides: [
           webCalSubscriptionServiceProvider.overrideWithValue(service),
-          linuxHeaderBarServiceProvider.overrideWithValue(
-            LinuxHeaderBarService(isLinux: false),
-          ),
         ],
         child: localizedTestApp(
           child: Consumer(
@@ -890,7 +879,9 @@ void main() {
     await _pumpSettings(tester, container);
     await _openAccountRemovalDialog(tester);
     await tester.tap(find.byKey(const Key('confirm-account-removal')));
-    await tester.pump();
+    // Account mutation starts only after the dialog route has completed its
+    // exit transition and released its modal protection.
+    await tester.pumpAndSettle();
 
     expect(auth.removalCalls, hasLength(1));
     expect(find.text('Removing account…'), findsOneWidget);
@@ -1165,7 +1156,7 @@ void main() {
     await tester.tap(systemNavigation);
     await tester.pumpAndSettle();
 
-    expect(find.text('Система'), findsNWidgets(2));
+    expect(find.text('Система'), findsNWidgets(3));
     expect(find.text('Системная'), findsWidgets);
   }, skip: !Platform.isLinux);
 
@@ -1344,7 +1335,7 @@ void main() {
     await _pumpSettings(tester, container, logicalSize: const Size(640, 700));
 
     expect(find.text('Accounts'), findsWidgets);
-    expect(find.text('Schedule'), findsNothing);
+    expect(find.text('Schedule'), findsOneWidget);
 
     await tester.tap(find.byKey(const ValueKey('settings-page-selector')));
     await tester.pumpAndSettle();
@@ -1524,9 +1515,7 @@ void main() {
 
     await _pumpRoutedSettings(tester, container);
 
-    await container
-        .read(linuxHeaderBarServiceProvider)
-        .handleNativeMethodCall(const MethodCall('back'));
+    await tester.tap(find.byTooltip('Back'));
     await tester.pumpAndSettle();
 
     expect(find.text('schedule route'), findsOneWidget);
@@ -1570,9 +1559,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(router.state.uri.queryParameters['page'], 'notifications');
 
-    await container
-        .read(linuxHeaderBarServiceProvider)
-        .handleNativeMethodCall(const MethodCall('back'));
+    await tester.tap(find.byTooltip('Back'));
     await tester.pumpAndSettle();
 
     expect(find.text('tasks route'), findsOneWidget);
@@ -1656,7 +1643,6 @@ ProviderContainer _container({
   required List<AccountEntity> accounts,
   BuildConfig buildConfig = _emptyBuildConfig,
   String? activeAccountIdOverride = _useDefaultActiveAccountId,
-  bool useFlutterHeader = false,
   DavAccountOnboardingService? davOnboardingService,
   List<DavCollectionSettingsEntity> davCollections = const [],
   List<CalendarSourceEntity> calendarSources = const [],
@@ -1694,12 +1680,6 @@ ProviderContainer _container({
         settingsStore ?? _MemorySettingsStore(),
       ),
       buildConfigProvider.overrideWithValue(buildConfig),
-      if (useFlutterHeader)
-        linuxHeaderBarServiceProvider.overrideWith((ref) {
-          final service = LinuxHeaderBarService(isLinux: false);
-          ref.onDispose(service.dispose);
-          return service;
-        }),
     ],
   );
 }

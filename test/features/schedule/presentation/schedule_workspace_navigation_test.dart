@@ -10,8 +10,6 @@ import 'package:busymax/src/features/schedule/presentation/schedule_month_view.d
 import 'package:busymax/src/features/schedule/presentation/schedule_workspace.dart';
 import 'package:busymax/src/features/task_lists/data/task_lists_repository.dart';
 import 'package:busymax/src/features/tasks/data/tasks_repository.dart';
-import 'package:busymax/src/platform/linux_header_bar_service.dart';
-import 'package:busymax/src/platform/linux_header_bar_provider.dart';
 import 'package:busymax/src/providers/busy_provider.dart';
 import 'package:busymax/src/schedule/schedule_scope.dart';
 import 'package:drift/drift.dart';
@@ -56,8 +54,7 @@ void main() {
 
         await tester.pumpWidget(const SizedBox.shrink());
         await tester.pump(const Duration(milliseconds: 1));
-        harness.headerBar.dispose();
-        await harness.database.close();
+        await harness.close();
       }
     },
   );
@@ -90,8 +87,7 @@ void main() {
         expect(view.selectedDate.hour, 0);
         await tester.pumpWidget(const SizedBox.shrink());
         await tester.pump(const Duration(milliseconds: 1));
-        harness.headerBar.dispose();
-        await harness.database.close();
+        await harness.close();
       }
     },
   );
@@ -147,8 +143,7 @@ void main() {
             expect(view.selectedDate.hour, 0);
             await tester.pumpWidget(const SizedBox.shrink());
             await tester.pump(const Duration(milliseconds: 1));
-            harness.headerBar.dispose();
-            await harness.database.close();
+            await harness.close();
           },
         );
       }
@@ -165,8 +160,7 @@ Future<void> _navigate(WidgetTester tester, {required bool next}) async {
   await tester.pump();
 }
 
-Future<({AppDatabase database, LinuxHeaderBarService headerBar})>
-_pumpWorkspace(
+Future<AppDatabase> _pumpWorkspace(
   WidgetTester tester,
   DateTime initialDate, {
   bool includeSeptemberBirthday = false,
@@ -226,7 +220,6 @@ _pumpWorkspace(
     providerAccountId: 'account',
     authState: accountAuthStateSignedIn,
   );
-  final headerBar = LinuxHeaderBarService(isLinux: false);
   await tester.pumpWidget(
     ProviderScope(
       overrides: [
@@ -235,7 +228,6 @@ _pumpWorkspace(
         activeAccountProvider.overrideWithValue('account'),
         localTimeZoneProvider.overrideWithValue('America/Vancouver'),
         localSettingsStoreProvider.overrideWithValue(_MemorySettingsStore()),
-        linuxHeaderBarServiceProvider.overrideWithValue(headerBar),
         taskListsRepositoryForAccountProvider.overrideWith(
           (ref, id) => TaskListsRepository(database: database, accountId: id),
         ),
@@ -252,7 +244,7 @@ _pumpWorkspace(
     ),
   );
   await tester.pumpAndSettle();
-  return (database: database, headerBar: headerBar);
+  return database;
 }
 
 class _MemorySettingsStore implements LocalSettingsStore {

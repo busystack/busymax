@@ -4,7 +4,6 @@ import '../../../app/busymax_design.dart';
 import '../../../app/busymax_dialogs.dart';
 import '../../../calendar_providers/calendar_mutation.dart';
 import '../../../l10n/l10n.dart';
-import '../../../platform/linux_header_bar_service.dart';
 import '../../../providers/busy_provider.dart';
 
 enum CalendarGuestDeliveryAction { save, delete }
@@ -13,7 +12,6 @@ Future<CalendarGuestUpdatePolicy?> showCalendarGuestDeliveryDialog(
   BuildContext context, {
   required BusyProvider provider,
   required CalendarGuestDeliveryAction action,
-  LinuxHeaderBarService? headerBarService,
 }) async {
   if (provider == BusyProvider.nextcloud) {
     final saving = action == CalendarGuestDeliveryAction.save;
@@ -23,7 +21,6 @@ Future<CalendarGuestUpdatePolicy?> showCalendarGuestDeliveryDialog(
       message: context.l10n.nextcloudSchedulingPending,
       confirmLabel: saving ? context.l10n.save : context.l10n.sendCancellation,
       destructive: !saving,
-      headerBarService: headerBarService,
     );
     return confirmed ? CalendarGuestUpdatePolicy.send : null;
   }
@@ -39,7 +36,6 @@ Future<CalendarGuestUpdatePolicy?> showCalendarGuestDeliveryDialog(
           : context.l10n.microsoftNotifyGuestsDeleteMessage,
       confirmLabel: saving ? context.l10n.save : context.l10n.delete,
       destructive: !saving,
-      headerBarService: headerBarService,
     );
     return confirmed ? CalendarGuestUpdatePolicy.send : null;
   }
@@ -48,7 +44,6 @@ Future<CalendarGuestUpdatePolicy?> showCalendarGuestDeliveryDialog(
   }
   return showBusyMaxModalDialog<CalendarGuestUpdatePolicy>(
     context,
-    headerBarService: headerBarService,
     barrierDismissible: false,
     builder: (dialogContext) => _GoogleGuestDeliveryDialog(action: action),
   );

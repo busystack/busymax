@@ -17,7 +17,6 @@ import '../../../calendar_providers/calendar_colors.dart';
 import '../../../calendar_providers/calendar_provider_capabilities.dart';
 import '../../../dav/dav_errors.dart';
 import '../../../l10n/l10n.dart';
-import '../../../platform/linux_header_bar_provider.dart';
 import '../../../schedule/schedule_item.dart';
 import '../../../schedule/schedule_projection.dart';
 import '../../../schedule/schedule_sidebar_order.dart';
@@ -1463,7 +1462,6 @@ Future<void> _createAccountCalendar(
     title: context.l10n.newCalendar,
     label: context.l10n.title,
     actionLabel: context.l10n.create,
-    headerBarService: ref.read(linuxHeaderBarServiceProvider),
   );
   if (!context.mounted || title == null || title.trim().isEmpty) return;
   try {
@@ -1502,7 +1500,6 @@ Future<void> _createAccountTaskList(
     title: context.l10n.newTaskList,
     label: context.l10n.title,
     actionLabel: context.l10n.create,
-    headerBarService: ref.read(linuxHeaderBarServiceProvider),
   );
   if (!context.mounted || title == null || title.trim().isEmpty) return;
   try {
@@ -1569,7 +1566,6 @@ Future<void> _changeCalendarColor(
     provider: source.provider,
     currentBackgroundColor: source.backgroundColor,
     currentColorId: source.colorId,
-    headerBarService: ref.read(linuxHeaderBarServiceProvider),
   );
   if (!context.mounted || choice == null) return;
   try {
@@ -1614,7 +1610,6 @@ Future<void> _renameCalendar(
         ? context.l10n.setAction
         : context.l10n.rename,
     initialValue: source.summary,
-    headerBarService: ref.read(linuxHeaderBarServiceProvider),
   );
   if (!context.mounted ||
       title == null ||
@@ -1673,7 +1668,6 @@ Future<void> _deleteCalendar(
         ? context.l10n.removeAction
         : context.l10n.delete,
     destructive: true,
-    headerBarService: ref.read(linuxHeaderBarServiceProvider),
   );
   if (!confirmed) {
     return;
@@ -1728,7 +1722,6 @@ Future<void> _renameTaskList(
     label: context.l10n.title,
     actionLabel: context.l10n.rename,
     initialValue: list.title,
-    headerBarService: ref.read(linuxHeaderBarServiceProvider),
   );
   if (!context.mounted ||
       title == null ||
@@ -1779,7 +1772,6 @@ Future<void> _deleteTaskList(
         ? context.l10n.unshare
         : context.l10n.delete,
     destructive: true,
-    headerBarService: ref.read(linuxHeaderBarServiceProvider),
   );
   if (!confirmed) {
     return;
@@ -1848,7 +1840,6 @@ Future<void> _renameSubscriptionSource(
     label: context.l10n.subscriptionName,
     actionLabel: context.l10n.rename,
     initialValue: source.summary,
-    headerBarService: ref.read(linuxHeaderBarServiceProvider),
   );
   if (name == null || !context.mounted) return;
   try {
@@ -1874,7 +1865,6 @@ Future<void> _colorSubscriptionSource(
     actionLabel: context.l10n.save,
     initialValue: source.backgroundColor,
     message: context.l10n.subscriptionColorHelp,
-    headerBarService: ref.read(linuxHeaderBarServiceProvider),
   );
   if (color == null || !context.mounted) return;
   try {
@@ -1899,7 +1889,6 @@ Future<void> _unsubscribeSource(
     message: context.l10n.unsubscribeCalendarConfirmation,
     confirmLabel: context.l10n.unsubscribe,
     destructive: true,
-    headerBarService: ref.read(linuxHeaderBarServiceProvider),
   );
   if (!confirmed || !context.mounted) return;
   try {

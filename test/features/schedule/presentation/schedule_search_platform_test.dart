@@ -16,8 +16,6 @@ import 'package:busymax/src/features/schedule/presentation/schedule_workspace.da
 import 'package:busymax/src/features/task_lists/data/task_lists_repository.dart';
 import 'package:busymax/src/features/tasks/data/tasks_repository.dart';
 import 'package:busymax/src/l10n/week_preferences_scope.dart';
-import 'package:busymax/src/platform/linux_header_bar_provider.dart';
-import 'package:busymax/src/platform/linux_header_bar_service.dart';
 import 'package:busymax/src/providers/busy_provider.dart';
 import 'package:busymax/src/schedule/schedule_filters.dart';
 import 'package:busymax/src/schedule/schedule_repository.dart';
@@ -796,7 +794,6 @@ Future<({AppDatabase db, ProviderContainer container})> _mount(
       ),
     );
   }
-  final header = LinuxHeaderBarService(isLinux: false);
   final container = ProviderContainer(
     overrides: [
       networkAvailabilityProvider.overrideWith(
@@ -804,7 +801,6 @@ Future<({AppDatabase db, ProviderContainer container})> _mount(
       ),
       databaseProvider.overrideWithValue(db),
       localTimeZoneProvider.overrideWithValue('UTC'),
-      linuxHeaderBarServiceProvider.overrideWithValue(header),
       localSettingsStoreProvider.overrideWithValue(MemorySettingsStore()),
       initialAppSettingsProvider.overrideWithValue(
         AppSettings.defaults().copyWith(
@@ -833,7 +829,6 @@ Future<({AppDatabase db, ProviderContainer container})> _mount(
   addTearDown(() async {
     await tester.pumpWidget(const SizedBox.shrink());
     container.dispose();
-    header.dispose();
     await db.close();
   });
   final platformApp = platform == 'windows'

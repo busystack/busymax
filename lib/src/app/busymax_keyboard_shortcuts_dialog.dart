@@ -2,19 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:yaru/yaru.dart';
 
 import '../l10n/l10n.dart';
-import '../platform/linux_header_bar_service.dart';
 import 'busymax_design.dart';
 import 'busymax_dialog_identity.dart';
 import 'busymax_dialogs.dart';
 import 'busymax_shortcuts.dart';
 
-Future<void> showBusyMaxKeyboardShortcutsDialog(
-  BuildContext context, {
-  LinuxHeaderBarService? headerBarService,
-}) async {
+Future<void> showBusyMaxKeyboardShortcutsDialog(BuildContext context) async {
   await showBusyMaxModalDialog<void>(
     context,
-    headerBarService: headerBarService,
     builder: (context) => const BusyMaxKeyboardShortcutsDialog(),
   );
 }

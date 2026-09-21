@@ -116,6 +116,7 @@ Account, provider, and data information:
 Development and maintenance:
 
 - [Development setup for Linux and Windows](docs/development.md)
+- [Linux window and rendering architecture](docs/linux_architecture.md)
 - [Android release](docs/android_release.md), [verification](docs/android_verification.md),
   and [implementation status](docs/android_implementation_status.md)
 - [Google developer OAuth registration](docs/google_setup.md) and

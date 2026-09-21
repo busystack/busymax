@@ -449,6 +449,15 @@ class AppLocalizationsFa extends AppLocalizations {
   String get close => 'بستن';
 
   @override
+  String get windowMinimize => 'کوچک کردن';
+
+  @override
+  String get windowMaximize => 'بزرگ کردن';
+
+  @override
+  String get windowRestore => 'بازیابی';
+
+  @override
   String get exit => 'خروج';
 
   @override

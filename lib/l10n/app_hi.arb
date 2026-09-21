@@ -1043,5 +1043,8 @@
   "searchClearFilters": "फ़िल्टर रीसेट करें",
   "searchFiltersAction": "फ़िल्टर",
   "searchNoSources": "कोई खोज स्रोत नहीं चुना गया",
-  "searchClearText": "पाठ साफ़ करें"
+  "searchClearText": "पाठ साफ़ करें",
+  "windowMinimize": "छोटा करें",
+  "windowMaximize": "अधिकतम करें",
+  "windowRestore": "पुनर्स्थापित करें"
 }

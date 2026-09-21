@@ -1043,5 +1043,8 @@
   "searchClearFilters": "Сбросить фильтры",
   "searchFiltersAction": "Фильтры",
   "searchNoSources": "Источники поиска не выбраны",
-  "searchClearText": "Очистить текст"
+  "searchClearText": "Очистить текст",
+  "windowMinimize": "Свернуть",
+  "windowMaximize": "Развернуть",
+  "windowRestore": "Восстановить"
 }

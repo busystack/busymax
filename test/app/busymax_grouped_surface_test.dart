@@ -886,20 +886,34 @@ void main() {
 
     final sidebar = find.byKey(const ValueKey('startup-sidebar'));
     final content = find.byKey(const ValueKey('startup-content'));
+    final sidebarViewport = find.byKey(
+      const ValueKey('linux-sidebar-viewport'),
+    );
     final sidebarRect = tester.getRect(sidebar);
     final contentRect = tester.getRect(content);
     expect(sidebarRect.width, BusyMaxSizes.sidebarWidth);
     expect(sidebarRect.left, 0);
     expect(sidebarRect.right, contentRect.left);
-    expect(sidebarRect.height, 720);
+    expect(sidebarRect.top, BusyMaxSizes.toolbarHeight);
+    expect(sidebarRect.height, 720 - BusyMaxSizes.toolbarHeight);
+    expect(tester.getRect(sidebarViewport).height, 720);
     expect(find.byType(BusyMaxSidebarSurface), findsOneWidget);
     expect(find.byType(YaruCircularProgressIndicator), findsOneWidget);
 
     tester.view.physicalSize = const Size(600, 720);
     await tester.pump();
 
-    expect(sidebar, findsNothing);
-    expect(tester.getRect(content), const Rect.fromLTWH(0, 0, 600, 720));
+    expect(sidebar, findsOneWidget);
+    expect(tester.getRect(sidebarViewport).width, 0);
+    expect(
+      tester.getRect(content),
+      const Rect.fromLTWH(
+        0,
+        BusyMaxSizes.toolbarHeight,
+        600,
+        720 - BusyMaxSizes.toolbarHeight,
+      ),
+    );
     expect(tester.takeException(), isNull);
   });
 

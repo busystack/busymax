@@ -1043,5 +1043,8 @@
   "searchClearFilters": "Đặt lại bộ lọc",
   "searchFiltersAction": "Bộ lọc",
   "searchNoSources": "Chưa chọn nguồn tìm kiếm",
-  "searchClearText": "Xóa văn bản"
+  "searchClearText": "Xóa văn bản",
+  "windowMinimize": "Thu nhỏ",
+  "windowMaximize": "Phóng to",
+  "windowRestore": "Khôi phục"
 }

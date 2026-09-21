@@ -35,7 +35,7 @@ void main() {
 
     await tester.pumpAndSettle();
 
-    expect(find.text('Set Up BusyMax'), findsNothing);
+    expect(find.text('Set Up BusyMax'), findsOneWidget);
     expect(find.text('Connect accounts'), findsOneWidget);
     expect(find.text('Add Google account'), findsOneWidget);
     expect(find.text('Add Microsoft account'), findsOneWidget);

@@ -3,8 +3,6 @@ import 'dart:convert';
 import 'package:flutter/services.dart';
 import 'package:busymax/src/features/schedule/presentation/schedule_workspace.dart';
 import 'package:busymax/src/schedule/schedule_scope.dart';
-import 'package:busymax/src/platform/linux_header_bar_provider.dart';
-import 'package:busymax/src/platform/linux_header_bar_service.dart';
 import 'package:busymax/src/platform/common/desktop_services.dart';
 import 'package:flutter/material.dart' as material;
 import 'package:busymax/src/features/connectivity/network_connectivity_service.dart';
@@ -384,12 +382,9 @@ Future<ProviderContainer> _mount(
   tester.view.physicalSize = const Size(1280, 800);
   tester.view.devicePixelRatio = 1;
   addTearDown(tester.view.reset);
-  final headerBar = LinuxHeaderBarService(isLinux: false);
-  addTearDown(headerBar.dispose);
   final container = ProviderContainer(
     overrides: [
       databaseProvider.overrideWithValue(db),
-      linuxHeaderBarServiceProvider.overrideWithValue(headerBar),
       desktopWindowServiceProvider.overrideWithValue(
         const NoOpDesktopWindowService(),
       ),

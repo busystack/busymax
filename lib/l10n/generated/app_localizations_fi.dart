@@ -455,6 +455,15 @@ class AppLocalizationsFi extends AppLocalizations {
   String get close => 'Sulje';
 
   @override
+  String get windowMinimize => 'Pienennä';
+
+  @override
+  String get windowMaximize => 'Suurenna';
+
+  @override
+  String get windowRestore => 'Palauta';
+
+  @override
   String get exit => 'Lopeta';
 
   @override

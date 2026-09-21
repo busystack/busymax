@@ -460,6 +460,15 @@ class AppLocalizationsFr extends AppLocalizations {
   String get close => 'Fermer';
 
   @override
+  String get windowMinimize => 'Réduire';
+
+  @override
+  String get windowMaximize => 'Agrandir';
+
+  @override
+  String get windowRestore => 'Restaurer';
+
+  @override
   String get exit => 'Quitter';
 
   @override

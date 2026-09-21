@@ -44,6 +44,7 @@ abstract final class BusyMaxSizes {
   static const double compactDetailsWidth = 700;
   static const double comboWidth = 220;
   static const double toolbarHeight = kYaruTitleBarHeight;
+  static const double onboardingContentMaxWidth = 480;
   static const double sidebarRowHeight = 36;
   static const double taskRowMinHeight = 48;
   static const double iconSm = 16;
@@ -92,7 +93,7 @@ abstract final class BusyMaxAlpha {
 
 /// Cross-toolkit tooltip visuals.
 ///
-/// Flutter and the native GTK header bar render separate tooltip widgets.
+/// Flutter chrome and retained GTK surfaces render separate tooltip widgets.
 /// This contract keeps their surface geometry and palette identical while
 /// allowing both toolkits to retain native positioning and accessibility.
 abstract final class BusyMaxTooltipStyle {

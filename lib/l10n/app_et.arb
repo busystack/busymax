@@ -1221,5 +1221,8 @@
   "searchClearFilters": "Lähtesta filtrid",
   "searchFiltersAction": "Filtrid",
   "searchNoSources": "Otsinguallikaid pole valitud",
-  "searchClearText": "Tühjenda tekst"
+  "searchClearText": "Tühjenda tekst",
+  "windowMinimize": "Minimeeri",
+  "windowMaximize": "Maksimeeri",
+  "windowRestore": "Taasta"
 }

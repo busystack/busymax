@@ -6,7 +6,6 @@ import '../../../app/busymax_design.dart';
 import '../../../app/busymax_dialogs.dart';
 import '../../../l10n/l10n.dart';
 import '../../../l10n/localized_formatters.dart';
-import '../../../platform/linux_header_bar_service.dart';
 import '../../tasks/presentation/desktop_date_time_fields.dart';
 import '../domain/event_recurrence_codec.dart';
 import '../domain/recurrence_rule.dart';
@@ -22,12 +21,10 @@ Future<RecurrenceRule?> showRecurrenceEditorDialog(
   String? timeZone,
   RecurrenceRuleLimits limits = RecurrenceRuleLimits.rfc5545,
   Color? barrierColor,
-  LinuxHeaderBarService? headerBarService,
 }) {
   return showBusyMaxModalEditorDialog<RecurrenceRule>(
     context,
     barrierColor: barrierColor,
-    headerBarService: headerBarService,
     maxWidth: 620,
     maxHeight: 820,
     builder: (context) => RecurrenceEditorDialog(

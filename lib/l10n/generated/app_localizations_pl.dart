@@ -464,6 +464,15 @@ class AppLocalizationsPl extends AppLocalizations {
   String get close => 'Zamknij';
 
   @override
+  String get windowMinimize => 'Minimalizuj';
+
+  @override
+  String get windowMaximize => 'Maksymalizuj';
+
+  @override
+  String get windowRestore => 'Przywróć';
+
+  @override
   String get exit => 'Zakończ';
 
   @override

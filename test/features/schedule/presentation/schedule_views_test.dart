@@ -3586,55 +3586,56 @@ void main() {
     final source = File(
       'lib/src/features/schedule/presentation/schedule_workspace.dart',
     ).readAsStringSync();
-
     expect(source, contains('onToday: _goToToday'));
-    expect(source, contains('BusyMaxHeaderBarAction.today'));
+    expect(source, contains('BusyMaxHeaderAction.today'));
     expect(
       source,
       isNot(contains('onToday: () => _selectScope(ScheduleScope.today)')),
     );
   });
 
-  test('schedule workspace uses Flutter toolbar only as native fallback', () {
+  test('schedule workspace uses the canonical Flutter page header', () {
     final source = File(
       'lib/src/features/schedule/presentation/schedule_workspace.dart',
     ).readAsStringSync();
 
-    expect(source, contains('linuxHeaderBarServiceProvider'));
-    expect(source, contains('final showFallbackHeader'));
-    expect(source, contains('if (showFallbackHeader)'));
-    expect(source, contains('final headerBarState = BusyMaxHeaderBarState('));
-    expect(source, contains('.claimSession()'));
-    expect(source, contains('_headerBarSession.updateState(headerBarState)'));
-    expect(source, contains('onMenuSelected: _handleFallbackToolbarMenu'));
+    expect(source, contains('LinuxPageFrame('));
+    expect(source, contains('ScheduleToolbar('));
+    expect(source, contains('onMenuSelected: _handleToolbarMenu'));
+    expect(source, isNot(contains('linuxHeaderBarServiceProvider')));
+    expect(source, isNot(contains('showFallbackHeader')));
+    expect(source, isNot(contains('BusyMaxHeaderBarState')));
+    expect(source, isNot(contains('_headerBarSession')));
   });
 
-  test('native headerbar actions are wired to schedule commands', () {
+  test('Flutter header actions are wired directly to schedule commands', () {
     final source = File(
       'lib/src/features/schedule/presentation/schedule_workspace.dart',
     ).readAsStringSync();
-
-    expect(source, contains('BusyMaxHeaderBarAction.previous'));
-    expect(source, contains('BusyMaxHeaderBarAction.next'));
-    expect(source, contains('BusyMaxHeaderBarAction.viewModeDay'));
-    expect(source, contains('BusyMaxHeaderBarAction.viewModeWeek'));
-    expect(source, contains('BusyMaxHeaderBarAction.viewModeMonth'));
-    expect(source, contains('BusyMaxHeaderBarAction.viewModeYear'));
-    expect(source, contains('BusyMaxHeaderBarAction.viewModeAgenda'));
-    expect(source, isNot(contains('BusyMaxHeaderBarAction.viewModeCompact')));
-    expect(source, contains('BusyMaxHeaderBarAction.refresh'));
+    final toolbar = File(
+      'lib/src/features/schedule/presentation/schedule_toolbar.dart',
+    ).readAsStringSync();
+    expect(source, contains('BusyMaxHeaderAction.previous'));
+    expect(source, contains('BusyMaxHeaderAction.next'));
+    expect(source, contains('BusyMaxHeaderAction.viewModeDay'));
+    expect(source, contains('BusyMaxHeaderAction.viewModeWeek'));
+    expect(source, contains('BusyMaxHeaderAction.viewModeMonth'));
+    expect(source, contains('BusyMaxHeaderAction.viewModeYear'));
+    expect(source, contains('BusyMaxHeaderAction.viewModeAgenda'));
+    expect(source, isNot(contains('BusyMaxHeaderAction.viewModeCompact')));
+    expect(source, contains('BusyMaxHeaderAction.refresh'));
     expect(source, contains('allAccountsSyncRunnerProvider'));
     expect(source, contains('context.l10n.allTasksRefreshed'));
     expect(source, contains('setScheduleViewMode(mode)'));
     expect(source, contains('settings.scheduleViewMode'));
     expect(
-      source,
+      toolbar,
       contains('localizedScheduleHeading('),
-      reason: 'native header state shares the Flutter heading formatter',
+      reason: 'the Flutter header uses the shared heading formatter',
     );
     expect(source, contains('ScheduleEmptyState'));
-    expect(source, isNot(contains('BusyMaxHeaderBarAction.newItem')));
-    expect(source, isNot(contains('BusyMaxHeaderBarAction.openMenu')));
+    expect(source, isNot(contains('BusyMaxHeaderAction.newItem')));
+    expect(source, isNot(contains('BusyMaxHeaderAction.openMenu')));
   });
 
   test('schedule workspace wires navigation and view keyboard shortcuts', () {
@@ -3825,10 +3826,17 @@ void main() {
       'linux/runner/my_application.cc',
     ).readAsStringSync();
 
-    expect(nativeRunner, contains('header_sidebar_brand_box'));
-    expect(nativeRunner, contains('gtk_label_new(kApplicationDisplayName)'));
-    expect(nativeRunner, isNot(contains('busymax-sidebar-header')));
-    expect(nativeRunner, isNot(contains('GtkWidget* brand_box')));
+    final pageFrame = File(
+      'lib/src/app/linux/linux_page_frame.dart',
+    ).readAsStringSync();
+
+    expect(pageFrame, contains('class BusyMaxLinuxBrandHeader'));
+    expect(pageFrame, contains("'BusyMax'"));
+    expect(nativeRunner, isNot(contains('header_sidebar_brand_box')));
+    expect(
+      nativeRunner,
+      isNot(contains('gtk_label_new(kApplicationDisplayName)')),
+    );
     expect(sidebar, isNot(contains('title: account.provider.displayName')));
     expect(sidebar, isNot(contains('YaruIcons.globe')));
     expect(sidebar, isNot(contains('Icons.account_circle_outlined')));
@@ -4509,7 +4517,6 @@ void main() {
     final workspace = File(
       'lib/src/features/schedule/presentation/schedule_workspace.dart',
     ).readAsStringSync();
-
     expect(sidebar, contains('required this.firstWeekday'));
     expect(sidebar, contains('firstWeekday: firstWeekday'));
     expect(workspace, contains('firstWeekday: _firstWeekday(context)'));
@@ -4592,69 +4599,44 @@ void main() {
     expect(sidebar, isNot(contains('showIcsImportFlow')));
   });
 
-  test('schedule Create uses a native popover before refresh', () {
-    final workspace = File(
-      'lib/src/features/schedule/presentation/schedule_workspace.dart',
-    ).readAsStringSync();
-    final headerBar = File('linux/runner/my_application.cc').readAsStringSync();
-    final headerService = File(
-      'lib/src/platform/linux_header_bar_service.dart',
-    ).readAsStringSync();
-    final sidebar = File(
-      'lib/src/features/schedule/presentation/schedule_sidebar.dart',
-    ).readAsStringSync();
-    final toolbar = File(
-      'lib/src/features/schedule/presentation/schedule_toolbar.dart',
-    ).readAsStringSync();
+  test(
+    'schedule Create uses the shared Flutter header menu before refresh',
+    () {
+      final workspace = File(
+        'lib/src/features/schedule/presentation/schedule_workspace.dart',
+      ).readAsStringSync();
+      final nativeRunner = File(
+        'linux/runner/my_application.cc',
+      ).readAsStringSync();
+      final headerActions = File(
+        'lib/src/app/busymax_header_actions.dart',
+      ).readAsStringSync();
+      final sidebar = File(
+        'lib/src/features/schedule/presentation/schedule_sidebar.dart',
+      ).readAsStringSync();
+      final toolbar = File(
+        'lib/src/features/schedule/presentation/schedule_toolbar.dart',
+      ).readAsStringSync();
 
-    expect(workspace, isNot(contains('floatingActionButtonLocation')));
-    expect(workspace, isNot(contains('FloatingActionButton(')));
-    expect(workspace, contains('BusyMaxHeaderBarAction.createEvent'));
-    expect(workspace, contains('BusyMaxHeaderBarAction.createTask'));
-    expect(workspace, isNot(contains('void _openCreateAtSelectedDate()')));
-    expect(
-      headerService,
-      isNot(contains("'create' => BusyMaxHeaderBarAction.create")),
-    );
-    expect(
-      headerBar,
-      contains('gtk_image_new_from_icon_name("list-add-symbolic"'),
-    );
-    expect(
-      headerBar,
-      contains(
-        'append_header_action_item(menu, self->header_create_event_label,',
-      ),
-    );
-    expect(
-      headerBar,
-      contains(
-        'append_header_action_item(menu, self->header_create_task_label,',
-      ),
-    );
-    expect(headerBar, contains('gtk_menu_button_set_menu_model'));
-    expect(headerBar, contains('g_simple_action_set_enabled'));
-    expect(headerBar, contains('show_header_create_menu'));
-    expect(headerService, contains("'showCreateMenu'"));
-    expect(
-      headerBar.indexOf(
-        'gtk_box_pack_start(GTK_BOX(end_box), self->create_button',
-      ),
-      lessThan(
-        headerBar.indexOf(
-          'gtk_box_pack_start(GTK_BOX(end_box), self->refresh_button',
-        ),
-      ),
-    );
-    expect(sidebar, isNot(contains('title: context.l10n.create,')));
-    expect(sidebar, contains('title: context.l10n.newCalendar'));
-    expect(sidebar, contains('actionLabel: context.l10n.create'));
-    expect(sidebar, isNot(contains('PushButton.filled')));
-    expect(toolbar, isNot(contains('BusyMaxShortcutLabels.create')));
-    expect(toolbar, contains('tooltip: context.l10n.create'));
-    expect(toolbar, contains('icon: const Icon(YaruIcons.plus)'));
-    expect(toolbar, contains('tooltip: context.l10n.refreshAll'));
-  });
+      expect(workspace, isNot(contains('floatingActionButtonLocation')));
+      expect(workspace, isNot(contains('FloatingActionButton(')));
+      expect(workspace, contains('BusyMaxHeaderAction.createEvent'));
+      expect(workspace, contains('BusyMaxHeaderAction.createTask'));
+      expect(workspace, isNot(contains('void _openCreateAtSelectedDate()')));
+      expect(headerActions, contains('enum BusyMaxHeaderAction'));
+      expect(headerActions, isNot(contains('MethodChannel')));
+      expect(nativeRunner, isNot(contains('header_create_event_label')));
+      expect(nativeRunner, isNot(contains('show_header_create_menu')));
+      expect(sidebar, isNot(contains('title: context.l10n.create,')));
+      expect(sidebar, contains('title: context.l10n.newCalendar'));
+      expect(sidebar, contains('actionLabel: context.l10n.create'));
+      expect(sidebar, isNot(contains('PushButton.filled')));
+      expect(toolbar, isNot(contains('BusyMaxShortcutLabels.create')));
+      expect(toolbar, contains('tooltip: context.l10n.create'));
+      expect(toolbar, contains('icon: const Icon(YaruIcons.plus)'));
+      expect(toolbar, contains('tooltip: context.l10n.refreshAll'));
+    },
+  );
 
   test('day and week today tint stays subtle', () {
     final source = File(
@@ -4850,15 +4832,12 @@ void main() {
     expect(source, contains('.setScheduleViewMode(ScheduleViewMode.day)'));
   });
 
-  test('agenda removes page controls from toolbar and native headerbar', () {
+  test('agenda removes page controls from the Flutter header', () {
     final workspace = File(
       'lib/src/features/schedule/presentation/schedule_workspace.dart',
     ).readAsStringSync();
     final toolbar = File(
       'lib/src/features/schedule/presentation/schedule_toolbar.dart',
-    ).readAsStringSync();
-    final headerService = File(
-      'lib/src/platform/linux_header_bar_service.dart',
     ).readAsStringSync();
     final nativeRunner = File(
       'linux/runner/my_application.cc',
@@ -4870,22 +4849,11 @@ void main() {
     );
     expect(toolbar, contains('if (showPaging)'));
     expect(toolbar, contains('agendaLabel: context.l10n.viewAgenda'));
-    expect(
-      workspace,
-      contains(
-        'navigationVisible: !_searchActive && _mode != ScheduleViewMode.agenda',
-      ),
-    );
-    expect(
-      workspace,
-      contains('_headerBarSession.updateState(headerBarState)'),
-    );
-    expect(headerService, contains('class BusyMaxHeaderBarState'));
-    expect(headerService, contains('class LinuxHeaderBarSession'));
-    expect(headerService, contains('Future<void> updateState('));
-    expect(nativeRunner, contains('set_header_bar_state'));
-    expect(nativeRunner, contains('set_header_navigation_visible'));
-    expect(nativeRunner, contains('setNavigationVisible'));
+    expect(workspace, contains('_mode != ScheduleViewMode.agenda'));
+    expect(workspace, contains('ScheduleToolbar('));
+    expect(workspace, isNot(contains('_headerBarSession')));
+    expect(nativeRunner, isNot(contains('set_header_bar_state')));
+    expect(nativeRunner, isNot(contains('set_header_navigation_visible')));
   });
 
   test('agenda queries bounded buckets separately from dated items', () {
@@ -4972,6 +4940,9 @@ void main() {
     final workspace = File(
       'lib/src/features/schedule/presentation/schedule_workspace.dart',
     ).readAsStringSync();
+    final toolbar = File(
+      'lib/src/features/schedule/presentation/schedule_toolbar.dart',
+    ).readAsStringSync();
     final yearView = File(
       'lib/src/features/schedule/presentation/schedule_year_view.dart',
     ).readAsStringSync();
@@ -4980,7 +4951,7 @@ void main() {
     expect(range, contains('factory ScheduleRange.year(DateTime day)'));
     expect(workspace, contains('ScheduleRange.year(_selectedDate)'));
     expect(
-      workspace,
+      toolbar,
       contains('localizedScheduleHeading('),
       reason: 'schedule headers use the centralized localized heading helper',
     );

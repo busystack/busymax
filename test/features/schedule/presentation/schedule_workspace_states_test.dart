@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:io';
 
 import 'package:busymax/src/app/app_bootstrap.dart';
 import 'package:busymax/src/app/busymax_design.dart';
@@ -8,10 +7,7 @@ import 'package:busymax/src/db/app_database.dart';
 import 'package:busymax/src/features/accounts/data/accounts_repository.dart';
 import 'package:busymax/src/features/schedule/presentation/schedule_empty_states.dart';
 import 'package:busymax/src/features/schedule/presentation/schedule_sidebar.dart';
-import 'package:busymax/src/features/schedule/presentation/schedule_search_filters.dart';
 import 'package:busymax/src/features/schedule/presentation/schedule_workspace.dart';
-import 'package:busymax/src/platform/linux_header_bar_service.dart';
-import 'package:busymax/src/platform/linux_header_bar_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/services.dart';
@@ -238,117 +234,33 @@ void main() {
   });
 
   testWidgets(
-    'native search owns Linux entry state without a Flutter duplicate',
+    'Flutter search and main menu remain reachable with sidebar collapsed',
     (tester) async {
-      const channel = MethodChannel('busymax_test/schedule_native_search');
-      final calls = <MethodCall>[];
-      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
-          .setMockMethodCallHandler(channel, (call) async {
-            calls.add(call);
-            return call.method == 'initialize' ? true : null;
-          });
-      addTearDown(() {
-        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
-            .setMockMethodCallHandler(channel, null);
-      });
-      final headerBarService = LinuxHeaderBarService(
-        channel: channel,
-        isLinux: true,
-      );
-
       await _pumpWorkspace(
         tester,
         accountsFactory: () => Stream.value(const <AccountEntity>[]),
-        headerBarService: headerBarService,
       );
       await tester.pumpAndSettle();
-
-      await headerBarService.handleNativeMethodCall(const MethodCall('search'));
-      await tester.pumpAndSettle();
-
-      expect(find.byType(BusyMaxSearchField), findsNothing);
-      expect(
-        calls.where((call) => call.method == 'setState').last.arguments,
-        containsPair('searchActive', true),
-      );
-      expect(find.byType(ScheduleSearchFilters).hitTestable(), findsOneWidget);
 
       await tester.sendKeyEvent(LogicalKeyboardKey.f9);
       await tester.pumpAndSettle();
-      expect(find.byType(ScheduleSearchFilters).hitTestable(), findsNothing);
-      await tester.sendKeyEvent(LogicalKeyboardKey.f9);
-      await tester.pumpAndSettle();
-      expect(find.byType(ScheduleSearchFilters).hitTestable(), findsOneWidget);
+      expect(find.byType(ScheduleSidebar).hitTestable(), findsNothing);
+      expect(find.byTooltip('Main Menu'), findsOneWidget);
 
-      await headerBarService.handleNativeMethodCall(
-        const MethodCall('searchQueryChanged', 'planning'),
-      );
-      await tester.pumpAndSettle();
-      expect(
-        calls.where((call) => call.method == 'setState').last.arguments,
-        containsPair('searchQuery', 'planning'),
-      );
-
-      await tester.tap(find.byType(TextField).first);
-      await tester.pumpAndSettle();
-      expect(calls.where((call) => call.method == 'focusContent'), isNotEmpty);
-      await tester.enterText(find.byType(TextField).first, 'Taylor');
-      await tester.pumpAndSettle();
-      expect(
-        tester
-            .widget<ScheduleSearchFilters>(
-              find.byType(ScheduleSearchFilters).hitTestable(),
-            )
-            .value
-            .person,
-        'Taylor',
-      );
-      expect(
-        calls.where((call) => call.method == 'setState').last.arguments,
-        containsPair('searchQuery', 'planning'),
-      );
-
-      await headerBarService.handleNativeMethodCall(
-        const MethodCall('searchFocusChanged', true),
-      );
-      await tester.pumpAndSettle();
-      expect(
-        FocusManager.instance.primaryFocus?.context?.widget,
-        isNot(isA<EditableText>()),
-      );
-
-      await headerBarService.handleNativeMethodCall(
-        const MethodCall('searchCleared'),
-      );
-      await tester.pumpAndSettle();
-      final clearedState = calls
-          .where((call) => call.method == 'setState')
-          .last
-          .arguments;
-      expect(clearedState, containsPair('searchActive', true));
-      expect(clearedState, containsPair('searchQuery', ''));
-
-      await headerBarService.handleNativeMethodCall(
-        const MethodCall('searchEscapePressed'),
-      );
-      await tester.pumpAndSettle();
-      expect(
-        calls.where((call) => call.method == 'setState').last.arguments,
-        containsPair('searchActive', false),
-      );
-
-      // Native entry focus must not strand Flutter focus outside the
-      // workspace's shortcuts after the search session closes.
       await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
       await tester.sendKeyEvent(LogicalKeyboardKey.keyF);
       await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
       await tester.pumpAndSettle();
-      expect(find.byType(ScheduleSearchFilters).hitTestable(), findsOneWidget);
+      expect(find.byType(BusyMaxSearchField).hitTestable(), findsOneWidget);
+      expect(_searchFieldHasPrimaryFocus(tester), isTrue);
+      expect(find.byTooltip('Filters'), findsOneWidget);
+      expect(find.byTooltip('Main Menu'), findsOneWidget);
+
       await tester.sendKeyEvent(LogicalKeyboardKey.escape);
       await tester.pumpAndSettle();
-      expect(find.byType(ScheduleSidebar), findsOneWidget);
+      expect(find.byType(BusyMaxSearchField).hitTestable(), findsNothing);
+      expect(find.byType(ScheduleSidebar).hitTestable(), findsNothing);
     },
-    skip: !Platform.isLinux,
   );
 }
 
@@ -371,13 +283,9 @@ bool _searchFieldHasPrimaryFocus(WidgetTester tester) {
 Future<void> _pumpWorkspace(
   WidgetTester tester, {
   required Stream<List<AccountEntity>> Function() accountsFactory,
-  LinuxHeaderBarService? headerBarService,
 }) async {
   final database = AppDatabase.memoryForTests();
   addTearDown(database.close);
-  final resolvedHeaderBarService =
-      headerBarService ?? LinuxHeaderBarService(isLinux: false);
-  addTearDown(resolvedHeaderBarService.dispose);
 
   await tester.pumpWidget(
     ProviderScope(
@@ -386,9 +294,6 @@ Future<void> _pumpWorkspace(
         accountsStreamProvider.overrideWith((ref) => accountsFactory()),
         localTimeZoneProvider.overrideWithValue('UTC'),
         localSettingsStoreProvider.overrideWithValue(_MemorySettingsStore()),
-        linuxHeaderBarServiceProvider.overrideWithValue(
-          resolvedHeaderBarService,
-        ),
       ],
       child: localizedTestApp(child: const ScheduleWorkspace()),
     ),

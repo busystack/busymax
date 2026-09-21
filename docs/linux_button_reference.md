@@ -44,8 +44,8 @@ offset suggested-action outline can be compared directly. The Flutter fixture
 at `tool/linux_button_comparison.dart` renders the production BusyMax theme
 and `BusyMaxPushButton` factories; it contains no fixture-only button styling.
 
-The GTK 3 capture is retained specifically to compare the app-owned native
-onboarding actions with Flutter actions. It is not used as a substitute for
+The GTK 3 capture is retained as the pre-migration comparison for the former
+native onboarding actions and the current Flutter actions. It is not used as a substitute for
 the libadwaita 1.9 measurements above.
 
 ## Review procedure

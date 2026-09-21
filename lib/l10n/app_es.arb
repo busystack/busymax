@@ -1106,5 +1106,8 @@
   "searchClearFilters": "Restablecer filtros",
   "searchFiltersAction": "Filtros",
   "searchNoSources": "No hay fuentes de búsqueda seleccionadas",
-  "searchClearText": "Borrar texto"
+  "searchClearText": "Borrar texto",
+  "windowMinimize": "Minimizar",
+  "windowMaximize": "Maximizar",
+  "windowRestore": "Restaurar"
 }

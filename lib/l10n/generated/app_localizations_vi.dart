@@ -453,6 +453,15 @@ class AppLocalizationsVi extends AppLocalizations {
   String get close => 'Đóng';
 
   @override
+  String get windowMinimize => 'Thu nhỏ';
+
+  @override
+  String get windowMaximize => 'Phóng to';
+
+  @override
+  String get windowRestore => 'Khôi phục';
+
+  @override
   String get exit => 'Thoát';
 
   @override

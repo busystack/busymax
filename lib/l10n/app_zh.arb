@@ -1043,5 +1043,8 @@
   "searchClearFilters": "重置筛选条件",
   "searchFiltersAction": "筛选",
   "searchNoSources": "未选择搜索来源",
-  "searchClearText": "清除文字"
+  "searchClearText": "清除文字",
+  "windowMinimize": "最小化",
+  "windowMaximize": "最大化",
+  "windowRestore": "还原"
 }

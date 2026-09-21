@@ -3,8 +3,6 @@ import 'package:busymax/src/app/app_bootstrap.dart';
 import 'package:busymax/src/app/busymax_design.dart';
 import 'package:busymax/src/app/busymax_yaru_theme.dart';
 import 'package:busymax/src/dav/presentation/nextcloud_collection_dialog.dart';
-import 'package:busymax/src/platform/linux_header_bar_provider.dart';
-import 'package:busymax/src/platform/linux_header_bar_service.dart';
 import 'package:busymax/src/ui/windows/windows_nextcloud_dialogs.dart';
 import 'package:fluent_ui/fluent_ui.dart' as fluent;
 import 'package:flutter/material.dart';
@@ -115,24 +113,10 @@ void main() {
   testWidgets('nested collection confirmation keeps the parent modal active', (
     tester,
   ) async {
-    const channel = MethodChannel('busymax_test/collection_modal_barrier');
-    final calls = <MethodCall>[];
-    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
-        .setMockMethodCallHandler(channel, (call) async {
-          calls.add(call);
-          return call.method == 'initialize' ? true : null;
-        });
-    addTearDown(() {
-      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
-          .setMockMethodCallHandler(channel, null);
-    });
-    final service = LinuxHeaderBarService(channel: channel, isLinux: true);
-    addTearDown(service.dispose);
-    await service.initialize();
     final fixture = NextcloudAdminFixture();
     await tester.runAsync(fixture.seed);
     addTearDown(fixture.close);
-    await _pump(tester, fixture, false, headerBarService: service);
+    await _pump(tester, fixture, false);
 
     await tester.enterText(
       find.byKey(const ValueKey('nextcloud-displayname')),
@@ -141,15 +125,7 @@ void main() {
     await tester.tap(find.text('Close'));
     await tester.pumpAndSettle();
     expect(find.byType(BusyMaxConfirmDialog), findsOneWidget);
-    expect(
-      calls
-          .where((call) => call.method == 'setModalBarrierState')
-          .map((call) => call.arguments),
-      [
-        {'visible': true, 'shadeDepth': 1},
-        {'visible': true, 'shadeDepth': 2},
-      ],
-    );
+    expect(find.byType(AnimatedModalBarrier), findsWidgets);
 
     await tester.tap(find.text('Cancel'));
     await tester.pumpAndSettle();
@@ -157,7 +133,7 @@ void main() {
       find.byKey(const ValueKey('nextcloud-collection-dialog')),
       findsOneWidget,
     );
-    expect(calls.last.arguments, {'visible': true, 'shadeDepth': 1});
+    expect(find.byType(BusyMaxConfirmDialog), findsNothing);
 
     await tester.tap(find.text('Close'));
     await tester.pumpAndSettle();
@@ -167,7 +143,7 @@ void main() {
       find.byKey(const ValueKey('nextcloud-collection-dialog')),
       findsNothing,
     );
-    expect(calls.last.arguments, {'visible': false, 'shadeDepth': 0});
+    expect(find.byType(AnimatedModalBarrier), findsNothing);
     expect(
       fixture.requests.where((request) => request.method == 'PROPPATCH'),
       isEmpty,
@@ -316,7 +292,6 @@ Future<void> _pump(
   WidgetTester tester,
   NextcloudAdminFixture fixture,
   bool windows, {
-  LinuxHeaderBarService? headerBarService,
   Size size = const Size(1000, 850),
   Brightness brightness = Brightness.light,
   Locale locale = const Locale('en'),
@@ -352,8 +327,6 @@ Future<void> _pump(
         nextcloudSharingServiceProvider(
           'account',
         ).overrideWithValue(fixture.sharing),
-        if (headerBarService != null)
-          linuxHeaderBarServiceProvider.overrideWithValue(headerBarService),
       ],
       child: windows
           ? fluent.FluentApp(

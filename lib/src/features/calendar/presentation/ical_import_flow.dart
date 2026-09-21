@@ -10,8 +10,6 @@ import '../../../ical/ical_import_service.dart';
 import '../../../ical/ical_ingestion.dart';
 import '../../../l10n/l10n.dart';
 import '../../../providers/busy_provider.dart';
-import '../../../platform/linux_header_bar_service.dart';
-import '../../../platform/linux_header_bar_provider.dart';
 import '../data/calendar_repository.dart';
 
 Future<void> showIcsImportFlow(
@@ -50,7 +48,6 @@ Future<void> showIcsImportFlow(
       preview: preview,
       destinations: destinations,
       accountLabels: accountLabels,
-      headerBarService: ref.read(linuxHeaderBarServiceProvider),
     );
     if (selection == null || !context.mounted) return;
     final report = await service.importPreview(
@@ -63,7 +60,6 @@ Future<void> showIcsImportFlow(
     if (!context.mounted) return;
     await showBusyMaxModalDialog<void>(
       context,
-      headerBarService: ref.read(linuxHeaderBarServiceProvider),
       builder: (dialogContext) => _IcalImportReportDialog(report: report),
     );
   } on Object catch (error) {
@@ -83,11 +79,9 @@ Future<IcalImportSelection?> showIcalImportPreviewDialog(
   required IcalImportPreview preview,
   required List<CalendarSourceEntity> destinations,
   required Map<String, String> accountLabels,
-  LinuxHeaderBarService? headerBarService,
 }) {
   return showBusyMaxModalDialog<IcalImportSelection>(
     context,
-    headerBarService: headerBarService,
     barrierDismissible: false,
     builder: (dialogContext) => _IcalImportPreviewDialog(
       preview: preview,

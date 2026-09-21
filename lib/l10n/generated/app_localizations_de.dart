@@ -455,6 +455,15 @@ class AppLocalizationsDe extends AppLocalizations {
   String get close => 'Schließen';
 
   @override
+  String get windowMinimize => 'Minimieren';
+
+  @override
+  String get windowMaximize => 'Maximieren';
+
+  @override
+  String get windowRestore => 'Wiederherstellen';
+
+  @override
   String get exit => 'Beenden';
 
   @override

@@ -13,7 +13,6 @@ import '../../../google_tasks/api/google_tasks_json.dart';
 import '../../../l10n/l10n.dart';
 import '../../maps/domain/location_result.dart';
 import '../../maps/application/external_location_launcher.dart';
-import '../../../platform/linux_header_bar_service.dart';
 import 'package:busymax/src/features/tasks/domain/task_capabilities.dart';
 import '../../task_lists/data/task_lists_repository.dart';
 import '../data/tasks_repository.dart';
@@ -61,7 +60,6 @@ class TaskDetailsEditor extends StatefulWidget {
     this.confirmTaskSwitch = true,
     this.useNativeDatePicker = false,
     this.dialogBarrierColor,
-    this.headerBarService,
     this.canSaveDraft,
     this.isCreate = false,
     this.externalLocationLauncher = const ExternalLocationLauncher(),
@@ -111,7 +109,6 @@ class TaskDetailsEditor extends StatefulWidget {
   final bool confirmTaskSwitch;
   final bool useNativeDatePicker;
   final Color? dialogBarrierColor;
-  final LinuxHeaderBarService? headerBarService;
   final bool Function(TaskDetailsDraft draft)? canSaveDraft;
   final bool isCreate;
   final ExternalLocationLauncher externalLocationLauncher;
@@ -347,7 +344,6 @@ class _TaskDetailsEditorState extends State<TaskDetailsEditor> {
                         enabled: _canWrite,
                         useNativeDatePicker: widget.useNativeDatePicker,
                         dialogBarrierColor: widget.dialogBarrierColor,
-                        headerBarService: widget.headerBarService,
                         onChanged: _updateDraft,
                       ),
                     if (widget.capabilities.supportsReminderDateTime &&
@@ -613,7 +609,6 @@ class _TaskDetailsEditorState extends State<TaskDetailsEditor> {
       final choice = await showBusyMaxModalDialog<_RelatedReminderChoice>(
         context,
         barrierColor: widget.dialogBarrierColor,
-        headerBarService: widget.headerBarService,
         barrierDismissible: false,
         builder: (dialogContext) => BusyMaxDialogShell(
           title: dialogContext.l10n.relatedRemindersTitle,
@@ -917,7 +912,6 @@ class _TaskDetailsEditorState extends State<TaskDetailsEditor> {
         confirmLabel: context.l10n.discardChangesAction,
         destructive: true,
         barrierColor: widget.dialogBarrierColor,
-        headerBarService: widget.headerBarService,
       );
       if (!discard || !mounted) {
         return;
@@ -940,7 +934,6 @@ class _TaskDetailsEditorState extends State<TaskDetailsEditor> {
       confirmLabel: context.l10n.discardChangesAction,
       destructive: true,
       barrierColor: widget.dialogBarrierColor,
-      headerBarService: widget.headerBarService,
     );
     if (!mounted) {
       return;
@@ -1075,7 +1068,6 @@ class _TaskDetailsEditorState extends State<TaskDetailsEditor> {
           actionLabel: context.l10n.save,
           initialValue: subtask.title,
           barrierColor: widget.dialogBarrierColor,
-          headerBarService: widget.headerBarService,
         );
         final normalized = title?.trim();
         if (normalized == null ||
@@ -1092,7 +1084,6 @@ class _TaskDetailsEditorState extends State<TaskDetailsEditor> {
           confirmLabel: context.l10n.delete,
           destructive: true,
           barrierColor: widget.dialogBarrierColor,
-          headerBarService: widget.headerBarService,
         );
         if (confirmed) {
           await widget.onChecklistSubtaskDeleted?.call(subtask);
@@ -1108,7 +1099,6 @@ class _TaskDetailsEditorState extends State<TaskDetailsEditor> {
       label: context.l10n.title,
       actionLabel: context.l10n.create,
       barrierColor: widget.dialogBarrierColor,
-      headerBarService: widget.headerBarService,
     );
     if (title == null || title.trim().isEmpty) {
       return;
@@ -1134,7 +1124,6 @@ class _TaskDetailsEditorState extends State<TaskDetailsEditor> {
         confirmLabel: context.l10n.delete,
         destructive: true,
         barrierColor: widget.dialogBarrierColor,
-        headerBarService: widget.headerBarService,
       );
       if (confirmed) {
         await widget.onDelete();

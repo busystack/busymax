@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:io';
 import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
@@ -12,9 +11,10 @@ import 'package:yaru/yaru.dart';
 import '../../../app/app_bootstrap.dart';
 import '../../../app/busymax_design.dart';
 import '../../../app/busymax_glyphs.dart';
-import '../../../app/busymax_keyboard_shortcuts_dialog.dart';
 import '../../../app/busymax_shortcuts.dart';
 import '../../../app/busymax_yaru_theme.dart';
+import '../../../app/linux/linux_page_frame.dart';
+import '../../../app/linux/linux_window_host.dart';
 import '../../../dav/auth/dav_account_dialogs.dart';
 import '../../../dav/dav_errors.dart';
 import '../../../dav/http/dav_http_transport.dart';
@@ -26,8 +26,6 @@ import 'package:busymax/src/core/auth/oauth_models.dart';
 import 'package:busymax/src/core/secrets/secret_store.dart';
 import '../../../l10n/l10n.dart';
 import '../../../microsoft_todo/oauth/microsoft_oauth_service.dart';
-import '../../../platform/linux_header_bar_service.dart';
-import '../../../platform/linux_header_bar_provider.dart';
 import '../../sync/sync_auth_error.dart';
 
 enum _OnboardingStep { accounts, preferences }
@@ -45,30 +43,8 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
   var _step = _OnboardingStep.accounts;
   _OnboardingProvider? _signingInProvider;
   String? _errorMessage;
-  var _headerBarReady = false;
-  var _nativeHeaderBarAvailable = false;
   var _finishingSetup = false;
   DavCancellationToken? _davCancellation;
-  var _headerBarUpdateGeneration = 0;
-  late final LinuxHeaderBarSession _headerBarSession;
-  StreamSubscription<BusyMaxHeaderBarAction>? _headerBarActions;
-
-  @override
-  void initState() {
-    super.initState();
-    _headerBarSession = ref.read(linuxHeaderBarServiceProvider).claimSession();
-    _headerBarActions = _headerBarSession.actions.listen(
-      _handleHeaderBarAction,
-    );
-    unawaited(_initializeHeaderBar());
-  }
-
-  @override
-  void dispose() {
-    _headerBarSession.dispose();
-    unawaited(_headerBarActions?.cancel());
-    super.dispose();
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -97,236 +73,132 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
       child: Focus(
         autofocus: true,
         child: Scaffold(
-          body: ColoredBox(
-            color: BusyMaxSurfaceColors.of(context).window,
-            child: SafeArea(
-              top: !Platform.isLinux || !_nativeHeaderBarAvailable,
-              child: LayoutBuilder(
-                builder: (context, constraints) {
-                  final compact = constraints.maxWidth < 720;
-                  final horizontalPadding = compact
-                      ? BusyMaxSpacing.md
-                      : BusyMaxSpacing.xxl;
-                  final verticalPadding = compact
-                      ? BusyMaxSpacing.md
-                      : BusyMaxSpacing.xxl;
-                  final availableWidth = math.max(
-                    0.0,
-                    constraints.maxWidth - horizontalPadding * 2,
-                  );
-                  final shadowGutter = math.min(
-                    BusyMaxSpacing.sm,
-                    availableWidth / 2,
-                  );
-                  final contentRailWidth = math.min<double>(
-                    busyMaxOnboardingContentMaxWidth.toDouble(),
-                    math.max(0.0, availableWidth - shadowGutter * 2),
-                  );
-                  final scrollViewportWidth =
-                      contentRailWidth + shadowGutter * 2;
-                  _updateHeaderBar(
-                    canGoBack: canGoBack,
-                    canContinue: canContinue,
-                    backLabel: backLabel,
-                    continueLabel: continueLabel,
-                    contentWidth: contentRailWidth.round(),
-                  );
-
-                  return Padding(
-                    padding: EdgeInsets.symmetric(
-                      horizontal: horizontalPadding,
-                      vertical: verticalPadding,
-                    ),
-                    child: Center(
-                      child: SizedBox(
-                        width: scrollViewportWidth,
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [
-                            Flexible(
-                              child: SingleChildScrollView(
-                                key: const ValueKey(
-                                  'onboarding-scroll-viewport',
-                                ),
-                                padding: EdgeInsets.symmetric(
-                                  horizontal: shadowGutter,
-                                ),
-                                child: SizedBox(
+          body: LinuxPageFrame(
+            header: _OnboardingHeader(
+              title: l10n.onboardingSetupTitle,
+              canGoBack: canGoBack,
+              canContinue: canContinue && !_finishingSetup,
+              backLabel: backLabel,
+              continueLabel: continueLabel,
+              onBack: _previousStep,
+              onContinue: _nextStep,
+            ),
+            body: ColoredBox(
+              color: BusyMaxSurfaceColors.of(context).window,
+              child: SafeArea(
+                top: false,
+                child: LayoutBuilder(
+                  builder: (context, constraints) {
+                    final compact = constraints.maxWidth < 720;
+                    final horizontalPadding = compact
+                        ? BusyMaxSpacing.md
+                        : BusyMaxSpacing.xxl;
+                    final verticalPadding = compact
+                        ? BusyMaxSpacing.md
+                        : BusyMaxSpacing.xxl;
+                    final availableWidth = math.max(
+                      0.0,
+                      constraints.maxWidth - horizontalPadding * 2,
+                    );
+                    final shadowGutter = math.min(
+                      BusyMaxSpacing.sm,
+                      availableWidth / 2,
+                    );
+                    final contentRailWidth = math.min<double>(
+                      BusyMaxSizes.onboardingContentMaxWidth,
+                      math.max(0.0, availableWidth - shadowGutter * 2),
+                    );
+                    final scrollViewportWidth =
+                        contentRailWidth + shadowGutter * 2;
+                    return Padding(
+                      padding: EdgeInsets.symmetric(
+                        horizontal: horizontalPadding,
+                        vertical: verticalPadding,
+                      ),
+                      child: Center(
+                        child: SizedBox(
+                          width: scrollViewportWidth,
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              Flexible(
+                                child: SingleChildScrollView(
                                   key: const ValueKey(
-                                    'onboarding-content-rail',
+                                    'onboarding-scroll-viewport',
                                   ),
-                                  width: contentRailWidth,
-                                  child: switch (_step) {
-                                    _OnboardingStep.accounts =>
-                                      _AccountsOnboardingStep(
-                                        accounts: accounts,
-                                        googleConfigured:
-                                            config.hasGoogleOAuthClientId,
-                                        microsoftConfigured:
-                                            config.hasMicrosoftOAuthClientId,
-                                        isGoogleSigningIn:
-                                            _signingInProvider ==
+                                  padding: EdgeInsets.symmetric(
+                                    horizontal: shadowGutter,
+                                  ),
+                                  child: SizedBox(
+                                    key: const ValueKey(
+                                      'onboarding-content-rail',
+                                    ),
+                                    width: contentRailWidth,
+                                    child: switch (_step) {
+                                      _OnboardingStep.accounts =>
+                                        _AccountsOnboardingStep(
+                                          accounts: accounts,
+                                          googleConfigured:
+                                              config.hasGoogleOAuthClientId,
+                                          microsoftConfigured:
+                                              config.hasMicrosoftOAuthClientId,
+                                          isGoogleSigningIn:
+                                              _signingInProvider ==
+                                              _OnboardingProvider.google,
+                                          isMicrosoftSigningIn:
+                                              _signingInProvider ==
+                                              _OnboardingProvider.microsoft,
+                                          isAppleSigningIn:
+                                              _signingInProvider ==
+                                              _OnboardingProvider.appleICloud,
+                                          isNextcloudSigningIn:
+                                              _signingInProvider ==
+                                              _OnboardingProvider.nextcloud,
+                                          errorMessage: _errorMessage,
+                                          missingConfigMessage: kReleaseMode
+                                              ? l10n.providerNotConfigured
+                                              : config.missingClientIdMessage,
+                                          onAddGoogle: () => _signIn(
                                             _OnboardingProvider.google,
-                                        isMicrosoftSigningIn:
-                                            _signingInProvider ==
+                                          ),
+                                          onAddMicrosoft: () => _signIn(
                                             _OnboardingProvider.microsoft,
-                                        isAppleSigningIn:
-                                            _signingInProvider ==
+                                          ),
+                                          onAddApple: () => _signIn(
                                             _OnboardingProvider.appleICloud,
-                                        isNextcloudSigningIn:
-                                            _signingInProvider ==
+                                          ),
+                                          onAddNextcloud: () => _signIn(
                                             _OnboardingProvider.nextcloud,
-                                        errorMessage: _errorMessage,
-                                        missingConfigMessage: kReleaseMode
-                                            ? l10n.providerNotConfigured
-                                            : config.missingClientIdMessage,
-                                        onAddGoogle: () =>
-                                            _signIn(_OnboardingProvider.google),
-                                        onAddMicrosoft: () => _signIn(
-                                          _OnboardingProvider.microsoft,
+                                          ),
+                                          onAddSubscription: () => context.go(
+                                            '/settings?page=accounts',
+                                          ),
+                                          onCancelSignIn: _cancelSignIn,
                                         ),
-                                        onAddApple: () => _signIn(
-                                          _OnboardingProvider.appleICloud,
+                                      _OnboardingStep.preferences =>
+                                        _PreferencesOnboardingStep(
+                                          settings: settings,
+                                          settingsController:
+                                              settingsController,
                                         ),
-                                        onAddNextcloud: () => _signIn(
-                                          _OnboardingProvider.nextcloud,
-                                        ),
-                                        onAddSubscription: () => context.go(
-                                          '/settings?page=accounts',
-                                        ),
-                                        onCancelSignIn: _cancelSignIn,
-                                      ),
-                                    _OnboardingStep.preferences =>
-                                      _PreferencesOnboardingStep(
-                                        settings: settings,
-                                        settingsController: settingsController,
-                                      ),
-                                  },
+                                    },
+                                  ),
                                 ),
                               ),
-                            ),
-                            if (_showFlutterFooterFallback)
-                              Padding(
-                                padding: EdgeInsets.symmetric(
-                                  horizontal: shadowGutter,
-                                ),
-                                child: _OnboardingFooter(
-                                  canGoBack: canGoBack,
-                                  canContinue: canContinue,
-                                  backLabel: backLabel,
-                                  continueLabel: continueLabel,
-                                  onBack: _previousStep,
-                                  onContinue: _nextStep,
-                                ),
-                              ),
-                          ],
+                            ],
+                          ),
                         ),
                       ),
-                    ),
-                  );
-                },
+                    );
+                  },
+                ),
               ),
             ),
           ),
         ),
       ),
     );
-  }
-
-  Future<void> _initializeHeaderBar() async {
-    await _headerBarSession.initialize();
-    if (!mounted) {
-      return;
-    }
-    setState(() {
-      _headerBarReady = true;
-      _nativeHeaderBarAvailable = _headerBarSession.isAvailable;
-    });
-  }
-
-  bool get _showFlutterFooterFallback {
-    if (!Platform.isLinux) {
-      return true;
-    }
-    return _headerBarReady && !_nativeHeaderBarAvailable;
-  }
-
-  void _updateHeaderBar({
-    required bool canGoBack,
-    required bool canContinue,
-    required String backLabel,
-    required String continueLabel,
-    required int contentWidth,
-  }) {
-    if (_finishingSetup) {
-      return;
-    }
-    if (!_headerBarReady && Platform.isLinux) {
-      return;
-    }
-    final title = context.l10n.onboardingSetupTitle;
-    final generation = ++_headerBarUpdateGeneration;
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted ||
-          _finishingSetup ||
-          generation != _headerBarUpdateGeneration) {
-        return;
-      }
-      unawaited(() async {
-        await _headerBarSession.updateState(
-          BusyMaxHeaderBarState(
-            title: title,
-            viewMode: ref.read(appSettingsControllerProvider).scheduleViewMode,
-            canRefresh: false,
-            canCreateEvent: false,
-            canCreateTask: false,
-            searchActive: false,
-            searchQuery: '',
-            canShowSidebar: false,
-            sidebarVisible: false,
-            navigationVisible: false,
-            scheduleControlsVisible: false,
-            backVisible: false,
-          ),
-        );
-        if (!mounted ||
-            _finishingSetup ||
-            generation != _headerBarUpdateGeneration) {
-          return;
-        }
-        await _headerBarSession.setOnboardingControls(
-          visible: true,
-          canGoBack: canGoBack,
-          canContinue: canContinue,
-          backLabel: backLabel,
-          continueLabel: continueLabel,
-          contentWidth: contentWidth,
-        );
-      }());
-    });
-  }
-
-  void _handleHeaderBarAction(BusyMaxHeaderBarAction action) {
-    if (!_headerBarSession.isCurrent) {
-      return;
-    }
-    if (action == BusyMaxHeaderBarAction.back) {
-      _previousStep();
-      return;
-    }
-    if (action == BusyMaxHeaderBarAction.continueSetup) {
-      unawaited(_nextStep());
-      return;
-    }
-    if (action == BusyMaxHeaderBarAction.keyboardShortcuts) {
-      unawaited(
-        showBusyMaxKeyboardShortcutsDialog(
-          context,
-          headerBarService: ref.read(linuxHeaderBarServiceProvider),
-        ),
-      );
-    }
   }
 
   Future<void> _signIn(_OnboardingProvider provider) async {
@@ -336,16 +208,10 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
     AppleICloudCredentialInput? appleInput;
     String? nextcloudServer;
     if (provider == _OnboardingProvider.appleICloud) {
-      appleInput = await showAppleICloudCredentialDialog(
-        context,
-        headerBarService: ref.read(linuxHeaderBarServiceProvider),
-      );
+      appleInput = await showAppleICloudCredentialDialog(context);
       if (appleInput == null || !mounted) return;
     } else if (provider == _OnboardingProvider.nextcloud) {
-      nextcloudServer = await showNextcloudServerDialog(
-        context,
-        headerBarService: ref.read(linuxHeaderBarServiceProvider),
-      );
+      nextcloudServer = await showNextcloudServerDialog(context);
       if (nextcloudServer == null || !mounted) return;
     }
     setState(() {
@@ -461,24 +327,11 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
     }
 
     _finishingSetup = true;
-    _headerBarUpdateGeneration++;
-    await _clearOnboardingHeaderBar();
+    if (mounted) setState(() {});
     await ref.read(authSessionControllerProvider.notifier).load();
     if (mounted) {
       context.go('/schedule');
     }
-  }
-
-  Future<void> _clearOnboardingHeaderBar() async {
-    await _headerBarSession.initialize();
-    await _headerBarSession.setOnboardingControls(
-      visible: false,
-      canGoBack: false,
-      canContinue: false,
-      backLabel: '',
-      continueLabel: '',
-      force: true,
-    );
   }
 }
 
@@ -892,8 +745,9 @@ class _ProviderSignInButton extends StatelessWidget {
   }
 }
 
-class _OnboardingFooter extends StatelessWidget {
-  const _OnboardingFooter({
+class _OnboardingHeader extends StatelessWidget {
+  const _OnboardingHeader({
+    required this.title,
     required this.canGoBack,
     required this.canContinue,
     required this.backLabel,
@@ -902,6 +756,7 @@ class _OnboardingFooter extends StatelessWidget {
     required this.onContinue,
   });
 
+  final String title;
   final bool canGoBack;
   final bool canContinue;
   final String backLabel;
@@ -911,23 +766,52 @@ class _OnboardingFooter extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(top: BusyMaxSpacing.xl),
-      child: Row(
-        children: [
-          BusyMaxPushButton.standard(
-            key: const ValueKey('onboarding-back-button'),
-            onPressed: canGoBack ? onBack : null,
-            child: Text(backLabel),
-          ),
-          const Spacer(),
-          BusyMaxPushButton.suggested(
-            key: const ValueKey('onboarding-continue-button'),
-            onPressed: canContinue ? onContinue : null,
-            child: Text(continueLabel),
-          ),
-        ],
-      ),
+    final metrics = LinuxWindowMetricsScope.of(context);
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final fullWidth =
+            constraints.maxWidth +
+            metrics.leftControlInset +
+            metrics.rightControlInset;
+        final railWidth = math.min(
+          BusyMaxSizes.onboardingContentMaxWidth,
+          constraints.maxWidth,
+        );
+        final centeredStart =
+            (fullWidth - railWidth) / 2 - metrics.leftControlInset;
+        final centeredEnd = constraints.maxWidth - centeredStart - railWidth;
+        final canCenterWithoutControls = centeredStart >= 0 && centeredEnd >= 0;
+        final row = Row(
+          children: [
+            BusyMaxPushButton.standard(
+              key: const ValueKey('onboarding-back-button'),
+              onPressed: canGoBack ? onBack : null,
+              child: Text(backLabel),
+            ),
+            Expanded(
+              child: LinuxTitlebarGestureRegion(
+                child: Text(
+                  title,
+                  textAlign: TextAlign.center,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: busyMaxHeaderTitleStyle(context),
+                ),
+              ),
+            ),
+            BusyMaxPushButton.suggested(
+              key: const ValueKey('onboarding-continue-button'),
+              onPressed: canContinue ? onContinue : null,
+              child: Text(continueLabel),
+            ),
+          ],
+        );
+        if (!canCenterWithoutControls) return row;
+        return Padding(
+          padding: EdgeInsets.only(left: centeredStart, right: centeredEnd),
+          child: row,
+        );
+      },
     );
   }
 }

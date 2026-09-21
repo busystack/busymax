@@ -1117,5 +1117,8 @@
   "searchClearFilters": "بازنشانی فیلترها",
   "searchFiltersAction": "فیلترها",
   "searchNoSources": "هیچ منبع جستجویی انتخاب نشده است",
-  "searchClearText": "پاک کردن متن"
+  "searchClearText": "پاک کردن متن",
+  "windowMinimize": "کوچک کردن",
+  "windowMaximize": "بزرگ کردن",
+  "windowRestore": "بازیابی"
 }

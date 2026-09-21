@@ -1043,5 +1043,8 @@
   "searchClearFilters": "フィルターをリセット",
   "searchFiltersAction": "フィルター",
   "searchNoSources": "検索元が選択されていません",
-  "searchClearText": "テキストを消去"
+  "searchClearText": "テキストを消去",
+  "windowMinimize": "最小化",
+  "windowMaximize": "最大化",
+  "windowRestore": "元に戻す"
 }

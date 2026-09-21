@@ -1043,5 +1043,8 @@
   "searchClearFilters": "إعادة ضبط عوامل التصفية",
   "searchFiltersAction": "عوامل التصفية",
   "searchNoSources": "لم يتم تحديد مصادر للبحث",
-  "searchClearText": "مسح النص"
+  "searchClearText": "مسح النص",
+  "windowMinimize": "تصغير",
+  "windowMaximize": "تكبير",
+  "windowRestore": "استعادة"
 }

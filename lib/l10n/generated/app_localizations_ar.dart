@@ -450,6 +450,15 @@ class AppLocalizationsAr extends AppLocalizations {
   String get close => 'إغلاق';
 
   @override
+  String get windowMinimize => 'تصغير';
+
+  @override
+  String get windowMaximize => 'تكبير';
+
+  @override
+  String get windowRestore => 'استعادة';
+
+  @override
   String get exit => 'خروج';
 
   @override

@@ -1043,5 +1043,8 @@
   "searchClearFilters": "필터 초기화",
   "searchFiltersAction": "필터",
   "searchNoSources": "선택한 검색 소스가 없습니다",
-  "searchClearText": "텍스트 지우기"
+  "searchClearText": "텍스트 지우기",
+  "windowMinimize": "최소화",
+  "windowMaximize": "최대화",
+  "windowRestore": "복원"
 }

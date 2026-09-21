@@ -4,7 +4,6 @@ import '../../../app/busymax_dialogs.dart';
 import '../../../app/busymax_design.dart';
 import '../../../calendar_providers/calendar_colors.dart';
 import '../../../l10n/l10n.dart';
-import '../../../platform/linux_header_bar_service.dart';
 import '../../../providers/busy_provider.dart';
 
 Future<CalendarColorChoice?> showCalendarColorDialog(
@@ -12,11 +11,9 @@ Future<CalendarColorChoice?> showCalendarColorDialog(
   required BusyProvider provider,
   required String? currentBackgroundColor,
   required String? currentColorId,
-  required LinuxHeaderBarService headerBarService,
 }) {
   return showBusyMaxModalDialog<CalendarColorChoice>(
     context,
-    headerBarService: headerBarService,
     barrierDismissible: false,
     builder: (dialogContext) => _CalendarColorDialog(
       provider: provider,

@@ -11,7 +11,6 @@ import '../../../app/busymax_dialogs.dart';
 import '../../../calendar_providers/calendar_colors.dart';
 import '../../../calendar_providers/calendar_mutation.dart';
 import '../../../l10n/l10n.dart';
-import '../../../platform/linux_header_bar_service.dart';
 import '../../../schedule/schedule_projection.dart';
 import 'package:busymax/src/providers/busy_provider.dart';
 import '../../accounts/data/accounts_repository.dart';
@@ -33,13 +32,11 @@ Future<EventEditorDialogResult?> showBusyMaxEventEditorDialog(
   required EventEditorDraft initialDraft,
   required List<CalendarSourceEntity> sources,
   required List<AccountEntity> accounts,
-  LinuxHeaderBarService? headerBarService,
   bool allowDelete = true,
   Map<String, List<String>> categorySuggestionsByAccount = const {},
 }) async {
   return showBusyMaxModalEditorDialog<EventEditorDialogResult>(
     context,
-    headerBarService: headerBarService,
     maxWidth: BusyMaxSizes.detailsWidth,
     maxHeight: 720,
     builder: (context) {
@@ -48,7 +45,6 @@ Future<EventEditorDialogResult?> showBusyMaxEventEditorDialog(
         sources: sources,
         accounts: accounts,
         categorySuggestionsByAccount: categorySuggestionsByAccount,
-        headerBarService: headerBarService,
         onCancel: () => Navigator.of(context).pop(),
         onSave: (draft) => unawaited(
           _completeEventEditorSave(
@@ -57,7 +53,6 @@ Future<EventEditorDialogResult?> showBusyMaxEventEditorDialog(
             initialDraft: initialDraft,
             sources: sources,
             accounts: accounts,
-            headerBarService: headerBarService,
           ),
         ),
         onDelete: allowDelete && initialDraft.eventId != null
@@ -68,7 +63,6 @@ Future<EventEditorDialogResult?> showBusyMaxEventEditorDialog(
                   scope: scope,
                   initialDraft: initialDraft,
                   sources: sources,
-                  headerBarService: headerBarService,
                 ),
               )
             : null,
@@ -121,7 +115,6 @@ Future<void> _completeEventEditorSave(
   required EventEditorDraft initialDraft,
   required List<CalendarSourceEntity> sources,
   required List<AccountEntity> accounts,
-  LinuxHeaderBarService? headerBarService,
 }) async {
   final move = _eventMoveContext(
     initialDraft: initialDraft,
@@ -138,7 +131,6 @@ Future<void> _completeEventEditorSave(
         _calendarMoveLabel(move.destination, accounts),
       ),
       confirmLabel: context.l10n.copyAndDelete,
-      headerBarService: headerBarService,
     );
     if (!confirmed || !context.mounted) return;
   }
@@ -151,7 +143,6 @@ Future<void> _completeEventEditorSave(
       context,
       provider: provider,
       action: CalendarGuestDeliveryAction.save,
-      headerBarService: headerBarService,
     );
     if (choice == null) return;
     guestUpdatePolicy = choice;
@@ -245,7 +236,6 @@ Future<void> _completeEventEditorDelete(
   required RecurringEventMutationScope? scope,
   required EventEditorDraft initialDraft,
   required List<CalendarSourceEntity> sources,
-  LinuxHeaderBarService? headerBarService,
 }) async {
   var guestUpdatePolicy = CalendarGuestUpdatePolicy.send;
   final provider = _providerForDraft(initialDraft, sources);
@@ -256,7 +246,6 @@ Future<void> _completeEventEditorDelete(
       context,
       provider: provider,
       action: CalendarGuestDeliveryAction.delete,
-      headerBarService: headerBarService,
     );
     if (choice == null) return;
     guestUpdatePolicy = choice;
@@ -304,7 +293,6 @@ class EventEditor extends ConsumerStatefulWidget {
     this.accounts = const [],
     this.onDelete,
     this.categorySuggestionsByAccount = const {},
-    this.headerBarService,
   });
 
   final EventEditorDraft initialDraft;
@@ -314,7 +302,6 @@ class EventEditor extends ConsumerStatefulWidget {
   final VoidCallback onCancel;
   final ValueChanged<EventEditorDraft> onSave;
   final EventEditorDeleteCallback? onDelete;
-  final LinuxHeaderBarService? headerBarService;
 
   @override
   ConsumerState<EventEditor> createState() => _EventEditorState();
@@ -707,7 +694,6 @@ class _EventEditorState extends ConsumerState<EventEditor> {
         message: context.l10n.discardChangesConfirmation,
         confirmLabel: context.l10n.discardChangesAction,
         destructive: true,
-        headerBarService: widget.headerBarService,
       );
       if (discard && mounted) {
         widget.onCancel();
@@ -887,7 +873,6 @@ class _EventEditorState extends ConsumerState<EventEditor> {
       timeZone: _draft.startTimeZone,
       limits: EventRecurrenceCodec.limitsFor(provider),
       useNativeDatePicker: false,
-      headerBarService: widget.headerBarService,
     );
     if (result == null || !mounted) return;
     if (!result.repeats) {

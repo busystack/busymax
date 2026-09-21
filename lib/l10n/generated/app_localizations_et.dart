@@ -452,6 +452,15 @@ class AppLocalizationsEt extends AppLocalizations {
   String get close => 'Sulge';
 
   @override
+  String get windowMinimize => 'Minimeeri';
+
+  @override
+  String get windowMaximize => 'Maksimeeri';
+
+  @override
+  String get windowRestore => 'Taasta';
+
+  @override
   String get exit => 'Välju';
 
   @override

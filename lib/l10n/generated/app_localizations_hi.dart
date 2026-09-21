@@ -454,6 +454,15 @@ class AppLocalizationsHi extends AppLocalizations {
   String get close => 'बंद करें';
 
   @override
+  String get windowMinimize => 'छोटा करें';
+
+  @override
+  String get windowMaximize => 'अधिकतम करें';
+
+  @override
+  String get windowRestore => 'पुनर्स्थापित करें';
+
+  @override
   String get exit => 'बाहर निकलें';
 
   @override

@@ -209,23 +209,23 @@ void main() {
     );
   }
 
-  test('keyboard shortcuts are available from native headerbar menu', () {
+  test('keyboard shortcuts are available from the Flutter header menu', () {
     final app = File('lib/src/app/busymax_app.dart').readAsStringSync();
-    final service = File(
-      'lib/src/platform/linux_header_bar_service.dart',
+    final toolbar = File(
+      'lib/src/features/schedule/presentation/schedule_toolbar.dart',
     ).readAsStringSync();
     final shortcuts = File(
       'lib/src/app/busymax_shortcuts.dart',
     ).readAsStringSync();
     final native = File('linux/runner/my_application.cc').readAsStringSync();
 
-    expect(app, contains('keyboardShortcuts: l10n.keyboardShortcuts'));
+    expect(app, contains('showBusyMaxKeyboardShortcutsDialog('));
     expect(app, contains('BusyMaxShortcutActivators.keyboardShortcuts'));
     expect(shortcuts, contains('LogicalKeyboardKey.keyK'));
     expect(shortcuts, contains('LogicalKeyboardKey.keyS'));
     expect(shortcuts, contains('LogicalKeyboardKey.f9'));
-    expect(service, contains('keyboardShortcuts'));
-    expect(native, contains('"Keyboard Shortcuts"'));
-    expect(native, contains('"keyboardShortcuts"'));
+    expect(toolbar, contains('ScheduleToolbarMenuAction.keyboardShortcuts'));
+    expect(toolbar, contains('context.l10n.keyboardShortcuts'));
+    expect(native, isNot(contains('"keyboardShortcuts"')));
   });
 }

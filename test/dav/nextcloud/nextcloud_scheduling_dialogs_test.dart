@@ -7,8 +7,6 @@ import 'package:busymax/src/app/busymax_yaru_theme.dart';
 import 'package:busymax/src/dav/nextcloud/nextcloud_scheduling_service.dart';
 import 'package:busymax/src/dav/presentation/nextcloud_scheduling_dialog.dart';
 import 'package:busymax/src/features/calendar/presentation/event_editor_draft.dart';
-import 'package:busymax/src/platform/linux_header_bar_provider.dart';
-import 'package:busymax/src/platform/linux_header_bar_service.dart';
 import 'package:busymax/src/ui/windows/windows_nextcloud_scheduling_dialog.dart';
 import 'package:fluent_ui/fluent_ui.dart' as fluent;
 import 'package:flutter/material.dart';
@@ -131,29 +129,15 @@ void main() {
   testWidgets('acknowledgment keeps the scheduling modal barrier active', (
     tester,
   ) async {
-    const channel = MethodChannel('busymax_test/scheduling_modal_barrier');
-    final calls = <MethodCall>[];
-    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
-        .setMockMethodCallHandler(channel, (call) async {
-          calls.add(call);
-          return call.method == 'initialize' ? true : null;
-        });
-    addTearDown(() {
-      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
-          .setMockMethodCallHandler(channel, null);
-    });
-    final service = LinuxHeaderBarService(channel: channel, isLinux: true);
-    addTearDown(service.dispose);
-    await service.initialize();
     final fixture = SchedulingFixture();
     await tester.runAsync(fixture.seedScheduling);
     addTearDown(fixture.close);
-    await _pump(tester, fixture, false, headerBarService: service);
+    await _pump(tester, fixture, false);
 
     await tester.tap(find.text('Acknowledge message'));
     await tester.pumpAndSettle();
     expect(find.byType(BusyMaxConfirmDialog), findsOneWidget);
-    expect(calls.last.arguments, {'visible': true, 'shadeDepth': 2});
+    expect(find.byType(AnimatedModalBarrier), findsWidgets);
 
     await tester.tap(find.text('Cancel'));
     await tester.pumpAndSettle();
@@ -161,7 +145,7 @@ void main() {
       find.byKey(const ValueKey('nextcloud-scheduling-dialog')),
       findsOneWidget,
     );
-    expect(calls.last.arguments, {'visible': true, 'shadeDepth': 1});
+    expect(find.byType(BusyMaxConfirmDialog), findsNothing);
     expect(
       fixture.requests.where((request) => request.method == 'DELETE'),
       isEmpty,
@@ -169,7 +153,7 @@ void main() {
 
     await tester.tap(find.text('Close'));
     await tester.pumpAndSettle();
-    expect(calls.last.arguments, {'visible': false, 'shadeDepth': 0});
+    expect(find.byType(AnimatedModalBarrier), findsNothing);
   });
 
   testWidgets('Linux scheduling dialog presents loading and error states', (
@@ -252,7 +236,6 @@ Future<void> _pump(
   SchedulingFixture fixture,
   bool windows, {
   EventEditorDraft? draft,
-  LinuxHeaderBarService? headerBarService,
   bool waitForLoad = true,
   Size size = const Size(760, 640),
   Brightness brightness = Brightness.light,
@@ -291,8 +274,6 @@ Future<void> _pump(
         nextcloudSchedulingServiceProvider(
           'account',
         ).overrideWithValue(NextcloudSchedulingService(fixture.collections)),
-        if (headerBarService != null)
-          linuxHeaderBarServiceProvider.overrideWithValue(headerBarService),
       ],
       child: windows
           ? fluent.FluentApp(

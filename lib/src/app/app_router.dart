@@ -12,6 +12,8 @@ import 'app_bootstrap.dart';
 import 'busymax_design.dart';
 import 'busymax_layout.dart';
 import 'busymax_surface_colors.dart';
+import 'linux/linux_page_frame.dart';
+import 'linux/linux_window_host.dart';
 
 final rootNavigatorKey = GlobalKey<NavigatorState>();
 
@@ -150,18 +152,18 @@ class BusyMaxStartupView extends StatelessWidget {
             color: colors.window,
             child: const Center(child: YaruCircularProgressIndicator()),
           );
-          if (!BusyMaxLayoutRules.showSidebar(constraints.maxWidth)) {
-            return content;
-          }
-          return Row(
-            children: [
-              const SizedBox(
-                key: ValueKey('startup-sidebar'),
-                width: BusyMaxSizes.sidebarWidth,
-                child: BusyMaxSidebarSurface(child: SizedBox.expand()),
-              ),
-              Expanded(child: content),
-            ],
+          return LinuxPageFrame(
+            header: const LinuxTitlebarGestureRegion(child: SizedBox.expand()),
+            body: content,
+            sidebarHeader: const BusyMaxLinuxBrandHeader(),
+            sidebarBody: const BusyMaxSidebarSurface(
+              key: ValueKey('startup-sidebar'),
+              child: SizedBox.expand(),
+            ),
+            sidebarAvailable: BusyMaxLayoutRules.showSidebar(
+              constraints.maxWidth,
+            ),
+            sidebarExpanded: true,
           );
         },
       ),

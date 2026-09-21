@@ -5,9 +5,7 @@ import 'package:busymax/src/app/busymax_design.dart';
 import 'package:busymax/src/app/busymax_dialog_identity.dart';
 import 'package:busymax/src/app/busymax_dialogs.dart';
 import 'package:busymax/src/app/busymax_yaru_theme.dart';
-import 'package:busymax/src/platform/linux_header_bar_service.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:yaru/yaru.dart';
@@ -136,23 +134,8 @@ void main() {
   }
 
   testWidgets(
-    'about modal route stays responsive and restores the native barrier',
+    'about modal route stays responsive and removes its local barrier',
     (tester) async {
-      const channel = MethodChannel('busymax_test/about_modal_route');
-      final calls = <MethodCall>[];
-      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
-          .setMockMethodCallHandler(channel, (call) async {
-            calls.add(call);
-            return call.method == 'initialize' ? true : null;
-          });
-      addTearDown(() {
-        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
-            .setMockMethodCallHandler(channel, null);
-      });
-      final service = LinuxHeaderBarService(channel: channel, isLinux: true);
-      addTearDown(service.dispose);
-      await service.initialize();
-
       tester.view
         ..devicePixelRatio = 1
         ..physicalSize = const Size(480, 320);
@@ -174,7 +157,6 @@ void main() {
       late BuildContext dialogContext;
       final result = showBusyMaxModalDialog<void>(
         hostContext,
-        headerBarService: service,
         builder: (context) {
           dialogContext = context;
           return const BusyMaxAboutDialog();
@@ -201,24 +183,14 @@ void main() {
             .maxScrollExtent,
         greaterThan(0),
       );
-      expect(
-        calls
-            .where((call) => call.method == 'setModalBarrierState')
-            .single
-            .arguments,
-        {'visible': true, 'shadeDepth': 1},
-      );
+      expect(find.byType(AnimatedModalBarrier), findsOneWidget);
 
       await tester.tap(find.byType(YaruWindowControl));
       await tester.pumpAndSettle();
 
       await result;
       expect(find.byType(BusyMaxAboutDialog), findsNothing);
-      final barrierCalls = calls
-          .where((call) => call.method == 'setModalBarrierState')
-          .toList();
-      expect(barrierCalls, hasLength(2));
-      expect(barrierCalls.last.arguments, {'visible': false, 'shadeDepth': 0});
+      expect(find.byType(AnimatedModalBarrier), findsNothing);
       expect(tester.takeException(), isNull);
     },
   );
@@ -371,29 +343,21 @@ void main() {
     expect(source, contains('https://www.apache.org/licenses/LICENSE-2.0'));
   });
 
-  test(
-    'about dialog uses native headerbar dimming and shared close adapter',
-    () {
-      final source = File(
-        'lib/src/app/busymax_about_dialog.dart',
-      ).readAsStringSync();
-      final dialogs = File(
-        'lib/src/app/busymax_dialogs.dart',
-      ).readAsStringSync();
+  test('about dialog uses the shared Flutter modal and close adapter', () {
+    final source = File(
+      'lib/src/app/busymax_about_dialog.dart',
+    ).readAsStringSync();
+    final dialogs = File('lib/src/app/busymax_dialogs.dart').readAsStringSync();
 
-      expect(source, contains('showBusyMaxModalDialog'));
-      expect(source, contains('headerBarService: headerBarService'));
-      expect(dialogs, contains('acquireBusyMaxModalBarrier'));
-      expect(dialogs, contains('releaseBusyMaxModalBarrier'));
-      expect(dialogs, contains('await acquireBusyMaxModalBarrier('));
-      expect(dialogs, contains('await releaseBusyMaxModalBarrier('));
-      expect(dialogs, contains('shadesHeader: shadesHeader'));
-      expect(source, isNot(contains('barrierColor: Colors.transparent')));
-      expect(source, contains('BusyMaxInformationalDialog('));
-      expect(source, isNot(contains('BusyMaxPopoverIconButton(')));
-      expect(source, isNot(contains('BusyMaxDialogCloseButton')));
-    },
-  );
+    expect(source, contains('showBusyMaxModalDialog'));
+    expect(dialogs, contains('await route.completed'));
+    expect(dialogs, isNot(contains('LinuxHeaderBarService')));
+    expect(dialogs, isNot(contains('setModalBarrierState')));
+    expect(source, isNot(contains('barrierColor: Colors.transparent')));
+    expect(source, contains('BusyMaxInformationalDialog('));
+    expect(source, isNot(contains('BusyMaxPopoverIconButton(')));
+    expect(source, isNot(contains('BusyMaxDialogCloseButton')));
+  });
 
   test('about logo renders the PNG asset, not the launcher SVG', () {
     final source = File(

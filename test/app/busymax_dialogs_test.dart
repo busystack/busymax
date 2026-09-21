@@ -4,10 +4,7 @@ import 'package:busymax/src/app/busymax_design.dart';
 import 'package:busymax/src/app/busymax_dialogs.dart';
 import 'package:busymax/src/app/busymax_shortcuts.dart';
 import 'package:busymax/src/app/busymax_yaru_theme.dart';
-import 'package:busymax/src/platform/linux_header_bar_provider.dart';
-import 'package:busymax/src/platform/linux_header_bar_service.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:yaru/yaru.dart';
@@ -105,64 +102,50 @@ void main() {
     },
   );
 
-  testWidgets('modal coordinator synchronizes the native barrier', (
+  testWidgets('modal route blocks the complete application surface', (
     tester,
   ) async {
-    const channel = MethodChannel('busymax_test/modal_barrier');
-    final calls = <MethodCall>[];
-    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
-        .setMockMethodCallHandler(channel, (call) async {
-          calls.add(call);
-          return call.method == 'initialize' ? true : null;
-        });
-    addTearDown(() {
-      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
-          .setMockMethodCallHandler(channel, null);
-    });
-
-    final service = LinuxHeaderBarService(channel: channel, isLinux: true);
-    addTearDown(service.dispose);
-    await service.initialize();
-
+    var backgroundActivations = 0;
     late BuildContext hostContext;
     await tester.pumpWidget(
       localizedTestApp(
-        child: Builder(
-          builder: (context) {
-            hostContext = context;
-            return const SizedBox();
-          },
+        child: Scaffold(
+          body: Builder(
+            builder: (context) {
+              hostContext = context;
+              return TextButton(
+                onPressed: () => backgroundActivations += 1,
+                child: const Text('Background action'),
+              );
+            },
+          ),
         ),
       ),
     );
 
-    final result = showBusyMaxConfirm(
+    final result = showBusyMaxModalDialog<bool>(
       hostContext,
-      title: 'Remove item?',
-      message: 'This action cannot be undone.',
-      confirmLabel: 'Remove',
-      destructive: true,
-      headerBarService: service,
+      barrierDismissible: false,
+      builder: (_) => const BusyMaxConfirmDialog(
+        title: 'Remove item?',
+        message: 'This action cannot be undone.',
+        confirmLabel: 'Remove',
+        destructive: true,
+      ),
     );
     await tester.pumpAndSettle();
 
     expect(find.byType(BusyMaxConfirmDialog), findsOneWidget);
-    expect(
-      calls.where((call) => call.method == 'setModalBarrierState'),
-      hasLength(1),
-    );
-    expect(calls.last.arguments, {'visible': true, 'shadeDepth': 1});
+    expect(find.byType(AnimatedModalBarrier), findsOneWidget);
+    await tester.tap(find.text('Background action'), warnIfMissed: false);
+    await tester.pump();
+    expect(backgroundActivations, 0);
 
     await tester.tap(find.text('Remove'));
     await tester.pumpAndSettle();
 
     expect(await result, isTrue);
-    final barrierCalls = calls
-        .where((call) => call.method == 'setModalBarrierState')
-        .toList();
-    expect(barrierCalls, hasLength(2));
-    expect(barrierCalls.first.arguments, {'visible': true, 'shadeDepth': 1});
-    expect(barrierCalls.last.arguments, {'visible': false, 'shadeDepth': 0});
+    expect(find.byType(AnimatedModalBarrier), findsNothing);
   });
 
   testWidgets('open modal barrier follows live theme changes', (tester) async {
@@ -290,25 +273,9 @@ void main() {
     expect(find.text('Discard changes'), findsOneWidget);
   });
 
-  testWidgets('nested modals do not re-dim the native headerbar', (
+  testWidgets('nested modals retain independent local barriers', (
     tester,
   ) async {
-    const channel = MethodChannel('busymax_test/nested_modal_barrier');
-    final calls = <MethodCall>[];
-    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
-        .setMockMethodCallHandler(channel, (call) async {
-          calls.add(call);
-          return call.method == 'initialize' ? true : null;
-        });
-    addTearDown(() {
-      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
-          .setMockMethodCallHandler(channel, null);
-    });
-
-    final service = LinuxHeaderBarService(channel: channel, isLinux: true);
-    addTearDown(service.dispose);
-    await service.initialize();
-
     late BuildContext hostContext;
     await tester.pumpWidget(
       localizedTestApp(
@@ -323,209 +290,69 @@ void main() {
 
     final first = showBusyMaxModalDialog<void>(
       hostContext,
-      headerBarService: service,
       builder: (context) => const Dialog(child: Text('First dialog')),
     );
     await tester.pumpAndSettle();
     final second = showBusyMaxModalDialog<void>(
       hostContext,
-      headerBarService: service,
       barrierColor: Colors.transparent,
       builder: (context) => const Dialog(child: Text('Second dialog')),
     );
     await tester.pumpAndSettle();
 
-    expect(
-      calls
-          .where((call) => call.method == 'setModalBarrierState')
-          .map((call) => call.arguments),
-      [
-        {'visible': true, 'shadeDepth': 1},
-      ],
-    );
+    expect(find.byType(AnimatedModalBarrier), findsOneWidget);
+    expect(find.text('First dialog'), findsOneWidget);
+    expect(find.text('Second dialog'), findsOneWidget);
 
     Navigator.of(hostContext, rootNavigator: true).pop();
     await tester.pumpAndSettle();
     await second;
-    expect(
-      calls
-          .where((call) => call.method == 'setModalBarrierState')
-          .map((call) => call.arguments),
-      [
-        {'visible': true, 'shadeDepth': 1},
-      ],
-    );
+    expect(find.byType(AnimatedModalBarrier), findsOneWidget);
+    expect(find.text('First dialog'), findsOneWidget);
 
     Navigator.of(hostContext, rootNavigator: true).pop();
     await tester.pumpAndSettle();
     await first;
-
-    final barrierCalls = calls
-        .where((call) => call.method == 'setModalBarrierState')
-        .toList();
-    expect(barrierCalls.map((call) => call.arguments), [
-      {'visible': true, 'shadeDepth': 1},
-      {'visible': false, 'shadeDepth': 0},
-    ]);
-
-    await acquireBusyMaxModalBarrier(service);
-    await acquireBusyMaxModalBarrier(service);
-    await releaseBusyMaxModalBarrier(service);
-    await releaseBusyMaxModalBarrier(service);
-
-    expect(
-      calls
-          .where((call) => call.method == 'setModalBarrierState')
-          .map((call) => call.arguments)
-          .skip(2),
-      [
-        {'visible': true, 'shadeDepth': 1},
-        {'visible': true, 'shadeDepth': 2},
-        {'visible': true, 'shadeDepth': 1},
-        {'visible': false, 'shadeDepth': 0},
-      ],
-      reason: 'two visibly shaded surfaces must still compound normally',
-    );
+    expect(find.byType(AnimatedModalBarrier), findsNothing);
   });
 
-  testWidgets('serializes rapid manual native barrier transitions', (
+  testWidgets('modal future completes only after route removal', (
     tester,
   ) async {
-    const channel = MethodChannel('busymax_test/serialized_modal_barrier');
-    final firstUpdate = Completer<void>();
-    final transitions = <({bool visible, int shadeDepth})>[];
-    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
-        .setMockMethodCallHandler(channel, (call) async {
-          if (call.method == 'initialize') {
-            return true;
-          }
-          if (call.method == 'setModalBarrierState') {
-            final arguments = call.arguments! as Map<Object?, Object?>;
-            transitions.add((
-              visible: arguments['visible']! as bool,
-              shadeDepth: arguments['shadeDepth']! as int,
-            ));
-            if (transitions.length == 1) {
-              await firstUpdate.future;
-            }
-          }
-          return null;
-        });
-    addTearDown(() {
-      if (!firstUpdate.isCompleted) {
-        firstUpdate.complete();
-      }
-      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
-          .setMockMethodCallHandler(channel, null);
-    });
-
-    final service = LinuxHeaderBarService(channel: channel, isLinux: true);
-    addTearDown(service.dispose);
-    await service.initialize();
-
-    final acquire = acquireBusyMaxModalBarrier(service);
-    await tester.pump();
-    expect(transitions, [(visible: true, shadeDepth: 1)]);
-
-    final release = releaseBusyMaxModalBarrier(service);
-    await tester.pump();
-    expect(transitions, [
-      (visible: true, shadeDepth: 1),
-    ], reason: 'the native hide must wait for the in-flight native show');
-
-    firstUpdate.complete();
-    await Future.wait([acquire, release]);
-
-    expect(transitions, [
-      (visible: true, shadeDepth: 1),
-      (visible: false, shadeDepth: 0),
-    ]);
-  });
-
-  testWidgets('failed native barrier acquisition rolls back and can retry', (
-    tester,
-  ) async {
-    final service = _FailingModalBarrierService();
-    addTearDown(service.dispose);
-
-    await expectLater(
-      acquireBusyMaxModalBarrier(service),
-      throwsA(isA<StateError>()),
-    );
-    expect(service.transitions, [
-      (visible: true, shadeDepth: 1),
-      (visible: false, shadeDepth: 0),
-    ], reason: 'a failed native show requires a best-effort native rollback');
-
-    await acquireBusyMaxModalBarrier(service);
-    await releaseBusyMaxModalBarrier(service);
-
-    expect(service.transitions, [
-      (visible: true, shadeDepth: 1),
-      (visible: false, shadeDepth: 0),
-      (visible: true, shadeDepth: 1),
-      (visible: false, shadeDepth: 0),
-    ]);
-  });
-
-  testWidgets('modal coordinator resolves the service from ProviderScope', (
-    tester,
-  ) async {
-    const channel = MethodChannel('busymax_test/automatic_modal_barrier');
-    final calls = <MethodCall>[];
-    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
-        .setMockMethodCallHandler(channel, (call) async {
-          calls.add(call);
-          return call.method == 'initialize' ? true : null;
-        });
-    addTearDown(() {
-      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
-          .setMockMethodCallHandler(channel, null);
-    });
-
-    final service = LinuxHeaderBarService(channel: channel, isLinux: true);
-    addTearDown(service.dispose);
-    await service.initialize();
     late BuildContext hostContext;
     await tester.pumpWidget(
-      ProviderScope(
-        overrides: [linuxHeaderBarServiceProvider.overrideWithValue(service)],
-        child: localizedTestApp(
-          child: Builder(
-            builder: (context) {
-              hostContext = context;
-              return const SizedBox();
-            },
-          ),
+      localizedTestApp(
+        child: Builder(
+          builder: (context) {
+            hostContext = context;
+            return const SizedBox();
+          },
         ),
       ),
     );
 
-    final result = showBusyMaxConfirm(
+    var completed = false;
+    final result = showBusyMaxModalDialog<void>(
       hostContext,
-      title: 'Remove item?',
-      message: 'This action cannot be undone.',
-      confirmLabel: 'Remove',
+      builder: (dialogContext) => Dialog(
+        child: TextButton(
+          onPressed: () => Navigator.of(dialogContext).pop(),
+          child: const Text('Close route'),
+        ),
+      ),
     );
+    unawaited(result.then((_) => completed = true));
     await tester.pumpAndSettle();
 
-    expect(calls.first.method, 'initialize');
-    expect(
-      calls
-          .where((call) => call.method == 'setModalBarrierState')
-          .single
-          .arguments,
-      {'visible': true, 'shadeDepth': 1},
-    );
-
-    await tester.tap(find.text('Cancel'));
+    await tester.tap(find.text('Close route'));
+    await tester.pump();
+    expect(completed, isFalse);
+    expect(find.byType(AnimatedModalBarrier), findsOneWidget);
     await tester.pumpAndSettle();
 
-    expect(await result, isFalse);
-    final barrierCalls = calls
-        .where((call) => call.method == 'setModalBarrierState')
-        .toList();
-    expect(barrierCalls.last.arguments, {'visible': false, 'shadeDepth': 0});
+    await result;
+    expect(completed, isTrue);
+    expect(find.byType(AnimatedModalBarrier), findsNothing);
   });
 
   testWidgets('editor dialog requires an explicit cancel action', (
@@ -774,23 +601,4 @@ void main() {
 
 class _ApplicationNavigationIntent extends Intent {
   const _ApplicationNavigationIntent();
-}
-
-class _FailingModalBarrierService extends LinuxHeaderBarService {
-  _FailingModalBarrierService() : super(isLinux: false);
-
-  final transitions = <({bool visible, int shadeDepth})>[];
-  var _failNextShow = true;
-
-  @override
-  Future<void> setModalBarrierState({
-    required bool visible,
-    required int shadeDepth,
-  }) async {
-    transitions.add((visible: visible, shadeDepth: shadeDepth));
-    if (visible && _failNextShow) {
-      _failNextShow = false;
-      throw StateError('simulated native response failure');
-    }
-  }
 }

@@ -2422,9 +2422,9 @@ void main() {
     expect(editor, contains('showBusyMaxEventEditorDialog'));
     expect(editor, contains('showBusyMaxModalEditorDialog'));
     expect(editor, isNot(contains('showDialog<EventEditorDialogResult>')));
-    expect(dialogs, contains('await acquireBusyMaxModalBarrier('));
-    expect(dialogs, contains('await releaseBusyMaxModalBarrier('));
-    expect(dialogs, contains('shadesHeader: shadesHeader'));
+    expect(dialogs, contains('await route.completed'));
+    expect(dialogs, isNot(contains('LinuxHeaderBarService')));
+    expect(dialogs, isNot(contains('setModalBarrierState')));
     expect(
       dialogs,
       contains('barrierColor ?? busyMaxModalBarrierColor(context)'),

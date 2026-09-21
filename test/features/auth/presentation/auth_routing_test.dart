@@ -23,8 +23,6 @@ import 'package:busymax/src/google_tasks/api/google_tasks_api_surface.dart';
 import 'package:busymax/src/core/auth/oauth_models.dart';
 import 'package:busymax/src/google_tasks/oauth/oauth_service.dart';
 import 'package:busymax/src/core/secrets/secret_store.dart';
-import 'package:busymax/src/platform/linux_header_bar_service.dart';
-import 'package:busymax/src/platform/linux_header_bar_provider.dart';
 import 'package:busymax/src/platform/native_dialog_service.dart';
 import 'package:busymax/src/schedule/schedule_scope.dart';
 import 'package:busymax/src/providers/busy_provider.dart';
@@ -100,7 +98,10 @@ void main() {
     await _pumpApp(tester, database: database, oAuth: oAuth);
     await tester.pumpAndSettle();
 
-    void expectAlignedActions({required double expectedRailWidth}) {
+    void expectAlignedActions({
+      required double expectedRailWidth,
+      required bool enoughRoomForCenteredHeader,
+    }) {
       final rail = tester.getRect(
         find.byKey(const ValueKey('onboarding-content-rail')),
       );
@@ -112,11 +113,19 @@ void main() {
       );
 
       expect(rail.width, closeTo(expectedRailWidth, 0.01));
-      expect(back.left, closeTo(rail.left, 0.01));
-      expect(continueButton.right, closeTo(rail.right, 0.01));
+      if (enoughRoomForCenteredHeader) {
+        expect(back.left, closeTo(rail.left, 0.01));
+        expect(continueButton.right, closeTo(rail.right, 0.01));
+      } else {
+        expect(back.left, lessThanOrEqualTo(rail.left));
+        expect(continueButton.right, lessThan(rail.right));
+      }
     }
 
-    expectAlignedActions(expectedRailWidth: 480);
+    expectAlignedActions(
+      expectedRailWidth: 480,
+      enoughRoomForCenteredHeader: true,
+    );
     final back = tester.widget<FilledButton>(
       find.byKey(const ValueKey('onboarding-back-button')),
     );
@@ -129,7 +138,10 @@ void main() {
     tester.view.physicalSize = const Size(420, 720);
     await tester.pumpAndSettle();
 
-    expectAlignedActions(expectedRailWidth: 380);
+    expectAlignedActions(
+      expectedRailWidth: 380,
+      enoughRoomForCenteredHeader: false,
+    );
     expect(tester.takeException(), null);
     await _disposeApp(tester);
   });
@@ -176,7 +188,7 @@ void main() {
       'lib/src/features/auth/presentation/sign_in_screen.dart',
     ).readAsStringSync();
     final start = source.indexOf('class _ProviderSignInButton');
-    final end = source.indexOf('class _OnboardingFooter');
+    final end = source.indexOf('class _OnboardingHeader');
     final providerButton = source.substring(start, end);
 
     expect(providerButton, contains('BusyMaxGroupedList'));
@@ -949,11 +961,6 @@ Future<void> _pumpApp(
         signedInSyncRunnerProvider.overrideWithValue(
           onSignedIn ?? (accountId, initial) async {},
         ),
-        linuxHeaderBarServiceProvider.overrideWith((ref) {
-          final service = LinuxHeaderBarService(isLinux: false);
-          ref.onDispose(service.dispose);
-          return service;
-        }),
       ],
       child: const BusyMaxApp(),
     ),

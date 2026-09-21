@@ -124,6 +124,11 @@ jobs:
             -o build/linux/native-tests/time_picker_test \
             $(pkg-config --cflags --libs gtk+-3.0)
           xvfb-run -a build/linux/native-tests/time_picker_test
+          g++ -std=c++17 -Wall -Wextra -Werror \
+            linux/runner/tests/gtk_window_preferences_test.cc \
+            -o build/linux/native-tests/gtk_window_preferences_test \
+            $(pkg-config --cflags --libs gtk+-3.0)
+          xvfb-run -a build/linux/native-tests/gtk_window_preferences_test
 
       - name: Validate release provider configuration
         if: github.event_name == 'push'

@@ -472,7 +472,9 @@ void main() {
         '2026-07-21T09:00:00-07:00',
       });
       expect(
-        rows.singleWhere((row) => row.providerRecurringEventId == null).isDeleted,
+        rows
+            .singleWhere((row) => row.providerRecurringEventId == null)
+            .isDeleted,
         isTrue,
       );
 

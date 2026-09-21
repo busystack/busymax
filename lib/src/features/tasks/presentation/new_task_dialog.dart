@@ -7,8 +7,6 @@ import '../../../app/app_bootstrap.dart';
 import '../../../app/busymax_dialogs.dart';
 import '../../../google_tasks/api/google_tasks_json.dart';
 import '../../../l10n/l10n.dart';
-import '../../../platform/linux_header_bar_service.dart';
-import '../../../platform/linux_header_bar_provider.dart';
 import 'package:busymax/src/providers/busy_provider.dart';
 import 'package:busymax/src/features/tasks/domain/task_capabilities.dart';
 import '../../accounts/data/accounts_repository.dart';
@@ -43,11 +41,9 @@ Future<NewTaskDraft?> showBusyMaxNewTaskDialog(
   required String? initialAccountId,
   required String? initialListId,
   DateTime? initialDueUtc,
-  LinuxHeaderBarService? headerBarService,
 }) {
   return showBusyMaxModalEditorDialog<NewTaskDraft>(
     context,
-    headerBarService: headerBarService,
     maxWidth: 640,
     maxHeight: 760,
     builder: (dialogContext) => UncontrolledProviderScope(
@@ -165,7 +161,6 @@ class _NewTaskEditorPanelState extends ConsumerState<NewTaskEditorPanel> {
               isCreate: true,
               confirmTaskSwitch: false,
               useNativeDatePicker: widget.useNativeDatePicker,
-              headerBarService: ref.read(linuxHeaderBarServiceProvider),
               categorySuggestions: categorySuggestions,
               canSaveDraft: (draft) => draft.taskListId.isNotEmpty,
               onDraftChanged: (draft) {

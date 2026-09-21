@@ -70,13 +70,15 @@ void main() {
   });
 
   test(
-    'native GTK bridge observes, settles, and tears down animation state',
+    'native GTK bridge observes and tears down animation preference state',
     () {
       final source = File('linux/runner/my_application.cc').readAsStringSync();
+      final frame = File(
+        'lib/src/app/linux/linux_page_frame.dart',
+      ).readAsStringSync();
 
       expect(source, contains('"notify::gtk-enable-animations"'));
       expect(source, contains('send_gtk_animation_settings_event(self);'));
-      expect(source, contains('cancel_header_sidebar_animation(self);'));
       expect(
         source,
         contains('disconnect_gtk_animation_settings_signal(self);'),
@@ -87,50 +89,11 @@ void main() {
           'g_clear_object(&self->gtk_animation_settings_event_channel);',
         ),
       );
-      expect(source, contains('gtk_widget_add_tick_callback('));
-      expect(source, contains('gtk_widget_remove_tick_callback('));
-      expect(
-        source,
-        contains(
-          'cancel_header_sidebar_animation(self);\n'
-          '    self->header_bar_sidebar_presented_width = target;',
-        ),
-      );
-      expect(
-        source,
-        contains(
-          'GTK_SCROLLED_WINDOW(self->header_sidebar_brand_box), '
-          'GTK_POLICY_EXTERNAL,',
-        ),
-      );
-      expect(
-        source,
-        contains(
-          'kHeaderSidebarTransitionDurationMicros *\n'
-          '             std::clamp(distance / full_width, 0.0, 1.0)',
-        ),
-      );
-      expect(
-        source,
-        contains(
-          'else if (sidebar_target_visible != '
-          'previous_sidebar_target_visible)',
-        ),
-      );
-      expect(
-        source,
-        contains(
-          'gtk_scrolled_window_set_propagate_natural_width(\n'
-          '      GTK_SCROLLED_WINDOW(self->header_sidebar_brand_box), FALSE);',
-        ),
-      );
-      expect(
-        source,
-        contains(
-          'gtk_widget_set_size_request(self->header_sidebar_brand_content,\n'
-          '                                self->header_bar_sidebar_width, -1);',
-        ),
-      );
+      expect(source, isNot(contains('header_sidebar_brand_box')));
+      expect(source, isNot(contains('gtk_widget_add_tick_callback(')));
+      expect(frame, contains('MediaQuery.disableAnimationsOf(context)'));
+      expect(frame, contains('_controller.value = _targetVisible ? 1 : 0'));
+      expect(frame, contains('BusyMaxMotion.sidebar * distance'));
     },
   );
 }

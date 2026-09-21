@@ -1,7 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 
-import 'linux_header_bar_service.dart';
+import 'native_style.dart';
 
 @visibleForTesting
 const nativeDialogChannelName = 'busymax/native_dialogs';

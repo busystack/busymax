@@ -5,8 +5,6 @@ import 'package:busymax/src/features/accounts/data/accounts_repository.dart';
 import 'package:busymax/src/features/schedule/presentation/schedule_workspace.dart';
 import 'package:busymax/src/features/task_lists/data/task_lists_repository.dart';
 import 'package:busymax/src/features/tasks/data/tasks_repository.dart';
-import 'package:busymax/src/platform/linux_header_bar_service.dart';
-import 'package:busymax/src/platform/linux_header_bar_provider.dart';
 import 'package:busymax/src/platform/native_dialog_service.dart';
 import 'package:busymax/src/platform/native_menu_service.dart';
 import 'package:busymax/src/schedule/schedule_scope.dart';
@@ -164,22 +162,17 @@ void main() {
   testWidgets('dirty deep-linked task confirms before Escape closes it', (
     tester,
   ) async {
-    final headerBarService = _RecordingHeaderBarService();
-    addTearDown(headerBarService.dispose);
     await _pumpScheduleWorkspace(
       tester,
       taskTitle: 'Opened from route',
       initialTaskAccountId: _accountId,
       initialTaskListId: _taskListId,
       initialTaskId: 'task-1',
-      headerBarService: headerBarService,
     );
 
     expect(find.text('Edit Task'), findsOneWidget);
     expect(find.text('Opened from route'), findsWidgets);
-    expect(headerBarService.modalBarrierStates, [
-      (visible: true, shadeDepth: 1),
-    ]);
+    expect(find.byType(ModalBarrier), findsWidgets);
 
     await tester.enterText(find.byType(TextField).first, 'Unsaved route edit');
     await tester.pump();
@@ -195,9 +188,6 @@ void main() {
     expect(modalBarrierColors.where((color) => color != null && color.a != 0), [
       busyMaxModalBarrierColor(tester.element(find.byType(ModalBarrier).first)),
     ]);
-    expect(headerBarService.modalBarrierStates, [
-      (visible: true, shadeDepth: 1),
-    ], reason: 'the nested confirmation must not repaint the native headerbar');
     await tester.tap(find.text('Cancel').last);
     await tester.pumpAndSettle();
     expect(find.text('Edit Task'), findsOneWidget);
@@ -209,10 +199,10 @@ void main() {
 
     expect(find.text('Edit Task'), findsNothing);
     expect(find.text('Opened from route'), findsOneWidget);
-    expect(headerBarService.modalBarrierStates, [
-      (visible: true, shadeDepth: 1),
-      (visible: false, shadeDepth: 0),
-    ]);
+    final visibleBarriers = tester
+        .widgetList<ModalBarrier>(find.byType(ModalBarrier))
+        .where((barrier) => (barrier.color?.a ?? 0) > 0);
+    expect(visibleBarriers, isEmpty);
   });
 }
 
@@ -222,7 +212,6 @@ Future<_ScheduleHarness> _pumpScheduleWorkspace(
   String? initialTaskAccountId,
   String? initialTaskListId,
   String? initialTaskId,
-  LinuxHeaderBarService? headerBarService,
 }) async {
   final database = AppDatabase.memoryForTests();
   addTearDown(database.close);
@@ -286,11 +275,6 @@ Future<_ScheduleHarness> _pumpScheduleWorkspace(
     displayName: 'Schedule test',
     email: 'schedule@example.test',
   );
-  final effectiveHeaderBarService =
-      headerBarService ?? LinuxHeaderBarService(isLinux: false);
-  if (headerBarService == null) {
-    addTearDown(effectiveHeaderBarService.dispose);
-  }
   await tester.pumpWidget(
     ProviderScope(
       overrides: [
@@ -299,9 +283,6 @@ Future<_ScheduleHarness> _pumpScheduleWorkspace(
         activeAccountProvider.overrideWithValue(_accountId),
         localTimeZoneProvider.overrideWithValue('UTC'),
         localSettingsStoreProvider.overrideWithValue(_MemorySettingsStore()),
-        linuxHeaderBarServiceProvider.overrideWithValue(
-          effectiveHeaderBarService,
-        ),
         taskListsRepositoryForAccountProvider.overrideWith((ref, accountId) {
           return TaskListsRepository(database: database, accountId: accountId);
         }),
@@ -340,20 +321,6 @@ class _MemorySettingsStore implements LocalSettingsStore {
 
   @override
   Future<void> save(Map<String, Object?> json) async {}
-}
-
-class _RecordingHeaderBarService extends LinuxHeaderBarService {
-  _RecordingHeaderBarService() : super(isLinux: false);
-
-  final modalBarrierStates = <({bool visible, int shadeDepth})>[];
-
-  @override
-  Future<void> setModalBarrierState({
-    required bool visible,
-    required int shadeDepth,
-  }) async {
-    modalBarrierStates.add((visible: visible, shadeDepth: shadeDepth));
-  }
 }
 
 const _accountId = 'google:schedule-test';
