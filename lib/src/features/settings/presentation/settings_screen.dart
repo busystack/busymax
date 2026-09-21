@@ -14,12 +14,11 @@ import '../../../app/app_bootstrap.dart';
 import '../../../app/busymax_design.dart';
 import '../../../app/common/busymax_motion_widgets.dart';
 import '../../../app/busymax_dialogs.dart';
-import '../../../app/busymax_glyphs.dart';
 import '../../../app/busymax_keyboard_shortcuts_dialog.dart';
 import '../../../app/busymax_layout.dart';
 import '../../../app/busymax_shortcuts.dart';
 import '../../../app/linux/linux_page_frame.dart';
-import '../../../app/linux/linux_window_host.dart';
+import '../../../app/linux/linux_header_style.dart';
 import '../../../core/logging/redacting_logger.dart';
 import '../../../dav/auth/dav_account_dialogs.dart';
 import '../../../dav/presentation/nextcloud_collection_dialog.dart';
@@ -1064,35 +1063,29 @@ class _SettingsHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      height: BusyMaxSizes.toolbarHeight,
-      child: Row(
+    return BusyMaxLinuxHeaderLayout(
+      leading: BusyMaxLinuxHeaderControlGroup(
         children: [
-          const SizedBox(width: BusyMaxSpacing.sm),
-          YaruIconButton(
+          BusyMaxLinuxHeaderIconButton(
+            key: const ValueKey('settings-header-back-button'),
             tooltip: MaterialLocalizations.of(context).backButtonTooltip,
-            icon: Icon(BusyMaxGlyphs.backFor(Directionality.of(context))),
+            icon: Icon(
+              BusyMaxLinuxHeaderGlyphs.previousFor(Directionality.of(context)),
+            ),
             onPressed: onBack,
           ),
-          const SizedBox(width: BusyMaxSpacing.sm),
-          Expanded(
-            child: LinuxTitlebarGestureRegion(
-              child: Center(
-                child: Text(
-                  title,
-                  textAlign: TextAlign.center,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: busyMaxHeaderTitleStyle(context),
-                ),
-              ),
-            ),
-          ),
+        ],
+      ),
+      title: BusyMaxLinuxHeaderTitle(
+        title,
+        key: const ValueKey('settings-header-title'),
+      ),
+      trailing: BusyMaxLinuxHeaderControlGroup(
+        children: [
           BusyMaxMainMenuButton(
             settingsSelected: true,
             onSelected: onMenuSelected,
           ),
-          const SizedBox(width: BusyMaxSpacing.sm),
         ],
       ),
     );

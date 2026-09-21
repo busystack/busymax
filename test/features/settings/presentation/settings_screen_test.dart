@@ -12,6 +12,7 @@ import 'package:yaru/yaru.dart';
 import 'package:busymax/src/app/app_bootstrap.dart';
 import 'package:busymax/src/app/busymax_design.dart';
 import 'package:busymax/src/app/busymax_yaru_theme.dart';
+import 'package:busymax/src/app/linux/linux_header_style.dart';
 import 'package:busymax/src/config/build_config.dart';
 import 'package:busymax/src/core/secrets/secret_store.dart';
 import 'package:busymax/src/dav/auth/dav_account_onboarding_service.dart';
@@ -460,7 +461,7 @@ void main() {
     await tester.pump(const Duration(milliseconds: 1));
   });
 
-  testWidgets('Settings Flutter header uses the semantic title style', (
+  testWidgets('Settings Flutter header uses native geometry and title style', (
     tester,
   ) async {
     final container = _container(
@@ -472,10 +473,25 @@ void main() {
 
     await _pumpSettings(tester, container);
 
-    final emphasizedAccountTitles = tester
-        .widgetList<Text>(find.text('Accounts'))
-        .where((text) => text.style?.fontWeight == FontWeight.bold);
-    expect(emphasizedAccountTitles, hasLength(1));
+    final titleRoot = find.byKey(const ValueKey('settings-header-title'));
+    final title = tester.widget<Text>(
+      find.descendant(of: titleRoot, matching: find.text('Accounts')),
+    );
+    final context = tester.element(titleRoot);
+    final bodyStyle = Theme.of(context).textTheme.bodyMedium;
+    expect(title.style?.fontSize, bodyStyle?.fontSize);
+    expect(title.style?.fontFamily, bodyStyle?.fontFamily);
+    expect(title.style?.fontWeight, FontWeight.bold);
+    expect(
+      tester.getSize(find.byKey(const ValueKey('settings-header-back-button'))),
+      const Size.square(BusyMaxSizes.headerIconButton),
+    );
+    expect(
+      tester.getSize(find.byKey(const ValueKey('busymax-main-menu-button'))),
+      const Size.square(BusyMaxSizes.headerIconButton),
+    );
+    final header = tester.getRect(find.byType(BusyMaxLinuxHeaderLayout));
+    expect(tester.getRect(titleRoot).center.dx, closeTo(header.center.dx, .01));
   });
 
   testWidgets('Settings removes the selected Microsoft account', (

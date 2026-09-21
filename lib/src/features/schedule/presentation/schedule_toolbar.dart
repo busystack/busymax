@@ -2,9 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:yaru/yaru.dart';
 
 import '../../../app/busymax_design.dart';
-import '../../../app/busymax_glyphs.dart';
 import '../../../app/busymax_shortcuts.dart';
-import '../../../app/linux/linux_window_host.dart';
+import '../../../app/linux/linux_header_style.dart';
 import '../../../l10n/l10n.dart';
 import '../../../l10n/localized_formatters.dart';
 import '../../../schedule/schedule_range.dart';
@@ -70,78 +69,80 @@ class ScheduleToolbar extends StatelessWidget {
     return LayoutBuilder(
       builder: (context, constraints) {
         final compact = constraints.maxWidth < 760;
-        return SizedBox(
-          height: BusyMaxSizes.toolbarHeight,
-          child: Row(
+        return BusyMaxLinuxHeaderLayout(
+          leading: BusyMaxLinuxHeaderControlGroup(
+            key: const ValueKey('schedule-header-leading-actions'),
             children: [
-              const SizedBox(width: BusyMaxSpacing.sm),
               if (canShowSidebar && onToggleSidebar != null)
-                YaruIconButton(
+                BusyMaxLinuxHeaderIconButton(
+                  key: const ValueKey('schedule-sidebar-button'),
                   tooltip: _shortcutTooltip(
                     sidebarVisible
                         ? context.l10n.hideSidebar
                         : context.l10n.showSidebar,
                     BusyMaxShortcutLabels.sidebar,
                   ),
-                  icon: Icon(
-                    sidebarVisible
-                        ? Icons.vertical_split
-                        : Icons.vertical_split_outlined,
-                  ),
+                  icon: const Icon(BusyMaxLinuxHeaderGlyphs.sidebar),
+                  selected: sidebarVisible,
                   onPressed: onToggleSidebar,
                 ),
-              Tooltip(
-                message: _shortcutTooltip(
+              BusyMaxLinuxHeaderIconButton(
+                key: const ValueKey('schedule-today-button'),
+                tooltip: _shortcutTooltip(
                   context.l10n.today,
                   BusyMaxShortcutLabels.today,
                 ),
-                excludeFromSemantics: true,
-                child: YaruIconButton(
-                  tooltip: null,
-                  icon: Icon(
-                    Icons.today_outlined,
-                    semanticLabel: context.l10n.today,
-                  ),
-                  onPressed: onToday,
+                icon: Icon(
+                  BusyMaxLinuxHeaderGlyphs.today,
+                  semanticLabel: context.l10n.today,
                 ),
+                onPressed: onToday,
               ),
-              const SizedBox(width: BusyMaxSpacing.sm),
               if (showPaging) ...[
-                YaruIconButton(
+                BusyMaxLinuxHeaderIconButton(
+                  key: const ValueKey('schedule-previous-button'),
                   tooltip: _shortcutTooltip(
                     MaterialLocalizations.of(context).previousPageTooltip,
                     BusyMaxShortcutLabels.previousPeriod,
                   ),
                   icon: Icon(
-                    BusyMaxGlyphs.previousFor(Directionality.of(context)),
+                    BusyMaxLinuxHeaderGlyphs.previousFor(
+                      Directionality.of(context),
+                    ),
                   ),
                   onPressed: onPrevious,
                 ),
-                YaruIconButton(
+                BusyMaxLinuxHeaderIconButton(
+                  key: const ValueKey('schedule-next-button'),
                   tooltip: _shortcutTooltip(
                     MaterialLocalizations.of(context).nextPageTooltip,
                     BusyMaxShortcutLabels.nextPeriod,
                   ),
-                  icon: Icon(BusyMaxGlyphs.nextFor(Directionality.of(context))),
-                  onPressed: onNext,
-                ),
-                const SizedBox(width: BusyMaxSpacing.sm),
-              ],
-              Expanded(
-                child: LinuxTitlebarGestureRegion(
-                  child: _fittingRangeTitle(
-                    context,
-                    localizedScheduleHeading(
-                      Localizations.localeOf(context).toLanguageTag(),
-                      mode,
-                      range,
-                      selectedDate,
-                      agendaLabel: context.l10n.viewAgenda,
+                  icon: Icon(
+                    BusyMaxLinuxHeaderGlyphs.nextFor(
+                      Directionality.of(context),
                     ),
                   ),
+                  onPressed: onNext,
                 ),
-              ),
-              BusyMaxMenuButton<ScheduleViewMode>(
+              ],
+            ],
+          ),
+          title: _fittingRangeTitle(
+            context,
+            localizedScheduleHeading(
+              Localizations.localeOf(context).toLanguageTag(),
+              mode,
+              range,
+              selectedDate,
+              agendaLabel: context.l10n.viewAgenda,
+            ),
+          ),
+          trailing: BusyMaxLinuxHeaderControlGroup(
+            key: const ValueKey('schedule-header-trailing-actions'),
+            children: [
+              BusyMaxLinuxHeaderMenuButton<ScheduleViewMode>(
+                key: const ValueKey('schedule-view-button'),
                 tooltip: _shortcutTooltip(
                   _modeLabel(context, mode),
                   BusyMaxShortcutLabels.forViewMode(mode),
@@ -160,7 +161,8 @@ class ScheduleToolbar extends StatelessWidget {
                 ],
                 onSelected: onModeChanged,
               ),
-              BusyMaxMenuButton<_ScheduleCreateAction>(
+              BusyMaxLinuxHeaderMenuButton<_ScheduleCreateAction>(
+                key: const ValueKey('schedule-create-button'),
                 tooltip: context.l10n.create,
                 icon: const Icon(YaruIcons.plus),
                 controller: createMenuController,
@@ -191,18 +193,20 @@ class ScheduleToolbar extends StatelessWidget {
                 },
               ),
               if (!compact)
-                YaruIconButton(
+                BusyMaxLinuxHeaderIconButton(
+                  key: const ValueKey('schedule-refresh-button'),
                   tooltip: context.l10n.refreshAll,
-                  icon: const Icon(YaruIcons.refresh),
+                  icon: const Icon(BusyMaxLinuxHeaderGlyphs.refresh),
                   onPressed: canRefresh ? onRefresh : null,
                 ),
               if (onSearch != null)
-                YaruIconButton(
+                BusyMaxLinuxHeaderIconButton(
+                  key: const ValueKey('schedule-search-button'),
                   tooltip: _shortcutTooltip(
                     MaterialLocalizations.of(context).searchFieldLabel,
                     BusyMaxShortcutLabels.search,
                   ),
-                  icon: const Icon(YaruIcons.search),
+                  icon: const Icon(BusyMaxLinuxHeaderGlyphs.search),
                   onPressed: onSearch,
                 ),
               if (onMenuSelected != null)
@@ -211,7 +215,6 @@ class ScheduleToolbar extends StatelessWidget {
                   canRefresh: canRefresh,
                   onSelected: onMenuSelected!,
                 ),
-              const SizedBox(width: BusyMaxSpacing.sm),
             ],
           ),
         );
@@ -236,8 +239,10 @@ class BusyMaxMainMenuButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return BusyMaxMenuButton<ScheduleToolbarMenuAction>(
+    return BusyMaxLinuxHeaderMenuButton<ScheduleToolbarMenuAction>(
+      key: const ValueKey('busymax-main-menu-button'),
       tooltip: context.l10n.mainMenu,
+      icon: const Icon(BusyMaxLinuxHeaderGlyphs.menu),
       entries: [
         if (includeRefresh)
           BusyMaxMenuEntry(
@@ -276,7 +281,7 @@ class BusyMaxMainMenuButton extends StatelessWidget {
 }
 
 Widget _fittingRangeTitle(BuildContext context, String title) {
-  final style = busyMaxHeaderTitleStyle(context);
+  final style = busyMaxLinuxHeaderTitleStyle(context);
   return LayoutBuilder(
     builder: (context, constraints) {
       final painter = TextPainter(
@@ -285,12 +290,16 @@ Widget _fittingRangeTitle(BuildContext context, String title) {
         textDirection: Directionality.of(context),
         textScaler: MediaQuery.textScalerOf(context),
       )..layout();
-      final titleFits = painter.width <= constraints.maxWidth;
+      final titleFits =
+          painter.width + BusyMaxSpacing.md * 2 <= constraints.maxWidth;
       painter.dispose();
       if (!titleFits) {
         return const SizedBox.shrink();
       }
-      return Text(title, maxLines: 1, style: style);
+      return Padding(
+        padding: const EdgeInsets.symmetric(horizontal: BusyMaxSpacing.md),
+        child: Text(title, maxLines: 1, style: style),
+      );
     },
   );
 }

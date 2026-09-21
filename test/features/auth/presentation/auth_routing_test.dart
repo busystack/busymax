@@ -12,6 +12,7 @@ import 'package:busymax/src/app/app_bootstrap.dart';
 import 'package:busymax/src/app/app_router.dart';
 import 'package:busymax/src/app/busymax_app.dart';
 import 'package:busymax/src/app/busymax_design.dart';
+import 'package:busymax/src/app/linux/linux_header_style.dart';
 import 'package:busymax/src/config/build_config.dart';
 import 'package:busymax/src/db/app_database.dart';
 import 'package:busymax/src/features/accounts/data/accounts_repository.dart';
@@ -126,11 +127,43 @@ void main() {
       expectedRailWidth: 480,
       enoughRoomForCenteredHeader: true,
     );
+    final headerTitle = find.byKey(const ValueKey('onboarding-header-title'));
+    final header = find.byType(BusyMaxLinuxHeaderLayout);
+    expect(
+      tester.getRect(headerTitle).center.dx,
+      closeTo(tester.getRect(header).center.dx, .01),
+    );
+    final headerText = tester.widget<Text>(
+      find.descendant(of: headerTitle, matching: find.byType(Text)),
+    );
+    final bodyStyle = Theme.of(
+      tester.element(headerTitle),
+    ).textTheme.bodyMedium;
+    expect(headerText.style?.fontSize, bodyStyle?.fontSize);
+    expect(headerText.style?.fontWeight, FontWeight.bold);
+    expect(
+      tester
+          .getSize(find.byKey(const ValueKey('onboarding-back-button')))
+          .height,
+      BusyMaxSizes.headerIconButton,
+    );
+    expect(
+      tester
+          .getSize(find.byKey(const ValueKey('onboarding-continue-button')))
+          .height,
+      BusyMaxSizes.headerIconButton,
+    );
     final back = tester.widget<FilledButton>(
-      find.byKey(const ValueKey('onboarding-back-button')),
+      find.descendant(
+        of: find.byKey(const ValueKey('onboarding-back-button')),
+        matching: find.byType(FilledButton),
+      ),
     );
     final continueButton = tester.widget<ElevatedButton>(
-      find.byKey(const ValueKey('onboarding-continue-button')),
+      find.descendant(
+        of: find.byKey(const ValueKey('onboarding-continue-button')),
+        matching: find.byType(ElevatedButton),
+      ),
     );
     expect(back.onPressed, null);
     expect(continueButton.onPressed, null);
@@ -239,7 +272,10 @@ void main() {
     expect(
       tester
           .widget<ElevatedButton>(
-            find.byKey(const ValueKey('onboarding-continue-button')),
+            find.descendant(
+              of: find.byKey(const ValueKey('onboarding-continue-button')),
+              matching: find.byType(ElevatedButton),
+            ),
           )
           .onPressed,
       isNot(null),
@@ -253,7 +289,10 @@ void main() {
     expect(
       tester
           .widget<FilledButton>(
-            find.byKey(const ValueKey('onboarding-back-button')),
+            find.descendant(
+              of: find.byKey(const ValueKey('onboarding-back-button')),
+              matching: find.byType(FilledButton),
+            ),
           )
           .onPressed,
       isNot(null),

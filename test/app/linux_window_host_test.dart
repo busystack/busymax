@@ -6,6 +6,7 @@ import 'package:busymax/src/app/busymax_app.dart';
 import 'package:busymax/src/app/busymax_design.dart';
 import 'package:busymax/src/app/busymax_dialogs.dart';
 import 'package:busymax/src/app/linux/linux_window_host.dart';
+import 'package:busymax/src/app/linux/linux_header_style.dart';
 import 'package:busymax/src/app/busymax_window_close.dart';
 import 'package:busymax/src/platform/gtk_window_preferences_service.dart';
 import 'package:flutter/gestures.dart';
@@ -445,7 +446,75 @@ void main() {
     await tester.pumpAndSettle();
     expect(_renderedControlOpacity(tester), 1);
   });
+
+  testWidgets('Yaru active state drives application chrome exactly once', (
+    tester,
+  ) async {
+    nativeState = <String, Object?>{'active': true};
+    await _pumpHost(
+      tester,
+      preferences: _closePreferences,
+      child: const Column(
+        children: [
+          BusyMaxLinuxHeaderTitle('Header title'),
+          BusyMaxLinuxHeaderTitle('BusyMax brand', brand: true),
+          BusyMaxLinuxHeaderIconButton(
+            key: ValueKey('active-header-button'),
+            icon: Icon(YaruIcons.search),
+            tooltip: 'Enabled',
+            onPressed: _noop,
+          ),
+          BusyMaxLinuxHeaderIconButton(
+            key: ValueKey('disabled-header-button'),
+            icon: Icon(YaruIcons.plus),
+            tooltip: 'Disabled',
+            onPressed: null,
+          ),
+        ],
+      ),
+    );
+
+    Color titleColor(String text) =>
+        tester.widget<Text>(find.text(text)).style!.color!;
+    Color iconColor(String key, Set<WidgetState> states) => tester
+        .widget<IconButton>(
+          find.descendant(
+            of: find.byKey(ValueKey(key)),
+            matching: find.byType(IconButton),
+          ),
+        )
+        .style!
+        .foregroundColor!
+        .resolve(states)!;
+
+    expect(titleColor('Header title').a, 1);
+    expect(titleColor('BusyMax brand').a, 1);
+    expect(iconColor('active-header-button', const {}).a, 1);
+    expect(
+      iconColor('disabled-header-button', const {WidgetState.disabled}).a,
+      .38,
+    );
+    expect(_renderedControlOpacity(tester), 1);
+
+    await _sendState(tester, eventSink, <String, Object?>{'active': false});
+    await tester.pumpAndSettle();
+
+    final metrics = LinuxWindowMetricsScope.of(
+      tester.element(find.byKey(const ValueKey('metrics-probe'))),
+    );
+    expect(metrics.windowActive, isFalse);
+    expect(titleColor('Header title').a, .50);
+    expect(titleColor('BusyMax brand').a, .50);
+    expect(iconColor('active-header-button', const {}).a, .50);
+    expect(
+      iconColor('disabled-header-button', const {WidgetState.disabled}).a,
+      .19,
+    );
+    expect(_renderedControlOpacity(tester), .50);
+  });
 }
+
+void _noop() {}
 
 const _maximizePreferences = GtkWindowPreferences(
   decorationLayout: GtkDecorationLayout(

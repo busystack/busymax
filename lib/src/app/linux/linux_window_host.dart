@@ -43,17 +43,20 @@ class LinuxWindowMetricsScope extends InheritedWidget {
     super.key,
     required this.leftControlInset,
     required this.rightControlInset,
+    required this.windowActive,
     required this.preferences,
     required super.child,
   });
 
   final double leftControlInset;
   final double rightControlInset;
+  final bool windowActive;
   final GtkWindowPreferences preferences;
 
   static final LinuxWindowMetricsScope _fallback = LinuxWindowMetricsScope(
     leftControlInset: 0,
     rightControlInset: 0,
+    windowActive: true,
     preferences: GtkWindowPreferences.defaults(),
     child: const SizedBox.shrink(),
   );
@@ -66,6 +69,7 @@ class LinuxWindowMetricsScope extends InheritedWidget {
   bool updateShouldNotify(LinuxWindowMetricsScope oldWidget) =>
       leftControlInset != oldWidget.leftControlInset ||
       rightControlInset != oldWidget.rightControlInset ||
+      windowActive != oldWidget.windowActive ||
       preferences != oldWidget.preferences;
 }
 
@@ -150,6 +154,7 @@ class _LinuxWindowHostState extends ConsumerState<LinuxWindowHost> {
           return LinuxWindowMetricsScope(
             leftControlInset: leftInset,
             rightControlInset: rightInset,
+            windowActive: state.isActive != false,
             preferences: preferences,
             child: _LinuxWindowOverlay(
               leftDecorations: leftDecorations,

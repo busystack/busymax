@@ -541,6 +541,10 @@ class BusyMaxHeaderIconButton extends StatelessWidget {
     this.fixedSize,
     this.shape,
     this.focusNode,
+    this.isSelected,
+    this.selectedIcon,
+    this.disabledForegroundColor,
+    this.focusBorderRadius,
   });
 
   final Widget icon;
@@ -553,6 +557,10 @@ class BusyMaxHeaderIconButton extends StatelessWidget {
   final Size? fixedSize;
   final OutlinedBorder? shape;
   final FocusNode? focusNode;
+  final bool? isSelected;
+  final Widget? selectedIcon;
+  final Color? disabledForegroundColor;
+  final double? focusBorderRadius;
 
   @override
   Widget build(BuildContext context) {
@@ -562,10 +570,13 @@ class BusyMaxHeaderIconButton extends StatelessWidget {
       iconSize: iconSize,
       onPressed: onPressed,
       focusNode: focusNode,
+      isSelected: isSelected,
+      selectedIcon: selectedIcon,
       style:
           busyMaxHeaderIconButtonStyle(
             context,
             foregroundColor: foregroundColor,
+            disabledForegroundColor: disabledForegroundColor,
             backgroundColor: backgroundColor,
             overlayColor: overlayColor,
           ).copyWith(
@@ -583,7 +594,10 @@ class BusyMaxHeaderIconButton extends StatelessWidget {
     );
     return YaruTheme.maybeOf(context)?.focusBorders == true
         ? YaruFocusBorder.primary(
-            borderRadius: BorderRadius.circular(100),
+            borderRadius: BorderRadius.circular(
+              focusBorderRadius ??
+                  (shape is CircleBorder ? 100 : BusyMaxRadius.headerButton),
+            ),
             child: button,
           )
         : button;
@@ -593,12 +607,13 @@ class BusyMaxHeaderIconButton extends StatelessWidget {
 ButtonStyle busyMaxHeaderIconButtonStyle(
   BuildContext context, {
   Color? foregroundColor,
+  Color? disabledForegroundColor,
   WidgetStateProperty<Color?>? backgroundColor,
   WidgetStateProperty<Color?>? overlayColor,
 }) {
-  final disabledForeground = BusyMaxSurfaceColors.of(
-    context,
-  ).disabledForeground;
+  final disabledForeground =
+      disabledForegroundColor ??
+      BusyMaxSurfaceColors.of(context).disabledForeground;
   return ButtonStyle(
     fixedSize: const WidgetStatePropertyAll(
       Size.square(BusyMaxSizes.headerIconButton),
@@ -611,6 +626,8 @@ ButtonStyle busyMaxHeaderIconButtonStyle(
     ),
     padding: const WidgetStatePropertyAll(EdgeInsets.zero),
     tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+    animationDuration: BusyMaxMotion.fast,
+    splashFactory: NoSplash.splashFactory,
     foregroundColor: WidgetStateProperty.resolveWith((states) {
       return states.contains(WidgetState.disabled)
           ? disabledForeground
@@ -1311,8 +1328,16 @@ TextStyle? busyMaxSectionHeaderStyle(BuildContext context) {
 /// Flutter fallback keeps the theme's title geometry and color, and mirrors
 /// only that semantic emphasis.
 TextStyle busyMaxHeaderTitleStyle(BuildContext context) {
-  return (Theme.of(context).textTheme.titleMedium ?? const TextStyle())
-      .copyWith(fontWeight: FontWeight.bold);
+  return (Theme.of(context).textTheme.bodyMedium ?? const TextStyle()).copyWith(
+    fontWeight: FontWeight.bold,
+  );
+}
+
+/// The stronger GTK-sized wordmark used only by the Linux sidebar header.
+TextStyle busyMaxHeaderBrandStyle(BuildContext context) {
+  return (Theme.of(context).textTheme.bodyMedium ?? const TextStyle()).copyWith(
+    fontWeight: FontWeight.w800,
+  );
 }
 
 Widget _busyMaxGroupedRowSubtitle(

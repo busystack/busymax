@@ -86,6 +86,44 @@ void main() {
     _expectSearchDragArea(tester);
   });
 
+  testWidgets('search header keeps native titlebar geometry and spacing', (
+    tester,
+  ) async {
+    await _pumpWorkspace(tester, width: 650);
+    await _openSearch(tester);
+
+    expect(
+      tester
+          .getSize(find.byKey(const ValueKey('schedule-search-header')))
+          .height,
+      BusyMaxSizes.toolbarHeight,
+    );
+    final fieldRect = tester.getRect(find.byType(BusyMaxSearchField));
+    expect(fieldRect.height, BusyMaxSizes.headerIconButton);
+
+    const keys = [
+      _searchDragAreaKey,
+      ValueKey('schedule-search-filter-button'),
+      ValueKey('schedule-search-close-button'),
+      ValueKey('busymax-main-menu-button'),
+    ];
+    for (final key in keys) {
+      expect(
+        tester.getSize(find.byKey(key)),
+        const Size.square(BusyMaxSizes.headerIconButton),
+      );
+    }
+    Rect rect(Key key) => tester.getRect(find.byKey(key));
+    for (var index = 1; index < keys.length; index++) {
+      expect(
+        rect(keys[index]).left - rect(keys[index - 1]).right,
+        BusyMaxSpacing.headerInset,
+      );
+    }
+    expect(rect(keys.first).left - fieldRect.right, BusyMaxSpacing.headerInset);
+    expect(650 - rect(keys.last).right, BusyMaxSpacing.headerInset);
+  });
+
   testWidgets('only the explicit empty search region drags the window', (
     tester,
   ) async {
@@ -179,7 +217,10 @@ const _searchDragAreaKey = ValueKey('schedule-search-titlebar-drag-area');
 void _expectSearchDragArea(WidgetTester tester) {
   final area = find.byKey(_searchDragAreaKey);
   expect(area, findsOneWidget);
-  expect(tester.getSize(area).width, BusyMaxSizes.headerIconButton);
+  expect(
+    tester.getSize(area),
+    const Size.square(BusyMaxSizes.headerIconButton),
+  );
   expect(
     find.descendant(of: area, matching: find.byType(TextField)),
     findsNothing,

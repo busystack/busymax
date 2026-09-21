@@ -1494,6 +1494,7 @@ bool _hasRawIconButton(File file, String line) {
   return line.contains('IconButton(') &&
       !line.contains('YaruIconButton(') &&
       !line.contains('BusyMaxHeaderIconButton(') &&
+      !line.contains('BusyMaxLinuxHeaderIconButton(') &&
       !line.contains('BusyMaxPopoverIconButton(');
 }
 

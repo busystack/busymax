@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:yaru/yaru.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
@@ -18,6 +17,7 @@ import '../../../app/busymax_shortcuts.dart';
 import '../../../app/busymax_surface_colors.dart';
 import '../../../app/busymax_window_close.dart';
 import '../../../app/linux/linux_page_frame.dart';
+import '../../../app/linux/linux_header_style.dart';
 import '../../../app/linux/linux_window_host.dart';
 import '../../../core/logging/redacting_logger.dart';
 import '../../../calendar_providers/calendar_mutation.dart';
@@ -483,52 +483,88 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
                     final header = BusyMaxBinaryPresentation(
                       alternateActive: searchActive,
                       child: searchActive
-                          ? Padding(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: BusyMaxSpacing.md,
-                                vertical: BusyMaxSpacing.headerInset,
-                              ),
-                              child: Row(
-                                children: [
-                                  Expanded(
-                                    child: BusyMaxSearchField(
-                                      controller: _searchController,
-                                      autofocus: true,
-                                      focusRequest: _fallbackSearchFocusRequest,
-                                      hintText: MaterialLocalizations.of(
-                                        context,
-                                      ).searchFieldLabel,
-                                      onChanged: _setSearchQuery,
-                                      onClear: _clearSearchQuery,
-                                    ),
+                          ? Builder(
+                              builder: (context) {
+                                final insets = LinuxPageHeaderInsetsScope.of(
+                                  context,
+                                );
+                                return Padding(
+                                  key: const ValueKey('schedule-search-header'),
+                                  padding: EdgeInsets.fromLTRB(
+                                    insets.leftObstruction +
+                                        BusyMaxSpacing.headerInset,
+                                    BusyMaxSpacing.headerInset,
+                                    insets.rightObstruction +
+                                        BusyMaxSpacing.headerInset,
+                                    BusyMaxSpacing.headerInset,
                                   ),
-                                  LinuxTitlebarGestureRegion(
-                                    key: const ValueKey(
-                                      'schedule-search-titlebar-drag-area',
-                                    ),
-                                    child: const SizedBox(
-                                      width: BusyMaxSizes.headerIconButton,
-                                      height: BusyMaxSizes.headerIconButton,
-                                    ),
+                                  child: Row(
+                                    children: [
+                                      Expanded(
+                                        child: BusyMaxSearchField(
+                                          controller: _searchController,
+                                          autofocus: true,
+                                          focusRequest:
+                                              _fallbackSearchFocusRequest,
+                                          hintText: MaterialLocalizations.of(
+                                            context,
+                                          ).searchFieldLabel,
+                                          onChanged: _setSearchQuery,
+                                          onClear: _clearSearchQuery,
+                                        ),
+                                      ),
+                                      const SizedBox(
+                                        width: BusyMaxSpacing.headerInset,
+                                      ),
+                                      BusyMaxLinuxHeaderControlGroup(
+                                        key: const ValueKey(
+                                          'schedule-search-header-actions',
+                                        ),
+                                        children: [
+                                          LinuxTitlebarGestureRegion(
+                                            key: const ValueKey(
+                                              'schedule-search-titlebar-drag-area',
+                                            ),
+                                            child: const SizedBox.square(
+                                              dimension:
+                                                  BusyMaxSizes.headerIconButton,
+                                            ),
+                                          ),
+                                          if (!canShowSidebar ||
+                                              _sidebarCollapsed)
+                                            BusyMaxLinuxHeaderIconButton(
+                                              key: const ValueKey(
+                                                'schedule-search-filter-button',
+                                              ),
+                                              tooltip: context
+                                                  .l10n
+                                                  .searchFiltersAction,
+                                              icon: const Icon(
+                                                Icons.filter_list,
+                                              ),
+                                              onPressed: _showSearchFilters,
+                                            ),
+                                          BusyMaxLinuxHeaderIconButton(
+                                            key: const ValueKey(
+                                              'schedule-search-close-button',
+                                            ),
+                                            tooltip: context.l10n.close,
+                                            icon: const Icon(
+                                              BusyMaxLinuxHeaderGlyphs.close,
+                                            ),
+                                            onPressed: _closeSearch,
+                                          ),
+                                          BusyMaxMainMenuButton(
+                                            includeRefresh: true,
+                                            canRefresh: accounts.isNotEmpty,
+                                            onSelected: _handleToolbarMenu,
+                                          ),
+                                        ],
+                                      ),
+                                    ],
                                   ),
-                                  if (!canShowSidebar || _sidebarCollapsed)
-                                    YaruIconButton(
-                                      tooltip: context.l10n.searchFiltersAction,
-                                      icon: const Icon(Icons.filter_list),
-                                      onPressed: _showSearchFilters,
-                                    ),
-                                  YaruIconButton(
-                                    tooltip: context.l10n.close,
-                                    icon: const Icon(Icons.close),
-                                    onPressed: _closeSearch,
-                                  ),
-                                  BusyMaxMainMenuButton(
-                                    includeRefresh: true,
-                                    canRefresh: accounts.isNotEmpty,
-                                    onSelected: _handleToolbarMenu,
-                                  ),
-                                ],
-                              ),
+                                );
+                              },
                             )
                           : ScheduleToolbar(
                               mode: _mode,

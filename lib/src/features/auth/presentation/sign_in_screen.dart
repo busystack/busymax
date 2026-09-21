@@ -14,7 +14,7 @@ import '../../../app/busymax_glyphs.dart';
 import '../../../app/busymax_shortcuts.dart';
 import '../../../app/busymax_yaru_theme.dart';
 import '../../../app/linux/linux_page_frame.dart';
-import '../../../app/linux/linux_window_host.dart';
+import '../../../app/linux/linux_header_style.dart';
 import '../../../dav/auth/dav_account_dialogs.dart';
 import '../../../dav/dav_errors.dart';
 import '../../../dav/http/dav_http_transport.dart';
@@ -766,52 +766,22 @@ class _OnboardingHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final metrics = LinuxWindowMetricsScope.of(context);
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final fullWidth =
-            constraints.maxWidth +
-            metrics.leftControlInset +
-            metrics.rightControlInset;
-        final railWidth = math.min(
-          BusyMaxSizes.onboardingContentMaxWidth,
-          constraints.maxWidth,
-        );
-        final centeredStart =
-            (fullWidth - railWidth) / 2 - metrics.leftControlInset;
-        final centeredEnd = constraints.maxWidth - centeredStart - railWidth;
-        final canCenterWithoutControls = centeredStart >= 0 && centeredEnd >= 0;
-        final row = Row(
-          children: [
-            BusyMaxPushButton.standard(
-              key: const ValueKey('onboarding-back-button'),
-              onPressed: canGoBack ? onBack : null,
-              child: Text(backLabel),
-            ),
-            Expanded(
-              child: LinuxTitlebarGestureRegion(
-                child: Text(
-                  title,
-                  textAlign: TextAlign.center,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: busyMaxHeaderTitleStyle(context),
-                ),
-              ),
-            ),
-            BusyMaxPushButton.suggested(
-              key: const ValueKey('onboarding-continue-button'),
-              onPressed: canContinue ? onContinue : null,
-              child: Text(continueLabel),
-            ),
-          ],
-        );
-        if (!canCenterWithoutControls) return row;
-        return Padding(
-          padding: EdgeInsets.only(left: centeredStart, right: centeredEnd),
-          child: row,
-        );
-      },
+    return BusyMaxLinuxHeaderLayout(
+      maxContentWidth: BusyMaxSizes.onboardingContentMaxWidth,
+      leading: BusyMaxLinuxHeaderTextButton.standard(
+        key: const ValueKey('onboarding-back-button'),
+        label: backLabel,
+        onPressed: canGoBack ? onBack : null,
+      ),
+      title: BusyMaxLinuxHeaderTitle(
+        title,
+        key: const ValueKey('onboarding-header-title'),
+      ),
+      trailing: BusyMaxLinuxHeaderTextButton.suggested(
+        key: const ValueKey('onboarding-continue-button'),
+        label: continueLabel,
+        onPressed: canContinue ? onContinue : null,
+      ),
     );
   }
 }

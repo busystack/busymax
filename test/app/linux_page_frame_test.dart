@@ -1,5 +1,8 @@
 import 'package:busymax/src/app/busymax_design.dart';
+import 'package:busymax/src/app/linux/linux_header_style.dart';
 import 'package:busymax/src/app/linux/linux_page_frame.dart';
+import 'package:busymax/src/app/linux/linux_window_host.dart';
+import 'package:busymax/src/platform/gtk_window_preferences_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -160,6 +163,37 @@ void main() {
       _expectSharedEdge(tester, expectedWidth: BusyMaxSizes.sidebarWidth);
     },
   );
+
+  testWidgets('header receives only the presented system-control obstruction', (
+    tester,
+  ) async {
+    final harnessKey = GlobalKey<_FrameHarnessState>();
+    await tester.pumpWidget(
+      _testApp(
+        _FrameHarness(key: harnessKey),
+        leftControlInset: 240,
+        rightControlInset: 100,
+      ),
+    );
+
+    LinuxPageHeaderInsetsScope insets() => LinuxPageHeaderInsetsScope.of(
+      tester.element(find.byKey(const ValueKey('frame-header-probe'))),
+    );
+    expect(insets().leftObstruction, 240);
+    expect(insets().rightObstruction, 100);
+
+    harnessKey.currentState!.toggle();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 80));
+    final presentedWidth = _sidebarWidth(tester);
+    expect(presentedWidth, inExclusiveRange(0, 240));
+    expect(insets().leftObstruction, closeTo(240 - presentedWidth, .001));
+    expect(insets().rightObstruction, 100);
+
+    await tester.pumpAndSettle();
+    expect(insets().leftObstruction, 0);
+    expect(insets().rightObstruction, 100);
+  });
 }
 
 Widget _testApp(
@@ -167,14 +201,22 @@ Widget _testApp(
   TextDirection direction = TextDirection.ltr,
   bool disableAnimations = false,
   double devicePixelRatio = 1,
+  double leftControlInset = 0,
+  double rightControlInset = 0,
 }) => MaterialApp(
-  home: MediaQuery(
-    data: MediaQueryData(
-      size: const Size(1000, 700),
-      devicePixelRatio: devicePixelRatio,
-      disableAnimations: disableAnimations,
+  home: LinuxWindowMetricsScope(
+    leftControlInset: leftControlInset,
+    rightControlInset: rightControlInset,
+    windowActive: true,
+    preferences: GtkWindowPreferences.defaults(),
+    child: MediaQuery(
+      data: MediaQueryData(
+        size: const Size(1000, 700),
+        devicePixelRatio: devicePixelRatio,
+        disableAnimations: disableAnimations,
+      ),
+      child: Directionality(textDirection: direction, child: child),
     ),
-    child: Directionality(textDirection: direction, child: child),
   ),
 );
 
@@ -252,7 +294,12 @@ class _FrameHarnessState extends State<_FrameHarness> {
         context,
       ).copyWith(disableAnimations: disableAnimations),
       child: LinuxPageFrame(
-        header: Text('$rebuildCount'),
+        header: Builder(
+          builder: (context) => SizedBox(
+            key: const ValueKey('frame-header-probe'),
+            child: Text('$rebuildCount'),
+          ),
+        ),
         body: const _RetainedBody(key: ValueKey('frame-main')),
         sidebarHeader: const SizedBox(height: 46),
         sidebarBody: const _RetainedSidebar(),

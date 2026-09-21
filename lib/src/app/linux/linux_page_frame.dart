@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../busymax_design.dart';
 import '../busymax_surface_colors.dart';
+import 'linux_header_style.dart';
 import 'linux_window_host.dart';
 
 /// The canonical Linux page composition.
@@ -157,15 +158,12 @@ class _LinuxPageFrameState extends State<LinuxPageFrame>
         final sidebarSideOverlap = (sidebarControlInset - presentedWidth)
             .clamp(0.0, double.infinity)
             .toDouble();
-        final mainPadding = sidebarAtLeft
-            ? EdgeInsets.only(
-                left: sidebarSideOverlap,
-                right: oppositeControlInset,
-              )
-            : EdgeInsets.only(
-                left: oppositeControlInset,
-                right: sidebarSideOverlap,
-              );
+        final leftObstruction = sidebarAtLeft
+            ? sidebarSideOverlap
+            : oppositeControlInset;
+        final rightObstruction = sidebarAtLeft
+            ? oppositeControlInset
+            : sidebarSideOverlap;
         final sidebarInteractive = _targetVisible && _controller.value == 1;
         return Row(
           children: [
@@ -206,8 +204,9 @@ class _LinuxPageFrameState extends State<LinuxPageFrame>
                 children: [
                   SizedBox(
                     height: BusyMaxLinuxWindowMetrics.headerHeight,
-                    child: Padding(
-                      padding: mainPadding,
+                    child: LinuxPageHeaderInsetsScope(
+                      leftObstruction: leftObstruction,
+                      rightObstruction: rightObstruction,
                       child: (mainChild! as _LinuxFrameMain).header,
                     ),
                   ),
@@ -243,7 +242,7 @@ class BusyMaxLinuxBrandHeader extends StatelessWidget {
           'BusyMax',
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
-          style: busyMaxHeaderTitleStyle(context),
+          style: busyMaxLinuxHeaderBrandStyle(context),
         ),
       ),
     );
