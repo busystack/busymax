@@ -17,11 +17,23 @@ abstract final class BusyMaxLinuxWindowMetrics {
   static const double controlSpacing = 14;
   static const double controlHorizontalPadding = 10;
 
-  static double clusterWidth(int controls) => controls == 0
+  static double decorationWidth(GtkWindowDecorationElement decoration) =>
+      switch (decoration) {
+        GtkWindowDecorationElement.fallbackApplicationMenu => 0,
+        GtkWindowDecorationElement.windowIcon ||
+        GtkWindowDecorationElement.minimize ||
+        GtkWindowDecorationElement.maximize ||
+        GtkWindowDecorationElement.close => controlSize,
+      };
+
+  static double clusterWidth(List<GtkWindowDecorationElement> decorations) =>
+      decorations.isEmpty
       ? 0
       : controlHorizontalPadding * 2 +
-            controlSize * controls +
-            controlSpacing * (controls - 1);
+            decorations.fold(0, (width, item) {
+              return width + decorationWidth(item);
+            }) +
+            controlSpacing * (decorations.length - 1);
 }
 
 class LinuxWindowMetricsScope extends InheritedWidget {
@@ -60,44 +72,60 @@ class LinuxWindowMetricsScope extends InheritedWidget {
 /// The overlay contains only the configured control clusters. Application
 /// header content remains inside page routes and is therefore covered by
 /// ordinary dialog barriers.
-class LinuxWindowHost extends ConsumerWidget {
+class LinuxWindowHost extends ConsumerStatefulWidget {
   const LinuxWindowHost({super.key, required this.child});
 
   final Widget child;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<LinuxWindowHost> createState() => _LinuxWindowHostState();
+}
+
+class _LinuxWindowHostState extends ConsumerState<LinuxWindowHost> {
+  YaruWindowInstance? _window;
+  Stream<YaruWindowState>? _windowStates;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final window = YaruWindow.of(context);
+    if (identical(window, _window)) return;
+    _window = window;
+    _windowStates = window.states();
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final preferences =
         ref.watch(gtkWindowPreferencesProvider).valueOrNull ??
         GtkWindowPreferences.defaults();
-    final window = YaruWindow.of(context);
     return StreamBuilder<YaruWindowState>(
-      stream: window.states(),
+      stream: _windowStates,
       builder: (context, snapshot) {
         final state = snapshot.data ?? const YaruWindowState();
-        final leftControls = _meaningfulControls(
+        final leftDecorations = _meaningfulDecorations(
           preferences.decorationLayout.left,
           state,
         );
-        final rightControls = _meaningfulControls(
+        final rightDecorations = _meaningfulDecorations(
           preferences.decorationLayout.right,
           state,
         );
         final leftInset = BusyMaxLinuxWindowMetrics.clusterWidth(
-          leftControls.length,
+          leftDecorations,
         );
         final rightInset = BusyMaxLinuxWindowMetrics.clusterWidth(
-          rightControls.length,
+          rightDecorations,
         );
         return LinuxWindowMetricsScope(
           leftControlInset: leftInset,
           rightControlInset: rightInset,
           preferences: preferences,
           child: _LinuxWindowOverlay(
-            leftControls: leftControls,
-            rightControls: rightControls,
+            leftDecorations: leftDecorations,
+            rightDecorations: rightDecorations,
             state: state,
-            child: child,
+            child: widget.child,
           ),
         );
       },
@@ -105,33 +133,36 @@ class LinuxWindowHost extends ConsumerWidget {
   }
 }
 
-List<GtkWindowControlType> _meaningfulControls(
-  List<GtkWindowControlType> controls,
+List<GtkWindowDecorationElement> _meaningfulDecorations(
+  List<GtkWindowDecorationElement> decorations,
   YaruWindowState state,
-) => controls
-    .where((control) {
-      return switch (control) {
-        GtkWindowControlType.menu => true,
-        GtkWindowControlType.minimize => state.isMinimizable != false,
-        GtkWindowControlType.maximize =>
+) => decorations
+    .where((decoration) {
+      return switch (decoration) {
+        // BusyMax does not register GTK's fallback application-menu model.
+        GtkWindowDecorationElement.fallbackApplicationMenu => false,
+        GtkWindowDecorationElement.windowIcon => true,
+        GtkWindowDecorationElement.minimize => state.isMinimizable != false,
+        GtkWindowDecorationElement.maximize =>
           state.isMaximizable != false ||
               state.isRestorable == true ||
-              state.isMaximized == true,
-        GtkWindowControlType.close => state.isClosable != false,
+              state.isMaximized == true ||
+              state.isFullscreen == true,
+        GtkWindowDecorationElement.close => state.isClosable != false,
       };
     })
     .toList(growable: false);
 
 class _LinuxWindowOverlay extends StatefulWidget {
   const _LinuxWindowOverlay({
-    required this.leftControls,
-    required this.rightControls,
+    required this.leftDecorations,
+    required this.rightDecorations,
     required this.state,
     required this.child,
   });
 
-  final List<GtkWindowControlType> leftControls;
-  final List<GtkWindowControlType> rightControls;
+  final List<GtkWindowDecorationElement> leftDecorations;
+  final List<GtkWindowDecorationElement> rightDecorations;
   final YaruWindowState state;
   final Widget child;
 
@@ -162,25 +193,25 @@ class _LinuxWindowOverlayState extends State<_LinuxWindowOverlay> {
     return Stack(
       children: [
         Positioned.fill(child: widget.child),
-        if (widget.leftControls.isNotEmpty)
+        if (widget.leftDecorations.isNotEmpty)
           Positioned(
             key: const ValueKey('linux-window-controls-left'),
             left: 0,
             top: 0,
             height: BusyMaxLinuxWindowMetrics.headerHeight,
             child: _LinuxWindowControlCluster(
-              controls: widget.leftControls,
+              decorations: widget.leftDecorations,
               state: widget.state,
             ),
           ),
-        if (widget.rightControls.isNotEmpty)
+        if (widget.rightDecorations.isNotEmpty)
           Positioned(
             key: const ValueKey('linux-window-controls-right'),
             right: 0,
             top: 0,
             height: BusyMaxLinuxWindowMetrics.headerHeight,
             child: _LinuxWindowControlCluster(
-              controls: widget.rightControls,
+              decorations: widget.rightDecorations,
               state: widget.state,
             ),
           ),
@@ -191,11 +222,11 @@ class _LinuxWindowOverlayState extends State<_LinuxWindowOverlay> {
 
 class _LinuxWindowControlCluster extends StatelessWidget {
   const _LinuxWindowControlCluster({
-    required this.controls,
+    required this.decorations,
     required this.state,
   });
 
-  final List<GtkWindowControlType> controls;
+  final List<GtkWindowDecorationElement> decorations;
   final YaruWindowState state;
 
   @override
@@ -203,9 +234,8 @@ class _LinuxWindowControlCluster extends StatelessWidget {
     final foreground = BusyMaxSurfaceColors.of(context).foreground;
     return Material(
       type: MaterialType.transparency,
-      child: AnimatedOpacity(
+      child: _LinuxWindowActivationOpacity(
         opacity: state.isActive == false ? .5 : 1,
-        duration: BusyMaxMotion.fast,
         child: Padding(
           padding: const EdgeInsets.symmetric(
             horizontal: BusyMaxLinuxWindowMetrics.controlHorizontalPadding,
@@ -214,12 +244,12 @@ class _LinuxWindowControlCluster extends StatelessWidget {
             textDirection: TextDirection.ltr,
             mainAxisSize: MainAxisSize.min,
             children: [
-              for (var index = 0; index < controls.length; index++) ...[
+              for (var index = 0; index < decorations.length; index++) ...[
                 if (index > 0)
                   const SizedBox(
                     width: BusyMaxLinuxWindowMetrics.controlSpacing,
                   ),
-                _buildControl(context, controls[index], foreground),
+                _buildDecoration(context, decorations[index], foreground),
               ],
             ],
           ),
@@ -228,27 +258,31 @@ class _LinuxWindowControlCluster extends StatelessWidget {
     );
   }
 
-  Widget _buildControl(
+  Widget _buildDecoration(
     BuildContext context,
-    GtkWindowControlType control,
+    GtkWindowDecorationElement decoration,
     Color foreground,
   ) {
     final window = YaruWindow.of(context);
     final material = MaterialLocalizations.of(context);
     final iconColor = WidgetStatePropertyAll(foreground);
-    return switch (control) {
-      GtkWindowControlType.menu => SizedBox.square(
+    final restorePresentation =
+        state.isMaximized == true || state.isFullscreen == true;
+    return switch (decoration) {
+      GtkWindowDecorationElement.fallbackApplicationMenu =>
+        const SizedBox.shrink(),
+      GtkWindowDecorationElement.windowIcon => SizedBox.square(
         dimension: BusyMaxLinuxWindowMetrics.controlSize,
-        child: Tooltip(
-          message: material.showMenuTooltip,
-          child: InkResponse(
-            onTap: window.showMenu,
-            radius: BusyMaxLinuxWindowMetrics.controlSize / 2,
-            child: const Icon(Icons.menu, size: 16),
+        child: Center(
+          child: Image.asset(
+            'assets/branding/busymax-logo.png',
+            width: BusyMaxSizes.iconSm,
+            height: BusyMaxSizes.iconSm,
+            excludeFromSemantics: true,
           ),
         ),
       ),
-      GtkWindowControlType.minimize => Tooltip(
+      GtkWindowDecorationElement.minimize => Tooltip(
         message: context.l10n.windowMinimize,
         child: YaruWindowControl(
           iconColor: iconColor,
@@ -257,26 +291,26 @@ class _LinuxWindowControlCluster extends StatelessWidget {
           onTap: state.isMinimizable == false ? null : window.minimize,
         ),
       ),
-      GtkWindowControlType.maximize => Tooltip(
-        message: state.isMaximized == true
+      GtkWindowDecorationElement.maximize => Tooltip(
+        message: restorePresentation
             ? context.l10n.windowRestore
             : context.l10n.windowMaximize,
         child: YaruWindowControl(
           iconColor: iconColor,
-          semanticLabel: state.isMaximized == true
+          semanticLabel: restorePresentation
               ? context.l10n.windowRestore
               : context.l10n.windowMaximize,
-          type: state.isMaximized == true
+          type: restorePresentation
               ? YaruWindowControlType.restore
               : YaruWindowControlType.maximize,
-          onTap: state.isMaximized == true
+          onTap: restorePresentation
               ? window.restore
               : state.isMaximizable == false
               ? null
               : window.maximize,
         ),
       ),
-      GtkWindowControlType.close => Tooltip(
+      GtkWindowDecorationElement.close => Tooltip(
         message: material.closeButtonTooltip,
         child: YaruWindowControl(
           iconColor: iconColor,
@@ -286,6 +320,30 @@ class _LinuxWindowControlCluster extends StatelessWidget {
         ),
       ),
     };
+  }
+}
+
+class _LinuxWindowActivationOpacity extends StatelessWidget {
+  const _LinuxWindowActivationOpacity({
+    required this.opacity,
+    required this.child,
+  });
+
+  final double opacity;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    const key = ValueKey('linux-window-controls-opacity');
+    if (MediaQuery.disableAnimationsOf(context)) {
+      return Opacity(key: key, opacity: opacity, child: child);
+    }
+    return AnimatedOpacity(
+      key: key,
+      opacity: opacity,
+      duration: BusyMaxMotion.fast,
+      child: child,
+    );
   }
 }
 
@@ -310,6 +368,7 @@ class LinuxTitlebarGestureRegion extends StatelessWidget {
         }
       },
       child: GestureDetector(
+        excludeFromSemantics: true,
         behavior: HitTestBehavior.translucent,
         onPanStart: (_) => unawaited(window.drag()),
         onDoubleTap: () => unawaited(

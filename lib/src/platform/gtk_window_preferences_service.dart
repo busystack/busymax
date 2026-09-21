@@ -9,7 +9,7 @@ final class GtkDecorationLayout {
   const GtkDecorationLayout({required this.left, required this.right});
 
   factory GtkDecorationLayout.parse(String? value) {
-    final sides = (value ?? ':minimize,maximize,close').split(':');
+    final sides = (value ?? 'menu:minimize,maximize,close').split(':');
     final left = sides.isEmpty ? '' : sides.first;
     final right = sides.length < 2 ? '' : sides[1];
     return GtkDecorationLayout(
@@ -18,8 +18,8 @@ final class GtkDecorationLayout {
     );
   }
 
-  final List<GtkWindowControlType> left;
-  final List<GtkWindowControlType> right;
+  final List<GtkWindowDecorationElement> left;
+  final List<GtkWindowDecorationElement> right;
 
   @override
   bool operator ==(Object other) =>
@@ -30,25 +30,36 @@ final class GtkDecorationLayout {
   @override
   int get hashCode => Object.hash(Object.hashAll(left), Object.hashAll(right));
 
-  static List<GtkWindowControlType> _parseControls(String source) {
+  static List<GtkWindowDecorationElement> _parseControls(String source) {
     return List.unmodifiable(
       source
           .split(',')
           .map(
             (token) => switch (token.trim()) {
-              'menu' => GtkWindowControlType.menu,
-              'minimize' => GtkWindowControlType.minimize,
-              'maximize' => GtkWindowControlType.maximize,
-              'close' => GtkWindowControlType.close,
+              'menu' => GtkWindowDecorationElement.fallbackApplicationMenu,
+              'icon' => GtkWindowDecorationElement.windowIcon,
+              'minimize' => GtkWindowDecorationElement.minimize,
+              'maximize' => GtkWindowDecorationElement.maximize,
+              'close' => GtkWindowDecorationElement.close,
               _ => null,
             },
           )
-          .whereType<GtkWindowControlType>(),
+          .whereType<GtkWindowDecorationElement>(),
     );
   }
 }
 
-enum GtkWindowControlType { menu, minimize, maximize, close }
+/// An element from GTK 3's physical `gtk-decoration-layout` setting.
+///
+/// The fallback application menu is intentionally distinct from
+/// [GtkTitlebarAction.menu], which requests the window-manager menu.
+enum GtkWindowDecorationElement {
+  fallbackApplicationMenu,
+  windowIcon,
+  minimize,
+  maximize,
+  close,
+}
 
 @immutable
 final class GtkWindowPreferences {

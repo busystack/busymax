@@ -126,6 +126,7 @@ jobs:
           xvfb-run -a build/linux/native-tests/time_picker_test
           g++ -std=c++17 -Wall -Wextra -Werror \
             linux/runner/tests/gtk_window_preferences_test.cc \
+            linux/runner/gtk_window_preferences.cc \
             -o build/linux/native-tests/gtk_window_preferences_test \
             $(pkg-config --cflags --libs gtk+-3.0)
           xvfb-run -a build/linux/native-tests/gtk_window_preferences_test

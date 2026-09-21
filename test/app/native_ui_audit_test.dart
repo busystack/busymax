@@ -413,34 +413,26 @@ void main() {
 
     test('native GTK window preferences notify and clean up safely', () {
       final runner = File('linux/runner/my_application.cc').readAsStringSync();
-      final start = runner.indexOf(
-        'static FlValue* get_gtk_window_preferences()',
-      );
-      final end = runner.indexOf(
-        'static void register_gtk_settings_channel',
-        start,
-      );
-
-      expect(start, isNonNegative);
-      expect(end, greaterThan(start));
-      final bridge = runner.substring(start, end);
+      final helper = File(
+        'linux/runner/gtk_window_preferences.cc',
+      ).readAsStringSync();
       for (final property in [
         'gtk-decoration-layout',
         'gtk-titlebar-double-click',
         'gtk-titlebar-middle-click',
         'gtk-titlebar-right-click',
       ]) {
-        expect(bridge, contains('"$property"'));
-        expect(bridge, contains('"notify::$property"'));
+        expect(helper, contains('"$property"'));
+        expect(helper, contains('"notify::$property"'));
       }
-      expect(bridge, contains('gtk_window_preferences_listen_cb'));
-      expect(bridge, contains('send_gtk_window_preferences_event(self)'));
-      expect(bridge, contains('gtk_window_preferences_cancel_cb'));
-      expect(bridge, contains('disconnect_gtk_window_preferences_signals'));
-      expect(
-        runner,
-        contains('disconnect_gtk_window_preferences_signals(self);'),
-      );
+      expect(helper, contains('BusyMaxGtkWindowPreferencesWatcher::Read'));
+      expect(helper, contains('BusyMaxGtkWindowPreferencesWatcher::Start'));
+      expect(helper, contains('BusyMaxGtkWindowPreferencesWatcher::Stop'));
+      expect(helper, contains('g_signal_handler_disconnect'));
+      expect(runner, contains('gtk_window_preferences_listen_cb'));
+      expect(runner, contains('send_gtk_window_preferences_event('));
+      expect(runner, contains('gtk_window_preferences_cancel_cb'));
+      expect(runner, contains('self->gtk_window_preferences->Stop();'));
       expect(
         runner,
         contains('g_clear_object(&self->gtk_window_preferences_event_channel)'),

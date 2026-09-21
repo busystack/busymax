@@ -1,6 +1,7 @@
 #include "time_picker.h"
 #include "my_application.h"
 #include "first_weekday_preference.h"
+#include "gtk_window_preferences.h"
 
 #include <flutter_linux/flutter_linux.h>
 #include <gdk-pixbuf/gdk-pixbuf.h>
@@ -88,14 +89,11 @@ struct _MyApplication {
   FlEventChannel* gtk_window_preferences_event_channel;
   FlEventChannel* first_weekday_event_channel;
   BusyMaxLinuxFirstWeekdayPreference* first_weekday_preference;
+  BusyMaxGtkWindowPreferencesWatcher* gtk_window_preferences;
   gulong gtk_font_settings_signal_id;
   gulong gtk_theme_name_signal_id;
   gulong gtk_theme_dark_signal_id;
   gulong gtk_animation_settings_signal_id;
-  gulong gtk_decoration_layout_signal_id;
-  gulong gtk_titlebar_double_click_signal_id;
-  gulong gtk_titlebar_middle_click_signal_id;
-  gulong gtk_titlebar_right_click_signal_id;
   gboolean gtk_font_settings_listening;
   gboolean gtk_theme_colors_listening;
   gboolean gtk_animation_settings_listening;
@@ -2295,36 +2293,27 @@ static void apply_gtk_theme_to_native_surfaces(MyApplication* self) {
                       fl_lookup_string_arg(colors, "dialog"));
 }
 
-static FlValue* get_gtk_window_preferences() {
+static FlValue* gtk_window_preferences_to_fl_value(
+    const BusyMaxGtkWindowPreferences& preferences) {
   FlValue* result = fl_value_new_map();
-  GtkSettings* settings = gtk_settings_get_default();
-  if (settings == nullptr) return result;
-  g_autofree gchar* decoration_layout = nullptr;
-  g_autofree gchar* double_click = nullptr;
-  g_autofree gchar* middle_click = nullptr;
-  g_autofree gchar* right_click = nullptr;
-  g_object_get(settings,
-               "gtk-decoration-layout", &decoration_layout,
-               "gtk-titlebar-double-click", &double_click,
-               "gtk-titlebar-middle-click", &middle_click,
-               "gtk-titlebar-right-click", &right_click,
-               nullptr);
   fl_value_set_string_take(
       result, "decorationLayout",
-      fl_value_new_string(decoration_layout != nullptr
-                              ? decoration_layout
-                              : ":minimize,maximize,close"));
+      fl_value_new_string(preferences.decoration_layout.c_str()));
   fl_value_set_string_take(
       result, "doubleClick",
-      fl_value_new_string(double_click != nullptr ? double_click
-                                                  : "toggle-maximize"));
+      fl_value_new_string(preferences.double_click.c_str()));
   fl_value_set_string_take(
       result, "middleClick",
-      fl_value_new_string(middle_click != nullptr ? middle_click : "none"));
+      fl_value_new_string(preferences.middle_click.c_str()));
   fl_value_set_string_take(
       result, "rightClick",
-      fl_value_new_string(right_click != nullptr ? right_click : "menu"));
+      fl_value_new_string(preferences.right_click.c_str()));
   return result;
+}
+
+static FlValue* get_gtk_window_preferences(MyApplication* self) {
+  return gtk_window_preferences_to_fl_value(
+      self->gtk_window_preferences->Read());
 }
 
 static void gtk_settings_method_call_cb(FlMethodChannel* channel,
@@ -2363,7 +2352,7 @@ static void gtk_settings_method_call_cb(FlMethodChannel* channel,
     set_native_surface_theme(self, args);
     fl_method_call_respond_success(method_call, nullptr, nullptr);
   } else if (strcmp(method, "getGtkWindowPreferences") == 0) {
-    g_autoptr(FlValue) result = get_gtk_window_preferences();
+    g_autoptr(FlValue) result = get_gtk_window_preferences(self);
     fl_method_call_respond_success(method_call, result, nullptr);
   } else if (strcmp(method, "lowerWindow") == 0) {
     if (self->main_window != nullptr) {
@@ -2595,31 +2584,15 @@ static FlMethodErrorResponse* gtk_animation_settings_cancel_cb(
   return nullptr;
 }
 
-static void disconnect_gtk_window_preferences_signals(MyApplication* self) {
-  GtkSettings* settings = gtk_settings_get_default();
-  const gulong signals[] = {
-      self->gtk_decoration_layout_signal_id,
-      self->gtk_titlebar_double_click_signal_id,
-      self->gtk_titlebar_middle_click_signal_id,
-      self->gtk_titlebar_right_click_signal_id,
-  };
-  if (settings != nullptr) {
-    for (gulong signal : signals) {
-      if (signal != 0) g_signal_handler_disconnect(settings, signal);
-    }
-  }
-  self->gtk_decoration_layout_signal_id = 0;
-  self->gtk_titlebar_double_click_signal_id = 0;
-  self->gtk_titlebar_middle_click_signal_id = 0;
-  self->gtk_titlebar_right_click_signal_id = 0;
-}
-
-static void send_gtk_window_preferences_event(MyApplication* self) {
+static void send_gtk_window_preferences_event(
+    MyApplication* self,
+    const BusyMaxGtkWindowPreferences& preferences) {
   if (!self->gtk_window_preferences_listening ||
       self->gtk_window_preferences_event_channel == nullptr) {
     return;
   }
-  g_autoptr(FlValue) value = get_gtk_window_preferences();
+  g_autoptr(FlValue) value =
+      gtk_window_preferences_to_fl_value(preferences);
   g_autoptr(GError) error = nullptr;
   if (!fl_event_channel_send(self->gtk_window_preferences_event_channel,
                              value, nullptr, &error)) {
@@ -2628,31 +2601,16 @@ static void send_gtk_window_preferences_event(MyApplication* self) {
   }
 }
 
-static void gtk_window_preferences_notify_cb(GObject*, GParamSpec*,
-                                             gpointer user_data) {
-  send_gtk_window_preferences_event(MY_APPLICATION(user_data));
-}
-
 static FlMethodErrorResponse* gtk_window_preferences_listen_cb(
     FlEventChannel*, FlValue*, gpointer user_data) {
   MyApplication* self = MY_APPLICATION(user_data);
   self->gtk_window_preferences_listening = TRUE;
-  GtkSettings* settings = gtk_settings_get_default();
-  if (settings != nullptr && self->gtk_decoration_layout_signal_id == 0) {
-    self->gtk_decoration_layout_signal_id = g_signal_connect(
-        settings, "notify::gtk-decoration-layout",
-        G_CALLBACK(gtk_window_preferences_notify_cb), self);
-    self->gtk_titlebar_double_click_signal_id = g_signal_connect(
-        settings, "notify::gtk-titlebar-double-click",
-        G_CALLBACK(gtk_window_preferences_notify_cb), self);
-    self->gtk_titlebar_middle_click_signal_id = g_signal_connect(
-        settings, "notify::gtk-titlebar-middle-click",
-        G_CALLBACK(gtk_window_preferences_notify_cb), self);
-    self->gtk_titlebar_right_click_signal_id = g_signal_connect(
-        settings, "notify::gtk-titlebar-right-click",
-        G_CALLBACK(gtk_window_preferences_notify_cb), self);
-  }
-  send_gtk_window_preferences_event(self);
+  self->gtk_window_preferences->Start(
+      [self](const BusyMaxGtkWindowPreferences& preferences) {
+        send_gtk_window_preferences_event(self, preferences);
+      });
+  send_gtk_window_preferences_event(
+      self, self->gtk_window_preferences->Read());
   return nullptr;
 }
 
@@ -2660,7 +2618,9 @@ static FlMethodErrorResponse* gtk_window_preferences_cancel_cb(
     FlEventChannel*, FlValue*, gpointer user_data) {
   MyApplication* self = MY_APPLICATION(user_data);
   self->gtk_window_preferences_listening = FALSE;
-  disconnect_gtk_window_preferences_signals(self);
+  if (self->gtk_window_preferences != nullptr) {
+    self->gtk_window_preferences->Stop();
+  }
   return nullptr;
 }
 
@@ -3065,7 +3025,9 @@ static void my_application_dispose(GObject* object) {
   disconnect_gtk_theme_colors_signals(self);
   disconnect_gtk_font_settings_signal(self);
   disconnect_gtk_animation_settings_signal(self);
-  disconnect_gtk_window_preferences_signals(self);
+  if (self->gtk_window_preferences != nullptr) {
+    self->gtk_window_preferences->Stop();
+  }
   GdkScreen* screen = gdk_screen_get_default();
   if (screen != nullptr && self->native_surface_css_provider != nullptr) {
     gtk_style_context_remove_provider_for_screen(
@@ -3087,6 +3049,8 @@ static void my_application_dispose(GObject* object) {
   self->first_weekday_listening = FALSE;
   delete self->first_weekday_preference;
   self->first_weekday_preference = nullptr;
+  delete self->gtk_window_preferences;
+  self->gtk_window_preferences = nullptr;
   if (self->flutter_view != nullptr && G_IS_OBJECT(self->flutter_view)) {
     g_object_remove_weak_pointer(
         G_OBJECT(self->flutter_view),
@@ -3136,14 +3100,12 @@ static void my_application_init(MyApplication* self) {
   self->gtk_window_preferences_event_channel = nullptr;
   self->first_weekday_event_channel = nullptr;
   self->first_weekday_preference = nullptr;
+  self->gtk_window_preferences =
+      new BusyMaxGtkWindowPreferencesWatcher();
   self->gtk_font_settings_signal_id = 0;
   self->gtk_theme_name_signal_id = 0;
   self->gtk_theme_dark_signal_id = 0;
   self->gtk_animation_settings_signal_id = 0;
-  self->gtk_decoration_layout_signal_id = 0;
-  self->gtk_titlebar_double_click_signal_id = 0;
-  self->gtk_titlebar_middle_click_signal_id = 0;
-  self->gtk_titlebar_right_click_signal_id = 0;
   self->gtk_font_settings_listening = FALSE;
   self->gtk_theme_colors_listening = FALSE;
   self->gtk_animation_settings_listening = FALSE;

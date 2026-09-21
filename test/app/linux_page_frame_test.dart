@@ -86,7 +86,11 @@ void main() {
     addTearDown(tester.view.reset);
     final harnessKey = GlobalKey<_FrameHarnessState>();
     await tester.pumpWidget(
-      _testApp(_FrameHarness(key: harnessKey), direction: TextDirection.rtl),
+      _testApp(
+        _FrameHarness(key: harnessKey),
+        direction: TextDirection.rtl,
+        devicePixelRatio: 1.25,
+      ),
     );
     harnessKey.currentState!.toggle();
     await tester.pump(const Duration(milliseconds: 73));
@@ -95,6 +99,43 @@ void main() {
     expect(width * 1.25, closeTo((width * 1.25).roundToDouble(), 0.0001));
     _expectSharedEdge(tester, rtl: true);
   });
+
+  testWidgets(
+    'divider follows the snapped physical viewport while opening and closing',
+    (tester) async {
+      tester.view.devicePixelRatio = .75;
+      addTearDown(tester.view.reset);
+      final harnessKey = GlobalKey<_FrameHarnessState>();
+      await tester.pumpWidget(
+        _testApp(_FrameHarness(key: harnessKey), devicePixelRatio: .75),
+      );
+
+      harnessKey.currentState!.toggle();
+      await tester.pump();
+      await tester.pump(const Duration(microseconds: 1));
+      expect(_sidebarWidth(tester), 0);
+      expect(_sidebarTicker(tester).enabled, isTrue);
+      expect(_dividerAlpha(tester), 0);
+
+      await tester.pump(const Duration(milliseconds: 10));
+      expect(_sidebarWidth(tester), greaterThanOrEqualTo(1 / .75));
+      expect(_dividerAlpha(tester), 1);
+      _expectSharedEdge(tester);
+      await tester.pumpAndSettle();
+
+      harnessKey.currentState!.toggle();
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 199));
+      expect(_sidebarWidth(tester), 0);
+      expect(_sidebarTicker(tester).enabled, isTrue);
+      expect(_dividerAlpha(tester), 0);
+      _expectSharedEdge(tester, expectedWidth: 0);
+
+      await tester.pumpAndSettle();
+      expect(_sidebarTicker(tester).enabled, isFalse);
+      expect(_dividerAlpha(tester), 0);
+    },
+  );
 
   testWidgets(
     'animation setting settles a running reveal to its logical target',
@@ -125,10 +166,12 @@ Widget _testApp(
   Widget child, {
   TextDirection direction = TextDirection.ltr,
   bool disableAnimations = false,
+  double devicePixelRatio = 1,
 }) => MaterialApp(
   home: MediaQuery(
     data: MediaQueryData(
       size: const Size(1000, 700),
+      devicePixelRatio: devicePixelRatio,
       disableAnimations: disableAnimations,
     ),
     child: Directionality(textDirection: direction, child: child),
@@ -137,6 +180,22 @@ Widget _testApp(
 
 double _sidebarWidth(WidgetTester tester) =>
     tester.getSize(find.byKey(const ValueKey('linux-sidebar-viewport'))).width;
+
+TickerMode _sidebarTicker(WidgetTester tester) => tester.widget<TickerMode>(
+  find.descendant(
+    of: find.byKey(const ValueKey('linux-sidebar-viewport')),
+    matching: find.byType(TickerMode),
+  ),
+);
+
+double _dividerAlpha(WidgetTester tester) {
+  final box = tester.widget<DecoratedBox>(
+    find.byKey(const ValueKey('linux-sidebar-viewport')),
+  );
+  final decoration = box.decoration as BoxDecoration;
+  final border = decoration.border! as BorderDirectional;
+  return border.end.color.a;
+}
 
 void _expectSharedEdge(
   WidgetTester tester, {

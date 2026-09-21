@@ -17,6 +17,7 @@ import '../../../app/busymax_layout.dart';
 import '../../../app/busymax_shortcuts.dart';
 import '../../../app/busymax_surface_colors.dart';
 import '../../../app/linux/linux_page_frame.dart';
+import '../../../app/linux/linux_window_host.dart';
 import '../../../core/logging/redacting_logger.dart';
 import '../../../calendar_providers/calendar_mutation.dart';
 import '../../../features/accounts/data/accounts_repository.dart';
@@ -498,6 +499,15 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
                                       ).searchFieldLabel,
                                       onChanged: _setSearchQuery,
                                       onClear: _clearSearchQuery,
+                                    ),
+                                  ),
+                                  LinuxTitlebarGestureRegion(
+                                    key: const ValueKey(
+                                      'schedule-search-titlebar-drag-area',
+                                    ),
+                                    child: const SizedBox(
+                                      width: BusyMaxSizes.headerIconButton,
+                                      height: BusyMaxSizes.headerIconButton,
                                     ),
                                   ),
                                   if (!canShowSidebar || _sidebarCollapsed)

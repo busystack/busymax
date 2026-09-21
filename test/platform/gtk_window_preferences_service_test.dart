@@ -5,21 +5,22 @@ import 'package:flutter_test/flutter_test.dart';
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  test('parses physical decoration sides without applying text direction', () {
+  test('parses every GTK 3 decoration token in physical order', () {
     final preferences = GtkWindowPreferences.fromMessage(const {
-      'decorationLayout': 'close,menu:minimize,maximize',
+      'decorationLayout': 'close,icon,menu:minimize,maximize',
       'doubleClick': 'toggle-maximize',
       'middleClick': 'lower',
       'rightClick': 'menu',
     });
 
     expect(preferences.decorationLayout.left, [
-      GtkWindowControlType.close,
-      GtkWindowControlType.menu,
+      GtkWindowDecorationElement.close,
+      GtkWindowDecorationElement.windowIcon,
+      GtkWindowDecorationElement.fallbackApplicationMenu,
     ]);
     expect(preferences.decorationLayout.right, [
-      GtkWindowControlType.minimize,
-      GtkWindowControlType.maximize,
+      GtkWindowDecorationElement.minimize,
+      GtkWindowDecorationElement.maximize,
     ]);
     expect(preferences.doubleClick, GtkTitlebarAction.toggleMaximize);
     expect(preferences.middleClick, GtkTitlebarAction.lower);
@@ -34,8 +35,12 @@ void main() {
       'rightClick': 'minimize',
     });
 
-    expect(preferences.decorationLayout.left, [GtkWindowControlType.close]);
-    expect(preferences.decorationLayout.right, [GtkWindowControlType.minimize]);
+    expect(preferences.decorationLayout.left, [
+      GtkWindowDecorationElement.close,
+    ]);
+    expect(preferences.decorationLayout.right, [
+      GtkWindowDecorationElement.minimize,
+    ]);
     expect(preferences.doubleClick, GtkTitlebarAction.none);
     expect(preferences.middleClick, GtkTitlebarAction.none);
     expect(preferences.rightClick, GtkTitlebarAction.minimize);
@@ -68,8 +73,10 @@ void main() {
       final value = await service.load();
       await service.lowerWindow();
 
-      expect(value?.decorationLayout.left, [GtkWindowControlType.menu]);
-      expect(value?.decorationLayout.right, [GtkWindowControlType.close]);
+      expect(value?.decorationLayout.left, [
+        GtkWindowDecorationElement.fallbackApplicationMenu,
+      ]);
+      expect(value?.decorationLayout.right, [GtkWindowDecorationElement.close]);
       expect(value?.doubleClick, GtkTitlebarAction.minimize);
       expect(calls.map((call) => call.method), [
         'getGtkWindowPreferences',
@@ -94,5 +101,16 @@ void main() {
 
     expect(first, second);
     expect(first.hashCode, second.hashCode);
+  });
+
+  test('null decoration layout uses the documented GTK 3 default', () {
+    final layout = GtkDecorationLayout.parse(null);
+
+    expect(layout.left, [GtkWindowDecorationElement.fallbackApplicationMenu]);
+    expect(layout.right, [
+      GtkWindowDecorationElement.minimize,
+      GtkWindowDecorationElement.maximize,
+      GtkWindowDecorationElement.close,
+    ]);
   });
 }

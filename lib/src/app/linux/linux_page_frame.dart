@@ -176,7 +176,7 @@ class _LinuxPageFrameState extends State<LinuxPageFrame>
                   border: BorderDirectional(
                     end: BorderSide(
                       color: colors.sidebarBorder.withValues(
-                        alpha: _controller.value == 0 ? 0 : 1,
+                        alpha: presentedWidth == 0 ? 0 : 1,
                       ),
                     ),
                   ),

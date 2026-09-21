@@ -338,62 +338,58 @@ class _BusyMaxAppState extends ConsumerState<LinuxBusyMaxApp> {
             _trayPresentationFormatter = trayFormatter;
             _configureNativeSurfaceTheme(context);
             _configureBackgroundServices(ref, settings, trayFormatter);
-            return LinuxWindowHost(
-              child: Shortcuts(
-                shortcuts: const {
-                  BusyMaxShortcutActivators.keyboardShortcuts:
-                      _KeyboardShortcutsIntent(),
-                  BusyMaxShortcutActivators.settings: _OpenSettingsIntent(),
-                },
-                child: Actions(
-                  actions: {
-                    _KeyboardShortcutsIntent:
-                        CallbackAction<_KeyboardShortcutsIntent>(
-                          onInvoke: (intent) {
-                            final navigatorContext =
-                                rootNavigatorKey.currentContext;
-                            if (navigatorContext != null) {
-                              unawaited(
-                                showBusyMaxKeyboardShortcutsDialog(
-                                  navigatorContext,
-                                ),
-                              );
-                            }
-                            return null;
-                          },
-                        ),
-                    _OpenSettingsIntent: CallbackAction<_OpenSettingsIntent>(
-                      onInvoke: (intent) {
-                        if (router.state.uri.path != '/settings') {
-                          unawaited(router.push<void>('/settings'));
-                        }
-                        return null;
-                      },
-                    ),
+            return LinuxApplicationMediaQuery(
+              alwaysUse24HourFormat: clock.use24Hour,
+              gtkAnimationsEnabled: gtkAnimationsEnabled,
+              child: LinuxWindowHost(
+                child: Shortcuts(
+                  shortcuts: const {
+                    BusyMaxShortcutActivators.keyboardShortcuts:
+                        _KeyboardShortcutsIntent(),
+                    BusyMaxShortcutActivators.settings: _OpenSettingsIntent(),
                   },
-                  child: ColoredBox(
-                    color: BusyMaxSurfaceColors.of(context).window,
-                    child: BusyMaxTimeFormatScope(
-                      formatter: clock,
-                      child: BusyMaxWeekPreferencesScope(
-                        preference: settings.firstDayOfWeekPreference,
-                        systemWeekday: _firstWeekdayController.value,
-                        platformLocaleTag: WidgetsBinding
-                            .instance
-                            .platformDispatcher
-                            .locale
-                            .toLanguageTag(),
-                        child: BusyMaxWeekPreferencesStartupGate(
+                  child: Actions(
+                    actions: {
+                      _KeyboardShortcutsIntent:
+                          CallbackAction<_KeyboardShortcutsIntent>(
+                            onInvoke: (intent) {
+                              final navigatorContext =
+                                  rootNavigatorKey.currentContext;
+                              if (navigatorContext != null) {
+                                unawaited(
+                                  showBusyMaxKeyboardShortcutsDialog(
+                                    navigatorContext,
+                                  ),
+                                );
+                              }
+                              return null;
+                            },
+                          ),
+                      _OpenSettingsIntent: CallbackAction<_OpenSettingsIntent>(
+                        onInvoke: (intent) {
+                          if (router.state.uri.path != '/settings') {
+                            unawaited(router.push<void>('/settings'));
+                          }
+                          return null;
+                        },
+                      ),
+                    },
+                    child: ColoredBox(
+                      color: BusyMaxSurfaceColors.of(context).window,
+                      child: BusyMaxTimeFormatScope(
+                        formatter: clock,
+                        child: BusyMaxWeekPreferencesScope(
                           preference: settings.firstDayOfWeekPreference,
-                          systemValueInitialized:
-                              _firstWeekdayController.isInitialized,
-                          child: MediaQuery(
-                            data: MediaQuery.of(context).copyWith(
-                              alwaysUse24HourFormat: clock.use24Hour,
-                              disableAnimations:
-                                  MediaQuery.disableAnimationsOf(context) ||
-                                  !gtkAnimationsEnabled,
-                            ),
+                          systemWeekday: _firstWeekdayController.value,
+                          platformLocaleTag: WidgetsBinding
+                              .instance
+                              .platformDispatcher
+                              .locale
+                              .toLanguageTag(),
+                          child: BusyMaxWeekPreferencesStartupGate(
+                            preference: settings.firstDayOfWeekPreference,
+                            systemValueInitialized:
+                                _firstWeekdayController.isInitialized,
                             child: child ?? const SizedBox.shrink(),
                           ),
                         ),
@@ -653,6 +649,34 @@ class _BusyMaxAppState extends ConsumerState<LinuxBusyMaxApp> {
     } else {
       await windowService.showWindow();
     }
+  }
+}
+
+/// Applies BusyMax's effective Linux platform policy without discarding any
+/// inherited display or accessibility metrics.
+@visibleForTesting
+class LinuxApplicationMediaQuery extends StatelessWidget {
+  const LinuxApplicationMediaQuery({
+    super.key,
+    required this.alwaysUse24HourFormat,
+    required this.gtkAnimationsEnabled,
+    required this.child,
+  });
+
+  final bool alwaysUse24HourFormat;
+  final bool gtkAnimationsEnabled;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return MediaQuery(
+      data: MediaQuery.of(context).copyWith(
+        alwaysUse24HourFormat: alwaysUse24HourFormat,
+        disableAnimations:
+            MediaQuery.disableAnimationsOf(context) || !gtkAnimationsEnabled,
+      ),
+      child: child,
+    );
   }
 }
 
