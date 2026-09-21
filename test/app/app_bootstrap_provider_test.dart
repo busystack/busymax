@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:busymax/src/core/secrets/secret_store.dart';
+import 'package:busymax/src/core/http/request_dispatch_exception.dart';
 import 'package:busymax/src/dav/dav_provider_profile.dart';
 import 'package:drift/native.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -12,6 +13,7 @@ import 'package:busymax/src/features/accounts/data/accounts_repository.dart';
 import 'package:busymax/src/features/auth/data/auth_repository.dart';
 import 'package:busymax/src/features/notifications/notification_scheduler.dart';
 import 'package:busymax/src/features/notifications/desktop_notification_service.dart';
+import 'package:busymax/src/features/sync/account_sync_operations.dart';
 import 'package:busymax/src/features/tasks/domain/task_capabilities.dart';
 import 'package:busymax/src/google_tasks/api/google_tasks_api_surface.dart';
 import 'package:busymax/src/core/auth/oauth_models.dart';
@@ -211,6 +213,92 @@ void main() {
       expect(account.authState, accountAuthStateReauthRequired);
     },
   );
+
+  test(
+    'signed-in sync runner unwraps Tasks auth failure and preserves credential',
+    () async {
+      final database = AppDatabase(NativeDatabase.memory());
+      await _seedSignedInGoogleAccount(database);
+      final oAuth = _FakeOAuthGateway()..activeId = 'account-1';
+      const failure = KnownUnsentRequestException(
+        kind: RequestPreDispatchFailureKind.authentication,
+        cause: OAuthRefreshException(
+          'OAuthRefreshFailed',
+          'Provider refresh failed.',
+          statusCode: 400,
+          oauthError: 'invalid_grant',
+        ),
+      );
+      final operations = _ThrowingAccountSyncOperations(failure);
+      final container = ProviderContainer(
+        overrides: [
+          databaseProvider.overrideWithValue(database),
+          authRepositoryProvider.overrideWithValue(
+            AuthRepository(oAuth: oAuth, database: database),
+          ),
+          accountSyncOperationsProvider.overrideWithValue(operations),
+        ],
+      );
+      addTearDown(() async {
+        container.dispose();
+        await database.close();
+      });
+
+      await expectLater(
+        container.read(signedInSyncRunnerProvider)('account-1', false),
+        throwsA(same(failure)),
+      );
+
+      final account = await AccountsRepository(
+        database: database,
+      ).accountById('account-1');
+      expect(operations.accountCalls, 1);
+      expect(account?.authState, accountAuthStateReauthRequired);
+      expect(
+        await AccountsRepository(database: database).listSyncEligibleAccounts(),
+        isEmpty,
+      );
+      expect(oAuth.activeId, 'account-1');
+    },
+  );
+
+  test('signed-in sync runner handles direct Calendar OAuth failure', () async {
+    final database = AppDatabase(NativeDatabase.memory());
+    await _seedSignedInGoogleAccount(database);
+    final oAuth = _FakeOAuthGateway()..activeId = 'account-1';
+    const failure = OAuthRefreshException(
+      'OAuthRefreshFailed',
+      'Provider refresh failed.',
+      statusCode: 400,
+      oauthError: 'invalid_grant',
+    );
+    final container = ProviderContainer(
+      overrides: [
+        databaseProvider.overrideWithValue(database),
+        authRepositoryProvider.overrideWithValue(
+          AuthRepository(oAuth: oAuth, database: database),
+        ),
+        accountSyncOperationsProvider.overrideWithValue(
+          _ThrowingAccountSyncOperations(failure),
+        ),
+      ],
+    );
+    addTearDown(() async {
+      container.dispose();
+      await database.close();
+    });
+
+    await expectLater(
+      container.read(signedInSyncRunnerProvider)('account-1', false),
+      throwsA(same(failure)),
+    );
+
+    final account = await AccountsRepository(
+      database: database,
+    ).accountById('account-1');
+    expect(account?.authState, accountAuthStateReauthRequired);
+    expect(oAuth.activeId, 'account-1');
+  });
 
   test(
     'production DAV sync rebuilds schedules before checking notifications',
@@ -516,6 +604,29 @@ class _SyncCall {
 
   final String accountId;
   final bool initial;
+}
+
+final class _ThrowingAccountSyncOperations implements AccountSyncOperations {
+  _ThrowingAccountSyncOperations(this.error);
+
+  final Object error;
+  int accountCalls = 0;
+
+  @override
+  Future<void> syncAccount(String accountId, {required bool full}) async {
+    accountCalls += 1;
+    throw error;
+  }
+
+  @override
+  Future<void> syncCalendar(String accountId, {required bool full}) async {
+    throw error;
+  }
+
+  @override
+  Future<void> syncTasks(String accountId, {required bool full}) async {
+    throw error;
+  }
 }
 
 class _FakeOAuthGateway implements OAuthGateway {

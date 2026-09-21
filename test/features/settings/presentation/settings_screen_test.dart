@@ -1320,6 +1320,121 @@ void main() {
     await tester.pump(const Duration(milliseconds: 1));
   });
 
+  testWidgets('Force full resync runs for a connected account', (tester) async {
+    final calls = <String>[];
+    final container = _container(
+      selectedAccountId: _googleAccount.id,
+      authRepository: _FakeAuthRepository(),
+      accounts: const [_googleAccount],
+      signedInSyncRunner: (accountId, full) async => calls.add(accountId),
+    );
+    addTearDown(container.dispose);
+
+    await _pumpSettings(
+      tester,
+      container,
+      logicalSize: const Size(1000, 700),
+      initialPage: SettingsPage.diagnostics,
+    );
+    await tester.tap(find.text('Force full resync'));
+    await tester.pumpAndSettle();
+
+    expect(calls, [_googleAccount.id]);
+    await _disposeDiagnosticsWidget(tester);
+  });
+
+  testWidgets('Force full resync skips reconnect-required accounts', (
+    tester,
+  ) async {
+    final calls = <String>[];
+    const reconnect = AccountEntity(
+      id: 'google:reauth',
+      provider: BusyProvider.google,
+      authority: 'https://accounts.google.com',
+      providerAccountId: 'reauth',
+      authState: accountAuthStateReauthRequired,
+    );
+    final container = _container(
+      selectedAccountId: _googleAccount.id,
+      authRepository: _FakeAuthRepository(),
+      accounts: const [_googleAccount, reconnect],
+      signedInSyncRunner: (accountId, full) async => calls.add(accountId),
+    );
+    addTearDown(container.dispose);
+
+    await _pumpSettings(
+      tester,
+      container,
+      logicalSize: const Size(1000, 700),
+      initialPage: SettingsPage.diagnostics,
+    );
+    await tester.tap(find.text('Force full resync'));
+    await tester.pumpAndSettle();
+
+    expect(calls, [_googleAccount.id]);
+    await _disposeDiagnosticsWidget(tester);
+  });
+
+  testWidgets('Force full resync is disabled without eligible accounts', (
+    tester,
+  ) async {
+    final calls = <String>[];
+    final container = _container(
+      selectedAccountId: _reconnectRequiredGoogleAccount.id,
+      authRepository: _FakeAuthRepository(),
+      accounts: const [_reconnectRequiredGoogleAccount],
+      signedInSyncRunner: (accountId, full) async => calls.add(accountId),
+    );
+    addTearDown(container.dispose);
+
+    await _pumpSettings(
+      tester,
+      container,
+      logicalSize: const Size(1000, 700),
+      initialPage: SettingsPage.diagnostics,
+    );
+
+    final row = tester.widget<BusyMaxActionRow>(
+      find.ancestor(
+        of: find.text('Force full resync'),
+        matching: find.byType(BusyMaxActionRow),
+      ),
+    );
+    expect(row.enabled, isFalse);
+    expect(row.onTap, isNull);
+    expect(calls, isEmpty);
+    await _disposeDiagnosticsWidget(tester);
+  });
+
+  testWidgets('Force full resync re-reads eligibility before dispatch', (
+    tester,
+  ) async {
+    final calls = <String>[];
+    final repository = _MutableEligibilityAccountsRepository([_googleAccount]);
+    final container = _container(
+      selectedAccountId: _googleAccount.id,
+      authRepository: _FakeAuthRepository(),
+      accounts: const [_googleAccount],
+      accountsRepository: repository,
+      signedInSyncRunner: (accountId, full) async => calls.add(accountId),
+    );
+    addTearDown(container.dispose);
+
+    await _pumpSettings(
+      tester,
+      container,
+      logicalSize: const Size(1000, 700),
+      initialPage: SettingsPage.diagnostics,
+    );
+    repository.canonicalAccounts = const [_reconnectRequiredGoogleAccount];
+    await tester.tap(find.text('Force full resync'));
+    await tester.pumpAndSettle();
+
+    expect(calls, isEmpty);
+    expect(tester.takeException(), isNull);
+    await _disposeDiagnosticsWidget(tester);
+  });
+
   testWidgets('Settings uses single-pane navigation at narrow widths', (
     tester,
   ) async {
@@ -1648,6 +1763,8 @@ ProviderContainer _container({
   List<CalendarSourceEntity> calendarSources = const [],
   DesktopAutostartService? autostartService,
   LocalSettingsStore? settingsStore,
+  AccountsRepository? accountsRepository,
+  SignedInSyncRunner? signedInSyncRunner,
 }) {
   return ProviderContainer(
     overrides: [
@@ -1659,8 +1776,10 @@ ProviderContainer _container({
           davOnboardingService,
         ),
       accountsRepositoryProvider.overrideWithValue(
-        _FakeAccountsRepository(accounts),
+        accountsRepository ?? _FakeAccountsRepository(accounts),
       ),
+      if (signedInSyncRunner != null)
+        signedInSyncRunnerProvider.overrideWithValue(signedInSyncRunner),
       accountsStreamProvider.overrideWith((ref) => Stream.value(accounts)),
       accountManagementStreamProvider.overrideWith(
         (ref) => Stream.value(accounts),
@@ -1736,6 +1855,12 @@ Future<void> _pumpSettings(
     ),
   );
   await tester.pumpAndSettle();
+}
+
+Future<void> _disposeDiagnosticsWidget(WidgetTester tester) async {
+  await tester.pumpWidget(const SizedBox());
+  await tester.pump();
+  await tester.pump(const Duration(milliseconds: 1));
 }
 
 Future<void> _pumpDefaultSettings(
@@ -1858,6 +1983,24 @@ class _FakeAccountsRepository implements AccountsRepository {
 
   @override
   Future<List<AccountEntity>> listSignedInAccounts() async => accounts;
+
+  @override
+  Future<List<AccountEntity>> listSyncEligibleAccounts() async =>
+      accounts.where((account) => account.isSyncEligible).toList();
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
+
+final class _MutableEligibilityAccountsRepository
+    implements AccountsRepository {
+  _MutableEligibilityAccountsRepository(this.canonicalAccounts);
+
+  List<AccountEntity> canonicalAccounts;
+
+  @override
+  Future<List<AccountEntity>> listSyncEligibleAccounts() async =>
+      canonicalAccounts.where((account) => account.isSyncEligible).toList();
 
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);

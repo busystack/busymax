@@ -96,6 +96,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     final selectedAccount = ref.watch(selectedAccountProvider);
     final accounts =
         ref.watch(accountManagementStreamProvider).valueOrNull ?? const [];
+    final allAccounts =
+        ref.watch(accountsStreamProvider).valueOrNull ??
+        const <AccountEntity>[];
     final davCollections =
         ref.watch(davCollectionsStreamProvider).valueOrNull ?? const [];
     final davConflicts =
@@ -112,6 +115,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     final themeController = ref.read(busyMaxThemeControllerProvider);
     final l10n = context.l10n;
     final title = _settingsPageLabel(context, _page);
+    final hasSyncEligibleAccounts = allAccounts.any(
+      (account) => account.isSyncEligible,
+    );
 
     final pageBody = switch (_page) {
       SettingsPage.accounts => _AccountManagementSection(
@@ -411,10 +417,10 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               BusyMaxActionRow(
                 title: l10n.forceFullResync,
                 leading: const Icon(YaruIcons.sync),
-                enabled: accounts.isNotEmpty,
-                onTap: accounts.isEmpty
+                enabled: hasSyncEligibleAccounts,
+                onTap: !hasSyncEligibleAccounts
                     ? null
-                    : () => _forceFullResync(context, ref, accounts),
+                    : () => _forceFullResync(context, ref),
               ),
             ],
           ),
@@ -842,18 +848,21 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     }
   }
 
-  Future<void> _forceFullResync(
-    BuildContext context,
-    WidgetRef ref,
-    List<AccountEntity> accounts,
-  ) async {
-    if (accounts.isEmpty) {
-      return;
-    }
-
+  Future<void> _forceFullResync(BuildContext context, WidgetRef ref) async {
     try {
+      final repository = ref.read(accountsRepositoryProvider);
+      final accounts = await repository.listSyncEligibleAccounts();
+      if (accounts.isEmpty) {
+        return;
+      }
       final runSync = ref.read(signedInSyncRunnerProvider);
       for (final account in accounts) {
+        final stillEligible = (await repository.listSyncEligibleAccounts()).any(
+          (current) => current.id == account.id,
+        );
+        if (!stillEligible) {
+          continue;
+        }
         await runSync(account.id, true);
       }
       if (context.mounted) {

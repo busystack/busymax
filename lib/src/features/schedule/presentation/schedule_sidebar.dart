@@ -29,6 +29,7 @@ import '../../calendar/data/calendar_repository.dart';
 import '../../connectivity/network_connectivity_service.dart';
 import '../../calendar/presentation/calendar_color_dialog.dart';
 import '../../sync/sync_auth_error.dart';
+import '../../sync/sync_failure_notification_policy.dart';
 import '../../task_lists/data/task_lists_repository.dart';
 import '../../tasks/domain/task_capabilities.dart';
 import 'package:busymax/src/providers/busy_provider.dart';
@@ -200,6 +201,10 @@ class _SourceRow extends ConsumerWidget {
               value: 'refresh',
               label: context.l10n.refreshCalendar,
               icon: YaruIcons.refresh,
+              enabled: account.isSyncEligible,
+              tooltip: account.needsReconnect
+                  ? accountReconnectRequiredSyncMessage
+                  : null,
             ),
             if (providerWebUri != null)
               BusyMaxMenuEntry(
@@ -1136,6 +1141,10 @@ class _TaskListScheduleRow extends ConsumerWidget {
               value: 'refresh',
               label: context.l10n.refreshList,
               icon: YaruIcons.refresh,
+              enabled: account.isSyncEligible,
+              tooltip: account.needsReconnect
+                  ? accountReconnectRequiredSyncMessage
+                  : null,
             ),
             if (providerWebUri != null)
               BusyMaxMenuEntry(
@@ -1242,6 +1251,9 @@ Future<void> _refreshCalendarSource(
   WidgetRef ref,
   CalendarSourceEntity source,
 ) async {
+  if (!await _manualRefreshAccountIsEligible(context, ref, source.accountId)) {
+    return;
+  }
   try {
     await ref
         .read(accountSyncOperationsProvider)
@@ -1259,6 +1271,9 @@ Future<void> _refreshTaskListAccount(
   WidgetRef ref,
   String accountId,
 ) async {
+  if (!await _manualRefreshAccountIsEligible(context, ref, accountId)) {
+    return;
+  }
   try {
     await ref
         .read(accountSyncOperationsProvider)
@@ -1278,7 +1293,8 @@ Future<void> _handleRefreshFailure(
   Object error,
 ) async {
   try {
-    if (isMissingOAuthTokenError(error)) {
+    if (syncFailureNotificationDisposition(error) ==
+        SyncFailureNotificationDisposition.reconnectRequired) {
       await ref.read(authRepositoryProvider).markReconnectRequired(accountId);
     }
   } on Object {
@@ -1299,6 +1315,29 @@ Future<void> _handleRefreshFailure(
       ),
     ),
   );
+}
+
+Future<bool> _manualRefreshAccountIsEligible(
+  BuildContext context,
+  WidgetRef ref,
+  String accountId,
+) async {
+  final account = await ref
+      .read(accountsRepositoryProvider)
+      .accountById(accountId);
+  if (account?.isSyncEligible == true) {
+    return true;
+  }
+  if (account?.needsReconnect == true && context.mounted) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          context.l10n.refreshFailed(accountReconnectRequiredSyncMessage),
+        ),
+      ),
+    );
+  }
+  return false;
 }
 
 bool _canRenameTaskList(

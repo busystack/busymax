@@ -233,12 +233,30 @@ void main() {
           .watchVisibleAccounts()
           .first;
 
-      expect(oAuth.clearedAccountId, 'google:g');
+      expect(oAuth.clearedAccountId, null);
       expect(account.authState, accountAuthStateReauthRequired);
       expect(signedInAccounts, isEmpty);
       expect(visibleAccounts.single.needsReconnect, isTrue);
     },
   );
+
+  test('successful Google reconnect reuses the account row', () async {
+    await _insertAccount(
+      database,
+      'account-1',
+      BusyProvider.google,
+      authState: accountAuthStateReauthRequired,
+    );
+
+    final state = await repository.signIn();
+
+    final accounts = await database.select(database.accounts).get();
+    expect(state.accountId, 'account-1');
+    expect(accounts, hasLength(1));
+    expect(accounts.single.id, 'account-1');
+    expect(accounts.single.authState, accountAuthStateSignedIn);
+    expect(oAuth.clearedAccountId, null);
+  });
 
   test('markReconnectRequired removes only target notifications', () async {
     await _insertAccount(database, 'google-a', BusyProvider.google);
@@ -516,8 +534,9 @@ OAuthTokenSet _tokenSet({Set<String>? scopes}) {
 Future<void> _insertAccount(
   AppDatabase database,
   String id,
-  BusyProvider provider,
-) {
+  BusyProvider provider, {
+  String authState = accountAuthStateSignedIn,
+}) {
   return database
       .into(database.accounts)
       .insert(
@@ -529,7 +548,7 @@ Future<void> _insertAccount(
               : 'https://accounts.google.com',
           providerAccountId: id,
           credentialKind: 'oauth',
-          authState: const Value('signed_in'),
+          authState: Value(authState),
           createdAtUtc: '2026-06-04T00:00:00.000Z',
           updatedAtUtc: '2026-06-04T00:00:00.000Z',
         ),

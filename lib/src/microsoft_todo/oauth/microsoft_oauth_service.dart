@@ -191,7 +191,7 @@ class MicrosoftOAuthService implements MicrosoftOAuthGateway {
     final current = await _readTokenSet(accountId);
     if (current == null || !current.canRefresh) {
       throw const OAuthException(
-        'MicrosoftOAuthRefreshFailed',
+        'MicrosoftOAuthMissingRefreshToken',
         'No Microsoft refresh token is available.',
       );
     }
@@ -238,10 +238,13 @@ class MicrosoftOAuthService implements MicrosoftOAuthGateway {
       },
     );
     if (response.statusCode < 200 || response.statusCode >= 300) {
+      final details = _tokenEndpointFailureDetails(response.body);
       throw OAuthRefreshException(
         'MicrosoftOAuthRefreshFailed',
-        _tokenEndpointFailureMessage('refresh', response),
+        _tokenEndpointFailureMessage('refresh', response, details: details),
         statusCode: response.statusCode,
+        oauthError: details?.oauthError,
+        oauthErrorDescription: details?.oauthErrorDescription,
       );
     }
 
@@ -360,7 +363,7 @@ void _validateTokenRefreshParameters({
   }
   if (refreshToken == null || refreshToken.trim().isEmpty) {
     throw const OAuthException(
-      'MicrosoftOAuthRefreshFailed',
+      'MicrosoftOAuthMissingRefreshToken',
       'No Microsoft refresh token is available.',
     );
   }
@@ -390,16 +393,20 @@ String _clientIdSuffix(String clientId) {
   return '...${trimmed.substring(trimmed.length - suffixLength)}';
 }
 
-String _tokenEndpointFailureMessage(String operation, http.Response response) {
-  final details = _tokenEndpointFailureDetails(response.body);
-  if (details == null || details.isEmpty) {
+String _tokenEndpointFailureMessage(
+  String operation,
+  http.Response response, {
+  _TokenEndpointFailureDetails? details,
+}) {
+  final safeDetails = details ?? _tokenEndpointFailureDetails(response.body);
+  if (safeDetails == null || safeDetails.text.isEmpty) {
     return 'Microsoft token $operation failed with HTTP '
         '${response.statusCode}.';
   }
-  return 'Microsoft token $operation failed: $details.';
+  return 'Microsoft token $operation failed: ${safeDetails.text}.';
 }
 
-String? _tokenEndpointFailureDetails(String body) {
+_TokenEndpointFailureDetails? _tokenEndpointFailureDetails(String body) {
   final trimmedBody = body.trim();
   if (trimmedBody.isEmpty) {
     return null;
@@ -411,17 +418,36 @@ String? _tokenEndpointFailureDetails(String body) {
       final error = redactForLog(json['error']).trim();
       final description = redactForLog(json['error_description']).trim();
       if (error.isNotEmpty && description.isNotEmpty) {
-        return '$error - $description';
+        return _TokenEndpointFailureDetails(
+          '$error - $description',
+          oauthError: error,
+          oauthErrorDescription: description,
+        );
       }
       if (error.isNotEmpty) {
-        return error;
+        return _TokenEndpointFailureDetails(error, oauthError: error);
       }
       if (description.isNotEmpty) {
-        return description;
+        return _TokenEndpointFailureDetails(
+          description,
+          oauthErrorDescription: description,
+        );
       }
     }
   } on FormatException {
-    return redactForLog(trimmedBody);
+    return _TokenEndpointFailureDetails(redactForLog(trimmedBody));
   }
-  return redactForLog(trimmedBody);
+  return _TokenEndpointFailureDetails(redactForLog(trimmedBody));
+}
+
+class _TokenEndpointFailureDetails {
+  const _TokenEndpointFailureDetails(
+    this.text, {
+    this.oauthError,
+    this.oauthErrorDescription,
+  });
+
+  final String text;
+  final String? oauthError;
+  final String? oauthErrorDescription;
 }

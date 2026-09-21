@@ -6,10 +6,14 @@ import 'package:busymax/src/schedule/schedule_sidebar_sources.dart';
 import 'package:busymax/src/app/busymax_design.dart';
 import 'package:busymax/src/app/busymax_yaru_theme.dart';
 import 'package:busymax/src/features/accounts/data/accounts_repository.dart';
+import 'package:busymax/src/features/auth/data/auth_repository.dart';
 import 'package:busymax/src/features/calendar/data/calendar_repository.dart';
 import 'package:busymax/src/features/calendar/data/calendar_collection_creation_service.dart';
 import 'package:busymax/src/features/connectivity/network_connectivity_service.dart';
 import 'package:busymax/src/features/schedule/presentation/schedule_sidebar.dart';
+import 'package:busymax/src/features/sync/account_sync_operations.dart';
+import 'package:busymax/src/core/auth/oauth_models.dart';
+import 'package:busymax/src/core/http/request_dispatch_exception.dart';
 import 'package:busymax/src/features/task_lists/data/task_lists_repository.dart';
 import 'package:busymax/src/platform/native_menu_service.dart';
 import 'package:busymax/src/providers/busy_provider.dart';
@@ -80,6 +84,134 @@ void main() {
       expect(find.textContaining('Google Tasks ·'), findsNothing);
       expect(find.text('Calendars'), findsNothing);
       expect(find.text('Task lists'), findsNothing);
+    },
+  );
+
+  testWidgets('eligible calendar refresh dispatches synchronization', (
+    tester,
+  ) async {
+    final account = _account(BusyProvider.google, id: 'account');
+    final accounts = _MutableAccountsRepository(account);
+    final sync = _RecordingAccountSyncOperations();
+    addTearDown(accounts.dispose);
+
+    await _pumpSidebar(
+      tester,
+      [account],
+      accountSnapshots: accounts.watchAccounts(),
+      accountsRepository: accounts,
+      authRepository: _ReconnectRecordingAuthRepository(accounts),
+      syncOperations: sync,
+      calendarSources: [_calendar(account.id, 'calendar')],
+    );
+
+    final menu = tester.widget<BusyMaxMenuButton<String>>(
+      find.byKey(const ValueKey(('calendar-options', 'calendar'))),
+    );
+    expect(
+      menu.entries.singleWhere((entry) => entry.value == 'refresh').enabled,
+      isTrue,
+    );
+    menu.onSelected('refresh');
+    await tester.pumpAndSettle();
+
+    expect(sync.calendarCalls, 1);
+  });
+
+  testWidgets(
+    'calendar refresh invalid_grant requires reconnect and blocks retry',
+    (tester) async {
+      final account = _account(BusyProvider.google, id: 'account');
+      final accounts = _MutableAccountsRepository(account);
+      final auth = _ReconnectRecordingAuthRepository(accounts);
+      final sync = _RecordingAccountSyncOperations(
+        calendarError: _wrappedInvalidGrant,
+      );
+      addTearDown(accounts.dispose);
+
+      await _pumpSidebar(
+        tester,
+        [account],
+        accountSnapshots: accounts.watchAccounts(),
+        accountsRepository: accounts,
+        authRepository: auth,
+        syncOperations: sync,
+        calendarSources: [_calendar(account.id, 'calendar')],
+      );
+
+      var menu = tester.widget<BusyMaxMenuButton<String>>(
+        find.byKey(const ValueKey(('calendar-options', 'calendar'))),
+      );
+      menu.onSelected('refresh');
+      await tester.pumpAndSettle();
+
+      expect(sync.calendarCalls, 1);
+      expect(auth.markedAccountIds, ['account']);
+      expect(accounts.account.needsReconnect, isTrue);
+      expect(
+        find.text('Refresh failed: This account needs to be reconnected.'),
+        findsOneWidget,
+      );
+      menu = tester.widget<BusyMaxMenuButton<String>>(
+        find.byKey(const ValueKey(('calendar-options', 'calendar'))),
+      );
+      final refresh = menu.entries.singleWhere(
+        (entry) => entry.value == 'refresh',
+      );
+      expect(refresh.enabled, isFalse);
+      expect(refresh.tooltip, 'This account needs to be reconnected.');
+
+      menu.onSelected('refresh');
+      await tester.pumpAndSettle();
+      expect(sync.calendarCalls, 1);
+    },
+  );
+
+  testWidgets(
+    'task-list refresh invalid_grant requires reconnect and blocks retry',
+    (tester) async {
+      final account = _account(BusyProvider.google, id: 'account');
+      final accounts = _MutableAccountsRepository(account);
+      final auth = _ReconnectRecordingAuthRepository(accounts);
+      final sync = _RecordingAccountSyncOperations(
+        taskError: _wrappedInvalidGrant,
+      );
+      addTearDown(accounts.dispose);
+
+      await _pumpSidebar(
+        tester,
+        [account],
+        accountSnapshots: accounts.watchAccounts(),
+        accountsRepository: accounts,
+        authRepository: auth,
+        syncOperations: sync,
+        taskLists: [_list(account.id, 'tasks')],
+      );
+
+      var menu = tester.widget<BusyMaxMenuButton<String>>(
+        find.byKey(const ValueKey(('task-list-options', 'account', 'tasks'))),
+      );
+      menu.onSelected('refresh');
+      await tester.pumpAndSettle();
+
+      expect(sync.taskCalls, 1);
+      expect(auth.markedAccountIds, ['account']);
+      expect(accounts.account.needsReconnect, isTrue);
+      expect(
+        find.text('Refresh failed: This account needs to be reconnected.'),
+        findsOneWidget,
+      );
+      menu = tester.widget<BusyMaxMenuButton<String>>(
+        find.byKey(const ValueKey(('task-list-options', 'account', 'tasks'))),
+      );
+      expect(
+        menu.entries.singleWhere((entry) => entry.value == 'refresh').enabled,
+        isFalse,
+      );
+
+      menu.onSelected('refresh');
+      await tester.pumpAndSettle();
+      expect(sync.taskCalls, 1);
     },
   );
 
@@ -821,6 +953,10 @@ Future<void> _pumpSidebar(
   MemorySettingsStore? settingsStore,
   Stream<List<CalendarSourceEntity>>? calendarSnapshots,
   Stream<List<TaskListEntity>>? taskSnapshots,
+  Stream<List<AccountEntity>>? accountSnapshots,
+  AccountsRepository? accountsRepository,
+  AuthRepository? authRepository,
+  AccountSyncOperations? syncOperations,
 }) async {
   tester.view.devicePixelRatio = 1;
   tester.view.physicalSize = const Size(900, 1200);
@@ -832,7 +968,15 @@ Future<void> _pumpSidebar(
         localSettingsStoreProvider.overrideWithValue(
           settingsStore ?? MemorySettingsStore(),
         ),
-        accountsStreamProvider.overrideWith((ref) => Stream.value(accounts)),
+        accountsStreamProvider.overrideWith(
+          (ref) => accountSnapshots ?? Stream.value(accounts),
+        ),
+        if (accountsRepository != null)
+          accountsRepositoryProvider.overrideWithValue(accountsRepository),
+        if (authRepository != null)
+          authRepositoryProvider.overrideWithValue(authRepository),
+        if (syncOperations != null)
+          accountSyncOperationsProvider.overrideWithValue(syncOperations),
         if (networkAvailability != null)
           networkAvailabilityProvider.overrideWith(
             (ref) => Stream.value(networkAvailability),
@@ -868,19 +1012,21 @@ Future<void> _pumpSidebar(
       child: localizedTestApp(
         locale: locale,
         theme: theme,
-        child: Align(
-          alignment: Alignment.topLeft,
-          child: SizedBox(
-            width: width,
-            height: height,
-            child: ScheduleSidebar(
-              selectedDate: DateTime(2026, 8, 29),
-              firstWeekday: DateTime.monday,
-              items: const [],
-              onDateSelected: (_) {},
-              onMonthSelected: (_) {},
-              onYearSelected: (_) {},
-              onWeekSelected: (_) {},
+        child: Scaffold(
+          body: Align(
+            alignment: Alignment.topLeft,
+            child: SizedBox(
+              width: width,
+              height: height,
+              child: ScheduleSidebar(
+                selectedDate: DateTime(2026, 8, 29),
+                firstWeekday: DateTime.monday,
+                items: const [],
+                onDateSelected: (_) {},
+                onMonthSelected: (_) {},
+                onYearSelected: (_) {},
+                onWeekSelected: (_) {},
+              ),
             ),
           ),
         ),
@@ -986,6 +1132,7 @@ AccountEntity _account(
   String? displayName,
   String? email,
   String authority = 'https://example.test',
+  String authState = accountAuthStateSignedIn,
 }) => AccountEntity(
   id: id ?? '${provider.storageValue}-account',
   provider: provider,
@@ -997,7 +1144,93 @@ AccountEntity _account(
           ? 'WebCal account'
           : provider.displayName),
   email: email,
-  authState: accountAuthStateSignedIn,
+  authState: authState,
   calendarsEnabled: calendarsEnabled,
   tasksEnabled: tasksEnabled,
 );
+
+const _wrappedInvalidGrant = KnownUnsentRequestException(
+  kind: RequestPreDispatchFailureKind.authentication,
+  cause: OAuthRefreshException(
+    'OAuthRefreshFailed',
+    'Provider refresh failed.',
+    statusCode: 400,
+    oauthError: 'invalid_grant',
+  ),
+);
+
+final class _RecordingAccountSyncOperations implements AccountSyncOperations {
+  _RecordingAccountSyncOperations({this.calendarError, this.taskError});
+
+  final Object? calendarError;
+  final Object? taskError;
+  int calendarCalls = 0;
+  int taskCalls = 0;
+
+  @override
+  Future<void> syncAccount(String accountId, {required bool full}) async {}
+
+  @override
+  Future<void> syncCalendar(String accountId, {required bool full}) async {
+    calendarCalls += 1;
+    if (calendarError case final error?) throw error;
+  }
+
+  @override
+  Future<void> syncTasks(String accountId, {required bool full}) async {
+    taskCalls += 1;
+    if (taskError case final error?) throw error;
+  }
+}
+
+final class _MutableAccountsRepository implements AccountsRepository {
+  _MutableAccountsRepository(this.account);
+
+  AccountEntity account;
+  final _changes = StreamController<List<AccountEntity>>.broadcast();
+
+  @override
+  Stream<List<AccountEntity>> watchAccounts() async* {
+    yield [account];
+    yield* _changes.stream;
+  }
+
+  void requireReconnect() {
+    account = _account(
+      account.provider,
+      id: account.id,
+      displayName: account.displayName,
+      email: account.email,
+      authority: account.authority,
+      calendarsEnabled: account.calendarsEnabled,
+      tasksEnabled: account.tasksEnabled,
+      authState: accountAuthStateReauthRequired,
+    );
+    _changes.add([account]);
+  }
+
+  Future<void> dispose() => _changes.close();
+
+  @override
+  Future<AccountEntity?> accountById(String accountId) async =>
+      account.id == accountId ? account : null;
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
+
+final class _ReconnectRecordingAuthRepository implements AuthRepository {
+  _ReconnectRecordingAuthRepository(this.accounts);
+
+  final _MutableAccountsRepository accounts;
+  final markedAccountIds = <String>[];
+
+  @override
+  Future<void> markReconnectRequired(String accountId) async {
+    markedAccountIds.add(accountId);
+    accounts.requireReconnect();
+  }
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}

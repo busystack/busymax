@@ -212,7 +212,7 @@ class OAuthService implements OAuthGateway {
   Future<OAuthTokenSet> refreshActiveToken() async {
     final accountId = await _tokenStore.readActiveAccountId();
     if (accountId == null) {
-      throw const OAuthException('OAuthRefreshFailed', 'No active account.');
+      throw const OAuthException('OAuthMissingToken', 'No active account.');
     }
 
     return refreshTokenForAccount(accountId);
@@ -223,31 +223,24 @@ class OAuthService implements OAuthGateway {
     final current = await _readTokenSet(accountId);
     if (current == null || !current.canRefresh) {
       throw const OAuthException(
-        'OAuthRefreshFailed',
+        'OAuthMissingRefreshToken',
         'No refresh token is available.',
       );
     }
 
-    try {
-      final refreshed = await refreshToken(current);
-      if ((_credentialGenerations[accountId] ?? 0) != generation) {
-        throw const OAuthException(
-          'OAuthRefreshCancelled',
-          'The account was removed while its credential was refreshing.',
-        );
-      }
-      await _tokenStore.saveOAuthTokenSet(
-        accountId,
-        BusyProvider.google,
-        refreshed,
+    final refreshed = await refreshToken(current);
+    if ((_credentialGenerations[accountId] ?? 0) != generation) {
+      throw const OAuthException(
+        'OAuthRefreshCancelled',
+        'The account was removed while its credential was refreshing.',
       );
-      return refreshed;
-    } on OAuthException catch (error) {
-      if (error is OAuthRefreshException && error.statusCode == 400) {
-        await _clearAccountAfterInvalidRefresh(accountId);
-      }
-      rethrow;
     }
+    await _tokenStore.saveOAuthTokenSet(
+      accountId,
+      BusyProvider.google,
+      refreshed,
+    );
+    return refreshed;
   }
 
   Future<OAuthTokenSet> refreshToken(OAuthTokenSet current) async {
@@ -279,10 +272,17 @@ class OAuthService implements OAuthGateway {
     );
 
     if (response.statusCode < 200 || response.statusCode >= 300) {
+      final details = _tokenEndpointFailureDetails(response.body);
       throw OAuthRefreshException(
         'OAuthRefreshFailed',
-        _tokenEndpointFailureMessage(operation: 'refresh', response: response),
+        _tokenEndpointFailureMessage(
+          operation: 'refresh',
+          response: response,
+          details: details,
+        ),
         statusCode: response.statusCode,
+        oauthError: details?.oauthError,
+        oauthErrorDescription: details?.oauthErrorDescription,
       );
     }
 
@@ -351,15 +351,6 @@ class OAuthService implements OAuthGateway {
     }
     if (targetAccountId == null ||
         await _tokenStore.readActiveAccountId() == targetAccountId) {
-      await _tokenStore.clearActiveAccount();
-    }
-  }
-
-  Future<void> _clearAccountAfterInvalidRefresh(String accountId) async {
-    _invalidateCredentialWrites(accountId);
-    final active = await _tokenStore.readActiveAccountId();
-    await _tokenStore.deleteCredential(accountId);
-    if (active == accountId) {
       await _tokenStore.clearActiveAccount();
     }
   }
@@ -501,7 +492,7 @@ void _validateTokenRefreshParameters({
   }
   if (refreshToken == null || refreshToken.trim().isEmpty) {
     throw const OAuthException(
-      'OAuthRefreshFailed',
+      'OAuthMissingRefreshToken',
       'No refresh token is available.',
     );
   }
@@ -539,21 +530,22 @@ String _clientIdSuffix(String clientId) {
 String _tokenEndpointFailureMessage({
   required String operation,
   required http.Response response,
+  _TokenEndpointFailureDetails? details,
 }) {
-  final details = _tokenEndpointFailureDetails(response.body);
-  if (details == null || details.text.isEmpty) {
+  final safeDetails = details ?? _tokenEndpointFailureDetails(response.body);
+  if (safeDetails == null || safeDetails.text.isEmpty) {
     return 'Google token $operation failed with HTTP ${response.statusCode}.';
   }
-  if (_isMissingClientSecretError(details)) {
+  if (_isMissingClientSecretError(safeDetails)) {
     return 'This Google Desktop OAuth client requires a client secret. Re-run '
         'BusyMax with GOOGLE_OAUTH_CLIENT_SECRET set from the same Desktop '
         'OAuth client credentials.';
   }
 
-  final statusPrefix = details.isJson
+  final statusPrefix = safeDetails.isJson
       ? 'Google token $operation failed'
       : 'Google token $operation failed with HTTP ${response.statusCode}';
-  return '$statusPrefix: ${details.text}.';
+  return '$statusPrefix: ${safeDetails.text}.';
 }
 
 _TokenEndpointFailureDetails? _tokenEndpointFailureDetails(String body) {
@@ -568,20 +560,36 @@ _TokenEndpointFailureDetails? _tokenEndpointFailureDetails(String body) {
       final error = redactForLog(decoded['error']).trim();
       final description = redactForLog(decoded['error_description']).trim();
       if (error.isNotEmpty && description.isNotEmpty) {
-        return _TokenEndpointFailureDetails('$error - $description', true);
+        return _TokenEndpointFailureDetails(
+          '$error - $description',
+          isJson: true,
+          oauthError: error,
+          oauthErrorDescription: description,
+        );
       }
       if (error.isNotEmpty) {
-        return _TokenEndpointFailureDetails(error, true);
+        return _TokenEndpointFailureDetails(
+          error,
+          isJson: true,
+          oauthError: error,
+        );
       }
       if (description.isNotEmpty) {
-        return _TokenEndpointFailureDetails(description, true);
+        return _TokenEndpointFailureDetails(
+          description,
+          isJson: true,
+          oauthErrorDescription: description,
+        );
       }
     }
   } on FormatException {
-    return _TokenEndpointFailureDetails(redactForLog(trimmedBody), false);
+    return _TokenEndpointFailureDetails(
+      redactForLog(trimmedBody),
+      isJson: false,
+    );
   }
 
-  return _TokenEndpointFailureDetails(redactForLog(trimmedBody), false);
+  return _TokenEndpointFailureDetails(redactForLog(trimmedBody), isJson: false);
 }
 
 bool _isMissingClientSecretError(_TokenEndpointFailureDetails details) {
@@ -592,8 +600,15 @@ bool _isMissingClientSecretError(_TokenEndpointFailureDetails details) {
 }
 
 class _TokenEndpointFailureDetails {
-  const _TokenEndpointFailureDetails(this.text, this.isJson);
+  const _TokenEndpointFailureDetails(
+    this.text, {
+    required this.isJson,
+    this.oauthError,
+    this.oauthErrorDescription,
+  });
 
   final String text;
   final bool isJson;
+  final String? oauthError;
+  final String? oauthErrorDescription;
 }

@@ -1,3 +1,5 @@
+import 'dart:collection';
+
 /// A request failure that is known to have happened before the HTTP client
 /// forwarded the request to the network.
 ///
@@ -30,4 +32,27 @@ final class KnownUnsentRequestException
 
   @override
   String toString() => 'KnownUnsentRequestException($code)';
+}
+
+/// Resolves the substantive failure while preserving pre-dispatch wrappers.
+///
+/// Classification and user messaging can inspect the returned cause without
+/// weakening the wrapper's replay-safety guarantee. Malformed cause graphs are
+/// bounded and identity-checked so they cannot loop forever.
+Object resolveEffectiveSyncFailure(Object error) {
+  const maximumCauseDepth = 8;
+  final visited = HashSet<Object>.identity();
+  var current = error;
+
+  for (var depth = 0; depth < maximumCauseDepth; depth += 1) {
+    if (!visited.add(current)) {
+      return current;
+    }
+    if (current is! RequestNotDispatchedException || current.cause == null) {
+      return current;
+    }
+    current = current.cause!;
+  }
+
+  return current;
 }

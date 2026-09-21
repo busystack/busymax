@@ -736,31 +736,94 @@ void main() {
     },
   );
 
-  test('refresh 400 clears only account being refreshed', () async {
+  test(
+    'refresh invalid_grant is structured without clearing credentials',
+    () async {
+      final tokenStore = InMemorySecretStore();
+      await tokenStore.saveOAuthTokenSet(
+        'google-a',
+        BusyProvider.google,
+        const OAuthTokenSetFixture().tokenSet,
+      );
+      await tokenStore.saveOAuthTokenSet(
+        'google-b',
+        BusyProvider.google,
+        const OAuthTokenSetFixture().tokenSet.copyWith(accessToken: 'access-b'),
+      );
+      await tokenStore.saveOAuthTokenSet(
+        'microsoft:m',
+        BusyProvider.microsoft,
+        const OAuthTokenSetFixture().tokenSet.copyWith(
+          accessToken: 'ms-access',
+        ),
+      );
+      await tokenStore.setActiveAccountId('google-b');
+      final service = OAuthService(
+        config: _config,
+        httpClient: MockClient((request) async {
+          return http.Response(
+            jsonEncode({
+              'error': 'invalid_grant',
+              'error_description': 'The authorization cannot be refreshed',
+            }),
+            400,
+          );
+        }),
+        tokenStore: tokenStore,
+        loopbackFlow: OAuthLoopbackFlow(),
+      );
+
+      await expectLater(
+        service.refreshTokenForAccount('google-a'),
+        throwsA(
+          isA<OAuthRefreshException>()
+              .having((error) => error.statusCode, 'statusCode', 400)
+              .having(
+                (error) => error.oauthError,
+                'oauthError',
+                'invalid_grant',
+              )
+              .having(
+                (error) => error.oauthErrorDescription,
+                'oauthErrorDescription',
+                'The authorization cannot be refreshed',
+              ),
+        ),
+      );
+
+      expect(
+        await tokenStore.readOAuthTokenSet('google-a', BusyProvider.google),
+        isNotNull,
+      );
+      expect(
+        await tokenStore.readOAuthTokenSet('google-b', BusyProvider.google),
+        isNotNull,
+      );
+      expect(
+        await tokenStore.readOAuthTokenSet(
+          'microsoft:m',
+          BusyProvider.microsoft,
+        ),
+        isNotNull,
+      );
+      expect(await tokenStore.readActiveAccountId(), 'google-b');
+    },
+  );
+
+  test('refresh invalid_request does not clear the credential', () async {
     final tokenStore = InMemorySecretStore();
     await tokenStore.saveOAuthTokenSet(
       'google-a',
       BusyProvider.google,
       const OAuthTokenSetFixture().tokenSet,
     );
-    await tokenStore.saveOAuthTokenSet(
-      'google-b',
-      BusyProvider.google,
-      const OAuthTokenSetFixture().tokenSet.copyWith(accessToken: 'access-b'),
-    );
-    await tokenStore.saveOAuthTokenSet(
-      'microsoft:m',
-      BusyProvider.microsoft,
-      const OAuthTokenSetFixture().tokenSet.copyWith(accessToken: 'ms-access'),
-    );
-    await tokenStore.setActiveAccountId('google-b');
     final service = OAuthService(
       config: _config,
       httpClient: MockClient((request) async {
         return http.Response(
           jsonEncode({
-            'error': 'invalid_grant',
-            'error_description': 'Token expired',
+            'error': 'invalid_request',
+            'error_description': 'A required parameter is missing',
           }),
           400,
         );
@@ -771,22 +834,61 @@ void main() {
 
     await expectLater(
       service.refreshTokenForAccount('google-a'),
-      throwsA(isA<OAuthException>()),
+      throwsA(
+        isA<OAuthRefreshException>()
+            .having((error) => error.statusCode, 'statusCode', 400)
+            .having(
+              (error) => error.oauthError,
+              'oauthError',
+              'invalid_request',
+            ),
+      ),
     );
 
     expect(
       await tokenStore.readOAuthTokenSet('google-a', BusyProvider.google),
-      isNull,
-    );
-    expect(
-      await tokenStore.readOAuthTokenSet('google-b', BusyProvider.google),
       isNotNull,
     );
+  });
+
+  test('refresh HTTP 503 does not clear the credential', () async {
+    final tokenStore = InMemorySecretStore();
+    await tokenStore.saveOAuthTokenSet(
+      'google-a',
+      BusyProvider.google,
+      const OAuthTokenSetFixture().tokenSet,
+    );
+    final service = OAuthService(
+      config: _config,
+      httpClient: MockClient(
+        (request) async => http.Response(
+          jsonEncode({
+            'error': 'temporarily_unavailable',
+            'error_description': 'Try again later',
+          }),
+          503,
+        ),
+      ),
+      tokenStore: tokenStore,
+      loopbackFlow: OAuthLoopbackFlow(),
+    );
+
+    await expectLater(
+      service.refreshTokenForAccount('google-a'),
+      throwsA(
+        isA<OAuthRefreshException>()
+            .having((error) => error.statusCode, 'statusCode', 503)
+            .having(
+              (error) => error.oauthError,
+              'oauthError',
+              'temporarily_unavailable',
+            ),
+      ),
+    );
     expect(
-      await tokenStore.readOAuthTokenSet('microsoft:m', BusyProvider.microsoft),
+      await tokenStore.readOAuthTokenSet('google-a', BusyProvider.google),
       isNotNull,
     );
-    expect(await tokenStore.readActiveAccountId(), 'google-b');
   });
 
   test('refresh completion cannot restore a removed credential', () async {
@@ -828,14 +930,28 @@ void main() {
     expect(await tokenStore.readCredential('google-a'), isNull);
   });
 
-  test('refresh endpoint 400 JSON body is surfaced without secrets', () async {
+  test('refresh endpoint fields and logs are redacted', () async {
+    const refreshTokenSecret = 'refresh-secret-token';
+    final records = <LogRecord>[];
+    final previousLevel = Logger.root.level;
+    Logger.root.level = Level.INFO;
+    final subscription = Logger.root.onRecord.listen((record) {
+      if (record.loggerName == 'OAuthService') {
+        records.add(record);
+      }
+    });
+    addTearDown(() async {
+      Logger.root.level = previousLevel;
+      await subscription.cancel();
+    });
     final service = OAuthService(
       config: _config,
       httpClient: MockClient((request) async {
         return http.Response(
           jsonEncode({
             'error': 'invalid_grant',
-            'error_description': 'Token expired',
+            'error_description':
+                'refresh_token=$refreshTokenSecret cannot be used',
           }),
           400,
         );
@@ -848,29 +964,28 @@ void main() {
     await expectLater(
       service.refreshToken(
         const OAuthTokenSetFixture().tokenSet.copyWith(
-          refreshToken: 'refresh-secret-token',
+          refreshToken: refreshTokenSecret,
         ),
       ),
       throwsA(
-        isA<OAuthException>()
+        isA<OAuthRefreshException>()
             .having((error) => error.code, 'code', 'OAuthRefreshFailed')
+            .having((error) => error.oauthError, 'oauthError', 'invalid_grant')
             .having(
-              (error) => error.message,
-              'message',
-              contains('invalid_grant'),
+              (error) => error.oauthErrorDescription,
+              'oauthErrorDescription',
+              contains('refresh_token=[REDACTED]'),
             )
             .having(
-              (error) => error.message,
-              'message',
-              contains('Token expired'),
-            )
-            .having(
-              (error) => error.message,
-              'message',
-              isNot(contains('refresh-secret-token')),
+              (error) => error.toString(),
+              'toString',
+              isNot(contains(refreshTokenSecret)),
             ),
       ),
     );
+    final logText = records.map((record) => record.message).join('\n');
+    expect(logText, contains('has_refresh_token=true'));
+    expect(logText, isNot(contains(refreshTokenSecret)));
   });
 }
 

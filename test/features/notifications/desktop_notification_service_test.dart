@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:busymax/src/app/app_settings.dart';
 import 'package:busymax/src/core/auth/oauth_models.dart';
+import 'package:busymax/src/core/http/request_dispatch_exception.dart';
 import 'package:busymax/src/features/notifications/desktop_notification_service.dart';
 import 'package:busymax/src/features/tasks/domain/task_remote_error.dart';
 import 'package:flutter/material.dart';
@@ -91,6 +92,37 @@ void main() {
       backend.notifications.single.body,
       'Background sync failed. '
       'Reconnect this account to resume synchronization.',
+    );
+  });
+
+  test('wrapped Google invalid_grant requests reconnection', () async {
+    final backend = _FakeNotificationBackend();
+    final service = DesktopNotificationService(
+      backend: backend,
+      settings: AppSettings.defaults(),
+      locale: const Locale('en'),
+    );
+
+    await service.notifySyncFailure(
+      const KnownUnsentRequestException(
+        kind: RequestPreDispatchFailureKind.authentication,
+        cause: OAuthRefreshException(
+          'OAuthRefreshFailed',
+          'Provider refresh failed.',
+          statusCode: 400,
+          oauthError: 'invalid_grant',
+        ),
+      ),
+    );
+
+    expect(
+      backend.notifications.single.body,
+      'Background sync failed. '
+      'Reconnect this account to resume synchronization.',
+    );
+    expect(
+      backend.notifications.single.body,
+      isNot(contains('temporarily unavailable')),
     );
   });
 

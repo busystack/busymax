@@ -203,7 +203,9 @@ class AuthRepository {
       case BusyProvider.microsoft:
         await _microsoftOAuth?.signOutAccount(accountId);
       case BusyProvider.google:
-        await _oAuth.clearLocalSession(accountId: accountId);
+        // Keep the existing credential until reconnection replaces it or the
+        // user explicitly removes the account.
+        break;
       case BusyProvider.appleICloud:
       case BusyProvider.nextcloud:
         // DAV credentials are cleared through SecretStore once the account is
