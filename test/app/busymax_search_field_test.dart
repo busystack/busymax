@@ -79,7 +79,7 @@ void main() {
     expect(clearCount, 1);
   });
 
-  test('search consumers use only the shared Yaru adapter', () {
+  test('generic search keeps Yaru while the Linux header owns its shell', () {
     final design = File('lib/src/app/busymax_design.dart').readAsStringSync();
     final schedule = File(
       'lib/src/features/schedule/presentation/schedule_workspace.dart',
@@ -93,7 +93,11 @@ void main() {
 
     expect(design, contains('class BusyMaxSearchField'));
     expect(RegExp(r'YaruSearchField\(').allMatches(design), hasLength(1));
-    expect(linuxHeader, contains('BusyMaxSearchField('));
+    expect(
+      linuxHeader,
+      contains('class BusyMaxLinuxHeaderSearchField extends StatefulWidget'),
+    );
+    expect(linuxHeader, isNot(contains('BusyMaxSearchField(')));
     expect(toolbar, contains('BusyMaxLinuxHeaderSearchField('));
     expect(schedule, isNot(contains('class _ScheduleSearchField')));
     expect(schedule, isNot(contains('YaruSearchField(')));

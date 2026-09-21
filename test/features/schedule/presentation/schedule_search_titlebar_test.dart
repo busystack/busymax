@@ -53,6 +53,7 @@ void main() {
   testWidgets(
     'Search changes only the center and schedule control visibility',
     (tester) async {
+      final semantics = tester.ensureSemantics();
       await _pumpWorkspace(tester, width: 1100);
 
       for (final key in const [
@@ -73,7 +74,10 @@ void main() {
 
       expect(find.byType(ScheduleToolbar), findsOneWidget);
       expect(find.byType(BusyMaxLinuxHeaderLayout), findsOneWidget);
-      expect(find.byType(BusyMaxSearchField).hitTestable(), findsOneWidget);
+      expect(
+        find.byType(BusyMaxLinuxHeaderSearchField).hitTestable(),
+        findsOneWidget,
+      );
       for (final key in const [
         'schedule-sidebar-button',
         'schedule-search-button',
@@ -99,20 +103,35 @@ void main() {
       );
       expect(searchButton.selected, isTrue);
       final headerRect = tester.getRect(find.byType(ScheduleToolbar));
-      final fieldRect = tester.getRect(find.byType(BusyMaxSearchField));
+      final fieldRect = tester.getRect(
+        find.byType(BusyMaxLinuxHeaderSearchField),
+      );
       expect(headerRect.height, BusyMaxSizes.toolbarHeight);
-      expect(fieldRect.height, BusyMaxSizes.headerIconButton);
+      expect(fieldRect.height, BusyMaxLinuxHeaderStyle.searchEntryHeight);
       expect(fieldRect.center.dx, closeTo(headerRect.center.dx, .01));
+      expect(fieldRect.center.dy, closeTo(headerRect.center.dy, .5));
       expect(fieldRect.width, lessThan(headerRect.width));
+
+      final textField = tester.widget<TextField>(_searchTextField());
+      expect(textField.decoration?.hintText, isNull);
+      expect(find.text('Search'), findsNothing);
+      expect(find.bySemanticsLabel('Search'), findsOneWidget);
+      semantics.dispose();
 
       await tester.tap(find.byTooltip('Search (Ctrl+F)'));
       await tester.pumpAndSettle();
-      expect(find.byType(BusyMaxSearchField).hitTestable(), findsNothing);
+      expect(
+        find.byType(BusyMaxLinuxHeaderSearchField).hitTestable(),
+        findsNothing,
+      );
 
       await _openSearch(tester);
       await tester.sendKeyEvent(LogicalKeyboardKey.escape);
       await tester.pumpAndSettle();
-      expect(find.byType(BusyMaxSearchField).hitTestable(), findsNothing);
+      expect(
+        find.byType(BusyMaxLinuxHeaderSearchField).hitTestable(),
+        findsNothing,
+      );
     },
   );
 
@@ -124,10 +143,13 @@ void main() {
       await _openSearch(tester);
 
       final headerRect = tester.getRect(find.byType(ScheduleToolbar));
-      final fieldRect = tester.getRect(find.byType(BusyMaxSearchField));
+      final fieldRect = tester.getRect(
+        find.byType(BusyMaxLinuxHeaderSearchField),
+      );
       expect(headerRect.height, BusyMaxSizes.toolbarHeight);
-      expect(fieldRect.height, BusyMaxSizes.headerIconButton);
+      expect(fieldRect.height, BusyMaxLinuxHeaderStyle.searchEntryHeight);
       expect(fieldRect.center.dx, closeTo(headerRect.center.dx, .01));
+      expect(fieldRect.center.dy, closeTo(headerRect.center.dy, .5));
       expect(fieldRect.width, lessThan(headerRect.width));
 
       const keys = [
@@ -215,9 +237,19 @@ void main() {
           widget is BusyMaxGtkHeaderIcon &&
           widget.icon == BusyMaxLinuxHeaderIcon.searchClear,
     );
-    await tester.tap(
-      find.ancestor(of: clearIcon, matching: find.byType(IconButton)),
+    expect(tester.getSize(clearIcon), const Size.square(16));
+    expect(
+      find.ancestor(
+        of: clearIcon,
+        matching: find.byType(BusyMaxHeaderIconButton),
+      ),
+      findsNothing,
     );
+    expect(
+      find.ancestor(of: clearIcon, matching: find.byType(IconButton)),
+      findsNothing,
+    );
+    await tester.tap(find.byKey(BusyMaxLinuxHeaderSearchField.clearKey));
     await tester.pump();
     expect(_dragCalls(windowCalls), 0);
     expect(tester.widget<TextField>(field).controller!.text, isEmpty);
@@ -229,7 +261,10 @@ void main() {
     await tester.tap(find.byTooltip('Search (Ctrl+F)'));
     await tester.pumpAndSettle();
     expect(_dragCalls(windowCalls), 0);
-    expect(find.byType(BusyMaxSearchField).hitTestable(), findsNothing);
+    expect(
+      find.byType(BusyMaxLinuxHeaderSearchField).hitTestable(),
+      findsNothing,
+    );
   });
 
   testWidgets('search text selection and focus survive an unrelated rebuild', (
@@ -268,6 +303,26 @@ void main() {
     expect(rebuilt.focusNode, same(editable.focusNode));
     expect(rebuilt.focusNode.hasFocus, isTrue);
     expect(_dragCalls(windowCalls), 0);
+
+    rebuilt.controller.selection = const TextSelection(
+      baseOffset: 3,
+      extentOffset: 6,
+    );
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
+    await tester.sendKeyEvent(LogicalKeyboardKey.keyF);
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
+    await tester.pump();
+    expect(
+      rebuilt.controller.selection,
+      TextSelection(
+        baseOffset: 0,
+        extentOffset: rebuilt.controller.text.length,
+      ),
+    );
+    expect(
+      find.byType(BusyMaxLinuxHeaderSearchField).hitTestable(),
+      findsOneWidget,
+    );
   });
 }
 
@@ -282,7 +337,7 @@ Future<void> _dragControl(WidgetTester tester, String key) async {
 }
 
 Finder _searchTextField() => find.descendant(
-  of: find.byType(BusyMaxSearchField),
+  of: find.byType(BusyMaxLinuxHeaderSearchField),
   matching: find.byType(TextField),
 );
 
@@ -294,7 +349,10 @@ Future<void> _openSearch(WidgetTester tester) async {
   await tester.sendKeyEvent(LogicalKeyboardKey.keyF);
   await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
   await tester.pumpAndSettle();
-  expect(find.byType(BusyMaxSearchField).hitTestable(), findsOneWidget);
+  expect(
+    find.byType(BusyMaxLinuxHeaderSearchField).hitTestable(),
+    findsOneWidget,
+  );
 }
 
 Future<void> _pumpWorkspace(

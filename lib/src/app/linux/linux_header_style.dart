@@ -10,6 +10,13 @@ import 'linux_window_host.dart';
 
 abstract final class BusyMaxLinuxHeaderStyle {
   static const double symbolicIconSize = 16;
+  static const double searchEntryHeight = 32;
+  static const double searchEntryRadius = 9;
+  static const double searchEntryBorderWidth = 1;
+  static const double searchEntryFocusedBorderWidth = 2;
+  static const double searchEntryHorizontalPadding = 8;
+  static const double searchEntryIconGap = 6;
+  static const Duration searchEntryFocusDuration = Duration(milliseconds: 200);
   static const double compoundButtonHorizontalPadding = 9;
   static const double compoundButtonVerticalPadding = 4;
   static const double viewIconGap = 6;
@@ -617,32 +624,129 @@ class BusyMaxLinuxHeaderTitle extends StatelessWidget {
 
 /// The bounded center-slot presentation corresponding to the former native
 /// `GtkSearchEntry` title-stack child.
-class BusyMaxLinuxHeaderSearchField extends StatelessWidget {
+class BusyMaxLinuxHeaderSearchField extends StatefulWidget {
   const BusyMaxLinuxHeaderSearchField({
     super.key,
     required this.controller,
     required this.focusRequest,
-    required this.hintText,
+    required this.semanticLabel,
     required this.onChanged,
     required this.onClear,
     this.autofocus = true,
   });
 
   static const int maximumWidthChars = 48;
+  static const shellKey = ValueKey<String>('busymax-linux-search-shell');
+  static const clearKey = ValueKey<String>('busymax-linux-search-clear');
 
   final TextEditingController controller;
   final int focusRequest;
-  final String hintText;
+  final String semanticLabel;
   final ValueChanged<String> onChanged;
   final VoidCallback onClear;
   final bool autofocus;
 
   @override
+  State<BusyMaxLinuxHeaderSearchField> createState() =>
+      _BusyMaxLinuxHeaderSearchFieldState();
+}
+
+class _BusyMaxLinuxHeaderSearchFieldState
+    extends State<BusyMaxLinuxHeaderSearchField> {
+  final _focusNode = FocusNode(debugLabel: 'BusyMax Linux header Search');
+  late bool _isEmpty;
+  var _clearHovered = false;
+  var _clearPressed = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _isEmpty = widget.controller.text.isEmpty;
+    widget.controller.addListener(_handleControllerChanged);
+    _focusNode.addListener(_handleFocusChanged);
+    if (widget.autofocus) {
+      _focusAndSelectAll();
+    }
+  }
+
+  @override
+  void didUpdateWidget(covariant BusyMaxLinuxHeaderSearchField oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.controller != widget.controller) {
+      oldWidget.controller.removeListener(_handleControllerChanged);
+      _isEmpty = widget.controller.text.isEmpty;
+      widget.controller.addListener(_handleControllerChanged);
+    }
+    if (oldWidget.focusRequest != widget.focusRequest) {
+      _focusAndSelectAll();
+    }
+  }
+
+  @override
+  void dispose() {
+    widget.controller.removeListener(_handleControllerChanged);
+    _focusNode
+      ..removeListener(_handleFocusChanged)
+      ..dispose();
+    super.dispose();
+  }
+
+  void _handleControllerChanged() {
+    final isEmpty = widget.controller.text.isEmpty;
+    if (_isEmpty != isEmpty && mounted) {
+      setState(() => _isEmpty = isEmpty);
+    }
+  }
+
+  void _handleFocusChanged() {
+    if (mounted) {
+      setState(() {});
+    }
+  }
+
+  void _focusAndSelectAll() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _focusNode.requestFocus();
+      widget.controller.selection = TextSelection(
+        baseOffset: 0,
+        extentOffset: widget.controller.text.length,
+      );
+    });
+  }
+
+  void _clear() {
+    widget.onClear();
+    if (widget.controller.text.isNotEmpty) {
+      widget.controller.clear();
+    }
+    _focusNode.requestFocus();
+  }
+
+  void _setClearHovered(bool hovered) {
+    if (_clearHovered != hovered) {
+      setState(() => _clearHovered = hovered);
+    }
+  }
+
+  void _setClearPressed(bool pressed) {
+    if (_clearPressed != pressed) {
+      setState(() => _clearPressed = pressed);
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final textStyle = Theme.of(context).textTheme.bodyMedium;
+    final theme = Theme.of(context);
+    final colors = BusyMaxSurfaceColors.of(context);
+    final textStyle = (theme.textTheme.bodyMedium ?? const TextStyle())
+        .copyWith(color: colors.foreground, fontWeight: FontWeight.normal);
     final widthProbe = TextPainter(
       text: TextSpan(
-        text: List.filled(maximumWidthChars, '0').join(),
+        text: List.filled(
+          BusyMaxLinuxHeaderSearchField.maximumWidthChars,
+          '0',
+        ).join(),
         style: textStyle,
       ),
       maxLines: 1,
@@ -651,34 +755,147 @@ class BusyMaxLinuxHeaderSearchField extends StatelessWidget {
     )..layout();
     final desiredWidth =
         widthProbe.width +
-        BusyMaxSpacing.md * 2 +
-        BusyMaxLinuxHeaderStyle.symbolicIconSize * 2;
+        BusyMaxLinuxHeaderStyle.searchEntryHorizontalPadding * 2 +
+        BusyMaxLinuxHeaderStyle.symbolicIconSize * 2 +
+        BusyMaxLinuxHeaderStyle.searchEntryIconGap * 2;
     widthProbe.dispose();
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final width = math.min(constraints.maxWidth, desiredWidth);
-        return SizedBox(
-          width: width,
-          height: BusyMaxSizes.headerIconButton,
-          child: IconTheme(
-            data: IconThemeData(color: busyMaxLinuxHeaderForeground(context)),
-            child: BusyMaxSearchField(
-              controller: controller,
-              autofocus: autofocus,
-              focusRequest: focusRequest,
-              hintText: hintText,
-              onChanged: onChanged,
-              onClear: onClear,
-              leadingIcon: const BusyMaxGtkHeaderIcon(
-                BusyMaxLinuxHeaderIcon.search,
-              ),
-              clearIcon: const BusyMaxGtkHeaderIcon(
-                BusyMaxLinuxHeaderIcon.searchClear,
+    final focused = _focusNode.hasFocus;
+    final radius = theme.colorScheme.isHighContrast
+        ? BusyMaxLinuxHeaderStyle.controlRadius
+        : BusyMaxLinuxHeaderStyle.searchEntryRadius;
+    final borderWidth = focused
+        ? BusyMaxLinuxHeaderStyle.searchEntryFocusedBorderWidth
+        : BusyMaxLinuxHeaderStyle.searchEntryBorderWidth;
+    final clearColor = _clearPressed
+        ? theme.colorScheme.primary
+        : _clearHovered
+        ? colors.foreground
+        : colors.mutedForeground;
+    final focusDuration = MediaQuery.disableAnimationsOf(context)
+        ? Duration.zero
+        : BusyMaxLinuxHeaderStyle.searchEntryFocusDuration;
+
+    return FocusScope(
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final width = math.min(constraints.maxWidth, desiredWidth);
+          return SizedBox(
+            width: width,
+            height: BusyMaxLinuxHeaderStyle.searchEntryHeight,
+            child: Listener(
+              behavior: HitTestBehavior.opaque,
+              child: AnimatedContainer(
+                key: BusyMaxLinuxHeaderSearchField.shellKey,
+                duration: focusDuration,
+                curve: Curves.easeOut,
+                decoration: BoxDecoration(
+                  color: colors.view,
+                  borderRadius: BorderRadius.circular(radius),
+                ),
+                foregroundDecoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(radius),
+                  border: Border.all(
+                    color: focused ? theme.colorScheme.primary : colors.border,
+                    width: borderWidth,
+                  ),
+                ),
+                child: GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onTap: _focusNode.requestFocus,
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal:
+                          BusyMaxLinuxHeaderStyle.searchEntryHorizontalPadding,
+                    ),
+                    child: Row(
+                      children: [
+                        IconTheme(
+                          data: IconThemeData(color: colors.mutedForeground),
+                          child: const BusyMaxGtkHeaderIcon(
+                            BusyMaxLinuxHeaderIcon.search,
+                          ),
+                        ),
+                        const SizedBox(
+                          width: BusyMaxLinuxHeaderStyle.searchEntryIconGap,
+                        ),
+                        Expanded(
+                          child: Semantics(
+                            label: widget.semanticLabel,
+                            textField: true,
+                            child: TextField(
+                              controller: widget.controller,
+                              focusNode: _focusNode,
+                              autofocus: false,
+                              maxLines: 1,
+                              style: textStyle,
+                              cursorColor: theme.colorScheme.primary,
+                              cursorWidth: 1,
+                              decoration: const InputDecoration(
+                                isCollapsed: true,
+                                contentPadding: EdgeInsets.zero,
+                                border: InputBorder.none,
+                                enabledBorder: InputBorder.none,
+                                focusedBorder: InputBorder.none,
+                                disabledBorder: InputBorder.none,
+                                errorBorder: InputBorder.none,
+                                focusedErrorBorder: InputBorder.none,
+                                filled: false,
+                              ),
+                              onChanged: widget.onChanged,
+                            ),
+                          ),
+                        ),
+                        if (!_isEmpty) ...[
+                          const SizedBox(
+                            width: BusyMaxLinuxHeaderStyle.searchEntryIconGap,
+                          ),
+                          Semantics(
+                            container: true,
+                            button: true,
+                            label: MaterialLocalizations.of(
+                              context,
+                            ).clearButtonTooltip,
+                            onTap: _clear,
+                            child: ExcludeSemantics(
+                              child: MouseRegion(
+                                key: BusyMaxLinuxHeaderSearchField.clearKey,
+                                cursor: SystemMouseCursors.click,
+                                onEnter: (_) => _setClearHovered(true),
+                                onExit: (_) {
+                                  _setClearHovered(false);
+                                  _setClearPressed(false);
+                                },
+                                child: Listener(
+                                  behavior: HitTestBehavior.opaque,
+                                  onPointerDown: (_) => _setClearPressed(true),
+                                  onPointerUp: (_) => _setClearPressed(false),
+                                  onPointerCancel: (_) =>
+                                      _setClearPressed(false),
+                                  child: GestureDetector(
+                                    behavior: HitTestBehavior.opaque,
+                                    excludeFromSemantics: true,
+                                    onTap: _clear,
+                                    child: IconTheme(
+                                      data: IconThemeData(color: clearColor),
+                                      child: const BusyMaxGtkHeaderIcon(
+                                        BusyMaxLinuxHeaderIcon.searchClear,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                ),
               ),
             ),
-          ),
-        );
-      },
+          );
+        },
+      ),
     );
   }
 }

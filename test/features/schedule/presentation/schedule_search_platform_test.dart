@@ -4,6 +4,7 @@ import 'package:busymax/l10n/generated/app_localizations.dart';
 import 'package:busymax/src/android/presentation/android_schedule_screen.dart';
 import 'package:busymax/src/app/app_bootstrap.dart';
 import 'package:busymax/src/app/busymax_design.dart';
+import 'package:busymax/src/app/linux/linux_header_style.dart';
 import 'package:busymax/src/calendar_providers/calendar_sync_dto.dart';
 import 'package:busymax/src/db/app_database.dart';
 import 'package:busymax/src/features/accounts/data/accounts_repository.dart';
@@ -334,7 +335,7 @@ void main() {
         // Clearing only the entry retains Person and the temporary scope.
         final entry = platform == 'linux'
             ? find.descendant(
-                of: find.byType(BusyMaxSearchField),
+                of: find.byType(BusyMaxLinuxHeaderSearchField),
                 matching: find.byType(TextField),
               )
             : find

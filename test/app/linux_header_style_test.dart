@@ -1,10 +1,14 @@
 import 'dart:convert';
+import 'dart:ui' show SemanticsAction;
 
+import 'package:busymax/src/app/app_theme.dart';
 import 'package:busymax/src/app/busymax_design.dart';
+import 'package:busymax/src/app/busymax_surface_colors.dart';
 import 'package:busymax/src/app/linux/linux_header_style.dart';
 import 'package:busymax/src/app/linux/linux_window_host.dart';
 import 'package:busymax/src/platform/gtk_header_icon_service.dart';
 import 'package:busymax/src/platform/gtk_window_preferences_service.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:yaru/yaru.dart';
@@ -217,9 +221,10 @@ void main() {
     );
   });
 
-  testWidgets('header Search uses bounded GTK search and clear artwork', (
+  testWidgets('header Search owns GTK geometry, colors, and artwork', (
     tester,
   ) async {
+    final semantics = tester.ensureSemantics();
     final controller = TextEditingController(text: 'planning');
     addTearDown(controller.dispose);
     final png = base64Decode(
@@ -249,6 +254,16 @@ void main() {
       GtkHeaderIconScope(
         service: service,
         child: _testApp(
+          theme: ThemeData(
+            colorScheme: ColorScheme.fromSeed(
+              seedColor: _searchFocus,
+              primary: _searchFocus,
+            ),
+            textTheme: const TextTheme(
+              bodyMedium: TextStyle(fontFamily: 'GTK body', fontSize: 14.25),
+            ),
+            extensions: const [_searchColors],
+          ),
           child: Align(
             child: SizedBox(
               width: 1000,
@@ -256,7 +271,7 @@ void main() {
                 child: BusyMaxLinuxHeaderSearchField(
                   controller: controller,
                   focusRequest: 0,
-                  hintText: 'Search',
+                  semanticLabel: 'Search',
                   onChanged: (_) {},
                   onClear: controller.clear,
                   autofocus: false,
@@ -268,9 +283,37 @@ void main() {
       ),
     );
 
-    final field = find.byType(BusyMaxSearchField);
-    expect(tester.getSize(field).height, BusyMaxSizes.headerIconButton);
+    final field = find.byType(BusyMaxLinuxHeaderSearchField);
+    expect(
+      tester.getSize(field).height,
+      BusyMaxLinuxHeaderStyle.searchEntryHeight,
+    );
     expect(tester.getSize(field).width, lessThan(800));
+    final textField = tester.widget<TextField>(
+      find.descendant(of: field, matching: find.byType(TextField)),
+    );
+    expect(textField.decoration?.hintText, isNull);
+    expect(textField.decoration?.filled, isFalse);
+    expect(textField.decoration?.border, InputBorder.none);
+    expect(textField.style?.fontFamily, 'GTK body');
+    expect(textField.style?.fontSize, 14.25);
+    expect(textField.style?.fontWeight, FontWeight.normal);
+    expect(textField.style?.color, _searchColors.foreground);
+    expect(textField.cursorColor, _searchFocus);
+    expect(textField.cursorWidth, 1);
+
+    final normalDecoration = _searchShellDecoration(tester);
+    expect(normalDecoration.color, _searchColors.view);
+    expect(
+      normalDecoration.borderRadius,
+      BorderRadius.circular(BusyMaxLinuxHeaderStyle.searchEntryRadius),
+    );
+    final normalBorderDecoration = _searchShellBorderDecoration(tester);
+    expect(_border(normalBorderDecoration).top.color, _searchColors.border);
+    expect(
+      _border(normalBorderDecoration).top.width,
+      BusyMaxLinuxHeaderStyle.searchEntryBorderWidth,
+    );
     final icons = tester
         .widgetList<BusyMaxGtkHeaderIcon>(
           find.descendant(
@@ -300,8 +343,334 @@ void main() {
       find.descendant(of: field, matching: find.byType(Icon)),
       findsNothing,
     );
+    expect(
+      find.descendant(
+        of: field,
+        matching: find.byType(BusyMaxHeaderIconButton),
+      ),
+      findsNothing,
+    );
+    expect(
+      find.descendant(of: field, matching: find.byType(IconButton)),
+      findsNothing,
+    );
+
+    final searchIcon = find.byWidgetPredicate(
+      (widget) =>
+          widget is BusyMaxGtkHeaderIcon &&
+          widget.icon == BusyMaxLinuxHeaderIcon.search,
+    );
+    final clearIcon = find.byWidgetPredicate(
+      (widget) =>
+          widget is BusyMaxGtkHeaderIcon &&
+          widget.icon == BusyMaxLinuxHeaderIcon.searchClear,
+    );
+    final fieldRect = tester.getRect(field);
+    final searchIconRect = tester.getRect(searchIcon);
+    final textRect = tester.getRect(find.byType(TextField));
+    final clearIconRect = tester.getRect(clearIcon);
+    expect(
+      searchIconRect.left - fieldRect.left,
+      BusyMaxLinuxHeaderStyle.searchEntryHorizontalPadding,
+    );
+    expect(
+      textRect.left - searchIconRect.right,
+      BusyMaxLinuxHeaderStyle.searchEntryIconGap,
+    );
+    expect(
+      clearIconRect.left - textRect.right,
+      BusyMaxLinuxHeaderStyle.searchEntryIconGap,
+    );
+    expect(
+      fieldRect.right - clearIconRect.right,
+      BusyMaxLinuxHeaderStyle.searchEntryHorizontalPadding,
+    );
+    expect(_iconColor(tester, searchIcon), _searchColors.mutedForeground);
+    expect(_iconColor(tester, clearIcon), _searchColors.mutedForeground);
+    final clearTarget = find.byKey(BusyMaxLinuxHeaderSearchField.clearKey);
+    final clearSemantics = tester.getSemantics(clearTarget).getSemanticsData();
+    expect(
+      clearSemantics.label,
+      MaterialLocalizations.of(tester.element(clearTarget)).clearButtonTooltip,
+    );
+    expect(clearSemantics.flagsCollection.isButton, isTrue);
+    expect(clearSemantics.hasAction(SemanticsAction.tap), isTrue);
+
+    final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+    addTearDown(mouse.removePointer);
+    await mouse.addPointer(location: Offset.zero);
+    await mouse.moveTo(tester.getCenter(clearIcon));
+    await tester.pump();
+    expect(_iconColor(tester, clearIcon), _searchColors.foreground);
+    await mouse.down(tester.getCenter(clearIcon));
+    await tester.pump();
+    expect(_iconColor(tester, clearIcon), _searchFocus);
+    await mouse.up();
+    await tester.pump();
+
+    expect(controller.text, isEmpty);
+    expect(find.byType(BusyMaxLinuxHeaderSearchField), findsOneWidget);
+    expect(clearIcon, findsNothing);
+    expect(find.text('Search'), findsNothing);
+    expect(find.bySemanticsLabel('Search'), findsOneWidget);
+    semantics.dispose();
+  });
+
+  testWidgets(
+    'header Search focus chrome and high contrast radius are native',
+    (tester) async {
+      final controller = TextEditingController();
+      addTearDown(controller.dispose);
+      final theme = ThemeData(
+        colorScheme: ColorScheme.fromSeed(
+          seedColor: _searchFocus,
+          primary: _searchFocus,
+        ),
+        extensions: const [_searchColors],
+      );
+      await tester.pumpWidget(
+        _testApp(
+          theme: theme,
+          child: BusyMaxLinuxHeaderSearchField(
+            controller: controller,
+            focusRequest: 0,
+            semanticLabel: 'Search',
+            onChanged: (_) {},
+            onClear: controller.clear,
+            autofocus: false,
+          ),
+        ),
+      );
+
+      await tester.tap(find.byType(TextField));
+      await tester.pump();
+      final focusedDecoration = _searchShellBorderDecoration(tester);
+      expect(_border(focusedDecoration).top.color, _searchFocus);
+      expect(
+        _border(focusedDecoration).top.width,
+        BusyMaxLinuxHeaderStyle.searchEntryFocusedBorderWidth,
+      );
+      expect(
+        tester
+            .widget<AnimatedContainer>(
+              find.byKey(BusyMaxLinuxHeaderSearchField.shellKey),
+            )
+            .duration,
+        BusyMaxLinuxHeaderStyle.searchEntryFocusDuration,
+      );
+
+      await tester.pumpWidget(
+        _testApp(
+          theme: theme,
+          child: MediaQuery(
+            data: const MediaQueryData(disableAnimations: true),
+            child: BusyMaxLinuxHeaderSearchField(
+              controller: controller,
+              focusRequest: 0,
+              semanticLabel: 'Search',
+              onChanged: (_) {},
+              onClear: controller.clear,
+              autofocus: false,
+            ),
+          ),
+        ),
+      );
+      await tester.tap(find.byType(TextField));
+      await tester.pump();
+      expect(
+        tester
+            .widget<AnimatedContainer>(
+              find.byKey(BusyMaxLinuxHeaderSearchField.shellKey),
+            )
+            .duration,
+        Duration.zero,
+      );
+
+      final highContrastTheme = buildBusyMaxTheme(
+        brightness: Brightness.light,
+        accentColor: _searchFocus,
+        highContrast: true,
+      );
+      await tester.pumpWidget(
+        _testApp(
+          child: Theme(
+            data: highContrastTheme,
+            child: BusyMaxLinuxHeaderSearchField(
+              controller: controller,
+              focusRequest: 0,
+              semanticLabel: 'Search',
+              onChanged: (_) {},
+              onClear: controller.clear,
+              autofocus: false,
+            ),
+          ),
+        ),
+      );
+      expect(
+        _searchShellDecoration(tester).borderRadius,
+        BorderRadius.circular(BusyMaxLinuxHeaderStyle.controlRadius),
+      );
+      final highContrastColors = highContrastTheme
+          .extension<BusyMaxSurfaceColors>()!;
+      expect(_searchShellDecoration(tester).color, highContrastColors.view);
+      expect(
+        _border(_searchShellBorderDecoration(tester)).top.color,
+        highContrastColors.border,
+      );
+      final highContrastSearchIcon = find.byWidgetPredicate(
+        (widget) =>
+            widget is BusyMaxGtkHeaderIcon &&
+            widget.icon == BusyMaxLinuxHeaderIcon.search,
+      );
+      expect(
+        _iconColor(tester, highContrastSearchIcon),
+        highContrastColors.mutedForeground,
+      );
+    },
+  );
+
+  testWidgets('header Search uses semantic view chrome in light and dark', (
+    tester,
+  ) async {
+    final controller = TextEditingController();
+    addTearDown(controller.dispose);
+
+    for (final brightness in Brightness.values) {
+      final theme = buildBusyMaxTheme(
+        brightness: brightness,
+        accentColor: _searchFocus,
+      );
+      final colors = theme.extension<BusyMaxSurfaceColors>()!;
+      await tester.pumpWidget(
+        _testApp(
+          child: Theme(
+            data: theme,
+            child: BusyMaxLinuxHeaderSearchField(
+              controller: controller,
+              focusRequest: 0,
+              semanticLabel: 'Search',
+              onChanged: (_) {},
+              onClear: controller.clear,
+              autofocus: false,
+            ),
+          ),
+        ),
+      );
+
+      expect(_searchShellDecoration(tester).color, colors.view);
+      expect(
+        _border(_searchShellBorderDecoration(tester)).top.color,
+        colors.border,
+      );
+      expect(
+        tester.widget<TextField>(find.byType(TextField)).style?.color,
+        colors.foreground,
+      );
+      final searchIcon = find.byWidgetPredicate(
+        (widget) =>
+            widget is BusyMaxGtkHeaderIcon &&
+            widget.icon == BusyMaxLinuxHeaderIcon.search,
+      );
+      expect(_iconColor(tester, searchIcon), colors.mutedForeground);
+      expect(_searchShellDecoration(tester).color, isNot(colors.headerbar));
+    }
+  });
+
+  testWidgets('header Search focus requests select all without rebuild churn', (
+    tester,
+  ) async {
+    final controller = TextEditingController(text: 'planning review');
+    addTearDown(controller.dispose);
+
+    Widget app(int focusRequest, Color surface) => _testApp(
+      theme: ThemeData(scaffoldBackgroundColor: surface),
+      child: BusyMaxLinuxHeaderSearchField(
+        controller: controller,
+        focusRequest: focusRequest,
+        semanticLabel: 'Search',
+        onChanged: (_) {},
+        onClear: controller.clear,
+      ),
+    );
+
+    await tester.pumpWidget(app(0, Colors.white));
+    await tester.pump();
+    var editable = tester.widget<EditableText>(find.byType(EditableText));
+    final focusNode = editable.focusNode;
+    expect(focusNode.hasFocus, isTrue);
+    expect(
+      controller.selection,
+      const TextSelection(baseOffset: 0, extentOffset: 15),
+    );
+
+    controller.selection = const TextSelection(baseOffset: 2, extentOffset: 8);
+    await tester.pumpWidget(app(0, Colors.grey));
+    await tester.pump();
+    editable = tester.widget<EditableText>(find.byType(EditableText));
+    expect(editable.focusNode, same(focusNode));
+    expect(
+      controller.selection,
+      const TextSelection(baseOffset: 2, extentOffset: 8),
+    );
+
+    await tester.pumpWidget(app(1, Colors.grey));
+    await tester.pump();
+    expect(
+      controller.selection,
+      const TextSelection(baseOffset: 0, extentOffset: 15),
+    );
   });
 }
+
+const _searchFocus = Color(0xFF2468AC);
+const _searchColors = BusyMaxSurfaceColors(
+  window: Color(0xFFF0F0F0),
+  view: Color(0xFFFAFBFC),
+  sidebar: Color(0xFFE0E0E0),
+  secondarySidebar: Color(0xFFE8E8E8),
+  headerbar: Color(0xFFF0F0F0),
+  headerbarFlat: Color(0xFFF0F0F0),
+  card: Color(0xFFFFFFFF),
+  groupedSurface: Color(0xFFFFFFFF),
+  dialog: Color(0xFFFFFFFF),
+  popover: Color(0xFFFFFFFF),
+  control: Color(0xFFD0D0D0),
+  controlHover: Color(0xFFC0C0C0),
+  controlActive: Color(0xFFB0B0B0),
+  activeToggle: Color(0xFFFFFFFF),
+  foreground: Color(0xFF182838),
+  mutedForeground: Color(0xFF607080),
+  disabledForeground: Color(0xFF909090),
+  disabledControl: Color(0xFFE0E0E0),
+  border: Color(0xFF8192A3),
+  divider: Color(0xFFC0C0C0),
+  cardShade: Color(0xFFD0D0D0),
+  dialogOutline: Color(0xFFC0C0C0),
+  floatingBorder: Color(0xFFB0B0B0),
+  sidebarBorder: Color(0xFFA0A0A0),
+  shade: Color(0x22000000),
+);
+
+BoxDecoration _searchShellDecoration(WidgetTester tester) =>
+    tester
+            .widget<AnimatedContainer>(
+              find.byKey(BusyMaxLinuxHeaderSearchField.shellKey),
+            )
+            .decoration!
+        as BoxDecoration;
+
+BoxDecoration _searchShellBorderDecoration(WidgetTester tester) =>
+    tester
+            .widget<AnimatedContainer>(
+              find.byKey(BusyMaxLinuxHeaderSearchField.shellKey),
+            )
+            .foregroundDecoration!
+        as BoxDecoration;
+
+Border _border(BoxDecoration decoration) => decoration.border! as Border;
+
+Color? _iconColor(WidgetTester tester, Finder icon) =>
+    IconTheme.of(tester.element(icon)).color;
 
 const _headerKey = ValueKey('header');
 const _titleKey = ValueKey('title');

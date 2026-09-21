@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:busymax/src/app/app_bootstrap.dart';
 import 'package:busymax/src/app/busymax_design.dart';
+import 'package:busymax/src/app/linux/linux_header_style.dart';
 import 'package:busymax/src/app/busymax_surface_colors.dart';
 import 'package:busymax/src/db/app_database.dart';
 import 'package:busymax/src/features/accounts/data/accounts_repository.dart';
@@ -172,8 +173,8 @@ void main() {
     await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
     await tester.pumpAndSettle();
 
-    expect(find.byType(BusyMaxSearchField), findsOneWidget);
-    expect(find.byType(YaruSearchField), findsOneWidget);
+    expect(find.byType(BusyMaxLinuxHeaderSearchField), findsOneWidget);
+    expect(find.byType(YaruSearchField), findsNothing);
     expect(_searchFieldHasPrimaryFocus(tester), isTrue);
 
     FocusManager.instance.primaryFocus?.unfocus();
@@ -186,26 +187,21 @@ void main() {
 
     await tester.enterText(
       find.descendant(
-        of: find.byType(BusyMaxSearchField),
+        of: find.byType(BusyMaxLinuxHeaderSearchField),
         matching: find.byType(TextField),
       ),
       'planning',
     );
     await tester.pump();
-    await tester.tap(
-      find.descendant(
-        of: find.byType(BusyMaxSearchField),
-        matching: find.byType(IconButton),
-      ),
-    );
+    await tester.tap(find.byKey(BusyMaxLinuxHeaderSearchField.clearKey));
     await tester.pump();
 
-    expect(find.byType(BusyMaxSearchField), findsOneWidget);
+    expect(find.byType(BusyMaxLinuxHeaderSearchField), findsOneWidget);
     expect(
       tester
           .widget<TextField>(
             find.descendant(
-              of: find.byType(BusyMaxSearchField),
+              of: find.byType(BusyMaxLinuxHeaderSearchField),
               matching: find.byType(TextField),
             ),
           )
@@ -217,7 +213,10 @@ void main() {
     await tester.sendKeyEvent(LogicalKeyboardKey.escape);
     await tester.pump();
 
-    expect(find.byType(BusyMaxSearchField).hitTestable(), findsNothing);
+    expect(
+      find.byType(BusyMaxLinuxHeaderSearchField).hitTestable(),
+      findsNothing,
+    );
   });
 
   testWidgets('F9 hides and shows the schedule sidebar', (tester) async {
@@ -262,21 +261,29 @@ void main() {
       await tester.sendKeyEvent(LogicalKeyboardKey.keyF);
       await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
       await tester.pumpAndSettle();
-      expect(find.byType(BusyMaxSearchField).hitTestable(), findsOneWidget);
+      expect(
+        find.byType(BusyMaxLinuxHeaderSearchField).hitTestable(),
+        findsOneWidget,
+      );
       expect(_searchFieldHasPrimaryFocus(tester), isTrue);
       expect(find.byTooltip('Filters'), findsOneWidget);
       expect(find.byTooltip('Main Menu'), findsOneWidget);
 
       await tester.sendKeyEvent(LogicalKeyboardKey.escape);
       await tester.pumpAndSettle();
-      expect(find.byType(BusyMaxSearchField).hitTestable(), findsNothing);
+      expect(
+        find.byType(BusyMaxLinuxHeaderSearchField).hitTestable(),
+        findsNothing,
+      );
       expect(find.byType(ScheduleSidebar).hitTestable(), findsNothing);
     },
   );
 }
 
 bool _searchFieldHasPrimaryFocus(WidgetTester tester) {
-  final searchElement = tester.element(find.byType(BusyMaxSearchField));
+  final searchElement = tester.element(
+    find.byType(BusyMaxLinuxHeaderSearchField),
+  );
   final focusContext = FocusManager.instance.primaryFocus?.context;
   if (identical(focusContext, searchElement)) {
     return true;

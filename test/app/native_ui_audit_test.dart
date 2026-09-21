@@ -473,6 +473,9 @@ void main() {
       final toolbar = File(
         'lib/src/features/schedule/presentation/schedule_toolbar.dart',
       ).readAsStringSync();
+      final linuxHeader = File(
+        'lib/src/app/linux/linux_header_style.dart',
+      ).readAsStringSync();
       final workspace = File(
         'lib/src/features/schedule/presentation/schedule_workspace.dart',
       ).readAsStringSync();
@@ -495,6 +498,38 @@ void main() {
       expect(toolbar, contains('selected: searchActive'));
       expect(toolbar, contains('BusyMaxLinuxHeaderSearchField('));
       expect(toolbar, isNot(contains('BusyMaxLinuxHeaderIcon.close')));
+      final searchStart = linuxHeader.indexOf(
+        'class BusyMaxLinuxHeaderSearchField',
+      );
+      final searchEnd = linuxHeader.indexOf(
+        'ButtonStyle busyMaxLinuxHeaderTextButtonStyle',
+        searchStart,
+      );
+      expect(searchStart, isNonNegative);
+      expect(searchEnd, greaterThan(searchStart));
+      final headerSearch = linuxHeader.substring(searchStart, searchEnd);
+      expect(linuxHeader, contains('searchEntryHeight = 32'));
+      expect(linuxHeader, contains('searchEntryRadius = 9'));
+      expect(headerSearch, contains('BusyMaxSurfaceColors.of(context)'));
+      expect(headerSearch, contains('InputBorder.none'));
+      expect(headerSearch, contains('BusyMaxLinuxHeaderIcon.search'));
+      expect(headerSearch, contains('BusyMaxLinuxHeaderIcon.searchClear'));
+      for (final forbidden in const [
+        'BusyMaxSearchField(',
+        'YaruSearchField(',
+        'BusyMaxSizes.headerIconButton',
+        'hintText:',
+        'MaterialLocalizations.of(context).searchFieldLabel',
+        'BusyMaxHeaderIconButton(',
+        'Icons.search',
+        'Icons.clear',
+      ]) {
+        expect(
+          headerSearch,
+          isNot(contains(forbidden)),
+          reason: 'Linux header Search must not use $forbidden.',
+        );
+      }
       expect(iconService, contains("'allowMissing': icon.allowMissing"));
       expect(
         runner,
