@@ -2135,6 +2135,12 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
 
   Future<bool> _syncCalendarMutation(String accountId) async {
     try {
+      final account = await ref
+          .read(accountsRepositoryProvider)
+          .accountById(accountId);
+      if (account?.isSyncEligible != true) {
+        return false;
+      }
       await ref
           .read(accountSyncOperationsProvider)
           .syncCalendar(accountId, full: false);

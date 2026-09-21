@@ -19,6 +19,7 @@ import '../../dav/nextcloud/nextcloud_trash_service.dart';
 import '../../features/accounts/data/accounts_repository.dart';
 import '../../features/accounts/domain/account_collection_creation_capabilities.dart';
 import '../../features/calendar/data/calendar_repository.dart';
+import '../../features/sync/sync_auth_error.dart';
 import '../../features/task_lists/data/task_lists_repository.dart';
 import '../../features/tasks/domain/task_capabilities.dart';
 import '../../ical/ical_import_service.dart';
@@ -94,10 +95,11 @@ class _AndroidSettingsScreenState extends ConsumerState<AndroidSettingsScreen> {
                             }
                           },
                           itemBuilder: (context) => [
-                            PopupMenuItem(
-                              value: 'sync',
-                              child: Text(context.l10n.sync),
-                            ),
+                            if (account.isSyncEligible)
+                              PopupMenuItem(
+                                value: 'sync',
+                                child: Text(context.l10n.sync),
+                              ),
                             if (account.needsReconnect)
                               PopupMenuItem(
                                 value: 'reconnect',
@@ -786,7 +788,14 @@ class _AndroidSettingsScreenState extends ConsumerState<AndroidSettingsScreen> {
       await ref.read(notificationReconcilerProvider).reconcile();
       _message(l10n.syncComplete);
     } on Object catch (error) {
-      _message(l10n.syncFailed('$error'));
+      _message(
+        l10n.syncFailed(
+          syncFailureMessage(
+            error,
+            networkUnavailableMessage: l10n.networkOfflineTryAgain,
+          ),
+        ),
+      );
     } finally {
       if (mounted) setState(() => _syncing = false);
     }
@@ -795,11 +804,27 @@ class _AndroidSettingsScreenState extends ConsumerState<AndroidSettingsScreen> {
   Future<void> _syncAccount(String accountId) async {
     final l10n = context.l10n;
     try {
+      final account = await ref
+          .read(accountsRepositoryProvider)
+          .accountById(accountId);
+      if (account?.isSyncEligible != true) {
+        if (account?.needsReconnect == true) {
+          _message(l10n.syncFailed(accountReconnectRequiredSyncMessage));
+        }
+        return;
+      }
       await ref.read(signedInSyncRunnerProvider)(accountId, true);
       await ref.read(notificationReconcilerProvider).reconcile();
       _message(l10n.syncComplete);
     } on Object catch (error) {
-      _message(l10n.syncFailed('$error'));
+      _message(
+        l10n.syncFailed(
+          syncFailureMessage(
+            error,
+            networkUnavailableMessage: l10n.networkOfflineTryAgain,
+          ),
+        ),
+      );
     }
   }
 
@@ -932,7 +957,14 @@ class _AndroidSettingsScreenState extends ConsumerState<AndroidSettingsScreen> {
         _requestQueuedCalendarSync(source);
       }
     } on Object catch (error) {
-      _message(l10n.calendarUpdateFailed('$error'));
+      _message(
+        l10n.calendarUpdateFailed(
+          syncFailureMessage(
+            error,
+            networkUnavailableMessage: l10n.networkOfflineTryAgain,
+          ),
+        ),
+      );
     }
   }
 
@@ -1058,7 +1090,14 @@ class _AndroidSettingsScreenState extends ConsumerState<AndroidSettingsScreen> {
             .deleteTaskList(list.id);
       }
     } on Object catch (error) {
-      _message(l10n.taskListRenameFailed('$error'));
+      _message(
+        l10n.taskListRenameFailed(
+          syncFailureMessage(
+            error,
+            networkUnavailableMessage: l10n.networkOfflineTryAgain,
+          ),
+        ),
+      );
     }
   }
 
@@ -1124,10 +1163,14 @@ class _AndroidSettingsScreenState extends ConsumerState<AndroidSettingsScreen> {
             .createTaskList(title);
       }
     } on Object catch (error) {
+      final message = syncFailureMessage(
+        error,
+        networkUnavailableMessage: l10n.networkOfflineTryAgain,
+      );
       _message(
         calendar
-            ? l10n.calendarCreateFailed('$error')
-            : l10n.taskListCreateFailed('$error'),
+            ? l10n.calendarCreateFailed(message)
+            : l10n.taskListCreateFailed(message),
       );
     }
   }
@@ -1302,9 +1345,7 @@ class _AndroidSettingsScreenState extends ConsumerState<AndroidSettingsScreen> {
       await ref
           .read(davConflictResolutionServiceProvider)
           .resolve(conflict.id, resolution);
-      await ref
-          .read(accountSyncOperationsProvider)
-          .syncAccount(conflict.accountId, full: false);
+      await ref.read(signedInSyncRunnerProvider)(conflict.accountId, false);
     } on Object {
       _message(l10n.conflictResolutionFailed);
     }

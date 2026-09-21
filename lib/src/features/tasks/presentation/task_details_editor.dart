@@ -70,7 +70,7 @@ class TaskDetailsEditor extends StatefulWidget {
   final TaskCollectionCapabilities capabilities;
   final String localTimeZone;
   final String? accountLabel;
-  final VoidCallback onRefresh;
+  final VoidCallback? onRefresh;
   final Future<void> Function(
     TaskDetailsDraft draft,
     Map<String, Object?> patch,

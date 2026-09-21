@@ -1049,6 +1049,79 @@ void main() {
     },
   );
 
+  testWidgets('eligible DAV account can refresh collections', (tester) async {
+    final calls = <String>[];
+    final container = _container(
+      selectedAccountId: _nextcloudAccount.id,
+      authRepository: _FakeAuthRepository(),
+      accounts: const [_nextcloudAccount],
+      signedInSyncRunner: (accountId, full) async => calls.add(accountId),
+    );
+    addTearDown(container.dispose);
+
+    await _pumpSettings(tester, container, logicalSize: const Size(1000, 900));
+    await tester.ensureVisible(find.text('Refresh calendars and task lists'));
+    await tester.tap(find.text('Refresh calendars and task lists'));
+    await tester.pumpAndSettle();
+
+    expect(calls, [_nextcloudAccount.id]);
+  });
+
+  testWidgets('reconnect-required DAV account cannot refresh collections', (
+    tester,
+  ) async {
+    final calls = <String>[];
+    final container = _container(
+      selectedAccountId: _reconnectRequiredNextcloudAccount.id,
+      authRepository: _FakeAuthRepository(),
+      accounts: const [_reconnectRequiredNextcloudAccount],
+      signedInSyncRunner: (accountId, full) async => calls.add(accountId),
+    );
+    addTearDown(container.dispose);
+
+    await _pumpSettings(tester, container, logicalSize: const Size(1000, 900));
+
+    expect(find.text('Refresh calendars and task lists'), findsNothing);
+    expect(find.text(accountReconnectRequiredActionLabel), findsOneWidget);
+    expect(calls, isEmpty);
+  });
+
+  testWidgets('DAV collection refresh re-reads eligibility before dispatch', (
+    tester,
+  ) async {
+    final calls = <String>[];
+    final repository = _MutableEligibilityAccountsRepository([
+      _nextcloudAccount,
+    ]);
+    final cachedCollection = _davCollection(
+      id: 'cached-calendar',
+      name: 'Cached calendar',
+      supportsEvents: true,
+    );
+    final container = _container(
+      selectedAccountId: _nextcloudAccount.id,
+      authRepository: _FakeAuthRepository(),
+      accounts: const [_nextcloudAccount],
+      accountsRepository: repository,
+      davCollections: [cachedCollection],
+      signedInSyncRunner: (accountId, full) async => calls.add(accountId),
+    );
+    addTearDown(container.dispose);
+
+    await _pumpSettings(tester, container, logicalSize: const Size(1000, 900));
+    repository.canonicalAccounts = const [_reconnectRequiredNextcloudAccount];
+    await tester.ensureVisible(find.text('Refresh calendars and task lists'));
+    await tester.tap(find.text('Refresh calendars and task lists'));
+    await tester.pumpAndSettle();
+
+    expect(calls, isEmpty);
+    expect(
+      find.text('Sync failed: This account needs to be reconnected.'),
+      findsOneWidget,
+    );
+    expect(find.text('Cached calendar'), findsOneWidget);
+  });
+
   testWidgets('Settings nests controls for combined DAV content', (
     tester,
   ) async {
@@ -1989,6 +2062,14 @@ class _FakeAccountsRepository implements AccountsRepository {
       accounts.where((account) => account.isSyncEligible).toList();
 
   @override
+  Future<AccountEntity?> accountById(String accountId) async {
+    for (final account in accounts) {
+      if (account.id == accountId) return account;
+    }
+    return null;
+  }
+
+  @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 
@@ -2001,6 +2082,14 @@ final class _MutableEligibilityAccountsRepository
   @override
   Future<List<AccountEntity>> listSyncEligibleAccounts() async =>
       canonicalAccounts.where((account) => account.isSyncEligible).toList();
+
+  @override
+  Future<AccountEntity?> accountById(String accountId) async {
+    for (final account in canonicalAccounts) {
+      if (account.id == accountId) return account;
+    }
+    return null;
+  }
 
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
@@ -2080,6 +2169,16 @@ const _nextcloudAccount = AccountEntity(
   credentialKind: CredentialKind.nextcloudAppPassword,
   displayName: 'Nextcloud User',
   authState: accountAuthStateSignedIn,
+);
+
+const _reconnectRequiredNextcloudAccount = AccountEntity(
+  id: 'nextcloud:n',
+  provider: BusyProvider.nextcloud,
+  authority: 'https://cloud.example.test',
+  providerAccountId: 'alex',
+  credentialKind: CredentialKind.nextcloudAppPassword,
+  displayName: 'Nextcloud User',
+  authState: accountAuthStateReauthRequired,
 );
 
 DavCollectionSettingsEntity _davCollection({

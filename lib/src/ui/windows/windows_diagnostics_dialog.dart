@@ -11,6 +11,7 @@ import '../../db/app_database.dart';
 import '../../google_tasks/api/google_tasks_api_surface.dart';
 import '../../google_tasks/api/tasks_discovery_revision.dart';
 import '../../features/sync/pending_op_resolution_service.dart';
+import '../../features/sync/sync_auth_error.dart';
 import '../common/busymax_glyph.dart';
 import 'windows_busymax_glyphs.dart';
 
@@ -284,10 +285,9 @@ class WindowsDavConflictReview extends ConsumerWidget {
     );
     if (resolution == null || !context.mounted) return;
     final service = ref.read(davConflictResolutionServiceProvider);
-    final sync = ref.read(accountSyncOperationsProvider);
     try {
       await service.resolve(conflict.id, resolution);
-      await sync.syncAccount(conflict.accountId, full: false);
+      await ref.read(signedInSyncRunnerProvider)(conflict.accountId, false);
     } on Object catch (error) {
       if (!context.mounted) return;
       await _showResolutionFailure(context, error);
@@ -300,7 +300,12 @@ class WindowsDavConflictReview extends ConsumerWidget {
       context: context,
       builder: (dialogContext) => ContentDialog(
         title: Text(l10n.conflictResolutionFailed),
-        content: Text(redactForLog('$error')),
+        content: Text(
+          syncFailureMessage(
+            error,
+            networkUnavailableMessage: l10n.networkOfflineTryAgain,
+          ),
+        ),
         actions: [
           FilledButton(
             onPressed: () => Navigator.pop(dialogContext),
@@ -377,7 +382,16 @@ class _PendingOperationTile extends StatelessWidget {
         await _showResult(context, AppLocalizations.of(context).retryCompleted);
       }
     } on Object catch (error) {
-      if (context.mounted) await _showResult(context, redactForLog('$error'));
+      if (context.mounted) {
+        final l10n = AppLocalizations.of(context);
+        await _showResult(
+          context,
+          syncFailureMessage(
+            error,
+            networkUnavailableMessage: l10n.networkOfflineTryAgain,
+          ),
+        );
+      }
     }
   }
 

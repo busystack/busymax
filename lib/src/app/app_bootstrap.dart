@@ -788,9 +788,11 @@ typedef SignedInSyncRunner =
 final signedInSyncRunnerProvider = Provider<SignedInSyncRunner>((ref) {
   return (accountId, initial) async {
     try {
-      await ref
-          .read(accountSyncOperationsProvider)
-          .syncAccount(accountId, full: initial);
+      await _runAccountSyncIfEligible(
+        ref,
+        accountId,
+        (operations) => operations.syncAccount(accountId, full: initial),
+      );
     } on Object catch (error) {
       await _markAccountReconnectRequiredForSyncError(ref, accountId, error);
       rethrow;
@@ -802,9 +804,7 @@ typedef AllAccountsSyncRunner = Future<void> Function();
 
 final allAccountsSyncRunnerProvider = Provider<AllAccountsSyncRunner>((ref) {
   Future<void> syncAccount(String accountId) async {
-    await ref
-        .read(accountSyncOperationsProvider)
-        .syncAccount(accountId, full: false);
+    await ref.read(signedInSyncRunnerProvider)(accountId, false);
   }
 
   return () async {
@@ -970,9 +970,8 @@ final davTaskListMutationClientForAccountProvider =
         secretStore: ref.watch(secretStoreProvider),
         httpClient: ref.watch(baseHttpClientProvider),
         accountId: accountId,
-        refreshAfterMutation: () => ref
-            .read(accountSyncOperationsProvider)
-            .syncAccount(accountId, full: true),
+        refreshAfterMutation: () =>
+            ref.read(signedInSyncRunnerProvider)(accountId, true),
         requireNetwork: ref
             .watch(networkConnectivityMonitorProvider)
             .requireNetwork,
@@ -989,9 +988,7 @@ final nextcloudCollectionServiceProvider =
         requireNetwork: ref
             .watch(networkConnectivityMonitorProvider)
             .requireNetwork,
-        refresh: () => ref
-            .read(accountSyncOperationsProvider)
-            .syncAccount(accountId, full: true),
+        refresh: () => ref.read(signedInSyncRunnerProvider)(accountId, true),
       ),
     );
 final nextcloudNativeExportServiceProvider =
@@ -1028,9 +1025,8 @@ final davCalendarCollectionMutationClientForAccountProvider =
         secretStore: ref.watch(secretStoreProvider),
         httpClient: ref.watch(baseHttpClientProvider),
         accountId: accountId,
-        refreshAfterMutation: () => ref
-            .read(accountSyncOperationsProvider)
-            .syncAccount(accountId, full: true),
+        refreshAfterMutation: () =>
+            ref.read(signedInSyncRunnerProvider)(accountId, true),
         requireNetwork: ref
             .watch(networkConnectivityMonitorProvider)
             .requireNetwork,
@@ -1125,9 +1121,11 @@ final pendingMutationSyncRequesterProvider =
       }
 
       final requester = PendingMutationSyncRequester(
-        sync: () => ref
-            .read(accountSyncOperationsProvider)
-            .syncTasks(accountId, full: false),
+        sync: () => _runAccountSyncIfEligible(
+          ref,
+          accountId,
+          (operations) => operations.syncTasks(accountId, full: false),
+        ),
         onSyncFailure: ref
             .watch(operationalNotificationReporterProvider)
             .notifySyncFailure,
@@ -1142,9 +1140,11 @@ final pendingMutationSyncRequesterProvider =
 final pendingMutationSyncRequesterForAccountProvider =
     Provider.family<PendingMutationSyncRequester, String>((ref, accountId) {
       final requester = PendingMutationSyncRequester(
-        sync: () => ref
-            .read(accountSyncOperationsProvider)
-            .syncTasks(accountId, full: false),
+        sync: () => _runAccountSyncIfEligible(
+          ref,
+          accountId,
+          (operations) => operations.syncTasks(accountId, full: false),
+        ),
         onSyncFailure: ref
             .watch(operationalNotificationReporterProvider)
             .notifySyncFailure,
@@ -1159,9 +1159,11 @@ final pendingMutationSyncRequesterForAccountProvider =
 final pendingCalendarMutationSyncRequesterForAccountProvider =
     Provider.family<PendingMutationSyncRequester, String>((ref, accountId) {
       final requester = PendingMutationSyncRequester(
-        sync: () => ref
-            .read(accountSyncOperationsProvider)
-            .syncCalendar(accountId, full: false),
+        sync: () => _runAccountSyncIfEligible(
+          ref,
+          accountId,
+          (operations) => operations.syncCalendar(accountId, full: false),
+        ),
         onSyncFailure: ref
             .watch(operationalNotificationReporterProvider)
             .notifySyncFailure,
@@ -1182,12 +1184,16 @@ final pendingOpResolutionServiceForAccountProvider =
           calendarRemoteApiClientForAccountProvider(accountId),
         ),
         accountId: accountId,
-        syncTasks: () => ref
-            .read(accountSyncOperationsProvider)
-            .syncTasks(accountId, full: false),
-        syncCalendar: () => ref
-            .read(accountSyncOperationsProvider)
-            .syncCalendar(accountId, full: false),
+        syncTasks: () => _runAccountSyncIfEligible(
+          ref,
+          accountId,
+          (operations) => operations.syncTasks(accountId, full: false),
+        ),
+        syncCalendar: () => _runAccountSyncIfEligible(
+          ref,
+          accountId,
+          (operations) => operations.syncCalendar(accountId, full: false),
+        ),
         onNotificationScheduleChanged: () =>
             ref.read(notificationReconcilerProvider).reconcile(),
       );
@@ -1204,9 +1210,7 @@ final pendingOpResolutionServiceProvider =
 
 final syncSchedulerProvider = Provider<AllAccountsSyncScheduler>((ref) {
   Future<void> syncAccount(String accountId) async {
-    await ref
-        .read(accountSyncOperationsProvider)
-        .syncAccount(accountId, full: false);
+    await ref.read(signedInSyncRunnerProvider)(accountId, false);
   }
 
   final scheduler = AllAccountsSyncScheduler(
@@ -1280,6 +1284,20 @@ Future<void> _markAccountReconnectRequiredForSyncError(
   } on Object {
     // Keep the original sync failure as the reported error.
   }
+}
+
+Future<void> _runAccountSyncIfEligible(
+  Ref ref,
+  String accountId,
+  Future<void> Function(AccountSyncOperations operations) synchronize,
+) async {
+  final account = await ref
+      .read(accountsRepositoryProvider)
+      .accountById(accountId);
+  if (account?.isSyncEligible != true) {
+    return;
+  }
+  await synchronize(ref.read(accountSyncOperationsProvider));
 }
 
 // This handler outlives individual schedulers, so a visible Linux notification

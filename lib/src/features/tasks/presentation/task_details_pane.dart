@@ -14,6 +14,7 @@ import '../../accounts/data/accounts_repository.dart';
 import '../../schedule/presentation/schedule_item_exporter.dart';
 import '../../maps/application/external_location_launcher.dart';
 import '../../sync/sync_auth_error.dart';
+import '../../sync/sync_failure_notification_policy.dart';
 import '../../task_lists/data/task_lists_repository.dart';
 import '../data/tasks_repository.dart';
 import '../domain/task_mutation_result.dart';
@@ -287,9 +288,25 @@ class _TaskDetailsPaneState extends ConsumerState<TaskDetailsPane> {
 
   Future<void> _refreshTask(TasksRepository repository, TaskEntity task) async {
     try {
+      final account = await ref
+          .read(accountsRepositoryProvider)
+          .accountById(task.accountId);
+      if (account?.isSyncEligible != true) {
+        if (account?.needsReconnect == true && mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                context.l10n.refreshFailed(accountReconnectRequiredSyncMessage),
+              ),
+            ),
+          );
+        }
+        return;
+      }
       await repository.refreshTask(task.taskListId, task.id);
     } on Object catch (error) {
-      if (isMissingOAuthTokenError(error)) {
+      if (syncFailureNotificationDisposition(error) ==
+          SyncFailureNotificationDisposition.reconnectRequired) {
         try {
           await ref
               .read(authRepositoryProvider)
@@ -383,9 +400,9 @@ class _TaskDetailsPaneState extends ConsumerState<TaskDetailsPane> {
       localTimeZone: localTimeZone,
       categorySuggestions: categorySuggestions,
       accountLabel: _accountEditorLabel(context, account),
-      onRefresh: () {
-        unawaited(_refreshTask(repository, task));
-      },
+      onRefresh: account.isSyncEligible
+          ? () => unawaited(_refreshTask(repository, task))
+          : null,
       onSave: (draft, patch) => _saveDraft(repository, task, draft, patch),
       hierarchy: hierarchy,
       onCreateSubtask: (title) => _createSubtask(repository, task, title),

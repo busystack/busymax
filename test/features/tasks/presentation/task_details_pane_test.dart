@@ -13,8 +13,11 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:busymax/src/app/app_bootstrap.dart';
 import 'package:busymax/src/app/busymax_design.dart';
 import 'package:busymax/src/app/busymax_yaru_theme.dart';
+import 'package:busymax/src/core/auth/oauth_models.dart';
+import 'package:busymax/src/core/http/request_dispatch_exception.dart';
 import 'package:busymax/src/core/time/time_zone_catalog.dart';
 import 'package:busymax/src/features/accounts/data/accounts_repository.dart';
+import 'package:busymax/src/features/auth/data/auth_repository.dart';
 import 'package:busymax/src/features/task_lists/data/task_lists_repository.dart';
 import 'package:busymax/src/features/tasks/data/tasks_repository.dart';
 import 'package:busymax/src/features/tasks/presentation/ical_task_fields_editor.dart';
@@ -33,6 +36,7 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:busymax/src/platform/native_dialog_service.dart';
 import 'package:busymax/src/platform/native_menu_service.dart';
 import 'package:busymax/src/providers/busy_provider.dart';
+import 'package:busymax/src/google_tasks/oauth/oauth_service.dart';
 import 'package:busymax/src/features/tasks/domain/task_capabilities.dart';
 import 'package:busymax/src/features/tasks/domain/task_checklist_item.dart';
 import 'package:yaru/yaru.dart';
@@ -146,6 +150,149 @@ void main() {
         .setMockMethodCallHandler(_nativeDialogChannel, null);
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(_nativeMenuChannel, null);
+  });
+
+  testWidgets('task refresh dispatches for an eligible account', (
+    tester,
+  ) async {
+    final database = AppDatabase(NativeDatabase.memory());
+    addTearDown(database.close);
+    final accounts = AccountsRepository(database: database);
+    await _seedRefreshAccount(accounts);
+    final repository = _FakeTasksRepository(accountId: 'google:g');
+
+    await _pumpDetails(
+      tester,
+      googleTaskCollectionCapabilities,
+      repository: repository,
+      database: database,
+      authRepository: AuthRepository(
+        oAuth: _TaskDetailsOAuthGateway(),
+        database: database,
+      ),
+    );
+
+    final refresh = tester
+        .widget<TaskDetailsEditor>(find.byType(TaskDetailsEditor))
+        .onRefresh;
+    expect(refresh, isNotNull);
+    refresh!();
+    await tester.pumpAndSettle();
+
+    expect(repository.refreshCalls, 1);
+  });
+
+  testWidgets('wrapped invalid_grant refresh requires reconnect safely', (
+    tester,
+  ) async {
+    final database = AppDatabase(NativeDatabase.memory());
+    addTearDown(database.close);
+    final accounts = AccountsRepository(database: database);
+    await _seedRefreshAccount(accounts);
+    final repository = _FakeTasksRepository(
+      accountId: 'google:g',
+      refreshError: const KnownUnsentRequestException(
+        kind: RequestPreDispatchFailureKind.authentication,
+        cause: OAuthRefreshException(
+          'OAuthRefreshFailed',
+          'raw provider description refresh_token=test-refresh-secret',
+          statusCode: 400,
+          oauthError: 'invalid_grant',
+          oauthErrorDescription: 'provider description [REDACTED]',
+        ),
+      ),
+    );
+
+    await _pumpDetails(
+      tester,
+      googleTaskCollectionCapabilities,
+      repository: repository,
+      database: database,
+      authRepository: AuthRepository(
+        oAuth: _TaskDetailsOAuthGateway(),
+        database: database,
+      ),
+    );
+
+    final refresh = tester
+        .widget<TaskDetailsEditor>(find.byType(TaskDetailsEditor))
+        .onRefresh!;
+    refresh();
+    await tester.pumpAndSettle();
+
+    expect(repository.refreshCalls, 1);
+    expect(
+      (await accounts.accountById('google:g'))?.authState,
+      accountAuthStateReauthRequired,
+    );
+    expect(
+      find.text('Refresh failed: This account needs to be reconnected.'),
+      findsOneWidget,
+    );
+    expect(find.textContaining('KnownUnsentRequestException'), findsNothing);
+    expect(find.textContaining('OAuthRefreshException'), findsNothing);
+    expect(find.textContaining('test-refresh-secret'), findsNothing);
+
+    refresh();
+    await tester.pumpAndSettle();
+    expect(repository.refreshCalls, 1);
+  });
+
+  testWidgets('task refresh disables and guards a reconnect-required account', (
+    tester,
+  ) async {
+    final database = AppDatabase(NativeDatabase.memory());
+    addTearDown(database.close);
+    final accounts = AccountsRepository(database: database);
+    await _seedRefreshAccount(accounts);
+    final renderedAccount = await accounts.accountById('google:g');
+    final repository = _FakeTasksRepository(accountId: 'google:g');
+
+    await _pumpDetails(
+      tester,
+      googleTaskCollectionCapabilities,
+      repository: repository,
+      database: database,
+      authRepository: AuthRepository(
+        oAuth: _TaskDetailsOAuthGateway(),
+        database: database,
+      ),
+      accountsStream: Stream.value([renderedAccount!]),
+    );
+    final staleRefresh = tester
+        .widget<TaskDetailsEditor>(find.byType(TaskDetailsEditor))
+        .onRefresh!;
+
+    await accounts.markReconnectRequired('google:g');
+    staleRefresh();
+    await tester.pumpAndSettle();
+
+    expect(repository.refreshCalls, 0);
+    expect(
+      find.text('Refresh failed: This account needs to be reconnected.'),
+      findsOneWidget,
+    );
+
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump();
+    await _pumpDetails(
+      tester,
+      googleTaskCollectionCapabilities,
+      repository: repository,
+      database: database,
+      authRepository: AuthRepository(
+        oAuth: _TaskDetailsOAuthGateway(),
+        database: database,
+      ),
+      accountsStream: Stream.value([(await accounts.accountById('google:g'))!]),
+    );
+    expect(
+      tester
+          .widget<TaskDetailsEditor>(find.byType(TaskDetailsEditor))
+          .onRefresh,
+      isNull,
+    );
+    expect(repository.refreshCalls, 0);
   });
 
   testWidgets(
@@ -2000,6 +2147,8 @@ Future<void> _pumpDetails(
   ThemeData? theme,
   bool modalEditorSurface = false,
   BusyProvider? providerOverride,
+  AppDatabase? database,
+  AuthRepository? authRepository,
 }) async {
   final accountId =
       accountIdOverride ??
@@ -2027,6 +2176,9 @@ Future<void> _pumpDetails(
   await tester.pumpWidget(
     ProviderScope(
       overrides: [
+        if (database != null) databaseProvider.overrideWithValue(database),
+        if (authRepository != null)
+          authRepositoryProvider.overrideWithValue(authRepository),
         selectedAccountProvider.overrideWithValue(
           AccountEntity(
             id: accountId,
@@ -2301,6 +2453,7 @@ class _FakeTasksRepository implements TasksRepository {
     this.categorySuggestions = const [],
     this.recurrenceIdKey,
     this.hierarchy = const TaskHierarchySnapshot(parent: null, subtasks: []),
+    this.refreshError,
   });
 
   final String accountId;
@@ -2312,9 +2465,19 @@ class _FakeTasksRepository implements TasksRepository {
   final List<String> categorySuggestions;
   final String? recurrenceIdKey;
   final TaskHierarchySnapshot hierarchy;
+  final Object? refreshError;
   final List<TaskPatchInput> patches = [];
   final List<TaskMoveInput> moves = [];
   var deleteCalls = 0;
+  var refreshCalls = 0;
+
+  @override
+  Future<void> refreshTask(String taskListId, String taskId) async {
+    refreshCalls += 1;
+    if (refreshError case final error?) {
+      throw error;
+    }
+  }
 
   @override
   Stream<TaskEntity?> watchTask(String taskListId, String taskId) {
@@ -2382,6 +2545,47 @@ class _FakeTasksRepository implements TasksRepository {
 
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
+
+Future<void> _seedRefreshAccount(AccountsRepository repository) {
+  return repository.upsertSignedInAccount(
+    id: 'google:g',
+    provider: BusyProvider.google,
+    grantedScopes: 'tasks calendar',
+  );
+}
+
+final class _TaskDetailsOAuthGateway implements OAuthGateway {
+  @override
+  Future<String?> get activeAccountId async => 'google:g';
+
+  @override
+  Future<void> cancelSignIn() async {}
+
+  @override
+  Future<void> clearLocalSession({String? accountId}) async {}
+
+  @override
+  Future<GoogleUserInfo?> fetchUserInfo(OAuthTokenSet tokenSet) async => null;
+
+  @override
+  Future<OAuthTokenSet?> readActiveTokenSet() async => null;
+
+  @override
+  Future<OAuthTokenSet> refreshActiveToken() {
+    throw UnimplementedError();
+  }
+
+  @override
+  Future<void> revokeAndSignOutAccount(String accountId) async {}
+
+  @override
+  Future<void> revokeAuthorization(String accountId) async {}
+
+  @override
+  Future<OAuthSignInResult> signIn({String? loginHint}) {
+    throw UnimplementedError();
+  }
 }
 
 class _SwitchingTasksRepository implements TasksRepository {

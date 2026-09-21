@@ -13,6 +13,7 @@ import '../../../google_tasks/api/google_tasks_api_surface.dart';
 import '../../../google_tasks/api/tasks_discovery_revision.dart';
 import '../../../l10n/l10n.dart';
 import '../../sync/pending_op_resolution_service.dart';
+import '../../sync/sync_auth_error.dart';
 
 class DiagnosticsPanel extends ConsumerWidget {
   const DiagnosticsPanel({super.key, this.scrollable = true});
@@ -203,9 +204,16 @@ class _BlockedPendingOpTile extends StatelessWidget {
       if (!context.mounted) {
         return;
       }
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(redactForLog(error.toString()))));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            syncFailureMessage(
+              error,
+              networkUnavailableMessage: context.l10n.networkOfflineTryAgain,
+            ),
+          ),
+        ),
+      );
     }
   }
 

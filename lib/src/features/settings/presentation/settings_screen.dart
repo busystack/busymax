@@ -885,6 +885,18 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
 
   Future<void> _refreshCollections(AccountEntity account) async {
     try {
+      final current = await ref
+          .read(accountsRepositoryProvider)
+          .accountById(account.id);
+      if (current?.isSyncEligible != true) {
+        if (current?.needsReconnect == true && mounted) {
+          _showMessage(
+            context,
+            context.l10n.syncFailed(accountReconnectRequiredSyncMessage),
+          );
+        }
+        return;
+      }
       await ref.read(signedInSyncRunnerProvider)(account.id, true);
       if (mounted) _showMessage(context, context.l10n.syncComplete);
     } on Object catch (error) {
@@ -941,9 +953,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       await ref
           .read(davConflictResolutionServiceProvider)
           .resolve(conflict.id, resolution);
-      await ref
-          .read(accountSyncOperationsProvider)
-          .syncAccount(conflict.accountId, full: false);
+      await ref.read(signedInSyncRunnerProvider)(conflict.accountId, false);
     } on Object catch (error) {
       _settingsLogger.warning('DAV conflict resolution failed: $error');
       if (mounted) {
@@ -1311,8 +1321,9 @@ class _AccountManagementSection extends StatelessWidget {
                   ? null
                   : () => onReconnect(account),
               onRefreshCollections:
-                  account.provider == BusyProvider.appleICloud ||
-                      account.provider == BusyProvider.nextcloud
+                  account.isSyncEligible &&
+                      (account.provider == BusyProvider.appleICloud ||
+                          account.provider == BusyProvider.nextcloud)
                   ? () => onRefreshCollections(account)
                   : null,
               onRemoveAccount: () => onRemoveAccount(account),
