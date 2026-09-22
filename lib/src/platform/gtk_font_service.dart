@@ -138,6 +138,112 @@ final gtkFontSettingsProvider = StreamProvider<GtkFontSettings?>((ref) {
 });
 
 @immutable
+final class GtkSearchEntryStateStyle {
+  const GtkSearchEntryStateStyle({
+    required this.background,
+    required this.foreground,
+    required this.borderTop,
+    required this.borderRight,
+    required this.borderBottom,
+    required this.borderLeft,
+    required this.borderColor,
+    required this.primaryIconForeground,
+    required this.primaryIconForegroundRtl,
+    required this.secondaryIconForeground,
+    required this.secondaryIconForegroundRtl,
+    required this.radius,
+    this.hasInnerFocus = false,
+    this.innerFocusColor = const Color(0x00000000),
+    this.innerFocusWidth = 0,
+  });
+
+  final Color background;
+  final Color foreground;
+  final double borderTop;
+  final double borderRight;
+  final double borderBottom;
+  final double borderLeft;
+  final Color borderColor;
+
+  final Color primaryIconForeground;
+  final Color primaryIconForegroundRtl;
+  final Color secondaryIconForeground;
+  final Color secondaryIconForegroundRtl;
+  final double radius;
+  final bool hasInnerFocus;
+  final Color innerFocusColor;
+  final double innerFocusWidth;
+
+  @override
+  bool operator ==(Object other) {
+    return identical(this, other) ||
+        other is GtkSearchEntryStateStyle &&
+            other.background == background &&
+            other.foreground == foreground &&
+            other.borderTop == borderTop &&
+            other.borderRight == borderRight &&
+            other.borderBottom == borderBottom &&
+            other.borderLeft == borderLeft &&
+            other.borderColor == borderColor &&
+            other.primaryIconForeground == primaryIconForeground &&
+            other.primaryIconForegroundRtl == primaryIconForegroundRtl &&
+            other.secondaryIconForeground == secondaryIconForeground &&
+            other.secondaryIconForegroundRtl == secondaryIconForegroundRtl &&
+            other.radius == radius &&
+            other.hasInnerFocus == hasInnerFocus &&
+            other.innerFocusColor == innerFocusColor &&
+            other.innerFocusWidth == innerFocusWidth;
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    background,
+    foreground,
+    borderTop,
+    borderRight,
+    borderBottom,
+    borderLeft,
+    borderColor,
+    primaryIconForeground,
+    primaryIconForegroundRtl,
+    secondaryIconForeground,
+    secondaryIconForegroundRtl,
+    radius,
+    hasInnerFocus,
+    innerFocusColor,
+    innerFocusWidth,
+  );
+}
+
+@immutable
+final class GtkSearchEntryTheme {
+  const GtkSearchEntryTheme({
+    required this.normal,
+    required this.focused,
+    required this.backdrop,
+    required this.backdropFocused,
+  });
+
+  final GtkSearchEntryStateStyle normal;
+  final GtkSearchEntryStateStyle focused;
+  final GtkSearchEntryStateStyle backdrop;
+  final GtkSearchEntryStateStyle backdropFocused;
+
+  @override
+  bool operator ==(Object other) {
+    return identical(this, other) ||
+        other is GtkSearchEntryTheme &&
+            other.normal == normal &&
+            other.focused == focused &&
+            other.backdrop == backdrop &&
+            other.backdropFocused == backdropFocused;
+  }
+
+  @override
+  int get hashCode => Object.hash(normal, focused, backdrop, backdropFocused);
+}
+
+@immutable
 class GtkThemeColors {
   const GtkThemeColors({
     required this.brightness,
@@ -166,6 +272,7 @@ class GtkThemeColors {
     this.floatingBorder,
     this.sidebarBorder,
     this.shade,
+    this.searchEntry,
   });
 
   final Brightness brightness;
@@ -194,6 +301,7 @@ class GtkThemeColors {
   final Color? floatingBorder;
   final Color? sidebarBorder;
   final Color? shade;
+  final GtkSearchEntryTheme? searchEntry;
 
   @override
   bool operator ==(Object other) {
@@ -224,7 +332,8 @@ class GtkThemeColors {
             other.cardShade == cardShade &&
             other.floatingBorder == floatingBorder &&
             other.sidebarBorder == sidebarBorder &&
-            other.shade == shade;
+            other.shade == shade &&
+            other.searchEntry == searchEntry;
   }
 
   @override
@@ -255,6 +364,7 @@ class GtkThemeColors {
     floatingBorder,
     sidebarBorder,
     shade,
+    searchEntry,
   ]);
 }
 
@@ -344,7 +454,96 @@ GtkThemeColors? _parseThemeColors(Object? value) {
     floatingBorder: _parseColor(value['floatingBorder']),
     sidebarBorder: _parseColor(value['sidebarBorder']),
     shade: _parseColor(value['shade']),
+    searchEntry: _parseSearchEntryTheme(value['searchEntry']),
   );
+}
+
+GtkSearchEntryTheme? _parseSearchEntryTheme(Object? value) {
+  if (value is! Map) {
+    return null;
+  }
+  final normal = _parseSearchEntryStateStyle(value['normal']);
+  final focused = _parseSearchEntryStateStyle(value['focused']);
+  final backdrop = _parseSearchEntryStateStyle(value['backdrop']);
+  final backdropFocused = _parseSearchEntryStateStyle(value['backdropFocused']);
+  if (normal == null ||
+      focused == null ||
+      backdrop == null ||
+      backdropFocused == null) {
+    return null;
+  }
+  return GtkSearchEntryTheme(
+    normal: normal,
+    focused: focused,
+    backdrop: backdrop,
+    backdropFocused: backdropFocused,
+  );
+}
+
+GtkSearchEntryStateStyle? _parseSearchEntryStateStyle(Object? value) {
+  if (value is! Map) {
+    return null;
+  }
+  final background = _parseColor(value['background']);
+  final foreground = _parseColor(value['foreground']);
+  final borderColor = _parseColor(value['borderColor']);
+  final primaryIconForeground = _parseColor(value['primaryIconForeground']);
+  final primaryIconForegroundRtl = _parseColor(
+    value['primaryIconForegroundRtl'],
+  );
+  final secondaryIconForeground = _parseColor(value['secondaryIconForeground']);
+  final secondaryIconForegroundRtl = _parseColor(
+    value['secondaryIconForegroundRtl'],
+  );
+  final borderTop = _parseNonNegativeDouble(value['borderTop']);
+  final borderRight = _parseNonNegativeDouble(value['borderRight']);
+  final borderBottom = _parseNonNegativeDouble(value['borderBottom']);
+  final borderLeft = _parseNonNegativeDouble(value['borderLeft']);
+  final radius = _parseNonNegativeDouble(value['radius']);
+  final hasInnerFocus = value['hasInnerFocus'] is bool
+      ? value['hasInnerFocus'] as bool
+      : false;
+  final innerFocusColor = _parseColor(value['innerFocusColor']);
+  final innerFocusWidth = _parseNonNegativeDouble(value['innerFocusWidth']);
+  if (background == null ||
+      foreground == null ||
+      borderColor == null ||
+      primaryIconForeground == null ||
+      primaryIconForegroundRtl == null ||
+      secondaryIconForeground == null ||
+      secondaryIconForegroundRtl == null ||
+      borderTop == null ||
+      borderRight == null ||
+      borderBottom == null ||
+      borderLeft == null ||
+      radius == null) {
+    return null;
+  }
+  return GtkSearchEntryStateStyle(
+    background: background,
+    foreground: foreground,
+    borderTop: borderTop,
+    borderRight: borderRight,
+    borderBottom: borderBottom,
+    borderLeft: borderLeft,
+    borderColor: borderColor,
+    primaryIconForeground: primaryIconForeground,
+    primaryIconForegroundRtl: primaryIconForegroundRtl,
+    secondaryIconForeground: secondaryIconForeground,
+    secondaryIconForegroundRtl: secondaryIconForegroundRtl,
+    radius: radius,
+    hasInnerFocus: hasInnerFocus,
+    innerFocusColor: innerFocusColor ?? const Color(0x00000000),
+    innerFocusWidth: innerFocusWidth ?? 0,
+  );
+}
+
+double? _parseNonNegativeDouble(Object? value) {
+  if (value is! num) {
+    return null;
+  }
+  final parsed = value.toDouble();
+  return parsed.isFinite && parsed >= 0 ? parsed : null;
 }
 
 Color? _parseColor(Object? value) {

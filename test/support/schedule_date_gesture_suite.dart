@@ -1,12 +1,111 @@
 import 'package:busymax/src/ui/common/schedule/schedule_interactions.dart';
 import 'package:flutter/gestures.dart';
-import 'package:flutter/widgets.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart' show LogicalKeyboardKey;
+import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'schedule_planner_gesture_suite.dart';
 
 void scheduleDateGestureTests(String platform, PlannerHarnessBuilder harness) {
+  final idleEventCursor = platform == 'Linux'
+      ? SystemMouseCursors.click
+      : SystemMouseCursors.basic;
+
+  testWidgets(
+    '$platform month move cursor crosses dates and restores over an event',
+    (tester) async {
+      const device = 1;
+      tester.view.physicalSize = const Size(1400, 1100);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      final scenario = PlannerGestureScenario(
+        items: [
+          PlannerGestureScenario.event(),
+          PlannerGestureScenario.event(
+            id: 'destination-event',
+            start: DateTime(2026, 1, 13, 9),
+            end: DateTime(2026, 1, 13, 10),
+          ),
+        ],
+      );
+      await tester.pumpWidget(harness(scenario));
+      await tester.pumpAndSettle();
+      Finder event(String id) => find.byWidgetPredicate(
+        (widget) => widget is ScheduleEventInteraction && widget.item.id == id,
+      );
+      final sourceEvent = event('drag-event');
+      final sourceRect = tester.getRect(sourceEvent);
+      final source = tester.getCenter(sourceEvent);
+      final destination = tester.getCenter(event('destination-event'));
+      final hoverPositions = <Offset>[
+        tester.getCenter(
+          find.descendant(
+            of: sourceEvent,
+            matching: find.textContaining('drag-event'),
+          ),
+        ),
+        Offset(sourceRect.left + 12, sourceRect.center.dy),
+      ];
+      final icons = find.descendant(
+        of: sourceEvent,
+        matching: find.byType(Icon),
+      );
+      if (icons.evaluate().isNotEmpty) {
+        hoverPositions.add(tester.getCenter(icons.first));
+      }
+      final mouse = await tester.createGesture(
+        pointer: 81,
+        kind: PointerDeviceKind.mouse,
+      );
+      await mouse.addPointer(location: hoverPositions.first);
+      await tester.pump();
+      for (final position in hoverPositions) {
+        await mouse.moveTo(position);
+        await tester.pump();
+        expect(
+          RendererBinding.instance.mouseTracker.debugDeviceActiveCursor(device),
+          idleEventCursor,
+        );
+      }
+      expect(scenario.opened, isEmpty);
+      expect(scenario.edits, isEmpty);
+      await mouse.moveTo(source);
+      await mouse.down(source);
+      await tester.pump();
+      expect(
+        RendererBinding.instance.mouseTracker.debugDeviceActiveCursor(device),
+        idleEventCursor,
+      );
+      await mouse.moveTo(Offset.lerp(source, destination, .5)!);
+      await tester.pump();
+      expect(
+        RendererBinding.instance.mouseTracker.debugDeviceActiveCursor(device),
+        SystemMouseCursors.move,
+      );
+      await mouse.moveTo(destination);
+      await tester.pump();
+      expect(
+        RendererBinding.instance.mouseTracker.debugDeviceActiveCursor(device),
+        SystemMouseCursors.move,
+      );
+
+      await mouse.up();
+      await tester.pump();
+      expect(
+        RendererBinding.instance.mouseTracker.debugDeviceActiveCursor(device),
+        idleEventCursor,
+      );
+      await tester.pumpAndSettle();
+      expect(scenario.edits, hasLength(1));
+      expect(scenario.edits.single.item.id, 'drag-event');
+      expect(scenario.edits.single.interval.start, DateTime(2026, 1, 13, 9));
+      expect(scenario.opened, isEmpty);
+      await mouse.removePointer();
+    },
+  );
+
   for (final cancellation in ['escape', 'outside', 'no-op', 'snapshot']) {
     testWidgets('$platform month $cancellation then successful drag', (
       tester,

@@ -8,6 +8,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../l10n/generated/app_localizations.dart';
 import '../app/app_bootstrap.dart';
+import '../app/common/busymax_motion_widgets.dart';
 import '../l10n/app_locale.dart';
 import '../l10n/locale_resolution.dart';
 import '../l10n/l10n.dart';
@@ -284,7 +285,10 @@ class _AndroidHomeShellState extends ConsumerState<AndroidHomeShell>
     return LayoutBuilder(
       builder: (context, constraints) {
         final useRail = constraints.maxWidth >= 840;
-        final content = IndexedStack(index: selected, children: pages);
+        final content = BusyMaxRetainedCrossfade(
+          index: selected,
+          children: pages,
+        );
         if (useRail) {
           return Scaffold(
             body: SafeArea(

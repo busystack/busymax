@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 import '../../../dav/presentation/nextcloud_collection_dialog.dart';
 import '../../../dav/nextcloud/nextcloud_dav_context.dart';
 
@@ -16,7 +17,6 @@ import '../../../calendar_providers/calendar_colors.dart';
 import '../../../calendar_providers/calendar_provider_capabilities.dart';
 import '../../../dav/dav_errors.dart';
 import '../../../l10n/l10n.dart';
-import '../../../platform/linux_header_bar_provider.dart';
 import '../../../schedule/schedule_item.dart';
 import '../../../schedule/schedule_projection.dart';
 import '../../../schedule/schedule_sidebar_order.dart';
@@ -29,6 +29,7 @@ import '../../calendar/data/calendar_repository.dart';
 import '../../connectivity/network_connectivity_service.dart';
 import '../../calendar/presentation/calendar_color_dialog.dart';
 import '../../sync/sync_auth_error.dart';
+import '../../sync/sync_failure_notification_policy.dart';
 import '../../task_lists/data/task_lists_repository.dart';
 import '../../tasks/domain/task_capabilities.dart';
 import 'package:busymax/src/providers/busy_provider.dart';
@@ -44,6 +45,7 @@ class ScheduleSidebar extends ConsumerWidget {
     required this.onMonthSelected,
     required this.onYearSelected,
     required this.onWeekSelected,
+    this.showEndBorder = true,
   });
 
   final DateTime selectedDate;
@@ -53,6 +55,7 @@ class ScheduleSidebar extends ConsumerWidget {
   final ValueChanged<DateTime> onMonthSelected;
   final ValueChanged<DateTime> onYearSelected;
   final ValueChanged<DateTime> onWeekSelected;
+  final bool showEndBorder;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -71,6 +74,7 @@ class ScheduleSidebar extends ConsumerWidget {
         if (!account.isSubscription) account.id,
     ];
     return BusyMaxSidebarSurface(
+      showEndBorder: showEndBorder,
       child: Column(
         children: [
           MiniCalendar(
@@ -200,6 +204,10 @@ class _SourceRow extends ConsumerWidget {
               value: 'refresh',
               label: context.l10n.refreshCalendar,
               icon: YaruIcons.refresh,
+              enabled: account.isSyncEligible,
+              tooltip: account.needsReconnect
+                  ? accountReconnectRequiredSyncMessage
+                  : null,
             ),
             if (providerWebUri != null)
               BusyMaxMenuEntry(
@@ -372,17 +380,41 @@ class _AccountSourcesGroup extends ConsumerStatefulWidget {
       _AccountSourcesGroupState();
 }
 
-class _AccountSourcesGroupState extends ConsumerState<_AccountSourcesGroup> {
+class _AccountSourcesGroupState extends ConsumerState<_AccountSourcesGroup>
+    with SingleTickerProviderStateMixin {
   var _expanded = true;
   var _creatingCalendar = false;
   var _creatingTaskList = false;
+  late final AnimationController _expansion = AnimationController(
+    vsync: this,
+    animationBehavior: AnimationBehavior.preserve,
+    value: 1,
+  );
+  bool _disableAnimations = false;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final disabled = MediaQuery.disableAnimationsOf(context);
+    if (disabled != _disableAnimations) {
+      _disableAnimations = disabled;
+      if (disabled) _expansion.value = _expanded ? 1 : 0;
+    }
+  }
 
   @override
   void didUpdateWidget(covariant _AccountSourcesGroup oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.account.id != widget.account.id) {
       _expanded = true;
+      _expansion.value = 1;
     }
+  }
+
+  @override
+  void dispose() {
+    _expansion.dispose();
+    super.dispose();
   }
 
   @override
@@ -424,59 +456,92 @@ class _AccountSourcesGroupState extends ConsumerState<_AccountSourcesGroup> {
           enabled: capabilities.taskListActionEnabled,
         ),
     ];
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
+    final children = Column(
       children: [
-        _AccountHeaderRow(
-          account: account,
-          expanded: _expanded,
-          onToggleExpanded: _toggleExpanded,
-          actions: headerActions,
-          onActionSelected: _handleCollectionAction,
+        _AccountCalendarSources(account: account),
+        Builder(
+          builder: (context) {
+            final lists = ref
+                .watch(appSettingsControllerProvider)
+                .sidebarOrder
+                .apply(
+                  SidebarOrderSection.taskLists,
+                  ref.watch(sidebarTaskListsProvider(account.id)).valueOrNull ??
+                      const <TaskListEntity>[],
+                  (list) => list.id,
+                  accountId: account.id,
+                );
+            if (lists.isEmpty) {
+              return BusyMaxActionRow(title: context.l10n.noTaskListsSynced);
+            }
+            return Column(
+              children: [
+                for (final list in lists)
+                  _TaskListScheduleRow(
+                    key: ValueKey((
+                      'schedule-task-list',
+                      list.accountId,
+                      list.id,
+                    )),
+                    account: account,
+                    list: list,
+                    siblingIds: lists.map((list) => list.id).toList(),
+                  ),
+              ],
+            );
+          },
         ),
-        if (_expanded) ...[
-          _AccountCalendarSources(account: account),
-          Builder(
-            builder: (context) {
-              final lists = ref
-                  .watch(appSettingsControllerProvider)
-                  .sidebarOrder
-                  .apply(
-                    SidebarOrderSection.taskLists,
-                    ref
-                            .watch(sidebarTaskListsProvider(account.id))
-                            .valueOrNull ??
-                        const <TaskListEntity>[],
-                    (list) => list.id,
-                    accountId: account.id,
-                  );
-              if (lists.isEmpty) {
-                return BusyMaxActionRow(title: context.l10n.noTaskListsSynced);
-              }
-              return Column(
-                children: [
-                  for (final list in lists)
-                    _TaskListScheduleRow(
-                      key: ValueKey((
-                        'schedule-task-list',
-                        list.accountId,
-                        list.id,
-                      )),
-                      account: account,
-                      list: list,
-                      siblingIds: lists.map((list) => list.id).toList(),
-                    ),
-                ],
-              );
-            },
+      ],
+    );
+    return AnimatedBuilder(
+      animation: _expansion,
+      child: children,
+      builder: (context, child) => Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          _AccountHeaderRow(
+            account: account,
+            expanded: _expanded,
+            expansionProgress: _expansion.value,
+            onToggleExpanded: _toggleExpanded,
+            actions: headerActions,
+            onActionSelected: _handleCollectionAction,
+          ),
+          ClipRect(
+            child: Align(
+              alignment: Alignment.topCenter,
+              heightFactor: _expansion.value,
+              child: IgnorePointer(
+                ignoring: !_expanded,
+                child: ExcludeFocus(
+                  excluding: !_expanded,
+                  child: ExcludeSemantics(
+                    excluding: !_expanded,
+                    child: TickerMode(enabled: _expanded, child: child!),
+                  ),
+                ),
+              ),
+            ),
           ),
         ],
-      ],
+      ),
     );
   }
 
   void _toggleExpanded() {
     setState(() => _expanded = !_expanded);
+    final target = _expanded ? 1.0 : 0.0;
+    if (_disableAnimations) {
+      _expansion.value = target;
+      return;
+    }
+    final distance = (target - _expansion.value).abs();
+    if (distance == 0) return;
+    _expansion.animateTo(
+      target,
+      duration: BusyMaxMotion.accountDisclosure * distance,
+      curve: BusyMaxMotion.presentationCurve,
+    );
   }
 
   Future<void> _handleCollectionAction(
@@ -650,6 +715,7 @@ class _AccountHeaderRow extends StatelessWidget {
   const _AccountHeaderRow({
     required this.account,
     required this.expanded,
+    required this.expansionProgress,
     required this.onToggleExpanded,
     required this.actions,
     required this.onActionSelected,
@@ -657,6 +723,7 @@ class _AccountHeaderRow extends StatelessWidget {
 
   final AccountEntity account;
   final bool expanded;
+  final double expansionProgress;
   final VoidCallback onToggleExpanded;
   final List<_AccountHeaderCollectionAction> actions;
   final ValueChanged<AccountHeaderCollectionAction> onActionSelected;
@@ -794,9 +861,8 @@ class _AccountHeaderRow extends StatelessWidget {
                 ? MaterialLocalizations.of(context).expandedIconTapHint
                 : MaterialLocalizations.of(context).collapsedIconTapHint,
             iconSize: BusyMaxSizes.sidebarActionIcon,
-            icon: AnimatedRotation(
-              turns: expanded ? 0.25 : 0,
-              duration: const Duration(milliseconds: 160),
+            icon: Transform.rotate(
+              angle: expansionProgress * math.pi / 2,
               child: Icon(
                 BusyMaxGlyphs.collapsedFor(Directionality.of(context)),
                 size: 16,
@@ -1078,6 +1144,10 @@ class _TaskListScheduleRow extends ConsumerWidget {
               value: 'refresh',
               label: context.l10n.refreshList,
               icon: YaruIcons.refresh,
+              enabled: account.isSyncEligible,
+              tooltip: account.needsReconnect
+                  ? accountReconnectRequiredSyncMessage
+                  : null,
             ),
             if (providerWebUri != null)
               BusyMaxMenuEntry(
@@ -1184,6 +1254,9 @@ Future<void> _refreshCalendarSource(
   WidgetRef ref,
   CalendarSourceEntity source,
 ) async {
+  if (!await _manualRefreshAccountIsEligible(context, ref, source.accountId)) {
+    return;
+  }
   try {
     await ref
         .read(accountSyncOperationsProvider)
@@ -1201,6 +1274,9 @@ Future<void> _refreshTaskListAccount(
   WidgetRef ref,
   String accountId,
 ) async {
+  if (!await _manualRefreshAccountIsEligible(context, ref, accountId)) {
+    return;
+  }
   try {
     await ref
         .read(accountSyncOperationsProvider)
@@ -1220,7 +1296,8 @@ Future<void> _handleRefreshFailure(
   Object error,
 ) async {
   try {
-    if (isMissingOAuthTokenError(error)) {
+    if (syncFailureNotificationDisposition(error) ==
+        SyncFailureNotificationDisposition.reconnectRequired) {
       await ref.read(authRepositoryProvider).markReconnectRequired(accountId);
     }
   } on Object {
@@ -1241,6 +1318,29 @@ Future<void> _handleRefreshFailure(
       ),
     ),
   );
+}
+
+Future<bool> _manualRefreshAccountIsEligible(
+  BuildContext context,
+  WidgetRef ref,
+  String accountId,
+) async {
+  final account = await ref
+      .read(accountsRepositoryProvider)
+      .accountById(accountId);
+  if (account?.isSyncEligible == true) {
+    return true;
+  }
+  if (account?.needsReconnect == true && context.mounted) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          context.l10n.refreshFailed(accountReconnectRequiredSyncMessage),
+        ),
+      ),
+    );
+  }
+  return false;
 }
 
 bool _canRenameTaskList(
@@ -1404,7 +1504,6 @@ Future<void> _createAccountCalendar(
     title: context.l10n.newCalendar,
     label: context.l10n.title,
     actionLabel: context.l10n.create,
-    headerBarService: ref.read(linuxHeaderBarServiceProvider),
   );
   if (!context.mounted || title == null || title.trim().isEmpty) return;
   try {
@@ -1443,7 +1542,6 @@ Future<void> _createAccountTaskList(
     title: context.l10n.newTaskList,
     label: context.l10n.title,
     actionLabel: context.l10n.create,
-    headerBarService: ref.read(linuxHeaderBarServiceProvider),
   );
   if (!context.mounted || title == null || title.trim().isEmpty) return;
   try {
@@ -1510,7 +1608,6 @@ Future<void> _changeCalendarColor(
     provider: source.provider,
     currentBackgroundColor: source.backgroundColor,
     currentColorId: source.colorId,
-    headerBarService: ref.read(linuxHeaderBarServiceProvider),
   );
   if (!context.mounted || choice == null) return;
   try {
@@ -1555,7 +1652,6 @@ Future<void> _renameCalendar(
         ? context.l10n.setAction
         : context.l10n.rename,
     initialValue: source.summary,
-    headerBarService: ref.read(linuxHeaderBarServiceProvider),
   );
   if (!context.mounted ||
       title == null ||
@@ -1614,7 +1710,6 @@ Future<void> _deleteCalendar(
         ? context.l10n.removeAction
         : context.l10n.delete,
     destructive: true,
-    headerBarService: ref.read(linuxHeaderBarServiceProvider),
   );
   if (!confirmed) {
     return;
@@ -1669,7 +1764,6 @@ Future<void> _renameTaskList(
     label: context.l10n.title,
     actionLabel: context.l10n.rename,
     initialValue: list.title,
-    headerBarService: ref.read(linuxHeaderBarServiceProvider),
   );
   if (!context.mounted ||
       title == null ||
@@ -1720,7 +1814,6 @@ Future<void> _deleteTaskList(
         ? context.l10n.unshare
         : context.l10n.delete,
     destructive: true,
-    headerBarService: ref.read(linuxHeaderBarServiceProvider),
   );
   if (!confirmed) {
     return;
@@ -1789,7 +1882,6 @@ Future<void> _renameSubscriptionSource(
     label: context.l10n.subscriptionName,
     actionLabel: context.l10n.rename,
     initialValue: source.summary,
-    headerBarService: ref.read(linuxHeaderBarServiceProvider),
   );
   if (name == null || !context.mounted) return;
   try {
@@ -1815,7 +1907,6 @@ Future<void> _colorSubscriptionSource(
     actionLabel: context.l10n.save,
     initialValue: source.backgroundColor,
     message: context.l10n.subscriptionColorHelp,
-    headerBarService: ref.read(linuxHeaderBarServiceProvider),
   );
   if (color == null || !context.mounted) return;
   try {
@@ -1840,7 +1931,6 @@ Future<void> _unsubscribeSource(
     message: context.l10n.unsubscribeCalendarConfirmation,
     confirmLabel: context.l10n.unsubscribe,
     destructive: true,
-    headerBarService: ref.read(linuxHeaderBarServiceProvider),
   );
   if (!confirmed || !context.mounted) return;
   try {

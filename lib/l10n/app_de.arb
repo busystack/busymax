@@ -246,6 +246,10 @@
   "viewAgenda": "Tagesübersicht",
   "scheduleSettings": "Zeitplan",
   "scheduleDisplaySettings": "Zeitplananzeige",
+  "newEventsAndTasks": "Neue Ereignisse und Aufgaben",
+  "defaultCalendar": "Standardkalender",
+  "defaultTaskList": "Standardaufgabenliste",
+  "lastUsed": "Zuletzt verwendet",
   "scheduleDisplayHoursDescription": "In der Tages- und Wochenansicht wird zunächst dieser Zeitraum angezeigt. Frühere oder spätere Einträge erweitern ihn bei Bedarf.",
   "scheduleDayStartsAt": "Tag beginnt um",
   "scheduleDayEndsAt": "Tag endet um",
@@ -329,6 +333,7 @@
   "shortcutPreviousPeriodDescription": "Vorherige Woche in der Wochenansicht, vorheriger Monat in der Monatsansicht usw.",
   "shortcutJumpToToday": "Zum heutigen Tag springen",
   "shortcutGroupView": "Ansicht",
+  "viewSelector": "Ansicht",
   "shortcutDayView": "Tagesansicht",
   "shortcutWeekView": "Wochenansicht",
   "shortcutMonthView": "Monatsansicht",
@@ -645,7 +650,6 @@
   "connectAccountAction": "Verbinden",
   "cancelAccountConnection": "Verbindung abbrechen",
   "nextcloudAccountRemovedRevokeFailed": "Das Konto wurde lokal entfernt, aber das Nextcloud-App-Passwort konnte nicht widerrufen werden.",
-  "davCachedOfflineNotice": "Kalender- und Aufgabendaten werden für die Offline-Nutzung lokal zwischengespeichert.",
   "davReauthenticationRequired": "Verbinden Sie dieses Konto erneut, um die Synchronisierung fortzusetzen.",
   "davTemporarilyUnavailable": "Dieses Konto ist vorübergehend nicht verfügbar.",
   "davPermissionChanged": "Die Serverberechtigungen wurden geändert. Ausstehende Bearbeitungen sind pausiert.",
@@ -1107,5 +1111,8 @@
   "searchClearFilters": "Filter zurücksetzen",
   "searchFiltersAction": "Suchfilter öffnen",
   "searchNoSources": "Keine Suchquellen ausgewählt",
-  "searchClearText": "Text löschen"
+  "searchClearText": "Text löschen",
+  "windowMinimize": "Minimieren",
+  "windowMaximize": "Maximieren",
+  "windowRestore": "Wiederherstellen"
 }

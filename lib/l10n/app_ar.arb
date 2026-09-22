@@ -246,6 +246,10 @@
   "viewAgenda": "جدول الأعمال",
   "scheduleSettings": "الجدول",
   "scheduleDisplaySettings": "عرض الجدول",
+  "newEventsAndTasks": "الأحداث والمهام الجديدة",
+  "defaultCalendar": "التقويم الافتراضي",
+  "defaultTaskList": "قائمة المهام الافتراضية",
+  "lastUsed": "آخر استخدام",
   "scheduleDisplayHoursDescription": "تفتح طريقتا عرض اليوم والأسبوع ضمن هذه الساعات. توسّع العناصر المبكرة والمتأخرة النطاق عند الحاجة.",
   "scheduleDayStartsAt": "يبدأ اليوم في",
   "scheduleDayEndsAt": "ينتهي اليوم في",
@@ -308,6 +312,7 @@
   "shortcutPreviousPeriodDescription": "الأسبوع السابق في عرض الأسبوع، والشهر السابق في عرض الشهر، وهكذا",
   "shortcutJumpToToday": "الانتقال إلى اليوم",
   "shortcutGroupView": "العرض",
+  "viewSelector": "العرض",
   "shortcutDayView": "عرض اليوم",
   "shortcutWeekView": "عرض الأسبوع",
   "shortcutMonthView": "عرض الشهر",
@@ -589,7 +594,6 @@
   "connectAccountAction": "ربط",
   "cancelAccountConnection": "إلغاء الربط",
   "nextcloudAccountRemovedRevokeFailed": "تمت إزالة الحساب محليًا، لكن تعذّر إبطال كلمة مرور تطبيق Nextcloud.",
-  "davCachedOfflineNotice": "تُخزّن بيانات التقويم والمهام محليًا للاستخدام دون اتصال.",
   "davReauthenticationRequired": "أعد ربط هذا الحساب لاستئناف المزامنة.",
   "davTemporarilyUnavailable": "هذا الحساب غير متاح مؤقتًا.",
   "davPermissionChanged": "تغيّرت أذونات الخادم. تم إيقاف التعديلات المعلقة مؤقتًا.",
@@ -1044,5 +1048,8 @@
   "searchClearFilters": "إعادة ضبط عوامل التصفية",
   "searchFiltersAction": "عوامل التصفية",
   "searchNoSources": "لم يتم تحديد مصادر للبحث",
-  "searchClearText": "مسح النص"
+  "searchClearText": "مسح النص",
+  "windowMinimize": "تصغير",
+  "windowMaximize": "تكبير",
+  "windowRestore": "استعادة"
 }

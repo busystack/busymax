@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'windows_time_picker.dart';
 import '../../features/calendar/domain/event_property_policy.dart';
 import 'package:fluent_ui/fluent_ui.dart';
@@ -78,11 +80,20 @@ Future<bool> showWindowsEventEditorDialog(
   final categories = TextEditingController(
     text: originalDraft?.categories.join(', '),
   );
+  final settings = ref.read(appSettingsControllerProvider);
   var selectedSource = sources.firstWhere(
     (source) =>
         source.id == (originalDraft?.sourceId ?? initialSourceId) &&
         source.accountId == (originalDraft?.accountId ?? initialAccountId),
-    orElse: () => sources.first,
+    orElse: () =>
+        preferredCreationDestination(
+          sources,
+          selected: settings.defaultCalendar,
+          lastUsed: settings.lastUsedCalendar,
+          destinationOf: (source) =>
+              CreationDestination(accountId: source.accountId, id: source.id),
+        ) ??
+        sources.first,
   );
   final requestedStart = initialStart == null
       ? null
@@ -1131,6 +1142,16 @@ Future<bool> showWindowsEventEditorDialog(
                             await repository.createLocalEvent(
                               draft,
                               guestUpdatePolicy: guestUpdatePolicy,
+                            );
+                            unawaited(
+                              ref
+                                  .read(appSettingsControllerProvider.notifier)
+                                  .rememberCalendar(
+                                    CreationDestination(
+                                      accountId: draft.accountId,
+                                      id: draft.sourceId,
+                                    ),
+                                  ),
                             );
                           } else {
                             await repository.updateLocalEvent(

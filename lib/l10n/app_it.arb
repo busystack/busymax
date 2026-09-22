@@ -246,6 +246,10 @@
   "viewAgenda": "Vista agenda",
   "scheduleSettings": "Agenda",
   "scheduleDisplaySettings": "Visualizzazione agenda",
+  "newEventsAndTasks": "Nuovi eventi e attività",
+  "defaultCalendar": "Calendario predefinito",
+  "defaultTaskList": "Elenco attività predefinito",
+  "lastUsed": "Ultimo utilizzato",
   "scheduleDisplayHoursDescription": "Le viste Giorno e Settimana mostrano inizialmente questo intervallo orario. Gli elementi precedenti o successivi lo estendono quando necessario.",
   "scheduleDayStartsAt": "Inizio giornata",
   "scheduleDayEndsAt": "Fine giornata",
@@ -308,6 +312,7 @@
   "shortcutPreviousPeriodDescription": "Settimana precedente nella vista settimanale, mese precedente nella vista mensile e così via",
   "shortcutJumpToToday": "Vai alla data odierna",
   "shortcutGroupView": "Vista",
+  "viewSelector": "Vista",
   "shortcutDayView": "Vista giornaliera",
   "shortcutWeekView": "Vista settimanale",
   "shortcutMonthView": "Vista mensile",
@@ -589,7 +594,6 @@
   "connectAccountAction": "Collega",
   "cancelAccountConnection": "Annulla connessione",
   "nextcloudAccountRemovedRevokeFailed": "L’account è stato rimosso localmente, ma non è stato possibile revocare la password dell’app Nextcloud.",
-  "davCachedOfflineNotice": "I dati di calendari e attività vengono memorizzati localmente per l’uso offline.",
   "davReauthenticationRequired": "Ricollega questo account per riprendere la sincronizzazione.",
   "davTemporarilyUnavailable": "Questo account è temporaneamente non disponibile.",
   "davPermissionChanged": "Le autorizzazioni del server sono cambiate. Le modifiche in sospeso sono in pausa.",
@@ -1044,5 +1048,8 @@
   "searchClearFilters": "Reimposta filtri",
   "searchFiltersAction": "Filtri",
   "searchNoSources": "Nessuna origine di ricerca selezionata",
-  "searchClearText": "Cancella testo"
+  "searchClearText": "Cancella testo",
+  "windowMinimize": "Riduci",
+  "windowMaximize": "Ingrandisci",
+  "windowRestore": "Ripristina"
 }

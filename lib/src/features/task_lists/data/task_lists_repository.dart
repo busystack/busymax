@@ -262,6 +262,9 @@ class TaskListsRepository {
     }
     await _database.transaction(() async {
       final current = await _baselineRow(id);
+      final childTaskBaselines = current?.updatedUtc == null
+          ? await _childTaskConflictBaselines(id)
+          : null;
       await _updateLocalList(
         id,
         TaskListsCompanion(
@@ -273,7 +276,10 @@ class TaskListsRepository {
       await _enqueue(
         operation: 'delete_task_list',
         taskListId: id,
-        request: const {},
+        request: {
+          if (childTaskBaselines != null)
+            _childTaskConflictBaselinesKey: childTaskBaselines,
+        },
         baselineUpdatedUtc: current?.updatedUtc,
         baselineRawJson: current?.rawJson,
         createdAtUtc: now,
@@ -389,6 +395,27 @@ class TaskListsRepository {
         .getSingleOrNull();
   }
 
+  Future<Map<String, Object?>> _childTaskConflictBaselines(
+    String taskListId,
+  ) async {
+    final tasks =
+        await (_database.select(_database.tasks)..where(
+              (row) =>
+                  row.accountId.equals(_accountId) &
+                  row.taskListId.equals(taskListId) &
+                  row.localCreated.equals(false) &
+                  row.serverMissing.equals(false),
+            ))
+            .get();
+    return {
+      for (final task in tasks)
+        task.id: {
+          'updatedUtc': task.updatedUtc,
+          'rawJson': jsonDecode(task.rawJson),
+        },
+    };
+  }
+
   Future<TaskListCreationMode> _taskListCreationMode() async {
     final account = await (_database.select(
       _database.accounts,
@@ -418,6 +445,8 @@ const _taskListMutationOperations = {
   'update_task_list',
   'delete_task_list',
 };
+
+const _childTaskConflictBaselinesKey = '_busymaxChildTaskConflictBaselines';
 
 TaskListsCompanion taskListFromDto(
   String accountId,

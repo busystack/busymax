@@ -4,7 +4,6 @@ import 'package:yaru/yaru.dart';
 import '../../../app/busymax_design.dart';
 import '../../../app/busymax_dialogs.dart';
 import '../../../l10n/l10n.dart';
-import '../../../platform/linux_header_bar_service.dart';
 
 @immutable
 class AccountRemovalOptions {
@@ -17,11 +16,9 @@ Future<AccountRemovalOptions?> showBusyMaxAccountRemovalDialog(
   BuildContext context, {
   required String accountLabel,
   required bool canRevokeGoogleAuthorization,
-  LinuxHeaderBarService? headerBarService,
 }) {
   return showBusyMaxModalDialog<AccountRemovalOptions>(
     context,
-    headerBarService: headerBarService,
     barrierDismissible: false,
     builder: (dialogContext) => _AccountRemovalDialog(
       accountLabel: accountLabel,
@@ -73,18 +70,33 @@ class _AccountRemovalDialogState extends State<_AccountRemovalDialog> {
         Text(l10n.removeAccountConfirmation),
         if (widget.canRevokeGoogleAuthorization) ...[
           const SizedBox(height: BusyMaxSpacing.lg),
-          YaruCheckboxListTile(
-            key: const Key('revoke-google-authorization'),
-            value: _revokeGoogleAuthorization,
-            onChanged: (value) {
-              setState(() => _revokeGoogleAuthorization = value ?? false);
-            },
-            title: Text(l10n.revokeGoogleAccess),
-            subtitle: Text(l10n.revokeGoogleAccessDescription),
-            shape: const RoundedRectangleBorder(),
+          BusyMaxYaruFocusBorder(
+            borderStrokeAlign: BorderSide.strokeAlignInside,
+            builder: (context, rowFocusNode) => YaruCheckboxListTile(
+              key: const Key('revoke-google-authorization'),
+              value: _revokeGoogleAuthorization,
+              onChanged: _onRevokeGoogleAuthorizationChanged,
+              focusNode: rowFocusNode,
+              control: BusyMaxYaruFocusBorder(
+                builder: (context, controlFocusNode) => YaruCheckbox(
+                  value: _revokeGoogleAuthorization,
+                  onChanged: _onRevokeGoogleAuthorizationChanged,
+                  focusNode: controlFocusNode,
+                  hasFocusBorder: false,
+                ),
+              ),
+              title: Text(l10n.revokeGoogleAccess),
+              subtitle: Text(l10n.revokeGoogleAccessDescription),
+              shape: const RoundedRectangleBorder(),
+              hasFocusBorder: false,
+            ),
           ),
         ],
       ],
     );
+  }
+
+  void _onRevokeGoogleAuthorizationChanged(bool? value) {
+    setState(() => _revokeGoogleAuthorization = value ?? false);
   }
 }

@@ -450,6 +450,15 @@ class AppLocalizationsAr extends AppLocalizations {
   String get close => 'إغلاق';
 
   @override
+  String get windowMinimize => 'تصغير';
+
+  @override
+  String get windowMaximize => 'تكبير';
+
+  @override
+  String get windowRestore => 'استعادة';
+
+  @override
   String get exit => 'خروج';
 
   @override
@@ -731,6 +740,18 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String get scheduleDisplaySettings => 'عرض الجدول';
+
+  @override
+  String get newEventsAndTasks => 'الأحداث والمهام الجديدة';
+
+  @override
+  String get defaultCalendar => 'التقويم الافتراضي';
+
+  @override
+  String get defaultTaskList => 'قائمة المهام الافتراضية';
+
+  @override
+  String get lastUsed => 'آخر استخدام';
 
   @override
   String get scheduleDisplayHoursDescription =>
@@ -1094,6 +1115,9 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String get shortcutGroupView => 'العرض';
+
+  @override
+  String get viewSelector => 'العرض';
 
   @override
   String get shortcutDayView => 'عرض اليوم';
@@ -2490,10 +2514,6 @@ class AppLocalizationsAr extends AppLocalizations {
   @override
   String get nextcloudAccountRemovedRevokeFailed =>
       'تمت إزالة الحساب محليًا، لكن تعذّر إبطال كلمة مرور تطبيق Nextcloud.';
-
-  @override
-  String get davCachedOfflineNotice =>
-      'تُخزّن بيانات التقويم والمهام محليًا للاستخدام دون اتصال.';
 
   @override
   String get davReauthenticationRequired =>

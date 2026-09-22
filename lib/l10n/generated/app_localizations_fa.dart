@@ -449,6 +449,15 @@ class AppLocalizationsFa extends AppLocalizations {
   String get close => 'بستن';
 
   @override
+  String get windowMinimize => 'کوچک کردن';
+
+  @override
+  String get windowMaximize => 'بزرگ کردن';
+
+  @override
+  String get windowRestore => 'بازیابی';
+
+  @override
   String get exit => 'خروج';
 
   @override
@@ -729,6 +738,18 @@ class AppLocalizationsFa extends AppLocalizations {
 
   @override
   String get scheduleDisplaySettings => 'نمایش برنامه';
+
+  @override
+  String get newEventsAndTasks => 'رویدادها و کارهای جدید';
+
+  @override
+  String get defaultCalendar => 'تقویم پیش‌فرض';
+
+  @override
+  String get defaultTaskList => 'فهرست کارهای پیش‌فرض';
+
+  @override
+  String get lastUsed => 'آخرین استفاده';
 
   @override
   String get scheduleDisplayHoursDescription =>
@@ -1084,6 +1105,9 @@ class AppLocalizationsFa extends AppLocalizations {
 
   @override
   String get shortcutGroupView => 'نما';
+
+  @override
+  String get viewSelector => 'نما';
 
   @override
   String get shortcutDayView => 'نمای روز';
@@ -2441,10 +2465,6 @@ class AppLocalizationsFa extends AppLocalizations {
   @override
   String get nextcloudAccountRemovedRevokeFailed =>
       'حساب به‌صورت محلی حذف شد، اما ابطال گذرواژهٔ برنامهٔ Nextcloud ممکن نیست.';
-
-  @override
-  String get davCachedOfflineNotice =>
-      'داده‌های تقویم و کار برای استفادهٔ آفلاین به‌صورت محلی ذخیره می‌شوند.';
 
   @override
   String get davReauthenticationRequired =>

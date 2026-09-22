@@ -221,7 +221,7 @@ final class ScheduleReschedulingCoordinator {
       }
     }
     RecurringEventMutationScope? scope;
-    if (detail.providerRecurringEventId != null) {
+    if (detail.requiresRecurringMutationScope) {
       scope = await chooseScope(detail, eventSupportsThisAndFollowing(detail));
       if (scope == null || !active()) return ScheduleRescheduleResult.cancelled;
     }

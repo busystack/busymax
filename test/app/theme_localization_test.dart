@@ -16,6 +16,7 @@ import 'package:busymax/src/app/busymax_yaru_theme.dart';
 import 'package:busymax/src/app/app_theme.dart';
 import 'package:busymax/src/app/busymax_app.dart';
 import 'package:busymax/src/app/busymax_design.dart';
+import 'package:busymax/src/app/busymax_dialogs.dart';
 import 'package:busymax/src/config/build_config.dart';
 import 'package:busymax/src/db/app_database.dart';
 import 'package:busymax/src/features/connectivity/network_connectivity_service.dart';
@@ -33,33 +34,29 @@ import 'package:connectivity_plus/connectivity_plus.dart';
 import '../test_localized_app.dart';
 
 void main() {
-  test('native header theme uses the exact first-frame semantic palette', () {
+  test('retained native surfaces use the first-frame semantic palette', () {
     final theme = _buildBusyMaxTheme(brightness: Brightness.light);
     final colors = theme.extension<BusyMaxSurfaceColors>()!;
-    final headerTheme = busyMaxHeaderBarThemeFor(theme, highContrast: false);
-
-    expect(headerTheme.preferDark, isFalse);
-    expect(headerTheme.highContrast, isFalse);
-    expect(headerTheme.windowBackgroundColor, colors.window);
-    expect(headerTheme.backgroundColor, colors.window);
-    expect(headerTheme.sidebarBackgroundColor, colors.sidebar);
-    expect(headerTheme.foregroundColor, colors.foreground);
-    expect(headerTheme.dialogBackgroundColor, colors.dialog);
-    expect(headerTheme.modalBarrierColor, colors.shade);
-    expect(headerTheme.tooltip.backgroundColor, BusyMaxTooltipStyle.background);
-    expect(headerTheme.tooltip.foregroundColor, BusyMaxTooltipStyle.foreground);
-    expect(headerTheme.tooltip.borderColor, BusyMaxTooltipStyle.border);
-    expect(headerTheme.tooltip.borderRadius, BusyMaxRadius.tooltip);
-    expect(
-      headerTheme.tooltip.fontSize,
-      theme.tooltipTheme.textStyle?.fontSize,
+    final nativeTheme = busyMaxNativeSurfaceThemeFor(
+      theme,
+      highContrast: false,
     );
+
+    expect(nativeTheme.highContrast, isFalse);
+    expect(nativeTheme.windowBackgroundColor, colors.window);
+    expect(nativeTheme.dialogBackgroundColor, colors.dialog);
+    expect(nativeTheme.dialogOutlineColor, colors.dialogOutline);
+    expect(nativeTheme.tooltipBackgroundColor, BusyMaxTooltipStyle.background);
+    expect(nativeTheme.tooltipForegroundColor, BusyMaxTooltipStyle.foreground);
+    expect(nativeTheme.tooltipBorderColor, BusyMaxTooltipStyle.border);
+    expect(nativeTheme.tooltipRadius, BusyMaxRadius.tooltip);
+    expect(nativeTheme.tooltipFontSize, theme.tooltipTheme.textStyle?.fontSize);
     expect(
-      headerTheme.tooltip.horizontalPadding,
+      nativeTheme.tooltipHorizontalPadding,
       BusyMaxSpacing.tooltipHorizontal,
     );
-    expect(headerTheme.tooltip.verticalPadding, BusyMaxSpacing.tooltipVertical);
-    expect(headerTheme.tooltip.minimumHeight, BusyMaxSizes.tooltipMinHeight);
+    expect(nativeTheme.tooltipVerticalPadding, BusyMaxSpacing.tooltipVertical);
+    expect(nativeTheme.tooltipMinimumHeight, BusyMaxSizes.tooltipMinHeight);
   });
 
   test('builds with system accent and tokenized control surfaces', () {
@@ -162,11 +159,10 @@ void main() {
         {WidgetState.focused},
         {WidgetState.pressed},
       ]) {
-        expect(
-          pair.$1?.overlayColor?.resolve(states),
-          pair.$2?.overlayColor?.resolve(states),
-        );
+        expect(pair.$1?.overlayColor?.resolve(states), Colors.transparent);
       }
+      expect(pair.$1?.splashFactory, NoSplash.splashFactory);
+      expect(pair.$1?.backgroundBuilder, isNotNull);
     }
   });
 
@@ -297,15 +293,12 @@ void main() {
       (theme.textButtonTheme.style, base.textButtonTheme.style),
     ]) {
       final padding = pair.$1?.padding?.resolve(const {})! as EdgeInsets;
-      final basePadding = pair.$2?.padding?.resolve(const {})! as EdgeInsets;
-      expect(padding.horizontal, basePadding.horizontal);
-      expect(padding.vertical, 0);
-      expect(
-        pair.$1?.minimumSize?.resolve(const {}),
-        pair.$2?.minimumSize?.resolve(const {}),
-      );
+      expect(padding, const EdgeInsets.symmetric(horizontal: 17, vertical: 5));
+      expect(pair.$1?.minimumSize?.resolve(const {}), const Size(34, 34));
       expect(pair.$1?.visualDensity, VisualDensity.standard);
       expect(pair.$1?.tapTargetSize, MaterialTapTargetSize.shrinkWrap);
+      expect(pair.$1?.elevation?.resolve(const {}), 0);
+      expect(pair.$1?.surfaceTintColor?.resolve(const {}), Colors.transparent);
     }
 
     final checkboxShape = theme.checkboxTheme.shape! as RoundedRectangleBorder;
@@ -842,19 +835,18 @@ void main() {
       scale: scale,
     );
 
-    for (final pair in [
-      (theme.outlinedButtonTheme.style, base.outlinedButtonTheme.style),
-      (theme.filledButtonTheme.style, base.filledButtonTheme.style),
-      (theme.elevatedButtonTheme.style, base.elevatedButtonTheme.style),
-      (theme.textButtonTheme.style, base.textButtonTheme.style),
+    for (final style in [
+      theme.outlinedButtonTheme.style,
+      theme.filledButtonTheme.style,
+      theme.elevatedButtonTheme.style,
+      theme.textButtonTheme.style,
     ]) {
-      _expectComponentStyleUsesTypography(
-        pair.$1?.textStyle?.resolve(buttonStates),
-        baseStyle: pair.$2?.textStyle?.resolve(buttonStates),
-        fallback: textTheme.labelLarge,
-        family: gtkFamily,
-        scale: scale,
-      );
+      final actual = style?.textStyle?.resolve(buttonStates);
+      expect(actual?.fontFamily, gtkFamily);
+      expect(actual?.fontSize, textTheme.labelLarge?.fontSize);
+      expect(actual?.fontWeight, FontWeight.bold);
+      expect(actual?.letterSpacing, textTheme.labelLarge?.letterSpacing);
+      expect(actual?.height, textTheme.labelLarge?.height);
     }
 
     _expectComponentStyleUsesTypography(
@@ -1718,40 +1710,18 @@ void main() {
     expect(store.json['scheduleViewMode'], 'month');
   });
 
-  test('native headerbar receives semantic surface colors', () {
+  test('retained native surfaces receive semantic colors', () {
     final source = File('lib/src/app/busymax_app.dart').readAsStringSync();
-    final synchronizer = File(
-      'lib/src/platform/linux_header_bar_configuration_synchronizer.dart',
-    ).readAsStringSync();
 
     expect(
       source,
       contains('final colors = theme.extension<BusyMaxSurfaceColors>()!;'),
     );
-    expect(source, contains('_headerBarConfigurationSynchronizer.schedule('));
-    expect(synchronizer, contains('await service.setTheme('));
+    expect(source, contains('NativeSurfaceStyleService().setTheme(value)'));
     expect(source, contains('windowBackgroundColor: colors.window'));
-    expect(source, contains('backgroundColor: colors.window'));
-    expect(source, isNot(contains('backgroundColor: colors.headerbarFlat')));
-    expect(source, isNot(contains('backgroundColor: colors.headerbar,')));
-    expect(source, contains('sidebarBackgroundColor: colors.sidebar'));
-    expect(source, contains('foregroundColor: colors.foreground'));
-    expect(source, contains('sidebarBorderColor: colors.sidebarBorder'));
-    expect(source, isNot(contains('popoverBackgroundColor:')));
-    expect(source, isNot(contains('menuHoverColor:')));
-    expect(source, isNot(contains('popoverShadowColor:')));
     expect(source, contains('dialogBackgroundColor: colors.dialog'));
-    expect(source, isNot(contains('floatingBorderColor:')));
-    expect(source, contains('modalBarrierColor: colors.shade'));
-    expect(source, isNot(contains('controlHoverColor: colors.controlHover')));
-    expect(source, isNot(contains('accentColor: colorScheme.primary')));
-    expect(source, contains('menu: l10n.mainMenu'));
-    expect(source, contains('settings: l10n.settings'));
-    expect(source, contains('keyboardShortcuts: l10n.keyboardShortcuts'));
-    expect(source, contains('aboutBusyMax: l10n.aboutBusyMax'));
-    expect(source, isNot(contains('menu: materialL10n.moreButtonTooltip')));
-    expect(source, isNot(contains('setBackgroundColor(')));
-    expect(source, isNot(contains('setSidebarBackgroundColor(')));
+    expect(source, contains('dialogOutlineColor: colors.dialogOutline'));
+    expect(source, isNot(contains('LinuxHeaderBarService')));
   });
 
   test('root window uses semantic backing while GTK owns window geometry', () {
@@ -1772,16 +1742,14 @@ void main() {
       source,
       isNot(contains('color: BusyMaxSurfaceColors.of(context).view')),
     );
-    expect(source, contains('final title = context.l10n.onboardingSetupTitle'));
-    expect(source, contains('.claimSession()'));
-    expect(source, contains('_headerBarSession.updateState('));
-    expect(source, contains('BusyMaxHeaderBarState('));
-    expect(source, contains('title: title'));
-    expect(source, isNot(contains('class _OnboardingHeader')));
+    expect(source, contains('title: l10n.onboardingSetupTitle'));
+    expect(source, isNot(contains('.claimSession()')));
+    expect(source, isNot(contains('BusyMaxHeaderBarState(')));
+    expect(source, contains('class _OnboardingHeader'));
     expect(source, isNot(contains('class _OnboardingProgressDots')));
     expect(source, isNot(contains('Border(top: BorderSide')));
-    expect(source, contains("key: const ValueKey('onboarding-content-rail')"));
-    expect(source, contains('busyMaxOnboardingContentMaxWidth'));
+    expect(source, contains("'onboarding-content-rail'"));
+    expect(source, contains('BusyMaxSizes.onboardingContentMaxWidth'));
     expect(source, contains('width: contentRailWidth'));
   });
 
@@ -2217,6 +2185,47 @@ void main() {
     expect(syncEnumerations, 1);
     expect(windowService.showWindowCalls, showsBeforeSync);
 
+    await trayService.configuration.actions.quitBusyMax();
+    expect(windowService.quitAppCalls, 1);
+  });
+
+  testWidgets('tray Quit honors the active window-close guard', (tester) async {
+    final database = AppDatabase.memoryForTests();
+    addTearDown(database.close);
+    final windowService = _RecordingWindowService()..visible = false;
+    late _RecordingTrayService trayService;
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          buildConfigProvider.overrideWithValue(_missingConfig),
+          databaseProvider.overrideWithValue(database),
+          localSettingsStoreProvider.overrideWithValue(_MemorySettingsStore()),
+          linuxWindowServiceProvider.overrideWithValue(windowService),
+        ],
+        child: BusyMaxApp(
+          trayServiceFactory: (configuration) =>
+              trayService = _RecordingTrayService(configuration),
+        ),
+      ),
+    );
+    await tester.pump();
+    await tester.pump();
+
+    unawaited(
+      showBusyMaxModalDialog<void>(
+        rootNavigatorKey.currentContext!,
+        builder: (_) => const AlertDialog(content: Text('Guarded dialog')),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await trayService.configuration.actions.quitBusyMax();
+    expect(windowService.showWindowCalls, 1);
+    expect(windowService.quitAppCalls, 0);
+
+    Navigator.of(tester.element(find.text('Guarded dialog'))).pop();
+    await tester.pumpAndSettle();
     await trayService.configuration.actions.quitBusyMax();
     expect(windowService.quitAppCalls, 1);
   });

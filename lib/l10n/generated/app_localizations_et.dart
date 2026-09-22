@@ -452,6 +452,15 @@ class AppLocalizationsEt extends AppLocalizations {
   String get close => 'Sulge';
 
   @override
+  String get windowMinimize => 'Minimeeri';
+
+  @override
+  String get windowMaximize => 'Maksimeeri';
+
+  @override
+  String get windowRestore => 'Taasta';
+
+  @override
   String get exit => 'Välju';
 
   @override
@@ -709,6 +718,18 @@ class AppLocalizationsEt extends AppLocalizations {
 
   @override
   String get scheduleDisplaySettings => 'Ajakava kuvamine';
+
+  @override
+  String get newEventsAndTasks => 'Uued sündmused ja ülesanded';
+
+  @override
+  String get defaultCalendar => 'Vaikekalender';
+
+  @override
+  String get defaultTaskList => 'Vaikimisi ülesannete loend';
+
+  @override
+  String get lastUsed => 'Viimati kasutatud';
 
   @override
   String get scheduleDisplayHoursDescription =>
@@ -1047,6 +1068,9 @@ class AppLocalizationsEt extends AppLocalizations {
 
   @override
   String get shortcutGroupView => 'Vaade';
+
+  @override
+  String get viewSelector => 'Vaade';
 
   @override
   String get shortcutDayView => 'Päevavaade';
@@ -2388,10 +2412,6 @@ class AppLocalizationsEt extends AppLocalizations {
   @override
   String get nextcloudAccountRemovedRevokeFailed =>
       'Konto eemaldati kohalikult, kuid Nextcloudi rakenduse parooli ei saanud tühistada.';
-
-  @override
-  String get davCachedOfflineNotice =>
-      'Kalendri- ja ülesandeandmed salvestatakse võrguühenduseta kasutamiseks kohapeal.';
 
   @override
   String get davReauthenticationRequired =>

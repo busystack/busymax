@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'package:busymax/src/dav/discovery/dav_discovery_models.dart';
 import 'package:busymax/src/db/app_database.dart';
@@ -9,6 +10,8 @@ import 'nextcloud_admin_fixture.dart';
 class SchedulingFixture extends NextcloudAdminFixture {
   String requestStatus = '2.0;Success', messageEtag = '"message-1"';
   bool duplicate = false, acknowledged = false;
+  bool failInbox = false;
+  Completer<void>? inboxGate;
   String busyData = '''BEGIN:VCALENDAR
 VERSION:2.0
 PRODID:-//QA//EN
@@ -72,6 +75,8 @@ END:VCALENDAR
     }
     if (request.method == 'PROPFIND' && request.url.path.endsWith('/inbox/')) {
       requests.add(request);
+      await inboxGate?.future;
+      if (failInbox) return http.Response('', 503);
       final raw =
           'BEGIN:VCALENDAR\r\nVERSION:2.0\r\nMETHOD:REQUEST\r\nBEGIN:VEVENT\r\nUID:same-uid\r\nSUMMARY:Invitation\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n';
       final message = acknowledged

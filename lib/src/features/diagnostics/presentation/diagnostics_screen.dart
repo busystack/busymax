@@ -13,11 +13,17 @@ import '../../../google_tasks/api/google_tasks_api_surface.dart';
 import '../../../google_tasks/api/tasks_discovery_revision.dart';
 import '../../../l10n/l10n.dart';
 import '../../sync/pending_op_resolution_service.dart';
+import '../../sync/sync_auth_error.dart';
 
 class DiagnosticsPanel extends ConsumerWidget {
-  const DiagnosticsPanel({super.key, this.scrollable = true});
+  const DiagnosticsPanel({
+    super.key,
+    this.scrollable = true,
+    this.sectionHeaderStyle,
+  });
 
   final bool scrollable;
+  final TextStyle? sectionHeaderStyle;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -35,7 +41,7 @@ class DiagnosticsPanel extends ConsumerWidget {
         header: true,
         child: Text(
           l10n.googleTasksApi,
-          style: busyMaxSectionHeaderStyle(context),
+          style: sectionHeaderStyle ?? busyMaxSectionHeaderStyle(context),
         ),
       ),
       const SizedBox(height: 8),
@@ -203,9 +209,16 @@ class _BlockedPendingOpTile extends StatelessWidget {
       if (!context.mounted) {
         return;
       }
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(redactForLog(error.toString()))));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            syncFailureMessage(
+              error,
+              networkUnavailableMessage: context.l10n.networkOfflineTryAgain,
+            ),
+          ),
+        ),
+      );
     }
   }
 
@@ -232,9 +245,16 @@ class _BlockedPendingOpTile extends StatelessWidget {
       if (!context.mounted) {
         return;
       }
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(redactForLog(error.toString()))));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            syncFailureMessage(
+              error,
+              networkUnavailableMessage: context.l10n.networkOfflineTryAgain,
+            ),
+          ),
+        ),
+      );
     }
   }
 }

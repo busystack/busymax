@@ -312,13 +312,20 @@ _PreparedImportDraft _prepareDraft(
   }
   final resolver = IcalTimeZoneResolver.fromDocument(semantic);
   final providerTimeZones = IcalTimeZoneResolver.system();
+  DateTime? resolvedStartInstant;
+  DateTime? resolvedEndInstant;
   try {
+    if (startValue.kind != IcalTemporalKind.date) {
+      resolvedStartInstant = resolver.toUtc(startValue);
+    }
     if (startValue.kind == IcalTemporalKind.tzidDateTime) {
-      resolver.toUtc(startValue);
       providerTimeZones.toUtc(startValue);
     }
+    final semanticEnd = master.end;
+    if (semanticEnd != null && semanticEnd.kind != IcalTemporalKind.date) {
+      resolvedEndInstant = resolver.toUtc(semanticEnd);
+    }
     if (master.end?.kind == IcalTemporalKind.tzidDateTime) {
-      resolver.toUtc(master.end!);
       providerTimeZones.toUtc(master.end!);
     }
   } on DavException catch (error) {
@@ -358,7 +365,14 @@ _PreparedImportDraft _prepareDraft(
       'Zero-duration date-time events cannot be represented by BusyMax.',
     );
   }
-  if (!end.isAfter(start)) {
+  final positiveRange = allDay
+      ? end.isAfter(start)
+      : endValue != null
+      ? resolvedStartInstant != null &&
+            resolvedEndInstant != null &&
+            resolvedEndInstant.isAfter(resolvedStartInstant)
+      : master.duration != null && master.duration!.duration > Duration.zero;
+  if (!positiveRange) {
     return const _PreparedImportDraft.unsupported(
       'The event has a non-positive duration.',
     );

@@ -13,12 +13,14 @@ final class IcalRecurrenceLimits {
     this.maximumOccurrences = 10000,
     this.maximumPeriods = 1000000,
     this.maximumRuleValues = 1024,
+    this.maximumCandidatesPerPeriod = 100000,
     this.maximumProjectionRange = const Duration(days: 366 * 20),
   });
 
   final int maximumOccurrences;
   final int maximumPeriods;
   final int maximumRuleValues;
+  final int maximumCandidatesPerPeriod;
   final Duration maximumProjectionRange;
 }
 
@@ -118,7 +120,11 @@ final class IcalRecurrenceExpander {
     );
     var generatedForCount = 0;
     for (var period = 0; period < limits.maximumPeriods; period += 1) {
-      final candidates = rule.candidatesForPeriod(current.localValue, period);
+      final candidates = rule.candidatesForPeriod(
+        current.localValue,
+        period,
+        maximumCandidates: limits.maximumCandidatesPerPeriod,
+      );
       for (final wallValue in candidates) {
         if (wallValue.isBefore(current.localValue)) continue;
         final value = _withWallValue(current, wallValue);
@@ -370,7 +376,11 @@ final class IcalRecurrenceExpander {
       period < limits.maximumPeriods;
       period += 1
     ) {
-      final candidates = rule.candidatesForPeriod(anchor.localValue, period);
+      final candidates = rule.candidatesForPeriod(
+        anchor.localValue,
+        period,
+        maximumCandidates: limits.maximumCandidatesPerPeriod,
+      );
       if (candidates.isEmpty &&
           rule.periodStartsAfter(
             period,
@@ -578,7 +588,11 @@ final class _RecurrenceRule {
   final List<int> byMonth;
   final List<int> bySetPosition;
 
-  List<DateTime> candidatesForPeriod(DateTime start, int period) {
+  List<DateTime> candidatesForPeriod(
+    DateTime start,
+    int period, {
+    required int maximumCandidates,
+  }) {
     final candidates = switch (frequency) {
       _Frequency.secondly => _secondCandidates(start, period),
       _Frequency.minutely => _minuteCandidates(start, period),
@@ -588,8 +602,19 @@ final class _RecurrenceRule {
       _Frequency.monthly => _monthlyCandidates(start, period),
       _Frequency.yearly => _yearlyCandidates(start, period),
     };
-    final filtered = candidates.where(_matchesAllFilters).toSet().toList()
-      ..sort();
+    final filteredSet = <DateTime>{};
+    var inspected = 0;
+    for (final candidate in candidates) {
+      inspected += 1;
+      if (inspected > maximumCandidates) {
+        throw _limitError(
+          'IcalRecurrenceCandidateLimitExceeded',
+          'A recurrence period exceeded the safe candidate work limit.',
+        );
+      }
+      if (_matchesAllFilters(candidate)) filteredSet.add(candidate);
+    }
+    final filtered = filteredSet.toList()..sort();
     if (bySetPosition.isEmpty) return filtered;
     final selected = <DateTime>{};
     for (final position in bySetPosition) {
@@ -657,68 +682,65 @@ final class _RecurrenceRule {
     _Frequency.yearly => _addYears(start, period * interval),
   };
 
-  List<DateTime> _secondCandidates(DateTime start, int period) => [
-    _periodAnchor(start, period),
-  ];
+  Iterable<DateTime> _secondCandidates(DateTime start, int period) sync* {
+    yield _periodAnchor(start, period);
+  }
 
-  List<DateTime> _minuteCandidates(DateTime start, int period) {
+  Iterable<DateTime> _minuteCandidates(DateTime start, int period) sync* {
     final anchor = _periodAnchor(start, period);
-    return [
-      for (final second in bySecond.isEmpty ? [start.second] : bySecond)
-        _wall(
+    for (final second in bySecond.isEmpty ? [start.second] : bySecond) {
+      yield _wall(
+        anchor.year,
+        anchor.month,
+        anchor.day,
+        anchor.hour,
+        anchor.minute,
+        second,
+      );
+    }
+  }
+
+  Iterable<DateTime> _hourCandidates(DateTime start, int period) sync* {
+    final anchor = _periodAnchor(start, period);
+    for (final minute in byMinute.isEmpty ? [start.minute] : byMinute) {
+      for (final second in bySecond.isEmpty ? [start.second] : bySecond) {
+        yield _wall(
           anchor.year,
           anchor.month,
           anchor.day,
           anchor.hour,
-          anchor.minute,
+          minute,
           second,
-        ),
-    ];
+        );
+      }
+    }
   }
 
-  List<DateTime> _hourCandidates(DateTime start, int period) {
-    final anchor = _periodAnchor(start, period);
-    return [
-      for (final minute in byMinute.isEmpty ? [start.minute] : byMinute)
-        for (final second in bySecond.isEmpty ? [start.second] : bySecond)
-          _wall(
-            anchor.year,
-            anchor.month,
-            anchor.day,
-            anchor.hour,
-            minute,
-            second,
-          ),
-    ];
-  }
-
-  List<DateTime> _dailyCandidates(DateTime start, int period) {
+  Iterable<DateTime> _dailyCandidates(DateTime start, int period) {
     final date = _periodAnchor(start, period);
     return _timesForDate(date, start);
   }
 
-  List<DateTime> _weeklyCandidates(DateTime start, int period) {
+  Iterable<DateTime> _weeklyCandidates(DateTime start, int period) sync* {
     final anchor = _periodAnchor(start, period);
     final week = _startOfWeek(anchor, weekStart);
     final weekdays = byDay.isEmpty
         ? [start.weekday]
         : byDay.map((value) => value.weekday).toSet().toList();
-    return [
-      for (final weekday in weekdays)
-        ..._timesForDate(_addDays(week, (weekday - weekStart) % 7), start),
-    ];
+    for (final weekday in weekdays) {
+      yield* _timesForDate(_addDays(week, (weekday - weekStart) % 7), start);
+    }
   }
 
-  List<DateTime> _monthlyCandidates(DateTime start, int period) {
+  Iterable<DateTime> _monthlyCandidates(DateTime start, int period) sync* {
     final anchor = _periodAnchor(start, period);
-    if (byMonth.isNotEmpty && !byMonth.contains(anchor.month)) return const [];
-    return [
-      for (final day in _monthDays(anchor.year, anchor.month, start.day))
-        ..._timesForDate(_wall(anchor.year, anchor.month, day), start),
-    ];
+    if (byMonth.isNotEmpty && !byMonth.contains(anchor.month)) return;
+    for (final day in _monthDays(anchor.year, anchor.month, start.day)) {
+      yield* _timesForDate(_wall(anchor.year, anchor.month, day), start);
+    }
   }
 
-  List<DateTime> _yearlyCandidates(DateTime start, int period) {
+  Iterable<DateTime> _yearlyCandidates(DateTime start, int period) sync* {
     final anchor = _periodAnchor(start, period);
     final year = anchor.year;
     final dates = <DateTime>[];
@@ -752,7 +774,9 @@ final class _RecurrenceRule {
           ]);
       }
     }
-    return [for (final date in dates) ..._timesForDate(date, start)];
+    for (final date in dates) {
+      yield* _timesForDate(date, start);
+    }
   }
 
   List<int> _monthDays(int year, int month, int defaultDay) {
@@ -767,12 +791,15 @@ final class _RecurrenceRule {
     ];
   }
 
-  List<DateTime> _timesForDate(DateTime date, DateTime start) => [
-    for (final hour in byHour.isEmpty ? [start.hour] : byHour)
-      for (final minute in byMinute.isEmpty ? [start.minute] : byMinute)
-        for (final second in bySecond.isEmpty ? [start.second] : bySecond)
-          _wall(date.year, date.month, date.day, hour, minute, second),
-  ];
+  Iterable<DateTime> _timesForDate(DateTime date, DateTime start) sync* {
+    for (final hour in byHour.isEmpty ? [start.hour] : byHour) {
+      for (final minute in byMinute.isEmpty ? [start.minute] : byMinute) {
+        for (final second in bySecond.isEmpty ? [start.second] : bySecond) {
+          yield _wall(date.year, date.month, date.day, hour, minute, second);
+        }
+      }
+    }
+  }
 
   bool _matchesAllFilters(DateTime date) {
     if (byMonth.isNotEmpty && !byMonth.contains(date.month)) return false;

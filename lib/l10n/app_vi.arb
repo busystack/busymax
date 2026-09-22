@@ -246,6 +246,10 @@
   "viewAgenda": "Lịch biểu",
   "scheduleSettings": "Lịch biểu",
   "scheduleDisplaySettings": "Hiển thị lịch biểu",
+  "newEventsAndTasks": "Sự kiện và công việc mới",
+  "defaultCalendar": "Lịch mặc định",
+  "defaultTaskList": "Danh sách công việc mặc định",
+  "lastUsed": "Dùng gần nhất",
   "scheduleDisplayHoursDescription": "Chế độ xem Ngày và Tuần ban đầu hiển thị khoảng thời gian này. Các mục sớm hơn hoặc muộn hơn sẽ mở rộng khoảng hiển thị khi cần.",
   "scheduleDayStartsAt": "Ngày bắt đầu lúc",
   "scheduleDayEndsAt": "Ngày kết thúc lúc",
@@ -308,6 +312,7 @@
   "shortcutPreviousPeriodDescription": "Tuần trước trong chế độ xem tuần, tháng trước trong chế độ xem tháng, v.v.",
   "shortcutJumpToToday": "Chuyển đến hôm nay",
   "shortcutGroupView": "Chế độ xem",
+  "viewSelector": "Chế độ xem",
   "shortcutDayView": "Chế độ xem ngày",
   "shortcutWeekView": "Chế độ xem tuần",
   "shortcutMonthView": "Chế độ xem tháng",
@@ -589,7 +594,6 @@
   "connectAccountAction": "Kết nối",
   "cancelAccountConnection": "Hủy kết nối",
   "nextcloudAccountRemovedRevokeFailed": "Tài khoản đã bị xóa cục bộ nhưng không thể thu hồi mật khẩu ứng dụng Nextcloud.",
-  "davCachedOfflineNotice": "Dữ liệu lịch và công việc được lưu trong bộ nhớ đệm cục bộ để sử dụng ngoại tuyến.",
   "davReauthenticationRequired": "Kết nối lại tài khoản này để tiếp tục đồng bộ.",
   "davTemporarilyUnavailable": "Tài khoản này tạm thời không khả dụng.",
   "davPermissionChanged": "Quyền máy chủ đã thay đổi. Các chỉnh sửa đang chờ bị tạm dừng.",
@@ -1044,5 +1048,8 @@
   "searchClearFilters": "Đặt lại bộ lọc",
   "searchFiltersAction": "Bộ lọc",
   "searchNoSources": "Chưa chọn nguồn tìm kiếm",
-  "searchClearText": "Xóa văn bản"
+  "searchClearText": "Xóa văn bản",
+  "windowMinimize": "Thu nhỏ",
+  "windowMaximize": "Phóng to",
+  "windowRestore": "Khôi phục"
 }

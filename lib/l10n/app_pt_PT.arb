@@ -246,6 +246,10 @@
   "viewAgenda": "Vista de agenda",
   "scheduleSettings": "Agenda",
   "scheduleDisplaySettings": "Apresentação da agenda",
+  "newEventsAndTasks": "Novos eventos e tarefas",
+  "defaultCalendar": "Calendário predefinido",
+  "defaultTaskList": "Lista de tarefas predefinida",
+  "lastUsed": "Utilizado recentemente",
   "scheduleDisplayHoursDescription": "As vistas de dia e semana mostram inicialmente este intervalo horário. Os itens anteriores ou posteriores alargam-no quando necessário.",
   "scheduleDayStartsAt": "O dia começa às",
   "scheduleDayEndsAt": "O dia termina às",
@@ -308,6 +312,7 @@
   "shortcutPreviousPeriodDescription": "Semana anterior na vista semanal, mês anterior na vista mensal e assim por diante",
   "shortcutJumpToToday": "Ir para hoje",
   "shortcutGroupView": "Vista",
+  "viewSelector": "Vista",
   "shortcutDayView": "Vista diária",
   "shortcutWeekView": "Vista semanal",
   "shortcutMonthView": "Vista mensal",
@@ -589,7 +594,6 @@
   "connectAccountAction": "Ligar",
   "cancelAccountConnection": "Cancelar ligação",
   "nextcloudAccountRemovedRevokeFailed": "A conta foi removida localmente, mas não foi possível revogar a palavra-passe da aplicação Nextcloud.",
-  "davCachedOfflineNotice": "Os dados de calendários e tarefas são colocados em cache localmente para utilização offline.",
   "davReauthenticationRequired": "Volte a ligar esta conta para retomar a sincronização.",
   "davTemporarilyUnavailable": "Esta conta está temporariamente indisponível.",
   "davPermissionChanged": "As permissões do servidor foram alteradas. As edições pendentes estão em pausa.",
@@ -1044,5 +1048,8 @@
   "searchClearFilters": "Repor filtros",
   "searchFiltersAction": "Filtros",
   "searchNoSources": "Nenhuma origem de pesquisa selecionada",
-  "searchClearText": "Limpar texto"
+  "searchClearText": "Limpar texto",
+  "windowMinimize": "Minimizar",
+  "windowMaximize": "Maximizar",
+  "windowRestore": "Restaurar"
 }

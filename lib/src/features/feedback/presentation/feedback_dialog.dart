@@ -10,7 +10,6 @@ import 'package:yaru/yaru.dart';
 import '../../../app/busymax_design.dart';
 import '../../../app/busymax_dialogs.dart';
 import '../../../l10n/l10n.dart';
-import '../../../platform/linux_header_bar_service.dart';
 import '../data/feedback_api_client.dart';
 import '../data/feedback_submission.dart';
 import '../../connectivity/network_connectivity_service.dart';
@@ -29,16 +28,13 @@ class FeedbackAppMetadata {
 Future<void> showBusyMaxFeedbackDialog(
   BuildContext context, {
   required FeedbackSubmissionService submissionService,
-  LinuxHeaderBarService? headerBarService,
 }) {
   return showBusyMaxModalEditorDialog<void>(
     context,
-    headerBarService: headerBarService,
     maxWidth: 680,
     maxHeight: 760,
     builder: (dialogContext) => BusyMaxFeedbackDialog(
       submissionService: submissionService,
-      headerBarService: headerBarService,
       onCancel: () => Navigator.of(dialogContext).pop(),
     ),
   );
@@ -52,7 +48,6 @@ class BusyMaxFeedbackDialog extends StatefulWidget {
     this.metadataLoader,
     this.submissionIdGenerator,
     this.osVersionProvider,
-    this.headerBarService,
   });
 
   final FeedbackSubmissionService submissionService;
@@ -60,7 +55,6 @@ class BusyMaxFeedbackDialog extends StatefulWidget {
   final FeedbackAppMetadataLoader? metadataLoader;
   final FeedbackSubmissionIdGenerator? submissionIdGenerator;
   final FeedbackOsVersionProvider? osVersionProvider;
-  final LinuxHeaderBarService? headerBarService;
 
   @override
   State<BusyMaxFeedbackDialog> createState() => _BusyMaxFeedbackDialogState();
@@ -98,6 +92,9 @@ class _BusyMaxFeedbackDialogState extends State<BusyMaxFeedbackDialog> {
   @override
   Widget build(BuildContext context) {
     final l10n = context.l10n;
+    final technicalDetailsOnChanged = _submitting
+        ? null
+        : _onTechnicalDetailsChanged;
     final categoryInvalid =
         _validationAttempted && !FeedbackValidation.categoryIsValid(_category);
     final subjectInvalid =
@@ -213,20 +210,26 @@ class _BusyMaxFeedbackDialogState extends State<BusyMaxFeedbackDialog> {
               BusyMaxGroupedList(
                 filled: true,
                 children: [
-                  YaruCheckboxListTile(
-                    key: const Key('feedback-technical-details'),
-                    value: _includeTechnicalDetails,
-                    onChanged: _submitting
-                        ? null
-                        : (value) {
-                            setState(() {
-                              _includeTechnicalDetails = value ?? false;
-                              _draftChanged();
-                            });
-                          },
-                    title: Text(l10n.feedbackIncludeTechnicalDetails),
-                    subtitle: Text(l10n.feedbackTechnicalDetailsDisclosure),
-                    shape: const RoundedRectangleBorder(),
+                  BusyMaxYaruFocusBorder(
+                    borderStrokeAlign: BorderSide.strokeAlignInside,
+                    builder: (context, rowFocusNode) => YaruCheckboxListTile(
+                      key: const Key('feedback-technical-details'),
+                      value: _includeTechnicalDetails,
+                      onChanged: technicalDetailsOnChanged,
+                      focusNode: rowFocusNode,
+                      control: BusyMaxYaruFocusBorder(
+                        builder: (context, controlFocusNode) => YaruCheckbox(
+                          value: _includeTechnicalDetails,
+                          onChanged: technicalDetailsOnChanged,
+                          focusNode: controlFocusNode,
+                          hasFocusBorder: false,
+                        ),
+                      ),
+                      title: Text(l10n.feedbackIncludeTechnicalDetails),
+                      subtitle: Text(l10n.feedbackTechnicalDetailsDisclosure),
+                      shape: const RoundedRectangleBorder(),
+                      hasFocusBorder: false,
+                    ),
                   ),
                 ],
               ),
@@ -245,12 +248,18 @@ class _BusyMaxFeedbackDialogState extends State<BusyMaxFeedbackDialog> {
                   ),
                 ),
               ],
-              const SizedBox(height: BusyMaxSpacing.lg),
             ],
           ),
         ),
       ),
     );
+  }
+
+  void _onTechnicalDetailsChanged(bool? value) {
+    setState(() {
+      _includeTechnicalDetails = value ?? false;
+      _draftChanged();
+    });
   }
 
   Future<void> _cancel() async {
@@ -277,7 +286,6 @@ class _BusyMaxFeedbackDialogState extends State<BusyMaxFeedbackDialog> {
         confirmLabel: context.l10n.discardChangesAction,
         destructive: true,
         barrierColor: Colors.transparent,
-        headerBarService: widget.headerBarService,
       );
       if (discard && mounted) {
         widget.onCancel();

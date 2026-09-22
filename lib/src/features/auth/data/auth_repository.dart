@@ -18,6 +18,14 @@ import '../../../microsoft_todo/oauth/microsoft_oauth_service.dart';
 import '../../sync/sync_auth_error.dart';
 import 'package:busymax/src/providers/busy_provider.dart';
 
+String _microsoftGraphScopeName(String scope) {
+  final normalized = scope.trim().toLowerCase();
+  const graphPrefix = 'https://graph.microsoft.com/';
+  return normalized.startsWith(graphPrefix)
+      ? normalized.substring(graphPrefix.length)
+      : normalized;
+}
+
 enum AuthSessionStatus {
   unconfigured,
   loading,
@@ -195,7 +203,9 @@ class AuthRepository {
       case BusyProvider.microsoft:
         await _microsoftOAuth?.signOutAccount(accountId);
       case BusyProvider.google:
-        await _oAuth.clearLocalSession(accountId: accountId);
+        // Keep the existing credential until reconnection replaces it or the
+        // user explicitly removes the account.
+        break;
       case BusyProvider.appleICloud:
       case BusyProvider.nextcloud:
         // DAV credentials are cleared through SecretStore once the account is
@@ -286,13 +296,10 @@ class AuthRepository {
   }
 
   bool _hasRequiredMicrosoftScopes(OAuthTokenSet tokenSet) {
-    return tokenSet.scopes.contains('https://graph.microsoft.com/User.Read') &&
-        tokenSet.scopes.contains(
-          'https://graph.microsoft.com/Tasks.ReadWrite',
-        ) &&
-        tokenSet.scopes.contains(
-          'https://graph.microsoft.com/Calendars.ReadWrite',
-        );
+    final granted = tokenSet.scopes.map(_microsoftGraphScopeName).toSet();
+    return granted.contains('user.read') &&
+        granted.contains('tasks.readwrite') &&
+        granted.contains('calendars.readwrite');
   }
 
   Future<void> _upsertGoogleSignedInAccount(

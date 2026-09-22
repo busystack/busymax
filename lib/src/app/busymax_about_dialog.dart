@@ -6,7 +6,6 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:yaru/yaru.dart';
 
 import '../l10n/l10n.dart';
-import '../platform/linux_header_bar_service.dart';
 import 'busymax_design.dart';
 import 'busymax_dialog_identity.dart';
 import 'busymax_dialogs.dart';
@@ -15,13 +14,9 @@ const _busyMaxWebsiteUrl = 'https://busystack.org';
 const _busyMaxRepositoryUrl = 'https://github.com/busystack/busymax/';
 const _apacheLicenseUrl = 'https://www.apache.org/licenses/LICENSE-2.0';
 
-Future<void> showBusyMaxAboutDialog(
-  BuildContext context, {
-  LinuxHeaderBarService? headerBarService,
-}) {
+Future<void> showBusyMaxAboutDialog(BuildContext context) {
   return showBusyMaxModalDialog<void>(
     context,
-    headerBarService: headerBarService,
     builder: (dialogContext) => const BusyMaxAboutDialog(),
   );
 }
@@ -116,18 +111,10 @@ class _BusyMaxLogo extends StatelessWidget {
 
 String _formatVersion(PackageInfo info) {
   final version = info.version.trim();
-  final buildNumber = info.buildNumber.trim();
-  if (version.isEmpty && buildNumber.isEmpty) {
+  if (version.isEmpty) {
     return '';
   }
-  final versionWithBuild = switch ((version, buildNumber)) {
-    ('', final build) => build,
-    (final release, '') => release,
-    (final release, final build) => '$release+$build',
-  };
-  return versionWithBuild.startsWith('v')
-      ? versionWithBuild
-      : 'v$versionWithBuild';
+  return version.startsWith('v') ? version : 'v$version';
 }
 
 class _VersionTag extends StatelessWidget {

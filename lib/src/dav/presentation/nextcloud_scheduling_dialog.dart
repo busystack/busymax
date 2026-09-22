@@ -1,25 +1,29 @@
-import 'package:busymax/src/l10n/time_format_scope.dart';
 import 'dart:async';
-import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
-import 'package:busymax/l10n/generated/app_localizations.dart';
-import 'package:busymax/src/app/app_bootstrap.dart';
-import 'package:busymax/src/dav/dav_errors.dart';
-import 'package:busymax/src/dav/nextcloud/nextcloud_scheduling_controller.dart';
-import 'package:busymax/src/dav/nextcloud/nextcloud_scheduling_service.dart';
-import 'package:busymax/src/features/calendar/presentation/event_editor_draft.dart';
+import 'package:yaru/yaru.dart';
+
+import '../../app/app_bootstrap.dart';
+import '../../app/busymax_design.dart';
+import '../../app/busymax_dialogs.dart';
+import '../../dav/dav_errors.dart';
+import '../../dav/nextcloud/nextcloud_scheduling_controller.dart';
+import '../../dav/nextcloud/nextcloud_scheduling_service.dart';
+import '../../features/calendar/presentation/event_editor_draft.dart';
+import '../../l10n/l10n.dart';
+import '../../l10n/time_format_scope.dart';
 
 Future<void> showLinuxNextcloudSchedulingDialog(
   BuildContext context, {
   required String accountId,
   required String collectionId,
   EventEditorDraft? draft,
-}) => showDialog<void>(
-  context: context,
+}) => showBusyMaxModalDialog<void>(
+  context,
   barrierDismissible: false,
-  builder: (_) => LinuxNextcloudSchedulingDialog(
+  builder: (dialogContext) => LinuxNextcloudSchedulingDialog(
     accountId: accountId,
     collectionId: collectionId,
     draft: draft,
@@ -67,101 +71,101 @@ class _LinuxNextcloudSchedulingDialogState
   }
 
   Future<void> _acknowledge(NextcloudInboxMessage message) async {
-    final l10n = AppLocalizations.of(context);
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: Text(l10n.nextcloudAcknowledge),
-        content: Text(l10n.nextcloudAcknowledgeConfirm),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext, false),
-            child: Text(l10n.cancel),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(dialogContext, true),
-            child: Text(l10n.nextcloudAcknowledge),
-          ),
-        ],
-      ),
+    final l10n = context.l10n;
+    final confirmed = await showBusyMaxConfirm(
+      context,
+      title: l10n.nextcloudAcknowledge,
+      message: l10n.nextcloudAcknowledgeConfirm,
+      confirmLabel: l10n.nextcloudAcknowledge,
     );
-    if (confirmed == true && mounted) await model.acknowledge(message);
+    if (confirmed && mounted) await model.acknowledge(message);
   }
 
   @override
   Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context);
+    final l10n = context.l10n;
     final date = DateFormat.yMMMd(Localizations.localeOf(context).toString());
     String dateTime(DateTime value) =>
         formatClockDateTime(context, value, date.format(value));
-    final size = MediaQuery.sizeOf(context);
     final error = model.error;
-    return AlertDialog(
+    final title = widget.draft == null
+        ? l10n.nextcloudSchedulingInbox
+        : l10n.nextcloudGuestAvailability;
+    return BusyMaxDialogShell(
       key: const ValueKey('nextcloud-scheduling-dialog'),
-
-      title: Text(
-        widget.draft == null
-            ? l10n.nextcloudSchedulingInbox
-            : l10n.nextcloudGuestAvailability,
-      ),
-      content: SizedBox(
-        width: math.max(180, math.min(560, size.width - 96)),
-        height: math.max(160, math.min(480, size.height - 220)),
-        child: SingleChildScrollView(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+      title: title,
+      maxWidth: 600,
+      actions: [
+        BusyMaxPushButton.standard(
+          onPressed: model.busy ? null : model.load,
+          child: Text(l10n.refresh),
+        ),
+        BusyMaxPushButton.suggested(
+          onPressed: () => Navigator.of(context).pop(),
+          child: Text(l10n.close),
+        ),
+      ],
+      children: [
+        if (widget.draft == null)
+          Text(l10n.nextcloudInboxExplanation)
+        else if (widget.draft!.start != null && widget.draft!.end != null)
+          SelectableText(
+            '${dateTime(widget.draft!.start!)} – ${dateTime(widget.draft!.end!)}'
+            ' (${widget.draft!.startTimeZone ?? ref.read(localTimeZoneProvider)})',
+          ),
+        if (model.busy) const Center(child: YaruCircularProgressIndicator()),
+        if (error != null)
+          Text(
+            error is DavException && error.kind == DavErrorKind.authorization
+                ? l10n.nextcloudOperationDenied
+                : l10n.nextcloudServerUnavailable,
+          ),
+        if (model.loaded &&
+            !model.busy &&
+            error == null &&
+            widget.draft == null &&
+            model.messages.isEmpty)
+          Text(l10n.nextcloudInboxEmpty),
+        if (model.messages.isNotEmpty)
+          BusyMaxGroupedList(
+            filled: true,
             children: [
-              if (widget.draft == null)
-                Text(l10n.nextcloudInboxExplanation)
-              else if (widget.draft!.start != null && widget.draft!.end != null)
-                SelectableText(
-                  '${dateTime(widget.draft!.start!)} – ${dateTime(widget.draft!.end!)}'
-                  ' (${widget.draft!.startTimeZone ?? ref.read(localTimeZoneProvider)})',
+              for (final message in model.messages) ...[
+                YaruListTile.square(
+                  leading: const Icon(Icons.inbox_outlined),
+                  title: SelectableText(message.title),
+                  subtitle: message.method == null
+                      ? null
+                      : Text(message.method!),
                 ),
-              const SizedBox(height: 12),
-              if (model.busy) const CircularProgressIndicator(),
-              if (error != null)
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 12),
-                  child: Text(
-                    error is DavException &&
-                            error.kind == DavErrorKind.authorization
-                        ? l10n.nextcloudOperationDenied
-                        : l10n.nextcloudServerUnavailable,
-                  ),
+                BusyMaxActionRow(
+                  title: l10n.nextcloudAcknowledge,
+                  leading: const Icon(Icons.done_outlined),
+                  enabled: !model.busy,
+                  onTap: () => _acknowledge(message),
                 ),
-              if (model.loaded &&
-                  !model.busy &&
-                  error == null &&
-                  widget.draft == null &&
-                  model.messages.isEmpty)
-                Text(l10n.nextcloudInboxEmpty),
-              for (final message in model.messages)
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 12),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      SelectableText(message.title),
-                      Text(message.method ?? ''),
-                      TextButton(
-                        onPressed: model.busy
-                            ? null
-                            : () => _acknowledge(message),
-                        child: Text(l10n.nextcloudAcknowledge),
-                      ),
-                    ],
-                  ),
-                ),
+              ],
+            ],
+          ),
+        if (model.availability.isNotEmpty)
+          BusyMaxGroupedList(
+            filled: true,
+            children: [
               for (final result in model.availability)
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 16),
-                  child: Column(
+                YaruListTile.square(
+                  leading: Icon(
+                    result.availability == NextcloudAvailability.unknown
+                        ? YaruIcons.warning
+                        : result.intervals.isEmpty
+                        ? Icons.event_available_outlined
+                        : Icons.event_busy_outlined,
+                  ),
+                  title: SelectableText(
+                    result.recipient.replaceFirst(RegExp(r'^mailto:'), ''),
+                  ),
+                  subtitle: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      SelectableText(
-                        result.recipient.replaceFirst(RegExp(r'^mailto:'), ''),
-                      ),
                       Text(
                         result.availability == NextcloudAvailability.unknown
                             ? l10n.nextcloudAvailabilityUnknown
@@ -178,17 +182,6 @@ class _LinuxNextcloudSchedulingDialogState
                 ),
             ],
           ),
-        ),
-      ),
-      actions: [
-        TextButton(
-          onPressed: model.busy ? null : model.load,
-          child: Text(l10n.refresh),
-        ),
-        FilledButton(
-          onPressed: () => Navigator.pop(context),
-          child: Text(l10n.close),
-        ),
       ],
     );
   }

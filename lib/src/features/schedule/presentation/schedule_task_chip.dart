@@ -117,12 +117,16 @@ class ScheduleTaskChip extends StatelessWidget {
                         if (showCheckbox) ...[
                           SizedBox.square(
                             dimension: checkboxSize,
-                            child: YaruCheckbox(
-                              value: item.completed,
-                              onChanged: onCompletionChanged == null
-                                  ? null
-                                  : (value) =>
-                                        onCompletionChanged!(value ?? false),
+                            child: BusyMaxYaruFocusBorder(
+                              builder: (context, focusNode) => YaruCheckbox(
+                                value: item.completed,
+                                focusNode: focusNode,
+                                hasFocusBorder: false,
+                                onChanged: onCompletionChanged == null
+                                    ? null
+                                    : (value) =>
+                                          onCompletionChanged!(value ?? false),
+                              ),
                             ),
                           ),
                           const SizedBox(width: BusyMaxSpacing.xs),

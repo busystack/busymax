@@ -460,6 +460,15 @@ class AppLocalizationsFr extends AppLocalizations {
   String get close => 'Fermer';
 
   @override
+  String get windowMinimize => 'Réduire';
+
+  @override
+  String get windowMaximize => 'Agrandir';
+
+  @override
+  String get windowRestore => 'Restaurer';
+
+  @override
   String get exit => 'Quitter';
 
   @override
@@ -721,6 +730,18 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get scheduleDisplaySettings => 'Affichage du planning';
+
+  @override
+  String get newEventsAndTasks => 'Nouveaux événements et tâches';
+
+  @override
+  String get defaultCalendar => 'Calendrier par défaut';
+
+  @override
+  String get defaultTaskList => 'Liste de tâches par défaut';
+
+  @override
+  String get lastUsed => 'Dernier utilisé';
 
   @override
   String get scheduleDisplayHoursDescription =>
@@ -1061,6 +1082,9 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get shortcutGroupView => 'Affichage';
+
+  @override
+  String get viewSelector => 'Affichage';
 
   @override
   String get shortcutDayView => 'Vue jour';
@@ -2424,10 +2448,6 @@ class AppLocalizationsFr extends AppLocalizations {
   @override
   String get nextcloudAccountRemovedRevokeFailed =>
       'Le compte a été supprimé localement, mais le mot de passe d’app Nextcloud n’a pas pu être révoqué.';
-
-  @override
-  String get davCachedOfflineNotice =>
-      'Les données des calendriers et des tâches sont mises en cache localement pour une utilisation hors connexion.';
 
   @override
   String get davReauthenticationRequired =>

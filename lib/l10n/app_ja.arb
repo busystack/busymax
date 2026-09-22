@@ -246,6 +246,10 @@
   "viewAgenda": "予定一覧",
   "scheduleSettings": "スケジュール",
   "scheduleDisplaySettings": "スケジュール表示",
+  "newEventsAndTasks": "新しい予定とタスク",
+  "defaultCalendar": "既定のカレンダー",
+  "defaultTaskList": "既定のタスクリスト",
+  "lastUsed": "前回使用",
   "scheduleDisplayHoursDescription": "日表示と週表示では、最初にこの時間範囲が表示されます。必要に応じて、この範囲より前または後の項目も表示されるように範囲が広がります。",
   "scheduleDayStartsAt": "一日の開始時刻",
   "scheduleDayEndsAt": "一日の終了時刻",
@@ -308,6 +312,7 @@
   "shortcutPreviousPeriodDescription": "週表示では前の週、月表示では前の月というように移動します",
   "shortcutJumpToToday": "今日に移動",
   "shortcutGroupView": "表示",
+  "viewSelector": "表示",
   "shortcutDayView": "日表示",
   "shortcutWeekView": "週表示",
   "shortcutMonthView": "月表示",
@@ -589,7 +594,6 @@
   "connectAccountAction": "接続",
   "cancelAccountConnection": "接続をキャンセル",
   "nextcloudAccountRemovedRevokeFailed": "アカウントはローカルから削除されましたが、Nextcloud の App パスワードを無効にできませんでした。",
-  "davCachedOfflineNotice": "オフラインで使用できるよう、カレンダーとタスクのデータはローカルにキャッシュされます。",
   "davReauthenticationRequired": "同期を再開するには、このアカウントを再接続してください。",
   "davTemporarilyUnavailable": "このアカウントは一時的に利用できません。",
   "davPermissionChanged": "サーバーの権限が変更されました。保留中の編集は一時停止されています。",
@@ -1044,5 +1048,8 @@
   "searchClearFilters": "フィルターをリセット",
   "searchFiltersAction": "フィルター",
   "searchNoSources": "検索元が選択されていません",
-  "searchClearText": "テキストを消去"
+  "searchClearText": "テキストを消去",
+  "windowMinimize": "最小化",
+  "windowMaximize": "最大化",
+  "windowRestore": "元に戻す"
 }

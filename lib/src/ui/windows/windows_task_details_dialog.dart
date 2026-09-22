@@ -12,6 +12,7 @@ import '../../../l10n/generated/app_localizations.dart';
 import '../../app/app_bootstrap.dart';
 import '../../dav/ical/ical_task_alarm.dart';
 import '../../features/tasks/domain/task_capabilities.dart';
+import '../../features/tasks/domain/task_mutation_result.dart';
 import '../../features/tasks/data/tasks_repository.dart';
 import '../../features/tasks/presentation/task_details_draft.dart';
 import '../../features/schedule/presentation/schedule_item_exporter.dart';
@@ -34,6 +35,9 @@ Future<bool> showWindowsTaskDetailsDialog(
       const ExternalLocationLauncher(
         platform: _windowsExternalLocationPlatform,
       ),
+  TaskMutationCommittedCallback? onTaskMutationStarted,
+  TaskMutationCommittedCallback? onTaskMutationCommitted,
+  VoidCallback? onTaskMutationFailed,
 }) async {
   final repository = ref.read(
     tasksRepositoryForAccountProvider(task.accountId),
@@ -181,6 +185,14 @@ Future<bool> showWindowsTaskDetailsDialog(
       !currentDraft().hasSameValues(originalDraft) ||
       subtaskTitle.text.isNotEmpty ||
       (!capabilities.supportsTaskStatus && completed != task.completed);
+  void report(
+    TaskMutationCommittedCallback? callback,
+    TaskMutationResult result,
+  ) {
+    if (callback == null) return;
+    Future<void>.sync(() async => callback(result)).ignore();
+  }
+
   await showDialog<void>(
     context: context,
     barrierDismissible: false,
@@ -710,6 +722,23 @@ Future<bool> showWindowsTaskDetailsDialog(
                                 onChanged: enabled
                                     ? (value) async {
                                         setState(() => busy = true);
+                                        final affectedTask = subtask.task;
+                                        final mutation = TaskMutationResult(
+                                          kind: TaskMutationKind.completion,
+                                          accountId: task.accountId,
+                                          taskListId:
+                                              affectedTask?.taskListId ??
+                                              original.taskListId,
+                                          taskId:
+                                              affectedTask?.id ?? original.id,
+                                          checklistItemId:
+                                              subtask.kind ==
+                                                  TaskSubtaskKind.checklistItem
+                                              ? subtask.id
+                                              : null,
+                                          completed: value ?? false,
+                                        );
+                                        report(onTaskMutationStarted, mutation);
                                         try {
                                           if (subtask.kind ==
                                               TaskSubtaskKind.task) {
@@ -738,6 +767,10 @@ Future<bool> showWindowsTaskDetailsDialog(
                                                   completed: value ?? false,
                                                 );
                                           }
+                                          report(
+                                            onTaskMutationCommitted,
+                                            mutation,
+                                          );
                                           hierarchy = await repository
                                               .watchTaskHierarchy(
                                                 original.taskListId,
@@ -750,6 +783,7 @@ Future<bool> showWindowsTaskDetailsDialog(
                                             error = null;
                                           });
                                         } on Object catch (_) {
+                                          onTaskMutationFailed?.call();
                                           setState(() {
                                             busy = false;
                                             error = l10n.operationFailed;
@@ -975,9 +1009,20 @@ Future<bool> showWindowsTaskDetailsDialog(
                                 ? () async {
                                     setState(() => busy = true);
                                     try {
-                                      await repository.duplicateTask(
-                                        original.taskListId,
-                                        original.id,
+                                      final duplicateId = await repository
+                                          .duplicateTask(
+                                            original.taskListId,
+                                            original.id,
+                                          );
+                                      report(
+                                        onTaskMutationCommitted,
+                                        TaskMutationResult(
+                                          kind: TaskMutationKind.duplicated,
+                                          accountId: task.accountId,
+                                          taskListId: original.taskListId,
+                                          taskId: original.id,
+                                          createdTaskId: duplicateId,
+                                        ),
                                       );
                                       setState(() {
                                         busy = false;
@@ -1153,11 +1198,20 @@ Future<bool> showWindowsTaskDetailsDialog(
                         );
                         if (!(confirmed ?? false)) return;
                         setState(() => busy = true);
+                        final mutation = TaskMutationResult(
+                          kind: TaskMutationKind.deleted,
+                          accountId: task.accountId,
+                          taskListId: task.sourceId,
+                          taskId: task.id,
+                        );
+                        report(onTaskMutationStarted, mutation);
                         try {
                           await repository.deleteTask(task.sourceId, task.id);
+                          report(onTaskMutationCommitted, mutation);
                           changed = true;
                           closeDialog();
                         } on Object catch (_) {
+                          onTaskMutationFailed?.call();
                           setState(() {
                             busy = false;
                             error = l10n.operationFailed;
@@ -1219,6 +1273,21 @@ Future<bool> showWindowsTaskDetailsDialog(
                                   ? DateTime.now().toUtc().toIso8601String()
                                   : null;
                           }
+                          final moving =
+                              selectedTaskListId != original.taskListId;
+                          final completionChanged = completed != task.completed;
+                          final mutation = TaskMutationResult(
+                            kind: moving
+                                ? TaskMutationKind.moved
+                                : completionChanged
+                                ? TaskMutationKind.completion
+                                : TaskMutationKind.updated,
+                            accountId: task.accountId,
+                            taskListId: original.taskListId,
+                            taskId: task.id,
+                            completed: completionChanged ? completed : null,
+                          );
+                          report(onTaskMutationStarted, mutation);
                           if (patch.isNotEmpty) {
                             await repository.patchTask(
                               task.sourceId,
@@ -1238,9 +1307,11 @@ Future<bool> showWindowsTaskDetailsDialog(
                               ),
                             );
                           }
+                          report(onTaskMutationCommitted, mutation);
                           changed = true;
                           closeDialog();
                         } on Object catch (_) {
+                          onTaskMutationFailed?.call();
                           setState(() {
                             busy = false;
                             error = l10n.operationFailed;
@@ -1274,6 +1345,9 @@ Future<bool> showWindowsTaskDetailsDialog(
           ref,
           taskToOpen,
           externalLocationLauncher: externalLocationLauncher,
+          onTaskMutationStarted: onTaskMutationStarted,
+          onTaskMutationCommitted: onTaskMutationCommitted,
+          onTaskMutationFailed: onTaskMutationFailed,
         ) ||
         changed;
   }

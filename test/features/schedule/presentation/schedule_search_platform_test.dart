@@ -1,7 +1,10 @@
+import 'dart:async';
+
 import 'package:busymax/l10n/generated/app_localizations.dart';
 import 'package:busymax/src/android/presentation/android_schedule_screen.dart';
 import 'package:busymax/src/app/app_bootstrap.dart';
 import 'package:busymax/src/app/busymax_design.dart';
+import 'package:busymax/src/app/linux/linux_header_style.dart';
 import 'package:busymax/src/calendar_providers/calendar_sync_dto.dart';
 import 'package:busymax/src/db/app_database.dart';
 import 'package:busymax/src/features/accounts/data/accounts_repository.dart';
@@ -14,11 +17,10 @@ import 'package:busymax/src/features/schedule/presentation/schedule_workspace.da
 import 'package:busymax/src/features/task_lists/data/task_lists_repository.dart';
 import 'package:busymax/src/features/tasks/data/tasks_repository.dart';
 import 'package:busymax/src/l10n/week_preferences_scope.dart';
-import 'package:busymax/src/platform/linux_header_bar_provider.dart';
-import 'package:busymax/src/platform/linux_header_bar_service.dart';
 import 'package:busymax/src/providers/busy_provider.dart';
 import 'package:busymax/src/schedule/schedule_filters.dart';
 import 'package:busymax/src/schedule/schedule_repository.dart';
+import 'package:busymax/src/schedule/schedule_range.dart';
 import 'package:busymax/src/schedule/schedule_search_criteria.dart';
 import 'package:busymax/src/schedule/schedule_view_mode.dart';
 import 'package:busymax/src/ui/windows/windows_schedule_page.dart';
@@ -40,6 +42,135 @@ import '../../../support/memory_settings_store.dart';
 import '../../../test_localized_app.dart';
 
 void main() {
+  testWidgets(
+    'Windows delayed normal query cannot rebuild the retained side as search',
+    (tester) async {
+      final normalRefresh = Completer<void>();
+      final refreshStarted = Completer<void>();
+      addTearDown(() {
+        if (!normalRefresh.isCompleted) normalRefresh.complete();
+      });
+      var coverageCalls = 0;
+      final fixture = await _mount(
+        tester,
+        'windows',
+        ensureProjectionCoverage: (_) async {
+          coverageCalls += 1;
+          if (coverageCalls == 2) {
+            refreshStarted.complete();
+            await normalRefresh.future;
+          }
+        },
+      );
+      await tester.pumpAndSettle();
+      final planner = find.byType(WindowsScheduleMonthView);
+      final plannerScrollable = find
+          .descendant(of: planner, matching: find.byType(Scrollable))
+          .first;
+      final originalPlannerState = tester.state<ScrollableState>(
+        plannerScrollable,
+      );
+
+      final event = await fixture.db
+          .select(fixture.db.calendarEvents)
+          .getSingle();
+      await (fixture.db.update(
+        fixture.db.calendarEvents,
+      )..where((row) => row.id.equals(event.id))).write(
+        const CalendarEventsCompanion(title: Value('Refresh in progress')),
+      );
+      for (
+        var attempt = 0;
+        attempt < 20 && !refreshStarted.isCompleted;
+        attempt++
+      ) {
+        await tester.pump(const Duration(milliseconds: 10));
+        await tester.runAsync(() => Future<void>.delayed(Duration.zero));
+      }
+      expect(refreshStarted.isCompleted, isTrue);
+      await tester.pump();
+      expect(
+        tester
+            .stateList<ScrollableState>(
+              find.descendant(
+                of: find.byType(WindowsScheduleMonthView),
+                matching: find.byType(Scrollable),
+              ),
+            )
+            .any((state) => identical(state, originalPlannerState)),
+        isTrue,
+        reason: 'starting a replacement query must retain the planner',
+      );
+      await _searchShortcut(tester);
+      await tester.pumpAndSettle();
+      expect(find.byType(WindowsScheduleSearchPane), findsOneWidget);
+      expect(
+        find.byType(WindowsScheduleMonthView, skipOffstage: false),
+        findsOneWidget,
+      );
+      expect(
+        tester
+            .stateList<ScrollableState>(
+              find.descendant(
+                of: find.byType(WindowsScheduleMonthView, skipOffstage: false),
+                matching: find.byType(Scrollable, skipOffstage: false),
+                skipOffstage: false,
+              ),
+            )
+            .any((state) => identical(state, originalPlannerState)),
+        isTrue,
+      );
+
+      normalRefresh.complete();
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 20));
+      expect(
+        tester
+            .stateList<ScrollableState>(
+              find.descendant(
+                of: find.byType(WindowsScheduleMonthView, skipOffstage: false),
+                matching: find.byType(Scrollable, skipOffstage: false),
+                skipOffstage: false,
+              ),
+            )
+            .any((state) => identical(state, originalPlannerState)),
+        isTrue,
+      );
+
+      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+      await tester.pumpAndSettle();
+      expect(find.byType(WindowsScheduleMonthView), findsOneWidget);
+      expect(
+        tester.state<ScrollableState>(plannerScrollable),
+        same(originalPlannerState),
+      );
+    },
+  );
+
+  testWidgets(
+    'Windows empty Agenda keeps Load more and reveals the following horizon',
+    (tester) async {
+      final eventDate = DateTime.now().add(const Duration(days: 40));
+      await _mount(
+        tester,
+        'windows',
+        scheduleMode: ScheduleViewMode.agenda,
+        seedSearchItems: false,
+        additionalEventDate: eventDate,
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Following horizon meeting'), findsNothing);
+      final loadMore = find.text('Load more agenda items');
+      expect(loadMore, findsOneWidget);
+      await tester.tap(loadMore);
+      await tester.pumpAndSettle();
+
+      expect(find.text('Following horizon meeting'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
   for (final platform in ['linux', 'windows']) {
     testWidgets(
       '$platform search swaps sidebar, lists all local matches, keeps temporary sources and restores Month',
@@ -204,7 +335,7 @@ void main() {
         // Clearing only the entry retains Person and the temporary scope.
         final entry = platform == 'linux'
             ? find.descendant(
-                of: find.byType(BusyMaxSearchField),
+                of: find.byType(BusyMaxLinuxHeaderSearchField),
                 matching: find.byType(TextField),
               )
             : find
@@ -256,35 +387,38 @@ void main() {
         await _searchShortcut(tester);
         expect(
           platform == 'linux'
-              ? find.byType(ScheduleSearchFilters)
-              : find.byType(WindowsScheduleSearchPane),
+              ? find.byType(ScheduleSearchFilters).hitTestable()
+              : find.byType(WindowsScheduleSearchPane).hitTestable(),
           findsNothing,
         );
         await tester.sendKeyEvent(LogicalKeyboardKey.f9);
         await tester.pumpAndSettle();
         expect(
           platform == 'linux'
-              ? find.byType(ScheduleSearchFilters)
-              : find.byType(WindowsScheduleSearchPane),
+              ? find.byType(ScheduleSearchFilters).hitTestable()
+              : find.byType(WindowsScheduleSearchPane).hitTestable(),
           findsOneWidget,
         );
         if (platform == 'linux') {
+          final visibleFilters = find
+              .byType(ScheduleSearchFilters)
+              .hitTestable();
           expect(find.byType(BusyMaxDialogShell), findsOneWidget);
-          expect(find.byType(BusyMaxSidebarSurface), findsNothing);
           expect(
-            tester
-                .widget<ScheduleSearchFilters>(
-                  find.byType(ScheduleSearchFilters),
-                )
-                .sidebar,
+            find.byType(BusyMaxSidebarSurface).hitTestable(),
+            findsNothing,
+          );
+          expect(
+            tester.widget<ScheduleSearchFilters>(visibleFilters).sidebar,
             isFalse,
           );
-          Navigator.of(
-            tester.element(find.byType(ScheduleSearchFilters)),
-          ).pop();
+          Navigator.of(tester.element(visibleFilters)).pop();
           await tester.pumpAndSettle();
           expect(find.byType(BusyMaxDialogShell), findsNothing);
-          expect(find.byType(ScheduleSearchFilters), findsNothing);
+          expect(
+            find.byType(ScheduleSearchFilters).hitTestable(),
+            findsNothing,
+          );
           expect(
             find.byKey(const ValueKey('schedule-search-results')),
             findsOneWidget,
@@ -297,7 +431,10 @@ void main() {
           await tester.pumpAndSettle();
           expect(find.byType(BusyMaxDialogShell), findsNothing);
           expect(find.byType(ScheduleSearchFilters), findsOneWidget);
-          expect(find.byType(BusyMaxSidebarSurface), findsOneWidget);
+          expect(
+            find.byType(BusyMaxSidebarSurface).hitTestable(),
+            findsOneWidget,
+          );
         }
         expect(
           find.text('Custom range'),
@@ -408,6 +545,62 @@ void main() {
     },
   );
 
+  for (final reducedMotion in [false, true]) {
+    testWidgets('Android search restores focus after reopening'
+        '${reducedMotion ? ' with reduced motion' : ''}', (tester) async {
+      if (reducedMotion) {
+        tester.binding.platformDispatcher.accessibilityFeaturesTestValue =
+            const FakeAccessibilityFeatures(disableAnimations: true);
+        addTearDown(
+          tester.binding.platformDispatcher.clearAccessibilityFeaturesTestValue,
+        );
+      }
+      await _mount(tester, 'android', width: 480);
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byIcon(Icons.search));
+      await tester.pumpAndSettle();
+      final firstField = tester.widget<TextField>(find.byType(TextField));
+      final focusNode = firstField.focusNode!;
+      expect(focusNode.hasFocus, isTrue);
+
+      await tester.tap(find.byIcon(Icons.close));
+      await tester.pumpAndSettle();
+      expect(focusNode.hasFocus, isFalse);
+
+      await tester.tap(find.byIcon(Icons.search));
+      await tester.pumpAndSettle();
+      final reopenedField = tester.widget<TextField>(find.byType(TextField));
+      expect(reopenedField.focusNode, same(focusNode));
+      expect(focusNode.hasFocus, isTrue);
+    });
+  }
+
+  testWidgets('closing Android search cancels its scheduled focus request', (
+    tester,
+  ) async {
+    await _mount(tester, 'android', width: 480);
+    await tester.pumpAndSettle();
+    var closedBeforeFocus = false;
+    tester.binding.addPostFrameCallback((_) {
+      final close = find.widgetWithIcon(IconButton, Icons.close);
+      if (close.evaluate().length != 1) return;
+      closedBeforeFocus = true;
+      tester.widget<IconButton>(close).onPressed!();
+    });
+
+    await tester.tap(find.byIcon(Icons.search));
+    await tester.pump();
+    await tester.pumpAndSettle();
+
+    expect(closedBeforeFocus, isTrue);
+    expect(find.byIcon(Icons.search), findsOneWidget);
+    final retainedField = tester.widget<TextField>(
+      find.byType(TextField, skipOffstage: false),
+    );
+    expect(retainedField.focusNode!.hasFocus, isFalse);
+  });
+
   testWidgets(
     'Android confirms an open date filter with the latest system weekday',
     (tester) async {
@@ -472,7 +665,7 @@ void main() {
 
     await tester.sendKeyEvent(LogicalKeyboardKey.f9);
     await tester.pumpAndSettle();
-    final pane = find.byType(WindowsScheduleSourcePane);
+    final pane = find.byType(WindowsScheduleSourcePane).hitTestable();
     expect(pane, findsOneWidget);
     expect(
       tester.widget<WindowsScheduleSourcePane>(pane).firstWeekday,
@@ -501,6 +694,10 @@ Future<({AppDatabase db, ProviderContainer container})> _mount(
   String platform, {
   double width = 1280,
   ValueListenable<int?>? systemWeekday,
+  Future<void> Function(ScheduleRange range)? ensureProjectionCoverage,
+  ScheduleViewMode scheduleMode = ScheduleViewMode.month,
+  bool seedSearchItems = true,
+  DateTime? additionalEventDate,
 }) async {
   tester.view
     ..physicalSize = Size(width, 900)
@@ -542,43 +739,62 @@ Future<({AppDatabase db, ProviderContainer container})> _mount(
       summary: 'Work calendar',
     ),
   );
-  await calendar.upsertEvent(
-    accountId: 'account',
-    event: const CalendarEventDto(
-      provider: BusyProvider.google,
-      providerCalendarId: 'calendar',
-      providerEventId: 'far',
-      title: 'Far future review',
-      allDay: true,
-      startDate: '2040-02-15',
-      endDate: '2040-02-16',
-      location: 'Office',
-      attendeesJson: [
-        {'email': 'alex@example.com'},
-      ],
-    ),
-  );
-  for (final entry in [
-    ('overdue', 'Overdue task', '2020-01-01', 'needsAction'),
-    ('done', 'Completed task', '2020-01-01', 'completed'),
-    ('undated', 'No due task', null, 'needsAction'),
-  ]) {
-    await db.tasksDao.upsertTask(
-      TasksCompanion.insert(
-        accountId: 'account',
-        taskListId: 'list',
-        id: entry.$1,
-        title: entry.$2,
-        dueUtc: Value(entry.$3),
-        status: Value(entry.$4),
-        taskLocation: const Value('Office'),
-        rawJson: '{}',
-        createdLocalAtUtc: now,
-        updatedLocalAtUtc: now,
+  if (seedSearchItems) {
+    await calendar.upsertEvent(
+      accountId: 'account',
+      event: const CalendarEventDto(
+        provider: BusyProvider.google,
+        providerCalendarId: 'calendar',
+        providerEventId: 'far',
+        title: 'Far future review',
+        allDay: true,
+        startDate: '2040-02-15',
+        endDate: '2040-02-16',
+        location: 'Office',
+        attendeesJson: [
+          {'email': 'alex@example.com'},
+        ],
+      ),
+    );
+    for (final entry in [
+      ('overdue', 'Overdue task', '2020-01-01', 'needsAction'),
+      ('done', 'Completed task', '2020-01-01', 'completed'),
+      ('undated', 'No due task', null, 'needsAction'),
+    ]) {
+      await db.tasksDao.upsertTask(
+        TasksCompanion.insert(
+          accountId: 'account',
+          taskListId: 'list',
+          id: entry.$1,
+          title: entry.$2,
+          dueUtc: Value(entry.$3),
+          status: Value(entry.$4),
+          taskLocation: const Value('Office'),
+          rawJson: '{}',
+          createdLocalAtUtc: now,
+          updatedLocalAtUtc: now,
+        ),
+      );
+    }
+  }
+  if (additionalEventDate != null) {
+    final startDate = DateFormat('yyyy-MM-dd').format(additionalEventDate);
+    final endDate = DateFormat(
+      'yyyy-MM-dd',
+    ).format(additionalEventDate.add(const Duration(days: 1)));
+    await calendar.upsertEvent(
+      accountId: 'account',
+      event: CalendarEventDto(
+        provider: BusyProvider.google,
+        providerCalendarId: 'calendar',
+        providerEventId: 'following-horizon',
+        title: 'Following horizon meeting',
+        allDay: true,
+        startDate: startDate,
+        endDate: endDate,
       ),
     );
   }
-  final header = LinuxHeaderBarService(isLinux: false);
   final container = ProviderContainer(
     overrides: [
       networkAvailabilityProvider.overrideWith(
@@ -586,11 +802,10 @@ Future<({AppDatabase db, ProviderContainer container})> _mount(
       ),
       databaseProvider.overrideWithValue(db),
       localTimeZoneProvider.overrideWithValue('UTC'),
-      linuxHeaderBarServiceProvider.overrideWithValue(header),
       localSettingsStoreProvider.overrideWithValue(MemorySettingsStore()),
       initialAppSettingsProvider.overrideWithValue(
         AppSettings.defaults().copyWith(
-          scheduleViewMode: ScheduleViewMode.month,
+          scheduleViewMode: scheduleMode,
           androidScheduleViewMode: ScheduleViewMode.month,
         ),
       ),
@@ -598,7 +813,12 @@ Future<({AppDatabase db, ProviderContainer container})> _mount(
         AccountsRepository(database: db),
       ),
       calendarRepositoryProvider.overrideWithValue(calendar),
-      scheduleRepositoryProvider.overrideWithValue(ScheduleRepository(db)),
+      scheduleRepositoryProvider.overrideWithValue(
+        ScheduleRepository(
+          db,
+          ensureProjectionCoverage: ensureProjectionCoverage,
+        ),
+      ),
       taskListsRepositoryForAccountProvider.overrideWith(
         (ref, id) => TaskListsRepository(database: db, accountId: id),
       ),
@@ -610,7 +830,6 @@ Future<({AppDatabase db, ProviderContainer container})> _mount(
   addTearDown(() async {
     await tester.pumpWidget(const SizedBox.shrink());
     container.dispose();
-    header.dispose();
     await db.close();
   });
   final platformApp = platform == 'windows'

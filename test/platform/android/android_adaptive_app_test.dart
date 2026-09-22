@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:busymax/src/android/android_app.dart';
@@ -25,6 +26,7 @@ import 'package:busymax/src/features/tasks/data/tasks_repository.dart';
 import 'package:busymax/src/features/tasks/domain/task_capabilities.dart';
 import 'package:busymax/src/providers/busy_provider.dart';
 import 'package:busymax/src/schedule/schedule_repository.dart';
+import 'package:busymax/src/schedule/schedule_range.dart';
 import 'package:busymax/src/schedule/schedule_view_mode.dart';
 import 'package:drift/drift.dart' hide isNull;
 import 'package:flutter/material.dart';
@@ -340,6 +342,110 @@ void main() {
   });
 
   testWidgets(
+    'period navigation keeps the time grid mounted while destination loads',
+    (tester) async {
+      tester.view.physicalSize = const Size(412, 915);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      final destination = Completer<void>();
+      DateTime? initialRangeStart;
+      final harness = await _pumpApp(
+        tester,
+        AppSettings.defaults().copyWith(
+          androidScheduleViewMode: ScheduleViewMode.day,
+        ),
+        populated: true,
+        scheduleProjectionCoverage: (range) async {
+          initialRangeStart ??= range.start;
+          if (range.start != initialRangeStart) await destination.future;
+        },
+      );
+      addTearDown(harness.dispose);
+
+      final grid = find.byKey(const ValueKey('android-day-time-grid'));
+      expect(grid, findsOneWidget);
+      final verticalScrollables = find.descendant(
+        of: grid,
+        matching: find.byWidgetPredicate(
+          (widget) =>
+              widget is Scrollable &&
+              widget.axisDirection == AxisDirection.down,
+        ),
+      );
+      final originalScrollable = tester
+          .stateList<ScrollableState>(verticalScrollables)
+          .singleWhere((state) => state.position.maxScrollExtent > 0);
+      originalScrollable.position.jumpTo(240);
+      await tester.pump();
+      final originalOffset = originalScrollable.position.pixels;
+      expect(originalOffset, greaterThan(0));
+
+      await tester.tap(find.byIcon(Icons.chevron_right));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
+      expect(grid, findsOneWidget);
+      expect(find.byType(CircularProgressIndicator), findsOneWidget);
+      expect(
+        tester
+            .stateList<ScrollableState>(verticalScrollables)
+            .any((state) => identical(state, originalScrollable)),
+        isTrue,
+      );
+      expect(originalScrollable.position.pixels, closeTo(originalOffset, .01));
+
+      await tester.pump(const Duration(milliseconds: 180));
+      expect(grid, findsOneWidget);
+      expect(find.byType(CircularProgressIndicator), findsOneWidget);
+      destination.complete();
+      await tester.pumpAndSettle();
+      expect(grid, findsOneWidget);
+      expect(find.byType(CircularProgressIndicator), findsNothing);
+      expect(
+        tester
+            .stateList<ScrollableState>(verticalScrollables)
+            .any((state) => identical(state, originalScrollable)),
+        isTrue,
+      );
+      expect(originalScrollable.position.pixels, closeTo(originalOffset, .01));
+    },
+  );
+
+  testWidgets('Agenda loading hides its empty message until data resolves', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(412, 915);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final destination = Completer<void>();
+    DateTime? initialRangeStart;
+    final harness = await _pumpApp(
+      tester,
+      AppSettings.defaults().copyWith(
+        androidScheduleViewMode: ScheduleViewMode.agenda,
+      ),
+      scheduleProjectionCoverage: (range) async {
+        initialRangeStart ??= range.start;
+        if (range.start != initialRangeStart) await destination.future;
+      },
+    );
+    addTearDown(harness.dispose);
+
+    expect(find.text('No events or tasks'), findsOneWidget);
+    await tester.tap(find.byIcon(Icons.chevron_right));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 220));
+    expect(find.byType(CircularProgressIndicator), findsOneWidget);
+    expect(find.text('No events or tasks'), findsNothing);
+
+    destination.complete();
+    await tester.pumpAndSettle();
+    expect(find.byType(CircularProgressIndicator), findsNothing);
+    expect(find.text('No events or tasks'), findsOneWidget);
+  });
+
+  testWidgets(
     'long schedule details remain scrollable across constrained viewports',
     (tester) async {
       tester.view.devicePixelRatio = 1;
@@ -621,6 +727,13 @@ void main() {
   testWidgets('Android Settings exposes diagnostics and feedback routes', (
     tester,
   ) async {
+    PackageInfo.setMockInitialValues(
+      appName: 'BusyMax',
+      packageName: 'io.busystack.busymax',
+      version: '0.2.3',
+      buildNumber: '3',
+      buildSignature: '',
+    );
     final harness = await _pumpApp(tester, AppSettings.defaults());
     addTearDown(harness.dispose);
     harness.container.read(androidSelectedDestinationProvider.notifier).state =
@@ -654,6 +767,21 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.byType(AndroidDiagnosticsScreen), findsOneWidget);
     tester.state<NavigatorState>(find.byType(Navigator).first).pop();
+    await tester.pumpAndSettle();
+
+    final about = find.text('About BusyMax');
+    await _scrollUntilBuilt(tester, about);
+    await tester.tap(about);
+    await tester.pumpAndSettle();
+    expect(find.text('0.2.3'), findsOneWidget);
+    expect(
+      find.descendant(
+        of: find.byType(AboutDialog),
+        matching: find.textContaining('+'),
+      ),
+      findsNothing,
+    );
+    await tester.tap(find.widgetWithText(TextButton, 'Close'));
     await tester.pumpAndSettle();
 
     final feedback = find.text('Send feedback');
@@ -1181,6 +1309,8 @@ void main() {
   testWidgets('dirty task save-and-move persists edits before moving', (
     tester,
   ) async {
+    final mutationCallbacks = <String>[];
+    var editorPresentAtCommit = false;
     final harness = await _pumpApp(tester, AppSettings.defaults());
     addTearDown(harness.dispose);
     await _seedMovableTask(harness.database);
@@ -1189,7 +1319,18 @@ void main() {
       hasLength(3),
     );
     await tester.pump();
-    await _openMovableTaskEditor(tester, _movableTask());
+    await _openMovableTaskEditor(
+      tester,
+      _movableTask(),
+      onMutationStarted: (result) => mutationCallbacks.add('started'),
+      onMutationCommitted: (result) {
+        mutationCallbacks.add('committed');
+        editorPresentAtCommit = find
+            .byType(AndroidTaskEditor)
+            .evaluate()
+            .isNotEmpty;
+      },
+    );
 
     await tester.enterText(
       find.widgetWithText(TextField, 'Title'),
@@ -1214,6 +1355,8 @@ void main() {
     )..where((task) => task.id.equals('move-task'))).getSingle();
     expect(row.title, 'Edited before move');
     expect(row.taskListId, 'destination-list');
+    expect(mutationCallbacks, ['started', 'committed']);
+    expect(editorPresentAtCommit, isTrue);
     final operations = await harness.database
         .select(harness.database.pendingOps)
         .get();
@@ -1374,8 +1517,8 @@ void main() {
     PackageInfo.setMockInitialValues(
       appName: 'BusyMax',
       packageName: 'io.busystack.busymax',
-      version: '0.2.2',
-      buildNumber: '2',
+      version: '0.2.3',
+      buildNumber: '3',
       buildSignature: '',
     );
     final feedback = _RecordingFeedbackService();
@@ -1444,8 +1587,10 @@ TaskEntity _movableTask({String taskListId = 'source-list'}) => TaskEntity(
 
 Future<void> _openMovableTaskEditor(
   WidgetTester tester,
-  TaskEntity task,
-) async {
+  TaskEntity task, {
+  ValueChanged<AndroidTaskEditorResult>? onMutationStarted,
+  ValueChanged<AndroidTaskEditorResult>? onMutationCommitted,
+}) async {
   tester
       .state<NavigatorState>(find.byType(Navigator).first)
       .push<void>(
@@ -1458,6 +1603,8 @@ Future<void> _openMovableTaskEditor(
             listLabel: task.taskListId == 'source-list'
                 ? 'Source list'
                 : 'Missing source',
+            onMutationStarted: onMutationStarted,
+            onMutationCommitted: onMutationCommitted,
           ),
         ),
       );
@@ -1500,6 +1647,7 @@ Future<_AndroidAppHarness> _pumpApp(
   Future<void> Function(String accountId)? onCalendarSync,
   FeedbackSubmissionService? feedbackService,
   CloudCalendarClient? calendarClient,
+  Future<void> Function(ScheduleRange range)? scheduleProjectionCoverage,
 }) async {
   final database = AppDatabase.memoryForTests();
   if (seedDatabase != null) await seedDatabase(database);
@@ -1513,7 +1661,10 @@ Future<_AndroidAppHarness> _pumpApp(
       buildConfigProvider.overrideWithValue(BuildConfig.forAndroid()),
       databaseProvider.overrideWithValue(database),
       scheduleRepositoryProvider.overrideWithValue(
-        ScheduleRepository(database),
+        ScheduleRepository(
+          database,
+          ensureProjectionCoverage: scheduleProjectionCoverage,
+        ),
       ),
       taskListsRepositoryForAccountProvider.overrideWith(
         (ref, accountId) =>

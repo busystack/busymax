@@ -453,6 +453,15 @@ class AppLocalizationsVi extends AppLocalizations {
   String get close => 'Đóng';
 
   @override
+  String get windowMinimize => 'Thu nhỏ';
+
+  @override
+  String get windowMaximize => 'Phóng to';
+
+  @override
+  String get windowRestore => 'Khôi phục';
+
+  @override
   String get exit => 'Thoát';
 
   @override
@@ -714,6 +723,18 @@ class AppLocalizationsVi extends AppLocalizations {
 
   @override
   String get scheduleDisplaySettings => 'Hiển thị lịch biểu';
+
+  @override
+  String get newEventsAndTasks => 'Sự kiện và công việc mới';
+
+  @override
+  String get defaultCalendar => 'Lịch mặc định';
+
+  @override
+  String get defaultTaskList => 'Danh sách công việc mặc định';
+
+  @override
+  String get lastUsed => 'Dùng gần nhất';
 
   @override
   String get scheduleDisplayHoursDescription =>
@@ -1065,6 +1086,9 @@ class AppLocalizationsVi extends AppLocalizations {
 
   @override
   String get shortcutGroupView => 'Chế độ xem';
+
+  @override
+  String get viewSelector => 'Chế độ xem';
 
   @override
   String get shortcutDayView => 'Chế độ xem ngày';
@@ -2422,10 +2446,6 @@ class AppLocalizationsVi extends AppLocalizations {
   @override
   String get nextcloudAccountRemovedRevokeFailed =>
       'Tài khoản đã bị xóa cục bộ nhưng không thể thu hồi mật khẩu ứng dụng Nextcloud.';
-
-  @override
-  String get davCachedOfflineNotice =>
-      'Dữ liệu lịch và công việc được lưu trong bộ nhớ đệm cục bộ để sử dụng ngoại tuyến.';
 
   @override
   String get davReauthenticationRequired =>

@@ -122,6 +122,117 @@ void main() {
   );
 
   test(
+    'regular event with stale recurrence metadata moves without a scope prompt',
+    () async {
+      await _expectStaleRegularEventMovesWithoutScope(
+        repository,
+        database,
+        rawJson: '{"id":"regular-event"}',
+      );
+    },
+  );
+
+  test(
+    'regular event with missing payload and stale recurrence metadata moves without a scope prompt',
+    () async {
+      await _expectStaleRegularEventMovesWithoutScope(
+        repository,
+        database,
+        rawJson: '{}',
+      );
+    },
+  );
+
+  test(
+    'recovery baseline does not promote stale regular-event metadata to recurrence',
+    () async {
+      const start = '2026-06-08T09:00:00.000Z';
+      const end = '2026-06-08T10:00:00.000Z';
+      await _upsertSource(repository);
+      await repository.upsertEvent(
+        accountId: 'google:g',
+        event: const CalendarEventDto(
+          provider: BusyProvider.google,
+          providerCalendarId: 'calendar-1',
+          providerEventId: 'regular-recovery-event',
+          providerRecurringEventId: 'stale-series-id',
+          providerOriginalStartKey: start,
+          title: 'Regular event',
+          organizerJson: {'self': true},
+          startDateTime: start,
+          startTimeZone: 'UTC',
+          endDateTime: end,
+          endTimeZone: 'UTC',
+          rawJson: {
+            'id': 'regular-recovery-event',
+            'summary': 'Regular event',
+            'organizer': {'self': true},
+            'start': {'dateTime': start, 'timeZone': 'UTC'},
+            'end': {'dateTime': end, 'timeZone': 'UTC'},
+          },
+        ),
+      );
+      final eventId = CalendarRepository.eventId(
+        accountId: 'google:g',
+        provider: BusyProvider.google,
+        providerCalendarId: 'calendar-1',
+        providerEventId: 'regular-recovery-event',
+        providerOriginalStartKey: start,
+      );
+      final initial = (await repository.loadEventDetail(eventId))!;
+      expect(initial.requiresRecurringMutationScope, isFalse);
+
+      await repository.updateLocalEvent(
+        EventEditorDraft.fromEventDetail(
+          initial,
+        ).copyWith(title: 'Optimistic title'),
+      );
+      final discardedOperation = await database
+          .select(database.pendingOps)
+          .getSingle();
+      await repository.restoreEventAfterMutationDiscard(discardedOperation);
+      await database.pendingOpsDao.deleteOp(discardedOperation.id);
+
+      final restored = (await repository.loadEventDetail(eventId))!;
+      expect(restored.providerRecurringEventId, equals(null));
+      expect(restored.requiresRecurringMutationScope, isFalse);
+      expect((restored.raw as Map).containsKey('recurringEventId'), isFalse);
+
+      final item = (await ScheduleRepository(database).listItems(
+        range: ScheduleRange.day(DateTime(2026, 6, 8)),
+      )).whereType<CalendarScheduleItem>().single;
+      var scopeRequests = 0;
+      final result =
+          await ScheduleReschedulingCoordinator(
+            repository: repository,
+            chooseScope: (_, _) async {
+              scopeRequests++;
+              return RecurringEventMutationScope.singleOccurrence;
+            },
+            chooseGuestUpdates: (_) async => throw StateError('No guests'),
+            requestSync: (_) async {},
+          ).commit(
+            ScheduleRescheduleRequest(
+              item: item,
+              interval: ScheduleInterval(
+                item.start!.add(const Duration(minutes: 15)),
+                item.end!.add(const Duration(minutes: 15)),
+              ),
+            ),
+          );
+      expect(result, ScheduleRescheduleResult.saved);
+      expect(scopeRequests, 0);
+      final request =
+          jsonDecode(
+                (await database.select(database.pendingOps).getSingle())
+                    .requestJson,
+              )
+              as Map;
+      expect(request.containsKey(calendarEventRecurringScopeKey), isFalse);
+    },
+  );
+
+  test(
     'Tokyo series loads through ScheduleRepository and reschedules across the host DST gap',
     () async {
       final hostZone = ProcessTimeZone();
@@ -129,6 +240,15 @@ void main() {
       addTearDown(hostZone.restore);
       expect(DateTime(2026, 3, 8, 2, 30).hour, isNot(2));
       await _upsertSource(repository);
+      await _upsertGoogleSeriesMaster(
+        repository,
+        database,
+        seriesId: 'tokyo-series',
+        title: 'Tokyo meeting',
+        start: '2026-03-01T02:30:00',
+        end: '2026-03-01T03:30:00',
+        timeZone: 'Asia/Tokyo',
+      );
       await repository.upsertEvent(
         accountId: 'google:g',
         event: const CalendarEventDto(
@@ -143,6 +263,19 @@ void main() {
           endDateTime: '2026-03-08T03:30:00',
           startTimeZone: 'Asia/Tokyo',
           endTimeZone: 'Asia/Tokyo',
+          rawJson: {
+            'id': 'tokyo-occurrence',
+            'recurringEventId': 'tokyo-series',
+            'originalStartTime': {'dateTime': '2026-03-08T02:30:00+09:00'},
+            'start': {
+              'dateTime': '2026-03-08T02:30:00',
+              'timeZone': 'Asia/Tokyo',
+            },
+            'end': {
+              'dateTime': '2026-03-08T03:30:00',
+              'timeZone': 'Asia/Tokyo',
+            },
+          },
         ),
       );
       final schedule = ScheduleRepository(database);
@@ -203,8 +336,8 @@ void main() {
     () async {
       await _upsertSource(repository);
       final ids = [
-        await _upsertGoogleOccurrence(repository, day: 8),
-        await _upsertGoogleOccurrence(repository, day: 15),
+        await _upsertGoogleOccurrence(repository, database, day: 8),
+        await _upsertGoogleOccurrence(repository, database, day: 15),
       ];
       await database
           .update(database.calendarEvents)
@@ -377,7 +510,7 @@ void main() {
       'recurrence drag $decision honors scope and rechecks after dialogs',
       () async {
         await _upsertSource(repository);
-        final id = await _upsertGoogleOccurrence(repository, day: 8);
+        final id = await _upsertGoogleOccurrence(repository, database, day: 8);
         final detail = (await repository.loadEventDetail(id))!;
         final coordinator = ScheduleReschedulingCoordinator(
           repository: repository,
@@ -986,8 +1119,26 @@ void main() {
       expect(detail.baselineRaw, raw);
 
       final draft = EventEditorDraft.fromEventDetail(detail);
-      expect(draft.start, DateTime(2026, 6, 8, 9, 30));
-      expect(draft.end, DateTime(2026, 6, 8, 10, 30));
+      expect(
+        (
+          draft.start!.year,
+          draft.start!.month,
+          draft.start!.day,
+          draft.start!.hour,
+          draft.start!.minute,
+        ),
+        (2026, 6, 8, 9, 30),
+      );
+      expect(
+        (
+          draft.end!.year,
+          draft.end!.month,
+          draft.end!.day,
+          draft.end!.hour,
+          draft.end!.minute,
+        ),
+        (2026, 6, 8, 10, 30),
+      );
       expect(draft.startTimeZone, 'Pacific Standard Time');
       expect(draft.endTimeZone, 'Pacific Standard Time');
       expect(draft.description, 'Full meeting notes');
@@ -1316,7 +1467,9 @@ void main() {
       await _upsertSource(repository);
       final eventIds = <String>[];
       for (final day in [1, 8, 15]) {
-        eventIds.add(await _upsertGoogleOccurrence(repository, day: day));
+        eventIds.add(
+          await _upsertGoogleOccurrence(repository, database, day: day),
+        );
       }
       final detail = await repository.loadEventDetail(eventIds[1]);
 
@@ -1328,9 +1481,13 @@ void main() {
       );
 
       final rows =
-          await (database.select(database.calendarEvents)..orderBy([
-                (row) => OrderingTerm.asc(row.providerOriginalStartKey),
-              ]))
+          await (database.select(database.calendarEvents)
+                ..where(
+                  (row) => row.providerRecurringEventId.equals('series-master'),
+                )
+                ..orderBy([
+                  (row) => OrderingTerm.asc(row.providerOriginalStartKey),
+                ]))
               .get();
       expect(rows.map((row) => row.title), everyElement('Renamed series'));
       expect(rows.map((row) => row.syncStatus), everyElement('pending'));
@@ -1350,8 +1507,11 @@ void main() {
           'endTimeZone': 'UTC',
         },
       });
-      expect(operation.baselineUpdatedUtc, equals(null));
-      expect(operation.baselineRawJson, equals(null));
+      expect(operation.baselineUpdatedUtc, '2026-05-30T00:00:00.000Z');
+      expect(
+        (jsonDecode(operation.baselineRawJson!) as Map)['id'],
+        'series-master',
+      );
     },
   );
 
@@ -1361,7 +1521,9 @@ void main() {
       await _upsertSource(repository);
       final eventIds = <String>[];
       for (final day in [1, 8, 15]) {
-        eventIds.add(await _upsertGoogleOccurrence(repository, day: day));
+        eventIds.add(
+          await _upsertGoogleOccurrence(repository, database, day: day),
+        );
       }
       final detail = await repository.loadEventDetail(eventIds[1]);
 
@@ -1373,9 +1535,13 @@ void main() {
       );
 
       final rows =
-          await (database.select(database.calendarEvents)..orderBy([
-                (row) => OrderingTerm.asc(row.providerOriginalStartKey),
-              ]))
+          await (database.select(database.calendarEvents)
+                ..where(
+                  (row) => row.providerRecurringEventId.equals('series-master'),
+                )
+                ..orderBy([
+                  (row) => OrderingTerm.asc(row.providerOriginalStartKey),
+                ]))
               .get();
       expect(rows.map((row) => row.location), [null, 'New room', 'New room']);
       expect(rows.map((row) => row.syncStatus), [
@@ -1967,9 +2133,11 @@ Future<void> _upsertSource(CalendarRepository repository) {
 }
 
 Future<String> _upsertGoogleOccurrence(
-  CalendarRepository repository, {
+  CalendarRepository repository,
+  AppDatabase database, {
   required int day,
 }) async {
+  await _upsertGoogleSeriesMaster(repository, database);
   final date = day.toString().padLeft(2, '0');
   final start = '2026-06-${date}T09:00:00.000Z';
   final end = '2026-06-${date}T10:00:00.000Z';
@@ -2007,6 +2175,53 @@ Future<String> _upsertGoogleOccurrence(
     providerEventId: providerEventId,
     providerOriginalStartKey: start,
   );
+}
+
+Future<void> _upsertGoogleSeriesMaster(
+  CalendarRepository repository,
+  AppDatabase database, {
+  String seriesId = 'series-master',
+  String title = 'Weekly planning',
+  String start = '2026-06-01T09:00:00.000Z',
+  String end = '2026-06-01T10:00:00.000Z',
+  String timeZone = 'UTC',
+}) async {
+  final id = CalendarRepository.eventId(
+    accountId: 'google:g',
+    provider: BusyProvider.google,
+    providerCalendarId: 'calendar-1',
+    providerEventId: seriesId,
+  );
+  if (await repository.loadEventDetail(id) != null) return;
+  await repository.upsertEvent(
+    accountId: 'google:g',
+    event: CalendarEventDto(
+      provider: BusyProvider.google,
+      providerCalendarId: 'calendar-1',
+      providerEventId: seriesId,
+      title: title,
+      organizerJson: const {'self': true},
+      startDateTime: start,
+      startTimeZone: timeZone,
+      endDateTime: end,
+      endTimeZone: timeZone,
+      recurrenceJson: const ['RRULE:FREQ=WEEKLY;BYDAY=MO'],
+      updatedAtServer: '2026-05-30T00:00:00.000Z',
+      rawJson: {
+        'id': seriesId,
+        'summary': title,
+        'start': {'dateTime': start, 'timeZone': timeZone},
+        'end': {'dateTime': end, 'timeZone': timeZone},
+        'recurrence': const ['RRULE:FREQ=WEEKLY;BYDAY=MO'],
+        'updated': '2026-05-30T00:00:00.000Z',
+      },
+    ),
+  );
+  // Google instance expansion retains the master as a conflict baseline but
+  // retires it from the visible schedule projection.
+  await (database.update(database.calendarEvents)
+        ..where((row) => row.id.equals(id)))
+      .write(const CalendarEventsCompanion(isDeleted: Value(true)));
 }
 
 EventEditorDraft _newEventDraft() {
@@ -2101,4 +2316,56 @@ Future<void> _seedScheduledEvent(
     await database.select(database.notificationSchedule).get(),
     hasLength(1),
   );
+}
+
+Future<void> _expectStaleRegularEventMovesWithoutScope(
+  CalendarRepository repository,
+  AppDatabase database, {
+  required String rawJson,
+}) async {
+  await _seedScheduledEvent(repository, database);
+  await database
+      .update(database.calendarEvents)
+      .write(
+        CalendarEventsCompanion(
+          providerRecurringEventId: const Value('stale-series-id'),
+          providerOriginalStartKey: const Value('2026-06-08T09:00:00.000Z'),
+          rawJson: Value(rawJson),
+        ),
+      );
+
+  final item = (await ScheduleRepository(database).listItems(
+    range: ScheduleRange.day(DateTime(2026, 6, 8)),
+  )).whereType<CalendarScheduleItem>().single;
+  expect(item.providerRecurringEventId, equals(null));
+
+  var scopeRequests = 0;
+  final result =
+      await ScheduleReschedulingCoordinator(
+        repository: repository,
+        chooseScope: (_, _) async {
+          scopeRequests++;
+          return RecurringEventMutationScope.singleOccurrence;
+        },
+        chooseGuestUpdates: (_) async => throw StateError('No guests'),
+        requestSync: (_) async {},
+      ).commit(
+        ScheduleRescheduleRequest(
+          item: item,
+          interval: ScheduleInterval(
+            item.start!.add(const Duration(minutes: 15)),
+            item.end!.add(const Duration(minutes: 15)),
+          ),
+        ),
+      );
+
+  expect(result, ScheduleRescheduleResult.saved);
+  expect(scopeRequests, 0);
+  final request =
+      jsonDecode(
+            (await database.select(database.pendingOps).getSingle())
+                .requestJson,
+          )
+          as Map;
+  expect(request.containsKey(calendarEventRecurringScopeKey), isFalse);
 }

@@ -101,6 +101,31 @@ void main() {
     expect(failures.single, same(failure));
   });
 
+  test(
+    'interactive all-account sync reports failure after syncing others',
+    () async {
+      final synced = <String>[];
+      final failure = StateError('Google sync failed');
+      final failures = <Object>[];
+
+      await expectLater(
+        runAllSyncEligibleAccountSync(
+          listSyncEligibleAccounts: () async => [_account('a'), _account('b')],
+          syncAccount: (accountId) async {
+            synced.add(accountId);
+            if (accountId == 'a') throw failure;
+          },
+          onSyncFailure: (error) async => failures.add(error),
+          rethrowFirstFailure: true,
+        ),
+        throwsA(same(failure)),
+      );
+
+      expect(synced, ['a', 'b']);
+      expect(failures, [same(failure)]);
+    },
+  );
+
   test('missing OAuth token is preserved for both failure callbacks', () async {
     final synced = <String>[];
     final authFailures = <String>[];

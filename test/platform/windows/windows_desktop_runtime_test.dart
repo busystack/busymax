@@ -7,6 +7,10 @@ import 'package:busymax/src/ui/windows/windows_desktop_runtime.dart';
 import 'package:busymax/src/l10n/time_format_scope.dart';
 import 'package:busymax/src/features/tray/domain/tray_presentation.dart';
 import 'package:busymax/src/features/connectivity/network_connectivity_service.dart';
+import 'package:busymax/src/features/accounts/data/accounts_repository.dart';
+import 'package:busymax/src/features/sync/all_accounts_sync_scheduler.dart';
+import 'package:busymax/src/platform/windows/windows_tray_service.dart';
+import 'package:busymax/src/providers/busy_provider.dart';
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -214,6 +218,44 @@ void main() {
     expect(window.hideOnClose, isFalse);
     await tester.pumpWidget(const SizedBox());
   });
+
+  testWidgets('tray sync continues after an account failure and refreshes', (
+    tester,
+  ) async {
+    final synced = <String>[];
+    final failures = <Object>[];
+    final failure = StateError('first account failed');
+    final scheduler = AllAccountsSyncScheduler(
+      listSyncEligibleAccounts: () async => [_account('a'), _account('b')],
+      syncAccount: (accountId) async {
+        synced.add(accountId);
+        if (accountId == 'a') throw failure;
+      },
+      onSyncFailure: (error) async => failures.add(error),
+      interval: Duration.zero,
+    );
+    addTearDown(scheduler.dispose);
+    final tray = _Tray();
+    await _pumpRuntime(
+      tester,
+      _Window(),
+      tray,
+      syncScheduler: scheduler,
+      interactiveRunner: () async =>
+          throw StateError('interactive runner used'),
+    );
+    final beforeRefresh = tray.refreshes;
+
+    await tester
+        .state<WindowsDesktopRuntimeState>(find.byType(WindowsDesktopRuntime))
+        .handleTrayCommand(WindowsTrayCommand.synchronize);
+
+    expect(synced, ['a', 'b']);
+    expect(failures, [same(failure)]);
+    expect(tray.refreshes, beforeRefresh + 1);
+    expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox());
+  });
 }
 
 Future<ProviderContainer> _pumpRuntime(
@@ -222,6 +264,8 @@ Future<ProviderContainer> _pumpRuntime(
   _Tray tray, {
   bool minimized = false,
   bool showTray = true,
+  AllAccountsSyncScheduler? syncScheduler,
+  Future<void> Function()? interactiveRunner,
 }) async {
   final settings = AppSettings.defaults().copyWith(
     showTrayIcon: showTray,
@@ -233,6 +277,10 @@ Future<ProviderContainer> _pumpRuntime(
         MemorySettingsStore(settings.toJson()),
       ),
       desktopWindowServiceProvider.overrideWithValue(window),
+      if (syncScheduler != null)
+        syncSchedulerProvider.overrideWithValue(syncScheduler),
+      if (interactiveRunner != null)
+        allAccountsSyncRunnerProvider.overrideWithValue(interactiveRunner),
     ],
   );
   addTearDown(container.dispose);
@@ -296,6 +344,7 @@ class _Tray implements DesktopTrayService {
   final List<String> calls;
   bool canStart = true;
   Completer<void>? startBarrier;
+  int refreshes = 0;
   @override
   bool isAvailable = false;
   @override
@@ -305,10 +354,21 @@ class _Tray implements DesktopTrayService {
   }
 
   @override
-  Future<void> refresh() async {}
+  Future<void> refresh() async {
+    refreshes++;
+  }
+
   @override
   Future<void> stop() async {
     calls.add('stop');
     isAvailable = false;
   }
 }
+
+AccountEntity _account(String id) => AccountEntity(
+  id: id,
+  provider: BusyProvider.google,
+  authority: 'https://accounts.google.com',
+  providerAccountId: id,
+  authState: accountAuthStateSignedIn,
+);

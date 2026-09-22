@@ -60,6 +60,50 @@ void main() {
     expect(list, isNot(same(snapshot)));
   });
 
+  test('plain-text task bodies preserve angle brackets and entities', () async {
+    final client = _FakeMicrosoftTodoApiClient()
+      ..taskToGet = MicrosoftTodoTaskDto.fromJson(const {
+        'id': 'task-1',
+        'title': 'Contact',
+        'body': {
+          'content': 'Contact <owner@example.com> &amp; literal',
+          'contentType': 'text',
+        },
+      });
+    final adapter = MicrosoftTodoTaskRemoteClient(
+      client: client,
+      defaultTimeZone: 'UTC',
+    );
+
+    final task = await adapter.getTask(taskListId: 'list-1', taskId: 'task-1');
+
+    expect(task.notes, 'Contact <owner@example.com> &amp; literal');
+    expect(
+      adapter.normalizeTaskConflictSnapshot(task.rawJson)['notes'],
+      'Contact <owner@example.com> &amp; literal',
+    );
+  });
+
+  test('HTML task bodies are still converted to plain text', () async {
+    final client = _FakeMicrosoftTodoApiClient()
+      ..taskToGet = MicrosoftTodoTaskDto.fromJson(const {
+        'id': 'task-1',
+        'title': 'Contact',
+        'body': {
+          'content': '<p>Contact &lt;owner@example.com&gt;</p>',
+          'contentType': 'html',
+        },
+      });
+    final adapter = MicrosoftTodoTaskRemoteClient(
+      client: client,
+      defaultTimeZone: 'UTC',
+    );
+
+    final task = await adapter.getTask(taskListId: 'list-1', taskId: 'task-1');
+
+    expect(task.notes, 'Contact <owner@example.com>');
+  });
+
   test(
     'create task maps neutral mutation fields to Microsoft Graph body',
     () async {
@@ -381,6 +425,7 @@ class _FakeMicrosoftTodoApiClient
   var createdChecklistBody = <String, Object?>{};
   var updatedChecklistPatch = <String, Object?>{};
   String? deletedChecklistItemId;
+  MicrosoftTodoTaskDto? taskToGet;
 
   @override
   Future<MicrosoftTodoChecklistItemsPageDto> listChecklistItemsPage({
@@ -484,7 +529,7 @@ class _FakeMicrosoftTodoApiClient
   Future<MicrosoftTodoTaskDto> getTask({
     required String taskListId,
     required String taskId,
-  }) => throw UnimplementedError();
+  }) async => taskToGet ?? (throw UnimplementedError());
 
   @override
   Future<MicrosoftTodoTaskListsPageDto> listTaskListsPage({String? nextLink}) =>

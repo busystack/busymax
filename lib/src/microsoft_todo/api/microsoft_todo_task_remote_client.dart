@@ -9,7 +9,8 @@ class MicrosoftTodoTaskRemoteClient
     implements
         TaskRemoteClient,
         TaskChecklistRemoteClient,
-        TaskConflictSnapshotNormalizer {
+        TaskConflictSnapshotNormalizer,
+        RevisionlessTaskListConflictClient {
   MicrosoftTodoTaskRemoteClient({
     required MicrosoftTodoApiClient client,
     required String defaultTimeZone,
@@ -30,7 +31,8 @@ class MicrosoftTodoTaskRemoteClient
     if (!normalized.containsKey('notes') && snapshot.containsKey('body')) {
       final body = snapshot['body'];
       final content = body is Map ? body['content']?.toString() ?? '' : '';
-      normalized['notes'] = _htmlToPlainText(content);
+      final contentType = body is Map ? body['contentType']?.toString() : null;
+      normalized['notes'] = _microsoftBodyToPlainText(content, contentType);
     }
     _putMicrosoftDateTimeAliases(
       normalized,
@@ -511,7 +513,10 @@ TaskDto _taskDto(MicrosoftTodoTaskDto dto) {
     etag: dto.etag,
     title: dto.title ?? '',
     updated: _parseUtc(dto.lastModifiedDateTime),
-    notes: _htmlToPlainText(dto.body?.content ?? ''),
+    notes: _microsoftBodyToPlainText(
+      dto.body?.content ?? '',
+      dto.body?.contentType,
+    ),
     status: dto.status == 'completed' ? 'completed' : 'needsAction',
     completed: null,
     due: null,
@@ -555,6 +560,12 @@ String _htmlToPlainText(String value) {
       .replaceAll('&#39;', "'")
       .replaceAll('&amp;', '&')
       .trim();
+}
+
+String _microsoftBodyToPlainText(String content, String? contentType) {
+  return contentType?.toLowerCase() == 'html'
+      ? _htmlToPlainText(content)
+      : content;
 }
 
 String _htmlEscape(String text) {

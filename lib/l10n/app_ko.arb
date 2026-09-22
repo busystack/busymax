@@ -246,6 +246,10 @@
   "viewAgenda": "일정 목록",
   "scheduleSettings": "일정",
   "scheduleDisplaySettings": "일정 표시",
+  "newEventsAndTasks": "새 일정 및 작업",
+  "defaultCalendar": "기본 캘린더",
+  "defaultTaskList": "기본 작업 목록",
+  "lastUsed": "마지막으로 사용",
   "scheduleDisplayHoursDescription": "일간 및 주간 보기는 처음에 이 시간 범위를 표시합니다. 필요한 경우 더 이르거나 늦은 항목에 맞춰 범위가 확장됩니다.",
   "scheduleDayStartsAt": "하루 시작 시간",
   "scheduleDayEndsAt": "하루 종료 시간",
@@ -308,6 +312,7 @@
   "shortcutPreviousPeriodDescription": "주간 보기에서는 이전 주, 월간 보기에서는 이전 달로 이동하는 식입니다",
   "shortcutJumpToToday": "오늘로 이동",
   "shortcutGroupView": "보기",
+  "viewSelector": "보기",
   "shortcutDayView": "일간 보기",
   "shortcutWeekView": "주간 보기",
   "shortcutMonthView": "월간 보기",
@@ -589,7 +594,6 @@
   "connectAccountAction": "연결",
   "cancelAccountConnection": "연결 취소",
   "nextcloudAccountRemovedRevokeFailed": "계정은 로컬에서 삭제되었지만 Nextcloud 앱 암호를 취소할 수 없습니다.",
-  "davCachedOfflineNotice": "오프라인 사용을 위해 캘린더 및 할 일 데이터가 로컬에 캐시됩니다.",
   "davReauthenticationRequired": "동기화를 재개하려면 이 계정을 다시 연결하세요.",
   "davTemporarilyUnavailable": "이 계정은 일시적으로 사용할 수 없습니다.",
   "davPermissionChanged": "서버 권한이 변경되었습니다. 보류 중인 편집이 일시 중지되었습니다.",
@@ -1044,5 +1048,8 @@
   "searchClearFilters": "필터 초기화",
   "searchFiltersAction": "필터",
   "searchNoSources": "선택한 검색 소스가 없습니다",
-  "searchClearText": "텍스트 지우기"
+  "searchClearText": "텍스트 지우기",
+  "windowMinimize": "최소화",
+  "windowMaximize": "최대화",
+  "windowRestore": "복원"
 }

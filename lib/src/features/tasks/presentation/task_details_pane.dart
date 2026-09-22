@@ -8,23 +8,24 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../app/app_bootstrap.dart';
 import '../../../app/busymax_dialogs.dart';
 import '../../../l10n/l10n.dart';
-import '../../../platform/linux_header_bar_provider.dart';
 import 'package:busymax/src/providers/busy_provider.dart';
 import 'package:busymax/src/features/tasks/domain/task_capabilities.dart';
 import '../../accounts/data/accounts_repository.dart';
 import '../../schedule/presentation/schedule_item_exporter.dart';
 import '../../maps/application/external_location_launcher.dart';
 import '../../sync/sync_auth_error.dart';
+import '../../sync/sync_failure_notification_policy.dart';
 import '../../task_lists/data/task_lists_repository.dart';
 import '../data/tasks_repository.dart';
+import '../domain/task_mutation_result.dart';
 import 'task_details_draft.dart';
 import 'task_details_editor.dart';
+
+export '../domain/task_mutation_result.dart';
 
 typedef TasksRepositoryForAccount = TasksRepository Function(String accountId);
 typedef TaskListsRepositoryForAccount =
     TaskListsRepository Function(String accountId);
-typedef TaskMutationCommittedCallback =
-    FutureOr<void> Function(String accountId);
 
 class TaskDetailsPane extends ConsumerStatefulWidget {
   const TaskDetailsPane({
@@ -287,9 +288,25 @@ class _TaskDetailsPaneState extends ConsumerState<TaskDetailsPane> {
 
   Future<void> _refreshTask(TasksRepository repository, TaskEntity task) async {
     try {
+      final account = await ref
+          .read(accountsRepositoryProvider)
+          .accountById(task.accountId);
+      if (account?.isSyncEligible != true) {
+        if (account?.needsReconnect == true && mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                context.l10n.refreshFailed(accountReconnectRequiredSyncMessage),
+              ),
+            ),
+          );
+        }
+        return;
+      }
       await repository.refreshTask(task.taskListId, task.id);
     } on Object catch (error) {
-      if (isMissingOAuthTokenError(error)) {
+      if (syncFailureNotificationDisposition(error) ==
+          SyncFailureNotificationDisposition.reconnectRequired) {
         try {
           await ref
               .read(authRepositoryProvider)
@@ -342,7 +359,27 @@ class _TaskDetailsPaneState extends ConsumerState<TaskDetailsPane> {
       mutated = true;
     }
     if (mutated) {
-      await widget.onTaskMutationCommitted?.call(task.accountId);
+      final moving = draft.taskListId != task.taskListId;
+      final patchedStatus = patch['status']?.toString().toLowerCase();
+      final originalCompleted = task.status?.toLowerCase() == 'completed';
+      final bool? completed = patchedStatus == null
+          ? null
+          : (patchedStatus == 'completed') == originalCompleted
+          ? null
+          : patchedStatus == 'completed';
+      await widget.onTaskMutationCommitted?.call(
+        TaskMutationResult(
+          kind: moving
+              ? TaskMutationKind.moved
+              : completed != null
+              ? TaskMutationKind.completion
+              : TaskMutationKind.updated,
+          accountId: task.accountId,
+          taskListId: moving ? task.taskListId : draft.taskListId,
+          taskId: task.id,
+          completed: completed,
+        ),
+      );
     }
   }
 
@@ -363,9 +400,7 @@ class _TaskDetailsPaneState extends ConsumerState<TaskDetailsPane> {
       localTimeZone: localTimeZone,
       categorySuggestions: categorySuggestions,
       accountLabel: _accountEditorLabel(context, account),
-      onRefresh: () {
-        unawaited(_refreshTask(repository, task));
-      },
+      onRefresh: () => unawaited(_refreshTask(repository, task)),
       onSave: (draft, patch) => _saveDraft(repository, task, draft, patch),
       hierarchy: hierarchy,
       onCreateSubtask: (title) => _createSubtask(repository, task, title),
@@ -384,7 +419,14 @@ class _TaskDetailsPaneState extends ConsumerState<TaskDetailsPane> {
       onExport: () => _exportTask(repository, task),
       onDelete: () async {
         await repository.deleteTask(task.taskListId, task.id);
-        await widget.onTaskMutationCommitted?.call(task.accountId);
+        await widget.onTaskMutationCommitted?.call(
+          TaskMutationResult(
+            kind: TaskMutationKind.deleted,
+            accountId: task.accountId,
+            taskListId: task.taskListId,
+            taskId: task.id,
+          ),
+        );
         widget.onClose?.call();
       },
       onCancel: () => widget.onClose?.call(),
@@ -393,7 +435,6 @@ class _TaskDetailsPaneState extends ConsumerState<TaskDetailsPane> {
       onDirtyChanged: _setEditorDirty,
       externalLocationLauncher: widget.externalLocationLauncher,
       dialogBarrierColor: widget.dialogBarrierColor,
-      headerBarService: ref.read(linuxHeaderBarServiceProvider),
     );
   }
 
@@ -408,7 +449,14 @@ class _TaskDetailsPaneState extends ConsumerState<TaskDetailsPane> {
         parentTaskId: task.id,
         title: title,
       );
-      await widget.onTaskMutationCommitted?.call(task.accountId);
+      await widget.onTaskMutationCommitted?.call(
+        TaskMutationResult(
+          kind: TaskMutationKind.createdSubtask,
+          accountId: task.accountId,
+          taskListId: task.taskListId,
+          taskId: task.id,
+        ),
+      );
     } on Object catch (error) {
       _showTaskMutationError(error);
     }
@@ -449,7 +497,19 @@ class _TaskDetailsPaneState extends ConsumerState<TaskDetailsPane> {
           completed: completed,
         );
       }
-      await widget.onTaskMutationCommitted?.call(parent.accountId);
+      final affectedTask = subtask.task;
+      await widget.onTaskMutationCommitted?.call(
+        TaskMutationResult(
+          kind: TaskMutationKind.completion,
+          accountId: parent.accountId,
+          taskListId: affectedTask?.taskListId ?? parent.taskListId,
+          taskId: affectedTask?.id ?? parent.id,
+          checklistItemId: subtask.kind == TaskSubtaskKind.checklistItem
+              ? subtask.id
+              : null,
+          completed: completed,
+        ),
+      );
     } on Object catch (error) {
       _showTaskMutationError(error);
     }
@@ -468,7 +528,15 @@ class _TaskDetailsPaneState extends ConsumerState<TaskDetailsPane> {
         checklistItemId: subtask.id,
         title: title,
       );
-      await widget.onTaskMutationCommitted?.call(parent.accountId);
+      await widget.onTaskMutationCommitted?.call(
+        TaskMutationResult(
+          kind: TaskMutationKind.checklistUpdated,
+          accountId: parent.accountId,
+          taskListId: parent.taskListId,
+          taskId: parent.id,
+          checklistItemId: subtask.id,
+        ),
+      );
     } on Object catch (error) {
       _showTaskMutationError(error);
     }
@@ -485,7 +553,15 @@ class _TaskDetailsPaneState extends ConsumerState<TaskDetailsPane> {
         parentTaskId: parent.id,
         checklistItemId: subtask.id,
       );
-      await widget.onTaskMutationCommitted?.call(parent.accountId);
+      await widget.onTaskMutationCommitted?.call(
+        TaskMutationResult(
+          kind: TaskMutationKind.checklistDeleted,
+          accountId: parent.accountId,
+          taskListId: parent.taskListId,
+          taskId: parent.id,
+          checklistItemId: subtask.id,
+        ),
+      );
     } on Object catch (error) {
       _showTaskMutationError(error);
     }
@@ -511,7 +587,14 @@ class _TaskDetailsPaneState extends ConsumerState<TaskDetailsPane> {
     await repository.moveTask(
       TaskMoveInput(sourceTaskListId: task.taskListId, taskId: task.id),
     );
-    await widget.onTaskMutationCommitted?.call(task.accountId);
+    await widget.onTaskMutationCommitted?.call(
+      TaskMutationResult(
+        kind: TaskMutationKind.reordered,
+        accountId: task.accountId,
+        taskListId: task.taskListId,
+        taskId: task.id,
+      ),
+    );
   }
 
   Future<void> _duplicateTask(
@@ -519,8 +602,19 @@ class _TaskDetailsPaneState extends ConsumerState<TaskDetailsPane> {
     TaskEntity task,
   ) async {
     try {
-      await repository.duplicateTask(task.taskListId, task.id);
-      await widget.onTaskMutationCommitted?.call(task.accountId);
+      final duplicateId = await repository.duplicateTask(
+        task.taskListId,
+        task.id,
+      );
+      await widget.onTaskMutationCommitted?.call(
+        TaskMutationResult(
+          kind: TaskMutationKind.duplicated,
+          accountId: task.accountId,
+          taskListId: task.taskListId,
+          taskId: task.id,
+          createdTaskId: duplicateId,
+        ),
+      );
       if (!mounted) return;
       ScaffoldMessenger.of(
         context,

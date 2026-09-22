@@ -14,10 +14,12 @@ class ConflictDetector {
     required Map<String, Object?> currentServerJson,
     required DateTime? baselineUpdatedUtc,
     required DateTime? currentUpdatedUtc,
+    bool compareWithoutRevision = false,
   }) {
-    if (baselineUpdatedUtc == null ||
-        currentUpdatedUtc == null ||
-        !currentUpdatedUtc.isAfter(baselineUpdatedUtc)) {
+    if (!compareWithoutRevision &&
+        (baselineUpdatedUtc == null ||
+            currentUpdatedUtc == null ||
+            !currentUpdatedUtc.isAfter(baselineUpdatedUtc))) {
       return PendingMutationConflict(
         entityType: entityType,
         entityId: entityId,

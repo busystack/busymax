@@ -464,6 +464,15 @@ class AppLocalizationsPl extends AppLocalizations {
   String get close => 'Zamknij';
 
   @override
+  String get windowMinimize => 'Minimalizuj';
+
+  @override
+  String get windowMaximize => 'Maksymalizuj';
+
+  @override
+  String get windowRestore => 'Przywróć';
+
+  @override
   String get exit => 'Zakończ';
 
   @override
@@ -753,6 +762,18 @@ class AppLocalizationsPl extends AppLocalizations {
 
   @override
   String get scheduleDisplaySettings => 'Wyświetlanie harmonogramu';
+
+  @override
+  String get newEventsAndTasks => 'Nowe wydarzenia i zadania';
+
+  @override
+  String get defaultCalendar => 'Domyślny kalendarz';
+
+  @override
+  String get defaultTaskList => 'Domyślna lista zadań';
+
+  @override
+  String get lastUsed => 'Ostatnio używane';
 
   @override
   String get scheduleDisplayHoursDescription =>
@@ -1110,6 +1131,9 @@ class AppLocalizationsPl extends AppLocalizations {
 
   @override
   String get shortcutGroupView => 'Widok';
+
+  @override
+  String get viewSelector => 'Widok';
 
   @override
   String get shortcutDayView => 'Widok dnia';
@@ -2574,10 +2598,6 @@ class AppLocalizationsPl extends AppLocalizations {
   @override
   String get nextcloudAccountRemovedRevokeFailed =>
       'Konto usunięto lokalnie, ale nie udało się unieważnić jego hasła aplikacji Nextcloud.';
-
-  @override
-  String get davCachedOfflineNotice =>
-      'Dane kalendarzy i zadań są zapisywane lokalnie, aby można było korzystać z nich offline.';
 
   @override
   String get davReauthenticationRequired =>

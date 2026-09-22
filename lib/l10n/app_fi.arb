@@ -246,6 +246,10 @@
   "viewAgenda": "Agendanäkymä",
   "scheduleSettings": "Aikataulu",
   "scheduleDisplaySettings": "Aikataulun näyttö",
+  "newEventsAndTasks": "Uudet tapahtumat ja tehtävät",
+  "defaultCalendar": "Oletuskalenteri",
+  "defaultTaskList": "Oletustehtävälista",
+  "lastUsed": "Viimeksi käytetty",
   "scheduleDisplayHoursDescription": "Päivä- ja viikkonäkymät näyttävät aluksi tämän aikavälin. Aikaisemmat ja myöhemmät kohteet laajentavat sitä tarvittaessa.",
   "scheduleDayStartsAt": "Päivä alkaa",
   "scheduleDayEndsAt": "Päivä päättyy",
@@ -308,6 +312,7 @@
   "shortcutPreviousPeriodDescription": "Edellinen viikko viikkonäkymässä, edellinen kuukausi kuukausinäkymässä ja niin edelleen",
   "shortcutJumpToToday": "Siirry tähän päivään",
   "shortcutGroupView": "Näkymä",
+  "viewSelector": "Näkymä",
   "shortcutDayView": "Päivänäkymä",
   "shortcutWeekView": "Viikkonäkymä",
   "shortcutMonthView": "Kuukausinäkymä",
@@ -589,7 +594,6 @@
   "connectAccountAction": "Yhdistä",
   "cancelAccountConnection": "Peruuta yhteys",
   "nextcloudAccountRemovedRevokeFailed": "Tili poistettiin paikallisesti, mutta Nextcloudin sovellussalasanaa ei voitu kumota.",
-  "davCachedOfflineNotice": "Kalenteri- ja tehtävätiedot tallennetaan paikallisesti offline-käyttöä varten.",
   "davReauthenticationRequired": "Yhdistä tämä tili uudelleen jatkaaksesi synkronointia.",
   "davTemporarilyUnavailable": "Tämä tili ei ole tilapäisesti käytettävissä.",
   "davPermissionChanged": "Palvelimen käyttöoikeudet muuttuivat. Odottavat muokkaukset on keskeytetty.",
@@ -1044,5 +1048,8 @@
   "searchClearFilters": "Nollaa suodattimet",
   "searchFiltersAction": "Suodattimet",
   "searchNoSources": "Hakulähteitä ei ole valittu",
-  "searchClearText": "Tyhjennä teksti"
+  "searchClearText": "Tyhjennä teksti",
+  "windowMinimize": "Pienennä",
+  "windowMaximize": "Suurenna",
+  "windowRestore": "Palauta"
 }

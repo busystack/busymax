@@ -361,6 +361,37 @@ void main() {
       );
     },
   );
+
+  test('server-missing due-today task cancels the existing summary', () async {
+    settings = settings.copyWith(notifyDueToday: true);
+    final notifications = service();
+    await notifications.initialize(timeZoneId: 'America/Vancouver');
+    await _insertDueTodayTask(database);
+
+    await notifications.reconcile();
+
+    const summaryId = 0x425903;
+    final scheduled = await database
+        .select(database.androidDailySummarySchedules)
+        .getSingle();
+    expect(scheduled.taskCount, 1);
+    expect(plugin.pendingIds, contains(summaryId));
+
+    await database
+        .update(database.tasks)
+        .write(const TasksCompanion(serverMissing: Value(true)));
+    plugin.cancelledIds.clear();
+    plugin.scheduled.clear();
+
+    await notifications.reconcile();
+
+    expect(plugin.cancelledIds, contains(summaryId));
+    expect(plugin.scheduledIds, isEmpty);
+    expect(
+      await database.select(database.androidDailySummarySchedules).get(),
+      isEmpty,
+    );
+  });
 }
 
 Future<void> _insertReminder(

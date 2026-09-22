@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 import 'dart:ui' as ui;
 
@@ -11,6 +12,7 @@ import 'package:yaru/yaru.dart';
 import 'package:busymax/src/app/app_bootstrap.dart';
 import 'package:busymax/src/app/busymax_design.dart';
 import 'package:busymax/src/app/busymax_yaru_theme.dart';
+import 'package:busymax/src/app/linux/linux_header_style.dart';
 import 'package:busymax/src/config/build_config.dart';
 import 'package:busymax/src/core/secrets/secret_store.dart';
 import 'package:busymax/src/dav/auth/dav_account_onboarding_service.dart';
@@ -23,14 +25,16 @@ import 'package:busymax/src/features/accounts/domain/account_connection_state.da
 import 'package:busymax/src/features/auth/data/auth_repository.dart';
 import 'package:busymax/src/features/calendar/data/calendar_repository.dart';
 import 'package:busymax/src/features/settings/presentation/settings_screen.dart';
+import 'package:busymax/src/features/task_lists/data/task_lists_repository.dart';
 import 'package:busymax/src/features/sync/sync_auth_error.dart';
 import 'package:busymax/src/platform/gtk_font_service.dart';
-import 'package:busymax/src/platform/linux_header_bar_service.dart';
-import 'package:busymax/src/platform/linux_header_bar_provider.dart';
+import 'package:busymax/src/platform/gtk_header_icon_service.dart';
 import 'package:busymax/src/platform/native_menu_service.dart';
 import 'package:busymax/src/features/tasks/presentation/desktop_date_time_fields.dart';
 import 'package:busymax/src/providers/busy_provider.dart';
 import 'package:busymax/src/providers/provider_capabilities.dart';
+import 'package:busymax/src/webcal/webcal_http_client.dart';
+import 'package:busymax/src/webcal/webcal_subscription_service.dart';
 import 'package:busymax/l10n/generated/app_localizations.dart';
 import 'package:drift/native.dart';
 import 'package:http/http.dart' as http;
@@ -394,21 +398,23 @@ void main() {
       ),
     );
 
-    final pageHeading = tester.widget<Text>(
-      find.byKey(const ValueKey('settings-page-heading')),
-    );
     final accountHeading = tester.widget<Text>(
       find.byKey(const ValueKey('settings-account-heading-google:g')),
     );
     final calendarHeading = tester.widget<Text>(find.text('Calendars'));
     expect(
-      pageHeading.style!.fontSize,
-      greaterThan(accountHeading.style!.fontSize!),
-    );
-    expect(
       accountHeading.style!.fontSize,
       greaterThan(calendarHeading.style!.fontSize!),
     );
+    final foreground = Theme.of(
+      tester.element(
+        find.byKey(const ValueKey('settings-account-heading-google:g')),
+      ),
+    ).colorScheme.onSurface;
+    expect(accountHeading.style?.fontWeight, FontWeight.bold);
+    expect(accountHeading.style?.color, foreground);
+    expect(calendarHeading.style?.fontWeight, FontWeight.bold);
+    expect(calendarHeading.style?.color, foreground);
     expect(
       tester.getTopLeft(find.text('Calendars')).dx,
       closeTo(
@@ -422,7 +428,7 @@ void main() {
     );
   });
 
-  testWidgets('Every Settings page uses a primary page heading', (
+  testWidgets('Every Settings page uses only its headerbar title', (
     tester,
   ) async {
     final container = _container(
@@ -447,11 +453,14 @@ void main() {
         find.byKey(ValueKey('settings-navigation-${entry.key.name}')),
       );
       await tester.pumpAndSettle();
-      final heading = tester.widget<Text>(
-        find.byKey(const ValueKey('settings-page-heading')),
+      expect(find.byKey(const ValueKey('settings-page-heading')), findsNothing);
+      expect(
+        find.descendant(
+          of: find.byKey(const ValueKey('settings-header-title')),
+          matching: find.text(entry.value),
+        ),
+        findsOneWidget,
       );
-      expect(heading.data, entry.value);
-      expect(heading.style?.fontWeight, FontWeight.w600);
     }
 
     await tester.pumpWidget(const SizedBox());
@@ -459,23 +468,159 @@ void main() {
     await tester.pump(const Duration(milliseconds: 1));
   });
 
-  testWidgets('Settings fallback header uses the semantic title style', (
+  testWidgets('Settings section headings use the foreground and bold weight', (
     tester,
   ) async {
     final container = _container(
       selectedAccountId: 'google:g',
       authRepository: _FakeAuthRepository(),
       accounts: const [_googleAccount],
-      useFlutterHeader: true,
+    );
+    addTearDown(container.dispose);
+
+    await _pumpSettings(tester, container, logicalSize: const Size(1000, 900));
+    final foreground = Theme.of(
+      tester.element(find.text('Calendar import')),
+    ).colorScheme.onSurface;
+    for (final label in [
+      'Google',
+      'Calendar import',
+      'Calendar subscriptions',
+    ]) {
+      final heading = tester.widget<Text>(find.text(label));
+      expect(heading.style?.fontWeight, FontWeight.bold);
+      expect(heading.style?.color, foreground);
+    }
+
+    await tester.tap(
+      find.byKey(const ValueKey('settings-navigation-schedule')),
+    );
+    await tester.pumpAndSettle();
+    final scheduleHeading = tester.widget<Text>(find.text('Schedule display'));
+    expect(scheduleHeading.style?.fontWeight, FontWeight.bold);
+    expect(scheduleHeading.style?.color, foreground);
+  });
+
+  testWidgets('Schedule lets users choose a default or Last used destination', (
+    tester,
+  ) async {
+    const calendar = CalendarSourceEntity(
+      id: 'calendar-1',
+      accountId: 'google:g',
+      provider: BusyProvider.google,
+      providerCalendarId: 'calendar-1',
+      summary: 'Work calendar',
+      selected: true,
+      hidden: false,
+      readOnly: false,
+      isDeleted: false,
+    );
+    const list = TaskListEntity(
+      accountId: 'google:g',
+      id: 'tasks-1',
+      title: 'Work tasks',
+      localDirty: false,
+      pendingDelete: false,
+      rawJson: '{}',
+    );
+    final container = _container(
+      selectedAccountId: 'google:g',
+      authRepository: _FakeAuthRepository(),
+      accounts: const [_googleAccount],
+      calendarSources: const [calendar],
+      taskLists: const [list],
+    );
+    addTearDown(container.dispose);
+    await _pumpSettings(
+      tester,
+      container,
+      initialPage: SettingsPage.schedule,
+      logicalSize: const Size(1000, 900),
+    );
+    expect(find.text('New events and tasks'), findsOneWidget);
+    final rows = tester
+        .widgetList<BusyMaxComboRow<CreationDestination?>>(
+          find.byType(BusyMaxComboRow<CreationDestination?>),
+        )
+        .toList();
+    expect(rows, hasLength(2));
+    expect(rows.map((row) => row.title), [
+      'Default calendar',
+      'Default task list',
+    ]);
+    expect(rows.map((row) => row.selected), [null, null]);
+    rows[0].onSelected(
+      const CreationDestination(accountId: 'google:g', id: 'calendar-1'),
+    );
+    rows[1].onSelected(
+      const CreationDestination(accountId: 'google:g', id: 'tasks-1'),
+    );
+    await tester.pumpAndSettle();
+    final settings = container.read(appSettingsControllerProvider);
+    expect(settings.defaultCalendar?.id, 'calendar-1');
+    expect(settings.defaultTaskList?.id, 'tasks-1');
+    final updatedRows = tester
+        .widgetList<BusyMaxComboRow<CreationDestination?>>(
+          find.byType(BusyMaxComboRow<CreationDestination?>),
+        )
+        .toList();
+    updatedRows[0].onSelected(null);
+    updatedRows[1].onSelected(null);
+    await tester.pumpAndSettle();
+    expect(
+      container.read(appSettingsControllerProvider).defaultCalendar,
+      isNull,
+    );
+    expect(
+      container.read(appSettingsControllerProvider).defaultTaskList,
+      isNull,
+    );
+  });
+
+  testWidgets('Settings Flutter header uses native geometry and title style', (
+    tester,
+  ) async {
+    final container = _container(
+      selectedAccountId: 'google:g',
+      authRepository: _FakeAuthRepository(),
+      accounts: const [_googleAccount],
     );
     addTearDown(container.dispose);
 
     await _pumpSettings(tester, container);
 
-    final emphasizedAccountTitles = tester
-        .widgetList<Text>(find.text('Accounts'))
-        .where((text) => text.style?.fontWeight == FontWeight.bold);
-    expect(emphasizedAccountTitles, hasLength(1));
+    final titleRoot = find.byKey(const ValueKey('settings-header-title'));
+    final title = tester.widget<Text>(
+      find.descendant(of: titleRoot, matching: find.text('Accounts')),
+    );
+    final context = tester.element(titleRoot);
+    final bodyStyle = Theme.of(context).textTheme.bodyMedium;
+    expect(title.style?.fontSize, bodyStyle?.fontSize);
+    expect(title.style?.fontFamily, bodyStyle?.fontFamily);
+    expect(title.style?.fontWeight, FontWeight.bold);
+    expect(
+      tester.getSize(find.byKey(const ValueKey('settings-header-back-button'))),
+      const Size.square(BusyMaxSizes.headerIconButton),
+    );
+    expect(
+      tester.getSize(find.byKey(const ValueKey('busymax-main-menu-button'))),
+      const Size.square(BusyMaxSizes.headerIconButton),
+    );
+    final header = tester.getRect(find.byType(BusyMaxLinuxHeaderLayout));
+    expect(tester.getRect(titleRoot).center.dx, closeTo(header.center.dx, .01));
+    BusyMaxLinuxHeaderIcon iconFor(String key) => tester
+        .widget<BusyMaxGtkHeaderIcon>(
+          find.descendant(
+            of: find.byKey(ValueKey(key)),
+            matching: find.byType(BusyMaxGtkHeaderIcon),
+          ),
+        )
+        .icon;
+    expect(iconFor('settings-header-back-button'), BusyMaxLinuxHeaderIcon.back);
+    expect(
+      iconFor('busymax-main-menu-button'),
+      BusyMaxLinuxHeaderIcon.mainMenu,
+    );
   });
 
   testWidgets('Settings removes the selected Microsoft account', (
@@ -627,7 +772,153 @@ void main() {
     expect(container.read(selectedAccountIdProvider), 'google:g');
   });
 
-  testWidgets('Settings exposes one clear account-removal action', (
+  testWidgets('subscription dialog groups, validates, and submits its form', (
+    tester,
+  ) async {
+    final database = AppDatabase(NativeDatabase.memory());
+    addTearDown(database.close);
+    final transport = _SettingsWebCalTransport();
+    final service = WebCalSubscriptionService(
+      database: database,
+      secretStore: InMemorySecretStore(),
+      httpTransport: transport,
+      idFactory: () => 'settings-subscription',
+      nowUtc: () => DateTime.utc(2026, 9, 19),
+      onNotificationScheduleChanged: () async {},
+    );
+    late BuildContext hostContext;
+    late WidgetRef widgetRef;
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          webCalSubscriptionServiceProvider.overrideWithValue(service),
+        ],
+        child: localizedTestApp(
+          theme: BusyMaxYaruTheme.build(
+            brightness: Brightness.dark,
+            accentColor: YaruColors.orange,
+          ),
+          child: Consumer(
+            builder: (context, ref, child) {
+              hostContext = context;
+              widgetRef = ref;
+              return const Scaffold(body: SizedBox.expand());
+            },
+          ),
+        ),
+      ),
+    );
+
+    final flow = showAddCalendarSubscriptionFlow(
+      hostContext,
+      widgetRef,
+      initialUrl: 'webcal://calendar.example.test/feed',
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.byType(BusyMaxDialogShell), findsOneWidget);
+    expect(find.byType(BusyMaxGroupedList), findsOneWidget);
+    final fields = find.descendant(
+      of: find.byType(BusyMaxDialogShell),
+      matching: find.byType(TextField),
+    );
+    expect(fields, findsNWidgets(3));
+    expect(
+      tester.widget<TextField>(fields.first).decoration?.border,
+      InputBorder.none,
+    );
+    expect(
+      tester.widget<TextField>(fields.first).controller!.text,
+      'webcal://calendar.example.test/feed',
+    );
+    expect(
+      find.textContaining('https://calendar.example.test'),
+      findsOneWidget,
+    );
+    expect(
+      find.byWidgetPredicate(
+        (widget) => widget is Text && (widget.data ?? '').contains('/feed'),
+      ),
+      findsNothing,
+    );
+
+    await tester.enterText(fields.first, 'not a subscription URL');
+    await tester.pump();
+    expect(
+      tester
+          .widget<ElevatedButton>(
+            find.byKey(const ValueKey('confirm-add-subscription')),
+          )
+          .onPressed,
+      isNull,
+    );
+
+    await tester.enterText(fields.first, 'webcal://calendar.example.test/feed');
+    await tester.enterText(fields.at(1), 'Team schedule');
+    await tester.enterText(fields.at(2), '#336699');
+    await tester.pump();
+    await tester.tap(find.byKey(const ValueKey('confirm-add-subscription')));
+    await tester.pumpAndSettle();
+    await flow;
+
+    expect(transport.requests, [
+      Uri.parse('https://calendar.example.test/feed'),
+    ]);
+    final subscription = await database
+        .select(database.webCalSubscriptions)
+        .getSingle();
+    final source = await database.select(database.calendarSources).getSingle();
+    expect(subscription.safeOrigin, 'https://calendar.example.test');
+    expect(subscription.refreshMode, WebCalRefreshMode.automatic.storageValue);
+    expect(source.summary, 'Team schedule');
+    expect(source.backgroundColor, '#336699');
+  });
+
+  testWidgets('subscription dialog cancellation performs no request', (
+    tester,
+  ) async {
+    final database = AppDatabase(NativeDatabase.memory());
+    addTearDown(database.close);
+    final transport = _SettingsWebCalTransport();
+    final service = WebCalSubscriptionService(
+      database: database,
+      secretStore: InMemorySecretStore(),
+      httpTransport: transport,
+    );
+    late BuildContext hostContext;
+    late WidgetRef widgetRef;
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          webCalSubscriptionServiceProvider.overrideWithValue(service),
+        ],
+        child: localizedTestApp(
+          child: Consumer(
+            builder: (context, ref, child) {
+              hostContext = context;
+              widgetRef = ref;
+              return const Scaffold(body: SizedBox.expand());
+            },
+          ),
+        ),
+      ),
+    );
+
+    final flow = showAddCalendarSubscriptionFlow(
+      hostContext,
+      widgetRef,
+      initialUrl: 'https://calendar.example.test/feed',
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Cancel'));
+    await tester.pumpAndSettle();
+    await flow;
+
+    expect(transport.requests, isEmpty);
+    expect(await database.select(database.webCalSubscriptions).get(), isEmpty);
+  });
+
+  testWidgets('Settings exposes one readable dark account-removal action', (
     tester,
   ) async {
     final container = _container(
@@ -637,7 +928,20 @@ void main() {
     );
     addTearDown(container.dispose);
 
-    await _pumpSettings(tester, container);
+    final theme = BusyMaxYaruTheme.build(
+      brightness: Brightness.dark,
+      accentColor: YaruColors.orange,
+    );
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: localizedTestApp(
+          theme: theme,
+          child: const SettingsScreen(initialPage: SettingsPage.accounts),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
 
     expect(find.text('Remove account…'), findsOneWidget);
     expect(
@@ -649,6 +953,36 @@ void main() {
     expect(find.text('Sign out this account'), findsNothing);
     expect(find.text('Disconnect this account'), findsNothing);
     expect(find.text('Delete local data for this account'), findsNothing);
+
+    final removeRowFinder = find.ancestor(
+      of: find.text('Remove account…'),
+      matching: find.byType(BusyMaxActionRow),
+    );
+    final removeRow = tester.widget<BusyMaxActionRow>(removeRowFinder);
+    final removeTitle = tester.widget<Text>(find.text('Remove account…'));
+    final trash = tester.widget<Icon>(
+      find.descendant(
+        of: removeRowFinder,
+        matching: find.byIcon(YaruIcons.trash),
+      ),
+    );
+    expect(removeRow.destructive, isFalse);
+    expect(removeTitle.style?.color, isNot(theme.colorScheme.error));
+    expect(trash.color, theme.colorScheme.error);
+
+    await tester.tap(find.text('Remove account…'));
+    await tester.pumpAndSettle();
+    final confirm = tester.widget<ElevatedButton>(
+      find.byKey(const Key('confirm-account-removal')),
+    );
+    expect(
+      confirm.style?.backgroundColor?.resolve(const <WidgetState>{}),
+      theme.colorScheme.error,
+    );
+    expect(
+      confirm.style?.foregroundColor?.resolve(const <WidgetState>{}),
+      theme.colorScheme.onError,
+    );
   });
 
   testWidgets('Settings reports a local account-removal failure in place', (
@@ -690,10 +1024,19 @@ void main() {
     await _pumpSettings(tester, container);
     await _openAccountRemovalDialog(tester);
     await tester.tap(find.byKey(const Key('confirm-account-removal')));
-    await tester.pump();
+    // Account mutation starts only after the dialog route has completed its
+    // exit transition and released its modal protection.
+    await tester.pumpAndSettle();
 
     expect(auth.removalCalls, hasLength(1));
     expect(find.text('Removing account…'), findsOneWidget);
+    final removingRow = tester.widget<BusyMaxActionRow>(
+      find.ancestor(
+        of: find.text('Removing account…'),
+        matching: find.byType(BusyMaxActionRow),
+      ),
+    );
+    expect(removingRow.enabled, isFalse);
     await tester.tap(find.text('Removing account…'), warnIfMissed: false);
     await tester.pump();
     expect(auth.removalCalls, hasLength(1));
@@ -850,6 +1193,79 @@ void main() {
       expect(find.textContaining('Last synchronized:'), findsNothing);
     },
   );
+
+  testWidgets('eligible DAV account can refresh collections', (tester) async {
+    final calls = <String>[];
+    final container = _container(
+      selectedAccountId: _nextcloudAccount.id,
+      authRepository: _FakeAuthRepository(),
+      accounts: const [_nextcloudAccount],
+      signedInSyncRunner: (accountId, full) async => calls.add(accountId),
+    );
+    addTearDown(container.dispose);
+
+    await _pumpSettings(tester, container, logicalSize: const Size(1000, 900));
+    await tester.ensureVisible(find.text('Refresh calendars and task lists'));
+    await tester.tap(find.text('Refresh calendars and task lists'));
+    await tester.pumpAndSettle();
+
+    expect(calls, [_nextcloudAccount.id]);
+  });
+
+  testWidgets('reconnect-required DAV account cannot refresh collections', (
+    tester,
+  ) async {
+    final calls = <String>[];
+    final container = _container(
+      selectedAccountId: _reconnectRequiredNextcloudAccount.id,
+      authRepository: _FakeAuthRepository(),
+      accounts: const [_reconnectRequiredNextcloudAccount],
+      signedInSyncRunner: (accountId, full) async => calls.add(accountId),
+    );
+    addTearDown(container.dispose);
+
+    await _pumpSettings(tester, container, logicalSize: const Size(1000, 900));
+
+    expect(find.text('Refresh calendars and task lists'), findsNothing);
+    expect(find.text(accountReconnectRequiredActionLabel), findsOneWidget);
+    expect(calls, isEmpty);
+  });
+
+  testWidgets('DAV collection refresh re-reads eligibility before dispatch', (
+    tester,
+  ) async {
+    final calls = <String>[];
+    final repository = _MutableEligibilityAccountsRepository([
+      _nextcloudAccount,
+    ]);
+    final cachedCollection = _davCollection(
+      id: 'cached-calendar',
+      name: 'Cached calendar',
+      supportsEvents: true,
+    );
+    final container = _container(
+      selectedAccountId: _nextcloudAccount.id,
+      authRepository: _FakeAuthRepository(),
+      accounts: const [_nextcloudAccount],
+      accountsRepository: repository,
+      davCollections: [cachedCollection],
+      signedInSyncRunner: (accountId, full) async => calls.add(accountId),
+    );
+    addTearDown(container.dispose);
+
+    await _pumpSettings(tester, container, logicalSize: const Size(1000, 900));
+    repository.canonicalAccounts = const [_reconnectRequiredNextcloudAccount];
+    await tester.ensureVisible(find.text('Refresh calendars and task lists'));
+    await tester.tap(find.text('Refresh calendars and task lists'));
+    await tester.pumpAndSettle();
+
+    expect(calls, isEmpty);
+    expect(
+      find.text('Sync failed: This account needs to be reconnected.'),
+      findsOneWidget,
+    );
+    expect(find.text('Cached calendar'), findsOneWidget);
+  });
 
   testWidgets('Settings nests controls for combined DAV content', (
     tester,
@@ -1021,6 +1437,12 @@ void main() {
     );
     expect(find.byType(YaruNavigationRail), findsNothing);
     expect(find.byType(BusyMaxSidebarSurface), findsOneWidget);
+    expect(
+      tester
+          .widget<BusyMaxSidebarSurface>(find.byType(BusyMaxSidebarSurface))
+          .showEndBorder,
+      isFalse,
+    );
     final navigationTiles = tester
         .widgetList<BusyMaxSidebarNavigationTile>(
           find.byType(BusyMaxSidebarNavigationTile),
@@ -1122,6 +1544,121 @@ void main() {
     await tester.pump(const Duration(milliseconds: 1));
   });
 
+  testWidgets('Force full resync runs for a connected account', (tester) async {
+    final calls = <String>[];
+    final container = _container(
+      selectedAccountId: _googleAccount.id,
+      authRepository: _FakeAuthRepository(),
+      accounts: const [_googleAccount],
+      signedInSyncRunner: (accountId, full) async => calls.add(accountId),
+    );
+    addTearDown(container.dispose);
+
+    await _pumpSettings(
+      tester,
+      container,
+      logicalSize: const Size(1000, 700),
+      initialPage: SettingsPage.diagnostics,
+    );
+    await tester.tap(find.text('Force full resync'));
+    await tester.pumpAndSettle();
+
+    expect(calls, [_googleAccount.id]);
+    await _disposeDiagnosticsWidget(tester);
+  });
+
+  testWidgets('Force full resync skips reconnect-required accounts', (
+    tester,
+  ) async {
+    final calls = <String>[];
+    const reconnect = AccountEntity(
+      id: 'google:reauth',
+      provider: BusyProvider.google,
+      authority: 'https://accounts.google.com',
+      providerAccountId: 'reauth',
+      authState: accountAuthStateReauthRequired,
+    );
+    final container = _container(
+      selectedAccountId: _googleAccount.id,
+      authRepository: _FakeAuthRepository(),
+      accounts: const [_googleAccount, reconnect],
+      signedInSyncRunner: (accountId, full) async => calls.add(accountId),
+    );
+    addTearDown(container.dispose);
+
+    await _pumpSettings(
+      tester,
+      container,
+      logicalSize: const Size(1000, 700),
+      initialPage: SettingsPage.diagnostics,
+    );
+    await tester.tap(find.text('Force full resync'));
+    await tester.pumpAndSettle();
+
+    expect(calls, [_googleAccount.id]);
+    await _disposeDiagnosticsWidget(tester);
+  });
+
+  testWidgets('Force full resync is disabled without eligible accounts', (
+    tester,
+  ) async {
+    final calls = <String>[];
+    final container = _container(
+      selectedAccountId: _reconnectRequiredGoogleAccount.id,
+      authRepository: _FakeAuthRepository(),
+      accounts: const [_reconnectRequiredGoogleAccount],
+      signedInSyncRunner: (accountId, full) async => calls.add(accountId),
+    );
+    addTearDown(container.dispose);
+
+    await _pumpSettings(
+      tester,
+      container,
+      logicalSize: const Size(1000, 700),
+      initialPage: SettingsPage.diagnostics,
+    );
+
+    final row = tester.widget<BusyMaxActionRow>(
+      find.ancestor(
+        of: find.text('Force full resync'),
+        matching: find.byType(BusyMaxActionRow),
+      ),
+    );
+    expect(row.enabled, isFalse);
+    expect(row.onTap, isNull);
+    expect(calls, isEmpty);
+    await _disposeDiagnosticsWidget(tester);
+  });
+
+  testWidgets('Force full resync re-reads eligibility before dispatch', (
+    tester,
+  ) async {
+    final calls = <String>[];
+    final repository = _MutableEligibilityAccountsRepository([_googleAccount]);
+    final container = _container(
+      selectedAccountId: _googleAccount.id,
+      authRepository: _FakeAuthRepository(),
+      accounts: const [_googleAccount],
+      accountsRepository: repository,
+      signedInSyncRunner: (accountId, full) async => calls.add(accountId),
+    );
+    addTearDown(container.dispose);
+
+    await _pumpSettings(
+      tester,
+      container,
+      logicalSize: const Size(1000, 700),
+      initialPage: SettingsPage.diagnostics,
+    );
+    repository.canonicalAccounts = const [_reconnectRequiredGoogleAccount];
+    await tester.tap(find.text('Force full resync'));
+    await tester.pumpAndSettle();
+
+    expect(calls, isEmpty);
+    expect(tester.takeException(), isNull);
+    await _disposeDiagnosticsWidget(tester);
+  });
+
   testWidgets('Settings uses single-pane navigation at narrow widths', (
     tester,
   ) async {
@@ -1137,7 +1674,7 @@ void main() {
     await _pumpSettings(tester, container, logicalSize: const Size(640, 700));
 
     expect(find.text('Accounts'), findsWidgets);
-    expect(find.text('Schedule'), findsNothing);
+    expect(find.text('Schedule'), findsOneWidget);
 
     await tester.tap(find.byKey(const ValueKey('settings-page-selector')));
     await tester.pumpAndSettle();
@@ -1317,10 +1854,22 @@ void main() {
 
     await _pumpRoutedSettings(tester, container);
 
-    await container
-        .read(linuxHeaderBarServiceProvider)
-        .handleNativeMethodCall(const MethodCall('back'));
+    await tester.tap(find.byTooltip('Back'));
     await tester.pumpAndSettle();
+
+    expect(find.text('schedule route'), findsOneWidget);
+  });
+
+  testWidgets('Alt+Left uses Settings schedule fallback', (tester) async {
+    final container = _container(
+      selectedAccountId: 'google:g',
+      authRepository: _FakeAuthRepository(),
+      accounts: const [_googleAccount],
+    );
+    addTearDown(container.dispose);
+
+    await _pumpRoutedSettings(tester, container);
+    await _sendAltLeft(tester);
 
     expect(find.text('schedule route'), findsOneWidget);
   });
@@ -1349,10 +1898,31 @@ void main() {
     await tester.pumpAndSettle();
     expect(router.state.uri.queryParameters['page'], 'notifications');
 
-    await container
-        .read(linuxHeaderBarServiceProvider)
-        .handleNativeMethodCall(const MethodCall('back'));
+    await tester.tap(find.byTooltip('Back'));
     await tester.pumpAndSettle();
+
+    expect(find.text('tasks route'), findsOneWidget);
+  });
+
+  testWidgets('Alt+Left pops Settings to the route that opened it', (
+    tester,
+  ) async {
+    final container = _container(
+      selectedAccountId: 'google:g',
+      authRepository: _FakeAuthRepository(),
+      accounts: const [_googleAccount],
+    );
+    addTearDown(container.dispose);
+
+    final router = await _pumpRoutedSettings(
+      tester,
+      container,
+      initialLocation: '/tasks',
+    );
+    unawaited(router.push('/settings'));
+    await tester.pumpAndSettle();
+
+    await _sendAltLeft(tester);
 
     expect(find.text('tasks route'), findsOneWidget);
   });
@@ -1398,18 +1968,28 @@ Future<void> _openAccountRemovalDialog(WidgetTester tester) async {
   expect(find.textContaining('from BusyMax?'), findsOneWidget);
 }
 
+Future<void> _sendAltLeft(WidgetTester tester) async {
+  await tester.sendKeyDownEvent(LogicalKeyboardKey.altLeft);
+  await tester.sendKeyDownEvent(LogicalKeyboardKey.arrowLeft);
+  await tester.sendKeyUpEvent(LogicalKeyboardKey.arrowLeft);
+  await tester.sendKeyUpEvent(LogicalKeyboardKey.altLeft);
+  await tester.pumpAndSettle();
+}
+
 ProviderContainer _container({
   required String selectedAccountId,
   required _FakeAuthRepository authRepository,
   required List<AccountEntity> accounts,
   BuildConfig buildConfig = _emptyBuildConfig,
   String? activeAccountIdOverride = _useDefaultActiveAccountId,
-  bool useFlutterHeader = false,
   DavAccountOnboardingService? davOnboardingService,
   List<DavCollectionSettingsEntity> davCollections = const [],
   List<CalendarSourceEntity> calendarSources = const [],
+  List<TaskListEntity> taskLists = const [],
   DesktopAutostartService? autostartService,
   LocalSettingsStore? settingsStore,
+  AccountsRepository? accountsRepository,
+  SignedInSyncRunner? signedInSyncRunner,
 }) {
   return ProviderContainer(
     overrides: [
@@ -1421,8 +2001,10 @@ ProviderContainer _container({
           davOnboardingService,
         ),
       accountsRepositoryProvider.overrideWithValue(
-        _FakeAccountsRepository(accounts),
+        accountsRepository ?? _FakeAccountsRepository(accounts),
       ),
+      if (signedInSyncRunner != null)
+        signedInSyncRunnerProvider.overrideWithValue(signedInSyncRunner),
       accountsStreamProvider.overrideWith((ref) => Stream.value(accounts)),
       accountManagementStreamProvider.overrideWith(
         (ref) => Stream.value(accounts),
@@ -1433,6 +2015,7 @@ ProviderContainer _container({
       calendarSourcesStreamProvider.overrideWith(
         (ref) => Stream.value(calendarSources),
       ),
+      scheduleTaskListsProvider.overrideWith((ref) async => taskLists),
       davConflictsStreamProvider.overrideWith((ref) => Stream.value(const [])),
       webCalSubscriptionsProvider.overrideWith((ref) => Stream.value(const [])),
       selectedAccountIdProvider.overrideWith((ref) => selectedAccountId),
@@ -1442,12 +2025,6 @@ ProviderContainer _container({
         settingsStore ?? _MemorySettingsStore(),
       ),
       buildConfigProvider.overrideWithValue(buildConfig),
-      if (useFlutterHeader)
-        linuxHeaderBarServiceProvider.overrideWith((ref) {
-          final service = LinuxHeaderBarService(isLinux: false);
-          ref.onDispose(service.dispose);
-          return service;
-        }),
     ],
   );
 }
@@ -1504,6 +2081,12 @@ Future<void> _pumpSettings(
     ),
   );
   await tester.pumpAndSettle();
+}
+
+Future<void> _disposeDiagnosticsWidget(WidgetTester tester) async {
+  await tester.pumpWidget(const SizedBox());
+  await tester.pump();
+  await tester.pump(const Duration(milliseconds: 1));
 }
 
 Future<void> _pumpDefaultSettings(
@@ -1628,7 +2211,75 @@ class _FakeAccountsRepository implements AccountsRepository {
   Future<List<AccountEntity>> listSignedInAccounts() async => accounts;
 
   @override
+  Future<List<AccountEntity>> listSyncEligibleAccounts() async =>
+      accounts.where((account) => account.isSyncEligible).toList();
+
+  @override
+  Future<AccountEntity?> accountById(String accountId) async {
+    for (final account in accounts) {
+      if (account.id == accountId) return account;
+    }
+    return null;
+  }
+
+  @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
+
+final class _MutableEligibilityAccountsRepository
+    implements AccountsRepository {
+  _MutableEligibilityAccountsRepository(this.canonicalAccounts);
+
+  List<AccountEntity> canonicalAccounts;
+
+  @override
+  Future<List<AccountEntity>> listSyncEligibleAccounts() async =>
+      canonicalAccounts.where((account) => account.isSyncEligible).toList();
+
+  @override
+  Future<AccountEntity?> accountById(String accountId) async {
+    for (final account in canonicalAccounts) {
+      if (account.id == accountId) return account;
+    }
+    return null;
+  }
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
+
+final class _SettingsWebCalTransport implements WebCalHttpTransport {
+  final requests = <Uri>[];
+
+  @override
+  Future<WebCalHttpResponse> get(
+    Uri uri, {
+    WebCalHttpValidators validators = const WebCalHttpValidators(),
+    Uri? validatorTarget,
+  }) async {
+    requests.add(uri);
+    return WebCalHttpResponse(
+      statusCode: 200,
+      finalUri: uri,
+      body: Uint8List.fromList(
+        utf8.encode('''BEGIN:VCALENDAR\r
+VERSION:2.0\r
+PRODID:-//BusyMax Test//EN\r
+BEGIN:VEVENT\r
+UID:settings-subscription-event\r
+DTSTART:20260920T160000Z\r
+DTEND:20260920T170000Z\r
+SUMMARY:Team event\r
+END:VEVENT\r
+END:VCALENDAR\r
+'''),
+      ),
+      etag: '"settings-test"',
+      lastModified: null,
+      contentType: 'text/calendar; charset=utf-8',
+      conditionalRequestSent: false,
+    );
+  }
 }
 
 class _MemorySettingsStore implements LocalSettingsStore {
@@ -1671,6 +2322,16 @@ const _nextcloudAccount = AccountEntity(
   credentialKind: CredentialKind.nextcloudAppPassword,
   displayName: 'Nextcloud User',
   authState: accountAuthStateSignedIn,
+);
+
+const _reconnectRequiredNextcloudAccount = AccountEntity(
+  id: 'nextcloud:n',
+  provider: BusyProvider.nextcloud,
+  authority: 'https://cloud.example.test',
+  providerAccountId: 'alex',
+  credentialKind: CredentialKind.nextcloudAppPassword,
+  displayName: 'Nextcloud User',
+  authState: accountAuthStateReauthRequired,
 );
 
 DavCollectionSettingsEntity _davCollection({

@@ -886,20 +886,34 @@ void main() {
 
     final sidebar = find.byKey(const ValueKey('startup-sidebar'));
     final content = find.byKey(const ValueKey('startup-content'));
+    final sidebarViewport = find.byKey(
+      const ValueKey('linux-sidebar-viewport'),
+    );
     final sidebarRect = tester.getRect(sidebar);
     final contentRect = tester.getRect(content);
     expect(sidebarRect.width, BusyMaxSizes.sidebarWidth);
     expect(sidebarRect.left, 0);
     expect(sidebarRect.right, contentRect.left);
-    expect(sidebarRect.height, 720);
+    expect(sidebarRect.top, BusyMaxSizes.toolbarHeight);
+    expect(sidebarRect.height, 720 - BusyMaxSizes.toolbarHeight);
+    expect(tester.getRect(sidebarViewport).height, 720);
     expect(find.byType(BusyMaxSidebarSurface), findsOneWidget);
     expect(find.byType(YaruCircularProgressIndicator), findsOneWidget);
 
     tester.view.physicalSize = const Size(600, 720);
     await tester.pump();
 
-    expect(sidebar, findsNothing);
-    expect(tester.getRect(content), const Rect.fromLTWH(0, 0, 600, 720));
+    expect(sidebar, findsOneWidget);
+    expect(tester.getRect(sidebarViewport).width, 0);
+    expect(
+      tester.getRect(content),
+      const Rect.fromLTWH(
+        0,
+        BusyMaxSizes.toolbarHeight,
+        600,
+        720 - BusyMaxSizes.toolbarHeight,
+      ),
+    );
     expect(tester.takeException(), isNull);
   });
 
@@ -2038,6 +2052,7 @@ void main() {
     expect(tester.getSize(save).width, lessThan(slotWidth));
     expect(tester.getSize(cancel).height, kYaruButtonHeight);
     expect(tester.getSize(save).height, kYaruButtonHeight);
+    final restingSaveWidth = tester.getSize(save).width;
     final headerBottom = tester
         .getBottomRight(find.byType(BusyMaxEditorHeader))
         .dy;
@@ -2045,8 +2060,17 @@ void main() {
     expect(headerBottom - actionBottom, BusyMaxSpacing.headerInset);
     final cancelButton = tester.widget<FilledButton>(cancel);
     final saveButton = tester.widget<ElevatedButton>(save);
-    final actionTextStyle = Theme.of(tester.element(save)).textTheme.titleSmall;
-    expect(saveButton.style?.textStyle?.resolve(const {}), actionTextStyle);
+    final theme = Theme.of(tester.element(save));
+    expect(cancelButton.style?.textStyle, isNull);
+    expect(saveButton.style?.textStyle, isNull);
+    expect(
+      theme.filledButtonTheme.style?.textStyle?.resolve(const {})?.fontWeight,
+      FontWeight.bold,
+    );
+    expect(
+      theme.elevatedButtonTheme.style?.textStyle?.resolve(const {})?.fontWeight,
+      FontWeight.bold,
+    );
     for (final style in [cancelButton.style, saveButton.style]) {
       expect(style?.minimumSize, isNull);
       expect(style?.fixedSize, isNull);
@@ -2059,10 +2083,10 @@ void main() {
     await tester.pumpWidget(_linuxTestApp(header(saving: true)));
     await tester.pump();
 
-    expect(tester.getSize(save).width, lessThan(slotWidth));
+    expect(tester.getSize(save).width, restingSaveWidth);
     expect(tester.getSize(save).height, kYaruButtonHeight);
     expect(find.byType(CircularProgressIndicator), findsOneWidget);
-    expect(find.text('Save'), findsNothing);
+    expect(find.text('Save'), findsOneWidget);
   });
 
   testWidgets('custom dialogs announce their title as route semantics', (
@@ -2150,6 +2174,40 @@ void main() {
 
     expect(tester.widget<AnimatedOpacity>(shadow).opacity, 1);
     expect(tester.getTopLeft(find.text('Edit event')).dy, titleTop);
+  });
+
+  testWidgets('modal editor body keeps page padding below its content', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      _testApp(
+        BusyMaxModalEditorScaffold(
+          title: 'Recurring event scope',
+          cancelLabel: 'Cancel',
+          saveLabel: 'Save',
+          onCancel: () {},
+          onSave: null,
+          children: const [Text('This event')],
+        ),
+      ),
+    );
+
+    final clamp = tester.widget<BusyMaxClamp>(
+      find.descendant(
+        of: find.byType(BusyMaxModalEditorScaffold),
+        matching: find.byType(BusyMaxClamp),
+      ),
+    );
+
+    expect(
+      clamp.padding,
+      const EdgeInsets.fromLTRB(
+        BusyMaxSpacing.lg,
+        BusyMaxSpacing.headerInset,
+        BusyMaxSpacing.lg,
+        BusyMaxSpacing.lg,
+      ),
+    );
   });
 
   testWidgets('dialog actions wrap at narrow localized text widths', (

@@ -7,74 +7,19 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  test('native dark startup fallback matches the Dart semantic shade', () {
-    final source = File('linux/runner/my_application.cc').readAsStringSync();
-    final match = RegExp(
-      r'kDefaultModalBarrierColor\[\] = '
-      r'"rgba\(0,0,0,([0-9.]+)\)"',
-    ).firstMatch(source);
+  test('Flutter owns modal shading and native header barriers are absent', () {
+    final runner = File('linux/runner/my_application.cc').readAsStringSync();
+    final dialogs = File('lib/src/app/busymax_dialogs.dart').readAsStringSync();
+    final workspace = File(
+      'lib/src/features/schedule/presentation/schedule_workspace.dart',
+    ).readAsStringSync();
 
-    expect(match, isNotNull);
-    final nativeAlpha = double.parse(match!.group(1)!);
-    final dartAlpha = busyMaxFallbackSurfaceColors(Brightness.dark).shade.a;
-    expect(nativeAlpha, closeTo(dartAlpha, 0.0001));
-    expect(source, contains('modal_barrier_color_for_depth('));
-    expect(source, contains('std::pow(1.0 - barrier.alpha'));
-    expect(
-      source,
-      contains(
-        'g_autofree gchar* modal_barrier_color = '
-        'modal_barrier_color_for_depth(',
-      ),
-    );
-    expect(source, contains('self->header_bar_modal_barrier_color'));
-    expect(source, contains('self->header_bar_modal_barrier_shade_depth'));
-    expect(source, contains('kDefaultModalBarrierColor'));
-  });
-
-  test('native modal blocking and visual shade depth remain independent', () {
-    final source = File('linux/runner/my_application.cc').readAsStringSync();
-
-    expect(source, contains('set_header_bar_modal_barrier_state'));
-    expect(source, contains('set_header_bar_modal_barrier_visible'));
-    expect(
-      source,
-      contains(
-        'set_header_bar_modal_barrier_state(self, visible, visible ? 1 : 0);',
-      ),
-    );
-    expect(
-      source,
-      contains(
-        'self->header_bar_modal_barrier_shade_depth = '
-        'effective_shade_depth;',
-      ),
-    );
-    final setterStart = source.indexOf(
-      'static void set_header_bar_modal_barrier_state(',
-    );
-    final setterEnd = source.indexOf(
-      'static void set_header_bar_modal_barrier_visible(',
-      setterStart,
-    );
-    final setter = source.substring(setterStart, setterEnd);
-    expect(
-      setter,
-      contains('gtk_widget_set_visible(self->titlebar_modal_barrier, visible)'),
-    );
-    expect(setter, contains('if (shade_changed) {'));
-    expect(setter, contains('refresh_header_bar_css(self);'));
-    expect(
-      source,
-      contains(
-        'set_header_bar_modal_barrier_state(\n'
-        '        self, fl_lookup_bool_arg(args, "visible", FALSE),',
-      ),
-    );
-    expect(
-      source,
-      contains('1.0 - std::pow(1.0 - barrier.alpha, effective_depth)'),
-    );
+    expect(runner, isNot(contains('set_header_bar_modal_barrier')));
+    expect(runner, isNot(contains('titlebar_modal_barrier')));
+    expect(dialogs, contains('initialBarrierColor'));
+    expect(dialogs, contains('await route.completed'));
+    expect(workspace, contains('ModalBarrier('));
+    expect(workspace, contains('child: frame'));
   });
 
   for (final (brightness, expectedAlpha) in [

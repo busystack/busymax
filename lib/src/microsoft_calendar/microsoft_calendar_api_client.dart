@@ -159,6 +159,7 @@ class MicrosoftCalendarApiClient implements CloudCalendarClient {
     required CalendarEventMutation mutation,
     CalendarGuestUpdatePolicy guestUpdatePolicy =
         CalendarGuestUpdatePolicy.send,
+    String? ifMatch,
   }) async {
     final json = await _requestJson(
       'PATCH',
@@ -174,6 +175,7 @@ class MicrosoftCalendarApiClient implements CloudCalendarClient {
     required String eventId,
     CalendarGuestUpdatePolicy guestUpdatePolicy =
         CalendarGuestUpdatePolicy.send,
+    String? ifMatch,
   }) {
     return _requestEmpty(
       'DELETE',

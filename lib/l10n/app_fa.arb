@@ -251,6 +251,10 @@
   "viewAgenda": "برنامه",
   "scheduleSettings": "برنامه",
   "scheduleDisplaySettings": "نمایش برنامه",
+  "newEventsAndTasks": "رویدادها و کارهای جدید",
+  "defaultCalendar": "تقویم پیش‌فرض",
+  "defaultTaskList": "فهرست کارهای پیش‌فرض",
+  "lastUsed": "آخرین استفاده",
   "scheduleDisplayHoursDescription": "نماهای روز و هفته ابتدا این بازهٔ زمانی را نشان می‌دهند. موارد زودتر یا دیرتر در صورت نیاز این بازه را گسترش می‌دهند.",
   "scheduleDayStartsAt": "شروع روز از",
   "scheduleDayEndsAt": "پایان روز در",
@@ -313,6 +317,7 @@
   "shortcutPreviousPeriodDescription": "هفتهٔ قبل در نمای هفته، ماه قبل در نمای ماه و به همین ترتیب",
   "shortcutJumpToToday": "رفتن به امروز",
   "shortcutGroupView": "نما",
+  "viewSelector": "نما",
   "shortcutDayView": "نمای روز",
   "shortcutWeekView": "نمای هفته",
   "shortcutMonthView": "نمای ماه",
@@ -594,7 +599,6 @@
   "connectAccountAction": "اتصال",
   "cancelAccountConnection": "لغو اتصال",
   "nextcloudAccountRemovedRevokeFailed": "حساب به‌صورت محلی حذف شد، اما ابطال گذرواژهٔ برنامهٔ Nextcloud ممکن نیست.",
-  "davCachedOfflineNotice": "داده‌های تقویم و کار برای استفادهٔ آفلاین به‌صورت محلی ذخیره می‌شوند.",
   "davReauthenticationRequired": "برای ادامهٔ همگام‌سازی، این حساب را دوباره متصل کنید.",
   "davTemporarilyUnavailable": "این حساب موقتاً در دسترس نیست.",
   "davPermissionChanged": "مجوزهای سرور تغییر کرده‌اند. ویرایش‌های در انتظار متوقف شده‌اند.",
@@ -1118,5 +1122,8 @@
   "searchClearFilters": "بازنشانی فیلترها",
   "searchFiltersAction": "فیلترها",
   "searchNoSources": "هیچ منبع جستجویی انتخاب نشده است",
-  "searchClearText": "پاک کردن متن"
+  "searchClearText": "پاک کردن متن",
+  "windowMinimize": "کوچک کردن",
+  "windowMaximize": "بزرگ کردن",
+  "windowRestore": "بازیابی"
 }

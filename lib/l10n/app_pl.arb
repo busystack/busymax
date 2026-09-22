@@ -381,6 +381,10 @@
   "viewAgenda": "Plan dnia",
   "scheduleSettings": "Harmonogram",
   "scheduleDisplaySettings": "Wyświetlanie harmonogramu",
+  "newEventsAndTasks": "Nowe wydarzenia i zadania",
+  "defaultCalendar": "Domyślny kalendarz",
+  "defaultTaskList": "Domyślna lista zadań",
+  "lastUsed": "Ostatnio używane",
   "scheduleDisplayHoursDescription": "Widoki dnia i tygodnia otwierają się w tym zakresie godzin. Wcześniejsze i późniejsze elementy rozszerzają zakres w razie potrzeby.",
   "scheduleDayStartsAt": "Początek dnia",
   "scheduleDayEndsAt": "Koniec dnia",
@@ -519,6 +523,7 @@
   "shortcutPreviousPeriodDescription": "Poprzedni tydzień w widoku tygodnia, poprzedni miesiąc w widoku miesiąca itd.",
   "shortcutJumpToToday": "Przejdź do dzisiaj",
   "shortcutGroupView": "Widok",
+  "viewSelector": "Widok",
   "shortcutDayView": "Widok dnia",
   "shortcutWeekView": "Widok tygodnia",
   "shortcutMonthView": "Widok miesiąca",
@@ -1243,7 +1248,6 @@
   "connectAccountAction": "Połącz",
   "cancelAccountConnection": "Anuluj łączenie",
   "nextcloudAccountRemovedRevokeFailed": "Konto usunięto lokalnie, ale nie udało się unieważnić jego hasła aplikacji Nextcloud.",
-  "davCachedOfflineNotice": "Dane kalendarzy i zadań są zapisywane lokalnie, aby można było korzystać z nich offline.",
   "davReauthenticationRequired": "Połącz to konto ponownie, aby wznowić synchronizację.",
   "davTemporarilyUnavailable": "To konto jest tymczasowo niedostępne.",
   "davPermissionChanged": "Uprawnienia na serwerze uległy zmianie. Oczekujące zmiany zostały wstrzymane.",
@@ -1754,5 +1758,8 @@
   "searchClearFilters": "Resetuj filtry",
   "searchFiltersAction": "Filtry",
   "searchNoSources": "Nie wybrano źródeł wyszukiwania",
-  "searchClearText": "Wyczyść tekst"
+  "searchClearText": "Wyczyść tekst",
+  "windowMinimize": "Minimalizuj",
+  "windowMaximize": "Maksymalizuj",
+  "windowRestore": "Przywróć"
 }

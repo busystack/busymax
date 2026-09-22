@@ -246,6 +246,10 @@
   "viewAgenda": "कार्यसूची",
   "scheduleSettings": "शेड्यूल",
   "scheduleDisplaySettings": "शेड्यूल प्रदर्शन",
+  "newEventsAndTasks": "नए इवेंट और कार्य",
+  "defaultCalendar": "डिफ़ॉल्ट कैलेंडर",
+  "defaultTaskList": "डिफ़ॉल्ट कार्य सूची",
+  "lastUsed": "पिछली बार उपयोग किया गया",
   "scheduleDisplayHoursDescription": "दिन और सप्ताह दृश्य शुरू में यह समयावधि दिखाते हैं। आवश्यकता होने पर पहले या बाद के आइटम इस सीमा को बढ़ाते हैं।",
   "scheduleDayStartsAt": "दिन शुरू होता है",
   "scheduleDayEndsAt": "दिन समाप्त होता है",
@@ -308,6 +312,7 @@
   "shortcutPreviousPeriodDescription": "सप्ताह दृश्य में पिछला सप्ताह, महीने के दृश्य में पिछला महीना, इत्यादि",
   "shortcutJumpToToday": "आज की तारीख पर जाएँ",
   "shortcutGroupView": "दृश्य",
+  "viewSelector": "दृश्य",
   "shortcutDayView": "दिन का दृश्य",
   "shortcutWeekView": "सप्ताह का दृश्य",
   "shortcutMonthView": "महीने का दृश्य",
@@ -589,7 +594,6 @@
   "connectAccountAction": "कनेक्ट करें",
   "cancelAccountConnection": "कनेक्शन रद्द करें",
   "nextcloudAccountRemovedRevokeFailed": "खाता स्थानीय रूप से हटाया गया, लेकिन Nextcloud ऐप पासवर्ड रद्द नहीं किया जा सका।",
-  "davCachedOfflineNotice": "ऑफ़लाइन उपयोग के लिए कैलेंडर और कार्य डेटा स्थानीय रूप से कैश किया जाता है।",
   "davReauthenticationRequired": "सिंक फिर से शुरू करने के लिए इस खाते को दोबारा कनेक्ट करें।",
   "davTemporarilyUnavailable": "यह खाता अस्थायी रूप से उपलब्ध नहीं है।",
   "davPermissionChanged": "सर्वर अनुमतियाँ बदल गई हैं। लंबित संपादन रोक दिए गए हैं।",
@@ -1044,5 +1048,8 @@
   "searchClearFilters": "फ़िल्टर रीसेट करें",
   "searchFiltersAction": "फ़िल्टर",
   "searchNoSources": "कोई खोज स्रोत नहीं चुना गया",
-  "searchClearText": "पाठ साफ़ करें"
+  "searchClearText": "पाठ साफ़ करें",
+  "windowMinimize": "छोटा करें",
+  "windowMaximize": "अधिकतम करें",
+  "windowRestore": "पुनर्स्थापित करें"
 }

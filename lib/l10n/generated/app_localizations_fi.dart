@@ -455,6 +455,15 @@ class AppLocalizationsFi extends AppLocalizations {
   String get close => 'Sulje';
 
   @override
+  String get windowMinimize => 'Pienennä';
+
+  @override
+  String get windowMaximize => 'Suurenna';
+
+  @override
+  String get windowRestore => 'Palauta';
+
+  @override
   String get exit => 'Lopeta';
 
   @override
@@ -722,6 +731,18 @@ class AppLocalizationsFi extends AppLocalizations {
 
   @override
   String get scheduleDisplaySettings => 'Aikataulun näyttö';
+
+  @override
+  String get newEventsAndTasks => 'Uudet tapahtumat ja tehtävät';
+
+  @override
+  String get defaultCalendar => 'Oletuskalenteri';
+
+  @override
+  String get defaultTaskList => 'Oletustehtävälista';
+
+  @override
+  String get lastUsed => 'Viimeksi käytetty';
 
   @override
   String get scheduleDisplayHoursDescription =>
@@ -1074,6 +1095,9 @@ class AppLocalizationsFi extends AppLocalizations {
 
   @override
   String get shortcutGroupView => 'Näkymä';
+
+  @override
+  String get viewSelector => 'Näkymä';
 
   @override
   String get shortcutDayView => 'Päivänäkymä';
@@ -2435,10 +2459,6 @@ class AppLocalizationsFi extends AppLocalizations {
   @override
   String get nextcloudAccountRemovedRevokeFailed =>
       'Tili poistettiin paikallisesti, mutta Nextcloudin sovellussalasanaa ei voitu kumota.';
-
-  @override
-  String get davCachedOfflineNotice =>
-      'Kalenteri- ja tehtävätiedot tallennetaan paikallisesti offline-käyttöä varten.';
 
   @override
   String get davReauthenticationRequired =>

@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:math';
 
+import 'package:collection/collection.dart';
 import 'package:drift/drift.dart';
 
 import '../../core/http/request_dispatch_exception.dart';
@@ -193,9 +194,12 @@ class PendingOpsReplayer {
     );
     final tempId = op.localTempId ?? op.taskListId;
     if (tempId == null) {
-      await _database.taskListsDao.upsertTaskList(
-        taskListFromDto(_accountId, dto, _now()),
-      );
+      await _database.transaction(() async {
+        await _database.taskListsDao.upsertTaskList(
+          taskListFromDto(_accountId, dto, _now()),
+        );
+        await _database.pendingOpsDao.deleteOp(op.id);
+      });
       return;
     }
 
@@ -241,6 +245,8 @@ class PendingOpsReplayer {
         completedCreateOpId: op.id,
       );
       await _database.taskListsDao.deleteTaskList(_accountId, tempId);
+      // Commit the server identity and creation acknowledgement together.
+      await _database.pendingOpsDao.deleteOp(op.id);
     });
     await notifyCollectionIdReplacement(_onTaskListIdReplaced, tempId, dto.id);
   }
@@ -302,13 +308,25 @@ class PendingOpsReplayer {
     PendingOp completedOp,
     TaskListDto serverList,
   ) async {
-    final dependents =
-        await (_database.select(_database.pendingOps)..where(
-              (row) =>
-                  row.accountId.equals(_accountId) &
-                  row.dependsOnOpId.equals(completedOp.id),
-            ))
-            .get();
+    final operations = await (_database.select(
+      _database.pendingOps,
+    )..where((row) => row.accountId.equals(_accountId))).get();
+    final dependencyIds = <String>{completedOp.id};
+    final dependents = <PendingOp>[];
+    var foundDependent = true;
+    while (foundDependent) {
+      foundDependent = false;
+      for (final candidate in operations) {
+        if (dependencyIds.contains(candidate.id) ||
+            !dependencyIds.contains(candidate.dependsOnOpId) ||
+            candidate.entityType != 'task_list') {
+          continue;
+        }
+        dependencyIds.add(candidate.id);
+        dependents.add(candidate);
+        foundDependent = true;
+      }
+    }
     if (dependents.isEmpty) return false;
 
     final acknowledged = _normalizeTaskListConflictSnapshot(
@@ -327,11 +345,21 @@ class PendingOpsReplayer {
         dependentRequest[_childTaskConflictBaselineKey] =
             dependent.baselineUpdatedUtc;
       }
-      final baseline = _normalizeTaskListConflictSnapshot(
-        _jsonObject(dependent.baselineRawJson ?? '{}'),
-      );
-      for (final field in acknowledged.keys) {
-        baseline[field] = serverSnapshot[field];
+      final initializesServerBaseline =
+          completedOp.operation == 'create_task_list';
+      final baseline = initializesServerBaseline
+          ? Map<String, Object?>.from(serverSnapshot)
+          : _normalizeTaskListConflictSnapshot(
+              _jsonObject(dependent.baselineRawJson ?? '{}'),
+            );
+      if (!initializesServerBaseline) {
+        for (final field in acknowledged.keys) {
+          if (serverSnapshot.containsKey(field)) {
+            baseline[field] = serverSnapshot[field];
+          } else {
+            baseline.remove(field);
+          }
+        }
       }
       await (_database.update(
         _database.pendingOps,
@@ -339,9 +367,10 @@ class PendingOpsReplayer {
         PendingOpsCompanion(
           requestJson: Value(jsonEncode(dependentRequest)),
           baselineRawJson: Value(jsonEncode(baseline)),
-          baselineUpdatedUtc: serverList.updated == null
+          baselineUpdatedUtc:
+              !initializesServerBaseline && serverList.updated == null
               ? const Value.absent()
-              : Value(serverList.updated!.toUtc().toIso8601String()),
+              : Value(serverList.updated?.toUtc().toIso8601String()),
           updatedAtUtc: Value(_now()),
         ),
       );
@@ -367,9 +396,13 @@ class PendingOpsReplayer {
     );
     final tempId = op.localTempId ?? op.taskId;
     if (tempId == null) {
-      await _database.tasksDao.upsertTask(
-        taskFromDto(_accountId, op.taskListId!, dto, _now()),
-      );
+      await _database.transaction(() async {
+        await _rebasePendingListDeletionChildBaselines(op, serverTask: dto);
+        await _database.tasksDao.upsertTask(
+          taskFromDto(_accountId, op.taskListId!, dto, _now()),
+        );
+        await _database.pendingOpsDao.deleteOp(op.id);
+      });
       return;
     }
 
@@ -404,6 +437,10 @@ class PendingOpsReplayer {
   Future<void> _applyTaskEditResult(PendingOp op, TaskDto serverTask) async {
     await _database.transaction(() async {
       final hasDependent = await _rebaseDependentTaskMutations(op, serverTask);
+      await _rebasePendingListDeletionChildBaselines(
+        op,
+        serverTask: serverTask,
+      );
       if (hasDependent) {
         return;
       }
@@ -417,38 +454,52 @@ class PendingOpsReplayer {
     PendingOp completedOp,
     TaskDto serverTask,
   ) async {
-    final dependents =
-        await (_database.select(_database.pendingOps)..where(
-              (row) =>
-                  row.accountId.equals(_accountId) &
-                  row.dependsOnOpId.equals(completedOp.id),
-            ))
-            .get();
+    final operations = await (_database.select(
+      _database.pendingOps,
+    )..where((row) => row.accountId.equals(_accountId))).get();
+    final dependencyIds = <String>{completedOp.id};
+    final dependents = <PendingOp>[];
+    var foundDependent = true;
+    while (foundDependent) {
+      foundDependent = false;
+      for (final candidate in operations) {
+        if (dependencyIds.contains(candidate.id) ||
+            !dependencyIds.contains(candidate.dependsOnOpId) ||
+            !_mutatesSameTask(completedOp, candidate)) {
+          continue;
+        }
+        dependencyIds.add(candidate.id);
+        dependents.add(candidate);
+        foundDependent = true;
+      }
+    }
     if (dependents.isEmpty) {
       return false;
     }
 
-    final acknowledgedFields = _request(completedOp).keys;
+    final serverSnapshot = _normalizeTaskConflictSnapshot(serverTask.rawJson);
     for (final dependent in dependents) {
-      final baseline = _normalizeTaskConflictSnapshot(
+      final initializesServerBaseline =
+          completedOp.operation == 'create_task' &&
+          dependent.baselineUpdatedUtc == null;
+      final baseline = _rebaseAcknowledgedTaskSnapshot(
+        completedOp,
         _jsonObject(dependent.baselineRawJson ?? '{}'),
+        serverSnapshot,
+        initialize: initializesServerBaseline,
       );
-      final serverSnapshot = _normalizeTaskConflictSnapshot(serverTask.rawJson);
       final usesWholeTaskConflictBoundary =
           dependent.operation == 'move_task' ||
           dependent.operation == 'delete_task';
-      // Keep the original timestamp and untouched fields so a provider edit to
-      // a different field is still detected by a dependent field-level edit.
-      for (final field in acknowledgedFields) {
-        baseline[field] = serverSnapshot[field];
-      }
       await (_database.update(
         _database.pendingOps,
       )..where((row) => row.id.equals(dependent.id))).write(
         PendingOpsCompanion(
           baselineRawJson: Value(jsonEncode(baseline)),
-          // Whole-task checks must advance past the acknowledged local write.
-          baselineUpdatedUtc: usesWholeTaskConflictBoundary
+          // Creation supplies the first server boundary for local-only edits.
+          // Whole-task checks must also advance past an acknowledged write.
+          baselineUpdatedUtc:
+              initializesServerBaseline || usesWholeTaskConflictBoundary
               ? Value(serverTask.updated?.toUtc().toIso8601String())
               : const Value.absent(),
           updatedAtUtc: Value(_now()),
@@ -458,10 +509,191 @@ class PendingOpsReplayer {
     return true;
   }
 
+  Map<String, Object?> _rebaseAcknowledgedTaskSnapshot(
+    PendingOp completedOp,
+    Map<String, Object?> originalBaseline,
+    Map<String, Object?> normalizedServerSnapshot, {
+    bool initialize = false,
+  }) {
+    if (initialize) {
+      return Map<String, Object?>.from(normalizedServerSnapshot);
+    }
+
+    final completedRequest = _request(completedOp);
+    final requestedFields =
+        completedOp.operation == 'create_task' &&
+            completedRequest['body'] is Map
+        ? (completedRequest['body'] as Map).keys.map((key) => key.toString())
+        : completedRequest.keys;
+    final acknowledgedFields = <String>{
+      for (final field in requestedFields)
+        if (!_taskOperationArgumentFields.contains(field)) field,
+    };
+    final baseline = _normalizeTaskConflictSnapshot(originalBaseline);
+
+    void acknowledgeProviderFields(Iterable<String> fields) {
+      for (final field in fields) {
+        if (baseline.containsKey(field) ||
+            normalizedServerSnapshot.containsKey(field)) {
+          acknowledgedFields.add(field);
+        }
+      }
+    }
+
+    if (acknowledgedFields.contains('status')) {
+      acknowledgeProviderFields({
+        'completed',
+        'microsoftCompletedDateTime',
+        'microsoftCompletedTimeZone',
+      });
+    }
+    if (acknowledgedFields.contains('due') ||
+        acknowledgedFields.contains('microsoftDueDateTime')) {
+      acknowledgeProviderFields({
+        'due',
+        'microsoftDueDateTime',
+        'microsoftDueTimeZone',
+      });
+    }
+    if (completedOp.operation == 'move_task') {
+      acknowledgedFields.addAll({'parent', 'position'});
+    }
+
+    // Keep untouched fields at their original values so an independent
+    // remote change remains visible to a later whole-task check. Missing
+    // acknowledged values mean the provider cleared/omitted that field; do
+    // not manufacture null aliases from another provider's schema.
+    for (final field in acknowledgedFields) {
+      if (normalizedServerSnapshot.containsKey(field)) {
+        baseline[field] = normalizedServerSnapshot[field];
+      } else {
+        baseline.remove(field);
+      }
+    }
+    return baseline;
+  }
+
+  Future<void> _rebasePendingListDeletionChildBaselines(
+    PendingOp completedOp, {
+    TaskDto? serverTask,
+  }) async {
+    final sourceListId = completedOp.taskListId;
+    final taskId = serverTask?.id ?? completedOp.taskId;
+    if (sourceListId == null || taskId == null) return;
+
+    final request = _request(completedOp);
+    final destinationListId = completedOp.operation == 'move_task'
+        ? request['destinationTasklist']?.toString() ?? sourceListId
+        : sourceListId;
+    final listDeletes =
+        await (_database.select(_database.pendingOps)..where(
+              (row) =>
+                  row.accountId.equals(_accountId) &
+                  row.entityType.equals('task_list') &
+                  row.operation.equals('delete_task_list'),
+            ))
+            .get();
+
+    for (final listDelete in listDeletes) {
+      final deleteRequest = _request(listDelete);
+      final encoded = deleteRequest[_childTaskConflictBaselinesKey];
+      if (encoded is! Map) continue;
+      final baselines = <String, Object?>{
+        for (final entry in encoded.entries) entry.key.toString(): entry.value,
+      };
+      var changed = false;
+
+      void removeTask() {
+        changed = baselines.remove(taskId) != null || changed;
+        final localId = completedOp.localTempId;
+        if (localId != null) {
+          changed = baselines.remove(localId) != null || changed;
+        }
+      }
+
+      void putServerTask({required bool initialize}) {
+        final task = serverTask;
+        if (task == null) return;
+        final existing = baselines[taskId];
+        if (!initialize && existing is! Map) return;
+        final existingEntry = existing is Map
+            ? existing.cast<String, Object?>()
+            : const <String, Object?>{};
+        final baselineRaw = existingEntry['rawJson'];
+        final normalizedServer = _normalizeTaskConflictSnapshot(task.rawJson);
+        final rebasedRaw = initialize || baselineRaw is! Map
+            ? Map<String, Object?>.from(normalizedServer)
+            : _rebaseAcknowledgedTaskSnapshot(
+                completedOp,
+                baselineRaw.cast<String, Object?>(),
+                normalizedServer,
+              );
+        baselines[taskId] = {
+          'updatedUtc': task.updated?.toUtc().toIso8601String(),
+          'rawJson': rebasedRaw,
+        };
+        changed = true;
+      }
+
+      final deletingSource = listDelete.taskListId == sourceListId;
+      final deletingDestination = listDelete.taskListId == destinationListId;
+      switch (completedOp.operation) {
+        case 'create_task':
+          if (deletingSource) putServerTask(initialize: true);
+          break;
+        case 'patch_task':
+        case 'update_task':
+          if (deletingSource) putServerTask(initialize: false);
+          break;
+        case 'delete_task':
+          if (deletingSource) removeTask();
+          break;
+        case 'move_task':
+          if (sourceListId == destinationListId) {
+            if (deletingSource) putServerTask(initialize: false);
+          } else {
+            if (deletingSource) removeTask();
+            if (deletingDestination) putServerTask(initialize: true);
+          }
+          break;
+      }
+      if (!changed) continue;
+      deleteRequest[_childTaskConflictBaselinesKey] = baselines;
+      await (_database.update(
+        _database.pendingOps,
+      )..where((row) => row.id.equals(listDelete.id))).write(
+        PendingOpsCompanion(
+          requestJson: Value(jsonEncode(deleteRequest)),
+          updatedAtUtc: Value(_now()),
+        ),
+      );
+    }
+  }
+
+  bool _mutatesSameTask(PendingOp completed, PendingOp dependent) {
+    final identities = {
+      if (completed.taskId != null) completed.taskId!,
+      if (completed.localTempId != null) completed.localTempId!,
+    };
+    if (dependent.entityType == 'task_checklist_item') {
+      return identities.contains(dependent.taskId);
+    }
+    return dependent.entityType == 'task' &&
+        (identities.contains(dependent.taskId) ||
+            identities.contains(dependent.localTempId));
+  }
+
   Future<void> _deleteTask(PendingOp op) async {
     await _ensureTaskUnchanged(op, 'delete');
     await _apiClient.deleteTask(taskListId: op.taskListId!, taskId: op.taskId!);
-    await _database.tasksDao.deleteTask(_accountId, op.taskListId!, op.taskId!);
+    await _database.transaction(() async {
+      await _rebasePendingListDeletionChildBaselines(op);
+      await _database.tasksDao.deleteTask(
+        _accountId,
+        op.taskListId!,
+        op.taskId!,
+      );
+    });
   }
 
   Future<void> _moveTask(PendingOp op) async {
@@ -478,10 +710,12 @@ class PendingOpsReplayer {
     );
     await _database.transaction(() async {
       final hasDependent = await _rebaseDependentTaskMutations(op, dto);
+      await _rebasePendingListDeletionChildBaselines(op, serverTask: dto);
       if (hasDependent) {
         // The repository has already moved the visible projection to the tail
         // of the local chain. Applying this intermediate response would move
         // it backwards and erase later local edits.
+        await _preserveDependentMoveProjection(op, targetTaskListId);
         return;
       }
       await _database.tasksDao.upsertTask(
@@ -495,6 +729,76 @@ class PendingOpsReplayer {
         );
       }
     });
+  }
+
+  Future<void> _preserveDependentMoveProjection(
+    PendingOp op,
+    String targetTaskListId,
+  ) async {
+    final projectionTaskListId = await _dependentTaskProjectionListId(
+      op,
+      targetTaskListId,
+    );
+    if (projectionTaskListId == op.taskListId) return;
+    final sourceTask =
+        await (_database.select(_database.tasks)..where(
+              (row) =>
+                  row.accountId.equals(_accountId) &
+                  row.taskListId.equals(op.taskListId!) &
+                  row.id.equals(op.taskId!),
+            ))
+            .getSingleOrNull();
+    if (sourceTask == null) return;
+    final destinationTask =
+        await (_database.select(_database.tasks)..where(
+              (row) =>
+                  row.accountId.equals(_accountId) &
+                  row.taskListId.equals(projectionTaskListId) &
+                  row.id.equals(op.taskId!),
+            ))
+            .getSingleOrNull();
+    if (destinationTask == null) {
+      await (_database.update(_database.tasks)..where(
+            (row) =>
+                row.accountId.equals(_accountId) &
+                row.taskListId.equals(op.taskListId!) &
+                row.id.equals(op.taskId!),
+          ))
+          .write(TasksCompanion(taskListId: Value(projectionTaskListId)));
+      return;
+    }
+    await _database.tasksDao.deleteTask(_accountId, op.taskListId!, op.taskId!);
+  }
+
+  Future<String> _dependentTaskProjectionListId(
+    PendingOp completedOp,
+    String initialTaskListId,
+  ) async {
+    final operations = await (_database.select(
+      _database.pendingOps,
+    )..where((row) => row.accountId.equals(_accountId))).get();
+    final dependencyIds = <String>{completedOp.id};
+    var projectionTaskListId = initialTaskListId;
+    var foundDependent = true;
+    while (foundDependent) {
+      foundDependent = false;
+      for (final candidate in operations) {
+        if (dependencyIds.contains(candidate.id) ||
+            !dependencyIds.contains(candidate.dependsOnOpId) ||
+            !_mutatesSameTask(completedOp, candidate)) {
+          continue;
+        }
+        dependencyIds.add(candidate.id);
+        foundDependent = true;
+        final request = _request(candidate);
+        projectionTaskListId = candidate.operation == 'move_task'
+            ? request['destinationTasklist']?.toString() ??
+                  candidate.taskListId ??
+                  projectionTaskListId
+            : candidate.taskListId ?? projectionTaskListId;
+      }
+    }
+    return projectionTaskListId;
   }
 
   Future<void> _clearCompleted(PendingOp op) async {
@@ -526,6 +830,8 @@ class PendingOpsReplayer {
           newValue: item.id,
         );
       }
+      // Commit the server identity and creation acknowledgement together.
+      await _database.pendingOpsDao.deleteOp(op.id);
     });
   }
 
@@ -614,9 +920,21 @@ class PendingOpsReplayer {
         ? -1
         : items.indexWhere((candidate) => candidate.id == oldItemId);
     if (index < 0) {
-      items.add(item);
+      final pendingDelete = oldItemId == null
+          ? false
+          : await _hasPendingChecklistDelete(
+              parentTaskId: parentTaskId,
+              checklistItemId: oldItemId,
+            );
+      if (!pendingDelete) items.add(item);
     } else {
-      items[index] = item;
+      // Retain the temporary identity long enough for a local action that
+      // started before this acknowledgement to resolve the new server item.
+      var replacement = item.withLocalIdentityAlias(oldItemId);
+      for (final alias in items[index].localIdentityAliases) {
+        replacement = replacement.withLocalIdentityAlias(alias);
+      }
+      items[index] = replacement;
     }
     await (_database.update(_database.tasks)..where(
           (row) =>
@@ -705,14 +1023,39 @@ class PendingOpsReplayer {
                     row.id.equals(tempTaskId),
               ))
               .getSingleOrNull();
-      await _database.tasksDao.upsertTask(
-        taskFromDto(_accountId, taskListId, serverTask, _now()),
+      final createOperation = await _database.pendingOpsDao.getOp(
+        completedCreateOpId,
       );
-      if (localTask?.microsoftChecklistItemsJson != null) {
+      if (createOperation == null) {
+        throw StateError('The task creation operation is unavailable.');
+      }
+      final hasDependent = await _rebaseDependentTaskMutations(
+        createOperation,
+        serverTask,
+      );
+      await _rebasePendingListDeletionChildBaselines(
+        createOperation,
+        serverTask: serverTask,
+      );
+      // A queued cross-list move has already relocated the temporary row.
+      // Keep that visible projection in place while replacing its identity.
+      final projectionTaskListId = localTask?.taskListId ?? taskListId;
+      await _database.tasksDao.upsertTask(
+        taskFromDto(_accountId, projectionTaskListId, serverTask, _now()),
+      );
+      if (localTask != null && hasDependent) {
         await (_database.update(_database.tasks)..where(
               (row) =>
                   row.accountId.equals(_accountId) &
-                  row.taskListId.equals(taskListId) &
+                  row.taskListId.equals(projectionTaskListId) &
+                  row.id.equals(serverTask.id),
+            ))
+            .write(_pendingLocalTaskProjection(localTask));
+      } else if (localTask?.microsoftChecklistItemsJson != null) {
+        await (_database.update(_database.tasks)..where(
+              (row) =>
+                  row.accountId.equals(_accountId) &
+                  row.taskListId.equals(projectionTaskListId) &
                   row.id.equals(serverTask.id),
             ))
             .write(
@@ -747,7 +1090,45 @@ class PendingOpsReplayer {
         localTask?.taskListId ?? taskListId,
         tempTaskId,
       );
+      // Commit the server identity and creation acknowledgement together.
+      await _database.pendingOpsDao.deleteOp(completedCreateOpId);
     });
+  }
+
+  TasksCompanion _pendingLocalTaskProjection(Task local) {
+    return TasksCompanion(
+      title: Value(local.title),
+      parent: Value(local.parent),
+      position: Value(local.position),
+      notes: Value(local.notes),
+      status: Value(local.status),
+      dueUtc: Value(local.dueUtc),
+      completedUtc: Value(local.completedUtc),
+      providerStatus: Value(local.providerStatus),
+      bodyContent: Value(local.bodyContent),
+      bodyContentType: Value(local.bodyContentType),
+      microsoftDueDateTime: Value(local.microsoftDueDateTime),
+      microsoftDueTimeZone: Value(local.microsoftDueTimeZone),
+      microsoftStartDateTime: Value(local.microsoftStartDateTime),
+      microsoftStartTimeZone: Value(local.microsoftStartTimeZone),
+      microsoftReminderDateTime: Value(local.microsoftReminderDateTime),
+      microsoftReminderTimeZone: Value(local.microsoftReminderTimeZone),
+      microsoftIsReminderOn: Value(local.microsoftIsReminderOn),
+      microsoftCompletedDateTime: Value(local.microsoftCompletedDateTime),
+      microsoftCompletedTimeZone: Value(local.microsoftCompletedTimeZone),
+      microsoftChecklistItemsJson: Value(local.microsoftChecklistItemsJson),
+      recurrenceJson: Value(local.recurrenceJson),
+      importance: Value(local.importance),
+      categoriesJson: Value(local.categoriesJson),
+      deleted: Value(local.deleted),
+      hidden: Value(local.hidden),
+      localDirty: const Value(true),
+      pendingDelete: Value(local.pendingDelete),
+      pendingMove: Value(local.pendingMove),
+      localCreated: const Value(false),
+      createdLocalAtUtc: Value(local.createdLocalAtUtc),
+      updatedLocalAtUtc: Value(local.updatedLocalAtUtc),
+    );
   }
 
   Future<void> _replacePendingReference(
@@ -815,11 +1196,14 @@ class PendingOpsReplayer {
     if (op.operation == 'delete_task' &&
         op.taskListId != null &&
         op.taskId != null) {
-      await _database.tasksDao.deleteTask(
-        _accountId,
-        op.taskListId!,
-        op.taskId!,
-      );
+      await _database.transaction(() async {
+        await _rebasePendingListDeletionChildBaselines(op);
+        await _database.tasksDao.deleteTask(
+          _accountId,
+          op.taskListId!,
+          op.taskId!,
+        );
+      });
     }
     if (op.operation == 'delete_task_checklist_item' &&
         op.taskListId != null &&
@@ -855,6 +1239,25 @@ class PendingOpsReplayer {
       lastErrorCode: errorCode,
       lastErrorMessage: errorMessage,
       state: _isCreationOp(op) ? 'retry' : null,
+    );
+  }
+
+  Future<bool> _hasPendingChecklistDelete({
+    required String parentTaskId,
+    required String checklistItemId,
+  }) async {
+    final operations =
+        await (_database.select(_database.pendingOps)..where(
+              (row) =>
+                  row.accountId.equals(_accountId) &
+                  row.entityType.equals('task_checklist_item') &
+                  row.taskId.equals(parentTaskId) &
+                  row.operation.equals('delete_task_checklist_item'),
+            ))
+            .get();
+    return operations.any(
+      (operation) =>
+          _request(operation)['checklistItemId']?.toString() == checklistItemId,
     );
   }
 
@@ -951,9 +1354,13 @@ class PendingOpsReplayer {
     Map<String, Object?> pendingFields,
   ) async {
     final baselineUpdatedUtc = _parseUtc(op.baselineUpdatedUtc);
-    if (baselineUpdatedUtc == null || op.taskListId == null) {
+    if (op.taskListId == null) {
       return;
     }
+    final compareWithoutRevision =
+        baselineUpdatedUtc == null &&
+        _apiClient is RevisionlessTaskListConflictClient;
+    if (baselineUpdatedUtc == null && !compareWithoutRevision) return;
 
     final local =
         await (_database.select(_database.taskLists)..where(
@@ -982,6 +1389,7 @@ class PendingOpsReplayer {
       currentServerJson: normalizedCurrent,
       baselineUpdatedUtc: baselineUpdatedUtc,
       currentUpdatedUtc: current.updated,
+      compareWithoutRevision: compareWithoutRevision,
     );
     if (conflict.hasConflict) {
       await _blockConflict(
@@ -1062,12 +1470,27 @@ class PendingOpsReplayer {
 
   Future<void> _ensureTaskListUnchanged(PendingOp op, String action) async {
     final baselineUpdatedUtc = _parseUtc(op.baselineUpdatedUtc);
-    if (baselineUpdatedUtc == null || op.taskListId == null) {
+    if (op.taskListId == null) {
       return;
     }
+    final compareWithoutRevision =
+        baselineUpdatedUtc == null &&
+        _apiClient is RevisionlessTaskListConflictClient;
+    if (baselineUpdatedUtc == null && !compareWithoutRevision) return;
 
     final current = await _apiClient.getTaskList(op.taskListId!);
-    if (_remoteChangedAfterBaseline(current.updated, baselineUpdatedUtc)) {
+    final baselineRawJson = op.baselineRawJson;
+    final contentChanged =
+        compareWithoutRevision &&
+        baselineRawJson != null &&
+        !const DeepCollectionEquality().equals(
+          _semanticTaskListConflictSnapshot(_jsonObject(baselineRawJson)),
+          _semanticTaskListConflictSnapshot(current.rawJson),
+        );
+    final revisionChanged =
+        baselineUpdatedUtc != null &&
+        _remoteChangedAfterBaseline(current.updated, baselineUpdatedUtc);
+    if (contentChanged || revisionChanged) {
       await _blockConflict(
         op,
         'Remote task list changed since local $action was queued.',
@@ -1087,7 +1510,18 @@ class PendingOpsReplayer {
       taskListId: op.taskListId!,
       taskId: op.taskId!,
     );
-    if (_remoteChangedAfterBaseline(current.updated, baselineUpdatedUtc)) {
+    final baselineRawJson = op.baselineRawJson;
+    final contentChanged =
+        baselineRawJson != null &&
+        !const DeepCollectionEquality().equals(
+          _semanticTaskConflictSnapshot(_jsonObject(baselineRawJson)),
+          _semanticTaskConflictSnapshot(current.rawJson),
+        );
+    final revisionChanged = _remoteChangedAfterBaseline(
+      current.updated,
+      baselineUpdatedUtc,
+    );
+    if (contentChanged || revisionChanged) {
       await _blockConflict(
         op,
         'Remote task changed since local $action was queued.',
@@ -1100,9 +1534,21 @@ class PendingOpsReplayer {
     String action,
   ) async {
     final request = _request(op);
+    if (request.containsKey(_childTaskConflictBaselinesKey)) {
+      await _ensureChildTaskSnapshotsUnchanged(op, action, request);
+      return;
+    }
     final childBaseline = request[_childTaskConflictBaselineKey]?.toString();
     final baselineUpdatedUtc =
         _parseUtc(childBaseline) ?? _parseUtc(op.baselineUpdatedUtc);
+    if (baselineUpdatedUtc == null &&
+        _apiClient is RevisionlessTaskListConflictClient) {
+      await _blockConflict(
+        op,
+        'Remote tasks in this list cannot be verified against the local '
+        '$action baseline.',
+      );
+    }
     if (baselineUpdatedUtc == null || op.taskListId == null) {
       return;
     }
@@ -1131,6 +1577,142 @@ class PendingOpsReplayer {
 
       pageToken = page.nextPageToken;
     } while (pageToken != null && pageToken.isNotEmpty);
+  }
+
+  Future<void> _ensureChildTaskSnapshotsUnchanged(
+    PendingOp op,
+    String action,
+    Map<String, Object?> request,
+  ) async {
+    if (op.taskListId == null) return;
+    final encodedBaselines = request[_childTaskConflictBaselinesKey];
+    if (encodedBaselines is! Map) return;
+    final baselines = <String, Map<String, Object?>>{
+      for (final entry in encodedBaselines.entries)
+        if (entry.value is Map)
+          entry.key.toString(): (entry.value as Map).cast<String, Object?>(),
+    };
+    final currentTasks = <String, TaskDto>{};
+    String? pageToken;
+    do {
+      final page = await _apiClient.listTasksPage(
+        taskListId: op.taskListId!,
+        maxResults: 100,
+        pageToken: pageToken,
+        showCompleted: true,
+        showDeleted: true,
+        showHidden: true,
+        showAssigned: true,
+      );
+      for (final task in page.items) {
+        currentTasks[task.id] = task;
+      }
+      pageToken = page.nextPageToken;
+    } while (pageToken != null && pageToken.isNotEmpty);
+
+    var changed = baselines.length != currentTasks.length;
+    if (!changed) {
+      for (final entry in baselines.entries) {
+        final current = currentTasks[entry.key];
+        if (current == null) {
+          changed = true;
+          break;
+        }
+        final baselineUpdatedUtc = _parseUtc(
+          entry.value['updatedUtc']?.toString(),
+        );
+        final baselineRaw = entry.value['rawJson'];
+        final revisionChanged =
+            baselineUpdatedUtc != null &&
+            _remoteChangedAfterBaseline(current.updated, baselineUpdatedUtc);
+        final contentChanged =
+            baselineRaw is Map &&
+            !const DeepCollectionEquality().equals(
+              _semanticTaskConflictSnapshot(
+                baselineRaw.cast<String, Object?>(),
+              ),
+              _semanticTaskConflictSnapshot(current.rawJson),
+            );
+        if (revisionChanged || contentChanged) {
+          changed = true;
+          break;
+        }
+      }
+    }
+    if (changed) {
+      await _blockConflict(
+        op,
+        'Remote task in list changed since local $action was queued.',
+      );
+    }
+  }
+
+  Map<String, Object?> _semanticTaskConflictSnapshot(
+    Map<String, Object?> snapshot,
+  ) {
+    final semantic = Map<String, Object?>.from(
+      _normalizeTaskConflictSnapshot(snapshot),
+    );
+    semantic.removeWhere(
+      (key, _) =>
+          _taskRevisionFields.contains(key) ||
+          _taskOperationArgumentFields.contains(key) ||
+          key.startsWith('@odata.') ||
+          key.startsWith('_busymax'),
+    );
+    if (semantic.containsKey('notes')) semantic.remove('body');
+    if (semantic.containsKey('microsoftDueDateTime')) {
+      semantic.remove('dueDateTime');
+    }
+    if (semantic.containsKey('microsoftStartDateTime')) {
+      semantic.remove('startDateTime');
+    }
+    if (semantic.containsKey('microsoftReminderDateTime')) {
+      semantic.remove('reminderDateTime');
+    }
+    if (semantic.containsKey('microsoftCompletedDateTime')) {
+      semantic.remove('completedDateTime');
+    }
+    if (semantic.containsKey('microsoftIsReminderOn')) {
+      semantic.remove('isReminderOn');
+    }
+    return _canonicalConflictMap(semantic);
+  }
+
+  Map<String, Object?> _semanticTaskListConflictSnapshot(
+    Map<String, Object?> snapshot,
+  ) {
+    final semantic = Map<String, Object?>.from(
+      _normalizeTaskListConflictSnapshot(snapshot),
+    );
+    semantic.removeWhere(
+      (key, _) =>
+          _taskListRevisionFields.contains(key) ||
+          key.startsWith('@odata.') ||
+          key.startsWith('_busymax'),
+    );
+    if (semantic.containsKey('title')) semantic.remove('displayName');
+    return _canonicalConflictMap(semantic);
+  }
+
+  Map<String, Object?> _canonicalConflictMap(Map<String, Object?> value) {
+    final result = <String, Object?>{};
+    for (final entry in value.entries) {
+      final canonical = _canonicalConflictValue(entry.value);
+      if (canonical != null) result[entry.key] = canonical;
+    }
+    return result;
+  }
+
+  Object? _canonicalConflictValue(Object? value) {
+    if (value is Map) {
+      final nested = _canonicalConflictMap(value.cast<String, Object?>());
+      return nested.isEmpty ? null : nested;
+    }
+    if (value is List) {
+      return [for (final item in value) _canonicalConflictValue(item)];
+    }
+    return value;
   }
 
   Future<void> _ensureNoCompletedTaskConflict(PendingOp op) async {
@@ -1190,6 +1772,30 @@ class PendingOpsReplayer {
 
 const _childTaskConflictBaselineKey =
     '_busymaxChildTaskConflictBaselineUpdatedUtc';
+const _childTaskConflictBaselinesKey = '_busymaxChildTaskConflictBaselines';
+
+const _taskRevisionFields = {
+  'etag',
+  '@odata.etag',
+  'updated',
+  'lastModifiedDateTime',
+  'bodyLastModifiedDateTime',
+};
+
+const _taskOperationArgumentFields = {
+  'previous',
+  'destinationTasklist',
+  'taskListId',
+  'tasklist',
+  'checklistItemId',
+};
+
+const _taskListRevisionFields = {
+  'etag',
+  '@odata.etag',
+  'updated',
+  'lastModifiedDateTime',
+};
 
 const _pendingOpReferenceKeys = {
   'id',

@@ -1,7 +1,6 @@
 import 'package:busymax/src/l10n/time_format_scope.dart';
 import 'package:busymax/src/l10n/week_preferences_scope.dart';
 import 'dart:async';
-import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -13,10 +12,13 @@ import '../../../app/busymax_about_dialog.dart';
 import '../../../app/busymax_yaru_theme.dart';
 import '../../../app/app_bootstrap.dart';
 import '../../../app/busymax_design.dart';
+import '../../../app/common/busymax_motion_widgets.dart';
 import '../../../app/busymax_dialogs.dart';
-import '../../../app/busymax_glyphs.dart';
 import '../../../app/busymax_keyboard_shortcuts_dialog.dart';
 import '../../../app/busymax_layout.dart';
+import '../../../app/busymax_shortcuts.dart';
+import '../../../app/linux/linux_page_frame.dart';
+import '../../../app/linux/linux_header_style.dart';
 import '../../../core/logging/redacting_logger.dart';
 import '../../../dav/auth/dav_account_dialogs.dart';
 import '../../../dav/presentation/nextcloud_collection_dialog.dart';
@@ -27,9 +29,8 @@ import '../../../dav/storage/dav_settings_repository.dart';
 import 'package:busymax/src/core/auth/oauth_models.dart';
 import '../../../l10n/app_locale.dart';
 import '../../../l10n/l10n.dart';
-import '../../../platform/linux_header_bar_service.dart';
 import '../../../platform/common/desktop_services.dart';
-import '../../../platform/linux_header_bar_provider.dart';
+import '../../../platform/gtk_header_icon_service.dart';
 import '../../../webcal/webcal_subscription_service.dart';
 import '../../../webcal/webcal_uri.dart';
 import 'package:busymax/src/providers/busy_provider.dart';
@@ -42,7 +43,10 @@ import '../../connectivity/network_connectivity_service.dart';
 import '../../diagnostics/presentation/diagnostics_screen.dart';
 import '../../feedback/presentation/feedback_dialog.dart';
 import '../../sync/sync_auth_error.dart';
+import '../../task_lists/data/task_lists_repository.dart';
 import '../../tasks/presentation/desktop_date_time_fields.dart';
+import '../../tasks/domain/task_capabilities.dart';
+import '../../schedule/presentation/schedule_toolbar.dart';
 import 'account_removal_dialog.dart';
 import 'launch_at_login_refresh.dart';
 
@@ -60,10 +64,6 @@ class SettingsScreen extends ConsumerStatefulWidget {
 
 class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   late var _page = widget.initialPage;
-  late final LinuxHeaderBarSession _headerBarSession;
-  StreamSubscription<BusyMaxHeaderBarAction>? _headerBarActions;
-  var _headerBarReady = false;
-  var _nativeHeaderBarAvailable = false;
   BusyProvider? _connectingProvider;
   DavCancellationToken? _davCancellation;
   final _removingAccountIds = <String>{};
@@ -76,19 +76,12 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     _autostartRefresh = LaunchAtLoginRefreshObserver(
       () => ref.invalidate(launchAtLoginStateProvider),
     );
-    _headerBarSession = ref.read(linuxHeaderBarServiceProvider).claimSession();
-    _headerBarActions = _headerBarSession.actions.listen(
-      _handleHeaderBarAction,
-    );
-    unawaited(_initializeHeaderBar());
   }
 
   @override
   void dispose() {
     _autostartRefresh.dispose();
     _davCancellation?.cancel();
-    _headerBarSession.dispose();
-    unawaited(_headerBarActions?.cancel());
     super.dispose();
   }
 
@@ -105,12 +98,19 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     final selectedAccount = ref.watch(selectedAccountProvider);
     final accounts =
         ref.watch(accountManagementStreamProvider).valueOrNull ?? const [];
+    final allAccounts =
+        ref.watch(accountsStreamProvider).valueOrNull ??
+        const <AccountEntity>[];
     final davCollections =
         ref.watch(davCollectionsStreamProvider).valueOrNull ?? const [];
     final davConflicts =
         ref.watch(davConflictsStreamProvider).valueOrNull ?? const [];
     final calendarSources =
         ref.watch(calendarSourcesStreamProvider).valueOrNull ?? const [];
+    final taskLists = _page == SettingsPage.schedule
+        ? ref.watch(scheduleTaskListsProvider).valueOrNull ??
+              const <TaskListEntity>[]
+        : const <TaskListEntity>[];
     final subscriptions =
         ref.watch(webCalSubscriptionsProvider).valueOrNull ?? const [];
     final config = ref.watch(buildConfigProvider);
@@ -121,6 +121,30 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     final themeController = ref.read(busyMaxThemeControllerProvider);
     final l10n = context.l10n;
     final title = _settingsPageLabel(context, _page);
+    final hasSyncEligibleAccounts = allAccounts.any(
+      (account) => account.isSyncEligible,
+    );
+    final writableCalendars = writableCalendarSources(calendarSources);
+    final writableTaskLists = <TaskListEntity>[
+      for (final list in taskLists)
+        if (!list.pendingDelete &&
+            _canCreateTasksInList(ref, allAccounts, list))
+          list,
+    ];
+    final calendarOptions = {
+      for (final source in writableCalendars)
+        CreationDestination(
+          accountId: source.accountId,
+          id: source.id,
+        ): '${source.summary} · ${_settingsAccountLabel(allAccounts, source.accountId)}',
+    };
+    final taskListOptions = {
+      for (final list in writableTaskLists)
+        CreationDestination(
+          accountId: list.accountId,
+          id: list.id,
+        ): '${list.title} · ${_settingsAccountLabel(allAccounts, list.accountId)}',
+    };
 
     final pageBody = switch (_page) {
       SettingsPage.accounts => _AccountManagementSection(
@@ -177,10 +201,39 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         onUnsubscribe: (subscription) => unawaited(_unsubscribe(subscription)),
       ),
       SettingsPage.schedule => _SettingsPageLayout(
-        title: l10n.scheduleSettings,
         children: [
           BusyMaxGroupedList(
+            title: l10n.newEventsAndTasks,
+            titleStyle: _settingsSectionHeaderStyle(context),
+            filled: true,
+            children: [
+              BusyMaxComboRow<CreationDestination?>(
+                title: l10n.defaultCalendar,
+                leading: const Icon(YaruIcons.calendar),
+                values: [null, ...calendarOptions.keys],
+                selected: calendarOptions.containsKey(settings.defaultCalendar)
+                    ? settings.defaultCalendar
+                    : null,
+                labelFor: (value) =>
+                    value == null ? l10n.lastUsed : calendarOptions[value]!,
+                onSelected: settingsController.setDefaultCalendar,
+              ),
+              BusyMaxComboRow<CreationDestination?>(
+                title: l10n.defaultTaskList,
+                leading: const Icon(YaruIcons.checkmark),
+                values: [null, ...taskListOptions.keys],
+                selected: taskListOptions.containsKey(settings.defaultTaskList)
+                    ? settings.defaultTaskList
+                    : null,
+                labelFor: (value) =>
+                    value == null ? l10n.lastUsed : taskListOptions[value]!,
+                onSelected: settingsController.setDefaultTaskList,
+              ),
+            ],
+          ),
+          BusyMaxGroupedList(
             title: l10n.scheduleDisplaySettings,
+            titleStyle: _settingsSectionHeaderStyle(context),
             description: l10n.scheduleDisplayHoursDescription,
             filled: true,
             children: [
@@ -228,7 +281,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         ],
       ),
       SettingsPage.system => _SettingsPageLayout(
-        title: l10n.settingsSystem,
         children: [
           BusyMaxGroupedList(
             filled: true,
@@ -316,7 +368,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         ],
       ),
       SettingsPage.notifications => _SettingsPageLayout(
-        title: l10n.notifications,
         children: [
           BusyMaxGroupedList(
             filled: true,
@@ -393,7 +444,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         ],
       ),
       SettingsPage.privacy => _SettingsPageLayout(
-        title: l10n.privacy,
         children: [
           BusyMaxGroupedList(
             filled: true,
@@ -409,98 +459,102 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         ],
       ),
       SettingsPage.diagnostics => _SettingsPageLayout(
-        title: l10n.diagnostics,
         children: [
           BusyMaxGroupedList(
             key: const ValueKey('diagnostics-full-resync-section'),
             title: l10n.sync,
+            titleStyle: _settingsSectionHeaderStyle(context),
             description: l10n.forceFullResyncDescription,
             filled: true,
             children: [
               BusyMaxActionRow(
                 title: l10n.forceFullResync,
                 leading: const Icon(YaruIcons.sync),
-                enabled: accounts.isNotEmpty,
-                onTap: accounts.isEmpty
+                enabled: hasSyncEligibleAccounts,
+                onTap: !hasSyncEligibleAccounts
                     ? null
-                    : () => _forceFullResync(context, ref, accounts),
+                    : () => _forceFullResync(context, ref),
               ),
             ],
           ),
           const SizedBox(height: BusyMaxSpacing.lg),
-          const DiagnosticsPanel(scrollable: false),
+          DiagnosticsPanel(
+            scrollable: false,
+            sectionHeaderStyle: _settingsSectionHeaderStyle(context),
+          ),
         ],
       ),
     };
 
-    return Scaffold(
-      backgroundColor: BusyMaxSurfaceColors.of(context).window,
-      body: LayoutBuilder(
-        builder: (context, constraints) {
-          final showSidebar = BusyMaxLayoutRules.showSettingsSidebar(
-            constraints.maxWidth,
-          );
-          _updateSettingsHeaderBar(
-            context,
-            title,
-            settings: settings,
-            showSidebar: showSidebar,
-          );
-          final content = Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              if (_showFallbackHeader)
-                _SettingsFallbackHeader(title: title, onBack: _goBack),
-              if (ref.watch(appSettingsPersistenceFailedProvider))
-                MaterialBanner(
-                  content: Text(l10n.settingsSaveFailed),
-                  actions: [
-                    TextButton(
-                      onPressed: () =>
-                          unawaited(settingsController.retrySave()),
-                      child: Text(l10n.retry),
+    return CallbackShortcuts(
+      bindings: {BusyMaxShortcutActivators.back: _goBack},
+      child: Focus(
+        autofocus: true,
+        child: Scaffold(
+          backgroundColor: BusyMaxSurfaceColors.of(context).window,
+          body: LayoutBuilder(
+            builder: (context, constraints) {
+              final showSidebar = BusyMaxLayoutRules.showSettingsSidebar(
+                constraints.maxWidth,
+              );
+              final content = Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  if (ref.watch(appSettingsPersistenceFailedProvider))
+                    MaterialBanner(
+                      content: Text(l10n.settingsSaveFailed),
+                      actions: [
+                        BusyMaxPushButton.standard(
+                          onPressed: () =>
+                              unawaited(settingsController.retrySave()),
+                          child: Text(l10n.retry),
+                        ),
+                      ],
                     ),
-                  ],
-                ),
-              if (!showSidebar)
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(
-                    BusyMaxSpacing.lg,
-                    BusyMaxSpacing.md,
-                    BusyMaxSpacing.lg,
-                    0,
+                  if (!showSidebar)
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(
+                        BusyMaxSpacing.lg,
+                        BusyMaxSpacing.md,
+                        BusyMaxSpacing.lg,
+                        0,
+                      ),
+                      child: _SettingsPageSelector(
+                        selected: _page,
+                        onSelected: _selectPage,
+                      ),
+                    ),
+                  Expanded(
+                    child: BusyMaxClamp(
+                      maxWidth: 760,
+                      margin: EdgeInsets.zero,
+                      padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+                      child: BusyMaxKeyedCrossfade(
+                        transitionKey: _page,
+                        child: pageBody,
+                      ),
+                    ),
                   ),
-                  child: _SettingsPageSelector(
-                    selected: _page,
-                    onSelected: _selectPage,
-                  ),
+                ],
+              );
+              return LinuxPageFrame(
+                header: _SettingsHeader(
+                  title: title,
+                  onBack: _goBack,
+                  onMenuSelected: _handleMenuAction,
                 ),
-              Expanded(
-                child: BusyMaxClamp(
-                  maxWidth: 760,
-                  margin: EdgeInsets.zero,
-                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
-                  child: pageBody,
-                ),
-              ),
-            ],
-          );
-          if (!showSidebar) {
-            return content;
-          }
-          return Row(
-            children: [
-              SizedBox(
-                width: BusyMaxSizes.sidebarWidth,
-                child: _SettingsSidebar(
+                body: content,
+                sidebarHeader: const BusyMaxLinuxBrandHeader(),
+                sidebarBody: _SettingsSidebar(
                   selected: _page,
                   onSelected: _selectPage,
                 ),
-              ),
-              Expanded(child: content),
-            ],
-          );
-        },
+                sidebarAvailable: showSidebar,
+                sidebarExpanded: true,
+              );
+            },
+          ),
+        ),
       ),
     );
   }
@@ -528,7 +582,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       label: context.l10n.subscriptionName,
       actionLabel: context.l10n.rename,
       initialValue: subscription.name,
-      headerBarService: ref.read(linuxHeaderBarServiceProvider),
     );
     if (value == null || !mounted) return;
     await _runSubscriptionOperation(subscription.id, () async {
@@ -548,7 +601,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       actionLabel: context.l10n.save,
       initialValue: subscription.color,
       message: context.l10n.subscriptionColorHelp,
-      headerBarService: ref.read(linuxHeaderBarServiceProvider),
     );
     if (value == null || !mounted) return;
     await _runSubscriptionOperation(subscription.id, () async {
@@ -565,7 +617,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       message: context.l10n.unsubscribeCalendarConfirmation,
       confirmLabel: context.l10n.unsubscribe,
       destructive: true,
-      headerBarService: ref.read(linuxHeaderBarServiceProvider),
     );
     if (!confirmed || !mounted) return;
     await _runSubscriptionOperation(subscription.id, () async {
@@ -618,74 +669,23 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     }
   }
 
-  bool get _showFallbackHeader {
-    if (!Platform.isLinux) {
-      return true;
-    }
-    return _headerBarReady && !_nativeHeaderBarAvailable;
-  }
-
-  Future<void> _initializeHeaderBar() async {
-    await _headerBarSession.initialize();
-    if (!mounted) {
-      return;
-    }
-    setState(() {
-      _headerBarReady = true;
-      _nativeHeaderBarAvailable = _headerBarSession.isAvailable;
-    });
-    if (_headerBarSession.isAvailable) {
-      unawaited(
-        _headerBarSession.setOnboardingControls(
-          visible: false,
-          canGoBack: false,
-          canContinue: false,
-          backLabel: '',
-          continueLabel: '',
-          force: true,
-        ),
-      );
-    }
-  }
-
-  void _handleHeaderBarAction(BusyMaxHeaderBarAction action) {
-    if (!_headerBarSession.isCurrent) {
-      return;
-    }
-    if (action == BusyMaxHeaderBarAction.back) {
-      _goBack();
-      return;
-    }
-    if (action == BusyMaxHeaderBarAction.settings) {
-      _selectPage(SettingsPage.system);
-      return;
-    }
-    if (action == BusyMaxHeaderBarAction.keyboardShortcuts) {
-      unawaited(
-        showBusyMaxKeyboardShortcutsDialog(
-          context,
-          headerBarService: ref.read(linuxHeaderBarServiceProvider),
-        ),
-      );
-      return;
-    }
-    if (action == BusyMaxHeaderBarAction.reportIssue) {
-      unawaited(
-        showBusyMaxFeedbackDialog(
-          context,
-          submissionService: ref.read(feedbackSubmissionServiceProvider),
-          headerBarService: ref.read(linuxHeaderBarServiceProvider),
-        ),
-      );
-      return;
-    }
-    if (action == BusyMaxHeaderBarAction.aboutBusyMax) {
-      unawaited(
-        showBusyMaxAboutDialog(
-          context,
-          headerBarService: ref.read(linuxHeaderBarServiceProvider),
-        ),
-      );
+  void _handleMenuAction(ScheduleToolbarMenuAction action) {
+    switch (action) {
+      case ScheduleToolbarMenuAction.refresh:
+        return;
+      case ScheduleToolbarMenuAction.settings:
+        _selectPage(SettingsPage.system);
+      case ScheduleToolbarMenuAction.keyboardShortcuts:
+        unawaited(showBusyMaxKeyboardShortcutsDialog(context));
+      case ScheduleToolbarMenuAction.reportIssue:
+        unawaited(
+          showBusyMaxFeedbackDialog(
+            context,
+            submissionService: ref.read(feedbackSubmissionServiceProvider),
+          ),
+        );
+      case ScheduleToolbarMenuAction.about:
+        unawaited(showBusyMaxAboutDialog(context));
     }
   }
 
@@ -705,8 +705,11 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       setState(() => _page = page);
     }
     final router = GoRouter.maybeOf(context);
-    final uri = router?.state.uri;
-    if (router == null || uri == null || uri.path != '/settings') {
+    if (router == null) {
+      return;
+    }
+    final uri = GoRouterState.of(context).uri;
+    if (uri.path != '/settings') {
       return;
     }
     final routePage = uri.queryParameters['page'];
@@ -727,40 +730,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     );
   }
 
-  void _updateSettingsHeaderBar(
-    BuildContext context,
-    String title, {
-    required AppSettings settings,
-    required bool showSidebar,
-  }) {
-    if (!_nativeHeaderBarAvailable) {
-      return;
-    }
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) {
-        return;
-      }
-      unawaited(
-        _headerBarSession.updateState(
-          BusyMaxHeaderBarState(
-            title: title,
-            viewMode: settings.scheduleViewMode,
-            canRefresh: false,
-            canCreateEvent: false,
-            canCreateTask: false,
-            searchActive: false,
-            searchQuery: '',
-            canShowSidebar: showSidebar,
-            sidebarVisible: showSidebar,
-            navigationVisible: false,
-            scheduleControlsVisible: false,
-            backVisible: true,
-          ),
-        ),
-      );
-    });
-  }
-
   Future<void> _connectAccount(
     BusyProvider provider, {
     AccountEntity? reconnecting,
@@ -774,14 +743,12 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       appleInput = await showAppleICloudCredentialDialog(
         context,
         fixedEmail: reconnecting?.email ?? reconnecting?.providerAccountId,
-        headerBarService: ref.read(linuxHeaderBarServiceProvider),
       );
       if (appleInput == null || !mounted) return;
     } else if (provider == BusyProvider.nextcloud) {
       nextcloudServer = await showNextcloudServerDialog(
         context,
         initialServer: reconnecting?.authority,
-        headerBarService: ref.read(linuxHeaderBarServiceProvider),
       );
       if (nextcloudServer == null || !mounted) return;
     }
@@ -890,7 +857,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       accountLabel: account.displayLabel,
       canRevokeGoogleAuthorization:
           account.provider == BusyProvider.google && account.isSignedIn,
-      headerBarService: ref.read(linuxHeaderBarServiceProvider),
     );
     if (!context.mounted || options == null) {
       return;
@@ -938,18 +904,21 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     }
   }
 
-  Future<void> _forceFullResync(
-    BuildContext context,
-    WidgetRef ref,
-    List<AccountEntity> accounts,
-  ) async {
-    if (accounts.isEmpty) {
-      return;
-    }
-
+  Future<void> _forceFullResync(BuildContext context, WidgetRef ref) async {
     try {
+      final repository = ref.read(accountsRepositoryProvider);
+      final accounts = await repository.listSyncEligibleAccounts();
+      if (accounts.isEmpty) {
+        return;
+      }
       final runSync = ref.read(signedInSyncRunnerProvider);
       for (final account in accounts) {
+        final stillEligible = (await repository.listSyncEligibleAccounts()).any(
+          (current) => current.id == account.id,
+        );
+        if (!stillEligible) {
+          continue;
+        }
         await runSync(account.id, true);
       }
       if (context.mounted) {
@@ -972,6 +941,18 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
 
   Future<void> _refreshCollections(AccountEntity account) async {
     try {
+      final current = await ref
+          .read(accountsRepositoryProvider)
+          .accountById(account.id);
+      if (current?.isSyncEligible != true) {
+        if (current?.needsReconnect == true && mounted) {
+          _showMessage(
+            context,
+            context.l10n.syncFailed(accountReconnectRequiredSyncMessage),
+          );
+        }
+        return;
+      }
       await ref.read(signedInSyncRunnerProvider)(account.id, true);
       if (mounted) _showMessage(context, context.l10n.syncComplete);
     } on Object catch (error) {
@@ -1028,9 +1009,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       await ref
           .read(davConflictResolutionServiceProvider)
           .resolve(conflict.id, resolution);
-      await ref
-          .read(accountSyncOperationsProvider)
-          .syncAccount(conflict.accountId, full: false);
+      await ref.read(signedInSyncRunnerProvider)(conflict.accountId, false);
     } on Object catch (error) {
       _settingsLogger.warning('DAV conflict resolution failed: $error');
       if (mounted) {
@@ -1055,6 +1034,7 @@ class _SettingsSidebar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return BusyMaxSidebarSurface(
+      showEndBorder: false,
       child: BusyMaxSidebarNavigation(
         children: [
           for (final page in SettingsPage.values)
@@ -1128,65 +1108,95 @@ class _SettingsPageSelector extends StatelessWidget {
   }
 }
 
-class _SettingsFallbackHeader extends StatelessWidget {
-  const _SettingsFallbackHeader({required this.title, required this.onBack});
+class _SettingsHeader extends StatelessWidget {
+  const _SettingsHeader({
+    required this.title,
+    required this.onBack,
+    required this.onMenuSelected,
+  });
 
   final String title;
   final VoidCallback onBack;
+  final ValueChanged<ScheduleToolbarMenuAction> onMenuSelected;
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      height: BusyMaxSizes.toolbarHeight,
-      child: Row(
+    return BusyMaxLinuxHeaderLayout(
+      leading: BusyMaxLinuxHeaderControlGroup(
         children: [
-          const SizedBox(width: BusyMaxSpacing.sm),
-          YaruIconButton(
+          BusyMaxLinuxHeaderIconButton(
+            key: const ValueKey('settings-header-back-button'),
             tooltip: MaterialLocalizations.of(context).backButtonTooltip,
-            icon: Icon(BusyMaxGlyphs.backFor(Directionality.of(context))),
+            icon: BusyMaxLinuxHeaderIcon.back,
             onPressed: onBack,
           ),
-          const SizedBox(width: BusyMaxSpacing.sm),
-          Expanded(
-            child: Text(
-              title,
-              textAlign: TextAlign.center,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: busyMaxHeaderTitleStyle(context),
-            ),
+        ],
+      ),
+      title: BusyMaxLinuxHeaderTitle(
+        title,
+        key: const ValueKey('settings-header-title'),
+      ),
+      trailing: BusyMaxLinuxHeaderControlGroup(
+        children: [
+          BusyMaxMainMenuButton(
+            settingsSelected: true,
+            onSelected: onMenuSelected,
           ),
-          const SizedBox(width: BusyMaxSizes.headerIconButton),
-          const SizedBox(width: BusyMaxSpacing.md),
         ],
       ),
     );
   }
 }
 
-class _SettingsPageLayout extends StatelessWidget {
-  const _SettingsPageLayout({required this.title, required this.children});
+TextStyle _settingsSectionHeaderStyle(BuildContext context) {
+  final theme = Theme.of(context);
+  return (theme.textTheme.titleSmall ?? const TextStyle()).copyWith(
+    color: theme.colorScheme.onSurface,
+    fontWeight: FontWeight.bold,
+  );
+}
 
-  final String title;
+String _settingsAccountLabel(List<AccountEntity> accounts, String accountId) {
+  for (final account in accounts) {
+    if (account.id == accountId) return account.displayLabel;
+  }
+  return accountId;
+}
+
+bool _canCreateTasksInList(
+  WidgetRef ref,
+  List<AccountEntity> accounts,
+  TaskListEntity list,
+) {
+  for (final account in accounts) {
+    if (account.id != list.accountId || !account.isTaskCapable) continue;
+    if (account.provider == BusyProvider.nextcloud) {
+      return ref
+              .watch(
+                davTaskCollectionCapabilitiesProvider((
+                  accountId: list.accountId,
+                  taskListId: list.id,
+                )),
+              )
+              .valueOrNull
+              ?.canCreateTasks ==
+          true;
+    }
+    return adapterDefaultTaskCapabilities(account.provider).canCreateTasks;
+  }
+  return false;
+}
+
+class _SettingsPageLayout extends StatelessWidget {
+  const _SettingsPageLayout({required this.children});
+
   final List<Widget> children;
 
   @override
   Widget build(BuildContext context) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Semantics(
-          header: true,
-          child: Text(
-            key: const ValueKey('settings-page-heading'),
-            title,
-            style: Theme.of(
-              context,
-            ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w600),
-          ),
-        ),
-        ...children,
-      ],
+      children: children,
     );
   }
 }
@@ -1333,7 +1343,6 @@ class _AccountManagementSection extends StatelessWidget {
     final l10n = context.l10n;
     final connecting = connectingProvider != null;
     return _SettingsPageLayout(
-      title: l10n.accounts,
       children: [
         BusyMaxGroupedList(
           filled: true,
@@ -1386,8 +1395,9 @@ class _AccountManagementSection extends StatelessWidget {
                   ? null
                   : () => onReconnect(account),
               onRefreshCollections:
-                  account.provider == BusyProvider.appleICloud ||
-                      account.provider == BusyProvider.nextcloud
+                  account.isSyncEligible &&
+                      (account.provider == BusyProvider.appleICloud ||
+                          account.provider == BusyProvider.nextcloud)
                   ? () => onRefreshCollections(account)
                   : null,
               onRemoveAccount: () => onRemoveAccount(account),
@@ -1487,7 +1497,7 @@ class _AccountSettingsGroup extends StatelessWidget {
                   child: Text(
                     key: ValueKey('settings-account-heading-${account.id}'),
                     _accountProviderLabel(context, account.provider),
-                    style: busyMaxSectionHeaderStyle(context),
+                    style: _settingsSectionHeaderStyle(context),
                   ),
                 ),
                 const SizedBox(height: BusyMaxSpacing.xs),
@@ -1515,8 +1525,8 @@ class _AccountSettingsGroup extends StatelessWidget {
 TextStyle? _settingsAccountSubsectionStyle(BuildContext context) {
   final theme = Theme.of(context);
   return theme.textTheme.bodySmall?.copyWith(
-    color: theme.colorScheme.onSurfaceVariant,
-    fontWeight: FontWeight.w600,
+    color: theme.colorScheme.onSurface,
+    fontWeight: FontWeight.bold,
   );
 }
 
@@ -1674,24 +1684,32 @@ class _CalendarSettingsRow extends StatelessWidget {
             ),
             _CalendarSettingsSwitchCell(
               message: l10n.showInSchedule,
-              child: YaruSwitch(
-                key: ValueKey('settings-calendar-schedule-${source.id}'),
-                value: source.selected && !source.hidden,
-                onChanged: source.hidden
-                    ? null
-                    : (selected) => onSelected(source, selected),
+              child: BusyMaxYaruFocusBorder(
+                builder: (context, focusNode) => YaruSwitch(
+                  key: ValueKey('settings-calendar-schedule-${source.id}'),
+                  value: source.selected && !source.hidden,
+                  focusNode: focusNode,
+                  hasFocusBorder: false,
+                  onChanged: source.hidden
+                      ? null
+                      : (selected) => onSelected(source, selected),
+                ),
               ),
             ),
             if (showsProviderVisibility)
               _CalendarSettingsSwitchCell(
                 message: l10n.visibility,
-                child: YaruSwitch(
-                  key: ValueKey('settings-calendar-provider-${source.id}'),
-                  value: !source.hidden,
-                  onChanged: canChangeProviderVisibility
-                      ? (visible) =>
-                            onProviderVisibilityChanged(source, visible)
-                      : null,
+                child: BusyMaxYaruFocusBorder(
+                  builder: (context, focusNode) => YaruSwitch(
+                    key: ValueKey('settings-calendar-provider-${source.id}'),
+                    value: !source.hidden,
+                    focusNode: focusNode,
+                    hasFocusBorder: false,
+                    onChanged: canChangeProviderVisibility
+                        ? (visible) =>
+                              onProviderVisibilityChanged(source, visible)
+                        : null,
+                  ),
                 ),
               ),
           ],
@@ -1730,6 +1748,7 @@ class _CalendarImportCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return BusyMaxGroupedList(
       title: context.l10n.calendarImport,
+      titleStyle: _settingsSectionHeaderStyle(context),
       description: context.l10n.calendarImportDescription,
       filled: true,
       children: [
@@ -1771,6 +1790,7 @@ class _CalendarSubscriptionsCard extends StatelessWidget {
       children: [
         BusyMaxGroupedList(
           title: l10n.calendarSubscriptions,
+          titleStyle: _settingsSectionHeaderStyle(context),
           description: l10n.calendarSubscriptionsDescription,
           filled: true,
           children: [
@@ -1958,40 +1978,52 @@ class _WebCalAddDialogState extends State<_WebCalAddDialog> {
         ),
       ],
       children: [
-        TextField(
-          key: const ValueKey('subscription-url'),
-          controller: _urlController,
-          autofocus: true,
-          decoration: InputDecoration(
-            labelText: l10n.subscriptionUrl,
-            helperText: l10n.subscriptionUrlHelp,
-            errorText:
-                _urlController.text.trim().isNotEmpty && normalized == null
-                ? l10n.subscriptionUrlInvalid
-                : null,
-          ),
-        ),
-        const SizedBox(height: BusyMaxSpacing.md),
-        TextField(
-          controller: _nameController,
-          decoration: InputDecoration(labelText: l10n.subscriptionName),
-        ),
-        const SizedBox(height: BusyMaxSpacing.md),
-        TextField(
-          controller: _colorController,
-          decoration: InputDecoration(
-            labelText: l10n.subscriptionColor,
-            helperText: l10n.subscriptionColorHelp,
-            errorText: _colorValid ? null : l10n.subscriptionColorInvalid,
-          ),
-        ),
-        const SizedBox(height: BusyMaxSpacing.md),
-        BusyMaxComboRow<WebCalRefreshMode>(
-          title: l10n.subscriptionRefreshMode,
-          values: WebCalRefreshMode.values,
-          selected: _refreshMode,
-          labelFor: (mode) => _refreshModeLabel(context, mode),
-          onSelected: (value) => setState(() => _refreshMode = value),
+        BusyMaxGroupedList(
+          filled: true,
+          children: [
+            YaruListTile.square(
+              title: TextField(
+                key: const ValueKey('subscription-url'),
+                controller: _urlController,
+                autofocus: true,
+                decoration: busyMaxGroupedTextFieldDecoration(
+                  context,
+                  labelText: l10n.subscriptionUrl,
+                  errorText:
+                      _urlController.text.trim().isNotEmpty &&
+                          normalized == null
+                      ? l10n.subscriptionUrlInvalid
+                      : null,
+                ).copyWith(helperText: l10n.subscriptionUrlHelp),
+              ),
+            ),
+            YaruListTile.square(
+              title: TextField(
+                controller: _nameController,
+                decoration: busyMaxGroupedTextFieldDecoration(
+                  context,
+                  labelText: l10n.subscriptionName,
+                ),
+              ),
+            ),
+            YaruListTile.square(
+              title: TextField(
+                controller: _colorController,
+                decoration: busyMaxGroupedTextFieldDecoration(
+                  context,
+                  labelText: l10n.subscriptionColor,
+                  errorText: _colorValid ? null : l10n.subscriptionColorInvalid,
+                ).copyWith(helperText: l10n.subscriptionColorHelp),
+              ),
+            ),
+            BusyMaxComboRow<WebCalRefreshMode>(
+              title: l10n.subscriptionRefreshMode,
+              values: WebCalRefreshMode.values,
+              selected: _refreshMode,
+              labelFor: (mode) => _refreshModeLabel(context, mode),
+              onSelected: (value) => setState(() => _refreshMode = value),
+            ),
+          ],
         ),
         const SizedBox(height: BusyMaxSpacing.md),
         Text(
@@ -2020,7 +2052,6 @@ Future<void> showAddCalendarSubscriptionFlow(
 }) async {
   final input = await showBusyMaxModalDialog<_WebCalAddInput>(
     context,
-    headerBarService: ref.read(linuxHeaderBarServiceProvider),
     barrierDismissible: false,
     builder: (dialogContext) => _WebCalAddDialog(initialUrl: initialUrl),
   );
@@ -2125,7 +2156,7 @@ class _AccountManagementCard extends StatelessWidget {
             YaruIcons.trash,
             color: Theme.of(context).colorScheme.error,
           ),
-          destructive: true,
+          enabled: !removing,
           onTap: removing ? null : onRemoveAccount,
         ),
       ],

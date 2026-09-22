@@ -92,12 +92,17 @@ Future<void> runAllSyncEligibleAccountSync({
   required Future<void> Function(String accountId) syncAccount,
   required Future<void> Function(Object error) onSyncFailure,
   Future<void> Function(String accountId, Object error)? onAccountSyncFailure,
+  bool rethrowFirstFailure = false,
 }) async {
   final accounts = await listSyncEligibleAccounts();
+  Object? firstFailure;
+  StackTrace? firstFailureStackTrace;
   for (final account in accounts) {
     try {
       await syncAccount(account.id);
-    } on Object catch (error) {
+    } on Object catch (error, stackTrace) {
+      firstFailure ??= error;
+      firstFailureStackTrace ??= stackTrace;
       try {
         await onAccountSyncFailure?.call(account.id, error);
       } on Object {
@@ -106,5 +111,8 @@ Future<void> runAllSyncEligibleAccountSync({
       }
       await onSyncFailure(error);
     }
+  }
+  if (rethrowFirstFailure && firstFailure != null) {
+    Error.throwWithStackTrace(firstFailure, firstFailureStackTrace!);
   }
 }

@@ -1,6 +1,8 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:busymax/src/core/secrets/secret_store.dart';
+import 'package:busymax/src/core/http/request_dispatch_exception.dart';
 import 'package:busymax/src/dav/dav_provider_profile.dart';
 import 'package:drift/native.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -12,6 +14,8 @@ import 'package:busymax/src/features/accounts/data/accounts_repository.dart';
 import 'package:busymax/src/features/auth/data/auth_repository.dart';
 import 'package:busymax/src/features/notifications/notification_scheduler.dart';
 import 'package:busymax/src/features/notifications/desktop_notification_service.dart';
+import 'package:busymax/src/features/connectivity/network_connectivity_service.dart';
+import 'package:busymax/src/features/sync/account_sync_operations.dart';
 import 'package:busymax/src/features/tasks/domain/task_capabilities.dart';
 import 'package:busymax/src/google_tasks/api/google_tasks_api_surface.dart';
 import 'package:busymax/src/core/auth/oauth_models.dart';
@@ -211,6 +215,238 @@ void main() {
       expect(account.authState, accountAuthStateReauthRequired);
     },
   );
+
+  test(
+    'signed-in sync runner unwraps Tasks auth failure and preserves credential',
+    () async {
+      final database = AppDatabase(NativeDatabase.memory());
+      await _seedSignedInGoogleAccount(database);
+      final oAuth = _FakeOAuthGateway()..activeId = 'account-1';
+      const failure = KnownUnsentRequestException(
+        kind: RequestPreDispatchFailureKind.authentication,
+        cause: OAuthRefreshException(
+          'OAuthRefreshFailed',
+          'Provider refresh failed.',
+          statusCode: 400,
+          oauthError: 'invalid_grant',
+        ),
+      );
+      final operations = _ThrowingAccountSyncOperations(failure);
+      final container = ProviderContainer(
+        overrides: [
+          databaseProvider.overrideWithValue(database),
+          authRepositoryProvider.overrideWithValue(
+            AuthRepository(oAuth: oAuth, database: database),
+          ),
+          accountSyncOperationsProvider.overrideWithValue(operations),
+        ],
+      );
+      addTearDown(() async {
+        container.dispose();
+        await database.close();
+      });
+
+      await expectLater(
+        container.read(signedInSyncRunnerProvider)('account-1', false),
+        throwsA(same(failure)),
+      );
+
+      final account = await AccountsRepository(
+        database: database,
+      ).accountById('account-1');
+      expect(operations.accountCalls, 1);
+      expect(account?.authState, accountAuthStateReauthRequired);
+      expect(
+        await AccountsRepository(database: database).listSyncEligibleAccounts(),
+        isEmpty,
+      );
+      expect(oAuth.activeId, 'account-1');
+    },
+  );
+
+  test('signed-in sync runner dispatches an eligible account once', () async {
+    final database = AppDatabase(NativeDatabase.memory());
+    await _seedSignedInGoogleAccount(database);
+    final operations = _RecordingAccountSyncOperations();
+    final container = ProviderContainer(
+      overrides: [
+        databaseProvider.overrideWithValue(database),
+        accountSyncOperationsProvider.overrideWithValue(operations),
+      ],
+    );
+    addTearDown(() async {
+      container.dispose();
+      await database.close();
+    });
+
+    await container.read(signedInSyncRunnerProvider)('account-1', true);
+
+    expect(operations.accountCalls, [('account-1', true)]);
+  });
+
+  test('signed-in sync runner skips a reconnect-required account', () async {
+    final database = AppDatabase(NativeDatabase.memory());
+    await _seedSignedInGoogleAccount(database);
+    await AccountsRepository(
+      database: database,
+    ).markReconnectRequired('account-1');
+    final operations = _RecordingAccountSyncOperations();
+    final container = ProviderContainer(
+      overrides: [
+        databaseProvider.overrideWithValue(database),
+        accountSyncOperationsProvider.overrideWithValue(operations),
+      ],
+    );
+    addTearDown(() async {
+      container.dispose();
+      await database.close();
+    });
+
+    await container.read(signedInSyncRunnerProvider)('account-1', true);
+
+    expect(operations.accountCalls, isEmpty);
+  });
+
+  test('signed-in sync runner reads eligibility when invoked', () async {
+    final database = AppDatabase(NativeDatabase.memory());
+    await _seedSignedInGoogleAccount(database);
+    final operations = _RecordingAccountSyncOperations();
+    final container = ProviderContainer(
+      overrides: [
+        databaseProvider.overrideWithValue(database),
+        accountSyncOperationsProvider.overrideWithValue(operations),
+      ],
+    );
+    addTearDown(() async {
+      container.dispose();
+      await database.close();
+    });
+    final runSync = container.read(signedInSyncRunnerProvider);
+    await AccountsRepository(
+      database: database,
+    ).markReconnectRequired('account-1');
+
+    await runSync('account-1', false);
+
+    expect(operations.accountCalls, isEmpty);
+  });
+
+  test(
+    'signed-in sync runner skips an account that no longer exists',
+    () async {
+      final database = AppDatabase(NativeDatabase.memory());
+      final operations = _RecordingAccountSyncOperations();
+      final container = ProviderContainer(
+        overrides: [
+          databaseProvider.overrideWithValue(database),
+          accountSyncOperationsProvider.overrideWithValue(operations),
+        ],
+      );
+      addTearDown(() async {
+        container.dispose();
+        await database.close();
+      });
+
+      await container.read(signedInSyncRunnerProvider)('missing', false);
+
+      expect(operations.accountCalls, isEmpty);
+    },
+  );
+
+  test(
+    'pending mutation stays queued until account eligibility is restored',
+    () async {
+      final database = AppDatabase(NativeDatabase.memory());
+      await _seedSignedInGoogleAccount(database);
+      final accounts = AccountsRepository(database: database);
+      await accounts.markReconnectRequired('account-1');
+      await database.pendingOpsDao.enqueue(
+        PendingOpsCompanion.insert(
+          id: 'pending-task',
+          accountId: 'account-1',
+          entityType: 'task',
+          operation: 'create_task',
+          taskListId: const Value('list-1'),
+          taskId: const Value('local-task'),
+          localTempId: const Value('local-task'),
+          requestJson: jsonEncode({
+            'body': {'title': 'Queued task'},
+          }),
+          createdAtUtc: '2026-06-04T00:00:00.000Z',
+          updatedAtUtc: '2026-06-04T00:00:00.000Z',
+        ),
+      );
+      final operations = _RecordingAccountSyncOperations();
+      final connectivity =
+          NetworkConnectivityMonitor.withoutPlatformObservation();
+      final container = ProviderContainer(
+        overrides: [
+          databaseProvider.overrideWithValue(database),
+          accountSyncOperationsProvider.overrideWithValue(operations),
+          networkConnectivityMonitorProvider.overrideWithValue(connectivity),
+        ],
+      );
+      addTearDown(() async {
+        container.dispose();
+        await connectivity.dispose();
+        await database.close();
+      });
+      final requester = container.read(
+        pendingMutationSyncRequesterForAccountProvider('account-1'),
+      );
+
+      requester.request();
+      await Future<void>.delayed(const Duration(milliseconds: 350));
+
+      expect(operations.taskCalls, isEmpty);
+      expect(await database.pendingOpsDao.getOp('pending-task'), isNotNull);
+
+      await _seedSignedInGoogleAccount(database);
+      requester.request();
+      await Future<void>.delayed(const Duration(milliseconds: 350));
+
+      expect(operations.taskCalls, [('account-1', false)]);
+      expect(await database.pendingOpsDao.getOp('pending-task'), isNotNull);
+    },
+  );
+
+  test('signed-in sync runner handles direct Calendar OAuth failure', () async {
+    final database = AppDatabase(NativeDatabase.memory());
+    await _seedSignedInGoogleAccount(database);
+    final oAuth = _FakeOAuthGateway()..activeId = 'account-1';
+    const failure = OAuthRefreshException(
+      'OAuthRefreshFailed',
+      'Provider refresh failed.',
+      statusCode: 400,
+      oauthError: 'invalid_grant',
+    );
+    final container = ProviderContainer(
+      overrides: [
+        databaseProvider.overrideWithValue(database),
+        authRepositoryProvider.overrideWithValue(
+          AuthRepository(oAuth: oAuth, database: database),
+        ),
+        accountSyncOperationsProvider.overrideWithValue(
+          _ThrowingAccountSyncOperations(failure),
+        ),
+      ],
+    );
+    addTearDown(() async {
+      container.dispose();
+      await database.close();
+    });
+
+    await expectLater(
+      container.read(signedInSyncRunnerProvider)('account-1', false),
+      throwsA(same(failure)),
+    );
+
+    final account = await AccountsRepository(
+      database: database,
+    ).accountById('account-1');
+    expect(account?.authState, accountAuthStateReauthRequired);
+    expect(oAuth.activeId, 'account-1');
+  });
 
   test(
     'production DAV sync rebuilds schedules before checking notifications',
@@ -516,6 +752,50 @@ class _SyncCall {
 
   final String accountId;
   final bool initial;
+}
+
+final class _ThrowingAccountSyncOperations implements AccountSyncOperations {
+  _ThrowingAccountSyncOperations(this.error);
+
+  final Object error;
+  int accountCalls = 0;
+
+  @override
+  Future<void> syncAccount(String accountId, {required bool full}) async {
+    accountCalls += 1;
+    throw error;
+  }
+
+  @override
+  Future<void> syncCalendar(String accountId, {required bool full}) async {
+    throw error;
+  }
+
+  @override
+  Future<void> syncTasks(String accountId, {required bool full}) async {
+    throw error;
+  }
+}
+
+final class _RecordingAccountSyncOperations implements AccountSyncOperations {
+  final List<(String, bool)> accountCalls = [];
+  final List<(String, bool)> calendarCalls = [];
+  final List<(String, bool)> taskCalls = [];
+
+  @override
+  Future<void> syncAccount(String accountId, {required bool full}) async {
+    accountCalls.add((accountId, full));
+  }
+
+  @override
+  Future<void> syncCalendar(String accountId, {required bool full}) async {
+    calendarCalls.add((accountId, full));
+  }
+
+  @override
+  Future<void> syncTasks(String accountId, {required bool full}) async {
+    taskCalls.add((accountId, full));
+  }
 }
 
 class _FakeOAuthGateway implements OAuthGateway {

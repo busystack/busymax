@@ -2,9 +2,11 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:busymax/src/core/auth/oauth_models.dart';
+import 'package:busymax/src/core/http/request_dispatch_exception.dart';
 import 'package:busymax/src/dav/dav_errors.dart';
 import 'package:busymax/src/dav/sync/dav_account_sync_engine.dart';
 import 'package:busymax/src/features/sync/sync_failure_notification_policy.dart';
+import 'package:busymax/src/features/sync/sync_auth_error.dart';
 import 'package:busymax/src/features/connectivity/network_connectivity_service.dart';
 import 'package:busymax/src/features/tasks/domain/task_remote_error.dart';
 import 'package:busymax/src/google_calendar/google_calendar_errors.dart';
@@ -62,6 +64,7 @@ void main() {
           'OAuthRefreshFailed',
           'Unavailable',
           statusCode: 503,
+          oauthError: 'temporarily_unavailable',
         ),
       ];
 
@@ -108,6 +111,7 @@ void main() {
                 'OAuthRefreshFailed',
                 'Invalid grant',
                 statusCode: 400,
+                oauthError: 'invalid_grant',
               ),
               expected: SyncFailureNotificationDisposition.reconnectRequired,
             ),
@@ -172,5 +176,179 @@ void main() {
         SyncFailureNotificationDisposition.temporarilyUnavailable,
       );
     });
+
+    test('unwraps known-unsent authentication failures', () {
+      const invalidGrant = OAuthRefreshException(
+        'OAuthRefreshFailed',
+        'Provider refresh failed.',
+        statusCode: 400,
+        oauthError: 'invalid_grant',
+      );
+      const missingToken = OAuthException(
+        'OAuthMissingToken',
+        'No OAuth token is available.',
+      );
+
+      for (final failure in <Object>[
+        invalidGrant,
+        const KnownUnsentRequestException(
+          kind: RequestPreDispatchFailureKind.authentication,
+          cause: invalidGrant,
+        ),
+        const KnownUnsentRequestException(
+          kind: RequestPreDispatchFailureKind.authentication,
+          cause: missingToken,
+        ),
+        const KnownUnsentRequestException(
+          kind: RequestPreDispatchFailureKind.authentication,
+          cause: KnownUnsentRequestException(
+            kind: RequestPreDispatchFailureKind.authentication,
+            cause: invalidGrant,
+          ),
+        ),
+      ]) {
+        expect(
+          syncFailureNotificationDisposition(failure),
+          SyncFailureNotificationDisposition.reconnectRequired,
+        );
+      }
+    });
+
+    test('does not infer invalid credentials from refresh HTTP 400', () {
+      const failure = OAuthRefreshException(
+        'OAuthRefreshFailed',
+        'Provider refresh failed.',
+        statusCode: 400,
+        oauthError: 'invalid_request',
+      );
+
+      expect(
+        syncFailureNotificationDisposition(failure),
+        SyncFailureNotificationDisposition.temporarilyUnavailable,
+      );
+    });
+
+    test('wrapped connectivity failures retain transient classification', () {
+      const failure = KnownUnsentRequestException(
+        kind: RequestPreDispatchFailureKind.connectivity,
+        cause: NetworkUnavailableException(),
+      );
+
+      expect(
+        syncFailureNotificationDisposition(failure),
+        SyncFailureNotificationDisposition.suppressed,
+      );
+    });
+
+    test('cause-less and cyclic wrappers remain bounded and controlled', () {
+      const withoutCause = KnownUnsentRequestException(
+        kind: RequestPreDispatchFailureKind.authentication,
+      );
+      final first = _MutableRequestNotDispatchedException();
+      final second = _MutableRequestNotDispatchedException();
+      first.cause = second;
+      second.cause = first;
+
+      for (final failure in <Object>[withoutCause, first]) {
+        expect(
+          syncFailureNotificationDisposition(failure),
+          SyncFailureNotificationDisposition.temporarilyUnavailable,
+        );
+      }
+      expect(
+        syncFailureMessage(withoutCause),
+        syncTemporarilyUnavailableMessage,
+      );
+      expect(
+        syncFailureMessage(withoutCause),
+        isNot(contains('KnownUnsentRequestException')),
+      );
+    });
   });
+
+  group('sync failure messages', () {
+    test('current-state eligibility failures use controlled messages', () {
+      const reconnect = AccountNotSyncEligibleException(needsReconnect: true);
+      const unavailable = AccountNotSyncEligibleException(
+        needsReconnect: false,
+      );
+
+      expect(
+        syncFailureNotificationDisposition(reconnect),
+        SyncFailureNotificationDisposition.reconnectRequired,
+      );
+      expect(
+        syncFailureMessage(reconnect),
+        accountReconnectRequiredSyncMessage,
+      );
+      expect(
+        syncFailureNotificationDisposition(unavailable),
+        SyncFailureNotificationDisposition.temporarilyUnavailable,
+      );
+      expect(
+        syncFailureMessage(unavailable),
+        syncTemporarilyUnavailableMessage,
+      );
+    });
+
+    test('wrapped authentication failures use the reconnect message', () {
+      const invalidGrant = KnownUnsentRequestException(
+        kind: RequestPreDispatchFailureKind.authentication,
+        cause: OAuthRefreshException(
+          'OAuthRefreshFailed',
+          'invalid_grant raw provider response refresh_token=secret-token',
+          statusCode: 400,
+          oauthError: 'invalid_grant',
+          oauthErrorDescription: 'refresh_token=[REDACTED]',
+        ),
+      );
+      const missingToken = KnownUnsentRequestException(
+        kind: RequestPreDispatchFailureKind.authentication,
+        cause: OAuthException(
+          'OAuthMissingToken',
+          'No OAuth token is available.',
+        ),
+      );
+
+      for (final failure in <Object>[invalidGrant, missingToken]) {
+        final message = syncFailureMessage(failure);
+        expect(message, accountReconnectRequiredSyncMessage);
+        expect(message, isNot(contains('KnownUnsentRequestException')));
+        expect(message, isNot(contains('invalid_grant')));
+        expect(message, isNot(contains('secret-token')));
+      }
+    });
+
+    test('direct and wrapped Google OAuth failures behave identically', () {
+      const direct = OAuthRefreshException(
+        'OAuthRefreshFailed',
+        'Provider refresh failed.',
+        statusCode: 400,
+        oauthError: 'invalid_grant',
+      );
+      const wrapped = KnownUnsentRequestException(
+        kind: RequestPreDispatchFailureKind.authentication,
+        cause: direct,
+      );
+
+      expect(
+        syncFailureNotificationDisposition(direct),
+        syncFailureNotificationDisposition(wrapped),
+      );
+      expect(syncFailureMessage(direct), syncFailureMessage(wrapped));
+    });
+  });
+}
+
+final class _MutableRequestNotDispatchedException
+    implements RequestNotDispatchedException {
+  @override
+  Object? cause;
+
+  @override
+  String get code => 'test_cycle';
+
+  @override
+  RequestPreDispatchFailureKind get kind =>
+      RequestPreDispatchFailureKind.authentication;
 }

@@ -12,6 +12,7 @@ import '../../../schedule/schedule_item.dart';
 import '../../../schedule/schedule_projection.dart';
 import '../../../schedule/schedule_range.dart';
 import '../../../schedule/schedule_sorting.dart';
+import '../../../schedule/task_list_mutation_intent.dart';
 import 'schedule_event_block.dart';
 import 'schedule_search_result_text.dart';
 import '../../../schedule/schedule_search_criteria.dart';
@@ -33,6 +34,9 @@ class ScheduleAgendaView extends StatefulWidget {
     this.onItemAnchorAvailable,
     this.searchCriteria,
     this.searchQuery = '',
+    this.taskListMutationIntent,
+    this.onTaskListMutationConsumed,
+    this.emptyBuilder,
   });
 
   final ScheduleSearchCriteria? searchCriteria;
@@ -54,6 +58,9 @@ class ScheduleAgendaView extends StatefulWidget {
   final VoidCallback? onLoadMoreOverdue;
   final VoidCallback? onLoadMoreNoDate;
   final ScheduleItemAnchorCallback? onItemAnchorAvailable;
+  final TaskListMutationIntent? taskListMutationIntent;
+  final ValueChanged<TaskListMutationIntent>? onTaskListMutationConsumed;
+  final WidgetBuilder? emptyBuilder;
 
   @override
   State<ScheduleAgendaView> createState() => _ScheduleAgendaViewState();
@@ -61,6 +68,11 @@ class ScheduleAgendaView extends StatefulWidget {
 
 class _ScheduleAgendaViewState extends State<ScheduleAgendaView> {
   var _loadMoreArmed = true;
+  final _outgoingTasks = <String, ({TaskScheduleItem item, int index})>{};
+  final _exitingTaskKeys = <String>{};
+  final _exitingMutations = <String, TaskListMutationIntent>{};
+  final _enteringTaskKeys = <String>{};
+  int? _handledMutationGeneration;
 
   @override
   void didUpdateWidget(covariant ScheduleAgendaView oldWidget) {
@@ -68,6 +80,61 @@ class _ScheduleAgendaViewState extends State<ScheduleAgendaView> {
     if (oldWidget.range.end != widget.range.end) {
       _loadMoreArmed = true;
     }
+    _reconcileMutation(oldWidget);
+  }
+
+  void _reconcileMutation(ScheduleAgendaView oldWidget) {
+    final intent = widget.taskListMutationIntent;
+    if (intent == null || _handledMutationGeneration == intent.generation) {
+      return;
+    }
+    bool matches(TaskScheduleItem task) =>
+        task.accountId == intent.accountId &&
+        task.sourceId == intent.taskListId &&
+        task.id == intent.taskId;
+    final current = widget.items.whereType<TaskScheduleItem>().where(matches);
+    if (intent.presentation == TaskListMutationPresentation.insertion) {
+      if (current.isEmpty) return;
+      _handledMutationGeneration = intent.generation;
+      _enteringTaskKeys.add(intent.taskKey);
+      _notifyMutationConsumed(intent);
+      return;
+    }
+    if (current.isNotEmpty) {
+      final task = current.first;
+      if (intent.presentation == TaskListMutationPresentation.completion &&
+          intent.completed != null) {
+        final checklistItemId = intent.checklistItemId;
+        if (checklistItemId == null) {
+          if (task.completed != intent.completed) return;
+        } else {
+          final checklistItem = task.checklistItems
+              .where((item) => item.id == checklistItemId)
+              .firstOrNull;
+          if (checklistItem?.completed != intent.completed) return;
+        }
+      }
+      _handledMutationGeneration = intent.generation;
+      _notifyMutationConsumed(intent);
+      return;
+    }
+    final oldIndex = oldWidget.items.indexWhere(
+      (item) => item is TaskScheduleItem && matches(item),
+    );
+    if (oldIndex < 0) return;
+    final oldTask = oldWidget.items[oldIndex] as TaskScheduleItem;
+    _handledMutationGeneration = intent.generation;
+    _outgoingTasks[intent.taskKey] = (item: oldTask, index: oldIndex);
+    _exitingTaskKeys.add(intent.taskKey);
+    _exitingMutations[intent.taskKey] = intent;
+  }
+
+  void _notifyMutationConsumed(TaskListMutationIntent intent) {
+    final callback = widget.onTaskListMutationConsumed;
+    if (callback == null) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) callback(intent);
+    });
   }
 
   bool _handleScroll(ScrollNotification notification) {
@@ -88,9 +155,26 @@ class _ScheduleAgendaViewState extends State<ScheduleAgendaView> {
 
   @override
   Widget build(BuildContext context) {
+    final presentedItems = List<ScheduleItem>.of(widget.items);
+    for (final outgoing in _outgoingTasks.values) {
+      if (presentedItems.any(
+        (item) =>
+            item is TaskScheduleItem &&
+            _agendaTaskKey(item) == _agendaTaskKey(outgoing.item),
+      )) {
+        continue;
+      }
+      presentedItems.insert(
+        outgoing.index.clamp(0, presentedItems.length),
+        outgoing.item,
+      );
+    }
+    if (presentedItems.isEmpty && widget.emptyBuilder != null) {
+      return widget.emptyBuilder!(context);
+    }
     final sections = widget.searchCriteria == null
-        ? _ordinarySections(context)
-        : _searchSections(context);
+        ? _ordinarySections(context, presentedItems)
+        : _searchSections(context, presentedItems);
     return NotificationListener<ScrollNotification>(
       onNotification: _handleScroll,
       child: ColoredBox(
@@ -119,9 +203,12 @@ class _ScheduleAgendaViewState extends State<ScheduleAgendaView> {
     );
   }
 
-  List<_AgendaSection> _ordinarySections(BuildContext context) {
-    final dated = widget.items.where((item) => item.start != null).toList();
-    final noDateTasks = ScheduleProjection.noDateTasks(widget.items);
+  List<_AgendaSection> _ordinarySections(
+    BuildContext context,
+    List<ScheduleItem> items,
+  ) {
+    final dated = items.where((item) => item.start != null).toList();
+    final noDateTasks = ScheduleProjection.noDateTasks(items);
     final groups = ScheduleProjection.groupByDay(dated);
     final rangeStart = ScheduleProjection.day(widget.range.start);
     final rangeEnd = ScheduleProjection.day(widget.range.end);
@@ -134,7 +221,7 @@ class _ScheduleAgendaViewState extends State<ScheduleAgendaView> {
     final orderedOverdueTasks = ScheduleProjection.arrangeHierarchy(
       overdueTasks,
     );
-    final hierarchy = _AgendaHierarchyIndex(widget.items);
+    final hierarchy = _AgendaHierarchyIndex(items);
     final emittedTasks = <String>{};
     final overdueEntries = _entriesFor(
       orderedOverdueTasks,
@@ -184,8 +271,11 @@ class _ScheduleAgendaViewState extends State<ScheduleAgendaView> {
     ];
   }
 
-  List<_AgendaSection> _searchSections(BuildContext context) {
-    final orderedItems = List<ScheduleItem>.of(widget.items)
+  List<_AgendaSection> _searchSections(
+    BuildContext context,
+    List<ScheduleItem> items,
+  ) {
+    final orderedItems = List<ScheduleItem>.of(items)
       ..sort(compareScheduleSearchResultPresentation);
     final datedGroups = <DateTime, List<ScheduleItem>>{};
     final undated = <ScheduleItem>[];
@@ -262,12 +352,14 @@ class _ScheduleAgendaViewState extends State<ScheduleAgendaView> {
     return entries;
   }
 
-  Widget _standaloneRow(ScheduleItem item) {
+  Widget _standaloneRow(ScheduleItem item, {bool animateMutation = true}) {
     void select(BuildContext context, [Offset? globalPosition]) =>
         widget.onItemSelected(context, item, globalPosition);
     final task = item is TaskScheduleItem ? item : null;
-    return _AgendaRow(
+    final row = _AgendaRow(
       item: item,
+      completedOverride: _completionOverride(task),
+      animateCompletion: _completionOverride(task) != null,
       searchCriteria: widget.searchCriteria,
       searchQuery: widget.searchQuery,
       onAnchorAvailable: widget.onItemAnchorAvailable,
@@ -275,6 +367,40 @@ class _ScheduleAgendaViewState extends State<ScheduleAgendaView> {
       onTaskCompletionChanged: task == null
           ? null
           : (completed) => widget.onTaskCompletionChanged(task, completed),
+    );
+    return animateMutation && task != null ? _wrapTaskMutation(task, row) : row;
+  }
+
+  bool? _completionOverride(TaskScheduleItem? task) {
+    final intent = widget.taskListMutationIntent;
+    if (task == null ||
+        intent == null ||
+        intent.presentation != TaskListMutationPresentation.completion ||
+        intent.checklistItemId != null ||
+        intent.taskKey != _agendaTaskKey(task)) {
+      return null;
+    }
+    return intent.completed;
+  }
+
+  Widget _wrapTaskMutation(TaskScheduleItem task, Widget child) {
+    final key = _agendaTaskKey(task);
+    return _AgendaMutationTransition(
+      key: ValueKey('agenda-mutation-$key'),
+      entering: _enteringTaskKeys.contains(key),
+      exiting: _exitingTaskKeys.contains(key),
+      onFinished: () {
+        if (!mounted) return;
+        setState(() {
+          _enteringTaskKeys.remove(key);
+          if (_exitingTaskKeys.remove(key)) {
+            _outgoingTasks.remove(key);
+            final intent = _exitingMutations.remove(key);
+            if (intent != null) _notifyMutationConsumed(intent);
+          }
+        });
+      },
+      child: child,
     );
   }
 
@@ -284,16 +410,17 @@ class _ScheduleAgendaViewState extends State<ScheduleAgendaView> {
     Set<String> emitted,
   ) {
     emitted.add(_agendaTaskKey(root));
-    return Column(
+    final group = Column(
       key: ValueKey(
         'agenda-task-group-${root.accountId}-${root.sourceId}-${root.id}',
       ),
       mainAxisSize: MainAxisSize.min,
       children: [
-        _standaloneRow(root),
+        _standaloneRow(root, animateMutation: false),
         ..._nestedRows(root, children, emitted, hierarchyRoot: root, depth: 1),
       ],
     );
+    return _wrapTaskMutation(root, group);
   }
 
   Widget _detachedTaskGroup(
@@ -372,13 +499,15 @@ class _ScheduleAgendaViewState extends State<ScheduleAgendaView> {
     required int depth,
     bool showSource = false,
   }) {
-    return _AgendaSubtaskRow(
+    final completionOverride = _completionOverride(task);
+    final row = _AgendaSubtaskRow(
       key: ValueKey(
         'agenda-subtask-${task.accountId}-${task.sourceId}-${task.id}',
       ),
       depth: depth,
       title: task.title,
-      completed: task.completed,
+      completed: completionOverride ?? task.completed,
+      animateCompletion: completionOverride != null,
       subtitleBuilder: (context) {
         final searchCriteria = widget.searchCriteria;
         if (searchCriteria != null) {
@@ -403,6 +532,7 @@ class _ScheduleAgendaViewState extends State<ScheduleAgendaView> {
       onCompletionChanged: (completed) =>
           widget.onTaskCompletionChanged(task, completed),
     );
+    return _wrapTaskMutation(task, row);
   }
 
   Widget _nestedChecklistRow(
@@ -410,11 +540,13 @@ class _ScheduleAgendaViewState extends State<ScheduleAgendaView> {
     TaskChecklistItemEntity item, {
     required int depth,
   }) {
+    final completionOverride = _checklistCompletionOverride(parent, item);
     return _AgendaSubtaskRow(
       key: ValueKey('agenda-checklist-${parent.id}-${item.id}'),
       depth: depth,
       title: item.title,
-      completed: item.completed,
+      completed: completionOverride ?? item.completed,
+      animateCompletion: completionOverride != null,
       onTap: (context, [globalPosition]) =>
           widget.onItemSelected(context, parent, globalPosition),
       onCompletionChanged: widget.onChecklistItemCompletionChanged == null
@@ -425,6 +557,20 @@ class _ScheduleAgendaViewState extends State<ScheduleAgendaView> {
               completed,
             ),
     );
+  }
+
+  bool? _checklistCompletionOverride(
+    TaskScheduleItem parent,
+    TaskChecklistItemEntity item,
+  ) {
+    final intent = widget.taskListMutationIntent;
+    if (intent == null ||
+        intent.presentation != TaskListMutationPresentation.completion ||
+        intent.taskKey != _agendaTaskKey(parent) ||
+        intent.checklistItemId != item.id) {
+      return null;
+    }
+    return intent.completed;
   }
 }
 
@@ -451,6 +597,114 @@ class _AgendaLoadMoreRow extends StatelessWidget {
   }
 }
 
+class _AgendaMutationTransition extends StatefulWidget {
+  const _AgendaMutationTransition({
+    super.key,
+    required this.entering,
+    required this.exiting,
+    required this.onFinished,
+    required this.child,
+  });
+
+  final bool entering;
+  final bool exiting;
+  final VoidCallback onFinished;
+  final Widget child;
+
+  @override
+  State<_AgendaMutationTransition> createState() =>
+      _AgendaMutationTransitionState();
+}
+
+class _AgendaMutationTransitionState extends State<_AgendaMutationTransition>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller = AnimationController(
+    vsync: this,
+    animationBehavior: AnimationBehavior.preserve,
+    value: widget.entering ? 0 : 1,
+  );
+  bool _disableAnimations = false;
+  bool _finishScheduled = false;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _run());
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final disabled = MediaQuery.disableAnimationsOf(context);
+    if (disabled != _disableAnimations) {
+      _disableAnimations = disabled;
+      if (disabled && (widget.entering || widget.exiting)) {
+        _controller.value = widget.exiting ? 0 : 1;
+        _finishAfterFrame();
+      }
+    }
+  }
+
+  @override
+  void didUpdateWidget(covariant _AgendaMutationTransition oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.entering != widget.entering ||
+        oldWidget.exiting != widget.exiting) {
+      _run();
+    }
+  }
+
+  Future<void> _run() async {
+    if (!mounted || (!widget.entering && !widget.exiting)) return;
+    final target = widget.exiting ? 0.0 : 1.0;
+    if (_disableAnimations) {
+      _controller.value = target;
+      _finishAfterFrame();
+      return;
+    } else {
+      await _controller.animateTo(
+        target,
+        duration: BusyMaxMotion.taskListMutation,
+        curve: BusyMaxMotion.presentationCurve,
+      );
+    }
+    if (mounted) widget.onFinished();
+  }
+
+  void _finishAfterFrame() {
+    if (_finishScheduled) return;
+    _finishScheduled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _finishScheduled = false;
+      if (mounted) widget.onFinished();
+    });
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => IgnorePointer(
+    ignoring: widget.exiting,
+    child: ExcludeFocus(
+      excluding: widget.exiting,
+      child: ExcludeSemantics(
+        excluding: widget.exiting,
+        child: ClipRect(
+          child: SizeTransition(
+            sizeFactor: _controller,
+            alignment: Alignment.topCenter,
+            child: FadeTransition(opacity: _controller, child: widget.child),
+          ),
+        ),
+      ),
+    ),
+  );
+}
+
 class _AgendaRow extends StatelessWidget {
   const _AgendaRow({
     required this.item,
@@ -459,6 +713,8 @@ class _AgendaRow extends StatelessWidget {
     this.searchCriteria,
     this.searchQuery = '',
     this.onTaskCompletionChanged,
+    this.completedOverride,
+    this.animateCompletion = false,
   });
 
   final ScheduleSearchCriteria? searchCriteria;
@@ -467,10 +723,13 @@ class _AgendaRow extends StatelessWidget {
   final ScheduleItemTapCallback onTap;
   final ScheduleItemAnchorCallback? onAnchorAvailable;
   final ValueChanged<bool>? onTaskCompletionChanged;
+  final bool? completedOverride;
+  final bool animateCompletion;
 
   @override
   Widget build(BuildContext context) {
     final task = item is TaskScheduleItem ? item as TaskScheduleItem : null;
+    final completed = completedOverride ?? task?.completed ?? false;
     final onAnchorAvailable = this.onAnchorAvailable;
     if (onAnchorAvailable != null) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -482,7 +741,11 @@ class _AgendaRow extends StatelessWidget {
 
     return BusyMaxActionRow(
       title: item.title,
-      titleWidget: _AgendaItemTitle(item: item),
+      titleWidget: _AgendaItemTitle(
+        item: item,
+        completedOverride: completedOverride,
+        animateCompletion: animateCompletion,
+      ),
       subtitleWidget: searchCriteria == null
           ? _AgendaItemSubtitle(item: item)
           : Text(
@@ -498,11 +761,15 @@ class _AgendaRow extends StatelessWidget {
       leading: _AgendaItemMarker(item: item),
       trailing: task == null
           ? null
-          : YaruCheckbox(
-              value: task.completed,
-              onChanged: onTaskCompletionChanged == null
-                  ? null
-                  : (value) => onTaskCompletionChanged!(value ?? false),
+          : BusyMaxYaruFocusBorder(
+              builder: (context, focusNode) => YaruCheckbox(
+                value: completed,
+                focusNode: focusNode,
+                hasFocusBorder: false,
+                onChanged: onTaskCompletionChanged == null
+                    ? null
+                    : (value) => onTaskCompletionChanged!(value ?? false),
+              ),
             ),
       onActivated: onTap,
     );
@@ -562,6 +829,7 @@ class _AgendaSubtaskRow extends StatelessWidget {
     this.subtitleBuilder,
     this.onAnchorAvailable,
     this.onCompletionChanged,
+    this.animateCompletion = false,
   });
 
   final int depth;
@@ -571,6 +839,7 @@ class _AgendaSubtaskRow extends StatelessWidget {
   final String Function(BuildContext context)? subtitleBuilder;
   final ValueChanged<BuildContext>? onAnchorAvailable;
   final ValueChanged<bool>? onCompletionChanged;
+  final bool animateCompletion;
 
   @override
   Widget build(BuildContext context) {
@@ -595,16 +864,19 @@ class _AgendaSubtaskRow extends StatelessWidget {
           padding: const EdgeInsetsDirectional.only(start: BusyMaxSpacing.xs),
           child: BusyMaxActionRow(
             title: title,
-            titleWidget: Text(
-              title,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+            titleWidget: AnimatedDefaultTextStyle(
+              duration:
+                  MediaQuery.disableAnimationsOf(context) || !animateCompletion
+                  ? Duration.zero
+                  : BusyMaxMotion.taskCompletion,
+              curve: BusyMaxMotion.presentationCurve,
+              style: Theme.of(context).textTheme.bodyMedium!.copyWith(
                 decoration: completed ? TextDecoration.lineThrough : null,
                 color: completed
                     ? Theme.of(context).colorScheme.onSurfaceVariant
                     : Theme.of(context).colorScheme.onSurface,
               ),
+              child: Text(title, maxLines: 2, overflow: TextOverflow.ellipsis),
             ),
             subtitle: subtitle,
             leading: Icon(
@@ -612,11 +884,15 @@ class _AgendaSubtaskRow extends StatelessWidget {
               size: BusyMaxSizes.iconSm,
               color: colors.mutedForeground,
             ),
-            trailing: YaruCheckbox(
-              value: completed,
-              onChanged: onCompletionChanged == null
-                  ? null
-                  : (value) => onCompletionChanged!(value ?? false),
+            trailing: BusyMaxYaruFocusBorder(
+              builder: (context, focusNode) => YaruCheckbox(
+                value: completed,
+                focusNode: focusNode,
+                hasFocusBorder: false,
+                onChanged: onCompletionChanged == null
+                    ? null
+                    : (value) => onCompletionChanged!(value ?? false),
+              ),
             ),
             onActivated: onTap,
           ),
@@ -653,25 +929,32 @@ class _AgendaItemMarker extends StatelessWidget {
 }
 
 class _AgendaItemTitle extends StatelessWidget {
-  const _AgendaItemTitle({required this.item});
+  const _AgendaItemTitle({
+    required this.item,
+    this.completedOverride,
+    this.animateCompletion = false,
+  });
 
   final ScheduleItem item;
+  final bool? completedOverride;
+  final bool animateCompletion;
 
   @override
   Widget build(BuildContext context) {
     final task = item is TaskScheduleItem ? item as TaskScheduleItem : null;
+    final completed = completedOverride ?? task?.completed == true;
     final colorScheme = Theme.of(context).colorScheme;
-    return Text(
-      item.title,
-      maxLines: 2,
-      overflow: TextOverflow.ellipsis,
-      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+    return AnimatedDefaultTextStyle(
+      duration: MediaQuery.disableAnimationsOf(context) || !animateCompletion
+          ? Duration.zero
+          : BusyMaxMotion.taskCompletion,
+      curve: BusyMaxMotion.presentationCurve,
+      style: Theme.of(context).textTheme.bodyMedium!.copyWith(
         fontWeight: FontWeight.w600,
-        decoration: task?.completed == true ? TextDecoration.lineThrough : null,
-        color: task?.completed == true
-            ? colorScheme.onSurfaceVariant
-            : colorScheme.onSurface,
+        decoration: completed ? TextDecoration.lineThrough : null,
+        color: completed ? colorScheme.onSurfaceVariant : colorScheme.onSurface,
       ),
+      child: Text(item.title, maxLines: 2, overflow: TextOverflow.ellipsis),
     );
   }
 }

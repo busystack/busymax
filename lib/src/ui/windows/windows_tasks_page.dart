@@ -8,9 +8,13 @@ import 'package:intl/intl.dart';
 import '../../../l10n/generated/app_localizations.dart';
 import '../../app/app_bootstrap.dart';
 import '../../app/busymax_shortcuts.dart';
+import '../../app/common/busymax_design_values.dart';
+import '../../app/common/busymax_mutation_list.dart';
+import '../../schedule/task_list_mutation_intent.dart';
 import '../../schedule/schedule_filters.dart';
 import '../../schedule/schedule_item.dart';
 import '../../features/tasks/data/tasks_repository.dart';
+import '../../features/tasks/domain/task_mutation_result.dart';
 import '../common/busymax_glyph.dart';
 import 'windows_busymax_glyphs.dart';
 import 'windows_task_details_dialog.dart';
@@ -35,6 +39,8 @@ class _WindowsTasksPageState extends ConsumerState<WindowsTasksPage> {
   var _showCompleted = false;
   Timer? _searchDebounce;
   final _pendingCompletion = <String>{};
+  var _mutationGeneration = 0;
+  TaskListMutationIntent? _mutationIntent;
 
   @override
   void initState() {
@@ -124,19 +130,78 @@ class _WindowsTasksPageState extends ConsumerState<WindowsTasksPage> {
   }
 
   Future<void> _createTask() async {
-    final changed = await showWindowsTaskEditorDialog(
+    final result = await showWindowsTaskEditorDialog(
       context,
       ref,
       initialAccountId: _listKey?.accountId ?? _accountId,
       initialTaskListId: _listKey?.taskListId,
     );
-    if (changed && mounted) _reload();
+    if (result != null && mounted) {
+      setState(() {
+        _mutationIntent = TaskListMutationIntent(
+          presentation: TaskListMutationPresentation.insertion,
+          accountId: result.accountId,
+          taskListId: result.taskListId,
+          taskId: result.taskId,
+          generation: ++_mutationGeneration,
+        );
+      });
+      _reload();
+    }
+  }
+
+  void _beginDetailsMutation(TaskMutationResult result) {
+    if (!mounted) return;
+    final presentation = switch (result.kind) {
+      TaskMutationKind.deleted ||
+      TaskMutationKind.moved => TaskListMutationPresentation.removal,
+      TaskMutationKind.duplicated => TaskListMutationPresentation.insertion,
+      _ => TaskListMutationPresentation.completion,
+    };
+    final taskId = result.createdTaskId ?? result.taskId;
+    final current = _mutationIntent;
+    if (current?.presentation == presentation &&
+        current?.accountId == result.accountId &&
+        current?.taskListId == result.taskListId &&
+        current?.taskId == taskId &&
+        current?.completed == result.completed) {
+      return;
+    }
+    setState(() {
+      _mutationIntent = TaskListMutationIntent(
+        presentation: presentation,
+        accountId: result.accountId,
+        taskListId: result.taskListId,
+        taskId: taskId,
+        checklistItemId: result.checklistItemId,
+        completed: result.completed,
+        generation: ++_mutationGeneration,
+      );
+    });
+  }
+
+  void _commitDetailsMutation(TaskMutationResult result) {
+    _beginDetailsMutation(result);
+    if (mounted) _reload();
+  }
+
+  void _failDetailsMutation() {
+    if (mounted) setState(() => _mutationIntent = null);
   }
 
   Future<void> _setCompleted(TaskScheduleItem task, bool completed) async {
     final key = '${task.accountId}/${task.sourceId}/${task.id}';
     if (!task.capabilities.canEdit || !_pendingCompletion.add(key)) return;
-    setState(() {});
+    setState(() {
+      _mutationIntent = TaskListMutationIntent(
+        presentation: TaskListMutationPresentation.completion,
+        accountId: task.accountId,
+        taskListId: task.sourceId,
+        taskId: task.id,
+        completed: completed,
+        generation: ++_mutationGeneration,
+      );
+    });
     try {
       await ref
           .read(tasksRepositoryForAccountProvider(task.accountId))
@@ -153,6 +218,7 @@ class _WindowsTasksPageState extends ConsumerState<WindowsTasksPage> {
       if (mounted) _reload();
     } on Object catch (_) {
       if (mounted) {
+        setState(() => _mutationIntent = null);
         await displayInfoBar(
           context,
           builder: (context, close) => InfoBar(
@@ -172,8 +238,28 @@ class _WindowsTasksPageState extends ConsumerState<WindowsTasksPage> {
     _searchDebounce?.cancel();
     _searchController.clear();
     _query = '';
+    _mutationIntent = null;
     _searchFocusNode.unfocus();
     _reload();
+  }
+
+  bool _animatesCompletion(TaskScheduleItem task) {
+    final intent = _mutationIntent;
+    return intent?.presentation == TaskListMutationPresentation.completion &&
+        intent?.taskKey ==
+            '${task.accountId}\u0000${task.sourceId}\u0000${task.id}' &&
+        intent?.completed != null;
+  }
+
+  bool _displayedCompletion(TaskScheduleItem task) {
+    final intent = _mutationIntent;
+    if (intent?.presentation == TaskListMutationPresentation.completion &&
+        intent?.taskKey ==
+            '${task.accountId}\u0000${task.sourceId}\u0000${task.id}' &&
+        intent?.completed != null) {
+      return intent!.completed!;
+    }
+    return task.completed;
   }
 
   void _createTaskFromShortcut() {
@@ -280,6 +366,7 @@ class _WindowsTasksPageState extends ConsumerState<WindowsTasksPage> {
                     const Duration(milliseconds: 250),
                     () {
                       if (!mounted) return;
+                      _mutationIntent = null;
                       _query = value;
                       _reload();
                     },
@@ -312,6 +399,7 @@ class _WindowsTasksPageState extends ConsumerState<WindowsTasksPage> {
                           ),
                       ],
                       onChanged: (value) {
+                        _mutationIntent = null;
                         _accountId = value == '' ? null : value;
                         _listKey = null;
                         _reload();
@@ -353,6 +441,7 @@ class _WindowsTasksPageState extends ConsumerState<WindowsTasksPage> {
                           ),
                       ],
                       onChanged: (value) {
+                        _mutationIntent = null;
                         _listKey = value?.accountId == '' ? null : value;
                         _reload();
                       },
@@ -362,6 +451,7 @@ class _WindowsTasksPageState extends ConsumerState<WindowsTasksPage> {
                     checked: _showCompleted,
                     content: Text(l10n.completed),
                     onChanged: (value) {
+                      _mutationIntent = null;
                       _showCompleted = value ?? false;
                       _reload();
                     },
@@ -393,8 +483,21 @@ class _WindowsTasksPageState extends ConsumerState<WindowsTasksPage> {
                     );
                   }
                   final tasks = snapshot.data ?? const [];
-                  if (tasks.isEmpty) {
-                    return Center(
+                  return BusyMaxMutationList<TaskScheduleItem>(
+                    items: tasks,
+                    mutation: _mutationIntent,
+                    identityOf: (task) =>
+                        '${task.accountId}\u0000${task.sourceId}\u0000${task.id}',
+                    mutationApplied: (task, mutation) =>
+                        mutation.completed == null ||
+                        task.completed == mutation.completed,
+                    onMutationConsumed: (mutation) {
+                      if (!mounted) return;
+                      if (_mutationIntent?.generation == mutation.generation) {
+                        setState(() => _mutationIntent = null);
+                      }
+                    },
+                    emptyBuilder: (context) => Center(
                       child: Text(
                         accounts.isEmpty
                             ? l10n.signInToViewTasks
@@ -404,18 +507,15 @@ class _WindowsTasksPageState extends ConsumerState<WindowsTasksPage> {
                             ? l10n.noTasksInList
                             : l10n.noTasksYet,
                       ),
-                    );
-                  }
-                  return ListView.builder(
+                    ),
                     padding: const EdgeInsetsDirectional.fromSTEB(
                       24,
                       0,
                       24,
                       24,
                     ),
-                    itemCount: tasks.length,
-                    itemBuilder: (context, index) {
-                      final task = tasks[index];
+                    itemBuilder: (context, task, index) {
+                      final displayedCompleted = _displayedCompletion(task);
                       final due = task.start == null
                           ? ''
                           : DateFormat.yMMMd(locale).format(task.start!);
@@ -427,7 +527,7 @@ class _WindowsTasksPageState extends ConsumerState<WindowsTasksPage> {
                         child: Card(
                           child: ListTile(
                             leading: Checkbox(
-                              checked: task.completed,
+                              checked: displayedCompleted,
                               semanticLabel: task.title,
                               onChanged:
                                   task.capabilities.canEdit &&
@@ -439,13 +539,27 @@ class _WindowsTasksPageState extends ConsumerState<WindowsTasksPage> {
                                     )
                                   : null,
                             ),
-                            title: Text(
-                              task.title,
-                              style: task.completed
-                                  ? const TextStyle(
-                                      decoration: TextDecoration.lineThrough,
-                                    )
-                                  : null,
+                            title: AnimatedDefaultTextStyle(
+                              duration:
+                                  MediaQuery.disableAnimationsOf(context) ||
+                                      !_animatesCompletion(task)
+                                  ? Duration.zero
+                                  : BusyMaxMotion.taskCompletion,
+                              curve: BusyMaxMotion.presentationCurve,
+                              style:
+                                  (FluentTheme.of(context).typography.body ??
+                                          const TextStyle())
+                                      .copyWith(
+                                        decoration: displayedCompleted
+                                            ? TextDecoration.lineThrough
+                                            : null,
+                                        color: displayedCompleted
+                                            ? FluentTheme.of(
+                                                context,
+                                              ).inactiveColor
+                                            : null,
+                                      ),
+                              child: Text(task.title),
                             ),
                             subtitle: Text(
                               [
@@ -460,6 +574,9 @@ class _WindowsTasksPageState extends ConsumerState<WindowsTasksPage> {
                                 context,
                                 ref,
                                 task,
+                                onTaskMutationStarted: _beginDetailsMutation,
+                                onTaskMutationCommitted: _commitDetailsMutation,
+                                onTaskMutationFailed: _failDetailsMutation,
                               ).then((changed) {
                                 if (changed) _reload();
                               }),

@@ -14,6 +14,7 @@ import 'package:busymax/src/core/auth/oauth_models.dart';
 import 'package:busymax/src/google_tasks/oauth/oauth_service.dart';
 import 'package:busymax/src/core/secrets/secret_store.dart';
 import 'package:busymax/src/microsoft_todo/oauth/microsoft_oauth_service.dart';
+import 'package:busymax/src/microsoft_todo/api/microsoft_todo_api_models.dart';
 import 'package:busymax/src/providers/busy_provider.dart';
 
 void main() {
@@ -110,6 +111,65 @@ void main() {
     expect(await database.select(database.accounts).get(), isEmpty);
   });
 
+  for (final qualified in [false, true]) {
+    test(
+      'Microsoft sign-in accepts ${qualified ? 'qualified' : 'unqualified'} Graph scopes',
+      () async {
+        final microsoftOAuth = _FakeMicrosoftOAuthService()
+          ..nextTokenSet = _tokenSet(
+            scopes: {
+              if (qualified)
+                'https://graph.microsoft.com/User.Read'
+              else
+                'User.Read',
+              if (qualified)
+                'https://graph.microsoft.com/Tasks.ReadWrite'
+              else
+                'Tasks.ReadWrite',
+              if (qualified)
+                'https://graph.microsoft.com/Calendars.ReadWrite'
+              else
+                'Calendars.ReadWrite',
+            },
+          );
+        repository = AuthRepository(
+          oAuth: oAuth,
+          database: database,
+          microsoftOAuth: microsoftOAuth,
+          nowUtc: () => DateTime.utc(2026, 6, 4),
+        );
+
+        final state = await repository.signInWithMicrosoft();
+
+        expect(state.accountId, 'microsoft:user-1');
+        expect(microsoftOAuth.signOutAccountIds, isEmpty);
+      },
+    );
+  }
+
+  test('Microsoft sign-in rejects a genuinely missing permission', () async {
+    final microsoftOAuth = _FakeMicrosoftOAuthService()
+      ..nextTokenSet = _tokenSet(scopes: {'User.Read', 'Tasks.ReadWrite'});
+    repository = AuthRepository(
+      oAuth: oAuth,
+      database: database,
+      microsoftOAuth: microsoftOAuth,
+      nowUtc: () => DateTime.utc(2026, 6, 4),
+    );
+
+    await expectLater(
+      repository.signInWithMicrosoft(),
+      throwsA(
+        isA<OAuthException>().having(
+          (error) => error.code,
+          'code',
+          'MicrosoftOAuthMissingRequiredScope',
+        ),
+      ),
+    );
+    expect(microsoftOAuth.signOutAccountIds, ['microsoft:user-1']);
+  });
+
   test('revocation failure does not mask missing-scope guidance', () async {
     oAuth.nextTokenSet = _tokenSet(scopes: {googleTasksReadOnlyScope});
     oAuth.revokeAndSignOutError = StateError('revocation unavailable');
@@ -173,12 +233,30 @@ void main() {
           .watchVisibleAccounts()
           .first;
 
-      expect(oAuth.clearedAccountId, 'google:g');
+      expect(oAuth.clearedAccountId, null);
       expect(account.authState, accountAuthStateReauthRequired);
       expect(signedInAccounts, isEmpty);
       expect(visibleAccounts.single.needsReconnect, isTrue);
     },
   );
+
+  test('successful Google reconnect reuses the account row', () async {
+    await _insertAccount(
+      database,
+      'account-1',
+      BusyProvider.google,
+      authState: accountAuthStateReauthRequired,
+    );
+
+    final state = await repository.signIn();
+
+    final accounts = await database.select(database.accounts).get();
+    expect(state.accountId, 'account-1');
+    expect(accounts, hasLength(1));
+    expect(accounts.single.id, 'account-1');
+    expect(accounts.single.authState, accountAuthStateSignedIn);
+    expect(oAuth.clearedAccountId, null);
+  });
 
   test('markReconnectRequired removes only target notifications', () async {
     await _insertAccount(database, 'google-a', BusyProvider.google);
@@ -456,8 +534,9 @@ OAuthTokenSet _tokenSet({Set<String>? scopes}) {
 Future<void> _insertAccount(
   AppDatabase database,
   String id,
-  BusyProvider provider,
-) {
+  BusyProvider provider, {
+  String authState = accountAuthStateSignedIn,
+}) {
   return database
       .into(database.accounts)
       .insert(
@@ -469,7 +548,7 @@ Future<void> _insertAccount(
               : 'https://accounts.google.com',
           providerAccountId: id,
           credentialKind: 'oauth',
-          authState: const Value('signed_in'),
+          authState: Value(authState),
           createdAtUtc: '2026-06-04T00:00:00.000Z',
           updatedAtUtc: '2026-06-04T00:00:00.000Z',
         ),
@@ -504,6 +583,21 @@ class _FakeMicrosoftOAuthService extends MicrosoftOAuthService {
       );
 
   final signOutAccountIds = <String>[];
+  OAuthTokenSet nextTokenSet = _tokenSet();
+
+  @override
+  Future<MicrosoftOAuthSignInResult> signInWithMicrosoft() async {
+    return MicrosoftOAuthSignInResult(
+      accountId: 'microsoft:user-1',
+      tokenSet: nextTokenSet,
+      user: const MicrosoftTodoUserDto(
+        id: 'user-1',
+        displayName: 'Microsoft User',
+        mail: 'user@example.test',
+        rawJson: {'id': 'user-1'},
+      ),
+    );
+  }
 
   @override
   Future<void> signOutAccount(String accountId) async {

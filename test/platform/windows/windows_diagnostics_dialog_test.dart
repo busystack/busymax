@@ -1,5 +1,7 @@
 import 'package:busymax/l10n/generated/app_localizations.dart';
 import 'package:busymax/src/app/app_bootstrap.dart';
+import 'package:busymax/src/core/auth/oauth_models.dart';
+import 'package:busymax/src/core/http/request_dispatch_exception.dart';
 import 'package:busymax/src/dav/ical/ical_document.dart';
 import 'package:busymax/src/dav/mutation/dav_conflict_repository.dart';
 import 'package:busymax/src/dav/mutation/dav_mutation_patch.dart';
@@ -7,6 +9,7 @@ import 'package:busymax/src/dav/mutation/dav_pending_operations.dart';
 import 'package:busymax/src/dav/storage/dav_object_repository.dart';
 import 'package:busymax/src/db/app_database.dart';
 import 'package:busymax/src/features/sync/account_sync_operations.dart';
+import 'package:busymax/src/features/sync/pending_op_resolution_service.dart';
 import 'package:busymax/src/providers/busy_provider.dart';
 import 'package:busymax/src/ui/windows/windows_diagnostics_dialog.dart';
 import 'package:drift/drift.dart' hide isNotNull, isNull;
@@ -102,6 +105,84 @@ void main() {
       await tester.pump(const Duration(milliseconds: 1));
     },
   );
+
+  testWidgets('Windows retry stays blocked when the account needs reconnect', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1200, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final database = AppDatabase(NativeDatabase.memory());
+    addTearDown(database.close);
+    final sync = _RecordingSyncOperations();
+    await _seedAccount(
+      database,
+      id: 'blocked-google',
+      provider: BusyProvider.google,
+      displayName: 'Blocked Google',
+      authState: 'reauth_required',
+    );
+    await _seedBlockedOperation(
+      database,
+      id: 'retry-ineligible',
+      accountId: 'blocked-google',
+    );
+    final before = await database.pendingOpsDao.getOp('retry-ineligible');
+
+    await _pumpBlockedOperations(tester, database, sync: sync);
+    final menu = _operationMenu(tester, 'retry-ineligible');
+    final retry = menu.items.whereType<MenuFlyoutItem>().singleWhere(
+      (item) => (item.text as Text).data == 'Retry',
+    );
+    retry.onPressed!();
+    await tester.pumpAndSettle();
+
+    final after = await database.pendingOpsDao.getOp('retry-ineligible');
+    expect(after?.state, before?.state);
+    expect(after?.nextAttemptAtUtc, before?.nextAttemptAtUtc);
+    expect(sync.calls, isEmpty);
+    expect(sync.taskCalls, isEmpty);
+    expect(find.text('This account needs to be reconnected.'), findsOneWidget);
+    expect(find.text('Retry completed.'), findsNothing);
+    await _disposeBlockedOperations(tester);
+  });
+
+  testWidgets('Windows discard failure uses a controlled sync message', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1200, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final database = AppDatabase(NativeDatabase.memory());
+    addTearDown(database.close);
+    await _seedAccount(
+      database,
+      id: 'account',
+      provider: BusyProvider.google,
+      displayName: 'Google',
+    );
+    await _seedBlockedOperation(database, id: 'discard-failure');
+    final service = _ThrowingPendingOpResolutionService(database);
+
+    await _pumpBlockedOperations(tester, database, resolutionService: service);
+    final menu = _operationMenu(tester, 'discard-failure');
+    final discard = menu.items.whereType<MenuFlyoutItem>().singleWhere(
+      (item) => (item.text as Text).data == 'Discard',
+    );
+    discard.onPressed!();
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Discard').last);
+    await tester.pumpAndSettle();
+
+    expect(find.text('This account needs to be reconnected.'), findsOneWidget);
+    expect(find.textContaining('KnownUnsentRequestException'), findsNothing);
+    expect(find.textContaining('OAuthRefreshException'), findsNothing);
+    expect(find.textContaining('provider-secret'), findsNothing);
+    expect(await database.pendingOpsDao.getOp('discard-failure'), isNotNull);
+    await _disposeBlockedOperations(tester);
+  });
 
   for (final testCase in const [
     (
@@ -340,6 +421,7 @@ Future<void> _seedAccount(
   required String id,
   required BusyProvider provider,
   required String displayName,
+  String authState = 'signed_in',
 }) {
   const now = '2026-09-11T12:00:00.000Z';
   return database
@@ -356,11 +438,81 @@ Future<void> _seedAccount(
               ? 'nextcloud_app_password'
               : 'oauth',
           displayName: Value(displayName),
-          authState: const Value('signed_in'),
+          authState: Value(authState),
           createdAtUtc: now,
           updatedAtUtc: now,
         ),
       );
+}
+
+Future<void> _seedBlockedOperation(
+  AppDatabase database, {
+  required String id,
+  String accountId = 'account',
+}) {
+  const now = '2026-09-11T12:00:00.000Z';
+  return database
+      .into(database.pendingOps)
+      .insert(
+        PendingOpsCompanion.insert(
+          id: id,
+          accountId: accountId,
+          provider: const Value('google'),
+          entityType: 'task',
+          operation: 'patch_task',
+          taskListId: const Value('list'),
+          taskId: const Value('task'),
+          requestJson: '{}',
+          state: const Value('failed'),
+          retryClassification: const Value('permanent'),
+          nextAttemptAtUtc: const Value('9999-12-31T23:59:59.999Z'),
+          lastErrorCode: const Value('provider_rejected'),
+          createdAtUtc: now,
+          updatedAtUtc: now,
+        ),
+      );
+}
+
+Future<void> _pumpBlockedOperations(
+  WidgetTester tester,
+  AppDatabase database, {
+  _RecordingSyncOperations? sync,
+  PendingOpResolutionService? resolutionService,
+}) async {
+  await tester.pumpWidget(
+    ProviderScope(
+      overrides: [
+        databaseProvider.overrideWithValue(database),
+        if (sync != null) accountSyncOperationsProvider.overrideWithValue(sync),
+        if (resolutionService != null)
+          pendingOpResolutionServiceForAccountProvider.overrideWith(
+            (ref, accountId) => resolutionService,
+          ),
+      ],
+      child: const FluentApp(
+        localizationsDelegates: [AppLocalizations.delegate],
+        supportedLocales: AppLocalizations.supportedLocales,
+        home: ScaffoldPage(
+          content: WindowsBlockedPendingOperations(redactDetails: false),
+        ),
+      ),
+    ),
+  );
+  await tester.pump();
+  await tester.pump(const Duration(milliseconds: 300));
+}
+
+Future<void> _disposeBlockedOperations(WidgetTester tester) async {
+  await tester.pumpWidget(const SizedBox.shrink());
+  await tester.pump(const Duration(milliseconds: 1));
+  await tester.pump(const Duration(milliseconds: 1));
+}
+
+DropDownButton _operationMenu(WidgetTester tester, String operationId) {
+  final row = find.byKey(ValueKey('windows-blocked-pending-op-$operationId'));
+  return tester.widget<DropDownButton>(
+    find.descendant(of: row, matching: find.byType(DropDownButton)),
+  );
 }
 
 final class _RecordingSyncOperations implements AccountSyncOperations {
@@ -379,6 +531,33 @@ final class _RecordingSyncOperations implements AccountSyncOperations {
   Future<void> syncTasks(String accountId, {required bool full}) async {
     taskCalls.add(accountId);
   }
+}
+
+final class _ThrowingPendingOpResolutionService
+    extends PendingOpResolutionService {
+  _ThrowingPendingOpResolutionService(AppDatabase database)
+    : super(
+        database: database,
+        accountId: 'account',
+        syncTasks: _noSync,
+        syncCalendar: _noSync,
+      );
+
+  @override
+  Future<void> discard(String opId) async {
+    throw const KnownUnsentRequestException(
+      kind: RequestPreDispatchFailureKind.authentication,
+      cause: OAuthRefreshException(
+        'OAuthRefreshFailed',
+        'provider-secret',
+        statusCode: 400,
+        oauthError: 'invalid_grant',
+        oauthErrorDescription: 'provider-secret',
+      ),
+    );
+  }
+
+  static Future<void> _noSync() async {}
 }
 
 const _collectionHref = '/remote.php/dav/calendars/alex/work/';

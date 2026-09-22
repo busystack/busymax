@@ -146,6 +146,43 @@ final class CalendarEventDetail {
   final int projectionVersion;
   final String? providerRecurringEventId;
   final String? providerOriginalStartKey;
+
+  /// Whether this row has enough authoritative recurrence identity to require
+  /// the user to choose an occurrence/series mutation scope.
+  ///
+  /// The denormalized provider ID is not sufficient on its own: an old or
+  /// partially recovered row can retain that value after the provider payload
+  /// describes an ordinary event. Cloud rows therefore have to agree with the
+  /// stored provider payload. DAV rows use their projected iCalendar
+  /// recurrence semantics.
+  bool get requiresRecurringMutationScope {
+    final seriesId = providerRecurringEventId?.trim();
+    if (seriesId == null || seriesId.isEmpty) return false;
+    return switch (provider) {
+      BusyProvider.google => _cloudRecurrenceIdentityMatches(
+        raw: raw,
+        baselineRaw: baselineRaw,
+        seriesId: seriesId,
+        seriesKey: 'recurringEventId',
+        originalStartKey: 'originalStartTime',
+      ),
+      BusyProvider.microsoft => _cloudRecurrenceIdentityMatches(
+        raw: raw,
+        baselineRaw: baselineRaw,
+        seriesId: seriesId,
+        seriesKey: 'seriesMasterId',
+        originalStartKey: 'originalStart',
+      ),
+      BusyProvider.appleICloud ||
+      BusyProvider.nextcloud ||
+      BusyProvider.webCal =>
+        _hasProjectedIcalRecurrence(recurrence) ||
+            (recurrenceIdKey?.trim().isNotEmpty ?? false),
+    };
+  }
+
+  String? get recurringMutationSeriesId =>
+      requiresRecurringMutationScope ? providerRecurringEventId!.trim() : null;
   final String? etagOrChangeKey;
   final String? status;
   final String title;
@@ -192,6 +229,41 @@ final class CalendarEventDetail {
   final int updatedAtLocal;
   final String syncStatus;
   final Object? baselineRaw;
+}
+
+bool _cloudRecurrenceIdentityMatches({
+  required Object? raw,
+  required Object? baselineRaw,
+  required String seriesId,
+  required String seriesKey,
+  required String originalStartKey,
+}) {
+  // Prefer the current provider payload. A stored provider baseline is a valid
+  // fallback only when the current payload is unavailable; denormalized
+  // columns are never used as proof of recurrence because they can be stale.
+  final payload = raw is Map && raw.isNotEmpty ? raw : baselineRaw;
+  if (payload is! Map || payload.isEmpty) return false;
+  final rawSeriesId = payload[seriesKey]?.toString().trim();
+  if (rawSeriesId == null || rawSeriesId.isEmpty || rawSeriesId != seriesId) {
+    return false;
+  }
+  final rawStart = payload[originalStartKey];
+  final hasRawStart = switch (rawStart) {
+    final String value => value.trim().isNotEmpty,
+    final Map value => value.isNotEmpty,
+    _ => false,
+  };
+  return hasRawStart;
+}
+
+bool _hasProjectedIcalRecurrence(Object? recurrence) {
+  if (recurrence is List) return recurrence.isNotEmpty;
+  if (recurrence is! Map) return false;
+  for (final key in const ['rules', 'dates', 'excludedDates']) {
+    final values = recurrence[key];
+    if (values is List && values.isNotEmpty) return true;
+  }
+  return false;
 }
 
 Object? _decodeJson(String? value) {

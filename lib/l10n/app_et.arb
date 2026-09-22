@@ -253,6 +253,10 @@
   "viewAgenda": "Päevakava",
   "scheduleSettings": "Ajakava",
   "scheduleDisplaySettings": "Ajakava kuvamine",
+  "newEventsAndTasks": "Uued sündmused ja ülesanded",
+  "defaultCalendar": "Vaikekalender",
+  "defaultTaskList": "Vaikimisi ülesannete loend",
+  "lastUsed": "Viimati kasutatud",
   "scheduleDisplayHoursDescription": "Päeva- ja nädalavaade avanevad nende kellaaegade piires. Vajaduse korral laiendavad varasemad ja hilisemad kirjed vahemikku.",
   "scheduleDayStartsAt": "Päev algab",
   "scheduleDayEndsAt": "Päev lõpeb",
@@ -343,6 +347,7 @@
   "shortcutPreviousPeriodDescription": "Nädalavaates eelmine nädal, kuuvaates eelmine kuu jne",
   "shortcutJumpToToday": "Mine tänasele kuupäevale",
   "shortcutGroupView": "Vaade",
+  "viewSelector": "Vaade",
   "shortcutDayView": "Päevavaade",
   "shortcutWeekView": "Nädalavaade",
   "shortcutMonthView": "Kuuvaade",
@@ -760,7 +765,6 @@
   "connectAccountAction": "Ühenda",
   "cancelAccountConnection": "Tühista ühendus",
   "nextcloudAccountRemovedRevokeFailed": "Konto eemaldati kohalikult, kuid Nextcloudi rakenduse parooli ei saanud tühistada.",
-  "davCachedOfflineNotice": "Kalendri- ja ülesandeandmed salvestatakse võrguühenduseta kasutamiseks kohapeal.",
   "davReauthenticationRequired": "Sünkroonimise jätkamiseks ühenda see konto uuesti.",
   "davTemporarilyUnavailable": "See konto pole ajutiselt saadaval.",
   "davPermissionChanged": "Serveriõigused muutusid. Ootel muudatused on peatatud.",
@@ -1222,5 +1226,8 @@
   "searchClearFilters": "Lähtesta filtrid",
   "searchFiltersAction": "Filtrid",
   "searchNoSources": "Otsinguallikaid pole valitud",
-  "searchClearText": "Tühjenda tekst"
+  "searchClearText": "Tühjenda tekst",
+  "windowMinimize": "Minimeeri",
+  "windowMaximize": "Maksimeeri",
+  "windowRestore": "Taasta"
 }

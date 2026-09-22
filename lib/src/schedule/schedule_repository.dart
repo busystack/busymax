@@ -457,6 +457,7 @@ class ScheduleRepository {
       if (!ignoreDateRange && !_intersects(range, start, end)) {
         continue;
       }
+      final detail = CalendarEventDetail.fromRow(event);
       items.add(
         CalendarScheduleItem(
           id: event.id,
@@ -464,10 +465,8 @@ class ScheduleRepository {
           provider: provider,
           sourceId: event.calendarSourceId,
           providerCalendarId: event.providerCalendarId,
-          providerRecurringEventId: event.providerRecurringEventId,
-          timingBaseline: EventTimingBaseline.fromDetail(
-            CalendarEventDetail.fromRow(event),
-          ),
+          providerRecurringEventId: detail.recurringMutationSeriesId,
+          timingBaseline: EventTimingBaseline.fromDetail(detail),
           title: event.title,
           allDay: event.allDay,
           start: start,

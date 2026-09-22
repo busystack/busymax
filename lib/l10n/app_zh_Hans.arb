@@ -246,6 +246,10 @@
   "viewAgenda": "日程",
   "scheduleSettings": "日程",
   "scheduleDisplaySettings": "日程显示",
+  "newEventsAndTasks": "新建日程和任务",
+  "defaultCalendar": "默认日历",
+  "defaultTaskList": "默认任务列表",
+  "lastUsed": "最近使用",
   "scheduleDisplayHoursDescription": "日视图和周视图最初显示此时间范围。需要时，更早或更晚的项目会扩展该范围。",
   "scheduleDayStartsAt": "每日开始时间",
   "scheduleDayEndsAt": "每日结束时间",
@@ -308,6 +312,7 @@
   "shortcutPreviousPeriodDescription": "在周视图中前往上一周，在月视图中前往上个月，依此类推",
   "shortcutJumpToToday": "跳转到今天",
   "shortcutGroupView": "视图",
+  "viewSelector": "视图",
   "shortcutDayView": "日视图",
   "shortcutWeekView": "周视图",
   "shortcutMonthView": "月视图",
@@ -589,7 +594,6 @@
   "connectAccountAction": "连接",
   "cancelAccountConnection": "取消连接",
   "nextcloudAccountRemovedRevokeFailed": "账户已在本地移除，但无法撤销 Nextcloud App 密码。",
-  "davCachedOfflineNotice": "日历和任务数据会缓存在本地，以供离线使用。",
   "davReauthenticationRequired": "重新连接此账户以恢复同步。",
   "davTemporarilyUnavailable": "此账户暂时不可用。",
   "davPermissionChanged": "服务器权限已更改。待处理的编辑已暂停。",
@@ -1044,5 +1048,8 @@
   "searchClearFilters": "重置筛选条件",
   "searchFiltersAction": "筛选",
   "searchNoSources": "未选择搜索来源",
-  "searchClearText": "清除文字"
+  "searchClearText": "清除文字",
+  "windowMinimize": "最小化",
+  "windowMaximize": "最大化",
+  "windowRestore": "还原"
 }

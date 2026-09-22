@@ -438,6 +438,15 @@ class AppLocalizationsJa extends AppLocalizations {
   String get close => '閉じる';
 
   @override
+  String get windowMinimize => '最小化';
+
+  @override
+  String get windowMaximize => '最大化';
+
+  @override
+  String get windowRestore => '元に戻す';
+
+  @override
   String get exit => '終了';
 
   @override
@@ -695,6 +704,18 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get scheduleDisplaySettings => 'スケジュール表示';
+
+  @override
+  String get newEventsAndTasks => '新しい予定とタスク';
+
+  @override
+  String get defaultCalendar => '既定のカレンダー';
+
+  @override
+  String get defaultTaskList => '既定のタスクリスト';
+
+  @override
+  String get lastUsed => '前回使用';
 
   @override
   String get scheduleDisplayHoursDescription =>
@@ -1040,6 +1061,9 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get shortcutGroupView => '表示';
+
+  @override
+  String get viewSelector => '表示';
 
   @override
   String get shortcutDayView => '日表示';
@@ -2371,10 +2395,6 @@ class AppLocalizationsJa extends AppLocalizations {
   @override
   String get nextcloudAccountRemovedRevokeFailed =>
       'アカウントはローカルから削除されましたが、Nextcloud の App パスワードを無効にできませんでした。';
-
-  @override
-  String get davCachedOfflineNotice =>
-      'オフラインで使用できるよう、カレンダーとタスクのデータはローカルにキャッシュされます。';
 
   @override
   String get davReauthenticationRequired => '同期を再開するには、このアカウントを再接続してください。';

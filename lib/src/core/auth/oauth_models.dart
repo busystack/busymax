@@ -106,7 +106,15 @@ class OAuthRefreshException extends OAuthException {
     super.code,
     super.message, {
     required this.statusCode,
+    this.oauthError,
+    this.oauthErrorDescription,
   });
 
   final int statusCode;
+
+  /// The structured OAuth `error` value returned by the provider.
+  final String? oauthError;
+
+  /// The provider's redacted OAuth `error_description`, when present.
+  final String? oauthErrorDescription;
 }

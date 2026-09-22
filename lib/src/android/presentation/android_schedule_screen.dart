@@ -8,6 +8,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
 import '../../app/app_bootstrap.dart';
+import '../../app/common/busymax_motion_widgets.dart';
+import '../../app/common/busymax_mutation_list.dart';
 import '../../calendar_providers/calendar_mutation.dart';
 import '../../core/logging/redacting_logger.dart';
 import '../../features/accounts/data/accounts_repository.dart';
@@ -28,6 +30,7 @@ import '../../schedule/schedule_projection.dart';
 import '../../schedule/schedule_range.dart';
 import '../../schedule/schedule_view_mode.dart';
 import '../../schedule/schedule_source_visibility.dart';
+import '../../schedule/task_list_mutation_intent.dart';
 import '../../schedule/schedule_search_criteria.dart';
 import 'android_schedule_search_filters.dart';
 import '../../features/schedule/presentation/schedule_search_result_text.dart';
@@ -36,6 +39,7 @@ import 'android_availability_dialog.dart';
 import 'android_date_picker.dart';
 import 'android_settings_screen.dart';
 import 'android_tasks_screen.dart';
+import 'android_task_motion.dart';
 
 final _androidScheduleItemsProvider = FutureProvider.autoDispose
     .family<
@@ -98,9 +102,15 @@ class _AndroidScheduleScreenState extends ConsumerState<AndroidScheduleScreen> {
   bool _searching = false;
   String _query = '';
   final _searchController = TextEditingController();
+  final _searchFocusNode = FocusNode();
   ScheduleSearchCriteria? _searchCriteria;
   ScheduleSearchCriteria? _initialSearchCriteria;
   var _searchFirstWeekday = DateTime.monday;
+  var _searchRequestGeneration = 0;
+  var _navigationGeneration = 0;
+  var _navigationDirection = 0;
+  var _taskMutationGeneration = 0;
+  TaskListMutationIntent? _taskMutationIntent;
 
   @override
   void didChangeDependencies() {
@@ -116,6 +126,7 @@ class _AndroidScheduleScreenState extends ConsumerState<AndroidScheduleScreen> {
 
   @override
   void dispose() {
+    _searchFocusNode.dispose();
     _searchController.dispose();
     super.dispose();
   }
@@ -133,42 +144,53 @@ class _AndroidScheduleScreenState extends ConsumerState<AndroidScheduleScreen> {
         firstWeekday: _firstWeekday(context),
       )),
     );
+    final searchCriteria = _searchCriteria;
+    final presentation = _searching && searchCriteria != null
+        ? _buildSearchPresentation(
+            items: items,
+            criteria: searchCriteria,
+            query: _query,
+          )
+        : _buildCalendarPresentation(items: items, mode: mode);
     return Scaffold(
       appBar: AppBar(
-        title: _searching
-            ? TextField(
-                controller: _searchController,
-                autofocus: true,
-                decoration: InputDecoration(
-                  hintText: context.l10n.windowsSearch,
-                  border: InputBorder.none,
-                  suffixIcon: IconButton(
-                    tooltip: MaterialLocalizations.of(
-                      context,
-                    ).clearButtonTooltip,
-                    icon: const Icon(Icons.clear),
-                    onPressed: () {
-                      _searchController.clear();
-                      setState(() => _query = '');
-                    },
+        title: BusyMaxBinaryPresentation(
+          alternateActive: _searching,
+          child: _searching
+              ? TextField(
+                  controller: _searchController,
+                  focusNode: _searchFocusNode,
+                  decoration: InputDecoration(
+                    hintText: context.l10n.windowsSearch,
+                    border: InputBorder.none,
+                    suffixIcon: IconButton(
+                      tooltip: MaterialLocalizations.of(
+                        context,
+                      ).clearButtonTooltip,
+                      icon: const Icon(Icons.clear),
+                      onPressed: () {
+                        _searchController.clear();
+                        setState(() => _query = '');
+                      },
+                    ),
                   ),
-                ),
-                onChanged: (value) => setState(() => _query = value),
-              )
-            : InkWell(
-                borderRadius: BorderRadius.circular(12),
-                onTap: _selectDate,
-                child: ConstrainedBox(
-                  constraints: const BoxConstraints(minHeight: 48),
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 4),
-                    child: Align(
-                      alignment: AlignmentDirectional.centerStart,
-                      child: Text(_periodLabel(context, _anchor, mode)),
+                  onChanged: (value) => setState(() => _query = value),
+                )
+              : InkWell(
+                  borderRadius: BorderRadius.circular(12),
+                  onTap: _selectDate,
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(minHeight: 48),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 4),
+                      child: Align(
+                        alignment: AlignmentDirectional.centerStart,
+                        child: Text(_periodLabel(context, _anchor, mode)),
+                      ),
                     ),
                   ),
                 ),
-              ),
+        ),
         actions: [
           IconButton(
             tooltip: context.l10n.windowsSearch,
@@ -199,86 +221,20 @@ class _AndroidScheduleScreenState extends ConsumerState<AndroidScheduleScreen> {
               ],
             ),
         ],
-        bottom: _searching
-            ? null
-            : PreferredSize(
-                preferredSize: const Size.fromHeight(48),
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(8, 0, 8, 8),
-                  child: Row(
-                    children: [
-                      IconButton(
-                        tooltip: context.l10n.shortcutPreviousPeriod,
-                        onPressed: () =>
-                            setState(() => _anchor = _move(_anchor, mode, -1)),
-                        icon: const Icon(Icons.chevron_left),
-                      ),
-                      FilledButton.tonal(
-                        onPressed: () =>
-                            setState(() => _anchor = DateTime.now()),
-                        child: Text(context.l10n.today),
-                      ),
-                      IconButton(
-                        tooltip: context.l10n.shortcutNextPeriod,
-                        onPressed: () =>
-                            setState(() => _anchor = _move(_anchor, mode, 1)),
-                        icon: const Icon(Icons.chevron_right),
-                      ),
-                      const Spacer(),
-                      Flexible(
-                        child: Text(
-                          _modeLabel(context, mode),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
       ),
-      body: items.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (error, _) => _Message(
-          icon: Icons.error_outline,
-          title: context.l10n.scheduleUnavailable,
-          detail: '$error',
-        ),
-        data: (value) =>
-            value.isEmpty && (_searching || mode == ScheduleViewMode.agenda)
-            ? _Message(
-                icon: !_searching ? Icons.event_busy : Icons.search_off,
-                title: !_searching
-                    ? context.l10n.noEventsOrTasks
-                    : _searchCriteria?.hasSources == false
-                    ? context.l10n.searchNoSources
-                    : context.l10n.scheduleNoSearchResults,
-                detail: !_searching
-                    ? context.l10n.noEventsOrTasks
-                    : context.l10n.scheduleNoSearchResultsDescription,
-              )
-            : _searching
-            ? _AgendaList(
-                key: const ValueKey('android-search-results'),
-                items: value,
-                onOpen: (item) => _showItem(context, item),
-                onToggleTask: _toggleTask,
-                searchCriteria: _searchCriteria,
-                searchQuery: _query,
-              )
-            : _ScheduleBody(
-                anchor: _anchor,
-                mode: mode,
-                items: value,
-                onSelectDate: (date) => setState(() => _anchor = date),
-                onModeChanged: (value) => unawaited(
-                  ref
-                      .read(appSettingsControllerProvider.notifier)
-                      .setAndroidScheduleViewMode(value),
-                ),
-                onOpen: (item) => _showItem(context, item),
-                onToggleTask: _toggleTask,
-              ),
+      body: Column(
+        children: [
+          BusyMaxVerticalReveal(
+            visible: !_searching,
+            child: _navigationRow(context, mode),
+          ),
+          Expanded(
+            child: BusyMaxBinaryPresentation(
+              alternateActive: _searching,
+              child: presentation,
+            ),
+          ),
+        ],
       ),
       floatingActionButton: FloatingActionButton(
         heroTag: 'android-schedule-add',
@@ -289,10 +245,99 @@ class _AndroidScheduleScreenState extends ConsumerState<AndroidScheduleScreen> {
     );
   }
 
+  Widget _buildCalendarPresentation({
+    required AsyncValue<List<ScheduleItem>> items,
+    required ScheduleViewMode mode,
+  }) {
+    // A provider-family key change may be loading for longer than the period
+    // motion. Keep the destination calendar mounted with an empty, coherent
+    // projection instead of replacing it with the progress indicator.
+    final displayedItems = items.isLoading || items.hasError
+        ? const <ScheduleItem>[]
+        : items.valueOrNull ?? const <ScheduleItem>[];
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        BusyMaxDirectionalEntrance(
+          generation: _navigationGeneration,
+          direction: _navigationDirection,
+          child: _ScheduleBody(
+            anchor: _anchor,
+            mode: mode,
+            items: displayedItems,
+            onSelectDate: (date) => setState(() => _anchor = date),
+            onModeChanged: (value) => unawaited(
+              ref
+                  .read(appSettingsControllerProvider.notifier)
+                  .setAndroidScheduleViewMode(value),
+            ),
+            onOpen: (item) => _showItem(context, item),
+            onToggleTask: _toggleTask,
+            taskMutationIntent: _taskMutationIntent,
+            onTaskMutationConsumed: _consumeTaskMutation,
+            agendaEmptyBuilder: items.isLoading
+                ? (context) => const SizedBox.shrink()
+                : null,
+          ),
+        ),
+        if (items.isLoading)
+          const IgnorePointer(
+            child: Center(child: CircularProgressIndicator()),
+          ),
+        if (items.hasError)
+          Positioned.fill(
+            child: ColoredBox(
+              color: Theme.of(context).scaffoldBackgroundColor,
+              child: _Message(
+                icon: Icons.error_outline,
+                title: context.l10n.scheduleUnavailable,
+                detail: '${items.error}',
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+
+  Widget _buildSearchPresentation({
+    required AsyncValue<List<ScheduleItem>> items,
+    required ScheduleSearchCriteria criteria,
+    required String query,
+  }) {
+    if (items.isLoading && items.valueOrNull == null) {
+      return const Center(child: CircularProgressIndicator());
+    }
+    if (items.hasError) {
+      return _Message(
+        icon: Icons.error_outline,
+        title: context.l10n.scheduleUnavailable,
+        detail: '${items.error}',
+      );
+    }
+    return _AgendaList(
+      key: const ValueKey('android-search-results'),
+      items: items.valueOrNull ?? const [],
+      onOpen: (item) => _showItem(context, item),
+      onToggleTask: _toggleTask,
+      searchCriteria: criteria,
+      searchQuery: query,
+      taskMutationIntent: _taskMutationIntent,
+      onTaskMutationConsumed: _consumeTaskMutation,
+      emptyBuilder: (context) => _Message(
+        icon: Icons.search_off,
+        title: !criteria.hasSources
+            ? context.l10n.searchNoSources
+            : context.l10n.scheduleNoSearchResults,
+        detail: context.l10n.scheduleNoSearchResultsDescription,
+      ),
+    );
+  }
+
   Future<void> _openSearch() async {
+    final generation = ++_searchRequestGeneration;
     final sources = await ref.read(calendarSourcesStreamProvider.future);
     final lists = await ref.read(scheduleTaskListsProvider.future);
-    if (!mounted) return;
+    if (!mounted || generation != _searchRequestGeneration) return;
     final visibility = ScheduleSourceVisibility.fromSources(
       calendarSources: sources,
       taskLists: lists,
@@ -309,15 +354,66 @@ class _AndroidScheduleScreenState extends ConsumerState<AndroidScheduleScreen> {
       _searchCriteria = _initialSearchCriteria;
       _searching = true;
     });
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || !_searching || generation != _searchRequestGeneration) {
+        return;
+      }
+      _searchFocusNode.requestFocus();
+    });
   }
 
   void _closeSearch() {
+    _searchRequestGeneration += 1;
+    _searchFocusNode.unfocus();
     setState(() {
       _searching = false;
       _searchCriteria = null;
       _initialSearchCriteria = null;
       _query = '';
       _searchController.clear();
+    });
+  }
+
+  Widget _navigationRow(BuildContext context, ScheduleViewMode mode) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(8, 0, 8, 8),
+      child: Row(
+        children: [
+          IconButton(
+            tooltip: context.l10n.shortcutPreviousPeriod,
+            onPressed: () => _movePeriod(mode, -1),
+            icon: const Icon(Icons.chevron_left),
+          ),
+          FilledButton.tonal(
+            onPressed: () => setState(() {
+              _navigationDirection = 0;
+              _anchor = DateTime.now();
+            }),
+            child: Text(context.l10n.today),
+          ),
+          IconButton(
+            tooltip: context.l10n.shortcutNextPeriod,
+            onPressed: () => _movePeriod(mode, 1),
+            icon: const Icon(Icons.chevron_right),
+          ),
+          const Spacer(),
+          Flexible(
+            child: Text(
+              _modeLabel(context, mode),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _movePeriod(ScheduleViewMode mode, int direction) {
+    setState(() {
+      _anchor = _move(_anchor, mode, direction);
+      _navigationDirection = direction;
+      _navigationGeneration += 1;
     });
   }
 
@@ -500,26 +596,39 @@ class _AndroidScheduleScreenState extends ConsumerState<AndroidScheduleScreen> {
     }
     final accounts =
         ref.read(accountsStreamProvider).valueOrNull ?? const <AccountEntity>[];
-    final list = await selectAndroidTaskList(
-      context,
-      lists,
-      title: context.l10n.newTask,
-      accountLabels: {
-        for (final account in accounts) account.id: account.displayLabel,
-      },
-    );
+    final settings = ref.read(appSettingsControllerProvider);
+    final list =
+        preferredCreationDestination(
+          lists,
+          selected: settings.defaultTaskList,
+          lastUsed: settings.lastUsedTaskList,
+          destinationOf: (list) =>
+              CreationDestination(accountId: list.accountId, id: list.id),
+        ) ??
+        await selectAndroidTaskList(
+          context,
+          lists,
+          title: context.l10n.newTask,
+          accountLabels: {
+            for (final account in accounts) account.id: account.displayLabel,
+          },
+        );
     if (list == null || !context.mounted) return;
     final account = accounts
         .where((value) => value.id == list.accountId)
         .firstOrNull;
     if (account == null) return;
-    await showAndroidTaskEditor(
+    final result = await showAndroidTaskEditor(
       context,
       ref,
       creationList: list,
       creationProvider: account.provider,
       initialDue: DateTime(_anchor.year, _anchor.month, _anchor.day),
+      onMutationStarted: _consumeEditorResult,
+      onMutationCommitted: _consumeEditorResult,
+      onMutationFailed: _clearEditorMutation,
     );
+    if (result == null) return;
   }
 
   Future<void> _showItem(BuildContext context, ScheduleItem item) async {
@@ -628,7 +737,15 @@ class _AndroidScheduleScreenState extends ConsumerState<AndroidScheduleScreen> {
                       if (item is CalendarScheduleItem) {
                         await _editEvent(context, item);
                       } else if (item is TaskScheduleItem) {
-                        await showAndroidTaskEditor(context, ref, task: item);
+                        final result = await showAndroidTaskEditor(
+                          context,
+                          ref,
+                          task: item,
+                          onMutationStarted: _consumeEditorResult,
+                          onMutationCommitted: _consumeEditorResult,
+                          onMutationFailed: _clearEditorMutation,
+                        );
+                        if (result == null) return;
                       }
                     },
                     icon: const Icon(Icons.edit),
@@ -697,30 +814,39 @@ class _AndroidScheduleScreenState extends ConsumerState<AndroidScheduleScreen> {
       ).showSnackBar(SnackBar(content: Text(context.l10n.noWritableCalendars)));
       return;
     }
-    final source = sources.length == 1
-        ? sources.single
-        : await showModalBottomSheet<CalendarSourceEntity>(
-            context: context,
-            showDragHandle: true,
-            builder: (sheetContext) => SafeArea(
-              child: ListView(
-                shrinkWrap: true,
-                children: [
-                  ListTile(title: Text(context.l10n.newEvent)),
-                  for (final candidate in sources)
-                    ListTile(
-                      leading: const Icon(Icons.calendar_today_outlined),
-                      title: Text(candidate.summary),
-                      subtitle: Text(
-                        '${candidate.provider.displayName} · '
-                        '${candidate.authenticatedAccountEmail ?? candidate.accountId}',
-                      ),
-                      onTap: () => Navigator.pop(sheetContext, candidate),
-                    ),
-                ],
-              ),
-            ),
-          );
+    final settings = ref.read(appSettingsControllerProvider);
+    final source =
+        preferredCreationDestination(
+          sources,
+          selected: settings.defaultCalendar,
+          lastUsed: settings.lastUsedCalendar,
+          destinationOf: (source) =>
+              CreationDestination(accountId: source.accountId, id: source.id),
+        ) ??
+        (sources.length == 1
+            ? sources.single
+            : await showModalBottomSheet<CalendarSourceEntity>(
+                context: context,
+                showDragHandle: true,
+                builder: (sheetContext) => SafeArea(
+                  child: ListView(
+                    shrinkWrap: true,
+                    children: [
+                      ListTile(title: Text(context.l10n.newEvent)),
+                      for (final candidate in sources)
+                        ListTile(
+                          leading: const Icon(Icons.calendar_today_outlined),
+                          title: Text(candidate.summary),
+                          subtitle: Text(
+                            '${candidate.provider.displayName} · '
+                            '${candidate.authenticatedAccountEmail ?? candidate.accountId}',
+                          ),
+                          onTap: () => Navigator.pop(sheetContext, candidate),
+                        ),
+                    ],
+                  ),
+                ),
+              ));
     if (source == null || !context.mounted) return;
     final start = DateTime(_anchor.year, _anchor.month, _anchor.day, 9);
     await Navigator.of(context).push<void>(
@@ -798,6 +924,15 @@ class _AndroidScheduleScreenState extends ConsumerState<AndroidScheduleScreen> {
 
   Future<void> _toggleTask(TaskScheduleItem task) async {
     if (!task.capabilities.canEdit) return;
+    final intent = TaskListMutationIntent(
+      presentation: TaskListMutationPresentation.completion,
+      accountId: task.accountId,
+      taskListId: task.sourceId,
+      taskId: task.id,
+      completed: !task.completed,
+      generation: ++_taskMutationGeneration,
+    );
+    setState(() => _taskMutationIntent = intent);
     try {
       await ref
           .read(tasksRepositoryForAccountProvider(task.accountId))
@@ -810,11 +945,55 @@ class _AndroidScheduleScreenState extends ConsumerState<AndroidScheduleScreen> {
           );
     } on Object catch (error) {
       if (mounted) {
+        if (_taskMutationIntent?.generation == intent.generation) {
+          setState(() => _taskMutationIntent = null);
+        }
         ScaffoldMessenger.of(
           context,
         ).showSnackBar(SnackBar(content: Text('$error')));
       }
     }
+  }
+
+  void _consumeTaskMutation(TaskListMutationIntent intent) {
+    if (!mounted) return;
+    if (_taskMutationIntent?.generation == intent.generation) {
+      setState(() => _taskMutationIntent = null);
+    }
+  }
+
+  void _consumeEditorResult(AndroidTaskEditorResult result) {
+    if (!mounted) return;
+    final presentation = switch (result.action) {
+      AndroidTaskEditorAction.created => TaskListMutationPresentation.insertion,
+      AndroidTaskEditorAction.deleted ||
+      AndroidTaskEditorAction.moved => TaskListMutationPresentation.removal,
+      AndroidTaskEditorAction.updated =>
+        TaskListMutationPresentation.completion,
+    };
+    final taskListId = result.previousTaskListId ?? result.taskListId;
+    final current = _taskMutationIntent;
+    if (current?.presentation == presentation &&
+        current?.accountId == result.accountId &&
+        current?.taskListId == taskListId &&
+        current?.taskId == result.taskId &&
+        current?.completed == result.completed) {
+      return;
+    }
+    setState(() {
+      _taskMutationIntent = TaskListMutationIntent(
+        presentation: presentation,
+        accountId: result.accountId,
+        taskListId: taskListId,
+        taskId: result.taskId,
+        completed: result.completed,
+        generation: ++_taskMutationGeneration,
+      );
+    });
+  }
+
+  void _clearEditorMutation() {
+    if (mounted) setState(() => _taskMutationIntent = null);
   }
 }
 
@@ -852,6 +1031,9 @@ class _ScheduleBody extends StatelessWidget {
     required this.onModeChanged,
     required this.onOpen,
     required this.onToggleTask,
+    this.taskMutationIntent,
+    this.onTaskMutationConsumed,
+    this.agendaEmptyBuilder,
   });
   final DateTime anchor;
   final ScheduleViewMode mode;
@@ -860,36 +1042,45 @@ class _ScheduleBody extends StatelessWidget {
   final ValueChanged<ScheduleViewMode> onModeChanged;
   final ValueChanged<ScheduleItem> onOpen;
   final ValueChanged<TaskScheduleItem> onToggleTask;
+  final TaskListMutationIntent? taskMutationIntent;
+  final ValueChanged<TaskListMutationIntent>? onTaskMutationConsumed;
+  final WidgetBuilder? agendaEmptyBuilder;
 
   @override
-  Widget build(BuildContext context) => switch (mode) {
-    ScheduleViewMode.month => _MonthView(
-      anchor: anchor,
-      items: items,
-      onSelectDate: onSelectDate,
-      onOpen: onOpen,
-      onToggleTask: onToggleTask,
-    ),
-    ScheduleViewMode.year => _YearView(
-      anchor: anchor,
-      items: items,
-      onSelectDate: onSelectDate,
-      onModeChanged: onModeChanged,
-    ),
-    ScheduleViewMode.week || ScheduleViewMode.day => _AndroidTimeGrid(
-      key: ValueKey('android-${mode.name}-time-grid'),
-      anchor: anchor,
-      days: mode == ScheduleViewMode.day ? 1 : 7,
-      firstWeekday: _firstWeekday(context),
-      items: items,
-      onOpen: onOpen,
-    ),
-    ScheduleViewMode.agenda => _AgendaList(
-      items: items,
-      onOpen: onOpen,
-      onToggleTask: onToggleTask,
-    ),
-  };
+  Widget build(BuildContext context) => BusyMaxKeyedCrossfade(
+    transitionKey: mode,
+    child: switch (mode) {
+      ScheduleViewMode.month => _MonthView(
+        anchor: anchor,
+        items: items,
+        onSelectDate: onSelectDate,
+        onOpen: onOpen,
+        onToggleTask: onToggleTask,
+      ),
+      ScheduleViewMode.year => _YearView(
+        anchor: anchor,
+        items: items,
+        onSelectDate: onSelectDate,
+        onModeChanged: onModeChanged,
+      ),
+      ScheduleViewMode.week || ScheduleViewMode.day => _AndroidTimeGrid(
+        key: ValueKey('android-${mode.name}-time-grid'),
+        anchor: anchor,
+        days: mode == ScheduleViewMode.day ? 1 : 7,
+        firstWeekday: _firstWeekday(context),
+        items: items,
+        onOpen: onOpen,
+      ),
+      ScheduleViewMode.agenda => _AgendaList(
+        items: items,
+        onOpen: onOpen,
+        onToggleTask: onToggleTask,
+        taskMutationIntent: taskMutationIntent,
+        onTaskMutationConsumed: onTaskMutationConsumed,
+        emptyBuilder: agendaEmptyBuilder,
+      ),
+    },
+  );
 }
 
 class _AgendaList extends StatelessWidget {
@@ -900,27 +1091,44 @@ class _AgendaList extends StatelessWidget {
     required this.items,
     required this.onOpen,
     required this.onToggleTask,
+    this.taskMutationIntent,
+    this.onTaskMutationConsumed,
+    this.emptyBuilder,
   });
   final ScheduleSearchCriteria? searchCriteria;
   final String searchQuery;
   final List<ScheduleItem> items;
   final ValueChanged<ScheduleItem> onOpen;
   final ValueChanged<TaskScheduleItem> onToggleTask;
+  final TaskListMutationIntent? taskMutationIntent;
+  final ValueChanged<TaskListMutationIntent>? onTaskMutationConsumed;
+  final WidgetBuilder? emptyBuilder;
   @override
   Widget build(BuildContext context) {
-    if (items.isEmpty) {
-      return Center(child: Text(context.l10n.noEventsOrTasks));
-    }
     final agendaItems = searchCriteria == null
         ? items
         : (List<ScheduleItem>.of(items)
             ..sort(compareScheduleSearchResultPresentation));
-    return ListView.separated(
+    return BusyMaxMutationList<ScheduleItem>(
+      items: agendaItems,
+      mutation: taskMutationIntent,
+      identityOf: (item) => item is TaskScheduleItem
+          ? '${item.accountId}\u0000${item.sourceId}\u0000${item.id}'
+          : 'event\u0000${item.accountId}\u0000${item.sourceId}\u0000${item.id}',
+      mutationApplied: (item, mutation) =>
+          item is! TaskScheduleItem ||
+          mutation.completed == null ||
+          item.completed == mutation.completed,
+      onMutationConsumed: onTaskMutationConsumed,
+      emptyBuilder:
+          emptyBuilder ??
+          (context) => Center(child: Text(context.l10n.noEventsOrTasks)),
       padding: const EdgeInsets.fromLTRB(12, 8, 12, 96),
-      itemCount: agendaItems.length,
       separatorBuilder: (_, _) => const SizedBox(height: 6),
-      itemBuilder: (context, index) {
-        final item = agendaItems[index];
+      itemBuilder: (context, item, index) {
+        final displayedCompleted = item is TaskScheduleItem
+            ? _displayedCompletion(item)
+            : false;
         final displayDate = searchCriteria == null
             ? item.start
             : scheduleSearchResultDisplayDate(item);
@@ -963,24 +1171,29 @@ class _AgendaList extends StatelessWidget {
                 minVerticalPadding: 12,
                 leading: item is TaskScheduleItem
                     ? IconButton(
-                        tooltip: item.completed
+                        tooltip: displayedCompleted
                             ? context.l10n.taskStatusCompleted
                             : context.l10n.taskStatusInProcess,
                         onPressed: item.capabilities.canEdit
                             ? () => onToggleTask(item)
                             : null,
-                        icon: Icon(
-                          item.completed
-                              ? Icons.check_circle
-                              : Icons.radio_button_unchecked,
+                        icon: AndroidTaskCompletionIcon(
+                          completed: displayedCompleted,
+                          animate: _animatesTaskCompletion(item),
                         ),
                       )
                     : const Icon(Icons.event),
-                title: Text(
-                  item.title,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                ),
+                title: item is TaskScheduleItem
+                    ? AndroidTaskTitle(
+                        title: item.title,
+                        completed: displayedCompleted,
+                        animate: _animatesTaskCompletion(item),
+                      )
+                    : Text(
+                        item.title,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
                 subtitle: Text(
                   searchCriteria != null
                       ? scheduleSearchResultText(
@@ -1000,6 +1213,25 @@ class _AgendaList extends StatelessWidget {
         );
       },
     );
+  }
+
+  bool _animatesTaskCompletion(TaskScheduleItem task) {
+    final intent = taskMutationIntent;
+    return intent?.presentation == TaskListMutationPresentation.completion &&
+        intent?.taskKey ==
+            '${task.accountId}\u0000${task.sourceId}\u0000${task.id}' &&
+        intent?.completed != null;
+  }
+
+  bool _displayedCompletion(TaskScheduleItem task) {
+    final intent = taskMutationIntent;
+    if (intent?.presentation == TaskListMutationPresentation.completion &&
+        intent?.taskKey ==
+            '${task.accountId}\u0000${task.sourceId}\u0000${task.id}' &&
+        intent?.completed != null) {
+      return intent!.completed!;
+    }
+    return task.completed;
   }
 }
 
@@ -2147,6 +2379,16 @@ class _AndroidEventEditorState extends ConsumerState<AndroidEventEditor> {
       }
       if (draft.eventId == null) {
         await ref.read(calendarRepositoryProvider).createLocalEvent(draft);
+        unawaited(
+          ref
+              .read(appSettingsControllerProvider.notifier)
+              .rememberCalendar(
+                CreationDestination(
+                  accountId: draft.accountId,
+                  id: draft.sourceId,
+                ),
+              ),
+        );
       } else {
         await ref.read(calendarRepositoryProvider).updateLocalEvent(draft);
       }

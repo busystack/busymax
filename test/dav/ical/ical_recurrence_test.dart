@@ -567,6 +567,42 @@ END:VCALENDAR\r
       ),
     );
   });
+
+  test('bounds a large Cartesian period before BYSETPOS materialization', () {
+    final document = IcalSemanticDocument.parse(
+      _eventWithRule(
+        start: 'DTSTART:20260101T000000Z',
+        end: 'DTEND:20260101T000001Z',
+        rule:
+            'RRULE:FREQ=YEARLY;COUNT=1;'
+            'BYDAY=MO,TU,WE,TH,FR,SA,SU;'
+            'BYHOUR=${List.generate(24, (value) => value).join(',')};'
+            'BYMINUTE=${List.generate(60, (value) => value).join(',')};'
+            'BYSECOND=${List.generate(60, (value) => value).join(',')};'
+            'BYSETPOS=1',
+      ),
+    );
+
+    expect(
+      () =>
+          IcalRecurrenceExpander(
+            limits: const IcalRecurrenceLimits(
+              maximumCandidatesPerPeriod: 1000,
+            ),
+          ).expand(
+            document,
+            rangeStartUtc: DateTime.utc(2026),
+            rangeEndUtc: DateTime.utc(2027),
+          ),
+      throwsA(
+        isA<DavException>().having(
+          (error) => error.code,
+          'code',
+          'IcalRecurrenceCandidateLimitExceeded',
+        ),
+      ),
+    );
+  });
 }
 
 String _eventWithRule({

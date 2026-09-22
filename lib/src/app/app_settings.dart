@@ -25,6 +25,61 @@ enum BusyMaxThemeModePreference { system, light, dark }
 
 enum NotificationDetailLevel { private, normal }
 
+class CreationDestination {
+  const CreationDestination({required this.accountId, required this.id});
+
+  final String accountId;
+  final String id;
+
+  factory CreationDestination.fromJson(Object? value) {
+    if (value is! Map) throw const FormatException('Invalid destination');
+    final accountId = value['accountId'];
+    final id = value['id'];
+    if (accountId is! String ||
+        accountId.isEmpty ||
+        id is! String ||
+        id.isEmpty) {
+      throw const FormatException('Invalid destination');
+    }
+    return CreationDestination(accountId: accountId, id: id);
+  }
+
+  Map<String, String> toJson() => {'accountId': accountId, 'id': id};
+
+  @override
+  bool operator ==(Object other) =>
+      other is CreationDestination &&
+      other.accountId == accountId &&
+      other.id == id;
+
+  @override
+  int get hashCode => Object.hash(accountId, id);
+}
+
+CreationDestination? _destinationFromJson(Object? value) {
+  try {
+    return CreationDestination.fromJson(value);
+  } on FormatException {
+    return null;
+  }
+}
+
+T? preferredCreationDestination<T>(
+  Iterable<T> candidates, {
+  required CreationDestination? selected,
+  required CreationDestination? lastUsed,
+  required CreationDestination Function(T) destinationOf,
+}) {
+  final available = candidates.toList();
+  for (final preferred in [selected, lastUsed]) {
+    if (preferred == null) continue;
+    for (final candidate in available) {
+      if (destinationOf(candidate) == preferred) return candidate;
+    }
+  }
+  return null;
+}
+
 const defaultScheduleDayStartMinute = 7 * 60;
 const defaultScheduleDayEndMinute = 22 * 60;
 const Object _unset = Object();
@@ -66,6 +121,10 @@ class AppSettings {
     this.androidScheduleViewMode,
     required this.scheduleDayStartMinute,
     required this.scheduleDayEndMinute,
+    this.defaultCalendar,
+    this.defaultTaskList,
+    this.lastUsedCalendar,
+    this.lastUsedTaskList,
     this.sidebarOrder = const ScheduleSidebarOrder.empty(),
   });
 
@@ -211,6 +270,10 @@ class AppSettings {
       ),
       scheduleDayStartMinute: scheduleDayStartMinute,
       scheduleDayEndMinute: scheduleDayEndMinute,
+      defaultCalendar: _destinationFromJson(json['defaultCalendar']),
+      defaultTaskList: _destinationFromJson(json['defaultTaskList']),
+      lastUsedCalendar: _destinationFromJson(json['lastUsedCalendar']),
+      lastUsedTaskList: _destinationFromJson(json['lastUsedTaskList']),
     );
   }
 
@@ -240,6 +303,10 @@ class AppSettings {
   final ScheduleViewMode? androidScheduleViewMode;
   final int scheduleDayStartMinute;
   final int scheduleDayEndMinute;
+  final CreationDestination? defaultCalendar;
+  final CreationDestination? defaultTaskList;
+  final CreationDestination? lastUsedCalendar;
+  final CreationDestination? lastUsedTaskList;
 
   ThemeMode get themeMode => themeModePreference.themeMode;
 
@@ -273,6 +340,10 @@ class AppSettings {
       'androidScheduleViewMode': androidScheduleViewMode?.name,
       'scheduleDayStartMinute': scheduleDayStartMinute,
       'scheduleDayEndMinute': scheduleDayEndMinute,
+      'defaultCalendar': defaultCalendar?.toJson(),
+      'defaultTaskList': defaultTaskList?.toJson(),
+      'lastUsedCalendar': lastUsedCalendar?.toJson(),
+      'lastUsedTaskList': lastUsedTaskList?.toJson(),
     };
   }
 
@@ -303,6 +374,10 @@ class AppSettings {
     Object? androidScheduleViewMode = _unset,
     int? scheduleDayStartMinute,
     int? scheduleDayEndMinute,
+    Object? defaultCalendar = _unset,
+    Object? defaultTaskList = _unset,
+    Object? lastUsedCalendar = _unset,
+    Object? lastUsedTaskList = _unset,
     bool clearLastDueTodayNotificationDate = false,
   }) {
     final (
@@ -352,6 +427,18 @@ class AppSettings {
           : androidScheduleViewMode as ScheduleViewMode?,
       scheduleDayStartMinute: resolvedScheduleDayStartMinute,
       scheduleDayEndMinute: resolvedScheduleDayEndMinute,
+      defaultCalendar: identical(defaultCalendar, _unset)
+          ? this.defaultCalendar
+          : defaultCalendar as CreationDestination?,
+      defaultTaskList: identical(defaultTaskList, _unset)
+          ? this.defaultTaskList
+          : defaultTaskList as CreationDestination?,
+      lastUsedCalendar: identical(lastUsedCalendar, _unset)
+          ? this.lastUsedCalendar
+          : lastUsedCalendar as CreationDestination?,
+      lastUsedTaskList: identical(lastUsedTaskList, _unset)
+          ? this.lastUsedTaskList
+          : lastUsedTaskList as CreationDestination?,
     );
   }
 
@@ -439,6 +526,18 @@ class AppSettingsController extends StateNotifier<AppSettings> {
   Future<void> setFirstDayOfWeekPreference(
     BusyMaxFirstDayOfWeekPreference value,
   ) => _mutate((current) => current.copyWith(firstDayOfWeekPreference: value));
+
+  Future<void> setDefaultCalendar(CreationDestination? value) =>
+      _mutate((current) => current.copyWith(defaultCalendar: value));
+
+  Future<void> setDefaultTaskList(CreationDestination? value) =>
+      _mutate((current) => current.copyWith(defaultTaskList: value));
+
+  Future<void> rememberCalendar(CreationDestination value) =>
+      _mutate((current) => current.copyWith(lastUsedCalendar: value));
+
+  Future<void> rememberTaskList(CreationDestination value) =>
+      _mutate((current) => current.copyWith(lastUsedTaskList: value));
 
   Future<void> registerSidebarIds(
     SidebarOrderSection section,

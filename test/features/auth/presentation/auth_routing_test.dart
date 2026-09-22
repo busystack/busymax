@@ -9,8 +9,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:busymax/src/app/app_bootstrap.dart';
+import 'package:busymax/src/app/app_router.dart';
 import 'package:busymax/src/app/busymax_app.dart';
 import 'package:busymax/src/app/busymax_design.dart';
+import 'package:busymax/src/app/linux/linux_header_style.dart';
 import 'package:busymax/src/config/build_config.dart';
 import 'package:busymax/src/db/app_database.dart';
 import 'package:busymax/src/features/accounts/data/accounts_repository.dart';
@@ -22,8 +24,6 @@ import 'package:busymax/src/google_tasks/api/google_tasks_api_surface.dart';
 import 'package:busymax/src/core/auth/oauth_models.dart';
 import 'package:busymax/src/google_tasks/oauth/oauth_service.dart';
 import 'package:busymax/src/core/secrets/secret_store.dart';
-import 'package:busymax/src/platform/linux_header_bar_service.dart';
-import 'package:busymax/src/platform/linux_header_bar_provider.dart';
 import 'package:busymax/src/platform/native_dialog_service.dart';
 import 'package:busymax/src/schedule/schedule_scope.dart';
 import 'package:busymax/src/providers/busy_provider.dart';
@@ -99,7 +99,10 @@ void main() {
     await _pumpApp(tester, database: database, oAuth: oAuth);
     await tester.pumpAndSettle();
 
-    void expectAlignedActions({required double expectedRailWidth}) {
+    void expectAlignedActions({
+      required double expectedRailWidth,
+      required bool enoughRoomForCenteredHeader,
+    }) {
       final rail = tester.getRect(
         find.byKey(const ValueKey('onboarding-content-rail')),
       );
@@ -111,35 +114,67 @@ void main() {
       );
 
       expect(rail.width, closeTo(expectedRailWidth, 0.01));
-      expect(back.left, closeTo(rail.left, 0.01));
-      expect(continueButton.right, closeTo(rail.right, 0.01));
+      if (enoughRoomForCenteredHeader) {
+        expect(back.left, closeTo(rail.left, 0.01));
+        expect(continueButton.right, closeTo(rail.right, 0.01));
+      } else {
+        expect(back.left, lessThanOrEqualTo(rail.left));
+        expect(continueButton.right, lessThan(rail.right));
+      }
     }
 
-    expectAlignedActions(expectedRailWidth: 480);
-    for (final key in const [
-      ValueKey('onboarding-back-button'),
-      ValueKey('onboarding-continue-button'),
-    ]) {
-      final button = tester.widget<TextButton>(find.byKey(key));
-      expect(
-        button.style?.padding?.resolve(const <WidgetState>{}),
-        EdgeInsets.zero,
-      );
-      expect(
-        button.style?.minimumSize?.resolve(const <WidgetState>{}),
-        Size.zero,
-      );
-      expect(
-        button.style?.backgroundColor?.resolve(const <WidgetState>{}),
-        Colors.transparent,
-      );
-      expect(button.style?.tapTargetSize, MaterialTapTargetSize.shrinkWrap);
-    }
+    expectAlignedActions(
+      expectedRailWidth: 480,
+      enoughRoomForCenteredHeader: true,
+    );
+    final headerTitle = find.byKey(const ValueKey('onboarding-header-title'));
+    final header = find.byType(BusyMaxLinuxHeaderLayout);
+    expect(
+      tester.getRect(headerTitle).center.dx,
+      closeTo(tester.getRect(header).center.dx, .01),
+    );
+    final headerText = tester.widget<Text>(
+      find.descendant(of: headerTitle, matching: find.byType(Text)),
+    );
+    final bodyStyle = Theme.of(
+      tester.element(headerTitle),
+    ).textTheme.bodyMedium;
+    expect(headerText.style?.fontSize, bodyStyle?.fontSize);
+    expect(headerText.style?.fontWeight, FontWeight.bold);
+    expect(
+      tester
+          .getSize(find.byKey(const ValueKey('onboarding-back-button')))
+          .height,
+      BusyMaxSizes.headerIconButton,
+    );
+    expect(
+      tester
+          .getSize(find.byKey(const ValueKey('onboarding-continue-button')))
+          .height,
+      BusyMaxSizes.headerIconButton,
+    );
+    final back = tester.widget<FilledButton>(
+      find.descendant(
+        of: find.byKey(const ValueKey('onboarding-back-button')),
+        matching: find.byType(FilledButton),
+      ),
+    );
+    final continueButton = tester.widget<ElevatedButton>(
+      find.descendant(
+        of: find.byKey(const ValueKey('onboarding-continue-button')),
+        matching: find.byType(ElevatedButton),
+      ),
+    );
+    expect(back.onPressed, null);
+    expect(continueButton.onPressed, null);
 
     tester.view.physicalSize = const Size(420, 720);
     await tester.pumpAndSettle();
 
-    expectAlignedActions(expectedRailWidth: 380);
+    expectAlignedActions(
+      expectedRailWidth: 380,
+      enoughRoomForCenteredHeader: false,
+    );
     expect(tester.takeException(), null);
     await _disposeApp(tester);
   });
@@ -186,7 +221,7 @@ void main() {
       'lib/src/features/auth/presentation/sign_in_screen.dart',
     ).readAsStringSync();
     final start = source.indexOf('class _ProviderSignInButton');
-    final end = source.indexOf('class _OnboardingFooter');
+    final end = source.indexOf('class _OnboardingHeader');
     final providerButton = source.substring(start, end);
 
     expect(providerButton, contains('BusyMaxGroupedList'));
@@ -234,11 +269,34 @@ void main() {
     expect(find.text('Accounts'), findsOneWidget);
     expect(find.text('Test User'), findsOneWidget);
     expect(find.text('user@example.com'), findsOneWidget);
+    expect(
+      tester
+          .widget<ElevatedButton>(
+            find.descendant(
+              of: find.byKey(const ValueKey('onboarding-continue-button')),
+              matching: find.byType(ElevatedButton),
+            ),
+          )
+          .onPressed,
+      isNot(null),
+    );
 
     await tester.tap(find.text('Continue'));
     await tester.pumpAndSettle();
 
     expect(find.text('Choose system settings'), findsOneWidget);
+    expect(find.text('Finish setup'), findsOneWidget);
+    expect(
+      tester
+          .widget<FilledButton>(
+            find.descendant(
+              of: find.byKey(const ValueKey('onboarding-back-button')),
+              matching: find.byType(FilledButton),
+            ),
+          )
+          .onPressed,
+      isNot(null),
+    );
     expect(find.text('Notification detail level'), findsOneWidget);
     expect(find.text('Detailed notification text'), findsNothing);
 
@@ -247,6 +305,25 @@ void main() {
 
     expect(find.byType(ScheduleWorkspace), findsOneWidget);
     expect(find.byTooltip('Today (Shift+T)'), findsOneWidget);
+    await _disposeApp(tester);
+  });
+
+  testWidgets('Alt+Left follows onboarding Back availability', (tester) async {
+    await _pumpApp(tester, database: database, oAuth: oAuth);
+    await tester.pumpAndSettle();
+
+    await _sendAltLeft(tester);
+    expect(find.text('Connect accounts'), findsOneWidget);
+
+    await tester.tap(find.text('Add Google account'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Continue'));
+    await tester.pumpAndSettle();
+    expect(find.text('Choose system settings'), findsOneWidget);
+
+    await _sendAltLeft(tester);
+    expect(find.text('Connect accounts'), findsOneWidget);
+    expect(find.text('Choose system settings'), findsNothing);
     await _disposeApp(tester);
   });
 
@@ -444,6 +521,204 @@ void main() {
     expect(find.byType(ScheduleWorkspace), findsOneWidget);
     await _disposeApp(tester);
   });
+
+  testWidgets('auth refresh preserves router, navigator, and Settings URI', (
+    tester,
+  ) async {
+    await _insertAccount(
+      database,
+      id: 'google:existing',
+      provider: BusyProvider.google,
+    );
+    await _pumpApp(tester, database: database, oAuth: oAuth);
+    await tester.pumpAndSettle();
+    await _openSettings(tester);
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(SettingsScreen)),
+    );
+    final router = container.read(appRouterProvider);
+    final navigator = rootNavigatorKey.currentState;
+
+    await container.read(authSessionControllerProvider.notifier).load();
+    await tester.pumpAndSettle();
+
+    expect(container.read(appRouterProvider), same(router));
+    expect(rootNavigatorKey.currentState, same(navigator));
+    expect(router.routeInformationProvider.value.uri.path, '/settings');
+    expect(
+      router.routeInformationProvider.value.uri.queryParameters['page'],
+      'accounts',
+    );
+    expect(find.byType(SettingsScreen), findsOneWidget);
+    expect(find.byType(ScheduleWorkspace), findsNothing);
+    await _disposeApp(tester);
+  });
+
+  testWidgets('provider teardown disposes its GoRouter', (tester) async {
+    await _insertAccount(
+      database,
+      id: 'google:existing',
+      provider: BusyProvider.google,
+    );
+    await _pumpApp(tester, database: database, oAuth: oAuth);
+    await tester.pumpAndSettle();
+
+    final context = tester.element(find.byType(ScheduleWorkspace));
+    final container = ProviderScope.containerOf(context);
+    final router = container.read(appRouterProvider);
+    final routeInformationProvider = router.routeInformationProvider;
+
+    await _disposeApp(tester);
+
+    expect(
+      () => routeInformationProvider.addListener(() {}),
+      throwsFlutterError,
+    );
+  });
+
+  testWidgets('WebCal refresh preserves router and Settings URI', (
+    tester,
+  ) async {
+    await _insertAccount(
+      database,
+      id: 'google:existing',
+      provider: BusyProvider.google,
+    );
+    await _pumpApp(tester, database: database, oAuth: oAuth);
+    await tester.pumpAndSettle();
+    await _openSettings(tester);
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(SettingsScreen)),
+    );
+    final router = container.read(appRouterProvider);
+    final navigator = rootNavigatorKey.currentState;
+
+    container.invalidate(webCalSubscriptionsProvider);
+    await tester.pumpAndSettle();
+
+    expect(container.read(appRouterProvider), same(router));
+    expect(rootNavigatorKey.currentState, same(navigator));
+    expect(router.routeInformationProvider.value.uri.path, '/settings');
+    expect(find.byType(SettingsScreen), findsOneWidget);
+    expect(find.byType(ScheduleWorkspace), findsNothing);
+    await _disposeApp(tester);
+  });
+
+  testWidgets('removing one of two accounts keeps real Settings route', (
+    tester,
+  ) async {
+    await _insertAccount(
+      database,
+      id: 'google:remove',
+      provider: BusyProvider.google,
+    );
+    await _insertAccount(
+      database,
+      id: 'microsoft:remain',
+      provider: BusyProvider.microsoft,
+    );
+    await _pumpApp(tester, database: database, oAuth: oAuth);
+    await tester.pumpAndSettle();
+    await _openSettings(tester);
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(SettingsScreen)),
+    );
+    final router = container.read(appRouterProvider);
+
+    await tester.tap(find.text('Remove account…').first);
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('confirm-account-removal')));
+    await tester.pumpAndSettle();
+
+    final accounts = await database.select(database.accounts).get();
+    expect(accounts.map((account) => account.id), ['microsoft:remain']);
+    expect(container.read(selectedAccountIdProvider), 'microsoft:remain');
+    expect(container.read(appRouterProvider), same(router));
+    expect(router.routeInformationProvider.value.uri.path, '/settings');
+    expect(find.byType(SettingsScreen), findsOneWidget);
+    expect(find.byType(ScheduleWorkspace), findsNothing);
+    await _disposeApp(tester);
+  });
+
+  testWidgets(
+    'removing an account from pushed Settings preserves return history',
+    (tester) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(1200, 850);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      addTearDown(tester.view.resetPhysicalSize);
+      await _insertAccount(
+        database,
+        id: 'google:remove',
+        provider: BusyProvider.google,
+      );
+      await _insertAccount(
+        database,
+        id: 'microsoft:remain',
+        provider: BusyProvider.microsoft,
+      );
+      await _pumpApp(tester, database: database, oAuth: oAuth);
+      await tester.pumpAndSettle();
+
+      final workspaceFinder = find.byType(
+        ScheduleWorkspace,
+        skipOffstage: false,
+      );
+      final workspaceState = tester.state(workspaceFinder);
+      final workspaceRoute = ModalRoute.of(workspaceState.context)!;
+      final container = ProviderScope.containerOf(workspaceState.context);
+      final router = container.read(appRouterProvider);
+      final navigator = rootNavigatorKey.currentState;
+      expect(workspaceRoute.isCurrent, isTrue);
+
+      unawaited(router.push<void>('/settings'));
+      await tester.pumpAndSettle();
+      expect(workspaceFinder, findsOneWidget);
+      expect(find.byType(ScheduleWorkspace), findsNothing);
+      expect(workspaceRoute.isCurrent, isFalse);
+      await tester.tap(
+        find.byKey(const ValueKey('settings-navigation-accounts')),
+      );
+      await tester.pumpAndSettle();
+
+      final settingsFinder = find.byType(SettingsScreen);
+      final settingsState = tester.state(settingsFinder);
+      final settingsUri = GoRouterState.of(tester.element(settingsFinder)).uri;
+      expect(settingsUri.path, '/settings');
+      expect(settingsUri.queryParameters['page'], 'accounts');
+
+      await tester.tap(find.text('Remove account…').first);
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('confirm-account-removal')));
+      await tester.pumpAndSettle();
+
+      final accounts = await database.select(database.accounts).get();
+      expect(accounts.map((account) => account.id), ['microsoft:remain']);
+      expect(container.read(selectedAccountIdProvider), 'microsoft:remain');
+      expect(container.read(appRouterProvider), same(router));
+      expect(rootNavigatorKey.currentState, same(navigator));
+      expect(tester.state(settingsFinder), same(settingsState));
+      final retainedSettingsUri = GoRouterState.of(
+        tester.element(settingsFinder),
+      ).uri;
+      expect(retainedSettingsUri.path, '/settings');
+      expect(retainedSettingsUri.queryParameters['page'], 'accounts');
+      expect(workspaceFinder, findsOneWidget);
+      expect(find.byType(ScheduleWorkspace), findsNothing);
+      expect(workspaceRoute.isCurrent, isFalse);
+      expect(router.canPop(), isTrue);
+
+      await _sendAltLeft(tester);
+
+      expect(settingsFinder, findsNothing);
+      expect(workspaceFinder, findsOneWidget);
+      expect(tester.state(workspaceFinder), same(workspaceState));
+      expect(workspaceRoute.isCurrent, isTrue);
+      expect(router.routeInformationProvider.value.uri.path, '/schedule');
+      expect(router.canPop(), isFalse);
+      await _disposeApp(tester);
+    },
+  );
 
   testWidgets(
     'adding an account keeps Settings open during and after cancellation',
@@ -650,6 +925,14 @@ Future<void> _completeOnboardingWithGoogle(WidgetTester tester) async {
   await tester.pumpAndSettle();
 }
 
+Future<void> _sendAltLeft(WidgetTester tester) async {
+  await tester.sendKeyDownEvent(LogicalKeyboardKey.altLeft);
+  await tester.sendKeyDownEvent(LogicalKeyboardKey.arrowLeft);
+  await tester.sendKeyUpEvent(LogicalKeyboardKey.arrowLeft);
+  await tester.sendKeyUpEvent(LogicalKeyboardKey.altLeft);
+  await tester.pumpAndSettle();
+}
+
 Future<void> _disposeApp(WidgetTester tester) async {
   await tester.pumpWidget(const SizedBox.shrink());
   await tester.pump(const Duration(milliseconds: 1));
@@ -717,11 +1000,6 @@ Future<void> _pumpApp(
         signedInSyncRunnerProvider.overrideWithValue(
           onSignedIn ?? (accountId, initial) async {},
         ),
-        linuxHeaderBarServiceProvider.overrideWith((ref) {
-          final service = LinuxHeaderBarService(isLinux: false);
-          ref.onDispose(service.dispose);
-          return service;
-        }),
       ],
       child: const BusyMaxApp(),
     ),

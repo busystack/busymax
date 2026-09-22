@@ -258,6 +258,7 @@ void main() {
                 BusyMaxMenuEntry(
                   value: 'open',
                   label: 'Open in provider',
+                  nativeIconName: 'explicit-provider-symbolic',
                   role: BusyMaxMenuEntryRole.radio,
                 ),
               ],
@@ -297,6 +298,7 @@ void main() {
       },
       {
         'label': 'Open in provider',
+        'icon': 'explicit-provider-symbolic',
         'enabled': true,
         'role': 'radio',
         'selected': false,

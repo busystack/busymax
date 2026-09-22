@@ -454,6 +454,15 @@ class AppLocalizationsHi extends AppLocalizations {
   String get close => 'बंद करें';
 
   @override
+  String get windowMinimize => 'छोटा करें';
+
+  @override
+  String get windowMaximize => 'अधिकतम करें';
+
+  @override
+  String get windowRestore => 'पुनर्स्थापित करें';
+
+  @override
   String get exit => 'बाहर निकलें';
 
   @override
@@ -716,6 +725,18 @@ class AppLocalizationsHi extends AppLocalizations {
 
   @override
   String get scheduleDisplaySettings => 'शेड्यूल प्रदर्शन';
+
+  @override
+  String get newEventsAndTasks => 'नए इवेंट और कार्य';
+
+  @override
+  String get defaultCalendar => 'डिफ़ॉल्ट कैलेंडर';
+
+  @override
+  String get defaultTaskList => 'डिफ़ॉल्ट कार्य सूची';
+
+  @override
+  String get lastUsed => 'पिछली बार उपयोग किया गया';
 
   @override
   String get scheduleDisplayHoursDescription =>
@@ -1067,6 +1088,9 @@ class AppLocalizationsHi extends AppLocalizations {
 
   @override
   String get shortcutGroupView => 'दृश्य';
+
+  @override
+  String get viewSelector => 'दृश्य';
 
   @override
   String get shortcutDayView => 'दिन का दृश्य';
@@ -2422,10 +2446,6 @@ class AppLocalizationsHi extends AppLocalizations {
   @override
   String get nextcloudAccountRemovedRevokeFailed =>
       'खाता स्थानीय रूप से हटाया गया, लेकिन Nextcloud ऐप पासवर्ड रद्द नहीं किया जा सका।';
-
-  @override
-  String get davCachedOfflineNotice =>
-      'ऑफ़लाइन उपयोग के लिए कैलेंडर और कार्य डेटा स्थानीय रूप से कैश किया जाता है।';
 
   @override
   String get davReauthenticationRequired =>

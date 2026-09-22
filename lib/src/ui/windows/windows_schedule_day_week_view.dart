@@ -1,6 +1,7 @@
 import 'package:busymax/src/ui/common/schedule/clock_hours_painter.dart';
 import 'package:busymax/src/l10n/time_format_scope.dart';
 import 'dart:math' as math;
+import 'dart:ui' as ui;
 
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:infinite_calendar_view/infinite_calendar_view.dart' as icv;
@@ -10,6 +11,8 @@ import '../../../l10n/generated/app_localizations.dart';
 import '../../schedule/schedule_event_rescheduling.dart';
 import '../../schedule/schedule_item.dart';
 import '../../schedule/schedule_projection.dart';
+import '../../schedule/schedule_navigation_intent.dart';
+import '../../app/common/busymax_design_values.dart';
 import '../common/schedule/schedule_interactions.dart';
 import '../common/schedule/schedule_planner_events.dart';
 import '../common/schedule/schedule_preview_label.dart';
@@ -31,6 +34,7 @@ class WindowsScheduleDayWeekView extends StatefulWidget {
     this.onTaskCompletionChanged,
     this.dayStartMinute = 420,
     this.dayEndMinute = 1320,
+    this.navigationIntent,
   });
   final DateTime initialDate;
   final int daysShowed;
@@ -44,6 +48,7 @@ class WindowsScheduleDayWeekView extends StatefulWidget {
   final void Function(TaskScheduleItem, bool)? onTaskCompletionChanged;
   final int dayStartMinute;
   final int dayEndMinute;
+  final ScheduleNavigationIntent? navigationIntent;
   @override
   State<WindowsScheduleDayWeekView> createState() =>
       _WindowsScheduleDayWeekViewState();
@@ -63,9 +68,19 @@ class _WindowsScheduleDayWeekViewState
   final _interaction = GlobalKey<ScheduleInteractionRegionState>();
   double _heightPerMinute = .9;
   double _allDayHeight = 82;
+  int? _activeNavigationGeneration;
+  bool _disableAnimations = false;
+
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
+    final disabled = MediaQuery.disableAnimationsOf(context);
+    if (disabled != _disableAnimations) {
+      _disableAnimations = disabled;
+      if (disabled && _activeNavigationGeneration != null) {
+        _settleNavigation(widget.navigationIntent);
+      }
+    }
     _reload();
   }
 
@@ -81,11 +96,18 @@ class _WindowsScheduleDayWeekViewState
         _plannerOrigin = widget.initialDate;
         return;
       }
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted && !(_interaction.currentState?.active ?? false)) {
-          _planner.currentState?.jumpToDate(widget.initialDate);
-        }
-      });
+      final intent = widget.navigationIntent;
+      if (intent != null &&
+          intent.cause == ScheduleNavigationCause.adjacentPeriod &&
+          intent.generation != oldWidget.navigationIntent?.generation) {
+        _animateToDate(widget.initialDate, intent);
+      } else {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted && !(_interaction.currentState?.active ?? false)) {
+            _planner.currentState?.jumpToDate(widget.initialDate);
+          }
+        });
+      }
     }
   }
 
@@ -137,7 +159,9 @@ class _WindowsScheduleDayWeekViewState
       daySeparationWidth: 1,
       dayEventsArranger: const SchedulePlannerEventArranger(),
       onDayChange: (date) {
-        if (plannerKey == _planner) widget.onVisibleDateChanged(date);
+        if (plannerKey == _planner && _activeNavigationGeneration == null) {
+          widget.onVisibleDateChanged(date);
+        }
       },
       daysHeaderParam: icv.DaysHeaderParam(
         daysHeaderHeight: header,
@@ -240,53 +264,63 @@ class _WindowsScheduleDayWeekViewState
         onZoomChange: (height) => setState(() => _heightPerMinute = height),
       ),
     );
-    return ScheduleInteractionRegion(
-      key: _interaction,
-      coordinates: SchedulePlannerCoordinates(
-        key: _planner,
-        headerHeight: header,
-        allDayHeight: bar,
-      ),
-      onReschedule: widget.onReschedule,
-      onRangeCreated: widget.onRangeCreated,
-      onEmptySlot: widget.onEmptySlot,
-      previewColor: accent,
-      previewBuilder: (context, interval, allDay) => Padding(
-        padding: const EdgeInsets.all(4),
-        child: Text(
-          schedulePreviewLabel(context, interval, allDay),
-          style: theme.typography.caption,
-          maxLines: 2,
-          overflow: TextOverflow.ellipsis,
+    return NotificationListener<ScrollStartNotification>(
+      onNotification: (notification) {
+        if (notification.metrics.axis == Axis.horizontal &&
+            notification.dragDetails != null) {
+          _interruptNavigation();
+        }
+        return false;
+      },
+      child: ScheduleInteractionRegion(
+        key: _interaction,
+        coordinates: SchedulePlannerCoordinates(
+          key: _planner,
+          headerHeight: header,
+          allDayHeight: bar,
         ),
-      ),
-      child: Stack(
-        children: [
-          planner,
-          if (hasAllDay)
-            Positioned(
-              top: header + bar - 8,
-              left: gutterWidth,
-              right: 0,
-              child: Center(
-                child: ScheduleInteractionBlocker(
-                  child: MouseRegion(
-                    cursor: SystemMouseCursors.resizeUpDown,
-                    child: GestureDetector(
-                      key: const ValueKey('windows-all-day-resize'),
-                      behavior: HitTestBehavior.opaque,
-                      onVerticalDragUpdate: (details) => setState(
-                        () => _allDayHeight = (_allDayHeight + details.delta.dy)
-                            .clamp(82.0, 260.0),
-                      ),
-                      child: SizedBox(
-                        width: 48,
-                        height: 16,
-                        child: Center(
-                          child: Container(
-                            width: 24,
-                            height: 3,
-                            color: theme.inactiveColor,
+        onReschedule: widget.onReschedule,
+        onRangeCreated: widget.onRangeCreated,
+        onEmptySlot: widget.onEmptySlot,
+        previewColor: accent,
+        previewBuilder: (context, interval, allDay) => Padding(
+          padding: const EdgeInsets.all(4),
+          child: Text(
+            schedulePreviewLabel(context, interval, allDay),
+            style: theme.typography.caption,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
+        child: Stack(
+          children: [
+            planner,
+            if (hasAllDay)
+              Positioned(
+                top: header + bar - 8,
+                left: gutterWidth,
+                right: 0,
+                child: Center(
+                  child: ScheduleInteractionBlocker(
+                    child: MouseRegion(
+                      cursor: SystemMouseCursors.resizeUpDown,
+                      child: GestureDetector(
+                        key: const ValueKey('windows-all-day-resize'),
+                        behavior: HitTestBehavior.opaque,
+                        onVerticalDragUpdate: (details) => setState(
+                          () =>
+                              _allDayHeight = (_allDayHeight + details.delta.dy)
+                                  .clamp(82.0, 260.0),
+                        ),
+                        child: SizedBox(
+                          width: 48,
+                          height: 16,
+                          child: Center(
+                            child: Container(
+                              width: 24,
+                              height: 3,
+                              color: theme.inactiveColor,
+                            ),
                           ),
                         ),
                       ),
@@ -294,10 +328,78 @@ class _WindowsScheduleDayWeekViewState
                   ),
                 ),
               ),
-            ),
-        ],
+          ],
+        ),
       ),
     );
+  }
+
+  void _animateToDate(DateTime date, ScheduleNavigationIntent intent) {
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      if (!mounted || (_interaction.currentState?.active ?? false)) return;
+      final planner = _planner.currentState;
+      if (planner == null || !planner.mainHorizontalController.hasClients) {
+        return;
+      }
+      _activeNavigationGeneration = intent.generation;
+      final difference = _calendarDayDifference(planner.initialDate, date);
+      final index = planner.widget.textDirection == ui.TextDirection.rtl
+          ? -difference
+          : difference;
+      final target = planner.dayWidthCalculator.offsetForIndex(index);
+      if (_disableAnimations) {
+        planner.mainHorizontalController.jumpTo(target);
+        _finishNavigation(intent.generation);
+        return;
+      }
+      final distance = (target - planner.mainHorizontalController.offset).abs();
+      final page = planner.dayWidth * widget.daysShowed;
+      final fraction = page <= 0 ? 1.0 : (distance / page).clamp(0.0, 1.0);
+      if (fraction == 0) {
+        _finishNavigation(intent.generation);
+        return;
+      }
+      try {
+        await planner.mainHorizontalController.animateTo(
+          target,
+          duration: BusyMaxMotion.calendarPeriod * fraction,
+          curve: BusyMaxMotion.presentationCurve,
+        );
+      } finally {
+        _finishNavigation(intent.generation);
+      }
+    });
+  }
+
+  void _settleNavigation(ScheduleNavigationIntent? intent) {
+    if (intent == null) return;
+    final planner = _planner.currentState;
+    if (planner == null || !planner.mainHorizontalController.hasClients) return;
+    final difference = _calendarDayDifference(
+      planner.initialDate,
+      widget.initialDate,
+    );
+    final index = planner.widget.textDirection == ui.TextDirection.rtl
+        ? -difference
+        : difference;
+    planner.mainHorizontalController.jumpTo(
+      planner.dayWidthCalculator.offsetForIndex(index),
+    );
+    _finishNavigation(intent.generation);
+  }
+
+  void _interruptNavigation() {
+    if (_activeNavigationGeneration == null) return;
+    final controller = _planner.currentState?.mainHorizontalController;
+    if (controller?.hasClients ?? false) {
+      controller!.jumpTo(controller.offset);
+    }
+    _activeNavigationGeneration = null;
+  }
+
+  void _finishNavigation(int generation) {
+    if (!mounted || _activeNavigationGeneration != generation) return;
+    _activeNavigationGeneration = null;
   }
 
   Widget _tile(icv.Event event, double height, double width, String locale) {
@@ -409,3 +511,9 @@ class _WindowsPlannerTile extends StatelessWidget {
 
 bool _sameDay(DateTime a, DateTime b) =>
     a.year == b.year && a.month == b.month && a.day == b.day;
+
+int _calendarDayDifference(DateTime origin, DateTime target) => DateTime.utc(
+  target.year,
+  target.month,
+  target.day,
+).difference(DateTime.utc(origin.year, origin.month, origin.day)).inDays;

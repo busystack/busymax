@@ -1,5 +1,7 @@
 import 'dart:convert';
 
+const taskChecklistLocalIdentityAliasesKey = '_busymaxLocalIdentityAliases';
+
 class TaskChecklistItemEntity {
   const TaskChecklistItemEntity({
     required this.id,
@@ -29,6 +31,29 @@ class TaskChecklistItemEntity {
   final Map<String, Object?> rawJson;
 
   Map<String, Object?> toJson() => Map<String, Object?>.from(rawJson);
+
+  Set<String> get localIdentityAliases {
+    final aliases = rawJson[taskChecklistLocalIdentityAliasesKey];
+    return {
+      if (aliases is List)
+        for (final alias in aliases)
+          if (alias != null && alias.toString().isNotEmpty) alias.toString(),
+    };
+  }
+
+  bool matchesIdentity(String candidate) {
+    if (id == candidate) return true;
+    return localIdentityAliases.contains(candidate);
+  }
+
+  TaskChecklistItemEntity withLocalIdentityAlias(String? alias) {
+    if (alias == null || alias.isEmpty || alias == id) return this;
+    final aliases = <String>{...localIdentityAliases, alias};
+    return TaskChecklistItemEntity.fromJson({
+      ...rawJson,
+      taskChecklistLocalIdentityAliasesKey: aliases.toList(growable: false),
+    });
+  }
 }
 
 List<TaskChecklistItemEntity> decodeTaskChecklistItems(String? source) {

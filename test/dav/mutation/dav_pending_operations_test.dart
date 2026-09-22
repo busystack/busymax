@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:math';
 
@@ -1491,6 +1492,68 @@ void main() {
     expect(pending.lastErrorMessage, isNull);
     expect(pending.requestJson, contains('SUMMARY:Corrected task'));
   });
+
+  test(
+    'an in-progress create cannot be edited or cancelled as unsent',
+    () async {
+      const projectionId = 'local-created-event';
+      const uid = 'claimed-create@example.test';
+      final original = _eventWithUid('Original', uid);
+      await queue.enqueueCreate(
+        accountId: 'account',
+        collectionId: 'collection',
+        localProjectionId: projectionId,
+        object: DavNewObject(
+          uid: uid,
+          initialMemberName: 'claimed-create.ics',
+          rawIcs: original,
+          componentType: 'VEVENT',
+        ),
+      );
+      final started = Completer<void>();
+      final release = Completer<void>();
+      final remote = _FakeMutationRemote(
+        put: ({required rawIcs, required ifMatch, required ifNoneMatch}) async {
+          started.complete();
+          await release.future;
+          expect(rawIcs, contains('SUMMARY:Original'));
+          return _success;
+        },
+        fetcher: (href) async => _live(href, '"created"', original),
+      );
+      final replay = _replayer(
+        database,
+        objectRepository,
+        remote,
+      ).replayDueOperations();
+      await started.future;
+
+      expect(
+        await queue.updateUnsentCreate(
+          accountId: 'account',
+          collectionId: 'collection',
+          localProjectionId: projectionId,
+          patch: DavMutationPatch(
+            target: const IcalComponentKey(componentType: 'VEVENT', uid: uid),
+            scope: DavMutationScope.object,
+            operations: [DavPatchOperation.setText('SUMMARY', 'Obsolete edit')],
+          ),
+        ),
+        isFalse,
+      );
+      expect(
+        await queue.cancelUnsentCreate(
+          accountId: 'account',
+          collectionId: 'collection',
+          localProjectionId: projectionId,
+        ),
+        isFalse,
+      );
+
+      release.complete();
+      expect((await replay).appliedCount, 1);
+    },
+  );
 
   test(
     'MOVE replays to the same filename and commits destination projection',

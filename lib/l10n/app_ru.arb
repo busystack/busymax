@@ -246,6 +246,10 @@
   "viewAgenda": "Расписание",
   "scheduleSettings": "Расписание",
   "scheduleDisplaySettings": "Отображение расписания",
+  "newEventsAndTasks": "Новые события и задачи",
+  "defaultCalendar": "Календарь по умолчанию",
+  "defaultTaskList": "Список задач по умолчанию",
+  "lastUsed": "Последний использованный",
   "scheduleDisplayHoursDescription": "В представлениях дня и недели изначально отображается этот период. Более ранние или поздние записи при необходимости расширяют его.",
   "scheduleDayStartsAt": "Начало дня",
   "scheduleDayEndsAt": "Конец дня",
@@ -308,6 +312,7 @@
   "shortcutPreviousPeriodDescription": "Предыдущая неделя в представлении недели, предыдущий месяц в представлении месяца и так далее",
   "shortcutJumpToToday": "Перейти к сегодняшнему дню",
   "shortcutGroupView": "Представление",
+  "viewSelector": "Представление",
   "shortcutDayView": "Представление дня",
   "shortcutWeekView": "Представление недели",
   "shortcutMonthView": "Представление месяца",
@@ -589,7 +594,6 @@
   "connectAccountAction": "Подключить",
   "cancelAccountConnection": "Отменить подключение",
   "nextcloudAccountRemovedRevokeFailed": "Аккаунт удалён локально, но пароль приложения Nextcloud не удалось отозвать.",
-  "davCachedOfflineNotice": "Данные календаря и задач кэшируются локально для работы без подключения.",
   "davReauthenticationRequired": "Подключите аккаунт заново, чтобы возобновить синхронизацию.",
   "davTemporarilyUnavailable": "Этот аккаунт временно недоступен.",
   "davPermissionChanged": "Разрешения сервера изменились. Ожидающие изменения приостановлены.",
@@ -1044,5 +1048,8 @@
   "searchClearFilters": "Сбросить фильтры",
   "searchFiltersAction": "Фильтры",
   "searchNoSources": "Источники поиска не выбраны",
-  "searchClearText": "Очистить текст"
+  "searchClearText": "Очистить текст",
+  "windowMinimize": "Свернуть",
+  "windowMaximize": "Развернуть",
+  "windowRestore": "Восстановить"
 }

@@ -11,6 +11,9 @@ import '../l10n/l10n.dart';
 import '../platform/native_menu_service.dart';
 import 'busymax_glyphs.dart';
 import 'busymax_surface_colors.dart';
+import 'common/busymax_design_values.dart';
+
+export 'common/busymax_design_values.dart' show BusyMaxMotion;
 
 abstract final class BusyMaxSpacing {
   static const double xxs = 2;
@@ -41,6 +44,7 @@ abstract final class BusyMaxSizes {
   static const double compactDetailsWidth = 700;
   static const double comboWidth = 220;
   static const double toolbarHeight = kYaruTitleBarHeight;
+  static const double onboardingContentMaxWidth = 480;
   static const double sidebarRowHeight = 36;
   static const double taskRowMinHeight = 48;
   static const double iconSm = 16;
@@ -87,15 +91,9 @@ abstract final class BusyMaxAlpha {
   static const double tooltipBorder = 0.10;
 }
 
-abstract final class BusyMaxMotion {
-  static const Duration dialogInsets = Duration(milliseconds: 160);
-  static const Curve dialogInsetsCurve = Curves.easeOutCubic;
-  static const Duration tooltipWait = Duration(milliseconds: 500);
-}
-
 /// Cross-toolkit tooltip visuals.
 ///
-/// Flutter and the native GTK header bar render separate tooltip widgets.
+/// Flutter chrome and retained GTK surfaces render separate tooltip widgets.
 /// This contract keeps their surface geometry and palette identical while
 /// allowing both toolkits to retain native positioning and accessibility.
 abstract final class BusyMaxTooltipStyle {
@@ -543,6 +541,10 @@ class BusyMaxHeaderIconButton extends StatelessWidget {
     this.fixedSize,
     this.shape,
     this.focusNode,
+    this.isSelected,
+    this.selectedIcon,
+    this.disabledForegroundColor,
+    this.focusBorderRadius,
   });
 
   final Widget icon;
@@ -555,6 +557,10 @@ class BusyMaxHeaderIconButton extends StatelessWidget {
   final Size? fixedSize;
   final OutlinedBorder? shape;
   final FocusNode? focusNode;
+  final bool? isSelected;
+  final Widget? selectedIcon;
+  final Color? disabledForegroundColor;
+  final double? focusBorderRadius;
 
   @override
   Widget build(BuildContext context) {
@@ -564,10 +570,13 @@ class BusyMaxHeaderIconButton extends StatelessWidget {
       iconSize: iconSize,
       onPressed: onPressed,
       focusNode: focusNode,
+      isSelected: isSelected,
+      selectedIcon: selectedIcon,
       style:
           busyMaxHeaderIconButtonStyle(
             context,
             foregroundColor: foregroundColor,
+            disabledForegroundColor: disabledForegroundColor,
             backgroundColor: backgroundColor,
             overlayColor: overlayColor,
           ).copyWith(
@@ -585,7 +594,10 @@ class BusyMaxHeaderIconButton extends StatelessWidget {
     );
     return YaruTheme.maybeOf(context)?.focusBorders == true
         ? YaruFocusBorder.primary(
-            borderRadius: BorderRadius.circular(100),
+            borderRadius: BorderRadius.circular(
+              focusBorderRadius ??
+                  (shape is CircleBorder ? 100 : BusyMaxRadius.headerButton),
+            ),
             child: button,
           )
         : button;
@@ -595,12 +607,13 @@ class BusyMaxHeaderIconButton extends StatelessWidget {
 ButtonStyle busyMaxHeaderIconButtonStyle(
   BuildContext context, {
   Color? foregroundColor,
+  Color? disabledForegroundColor,
   WidgetStateProperty<Color?>? backgroundColor,
   WidgetStateProperty<Color?>? overlayColor,
 }) {
-  final disabledForeground = BusyMaxSurfaceColors.of(
-    context,
-  ).disabledForeground;
+  final disabledForeground =
+      disabledForegroundColor ??
+      BusyMaxSurfaceColors.of(context).disabledForeground;
   return ButtonStyle(
     fixedSize: const WidgetStatePropertyAll(
       Size.square(BusyMaxSizes.headerIconButton),
@@ -613,6 +626,8 @@ ButtonStyle busyMaxHeaderIconButtonStyle(
     ),
     padding: const WidgetStatePropertyAll(EdgeInsets.zero),
     tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+    animationDuration: BusyMaxMotion.fast,
+    splashFactory: NoSplash.splashFactory,
     foregroundColor: WidgetStateProperty.resolveWith((states) {
       return states.contains(WidgetState.disabled)
           ? disabledForeground
@@ -692,11 +707,139 @@ WidgetStateProperty<Color?> busyMaxHeaderButtonBackground(
   });
 }
 
-/// BusyMax's cross-platform fallback for a native desktop search entry.
+enum BusyMaxPushButtonFocusPlacement {
+  /// The ordinary libadwaita button outline: 2 px at offset -2.
+  inset,
+
+  /// The opaque/suggested-action outline: 2 px at offset +1.
+  outside,
+}
+
+/// Paints the role-aware Ubuntu keyboard-focus outline over the complete
+/// button without changing its layout.
 ///
-/// Linux header bars use `GtkSearchEntry`. Flutter-owned layouts delegate
-/// geometry, icons, and interaction states to Yaru instead of restyling a raw
-/// [TextField].
+/// A [ButtonStyle.backgroundBuilder] receives the overall button bounds; using
+/// it here avoids the label-sized outline produced by a foreground builder.
+/// Focus visibility is tracked from actual key and pointer input because
+/// Flutter's [FocusHighlightMode.traditional] includes both mouse and keyboard.
+ButtonLayerBuilder busyMaxPushButtonFocusBuilder(
+  Color focusColor, {
+  BusyMaxPushButtonFocusPlacement placement =
+      BusyMaxPushButtonFocusPlacement.inset,
+}) {
+  return (context, states, child) {
+    final focused =
+        states.contains(WidgetState.focused) &&
+        !states.contains(WidgetState.disabled);
+    final focusVisibility = _BusyMaxKeyboardFocusVisibility.instance
+      ..ensureRegistered();
+    return ValueListenableBuilder<bool>(
+      valueListenable: focusVisibility,
+      builder: (context, keyboardInput, child) {
+        final opacity = Theme.of(context).colorScheme.isHighContrast
+            ? 0.80
+            : 0.50;
+        return CustomPaint(
+          foregroundPainter: BusyMaxPushButtonFocusPainter(
+            color: focused && keyboardInput
+                ? focusColor.withValues(alpha: focusColor.a * opacity)
+                : Colors.transparent,
+            placement: placement,
+          ),
+          child: child,
+        );
+      },
+      child: child,
+    );
+  };
+}
+
+/// The concrete focus geometry used by the shared button layer.
+///
+/// This is public so rendering tests can verify the native outline offset
+/// without inferring it from a fixture-only style.
+class BusyMaxPushButtonFocusPainter extends CustomPainter {
+  const BusyMaxPushButtonFocusPainter({
+    required this.color,
+    required this.placement,
+  });
+
+  static const double outlineWidth = 2;
+
+  final Color color;
+  final BusyMaxPushButtonFocusPlacement placement;
+
+  double get outlineOffset => switch (placement) {
+    BusyMaxPushButtonFocusPlacement.inset => -2,
+    BusyMaxPushButtonFocusPlacement.outside => 1,
+  };
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (color.a == 0 || size.isEmpty) {
+      return;
+    }
+    final centerOffset = outlineOffset + outlineWidth / 2;
+    final bounds = (Offset.zero & size).inflate(centerOffset);
+    final radius = math.max(0.0, BusyMaxRadius.sm + centerOffset);
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(bounds, Radius.circular(radius)),
+      Paint()
+        ..color = color
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = outlineWidth,
+    );
+  }
+
+  @override
+  bool shouldRepaint(BusyMaxPushButtonFocusPainter oldDelegate) {
+    return color != oldDelegate.color || placement != oldDelegate.placement;
+  }
+}
+
+/// Tracks focus-visible input modality for BusyMax push buttons.
+///
+/// Desktop starts keyboard-visible so initial programmatic/autofocus remains
+/// discoverable. A pointer press hides the ring before any focus request made
+/// by that interaction; a hardware key restores it before traversal runs.
+class _BusyMaxKeyboardFocusVisibility extends ValueNotifier<bool> {
+  _BusyMaxKeyboardFocusVisibility() : super(true) {
+    GestureBinding.instance.pointerRouter.addGlobalRoute(_handlePointerEvent);
+  }
+
+  static final instance = _BusyMaxKeyboardFocusVisibility();
+
+  FocusManager? _registeredFocusManager;
+
+  void ensureRegistered() {
+    final focusManager = FocusManager.instance;
+    if (identical(_registeredFocusManager, focusManager)) {
+      return;
+    }
+    _registeredFocusManager?.removeEarlyKeyEventHandler(_handleKeyEvent);
+    focusManager.addEarlyKeyEventHandler(_handleKeyEvent);
+    _registeredFocusManager = focusManager;
+  }
+
+  void _handlePointerEvent(PointerEvent event) {
+    if (event is PointerDownEvent && value) {
+      value = false;
+    }
+  }
+
+  KeyEventResult _handleKeyEvent(KeyEvent event) {
+    if ((event is KeyDownEvent || event is KeyRepeatEvent) && !value) {
+      value = true;
+    }
+    return KeyEventResult.ignored;
+  }
+}
+
+/// BusyMax's shared Yaru-backed desktop search entry.
+///
+/// Flutter-owned Linux header layouts delegate geometry and interaction states
+/// to Yaru instead of restyling a raw [TextField]. Header callers may supply
+/// GTK-themed artwork through the optional leading and clear slots.
 class BusyMaxSearchField extends StatefulWidget {
   const BusyMaxSearchField({
     super.key,
@@ -708,6 +851,8 @@ class BusyMaxSearchField extends StatefulWidget {
     this.onSubmitted,
     this.onClear,
     this.clearButtonSemanticLabel,
+    this.leadingIcon,
+    this.clearIcon,
   });
 
   final TextEditingController? controller;
@@ -721,6 +866,8 @@ class BusyMaxSearchField extends StatefulWidget {
   final ValueChanged<String?>? onSubmitted;
   final VoidCallback? onClear;
   final String? clearButtonSemanticLabel;
+  final Widget? leadingIcon;
+  final Widget? clearIcon;
 
   @override
   State<BusyMaxSearchField> createState() => _BusyMaxSearchFieldState();
@@ -816,14 +963,15 @@ class _BusyMaxSearchFieldState extends State<BusyMaxSearchField> {
     final clearLabel =
         widget.clearButtonSemanticLabel ??
         MaterialLocalizations.of(context).clearButtonTooltip;
+    final hasLeadingIcon = widget.leadingIcon != null;
     final contentPadding = switch (Directionality.of(context)) {
-      TextDirection.ltr => const EdgeInsets.only(
-        left: BusyMaxSpacing.md,
+      TextDirection.ltr => EdgeInsets.only(
+        left: hasLeadingIcon ? kYaruTitleBarItemHeight : BusyMaxSpacing.md,
         right: kYaruTitleBarItemHeight,
       ),
-      TextDirection.rtl => const EdgeInsets.only(
+      TextDirection.rtl => EdgeInsets.only(
         left: kYaruTitleBarItemHeight,
-        right: BusyMaxSpacing.md,
+        right: hasLeadingIcon ? kYaruTitleBarItemHeight : BusyMaxSpacing.md,
       ),
     };
     return FocusScope(
@@ -844,6 +992,18 @@ class _BusyMaxSearchFieldState extends State<BusyMaxSearchField> {
               onSubmitted: widget.onSubmitted,
               clearIconSemanticLabel: clearLabel,
             ),
+            if (widget.leadingIcon != null)
+              Align(
+                alignment: AlignmentDirectional.centerStart,
+                child: IgnorePointer(
+                  child: Padding(
+                    padding: const EdgeInsetsDirectional.only(
+                      start: BusyMaxSpacing.md,
+                    ),
+                    child: widget.leadingIcon,
+                  ),
+                ),
+              ),
             if (widget.onClear != null && !_isEmpty)
               Align(
                 alignment: AlignmentDirectional.centerEnd,
@@ -853,7 +1013,7 @@ class _BusyMaxSearchFieldState extends State<BusyMaxSearchField> {
                   ),
                   child: BusyMaxHeaderIconButton(
                     tooltip: clearLabel,
-                    icon: const Icon(YaruIcons.edit_clear),
+                    icon: widget.clearIcon ?? const Icon(YaruIcons.edit_clear),
                     iconSize: BusyMaxSizes.iconSm,
                     fixedSize: const Size.square(
                       kYaruTitleBarItemHeight - BusyMaxSpacing.headerInset,
@@ -955,17 +1115,52 @@ abstract final class BusyMaxPushButton {
     Key? key,
   }) {
     final colorScheme = Theme.of(context).colorScheme;
+    final colors = BusyMaxSurfaceColors.of(context);
+    final background = colorScheme.error;
+    final foreground = colorScheme.onError;
+    final destructiveStyle = ButtonStyle(
+      foregroundColor: WidgetStateProperty.resolveWith((states) {
+        return states.contains(WidgetState.disabled)
+            ? colors.disabledForeground
+            : foreground;
+      }),
+      iconColor: WidgetStateProperty.resolveWith((states) {
+        return states.contains(WidgetState.disabled)
+            ? colors.disabledForeground
+            : foreground;
+      }),
+      backgroundColor: WidgetStateProperty.resolveWith((states) {
+        if (states.contains(WidgetState.disabled)) {
+          return colors.disabledControl;
+        }
+        if (states.contains(WidgetState.pressed)) {
+          return Color.alphaBlend(
+            Colors.black.withValues(alpha: 0.20),
+            background,
+          );
+        }
+        if (states.contains(WidgetState.hovered)) {
+          return Color.alphaBlend(
+            foreground.withValues(alpha: 0.10),
+            background,
+          );
+        }
+        return background;
+      }),
+      overlayColor: const WidgetStatePropertyAll(Colors.transparent),
+      elevation: const WidgetStatePropertyAll(0),
+      shadowColor: const WidgetStatePropertyAll(Colors.transparent),
+      surfaceTintColor: const WidgetStatePropertyAll(Colors.transparent),
+      splashFactory: NoSplash.splashFactory,
+      backgroundBuilder: busyMaxPushButtonFocusBuilder(foreground),
+    ).merge(style);
     return ElevatedButton(
       key: key,
       onPressed: onPressed,
       onLongPress: onLongPress,
       onHover: onHover,
       onFocusChange: onFocusChange,
-      style: ElevatedButton.styleFrom(
-        backgroundColor: colorScheme.error,
-        foregroundColor: colorScheme.onError,
-        iconColor: colorScheme.onError,
-      ).merge(style),
+      style: destructiveStyle,
       focusNode: focusNode,
       autofocus: autofocus,
       clipBehavior: clipBehavior,
@@ -1150,8 +1345,16 @@ TextStyle? busyMaxSectionHeaderStyle(BuildContext context) {
 /// Flutter fallback keeps the theme's title geometry and color, and mirrors
 /// only that semantic emphasis.
 TextStyle busyMaxHeaderTitleStyle(BuildContext context) {
-  return (Theme.of(context).textTheme.titleMedium ?? const TextStyle())
-      .copyWith(fontWeight: FontWeight.bold);
+  return (Theme.of(context).textTheme.bodyMedium ?? const TextStyle()).copyWith(
+    fontWeight: FontWeight.bold,
+  );
+}
+
+/// The stronger GTK-sized wordmark used only by the Linux sidebar header.
+TextStyle busyMaxHeaderBrandStyle(BuildContext context) {
+  return (Theme.of(context).textTheme.bodyMedium ?? const TextStyle()).copyWith(
+    fontWeight: FontWeight.w800,
+  );
 }
 
 Widget _busyMaxGroupedRowSubtitle(
@@ -1416,28 +1619,33 @@ class BusyMaxGroupedSurface extends StatelessWidget {
 }
 
 class BusyMaxSidebarSurface extends StatelessWidget {
-  const BusyMaxSidebarSurface({super.key, required this.child});
+  const BusyMaxSidebarSurface({
+    super.key,
+    required this.child,
+    this.showEndBorder = true,
+  });
 
   final Widget child;
+  final bool showEndBorder;
 
   @override
   Widget build(BuildContext context) {
     final surfaceColors = BusyMaxSurfaceColors.of(context);
-    return Material(
-      color: surfaceColors.sidebar,
-      child: DecoratedBox(
-        position: DecorationPosition.foreground,
-        decoration: BoxDecoration(
-          border: BorderDirectional(
-            end: BorderSide(
-              color: surfaceColors.sidebarBorder,
-              width: BusyMaxStroke.outline,
+    final content = showEndBorder
+        ? DecoratedBox(
+            position: DecorationPosition.foreground,
+            decoration: BoxDecoration(
+              border: BorderDirectional(
+                end: BorderSide(
+                  color: surfaceColors.sidebarBorder,
+                  width: BusyMaxStroke.outline,
+                ),
+              ),
             ),
-          ),
-        ),
-        child: child,
-      ),
-    );
+            child: child,
+          )
+        : child;
+    return Material(color: surfaceColors.sidebar, child: content);
   }
 }
 
@@ -2304,6 +2512,87 @@ class BusyMaxComboRow<T> extends StatelessWidget {
   }
 }
 
+typedef BusyMaxYaruFocusedControlBuilder =
+    Widget Function(BuildContext context, FocusNode focusNode);
+
+/// Presents Yaru's outline around the existing focus target during keyboard
+/// navigation without adding another focus node or interaction handler.
+///
+/// Yaru 10.2.0's selection controls and toggle list tiles do not propagate
+/// their internal target's focus to the [YaruFocusBorder] installed by
+/// `hasFocusBorder`. Driving the same outline from the target's [FocusNode]
+/// keeps the supported presentation while preserving traversal and gestures.
+class BusyMaxYaruFocusBorder extends StatefulWidget {
+  const BusyMaxYaruFocusBorder({
+    super.key,
+    required this.builder,
+    this.focusNode,
+    this.borderStrokeAlign,
+  });
+
+  final BusyMaxYaruFocusedControlBuilder builder;
+  final FocusNode? focusNode;
+  final double? borderStrokeAlign;
+
+  @override
+  State<BusyMaxYaruFocusBorder> createState() => _BusyMaxYaruFocusBorderState();
+}
+
+class _BusyMaxYaruFocusBorderState extends State<BusyMaxYaruFocusBorder> {
+  late FocusNode _focusNode;
+
+  @override
+  void initState() {
+    super.initState();
+    _updateFocusNode();
+  }
+
+  @override
+  void didUpdateWidget(covariant BusyMaxYaruFocusBorder oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.focusNode != widget.focusNode) {
+      _focusNode.removeListener(_handleFocusChange);
+      if (oldWidget.focusNode == null) _focusNode.dispose();
+      _updateFocusNode();
+    }
+  }
+
+  @override
+  void dispose() {
+    _focusNode.removeListener(_handleFocusChange);
+    if (widget.focusNode == null) _focusNode.dispose();
+    super.dispose();
+  }
+
+  void _updateFocusNode() {
+    _focusNode = widget.focusNode ?? FocusNode();
+    _focusNode.addListener(_handleFocusChange);
+  }
+
+  void _handleFocusChange() {
+    if (mounted) setState(() {});
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final focusVisibility = _BusyMaxKeyboardFocusVisibility.instance
+      ..ensureRegistered();
+    return ValueListenableBuilder<bool>(
+      valueListenable: focusVisibility,
+      builder: (context, keyboardInput, child) => YaruFocusBorder.primary(
+        focused: true,
+        onFocusChange: (_) {},
+        borderColor: _focusNode.hasPrimaryFocus && keyboardInput
+            ? null
+            : Colors.transparent,
+        borderStrokeAlign: widget.borderStrokeAlign,
+        child: child!,
+      ),
+      child: widget.builder(context, _focusNode),
+    );
+  }
+}
+
 class BusyMaxSwitchRow extends StatelessWidget {
   const BusyMaxSwitchRow({
     super.key,
@@ -2324,20 +2613,34 @@ class BusyMaxSwitchRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return YaruSwitchListTile(
-      value: value,
-      onChanged: enabled ? onChanged : null,
-      secondary: leading,
-      title: Text(title),
-      subtitle: subtitle == null
-          ? null
-          : _busyMaxGroupedRowSubtitle(
-              context,
-              Text(subtitle!),
-              enabled: enabled,
-            ),
-      shape: const RoundedRectangleBorder(),
-      hoverColor: busyMaxRowHoverColor(context),
+    final effectiveOnChanged = enabled ? onChanged : null;
+    return BusyMaxYaruFocusBorder(
+      borderStrokeAlign: BorderSide.strokeAlignInside,
+      builder: (context, rowFocusNode) => YaruSwitchListTile(
+        value: value,
+        onChanged: effectiveOnChanged,
+        focusNode: rowFocusNode,
+        control: BusyMaxYaruFocusBorder(
+          builder: (context, controlFocusNode) => YaruSwitch(
+            value: value,
+            onChanged: effectiveOnChanged,
+            focusNode: controlFocusNode,
+            hasFocusBorder: false,
+          ),
+        ),
+        secondary: leading,
+        title: Text(title),
+        subtitle: subtitle == null
+            ? null
+            : _busyMaxGroupedRowSubtitle(
+                context,
+                Text(subtitle!),
+                enabled: enabled,
+              ),
+        shape: const RoundedRectangleBorder(),
+        hoverColor: busyMaxRowHoverColor(context),
+        hasFocusBorder: false,
+      ),
     );
   }
 }
@@ -2347,6 +2650,7 @@ class BusyMaxMenuEntry<T> {
     required this.value,
     required this.label,
     this.icon,
+    this.nativeIconName,
     this.child,
     this.shortcut,
     this.enabled = true,
@@ -2359,6 +2663,7 @@ class BusyMaxMenuEntry<T> {
   final T value;
   final String label;
   final IconData? icon;
+  final String? nativeIconName;
   final Widget? child;
   final String? shortcut;
   final bool enabled;
@@ -2566,7 +2871,9 @@ List<NativeMenuEntry> _nativeMenuEntries<T>(List<BusyMaxMenuEntry<T>> entries) {
     for (final entry in entries)
       NativeMenuEntry(
         label: entry.label,
-        iconName: BusyMaxGlyphs.nativeMenuIconName(entry.icon),
+        iconName:
+            entry.nativeIconName ??
+            BusyMaxGlyphs.nativeMenuIconName(entry.icon),
         enabled: entry.enabled,
         role: switch (entry.role) {
           BusyMaxMenuEntryRole.command => NativeMenuEntryRole.command,
@@ -3291,9 +3598,6 @@ class BusyMaxEditorHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final actionStyle = ButtonStyle(
-      textStyle: WidgetStatePropertyAll(Theme.of(context).textTheme.titleSmall),
-    );
     return Padding(
       padding: const EdgeInsets.fromLTRB(
         BusyMaxSpacing.headerInset,
@@ -3310,8 +3614,7 @@ class BusyMaxEditorHeader extends StatelessWidget {
               heightFactor: 1,
               child: BusyMaxPushButton.standard(
                 onPressed: cancelEnabled ? onCancel : null,
-                style: actionStyle,
-                child: Text(cancelLabel, overflow: TextOverflow.ellipsis),
+                child: Text(cancelLabel),
               ),
             ),
           ),
@@ -3330,15 +3633,23 @@ class BusyMaxEditorHeader extends StatelessWidget {
               heightFactor: 1,
               child: BusyMaxPushButton.suggested(
                 onPressed: onSave,
-                style: actionStyle,
-                child: saving
-                    ? const ExcludeSemantics(
+                child: Stack(
+                  alignment: Alignment.center,
+                  children: [
+                    Opacity(
+                      opacity: saving ? 0 : 1,
+                      alwaysIncludeSemantics: true,
+                      child: Text(saveLabel),
+                    ),
+                    if (saving)
+                      const ExcludeSemantics(
                         child: SizedBox.square(
                           dimension: 16,
                           child: CircularProgressIndicator(strokeWidth: 2),
                         ),
-                      )
-                    : Text(saveLabel, overflow: TextOverflow.ellipsis),
+                      ),
+                  ],
+                ),
               ),
             ),
           ),
@@ -3503,7 +3814,7 @@ class BusyMaxEditorScrollBody extends StatelessWidget {
           BusyMaxSpacing.lg,
           BusyMaxSpacing.headerInset,
           BusyMaxSpacing.lg,
-          0,
+          BusyMaxSpacing.lg,
         ),
         controller: controller,
         child: child,

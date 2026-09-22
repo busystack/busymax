@@ -452,6 +452,15 @@ class AppLocalizationsRu extends AppLocalizations {
   String get close => 'Закрыть';
 
   @override
+  String get windowMinimize => 'Свернуть';
+
+  @override
+  String get windowMaximize => 'Развернуть';
+
+  @override
+  String get windowRestore => 'Восстановить';
+
+  @override
   String get exit => 'Выйти';
 
   @override
@@ -720,6 +729,18 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String get scheduleDisplaySettings => 'Отображение расписания';
+
+  @override
+  String get newEventsAndTasks => 'Новые события и задачи';
+
+  @override
+  String get defaultCalendar => 'Календарь по умолчанию';
+
+  @override
+  String get defaultTaskList => 'Список задач по умолчанию';
+
+  @override
+  String get lastUsed => 'Последний использованный';
 
   @override
   String get scheduleDisplayHoursDescription =>
@@ -1077,6 +1098,9 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String get shortcutGroupView => 'Представление';
+
+  @override
+  String get viewSelector => 'Представление';
 
   @override
   String get shortcutDayView => 'Представление дня';
@@ -2446,10 +2470,6 @@ class AppLocalizationsRu extends AppLocalizations {
   @override
   String get nextcloudAccountRemovedRevokeFailed =>
       'Аккаунт удалён локально, но пароль приложения Nextcloud не удалось отозвать.';
-
-  @override
-  String get davCachedOfflineNotice =>
-      'Данные календаря и задач кэшируются локально для работы без подключения.';
 
   @override
   String get davReauthenticationRequired =>

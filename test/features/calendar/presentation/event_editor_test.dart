@@ -11,6 +11,7 @@ import 'package:busymax/src/features/recurrence/domain/recurrence_rule.dart';
 import 'package:busymax/src/features/recurrence/presentation/recurrence_editor.dart';
 import 'package:busymax/src/features/tasks/presentation/desktop_date_time_fields.dart';
 import 'package:busymax/src/app/busymax_design.dart';
+import 'package:busymax/src/app/busymax_window_close.dart';
 import 'package:busymax/src/app/busymax_yaru_theme.dart';
 import 'package:busymax/src/platform/native_dialog_service.dart';
 import 'package:busymax/src/platform/native_menu_service.dart';
@@ -41,6 +42,34 @@ void main() {
         .setMockMethodCallHandler(_nativeDialogChannel, null);
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(_nativeMenuChannel, null);
+  });
+
+  testWidgets('new event opens with the title field focused', (tester) async {
+    await tester.pumpWidget(
+      localizedTestApp(
+        child: Scaffold(
+          body: EventEditor(
+            initialDraft: EventEditorDraft.newEvent(
+              accountId: 'account',
+              sourceId: 'source',
+              providerCalendarId: 'cal-1',
+              start: DateTime.utc(2026, 6, 8),
+              end: DateTime.utc(2026, 6, 8, 1),
+            ),
+            sources: _sources,
+            onCancel: () {},
+            onSave: (_) {},
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final title = find.descendant(
+      of: find.byType(TextFormField).first,
+      matching: find.byType(EditableText),
+    );
+    expect(tester.widget<EditableText>(title).focusNode.hasFocus, isTrue);
   });
 
   testWidgets(
@@ -182,8 +211,10 @@ void main() {
     expect(saveButton.style?.minimumSize, isNull);
     final cancelContext = tester.element(find.text('Cancel'));
     expect(
-      cancelButton.style?.textStyle?.resolve(const {})?.fontWeight,
-      Theme.of(cancelContext).textTheme.titleSmall?.fontWeight,
+      Theme.of(
+        cancelContext,
+      ).filledButtonTheme.style?.textStyle?.resolve(const {})?.fontWeight,
+      FontWeight.bold,
     );
   });
 
@@ -527,6 +558,57 @@ void main() {
       expect(saveCalls, 0);
     },
   );
+
+  testWidgets('dirty event resolves a destructive window close request', (
+    tester,
+  ) async {
+    final closeCoordinator = BusyMaxWindowCloseCoordinator();
+    var cancelled = false;
+    await tester.pumpWidget(
+      localizedTestApp(
+        child: BusyMaxWindowCloseScope(
+          coordinator: closeCoordinator,
+          child: Scaffold(
+            body: EventEditor(
+              initialDraft: EventEditorDraft.existing(
+                eventId: 'event-1',
+                accountId: 'account',
+                sourceId: 'source',
+                providerCalendarId: 'cal-1',
+                title: 'Planning',
+                allDay: false,
+                start: DateTime.utc(2026, 6, 8, 9),
+                end: DateTime.utc(2026, 6, 8, 10),
+              ),
+              sources: _sources,
+              onCancel: () => cancelled = true,
+              onSave: (_) {},
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.enterText(find.byType(TextFormField).first, 'Unsaved event');
+    await tester.pump();
+
+    final cancelledClose = closeCoordinator.requestClose();
+    await tester.pumpAndSettle();
+    expect(find.text('Discard changes?'), findsOneWidget);
+    await tester.tap(find.text('Cancel').last);
+    await tester.pumpAndSettle();
+
+    expect(await cancelledClose, isFalse);
+    expect(cancelled, isFalse);
+    expect(find.text('Unsaved event'), findsOneWidget);
+
+    final confirmedClose = closeCoordinator.requestClose();
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Discard'));
+    await tester.pumpAndSettle();
+
+    expect(await confirmedClose, isTrue);
+    expect(cancelled, isFalse);
+  });
 
   testWidgets('switching an invalid timed event to all-day clears validity', (
     tester,
@@ -2420,9 +2502,9 @@ void main() {
     expect(editor, contains('showBusyMaxEventEditorDialog'));
     expect(editor, contains('showBusyMaxModalEditorDialog'));
     expect(editor, isNot(contains('showDialog<EventEditorDialogResult>')));
-    expect(dialogs, contains('await acquireBusyMaxModalBarrier('));
-    expect(dialogs, contains('await releaseBusyMaxModalBarrier('));
-    expect(dialogs, contains('shadesHeader: shadesHeader'));
+    expect(dialogs, contains('await route.completed'));
+    expect(dialogs, isNot(contains('LinuxHeaderBarService')));
+    expect(dialogs, isNot(contains('setModalBarrierState')));
     expect(
       dialogs,
       contains('barrierColor ?? busyMaxModalBarrierColor(context)'),
@@ -2451,7 +2533,8 @@ void main() {
     expect(header, contains('AlignmentDirectional.centerEnd'));
     expect(header, contains('child: BusyMaxPushButton.suggested('));
     expect(header, contains('heightFactor: 1'));
-    expect(header, contains('textTheme.titleSmall'));
+    expect(header, isNot(contains('textTheme.titleSmall')));
+    expect(header, isNot(contains('style: actionStyle')));
     expect(header, isNot(contains('child: FilledButton(')));
     expect(header, isNot(contains('child: ElevatedButton(')));
     expect(header, isNot(contains('NavigationToolbar(')));

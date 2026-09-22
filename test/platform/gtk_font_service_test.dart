@@ -288,6 +288,7 @@ void main() {
             'floatingBorder': '#24000000',
             'sidebarBorder': '#33000000',
             'shade': '#55000000',
+            'searchEntry': _searchEntryPayload,
           };
         });
     addTearDown(() {
@@ -313,6 +314,225 @@ void main() {
     expect(colors?.divider, const Color(0x1AFFFFFF));
     expect(colors?.cardShade, const Color(0x5A101010));
     expect(colors?.floatingBorder, const Color(0x24000000));
+    expect(
+      colors?.searchEntry?.normal,
+      const GtkSearchEntryStateStyle(
+        background: Color(0xFFFDFDFD),
+        foreground: Color(0xFF101112),
+        borderTop: 1,
+        borderRight: 2,
+        borderBottom: 3,
+        borderLeft: 4,
+        borderColor: Color(0xFF202122),
+        primaryIconForeground: Color(0xFF303132),
+        primaryIconForegroundRtl: Color(0xFF404142),
+        secondaryIconForeground: Color(0xFF505152),
+        secondaryIconForegroundRtl: Color(0xFF606162),
+        radius: 13,
+        hasInnerFocus: false,
+        innerFocusColor: Color(0x00000000),
+        innerFocusWidth: 0,
+      ),
+    );
+    expect(colors?.searchEntry?.focused.radius, 12);
+    expect(colors?.searchEntry?.focused.hasInnerFocus, isTrue);
+    expect(
+      colors?.searchEntry?.focused.innerFocusColor,
+      const Color(0xFF123456),
+    );
+    expect(colors?.searchEntry?.focused.innerFocusWidth, 1);
+    expect(colors?.searchEntry?.normal.hasInnerFocus, isFalse);
+    expect(colors?.searchEntry?.normal.innerFocusWidth, 0);
+    expect(colors?.searchEntry?.backdrop.radius, 11);
+    expect(colors?.searchEntry?.backdropFocused.radius, 10);
+  });
+
+  test('Search-entry theme models have value equality and stable hashes', () {
+    const state = GtkSearchEntryStateStyle(
+      background: Color(0xFFFDFDFD),
+      foreground: Color(0xFF101112),
+      borderTop: 1,
+      borderRight: 2,
+      borderBottom: 3,
+      borderLeft: 4,
+      borderColor: Color(0xFF202122),
+      primaryIconForeground: Color(0xFF303132),
+      primaryIconForegroundRtl: Color(0xFF404142),
+      secondaryIconForeground: Color(0xFF505152),
+      secondaryIconForegroundRtl: Color(0xFF606162),
+      radius: 13,
+    );
+    const first = GtkSearchEntryTheme(
+      normal: state,
+      focused: state,
+      backdrop: state,
+      backdropFocused: state,
+    );
+    const second = GtkSearchEntryTheme(
+      normal: state,
+      focused: state,
+      backdrop: state,
+      backdropFocused: state,
+    );
+    const firstColors = GtkThemeColors(
+      brightness: Brightness.light,
+      searchEntry: first,
+    );
+    const secondColors = GtkThemeColors(
+      brightness: Brightness.light,
+      searchEntry: second,
+    );
+
+    expect(first, second);
+    expect(first.hashCode, second.hashCode);
+    expect(firstColors, secondColors);
+    expect(firstColors.hashCode, secondColors.hashCode);
+    expect(
+      state,
+      isNot(
+        const GtkSearchEntryStateStyle(
+          background: Color(0xFFFDFDFD),
+          foreground: Color(0xFF101112),
+          borderTop: 1,
+          borderRight: 2,
+          borderBottom: 3,
+          borderLeft: 4,
+          borderColor: Color(0xFF202122),
+          primaryIconForeground: Color(0xFF303132),
+          primaryIconForegroundRtl: Color(0xFF404142),
+          secondaryIconForeground: Color(0xFF505152),
+          secondaryIconForegroundRtl: Color(0xFF606162),
+          radius: 14,
+          hasInnerFocus: true,
+          innerFocusColor: Color(0xFF123456),
+          innerFocusWidth: 1,
+        ),
+      ),
+    );
+  });
+
+  test('malformed Search data does not invalidate GTK theme colors', () async {
+    const channel = MethodChannel('busymax_test/gtk_theme_bad_search');
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(channel, (_) async {
+          return <String, Object?>{
+            'brightness': 'light',
+            'window': '#FAFAFA',
+            'foreground': '#101010',
+            'searchEntry': <String, Object?>{
+              ..._searchEntryPayload,
+              'focused': <String, Object?>{
+                ..._searchStatePayload,
+                'radius': double.nan,
+              },
+            },
+          };
+        });
+    addTearDown(() {
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(channel, null);
+    });
+
+    final colors = await const GtkThemeService(
+      channel: channel,
+    ).getGtkThemeColors();
+
+    expect(colors?.brightness, Brightness.light);
+    expect(colors?.window, const Color(0xFFFAFAFA));
+    expect(colors?.foreground, const Color(0xFF101010));
+    expect(colors?.searchEntry, isNull);
+  });
+
+  test('incomplete Search state data is discarded independently', () async {
+    const channel = MethodChannel('busymax_test/gtk_theme_partial_search');
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(channel, (_) async {
+          return <String, Object?>{
+            'brightness': 'light',
+            'window': '#FAFAFA',
+            'searchEntry': <String, Object?>{
+              ..._searchEntryPayload,
+              'backdrop': <String, Object?>{
+                'background': '#FDFDFD',
+                'foreground': '#101112',
+              },
+            },
+          };
+        });
+    addTearDown(() {
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(channel, null);
+    });
+
+    final colors = await const GtkThemeService(
+      channel: channel,
+    ).getGtkThemeColors();
+
+    expect(colors?.window, const Color(0xFFFAFAFA));
+    expect(colors?.searchEntry, isNull);
+  });
+
+  test(
+    'malformed focus-inset fields fall back without dropping Search',
+    () async {
+      const channel = MethodChannel('busymax_test/gtk_theme_bad_focus_inset');
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(channel, (_) async {
+            return <String, Object?>{
+              'brightness': 'light',
+              'searchEntry': <String, Object?>{
+                ..._searchEntryPayload,
+                'focused': <String, Object?>{
+                  ..._searchStatePayload,
+                  'radius': 12,
+                  'hasInnerFocus': 'yes',
+                  'innerFocusColor': 123,
+                  'innerFocusWidth': -1,
+                },
+              },
+            };
+          });
+      addTearDown(() {
+        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+            .setMockMethodCallHandler(channel, null);
+      });
+
+      final colors = await const GtkThemeService(
+        channel: channel,
+      ).getGtkThemeColors();
+
+      expect(colors?.searchEntry, isNotNull);
+      expect(colors?.searchEntry?.focused.radius, 12);
+      expect(colors?.searchEntry?.focused.hasInnerFocus, isFalse);
+      expect(
+        colors?.searchEntry?.focused.innerFocusColor,
+        const Color(0x00000000),
+      );
+      expect(colors?.searchEntry?.focused.innerFocusWidth, 0);
+    },
+  );
+
+  test('missing Search data leaves the optional theme absent', () async {
+    const channel = MethodChannel('busymax_test/gtk_theme_no_search');
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(
+          channel,
+          (_) async => <String, Object?>{
+            'brightness': 'dark',
+            'window': '#202020',
+          },
+        );
+    addTearDown(() {
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(channel, null);
+    });
+
+    final colors = await const GtkThemeService(
+      channel: channel,
+    ).getGtkThemeColors();
+
+    expect(colors?.brightness, Brightness.dark);
+    expect(colors?.searchEntry, isNull);
   });
 
   test('missing native GTK theme color channel falls back to null', () async {
@@ -418,3 +638,30 @@ void main() {
     expect(colors, isNull);
   });
 }
+
+const _searchStatePayload = <String, Object?>{
+  'background': '#FDFDFD',
+  'foreground': '#101112',
+  'borderTop': 1,
+  'borderRight': 2,
+  'borderBottom': 3,
+  'borderLeft': 4,
+  'borderColor': '#202122',
+  'primaryIconForeground': '#303132',
+  'primaryIconForegroundRtl': '#404142',
+  'secondaryIconForeground': '#505152',
+  'secondaryIconForegroundRtl': '#606162',
+};
+
+final _searchEntryPayload = <String, Object?>{
+  'normal': <String, Object?>{..._searchStatePayload, 'radius': 13},
+  'focused': <String, Object?>{
+    ..._searchStatePayload,
+    'radius': 12,
+    'hasInnerFocus': true,
+    'innerFocusColor': '#123456',
+    'innerFocusWidth': 1,
+  },
+  'backdrop': <String, Object?>{..._searchStatePayload, 'radius': 11},
+  'backdropFocused': <String, Object?>{..._searchStatePayload, 'radius': 10},
+};

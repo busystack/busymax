@@ -424,6 +424,15 @@ class AppLocalizationsZh extends AppLocalizations {
   String get close => '关闭';
 
   @override
+  String get windowMinimize => '最小化';
+
+  @override
+  String get windowMaximize => '最大化';
+
+  @override
+  String get windowRestore => '还原';
+
+  @override
   String get exit => '退出';
 
   @override
@@ -679,6 +688,18 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get scheduleDisplaySettings => '日程显示';
+
+  @override
+  String get newEventsAndTasks => '新建日程和任务';
+
+  @override
+  String get defaultCalendar => '默认日历';
+
+  @override
+  String get defaultTaskList => '默认任务列表';
+
+  @override
+  String get lastUsed => '最近使用';
 
   @override
   String get scheduleDisplayHoursDescription =>
@@ -1021,6 +1042,9 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get shortcutGroupView => '视图';
+
+  @override
+  String get viewSelector => '视图';
 
   @override
   String get shortcutDayView => '日视图';
@@ -2343,9 +2367,6 @@ class AppLocalizationsZh extends AppLocalizations {
   @override
   String get nextcloudAccountRemovedRevokeFailed =>
       '账户已在本地移除，但无法撤销 Nextcloud App 密码。';
-
-  @override
-  String get davCachedOfflineNotice => '日历和任务数据会缓存在本地，以供离线使用。';
 
   @override
   String get davReauthenticationRequired => '重新连接此账户以恢复同步。';
@@ -3302,6 +3323,15 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
   String get close => '关闭';
 
   @override
+  String get windowMinimize => '最小化';
+
+  @override
+  String get windowMaximize => '最大化';
+
+  @override
+  String get windowRestore => '还原';
+
+  @override
   String get exit => '退出';
 
   @override
@@ -3557,6 +3587,18 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
 
   @override
   String get scheduleDisplaySettings => '日程显示';
+
+  @override
+  String get newEventsAndTasks => '新建日程和任务';
+
+  @override
+  String get defaultCalendar => '默认日历';
+
+  @override
+  String get defaultTaskList => '默认任务列表';
+
+  @override
+  String get lastUsed => '最近使用';
 
   @override
   String get scheduleDisplayHoursDescription =>
@@ -3899,6 +3941,9 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
 
   @override
   String get shortcutGroupView => '视图';
+
+  @override
+  String get viewSelector => '视图';
 
   @override
   String get shortcutDayView => '日视图';
@@ -5223,9 +5268,6 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
       '账户已在本地移除，但无法撤销 Nextcloud App 密码。';
 
   @override
-  String get davCachedOfflineNotice => '日历和任务数据会缓存在本地，以供离线使用。';
-
-  @override
   String get davReauthenticationRequired => '重新连接此账户以恢复同步。';
 
   @override
@@ -6180,6 +6222,15 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get close => '關閉';
 
   @override
+  String get windowMinimize => '最小化';
+
+  @override
+  String get windowMaximize => '最大化';
+
+  @override
+  String get windowRestore => '還原';
+
+  @override
   String get exit => '結束';
 
   @override
@@ -6435,6 +6486,18 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get scheduleDisplaySettings => '行程顯示';
+
+  @override
+  String get newEventsAndTasks => '新增行程和工作';
+
+  @override
+  String get defaultCalendar => '預設行事曆';
+
+  @override
+  String get defaultTaskList => '預設工作清單';
+
+  @override
+  String get lastUsed => '最近使用';
 
   @override
   String get scheduleDisplayHoursDescription =>
@@ -6777,6 +6840,9 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get shortcutGroupView => '檢視';
+
+  @override
+  String get viewSelector => '檢視';
 
   @override
   String get shortcutDayView => '日檢視';
@@ -8100,9 +8166,6 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   @override
   String get nextcloudAccountRemovedRevokeFailed =>
       '賬戶已在本地移除，但無法撤銷 Nextcloud App 密碼。';
-
-  @override
-  String get davCachedOfflineNotice => '日曆和任務數據會緩存在本地，以供離線使用。';
 
   @override
   String get davReauthenticationRequired => '重新連接此賬戶以恢復同步。';

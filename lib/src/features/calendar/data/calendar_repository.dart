@@ -383,8 +383,7 @@ class CalendarRepository {
         _database.pendingOps.calendarSourceId.equalsExp(
               _database.calendarSources.id,
             ) &
-            _database.pendingOps.operationType.equals('calendar.create') &
-            _database.pendingOps.state.equals('pending'),
+            _database.pendingOps.operationType.equals('calendar.create'),
       ),
     ]);
     query.where(
@@ -699,17 +698,29 @@ class CalendarRepository {
           updatedAtLocal: Value(now.millisecondsSinceEpoch),
         ),
       );
-      if (createOp != null) {
-        final request = _calendarPendingRequest(createOp)..['summary'] = title;
-        await (_database.update(
-          _database.pendingOps,
-        )..where((row) => row.id.equals(createOp.id))).write(
-          PendingOpsCompanion(
-            requestJson: Value(jsonEncode(request)),
-            updatedAtUtc: Value(nowUtc),
-          ),
-        );
-      } else {
+      var rewroteCreate = false;
+      if (_isProvablyUnsentCalendarCreate(createOp)) {
+        final createSnapshot = createOp!;
+        final request = _calendarPendingRequest(createSnapshot)
+          ..['summary'] = title;
+        rewroteCreate =
+            await (_database.update(_database.pendingOps)..where(
+                  (row) =>
+                      row.id.equals(createSnapshot.id) &
+                      row.state.equals(createSnapshot.state) &
+                      row.attemptCount.equals(createSnapshot.attemptCount) &
+                      row.requestJson.equals(createSnapshot.requestJson) &
+                      row.updatedAtUtc.equals(createSnapshot.updatedAtUtc),
+                ))
+                .write(
+                  PendingOpsCompanion(
+                    requestJson: Value(jsonEncode(request)),
+                    updatedAtUtc: Value(nowUtc),
+                  ),
+                ) ==
+            1;
+      }
+      if (!rewroteCreate) {
         await _enqueueOrMergeCalendarPatch(
           source,
           request: {
@@ -720,6 +731,7 @@ class CalendarRepository {
                 : calendarMutationScopeGlobal,
           },
           nowUtc: nowUtc,
+          dependsOnOpId: createOp?.id,
         );
       }
     });
@@ -835,7 +847,22 @@ class CalendarRepository {
     final now = _now();
     final nowUtc = now.toUtc().toIso8601String();
     await _database.transaction(() async {
-      if (createOp != null) {
+      if (_isProvablyUnsentCalendarCreate(createOp)) {
+        final deleted =
+            await (_database.delete(_database.pendingOps)..where(
+                  (row) =>
+                      row.id.equals(createOp!.id) &
+                      row.state.equals(createOp.state) &
+                      row.attemptCount.equals(createOp.attemptCount) &
+                      row.requestJson.equals(createOp.requestJson) &
+                      row.updatedAtUtc.equals(createOp.updatedAtUtc),
+                ))
+                .go();
+        if (deleted != 1) {
+          throw StateError(
+            'The calendar creation is no longer safe to cancel locally.',
+          );
+        }
         await (_database.delete(_database.pendingOps)..where(
               (row) =>
                   row.accountId.equals(source.accountId) &
@@ -847,7 +874,10 @@ class CalendarRepository {
         )..where((row) => row.id.equals(sourceId))).go();
         return;
       }
-      if ((await _pendingCalendarWork(source.id)).isNotEmpty) {
+      final otherWork = (await _pendingCalendarWork(
+        source.id,
+      )).where((operation) => operation.id != createOp?.id);
+      if (otherWork.isNotEmpty) {
         throw CalendarMutationNotAllowed(
           operation: removalMode == CalendarRemovalMode.removeFromList
               ? CalendarMutationOperation.removeCalendar
@@ -881,6 +911,7 @@ class CalendarRepository {
           ),
           calendarSourceId: Value(source.id),
           providerCalendarId: Value(source.providerCalendarId),
+          dependsOnOpId: Value(createOp?.id),
           requestJson: jsonEncode({
             calendarRemovalPreviousHiddenKey: source.hidden,
           }),
@@ -1328,11 +1359,11 @@ class CalendarRepository {
       throw StateError('A complete event recovery baseline is unavailable.');
     }
     baseline.putIfAbsent('id', () => event.providerEventId);
+    // Preserve the original-start component of the local row identity for
+    // legacy occurrence rows, but never manufacture a series identity. The
+    // provider baseline alone decides whether the restored event is recurring.
     switch (provider) {
       case BusyProvider.google:
-        if (event.providerRecurringEventId case final recurringId?) {
-          baseline.putIfAbsent('recurringEventId', () => recurringId);
-        }
         if (event.providerOriginalStartKey case final originalStart?) {
           baseline.putIfAbsent(
             'originalStartTime',
@@ -1342,9 +1373,6 @@ class CalendarRepository {
           );
         }
       case BusyProvider.microsoft:
-        if (event.providerRecurringEventId case final recurringId?) {
-          baseline.putIfAbsent('seriesMasterId', () => recurringId);
-        }
         if (event.providerOriginalStartKey case final originalStart?) {
           baseline.putIfAbsent('originalStart', () => originalStart);
         }
@@ -1803,12 +1831,16 @@ class CalendarRepository {
               allDay: Value(draft.allDay),
               startDate: Value(draft.allDay ? _date(draft.start) : null),
               startDateTime: Value(
-                draft.allDay ? null : draft.start?.toIso8601String(),
+                draft.allDay
+                    ? null
+                    : _eventDateTimeWireValue(draft.start, startTimeZone),
               ),
               startTimeZone: Value(startTimeZone),
               endDate: Value(draft.allDay ? _date(draft.end) : null),
               endDateTime: Value(
-                draft.allDay ? null : draft.end?.toIso8601String(),
+                draft.allDay
+                    ? null
+                    : _eventDateTimeWireValue(draft.end, endTimeZone),
               ),
               endTimeZone: Value(endTimeZone),
               recurrenceJson: Value(_json(draft.recurrence)),
@@ -2061,7 +2093,7 @@ class CalendarRepository {
       return true;
     }
     final provider = BusyProviderCodec.requireStorageValue(source.provider);
-    final recurringOccurrence = existing.providerRecurringEventId != null;
+    final recurringOccurrence = _eventRequiresRecurringScope(existing);
     final recurringScope = draft.recurringMutationScope;
     if (recurringOccurrence && recurringScope == null) {
       throw UnsupportedError('A recurring-event editing scope is required.');
@@ -2100,8 +2132,12 @@ class CalendarRepository {
       _localTimeZone,
     );
     final seriesMutation =
-        recurringScope == RecurringEventMutationScope.entireSeries ||
-        recurringScope == RecurringEventMutationScope.thisAndFuture;
+        recurringOccurrence &&
+        (recurringScope == RecurringEventMutationScope.entireSeries ||
+            recurringScope == RecurringEventMutationScope.thisAndFuture);
+    final seriesBaseline = seriesMutation
+        ? await _seriesMasterBaseline(existing)
+        : null;
     final request = _eventDeltaRequest(
       draft,
       editBaseline,
@@ -2158,7 +2194,7 @@ class CalendarRepository {
     }
     final requestJson = jsonEncode(request);
     await _database.transaction(() async {
-      final predecessor = await _latestPendingEventEdit(
+      final predecessor = await _latestPendingEventMutation(
         accountId: draft.accountId,
         eventId: eventId,
         seriesEvent: seriesMutation ? existing : null,
@@ -2205,12 +2241,16 @@ class CalendarRepository {
               eventId: Value(eventId),
               dependsOnOpId: Value(predecessor?.id),
               requestJson: requestJson,
-              baselineUpdatedUtc: seriesMutation
-                  ? const Value(null)
-                  : Value(editBaseline.updatedAtServer),
-              baselineRawJson: seriesMutation
-                  ? const Value(null)
-                  : Value(_eventDetailBaselineRawJson(editBaseline)),
+              baselineUpdatedUtc: Value(
+                seriesBaseline?.updatedAtServer ?? editBaseline.updatedAtServer,
+              ),
+              baselineRawJson: Value(
+                (seriesBaseline == null
+                        ? null
+                        : seriesBaseline.baselineRawJson ??
+                              seriesBaseline.rawJson) ??
+                    _eventDetailBaselineRawJson(editBaseline),
+              ),
               createdAtUtc: DateTime.now().toUtc().toIso8601String(),
               updatedAtUtc: DateTime.now().toUtc().toIso8601String(),
             ),
@@ -2246,7 +2286,7 @@ class CalendarRepository {
     final destinationProvider = BusyProviderCodec.requireStorageValue(
       destinationSource.provider,
     );
-    final recurring = existing.providerRecurringEventId != null;
+    final recurring = _eventRequiresRecurringScope(existing);
     final scope = draft.recurringMutationScope;
     if (recurring && scope == null) {
       throw UnsupportedError('A recurring-event movement scope is required.');
@@ -2332,7 +2372,7 @@ class CalendarRepository {
     required EventEditorDraft draft,
     required CalendarGuestUpdatePolicy guestUpdatePolicy,
   }) async {
-    final recurring = existing.providerRecurringEventId != null;
+    final recurring = _eventRequiresRecurringScope(existing);
     final scope = draft.recurringMutationScope;
     final provider = BusyProvider.google;
     final startTimeZone = _effectiveStartTimeZone(
@@ -2510,7 +2550,7 @@ class CalendarRepository {
       collectionId: sourceCollectionId,
       objectId: objectId,
     );
-    final recurring = existing.providerRecurringEventId != null;
+    final recurring = _eventRequiresRecurringScope(existing);
     final target = IcalComponentKey(
       componentType: 'VEVENT',
       uid: uid,
@@ -2665,7 +2705,7 @@ class CalendarRepository {
     required BusyProvider destinationProvider,
     required LocationResult? effectiveSelection,
   }) {
-    final recurring = existing.providerRecurringEventId != null;
+    final recurring = _eventRequiresRecurringScope(existing);
     final scope = draft.recurringMutationScope;
     Object? recurrence = draft.recurrence;
     if (recurring && scope == RecurringEventMutationScope.singleOccurrence) {
@@ -2841,6 +2881,9 @@ class CalendarRepository {
     required String dependsOnOperationId,
   }) async {
     final series = recurringScope == RecurringEventMutationScope.entireSeries;
+    final seriesBaseline = series
+        ? await _seriesMasterBaseline(existing)
+        : null;
     final request = <String, Object?>{
       calendarEventGuestUpdatePolicyKey: guestUpdatePolicy.name,
       calendarEventCopyConfirmationRequiredKey: true,
@@ -2869,12 +2912,16 @@ class CalendarRepository {
             eventId: Value(existing.id),
             dependsOnOpId: Value(dependsOnOperationId),
             requestJson: jsonEncode(request),
-            baselineUpdatedUtc: series
-                ? const Value(null)
-                : Value(existing.updatedAtServer),
-            baselineRawJson: series
-                ? const Value(null)
-                : Value(existing.baselineRawJson),
+            baselineUpdatedUtc: Value(
+              seriesBaseline?.updatedAtServer ?? existing.updatedAtServer,
+            ),
+            baselineRawJson: Value(
+              (seriesBaseline == null
+                      ? null
+                      : seriesBaseline.baselineRawJson ??
+                            seriesBaseline.rawJson) ??
+                  existing.baselineRawJson,
+            ),
             createdAtUtc: now,
             updatedAtUtc: now,
           ),
@@ -3256,7 +3303,7 @@ class CalendarRepository {
     }
   }
 
-  Future<PendingOp?> _latestPendingEventEdit({
+  Future<PendingOp?> _latestPendingEventMutation({
     required String accountId,
     required String eventId,
     CalendarEvent? seriesEvent,
@@ -3287,8 +3334,19 @@ class CalendarRepository {
             row.accountId.equals(accountId) &
             row.entityType.equals('event') &
             row.eventId.isIn(eventIds) &
-            (row.operationType.equals('event.patch') |
-                (row.operationType.isNull() & row.operation.equals('patch'))),
+            (row.operationType.isIn(const [
+                  'event.create',
+                  'event.patch',
+                  'event.move',
+                  'event.respond',
+                ]) |
+                (row.operationType.isNull() &
+                    row.operation.isIn(const [
+                      'create',
+                      'patch',
+                      'move',
+                      'respond',
+                    ]))),
       )
       ..orderBy([
         (row) => OrderingTerm.desc(row.createdAtUtc),
@@ -3305,6 +3363,29 @@ class CalendarRepository {
       }
     }
     return edits.isEmpty ? null : edits.first;
+  }
+
+  Future<CalendarEvent> _seriesMasterBaseline(CalendarEvent occurrence) async {
+    final seriesId = occurrence.providerRecurringEventId;
+    if (seriesId == null || seriesId.isEmpty) {
+      throw StateError(
+        'The recurring series master identifier is unavailable.',
+      );
+    }
+    final master =
+        await (_database.select(_database.calendarEvents)..where(
+              (row) =>
+                  row.accountId.equals(occurrence.accountId) &
+                  row.provider.equals(occurrence.provider) &
+                  row.providerCalendarId.equals(occurrence.providerCalendarId) &
+                  row.providerEventId.equals(seriesId) &
+                  row.providerRecurringEventId.isNull(),
+            ))
+            .getSingleOrNull();
+    if (master == null) {
+      throw StateError('The recurring series master baseline is unavailable.');
+    }
+    return master;
   }
 
   Future<String> deleteLocalEvent(
@@ -3332,7 +3413,7 @@ class CalendarRepository {
       );
     }
     final provider = BusyProviderCodec.requireStorageValue(existing.provider);
-    final recurringOccurrence = existing.providerRecurringEventId != null;
+    final recurringOccurrence = _eventRequiresRecurringScope(existing);
     if (recurringOccurrence && recurringScope == null) {
       throw UnsupportedError('A recurring-event deletion scope is required.');
     }
@@ -3344,8 +3425,12 @@ class CalendarRepository {
       );
     }
     final seriesMutation =
-        recurringScope == RecurringEventMutationScope.entireSeries ||
-        recurringScope == RecurringEventMutationScope.thisAndFuture;
+        recurringOccurrence &&
+        (recurringScope == RecurringEventMutationScope.entireSeries ||
+            recurringScope == RecurringEventMutationScope.thisAndFuture);
+    final seriesBaseline = seriesMutation
+        ? await _seriesMasterBaseline(existing)
+        : null;
     final request = <String, Object?>{
       calendarEventGuestUpdatePolicyKey: guestUpdatePolicy.name,
       if (recurringScope != null)
@@ -3359,6 +3444,11 @@ class CalendarRepository {
     };
     final now = _now().millisecondsSinceEpoch;
     await _database.transaction(() async {
+      final predecessor = await _latestPendingEventMutation(
+        accountId: existing.accountId,
+        eventId: existing.id,
+        seriesEvent: seriesMutation ? existing : null,
+      );
       if (seriesMutation) {
         await _markCloudSeriesDeleted(
           existing: existing,
@@ -3389,13 +3479,18 @@ class CalendarRepository {
               calendarSourceId: Value(existing.calendarSourceId),
               providerCalendarId: Value(existing.providerCalendarId),
               eventId: Value(existing.id),
+              dependsOnOpId: Value(predecessor?.id),
               requestJson: jsonEncode(request),
-              baselineUpdatedUtc: seriesMutation
-                  ? const Value(null)
-                  : Value(existing.updatedAtServer),
-              baselineRawJson: seriesMutation
-                  ? const Value(null)
-                  : Value(existing.baselineRawJson),
+              baselineUpdatedUtc: Value(
+                seriesBaseline?.updatedAtServer ?? existing.updatedAtServer,
+              ),
+              baselineRawJson: Value(
+                (seriesBaseline == null
+                        ? null
+                        : seriesBaseline.baselineRawJson ??
+                              seriesBaseline.rawJson) ??
+                    existing.baselineRawJson,
+              ),
               createdAtUtc: DateTime.now().toUtc().toIso8601String(),
               updatedAtUtc: DateTime.now().toUtc().toIso8601String(),
             ),
@@ -3455,7 +3550,7 @@ class CalendarRepository {
     final updatedRaw = provider == BusyProvider.microsoft
         ? _withMicrosoftResponse(raw, response)
         : raw;
-    final predecessor = await _latestPendingEventEdit(
+    final predecessor = await _latestPendingEventMutation(
       accountId: existing.accountId,
       eventId: eventId,
     );
@@ -3537,7 +3632,7 @@ class CalendarRepository {
         source.davCollectionId == null) {
       throw schedulingDenied('DavAttendeeResponseUnavailable');
     }
-    final recurring = existing.providerRecurringEventId != null;
+    final recurring = _eventRequiresRecurringScope(existing);
     if (recurring &&
         (recurringScope == null ||
             recurringScope == RecurringEventMutationScope.thisAndFuture)) {
@@ -3760,7 +3855,7 @@ class CalendarRepository {
     if (collectionId == null || uid == null || start == null || end == null) {
       throw StateError('The DAV event projection is incomplete.');
     }
-    final recurring = existing.providerRecurringEventId != null;
+    final recurring = _eventRequiresRecurringScope(existing);
     final recurringScope = draft.recurringMutationScope;
     if (recurring && recurringScope == null) {
       throw UnsupportedError(
@@ -3927,7 +4022,7 @@ class CalendarRepository {
     if (collectionId == null || uid == null) {
       throw StateError('The DAV event projection is incomplete.');
     }
-    final recurring = existing.providerRecurringEventId != null;
+    final recurring = _eventRequiresRecurringScope(existing);
     final scheduling = await _davSchedulingPolicy(source);
     if (recurringScope == RecurringEventMutationScope.singleOccurrence &&
         scheduling?.canReply == true &&
@@ -4166,11 +4261,15 @@ class CalendarRepository {
         allDay: Value(draft.allDay),
         startDate: Value(draft.allDay ? _date(draft.start) : null),
         startDateTime: Value(
-          draft.allDay ? null : draft.start?.toIso8601String(),
+          draft.allDay
+              ? null
+              : _eventDateTimeWireValue(draft.start, startTimeZone),
         ),
         startTimeZone: Value(startTimeZone),
         endDate: Value(draft.allDay ? _date(draft.end) : null),
-        endDateTime: Value(draft.allDay ? null : draft.end?.toIso8601String()),
+        endDateTime: Value(
+          draft.allDay ? null : _eventDateTimeWireValue(draft.end, endTimeZone),
+        ),
         endTimeZone: Value(endTimeZone),
         recurrenceJson: draft.recurrenceChanged
             ? Value(_json(draft.recurrence))
@@ -4200,21 +4299,22 @@ class CalendarRepository {
           ..where(
             (row) =>
                 row.calendarSourceId.equals(sourceId) &
-                row.operationType.equals('calendar.create') &
-                row.state.equals('pending'),
+                row.operationType.equals('calendar.create'),
           )
           ..limit(1))
         .getSingleOrNull();
   }
 
   Future<List<PendingOp>> _pendingCalendarWork(String sourceId) {
-    return (_database.select(_database.pendingOps)..where(
-          (row) =>
-              row.calendarSourceId.equals(sourceId) &
-              row.state.equals('pending'),
-        ))
-        .get();
+    return (_database.select(
+      _database.pendingOps,
+    )..where((row) => row.calendarSourceId.equals(sourceId))).get();
   }
+
+  bool _isProvablyUnsentCalendarCreate(PendingOp? operation) =>
+      operation != null &&
+      operation.state == 'pending' &&
+      operation.attemptCount == 0;
 
   Future<Set<String>> _pendingCalendarPatchFields(String sourceId) async {
     final operations =
@@ -4393,8 +4493,9 @@ class CalendarRepository {
     }
   }
 
-  Future<void> markGoogleRecurringMastersDeleted({
+  Future<void> markExpandedRecurringMastersDeleted({
     required String accountId,
+    required BusyProvider provider,
     required String providerCalendarId,
     required Set<String> providerRecurringEventIds,
   }) async {
@@ -4403,7 +4504,7 @@ class CalendarRepository {
     }
     final source = sourceId(
       accountId: accountId,
-      provider: BusyProvider.google,
+      provider: provider,
       providerCalendarId: providerCalendarId,
     );
     await _database.transaction(() async {
@@ -4412,7 +4513,7 @@ class CalendarRepository {
                 (row) =>
                     row.accountId.equals(accountId) &
                     row.calendarSourceId.equals(source) &
-                    row.provider.equals(BusyProvider.google.storageValue) &
+                    row.provider.equals(provider.storageValue) &
                     row.providerEventId.isIn(providerRecurringEventIds) &
                     row.providerRecurringEventId.isNull() &
                     row.syncStatus.equals('synced') &
@@ -4421,9 +4522,11 @@ class CalendarRepository {
               .get();
       if (masters.isEmpty) return;
 
-      final resolutions = LocationResolutionRepository(_database);
-      for (final master in masters) {
-        await resolutions.reconcileGoogleSeriesMaster(master);
+      if (provider == BusyProvider.google) {
+        final resolutions = LocationResolutionRepository(_database);
+        for (final master in masters) {
+          await resolutions.reconcileGoogleSeriesMaster(master);
+        }
       }
 
       await (_database.update(
@@ -4840,14 +4943,14 @@ String? _eventDetailBaselineRawJson(CalendarEventDetail detail) {
 }
 
 DateTime? _eventDetailStartDateTime(CalendarEventDetail detail) {
-  return providerDateTimeAsWallTime(
+  return providerDateTimeAsCivilTime(
     detail.allDay ? detail.startDate : detail.startDateTime,
     detail.startTimeZone,
   );
 }
 
 DateTime? _eventDetailEndDateTime(CalendarEventDetail detail) {
-  return providerDateTimeAsWallTime(
+  return providerDateTimeAsCivilTime(
     detail.allDay ? detail.endDate : detail.endDateTime,
     detail.endTimeZone,
   );
@@ -4897,14 +5000,22 @@ CalendarEventsCompanion _eventPatchProjection({
         ? Value(draft.allDay ? _date(draft.start) : null)
         : const Value.absent(),
     startDateTime: rangeChanged
-        ? Value(draft.allDay ? null : draft.start?.toIso8601String())
+        ? Value(
+            draft.allDay
+                ? null
+                : _eventDateTimeWireValue(draft.start, startTimeZone),
+          )
         : const Value.absent(),
     startTimeZone: rangeChanged ? Value(startTimeZone) : const Value.absent(),
     endDate: rangeChanged
         ? Value(draft.allDay ? _date(draft.end) : null)
         : const Value.absent(),
     endDateTime: rangeChanged
-        ? Value(draft.allDay ? null : draft.end?.toIso8601String())
+        ? Value(
+            draft.allDay
+                ? null
+                : _eventDateTimeWireValue(draft.end, endTimeZone),
+          )
         : const Value.absent(),
     endTimeZone: rangeChanged ? Value(endTimeZone) : const Value.absent(),
     recurrenceJson: request.containsKey(calendarEventRecurrenceField)
@@ -4989,8 +5100,8 @@ Map<String, Object?> _eventDeltaRequest(
   }
   final rangeChanged =
       draft.allDay != original.allDay ||
-      draft.start != _eventDetailStartDateTime(original) ||
-      draft.end != _eventDetailEndDateTime(original) ||
+      !_sameCivilDateTime(draft.start, _eventDetailStartDateTime(original)) ||
+      !_sameCivilDateTime(draft.end, _eventDetailEndDateTime(original)) ||
       draft.startTimeZone != original.startTimeZone ||
       draft.endTimeZone != original.endTimeZone;
   if (rangeChanged) {
@@ -5038,6 +5149,18 @@ Map<String, Object?> _eventDeltaRequest(
   return result;
 }
 
+bool _sameCivilDateTime(DateTime? left, DateTime? right) {
+  if (left == null || right == null) return left == right;
+  return left.year == right.year &&
+      left.month == right.month &&
+      left.day == right.day &&
+      left.hour == right.hour &&
+      left.minute == right.minute &&
+      left.second == right.second &&
+      left.millisecond == right.millisecond &&
+      left.microsecond == right.microsecond;
+}
+
 Map<String, Object?> _eventRequest(
   EventEditorDraft draft,
   BusyProvider provider, {
@@ -5064,8 +5187,8 @@ Map<String, Object?> _eventRequest(
         (isCreate || draft.locationChange.changed))
       'structuredLocation': _graphLocation(draft),
     'allDay': draft.allDay,
-    'start': draft.start?.toIso8601String(),
-    'end': draft.end?.toIso8601String(),
+    'start': _eventDateTimeWireValue(draft.start, startTimeZone),
+    'end': _eventDateTimeWireValue(draft.end, endTimeZone),
     'startTimeZone': startTimeZone,
     'endTimeZone': endTimeZone,
     if (isCreate || draft.recurrenceChanged)
@@ -5091,6 +5214,24 @@ Map<String, Object?> _eventRequest(
     calendarEventGuestUpdatePolicyKey: guestUpdatePolicy.name,
     if (clearFields.isNotEmpty) calendarEventClearFieldsKey: clearFields,
   };
+}
+
+String? _eventDateTimeWireValue(DateTime? value, String? timeZone) {
+  if (value == null) return null;
+  if (isUtcTimeZone(timeZone)) {
+    return DateTime.utc(
+      value.year,
+      value.month,
+      value.day,
+      value.hour,
+      value.minute,
+      value.second,
+      value.millisecond,
+      value.microsecond,
+    ).toIso8601String();
+  }
+  if (timeZone == null || timeZone.isEmpty) return value.toIso8601String();
+  return providerWallTimeIso8601String(value);
 }
 
 Map<String, Object?> _graphLocation(EventEditorDraft draft) {
@@ -5423,6 +5564,9 @@ String? _storedEventStart(CalendarEvent event) =>
 
 String? _storedEventEnd(CalendarEvent event) =>
     event.allDay ? event.endDate : event.endDateTime;
+
+bool _eventRequiresRecurringScope(CalendarEvent event) =>
+    CalendarEventDetail.fromRow(event).requiresRecurringMutationScope;
 
 DateTime? _storedEventStartDateTime(CalendarEvent event) =>
     providerDateTimeAsCivilTime(_storedEventStart(event), event.startTimeZone);

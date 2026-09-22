@@ -7,10 +7,12 @@ import 'package:drift/drift.dart';
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:busymax/src/db/app_database.dart';
+import 'package:busymax/src/features/accounts/data/accounts_repository.dart';
 import 'package:busymax/src/features/calendar/data/calendar_repository.dart';
 import 'package:busymax/src/features/calendar/presentation/event_editor_draft.dart';
 import 'package:busymax/src/features/sync/pending_op_resolution_service.dart';
 import 'package:busymax/src/features/sync/pending_ops_replayer.dart';
+import 'package:busymax/src/features/sync/sync_auth_error.dart';
 import 'package:busymax/src/features/tasks/domain/task_remote_client.dart';
 import 'package:busymax/src/google_tasks/api/google_tasks_api_error.dart';
 import 'package:busymax/src/features/tasks/domain/task_remote_models.dart';
@@ -45,6 +47,72 @@ void main() {
   tearDown(() async {
     await database.close();
   });
+
+  test(
+    'retry leaves the operation blocked when account needs reconnect',
+    () async {
+      await _enqueueBlockedOp(
+        database,
+        operation: 'patch_task',
+        taskListId: 'list-1',
+        taskId: 'task-1',
+      );
+      final before = await database.pendingOpsDao.getOp('op-1');
+      await AccountsRepository(
+        database: database,
+      ).markReconnectRequired('account');
+
+      await expectLater(
+        service.retryNow('op-1'),
+        throwsA(
+          isA<AccountNotSyncEligibleException>().having(
+            (error) => error.needsReconnect,
+            'needsReconnect',
+            isTrue,
+          ),
+        ),
+      );
+
+      final after = await database.pendingOpsDao.getOp('op-1');
+      expect(after?.state, before?.state);
+      expect(after?.retryClassification, before?.retryClassification);
+      expect(after?.nextAttemptAtUtc, before?.nextAttemptAtUtc);
+      expect(taskSyncCalls, 0);
+      expect(calendarSyncCalls, 0);
+    },
+  );
+
+  test(
+    'provider-dependent discard does not read provider state when account needs reconnect',
+    () async {
+      await database.tasksDao.upsertTask(
+        _localTask('task-1', localDirty: true),
+      );
+      await _enqueueBlockedOp(
+        database,
+        operation: 'patch_task',
+        taskListId: 'list-1',
+        taskId: 'task-1',
+      );
+      await AccountsRepository(
+        database: database,
+      ).markReconnectRequired('account');
+
+      await expectLater(
+        service.discard('op-1'),
+        throwsA(isA<AccountNotSyncEligibleException>()),
+      );
+
+      expect(apiClient.getTaskIds, isEmpty);
+      expect(await database.pendingOpsDao.getOp('op-1'), isNot(equals(null)));
+      expect(
+        await database.tasksDao.listTasks('account', 'list-1'),
+        hasLength(1),
+      );
+      expect(taskSyncCalls, 0);
+      expect(calendarSyncCalls, 0);
+    },
+  );
 
   test(
     'discard blocked task patch refreshes task and clears dirty flags',
@@ -287,6 +355,84 @@ void main() {
       expect(taskSyncCalls, 1);
     },
   );
+
+  test('discarding a cross-list move discards its dependent edits', () async {
+    apiClient.remoteTask = _taskDto('task-1', title: 'Remote source task');
+    await database.taskListsDao.upsertTaskList(_localTaskList('list-2'));
+    await database.tasksDao.upsertTask(
+      _localTask(
+        'task-1',
+        taskListId: 'list-2',
+        localDirty: true,
+        pendingMove: true,
+      ),
+    );
+    await _enqueueBlockedOp(
+      database,
+      operation: 'move_task',
+      taskListId: 'list-1',
+      taskId: 'task-1',
+      request: {'destinationTasklist': 'list-2'},
+    );
+    await _enqueueBlockedOp(
+      database,
+      id: 'dependent-edit',
+      operation: 'patch_task',
+      taskListId: 'list-2',
+      taskId: 'task-1',
+      dependsOnOpId: 'op-1',
+      request: {'title': 'Destination edit'},
+    );
+
+    await service.discard('op-1');
+
+    expect(await database.select(database.pendingOps).get(), isEmpty);
+    expect(
+      (await database.tasksDao.listTasks('account', 'list-1')).single.title,
+      'Remote source task',
+    );
+    expect(await database.tasksDao.listTasks('account', 'list-2'), isEmpty);
+  });
+
+  test('discarding A to B to C removes every destination projection', () async {
+    apiClient.remoteTask = _taskDto('task-1', title: 'Remote source task');
+    await database.taskListsDao.upsertTaskList(_localTaskList('list-2'));
+    await database.taskListsDao.upsertTaskList(_localTaskList('list-3'));
+    await database.tasksDao.upsertTask(
+      _localTask(
+        'task-1',
+        taskListId: 'list-3',
+        localDirty: true,
+        pendingMove: true,
+      ),
+    );
+    await _enqueueBlockedOp(
+      database,
+      operation: 'move_task',
+      taskListId: 'list-1',
+      taskId: 'task-1',
+      request: {'destinationTasklist': 'list-2'},
+    );
+    await _enqueueBlockedOp(
+      database,
+      id: 'move-to-c',
+      operation: 'move_task',
+      taskListId: 'list-2',
+      taskId: 'task-1',
+      dependsOnOpId: 'op-1',
+      request: {'destinationTasklist': 'list-3'},
+    );
+
+    await service.discard('op-1');
+
+    final source = await database.tasksDao.listTasks('account', 'list-1');
+    expect(source, hasLength(1));
+    expect(source.single.title, 'Remote source task');
+    expect(source.single.localDirty, isFalse);
+    expect(await database.tasksDao.listTasks('account', 'list-2'), isEmpty);
+    expect(await database.tasksDao.listTasks('account', 'list-3'), isEmpty);
+    expect(await database.select(database.pendingOps).get(), isEmpty);
+  });
 
   test(
     'discard blocked cross-list move with remote 404 removes both rows',
@@ -611,6 +757,463 @@ void main() {
     expect(pending.nextAttemptAtUtc, startsWith('9999-12-31'));
     expect(taskSyncCalls, 0);
   });
+
+  test(
+    'discard uncertain task create removes dependent edit before replay',
+    () async {
+      const temporaryTaskId = 'local-task-1';
+      await database.tasksDao.upsertTask(
+        _localTask(temporaryTaskId, localDirty: true),
+      );
+      await _enqueueBlockedOp(
+        database,
+        id: 'create-task',
+        operation: 'create_task',
+        taskListId: 'list-1',
+        taskId: temporaryTaskId,
+        localTempId: temporaryTaskId,
+        state: 'recovery_required',
+        request: const {
+          'body': {'title': 'Offline task'},
+        },
+      );
+      await _enqueueBlockedOp(
+        database,
+        id: 'edit-task',
+        operation: 'patch_task',
+        taskListId: 'list-1',
+        taskId: temporaryTaskId,
+        dependsOnOpId: 'create-task',
+        nextAttemptAtUtc: null,
+        request: const {'title': 'Edited offline task'},
+      );
+
+      await service.discard('create-task');
+
+      expect(await database.select(database.pendingOps).get(), isEmpty);
+      expect(await database.tasksDao.listTasks('account', 'list-1'), isEmpty);
+      expect(apiClient.getTaskIds, isEmpty);
+      expect(taskSyncCalls, 1);
+
+      final replayed = await PendingOpsReplayer(
+        database: database,
+        apiClient: apiClient,
+        accountId: 'account',
+        nowUtc: () => DateTime.utc(2026, 6, 4),
+      ).replayDueOps();
+
+      expect(replayed, 0);
+      expect(apiClient.patchedTaskIds, isEmpty);
+      expect(apiClient.getTaskIds, isEmpty);
+    },
+  );
+
+  test(
+    'discard uncertain task-list create removes its local chain before replay',
+    () async {
+      const temporaryTaskListId = 'local-tasklist-1';
+      await database.taskListsDao.upsertTaskList(
+        _localTaskList(
+          temporaryTaskListId,
+          title: 'Offline list',
+          localDirty: true,
+        ),
+      );
+      await database.tasksDao.upsertTask(
+        _localTask(
+          'local-child-task',
+          taskListId: temporaryTaskListId,
+          localDirty: true,
+        ),
+      );
+      await _enqueueBlockedOp(
+        database,
+        id: 'create-list',
+        entityType: 'task_list',
+        operation: 'create_task_list',
+        taskListId: temporaryTaskListId,
+        localTempId: temporaryTaskListId,
+        state: 'recovery_required',
+        request: const {'title': 'Offline list'},
+      );
+      await _enqueueBlockedOp(
+        database,
+        id: 'edit-list',
+        entityType: 'task_list',
+        operation: 'patch_task_list',
+        taskListId: temporaryTaskListId,
+        dependsOnOpId: 'create-list',
+        nextAttemptAtUtc: null,
+        request: const {'title': 'Edited offline list'},
+      );
+      await _enqueueBlockedOp(
+        database,
+        id: 'create-child-task',
+        operation: 'create_task',
+        taskListId: temporaryTaskListId,
+        taskId: 'local-child-task',
+        localTempId: 'local-child-task',
+        nextAttemptAtUtc: null,
+        request: const {
+          'body': {'title': 'Child task'},
+        },
+      );
+
+      await service.discard('create-list');
+
+      expect(await database.select(database.pendingOps).get(), isEmpty);
+      expect(
+        (await database.taskListsDao.listTaskLists(
+          'account',
+        )).map((taskList) => taskList.id),
+        isNot(contains(temporaryTaskListId)),
+      );
+      expect(
+        await database.tasksDao.listTasks('account', temporaryTaskListId),
+        isEmpty,
+      );
+      expect(apiClient.getTaskListIds, isEmpty);
+      expect(taskSyncCalls, 1);
+
+      final replayed = await PendingOpsReplayer(
+        database: database,
+        apiClient: apiClient,
+        accountId: 'account',
+        nowUtc: () => DateTime.utc(2026, 6, 4),
+      ).replayDueOps();
+
+      expect(replayed, 0);
+      expect(apiClient.patchedTaskListIds, isEmpty);
+      expect(apiClient.createdTaskTaskListIds, isEmpty);
+      expect(apiClient.getTaskListIds, isEmpty);
+    },
+  );
+
+  test(
+    'discard uncertain task-list create restores an old moved server task',
+    () async {
+      const temporaryTaskListId = 'local-tasklist-1';
+      apiClient.remoteTask = TaskDto.fromJson(const {
+        'id': 'existing-task',
+        'title': 'Existing remote task',
+        'updated': '2025-01-01T00:00:00.000Z',
+      });
+      await database.taskListsDao.upsertTaskList(
+        _localTaskList(
+          temporaryTaskListId,
+          title: 'Offline list',
+          localDirty: true,
+        ),
+      );
+      await database.tasksDao.upsertTask(
+        _localTask(
+          'existing-task',
+          taskListId: temporaryTaskListId,
+          localDirty: true,
+          pendingMove: true,
+        ),
+      );
+      await _enqueueBlockedOp(
+        database,
+        id: 'create-list',
+        entityType: 'task_list',
+        operation: 'create_task_list',
+        taskListId: temporaryTaskListId,
+        localTempId: temporaryTaskListId,
+        state: 'recovery_required',
+        request: const {'title': 'Offline list'},
+      );
+      await _enqueueBlockedOp(
+        database,
+        id: 'move-existing-task',
+        operation: 'move_task',
+        taskListId: 'list-1',
+        taskId: 'existing-task',
+        request: const {'destinationTasklist': temporaryTaskListId},
+      );
+
+      await service.discard('create-list');
+
+      final sourceTasks = await database.tasksDao.listTasks(
+        'account',
+        'list-1',
+      );
+      expect(sourceTasks, hasLength(1));
+      expect(sourceTasks.single.title, 'Existing remote task');
+      expect(sourceTasks.single.pendingMove, isFalse);
+      expect(sourceTasks.single.localDirty, isFalse);
+      expect(
+        await database.tasksDao.listTasks('account', temporaryTaskListId),
+        isEmpty,
+      );
+      expect(await database.select(database.pendingOps).get(), isEmpty);
+      expect(apiClient.getTaskIds, ['existing-task']);
+      expect(taskSyncCalls, 1);
+    },
+  );
+
+  test(
+    'discard uncertain list restores repeated move chain from remote origin',
+    () async {
+      const temporaryTaskListId = 'list-b';
+      apiClient.remoteTasksByList['list-a'] = TaskDto.fromJson(const {
+        'id': 'existing-task',
+        'title': 'Existing remote task',
+        'updated': '2025-01-01T00:00:00.000Z',
+      });
+      await database.taskListsDao.upsertTaskList(
+        _localTaskList(
+          temporaryTaskListId,
+          title: 'Offline list',
+          localDirty: true,
+        ),
+      );
+      await database.taskListsDao.upsertTaskList(
+        _localTaskList('list-a', title: 'Source list'),
+      );
+      await database.taskListsDao.upsertTaskList(
+        _localTaskList('list-c', title: 'Intermediate list'),
+      );
+      await database.tasksDao.upsertTask(
+        _localTask(
+          'existing-task',
+          taskListId: temporaryTaskListId,
+          localDirty: true,
+          pendingMove: true,
+        ),
+      );
+      await _enqueueBlockedOp(
+        database,
+        id: 'create-list',
+        entityType: 'task_list',
+        operation: 'create_task_list',
+        taskListId: temporaryTaskListId,
+        localTempId: temporaryTaskListId,
+        state: 'recovery_required',
+        request: const {'title': 'Offline list'},
+      );
+      await _enqueueBlockedOp(
+        database,
+        id: 'move-a-b',
+        operation: 'move_task',
+        taskListId: 'list-a',
+        taskId: 'existing-task',
+        request: const {'destinationTasklist': temporaryTaskListId},
+      );
+      await _enqueueBlockedOp(
+        database,
+        id: 'move-b-c',
+        operation: 'move_task',
+        taskListId: temporaryTaskListId,
+        taskId: 'existing-task',
+        dependsOnOpId: 'move-a-b',
+        request: const {'destinationTasklist': 'list-c'},
+      );
+      await _enqueueBlockedOp(
+        database,
+        id: 'move-c-b',
+        operation: 'move_task',
+        taskListId: 'list-c',
+        taskId: 'existing-task',
+        dependsOnOpId: 'move-b-c',
+        request: const {'destinationTasklist': temporaryTaskListId},
+      );
+
+      await service.discard('create-list');
+
+      final restored = await database.select(database.tasks).get();
+      expect(restored, hasLength(1));
+      expect(restored.single.id, 'existing-task');
+      expect(restored.single.taskListId, 'list-a');
+      expect(restored.single.title, 'Existing remote task');
+      expect(restored.single.pendingMove, isFalse);
+      expect(restored.single.localDirty, isFalse);
+      expect(await database.select(database.pendingOps).get(), isEmpty);
+      expect(apiClient.getTaskTaskListIds, ['list-a']);
+      expect(taskSyncCalls, 1);
+    },
+  );
+
+  test(
+    'discard checklist patch restores provider item and preserves sibling edit',
+    () async {
+      await database.tasksDao.upsertTask(
+        _localTask(
+          'task-1',
+          checklistItemsJson: encodeTaskChecklistItems([
+            TaskChecklistItemEntity.fromJson(const {
+              'id': 'target-step',
+              'displayName': 'Rejected local title',
+              'isChecked': true,
+            }),
+            TaskChecklistItemEntity.fromJson(const {
+              'id': 'sibling-step',
+              'displayName': 'Pending sibling title',
+              'isChecked': false,
+            }),
+          ]),
+        ),
+      );
+      apiClient.checklistPages = {
+        null: const TaskChecklistItemsPageDto(
+          items: [
+            TaskChecklistItemDto(
+              id: 'target-step',
+              title: 'Provider title',
+              completed: false,
+              rawJson: {},
+            ),
+            TaskChecklistItemDto(
+              id: 'sibling-step',
+              title: 'Provider sibling title',
+              completed: false,
+              rawJson: {},
+            ),
+          ],
+          rawJson: {},
+        ),
+      };
+      await _enqueueBlockedOp(
+        database,
+        id: 'target-patch',
+        entityType: 'task_checklist_item',
+        operation: 'patch_task_checklist_item',
+        taskListId: 'list-1',
+        taskId: 'task-1',
+        request: const {
+          'checklistItemId': 'target-step',
+          'body': {'displayName': 'Rejected local title', 'isChecked': true},
+        },
+      );
+      await _enqueueBlockedOp(
+        database,
+        id: 'sibling-patch',
+        entityType: 'task_checklist_item',
+        operation: 'patch_task_checklist_item',
+        taskListId: 'list-1',
+        taskId: 'task-1',
+        request: const {
+          'checklistItemId': 'sibling-step',
+          'body': {'displayName': 'Pending sibling title'},
+        },
+      );
+
+      await service.discard('target-patch');
+
+      final items = decodeTaskChecklistItems(
+        (await database.tasksDao.listTasks(
+          'account',
+          'list-1',
+        )).single.microsoftChecklistItemsJson,
+      );
+      final target = items.singleWhere((item) => item.id == 'target-step');
+      final sibling = items.singleWhere((item) => item.id == 'sibling-step');
+      expect(target.title, 'Provider title');
+      expect(target.completed, isFalse);
+      expect(sibling.title, 'Pending sibling title');
+      expect(await database.pendingOpsDao.getOp('target-patch'), equals(null));
+      expect(
+        await database.pendingOpsDao.getOp('sibling-patch'),
+        isNot(equals(null)),
+      );
+      expect(taskSyncCalls, 1);
+    },
+  );
+
+  test('discard checklist deletion restores the provider item', () async {
+    await database.tasksDao.upsertTask(
+      _localTask(
+        'task-1',
+        checklistItemsJson: encodeTaskChecklistItems(const []),
+      ),
+    );
+    apiClient.checklistPages = {
+      null: const TaskChecklistItemsPageDto(
+        items: [
+          TaskChecklistItemDto(
+            id: 'target-step',
+            title: 'Provider title',
+            completed: true,
+            rawJson: {},
+          ),
+        ],
+        rawJson: {},
+      ),
+    };
+    await _enqueueBlockedOp(
+      database,
+      id: 'target-delete',
+      entityType: 'task_checklist_item',
+      operation: 'delete_task_checklist_item',
+      taskListId: 'list-1',
+      taskId: 'task-1',
+      request: const {'checklistItemId': 'target-step'},
+    );
+
+    await service.discard('target-delete');
+
+    final item = decodeTaskChecklistItems(
+      (await database.tasksDao.listTasks(
+        'account',
+        'list-1',
+      )).single.microsoftChecklistItemsJson,
+    ).single;
+    expect(item.id, 'target-step');
+    expect(item.title, 'Provider title');
+    expect(item.completed, isTrue);
+    expect(await database.pendingOpsDao.getOp('target-delete'), equals(null));
+    expect(taskSyncCalls, 1);
+  });
+
+  test(
+    'failed checklist patch reconciliation keeps operation and projection',
+    () async {
+      final projection = encodeTaskChecklistItems([
+        TaskChecklistItemEntity.fromJson(const {
+          'id': 'target-step',
+          'displayName': 'Rejected local title',
+          'isChecked': true,
+        }),
+      ]);
+      await database.tasksDao.upsertTask(
+        _localTask('task-1', checklistItemsJson: projection),
+      );
+      apiClient.checklistError = const GoogleTasksApiError(
+        statusCode: 503,
+        message: 'Unavailable',
+      );
+      await _enqueueBlockedOp(
+        database,
+        id: 'target-patch',
+        entityType: 'task_checklist_item',
+        operation: 'patch_task_checklist_item',
+        taskListId: 'list-1',
+        taskId: 'task-1',
+        request: const {
+          'checklistItemId': 'target-step',
+          'body': {'displayName': 'Rejected local title', 'isChecked': true},
+        },
+      );
+
+      await expectLater(
+        service.discard('target-patch'),
+        throwsA(isA<GoogleTasksApiError>()),
+      );
+
+      expect(
+        await database.pendingOpsDao.getOp('target-patch'),
+        isNot(equals(null)),
+      );
+      expect(
+        (await database.tasksDao.listTasks(
+          'account',
+          'list-1',
+        )).single.microsoftChecklistItemsJson,
+        projection,
+      );
+      expect(taskSyncCalls, 0);
+    },
+  );
 
   test(
     'discard uncertain checklist create removes its chain and merges all pages',
@@ -954,12 +1557,19 @@ void main() {
 class _FakeTaskRemoteClient
     implements TaskRemoteClient, TaskChecklistRemoteClient {
   TaskDto? remoteTask;
+  final remoteTasksByList = <String, TaskDto>{};
   TaskListDto? remoteTaskList;
   GoogleTasksApiError? getTaskError;
   GoogleTasksApiError? getTaskListError;
   GoogleTasksApiError? checklistError;
   Map<String?, TaskChecklistItemsPageDto> checklistPages = const {};
   final checklistPageTokens = <String?>[];
+  final getTaskIds = <String>[];
+  final getTaskTaskListIds = <String>[];
+  final getTaskListIds = <String>[];
+  final patchedTaskIds = <String>[];
+  final patchedTaskListIds = <String>[];
+  final createdTaskTaskListIds = <String>[];
   Completer<void>? checklistReadStarted;
   Completer<void>? checklistReadGate;
 
@@ -985,20 +1595,64 @@ class _FakeTaskRemoteClient
     required String taskListId,
     required String taskId,
   }) async {
+    getTaskIds.add(taskId);
+    getTaskTaskListIds.add(taskListId);
     final error = getTaskError;
     if (error != null) {
       throw error;
+    }
+    if (remoteTasksByList.isNotEmpty) {
+      final task = remoteTasksByList[taskListId];
+      if (task != null) return task;
+      throw const GoogleTasksApiError(statusCode: 404, message: 'Not found');
     }
     return remoteTask ?? _taskDto(taskId);
   }
 
   @override
   Future<TaskListDto> getTaskList(String taskListId) async {
+    getTaskListIds.add(taskListId);
     final error = getTaskListError;
     if (error != null) {
       throw error;
     }
     return remoteTaskList ?? _taskListDto(taskListId);
+  }
+
+  @override
+  Future<TaskDto> patchTask({
+    required String taskListId,
+    required String taskId,
+    required TaskPatch patch,
+  }) async {
+    patchedTaskIds.add(taskId);
+    return _taskDto(taskId, title: patch.fields['title']?.toString() ?? 'Task');
+  }
+
+  @override
+  Future<TaskListDto> patchTaskList(
+    String taskListId,
+    TaskListPatch patch,
+  ) async {
+    patchedTaskListIds.add(taskListId);
+    return _taskListDto(
+      taskListId,
+      title: patch.fields['title']?.toString() ?? 'List',
+    );
+  }
+
+  @override
+  Future<TaskDto> createTask({
+    required String taskListId,
+    String? parentTaskId,
+    String? previousSiblingTaskId,
+    required TaskCreate create,
+  }) async {
+    createdTaskTaskListIds.add(taskListId);
+    return _taskDto(
+      'created-task',
+      title: create.fields['title']?.toString() ?? 'Task',
+    );
   }
 
   @override
@@ -1019,6 +1673,7 @@ Future<void> _insertAccount(
           providerAccountId: 'google-$accountId',
           credentialKind: 'oauth',
           email: Value('google-$accountId@example.com'),
+          authState: const Value(accountAuthStateSignedIn),
           createdAtUtc: _now,
           updatedAtUtc: _now,
         ),
@@ -1098,6 +1753,7 @@ Future<void> _enqueueBlockedOp(
   String state = 'pending',
   String? localTempId,
   String? dependsOnOpId,
+  String? nextAttemptAtUtc = '9999-12-31T00:00:00.000Z',
   Map<String, Object?> request = const {},
 }) {
   return database.pendingOpsDao.enqueue(
@@ -1114,7 +1770,7 @@ Future<void> _enqueueBlockedOp(
       calendarSourceId: Value(calendarSourceId),
       requestJson: jsonEncode(request),
       state: Value(state),
-      nextAttemptAtUtc: const Value('9999-12-31T00:00:00.000Z'),
+      nextAttemptAtUtc: Value(nextAttemptAtUtc),
       lastErrorCode: const Value('conflict'),
       createdAtUtc: _now,
       updatedAtUtc: _now,

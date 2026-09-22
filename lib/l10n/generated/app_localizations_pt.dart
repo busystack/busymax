@@ -453,6 +453,15 @@ class AppLocalizationsPt extends AppLocalizations {
   String get close => 'Close';
 
   @override
+  String get windowMinimize => 'Minimize';
+
+  @override
+  String get windowMaximize => 'Maximize';
+
+  @override
+  String get windowRestore => 'Restore';
+
+  @override
   String get exit => 'Exit';
 
   @override
@@ -733,6 +742,18 @@ class AppLocalizationsPt extends AppLocalizations {
 
   @override
   String get scheduleDisplaySettings => 'Schedule display';
+
+  @override
+  String get newEventsAndTasks => 'New events and tasks';
+
+  @override
+  String get defaultCalendar => 'Default calendar';
+
+  @override
+  String get defaultTaskList => 'Default task list';
+
+  @override
+  String get lastUsed => 'Last used';
 
   @override
   String get scheduleDisplayHoursDescription =>
@@ -1085,6 +1106,9 @@ class AppLocalizationsPt extends AppLocalizations {
 
   @override
   String get shortcutGroupView => 'View';
+
+  @override
+  String get viewSelector => 'View';
 
   @override
   String get shortcutDayView => 'Day view';
@@ -2439,10 +2463,6 @@ class AppLocalizationsPt extends AppLocalizations {
       'The account was removed locally, but its Nextcloud app password could not be revoked.';
 
   @override
-  String get davCachedOfflineNotice =>
-      'Calendar and task data is cached locally for offline use.';
-
-  @override
   String get davReauthenticationRequired =>
       'Reconnect this account to resume synchronization.';
 
@@ -3467,6 +3487,15 @@ class AppLocalizationsPtPt extends AppLocalizationsPt {
   String get close => 'Fechar';
 
   @override
+  String get windowMinimize => 'Minimizar';
+
+  @override
+  String get windowMaximize => 'Maximizar';
+
+  @override
+  String get windowRestore => 'Restaurar';
+
+  @override
   String get exit => 'Sair';
 
   @override
@@ -3729,6 +3758,18 @@ class AppLocalizationsPtPt extends AppLocalizationsPt {
 
   @override
   String get scheduleDisplaySettings => 'Apresentação da agenda';
+
+  @override
+  String get newEventsAndTasks => 'Novos eventos e tarefas';
+
+  @override
+  String get defaultCalendar => 'Calendário predefinido';
+
+  @override
+  String get defaultTaskList => 'Lista de tarefas predefinida';
+
+  @override
+  String get lastUsed => 'Utilizado recentemente';
 
   @override
   String get scheduleDisplayHoursDescription =>
@@ -4082,6 +4123,9 @@ class AppLocalizationsPtPt extends AppLocalizationsPt {
 
   @override
   String get shortcutGroupView => 'Vista';
+
+  @override
+  String get viewSelector => 'Vista';
 
   @override
   String get shortcutDayView => 'Vista diária';
@@ -5451,10 +5495,6 @@ class AppLocalizationsPtPt extends AppLocalizationsPt {
   @override
   String get nextcloudAccountRemovedRevokeFailed =>
       'A conta foi removida localmente, mas não foi possível revogar a palavra-passe da aplicação Nextcloud.';
-
-  @override
-  String get davCachedOfflineNotice =>
-      'Os dados de calendários e tarefas são colocados em cache localmente para utilização offline.';
 
   @override
   String get davReauthenticationRequired =>

@@ -73,6 +73,10 @@ abstract interface class TaskConflictSnapshotNormalizer {
   );
 }
 
+/// Marks providers whose task-list resources have no server revision field.
+/// Conflict checks for these lists compare stored and current snapshots.
+abstract interface class RevisionlessTaskListConflictClient {}
+
 /// Child-item boundary used by providers whose subtasks are not task
 /// resources. Microsoft Graph models Microsoft To Do steps as checklistItem
 /// children of a todoTask.

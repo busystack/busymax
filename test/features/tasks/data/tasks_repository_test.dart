@@ -188,6 +188,38 @@ void main() {
     expect(jsonDecode(move.requestJson), {'parent': 'parent'});
   });
 
+  test('cancelling an unsent parent also cancels its child creation', () async {
+    await repository.createTask(
+      'list-1',
+      const TaskCreateInput(title: 'Parent'),
+    );
+    final parent = (await database.tasksDao.listTasks(
+      'account',
+      'list-1',
+    )).single;
+    await repository.createSubtask(
+      taskListId: 'list-1',
+      parentTaskId: parent.id,
+      title: 'Child',
+    );
+
+    final operations = await database.select(database.pendingOps).get();
+    final parentCreate = operations.firstWhere(
+      (operation) =>
+          operation.operation == 'create_task' && operation.taskId == parent.id,
+    );
+    final childCreate = operations.firstWhere(
+      (operation) =>
+          operation.operation == 'create_task' && operation.taskId != parent.id,
+    );
+    expect(childCreate.dependsOnOpId, parentCreate.id);
+
+    await repository.deleteTask('list-1', parent.id);
+
+    expect(await database.select(database.pendingOps).get(), isEmpty);
+    expect(await database.tasksDao.listTasks('account', 'list-1'), isEmpty);
+  });
+
   test('createTask writes and queues extended task fields', () async {
     await repository.createTask(
       'list-1',

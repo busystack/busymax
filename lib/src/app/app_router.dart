@@ -12,25 +12,44 @@ import 'app_bootstrap.dart';
 import 'busymax_design.dart';
 import 'busymax_layout.dart';
 import 'busymax_surface_colors.dart';
+import 'linux/linux_page_frame.dart';
+import 'linux/linux_window_host.dart';
 
 final rootNavigatorKey = GlobalKey<NavigatorState>();
 
+class _RouterRefreshNotifier extends ChangeNotifier {
+  void refresh() => notifyListeners();
+}
+
 final appRouterProvider = Provider<GoRouter>((ref) {
-  final session = ref.watch(authSessionControllerProvider);
+  final refreshNotifier = _RouterRefreshNotifier();
+  ref.listen(authSessionControllerProvider, (_, _) {
+    refreshNotifier.refresh();
+  });
+  ref.listen(webCalSubscriptionsProvider, (_, _) {
+    refreshNotifier.refresh();
+  });
+
+  final session = ref.read(authSessionControllerProvider);
   final hasSubscriptions =
-      ref.watch(webCalSubscriptionsProvider).valueOrNull?.isNotEmpty == true;
+      ref.read(webCalSubscriptionsProvider).valueOrNull?.isNotEmpty == true;
   final canOpenSchedule = session.isSignedIn || hasSubscriptions;
 
-  return GoRouter(
+  final router = GoRouter(
     navigatorKey: rootNavigatorKey,
+    refreshListenable: refreshNotifier,
     initialLocation: session.status == AuthSessionStatus.loading
         ? '/'
         : canOpenSchedule
         ? '/schedule'
         : '/sign-in',
     redirect: (context, state) {
+      final session = ref.read(authSessionControllerProvider);
+      final hasSubscriptions =
+          ref.read(webCalSubscriptionsProvider).valueOrNull?.isNotEmpty == true;
+      final canOpenSchedule = session.isSignedIn || hasSubscriptions;
       if (session.status == AuthSessionStatus.loading) {
-        return state.matchedLocation == '/' ? null : '/';
+        return null;
       }
 
       if (state.matchedLocation == '/') {
@@ -93,6 +112,11 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       ),
     ],
   );
+  ref.onDispose(() {
+    router.dispose();
+    refreshNotifier.dispose();
+  });
+  return router;
 });
 
 const _tasksWorkspacePageKey = ValueKey('tasks-workspace');
@@ -128,18 +152,19 @@ class BusyMaxStartupView extends StatelessWidget {
             color: colors.window,
             child: const Center(child: YaruCircularProgressIndicator()),
           );
-          if (!BusyMaxLayoutRules.showSidebar(constraints.maxWidth)) {
-            return content;
-          }
-          return Row(
-            children: [
-              const SizedBox(
-                key: ValueKey('startup-sidebar'),
-                width: BusyMaxSizes.sidebarWidth,
-                child: BusyMaxSidebarSurface(child: SizedBox.expand()),
-              ),
-              Expanded(child: content),
-            ],
+          return LinuxPageFrame(
+            header: const LinuxTitlebarGestureRegion(child: SizedBox.expand()),
+            body: content,
+            sidebarHeader: const BusyMaxLinuxBrandHeader(),
+            sidebarBody: const BusyMaxSidebarSurface(
+              key: ValueKey('startup-sidebar'),
+              showEndBorder: false,
+              child: SizedBox.expand(),
+            ),
+            sidebarAvailable: BusyMaxLayoutRules.showSidebar(
+              constraints.maxWidth,
+            ),
+            sidebarExpanded: true,
           );
         },
       ),

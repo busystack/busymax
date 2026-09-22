@@ -440,6 +440,15 @@ class AppLocalizationsKo extends AppLocalizations {
   String get close => '닫기';
 
   @override
+  String get windowMinimize => '최소화';
+
+  @override
+  String get windowMaximize => '최대화';
+
+  @override
+  String get windowRestore => '복원';
+
+  @override
   String get exit => '종료';
 
   @override
@@ -696,6 +705,18 @@ class AppLocalizationsKo extends AppLocalizations {
 
   @override
   String get scheduleDisplaySettings => '일정 표시';
+
+  @override
+  String get newEventsAndTasks => '새 일정 및 작업';
+
+  @override
+  String get defaultCalendar => '기본 캘린더';
+
+  @override
+  String get defaultTaskList => '기본 작업 목록';
+
+  @override
+  String get lastUsed => '마지막으로 사용';
 
   @override
   String get scheduleDisplayHoursDescription =>
@@ -1043,6 +1064,9 @@ class AppLocalizationsKo extends AppLocalizations {
 
   @override
   String get shortcutGroupView => '보기';
+
+  @override
+  String get viewSelector => '보기';
 
   @override
   String get shortcutDayView => '일간 보기';
@@ -2375,9 +2399,6 @@ class AppLocalizationsKo extends AppLocalizations {
   @override
   String get nextcloudAccountRemovedRevokeFailed =>
       '계정은 로컬에서 삭제되었지만 Nextcloud 앱 암호를 취소할 수 없습니다.';
-
-  @override
-  String get davCachedOfflineNotice => '오프라인 사용을 위해 캘린더 및 할 일 데이터가 로컬에 캐시됩니다.';
 
   @override
   String get davReauthenticationRequired => '동기화를 재개하려면 이 계정을 다시 연결하세요.';

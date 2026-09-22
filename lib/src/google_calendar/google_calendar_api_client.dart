@@ -76,12 +76,9 @@ class GoogleCalendarApiClient
       _uri('/calendar/v3/calendars'),
       body: googleCalendarMutationToJson(mutation),
     );
-    final calendarId = json['id']?.toString();
-    if (calendarId != null &&
-        calendarId.isNotEmpty &&
-        _hasCalendarListColor(mutation)) {
-      return _updateCalendarListColor(calendarId, mutation);
-    }
+    // Calendar-list color is a separate resource mutation. The replay layer
+    // persists this acknowledged identity before queueing that follow-up, so a
+    // color failure can never cause another calendar creation POST.
     return googleCalendarSourceFromJson(json);
   }
 
@@ -245,6 +242,7 @@ class GoogleCalendarApiClient
     required CalendarEventMutation mutation,
     CalendarGuestUpdatePolicy guestUpdatePolicy =
         CalendarGuestUpdatePolicy.send,
+    String? ifMatch,
   }) async {
     final json = await _requestJson(
       'PATCH',
@@ -256,6 +254,7 @@ class GoogleCalendarApiClient
         },
       ),
       body: googleEventMutationToJson(mutation),
+      headers: {if (ifMatch != null) 'If-Match': ifMatch},
     );
     return googleCalendarEventFromJson(calendarId, json);
   }
@@ -287,6 +286,7 @@ class GoogleCalendarApiClient
     required String eventId,
     CalendarGuestUpdatePolicy guestUpdatePolicy =
         CalendarGuestUpdatePolicy.send,
+    String? ifMatch,
   }) {
     return _requestEmpty(
       'DELETE',
@@ -294,6 +294,7 @@ class GoogleCalendarApiClient
         '/calendar/v3/calendars/${_enc(calendarId)}/events/${_enc(eventId)}',
         query: {'sendUpdates': _googleGuestUpdatePolicy(guestUpdatePolicy)},
       ),
+      headers: {if (ifMatch != null) 'If-Match': ifMatch},
     );
   }
 
@@ -614,8 +615,12 @@ class GoogleCalendarApiClient
     );
   }
 
-  Future<void> _requestEmpty(String method, Uri uri) async {
-    final response = await _send(method, uri);
+  Future<void> _requestEmpty(
+    String method,
+    Uri uri, {
+    Map<String, String> headers = const {},
+  }) async {
+    final response = await _send(method, uri, headers: headers);
     if (response.statusCode < 200 || response.statusCode >= 300) {
       throw GoogleCalendarApiError.fromResponse(response);
     }
@@ -625,8 +630,9 @@ class GoogleCalendarApiClient
     String method,
     Uri uri, {
     Map<String, Object?>? body,
+    Map<String, String> headers = const {},
   }) async {
-    final response = await _send(method, uri, body: body);
+    final response = await _send(method, uri, body: body, headers: headers);
     if (response.statusCode < 200 || response.statusCode >= 300) {
       throw GoogleCalendarApiError.fromResponse(response);
     }
@@ -640,30 +646,36 @@ class GoogleCalendarApiClient
     String method,
     Uri uri, {
     Map<String, Object?>? body,
+    Map<String, String> headers = const {},
     bool retried = false,
   }) async {
     final authorizationHeaderProvider = _authorizationHeaderProvider;
-    final headers = <String, String>{
+    final requestHeaders = <String, String>{
       'Accept': 'application/json',
       if (body != null) 'Content-Type': 'application/json',
       if (authorizationHeaderProvider != null)
         'Authorization': await authorizationHeaderProvider(),
+      ...headers,
     };
     final encodedBody = body == null ? null : jsonEncode(body);
     final response = switch (method) {
-      'GET' => await _httpClient.get(uri, headers: headers),
+      'GET' => await _httpClient.get(uri, headers: requestHeaders),
       'POST' => await _httpClient.post(
         uri,
-        headers: headers,
+        headers: requestHeaders,
         body: encodedBody,
       ),
       'PATCH' => await _httpClient.patch(
         uri,
-        headers: headers,
+        headers: requestHeaders,
         body: encodedBody,
       ),
-      'PUT' => await _httpClient.put(uri, headers: headers, body: encodedBody),
-      'DELETE' => await _httpClient.delete(uri, headers: headers),
+      'PUT' => await _httpClient.put(
+        uri,
+        headers: requestHeaders,
+        body: encodedBody,
+      ),
+      'DELETE' => await _httpClient.delete(uri, headers: requestHeaders),
       _ => throw ArgumentError.value(method, 'method', 'Unsupported method'),
     };
     final unauthorizedRefreshProvider = _unauthorizedRefreshProvider;
@@ -671,7 +683,7 @@ class GoogleCalendarApiClient
         !retried &&
         unauthorizedRefreshProvider != null) {
       await unauthorizedRefreshProvider();
-      return _send(method, uri, body: body, retried: true);
+      return _send(method, uri, body: body, headers: headers, retried: true);
     }
     return response;
   }

@@ -852,6 +852,24 @@ abstract class AppLocalizations {
   /// **'Close'**
   String get close;
 
+  /// No description provided for @windowMinimize.
+  ///
+  /// In en, this message translates to:
+  /// **'Minimize'**
+  String get windowMinimize;
+
+  /// No description provided for @windowMaximize.
+  ///
+  /// In en, this message translates to:
+  /// **'Maximize'**
+  String get windowMaximize;
+
+  /// No description provided for @windowRestore.
+  ///
+  /// In en, this message translates to:
+  /// **'Restore'**
+  String get windowRestore;
+
   /// No description provided for @exit.
   ///
   /// In en, this message translates to:
@@ -1271,6 +1289,30 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Schedule display'**
   String get scheduleDisplaySettings;
+
+  /// No description provided for @newEventsAndTasks.
+  ///
+  /// In en, this message translates to:
+  /// **'New events and tasks'**
+  String get newEventsAndTasks;
+
+  /// No description provided for @defaultCalendar.
+  ///
+  /// In en, this message translates to:
+  /// **'Default calendar'**
+  String get defaultCalendar;
+
+  /// No description provided for @defaultTaskList.
+  ///
+  /// In en, this message translates to:
+  /// **'Default task list'**
+  String get defaultTaskList;
+
+  /// No description provided for @lastUsed.
+  ///
+  /// In en, this message translates to:
+  /// **'Last used'**
+  String get lastUsed;
 
   /// No description provided for @scheduleDisplayHoursDescription.
   ///
@@ -1871,6 +1913,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'View'**
   String get shortcutGroupView;
+
+  /// No description provided for @viewSelector.
+  ///
+  /// In en, this message translates to:
+  /// **'View'**
+  String get viewSelector;
 
   /// No description provided for @shortcutDayView.
   ///
@@ -4127,12 +4175,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'The account was removed locally, but its Nextcloud app password could not be revoked.'**
   String get nextcloudAccountRemovedRevokeFailed;
-
-  /// No description provided for @davCachedOfflineNotice.
-  ///
-  /// In en, this message translates to:
-  /// **'Calendar and task data is cached locally for offline use.'**
-  String get davCachedOfflineNotice;
 
   /// No description provided for @davReauthenticationRequired.
   ///

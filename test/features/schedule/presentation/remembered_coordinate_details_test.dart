@@ -12,8 +12,6 @@ import 'package:busymax/src/features/schedule/application/saved_schedule_locatio
 import 'package:busymax/src/features/schedule/presentation/schedule_workspace.dart';
 import 'package:busymax/src/features/schedule/presentation/schedule_event_block.dart';
 import 'package:busymax/src/ical/ical_import_service.dart';
-import 'package:busymax/src/platform/linux_header_bar_provider.dart';
-import 'package:busymax/src/platform/linux_header_bar_service.dart';
 import 'package:busymax/src/providers/busy_provider.dart';
 import 'package:busymax/src/schedule/schedule_repository.dart';
 import 'package:busymax/src/schedule/schedule_range.dart';
@@ -62,11 +60,9 @@ void main() {
           return true;
         },
       );
-      final headerBar = LinuxHeaderBarService(isLinux: false);
-      addTearDown(headerBar.dispose);
       await tester.pumpWidget(
         ProviderScope(
-          overrides: _providerOverrides(harness, headerBar: headerBar),
+          overrides: _providerOverrides(harness),
           child: localizedTestApp(
             child: ScheduleWorkspace(
               initialScope: ScheduleScope.events,
@@ -107,7 +103,7 @@ void main() {
       );
       await tester.pumpWidget(
         ProviderScope(
-          overrides: _providerOverrides(harness, headerBar: headerBar),
+          overrides: _providerOverrides(harness),
           child: fluent.FluentApp(
             theme: fluent.FluentThemeData(),
             localizationsDelegates: const [AppLocalizations.delegate],
@@ -154,7 +150,7 @@ void main() {
 
       await tester.pumpWidget(
         ProviderScope(
-          overrides: _providerOverrides(harness, headerBar: headerBar),
+          overrides: _providerOverrides(harness),
           child: localizedTestApp(
             child: ScheduleWorkspace(
               initialScope: ScheduleScope.events,
@@ -177,7 +173,7 @@ void main() {
 
       await tester.pumpWidget(
         ProviderScope(
-          overrides: _providerOverrides(harness, headerBar: headerBar),
+          overrides: _providerOverrides(harness),
           child: fluent.FluentApp(
             theme: fluent.FluentThemeData(),
             localizationsDelegates: const [AppLocalizations.delegate],
@@ -206,10 +202,7 @@ void main() {
   );
 }
 
-List<Override> _providerOverrides(
-  _ImportHarness harness, {
-  LinuxHeaderBarService? headerBar,
-}) => [
+List<Override> _providerOverrides(_ImportHarness harness) => [
   databaseProvider.overrideWithValue(harness.database),
   calendarRepositoryProvider.overrideWithValue(harness.calendarRepository),
   scheduleRepositoryProvider.overrideWithValue(
@@ -220,8 +213,6 @@ List<Override> _providerOverrides(
   localTimeZoneProvider.overrideWithValue('UTC'),
   localSettingsStoreProvider.overrideWithValue(MemorySettingsStore()),
   initialAppSettingsProvider.overrideWithValue(AppSettings.defaults()),
-  if (headerBar != null)
-    linuxHeaderBarServiceProvider.overrideWithValue(headerBar),
 ];
 
 Future<_ImportHarness> _importGeoOnlyGoogleEvent() async {
