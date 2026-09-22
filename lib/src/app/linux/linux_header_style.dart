@@ -469,7 +469,9 @@ class BusyMaxLinuxHeaderControlGroup extends StatelessWidget {
 
 enum _BusyMaxLinuxHeaderSlot { leading, title, trailing }
 
-/// GTK-style application header geometry with an absolute center title.
+enum BusyMaxLinuxHeaderCenterAllocation { centered, fillBetweenControls }
+
+/// GTK-style application header geometry with an explicit center allocation.
 class BusyMaxLinuxHeaderLayout extends StatelessWidget {
   const BusyMaxLinuxHeaderLayout({
     super.key,
@@ -477,12 +479,14 @@ class BusyMaxLinuxHeaderLayout extends StatelessWidget {
     required this.title,
     required this.trailing,
     this.maxContentWidth,
+    this.centerAllocation = BusyMaxLinuxHeaderCenterAllocation.centered,
   });
 
   final Widget leading;
   final Widget title;
   final Widget trailing;
   final double? maxContentWidth;
+  final BusyMaxLinuxHeaderCenterAllocation centerAllocation;
 
   @override
   Widget build(BuildContext context) {
@@ -500,6 +504,7 @@ class BusyMaxLinuxHeaderLayout extends StatelessWidget {
               leftObstruction: insets.leftObstruction,
               rightObstruction: insets.rightObstruction,
               maxContentWidth: maxContentWidth,
+              centerAllocation: centerAllocation,
             ),
             children: [
               LayoutId(id: _BusyMaxLinuxHeaderSlot.leading, child: leading),
@@ -519,12 +524,14 @@ class _BusyMaxLinuxHeaderLayoutDelegate extends MultiChildLayoutDelegate {
     required this.leftObstruction,
     required this.rightObstruction,
     required this.maxContentWidth,
+    required this.centerAllocation,
   });
 
   final TextDirection direction;
   final double leftObstruction;
   final double rightObstruction;
   final double? maxContentWidth;
+  final BusyMaxLinuxHeaderCenterAllocation centerAllocation;
 
   @override
   void performLayout(Size size) {
@@ -576,24 +583,42 @@ class _BusyMaxLinuxHeaderLayoutDelegate extends MultiChildLayoutDelegate {
     positionChild(_BusyMaxLinuxHeaderSlot.leading, leadingOffset);
     positionChild(_BusyMaxLinuxHeaderSlot.trailing, trailingOffset);
 
-    final centerX = size.width / 2;
     final safeLeftEdge = leftOccupiedEdge + BusyMaxSpacing.headerInset;
     final safeRightEdge = rightOccupiedEdge - BusyMaxSpacing.headerInset;
-    final safeHalfWidth = math.max(
-      0,
-      math.min(centerX - safeLeftEdge, safeRightEdge - centerX),
-    );
-    final titleSize = layoutChild(
-      _BusyMaxLinuxHeaderSlot.title,
-      BoxConstraints.loose(Size(safeHalfWidth * 2, size.height)),
-    );
-    positionChild(
-      _BusyMaxLinuxHeaderSlot.title,
-      Offset(
-        centerX - titleSize.width / 2,
-        (size.height - titleSize.height) / 2,
-      ),
-    );
+    switch (centerAllocation) {
+      case BusyMaxLinuxHeaderCenterAllocation.centered:
+        final centerX = size.width / 2;
+        final safeHalfWidth = math.max(
+          0,
+          math.min(centerX - safeLeftEdge, safeRightEdge - centerX),
+        );
+        final titleSize = layoutChild(
+          _BusyMaxLinuxHeaderSlot.title,
+          BoxConstraints.loose(Size(safeHalfWidth * 2, size.height)),
+        );
+        positionChild(
+          _BusyMaxLinuxHeaderSlot.title,
+          Offset(
+            centerX - titleSize.width / 2,
+            (size.height - titleSize.height) / 2,
+          ),
+        );
+      case BusyMaxLinuxHeaderCenterAllocation.fillBetweenControls:
+        final availableWidth = math.max(0.0, safeRightEdge - safeLeftEdge);
+        final titleSize = layoutChild(
+          _BusyMaxLinuxHeaderSlot.title,
+          BoxConstraints(
+            minWidth: availableWidth,
+            maxWidth: availableWidth,
+            minHeight: 0,
+            maxHeight: size.height,
+          ),
+        );
+        positionChild(
+          _BusyMaxLinuxHeaderSlot.title,
+          Offset(safeLeftEdge, (size.height - titleSize.height) / 2),
+        );
+    }
   }
 
   @override
@@ -601,7 +626,8 @@ class _BusyMaxLinuxHeaderLayoutDelegate extends MultiChildLayoutDelegate {
       direction != oldDelegate.direction ||
       leftObstruction != oldDelegate.leftObstruction ||
       rightObstruction != oldDelegate.rightObstruction ||
-      maxContentWidth != oldDelegate.maxContentWidth;
+      maxContentWidth != oldDelegate.maxContentWidth ||
+      centerAllocation != oldDelegate.centerAllocation;
 }
 
 class BusyMaxLinuxHeaderTitle extends StatelessWidget {

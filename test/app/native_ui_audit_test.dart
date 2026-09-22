@@ -505,6 +505,17 @@ void main() {
       );
       expect(toolbar, contains('title: BusyMaxBinaryPresentation('));
       expect(toolbar, contains('alternateActive: searchActive'));
+      expect(
+        toolbar,
+        contains('BusyMaxLinuxHeaderCenterAllocation.fillBetweenControls'),
+      );
+      expect(
+        linuxHeader,
+        contains(
+          'this.centerAllocation = '
+          'BusyMaxLinuxHeaderCenterAllocation.centered',
+        ),
+      );
       expect(toolbar, contains('selected: searchActive'));
       expect(toolbar, contains('BusyMaxLinuxHeaderSearchField('));
       expect(toolbar, isNot(contains('BusyMaxLinuxHeaderIcon.close')));

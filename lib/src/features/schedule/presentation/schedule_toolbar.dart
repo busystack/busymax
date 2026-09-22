@@ -91,6 +91,8 @@ class ScheduleToolbar extends StatelessWidget {
       builder: (context, constraints) {
         final compact = constraints.maxWidth < 760;
         return BusyMaxLinuxHeaderLayout(
+          centerAllocation:
+              BusyMaxLinuxHeaderCenterAllocation.fillBetweenControls,
           leading: BusyMaxLinuxHeaderControlGroup(
             key: const ValueKey('schedule-header-leading-actions'),
             children: [
@@ -142,27 +144,30 @@ class ScheduleToolbar extends StatelessWidget {
           ),
           title: BusyMaxBinaryPresentation(
             alternateActive: searchActive,
-            child: searchActive
-                ? BusyMaxLinuxHeaderSearchField(
-                    key: const ValueKey('schedule-header-search-field'),
-                    controller: searchController!,
-                    focusRequest: searchFocusRequest,
-                    semanticLabel: MaterialLocalizations.of(
+            child: Align(
+              alignment: Alignment.center,
+              child: searchActive
+                  ? BusyMaxLinuxHeaderSearchField(
+                      key: const ValueKey('schedule-header-search-field'),
+                      controller: searchController!,
+                      focusRequest: searchFocusRequest,
+                      semanticLabel: MaterialLocalizations.of(
+                        context,
+                      ).searchFieldLabel,
+                      onChanged: onSearchChanged!,
+                      onClear: onClearSearch!,
+                    )
+                  : _fittingRangeTitle(
                       context,
-                    ).searchFieldLabel,
-                    onChanged: onSearchChanged!,
-                    onClear: onClearSearch!,
-                  )
-                : _fittingRangeTitle(
-                    context,
-                    localizedScheduleHeading(
-                      Localizations.localeOf(context).toLanguageTag(),
-                      mode,
-                      range,
-                      selectedDate,
-                      agendaLabel: context.l10n.viewAgenda,
+                      localizedScheduleHeading(
+                        Localizations.localeOf(context).toLanguageTag(),
+                        mode,
+                        range,
+                        selectedDate,
+                        agendaLabel: context.l10n.viewAgenda,
+                      ),
                     ),
-                  ),
+            ),
           ),
           trailing: BusyMaxLinuxHeaderControlGroup(
             key: const ValueKey('schedule-header-trailing-actions'),

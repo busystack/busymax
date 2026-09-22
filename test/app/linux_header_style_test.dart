@@ -65,6 +65,103 @@ void main() {
     }
   });
 
+  group('Linux header fill-between-controls allocation', () {
+    for (final testCase in const [
+      _LayoutCase('small leading and large trailing', 34, 154, 0, 0, false),
+      _LayoutCase('large leading and small trailing', 154, 34, 0, 0, false),
+      _LayoutCase('empty leading group', 0, 154, 0, 0, false),
+      _LayoutCase('system controls on the right', 68, 102, 0, 110, false),
+      _LayoutCase('system controls on the left', 102, 68, 110, 0, false),
+      _LayoutCase('RTL', 68, 154, 93, 0, true),
+    ]) {
+      testWidgets(testCase.label, (tester) async {
+        await _pumpLayout(
+          tester,
+          testCase,
+          centerAllocation:
+              BusyMaxLinuxHeaderCenterAllocation.fillBetweenControls,
+        );
+
+        final title = tester.getRect(find.byKey(_titleKey));
+        final leading = tester.getRect(find.byKey(_leadingKey));
+        final trailing = tester.getRect(find.byKey(_trailingKey));
+        final physicalLeft = testCase.rtl ? trailing : leading;
+        final physicalRight = testCase.rtl ? leading : trailing;
+
+        expect(
+          title.left,
+          closeTo(physicalLeft.right + BusyMaxSpacing.headerInset, .001),
+        );
+        expect(
+          title.right,
+          closeTo(physicalRight.left - BusyMaxSpacing.headerInset, .001),
+        );
+        expect(title.overlaps(leading), isFalse);
+        expect(title.overlaps(trailing), isFalse);
+      });
+    }
+
+    testWidgets('uses actual groups placed by maxContentWidth', (tester) async {
+      const testCase = _LayoutCase('max content width', 34, 154, 0, 0, false);
+      await _pumpLayout(
+        tester,
+        testCase,
+        centerAllocation:
+            BusyMaxLinuxHeaderCenterAllocation.fillBetweenControls,
+        maxContentWidth: 600,
+      );
+
+      final title = tester.getRect(find.byKey(_titleKey));
+      final leading = tester.getRect(find.byKey(_leadingKey));
+      final trailing = tester.getRect(find.byKey(_trailingKey));
+      expect(
+        title.left,
+        closeTo(leading.right + BusyMaxSpacing.headerInset, .001),
+      );
+      expect(
+        title.right,
+        closeTo(trailing.left - BusyMaxSpacing.headerInset, .001),
+      );
+    });
+
+    testWidgets('uses zero width when the safe edges cross', (tester) async {
+      const testCase = _LayoutCase(
+        'pathological narrow width',
+        68,
+        68,
+        0,
+        0,
+        false,
+      );
+      await _pumpLayout(
+        tester,
+        testCase,
+        centerAllocation:
+            BusyMaxLinuxHeaderCenterAllocation.fillBetweenControls,
+        headerWidth: 100,
+      );
+
+      expect(tester.getSize(find.byKey(_titleKey)).width, 0);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('relayouts when the allocation policy changes', (tester) async {
+      const testCase = _LayoutCase('policy change', 34, 154, 0, 0, false);
+      await _pumpLayout(tester, testCase);
+      final centeredWidth = tester.getSize(find.byKey(_titleKey)).width;
+
+      await _pumpLayout(
+        tester,
+        testCase,
+        centerAllocation:
+            BusyMaxLinuxHeaderCenterAllocation.fillBetweenControls,
+      );
+      final fillWidth = tester.getSize(find.byKey(_titleKey)).width;
+
+      expect(fillWidth, greaterThan(centeredWidth));
+    });
+  });
+
   testWidgets('title and brand use GTK body role with distinct emphasis', (
     tester,
   ) async {
@@ -1472,10 +1569,17 @@ IconButton _iconButton(WidgetTester tester, Key key) {
   );
 }
 
-Future<void> _pumpLayout(WidgetTester tester, _LayoutCase testCase) async {
+Future<void> _pumpLayout(
+  WidgetTester tester,
+  _LayoutCase testCase, {
+  BusyMaxLinuxHeaderCenterAllocation centerAllocation =
+      BusyMaxLinuxHeaderCenterAllocation.centered,
+  double headerWidth = 1000,
+  double? maxContentWidth,
+}) async {
   tester.view
     ..devicePixelRatio = 1
-    ..physicalSize = const Size(1000, 200);
+    ..physicalSize = Size(headerWidth, 200);
   addTearDown(tester.view.reset);
   await tester.pumpWidget(
     _testApp(
@@ -1485,8 +1589,10 @@ Future<void> _pumpLayout(WidgetTester tester, _LayoutCase testCase) async {
         rightObstruction: testCase.rightObstruction,
         child: SizedBox(
           key: _headerKey,
-          width: 1000,
+          width: headerWidth,
           child: BusyMaxLinuxHeaderLayout(
+            centerAllocation: centerAllocation,
+            maxContentWidth: maxContentWidth,
             leading: SizedBox(
               key: _leadingKey,
               width: testCase.leadingWidth,

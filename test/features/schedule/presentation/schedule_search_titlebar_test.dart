@@ -1,8 +1,8 @@
 import 'dart:async';
-import 'dart:math' as math;
 
 import 'package:busymax/src/app/app_bootstrap.dart';
 import 'package:busymax/src/app/busymax_design.dart';
+import 'package:busymax/src/app/common/busymax_motion_widgets.dart';
 import 'package:busymax/src/app/linux/linux_header_style.dart';
 import 'package:busymax/src/app/linux/linux_window_host.dart';
 import 'package:busymax/src/db/app_database.dart';
@@ -16,6 +16,7 @@ import 'package:busymax/src/schedule/schedule_filters.dart';
 import 'package:busymax/src/schedule/schedule_item.dart';
 import 'package:busymax/src/schedule/schedule_range.dart';
 import 'package:busymax/src/schedule/schedule_repository.dart';
+import 'package:busymax/src/schedule/schedule_view_mode.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -125,37 +126,15 @@ void main() {
       );
       expect(headerRect.height, BusyMaxSizes.toolbarHeight);
       expect(fieldRect.height, BusyMaxLinuxHeaderStyle.searchEntryHeight);
-      expect(fieldRect.center.dx, closeTo(headerRect.center.dx, .01));
       expect(fieldRect.center.dy, closeTo(headerRect.center.dy, .5));
-      final leftOccupiedEdge = tester
-          .getRect(find.byKey(const ValueKey('schedule-sidebar-button')))
-          .right;
-      final rightOccupiedEdge = tester
-          .getRect(find.byKey(const ValueKey('schedule-search-button')))
-          .left;
+      _expectSearchFillsPhysicalInterval(tester, TextDirection.ltr);
       expect(
-        fieldRect.width,
-        closeTo(
-          2 *
-              math.min(
-                headerRect.center.dx -
-                    leftOccupiedEdge -
-                    BusyMaxSpacing.headerInset,
-                rightOccupiedEdge -
-                    BusyMaxSpacing.headerInset -
-                    headerRect.center.dx,
-              ),
-          .01,
-        ),
-      );
-      expect(fieldRect.width, closeTo(628, .01));
-      expect(
-        fieldRect.left - leftOccupiedEdge,
-        greaterThanOrEqualTo(BusyMaxSpacing.headerInset),
-      );
-      expect(
-        rightOccupiedEdge - fieldRect.right,
-        greaterThanOrEqualTo(BusyMaxSpacing.headerInset),
+        tester
+            .widget<BusyMaxLinuxHeaderLayout>(
+              find.byType(BusyMaxLinuxHeaderLayout),
+            )
+            .centerAllocation,
+        BusyMaxLinuxHeaderCenterAllocation.fillBetweenControls,
       );
 
       final textField = tester.widget<TextField>(_searchTextField());
@@ -181,80 +160,168 @@ void main() {
     },
   );
 
-  testWidgets('bounded Search geometry remains centered in LTR and RTL', (
-    tester,
-  ) async {
+  for (final width in const [1290.0, 1100.0, 650.0]) {
     for (final direction in TextDirection.values) {
-      await _pumpWorkspace(tester, width: 650, direction: direction);
+      testWidgets('Search fills the physical interval at $width in '
+          '${direction.name}', (tester) async {
+        await _pumpWorkspace(tester, width: width, direction: direction);
+        if (width == 1290) {
+          await tester.sendKeyEvent(LogicalKeyboardKey.f9);
+          await tester.pumpAndSettle();
+        }
+        await _openSearch(tester);
+
+        final headerRect = tester.getRect(find.byType(ScheduleToolbar));
+        final fieldRect = tester.getRect(
+          find.byType(BusyMaxLinuxHeaderSearchField),
+        );
+        if (width == 1290) {
+          expect(headerRect.width, width);
+        }
+        expect(headerRect.height, BusyMaxSizes.toolbarHeight);
+        expect(fieldRect.height, BusyMaxLinuxHeaderStyle.searchEntryHeight);
+        expect(fieldRect.center.dy, closeTo(headerRect.center.dy, .5));
+        expect(fieldRect.width, lessThan(headerRect.width));
+        _expectSearchFillsPhysicalInterval(tester, direction);
+      });
+    }
+  }
+
+  for (final testCase in const [
+    _SystemControlCase('left', _leftSystemControls, true),
+    _SystemControlCase('right', _rightSystemControls, false),
+  ]) {
+    testWidgets('Search respects physical ${testCase.label} system controls', (
+      tester,
+    ) async {
+      await _pumpWorkspace(
+        tester,
+        width: 1100,
+        preferences: testCase.preferences,
+      );
+      await tester.sendKeyEvent(LogicalKeyboardKey.f9);
+      await tester.pumpAndSettle();
       await _openSearch(tester);
 
-      final headerRect = tester.getRect(find.byType(ScheduleToolbar));
-      final fieldRect = tester.getRect(
-        find.byType(BusyMaxLinuxHeaderSearchField),
+      _expectSearchFillsPhysicalInterval(tester, TextDirection.ltr);
+      final header = tester.getRect(find.byType(ScheduleToolbar));
+      final leading = tester.getRect(
+        find.byKey(const ValueKey('schedule-header-leading-actions')),
       );
-      expect(headerRect.height, BusyMaxSizes.toolbarHeight);
-      expect(fieldRect.height, BusyMaxLinuxHeaderStyle.searchEntryHeight);
-      expect(fieldRect.center.dx, closeTo(headerRect.center.dx, .01));
-      expect(fieldRect.center.dy, closeTo(headerRect.center.dy, .5));
-      expect(fieldRect.width, lessThan(headerRect.width));
+      final trailing = tester.getRect(
+        find.byKey(const ValueKey('schedule-header-trailing-actions')),
+      );
+      final obstruction = BusyMaxLinuxWindowMetrics.clusterWidth(
+        testCase.preferences.decorationLayout.left.isNotEmpty
+            ? testCase.preferences.decorationLayout.left
+            : testCase.preferences.decorationLayout.right,
+      );
+      if (testCase.onLeft) {
+        expect(
+          leading.left,
+          greaterThanOrEqualTo(
+            header.left + obstruction + BusyMaxSpacing.headerInset,
+          ),
+        );
+      } else {
+        expect(
+          trailing.right,
+          lessThanOrEqualTo(
+            header.right - obstruction - BusyMaxSpacing.headerInset,
+          ),
+        );
+      }
+    });
+  }
 
-      const keys = [
-        ValueKey('schedule-search-filter-button'),
-        ValueKey('schedule-search-button'),
-        ValueKey('busymax-main-menu-button'),
-      ];
-      final controlRects = <Rect>[];
-      for (final key in keys) {
-        expect(
-          tester.getSize(find.byKey(key)),
-          const Size.square(BusyMaxSizes.headerIconButton),
-        );
-        final rect = tester.getRect(find.byKey(key));
-        expect(fieldRect.overlaps(rect), isFalse);
-        controlRects.add(rect);
-      }
-      controlRects.sort((a, b) => a.left.compareTo(b.left));
-      for (var index = 1; index < controlRects.length; index++) {
-        expect(
-          controlRects[index].left - controlRects[index - 1].right,
-          BusyMaxSpacing.headerInset,
-        );
-      }
-      final sidebar = find.byKey(const ValueKey('schedule-sidebar-button'));
-      final sidebarRect = sidebar.evaluate().isEmpty
-          ? null
-          : tester.getRect(sidebar);
-      final physicalLeftEdge = direction == TextDirection.ltr
-          ? sidebarRect?.right ?? headerRect.left + BusyMaxSpacing.headerInset
-          : controlRects.last.right;
-      final physicalRightEdge = direction == TextDirection.ltr
-          ? controlRects.first.left
-          : sidebarRect?.left ?? headerRect.right - BusyMaxSpacing.headerInset;
-      final leftGap = fieldRect.left - physicalLeftEdge;
-      final rightGap = physicalRightEdge - fieldRect.right;
-      expect(leftGap, greaterThanOrEqualTo(BusyMaxSpacing.headerInset));
-      expect(rightGap, greaterThanOrEqualTo(BusyMaxSpacing.headerInset));
-      expect(
-        math.min(leftGap, rightGap),
-        closeTo(BusyMaxSpacing.headerInset, .01),
-      );
-      expect(
-        fieldRect.width,
-        closeTo(
-          2 *
-              math.min(
-                headerRect.center.dx -
-                    physicalLeftEdge -
-                    BusyMaxSpacing.headerInset,
-                physicalRightEdge -
-                    BusyMaxSpacing.headerInset -
-                    headerRect.center.dx,
-              ),
-          .01,
-        ),
-      );
-      expect(fieldRect.width, closeTo(398, .01));
-    }
+  testWidgets('title and Search retain centered opacity-only geometry', (
+    tester,
+  ) async {
+    final harnessKey = GlobalKey<_ToolbarHarnessState>();
+    await _pumpToolbarHarness(tester, harnessKey: harnessKey, width: 1100);
+
+    final normalSlot = tester.getRect(_scheduleCenterPresentation());
+    final normalTitle = _scheduleCenterTitle();
+    expect(
+      tester.getRect(normalTitle).center.dx,
+      closeTo(normalSlot.center.dx, .01),
+    );
+
+    harnessKey.currentState!.setSearchActive(true);
+    await tester.pump();
+    final searchSlot = tester.getRect(_scheduleCenterPresentation());
+    _expectTransitionGeometry(tester, searchSlot);
+
+    await tester.pump(const Duration(milliseconds: 80));
+    _expectTransitionGeometry(tester, searchSlot);
+
+    await tester.pump(const Duration(milliseconds: 80));
+    _expectTransitionGeometry(tester, searchSlot);
+  });
+
+  testWidgets('title and Search geometry remains stable through reversal', (
+    tester,
+  ) async {
+    final harnessKey = GlobalKey<_ToolbarHarnessState>();
+    await _pumpToolbarHarness(tester, harnessKey: harnessKey, width: 1100);
+    final normalSlot = tester.getRect(_scheduleCenterPresentation());
+
+    harnessKey.currentState!.setSearchActive(true);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 80));
+    final searchSlot = tester.getRect(_scheduleCenterPresentation());
+    _expectTransitionGeometry(tester, searchSlot);
+
+    harnessKey.currentState!.setSearchActive(false);
+    await tester.pump();
+    _expectRectCloseTo(
+      tester.getRect(_scheduleCenterPresentation()),
+      normalSlot,
+    );
+    _expectTransitionGeometry(
+      tester,
+      normalSlot,
+      expectSearchHitTestable: false,
+    );
+
+    await tester.pump(const Duration(milliseconds: 80));
+    _expectRectCloseTo(
+      tester.getRect(_scheduleCenterPresentation()),
+      normalSlot,
+    );
+    expect(
+      tester.getRect(_scheduleCenterTitle()).center.dx,
+      closeTo(normalSlot.center.dx, .01),
+    );
+  });
+
+  testWidgets('reduced motion uses full interval without a stale frame', (
+    tester,
+  ) async {
+    tester.binding.platformDispatcher.accessibilityFeaturesTestValue =
+        const FakeAccessibilityFeatures(disableAnimations: true);
+    addTearDown(
+      tester.binding.platformDispatcher.clearAccessibilityFeaturesTestValue,
+    );
+    final harnessKey = GlobalKey<_ToolbarHarnessState>();
+    await _pumpToolbarHarness(tester, harnessKey: harnessKey, width: 1100);
+
+    harnessKey.currentState!.setSearchActive(true);
+    await tester.pump();
+    _expectSearchFillsPhysicalInterval(tester, TextDirection.ltr);
+    expect(_scheduleCenterTitle().hitTestable(), findsNothing);
+
+    harnessKey.currentState!.setSearchActive(false);
+    await tester.pump();
+    expect(
+      find.byType(BusyMaxLinuxHeaderSearchField).hitTestable(),
+      findsNothing,
+    );
+    final slot = tester.getRect(_scheduleCenterPresentation());
+    expect(
+      tester.getRect(_scheduleCenterTitle()).center.dx,
+      closeTo(slot.center.dx, .01),
+    );
   });
 
   testWidgets('Schedule publishes only the settled non-empty Search query', (
@@ -300,7 +367,7 @@ void main() {
     expect(repository.queries, isNot(contains('planning')));
   });
 
-  testWidgets('Search inputs do not steal the empty titlebar drag behavior', (
+  testWidgets('Search inputs and controls never initiate a titlebar drag', (
     tester,
   ) async {
     await _pumpWorkspace(tester, width: 1100);
@@ -309,25 +376,6 @@ void main() {
     await _openSearch(tester);
 
     final field = _searchTextField();
-    final fieldRect = tester.getRect(field);
-    final sidebarRect = tester.getRect(
-      find.byKey(const ValueKey('schedule-sidebar-button')),
-    );
-    final emptyTitlebarPoint = Offset(
-      (sidebarRect.right + fieldRect.left) / 2,
-      fieldRect.center.dy,
-    );
-
-    final titlebarDrag = await tester.startGesture(
-      emptyTitlebarPoint,
-      kind: PointerDeviceKind.mouse,
-    );
-    await titlebarDrag.moveBy(const Offset(18, 0));
-    await tester.pump();
-    await titlebarDrag.up();
-    expect(_dragCalls(windowCalls), 1);
-
-    windowCalls.clear();
     await tester.enterText(field, 'selection survives');
     final fieldDrag = await tester.startGesture(
       tester.getCenter(field),
@@ -484,18 +532,104 @@ Finder _searchTextField() => find.descendant(
   matching: find.byType(TextField),
 );
 
+Finder _scheduleCenterPresentation() => find.descendant(
+  of: find.byType(ScheduleToolbar),
+  matching: find.byType(BusyMaxBinaryPresentation),
+);
+
+Finder _scheduleCenterTitle() => find.descendant(
+  of: _scheduleCenterPresentation(),
+  matching: find.byType(Text),
+);
+
+void _expectSearchFillsPhysicalInterval(
+  WidgetTester tester,
+  TextDirection direction, {
+  double tolerance = .01,
+}) {
+  final field = tester.getRect(find.byType(BusyMaxLinuxHeaderSearchField));
+  final leading = tester.getRect(
+    find.byKey(const ValueKey('schedule-header-leading-actions')),
+  );
+  final trailing = tester.getRect(
+    find.byKey(const ValueKey('schedule-header-trailing-actions')),
+  );
+  final physicalLeftEdge = direction == TextDirection.ltr
+      ? leading.right
+      : trailing.right;
+  final physicalRightEdge = direction == TextDirection.ltr
+      ? trailing.left
+      : leading.left;
+
+  expect(
+    field.left,
+    closeTo(physicalLeftEdge + BusyMaxSpacing.headerInset, tolerance),
+  );
+  expect(
+    field.right,
+    closeTo(physicalRightEdge - BusyMaxSpacing.headerInset, tolerance),
+  );
+  expect(
+    field.width,
+    closeTo(
+      physicalRightEdge - physicalLeftEdge - 2 * BusyMaxSpacing.headerInset,
+      tolerance,
+    ),
+  );
+  expect(field.overlaps(leading), isFalse);
+  expect(field.overlaps(trailing), isFalse);
+}
+
+void _expectTransitionGeometry(
+  WidgetTester tester,
+  Rect expectedSlot, {
+  bool expectSearchHitTestable = true,
+}) {
+  _expectRectCloseTo(
+    tester.getRect(_scheduleCenterPresentation()),
+    expectedSlot,
+  );
+  final field = find.byType(BusyMaxLinuxHeaderSearchField);
+  final fieldRect = tester.getRect(field);
+  expect(fieldRect.left, closeTo(expectedSlot.left, .01));
+  expect(fieldRect.right, closeTo(expectedSlot.right, .01));
+  expect(
+    field.hitTestable(),
+    expectSearchHitTestable ? findsOneWidget : findsNothing,
+  );
+  final title = _scheduleCenterTitle();
+  if (title.evaluate().isNotEmpty) {
+    expect(
+      tester.getRect(title).center.dx,
+      closeTo(expectedSlot.center.dx, .01),
+    );
+    expect(tester.getRect(title).left, greaterThan(expectedSlot.left));
+  }
+}
+
+void _expectRectCloseTo(Rect actual, Rect expected) {
+  expect(actual.left, closeTo(expected.left, .01));
+  expect(actual.top, closeTo(expected.top, .01));
+  expect(actual.right, closeTo(expected.right, .01));
+  expect(actual.bottom, closeTo(expected.bottom, .01));
+}
+
 int _dragCalls(List<MethodCall> calls) =>
     calls.where((call) => call.method == 'drag').length;
 
 Future<void> _openSearch(WidgetTester tester) async {
-  await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
-  await tester.sendKeyEvent(LogicalKeyboardKey.keyF);
-  await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
+  await _toggleSearchShortcut(tester);
   await tester.pumpAndSettle();
   expect(
     find.byType(BusyMaxLinuxHeaderSearchField).hitTestable(),
     findsOneWidget,
   );
+}
+
+Future<void> _toggleSearchShortcut(WidgetTester tester) async {
+  await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
+  await tester.sendKeyEvent(LogicalKeyboardKey.keyF);
+  await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
 }
 
 Future<void> _pumpWorkspace(
@@ -504,6 +638,7 @@ Future<void> _pumpWorkspace(
   GlobalKey<_WorkspaceHarnessState>? harnessKey,
   TextDirection direction = TextDirection.ltr,
   ScheduleRepository? repository,
+  GtkWindowPreferences preferences = _testWindowPreferences,
 }) async {
   tester.view
     ..devicePixelRatio = 1
@@ -524,7 +659,7 @@ Future<void> _pumpWorkspace(
         if (repository != null)
           scheduleRepositoryProvider.overrideWithValue(repository),
         gtkWindowPreferencesProvider.overrideWith(
-          (ref) => Stream.value(_testWindowPreferences),
+          (ref) => Stream.value(preferences),
         ),
       ],
       child: localizedTestApp(
@@ -538,12 +673,73 @@ Future<void> _pumpWorkspace(
   await tester.pumpAndSettle();
 }
 
+Future<void> _pumpToolbarHarness(
+  WidgetTester tester, {
+  required GlobalKey<_ToolbarHarnessState> harnessKey,
+  required double width,
+}) async {
+  tester.view
+    ..devicePixelRatio = 1
+    ..physicalSize = Size(width, 240);
+  addTearDown(tester.view.reset);
+  await tester.pumpWidget(
+    localizedTestApp(
+      child: Scaffold(
+        body: Align(
+          alignment: Alignment.topCenter,
+          child: SizedBox(
+            width: width,
+            child: _ToolbarHarness(key: harnessKey),
+          ),
+        ),
+      ),
+    ),
+  );
+  await tester.pumpAndSettle();
+}
+
 const _testWindowPreferences = GtkWindowPreferences(
   decorationLayout: GtkDecorationLayout(left: [], right: []),
   doubleClick: GtkTitlebarAction.toggleMaximize,
   middleClick: GtkTitlebarAction.none,
   rightClick: GtkTitlebarAction.menu,
 );
+
+const _leftSystemControls = GtkWindowPreferences(
+  decorationLayout: GtkDecorationLayout(
+    left: [
+      GtkWindowDecorationElement.minimize,
+      GtkWindowDecorationElement.maximize,
+      GtkWindowDecorationElement.close,
+    ],
+    right: [],
+  ),
+  doubleClick: GtkTitlebarAction.toggleMaximize,
+  middleClick: GtkTitlebarAction.none,
+  rightClick: GtkTitlebarAction.menu,
+);
+
+const _rightSystemControls = GtkWindowPreferences(
+  decorationLayout: GtkDecorationLayout(
+    left: [],
+    right: [
+      GtkWindowDecorationElement.minimize,
+      GtkWindowDecorationElement.maximize,
+      GtkWindowDecorationElement.close,
+    ],
+  ),
+  doubleClick: GtkTitlebarAction.toggleMaximize,
+  middleClick: GtkTitlebarAction.none,
+  rightClick: GtkTitlebarAction.menu,
+);
+
+class _SystemControlCase {
+  const _SystemControlCase(this.label, this.preferences, this.onLeft);
+
+  final String label;
+  final GtkWindowPreferences preferences;
+  final bool onLeft;
+}
 
 class _WorkspaceHarness extends StatefulWidget {
   const _WorkspaceHarness({super.key});
@@ -566,6 +762,56 @@ class _WorkspaceHarnessState extends State<_WorkspaceHarness> {
             : Colors.black.withValues(alpha: .01),
       ),
       child: LinuxWindowHost(child: const ScheduleWorkspace()),
+    );
+  }
+}
+
+class _ToolbarHarness extends StatefulWidget {
+  const _ToolbarHarness({super.key});
+
+  @override
+  State<_ToolbarHarness> createState() => _ToolbarHarnessState();
+}
+
+class _ToolbarHarnessState extends State<_ToolbarHarness> {
+  final searchController = TextEditingController();
+  var searchActive = false;
+
+  void setSearchActive(bool value) => setState(() => searchActive = value);
+
+  @override
+  void dispose() {
+    searchController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return ScheduleToolbar(
+      mode: ScheduleViewMode.week,
+      range: ScheduleRange.week(
+        DateTime(2026, 7, 22),
+        firstWeekday: DateTime.monday,
+      ),
+      selectedDate: DateTime(2026, 7, 22),
+      onToday: () {},
+      onPrevious: () {},
+      onNext: () {},
+      onModeChanged: (_) {},
+      canCreateEvent: true,
+      canCreateTask: true,
+      onCreateEvent: () {},
+      onCreateTask: () {},
+      onRefresh: () {},
+      canShowSidebar: true,
+      sidebarVisible: true,
+      onToggleSidebar: () {},
+      onSearch: () => setSearchActive(!searchActive),
+      searchActive: searchActive,
+      searchController: searchController,
+      onSearchChanged: (_) {},
+      onClearSearch: searchController.clear,
+      onMenuSelected: (_) {},
     );
   }
 }
