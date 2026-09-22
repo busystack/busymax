@@ -108,6 +108,12 @@ class OAuthService implements OAuthGateway {
         'No OAuth token is available for this account.',
       );
     }
+    if (!tokenSet.canRefresh) {
+      throw const OAuthException(
+        'OAuthMissingRefreshToken',
+        'No refresh token is available for this account.',
+      );
+    }
     if (tokenSet.expiresWithin(const Duration(seconds: 60), _nowUtc())) {
       return refreshTokenForAccount(accountId);
     }
@@ -132,16 +138,31 @@ class OAuthService implements OAuthGateway {
       authorizationEndpoint: Uri.parse(_config.oauthAuthorizationEndpoint),
       clientId: _config.googleOAuthClientId,
       scope: googleBusyMaxOAuthScope,
-      extraAuthorizationParameters: const {'include_granted_scopes': 'true'},
+      extraAuthorizationParameters: const {
+        'access_type': 'offline',
+        'prompt': 'consent',
+        'include_granted_scopes': 'true',
+      },
       loginHint: loginHint,
     );
-    final tokenSet = await exchangeAuthorizationCode(
+    var tokenSet = await exchangeAuthorizationCode(
       code: result.callback.code,
       codeVerifier: result.codeVerifier,
       redirectUri: result.redirectUri,
       fallbackScopeText: result.callback.scope,
     );
     final accountId = deriveAccountId(tokenSet);
+    if (!tokenSet.canRefresh) {
+      final previous = await _readTokenSet(accountId);
+      if (previous?.canRefresh == true) {
+        tokenSet = tokenSet.copyWith(refreshToken: previous!.refreshToken);
+      } else {
+        throw const OAuthException(
+          'OAuthMissingRefreshToken',
+          'Google did not provide a refresh token. Try connecting again.',
+        );
+      }
+    }
     await _tokenStore.saveOAuthTokenSet(
       accountId,
       BusyProvider.google,

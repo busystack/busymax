@@ -165,6 +165,8 @@ void main() {
       );
 
       expect(loopbackFlow.extraAuthorizationParameters, {
+        'access_type': 'offline',
+        'prompt': 'consent',
         'include_granted_scopes': 'true',
       });
       expect(result.tokenSet.scopes, isEmpty);
@@ -207,6 +209,129 @@ void main() {
       });
     },
   );
+
+  test('Google sign-in rejects a token without renewable access', () async {
+    final tokenStore = InMemorySecretStore();
+    final idToken =
+        'header.${base64UrlEncode(utf8.encode(jsonEncode({'sub': 'subject'})))}.signature';
+    final service = OAuthService(
+      config: _config,
+      httpClient: MockClient(
+        (_) async => http.Response(
+          jsonEncode({
+            'access_token': 'access',
+            'id_token': idToken,
+            'expires_in': 3600,
+          }),
+          200,
+        ),
+      ),
+      tokenStore: tokenStore,
+      loopbackFlow: _FakeOAuthLoopbackFlow(
+        callback: const OAuthCallbackResult(code: 'code', scope: null),
+      ),
+      nowUtc: () => DateTime.utc(2026, 6, 4),
+    );
+
+    await expectLater(
+      service.signIn(),
+      throwsA(
+        isA<OAuthException>().having(
+          (error) => error.code,
+          'code',
+          'OAuthMissingRefreshToken',
+        ),
+      ),
+    );
+    expect(
+      await tokenStore.readOAuthTokenSet('google:subject', BusyProvider.google),
+      isNull,
+    );
+  });
+
+  test(
+    'cached Google access without a refresh token requires reconnect',
+    () async {
+      final tokenStore = InMemorySecretStore();
+      await tokenStore.saveOAuthTokenSet(
+        'google:subject',
+        BusyProvider.google,
+        OAuthTokenSet(
+          accessToken: 'still-valid-access',
+          expiresAtUtc: DateTime.utc(2026, 6, 4, 1),
+          tokenType: 'Bearer',
+          scopes: const {},
+        ),
+      );
+      final service = OAuthService(
+        config: _config,
+        httpClient: MockClient((_) async => throw StateError('No request due')),
+        tokenStore: tokenStore,
+        loopbackFlow: OAuthLoopbackFlow(),
+        nowUtc: () => DateTime.utc(2026, 6, 4),
+      );
+
+      await expectLater(
+        service.authorizationHeaderForAccount('google:subject'),
+        throwsA(
+          isA<OAuthException>().having(
+            (error) => error.code,
+            'code',
+            'OAuthMissingRefreshToken',
+          ),
+        ),
+      );
+    },
+  );
+
+  test('Google reconnect retains an existing refresh token', () async {
+    final tokenStore = InMemorySecretStore();
+    final idToken =
+        'header.${base64UrlEncode(utf8.encode(jsonEncode({'sub': 'subject'})))}.signature';
+    await tokenStore.saveOAuthTokenSet(
+      'google:subject',
+      BusyProvider.google,
+      OAuthTokenSet(
+        accessToken: 'old-access',
+        refreshToken: 'old-refresh',
+        idToken: idToken,
+        expiresAtUtc: DateTime.utc(2026, 6, 4),
+        tokenType: 'Bearer',
+        scopes: const {},
+      ),
+    );
+    final service = OAuthService(
+      config: _config,
+      httpClient: MockClient(
+        (_) async => http.Response(
+          jsonEncode({
+            'access_token': 'new-access',
+            'id_token': idToken,
+            'expires_in': 3600,
+          }),
+          200,
+        ),
+      ),
+      tokenStore: tokenStore,
+      loopbackFlow: _FakeOAuthLoopbackFlow(
+        callback: const OAuthCallbackResult(code: 'code', scope: null),
+      ),
+      nowUtc: () => DateTime.utc(2026, 6, 4),
+    );
+
+    final result = await service.signIn();
+
+    expect(result.accountId, 'google:subject');
+    expect(result.tokenSet.accessToken, 'new-access');
+    expect(result.tokenSet.refreshToken, 'old-refresh');
+    expect(
+      (await tokenStore.readOAuthTokenSet(
+        'google:subject',
+        BusyProvider.google,
+      ))?.refreshToken,
+      'old-refresh',
+    );
+  });
 
   test(
     'token exchange with configured client secret sends client_secret',

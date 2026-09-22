@@ -814,6 +814,7 @@ final allAccountsSyncRunnerProvider = Provider<AllAccountsSyncRunner>((ref) {
           .read(accountsRepositoryProvider)
           .listSyncEligibleAccounts,
       syncAccount: syncAccount,
+      rethrowFirstFailure: true,
       onSyncFailure: ref
           .read(operationalNotificationReporterProvider)
           .notifySyncFailure,
