@@ -707,6 +707,18 @@ class AppLocalizationsKo extends AppLocalizations {
   String get scheduleDisplaySettings => '일정 표시';
 
   @override
+  String get newEventsAndTasks => '새 일정 및 작업';
+
+  @override
+  String get defaultCalendar => '기본 캘린더';
+
+  @override
+  String get defaultTaskList => '기본 작업 목록';
+
+  @override
+  String get lastUsed => '마지막으로 사용';
+
+  @override
   String get scheduleDisplayHoursDescription =>
       '일간 및 주간 보기는 처음에 이 시간 범위를 표시합니다. 필요한 경우 더 이르거나 늦은 항목에 맞춰 범위가 확장됩니다.';
 

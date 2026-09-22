@@ -725,6 +725,18 @@ class AppLocalizationsVi extends AppLocalizations {
   String get scheduleDisplaySettings => 'Hiển thị lịch biểu';
 
   @override
+  String get newEventsAndTasks => 'Sự kiện và công việc mới';
+
+  @override
+  String get defaultCalendar => 'Lịch mặc định';
+
+  @override
+  String get defaultTaskList => 'Danh sách công việc mặc định';
+
+  @override
+  String get lastUsed => 'Dùng gần nhất';
+
+  @override
   String get scheduleDisplayHoursDescription =>
       'Chế độ xem Ngày và Tuần ban đầu hiển thị khoảng thời gian này. Các mục sớm hơn hoặc muộn hơn sẽ mở rộng khoảng hiển thị khi cần.';
 

@@ -764,6 +764,18 @@ class AppLocalizationsPl extends AppLocalizations {
   String get scheduleDisplaySettings => 'Wyświetlanie harmonogramu';
 
   @override
+  String get newEventsAndTasks => 'Nowe wydarzenia i zadania';
+
+  @override
+  String get defaultCalendar => 'Domyślny kalendarz';
+
+  @override
+  String get defaultTaskList => 'Domyślna lista zadań';
+
+  @override
+  String get lastUsed => 'Ostatnio używane';
+
+  @override
   String get scheduleDisplayHoursDescription =>
       'Widoki dnia i tygodnia otwierają się w tym zakresie godzin. Wcześniejsze i późniejsze elementy rozszerzają zakres w razie potrzeby.';
 

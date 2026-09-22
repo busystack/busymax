@@ -4,6 +4,46 @@ import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  test('creation destinations persist and prefer selected over Last used', () {
+    const first = CreationDestination(accountId: 'a', id: 'shared');
+    const second = CreationDestination(accountId: 'b', id: 'shared');
+    final settings = AppSettings.defaults().copyWith(
+      defaultCalendar: first,
+      lastUsedCalendar: second,
+      lastUsedTaskList: first,
+    );
+    final restored = AppSettings.fromJson(settings.toJson());
+    expect(restored.defaultCalendar, first);
+    expect(restored.defaultTaskList, isNull);
+    expect(restored.lastUsedCalendar, second);
+    expect(restored.lastUsedTaskList, first);
+    expect(
+      preferredCreationDestination(
+        [second, first],
+        selected: restored.defaultCalendar,
+        lastUsed: restored.lastUsedCalendar,
+        destinationOf: (value) => value,
+      ),
+      first,
+    );
+    expect(
+      preferredCreationDestination(
+        [second],
+        selected: restored.defaultCalendar,
+        lastUsed: restored.lastUsedCalendar,
+        destinationOf: (value) => value,
+      ),
+      second,
+    );
+    expect(restored.copyWith(defaultCalendar: null).defaultCalendar, isNull);
+    expect(
+      AppSettings.fromJson({
+        'defaultCalendar': {'id': 'shared'},
+      }).defaultCalendar,
+      isNull,
+    );
+  });
+
   test(
     'clock preference persists independently of language and canonical data',
     () {

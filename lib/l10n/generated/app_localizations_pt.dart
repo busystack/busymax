@@ -744,6 +744,18 @@ class AppLocalizationsPt extends AppLocalizations {
   String get scheduleDisplaySettings => 'Schedule display';
 
   @override
+  String get newEventsAndTasks => 'New events and tasks';
+
+  @override
+  String get defaultCalendar => 'Default calendar';
+
+  @override
+  String get defaultTaskList => 'Default task list';
+
+  @override
+  String get lastUsed => 'Last used';
+
+  @override
   String get scheduleDisplayHoursDescription =>
       'Day and Week views open within these hours. Early and late items expand the range when needed.';
 
@@ -3746,6 +3758,18 @@ class AppLocalizationsPtPt extends AppLocalizationsPt {
 
   @override
   String get scheduleDisplaySettings => 'Apresentação da agenda';
+
+  @override
+  String get newEventsAndTasks => 'Novos eventos e tarefas';
+
+  @override
+  String get defaultCalendar => 'Calendário predefinido';
+
+  @override
+  String get defaultTaskList => 'Lista de tarefas predefinida';
+
+  @override
+  String get lastUsed => 'Utilizado recentemente';
 
   @override
   String get scheduleDisplayHoursDescription =>

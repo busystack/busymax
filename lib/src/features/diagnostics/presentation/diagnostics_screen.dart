@@ -16,9 +16,14 @@ import '../../sync/pending_op_resolution_service.dart';
 import '../../sync/sync_auth_error.dart';
 
 class DiagnosticsPanel extends ConsumerWidget {
-  const DiagnosticsPanel({super.key, this.scrollable = true});
+  const DiagnosticsPanel({
+    super.key,
+    this.scrollable = true,
+    this.sectionHeaderStyle,
+  });
 
   final bool scrollable;
+  final TextStyle? sectionHeaderStyle;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -36,7 +41,7 @@ class DiagnosticsPanel extends ConsumerWidget {
         header: true,
         child: Text(
           l10n.googleTasksApi,
-          style: busyMaxSectionHeaderStyle(context),
+          style: sectionHeaderStyle ?? busyMaxSectionHeaderStyle(context),
         ),
       ),
       const SizedBox(height: 8),

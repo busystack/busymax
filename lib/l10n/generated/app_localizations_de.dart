@@ -727,6 +727,18 @@ class AppLocalizationsDe extends AppLocalizations {
   String get scheduleDisplaySettings => 'Zeitplananzeige';
 
   @override
+  String get newEventsAndTasks => 'Neue Ereignisse und Aufgaben';
+
+  @override
+  String get defaultCalendar => 'Standardkalender';
+
+  @override
+  String get defaultTaskList => 'Standardaufgabenliste';
+
+  @override
+  String get lastUsed => 'Zuletzt verwendet';
+
+  @override
   String get scheduleDisplayHoursDescription =>
       'In der Tages- und Wochenansicht wird zunächst dieser Zeitraum angezeigt. Frühere oder spätere Einträge erweitern ihn bei Bedarf.';
 

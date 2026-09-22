@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'windows_time_picker.dart';
 import 'package:busymax/src/l10n/time_format_scope.dart';
 import 'package:fluent_ui/fluent_ui.dart';
@@ -88,11 +90,20 @@ Future<WindowsTaskEditorResult?> showWindowsTaskEditorDialog(
   final location = TextEditingController();
   final taskUrl = TextEditingController();
   final categories = TextEditingController();
+  final settings = ref.read(appSettingsControllerProvider);
   var selectedList = lists.firstWhere(
     (list) =>
         (initialAccountId == null || list.accountId == initialAccountId) &&
         (initialTaskListId == null || list.id == initialTaskListId),
-    orElse: () => lists.first,
+    orElse: () =>
+        preferredCreationDestination(
+          lists,
+          selected: settings.defaultTaskList,
+          lastUsed: settings.lastUsedTaskList,
+          destinationOf: (list) =>
+              CreationDestination(accountId: list.accountId, id: list.id),
+        ) ??
+        lists.first,
   );
   var selectedTimeZone = ref.read(localTimeZoneProvider);
   DateTime? due = initialDate == null
@@ -751,6 +762,16 @@ Future<WindowsTaskEditorResult?> showWindowsTaskEditorDialog(
                                   localTimeZone: selectedTimeZone,
                                 ),
                               );
+                          unawaited(
+                            ref
+                                .read(appSettingsControllerProvider.notifier)
+                                .rememberTaskList(
+                                  CreationDestination(
+                                    accountId: selectedList.accountId,
+                                    id: selectedList.id,
+                                  ),
+                                ),
+                          );
                           result = WindowsTaskEditorResult(
                             accountId: selectedList.accountId,
                             taskListId: selectedList.id,

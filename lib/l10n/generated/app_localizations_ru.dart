@@ -731,6 +731,18 @@ class AppLocalizationsRu extends AppLocalizations {
   String get scheduleDisplaySettings => 'Отображение расписания';
 
   @override
+  String get newEventsAndTasks => 'Новые события и задачи';
+
+  @override
+  String get defaultCalendar => 'Календарь по умолчанию';
+
+  @override
+  String get defaultTaskList => 'Список задач по умолчанию';
+
+  @override
+  String get lastUsed => 'Последний использованный';
+
+  @override
   String get scheduleDisplayHoursDescription =>
       'В представлениях дня и недели изначально отображается этот период. Более ранние или поздние записи при необходимости расширяют его.';
 

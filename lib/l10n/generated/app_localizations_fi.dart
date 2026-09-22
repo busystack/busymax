@@ -733,6 +733,18 @@ class AppLocalizationsFi extends AppLocalizations {
   String get scheduleDisplaySettings => 'Aikataulun näyttö';
 
   @override
+  String get newEventsAndTasks => 'Uudet tapahtumat ja tehtävät';
+
+  @override
+  String get defaultCalendar => 'Oletuskalenteri';
+
+  @override
+  String get defaultTaskList => 'Oletustehtävälista';
+
+  @override
+  String get lastUsed => 'Viimeksi käytetty';
+
+  @override
   String get scheduleDisplayHoursDescription =>
       'Päivä- ja viikkonäkymät näyttävät aluksi tämän aikavälin. Aikaisemmat ja myöhemmät kohteet laajentavat sitä tarvittaessa.';
 

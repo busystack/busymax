@@ -732,6 +732,18 @@ class AppLocalizationsFr extends AppLocalizations {
   String get scheduleDisplaySettings => 'Affichage du planning';
 
   @override
+  String get newEventsAndTasks => 'Nouveaux événements et tâches';
+
+  @override
+  String get defaultCalendar => 'Calendrier par défaut';
+
+  @override
+  String get defaultTaskList => 'Liste de tâches par défaut';
+
+  @override
+  String get lastUsed => 'Dernier utilisé';
+
+  @override
   String get scheduleDisplayHoursDescription =>
       'Les vues Jour et Semaine s’ouvrent dans cette plage horaire. Les éléments situés avant ou après cette plage l’étendent si nécessaire.';
 

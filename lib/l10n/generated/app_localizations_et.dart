@@ -720,6 +720,18 @@ class AppLocalizationsEt extends AppLocalizations {
   String get scheduleDisplaySettings => 'Ajakava kuvamine';
 
   @override
+  String get newEventsAndTasks => 'Uued sündmused ja ülesanded';
+
+  @override
+  String get defaultCalendar => 'Vaikekalender';
+
+  @override
+  String get defaultTaskList => 'Vaikimisi ülesannete loend';
+
+  @override
+  String get lastUsed => 'Viimati kasutatud';
+
+  @override
   String get scheduleDisplayHoursDescription =>
       'Päeva- ja nädalavaade avanevad nende kellaaegade piires. Vajaduse korral laiendavad varasemad ja hilisemad kirjed vahemikku.';
 

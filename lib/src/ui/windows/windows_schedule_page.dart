@@ -304,12 +304,36 @@ class _WindowsSchedulePageState extends ConsumerState<WindowsSchedulePage> {
   }) {
     _latestVisibility = visibility;
     if (_searchActive && _searchCriteria == null) _initializeSearch();
-    _creationCalendar = writableCalendarSources(sources)
+    final settings = ref.read(appSettingsControllerProvider);
+    final allCalendars = writableCalendarSources(sources);
+    final visibleCalendars = allCalendars
         .where(
           (source) => visibility.visibleCalendarSourceIds.contains(source.id),
         )
-        .firstOrNull;
-    _creationTaskList = visibility.visibleTaskListKeys.firstOrNull;
+        .toList();
+    _creationCalendar =
+        preferredCreationDestination(
+          allCalendars,
+          selected: settings.defaultCalendar,
+          lastUsed: settings.lastUsedCalendar,
+          destinationOf: (source) =>
+              CreationDestination(accountId: source.accountId, id: source.id),
+        ) ??
+        visibleCalendars.firstOrNull ??
+        allCalendars.firstOrNull;
+    final preferredTaskList = preferredCreationDestination(
+      taskLists.where((list) => !list.pendingDelete),
+      selected: settings.defaultTaskList,
+      lastUsed: settings.lastUsedTaskList,
+      destinationOf: (list) =>
+          CreationDestination(accountId: list.accountId, id: list.id),
+    );
+    _creationTaskList = preferredTaskList == null
+        ? visibility.visibleTaskListKeys.firstOrNull
+        : ScheduleTaskListKey(
+            accountId: preferredTaskList.accountId,
+            taskListId: preferredTaskList.id,
+          );
     final l10n = AppLocalizations.of(context);
     final locale = Localizations.localeOf(context).toLanguageTag();
     final range = _rangeForMode();

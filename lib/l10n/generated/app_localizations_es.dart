@@ -731,6 +731,18 @@ class AppLocalizationsEs extends AppLocalizations {
   String get scheduleDisplaySettings => 'Visualización de agenda';
 
   @override
+  String get newEventsAndTasks => 'Nuevos eventos y tareas';
+
+  @override
+  String get defaultCalendar => 'Calendario predeterminado';
+
+  @override
+  String get defaultTaskList => 'Lista de tareas predeterminada';
+
+  @override
+  String get lastUsed => 'Último utilizado';
+
+  @override
   String get scheduleDisplayHoursDescription =>
       'Las vistas de día y semana muestran inicialmente este intervalo horario. Los elementos anteriores o posteriores lo amplían cuando es necesario.';
 

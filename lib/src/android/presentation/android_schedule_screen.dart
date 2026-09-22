@@ -593,14 +593,23 @@ class _AndroidScheduleScreenState extends ConsumerState<AndroidScheduleScreen> {
     }
     final accounts =
         ref.read(accountsStreamProvider).valueOrNull ?? const <AccountEntity>[];
-    final list = await selectAndroidTaskList(
-      context,
-      lists,
-      title: context.l10n.newTask,
-      accountLabels: {
-        for (final account in accounts) account.id: account.displayLabel,
-      },
-    );
+    final settings = ref.read(appSettingsControllerProvider);
+    final list =
+        preferredCreationDestination(
+          lists,
+          selected: settings.defaultTaskList,
+          lastUsed: settings.lastUsedTaskList,
+          destinationOf: (list) =>
+              CreationDestination(accountId: list.accountId, id: list.id),
+        ) ??
+        await selectAndroidTaskList(
+          context,
+          lists,
+          title: context.l10n.newTask,
+          accountLabels: {
+            for (final account in accounts) account.id: account.displayLabel,
+          },
+        );
     if (list == null || !context.mounted) return;
     final account = accounts
         .where((value) => value.id == list.accountId)
@@ -802,30 +811,39 @@ class _AndroidScheduleScreenState extends ConsumerState<AndroidScheduleScreen> {
       ).showSnackBar(SnackBar(content: Text(context.l10n.noWritableCalendars)));
       return;
     }
-    final source = sources.length == 1
-        ? sources.single
-        : await showModalBottomSheet<CalendarSourceEntity>(
-            context: context,
-            showDragHandle: true,
-            builder: (sheetContext) => SafeArea(
-              child: ListView(
-                shrinkWrap: true,
-                children: [
-                  ListTile(title: Text(context.l10n.newEvent)),
-                  for (final candidate in sources)
-                    ListTile(
-                      leading: const Icon(Icons.calendar_today_outlined),
-                      title: Text(candidate.summary),
-                      subtitle: Text(
-                        '${candidate.provider.displayName} · '
-                        '${candidate.authenticatedAccountEmail ?? candidate.accountId}',
-                      ),
-                      onTap: () => Navigator.pop(sheetContext, candidate),
-                    ),
-                ],
-              ),
-            ),
-          );
+    final settings = ref.read(appSettingsControllerProvider);
+    final source =
+        preferredCreationDestination(
+          sources,
+          selected: settings.defaultCalendar,
+          lastUsed: settings.lastUsedCalendar,
+          destinationOf: (source) =>
+              CreationDestination(accountId: source.accountId, id: source.id),
+        ) ??
+        (sources.length == 1
+            ? sources.single
+            : await showModalBottomSheet<CalendarSourceEntity>(
+                context: context,
+                showDragHandle: true,
+                builder: (sheetContext) => SafeArea(
+                  child: ListView(
+                    shrinkWrap: true,
+                    children: [
+                      ListTile(title: Text(context.l10n.newEvent)),
+                      for (final candidate in sources)
+                        ListTile(
+                          leading: const Icon(Icons.calendar_today_outlined),
+                          title: Text(candidate.summary),
+                          subtitle: Text(
+                            '${candidate.provider.displayName} · '
+                            '${candidate.authenticatedAccountEmail ?? candidate.accountId}',
+                          ),
+                          onTap: () => Navigator.pop(sheetContext, candidate),
+                        ),
+                    ],
+                  ),
+                ),
+              ));
     if (source == null || !context.mounted) return;
     final start = DateTime(_anchor.year, _anchor.month, _anchor.day, 9);
     await Navigator.of(context).push<void>(
@@ -2355,6 +2373,16 @@ class _AndroidEventEditorState extends ConsumerState<AndroidEventEditor> {
       }
       if (draft.eventId == null) {
         await ref.read(calendarRepositoryProvider).createLocalEvent(draft);
+        unawaited(
+          ref
+              .read(appSettingsControllerProvider.notifier)
+              .rememberCalendar(
+                CreationDestination(
+                  accountId: draft.accountId,
+                  id: draft.sourceId,
+                ),
+              ),
+        );
       } else {
         await ref.read(calendarRepositoryProvider).updateLocalEvent(draft);
       }

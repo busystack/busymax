@@ -22,6 +22,57 @@ import '../../../support/process_time_zone.dart';
 import '../../../test_localized_app.dart';
 
 void main() {
+  testWidgets('month view shows recurring instances when sync writes them', (
+    tester,
+  ) async {
+    final database = await _pumpWorkspace(
+      tester,
+      DateTime(2026, 9, 22),
+      includeRecurringGoogleEvent: true,
+    );
+    addTearDown(database.close);
+    await tester.sendKeyEvent(LogicalKeyboardKey.digit3);
+    await tester.pumpAndSettle();
+
+    List<DateTime?> occurrenceDates() => tester
+        .widget<ScheduleMonthView>(find.byType(ScheduleMonthView))
+        .items
+        .where((item) => item.title == 'Every two days')
+        .map((item) => item.start)
+        .toList();
+
+    expect(occurrenceDates(), hasLength(1));
+
+    final calendar = CalendarRepository(database: database);
+    for (final day in [22, 24, 26]) {
+      final date = '2026-09-${day.toString().padLeft(2, '0')}';
+      final nextDate = '2026-09-${(day + 1).toString().padLeft(2, '0')}';
+      await calendar.upsertEvent(
+        accountId: 'account',
+        event: CalendarEventDto(
+          provider: BusyProvider.google,
+          providerCalendarId: 'personal',
+          providerEventId: 'series-$day',
+          providerRecurringEventId: 'series',
+          title: 'Every two days',
+          allDay: true,
+          startDate: date,
+          endDate: nextDate,
+        ),
+      );
+    }
+    await (database.update(database.calendarEvents)
+          ..where((row) => row.providerEventId.equals('series')))
+        .write(const CalendarEventsCompanion(isDeleted: Value(true)));
+    await tester.pumpAndSettle();
+
+    expect(occurrenceDates(), [
+      DateTime(2026, 9, 22),
+      DateTime(2026, 9, 24),
+      DateTime(2026, 9, 26),
+    ]);
+  });
+
   testWidgets(
     'previous and next day navigation render the destination all-day event',
     (tester) async {
@@ -164,6 +215,7 @@ Future<AppDatabase> _pumpWorkspace(
   WidgetTester tester,
   DateTime initialDate, {
   bool includeSeptemberBirthday = false,
+  bool includeRecurringGoogleEvent = false,
 }) async {
   final database = AppDatabase.memoryForTests();
   await database
@@ -210,6 +262,30 @@ Future<AppDatabase> _pumpWorkspace(
         allDay: true,
         startDate: '2026-09-16',
         endDate: '2026-09-17',
+      ),
+    );
+  }
+  if (includeRecurringGoogleEvent) {
+    final calendar = CalendarRepository(database: database);
+    await calendar.upsertSource(
+      accountId: 'account',
+      source: const CalendarSourceDto(
+        provider: BusyProvider.google,
+        providerCalendarId: 'personal',
+        summary: 'Personal Calendar',
+      ),
+    );
+    await calendar.upsertEvent(
+      accountId: 'account',
+      event: const CalendarEventDto(
+        provider: BusyProvider.google,
+        providerCalendarId: 'personal',
+        providerEventId: 'series',
+        title: 'Every two days',
+        allDay: true,
+        startDate: '2026-09-22',
+        endDate: '2026-09-23',
+        recurrenceJson: ['RRULE:FREQ=DAILY;INTERVAL=2;UNTIL=20260927'],
       ),
     );
   }

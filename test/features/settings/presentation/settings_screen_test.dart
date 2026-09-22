@@ -25,6 +25,7 @@ import 'package:busymax/src/features/accounts/domain/account_connection_state.da
 import 'package:busymax/src/features/auth/data/auth_repository.dart';
 import 'package:busymax/src/features/calendar/data/calendar_repository.dart';
 import 'package:busymax/src/features/settings/presentation/settings_screen.dart';
+import 'package:busymax/src/features/task_lists/data/task_lists_repository.dart';
 import 'package:busymax/src/features/sync/sync_auth_error.dart';
 import 'package:busymax/src/platform/gtk_font_service.dart';
 import 'package:busymax/src/platform/gtk_header_icon_service.dart';
@@ -397,21 +398,23 @@ void main() {
       ),
     );
 
-    final pageHeading = tester.widget<Text>(
-      find.byKey(const ValueKey('settings-page-heading')),
-    );
     final accountHeading = tester.widget<Text>(
       find.byKey(const ValueKey('settings-account-heading-google:g')),
     );
     final calendarHeading = tester.widget<Text>(find.text('Calendars'));
     expect(
-      pageHeading.style!.fontSize,
-      greaterThan(accountHeading.style!.fontSize!),
-    );
-    expect(
       accountHeading.style!.fontSize,
       greaterThan(calendarHeading.style!.fontSize!),
     );
+    final foreground = Theme.of(
+      tester.element(
+        find.byKey(const ValueKey('settings-account-heading-google:g')),
+      ),
+    ).colorScheme.onSurface;
+    expect(accountHeading.style?.fontWeight, FontWeight.bold);
+    expect(accountHeading.style?.color, foreground);
+    expect(calendarHeading.style?.fontWeight, FontWeight.bold);
+    expect(calendarHeading.style?.color, foreground);
     expect(
       tester.getTopLeft(find.text('Calendars')).dx,
       closeTo(
@@ -425,7 +428,7 @@ void main() {
     );
   });
 
-  testWidgets('Every Settings page uses a primary page heading', (
+  testWidgets('Every Settings page uses only its headerbar title', (
     tester,
   ) async {
     final container = _container(
@@ -450,16 +453,128 @@ void main() {
         find.byKey(ValueKey('settings-navigation-${entry.key.name}')),
       );
       await tester.pumpAndSettle();
-      final heading = tester.widget<Text>(
-        find.byKey(const ValueKey('settings-page-heading')),
+      expect(find.byKey(const ValueKey('settings-page-heading')), findsNothing);
+      expect(
+        find.descendant(
+          of: find.byKey(const ValueKey('settings-header-title')),
+          matching: find.text(entry.value),
+        ),
+        findsOneWidget,
       );
-      expect(heading.data, entry.value);
-      expect(heading.style?.fontWeight, FontWeight.w600);
     }
 
     await tester.pumpWidget(const SizedBox());
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 1));
+  });
+
+  testWidgets('Settings section headings use the foreground and bold weight', (
+    tester,
+  ) async {
+    final container = _container(
+      selectedAccountId: 'google:g',
+      authRepository: _FakeAuthRepository(),
+      accounts: const [_googleAccount],
+    );
+    addTearDown(container.dispose);
+
+    await _pumpSettings(tester, container, logicalSize: const Size(1000, 900));
+    final foreground = Theme.of(
+      tester.element(find.text('Calendar import')),
+    ).colorScheme.onSurface;
+    for (final label in [
+      'Google',
+      'Calendar import',
+      'Calendar subscriptions',
+    ]) {
+      final heading = tester.widget<Text>(find.text(label));
+      expect(heading.style?.fontWeight, FontWeight.bold);
+      expect(heading.style?.color, foreground);
+    }
+
+    await tester.tap(
+      find.byKey(const ValueKey('settings-navigation-schedule')),
+    );
+    await tester.pumpAndSettle();
+    final scheduleHeading = tester.widget<Text>(find.text('Schedule display'));
+    expect(scheduleHeading.style?.fontWeight, FontWeight.bold);
+    expect(scheduleHeading.style?.color, foreground);
+  });
+
+  testWidgets('Schedule lets users choose a default or Last used destination', (
+    tester,
+  ) async {
+    const calendar = CalendarSourceEntity(
+      id: 'calendar-1',
+      accountId: 'google:g',
+      provider: BusyProvider.google,
+      providerCalendarId: 'calendar-1',
+      summary: 'Work calendar',
+      selected: true,
+      hidden: false,
+      readOnly: false,
+      isDeleted: false,
+    );
+    const list = TaskListEntity(
+      accountId: 'google:g',
+      id: 'tasks-1',
+      title: 'Work tasks',
+      localDirty: false,
+      pendingDelete: false,
+      rawJson: '{}',
+    );
+    final container = _container(
+      selectedAccountId: 'google:g',
+      authRepository: _FakeAuthRepository(),
+      accounts: const [_googleAccount],
+      calendarSources: const [calendar],
+      taskLists: const [list],
+    );
+    addTearDown(container.dispose);
+    await _pumpSettings(
+      tester,
+      container,
+      initialPage: SettingsPage.schedule,
+      logicalSize: const Size(1000, 900),
+    );
+    expect(find.text('New events and tasks'), findsOneWidget);
+    final rows = tester
+        .widgetList<BusyMaxComboRow<CreationDestination?>>(
+          find.byType(BusyMaxComboRow<CreationDestination?>),
+        )
+        .toList();
+    expect(rows, hasLength(2));
+    expect(rows.map((row) => row.title), [
+      'Default calendar',
+      'Default task list',
+    ]);
+    expect(rows.map((row) => row.selected), [null, null]);
+    rows[0].onSelected(
+      const CreationDestination(accountId: 'google:g', id: 'calendar-1'),
+    );
+    rows[1].onSelected(
+      const CreationDestination(accountId: 'google:g', id: 'tasks-1'),
+    );
+    await tester.pumpAndSettle();
+    final settings = container.read(appSettingsControllerProvider);
+    expect(settings.defaultCalendar?.id, 'calendar-1');
+    expect(settings.defaultTaskList?.id, 'tasks-1');
+    final updatedRows = tester
+        .widgetList<BusyMaxComboRow<CreationDestination?>>(
+          find.byType(BusyMaxComboRow<CreationDestination?>),
+        )
+        .toList();
+    updatedRows[0].onSelected(null);
+    updatedRows[1].onSelected(null);
+    await tester.pumpAndSettle();
+    expect(
+      container.read(appSettingsControllerProvider).defaultCalendar,
+      isNull,
+    );
+    expect(
+      container.read(appSettingsControllerProvider).defaultTaskList,
+      isNull,
+    );
   });
 
   testWidgets('Settings Flutter header uses native geometry and title style', (
@@ -1259,7 +1374,7 @@ void main() {
     await tester.tap(systemNavigation);
     await tester.pumpAndSettle();
 
-    expect(find.text('Система'), findsNWidgets(3));
+    expect(find.text('Система'), findsNWidgets(2));
     expect(find.text('Системная'), findsWidgets);
   }, skip: !Platform.isLinux);
 
@@ -1870,6 +1985,7 @@ ProviderContainer _container({
   DavAccountOnboardingService? davOnboardingService,
   List<DavCollectionSettingsEntity> davCollections = const [],
   List<CalendarSourceEntity> calendarSources = const [],
+  List<TaskListEntity> taskLists = const [],
   DesktopAutostartService? autostartService,
   LocalSettingsStore? settingsStore,
   AccountsRepository? accountsRepository,
@@ -1899,6 +2015,7 @@ ProviderContainer _container({
       calendarSourcesStreamProvider.overrideWith(
         (ref) => Stream.value(calendarSources),
       ),
+      scheduleTaskListsProvider.overrideWith((ref) async => taskLists),
       davConflictsStreamProvider.overrideWith((ref) => Stream.value(const [])),
       webCalSubscriptionsProvider.overrideWith((ref) => Stream.value(const [])),
       selectedAccountIdProvider.overrideWith((ref) => selectedAccountId),

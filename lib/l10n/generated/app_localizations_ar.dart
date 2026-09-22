@@ -742,6 +742,18 @@ class AppLocalizationsAr extends AppLocalizations {
   String get scheduleDisplaySettings => 'عرض الجدول';
 
   @override
+  String get newEventsAndTasks => 'الأحداث والمهام الجديدة';
+
+  @override
+  String get defaultCalendar => 'التقويم الافتراضي';
+
+  @override
+  String get defaultTaskList => 'قائمة المهام الافتراضية';
+
+  @override
+  String get lastUsed => 'آخر استخدام';
+
+  @override
   String get scheduleDisplayHoursDescription =>
       'تفتح طريقتا عرض اليوم والأسبوع ضمن هذه الساعات. توسّع العناصر المبكرة والمتأخرة النطاق عند الحاجة.';
 

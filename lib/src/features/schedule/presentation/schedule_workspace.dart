@@ -285,6 +285,9 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
 
   @override
   Widget build(BuildContext context) {
+    // Sync expands recurring cloud events into occurrence rows after the local
+    // save. Requery when those rows arrive so the month view updates itself.
+    ref.watch(scheduleDataRevisionProvider);
     final settings = ref.watch(appSettingsControllerProvider);
     _syncModeFromSettings(settings.scheduleViewMode);
     final range = _range(context);
@@ -1572,7 +1575,17 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
     if (writableSources.isEmpty) {
       return;
     }
-    final source = writableSources.first;
+    final settings = ref.read(appSettingsControllerProvider);
+    final allWritableSources = writableCalendarSources(_searchSources);
+    final source =
+        preferredCreationDestination(
+          allWritableSources,
+          selected: settings.defaultCalendar,
+          lastUsed: settings.lastUsedCalendar,
+          destinationOf: (source) =>
+              CreationDestination(accountId: source.accountId, id: source.id),
+        ) ??
+        writableSources.first;
     await _openEventEditor(
       EventEditorDraft.newEvent(
         accountId: source.accountId,
@@ -1584,7 +1597,7 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
         startTimeZone: ref.read(localTimeZoneProvider),
         endTimeZone: ref.read(localTimeZoneProvider),
       ),
-      writableSources,
+      allWritableSources.isEmpty ? writableSources : allWritableSources,
     );
   }
 
@@ -2025,6 +2038,18 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
     await ref
         .read(calendarRepositoryProvider)
         .updateLocalEvent(draft, guestUpdatePolicy: guestUpdatePolicy);
+    if (draft.eventId == null) {
+      unawaited(
+        ref
+            .read(appSettingsControllerProvider.notifier)
+            .rememberCalendar(
+              CreationDestination(
+                accountId: draft.accountId,
+                id: draft.sourceId,
+              ),
+            ),
+      );
+    }
     final sourceAccountId = originalAccountId;
     if (sourceAccountId != null && sourceAccountId != draft.accountId) {
       unawaited(_syncMovedEvent(draft.accountId, sourceAccountId));
@@ -2095,7 +2120,9 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
           .read(accountsRepositoryProvider)
           .accountById(accountId);
       if (account?.isSyncEligible != true) {
-        return false;
+        throw AccountNotSyncEligibleException(
+          needsReconnect: account?.needsReconnect == true,
+        );
       }
       await ref
           .read(accountSyncOperationsProvider)
@@ -2408,6 +2435,16 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
         }
       }
     }
+    if (initialList == null) {
+      final settings = ref.read(appSettingsControllerProvider);
+      initialList = preferredCreationDestination(
+        _searchTaskLists.where((list) => !list.pendingDelete),
+        selected: settings.defaultTaskList,
+        lastUsed: settings.lastUsedTaskList,
+        destinationOf: (list) =>
+            CreationDestination(accountId: list.accountId, id: list.id),
+      );
+    }
     final draft = await showBusyMaxNewTaskDialog(
       context,
       ref: ref,
@@ -2423,6 +2460,16 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
     final taskId = await ref
         .read(tasksRepositoryForAccountProvider(draft.accountId))
         .createTask(draft.taskListId, draft.input);
+    unawaited(
+      ref
+          .read(appSettingsControllerProvider.notifier)
+          .rememberTaskList(
+            CreationDestination(
+              accountId: draft.accountId,
+              id: draft.taskListId,
+            ),
+          ),
+    );
     if (mounted) {
       setState(() {
         _taskListMutationIntent = TaskListMutationIntent(

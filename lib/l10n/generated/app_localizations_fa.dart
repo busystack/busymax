@@ -740,6 +740,18 @@ class AppLocalizationsFa extends AppLocalizations {
   String get scheduleDisplaySettings => 'نمایش برنامه';
 
   @override
+  String get newEventsAndTasks => 'رویدادها و کارهای جدید';
+
+  @override
+  String get defaultCalendar => 'تقویم پیش‌فرض';
+
+  @override
+  String get defaultTaskList => 'فهرست کارهای پیش‌فرض';
+
+  @override
+  String get lastUsed => 'آخرین استفاده';
+
+  @override
   String get scheduleDisplayHoursDescription =>
       'نماهای روز و هفته ابتدا این بازهٔ زمانی را نشان می‌دهند. موارد زودتر یا دیرتر در صورت نیاز این بازه را گسترش می‌دهند.';
 

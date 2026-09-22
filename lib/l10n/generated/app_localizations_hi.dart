@@ -727,6 +727,18 @@ class AppLocalizationsHi extends AppLocalizations {
   String get scheduleDisplaySettings => 'शेड्यूल प्रदर्शन';
 
   @override
+  String get newEventsAndTasks => 'नए इवेंट और कार्य';
+
+  @override
+  String get defaultCalendar => 'डिफ़ॉल्ट कैलेंडर';
+
+  @override
+  String get defaultTaskList => 'डिफ़ॉल्ट कार्य सूची';
+
+  @override
+  String get lastUsed => 'पिछली बार उपयोग किया गया';
+
+  @override
   String get scheduleDisplayHoursDescription =>
       'दिन और सप्ताह दृश्य शुरू में यह समयावधि दिखाते हैं। आवश्यकता होने पर पहले या बाद के आइटम इस सीमा को बढ़ाते हैं।';
 

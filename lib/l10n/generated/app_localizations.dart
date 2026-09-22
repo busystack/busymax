@@ -1290,6 +1290,30 @@ abstract class AppLocalizations {
   /// **'Schedule display'**
   String get scheduleDisplaySettings;
 
+  /// No description provided for @newEventsAndTasks.
+  ///
+  /// In en, this message translates to:
+  /// **'New events and tasks'**
+  String get newEventsAndTasks;
+
+  /// No description provided for @defaultCalendar.
+  ///
+  /// In en, this message translates to:
+  /// **'Default calendar'**
+  String get defaultCalendar;
+
+  /// No description provided for @defaultTaskList.
+  ///
+  /// In en, this message translates to:
+  /// **'Default task list'**
+  String get defaultTaskList;
+
+  /// No description provided for @lastUsed.
+  ///
+  /// In en, this message translates to:
+  /// **'Last used'**
+  String get lastUsed;
+
   /// No description provided for @scheduleDisplayHoursDescription.
   ///
   /// In en, this message translates to:

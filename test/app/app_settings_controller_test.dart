@@ -7,6 +7,30 @@ import 'package:flutter_test/flutter_test.dart';
 import '../support/memory_settings_store.dart';
 
 void main() {
+  test(
+    'creation defaults and last used destinations survive restart',
+    () async {
+      final store = MemorySettingsStore();
+      final controller = AppSettingsController(store);
+      addTearDown(controller.dispose);
+      await controller.ready;
+      const calendar = CreationDestination(
+        accountId: 'account-a',
+        id: 'calendar',
+      );
+      const taskList = CreationDestination(accountId: 'account-b', id: 'tasks');
+      await controller.setDefaultCalendar(calendar);
+      await controller.rememberCalendar(calendar);
+      await controller.rememberTaskList(taskList);
+      expect(AppSettings.fromJson(store.value).defaultCalendar, calendar);
+      expect(AppSettings.fromJson(store.value).lastUsedCalendar, calendar);
+      expect(AppSettings.fromJson(store.value).lastUsedTaskList, taskList);
+      await controller.setDefaultCalendar(null);
+      expect(AppSettings.fromJson(store.value).defaultCalendar, isNull);
+      expect(AppSettings.fromJson(store.value).lastUsedCalendar, calendar);
+    },
+  );
+
   test('clock changes survive loading and preserve loaded language', () async {
     final store = _DelayedLoadSettingsStore();
     final controller = AppSettingsController(store);

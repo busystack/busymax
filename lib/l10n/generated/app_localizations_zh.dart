@@ -690,6 +690,18 @@ class AppLocalizationsZh extends AppLocalizations {
   String get scheduleDisplaySettings => '日程显示';
 
   @override
+  String get newEventsAndTasks => '新建日程和任务';
+
+  @override
+  String get defaultCalendar => '默认日历';
+
+  @override
+  String get defaultTaskList => '默认任务列表';
+
+  @override
+  String get lastUsed => '最近使用';
+
+  @override
   String get scheduleDisplayHoursDescription =>
       '日视图和周视图最初显示此时间范围。需要时，更早或更晚的项目会扩展该范围。';
 
@@ -3577,6 +3589,18 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
   String get scheduleDisplaySettings => '日程显示';
 
   @override
+  String get newEventsAndTasks => '新建日程和任务';
+
+  @override
+  String get defaultCalendar => '默认日历';
+
+  @override
+  String get defaultTaskList => '默认任务列表';
+
+  @override
+  String get lastUsed => '最近使用';
+
+  @override
   String get scheduleDisplayHoursDescription =>
       '日视图和周视图最初显示此时间范围。需要时，更早或更晚的项目会扩展该范围。';
 
@@ -6462,6 +6486,18 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get scheduleDisplaySettings => '行程顯示';
+
+  @override
+  String get newEventsAndTasks => '新增行程和工作';
+
+  @override
+  String get defaultCalendar => '預設行事曆';
+
+  @override
+  String get defaultTaskList => '預設工作清單';
+
+  @override
+  String get lastUsed => '最近使用';
 
   @override
   String get scheduleDisplayHoursDescription =>

@@ -366,8 +366,16 @@ class _AndroidTasksScreenState extends ConsumerState<AndroidTasksScreen> {
     final current = lists
         .where((list) => list.id == _listId && list.accountId == _accountId)
         .firstOrNull;
+    final settings = ref.read(appSettingsControllerProvider);
     final selected =
         current ??
+        preferredCreationDestination(
+          lists,
+          selected: settings.defaultTaskList,
+          lastUsed: settings.lastUsedTaskList,
+          destinationOf: (list) =>
+              CreationDestination(accountId: list.accountId, id: list.id),
+        ) ??
         await selectAndroidTaskList(
           context,
           lists,
@@ -1677,13 +1685,24 @@ class _AndroidTaskEditorState extends ConsumerState<AndroidTaskEditor> {
       tasksRepositoryForAccountProvider(widget.accountId),
     );
     if (widget.task == null) {
-      return repository.createTask(
+      final id = await repository.createTask(
         _draft.taskListId,
         _draft.toCreateInput(
           _capabilities,
           localTimeZone: ref.read(localTimeZoneProvider),
         ),
       );
+      unawaited(
+        ref
+            .read(appSettingsControllerProvider.notifier)
+            .rememberTaskList(
+              CreationDestination(
+                accountId: widget.accountId,
+                id: _draft.taskListId,
+              ),
+            ),
+      );
+      return id;
     }
     await repository.patchTask(
       _draft.taskListId,

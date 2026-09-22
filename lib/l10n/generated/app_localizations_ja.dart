@@ -706,6 +706,18 @@ class AppLocalizationsJa extends AppLocalizations {
   String get scheduleDisplaySettings => 'スケジュール表示';
 
   @override
+  String get newEventsAndTasks => '新しい予定とタスク';
+
+  @override
+  String get defaultCalendar => '既定のカレンダー';
+
+  @override
+  String get defaultTaskList => '既定のタスクリスト';
+
+  @override
+  String get lastUsed => '前回使用';
+
+  @override
   String get scheduleDisplayHoursDescription =>
       '日表示と週表示では、最初にこの時間範囲が表示されます。必要に応じて、この範囲より前または後の項目も表示されるように範囲が広がります。';
 

@@ -43,7 +43,9 @@ import '../../connectivity/network_connectivity_service.dart';
 import '../../diagnostics/presentation/diagnostics_screen.dart';
 import '../../feedback/presentation/feedback_dialog.dart';
 import '../../sync/sync_auth_error.dart';
+import '../../task_lists/data/task_lists_repository.dart';
 import '../../tasks/presentation/desktop_date_time_fields.dart';
+import '../../tasks/domain/task_capabilities.dart';
 import '../../schedule/presentation/schedule_toolbar.dart';
 import 'account_removal_dialog.dart';
 import 'launch_at_login_refresh.dart';
@@ -105,6 +107,10 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         ref.watch(davConflictsStreamProvider).valueOrNull ?? const [];
     final calendarSources =
         ref.watch(calendarSourcesStreamProvider).valueOrNull ?? const [];
+    final taskLists = _page == SettingsPage.schedule
+        ? ref.watch(scheduleTaskListsProvider).valueOrNull ??
+              const <TaskListEntity>[]
+        : const <TaskListEntity>[];
     final subscriptions =
         ref.watch(webCalSubscriptionsProvider).valueOrNull ?? const [];
     final config = ref.watch(buildConfigProvider);
@@ -118,6 +124,27 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     final hasSyncEligibleAccounts = allAccounts.any(
       (account) => account.isSyncEligible,
     );
+    final writableCalendars = writableCalendarSources(calendarSources);
+    final writableTaskLists = <TaskListEntity>[
+      for (final list in taskLists)
+        if (!list.pendingDelete &&
+            _canCreateTasksInList(ref, allAccounts, list))
+          list,
+    ];
+    final calendarOptions = {
+      for (final source in writableCalendars)
+        CreationDestination(
+          accountId: source.accountId,
+          id: source.id,
+        ): '${source.summary} · ${_settingsAccountLabel(allAccounts, source.accountId)}',
+    };
+    final taskListOptions = {
+      for (final list in writableTaskLists)
+        CreationDestination(
+          accountId: list.accountId,
+          id: list.id,
+        ): '${list.title} · ${_settingsAccountLabel(allAccounts, list.accountId)}',
+    };
 
     final pageBody = switch (_page) {
       SettingsPage.accounts => _AccountManagementSection(
@@ -174,10 +201,39 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         onUnsubscribe: (subscription) => unawaited(_unsubscribe(subscription)),
       ),
       SettingsPage.schedule => _SettingsPageLayout(
-        title: l10n.scheduleSettings,
         children: [
           BusyMaxGroupedList(
+            title: l10n.newEventsAndTasks,
+            titleStyle: _settingsSectionHeaderStyle(context),
+            filled: true,
+            children: [
+              BusyMaxComboRow<CreationDestination?>(
+                title: l10n.defaultCalendar,
+                leading: const Icon(YaruIcons.calendar),
+                values: [null, ...calendarOptions.keys],
+                selected: calendarOptions.containsKey(settings.defaultCalendar)
+                    ? settings.defaultCalendar
+                    : null,
+                labelFor: (value) =>
+                    value == null ? l10n.lastUsed : calendarOptions[value]!,
+                onSelected: settingsController.setDefaultCalendar,
+              ),
+              BusyMaxComboRow<CreationDestination?>(
+                title: l10n.defaultTaskList,
+                leading: const Icon(YaruIcons.checkmark),
+                values: [null, ...taskListOptions.keys],
+                selected: taskListOptions.containsKey(settings.defaultTaskList)
+                    ? settings.defaultTaskList
+                    : null,
+                labelFor: (value) =>
+                    value == null ? l10n.lastUsed : taskListOptions[value]!,
+                onSelected: settingsController.setDefaultTaskList,
+              ),
+            ],
+          ),
+          BusyMaxGroupedList(
             title: l10n.scheduleDisplaySettings,
+            titleStyle: _settingsSectionHeaderStyle(context),
             description: l10n.scheduleDisplayHoursDescription,
             filled: true,
             children: [
@@ -225,7 +281,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         ],
       ),
       SettingsPage.system => _SettingsPageLayout(
-        title: l10n.settingsSystem,
         children: [
           BusyMaxGroupedList(
             filled: true,
@@ -313,7 +368,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         ],
       ),
       SettingsPage.notifications => _SettingsPageLayout(
-        title: l10n.notifications,
         children: [
           BusyMaxGroupedList(
             filled: true,
@@ -390,7 +444,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         ],
       ),
       SettingsPage.privacy => _SettingsPageLayout(
-        title: l10n.privacy,
         children: [
           BusyMaxGroupedList(
             filled: true,
@@ -406,11 +459,11 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         ],
       ),
       SettingsPage.diagnostics => _SettingsPageLayout(
-        title: l10n.diagnostics,
         children: [
           BusyMaxGroupedList(
             key: const ValueKey('diagnostics-full-resync-section'),
             title: l10n.sync,
+            titleStyle: _settingsSectionHeaderStyle(context),
             description: l10n.forceFullResyncDescription,
             filled: true,
             children: [
@@ -425,7 +478,10 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             ],
           ),
           const SizedBox(height: BusyMaxSpacing.lg),
-          const DiagnosticsPanel(scrollable: false),
+          DiagnosticsPanel(
+            scrollable: false,
+            sectionHeaderStyle: _settingsSectionHeaderStyle(context),
+          ),
         ],
       ),
     };
@@ -1092,29 +1148,55 @@ class _SettingsHeader extends StatelessWidget {
   }
 }
 
-class _SettingsPageLayout extends StatelessWidget {
-  const _SettingsPageLayout({required this.title, required this.children});
+TextStyle _settingsSectionHeaderStyle(BuildContext context) {
+  final theme = Theme.of(context);
+  return (theme.textTheme.titleSmall ?? const TextStyle()).copyWith(
+    color: theme.colorScheme.onSurface,
+    fontWeight: FontWeight.bold,
+  );
+}
 
-  final String title;
+String _settingsAccountLabel(List<AccountEntity> accounts, String accountId) {
+  for (final account in accounts) {
+    if (account.id == accountId) return account.displayLabel;
+  }
+  return accountId;
+}
+
+bool _canCreateTasksInList(
+  WidgetRef ref,
+  List<AccountEntity> accounts,
+  TaskListEntity list,
+) {
+  for (final account in accounts) {
+    if (account.id != list.accountId || !account.isTaskCapable) continue;
+    if (account.provider == BusyProvider.nextcloud) {
+      return ref
+              .watch(
+                davTaskCollectionCapabilitiesProvider((
+                  accountId: list.accountId,
+                  taskListId: list.id,
+                )),
+              )
+              .valueOrNull
+              ?.canCreateTasks ==
+          true;
+    }
+    return adapterDefaultTaskCapabilities(account.provider).canCreateTasks;
+  }
+  return false;
+}
+
+class _SettingsPageLayout extends StatelessWidget {
+  const _SettingsPageLayout({required this.children});
+
   final List<Widget> children;
 
   @override
   Widget build(BuildContext context) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Semantics(
-          header: true,
-          child: Text(
-            key: const ValueKey('settings-page-heading'),
-            title,
-            style: Theme.of(
-              context,
-            ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w600),
-          ),
-        ),
-        ...children,
-      ],
+      children: children,
     );
   }
 }
@@ -1261,7 +1343,6 @@ class _AccountManagementSection extends StatelessWidget {
     final l10n = context.l10n;
     final connecting = connectingProvider != null;
     return _SettingsPageLayout(
-      title: l10n.accounts,
       children: [
         BusyMaxGroupedList(
           filled: true,
@@ -1416,7 +1497,7 @@ class _AccountSettingsGroup extends StatelessWidget {
                   child: Text(
                     key: ValueKey('settings-account-heading-${account.id}'),
                     _accountProviderLabel(context, account.provider),
-                    style: busyMaxSectionHeaderStyle(context),
+                    style: _settingsSectionHeaderStyle(context),
                   ),
                 ),
                 const SizedBox(height: BusyMaxSpacing.xs),
@@ -1444,8 +1525,8 @@ class _AccountSettingsGroup extends StatelessWidget {
 TextStyle? _settingsAccountSubsectionStyle(BuildContext context) {
   final theme = Theme.of(context);
   return theme.textTheme.bodySmall?.copyWith(
-    color: theme.colorScheme.onSurfaceVariant,
-    fontWeight: FontWeight.w600,
+    color: theme.colorScheme.onSurface,
+    fontWeight: FontWeight.bold,
   );
 }
 
@@ -1667,6 +1748,7 @@ class _CalendarImportCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return BusyMaxGroupedList(
       title: context.l10n.calendarImport,
+      titleStyle: _settingsSectionHeaderStyle(context),
       description: context.l10n.calendarImportDescription,
       filled: true,
       children: [
@@ -1708,6 +1790,7 @@ class _CalendarSubscriptionsCard extends StatelessWidget {
       children: [
         BusyMaxGroupedList(
           title: l10n.calendarSubscriptions,
+          titleStyle: _settingsSectionHeaderStyle(context),
           description: l10n.calendarSubscriptionsDescription,
           filled: true,
           children: [
