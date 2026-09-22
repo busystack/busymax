@@ -44,6 +44,34 @@ void main() {
         .setMockMethodCallHandler(_nativeMenuChannel, null);
   });
 
+  testWidgets('new event opens with the title field focused', (tester) async {
+    await tester.pumpWidget(
+      localizedTestApp(
+        child: Scaffold(
+          body: EventEditor(
+            initialDraft: EventEditorDraft.newEvent(
+              accountId: 'account',
+              sourceId: 'source',
+              providerCalendarId: 'cal-1',
+              start: DateTime.utc(2026, 6, 8),
+              end: DateTime.utc(2026, 6, 8, 1),
+            ),
+            sources: _sources,
+            onCancel: () {},
+            onSave: (_) {},
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final title = find.descendant(
+      of: find.byType(TextFormField).first,
+      matching: find.byType(EditableText),
+    );
+    expect(tester.widget<EditableText>(title).focusNode.hasFocus, isTrue);
+  });
+
   testWidgets(
     'event location is an ordinary text field and restoring it keeps its point',
     (tester) async {

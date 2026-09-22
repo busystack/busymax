@@ -414,7 +414,6 @@ class _EventEditorState extends ConsumerState<EventEditor> {
         },
       },
       child: Focus(
-        autofocus: true,
         focusNode: _shortcutFocusNode,
         onKeyEvent: _handleEditorKeyEvent,
         child: BusyMaxModalEditorScaffold(

@@ -63,6 +63,45 @@ String _testAuthority(BusyProvider provider) => switch (provider) {
 };
 
 void main() {
+  testWidgets('new task opens with the title field focused', (tester) async {
+    await tester.pumpWidget(
+      localizedTestApp(
+        child: Scaffold(
+          body: TaskDetailsEditor(
+            task: _switchTask('new-task', ''),
+            taskLists: [
+              TaskListEntity(
+                accountId: 'microsoft:m',
+                id: 'list-1',
+                title: 'Tasks',
+                localDirty: false,
+                pendingDelete: false,
+                rawJson: '{}',
+              ),
+            ],
+            capabilities: googleTaskCollectionCapabilities,
+            localTimeZone: 'UTC',
+            accountLabel: 'Account',
+            onRefresh: () {},
+            onSave: (_, _) async {},
+            onCreateSubtask: (_) async {},
+            onMoveToTop: () {},
+            onDelete: () async {},
+            onCancel: () {},
+            isCreate: true,
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final title = find.descendant(
+      of: find.byType(TextField).first,
+      matching: find.byType(EditableText),
+    );
+    expect(tester.widget<EditableText>(title).focusNode.hasFocus, isTrue);
+  });
+
   testWidgets(
     'clock changes preserve a timed recurring task draft and its absolute alarm',
     (tester) async {

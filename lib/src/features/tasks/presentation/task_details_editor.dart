@@ -202,7 +202,7 @@ class _TaskDetailsEditorState extends State<TaskDetailsEditor> {
         },
       },
       child: Focus(
-        autofocus: true,
+        autofocus: !widget.isCreate,
         focusNode: _shortcutFocusNode,
         onKeyEvent: _handleEditorKeyEvent,
         child: Column(
@@ -227,6 +227,7 @@ class _TaskDetailsEditorState extends State<TaskDetailsEditor> {
                         YaruListTile.square(
                           title: TextField(
                             controller: _titleController,
+                            autofocus: widget.isCreate,
                             enabled: _canWrite,
                             decoration: busyMaxGroupedTextFieldDecoration(
                               context,
