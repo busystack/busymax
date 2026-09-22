@@ -32,7 +32,9 @@ jobs:
             libsecret-1-dev \
             libjsoncpp-dev \
             liblzma-dev \
+            librsvg2-common \
             locales \
+            yaru-theme-icon \
             xvfb
           sudo locale-gen en_US.UTF-8 en_GB.UTF-8
 
@@ -90,9 +92,14 @@ jobs:
         run: '"$BUSYMAX_FLUTTER_EXECUTABLE" test'
 
       - name: Test GTK header-icon bridge
-        run: >-
-          xvfb-run -a "$BUSYMAX_FLUTTER_EXECUTABLE" test
-          integration_test/gtk_header_icons_integration_test.dart -d linux
+        run: |
+          gtk_config="$RUNNER_TEMP/busymax-gtk-config"
+          mkdir -p "$gtk_config/gtk-3.0"
+          printf '[Settings]\ngtk-icon-theme-name=Yaru\n' \
+            > "$gtk_config/gtk-3.0/settings.ini"
+          XDG_CONFIG_HOME="$gtk_config" xvfb-run -a \
+            "$BUSYMAX_FLUTTER_EXECUTABLE" test \
+            integration_test/gtk_header_icons_integration_test.dart -d linux
 
       - name: Test native clock patterns, weekday locale, and GTK time picker
         run: |
@@ -140,7 +147,8 @@ jobs:
             linux/runner/gtk_header_icons.cc \
             -o build/linux/native-tests/gtk_header_icons_test \
             $(pkg-config --cflags --libs gtk+-3.0)
-          xvfb-run -a sh -c 'build/linux/native-tests/gtk_header_icons_test'
+          XDG_CONFIG_HOME="$RUNNER_TEMP/busymax-gtk-config" \
+            xvfb-run -a sh -c 'build/linux/native-tests/gtk_header_icons_test'
           g++ -std=c++17 -Wall -Wextra -Werror \
             linux/runner/tests/gtk_search_entry_theme_test.cc \
             linux/runner/gtk_search_entry_theme.cc \
