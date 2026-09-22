@@ -27,8 +27,11 @@ struct BusyMaxGtkSearchEntryTheme {
 // and its native test cannot drift apart.
 bool busymax_gtk_theme_is_standard_yaru(const gchar* theme_name);
 
-// Samples the logical icon role from the physical image.left/image.right CSS
-// node selected by GtkEntry for the supplied text direction.
+// Samples the effective GtkSearchEntry icon foreground. The primary Find icon
+// is sampled with GTK_STATE_FLAG_INSENSITIVE because GtkSearchEntry configures
+// primary-icon-sensitive=FALSE. The secondary Clear icon remains sensitive.
+// Logical primary/secondary positions are mapped to physical
+// image.left/image.right nodes according to text direction.
 bool busymax_sample_gtk_search_entry_icon_foreground(
     GtkStyleContext* entry_context,
     GtkStateFlags state,

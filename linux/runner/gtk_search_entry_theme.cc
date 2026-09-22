@@ -64,9 +64,13 @@ bool busymax_sample_gtk_search_entry_icon_foreground(
   GtkWidgetPath* image_path = gtk_widget_path_copy(entry_path);
   const gint image_position =
       gtk_widget_path_append_type(image_path, GTK_TYPE_IMAGE);
-  const GtkStateFlags directional_state = static_cast<GtkStateFlags>(
+  GtkStateFlags icon_state = static_cast<GtkStateFlags>(
       state | (direction == GTK_TEXT_DIR_RTL ? GTK_STATE_FLAG_DIR_RTL
                                              : GTK_STATE_FLAG_DIR_LTR));
+  if (icon_position == GTK_ENTRY_ICON_PRIMARY) {
+    icon_state = static_cast<GtkStateFlags>(icon_state |
+                                            GTK_STATE_FLAG_INSENSITIVE);
+  }
   const bool physical_left =
       (direction == GTK_TEXT_DIR_LTR &&
        icon_position == GTK_ENTRY_ICON_PRIMARY) ||
@@ -76,8 +80,7 @@ bool busymax_sample_gtk_search_entry_icon_foreground(
   gtk_widget_path_iter_add_class(
       image_path, image_position,
       physical_left ? GTK_STYLE_CLASS_LEFT : GTK_STYLE_CLASS_RIGHT);
-  gtk_widget_path_iter_set_state(image_path, image_position,
-                                 directional_state);
+  gtk_widget_path_iter_set_state(image_path, image_position, icon_state);
 
   GtkStyleContext* image_context = gtk_style_context_new();
   gtk_style_context_set_path(image_context, image_path);
@@ -85,8 +88,8 @@ bool busymax_sample_gtk_search_entry_icon_foreground(
   gtk_style_context_add_class(
       image_context,
       physical_left ? GTK_STYLE_CLASS_LEFT : GTK_STYLE_CLASS_RIGHT);
-  gtk_style_context_set_state(image_context, directional_state);
-  gtk_style_context_get_color(image_context, directional_state, color);
+  gtk_style_context_set_state(image_context, icon_state);
+  gtk_style_context_get_color(image_context, icon_state, color);
 
   const bool valid = IsFiniteColor(*color);
   g_object_unref(image_context);

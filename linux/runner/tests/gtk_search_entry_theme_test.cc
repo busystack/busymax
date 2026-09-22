@@ -128,7 +128,10 @@ int main(int argc, char** argv) {
     GtkCssProvider* provider = gtk_css_provider_new();
     constexpr const char* kDirectionalIconCss =
         "entry image.left { color: #112233; }\n"
-        "entry image.right { color: #445566; }\n";
+        "entry image.right { color: #445566; }\n"
+        "entry image.left:disabled { color: #a1b2c3; }\n"
+        "entry image.right:disabled { color: #d4e5f6; }\n"
+        "entry image.left:disabled:backdrop { color: #123456; }\n";
     g_autoptr(GError) error = nullptr;
     const bool css_loaded = gtk_css_provider_load_from_data(
         provider, kDirectionalIconCss, -1, &error);
@@ -145,10 +148,17 @@ int main(int argc, char** argv) {
       GdkRGBA primary_rtl = {};
       GdkRGBA secondary_ltr = {};
       GdkRGBA secondary_rtl = {};
-      GdkRGBA left = {};
-      GdkRGBA right = {};
-      gdk_rgba_parse(&left, "#112233");
-      gdk_rgba_parse(&right, "#445566");
+      GdkRGBA backdrop_primary_ltr = {};
+      GdkRGBA sensitive_left = {};
+      GdkRGBA sensitive_right = {};
+      GdkRGBA disabled_left = {};
+      GdkRGBA disabled_right = {};
+      GdkRGBA disabled_backdrop_left = {};
+      gdk_rgba_parse(&sensitive_left, "#112233");
+      gdk_rgba_parse(&sensitive_right, "#445566");
+      gdk_rgba_parse(&disabled_left, "#a1b2c3");
+      gdk_rgba_parse(&disabled_right, "#d4e5f6");
+      gdk_rgba_parse(&disabled_backdrop_left, "#123456");
       const bool sampled_primary_ltr =
           busymax_sample_gtk_search_entry_icon_foreground(
               context, GTK_STATE_FLAG_NORMAL, GTK_ENTRY_ICON_PRIMARY,
@@ -165,10 +175,16 @@ int main(int argc, char** argv) {
           busymax_sample_gtk_search_entry_icon_foreground(
               context, GTK_STATE_FLAG_NORMAL, GTK_ENTRY_ICON_SECONDARY,
               GTK_TEXT_DIR_RTL, &secondary_rtl);
+      const bool sampled_backdrop_primary_ltr =
+          busymax_sample_gtk_search_entry_icon_foreground(
+              context, GTK_STATE_FLAG_BACKDROP, GTK_ENTRY_ICON_PRIMARY,
+              GTK_TEXT_DIR_LTR, &backdrop_primary_ltr);
       std::cout << "Directional CSS primary.ltr=" << ColorString(primary_ltr)
                 << " secondary.ltr=" << ColorString(secondary_ltr)
                 << " primary.rtl=" << ColorString(primary_rtl)
-                << " secondary.rtl=" << ColorString(secondary_rtl) << '\n';
+                << " secondary.rtl=" << ColorString(secondary_rtl)
+                << " backdrop.primary.ltr="
+                << ColorString(backdrop_primary_ltr) << '\n';
       passed =
           Check(sampled_primary_ltr,
                 "LTR primary image-node color was not sampled") &&
@@ -178,14 +194,19 @@ int main(int argc, char** argv) {
                 "RTL primary image-node color was not sampled") &&
           Check(sampled_secondary_rtl,
                 "RTL secondary image-node color was not sampled") &&
-          Check(ColorsEqual(primary_ltr, left),
-                "LTR primary did not use image.left") &&
-          Check(ColorsEqual(secondary_ltr, right),
-                "LTR secondary did not use image.right") &&
-          Check(ColorsEqual(primary_rtl, right),
-                "RTL primary did not use image.right") &&
-          Check(ColorsEqual(secondary_rtl, left),
-                "RTL secondary did not use image.left") &&
+          Check(sampled_backdrop_primary_ltr,
+                "Backdrop LTR primary image-node color was not sampled") &&
+          Check(ColorsEqual(primary_ltr, disabled_left),
+                "LTR primary did not use disabled image.left") &&
+          Check(ColorsEqual(secondary_ltr, sensitive_right),
+                "LTR secondary did not use sensitive image.right") &&
+          Check(ColorsEqual(primary_rtl, disabled_right),
+                "RTL primary did not use disabled image.right") &&
+          Check(ColorsEqual(secondary_rtl, sensitive_left),
+                "RTL secondary did not use sensitive image.left") &&
+          Check(ColorsEqual(backdrop_primary_ltr,
+                            disabled_backdrop_left),
+                "LTR primary did not preserve backdrop while disabled") &&
           passed;
       gtk_widget_destroy(entry);
       g_object_unref(entry);
