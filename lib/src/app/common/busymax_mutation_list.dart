@@ -53,12 +53,12 @@ class _BusyMaxMutationListState<T> extends State<BusyMaxMutationList<T>>
   String? _exiting;
   T? _outgoing;
   int? _outgoingIndex;
-  TaskListMutationIntent? _exitingMutation;
+  TaskListMutationIntent? _activeStructuralMutation;
   int? _animationGeneration;
   final Set<int> _consumedGenerations = {};
   bool _disableAnimations = false;
 
-  bool get _hasActiveMutation => _entering != null || _exiting != null;
+  bool get _hasActiveMutation => _activeStructuralMutation != null;
 
   @override
   void didChangeDependencies() {
@@ -67,7 +67,7 @@ class _BusyMaxMutationListState<T> extends State<BusyMaxMutationList<T>>
     if (disabled == _disableAnimations) return;
     _disableAnimations = disabled;
     if (disabled && _hasActiveMutation) {
-      _settleActiveMutation(notifyRemoval: true, rebuild: false);
+      _settleActiveMutation(rebuild: false);
     }
   }
 
@@ -76,10 +76,9 @@ class _BusyMaxMutationListState<T> extends State<BusyMaxMutationList<T>>
     super.didUpdateWidget(oldWidget);
     final mutation = widget.mutation;
     if (_hasActiveMutation) {
-      final activeGeneration =
-          _exitingMutation?.generation ?? _handledGeneration;
+      final activeGeneration = _activeStructuralMutation!.generation;
       if (mutation == null || mutation.generation != activeGeneration) {
-        _settleActiveMutation(notifyRemoval: true, rebuild: false);
+        _settleActiveMutation(rebuild: false);
       } else {
         _reconcileActiveProjection();
         return;
@@ -103,8 +102,8 @@ class _BusyMaxMutationListState<T> extends State<BusyMaxMutationList<T>>
       }
       _handledGeneration = mutation.generation;
       _entering = target;
+      _activeStructuralMutation = mutation;
       _presented = List<T>.of(widget.items);
-      _notifyConsumed(mutation);
       _startMutationAnimation(mutation.generation);
       return;
     }
@@ -128,7 +127,7 @@ class _BusyMaxMutationListState<T> extends State<BusyMaxMutationList<T>>
     _exiting = target;
     _outgoing = outgoing;
     _outgoingIndex = previousIndex;
-    _exitingMutation = mutation;
+    _activeStructuralMutation = mutation;
     _presented = List<T>.of(widget.items)
       ..insert(previousIndex.clamp(0, widget.items.length), outgoing);
     _startMutationAnimation(mutation.generation);
@@ -141,18 +140,18 @@ class _BusyMaxMutationListState<T> extends State<BusyMaxMutationList<T>>
       _presented = List<T>.of(widget.items);
       if (entering != null &&
           !_presented.any((item) => widget.identityOf(item) == entering)) {
-        _settleActiveMutation(notifyRemoval: false, rebuild: false);
+        _settleActiveMutation(rebuild: false);
       }
       return;
     }
     final outgoing = _outgoing;
     if (outgoing == null) {
-      _settleActiveMutation(notifyRemoval: true, rebuild: false);
+      _settleActiveMutation(rebuild: false);
       return;
     }
     _presented = List<T>.of(widget.items);
     if (_presented.any((item) => widget.identityOf(item) == exiting)) {
-      _settleActiveMutation(notifyRemoval: true, rebuild: false);
+      _settleActiveMutation(rebuild: false);
       return;
     }
     _presented.insert(
@@ -167,7 +166,7 @@ class _BusyMaxMutationListState<T> extends State<BusyMaxMutationList<T>>
       ..stop()
       ..value = 0;
     if (_disableAnimations || BusyMaxMotion.taskListMutation == Duration.zero) {
-      _settleActiveMutation(notifyRemoval: true, rebuild: false);
+      _settleActiveMutation(rebuild: false);
       return;
     }
     _mutationAnimation.animateTo(
@@ -178,30 +177,27 @@ class _BusyMaxMutationListState<T> extends State<BusyMaxMutationList<T>>
   }
 
   void _handleAnimationStatus(AnimationStatus status) {
-    final activeGeneration = _exitingMutation?.generation ?? _handledGeneration;
+    final activeGeneration = _activeStructuralMutation?.generation;
     if (status == AnimationStatus.completed &&
         _hasActiveMutation &&
         _animationGeneration == activeGeneration &&
         mounted) {
-      _settleActiveMutation(notifyRemoval: true, rebuild: true);
+      _settleActiveMutation(rebuild: true);
     }
   }
 
-  void _settleActiveMutation({
-    required bool notifyRemoval,
-    required bool rebuild,
-  }) {
-    final removal = _exitingMutation;
+  void _settleActiveMutation({required bool rebuild}) {
+    final mutation = _activeStructuralMutation;
     _mutationAnimation.stop();
     _entering = null;
     _exiting = null;
     _outgoing = null;
     _outgoingIndex = null;
-    _exitingMutation = null;
+    _activeStructuralMutation = null;
     _animationGeneration = null;
     _presented = List<T>.of(widget.items);
     _mutationAnimation.value = 1;
-    if (notifyRemoval && removal != null) _notifyConsumed(removal);
+    if (mutation != null) _notifyConsumed(mutation);
     if (rebuild && mounted) setState(() {});
   }
 
@@ -214,11 +210,11 @@ class _BusyMaxMutationListState<T> extends State<BusyMaxMutationList<T>>
 
   @override
   void dispose() {
-    final removal = _exitingMutation;
-    if (removal != null) {
+    final mutation = _activeStructuralMutation;
+    if (mutation != null) {
       // The row lifecycle is already owned here rather than by a lazy child.
       // Finish the screen-scoped intent even if this whole list is replaced.
-      _notifyConsumed(removal);
+      _notifyConsumed(mutation);
     }
     _mutationAnimation.removeStatusListener(_handleAnimationStatus);
     _mutationAnimation.dispose();

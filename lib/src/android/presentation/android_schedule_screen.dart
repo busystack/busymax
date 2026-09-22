@@ -275,6 +275,9 @@ class _AndroidScheduleScreenState extends ConsumerState<AndroidScheduleScreen> {
             onToggleTask: _toggleTask,
             taskMutationIntent: _taskMutationIntent,
             onTaskMutationConsumed: _consumeTaskMutation,
+            agendaEmptyBuilder: items.isLoading
+                ? (context) => const SizedBox.shrink()
+                : null,
           ),
         ),
         if (items.isLoading)
@@ -1030,6 +1033,7 @@ class _ScheduleBody extends StatelessWidget {
     required this.onToggleTask,
     this.taskMutationIntent,
     this.onTaskMutationConsumed,
+    this.agendaEmptyBuilder,
   });
   final DateTime anchor;
   final ScheduleViewMode mode;
@@ -1040,6 +1044,7 @@ class _ScheduleBody extends StatelessWidget {
   final ValueChanged<TaskScheduleItem> onToggleTask;
   final TaskListMutationIntent? taskMutationIntent;
   final ValueChanged<TaskListMutationIntent>? onTaskMutationConsumed;
+  final WidgetBuilder? agendaEmptyBuilder;
 
   @override
   Widget build(BuildContext context) => BusyMaxKeyedCrossfade(
@@ -1072,6 +1077,7 @@ class _ScheduleBody extends StatelessWidget {
         onToggleTask: onToggleTask,
         taskMutationIntent: taskMutationIntent,
         onTaskMutationConsumed: onTaskMutationConsumed,
+        emptyBuilder: agendaEmptyBuilder,
       ),
     },
   );

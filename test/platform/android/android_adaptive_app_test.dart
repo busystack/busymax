@@ -411,6 +411,40 @@ void main() {
     },
   );
 
+  testWidgets('Agenda loading hides its empty message until data resolves', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(412, 915);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final destination = Completer<void>();
+    DateTime? initialRangeStart;
+    final harness = await _pumpApp(
+      tester,
+      AppSettings.defaults().copyWith(
+        androidScheduleViewMode: ScheduleViewMode.agenda,
+      ),
+      scheduleProjectionCoverage: (range) async {
+        initialRangeStart ??= range.start;
+        if (range.start != initialRangeStart) await destination.future;
+      },
+    );
+    addTearDown(harness.dispose);
+
+    expect(find.text('No events or tasks'), findsOneWidget);
+    await tester.tap(find.byIcon(Icons.chevron_right));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 220));
+    expect(find.byType(CircularProgressIndicator), findsOneWidget);
+    expect(find.text('No events or tasks'), findsNothing);
+
+    destination.complete();
+    await tester.pumpAndSettle();
+    expect(find.byType(CircularProgressIndicator), findsNothing);
+    expect(find.text('No events or tasks'), findsOneWidget);
+  });
+
   testWidgets(
     'long schedule details remain scrollable across constrained viewports',
     (tester) async {

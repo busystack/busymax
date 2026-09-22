@@ -44,10 +44,10 @@ class WindowsDesktopRuntime extends ConsumerStatefulWidget {
 
   @override
   ConsumerState<WindowsDesktopRuntime> createState() =>
-      _WindowsDesktopRuntimeState();
+      WindowsDesktopRuntimeState();
 }
 
-class _WindowsDesktopRuntimeState extends ConsumerState<WindowsDesktopRuntime> {
+class WindowsDesktopRuntimeState extends ConsumerState<WindowsDesktopRuntime> {
   DesktopTrayService? _tray;
   BusyMaxTrayPresentationFormatter? _formatter;
   Timer? _refreshTimer;
@@ -135,7 +135,7 @@ class _WindowsDesktopRuntimeState extends ConsumerState<WindowsDesktopRuntime> {
           widget.trayServiceFactory?.call(_loadFormattedPresentation) ??
           WindowsTrayService(
             loadPresentation: _loadFormattedPresentation,
-            onCommand: _handleCommand,
+            onCommand: handleTrayCommand,
             onUnavailable: (errorCode) async {
               ref.read(desktopTrayDiagnosticProvider.notifier).state =
                   errorCode ?? 'tray-unavailable';
@@ -202,7 +202,8 @@ class _WindowsDesktopRuntimeState extends ConsumerState<WindowsDesktopRuntime> {
     return _formatter!.format(presentation);
   }
 
-  Future<void> _handleCommand(WindowsTrayCommand command) async {
+  @visibleForTesting
+  Future<void> handleTrayCommand(WindowsTrayCommand command) async {
     final window = ref.read(desktopWindowServiceProvider);
     switch (command) {
       case WindowsTrayCommand.open:
@@ -237,7 +238,7 @@ class _WindowsDesktopRuntimeState extends ConsumerState<WindowsDesktopRuntime> {
             .read(desktopNavigationServiceProvider)
             .open(DesktopNavigationDestination.schedule);
       case WindowsTrayCommand.synchronize:
-        await ref.read(allAccountsSyncRunnerProvider)();
+        await ref.read(syncSchedulerProvider).runNow();
         await _tray?.refresh();
       case WindowsTrayCommand.settings:
         await window.showWindow();

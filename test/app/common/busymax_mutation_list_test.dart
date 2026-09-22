@@ -62,6 +62,187 @@ void main() {
     expect(consumed, 1);
   });
 
+  testWidgets('insertion is consumed once after its entrance completes', (
+    tester,
+  ) async {
+    final pending = intent(
+      presentation: TaskListMutationPresentation.insertion,
+      id: 'b',
+      generation: 8,
+    );
+    var consumed = 0;
+    await tester.pumpWidget(_harness(items: const [_Item('a')]));
+    await tester.pumpWidget(
+      _harness(
+        items: const [_Item('a'), _Item('b')],
+        mutation: pending,
+        onConsumed: (_) => consumed++,
+      ),
+    );
+    expect(consumed, 0);
+    await tester.pump(const Duration(milliseconds: 90));
+    expect(find.text('b'), findsOneWidget);
+    expect(consumed, 0);
+    await tester.pumpAndSettle();
+    expect(consumed, 1);
+    await tester.pumpWidget(
+      _harness(
+        items: const [_Item('a'), _Item('b')],
+        mutation: pending,
+        onConsumed: (_) => consumed++,
+      ),
+    );
+    expect(consumed, 1);
+  });
+
+  testWidgets('parent can clear insertion intent on consumption', (
+    tester,
+  ) async {
+    final pending = intent(
+      presentation: TaskListMutationPresentation.insertion,
+      id: 'b',
+      generation: 9,
+    );
+    var inserted = false;
+    TaskListMutationIntent? current;
+    var consumed = 0;
+    late StateSetter rebuild;
+    await tester.pumpWidget(
+      StatefulBuilder(
+        builder: (context, setState) {
+          rebuild = setState;
+          return _harness(
+            items: inserted
+                ? const [_Item('a'), _Item('b')]
+                : const [_Item('a')],
+            mutation: current,
+            onConsumed: (_) => setState(() {
+              current = null;
+              consumed++;
+            }),
+          );
+        },
+      ),
+    );
+    rebuild(() {
+      inserted = true;
+      current = pending;
+    });
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 90));
+    expect(current, same(pending));
+    expect(consumed, 0);
+    await tester.pumpAndSettle();
+    expect(current, isNull);
+    expect(consumed, 1);
+    expect(find.text('b'), findsOneWidget);
+    expect(tester.binding.hasScheduledFrame, isFalse);
+  });
+
+  testWidgets('offscreen insertion is consumed by the parent animation', (
+    tester,
+  ) async {
+    final before = List.generate(100, (index) => _Item('item-$index'));
+    final pending = intent(
+      presentation: TaskListMutationPresentation.insertion,
+      id: 'item-100',
+      generation: 10,
+    );
+    var consumed = 0;
+    await tester.pumpWidget(_harness(items: before, viewportHeight: 160));
+    await tester.pumpWidget(
+      _harness(
+        items: [...before, const _Item('item-100')],
+        mutation: pending,
+        viewportHeight: 160,
+        onConsumed: (_) => consumed++,
+      ),
+    );
+    expect(find.text('item-100'), findsNothing);
+    await tester.pump(const Duration(milliseconds: 90));
+    expect(consumed, 0);
+    await tester.pumpAndSettle();
+    expect(consumed, 1);
+  });
+
+  testWidgets('reduced motion consumes insertion immediately', (tester) async {
+    final pending = intent(
+      presentation: TaskListMutationPresentation.insertion,
+      id: 'b',
+      generation: 11,
+    );
+    var consumed = 0;
+    await tester.pumpWidget(
+      _harness(items: const [_Item('a')], disabled: true),
+    );
+    await tester.pumpWidget(
+      _harness(
+        items: const [_Item('a'), _Item('b')],
+        mutation: pending,
+        disabled: true,
+        onConsumed: (_) => consumed++,
+      ),
+    );
+    await tester.pump();
+    expect(consumed, 1);
+    expect(find.text('b'), findsOneWidget);
+    expect(tester.binding.hasScheduledFrame, isFalse);
+  });
+
+  testWidgets('disappearing insertion target settles its intent', (
+    tester,
+  ) async {
+    final pending = intent(
+      presentation: TaskListMutationPresentation.insertion,
+      id: 'b',
+      generation: 12,
+    );
+    var consumed = 0;
+    await tester.pumpWidget(_harness(items: const [_Item('a')]));
+    await tester.pumpWidget(
+      _harness(
+        items: const [_Item('a'), _Item('b')],
+        mutation: pending,
+        onConsumed: (_) => consumed++,
+      ),
+    );
+    await tester.pump(const Duration(milliseconds: 60));
+    await tester.pumpWidget(
+      _harness(
+        items: const [_Item('a')],
+        mutation: pending,
+        onConsumed: (_) => consumed++,
+      ),
+    );
+    await tester.pump();
+    expect(consumed, 1);
+    expect(find.text('b'), findsNothing);
+  });
+
+  testWidgets('disposing the list consumes its pending insertion', (
+    tester,
+  ) async {
+    final pending = intent(
+      presentation: TaskListMutationPresentation.insertion,
+      id: 'b',
+      generation: 13,
+    );
+    var consumed = 0;
+    await tester.pumpWidget(_harness(items: const [_Item('a')]));
+    await tester.pumpWidget(
+      _harness(
+        items: const [_Item('a'), _Item('b')],
+        mutation: pending,
+        onConsumed: (_) => consumed++,
+      ),
+    );
+    await tester.pump(const Duration(milliseconds: 60));
+    expect(consumed, 0);
+    await tester.pumpWidget(const MaterialApp(home: SizedBox.shrink()));
+    await tester.pump();
+    expect(consumed, 1);
+  });
+
   testWidgets('unrelated refresh reconciles without structural animation', (
     tester,
   ) async {
