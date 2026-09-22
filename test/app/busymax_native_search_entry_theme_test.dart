@@ -68,8 +68,93 @@ void main() {
       wrongBrightness.extension<BusyMaxNativeSearchEntryTheme>()?.normal.radius,
       9,
     );
+    final fallback = normal.extension<BusyMaxNativeSearchEntryTheme>()!.normal;
+    expect(fallback.primaryIconForeground, fallback.secondaryIconForeground);
+    expect(
+      fallback.primaryIconForegroundRtl,
+      fallback.secondaryIconForegroundRtl,
+    );
+  });
+
+  test('lerp interpolates all primary and secondary icon colors', () {
+    const first = BusyMaxNativeSearchEntryTheme(
+      normal: _firstLerpState,
+      focused: _firstLerpState,
+      backdrop: _firstLerpState,
+      backdropFocused: _firstLerpState,
+    );
+    const second = BusyMaxNativeSearchEntryTheme(
+      normal: _secondLerpState,
+      focused: _secondLerpState,
+      backdrop: _secondLerpState,
+      backdropFocused: _secondLerpState,
+    );
+
+    final state = first.lerp(second, .5).normal;
+    expect(
+      state.primaryIconForeground,
+      Color.lerp(
+        _firstLerpState.primaryIconForeground,
+        _secondLerpState.primaryIconForeground,
+        .5,
+      ),
+    );
+    expect(
+      state.primaryIconForegroundRtl,
+      Color.lerp(
+        _firstLerpState.primaryIconForegroundRtl,
+        _secondLerpState.primaryIconForegroundRtl,
+        .5,
+      ),
+    );
+    expect(
+      state.secondaryIconForeground,
+      Color.lerp(
+        _firstLerpState.secondaryIconForeground,
+        _secondLerpState.secondaryIconForeground,
+        .5,
+      ),
+    );
+    expect(
+      state.secondaryIconForegroundRtl,
+      Color.lerp(
+        _firstLerpState.secondaryIconForegroundRtl,
+        _secondLerpState.secondaryIconForegroundRtl,
+        .5,
+      ),
+    );
   });
 }
+
+const _firstLerpState = GtkSearchEntryStateStyle(
+  background: Color(0xFF000000),
+  foreground: Color(0xFF000000),
+  borderTop: 1,
+  borderRight: 1,
+  borderBottom: 1,
+  borderLeft: 1,
+  borderColor: Color(0xFF000000),
+  primaryIconForeground: Color(0xFF002000),
+  primaryIconForegroundRtl: Color(0xFF200000),
+  secondaryIconForeground: Color(0xFF000020),
+  secondaryIconForegroundRtl: Color(0xFF200020),
+  radius: 1,
+);
+
+const _secondLerpState = GtkSearchEntryStateStyle(
+  background: Color(0xFFFFFFFF),
+  foreground: Color(0xFFFFFFFF),
+  borderTop: 2,
+  borderRight: 2,
+  borderBottom: 2,
+  borderLeft: 2,
+  borderColor: Color(0xFFFFFFFF),
+  primaryIconForeground: Color(0xFFFF0000),
+  primaryIconForegroundRtl: Color(0xFF00FF00),
+  secondaryIconForeground: Color(0xFF0000E0),
+  secondaryIconForegroundRtl: Color(0xFFE000E0),
+  radius: 2,
+);
 
 const _nativeSearchTheme = GtkSearchEntryTheme(
   normal: GtkSearchEntryStateStyle(
@@ -80,8 +165,10 @@ const _nativeSearchTheme = GtkSearchEntryTheme(
     borderBottom: 3,
     borderLeft: 4,
     borderColor: Color(0xFF555555),
-    iconForeground: Color(0xFF666666),
-    iconForegroundRtl: Color(0xFF676767),
+    primaryIconForeground: Color(0xFF666666),
+    primaryIconForegroundRtl: Color(0xFF676767),
+    secondaryIconForeground: Color(0xFF686868),
+    secondaryIconForegroundRtl: Color(0xFF696969),
     radius: 13,
   ),
   focused: GtkSearchEntryStateStyle(
@@ -92,8 +179,10 @@ const _nativeSearchTheme = GtkSearchEntryTheme(
     borderBottom: 2,
     borderLeft: 2,
     borderColor: Color(0xFF336699),
-    iconForeground: Color(0xFFBBBBBB),
-    iconForegroundRtl: Color(0xFFBCBCBC),
+    primaryIconForeground: Color(0xFFBBBBBB),
+    primaryIconForegroundRtl: Color(0xFFBCBCBC),
+    secondaryIconForeground: Color(0xFFBDBDBD),
+    secondaryIconForegroundRtl: Color(0xFFBEBEBE),
     radius: 12,
   ),
   backdrop: GtkSearchEntryStateStyle(
@@ -104,8 +193,10 @@ const _nativeSearchTheme = GtkSearchEntryTheme(
     borderBottom: 1,
     borderLeft: 1,
     borderColor: Color(0xFF444444),
-    iconForeground: Color(0xFF555555),
-    iconForegroundRtl: Color(0xFF565656),
+    primaryIconForeground: Color(0xFF555555),
+    primaryIconForegroundRtl: Color(0xFF565656),
+    secondaryIconForeground: Color(0xFF575757),
+    secondaryIconForegroundRtl: Color(0xFF585858),
     radius: 11,
   ),
   backdropFocused: GtkSearchEntryStateStyle(
@@ -116,8 +207,10 @@ const _nativeSearchTheme = GtkSearchEntryTheme(
     borderBottom: 1,
     borderLeft: 1,
     borderColor: Color(0xFF888888),
-    iconForeground: Color(0xFF999999),
-    iconForegroundRtl: Color(0xFF9A9A9A),
+    primaryIconForeground: Color(0xFF999999),
+    primaryIconForegroundRtl: Color(0xFF9A9A9A),
+    secondaryIconForeground: Color(0xFF9B9B9B),
+    secondaryIconForegroundRtl: Color(0xFF9C9C9C),
     radius: 10,
   ),
 );

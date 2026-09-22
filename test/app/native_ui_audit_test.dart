@@ -525,13 +525,34 @@ void main() {
         contains('BusyMaxNativeSearchEntryTheme.of(context)'),
       );
       expect(headerSearch, contains('InputBorder.none'));
-      expect(headerSearch, contains('BusyMaxLinuxHeaderIcon.search'));
+      expect(headerSearch, contains('BusyMaxLinuxHeaderIcon.searchEntryFind'));
       expect(headerSearch, contains('BusyMaxLinuxHeaderIcon.searchClear'));
-      expect(headerSearch, contains('if (_isEmpty)'));
+      expect(headerSearch, contains('if (!_isEmpty) ...['));
+      expect(headerSearch, contains('onChanged: _handleTextChanged'));
       expect(
-        headerSearch.indexOf('BusyMaxLinuxHeaderIcon.search,'),
-        greaterThan(headerSearch.indexOf('if (_isEmpty)')),
+        linuxHeader,
+        contains('searchChangedDelay = Duration(milliseconds: 150)'),
       );
+      expect(headerSearch, contains('void _cancelPendingSearchChanged()'));
+      final disposeStart = headerSearch.indexOf('void dispose()');
+      final disposeEnd = headerSearch.indexOf(
+        'void _handleControllerChanged()',
+        disposeStart,
+      );
+      expect(disposeStart, isNonNegative);
+      expect(disposeEnd, greaterThan(disposeStart));
+      expect(
+        headerSearch.substring(disposeStart, disposeEnd),
+        contains('_cancelPendingSearchChanged();'),
+      );
+      expect(
+        headerSearch,
+        isNot(contains('math.min(constraints.maxWidth, naturalWidth)')),
+      );
+      expect(toolbar, contains('icon: BusyMaxLinuxHeaderIcon.search'));
+      expect(iconService, contains("const ['system-search-symbolic']"));
+      expect(iconService, contains("const ['edit-find-symbolic']"));
+      expect(iconService, contains("const ['edit-clear-symbolic']"));
       expect(headerSearch, isNot(contains('theme.colorScheme.isHighContrast')));
       expect(
         headerSearch,

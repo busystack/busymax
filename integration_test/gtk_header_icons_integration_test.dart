@@ -24,6 +24,7 @@ void main() {
       BusyMaxLinuxHeaderIcon.previous,
       BusyMaxLinuxHeaderIcon.next,
       BusyMaxLinuxHeaderIcon.search,
+      BusyMaxLinuxHeaderIcon.searchEntryFind,
       BusyMaxLinuxHeaderIcon.searchClear,
       BusyMaxLinuxHeaderIcon.mainMenu,
       BusyMaxLinuxHeaderIcon.create,
@@ -43,6 +44,16 @@ void main() {
       expect(asset.pixelHeight, greaterThan(0));
       expect(asset.scale, catalog.scale);
     }
+    for (final role in const {
+      BusyMaxLinuxHeaderIcon.search: 'system-search-symbolic',
+      BusyMaxLinuxHeaderIcon.searchEntryFind: 'edit-find-symbolic',
+      BusyMaxLinuxHeaderIcon.searchClear: 'edit-clear-symbolic',
+    }.entries) {
+      expect(
+        catalog.assetFor(role.key, TextDirection.ltr)!.resolvedName,
+        role.value,
+      );
+    }
     expect(
       catalog
           .assetFor(BusyMaxLinuxHeaderIcon.today, TextDirection.ltr)!
@@ -61,7 +72,7 @@ void main() {
     debugPrint(
       'GTK header icon catalog: '
       '${{
-        for (final icon in const [BusyMaxLinuxHeaderIcon.viewDay, BusyMaxLinuxHeaderIcon.viewWeek, BusyMaxLinuxHeaderIcon.viewMonth, BusyMaxLinuxHeaderIcon.viewYear, BusyMaxLinuxHeaderIcon.viewAgenda, BusyMaxLinuxHeaderIcon.filter]) icon.name: catalog.assetFor(icon, TextDirection.ltr)?.resolvedName ?? 'missing-optional',
+        for (final icon in const [BusyMaxLinuxHeaderIcon.search, BusyMaxLinuxHeaderIcon.searchEntryFind, BusyMaxLinuxHeaderIcon.searchClear, BusyMaxLinuxHeaderIcon.viewDay, BusyMaxLinuxHeaderIcon.viewWeek, BusyMaxLinuxHeaderIcon.viewMonth, BusyMaxLinuxHeaderIcon.viewYear, BusyMaxLinuxHeaderIcon.viewAgenda, BusyMaxLinuxHeaderIcon.filter]) icon.name: catalog.assetFor(icon, TextDirection.ltr)?.resolvedName ?? 'missing-optional',
       }}',
     );
 
@@ -70,16 +81,27 @@ void main() {
         service: service,
         child: const MaterialApp(
           home: Center(
-            child: BusyMaxGtkHeaderIcon(BusyMaxLinuxHeaderIcon.search),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                BusyMaxGtkHeaderIcon(BusyMaxLinuxHeaderIcon.search),
+                BusyMaxGtkHeaderIcon(BusyMaxLinuxHeaderIcon.searchEntryFind),
+                BusyMaxGtkHeaderIcon(BusyMaxLinuxHeaderIcon.searchClear),
+              ],
+            ),
           ),
         ),
       ),
     );
-    expect(
-      tester.getSize(find.byType(BusyMaxGtkHeaderIcon)),
-      const Size.square(BusyMaxLinuxHeaderStyle.symbolicIconSize),
-    );
-    expect(find.byType(Image), findsOneWidget);
+    for (final icon in tester.widgetList<BusyMaxGtkHeaderIcon>(
+      find.byType(BusyMaxGtkHeaderIcon),
+    )) {
+      expect(
+        tester.getSize(find.byWidget(icon)),
+        const Size.square(BusyMaxLinuxHeaderStyle.symbolicIconSize),
+      );
+    }
+    expect(find.byType(Image), findsNWidgets(3));
     expect(
       find.descendant(
         of: find.byType(BusyMaxGtkHeaderIcon),

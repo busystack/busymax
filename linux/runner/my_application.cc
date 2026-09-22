@@ -2082,9 +2082,14 @@ static FlValue* gtk_search_entry_state_to_fl_value(
   set_search_entry_color(result, "background", &state.background);
   set_search_entry_color(result, "foreground", &state.foreground);
   set_search_entry_color(result, "borderColor", &state.border_color);
-  set_search_entry_color(result, "iconForeground", &state.icon_foreground);
-  set_search_entry_color(result, "iconForegroundRtl",
-                         &state.icon_foreground_rtl);
+  set_search_entry_color(result, "primaryIconForeground",
+                         &state.primary_icon_foreground);
+  set_search_entry_color(result, "primaryIconForegroundRtl",
+                         &state.primary_icon_foreground_rtl);
+  set_search_entry_color(result, "secondaryIconForeground",
+                         &state.secondary_icon_foreground);
+  set_search_entry_color(result, "secondaryIconForegroundRtl",
+                         &state.secondary_icon_foreground_rtl);
   fl_value_set_string_take(result, "borderTop",
                            fl_value_new_int(state.border_width.top));
   fl_value_set_string_take(result, "borderRight",

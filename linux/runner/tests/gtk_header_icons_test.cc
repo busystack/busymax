@@ -34,6 +34,16 @@ int main(int argc, char** argv) {
   bool passed = Check(kBusyMaxGtkHeaderIconLogicalSize == 16,
                       "Production nominal GTK header icon size is not 16");
 
+  const std::vector<std::string> search_role_names = {
+      "system-search-symbolic", "edit-find-symbolic", "edit-clear-symbolic"};
+  for (const std::string& name : search_role_names) {
+    const auto asset = icons.Load({name}, BusyMaxGtkIconDirection::kLtr, 1);
+    passed = Check(asset.has_value(), "GTK Search-role icon lookup failed") &&
+             Check(asset && asset->resolved_name == name,
+                   "GTK Search-role icon resolved under the wrong name") &&
+             passed;
+  }
+
   const std::vector<std::string> known = {"go-previous-symbolic"};
   const auto normal = icons.Load(known, BusyMaxGtkIconDirection::kLtr, 1);
   passed = Check(normal.has_value(),

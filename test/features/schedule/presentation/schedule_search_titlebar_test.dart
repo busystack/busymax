@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:busymax/src/app/app_bootstrap.dart';
 import 'package:busymax/src/app/busymax_design.dart';
@@ -11,6 +12,10 @@ import 'package:busymax/src/features/schedule/presentation/schedule_toolbar.dart
 import 'package:busymax/src/platform/gtk_window_preferences_service.dart';
 import 'package:busymax/src/platform/gtk_header_icon_service.dart';
 import 'package:busymax/src/platform/native_menu_service.dart';
+import 'package:busymax/src/schedule/schedule_filters.dart';
+import 'package:busymax/src/schedule/schedule_item.dart';
+import 'package:busymax/src/schedule/schedule_range.dart';
+import 'package:busymax/src/schedule/schedule_repository.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -102,6 +107,18 @@ void main() {
         find.byKey(const ValueKey('schedule-search-button')),
       );
       expect(searchButton.selected, isTrue);
+      expect(searchButton.icon, BusyMaxLinuxHeaderIcon.search);
+      expect(
+        tester
+            .widgetList<BusyMaxGtkHeaderIcon>(
+              find.descendant(
+                of: find.byType(BusyMaxLinuxHeaderSearchField),
+                matching: find.byType(BusyMaxGtkHeaderIcon),
+              ),
+            )
+            .map((icon) => icon.icon),
+        [BusyMaxLinuxHeaderIcon.searchEntryFind],
+      );
       final headerRect = tester.getRect(find.byType(ScheduleToolbar));
       final fieldRect = tester.getRect(
         find.byType(BusyMaxLinuxHeaderSearchField),
@@ -110,7 +127,24 @@ void main() {
       expect(fieldRect.height, BusyMaxLinuxHeaderStyle.searchEntryHeight);
       expect(fieldRect.center.dx, closeTo(headerRect.center.dx, .01));
       expect(fieldRect.center.dy, closeTo(headerRect.center.dy, .5));
-      expect(fieldRect.width, lessThan(headerRect.width));
+      final leftOccupiedEdge = tester
+          .getRect(find.byKey(const ValueKey('schedule-sidebar-button')))
+          .right;
+      final rightOccupiedEdge = tester
+          .getRect(find.byKey(const ValueKey('schedule-search-button')))
+          .left;
+      expect(
+        fieldRect.width,
+        closeTo(
+          2 *
+              math.min(
+                headerRect.center.dx - leftOccupiedEdge,
+                rightOccupiedEdge - headerRect.center.dx,
+              ),
+          .01,
+        ),
+      );
+      expect(fieldRect.width, closeTo(640, .01));
 
       final textField = tester.widget<TextField>(_searchTextField());
       expect(textField.decoration?.hintText, isNull);
@@ -174,7 +208,72 @@ void main() {
           BusyMaxSpacing.headerInset,
         );
       }
+      final sidebar = find.byKey(const ValueKey('schedule-sidebar-button'));
+      final sidebarRect = sidebar.evaluate().isEmpty
+          ? null
+          : tester.getRect(sidebar);
+      final physicalLeftEdge = direction == TextDirection.ltr
+          ? sidebarRect?.right ?? headerRect.left + BusyMaxSpacing.headerInset
+          : controlRects.last.right;
+      final physicalRightEdge = direction == TextDirection.ltr
+          ? controlRects.first.left
+          : sidebarRect?.left ?? headerRect.right - BusyMaxSpacing.headerInset;
+      expect(
+        fieldRect.width,
+        closeTo(
+          2 *
+              math.min(
+                headerRect.center.dx - physicalLeftEdge,
+                physicalRightEdge - headerRect.center.dx,
+              ),
+          .01,
+        ),
+      );
+      expect(fieldRect.width, closeTo(410, .01));
     }
+  });
+
+  testWidgets('Schedule publishes only the settled non-empty Search query', (
+    tester,
+  ) async {
+    final repository = _RecordingScheduleRepository();
+    await _pumpWorkspace(tester, width: 1100, repository: repository);
+    await _openSearch(tester);
+    repository.queries.clear();
+    final field = _searchTextField();
+
+    await tester.enterText(field, 'p');
+    await tester.pump(const Duration(milliseconds: 25));
+    await tester.enterText(field, 'pl');
+    await tester.pump(const Duration(milliseconds: 25));
+    await tester.enterText(field, 'pla');
+    await tester.pump(const Duration(milliseconds: 25));
+    await tester.enterText(field, 'plan');
+    expect(repository.queries, isEmpty);
+    await tester.pump(const Duration(milliseconds: 149));
+    expect(repository.queries, isEmpty);
+    await tester.pump(const Duration(milliseconds: 1));
+    expect(repository.queries, ['plan']);
+  });
+
+  testWidgets('Schedule applies Clear immediately and drops pending text', (
+    tester,
+  ) async {
+    final repository = _RecordingScheduleRepository();
+    await _pumpWorkspace(tester, width: 1100, repository: repository);
+    await _openSearch(tester);
+    repository.queries.clear();
+
+    await tester.enterText(_searchTextField(), 'planning');
+    await tester.pump(const Duration(milliseconds: 50));
+    await tester.tap(find.byKey(BusyMaxLinuxHeaderSearchField.clearKey));
+    await tester.pump();
+    expect(tester.widget<TextField>(_searchTextField()).controller!.text, '');
+    expect(repository.queries, isNotEmpty);
+    expect(repository.queries.last, '');
+    expect(repository.queries, isNot(contains('planning')));
+    await tester.pump(const Duration(milliseconds: 151));
+    expect(repository.queries, isNot(contains('planning')));
   });
 
   testWidgets('Search inputs do not steal the empty titlebar drag behavior', (
@@ -263,14 +362,14 @@ void main() {
       matching: find.byWidgetPredicate(
         (widget) =>
             widget is BusyMaxGtkHeaderIcon &&
-            widget.icon == BusyMaxLinuxHeaderIcon.search,
+            widget.icon == BusyMaxLinuxHeaderIcon.searchEntryFind,
       ),
     );
     expect(searchIcon, findsOneWidget);
     expect(clearIcon, findsNothing);
     await _dragControl(
       tester,
-      BusyMaxLinuxHeaderSearchField.secondaryIconKey.value,
+      BusyMaxLinuxHeaderSearchField.primaryIconKey.value,
     );
     expect(_dragCalls(windowCalls), 0);
 
@@ -380,6 +479,7 @@ Future<void> _pumpWorkspace(
   required double width,
   GlobalKey<_WorkspaceHarnessState>? harnessKey,
   TextDirection direction = TextDirection.ltr,
+  ScheduleRepository? repository,
 }) async {
   tester.view
     ..devicePixelRatio = 1
@@ -397,6 +497,8 @@ Future<void> _pumpWorkspace(
         ),
         localTimeZoneProvider.overrideWithValue('UTC'),
         localSettingsStoreProvider.overrideWithValue(_MemorySettingsStore()),
+        if (repository != null)
+          scheduleRepositoryProvider.overrideWithValue(repository),
         gtkWindowPreferencesProvider.overrideWith(
           (ref) => Stream.value(_testWindowPreferences),
         ),
@@ -450,4 +552,23 @@ class _MemorySettingsStore implements LocalSettingsStore {
 
   @override
   Future<void> save(Map<String, Object?> json) async {}
+}
+
+class _RecordingScheduleRepository implements ScheduleRepository {
+  final queries = <String>[];
+
+  @override
+  Future<List<ScheduleItem>> listItems({
+    required ScheduleRange range,
+    ScheduleFilters filters = const ScheduleFilters(),
+  }) async {
+    queries.add(filters.query);
+    return const [];
+  }
+
+  @override
+  Stream<void> watchChanges() => const Stream.empty();
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }

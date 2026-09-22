@@ -234,9 +234,9 @@ void main() {
     );
     final service = GtkHeaderIconService.testing(
       initialCatalog: GtkHeaderIconCatalog({
-        'search.ltr': GtkHeaderIconAsset(
+        'searchEntryFind.ltr': GtkHeaderIconAsset(
           bytes: png,
-          resolvedName: 'system-search-symbolic',
+          resolvedName: 'edit-find-symbolic',
           scale: 1,
           pixelWidth: 16,
           pixelHeight: 16,
@@ -290,7 +290,7 @@ void main() {
       tester.getSize(field).height,
       BusyMaxLinuxHeaderStyle.searchEntryHeight,
     );
-    expect(tester.getSize(field).width, lessThan(800));
+    expect(tester.getSize(field).width, 800);
     final textField = tester.widget<TextField>(
       find.descendant(of: field, matching: find.byType(TextField)),
     );
@@ -325,8 +325,11 @@ void main() {
           ),
         )
         .toList();
-    expect(icons, hasLength(1));
-    expect(icons.single.icon, BusyMaxLinuxHeaderIcon.searchClear);
+    expect(icons, hasLength(2));
+    expect(icons.map((icon) => icon.icon), [
+      BusyMaxLinuxHeaderIcon.searchEntryFind,
+      BusyMaxLinuxHeaderIcon.searchClear,
+    ]);
     for (final icon in icons) {
       expect(
         tester.getSize(find.byWidget(icon)),
@@ -335,7 +338,7 @@ void main() {
     }
     expect(
       find.descendant(of: field, matching: find.byType(Image)),
-      findsOneWidget,
+      findsNWidgets(2),
     );
     expect(
       find.descendant(of: field, matching: find.byType(Icon)),
@@ -358,9 +361,19 @@ void main() {
           widget is BusyMaxGtkHeaderIcon &&
           widget.icon == BusyMaxLinuxHeaderIcon.searchClear,
     );
+    final findIcon = _primarySearchIcon();
     final fieldRect = tester.getRect(field);
     final textRect = tester.getRect(find.byType(TextField));
+    final findIconRect = tester.getRect(findIcon);
     final clearIconRect = tester.getRect(clearIcon);
+    expect(
+      findIconRect.left - fieldRect.left,
+      BusyMaxLinuxHeaderStyle.searchEntryHorizontalPadding,
+    );
+    expect(
+      textRect.left - findIconRect.right,
+      BusyMaxLinuxHeaderStyle.searchEntryIconGap,
+    );
     expect(
       clearIconRect.left - textRect.right,
       BusyMaxLinuxHeaderStyle.searchEntryIconGap,
@@ -369,29 +382,11 @@ void main() {
       fieldRect.right - clearIconRect.right,
       BusyMaxLinuxHeaderStyle.searchEntryHorizontalPadding,
     );
+    expect(_iconColor(tester, findIcon), _searchNormal.primaryIconForeground);
     expect(
-      textRect.left - fieldRect.left,
-      BusyMaxLinuxHeaderStyle.searchEntryHorizontalPadding,
+      _iconColor(tester, clearIcon),
+      _searchNormal.secondaryIconForeground,
     );
-    expect(_iconColor(tester, clearIcon), _searchNormal.iconForeground);
-    final widthProbe = TextPainter(
-      text: TextSpan(
-        text: List.filled(
-          BusyMaxLinuxHeaderSearchField.maximumWidthChars,
-          '0',
-        ).join(),
-        style: textField.style,
-      ),
-      maxLines: 1,
-      textDirection: TextDirection.ltr,
-    )..layout();
-    final expectedWidth =
-        widthProbe.width +
-        BusyMaxLinuxHeaderStyle.searchEntryHorizontalPadding * 2 +
-        BusyMaxLinuxHeaderStyle.symbolicIconSize +
-        BusyMaxLinuxHeaderStyle.searchEntryIconGap;
-    widthProbe.dispose();
-    expect(tester.getSize(field).width, closeTo(expectedWidth, .001));
     final clearTarget = find.byKey(BusyMaxLinuxHeaderSearchField.clearKey);
     final clearSemantics = tester.getSemantics(clearTarget).getSemanticsData();
     expect(
@@ -416,22 +411,229 @@ void main() {
     expect(controller.text, isEmpty);
     expect(find.byType(BusyMaxLinuxHeaderSearchField), findsOneWidget);
     expect(clearIcon, findsNothing);
-    final searchIcon = find.byWidgetPredicate(
-      (widget) =>
-          widget is BusyMaxGtkHeaderIcon &&
-          widget.icon == BusyMaxLinuxHeaderIcon.search,
-    );
-    expect(searchIcon, findsOneWidget);
+    expect(findIcon, findsOneWidget);
     expect(
-      tester.getRect(searchIcon).right,
-      tester.getRect(field).right -
+      tester.getRect(findIcon).left,
+      tester.getRect(field).left +
           BusyMaxLinuxHeaderStyle.searchEntryHorizontalPadding,
     );
-    expect(_iconColor(tester, searchIcon), _searchFocused.iconForeground);
+    expect(_iconColor(tester, findIcon), _searchFocused.primaryIconForeground);
     expect(find.text('Search'), findsNothing);
     expect(find.bySemanticsLabel('Search'), findsOneWidget);
     semantics.dispose();
   });
+
+  testWidgets('bounded header Search fills the complete safe center slot', (
+    tester,
+  ) async {
+    final controller = TextEditingController();
+    addTearDown(controller.dispose);
+
+    for (final width in const [600.0, 320.0]) {
+      await tester.pumpWidget(
+        _testApp(
+          child: Center(
+            child: SizedBox(
+              width: width,
+              child: BusyMaxLinuxHeaderSearchField(
+                controller: controller,
+                focusRequest: 0,
+                semanticLabel: 'Search',
+                onChanged: (_) {},
+                onClear: controller.clear,
+                autofocus: false,
+              ),
+            ),
+          ),
+        ),
+      );
+
+      expect(
+        tester.getSize(find.byType(BusyMaxLinuxHeaderSearchField)).width,
+        width,
+      );
+    }
+  });
+
+  testWidgets('unbounded header Search uses the GTK natural-width hint', (
+    tester,
+  ) async {
+    final controller = TextEditingController();
+    addTearDown(controller.dispose);
+    await tester.pumpWidget(
+      _testApp(
+        theme: ThemeData(extensions: const [_searchColors, _searchTheme]),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            BusyMaxLinuxHeaderSearchField(
+              controller: controller,
+              focusRequest: 0,
+              semanticLabel: 'Search',
+              onChanged: (_) {},
+              onClear: controller.clear,
+              autofocus: false,
+            ),
+          ],
+        ),
+      ),
+    );
+
+    final textField = tester.widget<TextField>(find.byType(TextField));
+    final probe = TextPainter(
+      text: TextSpan(
+        text: List.filled(
+          BusyMaxLinuxHeaderSearchField.naturalWidthChars,
+          '0',
+        ).join(),
+        style: textField.style,
+      ),
+      maxLines: 1,
+      textDirection: TextDirection.ltr,
+    )..layout();
+    final expected =
+        probe.width +
+        BusyMaxLinuxHeaderStyle.searchEntryHorizontalPadding * 2 +
+        _searchNormal.borderLeft +
+        _searchNormal.borderRight;
+    probe.dispose();
+
+    expect(
+      tester.getSize(find.byType(BusyMaxLinuxHeaderSearchField)).width,
+      closeTo(expected, .001),
+    );
+  });
+
+  testWidgets('non-empty Search publication waits exactly 150ms', (
+    tester,
+  ) async {
+    final controller = TextEditingController();
+    final published = <String>[];
+    addTearDown(controller.dispose);
+    await _pumpIsolatedSearch(
+      tester,
+      controller: controller,
+      onChanged: published.add,
+    );
+
+    await tester.enterText(find.byType(TextField), 'planning');
+    expect(controller.text, 'planning');
+    expect(published, isEmpty);
+    await tester.pump(const Duration(milliseconds: 149));
+    expect(published, isEmpty);
+    await tester.pump(const Duration(milliseconds: 1));
+    expect(published, ['planning']);
+  });
+
+  testWidgets('new Search edits restart the delayed publication', (
+    tester,
+  ) async {
+    final controller = TextEditingController();
+    final published = <String>[];
+    addTearDown(controller.dispose);
+    await _pumpIsolatedSearch(
+      tester,
+      controller: controller,
+      onChanged: published.add,
+    );
+
+    await tester.enterText(find.byType(TextField), 'p');
+    await tester.pump(const Duration(milliseconds: 100));
+    await tester.enterText(find.byType(TextField), 'pl');
+    await tester.pump(const Duration(milliseconds: 100));
+    expect(published, isEmpty);
+    await tester.pump(const Duration(milliseconds: 50));
+    expect(published, ['pl']);
+  });
+
+  testWidgets('empty Search edits publish immediately', (tester) async {
+    final controller = TextEditingController(text: 'planning');
+    final published = <String>[];
+    addTearDown(controller.dispose);
+    await _pumpIsolatedSearch(
+      tester,
+      controller: controller,
+      onChanged: published.add,
+    );
+
+    await tester.enterText(find.byType(TextField), '');
+    expect(controller.text, isEmpty);
+    expect(published, ['']);
+  });
+
+  testWidgets('Clear cancels a pending non-empty Search publication', (
+    tester,
+  ) async {
+    final controller = TextEditingController();
+    final published = <String>[];
+    addTearDown(controller.dispose);
+    await _pumpIsolatedSearch(
+      tester,
+      controller: controller,
+      onChanged: published.add,
+      onClear: () {
+        published.add('');
+        controller.clear();
+      },
+    );
+
+    await tester.enterText(find.byType(TextField), 'planning');
+    await tester.pump(const Duration(milliseconds: 50));
+    await tester.tap(find.byKey(BusyMaxLinuxHeaderSearchField.clearKey));
+    await tester.pump();
+    expect(controller.text, isEmpty);
+    expect(published, ['']);
+    await tester.pump(const Duration(milliseconds: 151));
+    expect(published, ['']);
+  });
+
+  testWidgets('disposing Search cancels pending publication', (tester) async {
+    final controller = TextEditingController();
+    final published = <String>[];
+    addTearDown(controller.dispose);
+    await _pumpIsolatedSearch(
+      tester,
+      controller: controller,
+      onChanged: published.add,
+    );
+
+    await tester.enterText(find.byType(TextField), 'planning');
+    await tester.pump(const Duration(milliseconds: 50));
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump(const Duration(milliseconds: 151));
+    expect(published, isEmpty);
+  });
+
+  testWidgets(
+    'controller replacement and programmatic edits cancel stale text',
+    (tester) async {
+      final first = TextEditingController();
+      final second = TextEditingController(text: 'replacement');
+      final published = <String>[];
+      addTearDown(first.dispose);
+      addTearDown(second.dispose);
+      await _pumpIsolatedSearch(
+        tester,
+        controller: first,
+        onChanged: published.add,
+      );
+
+      await tester.enterText(find.byType(TextField), 'old');
+      await tester.pump(const Duration(milliseconds: 50));
+      await _pumpIsolatedSearch(
+        tester,
+        controller: second,
+        onChanged: published.add,
+      );
+      await tester.pump(const Duration(milliseconds: 151));
+      expect(published, isEmpty);
+
+      await tester.enterText(find.byType(TextField), 'pending');
+      second.text = 'programmatic';
+      await tester.pump(const Duration(milliseconds: 151));
+      expect(published, isEmpty);
+    },
+  );
 
   testWidgets('header Search radius comes from the injected GTK theme', (
     tester,
@@ -496,16 +698,24 @@ void main() {
     final focusNode = editableBefore.focusNode;
     _expectSearchState(tester, _searchFocused);
     expect(
+      _iconColor(tester, _primarySearchIcon()),
+      _searchFocused.primaryIconForeground,
+    );
+    expect(
       _iconColor(tester, _secondarySearchIcon()),
-      _searchFocused.iconForeground,
+      _searchFocused.secondaryIconForeground,
     );
 
     await tester.pumpWidget(app(active: false));
     await tester.pump();
     _expectSearchState(tester, _searchBackdropFocused);
     expect(
+      _iconColor(tester, _primarySearchIcon()),
+      _searchBackdropFocused.primaryIconForeground,
+    );
+    expect(
       _iconColor(tester, _secondarySearchIcon()),
-      _searchBackdropFocused.iconForeground,
+      _searchBackdropFocused.secondaryIconForeground,
     );
     final editableBackdrop = tester.widget<EditableText>(
       find.byType(EditableText),
@@ -525,7 +735,7 @@ void main() {
     await tester.pump();
     expect(
       _iconColor(tester, _secondarySearchIcon()),
-      _searchBackdropFocused.iconForeground,
+      _searchBackdropFocused.secondaryIconForeground,
     );
 
     await tester.pumpWidget(app(active: true));
@@ -545,7 +755,7 @@ void main() {
   testWidgets('inactive unfocused header Search uses GTK backdrop state', (
     tester,
   ) async {
-    final controller = TextEditingController();
+    final controller = TextEditingController(text: 'planning');
     addTearDown(controller.dispose);
     await tester.pumpWidget(
       _testApp(
@@ -564,12 +774,16 @@ void main() {
 
     _expectSearchState(tester, _searchBackdrop);
     expect(
+      _iconColor(tester, _primarySearchIcon()),
+      _searchBackdrop.primaryIconForeground,
+    );
+    expect(
       _iconColor(tester, _secondarySearchIcon()),
-      _searchBackdrop.iconForeground,
+      _searchBackdrop.secondaryIconForeground,
     );
   });
 
-  testWidgets('Search and Clear occupy only the logical secondary side', (
+  testWidgets('Find and Clear use logical primary and secondary sides', (
     tester,
   ) async {
     final controller = TextEditingController();
@@ -596,38 +810,82 @@ void main() {
         final icons = tester
             .widgetList<BusyMaxGtkHeaderIcon>(find.byType(BusyMaxGtkHeaderIcon))
             .toList();
-        expect(icons, hasLength(1));
-        expect(
-          icons.single.icon,
-          query.isEmpty
-              ? BusyMaxLinuxHeaderIcon.search
-              : BusyMaxLinuxHeaderIcon.searchClear,
-        );
+        expect(icons, hasLength(query.isEmpty ? 1 : 2));
+        expect(icons.first.icon, BusyMaxLinuxHeaderIcon.searchEntryFind);
+        if (query.isNotEmpty) {
+          expect(icons.last.icon, BusyMaxLinuxHeaderIcon.searchClear);
+        }
         final fieldRect = tester.getRect(
           find.byType(BusyMaxLinuxHeaderSearchField),
         );
-        final iconRect = tester.getRect(_secondarySearchIcon());
+        final primaryRect = tester.getRect(_primarySearchIcon());
         final textRect = tester.getRect(find.byType(TextField));
         if (direction == TextDirection.ltr) {
-          expect(iconRect.left, greaterThanOrEqualTo(textRect.right));
           expect(
-            fieldRect.right - iconRect.right,
+            primaryRect.left - fieldRect.left,
             BusyMaxLinuxHeaderStyle.searchEntryHorizontalPadding,
           );
           expect(
-            _iconColor(tester, _secondarySearchIcon()),
-            _searchNormal.iconForeground,
+            textRect.left - primaryRect.right,
+            BusyMaxLinuxHeaderStyle.searchEntryIconGap,
           );
+          expect(
+            _iconColor(tester, _primarySearchIcon()),
+            _searchNormal.primaryIconForeground,
+          );
+          if (query.isEmpty) {
+            expect(
+              fieldRect.right - textRect.right,
+              BusyMaxLinuxHeaderStyle.searchEntryHorizontalPadding,
+            );
+          } else {
+            final secondaryRect = tester.getRect(_secondarySearchIcon());
+            expect(
+              secondaryRect.left - textRect.right,
+              BusyMaxLinuxHeaderStyle.searchEntryIconGap,
+            );
+            expect(
+              fieldRect.right - secondaryRect.right,
+              BusyMaxLinuxHeaderStyle.searchEntryHorizontalPadding,
+            );
+            expect(
+              _iconColor(tester, _secondarySearchIcon()),
+              _searchNormal.secondaryIconForeground,
+            );
+          }
         } else {
-          expect(iconRect.right, lessThanOrEqualTo(textRect.left));
           expect(
-            iconRect.left - fieldRect.left,
+            fieldRect.right - primaryRect.right,
             BusyMaxLinuxHeaderStyle.searchEntryHorizontalPadding,
           );
           expect(
-            _iconColor(tester, _secondarySearchIcon()),
-            _searchNormal.iconForegroundRtl,
+            primaryRect.left - textRect.right,
+            BusyMaxLinuxHeaderStyle.searchEntryIconGap,
           );
+          expect(
+            _iconColor(tester, _primarySearchIcon()),
+            _searchNormal.primaryIconForegroundRtl,
+          );
+          if (query.isEmpty) {
+            expect(
+              textRect.left - fieldRect.left,
+              BusyMaxLinuxHeaderStyle.searchEntryHorizontalPadding,
+            );
+          } else {
+            final secondaryRect = tester.getRect(_secondarySearchIcon());
+            expect(
+              textRect.left - secondaryRect.right,
+              BusyMaxLinuxHeaderStyle.searchEntryIconGap,
+            );
+            expect(
+              secondaryRect.left - fieldRect.left,
+              BusyMaxLinuxHeaderStyle.searchEntryHorizontalPadding,
+            );
+            expect(
+              _iconColor(tester, _secondarySearchIcon()),
+              _searchNormal.secondaryIconForegroundRtl,
+            );
+          }
         }
       }
     }
@@ -737,7 +995,7 @@ void main() {
       final highContrastSearchIcon = find.byWidgetPredicate(
         (widget) =>
             widget is BusyMaxGtkHeaderIcon &&
-            widget.icon == BusyMaxLinuxHeaderIcon.search,
+            widget.icon == BusyMaxLinuxHeaderIcon.searchEntryFind,
       );
       expect(
         _iconColor(tester, highContrastSearchIcon),
@@ -786,7 +1044,7 @@ void main() {
       final searchIcon = find.byWidgetPredicate(
         (widget) =>
             widget is BusyMaxGtkHeaderIcon &&
-            widget.icon == BusyMaxLinuxHeaderIcon.search,
+            widget.icon == BusyMaxLinuxHeaderIcon.searchEntryFind,
       );
       expect(_iconColor(tester, searchIcon), colors.mutedForeground);
       expect(_searchShellDecoration(tester).color, isNot(colors.headerbar));
@@ -889,8 +1147,10 @@ const _searchNormal = GtkSearchEntryStateStyle(
   borderBottom: 3,
   borderLeft: 4,
   borderColor: Color(0xFF8192A3),
-  iconForeground: Color(0xFF506070),
-  iconForegroundRtl: Color(0xFF516171),
+  primaryIconForeground: Color(0xFF506070),
+  primaryIconForegroundRtl: Color(0xFF516171),
+  secondaryIconForeground: Color(0xFF526272),
+  secondaryIconForegroundRtl: Color(0xFF536373),
   radius: 11,
 );
 const _searchFocused = GtkSearchEntryStateStyle(
@@ -901,8 +1161,10 @@ const _searchFocused = GtkSearchEntryStateStyle(
   borderBottom: 2,
   borderLeft: 2,
   borderColor: Color(0xFF2468AC),
-  iconForeground: Color(0xFF304860),
-  iconForegroundRtl: Color(0xFF314961),
+  primaryIconForeground: Color(0xFF304860),
+  primaryIconForegroundRtl: Color(0xFF314961),
+  secondaryIconForeground: Color(0xFF324A62),
+  secondaryIconForegroundRtl: Color(0xFF334B63),
   radius: 10,
 );
 const _searchBackdrop = GtkSearchEntryStateStyle(
@@ -913,8 +1175,10 @@ const _searchBackdrop = GtkSearchEntryStateStyle(
   borderBottom: 1.5,
   borderLeft: 2,
   borderColor: Color(0xFF919293),
-  iconForeground: Color(0xFF858687),
-  iconForegroundRtl: Color(0xFF868788),
+  primaryIconForeground: Color(0xFF858687),
+  primaryIconForegroundRtl: Color(0xFF868788),
+  secondaryIconForeground: Color(0xFF878889),
+  secondaryIconForegroundRtl: Color(0xFF88898A),
   radius: 9,
 );
 const _searchBackdropFocused = GtkSearchEntryStateStyle(
@@ -925,8 +1189,10 @@ const _searchBackdropFocused = GtkSearchEntryStateStyle(
   borderBottom: 1,
   borderLeft: 1,
   borderColor: Color(0xFF717273),
-  iconForeground: Color(0xFF757677),
-  iconForegroundRtl: Color(0xFF767778),
+  primaryIconForeground: Color(0xFF757677),
+  primaryIconForegroundRtl: Color(0xFF767778),
+  secondaryIconForeground: Color(0xFF777879),
+  secondaryIconForegroundRtl: Color(0xFF78797A),
   radius: 8,
 );
 const _searchTheme = BusyMaxNativeSearchEntryTheme(
@@ -987,8 +1253,13 @@ Color? _iconColor(WidgetTester tester, Finder icon) =>
 Finder _secondarySearchIcon() => find.byWidgetPredicate(
   (widget) =>
       widget is BusyMaxGtkHeaderIcon &&
-      (widget.icon == BusyMaxLinuxHeaderIcon.search ||
-          widget.icon == BusyMaxLinuxHeaderIcon.searchClear),
+      widget.icon == BusyMaxLinuxHeaderIcon.searchClear,
+);
+
+Finder _primarySearchIcon() => find.byWidgetPredicate(
+  (widget) =>
+      widget is BusyMaxGtkHeaderIcon &&
+      widget.icon == BusyMaxLinuxHeaderIcon.searchEntryFind,
 );
 
 void _expectSearchState(
@@ -1033,8 +1304,10 @@ BusyMaxNativeSearchEntryTheme _searchThemeWithRadius(double radius) {
       borderBottom: state.borderBottom,
       borderLeft: state.borderLeft,
       borderColor: state.borderColor,
-      iconForeground: state.iconForeground,
-      iconForegroundRtl: state.iconForegroundRtl,
+      primaryIconForeground: state.primaryIconForeground,
+      primaryIconForegroundRtl: state.primaryIconForegroundRtl,
+      secondaryIconForeground: state.secondaryIconForeground,
+      secondaryIconForegroundRtl: state.secondaryIconForegroundRtl,
       radius: radius,
     );
   }
@@ -1053,6 +1326,32 @@ const _leadingKey = ValueKey('leading');
 const _trailingKey = ValueKey('trailing');
 
 void _noop() {}
+
+Future<void> _pumpIsolatedSearch(
+  WidgetTester tester, {
+  required TextEditingController controller,
+  required ValueChanged<String> onChanged,
+  VoidCallback? onClear,
+}) async {
+  await tester.pumpWidget(
+    _testApp(
+      theme: ThemeData(extensions: const [_searchColors, _searchTheme]),
+      child: Center(
+        child: SizedBox(
+          width: 600,
+          child: BusyMaxLinuxHeaderSearchField(
+            controller: controller,
+            focusRequest: 0,
+            semanticLabel: 'Search',
+            onChanged: onChanged,
+            onClear: onClear ?? controller.clear,
+            autofocus: false,
+          ),
+        ),
+      ),
+    ),
+  );
+}
 
 IconButton _iconButton(WidgetTester tester, Key key) {
   return tester.widget<IconButton>(

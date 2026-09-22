@@ -147,10 +147,12 @@ final class GtkSearchEntryStateStyle {
     required this.borderBottom,
     required this.borderLeft,
     required this.borderColor,
-    required this.iconForeground,
-    Color? iconForegroundRtl,
+    required this.primaryIconForeground,
+    required this.primaryIconForegroundRtl,
+    required this.secondaryIconForeground,
+    required this.secondaryIconForegroundRtl,
     required this.radius,
-  }) : iconForegroundRtl = iconForegroundRtl ?? iconForeground;
+  });
 
   final Color background;
   final Color foreground;
@@ -160,11 +162,10 @@ final class GtkSearchEntryStateStyle {
   final double borderLeft;
   final Color borderColor;
 
-  /// Foreground for the secondary image node in left-to-right layouts.
-  final Color iconForeground;
-
-  /// Foreground for the secondary image node in right-to-left layouts.
-  final Color iconForegroundRtl;
+  final Color primaryIconForeground;
+  final Color primaryIconForegroundRtl;
+  final Color secondaryIconForeground;
+  final Color secondaryIconForegroundRtl;
   final double radius;
 
   @override
@@ -178,8 +179,10 @@ final class GtkSearchEntryStateStyle {
             other.borderBottom == borderBottom &&
             other.borderLeft == borderLeft &&
             other.borderColor == borderColor &&
-            other.iconForeground == iconForeground &&
-            other.iconForegroundRtl == iconForegroundRtl &&
+            other.primaryIconForeground == primaryIconForeground &&
+            other.primaryIconForegroundRtl == primaryIconForegroundRtl &&
+            other.secondaryIconForeground == secondaryIconForeground &&
+            other.secondaryIconForegroundRtl == secondaryIconForegroundRtl &&
             other.radius == radius;
   }
 
@@ -192,8 +195,10 @@ final class GtkSearchEntryStateStyle {
     borderBottom,
     borderLeft,
     borderColor,
-    iconForeground,
-    iconForegroundRtl,
+    primaryIconForeground,
+    primaryIconForegroundRtl,
+    secondaryIconForeground,
+    secondaryIconForegroundRtl,
     radius,
   );
 }
@@ -470,9 +475,14 @@ GtkSearchEntryStateStyle? _parseSearchEntryStateStyle(Object? value) {
   final background = _parseColor(value['background']);
   final foreground = _parseColor(value['foreground']);
   final borderColor = _parseColor(value['borderColor']);
-  final iconForeground = _parseColor(value['iconForeground']);
-  final iconForegroundRtl =
-      _parseColor(value['iconForegroundRtl']) ?? iconForeground;
+  final primaryIconForeground = _parseColor(value['primaryIconForeground']);
+  final primaryIconForegroundRtl = _parseColor(
+    value['primaryIconForegroundRtl'],
+  );
+  final secondaryIconForeground = _parseColor(value['secondaryIconForeground']);
+  final secondaryIconForegroundRtl = _parseColor(
+    value['secondaryIconForegroundRtl'],
+  );
   final borderTop = _parseNonNegativeDouble(value['borderTop']);
   final borderRight = _parseNonNegativeDouble(value['borderRight']);
   final borderBottom = _parseNonNegativeDouble(value['borderBottom']);
@@ -481,8 +491,10 @@ GtkSearchEntryStateStyle? _parseSearchEntryStateStyle(Object? value) {
   if (background == null ||
       foreground == null ||
       borderColor == null ||
-      iconForeground == null ||
-      iconForegroundRtl == null ||
+      primaryIconForeground == null ||
+      primaryIconForegroundRtl == null ||
+      secondaryIconForeground == null ||
+      secondaryIconForegroundRtl == null ||
       borderTop == null ||
       borderRight == null ||
       borderBottom == null ||
@@ -498,8 +510,10 @@ GtkSearchEntryStateStyle? _parseSearchEntryStateStyle(Object? value) {
     borderBottom: borderBottom,
     borderLeft: borderLeft,
     borderColor: borderColor,
-    iconForeground: iconForeground,
-    iconForegroundRtl: iconForegroundRtl,
+    primaryIconForeground: primaryIconForeground,
+    primaryIconForegroundRtl: primaryIconForegroundRtl,
+    secondaryIconForeground: secondaryIconForeground,
+    secondaryIconForegroundRtl: secondaryIconForegroundRtl,
     radius: radius,
   );
 }

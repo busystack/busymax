@@ -26,6 +26,9 @@ void main() {
     expect(BusyMaxLinuxHeaderIcon.search.gtkNames, const [
       'system-search-symbolic',
     ]);
+    expect(BusyMaxLinuxHeaderIcon.searchEntryFind.gtkNames, const [
+      'edit-find-symbolic',
+    ]);
     expect(BusyMaxLinuxHeaderIcon.searchClear.gtkNames, const [
       'edit-clear-symbolic',
     ]);
@@ -79,6 +82,22 @@ void main() {
       expect(await service.initialize(), isTrue);
       expect(service.reloadCount, 1);
       expect(service.catalog.scale, 1);
+
+      for (final role in const {
+        BusyMaxLinuxHeaderIcon.search: 'system-search-symbolic',
+        BusyMaxLinuxHeaderIcon.searchEntryFind: 'edit-find-symbolic',
+        BusyMaxLinuxHeaderIcon.searchClear: 'edit-clear-symbolic',
+      }.entries) {
+        final request = observedRequests.singleWhere(
+          (request) => request['key'] == '${role.key.name}.ltr',
+        );
+        expect(request['names'], [role.value]);
+        final asset = service.catalog.assetFor(role.key, TextDirection.ltr);
+        expect(asset?.resolvedName, role.value);
+        expect(asset?.scale, 1);
+        expect(asset?.pixelWidth, 16);
+        expect(asset?.pixelHeight, 16);
+      }
 
       final today = observedRequests.singleWhere(
         (request) => request['key'] == 'today.ltr',
@@ -181,6 +200,16 @@ void main() {
       expect(identical(service.catalog, originalCatalog), isFalse);
       expect(service.catalog.revision, 1);
       expect(service.catalog.scale, 2);
+      for (final icon in const [
+        BusyMaxLinuxHeaderIcon.search,
+        BusyMaxLinuxHeaderIcon.searchEntryFind,
+        BusyMaxLinuxHeaderIcon.searchClear,
+      ]) {
+        final asset = service.catalog.assetFor(icon, TextDirection.ltr);
+        expect(asset?.scale, 2);
+        expect(asset?.pixelWidth, 32);
+        expect(asset?.pixelHeight, 32);
+      }
       expect(_renderedBytes(tester), _pngB);
       expect(
         tester.getSize(find.byType(BusyMaxGtkHeaderIcon)),

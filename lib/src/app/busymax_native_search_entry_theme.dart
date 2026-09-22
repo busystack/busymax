@@ -140,7 +140,10 @@ GtkSearchEntryStateStyle _fallbackState({
     borderBottom: borderWidth,
     borderLeft: borderWidth,
     borderColor: borderColor,
-    iconForeground: iconForeground,
+    primaryIconForeground: iconForeground,
+    primaryIconForegroundRtl: iconForeground,
+    secondaryIconForeground: iconForeground,
+    secondaryIconForegroundRtl: iconForeground,
     radius: radius,
   );
 }
@@ -158,10 +161,24 @@ GtkSearchEntryStateStyle _lerpState(
     borderBottom: _lerpDouble(first.borderBottom, second.borderBottom, t),
     borderLeft: _lerpDouble(first.borderLeft, second.borderLeft, t),
     borderColor: Color.lerp(first.borderColor, second.borderColor, t)!,
-    iconForeground: Color.lerp(first.iconForeground, second.iconForeground, t)!,
-    iconForegroundRtl: Color.lerp(
-      first.iconForegroundRtl,
-      second.iconForegroundRtl,
+    primaryIconForeground: Color.lerp(
+      first.primaryIconForeground,
+      second.primaryIconForeground,
+      t,
+    )!,
+    primaryIconForegroundRtl: Color.lerp(
+      first.primaryIconForegroundRtl,
+      second.primaryIconForegroundRtl,
+      t,
+    )!,
+    secondaryIconForeground: Color.lerp(
+      first.secondaryIconForeground,
+      second.secondaryIconForeground,
+      t,
+    )!,
+    secondaryIconForegroundRtl: Color.lerp(
+      first.secondaryIconForegroundRtl,
+      second.secondaryIconForegroundRtl,
       t,
     )!,
     radius: _lerpDouble(first.radius, second.radius, t),

@@ -26,8 +26,10 @@ bool IsValidColor(const GdkRGBA& color) {
 bool IsValidState(const BusyMaxGtkSearchEntryState& state) {
   return IsValidColor(state.background) && IsValidColor(state.foreground) &&
          IsValidColor(state.border_color) &&
-         IsValidColor(state.icon_foreground) &&
-         IsValidColor(state.icon_foreground_rtl) &&
+         IsValidColor(state.primary_icon_foreground) &&
+         IsValidColor(state.primary_icon_foreground_rtl) &&
+         IsValidColor(state.secondary_icon_foreground) &&
+         IsValidColor(state.secondary_icon_foreground_rtl) &&
          state.border_width.top >= 0 && state.border_width.right >= 0 &&
          state.border_width.bottom >= 0 && state.border_width.left >= 0 &&
          state.border_radius >= 0;
@@ -51,6 +53,14 @@ std::string ColorString(const GdkRGBA& color) {
   return value == nullptr ? "invalid" : value;
 }
 
+bool ColorsEqual(const GdkRGBA& first, const GdkRGBA& second) {
+  constexpr double kTolerance = 1e-6;
+  return std::abs(first.red - second.red) < kTolerance &&
+         std::abs(first.green - second.green) < kTolerance &&
+         std::abs(first.blue - second.blue) < kTolerance &&
+         std::abs(first.alpha - second.alpha) < kTolerance;
+}
+
 void ReportTheme(const char* theme_name,
                  const BusyMaxGtkSearchEntryTheme& theme) {
   std::cout << "GTK theme=" << theme_name
@@ -71,9 +81,15 @@ void ReportTheme(const char* theme_name,
             << " backdrop.foreground="
             << ColorString(theme.backdrop.foreground)
             << " backdrop.border=" << ColorString(theme.backdrop.border_color)
-            << " icon.normal=" << ColorString(theme.normal.icon_foreground)
-            << " icon.backdrop="
-            << ColorString(theme.backdrop.icon_foreground) << '\n';
+            << " primary.ltr="
+            << ColorString(theme.normal.primary_icon_foreground)
+            << " primary.rtl="
+            << ColorString(theme.normal.primary_icon_foreground_rtl)
+            << " secondary.ltr="
+            << ColorString(theme.normal.secondary_icon_foreground)
+            << " secondary.rtl="
+            << ColorString(theme.normal.secondary_icon_foreground_rtl)
+            << '\n';
 }
 
 struct OriginalTheme {
@@ -104,10 +120,85 @@ int main(int argc, char** argv) {
   GtkSettings* settings = gtk_settings_get_default();
   if (!Check(settings != nullptr, "GTK settings are unavailable")) return 1;
   OriginalTheme original(settings);
+  bool passed = true;
+
+  GdkScreen* screen = gdk_screen_get_default();
+  passed = Check(screen != nullptr, "GTK screen is unavailable") && passed;
+  if (screen != nullptr) {
+    GtkCssProvider* provider = gtk_css_provider_new();
+    constexpr const char* kDirectionalIconCss =
+        "entry image.left { color: #112233; }\n"
+        "entry image.right { color: #445566; }\n";
+    g_autoptr(GError) error = nullptr;
+    const bool css_loaded = gtk_css_provider_load_from_data(
+        provider, kDirectionalIconCss, -1, &error);
+    passed = Check(css_loaded, "Directional image-node CSS did not load") &&
+             passed;
+    if (css_loaded) {
+      gtk_style_context_add_provider_for_screen(
+          screen, GTK_STYLE_PROVIDER(provider),
+          GTK_STYLE_PROVIDER_PRIORITY_APPLICATION);
+      GtkWidget* entry = gtk_search_entry_new();
+      g_object_ref_sink(entry);
+      GtkStyleContext* context = gtk_widget_get_style_context(entry);
+      GdkRGBA primary_ltr = {};
+      GdkRGBA primary_rtl = {};
+      GdkRGBA secondary_ltr = {};
+      GdkRGBA secondary_rtl = {};
+      GdkRGBA left = {};
+      GdkRGBA right = {};
+      gdk_rgba_parse(&left, "#112233");
+      gdk_rgba_parse(&right, "#445566");
+      const bool sampled_primary_ltr =
+          busymax_sample_gtk_search_entry_icon_foreground(
+              context, GTK_STATE_FLAG_NORMAL, GTK_ENTRY_ICON_PRIMARY,
+              GTK_TEXT_DIR_LTR, &primary_ltr);
+      const bool sampled_secondary_ltr =
+          busymax_sample_gtk_search_entry_icon_foreground(
+              context, GTK_STATE_FLAG_NORMAL, GTK_ENTRY_ICON_SECONDARY,
+              GTK_TEXT_DIR_LTR, &secondary_ltr);
+      const bool sampled_primary_rtl =
+          busymax_sample_gtk_search_entry_icon_foreground(
+              context, GTK_STATE_FLAG_NORMAL, GTK_ENTRY_ICON_PRIMARY,
+              GTK_TEXT_DIR_RTL, &primary_rtl);
+      const bool sampled_secondary_rtl =
+          busymax_sample_gtk_search_entry_icon_foreground(
+              context, GTK_STATE_FLAG_NORMAL, GTK_ENTRY_ICON_SECONDARY,
+              GTK_TEXT_DIR_RTL, &secondary_rtl);
+      std::cout << "Directional CSS primary.ltr=" << ColorString(primary_ltr)
+                << " secondary.ltr=" << ColorString(secondary_ltr)
+                << " primary.rtl=" << ColorString(primary_rtl)
+                << " secondary.rtl=" << ColorString(secondary_rtl) << '\n';
+      passed =
+          Check(sampled_primary_ltr,
+                "LTR primary image-node color was not sampled") &&
+          Check(sampled_secondary_ltr,
+                "LTR secondary image-node color was not sampled") &&
+          Check(sampled_primary_rtl,
+                "RTL primary image-node color was not sampled") &&
+          Check(sampled_secondary_rtl,
+                "RTL secondary image-node color was not sampled") &&
+          Check(ColorsEqual(primary_ltr, left),
+                "LTR primary did not use image.left") &&
+          Check(ColorsEqual(secondary_ltr, right),
+                "LTR secondary did not use image.right") &&
+          Check(ColorsEqual(primary_rtl, right),
+                "RTL primary did not use image.right") &&
+          Check(ColorsEqual(secondary_rtl, left),
+                "RTL secondary did not use image.left") &&
+          passed;
+      gtk_widget_destroy(entry);
+      g_object_unref(entry);
+      gtk_style_context_remove_provider_for_screen(
+          screen, GTK_STYLE_PROVIDER(provider));
+    }
+    g_object_unref(provider);
+  }
 
   BusyMaxGtkSearchEntryTheme initial = {};
-  bool passed = Check(busymax_sample_gtk_search_entry_theme(&initial),
-                      "A real GtkSearchEntry could not be sampled");
+  passed = Check(busymax_sample_gtk_search_entry_theme(&initial),
+                 "A real GtkSearchEntry could not be sampled") &&
+           passed;
   passed = Check(IsValidColor(initial.normal.background),
                  "Normal background was not returned") &&
            Check(IsValidColor(initial.normal.foreground),
@@ -128,9 +219,13 @@ int main(int argc, char** argv) {
                  "Backdrop state could not be sampled") &&
            Check(IsValidState(initial.backdrop_focused),
                  "Backdrop-focused state could not be sampled") &&
-           Check(IsValidColor(initial.normal.icon_foreground) &&
-                     IsValidColor(initial.normal.icon_foreground_rtl),
-                 "Search-entry image-node foreground could not be sampled") &&
+           Check(IsValidColor(initial.normal.primary_icon_foreground) &&
+                     IsValidColor(
+                         initial.normal.primary_icon_foreground_rtl) &&
+                     IsValidColor(initial.normal.secondary_icon_foreground) &&
+                     IsValidColor(
+                         initial.normal.secondary_icon_foreground_rtl),
+                 "Search-entry image-node foregrounds could not be sampled") &&
            passed;
 
   passed = Check(!busymax_gtk_theme_is_standard_yaru("Adwaita"),

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
@@ -17,6 +18,7 @@ abstract final class BusyMaxLinuxHeaderStyle {
   static const double searchEntryFocusedBorderWidth = 2;
   static const double searchEntryHorizontalPadding = 8;
   static const double searchEntryIconGap = 6;
+  static const Duration searchChangedDelay = Duration(milliseconds: 150);
   static const Duration searchEntryFocusDuration = Duration(milliseconds: 200);
   static const double compoundButtonHorizontalPadding = 9;
   static const double compoundButtonVerticalPadding = 4;
@@ -636,8 +638,13 @@ class BusyMaxLinuxHeaderSearchField extends StatefulWidget {
     this.autofocus = true,
   });
 
-  static const int maximumWidthChars = 48;
+  /// Mirrors GtkEntry:max-width-chars as a natural-width hint. It is not a
+  /// hard maximum when the header title child expands.
+  static const int naturalWidthChars = 48;
   static const shellKey = ValueKey<String>('busymax-linux-search-shell');
+  static const primaryIconKey = ValueKey<String>(
+    'busymax-linux-search-primary-icon',
+  );
   static const secondaryIconKey = ValueKey<String>(
     'busymax-linux-search-secondary-icon',
   );
@@ -659,6 +666,8 @@ class _BusyMaxLinuxHeaderSearchFieldState
     extends State<BusyMaxLinuxHeaderSearchField> {
   final _focusNode = FocusNode(debugLabel: 'BusyMax Linux header Search');
   late bool _isEmpty;
+  Timer? _searchChangedTimer;
+  String? _pendingSearchValue;
   var _clearHovered = false;
   var _clearPressed = false;
 
@@ -677,6 +686,7 @@ class _BusyMaxLinuxHeaderSearchFieldState
   void didUpdateWidget(covariant BusyMaxLinuxHeaderSearchField oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.controller != widget.controller) {
+      _cancelPendingSearchChanged();
       oldWidget.controller.removeListener(_handleControllerChanged);
       _isEmpty = widget.controller.text.isEmpty;
       widget.controller.addListener(_handleControllerChanged);
@@ -688,6 +698,7 @@ class _BusyMaxLinuxHeaderSearchFieldState
 
   @override
   void dispose() {
+    _cancelPendingSearchChanged();
     widget.controller.removeListener(_handleControllerChanged);
     _focusNode
       ..removeListener(_handleFocusChanged)
@@ -696,10 +707,39 @@ class _BusyMaxLinuxHeaderSearchFieldState
   }
 
   void _handleControllerChanged() {
+    final pending = _pendingSearchValue;
+    if (pending != null && widget.controller.text != pending) {
+      _cancelPendingSearchChanged();
+    }
     final isEmpty = widget.controller.text.isEmpty;
     if (_isEmpty != isEmpty && mounted) {
       setState(() => _isEmpty = isEmpty);
     }
+  }
+
+  void _cancelPendingSearchChanged() {
+    _searchChangedTimer?.cancel();
+    _searchChangedTimer = null;
+    _pendingSearchValue = null;
+  }
+
+  void _handleTextChanged(String value) {
+    _cancelPendingSearchChanged();
+    if (value.isEmpty) {
+      widget.onChanged('');
+      return;
+    }
+
+    _pendingSearchValue = value;
+    _searchChangedTimer = Timer(BusyMaxLinuxHeaderStyle.searchChangedDelay, () {
+      if (!mounted) return;
+      final pending = _pendingSearchValue;
+      _pendingSearchValue = null;
+      _searchChangedTimer = null;
+      if (pending != null && widget.controller.text == pending) {
+        widget.onChanged(pending);
+      }
+    });
   }
 
   void _handleFocusChanged() {
@@ -720,6 +760,7 @@ class _BusyMaxLinuxHeaderSearchFieldState
   }
 
   void _clear() {
+    _cancelPendingSearchChanged();
     widget.onClear();
     if (widget.controller.text.isNotEmpty) {
       widget.controller.clear();
@@ -755,7 +796,7 @@ class _BusyMaxLinuxHeaderSearchFieldState
     final widthProbe = TextPainter(
       text: TextSpan(
         text: List.filled(
-          BusyMaxLinuxHeaderSearchField.maximumWidthChars,
+          BusyMaxLinuxHeaderSearchField.naturalWidthChars,
           '0',
         ).join(),
         style: textStyle,
@@ -764,22 +805,25 @@ class _BusyMaxLinuxHeaderSearchFieldState
       textDirection: Directionality.of(context),
       textScaler: MediaQuery.textScalerOf(context),
     )..layout();
-    final desiredWidth =
+    final naturalWidth =
         widthProbe.width +
         BusyMaxLinuxHeaderStyle.searchEntryHorizontalPadding * 2 +
-        BusyMaxLinuxHeaderStyle.symbolicIconSize +
-        BusyMaxLinuxHeaderStyle.searchEntryIconGap;
+        searchStyle.borderLeft +
+        searchStyle.borderRight;
     widthProbe.dispose();
-    final iconForeground = direction == TextDirection.rtl
-        ? searchStyle.iconForegroundRtl
-        : searchStyle.iconForeground;
+    final primaryIconForeground = direction == TextDirection.rtl
+        ? searchStyle.primaryIconForegroundRtl
+        : searchStyle.primaryIconForeground;
+    final secondaryIconForeground = direction == TextDirection.rtl
+        ? searchStyle.secondaryIconForegroundRtl
+        : searchStyle.secondaryIconForeground;
     final clearColor = !windowActive
-        ? iconForeground
+        ? secondaryIconForeground
         : _clearPressed
         ? theme.colorScheme.primary
         : _clearHovered
         ? searchStyle.foreground
-        : iconForeground;
+        : secondaryIconForeground;
     final focusDuration = MediaQuery.disableAnimationsOf(context)
         ? Duration.zero
         : BusyMaxLinuxHeaderStyle.searchEntryFocusDuration;
@@ -787,7 +831,9 @@ class _BusyMaxLinuxHeaderSearchFieldState
     return FocusScope(
       child: LayoutBuilder(
         builder: (context, constraints) {
-          final width = math.min(constraints.maxWidth, desiredWidth);
+          final width = constraints.hasBoundedWidth
+              ? constraints.maxWidth
+              : naturalWidth;
           return SizedBox(
             width: width,
             height: BusyMaxLinuxHeaderStyle.searchEntryHeight,
@@ -833,6 +879,18 @@ class _BusyMaxLinuxHeaderSearchFieldState
                     ),
                     child: Row(
                       children: [
+                        ExcludeSemantics(
+                          key: BusyMaxLinuxHeaderSearchField.primaryIconKey,
+                          child: IconTheme(
+                            data: IconThemeData(color: primaryIconForeground),
+                            child: const BusyMaxGtkHeaderIcon(
+                              BusyMaxLinuxHeaderIcon.searchEntryFind,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(
+                          width: BusyMaxLinuxHeaderStyle.searchEntryIconGap,
+                        ),
                         Expanded(
                           child: Semantics(
                             label: widget.semanticLabel,
@@ -858,26 +916,15 @@ class _BusyMaxLinuxHeaderSearchFieldState
                                 focusedErrorBorder: InputBorder.none,
                                 filled: false,
                               ),
-                              onChanged: widget.onChanged,
+                              onChanged: _handleTextChanged,
                             ),
                           ),
                         ),
-                        const SizedBox(
-                          width: BusyMaxLinuxHeaderStyle.searchEntryIconGap,
-                        ),
-                        if (_isEmpty)
-                          ExcludeSemantics(
-                            key: BusyMaxLinuxHeaderSearchField.secondaryIconKey,
-                            child: IconTheme(
-                              data: IconThemeData(color: iconForeground),
-                              child: const BusyMaxGtkHeaderIcon(
-                                BusyMaxLinuxHeaderIcon.search,
-                              ),
-                            ),
-                          )
-                        else
+                        if (!_isEmpty) ...[
+                          const SizedBox(
+                            width: BusyMaxLinuxHeaderStyle.searchEntryIconGap,
+                          ),
                           Semantics(
-                            key: BusyMaxLinuxHeaderSearchField.secondaryIconKey,
                             container: true,
                             button: true,
                             label: MaterialLocalizations.of(
@@ -885,6 +932,8 @@ class _BusyMaxLinuxHeaderSearchFieldState
                             ).clearButtonTooltip,
                             onTap: _clear,
                             child: ExcludeSemantics(
+                              key: BusyMaxLinuxHeaderSearchField
+                                  .secondaryIconKey,
                               child: MouseRegion(
                                 key: BusyMaxLinuxHeaderSearchField.clearKey,
                                 cursor: SystemMouseCursors.click,
@@ -914,6 +963,7 @@ class _BusyMaxLinuxHeaderSearchFieldState
                               ),
                             ),
                           ),
+                        ],
                       ],
                     ),
                   ),

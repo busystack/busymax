@@ -324,8 +324,10 @@ void main() {
         borderBottom: 3,
         borderLeft: 4,
         borderColor: Color(0xFF202122),
-        iconForeground: Color(0xFF303132),
-        iconForegroundRtl: Color(0xFF404142),
+        primaryIconForeground: Color(0xFF303132),
+        primaryIconForegroundRtl: Color(0xFF404142),
+        secondaryIconForeground: Color(0xFF505152),
+        secondaryIconForegroundRtl: Color(0xFF606162),
         radius: 13,
       ),
     );
@@ -343,8 +345,10 @@ void main() {
       borderBottom: 3,
       borderLeft: 4,
       borderColor: Color(0xFF202122),
-      iconForeground: Color(0xFF303132),
-      iconForegroundRtl: Color(0xFF404142),
+      primaryIconForeground: Color(0xFF303132),
+      primaryIconForegroundRtl: Color(0xFF404142),
+      secondaryIconForeground: Color(0xFF505152),
+      secondaryIconForegroundRtl: Color(0xFF606162),
       radius: 13,
     );
     const first = GtkSearchEntryTheme(
@@ -383,8 +387,10 @@ void main() {
           borderBottom: 3,
           borderLeft: 4,
           borderColor: Color(0xFF202122),
-          iconForeground: Color(0xFF303132),
-          iconForegroundRtl: Color(0xFF404142),
+          primaryIconForeground: Color(0xFF303132),
+          primaryIconForegroundRtl: Color(0xFF404142),
+          secondaryIconForeground: Color(0xFF505152),
+          secondaryIconForegroundRtl: Color(0xFF606162),
           radius: 14,
         ),
       ),
@@ -587,8 +593,10 @@ const _searchStatePayload = <String, Object?>{
   'borderBottom': 3,
   'borderLeft': 4,
   'borderColor': '#202122',
-  'iconForeground': '#303132',
-  'iconForegroundRtl': '#404142',
+  'primaryIconForeground': '#303132',
+  'primaryIconForegroundRtl': '#404142',
+  'secondaryIconForeground': '#505152',
+  'secondaryIconForegroundRtl': '#606162',
 };
 
 final _searchEntryPayload = <String, Object?>{

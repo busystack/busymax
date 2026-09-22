@@ -41,10 +41,20 @@ bool ReadRadius(GtkStyleContext* context,
   return valid && *radius >= 0;
 }
 
-bool SampleImageForeground(GtkStyleContext* entry_context,
-                           GtkStateFlags state,
-                           GtkTextDirection direction,
-                           GdkRGBA* color) {
+}  // namespace
+
+bool busymax_sample_gtk_search_entry_icon_foreground(
+    GtkStyleContext* entry_context,
+    GtkStateFlags state,
+    GtkEntryIconPosition icon_position,
+    GtkTextDirection direction,
+    GdkRGBA* color) {
+  if (entry_context == nullptr || color == nullptr ||
+      (icon_position != GTK_ENTRY_ICON_PRIMARY &&
+       icon_position != GTK_ENTRY_ICON_SECONDARY) ||
+      (direction != GTK_TEXT_DIR_LTR && direction != GTK_TEXT_DIR_RTL)) {
+    return false;
+  }
   const GtkWidgetPath* entry_path =
       gtk_style_context_get_path(entry_context);
   if (entry_path == nullptr) {
@@ -57,17 +67,24 @@ bool SampleImageForeground(GtkStyleContext* entry_context,
   const GtkStateFlags directional_state = static_cast<GtkStateFlags>(
       state | (direction == GTK_TEXT_DIR_RTL ? GTK_STATE_FLAG_DIR_RTL
                                              : GTK_STATE_FLAG_DIR_LTR));
+  const bool physical_left =
+      (direction == GTK_TEXT_DIR_LTR &&
+       icon_position == GTK_ENTRY_ICON_PRIMARY) ||
+      (direction == GTK_TEXT_DIR_RTL &&
+       icon_position == GTK_ENTRY_ICON_SECONDARY);
   gtk_widget_path_iter_set_object_name(image_path, image_position, "image");
   gtk_widget_path_iter_add_class(
       image_path, image_position,
-      direction == GTK_TEXT_DIR_RTL ? GTK_STYLE_CLASS_LEFT
-                                    : GTK_STYLE_CLASS_RIGHT);
+      physical_left ? GTK_STYLE_CLASS_LEFT : GTK_STYLE_CLASS_RIGHT);
   gtk_widget_path_iter_set_state(image_path, image_position,
                                  directional_state);
 
   GtkStyleContext* image_context = gtk_style_context_new();
   gtk_style_context_set_path(image_context, image_path);
   gtk_style_context_set_parent(image_context, entry_context);
+  gtk_style_context_add_class(
+      image_context,
+      physical_left ? GTK_STYLE_CLASS_LEFT : GTK_STYLE_CLASS_RIGHT);
   gtk_style_context_set_state(image_context, directional_state);
   gtk_style_context_get_color(image_context, directional_state, color);
 
@@ -76,6 +93,8 @@ bool SampleImageForeground(GtkStyleContext* entry_context,
   gtk_widget_path_free(image_path);
   return valid;
 }
+
+namespace {
 
 bool SampleState(GtkStyleContext* context,
                  GtkStateFlags state,
@@ -92,15 +111,26 @@ bool SampleState(GtkStyleContext* context,
       &result->border_color);
   gtk_style_context_get_border(context, state, &result->border_width);
   const bool has_radius = ReadRadius(context, state, &result->border_radius);
-  const bool has_ltr_icon =
-      SampleImageForeground(context, state, GTK_TEXT_DIR_LTR,
-                            &result->icon_foreground);
-  const bool has_rtl_icon =
-      SampleImageForeground(context, state, GTK_TEXT_DIR_RTL,
-                            &result->icon_foreground_rtl);
+  const bool has_primary_ltr =
+      busymax_sample_gtk_search_entry_icon_foreground(
+          context, state, GTK_ENTRY_ICON_PRIMARY, GTK_TEXT_DIR_LTR,
+          &result->primary_icon_foreground);
+  const bool has_primary_rtl =
+      busymax_sample_gtk_search_entry_icon_foreground(
+          context, state, GTK_ENTRY_ICON_PRIMARY, GTK_TEXT_DIR_RTL,
+          &result->primary_icon_foreground_rtl);
+  const bool has_secondary_ltr =
+      busymax_sample_gtk_search_entry_icon_foreground(
+          context, state, GTK_ENTRY_ICON_SECONDARY, GTK_TEXT_DIR_LTR,
+          &result->secondary_icon_foreground);
+  const bool has_secondary_rtl =
+      busymax_sample_gtk_search_entry_icon_foreground(
+          context, state, GTK_ENTRY_ICON_SECONDARY, GTK_TEXT_DIR_RTL,
+          &result->secondary_icon_foreground_rtl);
 
   return has_background && has_foreground && has_border && has_radius &&
-         has_ltr_icon && has_rtl_icon && result->border_width.top >= 0 &&
+         has_primary_ltr && has_primary_rtl && has_secondary_ltr &&
+         has_secondary_rtl && result->border_width.top >= 0 &&
          result->border_width.right >= 0 &&
          result->border_width.bottom >= 0 && result->border_width.left >= 0;
 }
