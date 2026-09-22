@@ -1,6 +1,5 @@
 #include "gtk_search_entry_theme.h"
 
-#include <algorithm>
 #include <cmath>
 #include <cstring>
 
@@ -114,6 +113,9 @@ bool SampleState(GtkStyleContext* context,
       &result->border_color);
   gtk_style_context_get_border(context, state, &result->border_width);
   const bool has_radius = ReadRadius(context, state, &result->border_radius);
+  result->has_inner_focus = FALSE;
+  result->inner_focus_color = result->border_color;
+  result->inner_focus_width = 0;
   const bool has_primary_ltr =
       busymax_sample_gtk_search_entry_icon_foreground(
           context, state, GTK_ENTRY_ICON_PRIMARY, GTK_TEXT_DIR_LTR,
@@ -151,6 +153,30 @@ bool busymax_gtk_theme_is_standard_yaru(const gchar* theme_name) {
          std::strstr(normalized, "high-contrast") == nullptr;
 }
 
+void busymax_apply_yaru_search_entry_compatibility(
+    BusyMaxGtkSearchEntryTheme* theme) {
+  if (theme == nullptr) {
+    return;
+  }
+
+  constexpr gint kBusyMaxYaruSearchEntryRadius = 9;
+  constexpr gint kBusyMaxYaruInnerFocusWidth = 1;
+  theme->normal.border_radius = kBusyMaxYaruSearchEntryRadius;
+  theme->focused.border_radius = kBusyMaxYaruSearchEntryRadius;
+  theme->backdrop.border_radius = kBusyMaxYaruSearchEntryRadius;
+  theme->backdrop_focused.border_radius = kBusyMaxYaruSearchEntryRadius;
+
+  theme->normal.has_inner_focus = FALSE;
+  theme->normal.inner_focus_width = 0;
+  theme->focused.has_inner_focus = TRUE;
+  theme->focused.inner_focus_color = theme->focused.border_color;
+  theme->focused.inner_focus_width = kBusyMaxYaruInnerFocusWidth;
+  theme->backdrop.has_inner_focus = FALSE;
+  theme->backdrop.inner_focus_width = 0;
+  theme->backdrop_focused.has_inner_focus = FALSE;
+  theme->backdrop_focused.inner_focus_width = 0;
+}
+
 bool busymax_sample_gtk_search_entry_theme(
     BusyMaxGtkSearchEntryTheme* theme) {
   if (theme == nullptr) {
@@ -175,23 +201,7 @@ bool busymax_sample_gtk_search_entry_theme(
     g_object_get(settings, "gtk-theme-name", &theme_name, nullptr);
   }
   if (sampled && busymax_gtk_theme_is_standard_yaru(theme_name)) {
-    constexpr gint kBusyMaxYaruSearchEntryRadius = 9;
-    constexpr gint kBusyMaxYaruFocusedBorderWidth = 2;
-    theme->normal.border_radius = kBusyMaxYaruSearchEntryRadius;
-    theme->focused.border_radius = kBusyMaxYaruSearchEntryRadius;
-    theme->backdrop.border_radius = kBusyMaxYaruSearchEntryRadius;
-    theme->backdrop_focused.border_radius = kBusyMaxYaruSearchEntryRadius;
-    // Yaru's remaining focused weight is a box shadow. BusyMax intentionally
-    // does not emulate arbitrary GTK shadows, so retain the established 2px
-    // active focus edge while preserving GTK's backdrop-focused geometry.
-    theme->focused.border_width.top = std::max<gint>(
-        theme->focused.border_width.top, kBusyMaxYaruFocusedBorderWidth);
-    theme->focused.border_width.right = std::max<gint>(
-        theme->focused.border_width.right, kBusyMaxYaruFocusedBorderWidth);
-    theme->focused.border_width.bottom = std::max<gint>(
-        theme->focused.border_width.bottom, kBusyMaxYaruFocusedBorderWidth);
-    theme->focused.border_width.left = std::max<gint>(
-        theme->focused.border_width.left, kBusyMaxYaruFocusedBorderWidth);
+    busymax_apply_yaru_search_entry_compatibility(theme);
   }
 
   gtk_widget_destroy(search_entry);

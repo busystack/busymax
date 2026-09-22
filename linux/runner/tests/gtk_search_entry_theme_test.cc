@@ -32,7 +32,8 @@ bool IsValidState(const BusyMaxGtkSearchEntryState& state) {
          IsValidColor(state.secondary_icon_foreground_rtl) &&
          state.border_width.top >= 0 && state.border_width.right >= 0 &&
          state.border_width.bottom >= 0 && state.border_width.left >= 0 &&
-         state.border_radius >= 0;
+         state.border_radius >= 0 && IsValidColor(state.inner_focus_color) &&
+         state.inner_focus_width >= 0;
 }
 
 bool ThemeInstalled(const char* theme_name) {
@@ -76,6 +77,10 @@ void ReportTheme(const char* theme_name,
             << theme.focused.border_width.right << ','
             << theme.focused.border_width.bottom << ','
             << theme.focused.border_width.left
+            << " focused.innerFocus="
+            << (theme.focused.has_inner_focus ? "true" : "false") << ','
+            << theme.focused.inner_focus_width << ','
+            << ColorString(theme.focused.inner_focus_color)
             << " backdrop.background="
             << ColorString(theme.backdrop.background)
             << " backdrop.foreground="
@@ -262,6 +267,45 @@ int main(int argc, char** argv) {
                  "Hyphenated HighContrast Yaru received the override") &&
            passed;
 
+  BusyMaxGtkSearchEntryTheme yaru_model = {};
+  gdk_rgba_parse(&yaru_model.focused.border_color, "#123456");
+  yaru_model.focused.border_width.top = 7;
+  yaru_model.focused.border_width.right = 8;
+  yaru_model.focused.border_width.bottom = 9;
+  yaru_model.focused.border_width.left = 10;
+  yaru_model.normal.has_inner_focus = TRUE;
+  yaru_model.normal.inner_focus_width = 4;
+  yaru_model.backdrop.has_inner_focus = TRUE;
+  yaru_model.backdrop.inner_focus_width = 4;
+  yaru_model.backdrop_focused.has_inner_focus = TRUE;
+  yaru_model.backdrop_focused.inner_focus_width = 4;
+  busymax_apply_yaru_search_entry_compatibility(&yaru_model);
+  passed =
+      Check(yaru_model.normal.border_radius == 9 &&
+                yaru_model.focused.border_radius == 9 &&
+                yaru_model.backdrop.border_radius == 9 &&
+                yaru_model.backdrop_focused.border_radius == 9,
+            "Yaru compatibility did not apply the 9px radius") &&
+      Check(yaru_model.focused.border_width.top == 7 &&
+                yaru_model.focused.border_width.right == 8 &&
+                yaru_model.focused.border_width.bottom == 9 &&
+                yaru_model.focused.border_width.left == 10,
+            "Yaru compatibility modified sampled focused border widths") &&
+      Check(!yaru_model.normal.has_inner_focus &&
+                yaru_model.normal.inner_focus_width == 0,
+            "Yaru normal state retained an inner focus stroke") &&
+      Check(yaru_model.focused.has_inner_focus &&
+                yaru_model.focused.inner_focus_width == 1 &&
+                ColorsEqual(yaru_model.focused.inner_focus_color,
+                            yaru_model.focused.border_color),
+            "Yaru focused state did not expose its one-pixel inset") &&
+      Check(!yaru_model.backdrop.has_inner_focus &&
+                yaru_model.backdrop.inner_focus_width == 0 &&
+                !yaru_model.backdrop_focused.has_inner_focus &&
+                yaru_model.backdrop_focused.inner_focus_width == 0,
+            "Yaru backdrop states retained an active inner focus stroke") &&
+      passed;
+
   struct ThemeCase {
     const char* name;
     bool dark;
@@ -297,11 +341,20 @@ int main(int argc, char** argv) {
                          sampled.backdrop.border_radius == 9 &&
                          sampled.backdrop_focused.border_radius == 9,
                      "Yaru did not receive BusyMax's 9px compatibility radius") &&
-               Check(sampled.focused.border_width.top >= 2 &&
-                         sampled.focused.border_width.right >= 2 &&
-                         sampled.focused.border_width.bottom >= 2 &&
-                         sampled.focused.border_width.left >= 2,
-                     "Yaru did not retain BusyMax's 2px active focus weight") &&
+               Check(sampled.focused.border_width.top == 1 &&
+                         sampled.focused.border_width.right == 1 &&
+                         sampled.focused.border_width.bottom == 1 &&
+                         sampled.focused.border_width.left == 1,
+                     "Yaru focused border was not the native 1px border") &&
+               Check(sampled.focused.has_inner_focus &&
+                         sampled.focused.inner_focus_width == 1 &&
+                         ColorsEqual(sampled.focused.inner_focus_color,
+                                     sampled.focused.border_color),
+                     "Yaru focused state did not expose a separate 1px inset") &&
+               Check(!sampled.normal.has_inner_focus &&
+                         !sampled.backdrop.has_inner_focus &&
+                         !sampled.backdrop_focused.has_inner_focus,
+                     "Yaru non-active states exposed an active focus inset") &&
                passed;
     }
     if (test.expect_adwaita_radius) {

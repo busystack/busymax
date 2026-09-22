@@ -13,6 +13,9 @@ struct BusyMaxGtkSearchEntryState {
   GdkRGBA secondary_icon_foreground_rtl;
   GtkBorder border_width;
   gint border_radius;
+  gboolean has_inner_focus;
+  GdkRGBA inner_focus_color;
+  gint inner_focus_width;
 };
 
 struct BusyMaxGtkSearchEntryTheme {
@@ -26,6 +29,14 @@ struct BusyMaxGtkSearchEntryTheme {
 // compatibility treatment. This helper is public so the production sampler
 // and its native test cannot drift apart.
 bool busymax_gtk_theme_is_standard_yaru(const gchar* theme_name);
+
+// Applies the small compatibility model needed to reproduce Yaru's native
+// Search-entry geometry. Yaru keeps a normal one-pixel CSS border and adds a
+// separate one-pixel inset focus stroke; it does not replace the border with a
+// two-pixel stroke. This helper is public so production and native tests use
+// exactly the same policy.
+void busymax_apply_yaru_search_entry_compatibility(
+    BusyMaxGtkSearchEntryTheme* theme);
 
 // Samples the effective GtkSearchEntry icon foreground. The primary Find icon
 // is sampled with GTK_STATE_FLAG_INSENSITIVE because GtkSearchEntry configures

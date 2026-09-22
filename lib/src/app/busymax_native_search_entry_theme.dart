@@ -45,8 +45,11 @@ final class BusyMaxNativeSearchEntryTheme
         foreground: colors.foreground,
         borderColor: accent,
         iconForeground: colors.mutedForeground,
-        borderWidth: 2,
+        borderWidth: highContrast ? 2 : 1,
         radius: radius,
+        hasInnerFocus: !highContrast,
+        innerFocusColor: accent,
+        innerFocusWidth: highContrast ? 0 : 1,
       ),
       backdrop: _fallbackState(
         colors: colors,
@@ -131,6 +134,9 @@ GtkSearchEntryStateStyle _fallbackState({
   required Color iconForeground,
   required double borderWidth,
   required double radius,
+  bool hasInnerFocus = false,
+  Color innerFocusColor = Colors.transparent,
+  double innerFocusWidth = 0,
 }) {
   return GtkSearchEntryStateStyle(
     background: colors.view,
@@ -145,6 +151,9 @@ GtkSearchEntryStateStyle _fallbackState({
     secondaryIconForeground: iconForeground,
     secondaryIconForegroundRtl: iconForeground,
     radius: radius,
+    hasInnerFocus: hasInnerFocus,
+    innerFocusColor: innerFocusColor,
+    innerFocusWidth: innerFocusWidth,
   );
 }
 
@@ -182,6 +191,17 @@ GtkSearchEntryStateStyle _lerpState(
       t,
     )!,
     radius: _lerpDouble(first.radius, second.radius, t),
+    hasInnerFocus: t >= .5 ? second.hasInnerFocus : first.hasInnerFocus,
+    innerFocusColor: Color.lerp(
+      first.innerFocusColor,
+      second.innerFocusColor,
+      t,
+    )!,
+    innerFocusWidth: _lerpDouble(
+      first.innerFocusWidth,
+      second.innerFocusWidth,
+      t,
+    ),
   );
 }
 

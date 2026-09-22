@@ -587,6 +587,34 @@ void main() {
       expect(nativeSearchTheme, contains('gtk_widget_path_append_type'));
       expect(nativeSearchTheme, contains('GTK_STYLE_CLASS_LEFT'));
       expect(nativeSearchTheme, contains('GTK_STYLE_CLASS_RIGHT'));
+      expect(
+        nativeSearchTheme,
+        contains('busymax_apply_yaru_search_entry_compatibility'),
+      );
+      expect(nativeSearchTheme, contains('has_inner_focus = TRUE'));
+      expect(nativeSearchTheme, contains('inner_focus_width ='));
+      expect(
+        nativeSearchTheme,
+        isNot(contains('kBusyMaxYaruFocusedBorderWidth')),
+      );
+      expect(
+        nativeSearchTheme,
+        isNot(contains('focused.border_width.top = std::max')),
+      );
+      expect(runner, contains('"hasInnerFocus"'));
+      expect(runner, contains('"innerFocusColor"'));
+      expect(runner, contains('"innerFocusWidth"'));
+      expect(headerSearch, contains('searchStyle.hasInnerFocus'));
+      expect(headerSearch, contains('searchStyle.innerFocusColor'));
+      expect(headerSearch, contains('searchStyle.innerFocusWidth'));
+      expect(
+        linuxHeader,
+        contains('leftOccupiedEdge + BusyMaxSpacing.headerInset'),
+      );
+      expect(
+        linuxHeader,
+        contains('rightOccupiedEdge - BusyMaxSpacing.headerInset'),
+      );
       expect(runner, contains('"searchEntry"'));
     });
 

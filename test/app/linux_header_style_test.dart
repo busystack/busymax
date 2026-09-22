@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:math' as math;
 import 'dart:ui' show SemanticsAction;
 
 import 'package:busymax/src/app/app_theme.dart';
@@ -51,6 +52,14 @@ void main() {
                 testCase.rightObstruction -
                 BusyMaxSpacing.headerInset,
           ),
+        );
+        final leftGap = title.left - physicalLeft.right;
+        final rightGap = physicalRight.left - title.right;
+        expect(leftGap, greaterThanOrEqualTo(BusyMaxSpacing.headerInset));
+        expect(rightGap, greaterThanOrEqualTo(BusyMaxSpacing.headerInset));
+        expect(
+          math.min(leftGap, rightGap),
+          closeTo(BusyMaxSpacing.headerInset, .001),
         );
       });
     }
@@ -923,7 +932,13 @@ void main() {
       expect(_border(focusedDecoration).top.color, _searchFocus);
       expect(
         _border(focusedDecoration).top.width,
-        BusyMaxLinuxHeaderStyle.searchEntryFocusedBorderWidth,
+        BusyMaxLinuxHeaderStyle.searchEntryBorderWidth,
+      );
+      final focusedInset = _searchInnerFocusDecoration(tester);
+      expect(_border(focusedInset).top.color, _searchFocus);
+      expect(
+        _border(focusedInset).top.width,
+        BusyMaxLinuxHeaderStyle.searchEntryInnerFocusWidth,
       );
       expect(
         tester
@@ -956,6 +971,14 @@ void main() {
         tester
             .widget<AnimatedContainer>(
               find.byKey(BusyMaxLinuxHeaderSearchField.shellKey),
+            )
+            .duration,
+        Duration.zero,
+      );
+      expect(
+        tester
+            .widget<AnimatedContainer>(
+              find.byKey(BusyMaxLinuxHeaderSearchField.innerFocusKey),
             )
             .duration,
         Duration.zero,
@@ -1003,6 +1026,71 @@ void main() {
       );
     },
   );
+
+  testWidgets('Search focus paint does not shift shell, icons, or text', (
+    tester,
+  ) async {
+    final controller = TextEditingController(text: 'planning');
+    addTearDown(controller.dispose);
+    await _pumpIsolatedSearch(
+      tester,
+      controller: controller,
+      onChanged: (_) {},
+    );
+
+    final field = find.byType(BusyMaxLinuxHeaderSearchField);
+    final primary = _primarySearchIcon();
+    final text = find.byType(TextField);
+    final secondary = _secondarySearchIcon();
+    final before = (
+      tester.getRect(field),
+      tester.getRect(primary),
+      tester.getRect(text),
+      tester.getRect(secondary),
+    );
+
+    await tester.tap(text);
+    await tester.pumpAndSettle();
+
+    final after = (
+      tester.getRect(field),
+      tester.getRect(primary),
+      tester.getRect(text),
+      tester.getRect(secondary),
+    );
+    expect(after, before);
+    expect(_border(_searchShellBorderDecoration(tester)).top.width, 1);
+    expect(_border(_searchInnerFocusDecoration(tester)).top.width, 1);
+  });
+
+  testWidgets('Search focus inset snaps at supported device pixel ratios', (
+    tester,
+  ) async {
+    final controller = TextEditingController();
+    addTearDown(controller.dispose);
+
+    for (final ratio in const [1.0, 1.25, 1.5, 2.0]) {
+      tester.view.devicePixelRatio = ratio;
+      addTearDown(tester.view.resetDevicePixelRatio);
+      await _pumpIsolatedSearch(
+        tester,
+        controller: controller,
+        onChanged: (_) {},
+      );
+      await tester.tap(find.byType(TextField));
+      await tester.pumpAndSettle();
+
+      final insetWidth = _border(_searchInnerFocusDecoration(tester)).top.width;
+      expect(insetWidth * ratio, closeTo((1 * ratio).roundToDouble(), .001));
+      final insetContainer = tester.widget<AnimatedContainer>(
+        find.byKey(BusyMaxLinuxHeaderSearchField.innerFocusKey),
+      );
+      final insetMargin = insetContainer.margin! as EdgeInsets;
+      final expectedPhysicalInset = (1 * ratio).roundToDouble();
+      expect(insetMargin.left * ratio, closeTo(expectedPhysicalInset, .001));
+      expect(insetMargin.top * ratio, closeTo(expectedPhysicalInset, .001));
+    }
+  });
 
   testWidgets('header Search uses semantic view chrome in light and dark', (
     tester,
@@ -1156,16 +1244,19 @@ const _searchNormal = GtkSearchEntryStateStyle(
 const _searchFocused = GtkSearchEntryStateStyle(
   background: Color(0xFFF1F5FA),
   foreground: Color(0xFF102030),
-  borderTop: 2,
-  borderRight: 2,
-  borderBottom: 2,
-  borderLeft: 2,
+  borderTop: 1,
+  borderRight: 1,
+  borderBottom: 1,
+  borderLeft: 1,
   borderColor: Color(0xFF2468AC),
   primaryIconForeground: Color(0xFF304860),
   primaryIconForegroundRtl: Color(0xFF314961),
   secondaryIconForeground: Color(0xFF324A62),
   secondaryIconForegroundRtl: Color(0xFF334B63),
   radius: 10,
+  hasInnerFocus: true,
+  innerFocusColor: Color(0xFF2468AC),
+  innerFocusWidth: 1,
 );
 const _searchBackdrop = GtkSearchEntryStateStyle(
   background: Color(0xFFE1E2E3),
@@ -1245,6 +1336,14 @@ BoxDecoration _searchShellBorderDecoration(WidgetTester tester) =>
             .foregroundDecoration!
         as BoxDecoration;
 
+BoxDecoration _searchInnerFocusDecoration(WidgetTester tester) =>
+    tester
+            .widget<AnimatedContainer>(
+              find.byKey(BusyMaxLinuxHeaderSearchField.innerFocusKey),
+            )
+            .foregroundDecoration!
+        as BoxDecoration;
+
 Border _border(BoxDecoration decoration) => decoration.border! as Border;
 
 Color? _iconColor(WidgetTester tester, Finder icon) =>
@@ -1292,6 +1391,17 @@ void _expectSearchState(
     tester.widget<TextField>(find.byType(TextField)).style?.color,
     expected.foreground,
   );
+  final innerFocus = _border(_searchInnerFocusDecoration(tester));
+  expect(
+    innerFocus.top.width,
+    expected.hasInnerFocus ? expected.innerFocusWidth : 0,
+  );
+  expect(
+    innerFocus.top.color,
+    expected.hasInnerFocus
+        ? expected.innerFocusColor
+        : expected.innerFocusColor.withValues(alpha: 0),
+  );
 }
 
 BusyMaxNativeSearchEntryTheme _searchThemeWithRadius(double radius) {
@@ -1309,6 +1419,9 @@ BusyMaxNativeSearchEntryTheme _searchThemeWithRadius(double radius) {
       secondaryIconForeground: state.secondaryIconForeground,
       secondaryIconForegroundRtl: state.secondaryIconForegroundRtl,
       radius: radius,
+      hasInnerFocus: state.hasInnerFocus,
+      innerFocusColor: state.innerFocusColor,
+      innerFocusWidth: state.innerFocusWidth,
     );
   }
 
@@ -1379,9 +1492,10 @@ Future<void> _pumpLayout(WidgetTester tester, _LayoutCase testCase) async {
               width: testCase.leadingWidth,
               height: BusyMaxSizes.headerIconButton,
             ),
-            title: const BusyMaxLinuxHeaderTitle(
-              'Centered title',
+            title: const SizedBox(
               key: _titleKey,
+              width: double.infinity,
+              child: BusyMaxLinuxHeaderTitle('Centered title'),
             ),
             trailing: SizedBox(
               key: _trailingKey,

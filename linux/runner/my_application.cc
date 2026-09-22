@@ -2100,6 +2100,12 @@ static FlValue* gtk_search_entry_state_to_fl_value(
                            fl_value_new_int(state.border_width.left));
   fl_value_set_string_take(result, "radius",
                            fl_value_new_int(state.border_radius));
+  fl_value_set_string_take(result, "hasInnerFocus",
+                           fl_value_new_bool(state.has_inner_focus));
+  set_search_entry_color(result, "innerFocusColor",
+                         &state.inner_focus_color);
+  fl_value_set_string_take(result, "innerFocusWidth",
+                           fl_value_new_int(state.inner_focus_width));
   return result;
 }
 

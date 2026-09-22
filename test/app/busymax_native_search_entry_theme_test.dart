@@ -22,7 +22,14 @@ void main() {
     expect(search?.normal.borderBottom, 3);
     expect(search?.normal.borderLeft, 4);
     expect(search?.focused.background, const Color(0xFF222222));
+    expect(search?.focused.borderTop, 1);
+    expect(search?.focused.hasInnerFocus, isTrue);
+    expect(search?.focused.innerFocusWidth, 1);
+    expect(search?.focused.innerFocusColor, const Color(0xFF336699));
     expect(search?.backdrop.foreground, const Color(0xFF777777));
+    expect(search?.normal.hasInnerFocus, isFalse);
+    expect(search?.backdrop.hasInnerFocus, isFalse);
+    expect(search?.backdropFocused.hasInnerFocus, isFalse);
     expect(search?.backdropFocused.borderColor, const Color(0xFF888888));
   });
 
@@ -74,6 +81,31 @@ void main() {
       fallback.primaryIconForegroundRtl,
       fallback.secondaryIconForegroundRtl,
     );
+    final focusedFallback = normal
+        .extension<BusyMaxNativeSearchEntryTheme>()!
+        .focused;
+    expect(focusedFallback.borderTop, 1);
+    expect(focusedFallback.hasInnerFocus, isTrue);
+    expect(focusedFallback.innerFocusColor, const Color(0xFFAA4400));
+    expect(focusedFallback.innerFocusWidth, 1);
+    final backdropFallback = normal
+        .extension<BusyMaxNativeSearchEntryTheme>()!
+        .backdrop;
+    expect(backdropFallback.hasInnerFocus, isFalse);
+    expect(
+      highContrast
+          .extension<BusyMaxNativeSearchEntryTheme>()!
+          .focused
+          .hasInnerFocus,
+      isFalse,
+    );
+    expect(
+      highContrast
+          .extension<BusyMaxNativeSearchEntryTheme>()!
+          .focused
+          .borderTop,
+      2,
+    );
   });
 
   test('lerp interpolates all primary and secondary icon colors', () {
@@ -123,6 +155,16 @@ void main() {
         .5,
       ),
     );
+    expect(state.hasInnerFocus, isTrue);
+    expect(
+      state.innerFocusColor,
+      Color.lerp(
+        _firstLerpState.innerFocusColor,
+        _secondLerpState.innerFocusColor,
+        .5,
+      ),
+    );
+    expect(state.innerFocusWidth, .5);
   });
 }
 
@@ -139,6 +181,9 @@ const _firstLerpState = GtkSearchEntryStateStyle(
   secondaryIconForeground: Color(0xFF000020),
   secondaryIconForegroundRtl: Color(0xFF200020),
   radius: 1,
+  hasInnerFocus: false,
+  innerFocusColor: Color(0x00000000),
+  innerFocusWidth: 0,
 );
 
 const _secondLerpState = GtkSearchEntryStateStyle(
@@ -154,6 +199,9 @@ const _secondLerpState = GtkSearchEntryStateStyle(
   secondaryIconForeground: Color(0xFF0000E0),
   secondaryIconForegroundRtl: Color(0xFFE000E0),
   radius: 2,
+  hasInnerFocus: true,
+  innerFocusColor: Color(0xFFFFFFFF),
+  innerFocusWidth: 1,
 );
 
 const _nativeSearchTheme = GtkSearchEntryTheme(
@@ -174,16 +222,19 @@ const _nativeSearchTheme = GtkSearchEntryTheme(
   focused: GtkSearchEntryStateStyle(
     background: Color(0xFF222222),
     foreground: Color(0xFFDDDDDD),
-    borderTop: 2,
-    borderRight: 2,
-    borderBottom: 2,
-    borderLeft: 2,
+    borderTop: 1,
+    borderRight: 1,
+    borderBottom: 1,
+    borderLeft: 1,
     borderColor: Color(0xFF336699),
     primaryIconForeground: Color(0xFFBBBBBB),
     primaryIconForegroundRtl: Color(0xFFBCBCBC),
     secondaryIconForeground: Color(0xFFBDBDBD),
     secondaryIconForegroundRtl: Color(0xFFBEBEBE),
     radius: 12,
+    hasInnerFocus: true,
+    innerFocusColor: Color(0xFF336699),
+    innerFocusWidth: 1,
   ),
   backdrop: GtkSearchEntryStateStyle(
     background: Color(0xFF333333),

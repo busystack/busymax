@@ -152,6 +152,9 @@ final class GtkSearchEntryStateStyle {
     required this.secondaryIconForeground,
     required this.secondaryIconForegroundRtl,
     required this.radius,
+    this.hasInnerFocus = false,
+    this.innerFocusColor = const Color(0x00000000),
+    this.innerFocusWidth = 0,
   });
 
   final Color background;
@@ -167,6 +170,9 @@ final class GtkSearchEntryStateStyle {
   final Color secondaryIconForeground;
   final Color secondaryIconForegroundRtl;
   final double radius;
+  final bool hasInnerFocus;
+  final Color innerFocusColor;
+  final double innerFocusWidth;
 
   @override
   bool operator ==(Object other) {
@@ -183,7 +189,10 @@ final class GtkSearchEntryStateStyle {
             other.primaryIconForegroundRtl == primaryIconForegroundRtl &&
             other.secondaryIconForeground == secondaryIconForeground &&
             other.secondaryIconForegroundRtl == secondaryIconForegroundRtl &&
-            other.radius == radius;
+            other.radius == radius &&
+            other.hasInnerFocus == hasInnerFocus &&
+            other.innerFocusColor == innerFocusColor &&
+            other.innerFocusWidth == innerFocusWidth;
   }
 
   @override
@@ -200,6 +209,9 @@ final class GtkSearchEntryStateStyle {
     secondaryIconForeground,
     secondaryIconForegroundRtl,
     radius,
+    hasInnerFocus,
+    innerFocusColor,
+    innerFocusWidth,
   );
 }
 
@@ -488,6 +500,11 @@ GtkSearchEntryStateStyle? _parseSearchEntryStateStyle(Object? value) {
   final borderBottom = _parseNonNegativeDouble(value['borderBottom']);
   final borderLeft = _parseNonNegativeDouble(value['borderLeft']);
   final radius = _parseNonNegativeDouble(value['radius']);
+  final hasInnerFocus = value['hasInnerFocus'] is bool
+      ? value['hasInnerFocus'] as bool
+      : false;
+  final innerFocusColor = _parseColor(value['innerFocusColor']);
+  final innerFocusWidth = _parseNonNegativeDouble(value['innerFocusWidth']);
   if (background == null ||
       foreground == null ||
       borderColor == null ||
@@ -515,6 +532,9 @@ GtkSearchEntryStateStyle? _parseSearchEntryStateStyle(Object? value) {
     secondaryIconForeground: secondaryIconForeground,
     secondaryIconForegroundRtl: secondaryIconForegroundRtl,
     radius: radius,
+    hasInnerFocus: hasInnerFocus,
+    innerFocusColor: innerFocusColor ?? const Color(0x00000000),
+    innerFocusWidth: innerFocusWidth ?? 0,
   );
 }
 

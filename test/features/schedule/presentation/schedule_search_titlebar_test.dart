@@ -138,13 +138,25 @@ void main() {
         closeTo(
           2 *
               math.min(
-                headerRect.center.dx - leftOccupiedEdge,
-                rightOccupiedEdge - headerRect.center.dx,
+                headerRect.center.dx -
+                    leftOccupiedEdge -
+                    BusyMaxSpacing.headerInset,
+                rightOccupiedEdge -
+                    BusyMaxSpacing.headerInset -
+                    headerRect.center.dx,
               ),
           .01,
         ),
       );
-      expect(fieldRect.width, closeTo(640, .01));
+      expect(fieldRect.width, closeTo(628, .01));
+      expect(
+        fieldRect.left - leftOccupiedEdge,
+        greaterThanOrEqualTo(BusyMaxSpacing.headerInset),
+      );
+      expect(
+        rightOccupiedEdge - fieldRect.right,
+        greaterThanOrEqualTo(BusyMaxSpacing.headerInset),
+      );
 
       final textField = tester.widget<TextField>(_searchTextField());
       expect(textField.decoration?.hintText, isNull);
@@ -218,18 +230,30 @@ void main() {
       final physicalRightEdge = direction == TextDirection.ltr
           ? controlRects.first.left
           : sidebarRect?.left ?? headerRect.right - BusyMaxSpacing.headerInset;
+      final leftGap = fieldRect.left - physicalLeftEdge;
+      final rightGap = physicalRightEdge - fieldRect.right;
+      expect(leftGap, greaterThanOrEqualTo(BusyMaxSpacing.headerInset));
+      expect(rightGap, greaterThanOrEqualTo(BusyMaxSpacing.headerInset));
+      expect(
+        math.min(leftGap, rightGap),
+        closeTo(BusyMaxSpacing.headerInset, .01),
+      );
       expect(
         fieldRect.width,
         closeTo(
           2 *
               math.min(
-                headerRect.center.dx - physicalLeftEdge,
-                physicalRightEdge - headerRect.center.dx,
+                headerRect.center.dx -
+                    physicalLeftEdge -
+                    BusyMaxSpacing.headerInset,
+                physicalRightEdge -
+                    BusyMaxSpacing.headerInset -
+                    headerRect.center.dx,
               ),
           .01,
         ),
       );
-      expect(fieldRect.width, closeTo(410, .01));
+      expect(fieldRect.width, closeTo(398, .01));
     }
   });
 

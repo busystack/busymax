@@ -329,9 +329,20 @@ void main() {
         secondaryIconForeground: Color(0xFF505152),
         secondaryIconForegroundRtl: Color(0xFF606162),
         radius: 13,
+        hasInnerFocus: false,
+        innerFocusColor: Color(0x00000000),
+        innerFocusWidth: 0,
       ),
     );
     expect(colors?.searchEntry?.focused.radius, 12);
+    expect(colors?.searchEntry?.focused.hasInnerFocus, isTrue);
+    expect(
+      colors?.searchEntry?.focused.innerFocusColor,
+      const Color(0xFF123456),
+    );
+    expect(colors?.searchEntry?.focused.innerFocusWidth, 1);
+    expect(colors?.searchEntry?.normal.hasInnerFocus, isFalse);
+    expect(colors?.searchEntry?.normal.innerFocusWidth, 0);
     expect(colors?.searchEntry?.backdrop.radius, 11);
     expect(colors?.searchEntry?.backdropFocused.radius, 10);
   });
@@ -392,6 +403,9 @@ void main() {
           secondaryIconForeground: Color(0xFF505152),
           secondaryIconForegroundRtl: Color(0xFF606162),
           radius: 14,
+          hasInnerFocus: true,
+          innerFocusColor: Color(0xFF123456),
+          innerFocusWidth: 1,
         ),
       ),
     );
@@ -457,6 +471,46 @@ void main() {
     expect(colors?.window, const Color(0xFFFAFAFA));
     expect(colors?.searchEntry, isNull);
   });
+
+  test(
+    'malformed focus-inset fields fall back without dropping Search',
+    () async {
+      const channel = MethodChannel('busymax_test/gtk_theme_bad_focus_inset');
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(channel, (_) async {
+            return <String, Object?>{
+              'brightness': 'light',
+              'searchEntry': <String, Object?>{
+                ..._searchEntryPayload,
+                'focused': <String, Object?>{
+                  ..._searchStatePayload,
+                  'radius': 12,
+                  'hasInnerFocus': 'yes',
+                  'innerFocusColor': 123,
+                  'innerFocusWidth': -1,
+                },
+              },
+            };
+          });
+      addTearDown(() {
+        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+            .setMockMethodCallHandler(channel, null);
+      });
+
+      final colors = await const GtkThemeService(
+        channel: channel,
+      ).getGtkThemeColors();
+
+      expect(colors?.searchEntry, isNotNull);
+      expect(colors?.searchEntry?.focused.radius, 12);
+      expect(colors?.searchEntry?.focused.hasInnerFocus, isFalse);
+      expect(
+        colors?.searchEntry?.focused.innerFocusColor,
+        const Color(0x00000000),
+      );
+      expect(colors?.searchEntry?.focused.innerFocusWidth, 0);
+    },
+  );
 
   test('missing Search data leaves the optional theme absent', () async {
     const channel = MethodChannel('busymax_test/gtk_theme_no_search');
@@ -601,7 +655,13 @@ const _searchStatePayload = <String, Object?>{
 
 final _searchEntryPayload = <String, Object?>{
   'normal': <String, Object?>{..._searchStatePayload, 'radius': 13},
-  'focused': <String, Object?>{..._searchStatePayload, 'radius': 12},
+  'focused': <String, Object?>{
+    ..._searchStatePayload,
+    'radius': 12,
+    'hasInnerFocus': true,
+    'innerFocusColor': '#123456',
+    'innerFocusWidth': 1,
+  },
   'backdrop': <String, Object?>{..._searchStatePayload, 'radius': 11},
   'backdropFocused': <String, Object?>{..._searchStatePayload, 'radius': 10},
 };
