@@ -141,6 +141,13 @@ jobs:
             -o build/linux/native-tests/gtk_header_icons_test \
             $(pkg-config --cflags --libs gtk+-3.0)
           xvfb-run -a sh -c 'build/linux/native-tests/gtk_header_icons_test'
+          g++ -std=c++17 -Wall -Wextra -Werror \
+            linux/runner/tests/gtk_search_entry_theme_test.cc \
+            linux/runner/gtk_search_entry_theme.cc \
+            -o build/linux/native-tests/gtk_search_entry_theme_test \
+            $(pkg-config --cflags --libs gtk+-3.0)
+          xvfb-run -a env GDK_BACKEND=x11 \
+            build/linux/native-tests/gtk_search_entry_theme_test
 
       - name: Validate release provider configuration
         if: github.event_name == 'push'

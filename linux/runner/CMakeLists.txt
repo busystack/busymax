@@ -9,6 +9,7 @@ project(runner LANGUAGES CXX)
 add_executable(${BINARY_NAME}
   "first_weekday_preference.cc"
   "gtk_header_icons.cc"
+  "gtk_search_entry_theme.cc"
   "gtk_window_preferences.cc"
   "main.cc"
   "my_application.cc"

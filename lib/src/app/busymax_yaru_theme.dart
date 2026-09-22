@@ -6,8 +6,10 @@ import 'package:yaru/widgets.dart'
 
 import '../platform/gtk_font_service.dart';
 import 'busymax_design.dart';
+import 'busymax_native_search_entry_theme.dart';
 import 'busymax_surface_colors.dart';
 
+export 'busymax_native_search_entry_theme.dart';
 export 'busymax_surface_colors.dart';
 
 const _minimumControlSurfaceContrast = 1.02;
@@ -45,6 +47,15 @@ class BusyMaxYaruTheme {
     final colors = highContrast
         ? _highContrastSurfaceColors(brightness)
         : resolvedColors;
+    final nativeSearchEntry =
+        gtkThemeColors?.brightness == brightness &&
+            gtkThemeColors?.searchEntry != null
+        ? BusyMaxNativeSearchEntryTheme.fromGtk(gtkThemeColors!.searchEntry!)
+        : BusyMaxNativeSearchEntryTheme.fallback(
+            colors: colors,
+            accent: accentColor,
+            highContrast: highContrast,
+          );
     final surfaceContainers = _surfaceContainerLadder(colors, brightness);
     final sampledAccentForeground =
         gtkThemeColors?.brightness == brightness &&
@@ -239,11 +250,13 @@ class BusyMaxYaruTheme {
       extensions: [
         for (final extension in base.extensions.values)
           if (extension is! BusyMaxSurfaceColors &&
+              extension is! BusyMaxNativeSearchEntryTheme &&
               extension is! YaruRadioThemeData &&
               extension is! YaruCheckboxThemeData &&
               extension is! YaruSwitchThemeData)
             extension,
         colors,
+        nativeSearchEntry,
         yaruRadioTheme,
         yaruCheckboxTheme,
         yaruSwitchTheme,

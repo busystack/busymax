@@ -91,6 +91,9 @@ void main() {
 
     test('Yaru GTK3 compatibility replaces legacy decoration rings', () {
       final source = File('linux/runner/my_application.cc').readAsStringSync();
+      final searchTheme = File(
+        'linux/runner/gtk_search_entry_theme.cc',
+      ).readAsStringSync();
       final themeGateStart = source.indexOf(
         'static gboolean current_gtk_theme_uses_legacy_yaru_shadow()',
       );
@@ -118,10 +121,14 @@ void main() {
 
       expect(themeGate, contains('gtk_settings_get_default()'));
       expect(themeGate, contains('"gtk-theme-name"'));
-      expect(themeGate, contains('g_ascii_strdown(theme_name, -1)'));
-      expect(themeGate, contains('g_strcmp0(normalized, "yaru")'));
-      expect(themeGate, contains('g_str_has_prefix(normalized, "yaru-")'));
-      expect(themeGate, contains('strstr(normalized, "highcontrast")'));
+      expect(
+        themeGate,
+        contains('busymax_gtk_theme_is_standard_yaru(theme_name)'),
+      );
+      expect(searchTheme, contains('g_ascii_strdown(theme_name, -1)'));
+      expect(searchTheme, contains('g_strcmp0(normalized, "yaru")'));
+      expect(searchTheme, contains('g_str_has_prefix(normalized, "yaru-")'));
+      expect(searchTheme, contains('std::strstr(normalized, "highcontrast")'));
       expect(compatibilityStart, isNonNegative);
       expect(compatibilityEnd, greaterThan(compatibilityStart));
 
@@ -486,6 +493,9 @@ void main() {
       final nativeIcons = File(
         'linux/runner/gtk_header_icons.cc',
       ).readAsStringSync();
+      final nativeSearchTheme = File(
+        'linux/runner/gtk_search_entry_theme.cc',
+      ).readAsStringSync();
 
       expect(workspace, contains('final header = ScheduleToolbar('));
       expect(workspace, isNot(contains("'schedule-search-close-button'")));
@@ -510,10 +520,23 @@ void main() {
       final headerSearch = linuxHeader.substring(searchStart, searchEnd);
       expect(linuxHeader, contains('searchEntryHeight = 32'));
       expect(linuxHeader, contains('searchEntryRadius = 9'));
-      expect(headerSearch, contains('BusyMaxSurfaceColors.of(context)'));
+      expect(
+        headerSearch,
+        contains('BusyMaxNativeSearchEntryTheme.of(context)'),
+      );
       expect(headerSearch, contains('InputBorder.none'));
       expect(headerSearch, contains('BusyMaxLinuxHeaderIcon.search'));
       expect(headerSearch, contains('BusyMaxLinuxHeaderIcon.searchClear'));
+      expect(headerSearch, contains('if (_isEmpty)'));
+      expect(
+        headerSearch.indexOf('BusyMaxLinuxHeaderIcon.search,'),
+        greaterThan(headerSearch.indexOf('if (_isEmpty)')),
+      );
+      expect(headerSearch, isNot(contains('theme.colorScheme.isHighContrast')));
+      expect(
+        headerSearch,
+        isNot(contains('BusyMaxLinuxHeaderStyle.symbolicIconSize * 2')),
+      );
       for (final forbidden in const [
         'BusyMaxSearchField(',
         'YaruSearchField(',
@@ -536,6 +559,14 @@ void main() {
         contains('fl_value_lookup_string(request, "allowMissing")'),
       );
       expect(nativeIcons, contains('if (!allow_missing)'));
+      expect(nativeSearchTheme, contains('gtk_search_entry_new()'));
+      expect(nativeSearchTheme, contains('GTK_STYLE_PROPERTY_BORDER_RADIUS'));
+      expect(nativeSearchTheme, contains('GTK_STATE_FLAG_BACKDROP'));
+      expect(nativeSearchTheme, contains('GTK_STATE_FLAG_FOCUSED'));
+      expect(nativeSearchTheme, contains('gtk_widget_path_append_type'));
+      expect(nativeSearchTheme, contains('GTK_STYLE_CLASS_LEFT'));
+      expect(nativeSearchTheme, contains('GTK_STYLE_CLASS_RIGHT'));
+      expect(runner, contains('"searchEntry"'));
     });
 
     test('native GTK window preferences notify and clean up safely', () {

@@ -2,6 +2,7 @@
 #include "my_application.h"
 #include "first_weekday_preference.h"
 #include "gtk_header_icons.h"
+#include "gtk_search_entry_theme.h"
 #include "gtk_window_preferences.h"
 
 #include <flutter_linux/flutter_linux.h>
@@ -1806,12 +1807,7 @@ static gboolean current_gtk_theme_uses_legacy_yaru_shadow() {
   if (settings == nullptr) return FALSE;
   g_autofree gchar* theme_name = nullptr;
   g_object_get(settings, "gtk-theme-name", &theme_name, nullptr);
-  if (theme_name == nullptr) return FALSE;
-  g_autofree gchar* normalized = g_ascii_strdown(theme_name, -1);
-  const gboolean is_yaru = g_strcmp0(normalized, "yaru") == 0 ||
-                           g_str_has_prefix(normalized, "yaru-");
-  return is_yaru && strstr(normalized, "highcontrast") == nullptr &&
-         strstr(normalized, "high-contrast") == nullptr;
+  return busymax_gtk_theme_is_standard_yaru(theme_name);
 }
 
 static void refresh_native_surface_css(MyApplication* self) {
@@ -2073,6 +2069,50 @@ static void set_theme_color(FlValue* result,
   fl_value_set_string_take(result, key, fl_value_new_string(hex));
 }
 
+static void set_search_entry_color(FlValue* result,
+                                   const gchar* key,
+                                   const GdkRGBA* color) {
+  g_autofree gchar* hex = rgba_to_hex(color);
+  fl_value_set_string_take(result, key, fl_value_new_string(hex));
+}
+
+static FlValue* gtk_search_entry_state_to_fl_value(
+    const BusyMaxGtkSearchEntryState& state) {
+  FlValue* result = fl_value_new_map();
+  set_search_entry_color(result, "background", &state.background);
+  set_search_entry_color(result, "foreground", &state.foreground);
+  set_search_entry_color(result, "borderColor", &state.border_color);
+  set_search_entry_color(result, "iconForeground", &state.icon_foreground);
+  set_search_entry_color(result, "iconForegroundRtl",
+                         &state.icon_foreground_rtl);
+  fl_value_set_string_take(result, "borderTop",
+                           fl_value_new_int(state.border_width.top));
+  fl_value_set_string_take(result, "borderRight",
+                           fl_value_new_int(state.border_width.right));
+  fl_value_set_string_take(result, "borderBottom",
+                           fl_value_new_int(state.border_width.bottom));
+  fl_value_set_string_take(result, "borderLeft",
+                           fl_value_new_int(state.border_width.left));
+  fl_value_set_string_take(result, "radius",
+                           fl_value_new_int(state.border_radius));
+  return result;
+}
+
+static FlValue* gtk_search_entry_theme_to_fl_value(
+    const BusyMaxGtkSearchEntryTheme& theme) {
+  FlValue* result = fl_value_new_map();
+  fl_value_set_string_take(
+      result, "normal", gtk_search_entry_state_to_fl_value(theme.normal));
+  fl_value_set_string_take(
+      result, "focused", gtk_search_entry_state_to_fl_value(theme.focused));
+  fl_value_set_string_take(
+      result, "backdrop", gtk_search_entry_state_to_fl_value(theme.backdrop));
+  fl_value_set_string_take(
+      result, "backdropFocused",
+      gtk_search_entry_state_to_fl_value(theme.backdrop_focused));
+  return result;
+}
+
 static gboolean lookup_context_color(GtkStyleContext* context,
                                      const gchar* name,
                                      GdkRGBA* color) {
@@ -2282,6 +2322,12 @@ static FlValue* get_gtk_theme_colors() {
   set_theme_color(result, "floatingBorder", &floating_border_color);
   set_theme_color(result, "sidebarBorder", &sidebar_border_color);
   set_theme_color(result, "shade", &shade_color);
+  BusyMaxGtkSearchEntryTheme search_entry_theme = {};
+  if (busymax_sample_gtk_search_entry_theme(&search_entry_theme)) {
+    fl_value_set_string_take(
+        result, "searchEntry",
+        gtk_search_entry_theme_to_fl_value(search_entry_theme));
+  }
 
   gtk_widget_destroy(dim_label);
   gtk_widget_destroy(separator);

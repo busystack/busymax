@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:yaru/yaru.dart';
 
 import '../busymax_design.dart';
+import '../busymax_native_search_entry_theme.dart';
 import '../busymax_surface_colors.dart';
 import '../../platform/gtk_header_icon_service.dart';
 import 'linux_window_host.dart';
@@ -637,6 +638,9 @@ class BusyMaxLinuxHeaderSearchField extends StatefulWidget {
 
   static const int maximumWidthChars = 48;
   static const shellKey = ValueKey<String>('busymax-linux-search-shell');
+  static const secondaryIconKey = ValueKey<String>(
+    'busymax-linux-search-secondary-icon',
+  );
   static const clearKey = ValueKey<String>('busymax-linux-search-clear');
 
   final TextEditingController controller;
@@ -738,9 +742,16 @@ class _BusyMaxLinuxHeaderSearchFieldState
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final colors = BusyMaxSurfaceColors.of(context);
+    final windowActive = LinuxWindowMetricsScope.of(context).windowActive;
+    final focused = _focusNode.hasFocus;
+    final searchTheme = BusyMaxNativeSearchEntryTheme.of(context);
+    final searchStyle = searchTheme.stateFor(
+      windowActive: windowActive,
+      focused: focused,
+    );
+    final direction = Directionality.of(context);
     final textStyle = (theme.textTheme.bodyMedium ?? const TextStyle())
-        .copyWith(color: colors.foreground, fontWeight: FontWeight.normal);
+        .copyWith(color: searchStyle.foreground, fontWeight: FontWeight.normal);
     final widthProbe = TextPainter(
       text: TextSpan(
         text: List.filled(
@@ -756,21 +767,19 @@ class _BusyMaxLinuxHeaderSearchFieldState
     final desiredWidth =
         widthProbe.width +
         BusyMaxLinuxHeaderStyle.searchEntryHorizontalPadding * 2 +
-        BusyMaxLinuxHeaderStyle.symbolicIconSize * 2 +
-        BusyMaxLinuxHeaderStyle.searchEntryIconGap * 2;
+        BusyMaxLinuxHeaderStyle.symbolicIconSize +
+        BusyMaxLinuxHeaderStyle.searchEntryIconGap;
     widthProbe.dispose();
-    final focused = _focusNode.hasFocus;
-    final radius = theme.colorScheme.isHighContrast
-        ? BusyMaxLinuxHeaderStyle.controlRadius
-        : BusyMaxLinuxHeaderStyle.searchEntryRadius;
-    final borderWidth = focused
-        ? BusyMaxLinuxHeaderStyle.searchEntryFocusedBorderWidth
-        : BusyMaxLinuxHeaderStyle.searchEntryBorderWidth;
-    final clearColor = _clearPressed
+    final iconForeground = direction == TextDirection.rtl
+        ? searchStyle.iconForegroundRtl
+        : searchStyle.iconForeground;
+    final clearColor = !windowActive
+        ? iconForeground
+        : _clearPressed
         ? theme.colorScheme.primary
         : _clearHovered
-        ? colors.foreground
-        : colors.mutedForeground;
+        ? searchStyle.foreground
+        : iconForeground;
     final focusDuration = MediaQuery.disableAnimationsOf(context)
         ? Duration.zero
         : BusyMaxLinuxHeaderStyle.searchEntryFocusDuration;
@@ -789,35 +798,41 @@ class _BusyMaxLinuxHeaderSearchFieldState
                 duration: focusDuration,
                 curve: Curves.easeOut,
                 decoration: BoxDecoration(
-                  color: colors.view,
-                  borderRadius: BorderRadius.circular(radius),
+                  color: searchStyle.background,
+                  borderRadius: BorderRadius.circular(searchStyle.radius),
                 ),
                 foregroundDecoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(radius),
-                  border: Border.all(
-                    color: focused ? theme.colorScheme.primary : colors.border,
-                    width: borderWidth,
+                  borderRadius: BorderRadius.circular(searchStyle.radius),
+                  border: Border(
+                    top: BorderSide(
+                      color: searchStyle.borderColor,
+                      width: searchStyle.borderTop,
+                    ),
+                    right: BorderSide(
+                      color: searchStyle.borderColor,
+                      width: searchStyle.borderRight,
+                    ),
+                    bottom: BorderSide(
+                      color: searchStyle.borderColor,
+                      width: searchStyle.borderBottom,
+                    ),
+                    left: BorderSide(
+                      color: searchStyle.borderColor,
+                      width: searchStyle.borderLeft,
+                    ),
                   ),
                 ),
                 child: GestureDetector(
                   behavior: HitTestBehavior.opaque,
                   onTap: _focusNode.requestFocus,
                   child: Padding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal:
+                    padding: const EdgeInsetsDirectional.only(
+                      start:
                           BusyMaxLinuxHeaderStyle.searchEntryHorizontalPadding,
+                      end: BusyMaxLinuxHeaderStyle.searchEntryHorizontalPadding,
                     ),
                     child: Row(
                       children: [
-                        IconTheme(
-                          data: IconThemeData(color: colors.mutedForeground),
-                          child: const BusyMaxGtkHeaderIcon(
-                            BusyMaxLinuxHeaderIcon.search,
-                          ),
-                        ),
-                        const SizedBox(
-                          width: BusyMaxLinuxHeaderStyle.searchEntryIconGap,
-                        ),
                         Expanded(
                           child: Semantics(
                             label: widget.semanticLabel,
@@ -828,7 +843,9 @@ class _BusyMaxLinuxHeaderSearchFieldState
                               autofocus: false,
                               maxLines: 1,
                               style: textStyle,
-                              cursorColor: theme.colorScheme.primary,
+                              cursorColor: windowActive
+                                  ? theme.colorScheme.primary
+                                  : searchStyle.foreground,
                               cursorWidth: 1,
                               decoration: const InputDecoration(
                                 isCollapsed: true,
@@ -845,11 +862,22 @@ class _BusyMaxLinuxHeaderSearchFieldState
                             ),
                           ),
                         ),
-                        if (!_isEmpty) ...[
-                          const SizedBox(
-                            width: BusyMaxLinuxHeaderStyle.searchEntryIconGap,
-                          ),
+                        const SizedBox(
+                          width: BusyMaxLinuxHeaderStyle.searchEntryIconGap,
+                        ),
+                        if (_isEmpty)
+                          ExcludeSemantics(
+                            key: BusyMaxLinuxHeaderSearchField.secondaryIconKey,
+                            child: IconTheme(
+                              data: IconThemeData(color: iconForeground),
+                              child: const BusyMaxGtkHeaderIcon(
+                                BusyMaxLinuxHeaderIcon.search,
+                              ),
+                            ),
+                          )
+                        else
                           Semantics(
+                            key: BusyMaxLinuxHeaderSearchField.secondaryIconKey,
                             container: true,
                             button: true,
                             label: MaterialLocalizations.of(
@@ -886,7 +914,6 @@ class _BusyMaxLinuxHeaderSearchFieldState
                               ),
                             ),
                           ),
-                        ],
                       ],
                     ),
                   ),

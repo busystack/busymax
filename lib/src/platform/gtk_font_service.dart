@@ -138,6 +138,95 @@ final gtkFontSettingsProvider = StreamProvider<GtkFontSettings?>((ref) {
 });
 
 @immutable
+final class GtkSearchEntryStateStyle {
+  const GtkSearchEntryStateStyle({
+    required this.background,
+    required this.foreground,
+    required this.borderTop,
+    required this.borderRight,
+    required this.borderBottom,
+    required this.borderLeft,
+    required this.borderColor,
+    required this.iconForeground,
+    Color? iconForegroundRtl,
+    required this.radius,
+  }) : iconForegroundRtl = iconForegroundRtl ?? iconForeground;
+
+  final Color background;
+  final Color foreground;
+  final double borderTop;
+  final double borderRight;
+  final double borderBottom;
+  final double borderLeft;
+  final Color borderColor;
+
+  /// Foreground for the secondary image node in left-to-right layouts.
+  final Color iconForeground;
+
+  /// Foreground for the secondary image node in right-to-left layouts.
+  final Color iconForegroundRtl;
+  final double radius;
+
+  @override
+  bool operator ==(Object other) {
+    return identical(this, other) ||
+        other is GtkSearchEntryStateStyle &&
+            other.background == background &&
+            other.foreground == foreground &&
+            other.borderTop == borderTop &&
+            other.borderRight == borderRight &&
+            other.borderBottom == borderBottom &&
+            other.borderLeft == borderLeft &&
+            other.borderColor == borderColor &&
+            other.iconForeground == iconForeground &&
+            other.iconForegroundRtl == iconForegroundRtl &&
+            other.radius == radius;
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    background,
+    foreground,
+    borderTop,
+    borderRight,
+    borderBottom,
+    borderLeft,
+    borderColor,
+    iconForeground,
+    iconForegroundRtl,
+    radius,
+  );
+}
+
+@immutable
+final class GtkSearchEntryTheme {
+  const GtkSearchEntryTheme({
+    required this.normal,
+    required this.focused,
+    required this.backdrop,
+    required this.backdropFocused,
+  });
+
+  final GtkSearchEntryStateStyle normal;
+  final GtkSearchEntryStateStyle focused;
+  final GtkSearchEntryStateStyle backdrop;
+  final GtkSearchEntryStateStyle backdropFocused;
+
+  @override
+  bool operator ==(Object other) {
+    return identical(this, other) ||
+        other is GtkSearchEntryTheme &&
+            other.normal == normal &&
+            other.focused == focused &&
+            other.backdrop == backdrop &&
+            other.backdropFocused == backdropFocused;
+  }
+
+  @override
+  int get hashCode => Object.hash(normal, focused, backdrop, backdropFocused);
+}
+
+@immutable
 class GtkThemeColors {
   const GtkThemeColors({
     required this.brightness,
@@ -166,6 +255,7 @@ class GtkThemeColors {
     this.floatingBorder,
     this.sidebarBorder,
     this.shade,
+    this.searchEntry,
   });
 
   final Brightness brightness;
@@ -194,6 +284,7 @@ class GtkThemeColors {
   final Color? floatingBorder;
   final Color? sidebarBorder;
   final Color? shade;
+  final GtkSearchEntryTheme? searchEntry;
 
   @override
   bool operator ==(Object other) {
@@ -224,7 +315,8 @@ class GtkThemeColors {
             other.cardShade == cardShade &&
             other.floatingBorder == floatingBorder &&
             other.sidebarBorder == sidebarBorder &&
-            other.shade == shade;
+            other.shade == shade &&
+            other.searchEntry == searchEntry;
   }
 
   @override
@@ -255,6 +347,7 @@ class GtkThemeColors {
     floatingBorder,
     sidebarBorder,
     shade,
+    searchEntry,
   ]);
 }
 
@@ -344,7 +437,79 @@ GtkThemeColors? _parseThemeColors(Object? value) {
     floatingBorder: _parseColor(value['floatingBorder']),
     sidebarBorder: _parseColor(value['sidebarBorder']),
     shade: _parseColor(value['shade']),
+    searchEntry: _parseSearchEntryTheme(value['searchEntry']),
   );
+}
+
+GtkSearchEntryTheme? _parseSearchEntryTheme(Object? value) {
+  if (value is! Map) {
+    return null;
+  }
+  final normal = _parseSearchEntryStateStyle(value['normal']);
+  final focused = _parseSearchEntryStateStyle(value['focused']);
+  final backdrop = _parseSearchEntryStateStyle(value['backdrop']);
+  final backdropFocused = _parseSearchEntryStateStyle(value['backdropFocused']);
+  if (normal == null ||
+      focused == null ||
+      backdrop == null ||
+      backdropFocused == null) {
+    return null;
+  }
+  return GtkSearchEntryTheme(
+    normal: normal,
+    focused: focused,
+    backdrop: backdrop,
+    backdropFocused: backdropFocused,
+  );
+}
+
+GtkSearchEntryStateStyle? _parseSearchEntryStateStyle(Object? value) {
+  if (value is! Map) {
+    return null;
+  }
+  final background = _parseColor(value['background']);
+  final foreground = _parseColor(value['foreground']);
+  final borderColor = _parseColor(value['borderColor']);
+  final iconForeground = _parseColor(value['iconForeground']);
+  final iconForegroundRtl =
+      _parseColor(value['iconForegroundRtl']) ?? iconForeground;
+  final borderTop = _parseNonNegativeDouble(value['borderTop']);
+  final borderRight = _parseNonNegativeDouble(value['borderRight']);
+  final borderBottom = _parseNonNegativeDouble(value['borderBottom']);
+  final borderLeft = _parseNonNegativeDouble(value['borderLeft']);
+  final radius = _parseNonNegativeDouble(value['radius']);
+  if (background == null ||
+      foreground == null ||
+      borderColor == null ||
+      iconForeground == null ||
+      iconForegroundRtl == null ||
+      borderTop == null ||
+      borderRight == null ||
+      borderBottom == null ||
+      borderLeft == null ||
+      radius == null) {
+    return null;
+  }
+  return GtkSearchEntryStateStyle(
+    background: background,
+    foreground: foreground,
+    borderTop: borderTop,
+    borderRight: borderRight,
+    borderBottom: borderBottom,
+    borderLeft: borderLeft,
+    borderColor: borderColor,
+    iconForeground: iconForeground,
+    iconForegroundRtl: iconForegroundRtl,
+    radius: radius,
+  );
+}
+
+double? _parseNonNegativeDouble(Object? value) {
+  if (value is! num) {
+    return null;
+  }
+  final parsed = value.toDouble();
+  return parsed.isFinite && parsed >= 0 ? parsed : null;
 }
 
 Color? _parseColor(Object? value) {

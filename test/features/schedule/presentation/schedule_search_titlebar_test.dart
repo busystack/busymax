@@ -249,10 +249,30 @@ void main() {
       find.ancestor(of: clearIcon, matching: find.byType(IconButton)),
       findsNothing,
     );
+    await _dragControl(
+      tester,
+      BusyMaxLinuxHeaderSearchField.secondaryIconKey.value,
+    );
+    expect(_dragCalls(windowCalls), 0);
     await tester.tap(find.byKey(BusyMaxLinuxHeaderSearchField.clearKey));
     await tester.pump();
     expect(_dragCalls(windowCalls), 0);
     expect(tester.widget<TextField>(field).controller!.text, isEmpty);
+    final searchIcon = find.descendant(
+      of: find.byType(BusyMaxLinuxHeaderSearchField),
+      matching: find.byWidgetPredicate(
+        (widget) =>
+            widget is BusyMaxGtkHeaderIcon &&
+            widget.icon == BusyMaxLinuxHeaderIcon.search,
+      ),
+    );
+    expect(searchIcon, findsOneWidget);
+    expect(clearIcon, findsNothing);
+    await _dragControl(
+      tester,
+      BusyMaxLinuxHeaderSearchField.secondaryIconKey.value,
+    );
+    expect(_dragCalls(windowCalls), 0);
 
     await tester.tap(find.byTooltip('Main Menu'));
     await tester.pump();
