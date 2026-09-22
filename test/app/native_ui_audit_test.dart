@@ -219,7 +219,10 @@ void main() {
         expect(settings, contains('class _SettingsSidebar'));
         expect(settings, contains('enum SettingsPage'));
         expect(settings, contains('filled: true'));
-        expect(settings, contains('DiagnosticsPanel(scrollable: false)'));
+        expect(
+          settings,
+          contains(RegExp(r'DiagnosticsPanel\(\s*scrollable:\s*false,')),
+        );
         expect(settings, isNot(contains("context.go('/diagnostics')")));
         expect(diagnostics, contains('class DiagnosticsPanel'));
         expect(diagnostics, isNot(contains('class DiagnosticsScreen')));
