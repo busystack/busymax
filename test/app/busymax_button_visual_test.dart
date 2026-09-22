@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'dart:ui';
 
 import 'package:flutter_test/flutter_test.dart';
@@ -20,5 +21,5 @@ void main() {
       find.byType(LinuxButtonComparisonFixture),
       matchesGoldenFile('goldens/linux_buttons_reviewed.png'),
     );
-  });
+  }, skip: !Platform.isLinux);
 }
