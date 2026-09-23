@@ -730,8 +730,8 @@ void main() {
     PackageInfo.setMockInitialValues(
       appName: 'BusyMax',
       packageName: 'io.busystack.busymax',
-      version: '0.2.3',
-      buildNumber: '3',
+      version: '0.2.4',
+      buildNumber: '4',
       buildSignature: '',
     );
     final harness = await _pumpApp(tester, AppSettings.defaults());
@@ -773,7 +773,7 @@ void main() {
     await _scrollUntilBuilt(tester, about);
     await tester.tap(about);
     await tester.pumpAndSettle();
-    expect(find.text('0.2.3'), findsOneWidget);
+    expect(find.text('0.2.4'), findsOneWidget);
     expect(
       find.descendant(
         of: find.byType(AboutDialog),
@@ -1517,8 +1517,8 @@ void main() {
     PackageInfo.setMockInitialValues(
       appName: 'BusyMax',
       packageName: 'io.busystack.busymax',
-      version: '0.2.3',
-      buildNumber: '3',
+      version: '0.2.4',
+      buildNumber: '4',
       buildSignature: '',
     );
     final feedback = _RecordingFeedbackService();
