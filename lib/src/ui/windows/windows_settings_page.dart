@@ -13,6 +13,7 @@ import '../../../l10n/generated/app_localizations.dart';
 import '../../app/app_bootstrap.dart';
 import '../../features/accounts/data/accounts_repository.dart';
 import '../../features/calendar/data/calendar_repository.dart';
+import '../../features/calendar/data/microsoft_shared_calendar_service.dart';
 import '../../features/notifications/desktop_notification_backend.dart';
 import '../../features/sync/sync_auth_error.dart';
 import '../../features/settings/presentation/launch_at_login_refresh.dart';
@@ -451,6 +452,18 @@ class _WindowsSettingsPageState extends ConsumerState<WindowsSettingsPage> {
                             onPressed: () => showWindowsNextcloudTrashDialog(
                               context,
                               accountId: values[index].id,
+                            ),
+                          ),
+                        if (values[index].provider == BusyProvider.microsoft &&
+                            values[index].isSignedIn)
+                          MenuFlyoutItem(
+                            text: Text(l10n.openSharedCalendar),
+                            onPressed: () => unawaited(
+                              _openWindowsSharedCalendar(
+                                context,
+                                ref,
+                                values[index].id,
+                              ),
                             ),
                           ),
                         MenuFlyoutItem(
@@ -1103,6 +1116,58 @@ Future<void> _runWindowsSubscriptionOperation(
         l10n.subscriptionOperationFailed(l10n.operationFailed),
       );
     }
+  }
+}
+
+Future<void> _openWindowsSharedCalendar(
+  BuildContext context,
+  WidgetRef ref,
+  String accountId,
+) async {
+  final l10n = AppLocalizations.of(context);
+  final owner = await _showWindowsTextPrompt(
+    context,
+    title: l10n.openSharedCalendar,
+    label: l10n.calendarOwnerEmail,
+    initialValue: '',
+    actionLabel: l10n.openSharedCalendar,
+  );
+  if (!context.mounted || owner == null || owner.trim().isEmpty) return;
+  try {
+    final result = await ref
+        .read(microsoftSharedCalendarServiceProvider)
+        .openPrimaryCalendar(accountId: accountId, owner: owner);
+    if (context.mounted &&
+        result.outcome == MicrosoftSharedCalendarOpenOutcome.rangeUnavailable) {
+      await showDialog<void>(
+        context: context,
+        builder: (dialogContext) => ContentDialog(
+          title: Text(l10n.openSharedCalendar),
+          content: Text(l10n.scheduleRangeIncomplete),
+          actions: [
+            Button(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: Text(l10n.close),
+            ),
+          ],
+        ),
+      );
+    }
+  } on Object catch (error) {
+    if (!context.mounted) return;
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) => ContentDialog(
+        title: Text(l10n.operationFailed),
+        content: SelectableText('$error'),
+        actions: [
+          Button(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: Text(l10n.close),
+          ),
+        ],
+      ),
+    );
   }
 }
 

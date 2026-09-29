@@ -373,6 +373,11 @@ class _WindowsSchedulePageState extends ConsumerState<WindowsSchedulePage> {
             range: range,
             locale: locale,
             sources: sources,
+            coverageFilters: ScheduleFilters(
+              accountIds: {for (final account in accounts) account.id},
+              sourceIds: visibility.visibleCalendarSourceIds,
+              sourceFilterActive: true,
+            ),
             navigationIntent: presentationNavigationIntent,
             mutationIntent: presentationMutationIntent,
           );
@@ -678,13 +683,24 @@ class _WindowsSchedulePageState extends ConsumerState<WindowsSchedulePage> {
           if (criteria.range case final searchRange?)
             if (ref
                     .read(scheduleRepositoryProvider)
-                    .cloudCoverageCompleteFor(searchRange) ==
-                false)
+                    .cloudCoverageCompleteFor(
+                      searchRange,
+                      filters: criteria.filters(query),
+                    ) !=
+                true)
               InfoBar(
                 title: Text(
-                  AppLocalizations.of(context).scheduleRangeIncomplete,
+                  ref
+                              .read(scheduleRepositoryProvider)
+                              .cloudCoverageCompleteFor(
+                                searchRange,
+                                filters: criteria.filters(query),
+                              ) ==
+                          null
+                      ? AppLocalizations.of(context).scheduleLoading
+                      : AppLocalizations.of(context).scheduleRangeIncomplete,
                 ),
-                severity: InfoBarSeverity.warning,
+                severity: InfoBarSeverity.info,
               ),
           Expanded(
             child: _AgendaList(
@@ -715,6 +731,7 @@ class _WindowsSchedulePageState extends ConsumerState<WindowsSchedulePage> {
     required ScheduleRange range,
     required String locale,
     required List<CalendarSourceEntity> sources,
+    required ScheduleFilters coverageFilters,
     required ScheduleNavigationIntent? navigationIntent,
     required TaskListMutationIntent? mutationIntent,
   }) => FutureBuilder<List<ScheduleItem>>(
@@ -732,11 +749,21 @@ class _WindowsSchedulePageState extends ConsumerState<WindowsSchedulePage> {
         children: [
           if (ref
                   .read(scheduleRepositoryProvider)
-                  .cloudCoverageCompleteFor(range) ==
-              false)
+                  .cloudCoverageCompleteFor(range, filters: coverageFilters) !=
+              true)
             InfoBar(
-              title: Text(AppLocalizations.of(context).scheduleRangeIncomplete),
-              severity: InfoBarSeverity.warning,
+              title: Text(
+                ref
+                            .read(scheduleRepositoryProvider)
+                            .cloudCoverageCompleteFor(
+                              range,
+                              filters: coverageFilters,
+                            ) ==
+                        null
+                    ? AppLocalizations.of(context).scheduleLoading
+                    : AppLocalizations.of(context).scheduleRangeIncomplete,
+              ),
+              severity: InfoBarSeverity.info,
             ),
           Expanded(
             child: BusyMaxKeyedCrossfade(

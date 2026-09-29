@@ -8,6 +8,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../l10n/generated/app_localizations.dart';
 import '../../app/app_bootstrap.dart';
 import '../../calendar_providers/calendar_mutation.dart';
+import '../../calendar_providers/calendar_provider_capabilities.dart';
 import '../../features/accounts/data/accounts_repository.dart';
 import '../../features/calendar/data/calendar_repository.dart';
 import '../../features/calendar/domain/event_move_policy.dart';
@@ -75,7 +76,9 @@ Future<bool> showWindowsEventEditorDialog(
   }
 
   final title = TextEditingController(text: originalDraft?.title);
-  final description = TextEditingController(text: originalDraft?.description);
+  final description = TextEditingController(
+    text: originalDraft?.editableDescription,
+  );
   final location = TextEditingController(text: originalDraft?.location);
   final guestEmail = TextEditingController();
   final categories = TextEditingController(
@@ -890,7 +893,19 @@ Future<bool> showWindowsEventEditorDialog(
                       child: Text(l10n.nextcloudGuestAvailability),
                     ),
                   if ((selectedSource.provider == BusyProvider.google ||
-                          selectedSource.provider == BusyProvider.microsoft) &&
+                          (selectedSource.provider == BusyProvider.microsoft &&
+                              microsoftAvailabilityAccountType(
+                                    accounts
+                                        .where(
+                                          (account) =>
+                                              account.id ==
+                                              selectedSource.accountId,
+                                        )
+                                        .firstOrNull
+                                        ?.tenantId,
+                                  ) ==
+                                  MicrosoftAvailabilityAccountType
+                                      .workSchool)) &&
                       attendees.any(
                         (attendee) => !attendee.self && !attendee.organizer,
                       ))
@@ -999,7 +1014,9 @@ Future<bool> showWindowsEventEditorDialog(
                                     locationChange: locationChange,
                                     description:
                                         description.text ==
-                                            (originalDraft?.description ?? '')
+                                            (originalDraft
+                                                    ?.editableDescription ??
+                                                '')
                                         ? originalDraft?.description
                                         : description.text.trim(),
                                     startTimeZone: selectedTimeZone,

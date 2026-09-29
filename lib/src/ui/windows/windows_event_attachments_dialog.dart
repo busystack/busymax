@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:file_selector/file_selector.dart';
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -103,6 +104,16 @@ class _WindowsEventAttachmentsDialogState
                                           context.l10n.openInProvider,
                                         ),
                                       ),
+                                    if (item.capabilities.canEdit &&
+                                        attachment.id.isNotEmpty)
+                                      Button(
+                                        onPressed: _saving
+                                            ? null
+                                            : () => unawaited(
+                                                _remove(attachment),
+                                              ),
+                                        child: Text(context.l10n.delete),
+                                      ),
                                   ],
                                 ),
                               ),
@@ -114,12 +125,114 @@ class _WindowsEventAttachmentsDialogState
         ),
       ),
       actions: [
+        if (item.capabilities.canEdit && eventId != null)
+          Button(
+            onPressed: _saving ? null : () => unawaited(_add()),
+            child: Tooltip(
+              message: context.l10n.attachments,
+              child: const Icon(FluentIcons.add),
+            ),
+          ),
         Button(
           onPressed: _saving ? null : () => Navigator.pop(context),
           child: Text(context.l10n.close),
         ),
       ],
     );
+  }
+
+  void _refresh() {
+    final eventId = widget.item.providerEventId;
+    if (eventId == null) return;
+    ref.invalidate(
+      microsoftEventAttachmentsProvider((
+        accountId: widget.item.accountId,
+        calendarId: widget.item.providerCalendarId,
+        eventId: eventId,
+      )),
+    );
+  }
+
+  Future<void> _add() async {
+    final eventId = widget.item.providerEventId;
+    if (eventId == null || !widget.item.capabilities.canEdit) return;
+    final file = await openFile();
+    if (file == null || !mounted) return;
+    final name = safeAttachmentFileName(file.name);
+    if (name == null) {
+      setState(() => _error = context.l10n.operationFailed);
+      return;
+    }
+    setState(() {
+      _saving = true;
+      _error = null;
+    });
+    try {
+      if (await file.length() > 150 * 1024 * 1024) {
+        throw StateError('Event file exceeds 150 MB.');
+      }
+      await ref
+          .read(
+            microsoftCalendarApiClientForAccountProvider(widget.item.accountId),
+          )
+          .uploadEventFileAttachment(
+            calendarId: widget.item.providerCalendarId,
+            eventId: eventId,
+            name: name,
+            contentType: file.mimeType ?? 'application/octet-stream',
+            bytes: await file.readAsBytes(),
+          );
+      _refresh();
+    } on Object catch (error) {
+      _refresh();
+      if (mounted) setState(() => _error = context.l10n.exportFailed('$error'));
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  Future<void> _remove(MicrosoftEventAttachment attachment) async {
+    final eventId = widget.item.providerEventId;
+    if (eventId == null || !widget.item.capabilities.canEdit) return;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => ContentDialog(
+        title: Text(context.l10n.delete),
+        content: Text(attachment.name),
+        actions: [
+          Button(
+            onPressed: () => Navigator.pop(context, false),
+            child: Text(context.l10n.cancel),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: Text(context.l10n.delete),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    setState(() {
+      _saving = true;
+      _error = null;
+    });
+    try {
+      await ref
+          .read(
+            microsoftCalendarApiClientForAccountProvider(widget.item.accountId),
+          )
+          .deleteEventAttachment(
+            calendarId: widget.item.providerCalendarId,
+            eventId: eventId,
+            attachmentId: attachment.id,
+          );
+      _refresh();
+    } on Object catch (error) {
+      _refresh();
+      if (mounted) setState(() => _error = context.l10n.exportFailed('$error'));
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
   }
 
   Future<void> _open(String url) async {

@@ -5,6 +5,7 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:fluent_ui/fluent_ui.dart';
+import 'package:file_selector/file_selector.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
@@ -406,9 +407,12 @@ Future<bool> showWindowsTaskDetailsDialog(
                         future: future,
                         builder: (context, snapshot) {
                           if (snapshot.hasError) {
-                            return Text(l10n.nextcloudAvailabilityUnknown);
+                            return Text(l10n.operationFailed);
                           }
                           if (!snapshot.hasData) return const ProgressRing();
+                          if (snapshot.data!.isEmpty) {
+                            return Text(l10n.noLinkedResources);
+                          }
                           return Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
@@ -435,6 +439,7 @@ Future<bool> showWindowsTaskDetailsDialog(
                         },
                       ),
                     Button(
+                      key: const Key('task-attachments-load'),
                       onPressed: () {
                         final key = (
                           accountId: original.accountId,
@@ -450,6 +455,81 @@ Future<bool> showWindowsTaskDetailsDialog(
                       },
                       child: Text(l10n.attachments),
                     ),
+                    if (capabilities.canUpdateTasks &&
+                        !original.pendingDelete &&
+                        !original.id.startsWith('local-task-'))
+                      Button(
+                        onPressed: busy
+                            ? null
+                            : () async {
+                                final file = await openFile();
+                                if (file == null || !context.mounted) return;
+                                setState(() => busy = true);
+                                try {
+                                  final name = safeAttachmentFileName(
+                                    file.name,
+                                  );
+                                  if (name == null) {
+                                    throw const FormatException(
+                                      'Invalid attachment name.',
+                                    );
+                                  }
+                                  if (await file.length() > 25 * 1024 * 1024) {
+                                    throw StateError(
+                                      'Task file exceeds 25 MB.',
+                                    );
+                                  }
+                                  final client = ref.read(
+                                    microsoftTodoApiClientForAccountProvider(
+                                      original.accountId,
+                                    ),
+                                  );
+                                  if (client
+                                      is! MicrosoftTodoAttachmentsApiClient) {
+                                    throw StateError(
+                                      'Microsoft task attachments are unavailable.',
+                                    );
+                                  }
+                                  await (client
+                                          as MicrosoftTodoAttachmentsApiClient)
+                                      .uploadTaskFileAttachment(
+                                        taskListId: original.taskListId,
+                                        taskId: original.id,
+                                        name: name,
+                                        contentType:
+                                            file.mimeType ??
+                                            'application/octet-stream',
+                                        bytes: await file.readAsBytes(),
+                                      );
+                                  final key = (
+                                    accountId: original.accountId,
+                                    taskListId: original.taskListId,
+                                    taskId: original.id,
+                                  );
+                                  ref.invalidate(
+                                    microsoftTaskAttachmentsProvider(key),
+                                  );
+                                  attachmentsFuture = ref.read(
+                                    microsoftTaskAttachmentsProvider(
+                                      key,
+                                    ).future,
+                                  );
+                                } on Object catch (failure) {
+                                  error = l10n.exportFailed('$failure');
+                                } finally {
+                                  if (context.mounted) {
+                                    setState(() => busy = false);
+                                  }
+                                }
+                              },
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(FluentIcons.add),
+                            Text(l10n.attachments),
+                          ],
+                        ),
+                      ),
                     if (attachmentsFuture case final future?)
                       FutureBuilder<List<MicrosoftTodoAttachmentDto>>(
                         future: future,
@@ -458,59 +538,128 @@ Future<bool> showWindowsTaskDetailsDialog(
                             return Text(l10n.attachmentsNotLoaded);
                           }
                           if (!snapshot.hasData) return const ProgressRing();
+                          if (snapshot.data!.isEmpty) {
+                            return Text(l10n.noneValue);
+                          }
                           return Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               for (final attachment in snapshot.data!)
-                                Button(
-                                  onPressed: attachment.isFile
-                                      ? () async {
-                                          try {
-                                            final name = safeAttachmentFileName(
-                                              attachment.name,
-                                            );
-                                            if (name == null) {
-                                              throw const FormatException(
-                                                'Invalid attachment name.',
-                                              );
-                                            }
-                                            final client = ref.read(
-                                              microsoftTodoApiClientForAccountProvider(
-                                                original.accountId,
-                                              ),
-                                            );
-                                            if (client
-                                                is! MicrosoftTodoAttachmentsApiClient) {
-                                              throw StateError(
-                                                'Microsoft task attachments are unavailable.',
-                                              );
-                                            }
-                                            final bytes =
-                                                await (client
-                                                        as MicrosoftTodoAttachmentsApiClient)
-                                                    .downloadTaskAttachment(
-                                                      taskListId:
-                                                          original.taskListId,
-                                                      taskId: original.id,
-                                                      attachmentId:
-                                                          attachment.id,
+                                Row(
+                                  children: [
+                                    Button(
+                                      onPressed: attachment.isFile
+                                          ? () async {
+                                              try {
+                                                final name =
+                                                    safeAttachmentFileName(
+                                                      attachment.name,
                                                     );
-                                            await saveAttachmentOnDesktop(
-                                              name: name,
-                                              bytes: bytes,
-                                            );
-                                          } on Object catch (failure) {
-                                            if (context.mounted) {
-                                              setState(
-                                                () => error = l10n.exportFailed(
-                                                  '$failure',
-                                                ),
-                                              );
+                                                if (name == null) {
+                                                  throw const FormatException(
+                                                    'Invalid attachment name.',
+                                                  );
+                                                }
+                                                final client = ref.read(
+                                                  microsoftTodoApiClientForAccountProvider(
+                                                    original.accountId,
+                                                  ),
+                                                );
+                                                if (client
+                                                    is! MicrosoftTodoAttachmentsApiClient) {
+                                                  throw StateError(
+                                                    'Microsoft task attachments are unavailable.',
+                                                  );
+                                                }
+                                                final bytes =
+                                                    await (client
+                                                            as MicrosoftTodoAttachmentsApiClient)
+                                                        .downloadTaskAttachment(
+                                                          taskListId: original
+                                                              .taskListId,
+                                                          taskId: original.id,
+                                                          attachmentId:
+                                                              attachment.id,
+                                                        );
+                                                await saveAttachmentOnDesktop(
+                                                  name: name,
+                                                  bytes: bytes,
+                                                );
+                                              } on Object catch (failure) {
+                                                if (context.mounted) {
+                                                  setState(
+                                                    () => error = l10n
+                                                        .exportFailed(
+                                                          '$failure',
+                                                        ),
+                                                  );
+                                                }
+                                              }
                                             }
-                                          }
-                                        }
-                                      : null,
-                                  child: Text(attachment.name),
+                                          : null,
+                                      child: Text(attachment.name),
+                                    ),
+                                    if (capabilities.canUpdateTasks &&
+                                        !original.pendingDelete &&
+                                        !original.id.startsWith('local-task-'))
+                                      Button(
+                                        onPressed: busy
+                                            ? null
+                                            : () async {
+                                                setState(() => busy = true);
+                                                try {
+                                                  final client = ref.read(
+                                                    microsoftTodoApiClientForAccountProvider(
+                                                      original.accountId,
+                                                    ),
+                                                  );
+                                                  if (client
+                                                      is! MicrosoftTodoAttachmentsApiClient) {
+                                                    throw StateError(
+                                                      'Microsoft task attachments are unavailable.',
+                                                    );
+                                                  }
+                                                  await (client
+                                                          as MicrosoftTodoAttachmentsApiClient)
+                                                      .deleteTaskAttachment(
+                                                        taskListId:
+                                                            original.taskListId,
+                                                        taskId: original.id,
+                                                        attachmentId:
+                                                            attachment.id,
+                                                      );
+                                                  final key = (
+                                                    accountId:
+                                                        original.accountId,
+                                                    taskListId:
+                                                        original.taskListId,
+                                                    taskId: original.id,
+                                                  );
+                                                  ref.invalidate(
+                                                    microsoftTaskAttachmentsProvider(
+                                                      key,
+                                                    ),
+                                                  );
+                                                  attachmentsFuture = ref.read(
+                                                    microsoftTaskAttachmentsProvider(
+                                                      key,
+                                                    ).future,
+                                                  );
+                                                } on Object catch (failure) {
+                                                  error = l10n.exportFailed(
+                                                    '$failure',
+                                                  );
+                                                } finally {
+                                                  if (context.mounted) {
+                                                    setState(
+                                                      () => busy = false,
+                                                    );
+                                                  }
+                                                }
+                                              },
+                                        child: Text(l10n.delete),
+                                      ),
+                                  ],
                                 ),
                             ],
                           );
