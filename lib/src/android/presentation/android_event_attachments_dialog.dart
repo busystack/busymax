@@ -67,15 +67,28 @@ class _AndroidEventAttachmentsDialogState
                               subtitle: attachment.size == null
                                   ? null
                                   : Text('${attachment.size} B'),
-                              trailing: attachment.canDownload
-                                  ? IconButton(
+                              trailing: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  if (attachment.canDownload)
+                                    IconButton(
                                       tooltip: context.l10n.save,
                                       onPressed: _saving
                                           ? null
                                           : () => _save(attachment),
                                       icon: const Icon(Icons.download_outlined),
-                                    )
-                                  : null,
+                                    ),
+                                  if (item.capabilities.canEdit &&
+                                      attachment.id.isNotEmpty)
+                                    IconButton(
+                                      tooltip: context.l10n.delete,
+                                      onPressed: _saving
+                                          ? null
+                                          : () => _remove(attachment),
+                                      icon: const Icon(Icons.delete_outline),
+                                    ),
+                                ],
+                              ),
                               onTap:
                                   attachment.kind ==
                                           MicrosoftEventAttachmentKind
@@ -89,12 +102,106 @@ class _AndroidEventAttachmentsDialogState
               ),
       ),
       actions: [
+        if (item.capabilities.canEdit && eventId != null)
+          TextButton.icon(
+            onPressed: _saving ? null : _add,
+            icon: const Icon(Icons.add),
+            label: Text(context.l10n.attachments),
+          ),
         TextButton(
           onPressed: _saving ? null : () => Navigator.pop(context),
           child: Text(context.l10n.close),
         ),
       ],
     );
+  }
+
+  void _refresh() {
+    final eventId = widget.item.providerEventId;
+    if (eventId == null) return;
+    ref.invalidate(
+      microsoftEventAttachmentsProvider((
+        accountId: widget.item.accountId,
+        calendarId: widget.item.providerCalendarId,
+        eventId: eventId,
+      )),
+    );
+  }
+
+  Future<void> _add() async {
+    final eventId = widget.item.providerEventId;
+    if (eventId == null || !widget.item.capabilities.canEdit) return;
+    final document = await BusyMaxAndroidPlatform.instance.openDocument(
+      mimeTypes: const ['*/*'],
+      maximumBytes: 150 * 1024 * 1024,
+    );
+    if (document == null || !mounted) return;
+    final name = safeAttachmentFileName(document.name ?? '');
+    if (name == null) {
+      _error(const FormatException('Invalid attachment name.'));
+      return;
+    }
+    setState(() => _saving = true);
+    try {
+      await ref
+          .read(
+            microsoftCalendarApiClientForAccountProvider(widget.item.accountId),
+          )
+          .uploadEventFileAttachment(
+            calendarId: widget.item.providerCalendarId,
+            eventId: eventId,
+            name: name,
+            contentType: document.mimeType ?? 'application/octet-stream',
+            bytes: document.bytes,
+          );
+      _refresh();
+    } on Object catch (error) {
+      _refresh();
+      _error(error);
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  Future<void> _remove(MicrosoftEventAttachment attachment) async {
+    final eventId = widget.item.providerEventId;
+    if (eventId == null || !widget.item.capabilities.canEdit) return;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(context.l10n.delete),
+        content: Text(attachment.name),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: Text(context.l10n.cancel),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: Text(context.l10n.delete),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    setState(() => _saving = true);
+    try {
+      await ref
+          .read(
+            microsoftCalendarApiClientForAccountProvider(widget.item.accountId),
+          )
+          .deleteEventAttachment(
+            calendarId: widget.item.providerCalendarId,
+            eventId: eventId,
+            attachmentId: attachment.id,
+          );
+      _refresh();
+    } on Object catch (error) {
+      _refresh();
+      _error(error);
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
   }
 
   Future<void> _open(String url) async {

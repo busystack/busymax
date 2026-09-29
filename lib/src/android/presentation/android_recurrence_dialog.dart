@@ -26,12 +26,18 @@ Future<RecurrenceRule?> showAndroidRecurrenceDialog(
       ? _RecurrenceEnd.date
       : _RecurrenceEnd.never;
   var until = DateTime.tryParse(rule.untilDateFor(timeZone: timeZone) ?? '');
+  var intervalInputValid = true;
+  var countInputValid = true;
   return showDialog<RecurrenceRule>(
     context: context,
     builder: (dialogContext) => StatefulBuilder(
       builder: (context, setState) {
         final l10n = context.l10n;
-        final valid = rule.isSupported && limits.supports(rule);
+        final valid =
+            rule.isSupported &&
+            limits.supports(rule) &&
+            intervalInputValid &&
+            countInputValid;
         return AlertDialog(
           title: Text(l10n.repeat),
           content: SizedBox(
@@ -77,6 +83,8 @@ Future<RecurrenceRule?> showAndroidRecurrenceDialog(
                         }
                         rule = androidRuleForFrequency(frequency, baseDate);
                         end = _RecurrenceEnd.never;
+                        intervalInputValid = true;
+                        countInputValid = true;
                       });
                     },
                   ),
@@ -91,9 +99,12 @@ Future<RecurrenceRule?> showAndroidRecurrenceDialog(
                       keyboardType: TextInputType.number,
                       onChanged: (text) {
                         final value = int.tryParse(text);
-                        if (value != null) {
-                          setState(() => rule = rule.copyWith(interval: value));
-                        }
+                        setState(() {
+                          intervalInputValid = value != null && value > 0;
+                          if (intervalInputValid) {
+                            rule = rule.copyWith(interval: value);
+                          }
+                        });
                       },
                     ),
                     if (rule.frequency == RecurrenceFrequency.weekly) ...[
@@ -157,6 +168,7 @@ Future<RecurrenceRule?> showAndroidRecurrenceDialog(
                         if (selection == null) return;
                         setState(() {
                           end = selection;
+                          countInputValid = true;
                           rule = switch (selection) {
                             _RecurrenceEnd.never => rule.copyWith(
                               count: null,
@@ -190,9 +202,11 @@ Future<RecurrenceRule?> showAndroidRecurrenceDialog(
                         onPressed: () async {
                           final date = await showDatePicker(
                             context: context,
-                            initialDate: until ?? baseDate,
+                            initialDate: (until ?? baseDate).isBefore(baseDate)
+                                ? baseDate
+                                : until ?? baseDate,
                             firstDate: baseDate,
-                            lastDate: DateTime(2100),
+                            lastDate: DateTime(9999, 12, 31),
                           );
                           if (date == null) return;
                           setState(() {
@@ -208,6 +222,9 @@ Future<RecurrenceRule?> showAndroidRecurrenceDialog(
                       ),
                     if (end == _RecurrenceEnd.count)
                       TextFormField(
+                        key: ValueKey(
+                          'android-recurrence-count-${rule.frequency}',
+                        ),
                         initialValue: '${rule.count ?? 10}',
                         decoration: InputDecoration(
                           labelText: l10n.repeatCount,
@@ -215,9 +232,12 @@ Future<RecurrenceRule?> showAndroidRecurrenceDialog(
                         keyboardType: TextInputType.number,
                         onChanged: (text) {
                           final value = int.tryParse(text);
-                          if (value != null) {
-                            setState(() => rule = rule.copyWith(count: value));
-                          }
+                          setState(() {
+                            countInputValid = value != null && value > 0;
+                            if (countInputValid) {
+                              rule = rule.copyWith(count: value);
+                            }
+                          });
                         },
                       ),
                   ],

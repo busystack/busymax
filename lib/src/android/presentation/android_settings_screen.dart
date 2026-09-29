@@ -19,6 +19,7 @@ import '../../dav/nextcloud/nextcloud_trash_service.dart';
 import '../../features/accounts/data/accounts_repository.dart';
 import '../../features/accounts/domain/account_collection_creation_capabilities.dart';
 import '../../features/calendar/data/calendar_repository.dart';
+import '../../features/calendar/data/microsoft_shared_calendar_service.dart';
 import '../../features/sync/sync_auth_error.dart';
 import '../../features/task_lists/data/task_lists_repository.dart';
 import '../../features/tasks/domain/task_capabilities.dart';
@@ -137,6 +138,17 @@ class _AndroidSettingsScreenState extends ConsumerState<AndroidSettingsScreen> {
                   onTap: () =>
                       unawaited(_createCollection(accounts, calendar: true)),
                 ),
+              for (final account in accounts)
+                if (account.provider == BusyProvider.microsoft &&
+                    account.isSignedIn)
+                  ListTile(
+                    leading: const Icon(Icons.people_outline),
+                    title: Text(context.l10n.openSharedCalendar),
+                    subtitle: Text(
+                      account.displayName ?? account.email ?? account.id,
+                    ),
+                    onTap: () => unawaited(_openSharedCalendar(account.id)),
+                  ),
               if (accounts.any(
                 (account) =>
                     account.isSignedIn &&
@@ -825,6 +837,46 @@ class _AndroidSettingsScreenState extends ConsumerState<AndroidSettingsScreen> {
           ),
         ),
       );
+    }
+  }
+
+  Future<void> _openSharedCalendar(String accountId) async {
+    final controller = TextEditingController();
+    final l10n = context.l10n;
+    final owner = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(l10n.openSharedCalendar),
+        content: TextField(
+          controller: controller,
+          keyboardType: TextInputType.emailAddress,
+          autofocus: true,
+          decoration: InputDecoration(labelText: l10n.calendarOwnerEmail),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: Text(l10n.cancel),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, controller.text),
+            child: Text(l10n.openSharedCalendar),
+          ),
+        ],
+      ),
+    );
+    controller.dispose();
+    if (!mounted || owner == null || owner.trim().isEmpty) return;
+    try {
+      final result = await ref
+          .read(microsoftSharedCalendarServiceProvider)
+          .openPrimaryCalendar(accountId: accountId, owner: owner);
+      if (result.outcome ==
+          MicrosoftSharedCalendarOpenOutcome.rangeUnavailable) {
+        _message(l10n.scheduleRangeIncomplete);
+      }
+    } on Object catch (error) {
+      _message(l10n.calendarUpdateFailed('$error'));
     }
   }
 

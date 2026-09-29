@@ -565,6 +565,7 @@ class AndroidTaskEditor extends ConsumerStatefulWidget {
 class _AndroidTaskEditorState extends ConsumerState<AndroidTaskEditor> {
   Future<List<TaskSourceLink>>? _linkedResourcesFuture;
   Future<List<MicrosoftTodoAttachmentDto>>? _attachmentsFuture;
+  bool _attachmentBusy = false;
   late TaskDetailsDraft _draft = widget.task == null
       ? TaskDetailsDraft.forCreation(
           taskListId: widget.creationList!.id,
@@ -747,12 +748,13 @@ class _AndroidTaskEditorState extends ConsumerState<AndroidTaskEditor> {
                       future: future,
                       builder: (context, snapshot) {
                         if (snapshot.hasError) {
-                          return Text(
-                            context.l10n.nextcloudAvailabilityUnknown,
-                          );
+                          return Text(context.l10n.operationFailed);
                         }
                         if (!snapshot.hasData) {
                           return const LinearProgressIndicator();
+                        }
+                        if (snapshot.data!.isEmpty) {
+                          return Text(context.l10n.noLinkedResources);
                         }
                         return Column(
                           children: [
@@ -789,6 +791,7 @@ class _AndroidTaskEditorState extends ConsumerState<AndroidTaskEditor> {
               Column(
                 children: [
                   TextButton(
+                    key: const Key('task-attachments-load'),
                     onPressed: () => setState(() {
                       final key = (
                         accountId: widget.accountId,
@@ -802,6 +805,14 @@ class _AndroidTaskEditorState extends ConsumerState<AndroidTaskEditor> {
                     }),
                     child: Text(context.l10n.attachments),
                   ),
+                  if (canWrite &&
+                      !widget.task!.pendingDelete &&
+                      !widget.task!.id.startsWith('local-task-'))
+                    TextButton.icon(
+                      onPressed: _attachmentBusy ? null : _uploadTaskAttachment,
+                      icon: const Icon(Icons.add),
+                      label: Text(context.l10n.attachments),
+                    ),
                   if (_attachmentsFuture case final future?)
                     FutureBuilder<List<MicrosoftTodoAttachmentDto>>(
                       future: future,
@@ -812,6 +823,9 @@ class _AndroidTaskEditorState extends ConsumerState<AndroidTaskEditor> {
                         if (!snapshot.hasData) {
                           return const LinearProgressIndicator();
                         }
+                        if (snapshot.data!.isEmpty) {
+                          return Text(context.l10n.noneValue);
+                        }
                         return Column(
                           children: [
                             for (final attachment in snapshot.data!)
@@ -821,6 +835,22 @@ class _AndroidTaskEditorState extends ConsumerState<AndroidTaskEditor> {
                                 subtitle: attachment.size == null
                                     ? null
                                     : Text('${attachment.size} B'),
+                                trailing:
+                                    canWrite &&
+                                        !widget.task!.pendingDelete &&
+                                        !widget.task!.id.startsWith(
+                                          'local-task-',
+                                        )
+                                    ? IconButton(
+                                        tooltip: context.l10n.delete,
+                                        onPressed: _attachmentBusy
+                                            ? null
+                                            : () => _deleteTaskAttachment(
+                                                attachment,
+                                              ),
+                                        icon: const Icon(Icons.delete_outline),
+                                      )
+                                    : null,
                                 onTap: attachment.isFile
                                     ? () => _downloadTaskAttachment(attachment)
                                     : null,
@@ -2138,6 +2168,102 @@ class _AndroidTaskEditorState extends ConsumerState<AndroidTaskEditor> {
     } finally {
       if (mounted) setState(() => _saving = false);
     }
+  }
+
+  Future<void> _uploadTaskAttachment() async {
+    final task = widget.task;
+    if (task == null ||
+        task.pendingDelete ||
+        task.id.startsWith('local-task-')) {
+      return;
+    }
+    final document = await BusyMaxAndroidPlatform.instance.openDocument(
+      mimeTypes: const ['*/*'],
+      maximumBytes: 25 * 1024 * 1024,
+    );
+    if (document == null || !mounted) return;
+    final name = safeAttachmentFileName(document.name ?? '');
+    if (name == null) {
+      _attachmentError(const FormatException('Invalid attachment name.'));
+      return;
+    }
+    setState(() => _attachmentBusy = true);
+    try {
+      final client = ref.read(
+        microsoftTodoApiClientForAccountProvider(widget.accountId),
+      );
+      if (client is! MicrosoftTodoAttachmentsApiClient) {
+        throw StateError('Microsoft task attachments are unavailable.');
+      }
+      await (client as MicrosoftTodoAttachmentsApiClient)
+          .uploadTaskFileAttachment(
+            taskListId: task.taskListId,
+            taskId: task.id,
+            name: name,
+            contentType: document.mimeType ?? 'application/octet-stream',
+            bytes: document.bytes,
+          );
+      _reloadTaskAttachments();
+    } on Object catch (error) {
+      _attachmentError(error);
+    } finally {
+      if (mounted) setState(() => _attachmentBusy = false);
+    }
+  }
+
+  Future<void> _deleteTaskAttachment(
+    MicrosoftTodoAttachmentDto attachment,
+  ) async {
+    final task = widget.task;
+    if (task == null ||
+        task.pendingDelete ||
+        task.id.startsWith('local-task-')) {
+      return;
+    }
+    setState(() => _attachmentBusy = true);
+    try {
+      final client = ref.read(
+        microsoftTodoApiClientForAccountProvider(widget.accountId),
+      );
+      if (client is! MicrosoftTodoAttachmentsApiClient) {
+        throw StateError('Microsoft task attachments are unavailable.');
+      }
+      await (client as MicrosoftTodoAttachmentsApiClient).deleteTaskAttachment(
+        taskListId: task.taskListId,
+        taskId: task.id,
+        attachmentId: attachment.id,
+      );
+      _reloadTaskAttachments();
+    } on Object catch (error) {
+      _attachmentError(error);
+    } finally {
+      if (mounted) setState(() => _attachmentBusy = false);
+    }
+  }
+
+  void _reloadTaskAttachments() {
+    final task = widget.task;
+    if (task == null) return;
+    final key = (
+      accountId: widget.accountId,
+      taskListId: task.taskListId,
+      taskId: task.id,
+    );
+    ref.invalidate(microsoftTaskAttachmentsProvider(key));
+    if (mounted) {
+      setState(
+        () => _attachmentsFuture = ref.read(
+          microsoftTaskAttachmentsProvider(key).future,
+        ),
+      );
+    }
+  }
+
+  void _attachmentError(Object error) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(context.l10n.exportFailed('$error'))),
+    );
   }
 
   Future<void> _downloadTaskAttachment(

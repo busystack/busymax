@@ -12,6 +12,7 @@ import '../google_tasks/api/google_tasks_api_surface.dart';
 import '../google_tasks/oauth/oauth_service.dart';
 import '../microsoft_todo/api/microsoft_todo_api_models.dart';
 import '../microsoft_todo/oauth/microsoft_oauth_service.dart';
+import '../calendar_providers/calendar_provider_capabilities.dart';
 import '../providers/busy_provider.dart';
 
 const _googleScopes = <String>[
@@ -28,14 +29,37 @@ const _microsoftNativeScopes = <String>[
   'Calendars.ReadWrite',
 ];
 
+const _microsoftSharedNativeScope = 'Calendars.ReadWrite.Shared';
+
 const _microsoftStoredScopes = <String>{
   'https://graph.microsoft.com/User.Read',
   'https://graph.microsoft.com/Tasks.ReadWrite',
   'https://graph.microsoft.com/Calendars.ReadWrite',
 };
 
+String? microsoftTenantIdFromAuthority(String? authority) {
+  final uri = Uri.tryParse(authority ?? '');
+  if (uri == null ||
+      uri.scheme != 'https' ||
+      uri.host.toLowerCase() != 'login.microsoftonline.com' ||
+      uri.pathSegments.isEmpty) {
+    return null;
+  }
+  final segment = uri.pathSegments.first.toLowerCase();
+  if (segment == 'consumers') return microsoftPersonalTenantId;
+  return RegExp(
+        r'^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$',
+      ).hasMatch(segment)
+      ? segment
+      : null;
+}
+
 final class AndroidAuthorizationBroker
-    implements OAuthGateway, MicrosoftOAuthGateway, AccountTokenBroker {
+    implements
+        OAuthGateway,
+        MicrosoftOAuthGateway,
+        MicrosoftSharedCalendarAuthorization,
+        AccountTokenBroker {
   AndroidAuthorizationBroker({
     required BusyMaxAndroidPlatform platform,
     required http.Client httpClient,
@@ -121,7 +145,50 @@ final class AndroidAuthorizationBroker
         accountId: accountId,
         tokenSet: tokenSet,
         user: user,
+        tenantId: microsoftTenantIdFromAuthority(native.authority),
       );
+    } on PlatformException catch (error) {
+      throw _oauthError(error, provider: 'Microsoft');
+    }
+  }
+
+  @override
+  Future<void> authorizeSharedCalendarAccess(String accountId) async {
+    if (!accountId.startsWith('microsoft:')) {
+      throw const OAuthException(
+        'MicrosoftOAuthSharedAccountMismatch',
+        'Select a Microsoft account to open a shared calendar.',
+      );
+    }
+    try {
+      await microsoftSharedCalendarAuthorizationHeader(accountId);
+      return;
+    } on OAuthException {
+      // The user requested this operation, so an interactive incremental
+      // consent request is appropriate when silent acquisition is unavailable.
+    }
+    try {
+      final native = await _platform.authorizeMicrosoftInteractively(
+        scopes: [..._microsoftNativeScopes, _microsoftSharedNativeScope],
+      );
+      final tokenSet = _tokenSet(native);
+      final user = await _microsoftMe(native.accessToken);
+      if ('microsoft:${user.id}' != accountId ||
+          !tokenSet.scopes.contains(microsoftSharedCalendarScope)) {
+        throw const OAuthException(
+          'MicrosoftOAuthSharedConsentDenied',
+          'Shared-calendar access was not granted for this account.',
+        );
+      }
+      _requireSilentScopes(BusyProvider.microsoft, tokenSet);
+      await _platform.bindAuthorization(
+        provider: BusyProvider.microsoft.storageValue,
+        accountId: accountId,
+        nativeAccountId: native.nativeAccountId,
+        username: native.username ?? user.mail ?? user.userPrincipalName,
+        authority: native.authority,
+      );
+      _lastAccessTokens[accountId] = native.accessToken;
     } on PlatformException catch (error) {
       throw _oauthError(error, provider: 'Microsoft');
     }
@@ -184,6 +251,30 @@ final class AndroidAuthorizationBroker
       return 'Bearer ${token.accessToken}';
     } on PlatformException catch (error) {
       throw _silentOAuthError(error, provider: provider);
+    }
+  }
+
+  @override
+  Future<String> microsoftSharedCalendarAuthorizationHeader(
+    String accountId,
+  ) async {
+    try {
+      final native = await _platform.authorizeMicrosoftSilently(
+        accountId: accountId,
+        scopes: [..._microsoftNativeScopes, _microsoftSharedNativeScope],
+      );
+      final tokenSet = _tokenSet(native);
+      _requireSilentScopes(BusyProvider.microsoft, tokenSet);
+      if (!tokenSet.scopes.contains(microsoftSharedCalendarScope)) {
+        throw const OAuthException(
+          'MicrosoftOAuthSharedConsentRequired',
+          'Shared-calendar permission must be granted for this account.',
+        );
+      }
+      _lastAccessTokens[accountId] = native.accessToken;
+      return 'Bearer ${native.accessToken}';
+    } on PlatformException catch (error) {
+      throw _silentOAuthError(error, provider: BusyProvider.microsoft);
     }
   }
 
@@ -307,7 +398,10 @@ final class AndroidAuthorizationBroker
 
 String _storedScope(String value) {
   final scope = value.trim();
-  for (final nativeScope in _microsoftNativeScopes) {
+  for (final nativeScope in [
+    ..._microsoftNativeScopes,
+    _microsoftSharedNativeScope,
+  ]) {
     if (scope.toLowerCase() == nativeScope.toLowerCase()) {
       return 'https://graph.microsoft.com/$nativeScope';
     }
