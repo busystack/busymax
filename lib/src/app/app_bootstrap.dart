@@ -35,6 +35,7 @@ import '../dav/nextcloud/nextcloud_sharing_service.dart';
 import '../dav/nextcloud/nextcloud_trash_service.dart';
 import '../dav/nextcloud/nextcloud_scheduling_service.dart';
 import '../features/calendar/data/calendar_repository.dart';
+import '../features/calendar/data/microsoft_shared_calendar_service.dart';
 import '../features/sync/cloud_calendar_range_coverage_service.dart';
 import '../features/calendar/data/calendar_collection_creation_service.dart';
 import '../ical/ical_import_service.dart';
@@ -629,13 +630,22 @@ final microsoftTaskAttachmentsProvider =
 final microsoftCalendarApiClientForAccountProvider =
     Provider.family<MicrosoftCalendarApiClient, String>((ref, accountId) {
       final config = ref.watch(buildConfigProvider);
+      final account = ref
+          .watch(accountsStreamProvider)
+          .valueOrNull
+          ?.where((candidate) => candidate.id == accountId)
+          .firstOrNull;
       return MicrosoftCalendarApiClient(
         httpClient: ref.watch(retryingHttpClientProvider),
         baseUri: Uri.parse(config.microsoftGraphBaseUrl),
         responseTimeZone: ref.watch(localTimeZoneProvider),
+        accountTenantId: account?.tenantId,
         authorizationHeaderProvider: () => ref
             .read(accountTokenBrokerProvider)
             .authorizationHeader(BusyProvider.microsoft, accountId),
+        sharedCalendarAuthorizationHeaderProvider: () => ref
+            .read(accountTokenBrokerProvider)
+            .microsoftSharedCalendarAuthorizationHeader(accountId),
         unauthorizedRefreshProvider: () => ref
             .read(accountTokenBrokerProvider)
             .recoverUnauthorized(BusyProvider.microsoft, accountId),
@@ -947,6 +957,24 @@ final calendarRepositoryProvider = Provider<CalendarRepository>((ref) {
   );
 });
 
+final microsoftSharedCalendarServiceProvider =
+    Provider<MicrosoftSharedCalendarService>((ref) {
+      final gateway = ref.read(applicationMicrosoftOAuthServiceProvider);
+      if (gateway is! MicrosoftSharedCalendarAuthorization) {
+        throw StateError(
+          'Microsoft shared-calendar authorization is unavailable.',
+        );
+      }
+      return MicrosoftSharedCalendarService(
+        authorization: gateway as MicrosoftSharedCalendarAuthorization,
+        clientForAccount: (accountId) =>
+            ref.read(microsoftCalendarApiClientForAccountProvider(accountId)),
+        repository: ref.read(calendarRepositoryProvider),
+        engineForAccount: ref.read(calendarSyncEngineForAccountFactoryProvider),
+        now: DateTime.now,
+      );
+    });
+
 final calendarSourcesStreamProvider =
     StreamProvider<List<CalendarSourceEntity>>((ref) {
       final accounts =
@@ -1033,9 +1061,15 @@ final scheduleTaskListsProvider = FutureProvider<List<TaskListEntity>>((
 final scheduleRepositoryProvider = Provider<ScheduleRepository>((ref) {
   return ScheduleRepository(
     ref.watch(databaseProvider),
-    ensureCloudCoverage: (range) => ref
+    ensureCloudCoverage: (range, filters) => ref
         .read(cloudCalendarRangeCoverageServiceProvider)
-        .ensureRange(range.start.toUtc(), range.end.toUtc()),
+        .ensureRange(
+          range.start.toUtc(),
+          range.end.toUtc(),
+          accountIds: filters.accountIds,
+          sourceIds: filters.sourceIds,
+          sourceFilterActive: filters.sourceFilterActive,
+        ),
     ensureProjectionCoverage: (range) async {
       final start = range.start.toUtc();
       final end = range.end.toUtc();
