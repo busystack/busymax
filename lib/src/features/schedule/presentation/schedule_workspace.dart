@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
-import 'package:url_launcher/url_launcher.dart';
 
 import '../../../app/app_bootstrap.dart';
 import '../../../app/busymax_about_dialog.dart';
@@ -57,6 +56,8 @@ import 'schedule_create_menu.dart';
 import 'schedule_day_week_view.dart';
 import 'schedule_empty_states.dart';
 import 'schedule_item_details_popover.dart';
+import 'linux_event_attachments_dialog.dart';
+import 'schedule_event_details_format.dart';
 import 'schedule_item_exporter.dart';
 import 'schedule_item_selection.dart';
 import 'schedule_month_view.dart';
@@ -654,7 +655,29 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
                           );
                           final frame = LinuxPageFrame(
                             header: header,
-                            body: main,
+                            body:
+                                snapshot.hasData &&
+                                    _searchCriteria?.date !=
+                                        ScheduleSearchDate.any &&
+                                    ref
+                                            .read(scheduleRepositoryProvider)
+                                            .cloudCoverageCompleteFor(
+                                              _searchCriteria?.range ?? range,
+                                            ) ==
+                                        false
+                                ? Column(
+                                    children: [
+                                      ListTile(
+                                        leading: const Icon(Icons.cloud_off),
+                                        title: Text(
+                                          context.l10n.scheduleRangeIncomplete,
+                                        ),
+                                        dense: true,
+                                      ),
+                                      Expanded(child: main),
+                                    ],
+                                  )
+                                : main,
                             sidebarHeader: const BusyMaxLinuxBrandHeader(),
                             sidebarBody: sidebar,
                             sidebarAvailable: showSidebar,
@@ -1636,6 +1659,10 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
         if (item is CalendarScheduleItem) {
           await _joinMeeting(item);
         }
+      case ScheduleItemDetailsAction.attachments:
+        if (item is CalendarScheduleItem) {
+          await showLinuxEventAttachmentsDialog(context, item);
+        }
       case ScheduleItemDetailsAction.acceptInvitation:
         if (item is CalendarScheduleItem) {
           await _respondToInvitation(item, CalendarInvitationResponse.accept);
@@ -2248,7 +2275,9 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
         message: item is CalendarScheduleItem && item.isNextcloudAttendee
             ? context.l10n.nextcloudDeclineRemovalWarning
             : item is TaskScheduleItem
-            ? context.l10n.deleteTaskConfirmation(item.title)
+            ? item.isAssigned
+                  ? '${context.l10n.deleteTaskConfirmation(item.title)}\n\n${context.l10n.deleteAssignedTaskWarning}'
+                  : context.l10n.deleteTaskConfirmation(item.title)
             : context.l10n.deleteCalendarConfirmation(item.title),
         confirmLabel: item is CalendarScheduleItem && item.isNextcloudAttendee
             ? context.l10n.nextcloudDeclineAndRemove
@@ -2323,16 +2352,7 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
   }
 
   Future<void> _joinMeeting(CalendarScheduleItem item) async {
-    final value = item.joinMeetingUrl;
-    final uri = value == null ? null : Uri.tryParse(value);
-    var opened = false;
-    if (uri != null) {
-      try {
-        opened = await launchUrl(uri, mode: LaunchMode.externalApplication);
-      } on Object {
-        opened = false;
-      }
-    }
+    final opened = await openScheduleWebLink(item.joinMeetingUrl);
     if (!opened && mounted) {
       ScaffoldMessenger.of(
         context,

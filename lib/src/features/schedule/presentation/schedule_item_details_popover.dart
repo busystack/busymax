@@ -7,17 +7,20 @@ import '../../../app/busymax_design.dart';
 import '../../../calendar_providers/calendar_description.dart';
 import '../../../l10n/l10n.dart';
 import '../../../schedule/schedule_item.dart';
+import '../../../providers/busy_provider.dart';
 import '../../../schedule/schedule_projection.dart';
 import '../../maps/application/external_location_launcher.dart';
 import '../application/saved_schedule_location.dart';
 import 'schedule_anchored_popover.dart';
 import 'schedule_event_block.dart';
+import 'schedule_event_details_format.dart';
 
 enum ScheduleItemDetailsAction {
   export,
   edit,
   delete,
   joinMeeting,
+  attachments,
   acceptInvitation,
   tentativeInvitation,
   declineInvitation,
@@ -144,6 +147,17 @@ class _ScheduleItemDetailsPopoverCard extends StatelessWidget {
                       ],
                     ),
                   ),
+                ),
+              ],
+              if (item case final CalendarScheduleItem event
+                  when event.provider == BusyProvider.microsoft &&
+                      event.providerEventId != null) ...[
+                const SizedBox(height: BusyMaxSpacing.xs),
+                BusyMaxPushButton.standard(
+                  onPressed: () => Navigator.of(
+                    context,
+                  ).pop(ScheduleItemDetailsAction.attachments),
+                  child: Text(context.l10n.attachments),
                 ),
               ],
               if (item case final CalendarScheduleItem event
@@ -318,7 +332,9 @@ class _ScheduleItemDetails extends StatelessWidget {
     final details = <Widget>[
       _ScheduleDetailRow(
         icon: Icons.schedule,
-        text: _dateTimeLabel(context, item),
+        text: item is CalendarScheduleItem
+            ? scheduleEventIntervalLabel(context, item as CalendarScheduleItem)
+            : _dateTimeLabel(context, item),
       ),
       _ScheduleDetailRow(
         icon: item is TaskScheduleItem
@@ -422,8 +438,6 @@ class _ScheduleDetailRichRow extends StatelessWidget {
         Expanded(
           child: Text.rich(
             _descriptionTextSpan(text, document.ranges, baseStyle),
-            maxLines: 5,
-            overflow: TextOverflow.ellipsis,
           ),
         ),
       ],
@@ -572,8 +586,45 @@ List<Widget> _eventDetails(
         fallbackText: description ?? '',
       )
     else if (description != null && description.isNotEmpty)
-      _ScheduleDetailRow(icon: Icons.notes, text: description),
+      _ScheduleDetailRow(icon: Icons.notes, text: description, maxLines: null),
+    for (final uri in calendarEventDescriptionLinks(item))
+      _ScheduleWebLinkButton(label: uri.toString(), url: uri.toString()),
+    if (item.eventLinkUrl case final link?)
+      _ScheduleWebLinkButton(label: context.l10n.eventLink, url: link),
+    if (item.attachmentsMayExist || item.attachmentLinks.isNotEmpty)
+      _ScheduleDetailRow(
+        icon: Icons.attach_file,
+        text: context.l10n.attachments,
+      ),
+    for (final attachment in item.attachmentLinks)
+      _ScheduleWebLinkButton(label: attachment.name, url: attachment.url),
+    if (item.attachmentsMayExist && !item.attachmentsLoaded)
+      _ScheduleDetailRow(
+        icon: Icons.info_outline,
+        text: context.l10n.attachmentsNotLoaded,
+      ),
   ];
+}
+
+class _ScheduleWebLinkButton extends StatelessWidget {
+  const _ScheduleWebLinkButton({required this.label, required this.url});
+
+  final String label;
+  final String url;
+
+  @override
+  Widget build(BuildContext context) => Align(
+    alignment: AlignmentDirectional.centerStart,
+    child: BusyMaxPushButton.standard(
+      onPressed: () async {
+        if (await openScheduleWebLink(url) || !context.mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(context.l10n.eventLinkOpenFailed)),
+        );
+      },
+      child: Text(label, overflow: TextOverflow.ellipsis),
+    ),
+  );
 }
 
 String? _organizerName(Map<String, Object?>? organizer) {
@@ -663,6 +714,13 @@ List<Widget> _taskDetails(
       ),
     if (notes != null && notes.isNotEmpty)
       _ScheduleDetailRow(icon: Icons.notes, text: notes),
+    for (final link in item.availableSourceLinks)
+      _ScheduleWebLinkButton(
+        label: link.label?.isNotEmpty == true
+            ? link.label!
+            : context.l10n.openInProvider,
+        url: link.url,
+      ),
   ];
 }
 
