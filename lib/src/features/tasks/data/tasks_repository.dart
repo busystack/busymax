@@ -19,6 +19,8 @@ import '../../../google_tasks/api/google_tasks_json.dart';
 import '../domain/task_checklist_item.dart';
 import '../domain/task_remote_client.dart';
 import '../domain/task_remote_models.dart';
+import '../domain/google_task_assignment_policy.dart';
+import '../domain/task_source_links.dart';
 import 'package:busymax/src/providers/busy_provider.dart';
 import '../../notifications/notification_schedule_service.dart';
 
@@ -286,6 +288,15 @@ class TaskEntity {
   final String? linksJson;
   final String? webViewLink;
   final String? assignmentInfoJson;
+
+  GoogleTaskAssignmentPolicy get googleAssignment =>
+      GoogleTaskAssignmentPolicy.fromJson(assignmentInfoJson);
+
+  List<TaskSourceLink> get googleSourceLinks => googleTaskSourceLinks(
+    assignmentInfoJson: assignmentInfoJson,
+    linksJson: linksJson,
+    webViewLink: webViewLink,
+  );
 }
 
 class TaskCreateInput {
@@ -573,6 +584,14 @@ class TasksRepository {
         'This task collection does not support locations.',
       );
     }
+    if (input.parentTaskId != null && await _isGoogleAccount()) {
+      GoogleTaskAssignmentPolicy.fromJson(
+        (await _requiredTask(
+          taskListId,
+          input.parentTaskId!,
+        )).assignmentInfoJson,
+      ).checkCanBeParent();
+    }
     final now = _now();
     final localId = 'local-task-${_uuid.v4()}';
     final fields = input.toFields();
@@ -841,6 +860,11 @@ class TasksRepository {
         'This task collection does not support locations.',
       );
     }
+    if (input.fields.containsKey('notes') && await _isGoogleAccount()) {
+      GoogleTaskAssignmentPolicy.fromJson(
+        (await _requiredTask(taskListId, taskId)).assignmentInfoJson,
+      ).checkNotes(input.fields['notes']);
+    }
     final now = _now();
     await _database.transaction(() async {
       final baseline = await _baselineRow(taskListId, taskId);
@@ -867,6 +891,11 @@ class TasksRepository {
     final taskList = await _requiredTaskList(taskListId);
     if (taskList.davCollectionId != null) {
       return _updateDavTaskWithHierarchy(taskList, taskId, input.fields);
+    }
+    if (input.fields.containsKey('notes') && await _isGoogleAccount()) {
+      GoogleTaskAssignmentPolicy.fromJson(
+        (await _requiredTask(taskListId, taskId)).assignmentInfoJson,
+      ).checkNotes(input.fields['notes']);
     }
     final now = _now();
     await _database.transaction(() async {
@@ -936,6 +965,22 @@ class TasksRepository {
       await _rebuildTaskNotifications();
       _onMutationQueued?.call();
       return;
+    }
+    if (await _isGoogleAccount()) {
+      GoogleTaskAssignmentPolicy.fromJson(
+        (await _requiredTask(
+          input.sourceTaskListId,
+          input.taskId,
+        )).assignmentInfoJson,
+      ).checkCanBeChild(input.parentTaskId);
+      if (input.parentTaskId case final parentId?) {
+        GoogleTaskAssignmentPolicy.fromJson(
+          (await _requiredTask(
+            input.destinationTaskListId ?? input.sourceTaskListId,
+            parentId,
+          )).assignmentInfoJson,
+        ).checkCanBeParent();
+      }
     }
     final now = _now();
     await _database.transaction(() async {
@@ -1943,6 +1988,13 @@ class TasksRepository {
       throw StateError('The task list is unavailable.');
     }
     return taskList;
+  }
+
+  Future<bool> _isGoogleAccount() async {
+    final account = await (_database.select(
+      _database.accounts,
+    )..where((row) => row.id.equals(_accountId))).getSingleOrNull();
+    return account?.provider == BusyProvider.google.storageValue;
   }
 
   Future<Task> _requiredTask(String taskListId, String taskId) async {

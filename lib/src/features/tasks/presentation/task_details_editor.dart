@@ -3,19 +3,27 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/services.dart';
 import 'package:yaru/yaru.dart';
 
 import '../../../app/busymax_design.dart';
+import '../../../app/app_bootstrap.dart';
 import '../../../app/busymax_dialogs.dart';
 import '../../../app/busymax_glyphs.dart';
 import '../../../google_tasks/api/google_tasks_json.dart';
 import '../../../l10n/l10n.dart';
+import '../../../providers/busy_provider.dart';
 import '../../maps/domain/location_result.dart';
 import '../../maps/application/external_location_launcher.dart';
 import 'package:busymax/src/features/tasks/domain/task_capabilities.dart';
 import '../../task_lists/data/task_lists_repository.dart';
 import '../data/tasks_repository.dart';
+import '../domain/task_source_links.dart';
+import '../../schedule/presentation/schedule_event_details_format.dart';
+import '../../schedule/presentation/attachment_download.dart';
+import '../../../microsoft_todo/api/microsoft_todo_api_client.dart';
+import '../../../microsoft_todo/api/microsoft_todo_api_models.dart';
 import 'desktop_date_time_fields.dart';
 import 'ical_task_fields_editor.dart';
 import 'task_details_draft.dart';
@@ -24,6 +32,7 @@ class TaskDetailsEditor extends StatefulWidget {
   const TaskDetailsEditor({
     super.key,
     required this.task,
+    this.provider,
     required this.taskLists,
     required this.capabilities,
     required this.localTimeZone,
@@ -66,6 +75,7 @@ class TaskDetailsEditor extends StatefulWidget {
   });
 
   final TaskEntity task;
+  final BusyProvider? provider;
   final List<TaskListEntity> taskLists;
   final TaskCollectionCapabilities capabilities;
   final String localTimeZone;
@@ -132,6 +142,8 @@ class _TaskDetailsEditorState extends State<TaskDetailsEditor> {
   var _confirmingTaskSwitch = false;
   var _confirmingDelete = false;
   var _creatingSubtask = false;
+  Future<List<TaskSourceLink>>? _linkedResourcesFuture;
+  Future<List<MicrosoftTodoAttachmentDto>>? _attachmentsFuture;
 
   @override
   void initState() {
@@ -239,6 +251,145 @@ class _TaskDetailsEditorState extends State<TaskDetailsEditor> {
                         ),
                       ],
                     ),
+                    if (_editingTask.googleSourceLinks.isNotEmpty)
+                      BusyMaxGroupedList(
+                        filled: true,
+                        children: [
+                          for (final link in _editingTask.googleSourceLinks)
+                            BusyMaxActionRow(
+                              title: link.label?.isNotEmpty == true
+                                  ? link.label!
+                                  : l10n.openInProvider,
+                              subtitle: link.url,
+                              leading: const Icon(Icons.open_in_new),
+                              onTap: () =>
+                                  unawaited(_openOriginalTask(link.url)),
+                            ),
+                        ],
+                      ),
+                    if (widget.provider == BusyProvider.microsoft &&
+                        !widget.isCreate)
+                      Consumer(
+                        builder: (context, ref, _) {
+                          return Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              BusyMaxPushButton.standard(
+                                onPressed: () => setState(() {
+                                  ref.invalidate(
+                                    microsoftTaskLinkedResourcesProvider((
+                                      accountId: _editingTask.accountId,
+                                      taskListId: _editingTask.taskListId,
+                                      taskId: _editingTask.id,
+                                    )),
+                                  );
+                                  _linkedResourcesFuture = ref.read(
+                                    microsoftTaskLinkedResourcesProvider((
+                                      accountId: _editingTask.accountId,
+                                      taskListId: _editingTask.taskListId,
+                                      taskId: _editingTask.id,
+                                    )).future,
+                                  );
+                                }),
+                                child: Text(l10n.linkedResources),
+                              ),
+                              if (_linkedResourcesFuture case final future?)
+                                FutureBuilder<List<TaskSourceLink>>(
+                                  future: future,
+                                  builder: (context, snapshot) {
+                                    if (snapshot.hasError) {
+                                      return Text(
+                                        l10n.nextcloudAvailabilityUnknown,
+                                      );
+                                    }
+                                    if (!snapshot.hasData) {
+                                      return const YaruCircularProgressIndicator();
+                                    }
+                                    return BusyMaxGroupedList(
+                                      filled: true,
+                                      children: [
+                                        for (final link in snapshot.data!)
+                                          BusyMaxActionRow(
+                                            title:
+                                                link.label?.isNotEmpty == true
+                                                ? link.label!
+                                                : l10n.openInProvider,
+                                            subtitle: link.url,
+                                            leading: const Icon(
+                                              Icons.open_in_new,
+                                            ),
+                                            onTap: () => unawaited(
+                                              _openOriginalTask(link.url),
+                                            ),
+                                          ),
+                                      ],
+                                    );
+                                  },
+                                ),
+                            ],
+                          );
+                        },
+                      ),
+                    if (widget.provider == BusyProvider.microsoft &&
+                        !widget.isCreate)
+                      Consumer(
+                        builder: (context, ref, _) => Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            BusyMaxPushButton.standard(
+                              onPressed: () => setState(() {
+                                final key = (
+                                  accountId: _editingTask.accountId,
+                                  taskListId: _editingTask.taskListId,
+                                  taskId: _editingTask.id,
+                                );
+                                ref.invalidate(
+                                  microsoftTaskAttachmentsProvider(key),
+                                );
+                                _attachmentsFuture = ref.read(
+                                  microsoftTaskAttachmentsProvider(key).future,
+                                );
+                              }),
+                              child: Text(l10n.attachments),
+                            ),
+                            if (_attachmentsFuture case final future?)
+                              FutureBuilder<List<MicrosoftTodoAttachmentDto>>(
+                                future: future,
+                                builder: (context, snapshot) {
+                                  if (snapshot.hasError) {
+                                    return Text(l10n.attachmentsNotLoaded);
+                                  }
+                                  if (!snapshot.hasData) {
+                                    return const YaruCircularProgressIndicator();
+                                  }
+                                  return BusyMaxGroupedList(
+                                    filled: true,
+                                    children: [
+                                      for (final attachment in snapshot.data!)
+                                        BusyMaxActionRow(
+                                          title: attachment.name,
+                                          subtitle: attachment.size == null
+                                              ? null
+                                              : '${attachment.size} B',
+                                          leading: const Icon(
+                                            Icons.attach_file,
+                                          ),
+                                          onTap: attachment.isFile
+                                              ? () => unawaited(
+                                                  _downloadTaskAttachment(
+                                                    ref,
+                                                    attachment,
+                                                  ),
+                                                )
+                                              : null,
+                                        ),
+                                    ],
+                                  );
+                                },
+                              ),
+                          ],
+                        ),
+                      ),
                     if (_hasAccountSelector)
                       BusyMaxGroupedList(
                         filled: true,
@@ -308,7 +459,9 @@ class _TaskDetailsEditorState extends State<TaskDetailsEditor> {
                         YaruListTile.square(
                           title: TextField(
                             controller: _notesController,
-                            enabled: _canWrite,
+                            enabled:
+                                _canWrite &&
+                                !_editingTask.googleAssignment.isFromDocument,
                             minLines: 3,
                             maxLines: 5,
                             decoration: busyMaxGroupedTextFieldDecoration(
@@ -975,8 +1128,14 @@ class _TaskDetailsEditorState extends State<TaskDetailsEditor> {
           leading: Icon(
             BusyMaxGlyphs.subdirectoryFor(Directionality.of(context)),
           ),
-          enabled: widget.capabilities.canCreateTasks && !_creatingSubtask,
-          onTap: widget.capabilities.canCreateTasks && !_creatingSubtask
+          enabled:
+              widget.capabilities.canCreateTasks &&
+              !_editingTask.googleAssignment.isAssigned &&
+              !_creatingSubtask,
+          onTap:
+              widget.capabilities.canCreateTasks &&
+                  !_editingTask.googleAssignment.isAssigned &&
+                  !_creatingSubtask
               ? _createSubtask
               : null,
         ),
@@ -1093,7 +1252,11 @@ class _TaskDetailsEditorState extends State<TaskDetailsEditor> {
   }
 
   Future<void> _createSubtask() async {
-    if (!widget.capabilities.canCreateTasks || _creatingSubtask) return;
+    if (!widget.capabilities.canCreateTasks ||
+        _editingTask.googleAssignment.isAssigned ||
+        _creatingSubtask) {
+      return;
+    }
     final title = await showBusyMaxTextPrompt(
       context,
       title: context.l10n.newSubtask,
@@ -1121,7 +1284,9 @@ class _TaskDetailsEditorState extends State<TaskDetailsEditor> {
       final confirmed = await showBusyMaxConfirm(
         context,
         title: context.l10n.deleteTask,
-        message: context.l10n.deleteTaskConfirmation(_editingTask.title),
+        message: _editingTask.googleAssignment.isAssigned
+            ? '${context.l10n.deleteTaskConfirmation(_editingTask.title)}\n\n${context.l10n.deleteAssignedTaskWarning}'
+            : context.l10n.deleteTaskConfirmation(_editingTask.title),
         confirmLabel: context.l10n.delete,
         destructive: true,
         barrierColor: widget.dialogBarrierColor,
@@ -1134,6 +1299,45 @@ class _TaskDetailsEditorState extends State<TaskDetailsEditor> {
     }
   }
 
+  Future<void> _openOriginalTask(String url) async {
+    final opened = await openScheduleWebLink(url);
+    if (!opened && mounted) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(context.l10n.eventLinkOpenFailed)));
+    }
+  }
+
+  Future<void> _downloadTaskAttachment(
+    WidgetRef ref,
+    MicrosoftTodoAttachmentDto attachment,
+  ) async {
+    if (!attachment.isFile || safeAttachmentFileName(attachment.name) == null) {
+      return;
+    }
+    try {
+      final client = ref.read(
+        microsoftTodoApiClientForAccountProvider(_editingTask.accountId),
+      );
+      if (client is! MicrosoftTodoAttachmentsApiClient) {
+        throw StateError('Microsoft task attachments are unavailable.');
+      }
+      final bytes = await (client as MicrosoftTodoAttachmentsApiClient)
+          .downloadTaskAttachment(
+            taskListId: _editingTask.taskListId,
+            taskId: _editingTask.id,
+            attachmentId: attachment.id,
+          );
+      await saveAttachmentOnDesktop(name: attachment.name, bytes: bytes);
+    } on Object catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(context.l10n.exportFailed('$error'))),
+        );
+      }
+    }
+  }
+
   void _loadDraft(TaskEntity task, {required bool force}) {
     final taskKey = _taskKey(task);
     if (!force && _loadedTaskKey == taskKey) {
@@ -1143,6 +1347,8 @@ class _TaskDetailsEditorState extends State<TaskDetailsEditor> {
         widget.initialDraft ??
         TaskDetailsDraft.fromTask(task, widget.localTimeZone);
     _editingTask = task;
+    _linkedResourcesFuture = null;
+    _attachmentsFuture = null;
     _loadedTaskKey = taskKey;
     _invalidTimeFields.clear();
     _draft = draft;

@@ -144,6 +144,7 @@ class _NewTaskEditorPanelState extends ConsumerState<NewTaskEditorPanel> {
             return TaskDetailsEditor(
               key: ValueKey('new-task-editor-$accountId-$effectiveListId'),
               task: editorTask,
+              provider: provider,
               taskLists: taskLists,
               capabilities: capabilities,
               localTimeZone: localTimeZone,

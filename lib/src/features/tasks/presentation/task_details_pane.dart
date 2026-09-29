@@ -395,6 +395,7 @@ class _TaskDetailsPaneState extends ConsumerState<TaskDetailsPane> {
   }) {
     return TaskDetailsEditor(
       task: task,
+      provider: account.provider,
       taskLists: taskLists,
       capabilities: capabilities,
       localTimeZone: localTimeZone,
