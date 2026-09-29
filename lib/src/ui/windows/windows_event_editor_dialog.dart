@@ -27,6 +27,7 @@ import 'windows_guest_update_dialog.dart';
 import 'windows_recurrence_dialog.dart';
 import 'windows_time_zone_dialog.dart';
 import 'windows_nextcloud_scheduling_dialog.dart';
+import 'windows_cloud_availability_dialog.dart';
 
 Future<bool> showWindowsEventEditorDialog(
   BuildContext context,
@@ -761,14 +762,7 @@ Future<bool> showWindowsEventEditorDialog(
                                 attendees = [
                                   for (final item in attendees)
                                     if (identical(item, attendee))
-                                      EventAttendeeDraft(
-                                        email: item.email,
-                                        displayName: item.displayName,
-                                        optional: optional,
-                                        self: item.self,
-                                        organizer: item.organizer,
-                                        responseStatus: item.responseStatus,
-                                      )
+                                      item.withOptional(optional)
                                     else
                                       item,
                                 ];
@@ -895,6 +889,41 @@ Future<bool> showWindowsEventEditorDialog(
                             ),
                       child: Text(l10n.nextcloudGuestAvailability),
                     ),
+                  if ((selectedSource.provider == BusyProvider.google ||
+                          selectedSource.provider == BusyProvider.microsoft) &&
+                      attendees.any(
+                        (attendee) => !attendee.self && !attendee.organizer,
+                      ))
+                    Button(
+                      onPressed: saving
+                          ? null
+                          : () => showWindowsCloudAvailabilityDialog(
+                              context,
+                              draft:
+                                  (originalDraft ??
+                                          EventEditorDraft.newEvent(
+                                            accountId: selectedSource.accountId,
+                                            sourceId: selectedSource.id,
+                                            providerCalendarId: selectedSource
+                                                .providerCalendarId,
+                                            start: start,
+                                            end: end,
+                                          ))
+                                      .copyWith(
+                                        accountId: selectedSource.accountId,
+                                        sourceId: selectedSource.id,
+                                        providerCalendarId:
+                                            selectedSource.providerCalendarId,
+                                        start: start,
+                                        end: end,
+                                        allDay: allDay,
+                                        startTimeZone: selectedTimeZone,
+                                        endTimeZone: endTimeZone,
+                                        attendees: attendees,
+                                      ),
+                            ),
+                      child: Text(l10n.nextcloudGuestAvailability),
+                    ),
                   if (error != null) ...[
                     const SizedBox(height: 12),
                     InfoBar(
@@ -968,7 +997,11 @@ Future<bool> showWindowsEventEditorDialog(
                                         ? location.text
                                         : originalDraft.location,
                                     locationChange: locationChange,
-                                    description: description.text.trim(),
+                                    description:
+                                        description.text ==
+                                            (originalDraft?.description ?? '')
+                                        ? originalDraft?.description
+                                        : description.text.trim(),
                                     startTimeZone: selectedTimeZone,
                                     endTimeZone: endTimeZone,
                                     recurrence: recurrenceChanged

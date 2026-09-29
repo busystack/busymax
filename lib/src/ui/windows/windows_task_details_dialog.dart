@@ -14,8 +14,13 @@ import '../../dav/ical/ical_task_alarm.dart';
 import '../../features/tasks/domain/task_capabilities.dart';
 import '../../features/tasks/domain/task_mutation_result.dart';
 import '../../features/tasks/data/tasks_repository.dart';
+import '../../features/tasks/domain/task_source_links.dart';
 import '../../features/tasks/presentation/task_details_draft.dart';
 import '../../features/schedule/presentation/schedule_item_exporter.dart';
+import '../../features/schedule/presentation/schedule_event_details_format.dart';
+import '../../features/schedule/presentation/attachment_download.dart';
+import '../../microsoft_todo/api/microsoft_todo_api_client.dart';
+import '../../microsoft_todo/api/microsoft_todo_api_models.dart';
 import '../../features/maps/domain/location_result.dart';
 import '../../features/maps/application/external_location_launcher.dart';
 import '../../features/maps/application/location_destination_resolver.dart';
@@ -141,6 +146,8 @@ Future<bool> showWindowsTaskDetailsDialog(
   TaskScheduleItem? nextTask;
   String? error;
   String? message;
+  Future<List<TaskSourceLink>>? linkedResourcesFuture;
+  Future<List<MicrosoftTodoAttachmentDto>>? attachmentsFuture;
   TaskDetailsDraft currentDraft() => originalDraft.copyWith(
     taskListId: selectedTaskListId,
     title: title.text.trim(),
@@ -351,10 +358,165 @@ Future<bool> showWindowsTaskDetailsDialog(
                     label: l10n.notes,
                     child: TextBox(
                       controller: notes,
-                      enabled: !busy && capabilities.canUpdateTasks,
+                      enabled:
+                          !busy &&
+                          capabilities.canUpdateTasks &&
+                          !original.googleAssignment.isFromDocument,
                       maxLines: 5,
                     ),
                   ),
+                  if (account.provider == BusyProvider.google)
+                    for (final link in original.googleSourceLinks) ...[
+                      const SizedBox(height: 12),
+                      Button(
+                        onPressed: () async {
+                          if (!await openScheduleWebLink(link.url) &&
+                              context.mounted) {
+                            setState(() => error = l10n.eventLinkOpenFailed);
+                          }
+                        },
+                        child: Text(
+                          link.label?.isNotEmpty == true
+                              ? link.label!
+                              : l10n.openInProvider,
+                        ),
+                      ),
+                    ],
+                  if (account.provider == BusyProvider.microsoft) ...[
+                    Button(
+                      onPressed: () {
+                        final key = (
+                          accountId: original.accountId,
+                          taskListId: original.taskListId,
+                          taskId: original.id,
+                        );
+                        ref.invalidate(
+                          microsoftTaskLinkedResourcesProvider(key),
+                        );
+                        setState(() {
+                          linkedResourcesFuture = ref.read(
+                            microsoftTaskLinkedResourcesProvider(key).future,
+                          );
+                        });
+                      },
+                      child: Text(l10n.linkedResources),
+                    ),
+                    if (linkedResourcesFuture case final future?)
+                      FutureBuilder<List<TaskSourceLink>>(
+                        future: future,
+                        builder: (context, snapshot) {
+                          if (snapshot.hasError) {
+                            return Text(l10n.nextcloudAvailabilityUnknown);
+                          }
+                          if (!snapshot.hasData) return const ProgressRing();
+                          return Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              for (final link in snapshot.data!) ...[
+                                const SizedBox(height: 12),
+                                Button(
+                                  onPressed: () async {
+                                    if (!await openScheduleWebLink(link.url) &&
+                                        context.mounted) {
+                                      setState(
+                                        () => error = l10n.eventLinkOpenFailed,
+                                      );
+                                    }
+                                  },
+                                  child: Text(
+                                    link.label?.isNotEmpty == true
+                                        ? link.label!
+                                        : l10n.openInProvider,
+                                  ),
+                                ),
+                              ],
+                            ],
+                          );
+                        },
+                      ),
+                    Button(
+                      onPressed: () {
+                        final key = (
+                          accountId: original.accountId,
+                          taskListId: original.taskListId,
+                          taskId: original.id,
+                        );
+                        ref.invalidate(microsoftTaskAttachmentsProvider(key));
+                        setState(() {
+                          attachmentsFuture = ref.read(
+                            microsoftTaskAttachmentsProvider(key).future,
+                          );
+                        });
+                      },
+                      child: Text(l10n.attachments),
+                    ),
+                    if (attachmentsFuture case final future?)
+                      FutureBuilder<List<MicrosoftTodoAttachmentDto>>(
+                        future: future,
+                        builder: (context, snapshot) {
+                          if (snapshot.hasError) {
+                            return Text(l10n.attachmentsNotLoaded);
+                          }
+                          if (!snapshot.hasData) return const ProgressRing();
+                          return Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              for (final attachment in snapshot.data!)
+                                Button(
+                                  onPressed: attachment.isFile
+                                      ? () async {
+                                          try {
+                                            final name = safeAttachmentFileName(
+                                              attachment.name,
+                                            );
+                                            if (name == null) {
+                                              throw const FormatException(
+                                                'Invalid attachment name.',
+                                              );
+                                            }
+                                            final client = ref.read(
+                                              microsoftTodoApiClientForAccountProvider(
+                                                original.accountId,
+                                              ),
+                                            );
+                                            if (client
+                                                is! MicrosoftTodoAttachmentsApiClient) {
+                                              throw StateError(
+                                                'Microsoft task attachments are unavailable.',
+                                              );
+                                            }
+                                            final bytes =
+                                                await (client
+                                                        as MicrosoftTodoAttachmentsApiClient)
+                                                    .downloadTaskAttachment(
+                                                      taskListId:
+                                                          original.taskListId,
+                                                      taskId: original.id,
+                                                      attachmentId:
+                                                          attachment.id,
+                                                    );
+                                            await saveAttachmentOnDesktop(
+                                              name: name,
+                                              bytes: bytes,
+                                            );
+                                          } on Object catch (failure) {
+                                            if (context.mounted) {
+                                              setState(
+                                                () => error = l10n.exportFailed(
+                                                  '$failure',
+                                                ),
+                                              );
+                                            }
+                                          }
+                                        }
+                                      : null,
+                                  child: Text(attachment.name),
+                                ),
+                            ],
+                          );
+                        },
+                      ),
+                  ],
                   if (capabilities.supportsReminderDateTime ||
                       capabilities.supportsRecurrence) ...[
                     const SizedBox(height: 12),
@@ -916,7 +1078,10 @@ Future<bool> showWindowsTaskDetailsDialog(
                             children: [
                               TextBox(
                                 controller: subtaskTitle,
-                                enabled: !busy && capabilities.canCreateTasks,
+                                enabled:
+                                    !busy &&
+                                    capabilities.canCreateTasks &&
+                                    !original.googleAssignment.isAssigned,
                                 placeholder: l10n.createSubtask,
                                 onChanged: (_) => setState(() {}),
                               ),
@@ -925,6 +1090,7 @@ Future<bool> showWindowsTaskDetailsDialog(
                                 onPressed:
                                     busy ||
                                         !capabilities.canCreateTasks ||
+                                        original.googleAssignment.isAssigned ||
                                         subtaskTitle.text.trim().isEmpty
                                     ? null
                                     : () async {
@@ -1182,7 +1348,9 @@ Future<bool> showWindowsTaskDetailsDialog(
                           builder: (context) => ContentDialog(
                             title: Text(l10n.deleteTask),
                             content: Text(
-                              l10n.deleteTaskConfirmation(task.title),
+                              original.googleAssignment.isAssigned
+                                  ? '${l10n.deleteTaskConfirmation(task.title)}\n\n${l10n.deleteAssignedTaskWarning}'
+                                  : l10n.deleteTaskConfirmation(task.title),
                             ),
                             actions: [
                               Button(

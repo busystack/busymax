@@ -34,6 +34,7 @@ import '../../features/tasks/domain/task_mutation_result.dart';
 import '../common/schedule/schedule_interactions.dart';
 import '../common/schedule/schedule_preview_label.dart';
 import 'windows_schedule_day_week_view.dart';
+import 'windows_event_attachments_dialog.dart';
 import '../../schedule/schedule_range.dart';
 import '../../schedule/schedule_navigation_intent.dart';
 import '../../schedule/schedule_source_visibility.dart';
@@ -48,6 +49,7 @@ import 'windows_schedule_source_pane.dart';
 import 'windows_schedule_search_pane.dart';
 import '../../schedule/schedule_search_criteria.dart';
 import '../../features/schedule/presentation/schedule_search_result_text.dart';
+import '../../features/schedule/presentation/schedule_event_details_format.dart';
 import 'windows_task_details_dialog.dart';
 import 'windows_task_editor_dialog.dart';
 
@@ -671,19 +673,36 @@ class _WindowsSchedulePageState extends ConsumerState<WindowsSchedulePage> {
       if (snapshot.hasError) {
         return _scheduleLoadError(context);
       }
-      return _AgendaList(
-        key: const ValueKey('windows-search-results'),
-        items: snapshot.data ?? const [],
-        locale: locale,
-        onOpen: _showItemDetails,
-        searchCriteria: criteria,
-        searchQuery: query,
-        taskMutationIntent: mutationIntent,
-        onTaskMutationConsumed: _consumeTaskMutation,
-        emptyBuilder: (context) => _WindowsScheduleEmptyState(
-          searching: true,
-          noVisibleSources: !criteria.hasSources,
-        ),
+      return Column(
+        children: [
+          if (criteria.range case final searchRange?)
+            if (ref
+                    .read(scheduleRepositoryProvider)
+                    .cloudCoverageCompleteFor(searchRange) ==
+                false)
+              InfoBar(
+                title: Text(
+                  AppLocalizations.of(context).scheduleRangeIncomplete,
+                ),
+                severity: InfoBarSeverity.warning,
+              ),
+          Expanded(
+            child: _AgendaList(
+              key: const ValueKey('windows-search-results'),
+              items: snapshot.data ?? const [],
+              locale: locale,
+              onOpen: _showItemDetails,
+              searchCriteria: criteria,
+              searchQuery: query,
+              taskMutationIntent: mutationIntent,
+              onTaskMutationConsumed: _consumeTaskMutation,
+              emptyBuilder: (context) => _WindowsScheduleEmptyState(
+                searching: true,
+                noVisibleSources: !criteria.hasSources,
+              ),
+            ),
+          ),
+        ],
       );
     },
   );
@@ -709,35 +728,49 @@ class _WindowsSchedulePageState extends ConsumerState<WindowsSchedulePage> {
       if (snapshot.hasError) {
         return _scheduleLoadError(context);
       }
-      return BusyMaxKeyedCrossfade(
-        transitionKey: mode,
-        child: _ScheduleModeView(
-          firstWeekday: firstWeekday,
-          mode: mode,
-          selectedDate: selectedDate,
-          range: range,
-          items: snapshot.data ?? const [],
-          locale: locale,
-          onOpen: _showItemDetails,
-          onSelectDate: _openDay,
-          onLoadMoreAgenda: _loadMoreAgenda,
-          onVisibleDateChanged: _selectDate,
-          navigationIntent: navigationIntent,
-          taskMutationIntent: mutationIntent,
-          onTaskMutationConsumed: _consumeTaskMutation,
-          onEmptySlot: (start) => unawaited(_createEvent(start: start)),
-          onRangeCreated: writableCalendarSources(sources).isEmpty
-              ? null
-              : (interval) => unawaited(_createEvent(interval: interval)),
-          onReschedule: _rescheduleEvent,
-          onTaskCompletionChanged: _setTaskCompleted,
-          dayStartMinute: ref
-              .read(appSettingsControllerProvider)
-              .scheduleDayStartMinute,
-          dayEndMinute: ref
-              .read(appSettingsControllerProvider)
-              .scheduleDayEndMinute,
-        ),
+      return Column(
+        children: [
+          if (ref
+                  .read(scheduleRepositoryProvider)
+                  .cloudCoverageCompleteFor(range) ==
+              false)
+            InfoBar(
+              title: Text(AppLocalizations.of(context).scheduleRangeIncomplete),
+              severity: InfoBarSeverity.warning,
+            ),
+          Expanded(
+            child: BusyMaxKeyedCrossfade(
+              transitionKey: mode,
+              child: _ScheduleModeView(
+                firstWeekday: firstWeekday,
+                mode: mode,
+                selectedDate: selectedDate,
+                range: range,
+                items: snapshot.data ?? const [],
+                locale: locale,
+                onOpen: _showItemDetails,
+                onSelectDate: _openDay,
+                onLoadMoreAgenda: _loadMoreAgenda,
+                onVisibleDateChanged: _selectDate,
+                navigationIntent: navigationIntent,
+                taskMutationIntent: mutationIntent,
+                onTaskMutationConsumed: _consumeTaskMutation,
+                onEmptySlot: (start) => unawaited(_createEvent(start: start)),
+                onRangeCreated: writableCalendarSources(sources).isEmpty
+                    ? null
+                    : (interval) => unawaited(_createEvent(interval: interval)),
+                onReschedule: _rescheduleEvent,
+                onTaskCompletionChanged: _setTaskCompleted,
+                dayStartMinute: ref
+                    .read(appSettingsControllerProvider)
+                    .scheduleDayStartMinute,
+                dayEndMinute: ref
+                    .read(appSettingsControllerProvider)
+                    .scheduleDayEndMinute,
+              ),
+            ),
+          ),
+        ],
       );
     },
   );
@@ -1387,7 +1420,9 @@ class _WindowsSchedulePageState extends ConsumerState<WindowsSchedulePage> {
     if (!mounted) return;
     final l10n = AppLocalizations.of(context);
     final locale = Localizations.localeOf(context).toLanguageTag();
-    final time = _itemDateLabel(context, item, locale);
+    final time = item is CalendarScheduleItem
+        ? scheduleEventIntervalLabel(context, item)
+        : _itemDateLabel(context, item, locale);
     return showDialog<void>(
       context: context,
       builder: (dialogContext) => ContentDialog(
@@ -1402,8 +1437,8 @@ class _WindowsSchedulePageState extends ConsumerState<WindowsSchedulePage> {
                   time,
                   ?item.sourceName,
                   ?item.accountDisplayName,
-                  if (item case CalendarScheduleItem(:final description?))
-                    description,
+                  if (item is CalendarScheduleItem)
+                    calendarEventDescription(item),
                   if (item case TaskScheduleItem(:final notes?)) notes,
                 ].where((value) => value.trim().isNotEmpty).join('\n'),
               ),
@@ -1417,14 +1452,57 @@ class _WindowsSchedulePageState extends ConsumerState<WindowsSchedulePage> {
                 ],
               ],
               if (item is CalendarScheduleItem) ...[
+                if (item.joinMeetingUrl case final meetingLink?)
+                  Button(
+                    onPressed: () => unawaited(
+                      _openEventWebLink(meetingLink, meeting: true),
+                    ),
+                    child: Text(l10n.joinMeeting),
+                  ),
+                if (item.eventLinkUrl case final eventLink?)
+                  Button(
+                    onPressed: () => unawaited(_openEventWebLink(eventLink)),
+                    child: Text(l10n.eventLink),
+                  ),
+                if (item.attachmentsMayExist || item.attachmentLinks.isNotEmpty)
+                  Text(l10n.attachments),
+                for (final attachment in item.attachmentLinks)
+                  Button(
+                    onPressed: () =>
+                        unawaited(_openEventWebLink(attachment.url)),
+                    child: Text(attachment.name),
+                  ),
+                if (item.attachmentsMayExist && !item.attachmentsLoaded)
+                  Text(l10n.attachmentsNotLoaded),
+                if (item.provider == BusyProvider.microsoft &&
+                    item.providerEventId != null)
+                  Button(
+                    onPressed: () {
+                      Navigator.pop(dialogContext);
+                      unawaited(
+                        showWindowsEventAttachmentsDialog(context, item),
+                      );
+                    },
+                    child: Text(l10n.attachments),
+                  ),
+                for (final uri in calendarEventDescriptionLinks(item))
+                  Button(
+                    onPressed: () =>
+                        unawaited(_openEventWebLink(uri.toString())),
+                    child: Text(uri.toString()),
+                  ),
                 if (item.canSendReply) Text(l10n.nextcloudAttendeeRestrictions),
                 if (item.organizer != null)
                   SelectableText(
-                    '${l10n.organizer}: ${item.organizer!['displayName'] ?? item.organizer!['email'] ?? item.organizer!['value'] ?? ''}',
+                    '${l10n.organizer}: ${scheduleEventPersonName(item.organizer)}',
+                  ),
+                if (item.currentUserResponse case final response?)
+                  SelectableText(
+                    '${l10n.yourResponse}: ${scheduleEventResponseLabel(dialogContext, response)}',
                   ),
                 for (final attendee in item.attendees) ...[
                   SelectableText(
-                    '${attendee['displayName'] ?? attendee['email'] ?? attendee['value'] ?? ''} · ${attendee['responseStatus'] ?? ''}',
+                    scheduleEventAttendeeLabel(dialogContext, attendee),
                   ),
                   if (attendee['scheduleStatus'] != null)
                     SelectableText(
@@ -1463,6 +1541,16 @@ class _WindowsSchedulePageState extends ConsumerState<WindowsSchedulePage> {
                   ),
                 ],
               ],
+              if (item is TaskScheduleItem)
+                for (final link in item.availableSourceLinks)
+                  Button(
+                    onPressed: () => unawaited(_openEventWebLink(link.url)),
+                    child: Text(
+                      link.label?.isNotEmpty == true
+                          ? link.label!
+                          : l10n.openInProvider,
+                    ),
+                  ),
             ],
           ),
         ),
@@ -1506,6 +1594,21 @@ class _WindowsSchedulePageState extends ConsumerState<WindowsSchedulePage> {
             child: Text(l10n.close),
           ),
         ],
+      ),
+    );
+  }
+
+  Future<void> _openEventWebLink(String value, {bool meeting = false}) async {
+    if (await openScheduleWebLink(value) || !mounted) return;
+    await displayInfoBar(
+      context,
+      builder: (context, close) => InfoBar(
+        title: Text(
+          meeting
+              ? AppLocalizations.of(context).joinMeetingFailed
+              : AppLocalizations.of(context).eventLinkOpenFailed,
+        ),
+        severity: InfoBarSeverity.error,
       ),
     );
   }
@@ -1776,6 +1879,8 @@ class _WindowsSchedulePageState extends ConsumerState<WindowsSchedulePage> {
           content: Text(
             item is CalendarScheduleItem && item.isNextcloudAttendee
                 ? l10n.nextcloudDeclineRemovalWarning
+                : item is TaskScheduleItem && item.isAssigned
+                ? '${l10n.deleteTaskConfirmation(item.title)}\n\n${l10n.deleteAssignedTaskWarning}'
                 : item.title,
           ),
           actions: [
