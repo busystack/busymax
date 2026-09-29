@@ -12,6 +12,7 @@ import 'package:busymax/src/ui/windows/windows_schedule_page.dart';
 import 'package:fluent_ui/fluent_ui.dart' as fluent;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
+import 'package:intl/date_symbol_data_local.dart';
 import 'package:busymax/src/app/busymax_yaru_theme.dart';
 import 'package:busymax/src/features/schedule/presentation/calendar_day_semantics.dart';
 import 'package:busymax/src/features/schedule/presentation/schedule_agenda_view.dart';
@@ -28,6 +29,7 @@ import 'package:busymax/src/features/tasks/domain/task_checklist_item.dart';
 import 'package:busymax/src/features/maps/domain/geographic_point.dart';
 import 'package:busymax/src/platform/gtk_font_service.dart';
 import 'package:busymax/src/schedule/schedule_item.dart';
+import 'package:busymax/src/schedule/event_attachment_link.dart';
 import 'package:busymax/src/schedule/schedule_range.dart';
 import 'package:busymax/src/schedule/schedule_search_criteria.dart';
 import 'package:busymax/src/providers/busy_provider.dart';
@@ -68,6 +70,9 @@ class _EmptyCalendarSources implements CalendarRepository {
 
 class _TestScheduleItems implements ScheduleRepository {
   @override
+  bool? cloudCoverageCompleteFor(ScheduleRange range) => null;
+
+  @override
   Future<List<ScheduleItem>> listItems({
     required ScheduleRange range,
     ScheduleFilters filters = const ScheduleFilters(),
@@ -77,6 +82,7 @@ class _TestScheduleItems implements ScheduleRepository {
 }
 
 void main() {
+  setUpAll(initializeDateFormatting);
   scheduleDateGestureTests(
     'Linux',
     (scenario) => localizedTestApp(
@@ -1700,6 +1706,58 @@ void main() {
     await tester.tap(find.text('Join meeting'));
     await tester.pumpAndSettle();
     expect(await action, ScheduleItemDetailsAction.joinMeeting);
+  });
+
+  testWidgets('all-day details end on the last included day and expose links', (
+    tester,
+  ) async {
+    final event = CalendarScheduleItem(
+      id: 'event-link',
+      accountId: 'account',
+      provider: BusyProvider.nextcloud,
+      sourceId: 'calendar',
+      providerCalendarId: 'calendar',
+      title: 'Conference',
+      allDay: true,
+      start: DateTime(2026, 3, 8),
+      end: DateTime(2026, 3, 10),
+      description: 'Read https://example.com/agenda',
+      eventLinkUrl: 'https://example.com/event',
+      attachmentLinks: const [
+        EventAttachmentLink(
+          url: 'https://example.com/notes',
+          name: 'Notes attachment',
+        ),
+      ],
+      attachmentsLoaded: true,
+      attachmentsMayExist: true,
+      capabilities: ScheduleItemCapabilities.readOnly,
+    );
+    await tester.pumpWidget(
+      localizedTestApp(
+        child: Scaffold(
+          body: Builder(
+            builder: (context) => TextButton(
+              onPressed: () => showScheduleItemDetailsPopover(
+                context: context,
+                anchorContext: context,
+                item: event,
+              ),
+              child: const Text('Open details'),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.tap(find.text('Open details'));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('Mar 8, 2026 – Mar 9, 2026'), findsOneWidget);
+    expect(find.textContaining('Mar 10, 2026'), findsNothing);
+    expect(find.text('Event link'), findsOneWidget);
+    expect(find.text('Notes attachment'), findsOneWidget);
+    expect(find.text('https://example.com/agenda'), findsOneWidget);
+    expect(find.text('Join meeting'), findsNothing);
+    expect(find.byTooltip('Edit Event'), findsNothing);
   });
 
   testWidgets('invitation RSVP returns the selected response action', (

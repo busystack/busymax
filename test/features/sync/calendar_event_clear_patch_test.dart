@@ -67,6 +67,64 @@ void main() {
       },
     );
   }
+
+  test(
+    'Microsoft plain edit replays new body and retains Teams link',
+    () async {
+      final result = await _editAndReplay(
+        provider: BusyProvider.microsoft,
+        editedDescription: 'Updated agenda',
+        onlineMeeting: true,
+      );
+      final body = (jsonDecode(result.patchRequest.body) as Map)
+          .cast<String, Object?>();
+      final outgoing = (body['body'] as Map).cast<String, Object?>();
+      expect(outgoing['contentType'], 'html');
+      expect(outgoing['content'], contains('Updated agenda'));
+      expect(
+        outgoing['content'],
+        contains('https://teams.microsoft.com/l/meetup-join/example'),
+      );
+      expect(outgoing['content'], isNot(contains('Original agenda')));
+      expect(result.queuedRequest, contains('descriptionHtml'));
+    },
+  );
+
+  test('Microsoft unrelated edit does not replace HTML body', () async {
+    final result = await _editAndReplay(
+      provider: BusyProvider.microsoft,
+      onlineMeeting: true,
+    );
+    final body = (jsonDecode(result.patchRequest.body) as Map)
+        .cast<String, Object?>();
+    expect(body, isNot(contains('body')));
+  });
+
+  test('Microsoft formatting-only edit reaches provider', () async {
+    final result = await _editAndReplay(
+      provider: BusyProvider.microsoft,
+      onlineMeeting: true,
+      editedDescriptionHtml: '<p><strong>Original agenda</strong></p>',
+    );
+    final body = (jsonDecode(result.patchRequest.body) as Map)
+        .cast<String, Object?>();
+    final outgoing = (body['body'] as Map).cast<String, Object?>();
+    expect(outgoing['content'], contains('<strong>Original agenda</strong>'));
+    expect(outgoing['content'], contains('Join Teams meeting'));
+  });
+
+  test('Microsoft explicit clear retains Teams meeting information', () async {
+    final result = await _editAndReplay(
+      provider: BusyProvider.microsoft,
+      onlineMeeting: true,
+      clearDescription: true,
+    );
+    final body = (jsonDecode(result.patchRequest.body) as Map)
+        .cast<String, Object?>();
+    final outgoing = (body['body'] as Map).cast<String, Object?>();
+    expect(outgoing['content'], isNot(contains('Original agenda')));
+    expect(outgoing['content'], contains('Join Teams meeting'));
+  });
 }
 
 void _expectUnrelatedOptionalFieldsOmitted(Map<String, Object?> body) {
@@ -85,6 +143,10 @@ _editAndReplay({
   required BusyProvider provider,
   bool clearRecurrence = false,
   bool clearAttendees = false,
+  String? editedDescription,
+  String? editedDescriptionHtml,
+  bool clearDescription = false,
+  bool onlineMeeting = false,
 }) async {
   final database = AppDatabase(NativeDatabase.memory());
   addTearDown(database.close);
@@ -154,16 +216,30 @@ _editAndReplay({
       endTimeZone: 'UTC',
       recurrenceJson: recurrence,
       attendeesJson: attendees,
+      description: onlineMeeting ? 'Original agenda' : null,
+      conferenceJson: onlineMeeting
+          ? const {
+              'joinUrl': 'https://teams.microsoft.com/l/meetup-join/example',
+            }
+          : null,
       organizerJson: provider == BusyProvider.google
           ? const {'self': true}
           : null,
       updatedAtServer: '2026-06-08T00:00:00.000Z',
-      rawJson: _eventJson(
-        provider,
-        edited: false,
-        includeRecurrence: true,
-        includeAttendees: true,
-      ),
+      rawJson: {
+        ..._eventJson(
+          provider,
+          edited: false,
+          includeRecurrence: true,
+          includeAttendees: true,
+        ),
+        if (onlineMeeting)
+          'body': {
+            'contentType': 'html',
+            'content':
+                '<p>Original agenda</p><div><a href="https://teams.microsoft.com/l/meetup-join/example">Join Teams meeting</a></div>',
+          },
+      },
     ),
   );
   final eventId = CalendarRepository.eventId(
@@ -172,29 +248,15 @@ _editAndReplay({
     providerCalendarId: 'cal-1',
     providerEventId: 'event-1',
   );
-  final originalDraft = EventEditorDraft.existing(
-    eventId: eventId,
-    accountId: 'account',
-    sourceId: CalendarRepository.sourceId(
-      accountId: 'account',
-      provider: provider,
-      providerCalendarId: 'cal-1',
-    ),
-    providerCalendarId: 'cal-1',
-    title: 'Planning',
-    allDay: false,
-    start: DateTime.utc(2026, 6, 8, 9),
-    end: DateTime.utc(2026, 6, 8, 10),
-    startTimeZone: 'UTC',
-    endTimeZone: 'UTC',
-    recurrence: recurrence,
-    attendees: const [
-      EventAttendeeDraft(email: 'guest@example.com', displayName: 'Guest'),
-    ],
+  final originalDraft = EventEditorDraft.fromEventDetail(
+    (await repository.loadEventDetail(eventId))!,
   );
   await repository.updateLocalEvent(
     originalDraft.copyWith(
       title: 'Edited planning',
+      description: editedDescription,
+      descriptionHtml: editedDescriptionHtml,
+      clearDescription: clearDescription,
       clearRecurrence: clearRecurrence,
       attendees: clearAttendees ? const [] : null,
     ),

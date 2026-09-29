@@ -4,6 +4,7 @@ import 'package:busymax/src/features/accounts/data/accounts_repository.dart';
 import 'package:busymax/src/features/calendar/data/calendar_repository.dart';
 import 'package:busymax/src/features/calendar/presentation/event_editor.dart';
 import 'package:busymax/src/features/calendar/presentation/event_editor_draft.dart';
+import 'package:busymax/src/features/calendar/presentation/event_description_editor.dart';
 import 'package:busymax/src/features/maps/domain/geographic_point.dart';
 import 'package:busymax/src/features/maps/domain/location_result.dart';
 import 'package:busymax/src/features/recurrence/domain/event_recurrence_codec.dart';
@@ -13,12 +14,17 @@ import 'package:busymax/src/features/tasks/presentation/desktop_date_time_fields
 import 'package:busymax/src/app/busymax_design.dart';
 import 'package:busymax/src/app/busymax_window_close.dart';
 import 'package:busymax/src/app/busymax_yaru_theme.dart';
+import 'package:busymax/src/app/app_bootstrap.dart';
+import 'package:busymax/src/google_calendar/google_calendar_api_client.dart';
 import 'package:busymax/src/platform/native_dialog_service.dart';
 import 'package:busymax/src/platform/native_menu_service.dart';
 import 'package:busymax/src/providers/busy_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:http/http.dart' as http;
+import 'package:http/testing.dart';
 import 'package:yaru/yaru.dart';
 
 import '../../../test_localized_app.dart';
@@ -27,6 +33,36 @@ const _nativeDialogChannel = MethodChannel(nativeDialogChannelName);
 const _nativeMenuChannel = MethodChannel(nativeMenuChannelName);
 
 void main() {
+  testWidgets('Microsoft description selection does not emit a body change', (
+    tester,
+  ) async {
+    final changes = <EventDescriptionValue>[];
+    await tester.pumpWidget(
+      localizedTestApp(
+        child: Scaffold(
+          body: EventDescriptionEditor(
+            provider: BusyProvider.microsoft,
+            text: 'Original agenda',
+            contentType: 'html',
+            html: '<p>Original agenda</p>',
+            onChanged: changes.add,
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    final controller = tester
+        .widget<TextField>(find.byType(TextField))
+        .controller!;
+    controller.selection = const TextSelection(baseOffset: 0, extentOffset: 8);
+    await tester.pump();
+    expect(changes, isEmpty);
+    await tester.tap(find.byTooltip('Bold').first);
+    await tester.pump();
+    expect(changes, hasLength(1));
+    expect(changes.single.html, contains('<strong>Original</strong>'));
+  });
+
   setUp(() {
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(_nativeDialogChannel, (_) async => null);
@@ -70,6 +106,69 @@ void main() {
       matching: find.byType(EditableText),
     );
     expect(tester.widget<EditableText>(title).focusNode.hasFocus, isTrue);
+  });
+
+  testWidgets('Linux Google editor opens detailed guest availability', (
+    tester,
+  ) async {
+    var requests = 0;
+    final client = GoogleCalendarApiClient(
+      httpClient: MockClient((request) async {
+        requests++;
+        expect(request.url.path, '/calendar/v3/freeBusy');
+        return http.Response(
+          '{"calendars":{"guest@example.test":{"busy":[]}}}',
+          200,
+        );
+      }),
+      baseUri: Uri.parse('https://www.googleapis.com'),
+    );
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          calendarRemoteApiClientForAccountProvider(
+            'account',
+          ).overrideWithValue(client),
+        ],
+        child: localizedTestApp(
+          child: Scaffold(
+            body: EventEditor(
+              initialDraft: EventEditorDraft.existing(
+                eventId: 'event-1',
+                accountId: 'account',
+                sourceId: 'source',
+                providerCalendarId: 'cal-1',
+                title: 'Planning',
+                allDay: false,
+                start: DateTime.utc(2026, 6, 8, 9),
+                end: DateTime.utc(2026, 6, 8, 10),
+                attendees: const [
+                  EventAttendeeDraft(email: 'guest@example.test'),
+                ],
+              ),
+              sources: _sources,
+              onCancel: () {},
+              onSave: (_) {},
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    final action = find.text('Check guest availability');
+    await tester.ensureVisible(action);
+    await tester.tap(action);
+    await tester.pumpAndSettle();
+    expect(
+      find.byKey(const ValueKey('linux-cloud-availability-dialog')),
+      findsOneWidget,
+    );
+    expect(find.text('guest@example.test'), findsWidgets);
+    expect(
+      find.text('No busy periods reported for this interval'),
+      findsWidgets,
+    );
+    expect(requests, 1);
   });
 
   testWidgets(

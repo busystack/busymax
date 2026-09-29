@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 import 'dart:ui';
 import 'package:busymax/src/l10n/time_format_scope.dart';
@@ -37,6 +38,9 @@ import 'package:busymax/src/platform/native_dialog_service.dart';
 import 'package:busymax/src/platform/native_menu_service.dart';
 import 'package:busymax/src/providers/busy_provider.dart';
 import 'package:busymax/src/google_tasks/oauth/oauth_service.dart';
+import 'package:busymax/src/microsoft_todo/api/microsoft_todo_api_client.dart';
+import 'package:http/http.dart' as http;
+import 'package:http/testing.dart';
 import 'package:busymax/src/features/tasks/domain/task_capabilities.dart';
 import 'package:busymax/src/features/tasks/domain/task_checklist_item.dart';
 import 'package:yaru/yaru.dart';
@@ -63,6 +67,161 @@ String _testAuthority(BusyProvider provider) => switch (provider) {
 };
 
 void main() {
+  testWidgets('Linux Microsoft task opens linked resources on demand', (
+    tester,
+  ) async {
+    var requests = 0;
+    final client = MicrosoftTodoRestApiClient(
+      httpClient: MockClient((request) async {
+        requests++;
+        if (request.url.path.endsWith('/attachments')) {
+          return http.Response(
+            jsonEncode({
+              'value': [
+                {
+                  'id': 'attachment-1',
+                  'name': 'Notes.txt',
+                  'size': 12,
+                  '@odata.type': '#microsoft.graph.taskFileAttachment',
+                },
+              ],
+            }),
+            200,
+          );
+        }
+        expect(
+          request.url.path,
+          '/v1.0/me/todo/lists/list-1/tasks/task-1/linkedResources',
+        );
+        return http.Response(
+          jsonEncode({
+            'value': [
+              {
+                'id': 'resource-1',
+                'applicationName': 'Planner',
+                'displayName': 'Launch plan',
+                'webUrl': 'https://example.test/plan',
+              },
+            ],
+          }),
+          200,
+        );
+      }),
+      baseUri: Uri.parse('https://graph.microsoft.com/v1.0'),
+      authorizationHeaderProvider: () async => 'Bearer token',
+    );
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          microsoftTodoApiClientForAccountProvider(
+            'microsoft:m',
+          ).overrideWithValue(client),
+        ],
+        child: localizedTestApp(
+          child: Scaffold(
+            body: TaskDetailsEditor(
+              task: _switchTask('task-1', 'Task'),
+              provider: BusyProvider.microsoft,
+              taskLists: [
+                TaskListEntity(
+                  accountId: 'microsoft:m',
+                  id: 'list-1',
+                  title: 'Tasks',
+                  localDirty: false,
+                  pendingDelete: false,
+                  rawJson: '{}',
+                ),
+              ],
+              capabilities: microsoftTaskCollectionCapabilities,
+              localTimeZone: 'UTC',
+              accountLabel: 'Account',
+              onRefresh: () {},
+              onSave: (_, _) async {},
+              onCreateSubtask: (_) async {},
+              onMoveToTop: () {},
+              onDelete: () async {},
+              onCancel: () {},
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(requests, 0);
+    await tester.tap(find.text('Linked resources'));
+    await tester.pumpAndSettle();
+    expect(requests, 1);
+    expect(find.text('Launch plan · Planner'), findsOneWidget);
+    await tester.tap(find.text('Attachments'));
+    await tester.pumpAndSettle();
+    expect(requests, 2);
+    expect(find.text('Notes.txt'), findsOneWidget);
+    expect(find.text('Task'), findsWidgets);
+  });
+
+  testWidgets(
+    'Docs-assigned task disables notes and child creation and warns before delete',
+    (tester) async {
+      var deleted = false;
+      await tester.pumpWidget(
+        localizedTestApp(
+          child: Scaffold(
+            body: TaskDetailsEditor(
+              task: _switchTask(
+                'assigned',
+                'Assigned task',
+                assignmentInfoJson:
+                    '{"surfaceType":"DOCUMENT","linkToTask":"https://docs.google.com/document/d/example"}',
+              ),
+              taskLists: [
+                TaskListEntity(
+                  accountId: 'microsoft:m',
+                  id: 'list-1',
+                  title: 'Tasks',
+                  localDirty: false,
+                  pendingDelete: false,
+                  rawJson: '{}',
+                ),
+              ],
+              capabilities: googleTaskCollectionCapabilities,
+              localTimeZone: 'UTC',
+              accountLabel: 'Account',
+              onRefresh: () {},
+              onSave: (_, _) async {},
+              onCreateSubtask: (_) async {},
+              onMoveToTop: () {},
+              onDelete: () async => deleted = true,
+              onCancel: () {},
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(
+        tester
+            .widget<TextField>(find.widgetWithText(TextField, 'Notes'))
+            .enabled,
+        isFalse,
+      );
+      final create = tester.widget<BusyMaxActionRow>(
+        find.byKey(const ValueKey('create-subtask-action')),
+      );
+      expect(create.enabled, isFalse);
+      expect(find.text('Open in provider'), findsOneWidget);
+
+      _focusEditorShortcuts(tester);
+      await tester.sendKeyEvent(LogicalKeyboardKey.delete);
+      await tester.pumpAndSettle();
+      expect(
+        find.textContaining('original task in Google Docs'),
+        findsOneWidget,
+      );
+      await tester.tap(find.text('Cancel').last);
+      await tester.pumpAndSettle();
+      expect(deleted, isFalse);
+    },
+  );
+
   testWidgets('new task opens with the title field focused', (tester) async {
     await tester.pumpWidget(
       localizedTestApp(
@@ -2653,7 +2812,7 @@ class _SwitchingTasksRepository implements TasksRepository {
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 
-TaskEntity _switchTask(String id, String title) {
+TaskEntity _switchTask(String id, String title, {String? assignmentInfoJson}) {
   return TaskEntity(
     accountId: 'microsoft:m',
     taskListId: 'list-1',
@@ -2665,6 +2824,7 @@ TaskEntity _switchTask(String id, String title) {
     rawJson: '{}',
     updatedLocalAtUtc: '2026-06-04T00:00:00.000Z',
     status: 'needsAction',
+    assignmentInfoJson: assignmentInfoJson,
   );
 }
 

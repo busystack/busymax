@@ -44,6 +44,82 @@ void main() {
     await database.close();
   });
 
+  test('replay blocks legacy Docs-assigned note mutation', () async {
+    await database.tasksDao.upsertTask(
+      _task(
+        'list-1',
+        'assigned',
+        assignmentInfoJson: '{"surfaceType":"DOCUMENT"}',
+      ),
+    );
+    await _enqueue(
+      database,
+      id: '01',
+      operation: 'patch_task',
+      taskListId: 'list-1',
+      taskId: 'assigned',
+      request: {'notes': 'Unsupported'},
+    );
+
+    expect(
+      await PendingOpsReplayer(
+        database: database,
+        apiClient: apiClient,
+        accountId: 'account',
+        nowUtc: () => DateTime.utc(2026, 6, 4, 1),
+      ).replayDueOps(),
+      0,
+    );
+    expect(apiClient.calls, isEmpty);
+    expect(
+      (await database.pendingOpsDao.getOp('01'))?.lastErrorCode,
+      'unsupported_assigned_task',
+    );
+  });
+
+  test('replay blocks assigned child and assigned parent moves', () async {
+    await database.tasksDao.upsertTask(
+      _task(
+        'list-1',
+        'assigned',
+        assignmentInfoJson: '{"surfaceType":"SPACE"}',
+      ),
+    );
+    await database.tasksDao.upsertTask(_task('list-1', 'ordinary'));
+    await _enqueue(
+      database,
+      id: '01',
+      operation: 'move_task',
+      taskListId: 'list-1',
+      taskId: 'assigned',
+      request: {'parent': 'ordinary'},
+    );
+    await _enqueue(
+      database,
+      id: '02',
+      operation: 'move_task',
+      taskListId: 'list-1',
+      taskId: 'ordinary',
+      request: {'parent': 'assigned'},
+    );
+
+    expect(
+      await PendingOpsReplayer(
+        database: database,
+        apiClient: apiClient,
+        accountId: 'account',
+        nowUtc: () => DateTime.utc(2026, 6, 4, 1),
+      ).replayDueOps(),
+      0,
+    );
+    expect(apiClient.calls, isEmpty);
+    final ops = await database.select(database.pendingOps).get();
+    expect(
+      ops.map((op) => op.lastErrorCode),
+      everyElement('unsupported_assigned_task'),
+    );
+  });
+
   for (final lifecycle in ['snoozed', 'sent', 'dismissed']) {
     test(
       'actual create replay preserves $lifecycle reminder identity',
@@ -4955,6 +5031,7 @@ TasksCompanion _task(
   String? updatedUtc,
   String? rawJson,
   String? checklistItemsJson,
+  String? assignmentInfoJson,
 }) {
   return TasksCompanion.insert(
     accountId: 'account',
@@ -4964,6 +5041,7 @@ TasksCompanion _task(
     updatedUtc: Value(updatedUtc),
     rawJson: rawJson ?? jsonEncode({'id': id, 'title': title}),
     microsoftChecklistItemsJson: Value(checklistItemsJson),
+    assignmentInfoJson: Value(assignmentInfoJson),
     localDirty: Value(id.startsWith('local-')),
     localCreated: Value(id.startsWith('local-')),
     createdLocalAtUtc: _now,

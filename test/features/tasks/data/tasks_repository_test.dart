@@ -62,6 +62,73 @@ void main() {
     expect(mutationQueuedCalls, 1);
   });
 
+  test(
+    'Docs-assigned task rejects notes and hierarchy before local writes',
+    () async {
+      await database.tasksDao.upsertTask(
+        _task(
+          id: 'assigned',
+          position: '1',
+          assignmentInfoJson: const Value(
+            '{"surfaceType":"DOCUMENT","linkToTask":"https://docs.google.com/document/d/example"}',
+          ),
+        ),
+      );
+      await database.tasksDao.upsertTask(_task(id: 'ordinary', position: '2'));
+
+      await expectLater(
+        repository.patchTask(
+          'list-1',
+          'assigned',
+          const TaskPatchInput({'notes': 'Not allowed'}),
+        ),
+        throwsUnsupportedError,
+      );
+      await expectLater(
+        repository.createTask(
+          'list-1',
+          const TaskCreateInput(title: 'Child', parentTaskId: 'assigned'),
+        ),
+        throwsUnsupportedError,
+      );
+      await expectLater(
+        repository.moveTask(
+          const TaskMoveInput(
+            sourceTaskListId: 'list-1',
+            taskId: 'assigned',
+            parentTaskId: 'ordinary',
+          ),
+        ),
+        throwsUnsupportedError,
+      );
+      await expectLater(
+        repository.moveTask(
+          const TaskMoveInput(
+            sourceTaskListId: 'list-1',
+            taskId: 'ordinary',
+            parentTaskId: 'assigned',
+          ),
+        ),
+        throwsUnsupportedError,
+      );
+      expect((await database.select(database.pendingOps).get()), isEmpty);
+      final tasks = await database.tasksDao.listTasks('account', 'list-1');
+      expect(tasks, hasLength(2));
+      expect(tasks.every((task) => !task.localDirty), isTrue);
+      expect(tasks.every((task) => task.parent == null), isTrue);
+
+      await repository.patchTask(
+        'list-1',
+        'assigned',
+        const TaskPatchInput({'title': 'Allowed'}),
+      );
+      await repository.moveTask(
+        const TaskMoveInput(sourceTaskListId: 'list-1', taskId: 'assigned'),
+      );
+      expect((await database.select(database.pendingOps).get()), hasLength(2));
+    },
+  );
+
   test('new task mutations form a chain rooted at its creation', () async {
     var tick = 0;
     repository = TasksRepository(
@@ -645,6 +712,7 @@ TasksCompanion _task({
   Value<String?> parentUid = const Value.absent(),
   Value<String?> icalUid = const Value.absent(),
   Value<String?> microsoftChecklistItemsJson = const Value.absent(),
+  Value<String?> assignmentInfoJson = const Value.absent(),
   String rawJson = '{}',
 }) {
   return TasksCompanion.insert(
@@ -658,6 +726,7 @@ TasksCompanion _task({
     parentUid: parentUid,
     icalUid: icalUid,
     microsoftChecklistItemsJson: microsoftChecklistItemsJson,
+    assignmentInfoJson: assignmentInfoJson,
     hidden: hidden,
     serverMissing: serverMissing,
     status: status,

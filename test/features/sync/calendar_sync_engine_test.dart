@@ -13,6 +13,7 @@ import 'package:busymax/src/features/calendar/data/calendar_repository.dart';
 import 'package:busymax/src/features/calendar/presentation/event_editor_draft.dart';
 import 'package:busymax/src/features/notifications/notification_schedule_service.dart';
 import 'package:busymax/src/features/sync/calendar_sync_engine.dart';
+import 'package:busymax/src/features/sync/cloud_calendar_range_coverage_service.dart';
 import 'package:busymax/src/providers/busy_provider.dart';
 import 'package:drift/drift.dart';
 import 'package:drift/native.dart';
@@ -1111,6 +1112,217 @@ void main() {
       ]);
     },
   );
+
+  test('range snapshot is separate from the baseline cursor', () async {
+    const source = CalendarSourceDto(
+      provider: BusyProvider.google,
+      providerCalendarId: 'cal-1',
+      summary: 'Work',
+    );
+    await _insertAccount(database, provider: BusyProvider.google);
+    await _insertSource(database, source);
+    final sourceId = CalendarRepository.sourceId(
+      accountId: 'account',
+      provider: BusyProvider.google,
+      providerCalendarId: 'cal-1',
+    );
+    final repository = CalendarRepository(database: database);
+    await repository.saveSyncState(
+      accountId: 'account',
+      provider: BusyProvider.google,
+      syncKind: 'events',
+      calendarSourceId: sourceId,
+      cursorKind: 'google_sync_token',
+      cursorValue: 'baseline-token',
+    );
+    final client = _FakeCalendarClient(
+      provider: BusyProvider.google,
+      calendars: const [source],
+      pages: const [],
+      onListEvents: (_, _, _) async => [
+        const CalendarEventDto(
+          provider: BusyProvider.google,
+          providerCalendarId: 'cal-1',
+          providerEventId: 'old',
+          title: 'Old event',
+          startDateTime: '2020-01-10T10:00:00Z',
+          endDateTime: '2020-01-10T11:00:00Z',
+        ),
+      ],
+    );
+    await CalendarSyncEngine(
+      database: database,
+      client: client,
+      accountId: 'account',
+    ).retrieveMonth(DateTime.utc(2020));
+
+    expect(client.listCalls, [DateTime.utc(2020)]);
+    expect(
+      (await repository.syncState(
+        accountId: 'account',
+        provider: BusyProvider.google,
+        syncKind: 'events',
+        calendarSourceId: sourceId,
+      ))?.cursorValue,
+      'baseline-token',
+    );
+    expect(
+      (await database.select(database.calendarEvents).get()).single.title,
+      'Old event',
+    );
+    expect(
+      await repository.syncState(
+        accountId: 'account',
+        provider: BusyProvider.google,
+        syncKind: 'events_range_2020_1',
+        calendarSourceId: sourceId,
+      ),
+      isA<SyncCursor>(),
+    );
+  });
+
+  test(
+    'failed range retrieval retains cached events and no coverage',
+    () async {
+      const source = CalendarSourceDto(
+        provider: BusyProvider.microsoft,
+        providerCalendarId: 'cal-1',
+        summary: 'Work',
+      );
+      await _insertAccount(database, provider: BusyProvider.microsoft);
+      await _insertSource(database, source);
+      final eventId = await _insertEvent(
+        database,
+        provider: BusyProvider.microsoft,
+        providerCalendarId: 'cal-1',
+      );
+      final client = _FakeCalendarClient(
+        provider: BusyProvider.microsoft,
+        calendars: const [source],
+        pages: const [],
+        onListEvents: (_, _, _) async => throw StateError('page two failed'),
+      );
+      final engine = CalendarSyncEngine(
+        database: database,
+        client: client,
+        accountId: 'account',
+      );
+      await expectLater(
+        engine.retrieveMonth(DateTime.utc(2026, 7)),
+        throwsStateError,
+      );
+      expect(
+        (await (database.select(
+          database.calendarEvents,
+        )..where((row) => row.id.equals(eventId))).getSingle()).isDeleted,
+        isFalse,
+      );
+      expect(await database.select(database.syncCursors).get(), isEmpty);
+    },
+  );
+
+  test(
+    'overlapping range requests share a month and reuse fresh coverage',
+    () async {
+      const source = CalendarSourceDto(
+        provider: BusyProvider.google,
+        providerCalendarId: 'cal-1',
+        summary: 'Work',
+      );
+      await _insertAccount(database, provider: BusyProvider.google);
+      await _insertSource(database, source);
+      final release = Completer<List<CalendarEventDto>>();
+      final client = _FakeCalendarClient(
+        provider: BusyProvider.google,
+        calendars: const [source],
+        pages: const [],
+        onListEvents: (_, _, _) => release.future,
+      );
+      final coverage = CloudCalendarRangeCoverageService(
+        database: database,
+        nowUtc: () => DateTime.utc(2026, 7, 15),
+        engineForAccount: (_, _) => CalendarSyncEngine(
+          database: database,
+          client: client,
+          accountId: 'account',
+          nowUtc: () => DateTime.utc(2026, 7, 15),
+        ),
+      );
+      final first = coverage.ensureRange(
+        DateTime.utc(2026, 7, 3),
+        DateTime.utc(2026, 7, 12),
+      );
+      final second = coverage.ensureRange(
+        DateTime.utc(2026, 7, 10),
+        DateTime.utc(2026, 7, 20),
+      );
+      await Future<void>.delayed(Duration.zero);
+      expect(client.listCalls, [DateTime.utc(2026, 7)]);
+      release.complete([]);
+      expect(await first, isTrue);
+      expect(await second, isTrue);
+      expect(
+        await coverage.ensureRange(
+          DateTime.utc(2026, 7, 21),
+          DateTime.utc(2026, 7, 22),
+        ),
+        isTrue,
+      );
+      expect(client.listCalls, hasLength(1));
+    },
+  );
+
+  test(
+    'range reconciliation deletes only clean missing events inside month',
+    () async {
+      const source = CalendarSourceDto(
+        provider: BusyProvider.google,
+        providerCalendarId: 'cal-1',
+        summary: 'Work',
+      );
+      await _insertAccount(database, provider: BusyProvider.google);
+      await _insertSource(database, source);
+      final repository = CalendarRepository(database: database);
+      Future<void> insert(String id, String start) => repository.upsertEvent(
+        accountId: 'account',
+        event: CalendarEventDto(
+          provider: BusyProvider.google,
+          providerCalendarId: 'cal-1',
+          providerEventId: id,
+          title: id,
+          startDateTime: start,
+          endDateTime: DateTime.parse(
+            start,
+          ).add(const Duration(hours: 1)).toIso8601String(),
+          rawJson: {'id': id},
+        ),
+      );
+      await insert('missing-july', '2026-07-04T09:00:00Z');
+      await insert('dirty-july', '2026-07-05T09:00:00Z');
+      await insert('outside-august', '2026-08-04T09:00:00Z');
+      await (database.update(
+        database.calendarEvents,
+      )..where((row) => row.providerEventId.equals('dirty-july'))).write(
+        const CalendarEventsCompanion(syncStatus: Value('pending_update')),
+      );
+      final client = _FakeCalendarClient(
+        provider: BusyProvider.google,
+        calendars: const [source],
+        pages: const [],
+        onListEvents: (_, _, _) async => const [],
+      );
+      await CalendarSyncEngine(
+        database: database,
+        client: client,
+        accountId: 'account',
+      ).retrieveMonth(DateTime.utc(2026, 7));
+      final rows = await database.select(database.calendarEvents).get();
+      final byId = {for (final row in rows) row.providerEventId: row};
+      expect(byId['missing-july']!.isDeleted, isTrue);
+      expect(byId['dirty-july']!.isDeleted, isFalse);
+      expect(byId['outside-august']!.isDeleted, isFalse);
+    },
+  );
 }
 
 const _expandedGoogleState = '{"singleEvents":true,"version":1}';
@@ -1208,12 +1420,20 @@ class _FakeCalendarClient implements CloudCalendarClient {
     required this.calendars,
     required List<CalendarSyncPageDto> pages,
     this.eventsById = const {},
+    this.onListEvents,
   }) : _pages = List.of(pages);
 
   @override
   final BusyProvider provider;
   final List<CalendarSourceDto> calendars;
   final Map<String, CalendarEventDto> eventsById;
+  final Future<List<CalendarEventDto>> Function(
+    String calendarId,
+    DateTime start,
+    DateTime end,
+  )?
+  onListEvents;
+  final List<DateTime> listCalls = [];
   final List<CalendarSyncPageDto> _pages;
   final List<_SyncCall> syncCalls = [];
   Completer<void>? secondPageStarted;
@@ -1324,7 +1544,7 @@ class _FakeCalendarClient implements CloudCalendarClient {
     required DateTime rangeStart,
     required DateTime rangeEnd,
   }) {
-    throw UnimplementedError();
+    return Future.value(const []);
   }
 
   @override
@@ -1334,7 +1554,9 @@ class _FakeCalendarClient implements CloudCalendarClient {
     required DateTime rangeEnd,
     String? pageTokenOrUrl,
   }) {
-    throw UnimplementedError();
+    listCalls.add(rangeStart);
+    return onListEvents?.call(calendarId, rangeStart, rangeEnd) ??
+        Future.value(const []);
   }
 
   @override

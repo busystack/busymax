@@ -11,6 +11,7 @@ import 'package:busymax/src/features/schedule/presentation/schedule_workspace.da
 import 'package:busymax/src/features/task_lists/data/task_lists_repository.dart';
 import 'package:busymax/src/features/tasks/data/tasks_repository.dart';
 import 'package:busymax/src/providers/busy_provider.dart';
+import 'package:busymax/src/schedule/schedule_repository.dart';
 import 'package:busymax/src/schedule/schedule_scope.dart';
 import 'package:drift/drift.dart';
 import 'package:flutter/material.dart';
@@ -300,6 +301,14 @@ Future<AppDatabase> _pumpWorkspace(
     ProviderScope(
       overrides: [
         databaseProvider.overrideWithValue(database),
+        // Navigation rendering uses the real cached projection; cloud range
+        // retrieval is exercised separately by the sync-engine tests.
+        scheduleRepositoryProvider.overrideWith(
+          (ref) => ScheduleRepository(
+            database,
+            ensureCloudCoverage: (_) async => true,
+          ),
+        ),
         accountsStreamProvider.overrideWith((ref) => Stream.value([account])),
         activeAccountProvider.overrideWithValue('account'),
         localTimeZoneProvider.overrideWithValue('America/Vancouver'),

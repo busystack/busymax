@@ -462,8 +462,13 @@ void main() {
       addTearDown(db.close);
       await _seedSearchDatabase(db);
       var calls = 0;
+      var cloudCalls = 0;
       final repo = ScheduleRepository(
         db,
+        ensureCloudCoverage: (_) async {
+          cloudCalls++;
+          return false;
+        },
         ensureProjectionCoverage: (_) async {
           calls++;
         },
@@ -477,6 +482,8 @@ void main() {
         isEmpty,
       );
       expect(calls, 1);
+      expect(cloudCalls, 1);
+      expect(repo.cloudCoverageCompleteFor(range), isFalse);
       expect(
         await repo.listItems(
           range: range,
@@ -488,6 +495,7 @@ void main() {
         hasLength(1),
       );
       expect(calls, 1);
+      expect(cloudCalls, 1);
       expect(
         await repo.listItems(
           range: ScheduleRange.day(DateTime(2026, 2, 15)),
@@ -1272,6 +1280,52 @@ void main() {
     expect(task.allDay, isFalse);
     expect(dueDayItems, isEmpty);
   });
+
+  test(
+    'Google task projection retains supplied source and task-page links',
+    () async {
+      final database = AppDatabase(NativeDatabase.memory());
+      addTearDown(database.close);
+      await _insertScheduleAccount(database, provider: BusyProvider.google);
+      await _insertTaskList(database);
+      await database
+          .into(database.tasks)
+          .insert(
+            TasksCompanion.insert(
+              accountId: 'account',
+              taskListId: 'inbox',
+              id: 'assigned-task',
+              title: 'Review document',
+              status: const Value('needsAction'),
+              dueUtc: const Value('2026-06-12T00:00:00Z'),
+              assignmentInfoJson: const Value(
+                '{"surfaceType":"DOCUMENT","linkToTask":"https://docs.google.com/document/d/example"}',
+              ),
+              linksJson: const Value(
+                '[{"description":"Related brief","link":"https://example.test/brief"}]',
+              ),
+              webViewLink: const Value('https://tasks.google.com/task/example'),
+              rawJson: '{}',
+              createdLocalAtUtc: _now,
+              updatedLocalAtUtc: _now,
+            ),
+          );
+      final items = await ScheduleRepository(database).listItems(
+        range: ScheduleRange.day(DateTime(2026, 6, 12)),
+        filters: const ScheduleFilters(
+          accountIds: {'account'},
+          includeCalendarEvents: false,
+        ),
+      );
+      final task = items.single as TaskScheduleItem;
+      expect(task.isAssigned, isTrue);
+      expect(task.availableSourceLinks.map((link) => link.url), [
+        'https://docs.google.com/document/d/example',
+        'https://example.test/brief',
+        'https://tasks.google.com/task/example',
+      ]);
+    },
+  );
 
   test('Microsoft task with midnight due appears as timed slot', () async {
     final database = AppDatabase(NativeDatabase.memory());
