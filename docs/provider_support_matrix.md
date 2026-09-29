@@ -29,18 +29,48 @@ fixtures documented for live tests are test-only.
 | All-day and timed events | Yes | Yes | Yes | Yes | Preserved for display |
 | Recurrence and reminders | Yes | Yes | Preserved and editable subset | Preserved and editable subset | Read-only |
 | Attendee editing | Yes | Yes | No | Permission- and scheduling-dependent | No |
-| Free/busy workflow | Yes | No | No | Permission- and scheduling-dependent | No |
-| Attachments | Supported subset | No | Preserved when present | Preserved when present | Read-only |
+| Free/busy workflow | Yes | Work/school accounts only | No | Permission- and scheduling-dependent | No |
+| Attachments | Supplied links can be opened; reference editing is not yet exposed | Event/task lists and explicit file downloads; addition/removal not yet exposed | Preserved when present | Supplied URI references can be opened; reference editing is not yet exposed | Read-only |
 
 DAV-backed events preserve data BusyMax does not edit, including recurrence
 exceptions, alarms, timezones, parameters, and provider extensions. See the
 [iCalendar and DAV data model](icalendar_data_model.md).
 
+Google and Microsoft start with a bounded synchronization window. Navigating
+to another month or using a date-bounded search retrieves that period on
+demand when online; a failed or offline retrieval retains cached events and
+marks the range incomplete. Unrestricted **Any date** search searches only
+downloaded data. The additional range snapshots do not replace the baseline
+incremental-sync cursor.
+
+Native event details show the full interval, available description and guest
+information, and provider-supplied meeting links even on read-only calendars.
+Nextcloud's ordinary event URL is shown as an event link; only a preserved
+conference property is presented as a meeting link. Link opening still depends
+on the system browser and on the provider returning a valid URL.
+
+Attachment references in Google and Nextcloud event details open without
+passing provider credentials to those URLs. Microsoft event and task attachment
+metadata is fetched only when requested; a `hasAttachments` flag does not mean
+an empty list. Microsoft file downloads require an explicit native save action.
+This is read/access support, not yet an attachment add/remove workflow.
+
+Android's event editor retains untouched recurrence and reminder data. Its
+native recurrence dialog edits the shared supported interval, weekday, and
+ending subset, while unsupported rules remain unchanged until explicitly
+replaced. The reminder control distinguishes provider default, no reminder,
+and a zero-minute reminder; multiple existing reminders remain visible and
+unchanged until replaced. Guest rows allow required/optional roles, and Meet
+or Teams creation is offered only when the selected calendar advertises that
+conference solution.
+
 On Android, supported invitation responses are visible from an invitation's
-Schedule detail sheet. Google and capability-enabled Nextcloud guest
-availability is visible in the event editor after at least one guest and a
-valid interval are present. Microsoft availability is intentionally absent
-because it is not part of the provider contract. A capability-enabled
+Schedule detail sheet. Google and eligible Microsoft guest availability is
+available in the event editor on all three native platforms after at least one
+guest and a valid interval are present. Microsoft uses Graph `getSchedule`;
+personal Microsoft accounts are unsupported, and recipient-specific failures
+remain unknown rather than appearing free. Capability-enabled Nextcloud guest
+availability retains its effective `canQueryFreeBusy` gate. A capability-enabled
 Nextcloud calendar exposes its scheduling inbox from **Settings > calendar >
 Scheduling inbox**.
 
@@ -59,10 +89,17 @@ Scheduling inbox**.
 | Status/progress/completed time | Completion only | Provider completion state | iCalendar status, percentage, and completion time |
 | Location, URL, classification | No | No | Yes |
 | Advanced iCalendar fields | No | No | Priority, alarms, recurrence, pinning, and subtask visibility |
+| Task source links | Supplied assignment/related/task-page URLs | Task-scoped linked resources fetched on request | Preserved task URL where present |
 
-Google exposes assigned and hidden tasks from its API, but provider rules can
-limit which of those tasks BusyMax may change. Nextcloud recurrence rules or
-alarm forms outside BusyMax's editable subset remain preserved and read-only;
+Google exposes assigned and hidden tasks from its API. Docs-assigned tasks
+cannot receive notes, and assigned tasks cannot become subtasks or parents;
+other permitted edits and top-level ordering remain available. Deletion of an
+assigned task requires a warning because it also deletes the original in Docs
+or Chat Spaces. Google source links remain available from cached task metadata
+offline. Microsoft linked resources require an online Graph detail request and
+may be unavailable without affecting task edits or completion. Nextcloud
+recurrence rules or alarm forms outside BusyMax's editable subset remain
+preserved and read-only;
 detached task occurrences are not edited directly.
 
 ## Collection administration

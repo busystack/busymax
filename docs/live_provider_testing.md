@@ -134,6 +134,61 @@ iCloud.com.
 
 ## Coverage that still needs real systems
 
+For the bounded cloud-range and native-detail changes, use disposable Google
+and Microsoft calendars and record the provider application, BusyMax build,
+OS, and test date. Create one event before and one after the initial sync
+horizon, navigate/search those months, change and delete events in the
+provider, then reopen offline and after reconnect. Check that cached results
+are marked incomplete offline and that baseline incremental synchronization
+continues after the range reads. Use a read-only invitation with a real
+provider-supplied meeting URL to check details and browser launch on each
+native platform; separately check an invalid URL and a general Nextcloud event
+URL. For Microsoft, edit an HTML event that contains a Teams meeting, verify
+the changed body and meeting in Outlook after replay, then restart and check
+notification reconciliation. For a Google Docs/Chat-assigned task, cancel the
+deletion warning and verify both the original and queue remain unchanged;
+then explicitly confirm on a separate disposable task and verify deletion in
+the assignment surface. These are manual acceptance cases until run and
+recorded against the actual accounts; a passing widget test is not a live
+provider result.
+
+For guest availability, check Google and a Microsoft work/school account from
+Linux, Windows, and Android with one free recipient, one busy recipient, one
+denied recipient, and one nonexistent recipient. Confirm the denied/missing
+rows remain unknown, including after refresh, account changes, and a
+daylight-saving boundary. A personal Microsoft account must not be reported as
+free or be sent to Graph `getSchedule`. Verify opening availability neither
+saves the draft nor sends invitations. Retest a Nextcloud collection whose
+effective `canQueryFreeBusy` permission is denied.
+
+For Android event authoring, open a recurring event with an every-two-weeks
+weekday rule and multiple existing reminders. Save an unrelated title edit and
+verify the original recurrence/reminders in the provider application. Then
+edit interval, weekdays, and termination; separately test provider default,
+no reminder, and a reminder at start. Change one guest between required and
+optional without changing existing responses. Create a Meet/Teams conference
+only on a calendar that advertises its solution, and confirm that the provider
+created the meeting rather than BusyMax merely showing a local switch.
+
+For task-source navigation, open a Docs- or Chat-assigned Google task and a
+Google task with related links and `webViewLink`, including after offline
+reopening. For Microsoft To Do, open a task with multiple linked resources,
+explicitly request them in each native task detail, and verify the supplied
+application/display names and destination URLs. Repeat with a missing URL, a
+denied resource request, and an account switch; editing and completion must
+remain usable throughout. Do not treat browser launch or resource access as
+successful merely because a URL is displayed.
+
+For attachment read/access, check a Google event with multiple supplied links,
+a Nextcloud event with URI `ATTACH`, and Microsoft events and To Do tasks with
+and without attachments. Verify that the Microsoft list is requested only on
+explicit opening, that a successful empty list differs from a denied request,
+and that downloaded file bytes match the provider copy. Test a reference
+attachment separately from a file attachment, an unsafe URL, a malformed
+filename, pagination failure, read-only event, and offline cached metadata.
+Attachment addition/removal is not implemented yet and must remain recorded as
+not run rather than being inferred from these read/access checks.
+
 Deterministic suites under `test/dav/` cover parsing and preservation,
 discovery, exact ETags, mutation queues, conflicts, delegated discovery
 failures, scheduling intent, import/export, and trash/sharing safety with fake
