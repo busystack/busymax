@@ -15,6 +15,30 @@ DateTime? calendarEventEndAsLocal(CalendarEvent event) => event.allDay
     : projectedUtc(event.rawJson, 'endUtc')?.toLocal() ??
           providerDateTimeAsLocal(event.endDateTime, event.endTimeZone);
 
+/// Uses the same resolved instants as Schedule projection when deciding which
+/// cached events an authoritative UTC provider window may reconcile. All-day
+/// values are dates with an exclusive end, not device-local midnight instants.
+bool storedCalendarEventOverlapsUtcRange(
+  CalendarEvent event,
+  DateTime rangeStart,
+  DateTime rangeEnd,
+) {
+  final start = event.allDay
+      ? _dateUtc(event.startDate ?? event.startDateTime)
+      : calendarEventStartAsLocal(event)?.toUtc();
+  final end = event.allDay
+      ? _dateUtc(event.endDate ?? event.endDateTime)
+      : calendarEventEndAsLocal(event)?.toUtc();
+  if (start == null) return false;
+  final effectiveEnd =
+      end ??
+      start.add(
+        event.allDay ? const Duration(days: 1) : const Duration(minutes: 1),
+      );
+  return effectiveEnd.isAfter(rangeStart.toUtc()) &&
+      start.isBefore(rangeEnd.toUtc());
+}
+
 DateTime? projectedUtc(String? json, String key) {
   final value = _metadata(json)?[key];
   return value is String ? DateTime.tryParse(value)?.toUtc() : null;
@@ -68,3 +92,8 @@ Map<Object?, Object?>? _metadata(String? json) {
 DateTime? _date(String? value) => value == null || value.length < 10
     ? null
     : DateTime.tryParse(value.substring(0, 10));
+
+DateTime? _dateUtc(String? value) {
+  final date = _date(value);
+  return date == null ? null : DateTime.utc(date.year, date.month, date.day);
+}

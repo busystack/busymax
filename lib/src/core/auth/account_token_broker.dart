@@ -6,6 +6,8 @@ import '../../providers/busy_provider.dart';
 abstract interface class AccountTokenBroker {
   Future<String> authorizationHeader(BusyProvider provider, String accountId);
 
+  Future<String> microsoftSharedCalendarAuthorizationHeader(String accountId);
+
   Future<void> recoverUnauthorized(BusyProvider provider, String accountId);
 }
 
@@ -17,6 +19,10 @@ final class DesktopAccountTokenBroker implements AccountTokenBroker {
 
   final OAuthService google;
   final MicrosoftOAuthService microsoft;
+
+  @override
+  Future<String> microsoftSharedCalendarAuthorizationHeader(String accountId) =>
+      microsoft.sharedCalendarAuthorizationHeaderForAccount(accountId);
 
   @override
   Future<String> authorizationHeader(BusyProvider provider, String accountId) =>
