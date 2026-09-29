@@ -77,7 +77,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(requests, 1);
     expect(find.text('Launch plan · Planner'), findsOneWidget);
-    final attachments = find.text('Attachments');
+    final attachments = find.byKey(const Key('task-attachments-load'));
     await tester.ensureVisible(attachments);
     await tester.tap(attachments);
     await tester.pumpAndSettle();

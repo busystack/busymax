@@ -153,6 +153,9 @@ void main() {
             findsOneWidget,
           );
           expect(find.text('Join meeting'), findsOneWidget);
+          expect(find.textContaining('UTC'), findsWidgets);
+          expect(find.textContaining('Asia/Tokyo'), findsNothing);
+          expect(find.textContaining('Custom/Embedded'), findsNothing);
           expect(find.text('Event link'), findsOneWidget);
           expect(find.text('Agenda attachment'), findsOneWidget);
           if (!linux) {

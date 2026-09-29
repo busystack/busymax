@@ -37,6 +37,7 @@ void main() {
               authority: 'https://login.microsoftonline.com/common',
               providerAccountId: 'me@example.test',
               email: const Value('me@example.test'),
+              tenantId: const Value('11111111-2222-4333-8444-555555555555'),
               credentialKind: 'oauth',
               authState: const Value('signed_in'),
               createdAtUtc: _now,
@@ -85,6 +86,7 @@ void main() {
         }),
         baseUri: Uri.parse('https://graph.microsoft.com/v1.0'),
         responseTimeZone: 'UTC',
+        accountTenantId: '11111111-2222-4333-8444-555555555555',
         authorizationHeaderProvider: () async => 'Bearer test-token',
       );
       await tester.pumpWidget(
