@@ -95,5 +95,94 @@ void main() {
       expect(find.text('Agenda.pdf'), findsOneWidget);
       expect(find.text('4 B'), findsOneWidget);
     });
+
+    testWidgets('$platform removes a Microsoft attachment only after confirmation', (
+      tester,
+    ) async {
+      var deletes = 0;
+      final client = MicrosoftCalendarApiClient(
+        httpClient: MockClient((request) async {
+          if (request.method == 'DELETE') {
+            deletes++;
+            expect(
+              request.url.path,
+              '/v1.0/me/calendars/remote-calendar/events/remote-event/attachments/file',
+            );
+            return http.Response('', 204);
+          }
+          return http.Response(
+            jsonEncode({
+              'value': deletes == 0
+                  ? [
+                      {
+                        'id': 'file',
+                        'name': 'Agenda.pdf',
+                        'size': 4,
+                        '@odata.type': '#microsoft.graph.fileAttachment',
+                      },
+                    ]
+                  : <Object>[],
+            }),
+            200,
+          );
+        }),
+        baseUri: Uri.parse('https://graph.microsoft.com/v1.0'),
+        responseTimeZone: 'UTC',
+      );
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            microsoftCalendarApiClientForAccountProvider(
+              'microsoft:a',
+            ).overrideWithValue(client),
+          ],
+          child: platform == 'Windows'
+              ? fluent.FluentApp(
+                  localizationsDelegates: const [AppLocalizations.delegate],
+                  supportedLocales: AppLocalizations.supportedLocales,
+                  home: fluent.Button(
+                    onPressed: () => showWindowsEventAttachmentsDialog(
+                      tester.element(find.byType(fluent.Button).first),
+                      _event,
+                    ),
+                    child: const fluent.Text('Open attachments'),
+                  ),
+                )
+              : localizedTestApp(
+                  child: Scaffold(
+                    body: Builder(
+                      builder: (context) => TextButton(
+                        onPressed: () => platform == 'Android'
+                            ? showAndroidEventAttachmentsDialog(context, _event)
+                            : showLinuxEventAttachmentsDialog(context, _event),
+                        child: const Text('Open attachments'),
+                      ),
+                    ),
+                  ),
+                ),
+        ),
+      );
+      await tester.tap(find.text('Open attachments'));
+      await tester.pumpAndSettle();
+      if (platform == 'Android') {
+        await tester.tap(find.byTooltip('Delete').last);
+      } else {
+        await tester.tap(find.text('Delete').last);
+      }
+      await tester.pumpAndSettle();
+      expect(deletes, 0);
+      await tester.tap(find.text('Cancel'));
+      await tester.pumpAndSettle();
+      expect(deletes, 0);
+      if (platform == 'Android') {
+        await tester.tap(find.byTooltip('Delete').last);
+      } else {
+        await tester.tap(find.text('Delete').last);
+      }
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Delete').last);
+      await tester.pumpAndSettle();
+      expect(deletes, 1);
+    });
   }
 }

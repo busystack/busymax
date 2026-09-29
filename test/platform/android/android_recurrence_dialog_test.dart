@@ -67,4 +67,76 @@ void main() {
       isTrue,
     );
   });
+
+  testWidgets('invalid interval and count cannot silently save stale rules', (
+    tester,
+  ) async {
+    final base = DateTime(2026, 6, 8, 9);
+    RecurrenceRule? result;
+    await tester.pumpWidget(
+      MaterialApp(
+        localizationsDelegates: const [
+          AppLocalizations.delegate,
+          GlobalMaterialLocalizations.delegate,
+          GlobalWidgetsLocalizations.delegate,
+          GlobalCupertinoLocalizations.delegate,
+        ],
+        supportedLocales: const [Locale('en')],
+        home: Builder(
+          builder: (context) => Scaffold(
+            body: TextButton(
+              onPressed: () async => result = await showAndroidRecurrenceDialog(
+                context,
+                initial: androidRuleForFrequency(
+                  RecurrenceFrequency.weekly,
+                  base,
+                ),
+                baseDate: base,
+                allDay: false,
+                timeZone: 'UTC',
+                limits: EventRecurrenceCodec.limitsFor(BusyProvider.google),
+                providerLabel: 'Google',
+              ),
+              child: const Text('Edit recurrence'),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.tap(find.text('Edit recurrence'));
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.byKey(
+        const ValueKey(
+          'android-recurrence-interval-RecurrenceFrequency.weekly',
+        ),
+      ),
+      'oops',
+    );
+    await tester.pump();
+    expect(
+      tester
+          .widget<FilledButton>(find.widgetWithText(FilledButton, 'Save'))
+          .onPressed,
+      isNull,
+    );
+    await tester.enterText(
+      find.byKey(
+        const ValueKey(
+          'android-recurrence-interval-RecurrenceFrequency.weekly',
+        ),
+      ),
+      '2',
+    );
+    await tester.pump();
+    expect(
+      tester
+          .widget<FilledButton>(find.widgetWithText(FilledButton, 'Save'))
+          .onPressed,
+      isNotNull,
+    );
+    await tester.tap(find.text('Save'));
+    await tester.pumpAndSettle();
+    expect(result?.interval, 2);
+  });
 }

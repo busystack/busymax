@@ -573,6 +573,8 @@ void main() {
     )..where((row) => row.id.equals('invitation'))).write(
       const CalendarEventsCompanion(
         description: Value('Agenda and notes'),
+        startTimeZone: Value('Pacific/Honolulu'),
+        endTimeZone: Value('Asia/Tokyo'),
         rawJson: Value('{"hangoutLink":"https://meet.google.com/room"}'),
         webLink: Value('https://calendar.google.com/event'),
         attachmentsJson: Value(
@@ -589,6 +591,8 @@ void main() {
     expect(find.text('Agenda and notes'), findsOneWidget);
     expect(find.text('Organizer: organizer@example.com'), findsOneWidget);
     expect(find.text('Join meeting'), findsOneWidget);
+    expect(find.textContaining('Pacific/Honolulu'), findsNothing);
+    expect(find.textContaining('Asia/Tokyo'), findsNothing);
     expect(find.text('Event link'), findsOneWidget);
     expect(find.text('Agenda attachment'), findsOneWidget);
     expect(find.text('Edit Event'), findsNothing);
@@ -600,6 +604,43 @@ void main() {
     await tester.tap(find.text('Join meeting'));
     await tester.pumpAndSettle();
     expect(find.text('Could not open the meeting link.'), findsOneWidget);
+  });
+
+  testWidgets('Android timed detail labels projected local time correctly', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(412, 915);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final harness = await _pumpApp(
+      tester,
+      AppSettings.defaults().copyWith(
+        androidScheduleViewMode: ScheduleViewMode.day,
+      ),
+      populated: true,
+    );
+    addTearDown(harness.dispose);
+    final stored = await (harness.database.select(harness.database.calendarEvents)
+          ..where((row) => row.id.equals('overnight')))
+        .getSingle();
+    await (harness.database.update(harness.database.calendarEvents)
+          ..where((row) => row.id.equals('overnight')))
+        .write(CalendarEventsCompanion(
+          startDateTime: Value(DateTime.parse(stored.startDateTime!).toUtc().toIso8601String()),
+          endDateTime: Value(DateTime.parse(stored.endDateTime!).toUtc().toIso8601String()),
+          startTimeZone: const Value('Pacific/Honolulu'),
+          endTimeZone: const Value('Asia/Tokyo'),
+        ));
+    await tester.pumpAndSettle();
+    final eventLabel = find.textContaining('Overnight event').first;
+    await tester.ensureVisible(eventLabel);
+    await tester.pumpAndSettle();
+    await tester.tap(eventLabel);
+    await tester.pumpAndSettle();
+    expect(find.textContaining('UTC'), findsWidgets);
+    expect(find.textContaining('Pacific/Honolulu'), findsNothing);
+    expect(find.textContaining('Asia/Tokyo'), findsNothing);
   });
 
   testWidgets('notification event with no writable source opens read-only', (
@@ -809,6 +850,7 @@ void main() {
       ),
       baseUri: Uri.parse('https://graph.microsoft.com/v1.0'),
       responseTimeZone: 'UTC',
+      accountTenantId: '11111111-2222-4333-8444-555555555555',
       authorizationHeaderProvider: () async => 'Bearer test-token',
     );
     final harness = await _pumpApp(
@@ -817,6 +859,20 @@ void main() {
       calendarClient: client,
     );
     addTearDown(harness.dispose);
+    await harness.database.into(harness.database.accounts).insert(
+      AccountsCompanion.insert(
+        id: 'microsoft:editable',
+        provider: 'microsoft',
+        authority: 'https://login.microsoftonline.com/common',
+        providerAccountId: 'editable',
+        credentialKind: 'oauth',
+        authState: const Value('signed_in'),
+        tenantId: const Value('11111111-2222-4333-8444-555555555555'),
+        createdAtUtc: '2026-09-14T00:00:00.000Z',
+        updatedAtUtc: '2026-09-14T00:00:00.000Z',
+      ),
+    );
+    await tester.pumpAndSettle();
     final now = DateTime.now();
     const source = CalendarSourceEntity(
       id: 'calendar',
@@ -1139,7 +1195,7 @@ void main() {
       expect(requests, 1);
       expect(find.text('Launch plan · Planner'), findsOneWidget);
       expect(find.text('Message · Outlook'), findsNothing);
-      await tester.tap(find.text('Attachments'));
+      await tester.tap(find.byKey(const Key('task-attachments-load')));
       await tester.pumpAndSettle();
       expect(requests, 2);
       expect(find.text('Notes.txt'), findsOneWidget);

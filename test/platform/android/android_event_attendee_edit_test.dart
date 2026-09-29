@@ -129,4 +129,34 @@ void main() {
       [0, 10],
     );
   });
+
+  test('Google popup edits preserve other and unsupported reminders', () {
+    const original = {
+      'useDefault': false,
+      'overrides': [
+        {'method': 'popup', 'minutes': 0, 'providerTag': 'retain'},
+        {'method': 'email', 'minutes': 30},
+        {'method': 'popup', 'minutes': 60},
+      ],
+    };
+    final changed =
+        androidEditGooglePopupReminder(original, overrideIndex: 2, minutes: 10)
+            as Map;
+    expect(changed['overrides'], [
+      {'method': 'popup', 'minutes': 0, 'providerTag': 'retain'},
+      {'method': 'email', 'minutes': 30},
+      {'method': 'popup', 'minutes': 10},
+    ]);
+    final removed =
+        androidRemoveGooglePopupReminder(changed, overrideIndex: 0) as Map;
+    expect(removed['overrides'], [
+      {'method': 'email', 'minutes': 30},
+      {'method': 'popup', 'minutes': 10},
+    ]);
+    final added =
+        androidEditGooglePopupReminder(removed, overrideIndex: null, minutes: 5)
+            as Map;
+    expect((added['overrides'] as List).length, 3);
+    expect((added['overrides'] as List)[0], {'method': 'email', 'minutes': 30});
+  });
 }
