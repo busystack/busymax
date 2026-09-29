@@ -4,11 +4,213 @@ import 'package:busymax/src/calendar_providers/calendar_mutation.dart';
 import 'package:busymax/src/calendar_providers/calendar_sync_dto.dart';
 import 'package:busymax/src/microsoft_calendar/microsoft_calendar_api_client.dart';
 import 'package:busymax/src/microsoft_calendar/microsoft_event_attachment.dart';
+import 'package:busymax/src/microsoft_calendar/microsoft_shared_calendar_address.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 
 void main() {
+  test(
+    'series exception snapshot retains moved and cancelled identities',
+    () async {
+      final client = MicrosoftCalendarApiClient(
+        httpClient: MockClient((request) async {
+          expect(request.url.path, '/v1.0/me/calendars/cal/events/master');
+          expect(
+            request.url.queryParameters[r'$expand'],
+            'exceptionOccurrences',
+          );
+          return _json({
+            'id': 'master',
+            'exceptionOccurrences': [
+              {
+                ..._eventJson(id: 'moved', subject: 'Moved'),
+                'originalStart': '2026-08-31T16:00:00Z',
+                'seriesMasterId': 'master',
+              },
+            ],
+            'cancelledOccurrences': ['occurrence-2'],
+          });
+        }),
+        baseUri: Uri.parse('https://graph.microsoft.com/v1.0'),
+        responseTimeZone: 'UTC',
+      );
+      final snapshot = await client.getSeriesExceptionSnapshot(
+        calendarId: 'cal',
+        recurringEventId: 'master',
+      );
+      expect(
+        snapshot.exceptions.single.providerOriginalStartKey,
+        '2026-08-31T16:00:00Z',
+      );
+      expect(snapshot.cancelledIds, {'occurrence-2'});
+    },
+  );
+  test(
+    'delegated primary routes retain owner mailbox and use shared consent',
+    () async {
+      final requests = <http.Request>[];
+      final client = MicrosoftCalendarApiClient(
+        httpClient: MockClient((request) async {
+          requests.add(request);
+          final path = request.url.path;
+          if (path.endsWith('/calendar')) {
+            return _json({
+              'id': 'owner-calendar-id',
+              'name': 'Owner',
+              'canEdit': true,
+              'isDefaultCalendar': true,
+            });
+          }
+          if (path.endsWith('/attachments')) {
+            return _json({'value': <Object>[]});
+          }
+          if (path.endsWith('/calendarView') || path.endsWith('/instances')) {
+            return _json({
+              'value': [_eventJson(id: 'owner-event', subject: 'Shared')],
+            });
+          }
+          return _json(_eventJson(id: 'owner-event', subject: 'Shared'));
+        }),
+        baseUri: Uri.parse('https://graph.microsoft.com/v1.0'),
+        responseTimeZone: 'UTC',
+        authorizationHeaderProvider: () async => 'Bearer ordinary',
+        sharedCalendarAuthorizationHeaderProvider: () async => 'Bearer shared',
+      );
+      final source = await client.getSharedPrimaryCalendar('owner@example.com');
+      final key = source.providerCalendarId;
+      expect(source.primaryCalendar, isFalse);
+      expect(source.readOnly, isFalse);
+      expect(
+        MicrosoftSharedPrimaryCalendarAddress.parse(key)?.graphCalendarId,
+        'owner-calendar-id',
+      );
+      final start = DateTime.utc(2026, 6, 1);
+      final end = DateTime.utc(2026, 7, 1);
+      await client.listEvents(
+        calendarId: key,
+        rangeStart: start,
+        rangeEnd: end,
+      );
+      await client.getEvent(calendarId: key, eventId: 'owner-event');
+      await client.updateEvent(
+        calendarId: key,
+        eventId: 'owner-event',
+        mutation: const CalendarEventMutation(title: 'Updated'),
+      );
+      await client.listEventInstances(
+        calendarId: key,
+        recurringEventId: 'master',
+        rangeStart: start,
+        rangeEnd: end,
+      );
+      await client.listEventAttachments(
+        calendarId: key,
+        eventId: 'owner-event',
+      );
+      expect(requests, hasLength(6));
+      for (final request in requests) {
+        expect(
+          request.url.path,
+          startsWith('/v1.0/users/owner%40example.com/'),
+        );
+        expect(request.headers['authorization'], 'Bearer shared');
+      }
+      expect(
+        requests[1].url.path,
+        contains('/calendars/owner-calendar-id/calendarView'),
+      );
+      expect(requests[4].url.path, contains('/events/master/instances'));
+    },
+  );
+
+  test('malformed event attachment collection does not become empty', () async {
+    final client = _client((_) => _json({'error': 'missing collection'}));
+    await expectLater(
+      client.listEventAttachments(calendarId: 'cal', eventId: 'event'),
+      throwsFormatException,
+    );
+  });
+
+  test(
+    'small event attachment add and removal use event-scoped routes',
+    () async {
+      final requests = <http.Request>[];
+      final client = _client((request) {
+        requests.add(request);
+        return request.method == 'DELETE'
+            ? http.Response('', 204)
+            : _json({
+                'id': 'attachment-1',
+                'name': 'Plan.txt',
+                '@odata.type': '#microsoft.graph.fileAttachment',
+              });
+      });
+      final created = await client.createSmallEventAttachment(
+        calendarId: 'cal',
+        eventId: 'event',
+        name: 'Plan.txt',
+        contentType: 'text/plain',
+        bytes: [65],
+      );
+      await client.deleteEventAttachment(
+        calendarId: 'cal',
+        eventId: 'event',
+        attachmentId: created.id,
+      );
+      expect(requests.map((request) => request.method), ['POST', 'DELETE']);
+      expect(
+        requests.first.url.path,
+        '/v1.0/me/calendars/cal/events/event/attachments',
+      );
+      expect((jsonDecode(requests.first.body) as Map)['contentBytes'], 'QQ==');
+      expect(
+        requests.last.url.path,
+        '/v1.0/me/calendars/cal/events/event/attachments/attachment-1',
+      );
+    },
+  );
+
+  test(
+    'large event attachment upload never sends Graph bearer to upload URL',
+    () async {
+      final requests = <http.Request>[];
+      final client = _client((request) {
+        requests.add(request);
+        if (request.method == 'POST') {
+          return _json({
+            'uploadUrl': 'https://outlook.office.com/upload/session',
+          });
+        }
+        return http.Response(
+          '',
+          request.headers['Content-Range']!.startsWith('bytes 2097152-')
+              ? 201
+              : 200,
+        );
+      });
+      await client.uploadEventFileAttachment(
+        calendarId: 'cal',
+        eventId: 'event',
+        name: 'large.bin',
+        contentType: 'application/octet-stream',
+        bytes: List<int>.filled(3 * 1024 * 1024, 65),
+      );
+      expect(
+        requests.first.url.path,
+        '/v1.0/me/events/event/attachments/createUploadSession',
+      );
+      expect(requests.first.headers['authorization'], 'Bearer token');
+      expect(requests.skip(1).map((request) => request.method), ['PUT', 'PUT']);
+      expect(
+        requests
+            .skip(1)
+            .every((request) => !request.headers.containsKey('authorization')),
+        isTrue,
+      );
+    },
+  );
+
   test(
     'event attachment metadata paginates without treating flags as files',
     () async {
@@ -181,21 +383,14 @@ void main() {
   test(
     'personal Microsoft token never calls unsupported getSchedule',
     () async {
-      final claims = base64Url
-          .encode(
-            utf8.encode(
-              jsonEncode({'tid': '9188040d-6c67-4c5b-b112-36a304b66dad'}),
-            ),
-          )
-          .replaceAll('=', '');
       final client = MicrosoftCalendarApiClient(
         httpClient: MockClient(
           (_) async => throw StateError('No request expected'),
         ),
         baseUri: Uri.parse('https://graph.microsoft.com/v1.0'),
         responseTimeZone: 'UTC',
-        authorizationHeaderProvider: () async =>
-            'Bearer header.$claims.signature',
+        authorizationHeaderProvider: () async => 'Bearer opaque',
+        accountTenantId: '9188040d-6c67-4c5b-b112-36a304b66dad',
       );
       final results = await client.freeBusyDetails(
         calendarIds: const ['guest@example.test'],
@@ -204,6 +399,27 @@ void main() {
       );
       expect(results.single.status, FreeBusyEvaluationStatus.failed);
       expect(results.single.errors.single, contains('personal'));
+    },
+  );
+
+  test(
+    'unknown account metadata is not assumed to support getSchedule',
+    () async {
+      final client = MicrosoftCalendarApiClient(
+        httpClient: MockClient(
+          (_) async => throw StateError('No request expected'),
+        ),
+        baseUri: Uri.parse('https://graph.microsoft.com/v1.0'),
+        responseTimeZone: 'UTC',
+        authorizationHeaderProvider: () async => 'Bearer opaque',
+      );
+      final results = await client.freeBusyDetails(
+        calendarIds: const ['guest@example.test'],
+        rangeStart: DateTime.utc(2026, 1, 1),
+        rangeEnd: DateTime.utc(2026, 1, 2),
+      );
+      expect(results.single.status, FreeBusyEvaluationStatus.failed);
+      expect(results.single.errors.single, contains('type is unknown'));
     },
   );
 
@@ -528,6 +744,7 @@ MicrosoftCalendarApiClient _client(
     baseUri: Uri.parse('https://graph.microsoft.com/v1.0'),
     responseTimeZone: 'UTC',
     authorizationHeaderProvider: () async => 'Bearer token',
+    accountTenantId: '11111111-1111-1111-1111-111111111111',
   );
 }
 

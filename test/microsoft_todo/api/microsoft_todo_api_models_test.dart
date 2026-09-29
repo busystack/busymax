@@ -39,6 +39,35 @@ void main() {
     expect(page.nextLink, isNotNull);
   });
 
+  test('malformed detail collections are not successful empty pages', () {
+    expect(
+      () => MicrosoftTodoLinkedResourcesPageDto.fromJson(const {}),
+      throwsFormatException,
+    );
+    expect(
+      () => MicrosoftTodoLinkedResourcesPageDto.fromJson(const {'value': {}}),
+      throwsFormatException,
+    );
+    expect(
+      MicrosoftTodoLinkedResourcesPageDto.fromJson(const {
+        'value': [],
+      }).resources,
+      isEmpty,
+    );
+    expect(
+      () => MicrosoftTodoAttachmentsPageDto.fromJson(const {}),
+      throwsFormatException,
+    );
+    expect(
+      () => MicrosoftTodoAttachmentsPageDto.fromJson(const {'value': null}),
+      throwsFormatException,
+    );
+    expect(
+      MicrosoftTodoAttachmentsPageDto.fromJson(const {'value': []}).attachments,
+      isEmpty,
+    );
+  });
+
   test('parses todoTask with Microsoft-specific fields and removed marker', () {
     final task = MicrosoftTodoTaskDto.fromJson({
       '@odata.etag': 'etag-1',

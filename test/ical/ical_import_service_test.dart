@@ -3,10 +3,15 @@ import 'dart:convert';
 import 'package:busymax/src/calendar_providers/calendar_mutation.dart';
 import 'package:busymax/src/db/app_database.dart';
 import 'package:busymax/src/features/calendar/data/calendar_repository.dart';
+import 'package:busymax/src/features/sync/calendar_pending_ops_replayer.dart';
+import 'package:busymax/src/google_calendar/google_calendar_api_client.dart';
+import 'package:busymax/src/microsoft_calendar/microsoft_calendar_api_client.dart';
 import 'package:busymax/src/ical/ical_import_service.dart';
 import 'package:drift/drift.dart' show Value;
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:http/http.dart' as http;
+import 'package:http/testing.dart';
 
 void main() {
   late AppDatabase database;
@@ -124,6 +129,7 @@ END:VEVENT
       final operation = await database.select(database.pendingOps).getSingle();
       final request = jsonDecode(operation.requestJson) as Map<String, Object?>;
       expect(request[calendarEventGuestUpdatePolicyKey], 'doNotSend');
+      expect(request[calendarEventImportIcalUidKey], 'recurring-import');
       expect(request['attendeesJson'], isNull);
       expect(request, isNot(contains('organizer')));
       expect(request, isNot(contains('conferenceJson')));
@@ -155,7 +161,74 @@ END:VEVENT
   );
 
   test(
-    'skips a whole recurrence set rather than dropping an exception',
+    'Google import replays through private-copy endpoint with iCalUID',
+    () async {
+      final preview = importService.parsePreview(
+        utf8.encode(
+          _calendar('''
+BEGIN:VEVENT
+UID:private-copy@example.test
+DTSTART:20260830T160000Z
+DTEND:20260830T170000Z
+SUMMARY:Imported
+ATTENDEE:mailto:guest@example.test
+END:VEVENT
+'''),
+        ),
+      );
+      await importService.importPreview(
+        preview: preview,
+        destination: (await importService.writableDestinations()).single,
+      );
+      final requests = <http.Request>[];
+      final client = GoogleCalendarApiClient(
+        httpClient: MockClient((request) async {
+          requests.add(request);
+          if (request.method == 'GET') {
+            return http.Response(jsonEncode({'items': <Object>[]}), 200);
+          }
+          return http.Response(
+            jsonEncode({
+              'id': 'provider-event-id',
+              'iCalUID': 'private-copy@example.test',
+              'summary': 'Imported',
+              'start': {'dateTime': '2026-08-30T16:00:00Z'},
+              'end': {'dateTime': '2026-08-30T17:00:00Z'},
+            }),
+            200,
+          );
+        }),
+        baseUri: Uri.parse('https://www.googleapis.com'),
+      );
+      await CalendarPendingOpsReplayer(
+        database: database,
+        client: client,
+        accountId: 'google-account',
+        nowUtc: () => DateTime.utc(2026, 8, 29),
+      ).replayDueOps();
+      expect(requests.map((request) => request.method), ['GET', 'POST']);
+      expect(
+        requests.last.url.path,
+        '/calendar/v3/calendars/primary/events/import',
+      );
+      expect(requests.last.url.queryParameters, {
+        'supportsAttachments': 'true',
+      });
+      final body = jsonDecode(requests.last.body) as Map<String, Object?>;
+      expect(body['iCalUID'], 'private-copy@example.test');
+      expect(body, isNot(contains('id')));
+      expect(body, isNot(contains('attendees')));
+      expect(await database.select(database.pendingOps).get(), isEmpty);
+      expect(
+        (await database.select(database.calendarEvents).getSingle())
+            .providerEventId,
+        'provider-event-id',
+      );
+    },
+  );
+
+  test(
+    'replays a moved recurrence exception without sending invitations',
     () async {
       final preview = importService.parsePreview(
         utf8.encode(
@@ -183,17 +256,297 @@ END:VEVENT
         destination: (await importService.writableDestinations()).single,
       );
 
-      expect(report.queued, 0);
-      expect(report.unsupportedRecurrenceSets, hasLength(1));
-      expect(report.unsupportedRecurrenceSets.single.uid, 'with-exception');
-      expect(
-        report.unsupportedRecurrenceSets.single.reason,
-        contains('Detached'),
+      expect(report.queued, 1);
+      expect(report.unsupportedRecurrenceSets, isEmpty);
+      expect(await database.select(database.pendingOps).get(), hasLength(2));
+      final requests = <http.Request>[];
+      final client = GoogleCalendarApiClient(
+        httpClient: MockClient((request) async {
+          requests.add(request);
+          if (request.method == 'GET' &&
+              request.url.path.endsWith('/instances')) {
+            return http.Response(
+              jsonEncode({
+                'items': [
+                  {
+                    'id': 'occurrence-1',
+                    'recurringEventId': 'master-1',
+                    'originalStartTime': {'dateTime': '2026-08-31T16:00:00Z'},
+                    'start': {'dateTime': '2026-08-31T16:00:00Z'},
+                    'end': {'dateTime': '2026-08-31T17:00:00Z'},
+                  },
+                ],
+              }),
+              200,
+            );
+          }
+          if (request.method == 'GET') {
+            return http.Response(jsonEncode({'items': <Object>[]}), 200);
+          }
+          return http.Response(
+            jsonEncode({
+              'id': request.method == 'POST' ? 'master-1' : 'occurrence-1',
+              'recurringEventId': request.method == 'POST' ? null : 'master-1',
+              'originalStartTime': request.method == 'POST'
+                  ? null
+                  : {'dateTime': '2026-08-31T16:00:00Z'},
+              'summary': request.method == 'POST' ? 'Master' : 'Moved',
+              'start': {
+                'dateTime': request.method == 'POST'
+                    ? '2026-08-30T16:00:00Z'
+                    : '2026-08-31T18:00:00Z',
+              },
+              'end': {
+                'dateTime': request.method == 'POST'
+                    ? '2026-08-30T17:00:00Z'
+                    : '2026-08-31T19:00:00Z',
+              },
+            }),
+            200,
+          );
+        }),
+        baseUri: Uri.parse('https://www.googleapis.com'),
       );
-      expect(await database.select(database.calendarEvents).get(), isEmpty);
+      final replayer = CalendarPendingOpsReplayer(
+        database: database,
+        client: client,
+        accountId: 'google-account',
+        nowUtc: () => DateTime.utc(2026, 8, 29),
+      );
+      await replayer.replayDueOps();
+      await replayer.replayDueOps();
       expect(await database.select(database.pendingOps).get(), isEmpty);
+      final patch = requests.singleWhere((r) => r.method == 'PATCH');
+      expect(
+        patch.url.path,
+        '/calendar/v3/calendars/primary/events/occurrence-1',
+      );
+      expect(patch.url.queryParameters['sendUpdates'], 'none');
+      expect((jsonDecode(patch.body) as Map)['summary'], 'Moved');
     },
   );
+
+  test('Microsoft import replays a moved instance through Graph', () async {
+    await database
+        .into(database.accounts)
+        .insert(
+          AccountsCompanion.insert(
+            id: 'microsoft-account',
+            provider: 'microsoft',
+            authority: 'https://login.microsoftonline.com',
+            providerAccountId: 'user',
+            credentialKind: 'oauth',
+            authState: const Value('signed_in'),
+            calendarsEnabled: const Value(true),
+            tasksEnabled: const Value(false),
+            grantedScopes: const Value('Calendars.ReadWrite'),
+            createdAtUtc: _now,
+            updatedAtUtc: _now,
+          ),
+        );
+    await database
+        .into(database.calendarSources)
+        .insert(
+          CalendarSourcesCompanion.insert(
+            id: 'microsoft-account|microsoft|calendar',
+            accountId: 'microsoft-account',
+            provider: 'microsoft',
+            providerCalendarId: 'calendar',
+            summary: 'Calendar',
+            accessRole: const Value('owner'),
+            createdAtLocal: 1,
+            updatedAtLocal: 1,
+          ),
+        );
+    final preview = importService.parsePreview(
+      utf8.encode(
+        _calendar('''
+BEGIN:VEVENT
+UID:microsoft-series
+DTSTART:20260830T160000Z
+DTEND:20260830T170000Z
+SUMMARY:Master
+RRULE:FREQ=DAILY;COUNT=2
+END:VEVENT
+BEGIN:VEVENT
+UID:microsoft-series
+RECURRENCE-ID:20260831T160000Z
+DTSTART:20260831T180000Z
+DTEND:20260831T190000Z
+SUMMARY:Moved
+END:VEVENT
+'''),
+      ),
+    );
+    final destination = (await importService.writableDestinations())
+        .singleWhere((source) => source.accountId == 'microsoft-account');
+    final report = await importService.importPreview(
+      preview: preview,
+      destination: destination,
+    );
+    expect(report.queued, 1);
+    final requests = <http.Request>[];
+    Map<String, Object?> graphEvent(String id, String title, String start) => {
+      'id': id,
+      'subject': title,
+      'start': {'dateTime': start, 'timeZone': 'UTC'},
+      'end': {'dateTime': '2026-08-31T19:00:00', 'timeZone': 'UTC'},
+    };
+    final client = MicrosoftCalendarApiClient(
+      httpClient: MockClient((request) async {
+        requests.add(request);
+        if (request.method == 'POST') {
+          return http.Response(
+            jsonEncode(
+              graphEvent('master-ms', 'Master', '2026-08-30T16:00:00'),
+            ),
+            201,
+          );
+        }
+        if (request.url.path.endsWith('/instances')) {
+          return http.Response(
+            jsonEncode({
+              'value': [
+                {
+                  ...graphEvent(
+                    'occurrence-ms',
+                    'Master',
+                    '2026-08-31T16:00:00',
+                  ),
+                  'seriesMasterId': 'master-ms',
+                  'originalStart': '2026-08-31T16:00:00Z',
+                  'occurrenceId': 'oid-ms',
+                },
+              ],
+            }),
+            200,
+          );
+        }
+        if (request.url.queryParameters.containsKey(r'$expand')) {
+          return http.Response(
+            jsonEncode({
+              ...graphEvent('master-ms', 'Master', '2026-08-30T16:00:00'),
+              'exceptionOccurrences': <Object>[],
+              'cancelledOccurrences': <Object>[],
+            }),
+            200,
+          );
+        }
+        return http.Response(
+          jsonEncode({
+            ...graphEvent('occurrence-ms', 'Moved', '2026-08-31T18:00:00'),
+            'seriesMasterId': 'master-ms',
+            'originalStart': '2026-08-31T16:00:00Z',
+          }),
+          200,
+        );
+      }),
+      baseUri: Uri.parse('https://graph.microsoft.com/v1.0'),
+      responseTimeZone: 'UTC',
+    );
+    final replayer = CalendarPendingOpsReplayer(
+      database: database,
+      client: client,
+      accountId: 'microsoft-account',
+      nowUtc: () => DateTime.utc(2026, 8, 29),
+    );
+    await replayer.replayDueOps();
+    await replayer.replayDueOps();
+    expect(
+      (await database.select(database.pendingOps).get()).where(
+        (row) => row.accountId == 'microsoft-account',
+      ),
+      isEmpty,
+    );
+    final patch = requests.singleWhere((request) => request.method == 'PATCH');
+    expect(patch.url.path, '/v1.0/me/calendars/calendar/events/occurrence-ms');
+    expect((jsonDecode(patch.body) as Map)['subject'], 'Moved');
+    expect(patch.body, isNot(contains('attendees')));
+  });
+
+  test('Google import persists a cancelled occurrence identity', () async {
+    final preview = importService.parsePreview(
+      utf8.encode(
+        _calendar('''
+BEGIN:VEVENT
+UID:cancelled-series
+DTSTART:20260830T160000Z
+DTEND:20260830T170000Z
+SUMMARY:Master
+RRULE:FREQ=DAILY;COUNT=2
+END:VEVENT
+BEGIN:VEVENT
+UID:cancelled-series
+RECURRENCE-ID:20260831T160000Z
+STATUS:CANCELLED
+END:VEVENT
+'''),
+      ),
+    );
+    final report = await importService.importPreview(
+      preview: preview,
+      destination: (await importService.writableDestinations()).single,
+    );
+    expect(report.queued, 1);
+    var deleted = false;
+    final requests = <http.Request>[];
+    final client = GoogleCalendarApiClient(
+      httpClient: MockClient((request) async {
+        requests.add(request);
+        if (request.method == 'DELETE') {
+          deleted = true;
+          return http.Response('', 204);
+        }
+        if (request.url.path.endsWith('/instances')) {
+          return http.Response(
+            jsonEncode({
+              'items': [
+                {
+                  'id': 'occurrence-2',
+                  'recurringEventId': 'master-2',
+                  'originalStartTime': {'dateTime': '2026-08-31T16:00:00Z'},
+                  'status': deleted ? 'cancelled' : 'confirmed',
+                  'start': {'dateTime': '2026-08-31T16:00:00Z'},
+                  'end': {'dateTime': '2026-08-31T17:00:00Z'},
+                },
+              ],
+            }),
+            200,
+          );
+        }
+        if (request.method == 'GET') {
+          return http.Response(jsonEncode({'items': <Object>[]}), 200);
+        }
+        return http.Response(
+          jsonEncode({
+            'id': 'master-2',
+            'summary': 'Master',
+            'start': {'dateTime': '2026-08-30T16:00:00Z'},
+            'end': {'dateTime': '2026-08-30T17:00:00Z'},
+          }),
+          200,
+        );
+      }),
+      baseUri: Uri.parse('https://www.googleapis.com'),
+    );
+    final replayer = CalendarPendingOpsReplayer(
+      database: database,
+      client: client,
+      accountId: 'google-account',
+      nowUtc: () => DateTime.utc(2026, 8, 29),
+    );
+    await replayer.replayDueOps();
+    await replayer.replayDueOps();
+    expect(
+      requests.where((request) => request.method == 'DELETE'),
+      hasLength(1),
+    );
+    expect(await database.select(database.pendingOps).get(), isEmpty);
+    final occurrence = (await database.select(database.calendarEvents).get())
+        .singleWhere((row) => row.providerEventId == 'occurrence-2');
+    expect(occurrence.isCancelled, isTrue);
+    expect(occurrence.providerOriginalStartKey, '2026-08-31T16:00:00Z');
+  });
 
   test(
     'skips an embedded custom timezone the destination cannot carry',
@@ -310,7 +663,7 @@ END:VEVENT
 
     expect(
       (await importService.writableDestinations()).map((source) => source.id),
-      ['google-calendar'],
+      ['google-account|google|primary'],
     );
   });
 }
@@ -336,7 +689,7 @@ Future<void> _seedAccountAndSource(AppDatabase database) async {
       .into(database.calendarSources)
       .insert(
         CalendarSourcesCompanion.insert(
-          id: 'google-calendar',
+          id: 'google-account|google|primary',
           accountId: 'google-account',
           provider: 'google',
           providerCalendarId: 'primary',

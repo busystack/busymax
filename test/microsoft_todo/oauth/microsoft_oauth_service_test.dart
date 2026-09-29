@@ -93,6 +93,77 @@ void main() {
     expect(body.containsKey('client_secret'), isFalse);
   });
 
+  test(
+    'shared-calendar refresh retains optional scope and ordinary account token',
+    () async {
+      late http.Request captured;
+      final service = _service((request) async {
+        captured = request;
+        return http.Response(
+          jsonEncode({
+            'access_token': 'renewed',
+            'refresh_token': 'refresh',
+            'expires_in': 3600,
+            'token_type': 'Bearer',
+            'scope': '$microsoftTodoOAuthScopes $microsoftSharedCalendarScope',
+          }),
+          200,
+        );
+      });
+      final token = await service.refreshToken(
+        OAuthTokenSet(
+          accessToken: 'access',
+          refreshToken: 'refresh',
+          expiresAtUtc: DateTime.utc(2026, 6, 6),
+          tokenType: 'Bearer',
+          scopes: const {microsoftSharedCalendarScope},
+        ),
+      );
+      expect(
+        Uri.splitQueryString(captured.body)['scope'],
+        contains(microsoftSharedCalendarScope),
+      );
+      expect(token.scopes, contains(microsoftSharedCalendarScope));
+    },
+  );
+
+  test(
+    'owner-context header refuses a token without optional consent',
+    () async {
+      final store = InMemorySecretStore();
+      final service = MicrosoftOAuthService(
+        config: _config,
+        httpClient: MockClient(
+          (_) async => throw StateError('No request expected'),
+        ),
+        tokenStore: store,
+        loopbackFlow: OAuthLoopbackFlow(
+          authorizationLauncher: (_) async => true,
+        ),
+        nowUtc: () => DateTime.utc(2026, 6, 6),
+      );
+      await store.saveOAuthTokenSet(
+        'microsoft:user',
+        BusyProvider.microsoft,
+        OAuthTokenSet(
+          accessToken: 'ordinary',
+          refreshToken: 'refresh',
+          expiresAtUtc: DateTime.utc(2026, 6, 7),
+          tokenType: 'Bearer',
+          scopes: const {'https://graph.microsoft.com/Calendars.ReadWrite'},
+        ),
+      );
+      expect(
+        await service.authorizationHeaderForAccount('microsoft:user'),
+        'Bearer ordinary',
+      );
+      await expectLater(
+        service.sharedCalendarAuthorizationHeaderForAccount('microsoft:user'),
+        throwsA(isA<OAuthException>()),
+      );
+    },
+  );
+
   test('refresh failure preserves the token endpoint status', () async {
     final service = _service((request) async {
       return http.Response(

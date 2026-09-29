@@ -7,6 +7,55 @@ import 'package:busymax/src/microsoft_todo/api/microsoft_todo_api_client.dart';
 import 'package:busymax/src/core/http/request_dispatch_exception.dart';
 
 void main() {
+  test('task upload session uses task endpoint and Graph-only bearer', () async {
+    final requests = <http.Request>[];
+    final client = _client((request) {
+      requests.add(request);
+      if (request.method == 'POST') {
+        return _json({
+          'uploadUrl':
+              'https://graph.microsoft.com/v1.0/users/owner/todo/lists/list/tasks/task/attachmentSessions/session',
+        });
+      }
+      return http.Response(
+        '',
+        request.headers['content-range']?.startsWith('bytes 2097152-') == true
+            ? 201
+            : 200,
+      );
+    });
+    await client.uploadTaskFileAttachment(
+      taskListId: 'list',
+      taskId: 'task',
+      name: 'large.bin',
+      contentType: 'application/octet-stream',
+      bytes: List<int>.filled(3 * 1024 * 1024, 65),
+    );
+    expect(
+      requests.first.url.path,
+      '/v1.0/me/todo/lists/list/tasks/task/attachments/createUploadSession',
+    );
+    expect((jsonDecode(requests.first.body) as Map)['attachmentInfo'], {
+      'attachmentType': 'file',
+      'name': 'large.bin',
+      'size': 3 * 1024 * 1024,
+    });
+    expect(
+      requests.skip(1).map((request) => request.url.path),
+      everyElement(
+        '/v1.0/users/owner/todo/lists/list/tasks/task/attachmentSessions/session/content',
+      ),
+    );
+    expect(
+      requests
+          .skip(1)
+          .every(
+            (request) => request.headers['authorization'] == 'Bearer token',
+          ),
+      isTrue,
+    );
+  });
+
   test(
     'task attachments use task-scoped metadata, content and mutation endpoints',
     () async {

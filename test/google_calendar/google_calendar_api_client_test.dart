@@ -16,6 +16,80 @@ import 'package:http/testing.dart';
 
 void main() {
   test(
+    'Google attachment mutation preserves fresh collection and conflict token',
+    () async {
+      final requests = <http.Request>[];
+      final client = _client((request) {
+        requests.add(request);
+        if (request.method == 'GET') {
+          return _json({
+            'id': 'event',
+            'etag': '"v2"',
+            'attachments': [
+              {
+                'fileUrl': 'https://drive.google.com/file/old',
+                'title': 'Old',
+                'fileId': 'opaque',
+              },
+            ],
+          });
+        }
+        return _json({
+          'id': 'event',
+          'etag': '"v3"',
+          'attachments': jsonDecode(request.body)['attachments'],
+        });
+      });
+
+      await client.changeEventAttachmentReferences(
+        calendarId: 'calendar',
+        eventId: 'event',
+        addFileUrl: 'https://drive.google.com/file/new',
+        addTitle: 'New',
+      );
+
+      expect(requests.map((request) => request.method), ['GET', 'PATCH']);
+      expect(requests.last.url.queryParameters, {
+        'supportsAttachments': 'true',
+        'sendUpdates': 'none',
+      });
+      expect(requests.last.headers['If-Match'], '"v2"');
+      expect(jsonDecode(requests.last.body)['attachments'], [
+        {
+          'fileUrl': 'https://drive.google.com/file/old',
+          'title': 'Old',
+          'fileId': 'opaque',
+        },
+        {'fileUrl': 'https://drive.google.com/file/new', 'title': 'New'},
+      ]);
+    },
+  );
+
+  test(
+    'Google attachment mutation refuses malformed authoritative list',
+    () async {
+      var requests = 0;
+      final client = _client((request) {
+        requests++;
+        return _json({
+          'id': 'event',
+          'etag': '"v2"',
+          'attachments': {'unexpected': true},
+        });
+      });
+      await expectLater(
+        client.changeEventAttachmentReferences(
+          calendarId: 'calendar',
+          eventId: 'event',
+          removeFileUrl: 'https://drive.google.com/file/old',
+        ),
+        throwsFormatException,
+      );
+      expect(requests, 1);
+    },
+  );
+
+  test(
     'calendar color retry never repeats an acknowledged creation POST',
     () async {
       final requests = <http.Request>[];
