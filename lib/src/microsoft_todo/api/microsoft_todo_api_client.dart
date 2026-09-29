@@ -72,8 +72,45 @@ abstract interface class MicrosoftTodoChecklistApiClient {
   });
 }
 
+abstract interface class MicrosoftTodoLinkedResourcesApiClient {
+  Future<MicrosoftTodoLinkedResourcesPageDto> listLinkedResourcesPage({
+    required String taskListId,
+    required String taskId,
+    String? nextLink,
+  });
+}
+
+abstract interface class MicrosoftTodoAttachmentsApiClient {
+  Future<MicrosoftTodoAttachmentsPageDto> listTaskAttachmentsPage({
+    required String taskListId,
+    required String taskId,
+    String? nextLink,
+  });
+  Future<List<int>> downloadTaskAttachment({
+    required String taskListId,
+    required String taskId,
+    required String attachmentId,
+  });
+  Future<MicrosoftTodoAttachmentDto> createSmallTaskAttachment({
+    required String taskListId,
+    required String taskId,
+    required String name,
+    required String contentType,
+    required List<int> bytes,
+  });
+  Future<void> deleteTaskAttachment({
+    required String taskListId,
+    required String taskId,
+    required String attachmentId,
+  });
+}
+
 class MicrosoftTodoRestApiClient
-    implements MicrosoftTodoApiClient, MicrosoftTodoChecklistApiClient {
+    implements
+        MicrosoftTodoApiClient,
+        MicrosoftTodoChecklistApiClient,
+        MicrosoftTodoLinkedResourcesApiClient,
+        MicrosoftTodoAttachmentsApiClient {
   MicrosoftTodoRestApiClient({
     required http.Client httpClient,
     required Uri baseUri,
@@ -201,6 +238,95 @@ class MicrosoftTodoRestApiClient
     );
     return MicrosoftTodoTaskDto.fromJson(json);
   }
+
+  @override
+  Future<MicrosoftTodoLinkedResourcesPageDto> listLinkedResourcesPage({
+    required String taskListId,
+    required String taskId,
+    String? nextLink,
+  }) async {
+    final uri = nextLink == null
+        ? _uri(microsoftLinkedResourcesPath(taskListId, taskId))
+        : _trustedNextLink(nextLink);
+    final json = await _requestJson('GET', uri);
+    return MicrosoftTodoLinkedResourcesPageDto.fromJson(json);
+  }
+
+  @override
+  Future<MicrosoftTodoAttachmentsPageDto> listTaskAttachmentsPage({
+    required String taskListId,
+    required String taskId,
+    String? nextLink,
+  }) async {
+    final uri = nextLink == null
+        ? _uri(microsoftTaskAttachmentsPath(taskListId, taskId))
+        : _trustedNextLink(nextLink);
+    return MicrosoftTodoAttachmentsPageDto.fromJson(
+      await _requestJson('GET', uri),
+    );
+  }
+
+  @override
+  Future<List<int>> downloadTaskAttachment({
+    required String taskListId,
+    required String taskId,
+    required String attachmentId,
+  }) async {
+    final response = await _send(
+      'GET',
+      _uri(
+        '${microsoftTaskAttachmentPath(taskListId, taskId, attachmentId)}/\$value',
+      ),
+    );
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      throw MicrosoftTodoApiError.fromResponse(
+        statusCode: response.statusCode,
+        body: response.body,
+      );
+    }
+    return response.bodyBytes;
+  }
+
+  @override
+  Future<MicrosoftTodoAttachmentDto> createSmallTaskAttachment({
+    required String taskListId,
+    required String taskId,
+    required String name,
+    required String contentType,
+    required List<int> bytes,
+  }) async {
+    if (name.trim().isEmpty ||
+        name.contains('/') ||
+        name.contains('\\') ||
+        bytes.length >= 3 * 1024 * 1024) {
+      throw ArgumentError(
+        'Invalid name or file exceeds the direct-upload limit.',
+      );
+    }
+    return MicrosoftTodoAttachmentDto.fromJson(
+      await _requestJson(
+        'POST',
+        _uri(microsoftTaskAttachmentsPath(taskListId, taskId)),
+        body: {
+          '@odata.type': '#microsoft.graph.taskFileAttachment',
+          'name': name,
+          'contentType': contentType,
+          'size': bytes.length,
+          'contentBytes': base64Encode(bytes),
+        },
+      ),
+    );
+  }
+
+  @override
+  Future<void> deleteTaskAttachment({
+    required String taskListId,
+    required String taskId,
+    required String attachmentId,
+  }) => _requestEmpty(
+    'DELETE',
+    _uri(microsoftTaskAttachmentPath(taskListId, taskId, attachmentId)),
+  );
 
   @override
   Future<MicrosoftTodoTaskDto> updateTask({
@@ -378,6 +504,21 @@ class MicrosoftTodoRestApiClient
       return Uri.parse(fullUrl);
     }
     return _uri(path);
+  }
+
+  Uri _trustedNextLink(String value) {
+    final uri = Uri.tryParse(value);
+    if (uri == null ||
+        uri.scheme != _baseUri.scheme ||
+        uri.host != _baseUri.host ||
+        uri.port != _baseUri.port ||
+        uri.userInfo.isNotEmpty ||
+        !uri.path.startsWith(
+          _baseUri.path.endsWith('/') ? _baseUri.path : '${_baseUri.path}/',
+        )) {
+      throw FormatException('Untrusted Microsoft Graph continuation URL.');
+    }
+    return uri;
   }
 
   Uri _uri(String path, {Map<String, String>? query}) {
