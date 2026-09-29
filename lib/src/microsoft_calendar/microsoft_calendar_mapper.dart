@@ -107,7 +107,13 @@ CalendarEventDto microsoftCalendarEventFromJson(
     eventType: json['type']?.toString(),
     webLink: json['webLink']?.toString(),
     conferenceJson: json['onlineMeeting'],
-    attachmentsJson: json['hasAttachments'] == true ? const [] : null,
+    // Graph's hasAttachments flag is not a listing. An empty collection is
+    // authoritative only when Graph actually supplied one (or said false).
+    attachmentsJson: json['attachments'] is List
+        ? json['attachments']
+        : json['hasAttachments'] == false
+        ? const []
+        : null,
     isCancelled: json['isCancelled'] == true,
     isDeleted: json['@removed'] != null,
     createdAtServer: json['createdDateTime']?.toString(),

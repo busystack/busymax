@@ -6,12 +6,15 @@ import '../calendar_providers/calendar_mutation.dart';
 import '../calendar_providers/calendar_provider_capabilities.dart';
 import '../calendar_providers/calendar_sync_dto.dart';
 import '../calendar_providers/cloud_calendar_client.dart';
+import '../core/time/provider_date_time.dart';
 import 'package:busymax/src/providers/busy_provider.dart';
 import 'microsoft_calendar_errors.dart';
 import 'microsoft_calendar_mapper.dart';
 import 'microsoft_calendar_models.dart';
+import 'microsoft_event_attachment.dart';
 
-class MicrosoftCalendarApiClient implements CloudCalendarClient {
+class MicrosoftCalendarApiClient
+    implements CloudCalendarClient, DetailedFreeBusyClient {
   MicrosoftCalendarApiClient({
     required http.Client httpClient,
     required Uri baseUri,
@@ -123,6 +126,53 @@ class MicrosoftCalendarApiClient implements CloudCalendarClient {
     return page.items
         .map((item) => microsoftCalendarEventFromJson(calendarId, item))
         .toList();
+  }
+
+  /// Loads metadata only. Graph does not include attachments in the normal
+  /// event feed, and its hasAttachments flag does not imply an empty list.
+  Future<List<MicrosoftEventAttachment>> listEventAttachments({
+    required String calendarId,
+    required String eventId,
+  }) async {
+    final result = <MicrosoftEventAttachment>[];
+    final seen = <Uri>{};
+    Uri? uri = _uri(
+      '/me/calendars/${_enc(calendarId)}/events/${_enc(eventId)}/attachments',
+    );
+    while (uri != null) {
+      if (!seen.add(uri)) {
+        throw const FormatException('Attachment pagination loop.');
+      }
+      final page = MicrosoftGraphCollectionPage.fromJson(
+        await _requestJson('GET', uri),
+      );
+      result.addAll(page.items.map(MicrosoftEventAttachment.fromJson));
+      uri = page.nextLink == null ? null : _trustedNextLink(page.nextLink!);
+    }
+    return result;
+  }
+
+  Future<List<int>> downloadEventAttachment({
+    required String calendarId,
+    required String eventId,
+    required MicrosoftEventAttachment attachment,
+  }) async {
+    if (!attachment.canDownload) {
+      throw UnsupportedError(
+        'This attachment has no downloadable file content.',
+      );
+    }
+    final response = await _send(
+      'GET',
+      _uri(
+        '/me/calendars/${_enc(calendarId)}/events/${_enc(eventId)}'
+        '/attachments/${_enc(attachment.id)}/\$value',
+      ),
+    );
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      throw MicrosoftCalendarApiError.fromResponse(response);
+    }
+    return response.bodyBytes;
   }
 
   @override
@@ -292,7 +342,117 @@ class MicrosoftCalendarApiClient implements CloudCalendarClient {
     required DateTime rangeStart,
     required DateTime rangeEnd,
   }) async {
-    return const [];
+    final results = await freeBusyDetails(
+      calendarIds: calendarIds,
+      rangeStart: rangeStart,
+      rangeEnd: rangeEnd,
+    );
+    if (results.any((result) => !result.succeeded)) {
+      throw StateError('Microsoft availability is incomplete.');
+    }
+    return [for (final result in results) ...result.busySlots];
+  }
+
+  @override
+  Future<List<FreeBusyCalendarResultDto>> freeBusyDetails({
+    required List<String> calendarIds,
+    required DateTime rangeStart,
+    required DateTime rangeEnd,
+  }) async {
+    if (calendarIds.isEmpty) return const [];
+    List<FreeBusyCalendarResultDto> failed(String reason) => [
+      for (final id in calendarIds)
+        FreeBusyCalendarResultDto(
+          calendarId: id,
+          status: FreeBusyEvaluationStatus.failed,
+          errors: [reason],
+        ),
+    ];
+    final start = rangeStart.toUtc();
+    final end = rangeEnd.toUtc();
+    if (!end.isAfter(start) ||
+        end.difference(start) >= const Duration(days: 62)) {
+      return failed(
+        'Microsoft availability requires a positive range shorter than 62 days.',
+      );
+    }
+    final authorization = _authorizationHeaderProvider;
+    if (authorization != null) {
+      try {
+        if (_isPersonalMicrosoftBearer(await authorization())) {
+          return failed(
+            'Microsoft personal accounts do not support availability lookup.',
+          );
+        }
+      } on Object catch (error) {
+        return failed('$error');
+      }
+    }
+    final results = <FreeBusyCalendarResultDto>[];
+    for (var offset = 0; offset < calendarIds.length; offset += 20) {
+      final batch = calendarIds.skip(offset).take(20).toList();
+      final requested = batch.where((id) => id.trim().isNotEmpty).toList();
+      final mapped = <String, FreeBusyCalendarResultDto>{};
+      for (final id in batch.where((id) => id.trim().isEmpty)) {
+        mapped[id.toLowerCase()] = FreeBusyCalendarResultDto(
+          calendarId: id,
+          status: FreeBusyEvaluationStatus.failed,
+          errors: const ['A recipient address is required.'],
+        );
+      }
+      if (requested.isNotEmpty) {
+        try {
+          final response = await _requestJson(
+            'POST',
+            _uri('/me/calendar/getSchedule'),
+            body: {
+              'schedules': requested,
+              'startTime': _utcScheduleTime(start),
+              'endTime': _utcScheduleTime(end),
+              'availabilityViewInterval': 30,
+            },
+          );
+          final value = response['value'];
+          if (value is! List) {
+            throw const FormatException(
+              'Microsoft availability response has no recipient results.',
+            );
+          }
+          for (final raw in value) {
+            if (raw is! Map) continue;
+            final item = raw.cast<String, Object?>();
+            final id = item['scheduleId']?.toString();
+            if (id == null ||
+                !requested.any(
+                  (requestedId) =>
+                      requestedId.toLowerCase() == id.toLowerCase(),
+                )) {
+              continue;
+            }
+            mapped[id.toLowerCase()] = _scheduleResult(id, item);
+          }
+        } on Object catch (error) {
+          for (final id in requested) {
+            mapped[id.toLowerCase()] = FreeBusyCalendarResultDto(
+              calendarId: id,
+              status: FreeBusyEvaluationStatus.failed,
+              errors: ['$error'],
+            );
+          }
+        }
+      }
+      for (final id in batch) {
+        results.add(
+          mapped[id.toLowerCase()] ??
+              FreeBusyCalendarResultDto(
+                calendarId: id,
+                status: FreeBusyEvaluationStatus.missing,
+                errors: const ['The provider omitted this recipient.'],
+              ),
+        );
+      }
+    }
+    return results;
   }
 
   Future<MicrosoftGraphCollectionPage> _collectionPage(Uri uri) async {
@@ -403,6 +563,24 @@ class MicrosoftCalendarApiClient implements CloudCalendarClient {
       queryParameters: query == null || query.isEmpty ? null : query,
     );
   }
+
+  Uri _trustedNextLink(String value) {
+    final uri = Uri.tryParse(value);
+    final pathPrefix = _baseUri.path.endsWith('/')
+        ? _baseUri.path
+        : '${_baseUri.path}/';
+    if (uri == null ||
+        uri.scheme != _baseUri.scheme ||
+        uri.host != _baseUri.host ||
+        uri.port != _baseUri.port ||
+        uri.userInfo.isNotEmpty ||
+        !uri.path.startsWith(pathPrefix)) {
+      throw const FormatException(
+        'Untrusted Microsoft Graph continuation URL.',
+      );
+    }
+    return uri;
+  }
 }
 
 Uri? _fullUriOrNull(String? value) {
@@ -415,6 +593,107 @@ Uri? _fullUriOrNull(String? value) {
 String _enc(String value) => Uri.encodeComponent(value);
 
 String _graphDateTime(DateTime value) => value.toUtc().toIso8601String();
+
+Map<String, String> _utcScheduleTime(DateTime value) => {
+  'dateTime': value.toUtc().toIso8601String().replaceFirst(RegExp(r'Z$'), ''),
+  'timeZone': 'UTC',
+};
+
+bool _isPersonalMicrosoftBearer(String authorization) {
+  final token = authorization.replaceFirst(
+    RegExp(r'^Bearer\s+', caseSensitive: false),
+    '',
+  );
+  final parts = token.split('.');
+  if (parts.length != 3) return false;
+  try {
+    final claims = jsonDecode(
+      utf8.decode(base64Url.decode(base64Url.normalize(parts[1]))),
+    );
+    return claims is Map &&
+        claims['tid']?.toString().toLowerCase() ==
+            '9188040d-6c67-4c5b-b112-36a304b66dad';
+  } on Object {
+    return false;
+  }
+}
+
+FreeBusyCalendarResultDto _scheduleResult(
+  String id,
+  Map<String, Object?> response,
+) {
+  final error = response['error'];
+  if (error is Map) {
+    final code = error['responseCode']?.toString();
+    final message = error['message']?.toString();
+    return FreeBusyCalendarResultDto(
+      calendarId: id,
+      status: FreeBusyEvaluationStatus.failed,
+      errors: [
+        if (code != null && code.isNotEmpty) code,
+        if (message != null && message.isNotEmpty) message,
+      ],
+    );
+  }
+  final items = response['scheduleItems'];
+  if (items is! List) {
+    return FreeBusyCalendarResultDto(
+      calendarId: id,
+      status: FreeBusyEvaluationStatus.missing,
+      errors: const ['The provider omitted schedule information.'],
+    );
+  }
+  final slots = <BusySlotDto>[];
+  for (final raw in items) {
+    if (raw is! Map) {
+      return FreeBusyCalendarResultDto(
+        calendarId: id,
+        status: FreeBusyEvaluationStatus.failed,
+        errors: const ['Invalid schedule item.'],
+      );
+    }
+    final item = raw.cast<String, Object?>();
+    final status = item['status']?.toString().toLowerCase();
+    if (status == 'free' || status == 'workingelsewhere') continue;
+    if (status != 'busy' && status != 'tentative' && status != 'oof') {
+      return FreeBusyCalendarResultDto(
+        calendarId: id,
+        status: FreeBusyEvaluationStatus.failed,
+        errors: const ['Unknown schedule item status.'],
+      );
+    }
+    final startValue = item['start'];
+    final endValue = item['end'];
+    if (startValue is! Map || endValue is! Map) {
+      return FreeBusyCalendarResultDto(
+        calendarId: id,
+        status: FreeBusyEvaluationStatus.failed,
+        errors: const ['Schedule item is missing its interval.'],
+      );
+    }
+    final start = providerDateTimeAsUtcInstant(
+      startValue['dateTime']?.toString(),
+      startValue['timeZone']?.toString(),
+    );
+    final end = providerDateTimeAsUtcInstant(
+      endValue['dateTime']?.toString(),
+      endValue['timeZone']?.toString(),
+    );
+    if (start == null || end == null || !end.isAfter(start)) {
+      return FreeBusyCalendarResultDto(
+        calendarId: id,
+        status: FreeBusyEvaluationStatus.failed,
+        errors: const ['Schedule item has an invalid interval.'],
+      );
+    }
+    slots.add(BusySlotDto(calendarId: id, start: start, end: end));
+  }
+  return FreeBusyCalendarResultDto(
+    calendarId: id,
+    status: FreeBusyEvaluationStatus.success,
+    busySlots: slots,
+  );
+}
 
 String _microsoftInvitationAction(CalendarInvitationResponse response) =>
     switch (response) {
