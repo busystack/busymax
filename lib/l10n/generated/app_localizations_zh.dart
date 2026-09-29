@@ -514,6 +514,15 @@ class AppLocalizationsZh extends AppLocalizations {
   String get openInProvider => '在服务中打开';
 
   @override
+  String get linkedResources => '关联资源';
+
+  @override
+  String get attachments => '附件';
+
+  @override
+  String get attachmentsNotLoaded => '附件未加载';
+
+  @override
   String get hideFromSchedule => '从日程中隐藏';
 
   @override
@@ -1935,6 +1944,9 @@ class AppLocalizationsZh extends AppLocalizations {
   }
 
   @override
+  String get deleteAssignedTaskWarning => '这也会删除 Google 文档或 Chat 聊天室中的原始任务。';
+
+  @override
   String get metadata => '元数据';
 
   @override
@@ -2868,7 +2880,16 @@ class AppLocalizationsZh extends AppLocalizations {
   String get searchDate => '日期';
 
   @override
-  String get searchAnyDate => '任何日期';
+  String get searchAnyDate => '任何日期（已下載資料）';
+
+  @override
+  String get eventLink => '活動連結';
+
+  @override
+  String get eventLinkOpenFailed => '無法開啟連結。';
+
+  @override
+  String get scheduleRangeIncomplete => '部分活動無法確認，正在顯示已下載資料。';
 
   @override
   String get searchThisWeek => '本周';
@@ -3413,6 +3434,15 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
   String get openInProvider => '在服务中打开';
 
   @override
+  String get linkedResources => '关联资源';
+
+  @override
+  String get attachments => '附件';
+
+  @override
+  String get attachmentsNotLoaded => '附件未加载';
+
+  @override
   String get hideFromSchedule => '从日程中隐藏';
 
   @override
@@ -4834,6 +4864,9 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
   }
 
   @override
+  String get deleteAssignedTaskWarning => '这也会删除 Google 文档或 Chat 聊天室中的原始任务。';
+
+  @override
   String get metadata => '元数据';
 
   @override
@@ -5767,7 +5800,16 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
   String get searchDate => '日期';
 
   @override
-  String get searchAnyDate => '任何日期';
+  String get searchAnyDate => '任何日期（已下载数据）';
+
+  @override
+  String get eventLink => '日程链接';
+
+  @override
+  String get eventLinkOpenFailed => '无法打开链接。';
+
+  @override
+  String get scheduleRangeIncomplete => '部分日程无法核实，正在显示已下载数据。';
 
   @override
   String get searchThisWeek => '本周';
@@ -6310,6 +6352,15 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get openInProvider => '在服務中開啟';
+
+  @override
+  String get linkedResources => '關聯資源';
+
+  @override
+  String get attachments => '附件';
+
+  @override
+  String get attachmentsNotLoaded => '附件尚未載入';
 
   @override
   String get hideFromSchedule => '從行程中隱藏';
@@ -7734,6 +7785,9 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   }
 
   @override
+  String get deleteAssignedTaskWarning => '這也會刪除 Google 文件或 Chat 聊天室中的原始工作。';
+
+  @override
   String get metadata => '中繼資料';
 
   @override
@@ -8667,7 +8721,16 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get searchDate => '日期';
 
   @override
-  String get searchAnyDate => '任何日期';
+  String get searchAnyDate => '任何日期（已下載資料）';
+
+  @override
+  String get eventLink => '活動連結';
+
+  @override
+  String get eventLinkOpenFailed => '無法開啟連結。';
+
+  @override
+  String get scheduleRangeIncomplete => '部分活動無法確認，正在顯示已下載資料。';
 
   @override
   String get searchThisWeek => '本週';

@@ -1014,6 +1014,24 @@ abstract class AppLocalizations {
   /// **'Open in provider'**
   String get openInProvider;
 
+  /// No description provided for @linkedResources.
+  ///
+  /// In en, this message translates to:
+  /// **'Linked resources'**
+  String get linkedResources;
+
+  /// No description provided for @attachments.
+  ///
+  /// In en, this message translates to:
+  /// **'Attachments'**
+  String get attachments;
+
+  /// No description provided for @attachmentsNotLoaded.
+  ///
+  /// In en, this message translates to:
+  /// **'Attachments not loaded'**
+  String get attachmentsNotLoaded;
+
   /// No description provided for @hideFromSchedule.
   ///
   /// In en, this message translates to:
@@ -3420,6 +3438,12 @@ abstract class AppLocalizations {
   /// **'Delete \"{title}\"?'**
   String deleteTaskConfirmation(String title);
 
+  /// No description provided for @deleteAssignedTaskWarning.
+  ///
+  /// In en, this message translates to:
+  /// **'This also deletes the original task in Google Docs or Chat Spaces.'**
+  String get deleteAssignedTaskWarning;
+
   /// No description provided for @metadata.
   ///
   /// In en, this message translates to:
@@ -4949,8 +4973,26 @@ abstract class AppLocalizations {
   /// No description provided for @searchAnyDate.
   ///
   /// In en, this message translates to:
-  /// **'Any date'**
+  /// **'Any date (downloaded data)'**
   String get searchAnyDate;
+
+  /// No description provided for @eventLink.
+  ///
+  /// In en, this message translates to:
+  /// **'Event link'**
+  String get eventLink;
+
+  /// No description provided for @eventLinkOpenFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not open the link.'**
+  String get eventLinkOpenFailed;
+
+  /// No description provided for @scheduleRangeIncomplete.
+  ///
+  /// In en, this message translates to:
+  /// **'Some events could not be checked. Showing downloaded data.'**
+  String get scheduleRangeIncomplete;
 
   /// No description provided for @searchThisWeek.
   ///

@@ -531,6 +531,15 @@ class AppLocalizationsKo extends AppLocalizations {
   String get openInProvider => '서비스에서 열기';
 
   @override
+  String get linkedResources => '연결된 리소스';
+
+  @override
+  String get attachments => '첨부 파일';
+
+  @override
+  String get attachmentsNotLoaded => '첨부 파일을 불러오지 못했습니다';
+
+  @override
   String get hideFromSchedule => '일정에서 숨기기';
 
   @override
@@ -1965,6 +1974,10 @@ class AppLocalizationsKo extends AppLocalizations {
   }
 
   @override
+  String get deleteAssignedTaskWarning =>
+      'Google Docs 또는 Chat 스페이스의 원본 할 일도 삭제됩니다.';
+
+  @override
   String get metadata => '메타데이터';
 
   @override
@@ -2909,7 +2922,16 @@ class AppLocalizationsKo extends AppLocalizations {
   String get searchDate => '날짜';
 
   @override
-  String get searchAnyDate => '모든 날짜';
+  String get searchAnyDate => '모든 날짜(다운로드한 데이터)';
+
+  @override
+  String get eventLink => '일정 링크';
+
+  @override
+  String get eventLinkOpenFailed => '링크를 열 수 없습니다.';
+
+  @override
+  String get scheduleRangeIncomplete => '일부 일정을 확인할 수 없습니다. 다운로드한 데이터를 표시합니다.';
 
   @override
   String get searchThisWeek => '이번 주';

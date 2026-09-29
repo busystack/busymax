@@ -543,6 +543,15 @@ class AppLocalizationsEt extends AppLocalizations {
   String get openInProvider => 'Ava teenuses';
 
   @override
+  String get linkedResources => 'Seotud ressursid';
+
+  @override
+  String get attachments => 'Manused';
+
+  @override
+  String get attachmentsNotLoaded => 'Manuseid ei laaditud';
+
+  @override
   String get hideFromSchedule => 'Peida ajakavast';
 
   @override
@@ -1985,6 +1994,10 @@ class AppLocalizationsEt extends AppLocalizations {
   }
 
   @override
+  String get deleteAssignedTaskWarning =>
+      'See kustutab ka algse ülesande Google Docsis või Chati ruumides.';
+
+  @override
   String get metadata => 'Metaandmed';
 
   @override
@@ -2946,7 +2959,17 @@ class AppLocalizationsEt extends AppLocalizations {
   String get searchDate => 'Kuupäev';
 
   @override
-  String get searchAnyDate => 'Kõik kuupäevad';
+  String get searchAnyDate => 'Kõik kuupäevad (allalaaditud andmed)';
+
+  @override
+  String get eventLink => 'Sündmuse link';
+
+  @override
+  String get eventLinkOpenFailed => 'Linki ei õnnestunud avada.';
+
+  @override
+  String get scheduleRangeIncomplete =>
+      'Mõnda sündmust ei saanud kontrollida. Kuvatakse allalaaditud andmed.';
 
   @override
   String get searchThisWeek => 'See nädal';

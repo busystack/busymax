@@ -541,6 +541,15 @@ class AppLocalizationsAr extends AppLocalizations {
   String get openInProvider => 'فتح في الخدمة';
 
   @override
+  String get linkedResources => 'الموارد المرتبطة';
+
+  @override
+  String get attachments => 'المرفقات';
+
+  @override
+  String get attachmentsNotLoaded => 'لم يتم تحميل المرفقات';
+
+  @override
   String get hideFromSchedule => 'إخفاء من الجدول';
 
   @override
@@ -2066,6 +2075,10 @@ class AppLocalizationsAr extends AppLocalizations {
   }
 
   @override
+  String get deleteAssignedTaskWarning =>
+      'سيؤدي هذا أيضًا إلى حذف المهمة الأصلية في مستندات Google أو مساحات Chat.';
+
+  @override
   String get metadata => 'البيانات الوصفية';
 
   @override
@@ -3031,7 +3044,17 @@ class AppLocalizationsAr extends AppLocalizations {
   String get searchDate => 'التاريخ';
 
   @override
-  String get searchAnyDate => 'أي تاريخ';
+  String get searchAnyDate => 'أي تاريخ (البيانات المحمّلة)';
+
+  @override
+  String get eventLink => 'رابط الحدث';
+
+  @override
+  String get eventLinkOpenFailed => 'تعذّر فتح الرابط.';
+
+  @override
+  String get scheduleRangeIncomplete =>
+      'تعذّر التحقق من بعض الأحداث. تُعرض البيانات المحمّلة.';
 
   @override
   String get searchThisWeek => 'هذا الأسبوع';

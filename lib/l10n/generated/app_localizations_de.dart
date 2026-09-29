@@ -547,6 +547,15 @@ class AppLocalizationsDe extends AppLocalizations {
   String get openInProvider => 'Beim Anbieter öffnen';
 
   @override
+  String get linkedResources => 'Verknüpfte Ressourcen';
+
+  @override
+  String get attachments => 'Anhänge';
+
+  @override
+  String get attachmentsNotLoaded => 'Anhänge nicht geladen';
+
+  @override
   String get hideFromSchedule => 'Im Zeitplan ausblenden';
 
   @override
@@ -2000,6 +2009,10 @@ class AppLocalizationsDe extends AppLocalizations {
   }
 
   @override
+  String get deleteAssignedTaskWarning =>
+      'Dadurch wird auch die ursprüngliche Aufgabe in Google Docs oder Chat-Bereichen gelöscht.';
+
+  @override
   String get metadata => 'Metadaten';
 
   @override
@@ -2967,7 +2980,17 @@ class AppLocalizationsDe extends AppLocalizations {
   String get searchDate => 'Datum';
 
   @override
-  String get searchAnyDate => 'Beliebiges Datum';
+  String get searchAnyDate => 'Beliebiges Datum (heruntergeladene Daten)';
+
+  @override
+  String get eventLink => 'Terminlink';
+
+  @override
+  String get eventLinkOpenFailed => 'Der Link konnte nicht geöffnet werden.';
+
+  @override
+  String get scheduleRangeIncomplete =>
+      'Einige Termine konnten nicht geprüft werden. Heruntergeladene Daten werden angezeigt.';
 
   @override
   String get searchThisWeek => 'Diese Woche';

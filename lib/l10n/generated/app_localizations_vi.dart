@@ -544,6 +544,15 @@ class AppLocalizationsVi extends AppLocalizations {
   String get openInProvider => 'Mở trong dịch vụ';
 
   @override
+  String get linkedResources => 'Tài nguyên liên kết';
+
+  @override
+  String get attachments => 'Tệp đính kèm';
+
+  @override
+  String get attachmentsNotLoaded => 'Chưa tải tệp đính kèm';
+
+  @override
   String get hideFromSchedule => 'Ẩn khỏi lịch biểu';
 
   @override
@@ -2003,6 +2012,10 @@ class AppLocalizationsVi extends AppLocalizations {
   }
 
   @override
+  String get deleteAssignedTaskWarning =>
+      'Thao tác này cũng xóa công việc gốc trong Google Tài liệu hoặc không gian Chat.';
+
+  @override
   String get metadata => 'Siêu dữ liệu';
 
   @override
@@ -2964,7 +2977,17 @@ class AppLocalizationsVi extends AppLocalizations {
   String get searchDate => 'Ngày';
 
   @override
-  String get searchAnyDate => 'Mọi ngày';
+  String get searchAnyDate => 'Mọi ngày (dữ liệu đã tải)';
+
+  @override
+  String get eventLink => 'Liên kết sự kiện';
+
+  @override
+  String get eventLinkOpenFailed => 'Không thể mở liên kết.';
+
+  @override
+  String get scheduleRangeIncomplete =>
+      'Không thể kiểm tra một số sự kiện. Đang hiển thị dữ liệu đã tải.';
 
   @override
   String get searchThisWeek => 'Tuần này';

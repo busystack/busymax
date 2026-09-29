@@ -546,6 +546,15 @@ class AppLocalizationsHi extends AppLocalizations {
   String get openInProvider => 'सेवा में खोलें';
 
   @override
+  String get linkedResources => 'लिंक किए गए संसाधन';
+
+  @override
+  String get attachments => 'अटैचमेंट';
+
+  @override
+  String get attachmentsNotLoaded => 'अटैचमेंट लोड नहीं हुए';
+
+  @override
   String get hideFromSchedule => 'शेड्यूल से छिपाएँ';
 
   @override
@@ -2005,6 +2014,10 @@ class AppLocalizationsHi extends AppLocalizations {
   }
 
   @override
+  String get deleteAssignedTaskWarning =>
+      'इससे Google Docs या Chat Spaces में मूल टास्क भी मिट जाएगा।';
+
+  @override
   String get metadata => 'मेटाडेटा';
 
   @override
@@ -2967,7 +2980,17 @@ class AppLocalizationsHi extends AppLocalizations {
   String get searchDate => 'तारीख';
 
   @override
-  String get searchAnyDate => 'कोई भी तारीख';
+  String get searchAnyDate => 'कोई भी तारीख (डाउनलोड किया गया डेटा)';
+
+  @override
+  String get eventLink => 'इवेंट लिंक';
+
+  @override
+  String get eventLinkOpenFailed => 'लिंक नहीं खोला जा सका।';
+
+  @override
+  String get scheduleRangeIncomplete =>
+      'कुछ इवेंट की जाँच नहीं हो सकी। डाउनलोड किया गया डेटा दिखाया जा रहा है।';
 
   @override
   String get searchThisWeek => 'इस सप्ताह';

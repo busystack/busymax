@@ -549,6 +549,15 @@ class AppLocalizationsPt extends AppLocalizations {
   String get openInProvider => 'Open in provider';
 
   @override
+  String get linkedResources => 'Linked resources';
+
+  @override
+  String get attachments => 'Attachments';
+
+  @override
+  String get attachmentsNotLoaded => 'Attachments not loaded';
+
+  @override
   String get hideFromSchedule => 'Hide from schedule';
 
   @override
@@ -2019,6 +2028,10 @@ class AppLocalizationsPt extends AppLocalizations {
   }
 
   @override
+  String get deleteAssignedTaskWarning =>
+      'This also deletes the original task in Google Docs or Chat Spaces.';
+
+  @override
   String get metadata => 'Metadata';
 
   @override
@@ -2999,7 +3012,17 @@ class AppLocalizationsPt extends AppLocalizations {
   String get searchDate => 'Date';
 
   @override
-  String get searchAnyDate => 'Any date';
+  String get searchAnyDate => 'Any date (downloaded data)';
+
+  @override
+  String get eventLink => 'Event link';
+
+  @override
+  String get eventLinkOpenFailed => 'Could not open the link.';
+
+  @override
+  String get scheduleRangeIncomplete =>
+      'Some events could not be checked. Showing downloaded data.';
 
   @override
   String get searchThisWeek => 'This week';
@@ -3577,6 +3600,15 @@ class AppLocalizationsPtPt extends AppLocalizationsPt {
 
   @override
   String get openInProvider => 'Abrir no serviço';
+
+  @override
+  String get linkedResources => 'Recursos ligados';
+
+  @override
+  String get attachments => 'Anexos';
+
+  @override
+  String get attachmentsNotLoaded => 'Anexos não carregados';
 
   @override
   String get hideFromSchedule => 'Ocultar da agenda';
@@ -5045,6 +5077,10 @@ class AppLocalizationsPtPt extends AppLocalizationsPt {
   }
 
   @override
+  String get deleteAssignedTaskWarning =>
+      'Isto também elimina a tarefa original no Google Docs ou nos espaços do Chat.';
+
+  @override
   String get metadata => 'Metadados';
 
   @override
@@ -6017,7 +6053,17 @@ class AppLocalizationsPtPt extends AppLocalizationsPt {
   String get searchDate => 'Data';
 
   @override
-  String get searchAnyDate => 'Qualquer data';
+  String get searchAnyDate => 'Qualquer data (dados transferidos)';
+
+  @override
+  String get eventLink => 'Ligação do evento';
+
+  @override
+  String get eventLinkOpenFailed => 'Não foi possível abrir a ligação.';
+
+  @override
+  String get scheduleRangeIncomplete =>
+      'Não foi possível verificar alguns eventos. São apresentados os dados transferidos.';
 
   @override
   String get searchThisWeek => 'Esta semana';

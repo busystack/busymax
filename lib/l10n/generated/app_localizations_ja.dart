@@ -529,6 +529,15 @@ class AppLocalizationsJa extends AppLocalizations {
   String get openInProvider => 'サービスで開く';
 
   @override
+  String get linkedResources => 'リンクされたリソース';
+
+  @override
+  String get attachments => '添付ファイル';
+
+  @override
+  String get attachmentsNotLoaded => '添付ファイルは読み込まれていません';
+
+  @override
   String get hideFromSchedule => 'スケジュールから非表示';
 
   @override
@@ -1961,6 +1970,10 @@ class AppLocalizationsJa extends AppLocalizations {
   }
 
   @override
+  String get deleteAssignedTaskWarning =>
+      'Google ドキュメントまたは Chat スペースの元のタスクも削除されます。';
+
+  @override
   String get metadata => 'メタデータ';
 
   @override
@@ -2904,7 +2917,16 @@ class AppLocalizationsJa extends AppLocalizations {
   String get searchDate => '日付';
 
   @override
-  String get searchAnyDate => 'すべての日付';
+  String get searchAnyDate => 'すべての日付（ダウンロード済みデータ）';
+
+  @override
+  String get eventLink => '予定のリンク';
+
+  @override
+  String get eventLinkOpenFailed => 'リンクを開けませんでした。';
+
+  @override
+  String get scheduleRangeIncomplete => '一部の予定を確認できませんでした。ダウンロード済みデータを表示しています。';
 
   @override
   String get searchThisWeek => '今週';

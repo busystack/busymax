@@ -205,7 +205,10 @@
   },
   "newEvent": "New event",
   "refreshCalendar": "Refresh calendar",
-  "openInProvider": "Open in provider",
+"openInProvider": "Open in provider",
+  "linkedResources": "Linked resources",
+  "attachments": "Attachments",
+  "attachmentsNotLoaded": "Attachments not loaded",
   "hideFromSchedule": "Hide from schedule",
   "showInSchedule": "Show in schedule",
   "noCalendarsSynced": "No calendars synced yet.",
@@ -932,7 +935,8 @@
   "moveToTop": "Move to top",
   "deleteTask": "Delete Task",
   "newSubtask": "New subtask",
-  "deleteTaskConfirmation": "Delete \"{title}\"?",
+ "deleteTaskConfirmation": "Delete \"{title}\"?",
+  "deleteAssignedTaskWarning": "This also deletes the original task in Google Docs or Chat Spaces.",
   "@deleteTaskConfirmation": {
     "placeholders": {
       "title": {
@@ -1579,7 +1583,10 @@
   "searchFilters": "Search filters",
   "searchType": "Type",
   "searchDate": "Date",
-  "searchAnyDate": "Any date",
+  "searchAnyDate": "Any date (downloaded data)",
+  "eventLink": "Event link",
+  "eventLinkOpenFailed": "Could not open the link.",
+  "scheduleRangeIncomplete": "Some events could not be checked. Showing downloaded data.",
   "searchThisWeek": "This week",
   "searchCustomRange": "Custom range",
   "searchTaskStatus": "Task status",

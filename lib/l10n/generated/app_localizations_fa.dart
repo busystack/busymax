@@ -544,6 +544,15 @@ class AppLocalizationsFa extends AppLocalizations {
   String get openInProvider => 'باز کردن در سرویس';
 
   @override
+  String get linkedResources => 'منابع پیوندشده';
+
+  @override
+  String get attachments => 'پیوست‌ها';
+
+  @override
+  String get attachmentsNotLoaded => 'پیوست‌ها بارگیری نشده‌اند';
+
+  @override
   String get hideFromSchedule => 'پنهان کردن از برنامه';
 
   @override
@@ -2020,6 +2029,10 @@ class AppLocalizationsFa extends AppLocalizations {
   }
 
   @override
+  String get deleteAssignedTaskWarning =>
+      'این کار، وظیفهٔ اصلی را نیز در Google Docs یا فضاهای Chat حذف می‌کند.';
+
+  @override
   String get metadata => 'فراداده';
 
   @override
@@ -3002,7 +3015,17 @@ class AppLocalizationsFa extends AppLocalizations {
   String get searchDate => 'تاریخ';
 
   @override
-  String get searchAnyDate => 'هر تاریخی';
+  String get searchAnyDate => 'هر تاریخی (داده‌های بارگیری‌شده)';
+
+  @override
+  String get eventLink => 'پیوند رویداد';
+
+  @override
+  String get eventLinkOpenFailed => 'باز کردن پیوند ممکن نشد.';
+
+  @override
+  String get scheduleRangeIncomplete =>
+      'بررسی برخی رویدادها ممکن نشد. داده‌های بارگیری‌شده نمایش داده می‌شوند.';
 
   @override
   String get searchThisWeek => 'این هفته';

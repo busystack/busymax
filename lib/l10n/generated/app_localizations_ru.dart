@@ -544,6 +544,15 @@ class AppLocalizationsRu extends AppLocalizations {
   String get openInProvider => 'Открыть в сервисе';
 
   @override
+  String get linkedResources => 'Связанные ресурсы';
+
+  @override
+  String get attachments => 'Вложения';
+
+  @override
+  String get attachmentsNotLoaded => 'Вложения не загружены';
+
+  @override
   String get hideFromSchedule => 'Скрыть из расписания';
 
   @override
@@ -2021,6 +2030,10 @@ class AppLocalizationsRu extends AppLocalizations {
   }
 
   @override
+  String get deleteAssignedTaskWarning =>
+      'Это также удалит исходную задачу в Google Документах или пространствах Chat.';
+
+  @override
   String get metadata => 'Метаданные';
 
   @override
@@ -2991,7 +3004,17 @@ class AppLocalizationsRu extends AppLocalizations {
   String get searchDate => 'Дата';
 
   @override
-  String get searchAnyDate => 'Любая дата';
+  String get searchAnyDate => 'Любая дата (загруженные данные)';
+
+  @override
+  String get eventLink => 'Ссылка на событие';
+
+  @override
+  String get eventLinkOpenFailed => 'Не удалось открыть ссылку.';
+
+  @override
+  String get scheduleRangeIncomplete =>
+      'Не удалось проверить некоторые события. Показаны загруженные данные.';
 
   @override
   String get searchThisWeek => 'Эта неделя';

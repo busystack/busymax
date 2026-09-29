@@ -294,7 +294,10 @@
   },
   "newEvent": "Nowe wydarzenie",
   "refreshCalendar": "Odśwież kalendarz",
-  "openInProvider": "Otwórz u dostawcy",
+"openInProvider": "Otwórz u dostawcy",
+  "linkedResources": "Połączone zasoby",
+  "attachments": "Załączniki",
+  "attachmentsNotLoaded": "Załączniki nie zostały wczytane",
   "hideFromSchedule": "Ukryj w harmonogramie",
   "showInSchedule": "Pokaż w harmonogramie",
   "noCalendarsSynced": "Nie zsynchronizowano jeszcze żadnych kalendarzy.",
@@ -1022,7 +1025,8 @@
   "moveToTop": "Przenieś na początek",
   "deleteTask": "Usuń zadanie",
   "newSubtask": "Nowe podzadanie",
-  "deleteTaskConfirmation": "Usunąć „{title}”?",
+ "deleteTaskConfirmation": "Usunąć „{title}”?",
+  "deleteAssignedTaskWarning": "Spowoduje to również usunięcie oryginalnego zadania w Dokumentach Google lub pokojach Chat.",
   "@deleteTaskConfirmation": {
     "placeholders": {
       "title": {
@@ -1746,7 +1750,10 @@
   "searchFilters": "Filtry wyszukiwania",
   "searchType": "Typ",
   "searchDate": "Data",
-  "searchAnyDate": "Dowolna data",
+  "searchAnyDate": "Dowolna data (pobrane dane)",
+  "eventLink": "Link do wydarzenia",
+  "eventLinkOpenFailed": "Nie można otworzyć linku.",
+  "scheduleRangeIncomplete": "Nie można było sprawdzić części wydarzeń. Wyświetlane są pobrane dane.",
   "searchThisWeek": "Ten tydzień",
   "searchCustomRange": "Zakres niestandardowy",
   "searchTaskStatus": "Stan zadania",

@@ -560,6 +560,15 @@ class AppLocalizationsPl extends AppLocalizations {
   String get openInProvider => 'Otwórz u dostawcy';
 
   @override
+  String get linkedResources => 'Połączone zasoby';
+
+  @override
+  String get attachments => 'Załączniki';
+
+  @override
+  String get attachmentsNotLoaded => 'Załączniki nie zostały wczytane';
+
+  @override
   String get hideFromSchedule => 'Ukryj w harmonogramie';
 
   @override
@@ -2145,6 +2154,10 @@ class AppLocalizationsPl extends AppLocalizations {
   }
 
   @override
+  String get deleteAssignedTaskWarning =>
+      'Spowoduje to również usunięcie oryginalnego zadania w Dokumentach Google lub pokojach Chat.';
+
+  @override
   String get metadata => 'Metadane';
 
   @override
@@ -3141,7 +3154,17 @@ class AppLocalizationsPl extends AppLocalizations {
   String get searchDate => 'Data';
 
   @override
-  String get searchAnyDate => 'Dowolna data';
+  String get searchAnyDate => 'Dowolna data (pobrane dane)';
+
+  @override
+  String get eventLink => 'Link do wydarzenia';
+
+  @override
+  String get eventLinkOpenFailed => 'Nie można otworzyć linku.';
+
+  @override
+  String get scheduleRangeIncomplete =>
+      'Nie można było sprawdzić części wydarzeń. Wyświetlane są pobrane dane.';
 
   @override
   String get searchThisWeek => 'Ten tydzień';

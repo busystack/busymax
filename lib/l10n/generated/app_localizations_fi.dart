@@ -547,6 +547,15 @@ class AppLocalizationsFi extends AppLocalizations {
   String get openInProvider => 'Avaa palvelussa';
 
   @override
+  String get linkedResources => 'Linkitetyt resurssit';
+
+  @override
+  String get attachments => 'Liitteet';
+
+  @override
+  String get attachmentsNotLoaded => 'Liitteitä ei ladattu';
+
+  @override
   String get hideFromSchedule => 'Piilota aikataulusta';
 
   @override
@@ -2014,6 +2023,10 @@ class AppLocalizationsFi extends AppLocalizations {
   }
 
   @override
+  String get deleteAssignedTaskWarning =>
+      'Tämä poistaa myös alkuperäisen tehtävän Google Docsista tai Chat-tiloista.';
+
+  @override
   String get metadata => 'Metatiedot';
 
   @override
@@ -2996,7 +3009,17 @@ class AppLocalizationsFi extends AppLocalizations {
   String get searchDate => 'Päivämäärä';
 
   @override
-  String get searchAnyDate => 'Kaikki päivämäärät';
+  String get searchAnyDate => 'Kaikki päivämäärät (ladatut tiedot)';
+
+  @override
+  String get eventLink => 'Tapahtuman linkki';
+
+  @override
+  String get eventLinkOpenFailed => 'Linkkiä ei voitu avata.';
+
+  @override
+  String get scheduleRangeIncomplete =>
+      'Kaikkia tapahtumia ei voitu tarkistaa. Näytetään ladatut tiedot.';
 
   @override
   String get searchThisWeek => 'Tämä viikko';

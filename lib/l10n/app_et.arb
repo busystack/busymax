@@ -171,7 +171,10 @@
   },
   "newEvent": "Uus sündmus",
   "refreshCalendar": "Värskenda kalendrit",
-  "openInProvider": "Ava teenuses",
+"openInProvider": "Ava teenuses",
+  "linkedResources": "Seotud ressursid",
+  "attachments": "Manused",
+  "attachmentsNotLoaded": "Manuseid ei laaditud",
   "hideFromSchedule": "Peida ajakavast",
   "showInSchedule": "Kuva ajakavas",
   "noCalendarsSynced": "Ühtegi kalendrit pole veel sünkroonitud.",
@@ -561,7 +564,8 @@
   "moveToTop": "Teisalda kõige üles",
   "deleteTask": "Kustuta ülesanne",
   "newSubtask": "Uus alamülesanne",
-  "deleteTaskConfirmation": "Kas kustutada „{title}”?",
+ "deleteTaskConfirmation": "Kas kustutada „{title}”?",
+  "deleteAssignedTaskWarning": "See kustutab ka algse ülesande Google Docsis või Chati ruumides.",
   "@deleteTaskConfirmation": {
     "placeholders": {
       "title": {
@@ -1214,7 +1218,10 @@
   "searchFilters": "Otsingufiltrid",
   "searchType": "Tüüp",
   "searchDate": "Kuupäev",
-  "searchAnyDate": "Kõik kuupäevad",
+  "searchAnyDate": "Kõik kuupäevad (allalaaditud andmed)",
+  "eventLink": "Sündmuse link",
+  "eventLinkOpenFailed": "Linki ei õnnestunud avada.",
+  "scheduleRangeIncomplete": "Mõnda sündmust ei saanud kontrollida. Kuvatakse allalaaditud andmed.",
   "searchThisWeek": "See nädal",
   "searchCustomRange": "Kohandatud vahemik",
   "searchTaskStatus": "Ülesande olek",
