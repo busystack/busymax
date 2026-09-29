@@ -96,6 +96,35 @@ void main() {
     expect(event.colorId, 'Work');
   });
 
+  test('attachment flag is not treated as a loaded empty list', () {
+    Map<String, Object?> event(bool? hasAttachments, {Object? attachments}) => {
+      'id': 'event-1',
+      'subject': 'Planning',
+      if (hasAttachments != null) 'hasAttachments': hasAttachments,
+      if (attachments != null) 'attachments': attachments,
+    };
+    expect(
+      microsoftCalendarEventFromJson('cal', event(true)).attachmentsJson,
+      isNull,
+    );
+    expect(
+      microsoftCalendarEventFromJson('cal', event(false)).attachmentsJson,
+      isEmpty,
+    );
+    expect(
+      microsoftCalendarEventFromJson(
+        'cal',
+        event(
+          true,
+          attachments: [
+            {'id': 'file-1', 'name': 'Agenda.pdf'},
+          ],
+        ),
+      ).attachmentsJson,
+      hasLength(1),
+    );
+  });
+
   test('formatted Microsoft HTML is converted to plain text with ranges', () {
     final document = htmlCalendarDescriptionDocument(
       '<div>Hello <strong>bold</strong> and <em>italic</em></div>',

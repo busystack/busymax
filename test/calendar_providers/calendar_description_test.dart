@@ -26,4 +26,24 @@ void main() {
       );
     },
   );
+
+  test(
+    'meeting footer preservation replaces user text but retains provider link',
+    () {
+      const original =
+          '<p>Old agenda</p><div><a href="https://teams.microsoft.com/l/meetup-join/example">Join Microsoft Teams meeting</a></div>';
+      final edited = preserveMicrosoftMeetingBodyHtml(
+        editedHtml: '<div>New agenda</div>',
+        originalHtml: original,
+        meetingUrl: 'https://teams.microsoft.com/l/meetup-join/example',
+      );
+      expect(edited, contains('New agenda'));
+      expect(edited, isNot(contains('Old agenda')));
+      expect(edited, contains('Join Microsoft Teams meeting'));
+      expect(
+        edited,
+        contains('https://teams.microsoft.com/l/meetup-join/example'),
+      );
+    },
+  );
 }

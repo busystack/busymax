@@ -7,6 +7,163 @@ import 'package:busymax/src/microsoft_todo/api/microsoft_todo_api_client.dart';
 import 'package:busymax/src/core/http/request_dispatch_exception.dart';
 
 void main() {
+  test(
+    'task attachments use task-scoped metadata, content and mutation endpoints',
+    () async {
+      final requests = <http.Request>[];
+      final client = _client((request) {
+        requests.add(request);
+        if (request.method == 'DELETE') {
+          return http.Response('', 204);
+        }
+        if (request.url.path.endsWith(r'/$value')) {
+          return http.Response.bytes([1, 2], 200);
+        }
+        if (request.method == 'POST') {
+          return _json({
+            'id': 'file-1',
+            'name': 'notes.txt',
+            '@odata.type': '#microsoft.graph.taskFileAttachment',
+          });
+        }
+        return _json({
+          'value': [
+            {
+              'id': 'file-1',
+              'name': 'notes.txt',
+              '@odata.type': '#microsoft.graph.taskFileAttachment',
+              'size': 2,
+            },
+          ],
+        });
+      });
+      final page = await client.listTaskAttachmentsPage(
+        taskListId: 'list',
+        taskId: 'task',
+      );
+      expect(page.attachments.single.isFile, isTrue);
+      expect(
+        await client.downloadTaskAttachment(
+          taskListId: 'list',
+          taskId: 'task',
+          attachmentId: 'file-1',
+        ),
+        [1, 2],
+      );
+      await client.createSmallTaskAttachment(
+        taskListId: 'list',
+        taskId: 'task',
+        name: 'notes.txt',
+        contentType: 'text/plain',
+        bytes: [1, 2],
+      );
+      await client.deleteTaskAttachment(
+        taskListId: 'list',
+        taskId: 'task',
+        attachmentId: 'file-1',
+      );
+      expect(requests.map((request) => request.method), [
+        'GET',
+        'GET',
+        'POST',
+        'DELETE',
+      ]);
+      expect(
+        requests[0].url.path,
+        '/v1.0/me/todo/lists/list/tasks/task/attachments',
+      );
+      expect(
+        requests[1].url.path,
+        r'/v1.0/me/todo/lists/list/tasks/task/attachments/file-1/$value',
+      );
+      expect(jsonDecode(requests[2].body), {
+        '@odata.type': '#microsoft.graph.taskFileAttachment',
+        'name': 'notes.txt',
+        'contentType': 'text/plain',
+        'size': 2,
+        'contentBytes': 'AQI=',
+      });
+      expect(
+        requests[3].url.path,
+        '/v1.0/me/todo/lists/list/tasks/task/attachments/file-1',
+      );
+    },
+  );
+
+  test(
+    'task attachment continuation rejects another host and invalid uploads',
+    () async {
+      var requests = 0;
+      final client = _client((request) {
+        requests++;
+        return _json({'value': []});
+      });
+      await expectLater(
+        client.listTaskAttachmentsPage(
+          taskListId: 'list',
+          taskId: 'task',
+          nextLink: 'https://attacker.test/steal',
+        ),
+        throwsFormatException,
+      );
+      await expectLater(
+        client.createSmallTaskAttachment(
+          taskListId: 'list',
+          taskId: 'task',
+          name: '../escape',
+          contentType: 'text/plain',
+          bytes: [1],
+        ),
+        throwsArgumentError,
+      );
+      expect(requests, 0);
+    },
+  );
+
+  test('linked resources use task-scoped endpoint and safe pagination', () async {
+    final requests = <http.Request>[];
+    final client = _client((request) {
+      requests.add(request);
+      return _json({
+        'value': [
+          {
+            'id': 'resource-1',
+            'applicationName': 'Planner',
+            'displayName': 'Project',
+            'webUrl': 'https://example.test/project',
+          },
+        ],
+        '@odata.nextLink':
+            'https://graph.microsoft.com/v1.0/me/todo/lists/list-1/tasks/task-1/linkedResources?\$skiptoken=next',
+      });
+    });
+    final first = await client.listLinkedResourcesPage(
+      taskListId: 'list-1',
+      taskId: 'task-1',
+    );
+    expect(first.resources.single.displayName, 'Project');
+    expect(first.resources.single.applicationName, 'Planner');
+    expect(
+      requests.single.url.path,
+      '/v1.0/me/todo/lists/list-1/tasks/task-1/linkedResources',
+    );
+    await client.listLinkedResourcesPage(
+      taskListId: 'list-1',
+      taskId: 'task-1',
+      nextLink: first.nextLink,
+    );
+    expect(requests, hasLength(2));
+    await expectLater(
+      client.listLinkedResourcesPage(
+        taskListId: 'list-1',
+        taskId: 'task-1',
+        nextLink: 'https://attacker.test/steal',
+      ),
+      throwsFormatException,
+    );
+    expect(requests, hasLength(2));
+  });
+
   test('list lists sends GET /me/todo/lists', () async {
     late http.Request captured;
     final client = _client((request) {

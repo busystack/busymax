@@ -1,12 +1,249 @@
 import 'dart:convert';
 
 import 'package:busymax/src/calendar_providers/calendar_mutation.dart';
+import 'package:busymax/src/calendar_providers/calendar_sync_dto.dart';
 import 'package:busymax/src/microsoft_calendar/microsoft_calendar_api_client.dart';
+import 'package:busymax/src/microsoft_calendar/microsoft_event_attachment.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 
 void main() {
+  test(
+    'event attachment metadata paginates without treating flags as files',
+    () async {
+      final paths = <String>[];
+      final client = _client((request) {
+        paths.add(request.url.path);
+        expect(request.headers['authorization'], 'Bearer token');
+        return request.url.queryParameters.containsKey(r'$skiptoken')
+            ? _json({
+                'value': [
+                  {
+                    'id': 'ref',
+                    'name': 'Plan',
+                    '@odata.type': '#microsoft.graph.referenceAttachment',
+                    'sourceUrl': 'https://example.test/plan',
+                  },
+                ],
+              })
+            : _json({
+                'value': [
+                  {
+                    'id': 'file',
+                    'name': 'Agenda.pdf',
+                    '@odata.type': '#microsoft.graph.fileAttachment',
+                    'size': 5,
+                  },
+                ],
+                '@odata.nextLink':
+                    'https://graph.microsoft.com/v1.0/me/calendars/cal/events/event/attachments?\$skiptoken=next',
+              });
+      });
+      final attachments = await client.listEventAttachments(
+        calendarId: 'cal',
+        eventId: 'event',
+      );
+      expect(paths, [
+        '/v1.0/me/calendars/cal/events/event/attachments',
+        '/v1.0/me/calendars/cal/events/event/attachments',
+      ]);
+      expect(attachments.map((attachment) => attachment.kind), [
+        MicrosoftEventAttachmentKind.file,
+        MicrosoftEventAttachmentKind.reference,
+      ]);
+      expect(attachments.first.size, 5);
+      expect(attachments.last.canDownload, isFalse);
+    },
+  );
+
+  test(
+    'event attachment download is explicit and rejects reference kinds',
+    () async {
+      final client = _client((request) {
+        expect(
+          request.url.path,
+          r'/v1.0/me/calendars/cal/events/event/attachments/file/$value',
+        );
+        return http.Response.bytes([1, 2, 3], 200);
+      });
+      final data = await client.downloadEventAttachment(
+        calendarId: 'cal',
+        eventId: 'event',
+        attachment: const MicrosoftEventAttachment(
+          id: 'file',
+          name: 'a.bin',
+          kind: MicrosoftEventAttachmentKind.file,
+        ),
+      );
+      expect(data, [1, 2, 3]);
+      expect(
+        () => client.downloadEventAttachment(
+          calendarId: 'cal',
+          eventId: 'event',
+          attachment: const MicrosoftEventAttachment(
+            id: 'ref',
+            name: 'link',
+            kind: MicrosoftEventAttachmentKind.reference,
+          ),
+        ),
+        throwsUnsupportedError,
+      );
+    },
+  );
+
+  test(
+    'untrusted attachment pagination never forwards authorization',
+    () async {
+      var calls = 0;
+      final client = _client((request) {
+        calls++;
+        return _json({
+          'value': [],
+          '@odata.nextLink': 'https://attacker.example/steal',
+        });
+      });
+      await expectLater(
+        client.listEventAttachments(calendarId: 'cal', eventId: 'event'),
+        throwsFormatException,
+      );
+      expect(calls, 1);
+    },
+  );
+
+  test(
+    'getSchedule preserves mixed recipient outcomes and UTC intervals',
+    () async {
+      late http.Request captured;
+      final client = _client((request) {
+        captured = request;
+        return _json({
+          'value': [
+            {
+              'scheduleId': 'busy@example.test',
+              'scheduleItems': [
+                {
+                  'status': 'busy',
+                  'start': {
+                    'dateTime': '2026-03-08T09:00:00',
+                    'timeZone': 'UTC',
+                  },
+                  'end': {'dateTime': '2026-03-08T10:00:00', 'timeZone': 'UTC'},
+                },
+              ],
+            },
+            {'scheduleId': 'free@example.test', 'scheduleItems': []},
+            {
+              'scheduleId': 'denied@example.test',
+              'error': {'responseCode': '5003', 'message': 'No access'},
+            },
+          ],
+        });
+      });
+      final results = await client.freeBusyDetails(
+        calendarIds: const [
+          'busy@example.test',
+          'free@example.test',
+          'denied@example.test',
+          'missing@example.test',
+        ],
+        rangeStart: DateTime.utc(2026, 3, 8),
+        rangeEnd: DateTime.utc(2026, 3, 9),
+      );
+      expect(captured.method, 'POST');
+      expect(captured.url.path, '/v1.0/me/calendar/getSchedule');
+      expect((jsonDecode(captured.body) as Map)['startTime'], {
+        'dateTime': '2026-03-08T00:00:00.000',
+        'timeZone': 'UTC',
+      });
+      expect(results.map((result) => result.status), [
+        FreeBusyEvaluationStatus.success,
+        FreeBusyEvaluationStatus.success,
+        FreeBusyEvaluationStatus.failed,
+        FreeBusyEvaluationStatus.missing,
+      ]);
+      expect(results[0].busySlots.single.start, DateTime.utc(2026, 3, 8, 9));
+      expect(results[1].busySlots, isEmpty);
+      expect(results[2].errors, contains('5003'));
+    },
+  );
+
+  test('getSchedule rejects invalid intervals without a request', () async {
+    final client = _client((_) => throw StateError('No request expected'));
+    final results = await client.freeBusyDetails(
+      calendarIds: const ['guest@example.test'],
+      rangeStart: DateTime.utc(2026, 1, 2),
+      rangeEnd: DateTime.utc(2026, 1, 1),
+    );
+    expect(results.single.status, FreeBusyEvaluationStatus.failed);
+  });
+
+  test(
+    'personal Microsoft token never calls unsupported getSchedule',
+    () async {
+      final claims = base64Url
+          .encode(
+            utf8.encode(
+              jsonEncode({'tid': '9188040d-6c67-4c5b-b112-36a304b66dad'}),
+            ),
+          )
+          .replaceAll('=', '');
+      final client = MicrosoftCalendarApiClient(
+        httpClient: MockClient(
+          (_) async => throw StateError('No request expected'),
+        ),
+        baseUri: Uri.parse('https://graph.microsoft.com/v1.0'),
+        responseTimeZone: 'UTC',
+        authorizationHeaderProvider: () async =>
+            'Bearer header.$claims.signature',
+      );
+      final results = await client.freeBusyDetails(
+        calendarIds: const ['guest@example.test'],
+        rangeStart: DateTime.utc(2026, 1, 1),
+        rangeEnd: DateTime.utc(2026, 1, 2),
+      );
+      expect(results.single.status, FreeBusyEvaluationStatus.failed);
+      expect(results.single.errors.single, contains('personal'));
+    },
+  );
+
+  test(
+    'getSchedule batches at 20 recipients and retains failed batch',
+    () async {
+      var calls = 0;
+      final client = _client((request) {
+        calls++;
+        if (calls == 2) {
+          return http.Response('{"error":{"code":"ErrorAccessDenied"}}', 403);
+        }
+        final recipients =
+            (jsonDecode(request.body) as Map)['schedules'] as List;
+        expect(recipients, hasLength(20));
+        return _json({
+          'value': [
+            for (final recipient in recipients)
+              {'scheduleId': recipient, 'scheduleItems': []},
+          ],
+        });
+      });
+      final results = await client.freeBusyDetails(
+        calendarIds: [
+          for (var index = 0; index < 25; index++) 'guest$index@example.test',
+        ],
+        rangeStart: DateTime.utc(2026, 1, 1),
+        rangeEnd: DateTime.utc(2026, 1, 2),
+      );
+      expect(calls, 2);
+      expect(results.take(20).every((value) => value.succeeded), isTrue);
+      expect(
+        results
+            .skip(20)
+            .every((value) => value.status == FreeBusyEvaluationStatus.failed),
+        isTrue,
+      );
+    },
+  );
+
   test('calendar update sends the documented Microsoft color enum', () async {
     late http.Request captured;
     final client = _client((request) {

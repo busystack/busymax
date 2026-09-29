@@ -4,6 +4,14 @@ import 'package:busymax/src/google_calendar/google_calendar_mapper.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  test('Google event absence of attachment field is a loaded empty list', () {
+    final event = googleCalendarEventFromJson('cal', {
+      'id': 'event',
+      'summary': 'Planning',
+    });
+    expect(event.attachmentsJson, isEmpty);
+  });
+
   test('Google create identity is stable and uses the valid ID alphabet', () {
     final first = googleCalendarCreateEventId(
       '00112233-4455-6677-8899-aabbccddeeff',
