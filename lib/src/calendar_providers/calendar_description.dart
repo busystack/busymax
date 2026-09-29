@@ -201,6 +201,42 @@ String calendarDescriptionToHtml(
   return '<div>${buffer.toString()}</div>';
 }
 
+/// Carries the original online-meeting HTML through a body edit. Graph treats
+/// that fragment as provider-owned meeting state; serializing the visible text
+/// alone can remove it and disable the meeting.
+String preserveMicrosoftMeetingBodyHtml({
+  required String editedHtml,
+  required String originalHtml,
+  required String? meetingUrl,
+}) {
+  if (meetingUrl == null || meetingUrl.isEmpty || originalHtml.isEmpty) {
+    return editedHtml;
+  }
+  var position = originalHtml.indexOf(meetingUrl);
+  if (position < 0) {
+    position = originalHtml.indexOf(escapeHtml(meetingUrl));
+  }
+  if (position < 0) {
+    // The provider has not supplied a separable meeting fragment. Retain its
+    // original body rather than sending a replacement that drops meeting data.
+    return '$editedHtml$originalHtml';
+  }
+  final div = originalHtml.lastIndexOf(
+    RegExp(r'<div\b', caseSensitive: false),
+    position,
+  );
+  final paragraph = originalHtml.lastIndexOf(
+    RegExp(r'<p\b', caseSensitive: false),
+    position,
+  );
+  final start = div > paragraph ? div : paragraph;
+  final fragment = originalHtml
+      .substring(start < 0 ? 0 : start)
+      .replaceFirst(RegExp(r'</body>\s*</html>\s*$', caseSensitive: false), '')
+      .replaceFirst(RegExp(r'</body>\s*$', caseSensitive: false), '');
+  return '$editedHtml$fragment';
+}
+
 String escapeHtml(String value) {
   return value
       .replaceAll('&', '&amp;')
