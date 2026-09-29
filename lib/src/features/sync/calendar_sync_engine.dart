@@ -1,6 +1,9 @@
 import '../../calendar_providers/cloud_calendar_client.dart';
 import '../../calendar_providers/calendar_sync_dto.dart';
 import '../../db/app_database.dart';
+import '../../google_calendar/google_calendar_errors.dart';
+import '../../microsoft_calendar/microsoft_calendar_errors.dart';
+import 'package:drift/drift.dart';
 import 'package:busymax/src/providers/busy_provider.dart';
 import '../calendar/data/calendar_repository.dart';
 import '../notifications/notification_schedule_service.dart';
@@ -39,6 +42,140 @@ class CalendarSyncEngine {
   final DateTime Function() _nowUtc;
 
   BusyProvider get provider => _client.provider;
+
+  /// Retrieves one additional month as an independent snapshot. Range reads
+  /// must never consume or replace the baseline events cursor.
+  Future<void> retrieveMonth(DateTime month) async {
+    final start = DateTime.utc(month.year, month.month);
+    final end = DateTime.utc(month.year, month.month + 1);
+    final sources =
+        await (_database.select(_database.calendarSources)..where(
+              (row) =>
+                  row.accountId.equals(_accountId) &
+                  row.provider.equals(provider.storageValue) &
+                  row.selected.equals(true) &
+                  row.hidden.equals(false) &
+                  row.isDeleted.equals(false),
+            ))
+            .get();
+    try {
+      for (final source in sources) {
+        // Both clients finish pagination before returning. A failed later page
+        // therefore cannot turn a partial response into an empty snapshot.
+        final events = await _client.listEvents(
+          calendarId: source.providerCalendarId,
+          rangeStart: start,
+          rangeEnd: end,
+        );
+        final recurringIds = <String>{
+          for (final event in events)
+            if (event.providerRecurringEventId case final id?) id,
+        };
+        final existingInstances =
+            await (_database.select(_database.calendarEvents)..where(
+                  (row) =>
+                      row.calendarSourceId.equals(source.id) &
+                      row.providerRecurringEventId.isNotNull(),
+                ))
+                .get();
+        recurringIds.addAll(
+          existingInstances
+              .where((row) {
+                final rowStart = DateTime.tryParse(
+                  row.allDay ? row.startDate ?? '' : row.startDateTime ?? '',
+                );
+                final rowEnd = DateTime.tryParse(
+                  row.allDay ? row.endDate ?? '' : row.endDateTime ?? '',
+                );
+                return rowStart != null &&
+                    rowEnd != null &&
+                    rowStart.isBefore(end) &&
+                    rowEnd.isAfter(start);
+              })
+              .map((row) => row.providerRecurringEventId!),
+        );
+        final instances = <CalendarEventDto>[];
+        final masters = <CalendarEventDto>[];
+        for (final id in recurringIds) {
+          try {
+            instances.addAll(
+              await _client.listEventInstances(
+                calendarId: source.providerCalendarId,
+                recurringEventId: id,
+                rangeStart: start,
+                rangeEnd: end,
+              ),
+            );
+            masters.add(
+              await _client.getEvent(
+                calendarId: source.providerCalendarId,
+                eventId: id,
+              ),
+            );
+          } on GoogleCalendarApiError catch (error) {
+            if (error.statusCode != 404 && error.statusCode != 410) rethrow;
+          } on MicrosoftCalendarApiError catch (error) {
+            if (error.statusCode != 404 && error.statusCode != 410) rethrow;
+          }
+        }
+        final returnedIds = <String>{};
+        for (final event in [...events, ...instances]) {
+          await _repository.upsertEvent(
+            accountId: _accountId,
+            event: event,
+            preservePendingLocalChanges: true,
+          );
+          returnedIds.add(
+            CalendarRepository.eventId(
+              accountId: _accountId,
+              provider: event.provider,
+              providerCalendarId: event.providerCalendarId,
+              providerEventId: event.providerEventId,
+              providerOriginalStartKey: event.providerOriginalStartKey,
+            ),
+          );
+        }
+        for (final master in masters) {
+          await _repository.upsertEvent(
+            accountId: _accountId,
+            event: master,
+            preservePendingLocalChanges: true,
+          );
+        }
+        await _repository.markExpandedRecurringMastersDeleted(
+          accountId: _accountId,
+          provider: provider,
+          providerCalendarId: source.providerCalendarId,
+          providerRecurringEventIds: recurringIds,
+        );
+        await _repository.markMissingEventsDeleted(
+          accountId: _accountId,
+          provider: provider,
+          providerCalendarId: source.providerCalendarId,
+          rangeStart: start,
+          rangeEnd: end,
+          returnedLocalEventIds: returnedIds,
+        );
+        await _repository.saveSyncState(
+          accountId: _accountId,
+          provider: provider,
+          syncKind: 'events_range_${start.year}_${start.month}',
+          calendarSourceId: source.id,
+          rangeStart: start.toIso8601String(),
+          rangeEnd: end.toIso8601String(),
+          cursorKind: 'snapshot_generation',
+          cursorValue: '0',
+          full: true,
+        );
+      }
+    } finally {
+      await NotificationScheduleService(
+        database: _database,
+        nowUtc: _nowUtc,
+      ).rebuildUpcomingEventNotifications(_accountId);
+      await _onNotificationScheduleChanged?.call();
+    }
+  }
 
   Future<void> fullSync() async {
     try {

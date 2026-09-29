@@ -15,6 +15,7 @@ import 'pending_ops_replay_coordinator.dart';
 import '../task_lists/data/task_lists_repository.dart';
 import '../tasks/data/tasks_repository.dart';
 import '../tasks/domain/task_checklist_item.dart';
+import '../tasks/domain/google_task_assignment_policy.dart';
 
 class PendingOpsReplayer {
   PendingOpsReplayer({
@@ -387,6 +388,12 @@ class PendingOpsReplayer {
 
   Future<void> _createTask(PendingOp op) async {
     final request = _request(op);
+    if (request['parent'] case final Object parentId) {
+      final parentPolicy = await _googleAssignment(parentId.toString());
+      if (parentPolicy?.isAssigned == true) {
+        await _blockUnsupportedAssignedTask(op);
+      }
+    }
     final body = (request['body'] as Map).cast<String, Object?>();
     final dto = await _apiClient.createTask(
       taskListId: op.taskListId!,
@@ -415,7 +422,15 @@ class PendingOpsReplayer {
   }
 
   Future<void> _patchTask(PendingOp op) async {
-    await _ensureNoTaskConflict(op, _request(op));
+    final request = _request(op);
+    if (request.containsKey('notes')) {
+      final policy = await _googleAssignment(op.taskId!);
+      if (policy?.isFromDocument == true &&
+          request['notes']?.toString().isNotEmpty == true) {
+        await _blockUnsupportedAssignedTask(op);
+      }
+    }
+    await _ensureNoTaskConflict(op, request);
     final dto = await _apiClient.patchTask(
       taskListId: op.taskListId!,
       taskId: op.taskId!,
@@ -425,6 +440,14 @@ class PendingOpsReplayer {
   }
 
   Future<void> _updateTask(PendingOp op) async {
+    final request = _request(op);
+    if (request.containsKey('notes')) {
+      final policy = await _googleAssignment(op.taskId!);
+      if (policy?.isFromDocument == true &&
+          request['notes']?.toString().isNotEmpty == true) {
+        await _blockUnsupportedAssignedTask(op);
+      }
+    }
     await _ensureNoTaskConflict(op, _request(op));
     final dto = await _apiClient.updateTask(
       taskListId: op.taskListId!,
@@ -697,8 +720,15 @@ class PendingOpsReplayer {
   }
 
   Future<void> _moveTask(PendingOp op) async {
-    await _ensureTaskUnchanged(op, 'move');
     final request = _request(op);
+    if (request['parent'] case final Object parentId) {
+      final childPolicy = await _googleAssignment(op.taskId!);
+      final parentPolicy = await _googleAssignment(parentId.toString());
+      if (childPolicy?.isAssigned == true || parentPolicy?.isAssigned == true) {
+        await _blockUnsupportedAssignedTask(op);
+      }
+    }
+    await _ensureTaskUnchanged(op, 'move');
     final destinationTaskListId = request['destinationTasklist']?.toString();
     final targetTaskListId = destinationTaskListId ?? op.taskListId!;
     final dto = await _apiClient.moveTask(
@@ -729,6 +759,30 @@ class PendingOpsReplayer {
         );
       }
     });
+  }
+
+  Future<GoogleTaskAssignmentPolicy?> _googleAssignment(String taskId) async {
+    final account = await (_database.select(
+      _database.accounts,
+    )..where((row) => row.id.equals(_accountId))).getSingleOrNull();
+    if (account?.provider != 'google') return null;
+    final task =
+        await (_database.select(_database.tasks)..where(
+              (row) => row.accountId.equals(_accountId) & row.id.equals(taskId),
+            ))
+            .getSingleOrNull();
+    return task == null
+        ? null
+        : GoogleTaskAssignmentPolicy.fromJson(task.assignmentInfoJson);
+  }
+
+  Future<Never> _blockUnsupportedAssignedTask(PendingOp op) async {
+    await _blockOp(
+      op,
+      'unsupported_assigned_task',
+      'This operation is not allowed for an assigned Google task.',
+    );
+    throw const _PendingOpBlocked();
   }
 
   Future<void> _preserveDependentMoveProjection(
