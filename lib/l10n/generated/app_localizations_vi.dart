@@ -547,6 +547,9 @@ class AppLocalizationsVi extends AppLocalizations {
   String get linkedResources => 'Tài nguyên liên kết';
 
   @override
+  String get noLinkedResources => 'Không có tài nguyên liên kết';
+
+  @override
   String get attachments => 'Tệp đính kèm';
 
   @override
@@ -3024,4 +3027,10 @@ class AppLocalizationsVi extends AppLocalizations {
 
   @override
   String get searchClearText => 'Xóa văn bản';
+
+  @override
+  String get openSharedCalendar => 'Open shared calendar';
+
+  @override
+  String get calendarOwnerEmail => 'Calendar owner email';
 }

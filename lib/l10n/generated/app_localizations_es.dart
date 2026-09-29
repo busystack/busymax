@@ -554,6 +554,9 @@ class AppLocalizationsEs extends AppLocalizations {
   String get linkedResources => 'Recursos vinculados';
 
   @override
+  String get noLinkedResources => 'No hay recursos vinculados';
+
+  @override
   String get attachments => 'Archivos adjuntos';
 
   @override
@@ -3031,4 +3034,10 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get searchClearText => 'Borrar texto';
+
+  @override
+  String get openSharedCalendar => 'Open shared calendar';
+
+  @override
+  String get calendarOwnerEmail => 'Calendar owner email';
 }

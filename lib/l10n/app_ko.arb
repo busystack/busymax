@@ -173,6 +173,7 @@
   "refreshCalendar": "캘린더 새로 고침",
 "openInProvider": "서비스에서 열기",
   "linkedResources": "연결된 리소스",
+  "noLinkedResources": "연결된 리소스가 없습니다",
   "attachments": "첨부 파일",
   "attachmentsNotLoaded": "첨부 파일을 불러오지 못했습니다",
   "hideFromSchedule": "일정에서 숨기기",
@@ -1058,5 +1059,7 @@
   "searchClearText": "텍스트 지우기",
   "windowMinimize": "최소화",
   "windowMaximize": "최대화",
-  "windowRestore": "복원"
+  "windowRestore": "복원",
+  "openSharedCalendar": "공유 캘린더 열기",
+  "calendarOwnerEmail": "캘린더 소유자 이메일"
 }

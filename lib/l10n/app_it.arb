@@ -173,6 +173,7 @@
   "refreshCalendar": "Aggiorna calendario",
 "openInProvider": "Apri nel servizio",
   "linkedResources": "Risorse collegate",
+  "noLinkedResources": "Nessuna risorsa collegata",
   "attachments": "Allegati",
   "attachmentsNotLoaded": "Allegati non caricati",
   "hideFromSchedule": "Nascondi dall’agenda",
@@ -1058,5 +1059,7 @@
   "searchClearText": "Cancella testo",
   "windowMinimize": "Riduci",
   "windowMaximize": "Ingrandisci",
-  "windowRestore": "Ripristina"
+  "windowRestore": "Ripristina",
+  "openSharedCalendar": "Apri calendario condiviso",
+  "calendarOwnerEmail": "Email del proprietario del calendario"
 }

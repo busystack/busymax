@@ -546,6 +546,9 @@ class AppLocalizationsEt extends AppLocalizations {
   String get linkedResources => 'Seotud ressursid';
 
   @override
+  String get noLinkedResources => 'Seotud ressursse pole';
+
+  @override
   String get attachments => 'Manused';
 
   @override
@@ -3006,4 +3009,10 @@ class AppLocalizationsEt extends AppLocalizations {
 
   @override
   String get searchClearText => 'Tühjenda tekst';
+
+  @override
+  String get openSharedCalendar => 'Open shared calendar';
+
+  @override
+  String get calendarOwnerEmail => 'Calendar owner email';
 }

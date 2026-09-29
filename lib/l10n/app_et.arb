@@ -173,6 +173,7 @@
   "refreshCalendar": "Värskenda kalendrit",
 "openInProvider": "Ava teenuses",
   "linkedResources": "Seotud ressursid",
+  "noLinkedResources": "Seotud ressursse pole",
   "attachments": "Manused",
   "attachmentsNotLoaded": "Manuseid ei laaditud",
   "hideFromSchedule": "Peida ajakavast",
@@ -1236,5 +1237,7 @@
   "searchClearText": "Tühjenda tekst",
   "windowMinimize": "Minimeeri",
   "windowMaximize": "Maksimeeri",
-  "windowRestore": "Taasta"
+  "windowRestore": "Taasta",
+  "openSharedCalendar": "Ava jagatud kalender",
+  "calendarOwnerEmail": "Kalendri omaniku e-posti aadress"
 }

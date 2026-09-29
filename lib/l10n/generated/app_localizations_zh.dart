@@ -517,6 +517,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get linkedResources => '关联资源';
 
   @override
+  String get noLinkedResources => '没有关联资源';
+
+  @override
   String get attachments => '附件';
 
   @override
@@ -2926,6 +2929,12 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get searchClearText => '清除文字';
+
+  @override
+  String get openSharedCalendar => 'Open shared calendar';
+
+  @override
+  String get calendarOwnerEmail => 'Calendar owner email';
 }
 
 /// The translations for Chinese, using the Han script (`zh_Hans`).
@@ -3435,6 +3444,9 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
 
   @override
   String get linkedResources => '关联资源';
+
+  @override
+  String get noLinkedResources => '没有关联资源';
 
   @override
   String get attachments => '附件';
@@ -5846,6 +5858,12 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
 
   @override
   String get searchClearText => '清除文字';
+
+  @override
+  String get openSharedCalendar => 'Open shared calendar';
+
+  @override
+  String get calendarOwnerEmail => 'Calendar owner email';
 }
 
 /// The translations for Chinese, using the Han script (`zh_Hant`).
@@ -6355,6 +6373,9 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get linkedResources => '關聯資源';
+
+  @override
+  String get noLinkedResources => '沒有關聯資源';
 
   @override
   String get attachments => '附件';
@@ -8767,4 +8788,10 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get searchClearText => '清除文字';
+
+  @override
+  String get openSharedCalendar => 'Open shared calendar';
+
+  @override
+  String get calendarOwnerEmail => 'Calendar owner email';
 }

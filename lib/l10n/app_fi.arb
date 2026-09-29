@@ -173,6 +173,7 @@
   "refreshCalendar": "Päivitä kalenteri",
 "openInProvider": "Avaa palvelussa",
   "linkedResources": "Linkitetyt resurssit",
+  "noLinkedResources": "Ei linkitettyjä resursseja",
   "attachments": "Liitteet",
   "attachmentsNotLoaded": "Liitteitä ei ladattu",
   "hideFromSchedule": "Piilota aikataulusta",
@@ -1058,5 +1059,7 @@
   "searchClearText": "Tyhjennä teksti",
   "windowMinimize": "Pienennä",
   "windowMaximize": "Suurenna",
-  "windowRestore": "Palauta"
+  "windowRestore": "Palauta",
+  "openSharedCalendar": "Avaa jaettu kalenteri",
+  "calendarOwnerEmail": "Kalenterin omistajan sähköpostiosoite"
 }

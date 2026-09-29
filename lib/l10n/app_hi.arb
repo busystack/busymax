@@ -173,6 +173,7 @@
   "refreshCalendar": "कैलेंडर रीफ़्रेश करें",
 "openInProvider": "सेवा में खोलें",
   "linkedResources": "लिंक किए गए संसाधन",
+  "noLinkedResources": "कोई लिंक किया गया संसाधन नहीं",
   "attachments": "अटैचमेंट",
   "attachmentsNotLoaded": "अटैचमेंट लोड नहीं हुए",
   "hideFromSchedule": "शेड्यूल से छिपाएँ",
@@ -1058,5 +1059,7 @@
   "searchClearText": "पाठ साफ़ करें",
   "windowMinimize": "छोटा करें",
   "windowMaximize": "अधिकतम करें",
-  "windowRestore": "पुनर्स्थापित करें"
+  "windowRestore": "पुनर्स्थापित करें",
+  "openSharedCalendar": "साझा कैलेंडर खोलें",
+  "calendarOwnerEmail": "कैलेंडर स्वामी का ईमेल"
 }

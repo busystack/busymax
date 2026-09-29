@@ -173,6 +173,7 @@
   "refreshCalendar": "تحديث التقويم",
 "openInProvider": "فتح في الخدمة",
   "linkedResources": "الموارد المرتبطة",
+  "noLinkedResources": "لا توجد موارد مرتبطة",
   "attachments": "المرفقات",
   "attachmentsNotLoaded": "لم يتم تحميل المرفقات",
   "hideFromSchedule": "إخفاء من الجدول",
@@ -1058,5 +1059,7 @@
   "searchClearText": "مسح النص",
   "windowMinimize": "تصغير",
   "windowMaximize": "تكبير",
-  "windowRestore": "استعادة"
+  "windowRestore": "استعادة",
+  "openSharedCalendar": "فتح تقويم مشترك",
+  "calendarOwnerEmail": "البريد الإلكتروني لمالك التقويم"
 }

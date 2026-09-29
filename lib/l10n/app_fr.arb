@@ -173,6 +173,7 @@
   "refreshCalendar": "Actualiser le calendrier",
 "openInProvider": "Ouvrir dans le service",
   "linkedResources": "Ressources liées",
+  "noLinkedResources": "Aucune ressource liée",
   "attachments": "Pièces jointes",
   "attachmentsNotLoaded": "Pièces jointes non chargées",
   "hideFromSchedule": "Masquer du planning",
@@ -1121,5 +1122,7 @@
   "searchClearText": "Effacer le texte",
   "windowMinimize": "Réduire",
   "windowMaximize": "Agrandir",
-  "windowRestore": "Restaurer"
+  "windowRestore": "Restaurer",
+  "openSharedCalendar": "Ouvrir un calendrier partagé",
+  "calendarOwnerEmail": "Adresse e-mail du propriétaire du calendrier"
 }

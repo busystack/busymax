@@ -549,6 +549,9 @@ class AppLocalizationsHi extends AppLocalizations {
   String get linkedResources => 'लिंक किए गए संसाधन';
 
   @override
+  String get noLinkedResources => 'कोई लिंक किया गया संसाधन नहीं';
+
+  @override
   String get attachments => 'अटैचमेंट';
 
   @override
@@ -3027,4 +3030,10 @@ class AppLocalizationsHi extends AppLocalizations {
 
   @override
   String get searchClearText => 'पाठ साफ़ करें';
+
+  @override
+  String get openSharedCalendar => 'Open shared calendar';
+
+  @override
+  String get calendarOwnerEmail => 'Calendar owner email';
 }

@@ -534,6 +534,9 @@ class AppLocalizationsKo extends AppLocalizations {
   String get linkedResources => '연결된 리소스';
 
   @override
+  String get noLinkedResources => '연결된 리소스가 없습니다';
+
+  @override
   String get attachments => '첨부 파일';
 
   @override
@@ -2968,4 +2971,10 @@ class AppLocalizationsKo extends AppLocalizations {
 
   @override
   String get searchClearText => '텍스트 지우기';
+
+  @override
+  String get openSharedCalendar => 'Open shared calendar';
+
+  @override
+  String get calendarOwnerEmail => 'Calendar owner email';
 }

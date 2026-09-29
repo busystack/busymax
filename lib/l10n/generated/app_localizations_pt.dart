@@ -552,6 +552,9 @@ class AppLocalizationsPt extends AppLocalizations {
   String get linkedResources => 'Linked resources';
 
   @override
+  String get noLinkedResources => 'No linked resources';
+
+  @override
   String get attachments => 'Attachments';
 
   @override
@@ -3059,6 +3062,12 @@ class AppLocalizationsPt extends AppLocalizations {
 
   @override
   String get searchClearText => 'Clear text';
+
+  @override
+  String get openSharedCalendar => 'Open shared calendar';
+
+  @override
+  String get calendarOwnerEmail => 'Calendar owner email';
 }
 
 /// The translations for Portuguese, as used in Portugal (`pt_PT`).
@@ -3603,6 +3612,9 @@ class AppLocalizationsPtPt extends AppLocalizationsPt {
 
   @override
   String get linkedResources => 'Recursos ligados';
+
+  @override
+  String get noLinkedResources => 'Sem recursos ligados';
 
   @override
   String get attachments => 'Anexos';
@@ -6100,4 +6112,10 @@ class AppLocalizationsPtPt extends AppLocalizationsPt {
 
   @override
   String get searchClearText => 'Limpar texto';
+
+  @override
+  String get openSharedCalendar => 'Open shared calendar';
+
+  @override
+  String get calendarOwnerEmail => 'Calendar owner email';
 }

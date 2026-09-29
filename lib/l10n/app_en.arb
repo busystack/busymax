@@ -207,6 +207,7 @@
   "refreshCalendar": "Refresh calendar",
 "openInProvider": "Open in provider",
   "linkedResources": "Linked resources",
+  "noLinkedResources": "No linked resources",
   "attachments": "Attachments",
   "attachmentsNotLoaded": "Attachments not loaded",
   "hideFromSchedule": "Hide from schedule",
@@ -1598,5 +1599,7 @@
   "searchClearFilters": "Clear filters",
   "searchFiltersAction": "Filters",
   "searchNoSources": "No search sources selected",
-  "searchClearText": "Clear text"
+  "searchClearText": "Clear text",
+  "openSharedCalendar": "Open shared calendar",
+  "calendarOwnerEmail": "Calendar owner email"
 }

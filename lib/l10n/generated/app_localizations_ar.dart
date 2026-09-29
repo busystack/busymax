@@ -544,6 +544,9 @@ class AppLocalizationsAr extends AppLocalizations {
   String get linkedResources => 'الموارد المرتبطة';
 
   @override
+  String get noLinkedResources => 'لا توجد موارد مرتبطة';
+
+  @override
   String get attachments => 'المرفقات';
 
   @override
@@ -3091,4 +3094,10 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String get searchClearText => 'مسح النص';
+
+  @override
+  String get openSharedCalendar => 'Open shared calendar';
+
+  @override
+  String get calendarOwnerEmail => 'Calendar owner email';
 }

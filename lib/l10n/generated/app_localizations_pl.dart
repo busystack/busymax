@@ -563,6 +563,9 @@ class AppLocalizationsPl extends AppLocalizations {
   String get linkedResources => 'Połączone zasoby';
 
   @override
+  String get noLinkedResources => 'Brak połączonych zasobów';
+
+  @override
   String get attachments => 'Załączniki';
 
   @override
@@ -3201,4 +3204,10 @@ class AppLocalizationsPl extends AppLocalizations {
 
   @override
   String get searchClearText => 'Wyczyść tekst';
+
+  @override
+  String get openSharedCalendar => 'Open shared calendar';
+
+  @override
+  String get calendarOwnerEmail => 'Calendar owner email';
 }

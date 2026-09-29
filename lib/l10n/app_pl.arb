@@ -296,6 +296,7 @@
   "refreshCalendar": "Odśwież kalendarz",
 "openInProvider": "Otwórz u dostawcy",
   "linkedResources": "Połączone zasoby",
+  "noLinkedResources": "Brak połączonych zasobów",
   "attachments": "Załączniki",
   "attachmentsNotLoaded": "Załączniki nie zostały wczytane",
   "hideFromSchedule": "Ukryj w harmonogramie",
@@ -1768,5 +1769,7 @@
   "searchClearText": "Wyczyść tekst",
   "windowMinimize": "Minimalizuj",
   "windowMaximize": "Maksymalizuj",
-  "windowRestore": "Przywróć"
+  "windowRestore": "Przywróć",
+  "openSharedCalendar": "Otwórz udostępniony kalendarz",
+  "calendarOwnerEmail": "Adres e-mail właściciela kalendarza"
 }

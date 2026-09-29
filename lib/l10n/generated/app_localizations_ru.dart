@@ -547,6 +547,9 @@ class AppLocalizationsRu extends AppLocalizations {
   String get linkedResources => 'Связанные ресурсы';
 
   @override
+  String get noLinkedResources => 'Нет связанных ресурсов';
+
+  @override
   String get attachments => 'Вложения';
 
   @override
@@ -3051,4 +3054,10 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String get searchClearText => 'Очистить текст';
+
+  @override
+  String get openSharedCalendar => 'Open shared calendar';
+
+  @override
+  String get calendarOwnerEmail => 'Calendar owner email';
 }

@@ -532,6 +532,9 @@ class AppLocalizationsJa extends AppLocalizations {
   String get linkedResources => 'リンクされたリソース';
 
   @override
+  String get noLinkedResources => 'リンクされたリソースはありません';
+
+  @override
   String get attachments => '添付ファイル';
 
   @override
@@ -2963,4 +2966,10 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get searchClearText => 'テキストを消去';
+
+  @override
+  String get openSharedCalendar => 'Open shared calendar';
+
+  @override
+  String get calendarOwnerEmail => 'Calendar owner email';
 }

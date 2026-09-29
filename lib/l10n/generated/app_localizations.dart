@@ -1020,6 +1020,12 @@ abstract class AppLocalizations {
   /// **'Linked resources'**
   String get linkedResources;
 
+  /// No description provided for @noLinkedResources.
+  ///
+  /// In en, this message translates to:
+  /// **'No linked resources'**
+  String get noLinkedResources;
+
   /// No description provided for @attachments.
   ///
   /// In en, this message translates to:
@@ -5065,6 +5071,18 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Clear text'**
   String get searchClearText;
+
+  /// No description provided for @openSharedCalendar.
+  ///
+  /// In en, this message translates to:
+  /// **'Open shared calendar'**
+  String get openSharedCalendar;
+
+  /// No description provided for @calendarOwnerEmail.
+  ///
+  /// In en, this message translates to:
+  /// **'Calendar owner email'**
+  String get calendarOwnerEmail;
 }
 
 class _AppLocalizationsDelegate

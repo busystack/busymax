@@ -547,6 +547,9 @@ class AppLocalizationsFa extends AppLocalizations {
   String get linkedResources => 'منابع پیوندشده';
 
   @override
+  String get noLinkedResources => 'منبع پیوندشده‌ای وجود ندارد';
+
+  @override
   String get attachments => 'پیوست‌ها';
 
   @override
@@ -3062,4 +3065,10 @@ class AppLocalizationsFa extends AppLocalizations {
 
   @override
   String get searchClearText => 'پاک کردن متن';
+
+  @override
+  String get openSharedCalendar => 'Open shared calendar';
+
+  @override
+  String get calendarOwnerEmail => 'Calendar owner email';
 }

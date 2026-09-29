@@ -173,6 +173,7 @@
   "refreshCalendar": "刷新日历",
 "openInProvider": "在服务中打开",
   "linkedResources": "关联资源",
+  "noLinkedResources": "没有关联资源",
   "attachments": "附件",
   "attachmentsNotLoaded": "附件未加载",
   "hideFromSchedule": "从日程中隐藏",
@@ -1058,5 +1059,7 @@
   "searchClearText": "清除文字",
   "windowMinimize": "最小化",
   "windowMaximize": "最大化",
-  "windowRestore": "还原"
+  "windowRestore": "还原",
+  "openSharedCalendar": "打开共享日历",
+  "calendarOwnerEmail": "日历所有者的电子邮件地址"
 }

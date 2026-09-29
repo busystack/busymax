@@ -173,6 +173,7 @@
   "refreshCalendar": "重新整理行事曆",
 "openInProvider": "在服務中開啟",
   "linkedResources": "關聯資源",
+  "noLinkedResources": "沒有關聯資源",
   "attachments": "附件",
   "attachmentsNotLoaded": "附件尚未載入",
   "hideFromSchedule": "從行程中隱藏",
@@ -1058,5 +1059,7 @@
   "searchClearText": "清除文字",
   "windowMinimize": "最小化",
   "windowMaximize": "最大化",
-  "windowRestore": "還原"
+  "windowRestore": "還原",
+  "openSharedCalendar": "開啟共用行事曆",
+  "calendarOwnerEmail": "行事曆擁有者的電子郵件地址"
 }

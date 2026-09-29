@@ -173,6 +173,7 @@
   "refreshCalendar": "カレンダーを更新",
 "openInProvider": "サービスで開く",
   "linkedResources": "リンクされたリソース",
+  "noLinkedResources": "リンクされたリソースはありません",
   "attachments": "添付ファイル",
   "attachmentsNotLoaded": "添付ファイルは読み込まれていません",
   "hideFromSchedule": "スケジュールから非表示",
@@ -1058,5 +1059,7 @@
   "searchClearText": "テキストを消去",
   "windowMinimize": "最小化",
   "windowMaximize": "最大化",
-  "windowRestore": "元に戻す"
+  "windowRestore": "元に戻す",
+  "openSharedCalendar": "共有カレンダーを開く",
+  "calendarOwnerEmail": "カレンダー所有者のメールアドレス"
 }

@@ -173,6 +173,7 @@
   "refreshCalendar": "Làm mới lịch",
 "openInProvider": "Mở trong dịch vụ",
   "linkedResources": "Tài nguyên liên kết",
+  "noLinkedResources": "Không có tài nguyên liên kết",
   "attachments": "Tệp đính kèm",
   "attachmentsNotLoaded": "Chưa tải tệp đính kèm",
   "hideFromSchedule": "Ẩn khỏi lịch biểu",
@@ -1058,5 +1059,7 @@
   "searchClearText": "Xóa văn bản",
   "windowMinimize": "Thu nhỏ",
   "windowMaximize": "Phóng to",
-  "windowRestore": "Khôi phục"
+  "windowRestore": "Khôi phục",
+  "openSharedCalendar": "Mở lịch được chia sẻ",
+  "calendarOwnerEmail": "Email của chủ sở hữu lịch"
 }

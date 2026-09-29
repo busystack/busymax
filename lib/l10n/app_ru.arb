@@ -173,6 +173,7 @@
   "refreshCalendar": "Обновить календарь",
 "openInProvider": "Открыть в сервисе",
   "linkedResources": "Связанные ресурсы",
+  "noLinkedResources": "Нет связанных ресурсов",
   "attachments": "Вложения",
   "attachmentsNotLoaded": "Вложения не загружены",
   "hideFromSchedule": "Скрыть из расписания",
@@ -1058,5 +1059,7 @@
   "searchClearText": "Очистить текст",
   "windowMinimize": "Свернуть",
   "windowMaximize": "Развернуть",
-  "windowRestore": "Восстановить"
+  "windowRestore": "Восстановить",
+  "openSharedCalendar": "Открыть общий календарь",
+  "calendarOwnerEmail": "Адрес электронной почты владельца календаря"
 }

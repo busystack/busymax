@@ -550,6 +550,9 @@ class AppLocalizationsFi extends AppLocalizations {
   String get linkedResources => 'Linkitetyt resurssit';
 
   @override
+  String get noLinkedResources => 'Ei linkitettyjä resursseja';
+
+  @override
   String get attachments => 'Liitteet';
 
   @override
@@ -3056,4 +3059,10 @@ class AppLocalizationsFi extends AppLocalizations {
 
   @override
   String get searchClearText => 'Tyhjennä teksti';
+
+  @override
+  String get openSharedCalendar => 'Open shared calendar';
+
+  @override
+  String get calendarOwnerEmail => 'Calendar owner email';
 }
