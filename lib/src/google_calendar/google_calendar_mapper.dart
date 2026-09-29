@@ -74,7 +74,9 @@ CalendarEventDto googleCalendarEventFromJson(
     eventType: json['eventType']?.toString(),
     webLink: json['htmlLink']?.toString(),
     conferenceJson: json['conferenceData'],
-    attachmentsJson: json['attachments'],
+    attachmentsJson: json['attachments'] is List
+        ? json['attachments']
+        : const <Object?>[],
     isCancelled: status == 'cancelled',
     isDeleted: status == 'cancelled',
     createdAtServer: json['created']?.toString(),
