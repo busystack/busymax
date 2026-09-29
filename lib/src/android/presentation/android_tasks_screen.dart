@@ -14,9 +14,14 @@ import '../../dav/ical/ical_task_alarm.dart';
 import '../../features/task_lists/data/task_lists_repository.dart';
 import '../../features/tasks/data/tasks_repository.dart';
 import '../../features/tasks/domain/task_capabilities.dart';
+import '../../features/tasks/domain/task_source_links.dart';
 import '../../features/tasks/presentation/task_details_draft.dart';
 import '../../features/recurrence/domain/event_recurrence_codec.dart';
 import '../../features/recurrence/domain/recurrence_rule.dart';
+import '../../features/schedule/presentation/schedule_event_details_format.dart';
+import '../../features/schedule/presentation/attachment_download.dart';
+import '../../microsoft_todo/api/microsoft_todo_api_client.dart';
+import '../../microsoft_todo/api/microsoft_todo_api_models.dart';
 import '../../l10n/l10n.dart';
 import '../../providers/busy_provider.dart';
 import '../../schedule/schedule_filters.dart';
@@ -558,6 +563,8 @@ class AndroidTaskEditor extends ConsumerStatefulWidget {
 }
 
 class _AndroidTaskEditorState extends ConsumerState<AndroidTaskEditor> {
+  Future<List<TaskSourceLink>>? _linkedResourcesFuture;
+  Future<List<MicrosoftTodoAttachmentDto>>? _attachmentsFuture;
   late TaskDetailsDraft _draft = widget.task == null
       ? TaskDetailsDraft.forCreation(
           taskListId: widget.creationList!.id,
@@ -696,6 +703,134 @@ class _AndroidTaskEditorState extends ConsumerState<AndroidTaskEditor> {
                 subtitle: Text(widget.accountLabel ?? widget.accountId),
               ),
             ),
+            if (widget.provider == BusyProvider.google && widget.task != null)
+              for (final link in widget.task!.googleSourceLinks)
+                ListTile(
+                  leading: const Icon(Icons.open_in_new),
+                  title: Text(
+                    link.label?.isNotEmpty == true
+                        ? link.label!
+                        : context.l10n.openInProvider,
+                  ),
+                  subtitle: Text(link.url),
+                  onTap: () async {
+                    if (!await openScheduleWebLink(link.url) &&
+                        context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text(context.l10n.eventLinkOpenFailed),
+                        ),
+                      );
+                    }
+                  },
+                ),
+            if (widget.provider == BusyProvider.microsoft &&
+                widget.task != null)
+              Column(
+                children: [
+                  TextButton(
+                    onPressed: () => setState(() {
+                      final key = (
+                        accountId: widget.accountId,
+                        taskListId: widget.task!.taskListId,
+                        taskId: widget.task!.id,
+                      );
+                      ref.invalidate(microsoftTaskLinkedResourcesProvider(key));
+                      _linkedResourcesFuture = ref.read(
+                        microsoftTaskLinkedResourcesProvider(key).future,
+                      );
+                    }),
+                    child: Text(context.l10n.linkedResources),
+                  ),
+                  if (_linkedResourcesFuture case final future?)
+                    FutureBuilder<List<TaskSourceLink>>(
+                      future: future,
+                      builder: (context, snapshot) {
+                        if (snapshot.hasError) {
+                          return Text(
+                            context.l10n.nextcloudAvailabilityUnknown,
+                          );
+                        }
+                        if (!snapshot.hasData) {
+                          return const LinearProgressIndicator();
+                        }
+                        return Column(
+                          children: [
+                            for (final link in snapshot.data!)
+                              ListTile(
+                                leading: const Icon(Icons.open_in_new),
+                                title: Text(
+                                  link.label?.isNotEmpty == true
+                                      ? link.label!
+                                      : context.l10n.openInProvider,
+                                ),
+                                subtitle: Text(link.url),
+                                onTap: () async {
+                                  if (!await openScheduleWebLink(link.url) &&
+                                      context.mounted) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(
+                                        content: Text(
+                                          context.l10n.eventLinkOpenFailed,
+                                        ),
+                                      ),
+                                    );
+                                  }
+                                },
+                              ),
+                          ],
+                        );
+                      },
+                    ),
+                ],
+              ),
+            if (widget.provider == BusyProvider.microsoft &&
+                widget.task != null)
+              Column(
+                children: [
+                  TextButton(
+                    onPressed: () => setState(() {
+                      final key = (
+                        accountId: widget.accountId,
+                        taskListId: widget.task!.taskListId,
+                        taskId: widget.task!.id,
+                      );
+                      ref.invalidate(microsoftTaskAttachmentsProvider(key));
+                      _attachmentsFuture = ref.read(
+                        microsoftTaskAttachmentsProvider(key).future,
+                      );
+                    }),
+                    child: Text(context.l10n.attachments),
+                  ),
+                  if (_attachmentsFuture case final future?)
+                    FutureBuilder<List<MicrosoftTodoAttachmentDto>>(
+                      future: future,
+                      builder: (context, snapshot) {
+                        if (snapshot.hasError) {
+                          return Text(context.l10n.attachmentsNotLoaded);
+                        }
+                        if (!snapshot.hasData) {
+                          return const LinearProgressIndicator();
+                        }
+                        return Column(
+                          children: [
+                            for (final attachment in snapshot.data!)
+                              ListTile(
+                                leading: const Icon(Icons.attach_file),
+                                title: Text(attachment.name),
+                                subtitle: attachment.size == null
+                                    ? null
+                                    : Text('${attachment.size} B'),
+                                onTap: attachment.isFile
+                                    ? () => _downloadTaskAttachment(attachment)
+                                    : null,
+                              ),
+                          ],
+                        );
+                      },
+                    ),
+                ],
+              ),
             const SizedBox(height: 12),
             TextField(
               controller: _title,
@@ -708,7 +843,9 @@ class _AndroidTaskEditorState extends ConsumerState<AndroidTaskEditor> {
             const SizedBox(height: 12),
             TextField(
               controller: _notes,
-              enabled: canWrite,
+              enabled:
+                  canWrite &&
+                  !(widget.task?.googleAssignment.isFromDocument ?? false),
               minLines: 3,
               maxLines: 8,
               decoration: InputDecoration(labelText: context.l10n.notes),
@@ -1214,7 +1351,11 @@ class _AndroidTaskEditorState extends ConsumerState<AndroidTaskEditor> {
               : () => _openHierarchyTask(subtask.task!),
         ),
       OutlinedButton.icon(
-        onPressed: capabilities.canCreateTasks ? _createSubtask : null,
+        onPressed:
+            capabilities.canCreateTasks &&
+                !(widget.task?.googleAssignment.isAssigned ?? false)
+            ? _createSubtask
+            : null,
         icon: const Icon(Icons.add_task),
         label: Text(context.l10n.createSubtask),
       ),
@@ -1270,6 +1411,7 @@ class _AndroidTaskEditorState extends ConsumerState<AndroidTaskEditor> {
   }
 
   Future<void> _createSubtask() async {
+    if (widget.task?.googleAssignment.isAssigned ?? false) return;
     final controller = TextEditingController();
     final title = await showDialog<String>(
       context: context,
@@ -1794,7 +1936,11 @@ class _AndroidTaskEditorState extends ConsumerState<AndroidTaskEditor> {
       context: context,
       builder: (context) => AlertDialog(
         title: Text(context.l10n.deleteTask),
-        content: Text(context.l10n.deleteTaskConfirmation(widget.task!.title)),
+        content: Text(
+          widget.task!.googleAssignment.isAssigned
+              ? '${context.l10n.deleteTaskConfirmation(widget.task!.title)}\n\n${context.l10n.deleteAssignedTaskWarning}'
+              : context.l10n.deleteTaskConfirmation(widget.task!.title),
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
@@ -1991,6 +2137,39 @@ class _AndroidTaskEditorState extends ConsumerState<AndroidTaskEditor> {
       }
     } finally {
       if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  Future<void> _downloadTaskAttachment(
+    MicrosoftTodoAttachmentDto attachment,
+  ) async {
+    final task = widget.task;
+    final name = safeAttachmentFileName(attachment.name);
+    if (task == null || !attachment.isFile || name == null) return;
+    try {
+      final client = ref.read(
+        microsoftTodoApiClientForAccountProvider(widget.accountId),
+      );
+      if (client is! MicrosoftTodoAttachmentsApiClient) {
+        throw StateError('Microsoft task attachments are unavailable.');
+      }
+      final bytes = await (client as MicrosoftTodoAttachmentsApiClient)
+          .downloadTaskAttachment(
+            taskListId: task.taskListId,
+            taskId: task.id,
+            attachmentId: attachment.id,
+          );
+      await BusyMaxAndroidPlatform.instance.createDocument(
+        suggestedName: name,
+        mimeType: attachment.contentType ?? 'application/octet-stream',
+        bytes: Uint8List.fromList(bytes),
+      );
+    } on Object catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(context.l10n.exportFailed('$error'))),
+        );
+      }
     }
   }
 

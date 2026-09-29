@@ -54,7 +54,8 @@ class _AndroidGuestAvailabilityDialogState
   bool _loading = true;
   Object? _error;
   List<NextcloudFreeBusyResult> _nextcloud = const [];
-  Map<String, FreeBusyCalendarResultDto> _google = const {};
+  Map<String, FreeBusyCalendarResultDto> _cloud = const {};
+  int _loadGeneration = 0;
 
   List<String> get _recipients => widget.draft.attendees
       .where((attendee) => !attendee.self && !attendee.organizer)
@@ -69,21 +70,38 @@ class _AndroidGuestAvailabilityDialogState
     unawaited(_load());
   }
 
+  @override
+  void didUpdateWidget(covariant AndroidGuestAvailabilityDialog oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.accountId != widget.accountId ||
+        oldWidget.provider != widget.provider ||
+        oldWidget.collectionId != widget.collectionId ||
+        oldWidget.draft != widget.draft) {
+      unawaited(_load());
+    }
+  }
+
   Future<void> _load() async {
+    final generation = ++_loadGeneration;
     if (!_loading && mounted) setState(() => _loading = true);
     _error = null;
+    _nextcloud = const [];
+    _cloud = const {};
     try {
       if (widget.provider == BusyProvider.nextcloud) {
         final collectionId = widget.collectionId;
         if (collectionId == null) throw StateError('Missing collection');
-        _nextcloud = await ref
+        final results = await ref
             .read(nextcloudSchedulingServiceProvider(widget.accountId))
             .freeBusyForDraft(
               collectionId: collectionId,
               draft: widget.draft,
               fallbackTimeZone: ref.read(localTimeZoneProvider),
             );
-      } else if (widget.provider == BusyProvider.google) {
+        if (generation != _loadGeneration || !mounted) return;
+        _nextcloud = results;
+      } else if (widget.provider == BusyProvider.google ||
+          widget.provider == BusyProvider.microsoft) {
         final client = ref.read(
           calendarRemoteApiClientForAccountProvider(widget.accountId),
         );
@@ -103,7 +121,8 @@ class _AndroidGuestAvailabilityDialogState
             for (final result in results)
               result.calendarId.toLowerCase(): result,
           };
-          _google = {
+          if (generation != _loadGeneration || !mounted) return;
+          _cloud = {
             for (final recipient in _recipients)
               recipient:
                   byCalendar[recipient.toLowerCase()] ??
@@ -113,7 +132,7 @@ class _AndroidGuestAvailabilityDialogState
                   ),
           };
         } else {
-          _google = {
+          _cloud = {
             for (final recipient in _recipients)
               recipient: FreeBusyCalendarResultDto(
                 calendarId: recipient,
@@ -125,9 +144,11 @@ class _AndroidGuestAvailabilityDialogState
         throw StateError('Availability is unsupported');
       }
     } on Object catch (error) {
-      _error = error;
+      if (generation == _loadGeneration) _error = error;
     } finally {
-      if (mounted) setState(() => _loading = false);
+      if (mounted && generation == _loadGeneration) {
+        setState(() => _loading = false);
+      }
     }
   }
 
@@ -166,7 +187,7 @@ class _AndroidGuestAvailabilityDialogState
                           interval(value.startUtc, value.endUtc),
                       ],
                     ),
-                  for (final entry in _google.entries)
+                  for (final entry in _cloud.entries)
                     _AvailabilityEntry(
                       recipient: entry.key,
                       free:

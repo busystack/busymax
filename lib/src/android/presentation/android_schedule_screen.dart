@@ -17,6 +17,7 @@ import '../../features/calendar/data/calendar_repository.dart';
 import '../../features/calendar/presentation/event_editor_draft.dart';
 import '../../features/maps/application/external_location_launcher.dart';
 import '../../features/schedule/application/saved_schedule_location.dart';
+import '../../features/schedule/presentation/schedule_event_details_format.dart';
 import '../../features/tasks/data/tasks_repository.dart';
 import '../../features/recurrence/domain/event_recurrence_codec.dart';
 import '../../features/recurrence/domain/recurrence_rule.dart';
@@ -36,6 +37,8 @@ import 'android_schedule_search_filters.dart';
 import '../../features/schedule/presentation/schedule_search_result_text.dart';
 import '../android_notifications.dart';
 import 'android_availability_dialog.dart';
+import 'android_event_attachments_dialog.dart';
+import 'android_recurrence_dialog.dart';
 import 'android_date_picker.dart';
 import 'android_settings_screen.dart';
 import 'android_tasks_screen.dart';
@@ -145,6 +148,20 @@ class _AndroidScheduleScreenState extends ConsumerState<AndroidScheduleScreen> {
       )),
     );
     final searchCriteria = _searchCriteria;
+    final displayedRange =
+        searchCriteria?.range ??
+        _rangeFor(
+          DateTime(_anchor.year, _anchor.month, _anchor.day),
+          mode,
+          firstWeekday: _firstWeekday(context),
+        );
+    final rangeIncomplete =
+        items.hasValue &&
+        searchCriteria?.date != ScheduleSearchDate.any &&
+        ref
+                .read(scheduleRepositoryProvider)
+                .cloudCoverageCompleteFor(displayedRange) ==
+            false;
     final presentation = _searching && searchCriteria != null
         ? _buildSearchPresentation(
             items: items,
@@ -228,6 +245,14 @@ class _AndroidScheduleScreenState extends ConsumerState<AndroidScheduleScreen> {
             visible: !_searching,
             child: _navigationRow(context, mode),
           ),
+          if (rangeIncomplete)
+            Card(
+              child: ListTile(
+                leading: const Icon(Icons.cloud_off_outlined),
+                title: Text(context.l10n.scheduleRangeIncomplete),
+                dense: true,
+              ),
+            ),
           Expanded(
             child: BusyMaxBinaryPresentation(
               alternateActive: _searching,
@@ -654,7 +679,9 @@ class _AndroidScheduleScreenState extends ConsumerState<AndroidScheduleScreen> {
                 ),
                 const SizedBox(height: 8),
                 Text(item.sourceName ?? item.provider.displayName),
-                if (item.start != null)
+                if (item is CalendarScheduleItem)
+                  Text(scheduleEventIntervalLabel(context, item))
+                else if (item.start != null)
                   Text(
                     formatClockDateTime(
                       context,
@@ -662,6 +689,97 @@ class _AndroidScheduleScreenState extends ConsumerState<AndroidScheduleScreen> {
                       DateFormat.yMMMd().format(item.start!),
                     ),
                   ),
+                if (item is CalendarScheduleItem) ...[
+                  if (calendarEventDescription(item).trim().isNotEmpty)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 12),
+                      child: SelectableText(calendarEventDescription(item)),
+                    ),
+                  if (item.organizer != null)
+                    ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      leading: const Icon(Icons.person_outline),
+                      title: Text(
+                        '${context.l10n.organizer}: '
+                        '${scheduleEventPersonName(item.organizer)}',
+                      ),
+                    ),
+                  if (item.currentUserResponse case final response?)
+                    Text(
+                      '${context.l10n.yourResponse}: '
+                      '${scheduleEventResponseLabel(context, response)}',
+                    ),
+                  for (final attendee in item.attendees)
+                    ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      leading: const Icon(Icons.person_outline),
+                      title: Text(
+                        scheduleEventAttendeeLabel(context, attendee),
+                      ),
+                    ),
+                  if (item.joinMeetingUrl case final meetingLink?)
+                    FilledButton.icon(
+                      onPressed: () {
+                        Navigator.pop(sheetContext);
+                        unawaited(
+                          _openEventWebLink(meetingLink, meeting: true),
+                        );
+                      },
+                      icon: const Icon(Icons.video_call_outlined),
+                      label: Text(context.l10n.joinMeeting),
+                    ),
+                  if (item.eventLinkUrl case final eventLink?)
+                    OutlinedButton.icon(
+                      onPressed: () {
+                        Navigator.pop(sheetContext);
+                        unawaited(_openEventWebLink(eventLink));
+                      },
+                      icon: const Icon(Icons.open_in_new),
+                      label: Text(context.l10n.eventLink),
+                    ),
+                  if (item.attachmentsMayExist ||
+                      item.attachmentLinks.isNotEmpty)
+                    ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      leading: const Icon(Icons.attach_file),
+                      title: Text(context.l10n.attachments),
+                    ),
+                  for (final attachment in item.attachmentLinks)
+                    ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      leading: const Icon(Icons.open_in_new),
+                      title: Text(attachment.name),
+                      subtitle: attachment.mimeType == null
+                          ? null
+                          : Text(attachment.mimeType!),
+                      onTap: () {
+                        Navigator.pop(sheetContext);
+                        unawaited(_openEventWebLink(attachment.url));
+                      },
+                    ),
+                  if (item.attachmentsMayExist && !item.attachmentsLoaded)
+                    Text(context.l10n.attachmentsNotLoaded),
+                  if (item.provider == BusyProvider.microsoft &&
+                      item.providerEventId != null)
+                    OutlinedButton.icon(
+                      onPressed: () {
+                        Navigator.pop(sheetContext);
+                        unawaited(
+                          showAndroidEventAttachmentsDialog(context, item),
+                        );
+                      },
+                      icon: const Icon(Icons.attach_file),
+                      label: Text(context.l10n.attachments),
+                    ),
+                  for (final uri in calendarEventDescriptionLinks(item))
+                    TextButton(
+                      onPressed: () {
+                        Navigator.pop(sheetContext);
+                        unawaited(_openEventWebLink(uri.toString()));
+                      },
+                      child: Text(uri.toString()),
+                    ),
+                ],
                 if (item case CalendarScheduleItem(
                   :final location?,
                 ) when location.isNotEmpty)
@@ -683,6 +801,20 @@ class _AndroidScheduleScreenState extends ConsumerState<AndroidScheduleScreen> {
                     padding: const EdgeInsets.only(top: 12),
                     child: Text(notes),
                   ),
+                if (item is TaskScheduleItem)
+                  for (final link in item.availableSourceLinks)
+                    TextButton.icon(
+                      onPressed: () {
+                        Navigator.pop(sheetContext);
+                        unawaited(_openEventWebLink(link.url));
+                      },
+                      icon: const Icon(Icons.open_in_new),
+                      label: Text(
+                        link.label?.isNotEmpty == true
+                            ? link.label!
+                            : context.l10n.openInProvider,
+                      ),
+                    ),
                 if (item is CalendarScheduleItem &&
                     item.canRespondToInvitation) ...[
                   const SizedBox(height: 16),
@@ -766,6 +898,19 @@ class _AndroidScheduleScreenState extends ConsumerState<AndroidScheduleScreen> {
               ],
             ),
           ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _openEventWebLink(String value, {bool meeting = false}) async {
+    if (await openScheduleWebLink(value) || !mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          meeting
+              ? context.l10n.joinMeetingFailed
+              : context.l10n.eventLinkOpenFailed,
         ),
       ),
     );
@@ -1941,6 +2086,7 @@ class AndroidEventEditor extends ConsumerStatefulWidget {
 
 class _AndroidEventEditorState extends ConsumerState<AndroidEventEditor> {
   late EventEditorDraft _draft = widget.draft;
+  late final String? _initialDescription = widget.draft.description;
   late final TextEditingController _title = TextEditingController(
     text: _draft.title,
   );
@@ -1959,12 +2105,13 @@ class _AndroidEventEditorState extends ConsumerState<AndroidEventEditor> {
   late final TextEditingController _categories = TextEditingController(
     text: _draft.categories.join(', '),
   );
+  final Map<String, bool> _guestOptionalOverrides = {};
   int? _reminderMinutes;
-  late RecurrenceFrequency _frequency = EventRecurrenceCodec.decode(
+  late RecurrenceRule _recurrenceRule = EventRecurrenceCodec.decode(
     _provider,
     _draft.recurrence,
     baseDate: _draft.start,
-  ).frequency;
+  );
   bool _recurrenceChanged = false;
   bool _saving = false;
   bool _allowPop = false;
@@ -2030,8 +2177,28 @@ class _AndroidEventEditorState extends ConsumerState<AndroidEventEditor> {
               .map((attendee) => attendee.email)
               .join(', ') ||
       _categories.text != widget.draft.categories.join(', ') ||
+      _guestOptionalOverrides.isNotEmpty ||
       _reminderMinutes != null ||
       _recurrenceChanged;
+
+  Future<void> _editRecurrence() async {
+    final start = _draft.start;
+    if (start == null) return;
+    final result = await showAndroidRecurrenceDialog(
+      context,
+      initial: _recurrenceRule,
+      baseDate: start,
+      allDay: _draft.allDay,
+      timeZone: _draft.startTimeZone,
+      limits: EventRecurrenceCodec.limitsFor(_provider),
+      providerLabel: _provider.displayName,
+    );
+    if (!mounted || result == null || result == _recurrenceRule) return;
+    setState(() {
+      _recurrenceRule = result;
+      _recurrenceChanged = true;
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -2211,37 +2378,19 @@ class _AndroidEventEditorState extends ConsumerState<AndroidEventEditor> {
                     setState(() => _draft = _draft.copyWith(description: v)),
               ),
               const SizedBox(height: 12),
-              DropdownButtonFormField<RecurrenceFrequency>(
-                initialValue: _frequency,
-                decoration: InputDecoration(labelText: context.l10n.repeat),
-                items: [
-                  DropdownMenuItem(
-                    value: RecurrenceFrequency.none,
-                    child: Text(context.l10n.repeatNone),
-                  ),
-                  DropdownMenuItem(
-                    value: RecurrenceFrequency.daily,
-                    child: Text(context.l10n.repeatDaily),
-                  ),
-                  DropdownMenuItem(
-                    value: RecurrenceFrequency.weekly,
-                    child: Text(context.l10n.repeatWeekly),
-                  ),
-                  DropdownMenuItem(
-                    value: RecurrenceFrequency.monthly,
-                    child: Text(context.l10n.repeatMonthly),
-                  ),
-                  DropdownMenuItem(
-                    value: RecurrenceFrequency.yearly,
-                    child: Text(context.l10n.repeatYearly),
-                  ),
-                ],
-                onChanged: !_canEdit
-                    ? null
-                    : (value) => setState(() {
-                        _frequency = value ?? RecurrenceFrequency.none;
-                        _recurrenceChanged = true;
-                      }),
+              ListTile(
+                key: const ValueKey('android-event-recurrence'),
+                contentPadding: EdgeInsets.zero,
+                leading: const Icon(Icons.repeat),
+                title: Text(context.l10n.repeat),
+                subtitle: Text(
+                  _recurrenceRule.isSupported
+                      ? _recurrenceRule.repeats
+                            ? _recurrenceRule.toRrule()
+                            : context.l10n.repeatNone
+                      : context.l10n.unsupportedRecurrencePreserved,
+                ),
+                onTap: _canEdit ? _editRecurrence : null,
               ),
               if (_draft.providerRecurringEventId != null) ...[
                 const SizedBox(height: 12),
@@ -2259,14 +2408,39 @@ class _AndroidEventEditorState extends ConsumerState<AndroidEventEditor> {
               ],
               const SizedBox(height: 12),
               DropdownButtonFormField<int>(
-                initialValue: _reminderMinutes,
+                key: ValueKey('android-event-reminder-${_draft.sourceId}'),
+                initialValue:
+                    _reminderMinutes ??
+                    androidEventReminderSelection(_provider, _draft.reminders),
                 decoration: InputDecoration(labelText: context.l10n.reminder),
                 items: [
+                  if (_provider == BusyProvider.google)
+                    DropdownMenuItem(
+                      value: -1,
+                      child: Text(context.l10n.defaultReminder),
+                    ),
+                  DropdownMenuItem(
+                    value: -2,
+                    child: Text(context.l10n.noReminders),
+                  ),
                   DropdownMenuItem(
                     value: 0,
-                    child: Text(context.l10n.repeatNone),
+                    child: Text(context.l10n.reminderAtStart),
                   ),
-                  for (final value in const [5, 10, 30, 60, 1440])
+                  for (final value in <int>{
+                    5,
+                    10,
+                    30,
+                    60,
+                    1440,
+                    if ((_reminderMinutes ??
+                            androidEventReminderSelection(
+                              _provider,
+                              _draft.reminders,
+                            ))
+                        case final int selected when selected > 0)
+                      selected,
+                  })
                     DropdownMenuItem(
                       value: value,
                       child: Text(context.l10n.reminderMinutesBefore(value)),
@@ -2276,14 +2450,147 @@ class _AndroidEventEditorState extends ConsumerState<AndroidEventEditor> {
                     ? null
                     : (value) => setState(() => _reminderMinutes = value),
               ),
+              if (_reminderMinutes == null)
+                if (androidEventReminderMinutes(_provider, _draft.reminders)
+                    case final List<int> minutes)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 8),
+                    child: Text(
+                      minutes.isEmpty
+                          ? context.l10n.noReminders
+                          : minutes
+                                .map(
+                                  (minute) => minute == 0
+                                      ? context.l10n.reminderAtStart
+                                      : context.l10n.reminderMinutesBefore(
+                                          minute,
+                                        ),
+                                )
+                                .join(', '),
+                    ),
+                  ),
+              if (_reminderMinutes == null &&
+                  androidEventReminderSelection(_provider, _draft.reminders) ==
+                      null &&
+                  androidEventReminderMinutes(_provider, _draft.reminders) ==
+                      null)
+                Padding(
+                  padding: const EdgeInsets.only(top: 8),
+                  child: Text(context.l10n.unsupportedReminder),
+                ),
+              if (_draft.conference != null ||
+                  (_provider == BusyProvider.google &&
+                      (_source?.allowedConferenceSolutions.contains(
+                            'hangoutsMeet',
+                          ) ??
+                          false)) ||
+                  (_provider == BusyProvider.microsoft &&
+                      (_source?.allowedConferenceSolutions.contains(
+                            'teamsForBusiness',
+                          ) ??
+                          false)))
+                SwitchListTile(
+                  key: const ValueKey('android-event-create-conference'),
+                  contentPadding: EdgeInsets.zero,
+                  title: Text(
+                    _provider == BusyProvider.google
+                        ? context.l10n.addGoogleMeet
+                        : context.l10n.addTeamsMeeting,
+                  ),
+                  subtitle: _draft.conference == null
+                      ? null
+                      : Text(context.l10n.onlineMeetingAdded),
+                  value: _draft.conference != null || _draft.createConference,
+                  onChanged: _canEdit && _draft.conference == null
+                      ? (value) => setState(
+                          () =>
+                              _draft = _draft.copyWith(createConference: value),
+                        )
+                      : null,
+                ),
               const SizedBox(height: 12),
               TextFormField(
                 controller: _guests,
                 enabled: _canEdit && _draft.canManageAttendees,
-                decoration: InputDecoration(labelText: context.l10n.guests),
+                decoration: InputDecoration(
+                  labelText: context.l10n.guests,
+                  hintText: context.l10n.addGuestEmail,
+                ),
                 keyboardType: TextInputType.emailAddress,
                 onChanged: (_) => setState(() {}),
               ),
+              for (final attendee in mergeAndroidEventAttendees(
+                widget.draft.attendees,
+                _guests.text,
+              ).attendees.where((a) => !a.self && !a.organizer))
+                ListTile(
+                  key: ValueKey('android-event-guest-${attendee.email}'),
+                  contentPadding: EdgeInsets.zero,
+                  title: Text(attendee.displayName ?? attendee.email),
+                  subtitle: attendee.displayName == null
+                      ? null
+                      : Text(attendee.email),
+                  trailing: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      DropdownButton<bool>(
+                        value:
+                            _guestOptionalOverrides[attendee.email
+                                .toLowerCase()] ??
+                            attendee.optional,
+                        items: [
+                          DropdownMenuItem(
+                            value: false,
+                            child: Text(context.l10n.attendeeRequired),
+                          ),
+                          DropdownMenuItem(
+                            value: true,
+                            child: Text(context.l10n.attendeeOptional),
+                          ),
+                        ],
+                        onChanged: _canEdit && _draft.canManageAttendees
+                            ? (optional) => setState(() {
+                                if (optional == null ||
+                                    optional == attendee.optional) {
+                                  _guestOptionalOverrides.remove(
+                                    attendee.email.toLowerCase(),
+                                  );
+                                } else {
+                                  _guestOptionalOverrides[attendee.email
+                                          .toLowerCase()] =
+                                      optional;
+                                }
+                              })
+                            : null,
+                      ),
+                      IconButton(
+                        tooltip: context.l10n.delete,
+                        onPressed: _canEdit && _draft.canManageAttendees
+                            ? () => setState(() {
+                                _guests.text =
+                                    mergeAndroidEventAttendees(
+                                          widget.draft.attendees,
+                                          _guests.text,
+                                        ).attendees
+                                        .where(
+                                          (a) =>
+                                              !a.self &&
+                                              !a.organizer &&
+                                              a.email.toLowerCase() !=
+                                                  attendee.email.toLowerCase(),
+                                        )
+                                        .map((a) => a.email)
+                                        .join(', ');
+                                _guestOptionalOverrides.remove(
+                                  attendee.email.toLowerCase(),
+                                );
+                              })
+                            : null,
+                        icon: const Icon(Icons.close),
+                      ),
+                    ],
+                  ),
+                ),
               if (_canCheckGuestAvailability) ...[
                 const SizedBox(height: 4),
                 Align(
@@ -2321,9 +2628,9 @@ class _AndroidEventEditorState extends ConsumerState<AndroidEventEditor> {
   Future<void> _save() async {
     final start = _draft.start;
     if (_title.text.trim().isEmpty || start == null) return;
-    final attendeeEdit = mergeAndroidEventAttendees(
-      widget.draft.attendees,
-      _guests.text,
+    final attendeeEdit = applyAndroidEventAttendeeRoles(
+      mergeAndroidEventAttendees(widget.draft.attendees, _guests.text),
+      _guestOptionalOverrides,
     );
     final categories = _categories.text
         .split(',')
@@ -2333,7 +2640,9 @@ class _AndroidEventEditorState extends ConsumerState<AndroidEventEditor> {
     var draft = _draft.copyWith(
       title: _title.text.trim(),
       location: _location.text.trim(),
-      description: _description.text.trim(),
+      description: _description.text == (_initialDescription ?? '')
+          ? _initialDescription
+          : _description.text.trim(),
       attendees: attendeeEdit.attendees,
       attendeesChanged: attendeeEdit.changed,
       categories: categories,
@@ -2344,11 +2653,11 @@ class _AndroidEventEditorState extends ConsumerState<AndroidEventEditor> {
       draft = draft.copyWith(
         reminders: _eventReminders(_provider, value),
         remindersChanged: true,
-        clearReminders: value == 0,
+        clearReminders: false,
       );
     }
     if (_recurrenceChanged) {
-      final rule = _simpleRecurrenceRule(_frequency, start);
+      final rule = _recurrenceRule;
       draft = draft.copyWith(
         recurrence: rule.repeats
             ? EventRecurrenceCodec.encode(
@@ -2357,6 +2666,7 @@ class _AndroidEventEditorState extends ConsumerState<AndroidEventEditor> {
                 baseDate: start,
                 allDay: draft.allDay,
                 timeZone: draft.startTimeZone,
+                original: widget.draft.recurrence,
               )
             : null,
         recurrenceChanged: true,
@@ -2372,7 +2682,7 @@ class _AndroidEventEditorState extends ConsumerState<AndroidEventEditor> {
     }
     setState(() => _saving = true);
     try {
-      if ((_reminderMinutes ?? 0) > 0) {
+      if ((_reminderMinutes ?? -2) >= 0) {
         await ref
             .read(androidNotificationServiceProvider)
             .requestNotificationPermission();
@@ -2429,7 +2739,10 @@ class _AndroidEventEditorState extends ConsumerState<AndroidEventEditor> {
       _guests.text,
     ).attendees.any((attendee) => !attendee.self && !attendee.organizer);
     if (!hasGuests) return false;
-    if (source.provider == BusyProvider.google) return true;
+    if (source.provider == BusyProvider.google ||
+        source.provider == BusyProvider.microsoft) {
+      return true;
+    }
     return source.provider == BusyProvider.nextcloud &&
         source.davCollectionId != null &&
         source.davEffectivePermissions['canQueryFreeBusy'] == true;
@@ -2618,6 +2931,12 @@ class _AndroidEventEditorState extends ConsumerState<AndroidEventEditor> {
       final frequency = RecurrenceFrequency.values
           .where((value) => value.name == map['frequency'])
           .firstOrNull;
+      final recoveredRule = map['recurrenceRule'] is String
+          ? RecurrenceRule.fromJson(
+              map['recurrenceRule'] as String,
+              baseDate: start,
+            )
+          : null;
       final recurringScope = RecurringEventMutationScope.values
           .where((value) => value.name == map['recurringMutationScope'])
           .firstOrNull;
@@ -2651,10 +2970,24 @@ class _AndroidEventEditorState extends ConsumerState<AndroidEventEditor> {
         _location.text = map['location']?.toString() ?? _location.text;
         _description.text = map['description']?.toString() ?? _description.text;
         _guests.text = map['guests']?.toString() ?? _guests.text;
+        _guestOptionalOverrides.clear();
+        if (map['guestOptionalOverrides'] case final Map overrides) {
+          for (final entry in overrides.entries) {
+            if (entry.key is String && entry.value is bool) {
+              _guestOptionalOverrides[entry.key as String] =
+                  entry.value as bool;
+            }
+          }
+        }
         _categories.text = map['categories']?.toString() ?? _categories.text;
         _reminderMinutes = map['reminderMinutes'] as int?;
-        if (frequency != null && frequency != _frequency) {
-          _frequency = frequency;
+        if (recoveredRule != null && recoveredRule != _recurrenceRule) {
+          _recurrenceRule = recoveredRule;
+          _recurrenceChanged = true;
+        } else if (recoveredRule == null &&
+            frequency != null &&
+            frequency != _recurrenceRule.frequency) {
+          _recurrenceRule = androidRuleForFrequency(frequency, start);
           _recurrenceChanged = true;
         }
         _draft = _draft.copyWith(
@@ -2705,12 +3038,15 @@ class _AndroidEventEditorState extends ConsumerState<AndroidEventEditor> {
       'location': _location.text,
       'description': _description.text,
       'guests': _guests.text,
+      'guestOptionalOverrides': _guestOptionalOverrides,
       'categories': _categories.text,
       'allDay': _draft.allDay,
       'start': _draft.start?.toIso8601String(),
       'end': _draft.end?.toIso8601String(),
       'reminderMinutes': _reminderMinutes,
-      'frequency': _frequency.name,
+      'frequency': _recurrenceRule.frequency.name,
+      if (_recurrenceChanged && _recurrenceRule.isSupported)
+        'recurrenceRule': _recurrenceRule.toJsonString(),
     });
     await _enqueueRecovery(() async {
       if (_recoveryWritesBlocked) return;
@@ -2745,6 +3081,26 @@ final class AndroidEventAttendeeEdit {
 
   final List<EventAttendeeDraft> attendees;
   final bool changed;
+}
+
+AndroidEventAttendeeEdit applyAndroidEventAttendeeRoles(
+  AndroidEventAttendeeEdit edit,
+  Map<String, bool> optionalByEmail,
+) {
+  if (optionalByEmail.isEmpty) return edit;
+  final attendees = [
+    for (final attendee in edit.attendees)
+      if (!attendee.self &&
+          !attendee.organizer &&
+          optionalByEmail.containsKey(attendee.email.toLowerCase()))
+        attendee.withOptional(optionalByEmail[attendee.email.toLowerCase()]!)
+      else
+        attendee,
+  ];
+  return AndroidEventAttendeeEdit(
+    attendees: attendees,
+    changed: edit.changed || !listEquals(attendees, edit.attendees),
+  );
 }
 
 /// Applies the Android email editor without destroying provider-owned guest
@@ -2790,31 +3146,6 @@ String _scopeLabel(BuildContext context, RecurringEventMutationScope scope) =>
       RecurringEventMutationScope.thisAndFuture =>
         context.l10n.thisAndFollowingEvents,
     };
-
-RecurrenceRule _simpleRecurrenceRule(
-  RecurrenceFrequency frequency,
-  DateTime base,
-) {
-  final weekday = const [
-    'MO',
-    'TU',
-    'WE',
-    'TH',
-    'FR',
-    'SA',
-    'SU',
-  ][base.weekday - 1];
-  return const RecurrenceRule.none().copyWith(
-    frequency: frequency,
-    byDay: frequency == RecurrenceFrequency.weekly ? [weekday] : const [],
-    byMonthDay:
-        frequency == RecurrenceFrequency.monthly ||
-            frequency == RecurrenceFrequency.yearly
-        ? [base.day]
-        : const [],
-    byMonth: frequency == RecurrenceFrequency.yearly ? [base.month] : const [],
-  );
-}
 
 class _DateTimeTile extends StatelessWidget {
   const _DateTimeTile({
@@ -3004,7 +3335,14 @@ int _firstWeekday(BuildContext context) {
 }
 
 Object? _eventReminders(BusyProvider provider, int minutes) {
-  if (minutes <= 0) return null;
+  if (minutes == -1 && provider == BusyProvider.google) {
+    return const {'useDefault': true};
+  }
+  if (minutes < 0) {
+    return provider == BusyProvider.microsoft
+        ? const {'isReminderOn': false}
+        : const {'useDefault': false, 'overrides': <Object>[]};
+  }
   return provider == BusyProvider.microsoft
       ? {'isReminderOn': true, 'reminderMinutesBeforeStart': minutes}
       : {
@@ -3013,6 +3351,61 @@ Object? _eventReminders(BusyProvider provider, int minutes) {
             {'method': 'popup', 'minutes': minutes},
           ],
         };
+}
+
+/// A negative selection is explicit default (-1) or no reminder (-2).
+/// Null means a provider-specific representation that this single-choice
+/// editor must preserve until the user actively replaces it.
+int? androidEventReminderSelection(BusyProvider provider, Object? value) {
+  if (value == null) return provider == BusyProvider.google ? -1 : -2;
+  if (value is! Map) return null;
+  if (provider == BusyProvider.microsoft) {
+    if (value['isReminderOn'] == false) return -2;
+    return value['reminderMinutesBeforeStart'] is int
+        ? value['reminderMinutesBeforeStart'] as int
+        : null;
+  }
+  if (value['useDefault'] == true) return -1;
+  final overrides = value['overrides'];
+  if (overrides is List) {
+    if (overrides.isEmpty) return -2;
+    if (overrides.length == 1 && overrides.single is Map) {
+      final entry = overrides.single as Map;
+      if (entry['method'] == 'popup' && entry['minutes'] is int) {
+        return entry['minutes'] as int;
+      }
+    }
+  }
+  return null;
+}
+
+List<int>? androidEventReminderMinutes(BusyProvider provider, Object? value) {
+  if (value is! Map) return null;
+  if (provider == BusyProvider.microsoft) {
+    if (value['isReminderOn'] == false) return const [];
+    final minutes = value['reminderMinutesBeforeStart'];
+    return minutes is int && minutes >= 0 ? [minutes] : null;
+  }
+  if (value['useDefault'] == true) return null;
+  final overrides = value['overrides'];
+  if (overrides is List) {
+    final result = <int>[];
+    for (final entry in overrides) {
+      if (entry is! Map ||
+          entry['method'] != 'popup' ||
+          entry['minutes'] is! int ||
+          (entry['minutes'] as int) < 0) {
+        return null;
+      }
+      result.add(entry['minutes'] as int);
+    }
+    return result;
+  }
+  final minutes = value['minutes'];
+  return minutes is List &&
+          minutes.every((element) => element is int && element >= 0)
+      ? minutes.cast<int>()
+      : null;
 }
 
 List<String> _eventShowAsValues(BusyProvider provider) =>
