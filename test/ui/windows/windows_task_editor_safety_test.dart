@@ -9,6 +9,7 @@ import 'package:busymax/src/features/task_lists/data/task_lists_repository.dart'
 import 'package:busymax/src/features/tasks/data/tasks_repository.dart';
 import 'package:busymax/src/features/tasks/domain/task_capabilities.dart';
 import 'package:busymax/src/providers/busy_provider.dart';
+import 'package:busymax/src/microsoft_todo/api/microsoft_todo_api_client.dart';
 import 'package:busymax/src/schedule/schedule_item.dart';
 import 'package:busymax/src/ui/windows/windows_task_details_dialog.dart';
 import 'package:busymax/src/ui/windows/windows_task_editor_dialog.dart';
@@ -16,8 +17,98 @@ import 'package:drift/drift.dart' show Value;
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:http/http.dart' as http;
+import 'package:http/testing.dart';
 
 void main() {
+  testWidgets('Windows Microsoft task loads linked resources on request', (
+    tester,
+  ) async {
+    var requests = 0;
+    final client = MicrosoftTodoRestApiClient(
+      httpClient: MockClient((request) async {
+        requests++;
+        if (request.url.path.endsWith('/attachments')) {
+          return http.Response(
+            jsonEncode({
+              'value': [
+                {
+                  'id': 'attachment-1',
+                  'name': 'Notes.txt',
+                  'size': 12,
+                  '@odata.type': '#microsoft.graph.taskFileAttachment',
+                },
+              ],
+            }),
+            200,
+          );
+        }
+        expect(
+          request.url.path,
+          '/v1.0/me/todo/lists/list/tasks/task/linkedResources',
+        );
+        return http.Response(
+          jsonEncode({
+            'value': [
+              {
+                'id': 'resource-1',
+                'applicationName': 'Planner',
+                'displayName': 'Launch plan',
+                'webUrl': 'https://example.test/plan',
+              },
+            ],
+          }),
+          200,
+        );
+      }),
+      baseUri: Uri.parse('https://graph.microsoft.com/v1.0'),
+      authorizationHeaderProvider: () async => 'Bearer token',
+    );
+    final db = await _mount(
+      tester,
+      existing: true,
+      existingProvider: 'microsoft',
+      todoClient: client,
+    );
+    expect(requests, 0);
+    final action = find.text('Linked resources');
+    await tester.ensureVisible(action);
+    await tester.tap(action);
+    await tester.pumpAndSettle();
+    expect(requests, 1);
+    expect(find.text('Launch plan · Planner'), findsOneWidget);
+    final attachments = find.text('Attachments');
+    await tester.ensureVisible(attachments);
+    await tester.tap(attachments);
+    await tester.pumpAndSettle();
+    expect(requests, 2);
+    expect(find.text('Notes.txt'), findsOneWidget);
+    expect(await db.select(db.pendingOps).get(), isEmpty);
+  });
+
+  testWidgets(
+    'Windows assigned-task deletion warns and cancellation queues nothing',
+    (tester) async {
+      final db = await _mount(tester, existing: true, assigned: true);
+      final notes = find.byWidgetPredicate(
+        (widget) => widget is TextBox && widget.maxLines == 5,
+      );
+      expect(tester.widget<TextBox>(notes).enabled, isFalse);
+      expect(find.text('Open in provider'), findsOneWidget);
+      final delete = find.widgetWithText(Button, 'Delete');
+      await tester.ensureVisible(delete);
+      await tester.tap(delete);
+      await tester.pumpAndSettle();
+      expect(
+        find.textContaining('original task in Google Docs'),
+        findsOneWidget,
+      );
+      await tester.tap(find.widgetWithText(Button, 'Cancel').last);
+      await tester.pumpAndSettle();
+      expect(await db.select(db.pendingOps).get(), isEmpty);
+    },
+  );
+
   testWidgets(
     'a retained Nextcloud recurrence is safe and actionable after switching to Microsoft',
     (tester) async {
@@ -209,6 +300,9 @@ Future<void> _save(WidgetTester tester) async {
 Future<AppDatabase> _mount(
   WidgetTester tester, {
   bool existing = false,
+  bool assigned = false,
+  String existingProvider = 'google',
+  MicrosoftTodoApiClient? todoClient,
   String initialAccount = 'nextcloud',
 }) async {
   tester.view.physicalSize = const Size(1280, 1000);
@@ -251,10 +345,15 @@ Future<AppDatabase> _mount(
   if (existing) {
     await db.tasksDao.upsertTask(
       TasksCompanion.insert(
-        accountId: 'google',
+        accountId: existingProvider,
         taskListId: 'list',
         id: 'task',
         title: 'Existing task',
+        assignmentInfoJson: assigned
+            ? const Value(
+                '{"surfaceType":"DOCUMENT","linkToTask":"https://docs.google.com/document/d/example"}',
+              )
+            : const Value.absent(),
         rawJson: '{}',
         createdLocalAtUtc: _now,
         updatedLocalAtUtc: _now,
@@ -275,6 +374,10 @@ Future<AppDatabase> _mount(
         tasksRepositoryForAccountProvider.overrideWith(
           (ref, id) => TasksRepository(database: db, accountId: id),
         ),
+        if (todoClient != null)
+          microsoftTodoApiClientForAccountProvider.overrideWith(
+            (ref, id) => todoClient,
+          ),
         davTaskCollectionCapabilitiesProvider.overrideWith(
           (ref, key) async => nextcloudTaskCollectionCapabilities,
         ),
@@ -289,11 +392,13 @@ Future<AppDatabase> _mount(
                 await showWindowsTaskDetailsDialog(
                   context,
                   ref,
-                  const TaskScheduleItem(
+                  TaskScheduleItem(
                     id: 'task',
-                    accountId: 'google',
+                    accountId: existingProvider,
                     sourceId: 'list',
-                    provider: BusyProvider.google,
+                    provider: existingProvider == 'microsoft'
+                        ? BusyProvider.microsoft
+                        : BusyProvider.google,
                     title: 'Existing task',
                     completed: false,
                     allDay: true,

@@ -8,14 +8,137 @@ import 'package:busymax/src/db/app_database.dart';
 import 'package:busymax/src/features/accounts/data/accounts_repository.dart';
 import 'package:busymax/src/features/calendar/data/calendar_repository.dart';
 import 'package:busymax/src/providers/busy_provider.dart';
+import 'package:busymax/src/microsoft_calendar/microsoft_calendar_api_client.dart';
 import 'package:busymax/src/ui/windows/windows_event_editor_dialog.dart';
 import 'package:drift/drift.dart' show Value;
 import 'package:drift/native.dart';
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:http/http.dart' as http;
+import 'package:http/testing.dart';
 
 void main() {
+  testWidgets(
+    'Windows Microsoft editor opens guest availability without saving',
+    (tester) async {
+      final db = AppDatabase(NativeDatabase.memory());
+      addTearDown(() async {
+        await tester.pumpWidget(const SizedBox.shrink());
+        await db.close();
+      });
+      final repository = CalendarRepository(database: db);
+      await db
+          .into(db.accounts)
+          .insert(
+            AccountsCompanion.insert(
+              id: 'microsoft-account',
+              provider: 'microsoft',
+              authority: 'https://login.microsoftonline.com/common',
+              providerAccountId: 'me@example.test',
+              email: const Value('me@example.test'),
+              credentialKind: 'oauth',
+              authState: const Value('signed_in'),
+              createdAtUtc: _now,
+              updatedAtUtc: _now,
+            ),
+          );
+      await repository.upsertSource(
+        accountId: 'microsoft-account',
+        source: const CalendarSourceDto(
+          provider: BusyProvider.microsoft,
+          providerCalendarId: 'calendar',
+          summary: 'Work',
+          dataOwner: 'me@example.test',
+        ),
+      );
+      await repository.upsertEvent(
+        accountId: 'microsoft-account',
+        event: const CalendarEventDto(
+          provider: BusyProvider.microsoft,
+          providerCalendarId: 'calendar',
+          providerEventId: 'event',
+          title: 'Planning',
+          startDateTime: '2026-06-08T09:00:00',
+          startTimeZone: 'UTC',
+          endDateTime: '2026-06-08T10:00:00',
+          endTimeZone: 'UTC',
+          attendeesJson: [
+            {
+              'emailAddress': {'address': 'guest@example.test'},
+              'type': 'required',
+            },
+          ],
+          updatedAtServer: _now,
+        ),
+      );
+      final event = await db.select(db.calendarEvents).getSingle();
+      var requests = 0;
+      final client = MicrosoftCalendarApiClient(
+        httpClient: MockClient((request) async {
+          requests++;
+          expect(request.url.path, '/v1.0/me/calendar/getSchedule');
+          return http.Response(
+            '{"value":[{"scheduleId":"guest@example.test","scheduleItems":[]}]}',
+            200,
+          );
+        }),
+        baseUri: Uri.parse('https://graph.microsoft.com/v1.0'),
+        responseTimeZone: 'UTC',
+        authorizationHeaderProvider: () async => 'Bearer test-token',
+      );
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            databaseProvider.overrideWithValue(db),
+            accountsRepositoryProvider.overrideWithValue(
+              AccountsRepository(database: db),
+            ),
+            calendarRepositoryProvider.overrideWithValue(repository),
+            localTimeZoneProvider.overrideWithValue('UTC'),
+            calendarRemoteApiClientForAccountProvider(
+              'microsoft-account',
+            ).overrideWithValue(client),
+          ],
+          child: FluentApp(
+            localizationsDelegates: const [AppLocalizations.delegate],
+            supportedLocales: AppLocalizations.supportedLocales,
+            home: Consumer(
+              builder: (context, ref, _) => Button(
+                onPressed: () => showWindowsEventEditorDialog(
+                  context,
+                  ref,
+                  eventId: event.id,
+                ),
+                child: const Text('Open'),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.runAsync(() async {
+        await tester.tap(find.text('Open'));
+        await Future<void>.delayed(const Duration(milliseconds: 50));
+      });
+      await tester.pumpAndSettle();
+      final action = find.text('Check guest availability');
+      expect(action, findsOneWidget);
+      await tester.ensureVisible(action);
+      await tester.tap(action);
+      await tester.pumpAndSettle();
+      expect(
+        find.byKey(const ValueKey('windows-cloud-availability-dialog')),
+        findsOneWidget,
+      );
+      expect(
+        find.text('No busy periods reported for this interval'),
+        findsOneWidget,
+      );
+      expect(requests, 1);
+      expect(await db.select(db.pendingOps).get(), isEmpty);
+    },
+  );
+
   for (final scenario in [
     'title only',
     'compatible move',
