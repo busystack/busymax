@@ -211,6 +211,27 @@ ProjectedIcalEvent _projectOccurrence(
           ...master.extensionProperties,
           ...component.extensionProperties,
         },
+      if (transport == 'caldav')
+        'conferenceLinks': [
+          for (final property in component.documentComponent.propertiesNamed(
+            'CONFERENCE',
+          ))
+            {
+              'url': property.rawValue,
+              'features': property.parameterValue('FEATURE'),
+            },
+          if (!component.documentComponent
+              .propertiesNamed('CONFERENCE')
+              .iterator
+              .moveNext())
+            for (final property in master.documentComponent.propertiesNamed(
+              'CONFERENCE',
+            ))
+              {
+                'url': property.rawValue,
+                'features': property.parameterValue('FEATURE'),
+              },
+        ],
     }),
   );
 }
