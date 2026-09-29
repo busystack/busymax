@@ -6,6 +6,7 @@ import 'package:drift/drift.dart';
 import 'package:uuid/uuid.dart';
 
 import '../../../calendar_providers/calendar_colors.dart';
+import '../../../calendar_providers/calendar_description.dart';
 import '../../../calendar_providers/calendar_create_identity.dart';
 import '../../../calendar_providers/calendar_mutation.dart';
 import '../../../calendar_providers/calendar_provider_capabilities.dart';
@@ -3113,8 +3114,14 @@ class CalendarRepository {
         ? wall(draft.end)!.difference(existingEnd)
         : Duration.zero;
     final raw = _jsonMap(existing.rawJson);
+    final existingBody = _jsonObjectMap(raw['body']);
     final descriptionChanged =
-        (draft.description ?? '') != (existing.description ?? '');
+        (draft.description ?? '') != (existing.description ?? '') ||
+        (provider == BusyProvider.microsoft &&
+            (draft.descriptionContentType?.toLowerCase() !=
+                    existingBody['contentType']?.toString().toLowerCase() ||
+                (draft.descriptionHtml != null &&
+                    draft.descriptionHtml != existingBody['content'])));
     final locationChanged =
         (draft.location ?? '') != (existing.location ?? '') ||
         (provider == BusyProvider.microsoft && draft.locationChange.changed);
@@ -3138,7 +3145,8 @@ class CalendarRepository {
     final newTimeProposalsChanged =
         draft.allowNewTimeProposals != raw['allowNewTimeProposals'];
     final rawChanged =
-        (provider == BusyProvider.microsoft && draft.locationChange.changed) ||
+        (provider == BusyProvider.microsoft &&
+            (draft.locationChange.changed || descriptionChanged)) ||
         importanceChanged ||
         responseRequestedChanged ||
         hideAttendeesChanged ||
@@ -3226,6 +3234,7 @@ class CalendarRepository {
                     draft,
                     provider,
                     existingJson: row.rawJson,
+                    descriptionChanged: descriptionChanged,
                   ),
                 ),
               )
@@ -4971,6 +4980,7 @@ CalendarEventsCompanion _eventPatchProjection({
     BusyProvider.google => request.containsKey('hideAttendees'),
     BusyProvider.microsoft =>
       request.containsKey('importance') ||
+          request.containsKey('description') ||
           request.containsKey('responseRequested') ||
           request.containsKey('hideAttendees') ||
           request.containsKey('allowNewTimeProposals') ||
@@ -5086,7 +5096,17 @@ Map<String, Object?> _eventDeltaRequest(
   }
 
   if (draft.title.trim() != original.title) copy('title');
-  if ((draft.description ?? '') != (original.description ?? '')) {
+  final originalBody = provider == BusyProvider.microsoft
+      ? _jsonObjectMap(_jsonObjectMap(original.raw)['body'])
+      : const <String, Object?>{};
+  final descriptionChanged =
+      (draft.description ?? '') != (original.description ?? '') ||
+      (provider == BusyProvider.microsoft &&
+          (draft.descriptionContentType?.toLowerCase() !=
+                  originalBody['contentType']?.toString().toLowerCase() ||
+              (draft.descriptionHtml != null &&
+                  draft.descriptionHtml != originalBody['content'])));
+  if (descriptionChanged) {
     result['description'] = draft.description ?? '';
     copy('descriptionContentType');
     copy('descriptionHtml');
@@ -5325,6 +5345,7 @@ Object? _localAttendeesJson(EventEditorDraft draft, BusyProvider provider) {
     for (final attendee in draft.attendees)
       if (provider == BusyProvider.microsoft)
         {
+          ...attendee.rawJson,
           ...attendee.toMicrosoftJson(),
           if (attendee.responseStatus case final response?
               when response.isNotEmpty)
@@ -5332,6 +5353,7 @@ Object? _localAttendeesJson(EventEditorDraft draft, BusyProvider provider) {
         }
       else
         {
+          ...attendee.rawJson,
           ...attendee.toGoogleJson(),
           if (attendee.self) 'self': true,
           if (attendee.organizer) 'organizer': true,
@@ -5355,6 +5377,7 @@ Map<String, Object?> _optimisticEventRaw(
   EventEditorDraft draft,
   BusyProvider provider, {
   String? existingJson,
+  bool descriptionChanged = false,
 }) {
   final raw = {..._jsonMap(existingJson)};
   if (provider == BusyProvider.microsoft && draft.locationChange.changed) {
@@ -5367,6 +5390,17 @@ Map<String, Object?> _optimisticEventRaw(
         raw['guestsCanSeeOtherGuests'] = !hidden;
       }
     case BusyProvider.microsoft:
+      if (descriptionChanged) {
+        final html = draft.descriptionHtml;
+        raw['body'] =
+            html != null ||
+                draft.descriptionContentType?.toLowerCase() == 'html'
+            ? {
+                'contentType': 'html',
+                'content': html ?? escapeHtml(draft.description ?? ''),
+              }
+            : {'contentType': 'text', 'content': draft.description ?? ''};
+      }
       if (draft.importance case final importance?) {
         raw['importance'] = importance;
       }
@@ -5413,6 +5447,17 @@ Map<String, Object?> _optimisticEventRawForPatch(
         }
       }
     case BusyProvider.microsoft:
+      if (request.containsKey('description')) {
+        final html = draft.descriptionHtml;
+        raw['body'] =
+            html != null ||
+                draft.descriptionContentType?.toLowerCase() == 'html'
+            ? {
+                'contentType': 'html',
+                'content': html ?? escapeHtml(draft.description ?? ''),
+              }
+            : {'contentType': 'text', 'content': draft.description ?? ''};
+      }
       _setOrRemoveRawField(
         raw,
         request: request,
@@ -5645,13 +5690,13 @@ Object _eventRemindersForProvider(Object? reminders, BusyProvider provider) {
   if (reminders is Map) {
     final map = reminders.cast<Object?, Object?>();
     final single = map['reminderMinutesBeforeStart'];
-    if (single is int && single > 0) minutes.add(single);
+    if (single is int && single >= 0) minutes.add(single);
     final overrides = map['overrides'];
     if (overrides is List) {
       for (final override in overrides) {
         if (override is! Map) continue;
         final value = override['minutes'];
-        if (value is int && value > 0 && !minutes.contains(value)) {
+        if (value is int && value >= 0 && !minutes.contains(value)) {
           minutes.add(value);
         }
       }
@@ -5659,7 +5704,7 @@ Object _eventRemindersForProvider(Object? reminders, BusyProvider provider) {
     final davMinutes = map['minutes'];
     if (davMinutes is List) {
       for (final value in davMinutes.whereType<int>()) {
-        if (value > 0 && !minutes.contains(value)) minutes.add(value);
+        if (value >= 0 && !minutes.contains(value)) minutes.add(value);
       }
     }
   }

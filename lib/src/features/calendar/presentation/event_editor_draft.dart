@@ -1,4 +1,5 @@
 import '../../../core/time/provider_date_time.dart';
+import '../../../calendar_providers/calendar_description.dart';
 import '../../maps/domain/geographic_point.dart';
 import '../../maps/domain/location_result.dart';
 import '../../../providers/busy_provider.dart';
@@ -21,6 +22,7 @@ class EventAttendeeDraft {
     this.self = false,
     this.organizer = false,
     this.responseStatus,
+    this.rawJson = const {},
   });
 
   factory EventAttendeeDraft.fromJson(Map<String, Object?> json) {
@@ -50,6 +52,7 @@ class EventAttendeeDraft {
             json['responseStatus']?.toString() ??
             parameters['PARTSTAT'] ??
             'NEEDS-ACTION',
+        rawJson: Map.unmodifiable(json),
       );
     }
     final emailAddress = switch (json['emailAddress']) {
@@ -76,6 +79,7 @@ class EventAttendeeDraft {
             final Map value => value['response']?.toString(),
             _ => null,
           },
+      rawJson: Map.unmodifiable(json),
     );
   }
 
@@ -86,9 +90,26 @@ class EventAttendeeDraft {
   final bool organizer;
   final String? responseStatus;
 
+  /// Provider-owned attendee metadata retained when changing only the role.
+  final Map<String, Object?> rawJson;
+
+  EventAttendeeDraft withOptional(bool value) => EventAttendeeDraft(
+    email: email,
+    displayName: displayName,
+    optional: value,
+    self: self,
+    organizer: organizer,
+    responseStatus: responseStatus,
+    rawJson: rawJson,
+  );
+
   Map<String, Object?> toGoogleJson() {
     return {
       'email': email,
+      if (rawJson['additionalGuests'] is int)
+        'additionalGuests': rawJson['additionalGuests'],
+      if (rawJson['comment'] is String) 'comment': rawJson['comment'],
+      if (rawJson['resource'] is bool) 'resource': rawJson['resource'],
       if (displayName != null && displayName!.isNotEmpty)
         'displayName': displayName,
       if (optional) 'optional': true,
@@ -475,6 +496,53 @@ class EventEditorDraft {
     final updatedLocation = matchesOriginalLocation
         ? originalLocation
         : candidateLocation;
+    final descriptionEdited =
+        clearDescription ||
+        (description != null && description != this.description) ||
+        (descriptionHtml != null && descriptionHtml != this.descriptionHtml);
+    var nextDescriptionContentType = clearDescription
+        ? null
+        : descriptionContentType ?? this.descriptionContentType;
+    var nextDescriptionHtml = clearDescription
+        ? null
+        : descriptionHtml ?? this.descriptionHtml;
+    final originalBody = _jsonMapOrNull(
+      _jsonMapOrNull(originalDetail?.raw)?['body'],
+    );
+    if (originalDetail?.provider == BusyProvider.microsoft &&
+        descriptionHtml == null &&
+        !clearDescription &&
+        description == originalDetail?.description) {
+      nextDescriptionContentType = originalBody?['contentType']?.toString();
+      if (nextDescriptionContentType?.toLowerCase() == 'html') {
+        nextDescriptionHtml = originalBody?['content']?.toString();
+      } else {
+        nextDescriptionHtml = null;
+      }
+    } else if (originalDetail?.provider == BusyProvider.microsoft &&
+        descriptionEdited) {
+      final meeting = conference ?? this.conference;
+      final meetingUrl = meeting is Map ? meeting['joinUrl']?.toString() : null;
+      if (descriptionHtml != null ||
+          (meetingUrl != null && meetingUrl.isNotEmpty)) {
+        final editedHtml =
+            descriptionHtml ??
+            calendarDescriptionToHtml(
+              clearDescription ? '' : description ?? this.description ?? '',
+              const [],
+            );
+        nextDescriptionHtml = preserveMicrosoftMeetingBodyHtml(
+          editedHtml: editedHtml,
+          originalHtml: originalBody?['content']?.toString() ?? '',
+          meetingUrl: meetingUrl,
+        );
+        nextDescriptionContentType = 'html';
+      } else {
+        // Plain edits are authoritative; the old HTML must not override them.
+        nextDescriptionHtml = null;
+        nextDescriptionContentType = 'text';
+      }
+    }
     return EventEditorDraft(
       eventId: eventId,
       originalDetail: originalDetail,
@@ -503,12 +571,8 @@ class EventEditorDraft {
               ? const LocationChange.clear()
               : const LocationChange.unchanged()),
       description: clearDescription ? null : description ?? this.description,
-      descriptionContentType: clearDescription
-          ? null
-          : descriptionContentType ?? this.descriptionContentType,
-      descriptionHtml: clearDescription
-          ? null
-          : descriptionHtml ?? this.descriptionHtml,
+      descriptionContentType: nextDescriptionContentType,
+      descriptionHtml: nextDescriptionHtml,
       recurrence: clearRecurrence ? null : recurrence ?? this.recurrence,
       recurrenceChanged:
           recurrenceChanged ??

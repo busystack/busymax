@@ -27,6 +27,7 @@ import 'event_editor_draft.dart';
 import '../domain/event_timing_policy.dart';
 import 'event_guest_delivery_dialog.dart';
 import '../../../dav/presentation/nextcloud_scheduling_dialog.dart';
+import 'linux_cloud_availability_dialog.dart';
 
 Future<EventEditorDialogResult?> showBusyMaxEventEditorDialog(
   BuildContext context, {
@@ -599,6 +600,16 @@ class _EventEditorState extends ConsumerState<EventEditor> {
                   collectionId: currentSource.davCollectionId!,
                   draft: _draft,
                 ),
+                child: Text(l10n.nextcloudGuestAvailability),
+              ),
+            if ((provider == BusyProvider.google ||
+                    provider == BusyProvider.microsoft) &&
+                _draft.attendees.any(
+                  (attendee) => !attendee.self && !attendee.organizer,
+                ))
+              BusyMaxPushButton.standard(
+                onPressed: () =>
+                    showLinuxCloudAvailabilityDialog(context, draft: _draft),
                 child: Text(l10n.nextcloudGuestAvailability),
               ),
             YaruExpandable(
@@ -1376,17 +1387,7 @@ class _EventEditorState extends ConsumerState<EventEditor> {
       _draft = _draft.copyWith(
         attendees: [
           for (final item in _draft.attendees)
-            if (item == attendee)
-              EventAttendeeDraft(
-                email: item.email,
-                displayName: item.displayName,
-                optional: optional,
-                self: item.self,
-                organizer: item.organizer,
-                responseStatus: item.responseStatus,
-              )
-            else
-              item,
+            if (item == attendee) item.withOptional(optional) else item,
         ],
       );
     });
