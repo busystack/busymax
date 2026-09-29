@@ -152,7 +152,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(requests, 1);
     expect(find.text('Launch plan · Planner'), findsOneWidget);
-    await tester.tap(find.text('Attachments'));
+    await tester.tap(find.byKey(const Key('task-attachments-load')));
     await tester.pumpAndSettle();
     expect(requests, 2);
     expect(find.text('Notes.txt'), findsOneWidget);

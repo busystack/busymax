@@ -306,7 +306,7 @@ Future<AppDatabase> _pumpWorkspace(
         scheduleRepositoryProvider.overrideWith(
           (ref) => ScheduleRepository(
             database,
-            ensureCloudCoverage: (_) async => true,
+            ensureCloudCoverage: (_, _) async => true,
           ),
         ),
         accountsStreamProvider.overrideWith((ref) => Stream.value([account])),

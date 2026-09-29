@@ -21,6 +21,7 @@ import 'package:busymax/src/features/schedule/presentation/schedule_day_week_vie
 import 'package:busymax/src/features/schedule/presentation/schedule_event_block.dart';
 import 'package:busymax/src/features/schedule/presentation/schedule_item_chip.dart';
 import 'package:busymax/src/features/schedule/presentation/schedule_item_details_popover.dart';
+import 'package:busymax/src/features/schedule/presentation/schedule_event_details_format.dart';
 import 'package:busymax/src/features/schedule/presentation/schedule_item_exporter.dart';
 import 'package:busymax/src/features/schedule/presentation/mini_calendar.dart';
 import 'package:busymax/src/features/schedule/presentation/schedule_month_view.dart';
@@ -70,7 +71,10 @@ class _EmptyCalendarSources implements CalendarRepository {
 
 class _TestScheduleItems implements ScheduleRepository {
   @override
-  bool? cloudCoverageCompleteFor(ScheduleRange range) => null;
+  bool? cloudCoverageCompleteFor(
+    ScheduleRange range, {
+    ScheduleFilters filters = const ScheduleFilters(),
+  }) => null;
 
   @override
   Future<List<ScheduleItem>> listItems({
@@ -1706,6 +1710,64 @@ void main() {
     await tester.tap(find.text('Join meeting'));
     await tester.pumpAndSettle();
     expect(await action, ScheduleItemDetailsAction.joinMeeting);
+  });
+
+  testWidgets(
+    'detail interval labels the displayed local time, not event zones',
+    (tester) async {
+      final event = CalendarScheduleItem(
+        id: 'zoned-event',
+        accountId: 'account',
+        provider: BusyProvider.microsoft,
+        sourceId: 'calendar',
+        providerCalendarId: 'calendar',
+        title: 'Cross-zone meeting',
+        allDay: false,
+        start: DateTime.utc(2026, 7, 1, 12).toLocal(),
+        end: DateTime.utc(2026, 7, 1, 13).toLocal(),
+        startTimeZone: 'Pacific/Honolulu',
+        endTimeZone: 'Asia/Tokyo',
+        capabilities: ScheduleItemCapabilities.readOnly,
+      );
+      await tester.pumpWidget(
+        localizedTestApp(
+          child: Builder(
+            builder: (context) =>
+                Text(scheduleEventIntervalLabel(context, event)),
+          ),
+        ),
+      );
+      final label = tester.widget<Text>(find.byType(Text)).data!;
+      expect(label, contains('UTC'));
+      expect(label, isNot(contains('Pacific/Honolulu')));
+      expect(label, isNot(contains('Asia/Tokyo')));
+    },
+  );
+
+  testWidgets('floating DAV detail without TZID uses the local offset', (
+    tester,
+  ) async {
+    final event = CalendarScheduleItem(
+      id: 'floating-event',
+      accountId: 'account',
+      provider: BusyProvider.nextcloud,
+      sourceId: 'calendar',
+      providerCalendarId: 'calendar',
+      title: 'Floating event',
+      allDay: false,
+      start: DateTime(2026, 3, 8, 1, 30),
+      end: DateTime(2026, 3, 8, 3, 30),
+      capabilities: ScheduleItemCapabilities.readOnly,
+    );
+    await tester.pumpWidget(
+      localizedTestApp(
+        child: Builder(
+          builder: (context) =>
+              Text(scheduleEventIntervalLabel(context, event)),
+        ),
+      ),
+    );
+    expect(tester.widget<Text>(find.byType(Text)).data, contains('UTC'));
   });
 
   testWidgets('all-day details end on the last included day and expose links', (

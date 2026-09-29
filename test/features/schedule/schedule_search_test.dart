@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'package:busymax/src/schedule/schedule_search_match.dart';
 import 'package:busymax/src/schedule/schedule_search_criteria.dart';
@@ -465,8 +466,9 @@ void main() {
       var cloudCalls = 0;
       final repo = ScheduleRepository(
         db,
-        ensureCloudCoverage: (_) async {
+        ensureCloudCoverage: (_, filters) async {
           cloudCalls++;
+          expect(filters.sourceIds, isEmpty);
           return false;
         },
         ensureProjectionCoverage: (_) async {
@@ -474,6 +476,9 @@ void main() {
         },
       );
       final range = ScheduleRange.day(DateTime(2026, 1, 1));
+      final coverageFinished = repo.watchChanges().firstWhere(
+        (_) => repo.cloudCoverageCompleteFor(range) == false,
+      );
       expect(
         await repo.listItems(
           range: range,
@@ -481,6 +486,7 @@ void main() {
         ),
         isEmpty,
       );
+      await coverageFinished;
       expect(calls, 1);
       expect(cloudCalls, 1);
       expect(repo.cloudCoverageCompleteFor(range), isFalse);
@@ -508,6 +514,65 @@ void main() {
       );
     },
   );
+  test('range completion is keyed to requested search sources', () async {
+    final db = AppDatabase.memoryForTests();
+    addTearDown(db.close);
+    ScheduleFilters? requested;
+    final repo = ScheduleRepository(
+      db,
+      ensureCloudCoverage: (_, filters) async {
+        requested = filters;
+        return true;
+      },
+    );
+    final range = ScheduleRange.day(DateTime(2020, 1, 10));
+    const filters = ScheduleFilters(
+      accountIds: {'account-a'},
+      sourceIds: {'unselected-source'},
+      sourceFilterActive: true,
+    );
+    final coverageFinished = repo.watchChanges().firstWhere(
+      (_) => repo.cloudCoverageCompleteFor(range, filters: filters) == true,
+    );
+    await repo.listItems(range: range, filters: filters);
+    await coverageFinished;
+    expect(requested?.accountIds, {'account-a'});
+    expect(requested?.sourceIds, {'unselected-source'});
+    expect(repo.cloudCoverageCompleteFor(range, filters: filters), isTrue);
+    expect(
+      repo.cloudCoverageCompleteFor(
+        range,
+        filters: const ScheduleFilters(
+          accountIds: {'account-b'},
+          sourceIds: {'another-source'},
+          sourceFilterActive: true,
+        ),
+      ),
+      isNull,
+    );
+  });
+  test('cached items return while scoped cloud coverage is loading', () async {
+    final db = AppDatabase.memoryForTests();
+    addTearDown(db.close);
+    await _seedSearchDatabase(db);
+    final release = Completer<bool>();
+    final repo = ScheduleRepository(
+      db,
+      ensureCloudCoverage: (_, _) => release.future,
+    );
+    final range = ScheduleRange.day(DateTime(2026, 2, 15));
+    final cached = await repo
+        .listItems(range: range)
+        .timeout(const Duration(milliseconds: 100));
+    expect(cached.map((item) => item.title), ['Future budget review']);
+    expect(repo.cloudCoverageCompleteFor(range), isNull);
+    final finished = repo.watchChanges().firstWhere(
+      (_) => repo.cloudCoverageCompleteFor(range) == true,
+    );
+    release.complete(true);
+    await finished;
+    expect(repo.cloudCoverageCompleteFor(range), isTrue);
+  });
   test(
     'repository date filter includes spanning events and excludes boundary and outside events',
     () async {

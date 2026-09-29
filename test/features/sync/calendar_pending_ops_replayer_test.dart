@@ -1563,7 +1563,7 @@ END:VEVENT
       client.createEventOverride = (calendarId, mutation) => CalendarEventDto(
         provider: BusyProvider.google,
         providerCalendarId: calendarId,
-        providerEventId: mutation.providerEventId!,
+        providerEventId: mutation.providerEventId ?? 'imported-master',
         title: mutation.title!,
         location: mutation.location,
         startDateTime: mutation.startDateTime,
@@ -1572,7 +1572,7 @@ END:VEVENT
         endTimeZone: mutation.endTimeZone,
         recurrenceJson: mutation.recurrence,
         rawJson: {
-          'id': mutation.providerEventId,
+          'id': mutation.providerEventId ?? 'imported-master',
           'summary': mutation.title,
           'location': mutation.location,
           'start': {
@@ -1667,7 +1667,7 @@ END:VEVENT
             (event) => event.providerRecurringEventId == master.providerEventId,
           )
           .toList();
-      expect(instances, hasLength(1));
+      expect(instances, hasLength(1), reason: events.toString());
       expect(
         instances,
         everyElement(
@@ -1677,7 +1677,11 @@ END:VEVENT
       final rememberedBeforeResolution = await database
           .select(database.locationResolutions)
           .get();
-      expect(rememberedBeforeResolution, hasLength(1));
+      expect(
+        rememberedBeforeResolution,
+        hasLength(1),
+        reason: 'calls=${client.calls}, events=$events, master=$master',
+      );
       expect(
         rememberedBeforeResolution.single.kind,
         googleSeriesLocationResolutionKind,
@@ -5722,6 +5726,7 @@ class _FakeCalendarClient
     implements
         CloudCalendarClient,
         CompleteRecurringInstanceClient,
+        PrivateCalendarImportClient,
         CalendarListManagementClient {
   final calls = <String>[];
   final createdMutations = <CalendarEventMutation>[];
@@ -5731,6 +5736,7 @@ class _FakeCalendarClient
   final ifMatches = <String?>[];
   final invitationResponses = <CalendarInvitationResponse>[];
   final Map<String, CalendarEventDto> _createdEventsByIdentity = {};
+  final Map<String, CalendarEventDto> _importedEventsByUid = {};
   int _createdCount = 0;
   int transientUpdateFailures = 0;
   int? transientUpdateFailureCall;
@@ -5822,6 +5828,40 @@ class _FakeCalendarClient
     final responseError = createEventResponseError;
     createEventResponseError = null;
     if (responseError != null) throw responseError;
+    return event;
+  }
+
+  @override
+  Future<List<CalendarEventDto>> eventsWithICalUid({
+    required String calendarId,
+    required String iCalUid,
+  }) async {
+    calls.add('eventsWithICalUid:$calendarId:$iCalUid');
+    final existing = _importedEventsByUid[iCalUid];
+    return existing == null ? const [] : [existing];
+  }
+
+  @override
+  Future<CalendarEventDto> importEvent({
+    required String calendarId,
+    required String iCalUid,
+    required CalendarEventMutation mutation,
+  }) async {
+    calls.add('importEvent:$calendarId:$iCalUid');
+    createdMutations.add(mutation);
+    final event =
+        createEventOverride?.call(calendarId, mutation) ??
+        _event(
+          'imported-master',
+          title: mutation.title ?? '',
+          providerCalendarId: calendarId,
+          location: mutation.location,
+          startTimeZone: mutation.startTimeZone,
+          endTimeZone: mutation.endTimeZone,
+          recurrenceJson: mutation.recurrence,
+        );
+    _importedEventsByUid[iCalUid] = event;
+    remoteEventsById[event.providerEventId] = event;
     return event;
   }
 

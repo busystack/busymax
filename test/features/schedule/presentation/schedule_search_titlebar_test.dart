@@ -828,7 +828,10 @@ class _RecordingScheduleRepository implements ScheduleRepository {
   final queries = <String>[];
 
   @override
-  bool? cloudCoverageCompleteFor(ScheduleRange range) => null;
+  bool? cloudCoverageCompleteFor(
+    ScheduleRange range, {
+    ScheduleFilters filters = const ScheduleFilters(),
+  }) => null;
 
   @override
   Future<List<ScheduleItem>> listItems({
