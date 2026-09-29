@@ -35,6 +35,7 @@ import '../dav/nextcloud/nextcloud_sharing_service.dart';
 import '../dav/nextcloud/nextcloud_trash_service.dart';
 import '../dav/nextcloud/nextcloud_scheduling_service.dart';
 import '../features/calendar/data/calendar_repository.dart';
+import '../features/sync/cloud_calendar_range_coverage_service.dart';
 import '../features/calendar/data/calendar_collection_creation_service.dart';
 import '../ical/ical_import_service.dart';
 import '../features/accounts/data/accounts_repository.dart';
@@ -65,7 +66,10 @@ import '../google_tasks/oauth/oauth_loopback_flow.dart';
 import '../google_tasks/oauth/oauth_service.dart';
 import '../google_calendar/google_calendar_api_client.dart';
 import '../microsoft_calendar/microsoft_calendar_api_client.dart';
+import '../microsoft_calendar/microsoft_event_attachment.dart';
+import '../microsoft_todo/api/microsoft_todo_api_models.dart';
 import '../microsoft_todo/api/microsoft_todo_api_client.dart';
+import '../features/tasks/domain/task_source_links.dart';
 import '../microsoft_todo/api/microsoft_todo_task_remote_client.dart';
 import '../microsoft_todo/oauth/microsoft_oauth_service.dart';
 import '../platform/common/desktop_services.dart';
@@ -525,6 +529,103 @@ final microsoftTodoApiClientForAccountProvider =
       );
     });
 
+final microsoftTaskLinkedResourcesProvider =
+    FutureProvider.family<
+      List<TaskSourceLink>,
+      ({String accountId, String taskListId, String taskId})
+    >((ref, key) async {
+      final client = ref.read(
+        microsoftTodoApiClientForAccountProvider(key.accountId),
+      );
+      if (client is! MicrosoftTodoLinkedResourcesApiClient) {
+        throw StateError('Microsoft task linked resources are unavailable.');
+      }
+      final links = <TaskSourceLink>[];
+      final seenUrls = <String>{};
+      final seenPages = <String>{};
+      String? nextLink;
+      do {
+        final page = await (client as MicrosoftTodoLinkedResourcesApiClient)
+            .listLinkedResourcesPage(
+              taskListId: key.taskListId,
+              taskId: key.taskId,
+              nextLink: nextLink,
+            );
+        for (final resource in page.resources) {
+          final uri = Uri.tryParse(resource.webUrl?.trim() ?? '');
+          if (uri == null ||
+              (uri.scheme != 'https' && uri.scheme != 'http') ||
+              uri.host.isEmpty ||
+              uri.userInfo.isNotEmpty ||
+              !seenUrls.add(uri.toString())) {
+            continue;
+          }
+          final displayName = resource.displayName?.trim();
+          final applicationName = resource.applicationName?.trim();
+          links.add(
+            TaskSourceLink(
+              url: uri.toString(),
+              label: [
+                if (displayName != null && displayName.isNotEmpty) displayName,
+                if (applicationName != null &&
+                    applicationName.isNotEmpty &&
+                    applicationName != displayName)
+                  applicationName,
+              ].join(' · '),
+            ),
+          );
+        }
+        nextLink = page.nextLink;
+        if (nextLink != null && !seenPages.add(nextLink)) {
+          throw StateError('Microsoft linked resource pagination repeated.');
+        }
+      } while (nextLink != null);
+      return List.unmodifiable(links);
+    });
+
+final microsoftEventAttachmentsProvider =
+    FutureProvider.family<
+      List<MicrosoftEventAttachment>,
+      ({String accountId, String calendarId, String eventId})
+    >(
+      (ref, key) => ref
+          .read(microsoftCalendarApiClientForAccountProvider(key.accountId))
+          .listEventAttachments(
+            calendarId: key.calendarId,
+            eventId: key.eventId,
+          ),
+    );
+
+final microsoftTaskAttachmentsProvider =
+    FutureProvider.family<
+      List<MicrosoftTodoAttachmentDto>,
+      ({String accountId, String taskListId, String taskId})
+    >((ref, key) async {
+      final client = ref.read(
+        microsoftTodoApiClientForAccountProvider(key.accountId),
+      );
+      if (client is! MicrosoftTodoAttachmentsApiClient) {
+        throw StateError('Microsoft task attachments are unavailable.');
+      }
+      final items = <MicrosoftTodoAttachmentDto>[];
+      final seenPages = <String>{};
+      String? nextLink;
+      do {
+        final page = await (client as MicrosoftTodoAttachmentsApiClient)
+            .listTaskAttachmentsPage(
+              taskListId: key.taskListId,
+              taskId: key.taskId,
+              nextLink: nextLink,
+            );
+        items.addAll(page.attachments);
+        nextLink = page.nextLink;
+        if (nextLink != null && !seenPages.add(nextLink)) {
+          throw const FormatException('Attachment pagination loop.');
+        }
+      } while (nextLink != null);
+      return items;
+    });
+
 final microsoftCalendarApiClientForAccountProvider =
     Provider.family<MicrosoftCalendarApiClient, String>((ref, accountId) {
       final config = ref.watch(buildConfigProvider);
@@ -647,7 +748,7 @@ typedef CalendarSyncEngineForAccountFactory =
 final calendarSyncEngineForAccountFactoryProvider =
     Provider<CalendarSyncEngineForAccountFactory>((ref) {
       return (accountId, provider) {
-        final client = switch (provider) {
+        final CloudCalendarClient client = switch (provider) {
           BusyProvider.microsoft => ref.read(
             microsoftCalendarApiClientForAccountProvider(accountId),
           ),
@@ -932,6 +1033,9 @@ final scheduleTaskListsProvider = FutureProvider<List<TaskListEntity>>((
 final scheduleRepositoryProvider = Provider<ScheduleRepository>((ref) {
   return ScheduleRepository(
     ref.watch(databaseProvider),
+    ensureCloudCoverage: (range) => ref
+        .read(cloudCalendarRangeCoverageServiceProvider)
+        .ensureRange(range.start.toUtc(), range.end.toUtc()),
     ensureProjectionCoverage: (range) async {
       final start = range.start.toUtc();
       final end = range.end.toUtc();
@@ -946,6 +1050,14 @@ final scheduleRepositoryProvider = Provider<ScheduleRepository>((ref) {
     },
   );
 });
+
+final cloudCalendarRangeCoverageServiceProvider =
+    Provider<CloudCalendarRangeCoverageService>((ref) {
+      return CloudCalendarRangeCoverageService(
+        database: ref.watch(databaseProvider),
+        engineForAccount: ref.read(calendarSyncEngineForAccountFactoryProvider),
+      );
+    });
 
 final Provider<String?> activeAccountProvider = Provider<String?>((ref) {
   final selectedAccount = ref.watch(selectedAccountProvider);
