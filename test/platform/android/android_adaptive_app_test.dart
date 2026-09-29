@@ -21,6 +21,8 @@ import 'package:busymax/src/features/notifications/notification_reconciler.dart'
 import 'package:busymax/src/features/recurrence/domain/recurrence_rule.dart';
 import 'package:busymax/src/features/sync/pending_mutation_sync_requester.dart';
 import 'package:busymax/src/google_calendar/google_calendar_api_client.dart';
+import 'package:busymax/src/microsoft_calendar/microsoft_calendar_api_client.dart';
+import 'package:busymax/src/microsoft_todo/api/microsoft_todo_api_client.dart';
 import 'package:busymax/src/features/task_lists/data/task_lists_repository.dart';
 import 'package:busymax/src/features/tasks/data/tasks_repository.dart';
 import 'package:busymax/src/features/tasks/domain/task_capabilities.dart';
@@ -548,6 +550,58 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets('read-only Android invitation shows details and meeting access', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(412, 915);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final harness = await _pumpApp(
+      tester,
+      AppSettings.defaults().copyWith(
+        androidScheduleViewMode: ScheduleViewMode.day,
+      ),
+      populated: true,
+    );
+    addTearDown(harness.dispose);
+    await (harness.database.update(harness.database.calendarSources)
+          ..where((row) => row.id.equals('calendar')))
+        .write(const CalendarSourcesCompanion(readOnly: Value(true)));
+    await (harness.database.update(
+      harness.database.calendarEvents,
+    )..where((row) => row.id.equals('invitation'))).write(
+      const CalendarEventsCompanion(
+        description: Value('Agenda and notes'),
+        rawJson: Value('{"hangoutLink":"https://meet.google.com/room"}'),
+        webLink: Value('https://calendar.google.com/event'),
+        attachmentsJson: Value(
+          '[{"fileUrl":"https://drive.example/agenda",'
+          '"title":"Agenda attachment"}]',
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.textContaining('more').first);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Invitation event'));
+    await tester.pumpAndSettle();
+    expect(find.text('Agenda and notes'), findsOneWidget);
+    expect(find.text('Organizer: organizer@example.com'), findsOneWidget);
+    expect(find.text('Join meeting'), findsOneWidget);
+    expect(find.text('Event link'), findsOneWidget);
+    expect(find.text('Agenda attachment'), findsOneWidget);
+    expect(find.text('Edit Event'), findsNothing);
+    const launcherChannel = MethodChannel('plugins.flutter.io/url_launcher');
+    messenger.setMockMethodCallHandler(launcherChannel, (_) async => false);
+    addTearDown(
+      () => messenger.setMockMethodCallHandler(launcherChannel, null),
+    );
+    await tester.tap(find.text('Join meeting'));
+    await tester.pumpAndSettle();
+    expect(find.text('Could not open the meeting link.'), findsOneWidget);
+  });
+
   testWidgets('notification event with no writable source opens read-only', (
     tester,
   ) async {
@@ -717,12 +771,110 @@ void main() {
         findsOneWidget,
       );
       expect(find.text('Availability unknown'), findsNWidgets(2));
-      expect(find.text('free@example.com'), findsOneWidget);
-      expect(find.text('failed@example.com'), findsOneWidget);
-      expect(find.text('missing@example.com'), findsOneWidget);
+      final dialog = find.byType(AndroidGuestAvailabilityDialog);
+      expect(
+        find.descendant(of: dialog, matching: find.text('free@example.com')),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(of: dialog, matching: find.text('failed@example.com')),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(of: dialog, matching: find.text('missing@example.com')),
+        findsOneWidget,
+      );
       expect(tester.takeException(), isNull);
     },
   );
+
+  testWidgets('Microsoft guest availability preserves mixed results', (
+    tester,
+  ) async {
+    final client = MicrosoftCalendarApiClient(
+      httpClient: MockClient(
+        (_) async => http.Response(
+          jsonEncode({
+            'value': [
+              {'scheduleId': 'free@example.com', 'scheduleItems': []},
+              {
+                'scheduleId': 'denied@example.com',
+                'error': {'responseCode': '5003', 'message': 'No access'},
+              },
+            ],
+          }),
+          200,
+          headers: {'Content-Type': 'application/json'},
+        ),
+      ),
+      baseUri: Uri.parse('https://graph.microsoft.com/v1.0'),
+      responseTimeZone: 'UTC',
+      authorizationHeaderProvider: () async => 'Bearer test-token',
+    );
+    final harness = await _pumpApp(
+      tester,
+      AppSettings.defaults(),
+      calendarClient: client,
+    );
+    addTearDown(harness.dispose);
+    final now = DateTime.now();
+    const source = CalendarSourceEntity(
+      id: 'calendar',
+      accountId: 'microsoft:editable',
+      provider: BusyProvider.microsoft,
+      providerCalendarId: 'calendar',
+      summary: 'Editable calendar',
+      selected: true,
+      hidden: false,
+      readOnly: false,
+      isDeleted: false,
+    );
+    tester
+        .state<NavigatorState>(find.byType(Navigator).first)
+        .push<void>(
+          MaterialPageRoute(
+            builder: (_) => AndroidEventEditor(
+              sources: const [source],
+              draft: EventEditorDraft.existing(
+                eventId: 'availability-event',
+                accountId: source.accountId,
+                sourceId: source.id,
+                providerCalendarId: source.providerCalendarId,
+                title: 'Availability event',
+                allDay: false,
+                start: now,
+                end: now.add(const Duration(hours: 1)),
+                attendees: const [
+                  EventAttendeeDraft(email: 'free@example.com'),
+                  EventAttendeeDraft(email: 'denied@example.com'),
+                  EventAttendeeDraft(email: 'missing@example.com'),
+                ],
+              ),
+            ),
+          ),
+        );
+    await tester.pumpAndSettle();
+    final action = find.text('Check guest availability');
+    await _scrollUntilBuilt(tester, action);
+    await tester.ensureVisible(action);
+    await tester.tap(action);
+    await tester.pumpAndSettle();
+    expect(
+      find.text('No busy periods reported for this interval'),
+      findsOneWidget,
+    );
+    expect(find.text('Availability unknown'), findsNWidgets(2));
+    final dialog = find.byType(AndroidGuestAvailabilityDialog);
+    expect(
+      find.descendant(of: dialog, matching: find.text('denied@example.com')),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(of: dialog, matching: find.text('missing@example.com')),
+      findsOneWidget,
+    );
+    expect(tester.takeException(), isNull);
+  });
 
   testWidgets('Android Settings exposes diagnostics and feedback routes', (
     tester,
@@ -838,6 +990,163 @@ void main() {
     expect(find.text('Read-only list'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
+
+  testWidgets('assigned task deletion warns and cancellation changes nothing', (
+    tester,
+  ) async {
+    final harness = await _pumpApp(tester, AppSettings.defaults());
+    addTearDown(harness.dispose);
+    const task = TaskEntity(
+      accountId: 'google:assigned',
+      taskListId: 'assigned-list',
+      id: 'assigned-task',
+      title: 'Assigned task',
+      localDirty: false,
+      pendingDelete: false,
+      pendingMove: false,
+      rawJson: '{}',
+      assignmentInfoJson:
+          '{"surfaceType":"DOCUMENT","linkToTask":"https://docs.google.com/document/d/example"}',
+      updatedLocalAtUtc: '2026-09-14T00:00:00.000Z',
+    );
+    var mutationStarted = false;
+    tester
+        .state<NavigatorState>(find.byType(Navigator).first)
+        .push<void>(
+          MaterialPageRoute(
+            builder: (_) => AndroidTaskEditor(
+              accountId: task.accountId,
+              provider: BusyProvider.google,
+              task: task,
+              accountLabel: 'Assigned account',
+              listLabel: 'Assigned list',
+              onMutationStarted: (_) => mutationStarted = true,
+            ),
+          ),
+        );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Open in provider'), findsOneWidget);
+    expect(
+      find.text('https://docs.google.com/document/d/example'),
+      findsOneWidget,
+    );
+    final editorList = find.descendant(
+      of: find.byType(AndroidTaskEditor),
+      matching: find.byType(ListView),
+    );
+    for (
+      var step = 0;
+      step < 40 && find.text('Delete Task').evaluate().isEmpty;
+      step++
+    ) {
+      await tester.drag(editorList, const Offset(0, -400));
+      await tester.pump();
+    }
+    expect(find.text('Delete Task'), findsOneWidget);
+    await tester.ensureVisible(find.text('Delete Task'));
+    await tester.tap(find.text('Delete Task'));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('original task'), findsWidgets);
+    await tester.tap(find.text('Cancel'));
+    await tester.pumpAndSettle();
+    expect(mutationStarted, isFalse);
+    expect(find.byType(AndroidTaskEditor), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets(
+    'Microsoft task linked resources load only after opening detail',
+    (tester) async {
+      var requests = 0;
+      final todoClient = MicrosoftTodoRestApiClient(
+        httpClient: MockClient((request) async {
+          requests++;
+          if (request.url.path.endsWith('/attachments')) {
+            return http.Response(
+              jsonEncode({
+                'value': [
+                  {
+                    'id': 'attachment-1',
+                    'name': 'Notes.txt',
+                    'size': 12,
+                    '@odata.type': '#microsoft.graph.taskFileAttachment',
+                  },
+                ],
+              }),
+              200,
+            );
+          }
+          expect(
+            request.url.path,
+            '/v1.0/me/todo/lists/list-1/tasks/task-1/linkedResources',
+          );
+          return http.Response(
+            jsonEncode({
+              'value': [
+                {
+                  'id': 'resource-1',
+                  'applicationName': 'Planner',
+                  'displayName': 'Launch plan',
+                  'webUrl': 'https://example.test/plan',
+                },
+                {
+                  'id': 'resource-2',
+                  'applicationName': 'Outlook',
+                  'displayName': 'Message',
+                  'webUrl': 'javascript:alert(1)',
+                },
+              ],
+            }),
+            200,
+          );
+        }),
+        baseUri: Uri.parse('https://graph.microsoft.com/v1.0'),
+        authorizationHeaderProvider: () async => 'Bearer token',
+      );
+      final harness = await _pumpApp(
+        tester,
+        AppSettings.defaults(),
+        todoClient: todoClient,
+      );
+      addTearDown(harness.dispose);
+      const task = TaskEntity(
+        accountId: 'microsoft:account',
+        taskListId: 'list-1',
+        id: 'task-1',
+        title: 'Task',
+        localDirty: false,
+        pendingDelete: false,
+        pendingMove: false,
+        rawJson: '{}',
+        updatedLocalAtUtc: '2026-09-14T00:00:00.000Z',
+      );
+      tester
+          .state<NavigatorState>(find.byType(Navigator).first)
+          .push<void>(
+            MaterialPageRoute(
+              builder: (_) => const AndroidTaskEditor(
+                accountId: 'microsoft:account',
+                provider: BusyProvider.microsoft,
+                task: task,
+              ),
+            ),
+          );
+      await tester.pumpAndSettle();
+      expect(requests, 0);
+      await tester.tap(find.text('Linked resources'));
+      await tester.pumpAndSettle();
+      expect(requests, 1);
+      expect(find.text('Launch plan · Planner'), findsOneWidget);
+      expect(find.text('Message · Outlook'), findsNothing);
+      await tester.tap(find.text('Attachments'));
+      await tester.pumpAndSettle();
+      expect(requests, 2);
+      expect(find.text('Notes.txt'), findsOneWidget);
+      expect(find.text('Task'), findsWidgets);
+      expect(tester.takeException(), isNull);
+    },
+  );
 
   testWidgets('modified Android event requires discard confirmation', (
     tester,
@@ -999,7 +1308,10 @@ void main() {
       await tester.tap(find.widgetWithText(TextButton, 'Cancel'));
       await tester.pumpAndSettle();
       expect(find.byType(AndroidEventEditor), findsOneWidget);
-      expect(find.text('Edited $label'), findsOneWidget);
+      expect(
+        find.descendant(of: field, matching: find.text('Edited $label')),
+        findsOneWidget,
+      );
       expect(tester.takeException(), isNull);
     });
   }
@@ -1647,6 +1959,7 @@ Future<_AndroidAppHarness> _pumpApp(
   Future<void> Function(String accountId)? onCalendarSync,
   FeedbackSubmissionService? feedbackService,
   CloudCalendarClient? calendarClient,
+  MicrosoftTodoApiClient? todoClient,
   Future<void> Function(ScheduleRange range)? scheduleProjectionCoverage,
 }) async {
   final database = AppDatabase.memoryForTests();
@@ -1691,6 +2004,10 @@ Future<_AndroidAppHarness> _pumpApp(
       if (calendarClient != null)
         calendarRemoteApiClientForAccountProvider.overrideWith(
           (ref, accountId) => calendarClient,
+        ),
+      if (todoClient != null)
+        microsoftTodoApiClientForAccountProvider.overrideWith(
+          (ref, accountId) => todoClient,
         ),
       initialAppSettingsProvider.overrideWithValue(settings),
       localSettingsStoreProvider.overrideWithValue(MemorySettingsStore()),

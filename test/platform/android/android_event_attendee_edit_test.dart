@@ -1,5 +1,6 @@
 import 'package:busymax/src/android/presentation/android_schedule_screen.dart';
 import 'package:busymax/src/features/calendar/presentation/event_editor_draft.dart';
+import 'package:busymax/src/providers/busy_provider.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
@@ -47,5 +48,85 @@ void main() {
     expect(edit.changed, isTrue);
     expect(identical(edit.attendees.first, existing), isTrue);
     expect(edit.attendees.last.email, 'new@example.test');
+  });
+
+  test('role edits preserve guest identity and response metadata', () {
+    final guest = EventAttendeeDraft.fromJson(const {
+      'email': 'guest@example.test',
+      'displayName': 'Guest',
+      'responseStatus': 'accepted',
+      'comment': 'Joining remotely',
+      'additionalGuests': 2,
+      'providerExtension': 'retain locally',
+    });
+    final changed = applyAndroidEventAttendeeRoles(
+      AndroidEventAttendeeEdit(attendees: [guest], changed: false),
+      const {'guest@example.test': true},
+    );
+    expect(changed.changed, isTrue);
+    expect(changed.attendees.single.optional, isTrue);
+    expect(changed.attendees.single.displayName, 'Guest');
+    expect(changed.attendees.single.responseStatus, 'accepted');
+    expect(
+      changed.attendees.single.rawJson['providerExtension'],
+      'retain locally',
+    );
+    expect(
+      changed.attendees.single.toGoogleJson()['comment'],
+      'Joining remotely',
+    );
+    expect(changed.attendees.single.toGoogleJson()['additionalGuests'], 2);
+  });
+
+  test('reminder selection separates defaults, none and at-start', () {
+    expect(
+      androidEventReminderSelection(BusyProvider.google, const {
+        'useDefault': true,
+      }),
+      -1,
+    );
+    expect(
+      androidEventReminderSelection(BusyProvider.google, const {
+        'useDefault': false,
+        'overrides': [],
+      }),
+      -2,
+    );
+    expect(
+      androidEventReminderSelection(BusyProvider.google, const {
+        'useDefault': false,
+        'overrides': [
+          {'method': 'popup', 'minutes': 0},
+        ],
+      }),
+      0,
+    );
+    expect(
+      androidEventReminderSelection(BusyProvider.microsoft, const {
+        'isReminderOn': true,
+        'reminderMinutesBeforeStart': 0,
+      }),
+      0,
+    );
+    expect(
+      androidEventReminderSelection(BusyProvider.google, const {
+        'useDefault': false,
+        'overrides': [
+          {'method': 'popup', 'minutes': 0},
+          {'method': 'popup', 'minutes': 10},
+        ],
+      }),
+      isNull,
+    );
+    expect(
+      androidEventReminderMinutes(BusyProvider.google, const {
+        'useDefault': false,
+        'overrides': [
+          {'method': 'popup', 'minutes': 0},
+          {'method': 'popup', 'minutes': 10},
+        ],
+      }),
+      [0, 10],
+    );
   });
 }
