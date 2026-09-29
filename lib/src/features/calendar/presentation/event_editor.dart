@@ -11,6 +11,7 @@ import '../../../app/busymax_dialogs.dart';
 import '../../../app/busymax_window_close.dart';
 import '../../../calendar_providers/calendar_colors.dart';
 import '../../../calendar_providers/calendar_mutation.dart';
+import '../../../calendar_providers/calendar_provider_capabilities.dart';
 import '../../../l10n/l10n.dart';
 import '../../../schedule/schedule_projection.dart';
 import 'package:busymax/src/providers/busy_provider.dart';
@@ -548,9 +549,9 @@ class _EventEditorState extends ConsumerState<EventEditor> {
                 YaruListTile.square(
                   title: EventDescriptionEditor(
                     provider: provider,
-                    text: _draft.description,
+                    text: _draft.editableDescription,
                     contentType: _draft.descriptionContentType,
-                    html: _draft.descriptionHtml,
+                    html: _draft.editableDescriptionHtml,
                     onChanged: (value) {
                       setState(() {
                         _draft = _draft.copyWith(
@@ -603,7 +604,17 @@ class _EventEditorState extends ConsumerState<EventEditor> {
                 child: Text(l10n.nextcloudGuestAvailability),
               ),
             if ((provider == BusyProvider.google ||
-                    provider == BusyProvider.microsoft) &&
+                    (provider == BusyProvider.microsoft &&
+                        microsoftAvailabilityAccountType(
+                              widget.accounts
+                                  .where(
+                                    (account) =>
+                                        account.id == currentSource!.accountId,
+                                  )
+                                  .firstOrNull
+                                  ?.tenantId,
+                            ) ==
+                            MicrosoftAvailabilityAccountType.workSchool)) &&
                 _draft.attendees.any(
                   (attendee) => !attendee.self && !attendee.organizer,
                 ))

@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:yaru/yaru.dart';
@@ -50,6 +51,14 @@ class _LinuxEventAttachmentsDialogState
       title: context.l10n.attachments,
       maxWidth: 520,
       actions: [
+        if (item.capabilities.canEdit && eventId != null)
+          BusyMaxPushButton.standard(
+            onPressed: _saving ? null : () => unawaited(_add()),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [const Icon(Icons.add), Text(context.l10n.attachments)],
+            ),
+          ),
         BusyMaxPushButton.suggested(
           onPressed: _saving ? null : () => Navigator.pop(context),
           child: Text(context.l10n.close),
@@ -61,8 +70,16 @@ class _LinuxEventAttachmentsDialogState
         else
           result.when(
             loading: () => const Center(child: YaruCircularProgressIndicator()),
-            error: (error, _) =>
+            error: (error, _) => Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
                 SelectableText('${context.l10n.attachmentsNotLoaded}\n$error'),
+                BusyMaxPushButton.standard(
+                  onPressed: _refresh,
+                  child: Text(context.l10n.retry),
+                ),
+              ],
+            ),
             data: (attachments) => attachments.isEmpty
                 ? Text(context.l10n.noneValue)
                 : Column(
@@ -91,6 +108,14 @@ class _LinuxEventAttachmentsDialogState
                                       unawaited(_open(attachment.sourceUrl!)),
                                   child: Text(context.l10n.openInProvider),
                                 ),
+                              if (item.capabilities.canEdit &&
+                                  attachment.id.isNotEmpty)
+                                BusyMaxPushButton.standard(
+                                  onPressed: _saving
+                                      ? null
+                                      : () => unawaited(_remove(attachment)),
+                                  child: Text(context.l10n.delete),
+                                ),
                             ],
                           ),
                         ),
@@ -98,6 +123,92 @@ class _LinuxEventAttachmentsDialogState
                   ),
           ),
       ],
+    );
+  }
+
+  void _refresh() {
+    final eventId = widget.item.providerEventId;
+    if (eventId == null) return;
+    ref.invalidate(
+      microsoftEventAttachmentsProvider((
+        accountId: widget.item.accountId,
+        calendarId: widget.item.providerCalendarId,
+        eventId: eventId,
+      )),
+    );
+  }
+
+  Future<void> _add() async {
+    final eventId = widget.item.providerEventId;
+    if (eventId == null || !widget.item.capabilities.canEdit) return;
+    final file = await openFile();
+    if (file == null || !mounted) return;
+    final name = safeAttachmentFileName(file.name);
+    if (name == null) {
+      _error(const FormatException('Invalid attachment name.'));
+      return;
+    }
+    setState(() => _saving = true);
+    try {
+      final size = await file.length();
+      if (size > 150 * 1024 * 1024) {
+        throw StateError('Event file exceeds 150 MB.');
+      }
+      await ref
+          .read(
+            microsoftCalendarApiClientForAccountProvider(widget.item.accountId),
+          )
+          .uploadEventFileAttachment(
+            calendarId: widget.item.providerCalendarId,
+            eventId: eventId,
+            name: name,
+            contentType: file.mimeType ?? 'application/octet-stream',
+            bytes: await file.readAsBytes(),
+          );
+      _refresh();
+    } on Object catch (error) {
+      _refresh();
+      _error(error);
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  Future<void> _remove(MicrosoftEventAttachment attachment) async {
+    final eventId = widget.item.providerEventId;
+    if (eventId == null || !widget.item.capabilities.canEdit) return;
+    final confirmed = await showBusyMaxConfirm(
+      context,
+      title: context.l10n.delete,
+      message: attachment.name,
+      confirmLabel: context.l10n.delete,
+      destructive: true,
+    );
+    if (!confirmed || !mounted) return;
+    setState(() => _saving = true);
+    try {
+      await ref
+          .read(
+            microsoftCalendarApiClientForAccountProvider(widget.item.accountId),
+          )
+          .deleteEventAttachment(
+            calendarId: widget.item.providerCalendarId,
+            eventId: eventId,
+            attachmentId: attachment.id,
+          );
+      _refresh();
+    } on Object catch (error) {
+      _refresh();
+      _error(error);
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  void _error(Object error) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(context.l10n.exportFailed('$error'))),
     );
   }
 

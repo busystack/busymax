@@ -5,6 +5,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/services.dart';
+import 'package:file_selector/file_selector.dart';
 import 'package:yaru/yaru.dart';
 
 import '../../../app/busymax_design.dart';
@@ -144,6 +145,7 @@ class _TaskDetailsEditorState extends State<TaskDetailsEditor> {
   var _creatingSubtask = false;
   Future<List<TaskSourceLink>>? _linkedResourcesFuture;
   Future<List<MicrosoftTodoAttachmentDto>>? _attachmentsFuture;
+  bool _attachmentBusy = false;
 
   @override
   void initState() {
@@ -298,12 +300,13 @@ class _TaskDetailsEditorState extends State<TaskDetailsEditor> {
                                   future: future,
                                   builder: (context, snapshot) {
                                     if (snapshot.hasError) {
-                                      return Text(
-                                        l10n.nextcloudAvailabilityUnknown,
-                                      );
+                                      return Text(l10n.operationFailed);
                                     }
                                     if (!snapshot.hasData) {
                                       return const YaruCircularProgressIndicator();
+                                    }
+                                    if (snapshot.data!.isEmpty) {
+                                      return Text(l10n.noLinkedResources);
                                     }
                                     return BusyMaxGroupedList(
                                       filled: true,
@@ -337,6 +340,7 @@ class _TaskDetailsEditorState extends State<TaskDetailsEditor> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             BusyMaxPushButton.standard(
+                              key: const Key('task-attachments-load'),
                               onPressed: () => setState(() {
                                 final key = (
                                   accountId: _editingTask.accountId,
@@ -352,6 +356,22 @@ class _TaskDetailsEditorState extends State<TaskDetailsEditor> {
                               }),
                               child: Text(l10n.attachments),
                             ),
+                            if (_canWrite &&
+                                !_editingTask.pendingDelete &&
+                                !_editingTask.id.startsWith('local-task-'))
+                              BusyMaxPushButton.standard(
+                                onPressed: _attachmentBusy
+                                    ? null
+                                    : () =>
+                                          unawaited(_uploadTaskAttachment(ref)),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    const Icon(Icons.add, size: 18),
+                                    Text(l10n.attachments),
+                                  ],
+                                ),
+                              ),
                             if (_attachmentsFuture case final future?)
                               FutureBuilder<List<MicrosoftTodoAttachmentDto>>(
                                 future: future,
@@ -361,6 +381,9 @@ class _TaskDetailsEditorState extends State<TaskDetailsEditor> {
                                   }
                                   if (!snapshot.hasData) {
                                     return const YaruCircularProgressIndicator();
+                                  }
+                                  if (snapshot.data!.isEmpty) {
+                                    return Text(l10n.noneValue);
                                   }
                                   return BusyMaxGroupedList(
                                     filled: true,
@@ -379,6 +402,27 @@ class _TaskDetailsEditorState extends State<TaskDetailsEditor> {
                                                   _downloadTaskAttachment(
                                                     ref,
                                                     attachment,
+                                                  ),
+                                                )
+                                              : null,
+                                          trailing:
+                                              _canWrite &&
+                                                  !_editingTask.pendingDelete &&
+                                                  !_editingTask.id.startsWith(
+                                                    'local-task-',
+                                                  )
+                                              ? YaruIconButton(
+                                                  tooltip: l10n.delete,
+                                                  onPressed: _attachmentBusy
+                                                      ? null
+                                                      : () => unawaited(
+                                                          _deleteTaskAttachment(
+                                                            ref,
+                                                            attachment,
+                                                          ),
+                                                        ),
+                                                  icon: const Icon(
+                                                    Icons.delete_outline,
                                                   ),
                                                 )
                                               : null,
@@ -1336,6 +1380,100 @@ class _TaskDetailsEditorState extends State<TaskDetailsEditor> {
         );
       }
     }
+  }
+
+  Future<void> _uploadTaskAttachment(WidgetRef ref) async {
+    if (!_canWrite ||
+        _editingTask.pendingDelete ||
+        _editingTask.id.startsWith('local-task-')) {
+      return;
+    }
+    final file = await openFile();
+    if (file == null || !mounted) return;
+    final name = safeAttachmentFileName(file.name);
+    if (name == null) {
+      _showAttachmentError(const FormatException('Invalid attachment name.'));
+      return;
+    }
+    setState(() => _attachmentBusy = true);
+    try {
+      final client = ref.read(
+        microsoftTodoApiClientForAccountProvider(_editingTask.accountId),
+      );
+      if (client is! MicrosoftTodoAttachmentsApiClient) {
+        throw StateError('Microsoft task attachments are unavailable.');
+      }
+      final size = await file.length();
+      if (size > 25 * 1024 * 1024) {
+        throw StateError('Task file exceeds 25 MB.');
+      }
+      await (client as MicrosoftTodoAttachmentsApiClient)
+          .uploadTaskFileAttachment(
+            taskListId: _editingTask.taskListId,
+            taskId: _editingTask.id,
+            name: name,
+            contentType: file.mimeType ?? 'application/octet-stream',
+            bytes: await file.readAsBytes(),
+          );
+      _reloadTaskAttachments(ref);
+    } on Object catch (error) {
+      _showAttachmentError(error);
+    } finally {
+      if (mounted) setState(() => _attachmentBusy = false);
+    }
+  }
+
+  Future<void> _deleteTaskAttachment(
+    WidgetRef ref,
+    MicrosoftTodoAttachmentDto attachment,
+  ) async {
+    if (!_canWrite ||
+        _editingTask.pendingDelete ||
+        _editingTask.id.startsWith('local-task-')) {
+      return;
+    }
+    setState(() => _attachmentBusy = true);
+    try {
+      final client = ref.read(
+        microsoftTodoApiClientForAccountProvider(_editingTask.accountId),
+      );
+      if (client is! MicrosoftTodoAttachmentsApiClient) {
+        throw StateError('Microsoft task attachments are unavailable.');
+      }
+      await (client as MicrosoftTodoAttachmentsApiClient).deleteTaskAttachment(
+        taskListId: _editingTask.taskListId,
+        taskId: _editingTask.id,
+        attachmentId: attachment.id,
+      );
+      _reloadTaskAttachments(ref);
+    } on Object catch (error) {
+      _showAttachmentError(error);
+    } finally {
+      if (mounted) setState(() => _attachmentBusy = false);
+    }
+  }
+
+  void _reloadTaskAttachments(WidgetRef ref) {
+    final key = (
+      accountId: _editingTask.accountId,
+      taskListId: _editingTask.taskListId,
+      taskId: _editingTask.id,
+    );
+    ref.invalidate(microsoftTaskAttachmentsProvider(key));
+    if (mounted) {
+      setState(
+        () => _attachmentsFuture = ref.read(
+          microsoftTaskAttachmentsProvider(key).future,
+        ),
+      );
+    }
+  }
+
+  void _showAttachmentError(Object error) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(context.l10n.exportFailed('$error'))),
+    );
   }
 
   void _loadDraft(TaskEntity task, {required bool force}) {

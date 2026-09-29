@@ -653,24 +653,46 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
                                 searchActive && _searchCriteria != null,
                             child: buildSidebar(),
                           );
+                          final cloudCoverage =
+                              snapshot.hasData &&
+                                  !scheduleLoading &&
+                                  _searchCriteria?.date !=
+                                      ScheduleSearchDate.any
+                              ? ref
+                                    .read(scheduleRepositoryProvider)
+                                    .cloudCoverageCompleteFor(
+                                      _searchCriteria?.range ?? range,
+                                      filters:
+                                          searchActive &&
+                                              _searchCriteria != null
+                                          ? _searchCriteria!.filters(
+                                              _searchQuery,
+                                            )
+                                          : ScheduleFilters(
+                                              accountIds: accountIds.toSet(),
+                                              sourceIds: visibility
+                                                  .visibleCalendarSourceIds,
+                                              sourceFilterActive: true,
+                                            ),
+                                    )
+                              : true;
                           final frame = LinuxPageFrame(
                             header: header,
-                            body:
-                                snapshot.hasData &&
-                                    _searchCriteria?.date !=
-                                        ScheduleSearchDate.any &&
-                                    ref
-                                            .read(scheduleRepositoryProvider)
-                                            .cloudCoverageCompleteFor(
-                                              _searchCriteria?.range ?? range,
-                                            ) ==
-                                        false
+                            body: cloudCoverage != true
                                 ? Column(
                                     children: [
                                       ListTile(
-                                        leading: const Icon(Icons.cloud_off),
+                                        leading: Icon(
+                                          cloudCoverage == null
+                                              ? Icons.sync
+                                              : Icons.cloud_off,
+                                        ),
                                         title: Text(
-                                          context.l10n.scheduleRangeIncomplete,
+                                          cloudCoverage == null
+                                              ? context.l10n.scheduleLoading
+                                              : context
+                                                    .l10n
+                                                    .scheduleRangeIncomplete,
                                         ),
                                         dense: true,
                                       ),

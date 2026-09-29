@@ -173,6 +173,7 @@ class EventEditorDraft {
     this.description,
     this.descriptionContentType,
     this.descriptionHtml,
+    this.descriptionEditUnsafe = false,
     this.recurrence,
     this.recurrenceChanged = false,
     this.reminders,
@@ -391,6 +392,60 @@ class EventEditorDraft {
   final String? description;
   final String? descriptionContentType;
   final String? descriptionHtml;
+
+  /// An attempted body edit must not enter the local queue when Graph's
+  /// provider-owned online-meeting subtree cannot be isolated exactly.
+  final bool descriptionEditUnsafe;
+
+  String? get _microsoftMeetingUrl {
+    if (originalDetail?.provider != BusyProvider.microsoft) return null;
+    final original = _jsonMap(originalDetail?.raw);
+    final onlineMeeting = _jsonMapOrNull(original['onlineMeeting']);
+    final current = conference is Map ? conference as Map : null;
+    return current?['joinUrl']?.toString() ??
+        onlineMeeting?['joinUrl']?.toString() ??
+        original['onlineMeetingUrl']?.toString();
+  }
+
+  bool get _hasMicrosoftOnlineMeeting {
+    if (originalDetail?.provider != BusyProvider.microsoft) return false;
+    final original = _jsonMap(originalDetail?.raw);
+    return original['isOnlineMeeting'] == true ||
+        _microsoftMeetingUrl?.isNotEmpty == true;
+  }
+
+  MicrosoftMeetingBodyParts? get _originalMeetingBodyParts {
+    final url = _microsoftMeetingUrl;
+    if (url == null || url.isEmpty) return null;
+    final body = _jsonMapOrNull(_jsonMap(originalDetail?.raw)['body']);
+    if (body?['contentType']?.toString().toLowerCase() != 'html') return null;
+    try {
+      return splitMicrosoftMeetingBodyHtml(
+        originalHtml: body?['content']?.toString() ?? '',
+        meetingUrl: url,
+      );
+    } on FormatException {
+      return null;
+    }
+  }
+
+  bool get _descriptionIsOriginal {
+    final body = _jsonMapOrNull(_jsonMap(originalDetail?.raw)['body']);
+    return description == originalDetail?.description &&
+        descriptionHtml == body?['content'];
+  }
+
+  String? get editableDescription {
+    final parts = _descriptionIsOriginal ? _originalMeetingBodyParts : null;
+    return parts == null
+        ? description
+        : htmlCalendarDescriptionToPlainText(parts.editableHtml);
+  }
+
+  String? get editableDescriptionHtml =>
+      (_descriptionIsOriginal ? _originalMeetingBodyParts : null)
+          ?.editableHtml ??
+      descriptionHtml;
   final Object? recurrence;
 
   /// True only after the editor deliberately changes the hydrated value.
@@ -506,6 +561,7 @@ class EventEditorDraft {
     var nextDescriptionHtml = clearDescription
         ? null
         : descriptionHtml ?? this.descriptionHtml;
+    var nextDescriptionEditUnsafe = descriptionEditUnsafe;
     final originalBody = _jsonMapOrNull(
       _jsonMapOrNull(originalDetail?.raw)?['body'],
     );
@@ -521,26 +577,37 @@ class EventEditorDraft {
       }
     } else if (originalDetail?.provider == BusyProvider.microsoft &&
         descriptionEdited) {
-      final meeting = conference ?? this.conference;
-      final meetingUrl = meeting is Map ? meeting['joinUrl']?.toString() : null;
-      if (descriptionHtml != null ||
-          (meetingUrl != null && meetingUrl.isNotEmpty)) {
+      final meetingUrl = _microsoftMeetingUrl;
+      if (descriptionHtml != null || _hasMicrosoftOnlineMeeting) {
         final editedHtml =
             descriptionHtml ??
             calendarDescriptionToHtml(
               clearDescription ? '' : description ?? this.description ?? '',
               const [],
             );
-        nextDescriptionHtml = preserveMicrosoftMeetingBodyHtml(
-          editedHtml: editedHtml,
-          originalHtml: originalBody?['content']?.toString() ?? '',
-          meetingUrl: meetingUrl,
-        );
+        try {
+          if (_hasMicrosoftOnlineMeeting &&
+              (meetingUrl == null || meetingUrl.isEmpty)) {
+            throw const FormatException(
+              'The online meeting URL is unavailable.',
+            );
+          }
+          nextDescriptionHtml = preserveMicrosoftMeetingBodyHtml(
+            editedHtml: editedHtml,
+            originalHtml: originalBody?['content']?.toString() ?? '',
+            meetingUrl: meetingUrl,
+          );
+          nextDescriptionEditUnsafe = false;
+        } on FormatException {
+          nextDescriptionHtml = editedHtml;
+          nextDescriptionEditUnsafe = true;
+        }
         nextDescriptionContentType = 'html';
       } else {
         // Plain edits are authoritative; the old HTML must not override them.
         nextDescriptionHtml = null;
         nextDescriptionContentType = 'text';
+        nextDescriptionEditUnsafe = false;
       }
     }
     return EventEditorDraft(
@@ -573,6 +640,7 @@ class EventEditorDraft {
       description: clearDescription ? null : description ?? this.description,
       descriptionContentType: nextDescriptionContentType,
       descriptionHtml: nextDescriptionHtml,
+      descriptionEditUnsafe: nextDescriptionEditUnsafe,
       recurrence: clearRecurrence ? null : recurrence ?? this.recurrence,
       recurrenceChanged:
           recurrenceChanged ??
@@ -628,6 +696,7 @@ class EventEditorDraft {
         other.description == description &&
         other.descriptionContentType == descriptionContentType &&
         other.descriptionHtml == descriptionHtml &&
+        other.descriptionEditUnsafe == descriptionEditUnsafe &&
         other.recurrence == recurrence &&
         other.recurrenceChanged == recurrenceChanged &&
         other.reminders == reminders &&
@@ -672,6 +741,7 @@ class EventEditorDraft {
     description,
     descriptionContentType,
     descriptionHtml,
+    descriptionEditUnsafe,
     recurrence,
     recurrenceChanged,
     reminders,

@@ -15,7 +15,11 @@ import '../../core/http/request_dispatch_exception.dart';
 import '../../db/app_database.dart';
 import '../../google_calendar/google_calendar_errors.dart';
 import '../../google_calendar/google_calendar_mapper.dart';
+import '../../google_calendar/google_calendar_api_client.dart';
 import '../../microsoft_calendar/microsoft_calendar_errors.dart';
+import '../../microsoft_calendar/microsoft_calendar_api_client.dart';
+import '../../microsoft_calendar/microsoft_calendar_mapper.dart';
+import '../../microsoft_calendar/microsoft_shared_calendar_address.dart';
 import 'package:busymax/src/providers/busy_provider.dart';
 import '../calendar/data/calendar_repository.dart';
 import '../recurrence/domain/event_recurrence_codec.dart';
@@ -173,6 +177,8 @@ class CalendarPendingOpsReplayer {
     switch (_operationType(op)) {
       case 'event.create':
         await _createEvent(op);
+      case 'event.importException':
+        await _importEventException(op);
       case 'event.patch':
         await _patchEvent(op);
       case 'event.delete':
@@ -392,6 +398,49 @@ class CalendarPendingOpsReplayer {
     throw const _PendingOpBlocked();
   }
 
+  Future<void> _requireSharedEventWriteAllowed(
+    PendingOp op, {
+    CalendarEvent? local,
+  }) async {
+    final calendarId = op.providerCalendarId;
+    final address = calendarId == null
+        ? null
+        : MicrosoftSharedPrimaryCalendarAddress.parse(calendarId);
+    if (address == null) return;
+    final client = _client;
+    if (client is! MicrosoftCalendarApiClient) {
+      await _blockOp(
+        op,
+        'shared_calendar_unavailable',
+        'Owner-mailbox access is unavailable.',
+      );
+      throw const _PendingOpBlocked();
+    }
+    late final CalendarSourceDto fresh;
+    try {
+      fresh = await client.getSharedPrimaryCalendar(address.owner);
+    } on MicrosoftCalendarApiError catch (error) {
+      if (error.statusCode != 403 && error.statusCode != 404) rethrow;
+      await _blockOp(
+        op,
+        'calendar_permission_changed',
+        'Owner-mailbox access was revoked.',
+      );
+      throw const _PendingOpBlocked();
+    }
+    await _repository.upsertSource(accountId: _accountId, source: fresh);
+    if (fresh.readOnly ||
+        (local?.visibility?.toLowerCase() == 'private' &&
+            fresh.rawJson['canViewPrivateItems'] != true)) {
+      await _blockOp(
+        op,
+        'calendar_permission_changed',
+        'This delegated calendar or private event is no longer writable.',
+      );
+      throw const _PendingOpBlocked();
+    }
+  }
+
   Future<bool> _googleDataOwnerMatchesAccount(CalendarSource source) async {
     final owner = source.dataOwner?.trim().toLowerCase();
     if (owner == null || owner.isEmpty) return false;
@@ -408,24 +457,49 @@ class CalendarPendingOpsReplayer {
   }
 
   Future<void> _createEvent(PendingOp op) async {
+    await _requireSharedEventWriteAllowed(op);
     final providerCalendarId = _require(op.providerCalendarId, 'calendarId');
     final request = await _eventCreateRequest(op);
+    final importUid = request[calendarEventImportIcalUidKey]?.toString();
     final googleEventId = _client.provider == BusyProvider.google
         ? request[calendarEventGoogleCreateIdKey]?.toString()
         : null;
     late final CalendarEventDto event;
     try {
-      event = await _client.createEvent(
-        calendarId: providerCalendarId,
-        mutation: _eventMutation(
-          request,
-          fallbackTimeZone: await _fallbackTimeZone(op),
-          providerEventId: googleEventId,
-          transactionId: request[calendarEventMicrosoftTransactionIdKey]
-              ?.toString(),
-        ),
-        guestUpdatePolicy: _guestUpdatePolicy(request),
+      final mutation = _eventMutation(
+        request,
+        fallbackTimeZone: await _fallbackTimeZone(op),
+        providerEventId: importUid == null ? googleEventId : null,
+        transactionId: request[calendarEventMicrosoftTransactionIdKey]
+            ?.toString(),
       );
+      if (importUid != null && _client.provider == BusyProvider.google) {
+        final importer = _client;
+        if (importer is! PrivateCalendarImportClient) {
+          throw StateError('Google private-copy import is unavailable.');
+        }
+        final privateImporter = importer as PrivateCalendarImportClient;
+        final existing = await privateImporter.eventsWithICalUid(
+          calendarId: providerCalendarId,
+          iCalUid: importUid,
+        );
+        if (existing.length > 1) {
+          throw StateError('Multiple remote events match the imported UID.');
+        }
+        event = existing.isNotEmpty
+            ? existing.single
+            : await privateImporter.importEvent(
+                calendarId: providerCalendarId,
+                iCalUid: importUid,
+                mutation: mutation,
+              );
+      } else {
+        event = await _client.createEvent(
+          calendarId: providerCalendarId,
+          mutation: mutation,
+          guestUpdatePolicy: _guestUpdatePolicy(request),
+        );
+      }
     } on GoogleCalendarApiError catch (error) {
       if (_client.provider != BusyProvider.google ||
           googleEventId == null ||
@@ -440,8 +514,169 @@ class CalendarPendingOpsReplayer {
     await _replaceLocalEvent(op, event);
   }
 
+  Future<void> _importEventException(PendingOp op) async {
+    final calendarId = _require(op.providerCalendarId, 'calendarId');
+    final localMaster = await _localEvent(op);
+    await _requireSharedEventWriteAllowed(op, local: localMaster);
+    final masterId = await _providerEventId(op, localMaster);
+    final request = _request(op);
+    final originalStart = _require(
+      request['originalStart']?.toString(),
+      'originalStart',
+    );
+    if (_client.provider != BusyProvider.google &&
+        _client.provider != BusyProvider.microsoft) {
+      await _blockOp(
+        op,
+        'unsupported_import_exception',
+        'This provider cannot safely resolve an imported occurrence yet.',
+      );
+      throw const _PendingOpBlocked();
+    }
+    final List<CalendarEventDto> instances;
+    Set<String> cancelledIds = const {};
+    if (_client is GoogleCalendarApiClient) {
+      instances = await (_client as CompleteRecurringInstanceClient)
+          .listAllEventInstances(
+            calendarId: calendarId,
+            recurringEventId: masterId,
+          );
+    } else {
+      final microsoft = _client as MicrosoftCalendarApiClient;
+      final snapshot = await microsoft.getSeriesExceptionSnapshot(
+        calendarId: calendarId,
+        recurringEventId: masterId,
+      );
+      cancelledIds = snapshot.cancelledIds;
+      final originalInstant = DateTime.tryParse(originalStart);
+      if (originalInstant == null) {
+        throw StateError('The original start cannot be searched in Graph.');
+      }
+      final nearby = await microsoft.listEventInstances(
+        calendarId: calendarId,
+        recurringEventId: masterId,
+        rangeStart: originalInstant.toUtc().subtract(const Duration(days: 1)),
+        rangeEnd: originalInstant.toUtc().add(const Duration(days: 2)),
+      );
+      instances = {
+        for (final item in [...snapshot.exceptions, ...nearby])
+          item.providerEventId: item,
+      }.values.toList();
+    }
+    final matching = instances
+        .where(
+          (instance) => _sameImportOriginalStart(
+            instance.providerOriginalStartKey,
+            originalStart,
+          ),
+        )
+        .toList();
+    final savedId = request['_importInstanceId']?.toString();
+    final savedOccurrenceId = request['_importOccurrenceId']?.toString();
+    if (matching.isEmpty &&
+        request['cancelled'] == true &&
+        savedOccurrenceId != null &&
+        cancelledIds.contains(savedOccurrenceId)) {
+      final savedRaw = request['_importInstanceRaw'];
+      if (savedRaw is! Map) {
+        throw StateError('The cancelled occurrence identity was not saved.');
+      }
+      await _upsertImportedCancellation(
+        calendarId,
+        Map<String, Object?>.from(savedRaw),
+      );
+      return;
+    }
+    if (matching.isEmpty && savedId != null) {
+      try {
+        matching.add(
+          await _client.getEvent(calendarId: calendarId, eventId: savedId),
+        );
+      } on MicrosoftCalendarApiError catch (error) {
+        if (error.statusCode != 404) rethrow;
+      }
+    }
+    if (matching.length != 1) {
+      throw StateError(
+        'The imported occurrence could not be identified uniquely.',
+      );
+    }
+    final instance = matching.single;
+    if (savedId == null) {
+      request['_importInstanceId'] = instance.providerEventId;
+      request['_importOccurrenceId'] = instance.rawJson['occurrenceId'];
+      request['_importInstanceRaw'] = instance.rawJson;
+      await (_database.update(_database.pendingOps)
+            ..where((row) => row.id.equals(op.id)))
+          .write(PendingOpsCompanion(requestJson: Value(jsonEncode(request))));
+    }
+    if (request['cancelled'] == true) {
+      if (!instance.isCancelled) {
+        await _client.deleteEvent(
+          calendarId: calendarId,
+          eventId: instance.providerEventId,
+          guestUpdatePolicy: CalendarGuestUpdatePolicy.doNotSend,
+          ifMatch: instance.etagOrChangeKey,
+        );
+      }
+      await _upsertImportedCancellation(calendarId, instance.rawJson);
+      return;
+    }
+    if (instance.isCancelled) {
+      throw StateError(
+        'The imported occurrence is already cancelled remotely.',
+      );
+    }
+    final patchRequest = <String, Object?>{...request}
+      ..remove('originalStart')
+      ..remove('cancelled')
+      ..remove('_importInstanceId')
+      ..remove('_importOccurrenceId')
+      ..remove('_importInstanceRaw');
+    final updated = await _client.updateEvent(
+      calendarId: calendarId,
+      eventId: instance.providerEventId,
+      mutation: _eventMutation(
+        patchRequest,
+        fallbackTimeZone: await _fallbackTimeZone(op),
+      ),
+      guestUpdatePolicy: CalendarGuestUpdatePolicy.doNotSend,
+      ifMatch: instance.etagOrChangeKey,
+    );
+    await _repository.upsertEvent(accountId: _accountId, event: updated);
+  }
+
+  Future<void> _upsertImportedCancellation(
+    String calendarId,
+    Map<String, Object?> raw,
+  ) async {
+    final cancelledRaw = <String, Object?>{...raw};
+    final CalendarEventDto event;
+    if (_client.provider == BusyProvider.google) {
+      cancelledRaw['status'] = 'cancelled';
+      event = googleCalendarEventFromJson(calendarId, cancelledRaw);
+    } else {
+      cancelledRaw['isCancelled'] = true;
+      event = microsoftCalendarEventFromJson(calendarId, cancelledRaw);
+    }
+    await _repository.upsertEvent(accountId: _accountId, event: event);
+  }
+
+  bool _sameImportOriginalStart(String? remote, String expected) {
+    if (remote == expected) return true;
+    if (remote == null || expected.length == 10 || remote.length == 10) {
+      return false;
+    }
+    final remoteInstant = DateTime.tryParse(remote);
+    final expectedInstant = DateTime.tryParse(expected);
+    return remoteInstant != null &&
+        expectedInstant != null &&
+        remoteInstant.toUtc().isAtSameMomentAs(expectedInstant.toUtc());
+  }
+
   Future<Map<String, Object?>> _eventCreateRequest(PendingOp op) async {
     final request = _request(op);
+    if (request.containsKey(calendarEventImportIcalUidKey)) return request;
     final identity = switch (_client.provider) {
       BusyProvider.google => (
         key: calendarEventGoogleCreateIdKey,
@@ -469,6 +704,7 @@ class CalendarPendingOpsReplayer {
   Future<void> _patchEvent(PendingOp op) async {
     final providerCalendarId = _require(op.providerCalendarId, 'calendarId');
     final local = await _localEvent(op);
+    await _requireSharedEventWriteAllowed(op, local: local);
     final request = _request(op);
     final recurringScope = request[calendarEventRecurringScopeKey]?.toString();
     final providerEventId = await _providerEventId(op, local);
@@ -640,6 +876,7 @@ class CalendarPendingOpsReplayer {
   Future<void> _deleteEvent(PendingOp op) async {
     final providerCalendarId = _require(op.providerCalendarId, 'calendarId');
     final local = await _localEvent(op);
+    await _requireSharedEventWriteAllowed(op, local: local);
     final request = _request(op);
     final providerEventId = await _providerEventId(op, local);
     final checkedVersion = await _ensureEventUnchanged(op, local, 'delete');

@@ -170,6 +170,7 @@ class AuthRepository {
       providerAccountId: result.user.id,
       displayName: result.user.displayName,
       email: result.user.mail ?? result.user.userPrincipalName,
+      tenantId: result.tenantId,
       grantedScopes: result.tokenSet.scopes.join(' '),
       providerMetadata: result.user.rawJson,
     );

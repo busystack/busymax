@@ -16,6 +16,7 @@ import '../../../dav/nextcloud/nextcloud_dav_context.dart';
 import '../../../dav/xml/dav_xml.dart';
 import '../../../calendar_providers/calendar_sync_dto.dart';
 import '../../../core/time/provider_date_time.dart';
+import '../../../core/time/stored_temporal_projection.dart';
 import '../../../dav/ical/ical_document.dart';
 import '../../../dav/ical/ical_semantics.dart';
 import '../../../dav/ical/ical_timezone.dart';
@@ -26,6 +27,7 @@ import '../../../dav/storage/dav_object_repository.dart';
 import '../../../db/app_database.dart';
 import '../../../google_calendar/google_calendar_mapper.dart';
 import '../../../microsoft_calendar/microsoft_calendar_mapper.dart';
+import '../../../microsoft_calendar/microsoft_shared_calendar_address.dart';
 import '../../accounts/domain/account_collection_creation_capabilities.dart';
 import '../../notifications/notification_schedule_service.dart';
 import '../../recurrence/domain/event_recurrence_codec.dart';
@@ -44,6 +46,19 @@ typedef CalendarEventRecoveryFetcher =
       required String calendarId,
       required String eventId,
     });
+
+final class ImportedEventException {
+  const ImportedEventException({
+    required this.originalStart,
+    required this.cancelled,
+    required this.fields,
+  });
+
+  /// The original recurrence position, not the moved start time.
+  final String originalStart;
+  final bool cancelled;
+  final Map<String, Object?> fields;
+}
 
 class CalendarSourceEntity {
   const CalendarSourceEntity({
@@ -1054,6 +1069,11 @@ class CalendarRepository {
       final missingSourceIds = {
         for (final source in sources)
           if (!activeProviderCalendarIds.contains(source.providerCalendarId) &&
+              !(provider == BusyProvider.microsoft &&
+                  MicrosoftSharedPrimaryCalendarAddress.parse(
+                        source.providerCalendarId,
+                      ) !=
+                      null) &&
               !pendingCreateSourceIds.contains(source.id) &&
               !pendingCreateProviderIds.contains(source.providerCalendarId))
             source.id,
@@ -1909,7 +1929,14 @@ class CalendarRepository {
 
   Future<List<String>> createImportedEventsBatch({
     required CalendarSourceEntity destination,
-    required List<({String icalUid, EventEditorDraft draft})> events,
+    required List<
+      ({
+        String icalUid,
+        EventEditorDraft draft,
+        List<ImportedEventException> exceptions,
+      })
+    >
+    events,
   }) async {
     if (events.isEmpty) return const [];
     if (events.any(
@@ -1932,6 +1959,43 @@ class CalendarRepository {
           rebuildNotifications: false,
         );
         operationIds.add(operationId);
+        final masterOp = await (_database.select(
+          _database.pendingOps,
+        )..where((row) => row.id.equals(operationId))).getSingle();
+        if (destination.provider == BusyProvider.google) {
+          final request = _jsonMap(masterOp.requestJson);
+          request[calendarEventImportIcalUidKey] = event.icalUid;
+          await (_database.update(
+            _database.pendingOps,
+          )..where((row) => row.id.equals(operationId))).write(
+            PendingOpsCompanion(requestJson: Value(jsonEncode(request))),
+          );
+        }
+        for (final exception in event.exceptions) {
+          await _database
+              .into(_database.pendingOps)
+              .insert(
+                PendingOpsCompanion.insert(
+                  id: const Uuid().v4(),
+                  accountId: destination.accountId,
+                  provider: Value(destination.provider.storageValue),
+                  entityType: 'event',
+                  operation: 'importException',
+                  operationType: const Value('event.importException'),
+                  calendarSourceId: Value(destination.id),
+                  providerCalendarId: Value(destination.providerCalendarId),
+                  eventId: Value(masterOp.eventId),
+                  dependsOnOpId: Value(operationId),
+                  requestJson: jsonEncode({
+                    'originalStart': exception.originalStart,
+                    'cancelled': exception.cancelled,
+                    ...exception.fields,
+                  }),
+                  createdAtUtc: _now().toUtc().toIso8601String(),
+                  updatedAtUtc: _now().toUtc().toIso8601String(),
+                ),
+              );
+        }
         await _database
             .into(_database.icalImportReceipts)
             .insert(
@@ -2023,6 +2087,9 @@ class CalendarRepository {
     bool timingOnly = false,
     bool deferNotifications = false,
   }) async {
+    if (draft.descriptionEditUnsafe) {
+      throw const MicrosoftMeetingBodyEditUnsafe();
+    }
     final eventId = draft.eventId;
     if (eventId == null) {
       await createLocalEvent(
@@ -2041,6 +2108,11 @@ class CalendarRepository {
     final originalSource = await (_database.select(
       _database.calendarSources,
     )..where((row) => row.id.equals(existing.calendarSourceId))).getSingle();
+    _requireMicrosoftSharedPrivateAccess(
+      originalSource,
+      existing,
+      operation: CalendarMutationOperation.editEvent,
+    );
     _requireFullEventEditingAllowed(existing);
     _requireAttendeeManagementAllowed(existing, draft);
     final editBaseline = _eventEditBaseline(draft, existing);
@@ -3409,6 +3481,11 @@ class CalendarRepository {
     final source = await (_database.select(
       _database.calendarSources,
     )..where((row) => row.id.equals(existing.calendarSourceId))).getSingle();
+    _requireMicrosoftSharedPrivateAccess(
+      source,
+      existing,
+      operation: CalendarMutationOperation.deleteEvent,
+    );
     await _requireWritableSource(
       source,
       database: _database,
@@ -4481,13 +4558,7 @@ class CalendarRepository {
           row.syncStatus != 'synced') {
         continue;
       }
-      final start = row.allDay
-          ? _parseDate(row.startDate)
-          : DateTime.tryParse(row.startDateTime ?? '');
-      final end = row.allDay
-          ? _parseDate(row.endDate)
-          : DateTime.tryParse(row.endDateTime ?? '');
-      if (!_intersects(rangeStart, rangeEnd, start, end)) {
+      if (!storedCalendarEventOverlapsUtcRange(row, rangeStart, rangeEnd)) {
         continue;
       }
       await (_database.update(
@@ -4649,6 +4720,21 @@ void _requireFullEventEditingAllowed(CalendarEvent event) {
     operation: CalendarMutationOperation.editEvent,
     sourceId: event.calendarSourceId,
   );
+}
+
+void _requireMicrosoftSharedPrivateAccess(
+  CalendarSource source,
+  CalendarEvent event, {
+  required CalendarMutationOperation operation,
+}) {
+  if (MicrosoftSharedPrimaryCalendarAddress.parse(source.providerCalendarId) ==
+          null ||
+      event.visibility?.toLowerCase() != 'private') {
+    return;
+  }
+  final metadata = _jsonMap(source.rawJson);
+  if (metadata['canViewPrivateItems'] == true) return;
+  throw CalendarMutationNotAllowed(operation: operation, sourceId: source.id);
 }
 
 void _requireAttendeeManagementAllowed(
@@ -5355,6 +5441,9 @@ Object? _localAttendeesJson(EventEditorDraft draft, BusyProvider provider) {
         {
           ...attendee.rawJson,
           ...attendee.toGoogleJson(),
+          // The provider serializer omits false, but optimistic local state
+          // must override an original optional:true when changing to required.
+          'optional': attendee.optional,
           if (attendee.self) 'self': true,
           if (attendee.organizer) 'organizer': true,
         },
@@ -5745,24 +5834,4 @@ String? _date(DateTime? value) {
   return '${value.year.toString().padLeft(4, '0')}-'
       '${value.month.toString().padLeft(2, '0')}-'
       '${value.day.toString().padLeft(2, '0')}';
-}
-
-DateTime? _parseDate(String? value) {
-  if (value == null || value.length < 10) {
-    return null;
-  }
-  return DateTime.tryParse(value.substring(0, 10));
-}
-
-bool _intersects(
-  DateTime rangeStart,
-  DateTime rangeEnd,
-  DateTime? start,
-  DateTime? end,
-) {
-  if (start == null) {
-    return false;
-  }
-  final effectiveEnd = end ?? start.add(const Duration(minutes: 1));
-  return effectiveEnd.isAfter(rangeStart) && start.isBefore(rangeEnd);
 }

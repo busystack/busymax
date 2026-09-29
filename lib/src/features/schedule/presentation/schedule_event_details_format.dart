@@ -31,14 +31,24 @@ String scheduleEventIntervalLabel(
   final last = end == null
       ? null
       : formatClockDateTime(context, end, date(end));
-  final interval = last == null ? first : '$first – $last';
-  final startZone = event.startTimeZone?.trim();
-  final endZone = event.endTimeZone?.trim();
-  if (startZone == null || startZone.isEmpty) return interval;
-  if (endZone == null || endZone.isEmpty || startZone == endZone) {
-    return '$interval · $startZone';
-  }
-  return '$interval · $startZone → $endZone';
+  // Schedule projections are already in device-local time. The provider's
+  // original TZID may differ and must not label these displayed wall values.
+  final startZone = _displayTimeZone(start);
+  if (end == null || last == null) return '$first · $startZone';
+  final endZone = _displayTimeZone(end);
+  if (startZone == endZone) return '$first – $last · $startZone';
+  return '$first $startZone – $last $endZone';
+}
+
+String _displayTimeZone(DateTime value) {
+  final offset = value.timeZoneOffset;
+  final name = value.timeZoneName.trim();
+  if (offset == Duration.zero) return 'UTC';
+  final absolute = offset.abs();
+  final hours = absolute.inHours.toString().padLeft(2, '0');
+  final minutes = (absolute.inMinutes % 60).toString().padLeft(2, '0');
+  final utcOffset = 'UTC${offset.isNegative ? '-' : '+'}$hours:$minutes';
+  return name.isEmpty || name == 'UTC' ? utcOffset : '$name ($utcOffset)';
 }
 
 String calendarEventDescription(CalendarScheduleItem event) {
