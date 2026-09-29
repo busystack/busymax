@@ -210,15 +210,21 @@ class MicrosoftTodoLinkedResourcesPageDto {
 
   factory MicrosoftTodoLinkedResourcesPageDto.fromJson(
     Map<String, Object?> json,
-  ) => MicrosoftTodoLinkedResourcesPageDto(
-    resources: [
-      for (final item
-          in json['value'] is List ? json['value']! as List : const <Object?>[])
-        if (item is Map)
-          MicrosoftTodoLinkedResourceDto.fromJson(item.cast<String, Object?>()),
-    ],
-    nextLink: microsoftStringOrNull(json['@odata.nextLink']),
-  );
+  ) {
+    final value = json['value'];
+    if (value is! List || value.any((item) => item is! Map)) {
+      throw const FormatException('Malformed Microsoft linked-resource list.');
+    }
+    return MicrosoftTodoLinkedResourcesPageDto(
+      resources: [
+        for (final item in value)
+          MicrosoftTodoLinkedResourceDto.fromJson(
+            (item as Map).cast<String, Object?>(),
+          ),
+      ],
+      nextLink: microsoftStringOrNull(json['@odata.nextLink']),
+    );
+  }
 
   final List<MicrosoftTodoLinkedResourceDto> resources;
   final String? nextLink;
@@ -258,18 +264,21 @@ class MicrosoftTodoAttachmentsPageDto {
     this.nextLink,
   });
 
-  factory MicrosoftTodoAttachmentsPageDto.fromJson(Map<String, Object?> json) =>
-      MicrosoftTodoAttachmentsPageDto(
-        attachments: [
-          for (final item
-              in json['value'] is List
-                  ? json['value']! as List
-                  : const <Object?>[])
-            if (item is Map)
-              MicrosoftTodoAttachmentDto.fromJson(item.cast<String, Object?>()),
-        ],
-        nextLink: microsoftStringOrNull(json['@odata.nextLink']),
-      );
+  factory MicrosoftTodoAttachmentsPageDto.fromJson(Map<String, Object?> json) {
+    final value = json['value'];
+    if (value is! List || value.any((item) => item is! Map)) {
+      throw const FormatException('Malformed Microsoft task attachment list.');
+    }
+    return MicrosoftTodoAttachmentsPageDto(
+      attachments: [
+        for (final item in value)
+          MicrosoftTodoAttachmentDto.fromJson(
+            (item as Map).cast<String, Object?>(),
+          ),
+      ],
+      nextLink: microsoftStringOrNull(json['@odata.nextLink']),
+    );
+  }
 
   final List<MicrosoftTodoAttachmentDto> attachments;
   final String? nextLink;

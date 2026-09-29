@@ -12,6 +12,7 @@ import 'microsoft_calendar_errors.dart';
 import 'microsoft_calendar_mapper.dart';
 import 'microsoft_calendar_models.dart';
 import 'microsoft_event_attachment.dart';
+import 'microsoft_shared_calendar_address.dart';
 
 class MicrosoftCalendarApiClient
     implements CloudCalendarClient, DetailedFreeBusyClient {
@@ -19,18 +20,24 @@ class MicrosoftCalendarApiClient
     required http.Client httpClient,
     required Uri baseUri,
     required String responseTimeZone,
+    this.accountTenantId,
     Future<String> Function()? authorizationHeaderProvider,
+    Future<String> Function()? sharedCalendarAuthorizationHeaderProvider,
     Future<void> Function()? unauthorizedRefreshProvider,
   }) : _httpClient = httpClient,
        _baseUri = baseUri,
        _responseTimeZone = responseTimeZone,
        _authorizationHeaderProvider = authorizationHeaderProvider,
+       _sharedCalendarAuthorizationHeaderProvider =
+           sharedCalendarAuthorizationHeaderProvider,
        _unauthorizedRefreshProvider = unauthorizedRefreshProvider;
 
   final http.Client _httpClient;
   final Uri _baseUri;
   final String _responseTimeZone;
+  final String? accountTenantId;
   final Future<String> Function()? _authorizationHeaderProvider;
+  final Future<String> Function()? _sharedCalendarAuthorizationHeaderProvider;
   final Future<void> Function()? _unauthorizedRefreshProvider;
 
   @override
@@ -49,9 +56,66 @@ class MicrosoftCalendarApiClient
         await _requestJson('GET', uri),
       );
       calendars.addAll(page.items.map(microsoftCalendarSourceFromJson));
-      uri = _fullUriOrNull(page.nextLink);
+      uri = page.nextLink == null ? null : _trustedNextLink(page.nextLink!);
     }
     return calendars;
+  }
+
+  /// Resolves an explicitly requested primary calendar in its owner's mailbox.
+  /// This is distinct from a recipient-local calendar returned by /me/calendars.
+  Future<CalendarSourceDto> getSharedPrimaryCalendar(String owner) async {
+    final identity = owner.trim();
+    if (!RegExp(r'^[^\s@/]+@[^\s@/]+\.[^\s@/]+$').hasMatch(identity)) {
+      throw const FormatException('A valid owner email address is required.');
+    }
+    final json = await _requestJson(
+      'GET',
+      _uri('/users/${_enc(identity)}/calendar'),
+    );
+    final graphId = json['id']?.toString();
+    if (graphId == null || graphId.isEmpty) {
+      throw const FormatException('Owner calendar has no Graph ID.');
+    }
+    final key = MicrosoftSharedPrimaryCalendarAddress(
+      owner: identity,
+      graphCalendarId: graphId,
+    ).sourceCalendarId;
+    final mapped = microsoftCalendarSourceFromJson(json);
+    return CalendarSourceDto(
+      provider: mapped.provider,
+      providerCalendarId: key,
+      summary: mapped.summary,
+      description: mapped.description,
+      primaryCalendar: false,
+      selected: mapped.selected,
+      hidden: mapped.hidden,
+      // Missing canEdit is not evidence of delegated write permission.
+      readOnly: json['canEdit'] != true,
+      backgroundColor: mapped.backgroundColor,
+      foregroundColor: mapped.foregroundColor,
+      colorId: mapped.colorId,
+      timeZone: mapped.timeZone,
+      accessRole: json['canEdit'] == true ? 'writer' : 'reader',
+      dataOwner: identity,
+      isRemovable: true,
+      rawJson: {
+        ...json,
+        '_busymaxSharedPrimaryOwner': identity,
+        '_busymaxGraphCalendarId': graphId,
+      },
+    );
+  }
+
+  String _calendarPath(String calendarId) {
+    final shared = MicrosoftSharedPrimaryCalendarAddress.parse(calendarId);
+    return shared == null
+        ? '/me/calendars/${_enc(calendarId)}'
+        : '/users/${_enc(shared.owner)}/calendars/${_enc(shared.graphCalendarId)}';
+  }
+
+  String _mailboxPath(String calendarId) {
+    final shared = MicrosoftSharedPrimaryCalendarAddress.parse(calendarId);
+    return shared == null ? '/me' : '/users/${_enc(shared.owner)}';
   }
 
   @override
@@ -69,9 +133,12 @@ class MicrosoftCalendarApiClient
     String calendarId,
     CalendarMutation mutation,
   ) async {
+    if (MicrosoftSharedPrimaryCalendarAddress.parse(calendarId) != null) {
+      throw UnsupportedError('The owner calendar cannot be renamed here.');
+    }
     final json = await _requestJson(
       'PATCH',
-      _uri('/me/calendars/${_enc(calendarId)}'),
+      _uri(_calendarPath(calendarId)),
       body: microsoftCalendarMutationToJson(mutation),
     );
     return microsoftCalendarSourceFromJson(json);
@@ -79,7 +146,10 @@ class MicrosoftCalendarApiClient
 
   @override
   Future<void> deleteCalendar(String calendarId) {
-    return _requestEmpty('DELETE', _uri('/me/calendars/${_enc(calendarId)}'));
+    if (MicrosoftSharedPrimaryCalendarAddress.parse(calendarId) != null) {
+      throw UnsupportedError('A delegated primary calendar cannot be deleted.');
+    }
+    return _requestEmpty('DELETE', _uri(_calendarPath(calendarId)));
   }
 
   @override
@@ -96,7 +166,7 @@ class MicrosoftCalendarApiClient
             rangeStart: rangeStart,
             rangeEnd: rangeEnd,
           )
-        : _fullUriOrNull(pageTokenOrUrl);
+        : _trustedNextLink(pageTokenOrUrl);
     while (uri != null) {
       final page = MicrosoftGraphCollectionPage.fromJson(
         await _requestJson('GET', uri),
@@ -106,7 +176,9 @@ class MicrosoftCalendarApiClient
           (item) => microsoftCalendarEventFromJson(calendarId, item),
         ),
       );
-      uri = pageTokenOrUrl == null ? _fullUriOrNull(page.nextLink) : null;
+      uri = pageTokenOrUrl == null && page.nextLink != null
+          ? _trustedNextLink(page.nextLink!)
+          : null;
     }
     return events;
   }
@@ -119,8 +191,8 @@ class MicrosoftCalendarApiClient
       await _requestJson(
         'GET',
         nextLink == null
-            ? _uri('/me/calendars/${_enc(calendarId)}/events')
-            : Uri.parse(nextLink),
+            ? _uri('${_calendarPath(calendarId)}/events')
+            : _trustedNextLink(nextLink),
       ),
     );
     return page.items
@@ -137,15 +209,20 @@ class MicrosoftCalendarApiClient
     final result = <MicrosoftEventAttachment>[];
     final seen = <Uri>{};
     Uri? uri = _uri(
-      '/me/calendars/${_enc(calendarId)}/events/${_enc(eventId)}/attachments',
+      '${_calendarPath(calendarId)}/events/${_enc(eventId)}/attachments',
     );
     while (uri != null) {
       if (!seen.add(uri)) {
         throw const FormatException('Attachment pagination loop.');
       }
-      final page = MicrosoftGraphCollectionPage.fromJson(
-        await _requestJson('GET', uri),
-      );
+      final response = await _requestJson('GET', uri);
+      if (response['value'] is! List ||
+          (response['value'] as List).any((item) => item is! Map)) {
+        throw const FormatException(
+          'Malformed Microsoft event attachment list.',
+        );
+      }
+      final page = MicrosoftGraphCollectionPage.fromJson(response);
       result.addAll(page.items.map(MicrosoftEventAttachment.fromJson));
       uri = page.nextLink == null ? null : _trustedNextLink(page.nextLink!);
     }
@@ -165,7 +242,7 @@ class MicrosoftCalendarApiClient
     final response = await _send(
       'GET',
       _uri(
-        '/me/calendars/${_enc(calendarId)}/events/${_enc(eventId)}'
+        '${_calendarPath(calendarId)}/events/${_enc(eventId)}'
         '/attachments/${_enc(attachment.id)}/\$value',
       ),
     );
@@ -174,6 +251,125 @@ class MicrosoftCalendarApiClient
     }
     return response.bodyBytes;
   }
+
+  Future<MicrosoftEventAttachment> createSmallEventAttachment({
+    required String calendarId,
+    required String eventId,
+    required String name,
+    required String contentType,
+    required List<int> bytes,
+  }) async {
+    _checkAttachmentName(name);
+    if (bytes.length >= 3 * 1024 * 1024) {
+      throw ArgumentError.value(
+        bytes.length,
+        'bytes',
+        'Use an upload session.',
+      );
+    }
+    final response = await _requestJson(
+      'POST',
+      _uri('${_calendarPath(calendarId)}/events/${_enc(eventId)}/attachments'),
+      body: {
+        '@odata.type': '#microsoft.graph.fileAttachment',
+        'name': name,
+        'contentType': contentType,
+        'contentBytes': base64Encode(bytes),
+      },
+    );
+    return MicrosoftEventAttachment.fromJson(response);
+  }
+
+  Future<void> uploadEventFileAttachment({
+    required String calendarId,
+    required String eventId,
+    required String name,
+    required String contentType,
+    required List<int> bytes,
+  }) async {
+    _checkAttachmentName(name);
+    if (bytes.length > 150 * 1024 * 1024) {
+      throw ArgumentError.value(
+        bytes.length,
+        'bytes',
+        'Event file exceeds 150 MB.',
+      );
+    }
+    if (bytes.length < 3 * 1024 * 1024) {
+      await createSmallEventAttachment(
+        calendarId: calendarId,
+        eventId: eventId,
+        name: name,
+        contentType: contentType,
+        bytes: bytes,
+      );
+      return;
+    }
+    // Outlook's session action is event-scoped, not calendar-scoped.
+    final session = await _requestJson(
+      'POST',
+      _uri(
+        '${_mailboxPath(calendarId)}/events/${_enc(eventId)}/attachments/createUploadSession',
+      ),
+      body: {
+        'AttachmentItem': {
+          'attachmentType': 'file',
+          'name': name,
+          'size': bytes.length,
+        },
+      },
+    );
+    final uploadUri = Uri.tryParse(session['uploadUrl']?.toString() ?? '');
+    if (uploadUri == null ||
+        uploadUri.scheme != 'https' ||
+        uploadUri.host.isEmpty ||
+        uploadUri.userInfo.isNotEmpty) {
+      throw const FormatException('Invalid Outlook attachment upload URL.');
+    }
+    var offset = 0;
+    const chunkSize = 2 * 1024 * 1024;
+    while (offset < bytes.length) {
+      final end = offset + chunkSize < bytes.length
+          ? offset + chunkSize
+          : bytes.length;
+      try {
+        final response = await _httpClient.put(
+          uploadUri,
+          headers: {
+            // This opaque Outlook URL is pre-authenticated. Never include the
+            // Graph bearer token, including when it has a different host.
+            'Content-Type': 'application/octet-stream',
+            'Content-Length': '${end - offset}',
+            'Content-Range': 'bytes $offset-${end - 1}/${bytes.length}',
+          },
+          body: bytes.sublist(offset, end),
+        );
+        if (response.statusCode < 200 || response.statusCode >= 300) {
+          throw MicrosoftCalendarApiError.fromResponse(response);
+        }
+        if (end == bytes.length && response.statusCode != 201) {
+          throw StateError('Event attachment upload was not confirmed.');
+        }
+      } on Object catch (error) {
+        throw StateError(
+          'Event attachment upload outcome is uncertain; refresh before retrying: $error',
+        );
+      }
+      offset = end;
+    }
+  }
+
+  Future<void> deleteEventAttachment({
+    required String calendarId,
+    required String eventId,
+    required String attachmentId,
+  }) => _requestEmpty(
+    'DELETE',
+    _uri(
+      '${_calendarPath(calendarId)}/events/${_enc(eventId)}'
+      '/attachments/${_enc(attachmentId)}',
+    ),
+  );
 
   @override
   Future<CalendarEventDto> createEvent({
@@ -184,7 +380,7 @@ class MicrosoftCalendarApiClient
   }) async {
     final json = await _requestJson(
       'POST',
-      _uri('/me/calendars/${_enc(calendarId)}/events'),
+      _uri('${_calendarPath(calendarId)}/events'),
       body: microsoftEventMutationToJson(mutation),
     );
     return microsoftCalendarEventFromJson(calendarId, json);
@@ -197,7 +393,7 @@ class MicrosoftCalendarApiClient
   }) async {
     final json = await _requestJson(
       'GET',
-      _uri('/me/calendars/${_enc(calendarId)}/events/${_enc(eventId)}'),
+      _uri('${_calendarPath(calendarId)}/events/${_enc(eventId)}'),
     );
     return microsoftCalendarEventFromJson(calendarId, json);
   }
@@ -213,7 +409,7 @@ class MicrosoftCalendarApiClient
   }) async {
     final json = await _requestJson(
       'PATCH',
-      _uri('/me/calendars/${_enc(calendarId)}/events/${_enc(eventId)}'),
+      _uri('${_calendarPath(calendarId)}/events/${_enc(eventId)}'),
       body: microsoftEventMutationToJson(mutation),
     );
     return microsoftCalendarEventFromJson(calendarId, json);
@@ -229,7 +425,7 @@ class MicrosoftCalendarApiClient
   }) {
     return _requestEmpty(
       'DELETE',
-      _uri('/me/calendars/${_enc(calendarId)}/events/${_enc(eventId)}'),
+      _uri('${_calendarPath(calendarId)}/events/${_enc(eventId)}'),
     );
   }
 
@@ -257,7 +453,7 @@ class MicrosoftCalendarApiClient
     await _requestEmpty(
       'POST',
       _uri(
-        '/me/calendars/${_enc(calendarId)}/events/${_enc(eventId)}/'
+        '${_calendarPath(calendarId)}/events/${_enc(eventId)}/'
         '${_microsoftInvitationAction(response)}',
       ),
       body: {'sendResponse': sendResponse},
@@ -274,7 +470,7 @@ class MicrosoftCalendarApiClient
   }) async {
     final events = <CalendarEventDto>[];
     Uri? uri = _uri(
-      '/me/calendars/${_enc(calendarId)}/events/${_enc(recurringEventId)}'
+      '${_calendarPath(calendarId)}/events/${_enc(recurringEventId)}'
       '/instances',
       query: {
         'startDateTime': _graphDateTime(rangeStart),
@@ -290,9 +486,56 @@ class MicrosoftCalendarApiClient
           (item) => microsoftCalendarEventFromJson(calendarId, item),
         ),
       );
-      uri = _fullUriOrNull(page.nextLink);
+      uri = page.nextLink == null ? null : _trustedNextLink(page.nextLink!);
     }
     return events;
+  }
+
+  /// Reads the master's exception identities independently of an instance
+  /// time window. A moved exception may no longer appear in the window of its
+  /// original occurrence, so import recovery cannot rely on /instances alone.
+  Future<({List<CalendarEventDto> exceptions, Set<String> cancelledIds})>
+  getSeriesExceptionSnapshot({
+    required String calendarId,
+    required String recurringEventId,
+  }) async {
+    final json = await _requestJson(
+      'GET',
+      _uri(
+        '${_calendarPath(calendarId)}/events/${_enc(recurringEventId)}',
+        query: {
+          r'$select':
+              'id,subject,start,end,originalStart,occurrenceId,'
+              'exceptionOccurrences,cancelledOccurrences',
+          r'$expand': 'exceptionOccurrences',
+        },
+      ),
+    );
+    final rawExceptions = json['exceptionOccurrences'];
+    final rawCancelled = json['cancelledOccurrences'];
+    if (rawExceptions != null && rawExceptions is! List ||
+        rawCancelled != null && rawCancelled is! List) {
+      throw const FormatException('Malformed series exception collection.');
+    }
+    return (
+      exceptions: [
+        for (final value in rawExceptions as List? ?? const [])
+          if (value is Map)
+            microsoftCalendarEventFromJson(
+              calendarId,
+              Map<String, Object?>.from(value),
+            )
+          else
+            throw const FormatException('Malformed series exception event.'),
+      ],
+      cancelledIds: {
+        for (final value in rawCancelled as List? ?? const [])
+          if (value is String)
+            value
+          else
+            throw const FormatException('Malformed cancelled occurrence ID.'),
+      },
+    );
   }
 
   @override
@@ -307,7 +550,7 @@ class MicrosoftCalendarApiClient
       final hasContinuation =
           syncTokenOrDeltaLink != null && syncTokenOrDeltaLink.isNotEmpty;
       final uri = hasContinuation
-          ? Uri.parse(syncTokenOrDeltaLink)
+          ? _trustedNextLink(syncTokenOrDeltaLink)
           : primaryCalendar
           ? _primaryCalendarViewDeltaUri(
               rangeStart: rangeStart,
@@ -376,17 +619,17 @@ class MicrosoftCalendarApiClient
         'Microsoft availability requires a positive range shorter than 62 days.',
       );
     }
-    final authorization = _authorizationHeaderProvider;
-    if (authorization != null) {
-      try {
-        if (_isPersonalMicrosoftBearer(await authorization())) {
-          return failed(
-            'Microsoft personal accounts do not support availability lookup.',
-          );
-        }
-      } on Object catch (error) {
-        return failed('$error');
-      }
+    switch (microsoftAvailabilityAccountType(accountTenantId)) {
+      case MicrosoftAvailabilityAccountType.personal:
+        return failed(
+          'Microsoft personal accounts do not support availability lookup.',
+        );
+      case MicrosoftAvailabilityAccountType.unknown:
+        return failed(
+          'Microsoft account type is unknown; availability is unavailable.',
+        );
+      case MicrosoftAvailabilityAccountType.workSchool:
+        break;
     }
     final results = <FreeBusyCalendarResultDto>[];
     for (var offset = 0; offset < calendarIds.length; offset += 20) {
@@ -467,7 +710,7 @@ class MicrosoftCalendarApiClient
     required DateTime rangeEnd,
   }) {
     return _uri(
-      '/me/calendars/${_enc(calendarId)}/calendarView',
+      '${_calendarPath(calendarId)}/calendarView',
       query: {
         'startDateTime': _graphDateTime(rangeStart),
         'endDateTime': _graphDateTime(rangeEnd),
@@ -520,7 +763,11 @@ class MicrosoftCalendarApiClient
     Map<String, Object?>? body,
     bool retried = false,
   }) async {
-    final authorizationHeaderProvider = _authorizationHeaderProvider;
+    _trustedNextLink(uri.toString());
+    final authorizationHeaderProvider = uri.pathSegments.contains('users')
+        ? _sharedCalendarAuthorizationHeaderProvider ??
+              _authorizationHeaderProvider
+        : _authorizationHeaderProvider;
     final headers = <String, String>{
       'Accept': 'application/json',
       'Prefer': 'outlook.timezone="$_responseTimeZone"',
@@ -583,14 +830,20 @@ class MicrosoftCalendarApiClient
   }
 }
 
-Uri? _fullUriOrNull(String? value) {
-  if (value == null || value.isEmpty) {
-    return null;
-  }
-  return Uri.parse(value);
-}
-
 String _enc(String value) => Uri.encodeComponent(value);
+
+void _checkAttachmentName(String name) {
+  final value = name.trim();
+  if (value.isEmpty ||
+      value == '.' ||
+      value == '..' ||
+      value.length > 255 ||
+      value.contains('/') ||
+      value.contains('\\') ||
+      value.codeUnits.any((unit) => unit < 32 || unit == 127)) {
+    throw ArgumentError.value(name, 'name', 'Invalid attachment name.');
+  }
+}
 
 String _graphDateTime(DateTime value) => value.toUtc().toIso8601String();
 
@@ -598,25 +851,6 @@ Map<String, String> _utcScheduleTime(DateTime value) => {
   'dateTime': value.toUtc().toIso8601String().replaceFirst(RegExp(r'Z$'), ''),
   'timeZone': 'UTC',
 };
-
-bool _isPersonalMicrosoftBearer(String authorization) {
-  final token = authorization.replaceFirst(
-    RegExp(r'^Bearer\s+', caseSensitive: false),
-    '',
-  );
-  final parts = token.split('.');
-  if (parts.length != 3) return false;
-  try {
-    final claims = jsonDecode(
-      utf8.decode(base64Url.decode(base64Url.normalize(parts[1]))),
-    );
-    return claims is Map &&
-        claims['tid']?.toString().toLowerCase() ==
-            '9188040d-6c67-4c5b-b112-36a304b66dad';
-  } on Object {
-    return false;
-  }
-}
 
 FreeBusyCalendarResultDto _scheduleResult(
   String id,

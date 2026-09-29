@@ -100,7 +100,9 @@ CalendarEventDto microsoftCalendarEventFromJson(
     attendeesJson: json['attendees'],
     categoriesJson: json['categories'],
     organizerJson: json['organizer'],
-    colorId: _firstCategory(json['categories']),
+    // Outlook category names are not color IDs. Their color is resolved from
+    // the account's master-category collection, never from array position.
+    colorId: null,
     colorHex: null,
     visibility: json['sensitivity']?.toString(),
     transparencyOrShowAs: json['showAs']?.toString(),
@@ -237,13 +239,6 @@ Map<String, Object?> _mapValue(Object? value) {
     return value.cast<String, Object?>();
   }
   return const {};
-}
-
-String? _firstCategory(Object? value) {
-  if (value is List && value.isNotEmpty) {
-    return value.first?.toString();
-  }
-  return null;
 }
 
 String? _dateOnly(Object? value) {

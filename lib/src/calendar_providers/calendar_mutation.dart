@@ -40,6 +40,7 @@ const calendarEventCopyConfirmationRequiredKey = '_copyConfirmationRequired';
 const calendarEventCopyConfirmedKey = '_copyConfirmed';
 const calendarEventCopyDestinationEventIdKey = '_copyDestinationEventId';
 const calendarEventSemanticBaselineKey = '__busymaxSemanticBaseline';
+const calendarEventImportIcalUidKey = '_importIcalUid';
 
 enum CalendarGuestUpdatePolicy { send, doNotSend }
 

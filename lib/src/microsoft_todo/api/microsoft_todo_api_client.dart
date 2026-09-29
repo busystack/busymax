@@ -103,6 +103,13 @@ abstract interface class MicrosoftTodoAttachmentsApiClient {
     required String taskId,
     required String attachmentId,
   });
+  Future<void> uploadTaskFileAttachment({
+    required String taskListId,
+    required String taskId,
+    required String name,
+    required String contentType,
+    required List<int> bytes,
+  });
 }
 
 class MicrosoftTodoRestApiClient
@@ -327,6 +334,91 @@ class MicrosoftTodoRestApiClient
     'DELETE',
     _uri(microsoftTaskAttachmentPath(taskListId, taskId, attachmentId)),
   );
+
+  @override
+  Future<void> uploadTaskFileAttachment({
+    required String taskListId,
+    required String taskId,
+    required String name,
+    required String contentType,
+    required List<int> bytes,
+  }) async {
+    if (name.trim().isEmpty || name.contains('/') || name.contains('\\')) {
+      throw ArgumentError.value(name, 'name', 'Invalid attachment name.');
+    }
+    if (bytes.length > 25 * 1024 * 1024) {
+      throw ArgumentError.value(
+        bytes.length,
+        'bytes',
+        'Task file exceeds 25 MB.',
+      );
+    }
+    if (bytes.length < 3 * 1024 * 1024) {
+      await createSmallTaskAttachment(
+        taskListId: taskListId,
+        taskId: taskId,
+        name: name,
+        contentType: contentType,
+        bytes: bytes,
+      );
+      return;
+    }
+    final session = await _requestJson(
+      'POST',
+      _uri(
+        '${microsoftTaskAttachmentsPath(taskListId, taskId)}/createUploadSession',
+      ),
+      body: {
+        'attachmentInfo': {
+          'attachmentType': 'file',
+          'name': name,
+          'size': bytes.length,
+        },
+      },
+    );
+    final uploadUrl = session['uploadUrl']?.toString();
+    if (uploadUrl == null) {
+      throw const FormatException('Task attachment upload URL is missing.');
+    }
+    // Task sessions use a Graph URL. Never forward a bearer token to a
+    // provider-returned URL outside the configured Graph authority.
+    final sessionUri = _trustedNextLink(uploadUrl);
+    final contentUri = sessionUri.replace(path: '${sessionUri.path}/content');
+    var offset = 0;
+    const chunkSize = 2 * 1024 * 1024;
+    while (offset < bytes.length) {
+      final end = offset + chunkSize < bytes.length
+          ? offset + chunkSize
+          : bytes.length;
+      try {
+        final authorization = await _authorizationHeaderProvider?.call();
+        final response = await _httpClient.put(
+          contentUri,
+          headers: {
+            if (authorization != null) 'Authorization': authorization,
+            'Content-Type': 'application/octet-stream',
+            'Content-Length': '${end - offset}',
+            'Content-Range': 'bytes $offset-${end - 1}/${bytes.length}',
+          },
+          body: bytes.sublist(offset, end),
+        );
+        if (response.statusCode < 200 || response.statusCode >= 300) {
+          throw MicrosoftTodoApiError.fromResponse(
+            statusCode: response.statusCode,
+            body: response.body,
+          );
+        }
+        if (end == bytes.length && response.statusCode != 201) {
+          throw StateError('Task attachment upload was not confirmed.');
+        }
+      } on Object catch (error) {
+        throw StateError(
+          'Task attachment upload outcome is uncertain; refresh before retrying: $error',
+        );
+      }
+      offset = end;
+    }
+  }
 
   @override
   Future<MicrosoftTodoTaskDto> updateTask({

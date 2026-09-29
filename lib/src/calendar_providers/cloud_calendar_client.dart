@@ -101,6 +101,22 @@ abstract interface class CompleteRecurringInstanceClient {
   });
 }
 
+/// Provider-aware private-copy import. A calendar-file import must never fall
+/// back to ordinary event creation, which has different UID and invitation
+/// semantics.
+abstract interface class PrivateCalendarImportClient {
+  Future<List<CalendarEventDto>> eventsWithICalUid({
+    required String calendarId,
+    required String iCalUid,
+  });
+
+  Future<CalendarEventDto> importEvent({
+    required String calendarId,
+    required String iCalUid,
+    required CalendarEventMutation mutation,
+  });
+}
+
 /// Optional capability for providers whose batch free/busy endpoint reports
 /// success or failure independently for every requested calendar.
 abstract interface class DetailedFreeBusyClient {

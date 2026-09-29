@@ -15,6 +15,7 @@ class GoogleCalendarApiClient
     implements
         CloudCalendarClient,
         CompleteRecurringInstanceClient,
+        PrivateCalendarImportClient,
         DetailedFreeBusyClient,
         CalendarListManagementClient {
   GoogleCalendarApiClient({
@@ -221,6 +222,59 @@ class GoogleCalendarApiClient
     return googleCalendarEventFromJson(calendarId, json);
   }
 
+  /// Calendar's import operation creates a private copy identified by the
+  /// iCalendar UID; it is not an ordinary event insertion or invitation send.
+  Future<CalendarEventDto> importEvent({
+    required String calendarId,
+    required String iCalUid,
+    required CalendarEventMutation mutation,
+  }) async {
+    if (iCalUid.trim().isEmpty) {
+      throw const FormatException('iCalendar UID is required for import.');
+    }
+    final body = googleEventMutationToJson(mutation)
+      ..remove('id')
+      ..['iCalUID'] = iCalUid.trim();
+    final json = await _requestJson(
+      'POST',
+      _uri(
+        '/calendar/v3/calendars/${_enc(calendarId)}/events/import',
+        query: const {'supportsAttachments': 'true'},
+      ),
+      body: body,
+    );
+    return googleCalendarEventFromJson(calendarId, json);
+  }
+
+  Future<List<CalendarEventDto>> eventsWithICalUid({
+    required String calendarId,
+    required String iCalUid,
+  }) async {
+    final events = <CalendarEventDto>[];
+    String? pageToken;
+    do {
+      final json = await _requestJson(
+        'GET',
+        _uri(
+          '/calendar/v3/calendars/${_enc(calendarId)}/events',
+          query: _compactQuery({
+            'iCalUID': iCalUid,
+            'singleEvents': 'false',
+            'showDeleted': 'false',
+            'maxResults': '250',
+            'pageToken': pageToken,
+          }),
+        ),
+      );
+      final page = GoogleCalendarPage.fromJson(json);
+      events.addAll(
+        page.items.map((item) => googleCalendarEventFromJson(calendarId, item)),
+      );
+      pageToken = page.nextPageToken;
+    } while (pageToken != null && pageToken.isNotEmpty);
+    return events;
+  }
+
   @override
   Future<CalendarEventDto> getEvent({
     required String calendarId,
@@ -233,6 +287,72 @@ class GoogleCalendarApiClient
       ),
     );
     return googleCalendarEventFromJson(calendarId, json);
+  }
+
+  /// Changes only the attachment collection, starting from a fresh complete
+  /// event resource. Google's array patch semantics replace the entire array.
+  Future<CalendarEventDto> changeEventAttachmentReferences({
+    required String calendarId,
+    required String eventId,
+    String? addFileUrl,
+    String? addTitle,
+    String? removeFileUrl,
+  }) async {
+    if ((addFileUrl == null) == (removeFileUrl == null)) {
+      throw ArgumentError('Specify exactly one attachment change.');
+    }
+    final candidate = addFileUrl ?? removeFileUrl!;
+    final uri = Uri.tryParse(candidate.trim());
+    if (uri == null ||
+        uri.scheme != 'https' ||
+        uri.host.isEmpty ||
+        uri.userInfo.isNotEmpty) {
+      throw const FormatException('Attachment URL must be a valid HTTPS URL.');
+    }
+    final eventUri = _uri(
+      '/calendar/v3/calendars/${_enc(calendarId)}/events/${_enc(eventId)}',
+    );
+    final current = await _requestJson('GET', eventUri);
+    final etag = current['etag']?.toString();
+    if (etag == null || etag.isEmpty) {
+      throw const FormatException('Event is missing a conflict token.');
+    }
+    final raw = current['attachments'];
+    if (raw != null && (raw is! List || raw.any((entry) => entry is! Map))) {
+      throw const FormatException('Malformed event attachment collection.');
+    }
+    final attachments = <Map<String, Object?>>[
+      for (final entry in raw is List ? raw : const <Object>[])
+        Map<String, Object?>.from(entry as Map),
+    ];
+    if (addFileUrl != null) {
+      if (attachments.length >= 25) {
+        throw StateError('Google events allow at most 25 attachments.');
+      }
+      if (attachments.any((entry) => entry['fileUrl'] == uri.toString())) {
+        throw StateError('Attachment reference already exists.');
+      }
+      attachments.add({
+        'fileUrl': uri.toString(),
+        if (addTitle != null && addTitle.trim().isNotEmpty)
+          'title': addTitle.trim(),
+      });
+    } else {
+      final before = attachments.length;
+      attachments.removeWhere((entry) => entry['fileUrl'] == uri.toString());
+      if (attachments.length == before) {
+        throw StateError('Attachment reference is no longer present.');
+      }
+    }
+    final updated = await _requestJson(
+      'PATCH',
+      eventUri.replace(
+        queryParameters: {'supportsAttachments': 'true', 'sendUpdates': 'none'},
+      ),
+      body: {'attachments': attachments},
+      headers: {'If-Match': etag},
+    );
+    return googleCalendarEventFromJson(calendarId, updated);
   }
 
   @override

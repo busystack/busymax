@@ -7,13 +7,14 @@ class MicrosoftGraphCollectionPage {
 
   factory MicrosoftGraphCollectionPage.fromJson(Map<String, Object?> json) {
     final value = json['value'];
+    if (value is! List || value.any((item) => item is! Map)) {
+      throw const FormatException('Malformed Microsoft Graph collection.');
+    }
     return MicrosoftGraphCollectionPage(
-      items: value is List
-          ? value
-                .whereType<Map>()
-                .map((item) => item.cast<String, Object?>())
-                .toList()
-          : const [],
+      items: value
+          .cast<Map>()
+          .map((item) => Map<String, Object?>.from(item))
+          .toList(),
       nextLink: json['@odata.nextLink']?.toString(),
       deltaLink: json['@odata.deltaLink']?.toString(),
     );
