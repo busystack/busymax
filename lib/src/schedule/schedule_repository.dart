@@ -14,8 +14,11 @@ import '../features/accounts/data/accounts_repository.dart';
 import '../features/calendar/data/calendar_event_detail.dart';
 import '../features/calendar/domain/event_timing_policy.dart';
 import '../features/tasks/domain/task_checklist_item.dart';
+import '../features/tasks/domain/google_task_assignment_policy.dart';
+import '../features/tasks/domain/task_source_links.dart';
 import 'schedule_filters.dart';
 import 'schedule_item.dart';
+import 'event_attachment_link.dart';
 import 'schedule_projection.dart';
 import 'schedule_range.dart';
 import 'schedule_sorting.dart';
@@ -23,13 +26,21 @@ import 'schedule_search_match.dart';
 export 'schedule_search_match.dart' show matchesScheduleQuery;
 
 class ScheduleRepository {
-  const ScheduleRepository(
+  ScheduleRepository(
     this._database, {
     Future<void> Function(ScheduleRange range)? ensureProjectionCoverage,
-  }) : _ensureProjectionCoverage = ensureProjectionCoverage;
+    Future<bool> Function(ScheduleRange range)? ensureCloudCoverage,
+  }) : _ensureProjectionCoverage = ensureProjectionCoverage,
+       _ensureCloudCoverage = ensureCloudCoverage;
 
   final AppDatabase _database;
   final Future<void> Function(ScheduleRange range)? _ensureProjectionCoverage;
+  final Future<bool> Function(ScheduleRange range)? _ensureCloudCoverage;
+  final Map<String, bool> _rangeCoverage = {};
+
+  bool? cloudCoverageCompleteFor(ScheduleRange range) =>
+      _rangeCoverage['${range.start.toUtc().millisecondsSinceEpoch}:'
+          '${range.end.toUtc().millisecondsSinceEpoch}'];
 
   /// Invalidates presentation queries after committed local or sync writes.
   /// Include joined metadata as well as items: permissions, source names and
@@ -132,6 +143,12 @@ class ScheduleRepository {
     ScheduleFilters filters = const ScheduleFilters(),
   }) async {
     if (filters.includeCalendarEvents && !filters.ignoreDateRange) {
+      final key =
+          '${range.start.toUtc().millisecondsSinceEpoch}:'
+          '${range.end.toUtc().millisecondsSinceEpoch}';
+      _rangeCoverage.remove(key);
+      final coverage = await _ensureCloudCoverage?.call(range);
+      if (coverage != null) _rangeCoverage[key] = coverage;
       await _ensureProjectionCoverage?.call(range);
     }
     final context = await _accountContext(filters);
@@ -465,6 +482,7 @@ class ScheduleRepository {
           provider: provider,
           sourceId: event.calendarSourceId,
           providerCalendarId: event.providerCalendarId,
+          providerEventId: event.providerEventId,
           providerRecurringEventId: detail.recurringMutationSeriesId,
           timingBaseline: EventTimingBaseline.fromDetail(detail),
           title: event.title,
@@ -482,6 +500,14 @@ class ScheduleRepository {
           attendees: attendees,
           organizer: organizer,
           joinMeetingUrl: _eventJoinMeetingUrl(provider, conference, raw),
+          eventLinkUrl: _isWebUrl(event.webLink) ? event.webLink : null,
+          attachmentLinks: eventAttachmentLinks(detail.attachments),
+          attachmentsLoaded: detail.attachments is List,
+          attachmentsMayExist:
+              raw['hasAttachments'] == true ||
+              eventAttachmentLinks(detail.attachments).isNotEmpty,
+          startTimeZone: event.startTimeZone,
+          endTimeZone: event.endTimeZone,
           isOrganizer: isOrganizer,
           isFederated:
               provider == BusyProvider.nextcloud &&
@@ -783,6 +809,23 @@ class ScheduleRepository {
       end: _taskEnd(task, provider),
       due: _taskDue(task, provider),
       notes: task.notes ?? task.bodyContent,
+      isAssigned:
+          provider == BusyProvider.google &&
+          GoogleTaskAssignmentPolicy.fromJson(
+            task.assignmentInfoJson,
+          ).isAssigned,
+      originalTaskUrl: provider == BusyProvider.google
+          ? GoogleTaskAssignmentPolicy.fromJson(
+              task.assignmentInfoJson,
+            ).originalTaskUrl
+          : null,
+      sourceLinks: provider == BusyProvider.google
+          ? googleTaskSourceLinks(
+              assignmentInfoJson: task.assignmentInfoJson,
+              linksJson: task.linksJson,
+              webViewLink: task.webViewLink,
+            )
+          : const [],
       location: task.taskLocation,
       locationPoint: GeographicPoint.tryParse(
         latitude: task.locationLatitude,
@@ -1345,11 +1388,24 @@ String? _eventJoinMeetingUrl(
   final fallback = switch (provider) {
     BusyProvider.google => raw['hangoutLink']?.toString().trim(),
     BusyProvider.microsoft => raw['onlineMeetingUrl']?.toString().trim(),
-    BusyProvider.appleICloud ||
-    BusyProvider.nextcloud ||
-    BusyProvider.webCal => null,
+    BusyProvider.nextcloud => _nextcloudConferenceUrl(raw),
+    BusyProvider.appleICloud || BusyProvider.webCal => null,
   };
   return _isWebUrl(fallback) ? fallback : null;
+}
+
+String? _nextcloudConferenceUrl(Map<String, Object?> raw) {
+  final links = raw['conferenceLinks'];
+  if (links is! List) return null;
+  for (final link in links.whereType<Map>()) {
+    final features = link['features']?.toString().toUpperCase() ?? '';
+    final url = link['url']?.toString().trim();
+    if ((features.contains('VIDEO') || features.contains('AUDIO')) &&
+        _isWebUrl(url)) {
+      return url;
+    }
+  }
+  return null;
 }
 
 bool _isWebUrl(String? value) {
