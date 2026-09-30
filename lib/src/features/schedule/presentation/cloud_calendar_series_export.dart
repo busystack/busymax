@@ -5,6 +5,7 @@ import '../../../google_calendar/google_calendar_api_client.dart';
 import '../../../microsoft_calendar/microsoft_calendar_api_client.dart';
 import '../../../providers/busy_provider.dart';
 import '../../recurrence/domain/event_recurrence_codec.dart';
+import 'package:timezone/timezone.dart' as tz;
 
 /// Only offer a series backup when the authoritative resource can be read.
 /// WebCal projections and unsynced cloud creates can still export an
@@ -144,16 +145,16 @@ String cloudSeriesToICalendar({
       'A recurrence instance cannot be a series master.',
     );
   }
-  final lines = <String>[
-    'BEGIN:VCALENDAR',
-    'VERSION:2.0',
-    'PRODID:-//BusyMax//BusyMax//EN',
-    'CALSCALE:GREGORIAN',
+  final microsoftZone = master.provider == BusyProvider.microsoft
+      ? _microsoftSeriesZone(master)
+      : null;
+  final eventLines = <String>[
     ..._eventLines(
       master,
       uid: uid,
       nowUtc: nowUtc,
       googleDefaultReminders: googleDefaultReminders,
+      microsoftSeriesZone: microsoftZone,
     ),
   ];
   final seenOriginals = <String>{};
@@ -169,12 +170,14 @@ String cloudSeriesToICalendar({
         'A series exception has an ambiguous original start.',
       );
     }
-    lines.addAll(
+    eventLines.addAll(
       _eventLines(
         exception,
         uid: uid,
         nowUtc: nowUtc,
         originalStart: original,
+        originalZone: master.startTimeZone,
+        microsoftSeriesZone: microsoftZone,
         googleDefaultReminders: googleDefaultReminders,
       ),
     );
@@ -187,19 +190,36 @@ String cloudSeriesToICalendar({
       );
     }
     final date = match.group(1)!;
+    final masterStart = master.startDateTime;
     final original = master.allDay
         ? date
-        : '$date${_wallTimeSuffix(master.startDateTime)}';
+        : '$date${_wallTimeSuffix(_seriesWallValue(masterStart, master.startTimeZone, microsoftZone))}';
     if (!seenOriginals.add(original)) continue;
-    lines.addAll([
+    eventLines.addAll([
       'BEGIN:VEVENT',
       'UID:${_text(uid)}',
       'DTSTAMP:${_utc(nowUtc)}',
-      _dateLine('RECURRENCE-ID', original, master.startTimeZone, master.allDay),
+      _dateLine(
+        'RECURRENCE-ID',
+        original,
+        microsoftZone ?? master.startTimeZone,
+        master.allDay,
+      ),
       'STATUS:CANCELLED',
       'END:VEVENT',
     ]);
   }
+  final referencedZones = RegExp(
+    r';TZID=([^:]+):',
+  ).allMatches(eventLines.join('\n')).map((match) => match.group(1)!).toSet();
+  final lines = <String>[
+    'BEGIN:VCALENDAR',
+    'VERSION:2.0',
+    'PRODID:-//BusyMax//BusyMax//EN',
+    'CALSCALE:GREGORIAN',
+    for (final zone in referencedZones) ..._vtimezoneLines(zone, master),
+    ...eventLines,
+  ];
   lines.add('END:VCALENDAR');
   return '${lines.join('\r\n')}\r\n';
 }
@@ -209,6 +229,8 @@ List<String> _eventLines(
   required String uid,
   required DateTime nowUtc,
   String? originalStart,
+  String? originalZone,
+  String? microsoftSeriesZone,
   List<Map<String, Object?>>? googleDefaultReminders,
 }) {
   final lines = <String>[
@@ -221,8 +243,9 @@ List<String> _eventLines(
       _dateLine(
         'RECURRENCE-ID',
         originalStart,
-        event.startTimeZone,
+        originalZone ?? event.startTimeZone,
         event.allDay,
+        targetZone: microsoftSeriesZone,
       ),
     );
   }
@@ -234,8 +257,24 @@ List<String> _eventLines(
     if (start == null || end == null) {
       throw const FormatException('A series event is missing its interval.');
     }
-    lines.add(_dateLine('DTSTART', start, event.startTimeZone, event.allDay));
-    lines.add(_dateLine('DTEND', end, event.endTimeZone, event.allDay));
+    lines.add(
+      _dateLine(
+        'DTSTART',
+        start,
+        event.startTimeZone,
+        event.allDay,
+        targetZone: microsoftSeriesZone,
+      ),
+    );
+    lines.add(
+      _dateLine(
+        'DTEND',
+        end,
+        event.endTimeZone,
+        event.allDay,
+        targetZone: microsoftSeriesZone,
+      ),
+    );
     lines.add('SUMMARY:${_text(event.title)}');
     if (event.description?.isNotEmpty == true) {
       lines.add('DESCRIPTION:${_text(event.description!)}');
@@ -296,8 +335,8 @@ List<String> _eventLines(
         }
       } else if (event.provider == BusyProvider.microsoft) {
         final startCivil = providerDateTimeAsWallTime(
-          start,
-          event.startTimeZone,
+          _seriesWallValue(start, event.startTimeZone, microsoftSeriesZone),
+          microsoftSeriesZone ?? event.startTimeZone,
         );
         if (startCivil == null) {
           throw const FormatException('Invalid series start.');
@@ -312,7 +351,20 @@ List<String> _eventLines(
             'Microsoft recurrence cannot be exported safely.',
           );
         }
-        lines.add('RRULE:${rule.toRrule()}');
+        final endDate = rule.untilRaw;
+        final exportRule =
+            !event.allDay &&
+                endDate != null &&
+                RegExp(r'^\d{8}$').hasMatch(endDate)
+            ? rule.copyWith(
+                untilRaw: _microsoftTimedUntil(
+                  endDate,
+                  startCivil,
+                  microsoftSeriesZone ?? event.startTimeZone,
+                ),
+              )
+            : rule;
+        lines.add('RRULE:${exportRule.toRrule()}');
       }
     }
     lines.addAll(_attendeeLines(event));
@@ -431,17 +483,203 @@ String _uid(CalendarEventDto event) {
   return value.trim();
 }
 
-String _dateLine(String key, String value, String? zone, bool allDay) {
-  if (allDay) {
-    final date = DateTime.tryParse(
-      value.length >= 10 ? value.substring(0, 10) : value,
+String? _microsoftSeriesZone(CalendarEventDto master) {
+  final recurrence = master.recurrenceJson;
+  final range = recurrence is Map ? recurrence['range'] : null;
+  final declared = range is Map
+      ? range['recurrenceTimeZone']?.toString()
+      : null;
+  final zone = declared?.trim().isNotEmpty == true
+      ? declared!.trim()
+      : master.rawJson['originalStartTimeZone']?.toString() ??
+            master.startTimeZone;
+  if (zone == null || zone.trim().isEmpty) {
+    throw const FormatException(
+      'The Microsoft recurrence timezone is unavailable.',
     );
+  }
+  final normalized = windowsToIanaTimeZones[zone] ?? zone;
+  providerInstantInTimeZone(DateTime.utc(2026), normalized);
+  return normalized;
+}
+
+String _seriesWallValue(String? value, String? sourceZone, String? targetZone) {
+  if (value == null) throw const FormatException('Series time is missing.');
+  if (targetZone == null || !value.contains('T')) return value;
+  final instant = providerDateTimeAsUtcInstant(value, sourceZone);
+  if (instant == null) throw const FormatException('Invalid series time.');
+  return providerWallTimeIso8601String(
+    providerInstantInTimeZone(instant, targetZone),
+  );
+}
+
+String _microsoftTimedUntil(
+  String basicDate,
+  DateTime startCivil,
+  String? zone,
+) {
+  if (zone == null || zone.trim().isEmpty) {
+    throw const FormatException('A timed recurrence needs its timezone.');
+  }
+  final year = int.parse(basicDate.substring(0, 4));
+  final month = int.parse(basicDate.substring(4, 6));
+  final day = int.parse(basicDate.substring(6, 8));
+  final wall = DateTime.utc(
+    year,
+    month,
+    day,
+    startCivil.hour,
+    startCivil.minute,
+    startCivil.second,
+  );
+  if (wall.year != year || wall.month != month || wall.day != day) {
+    throw const FormatException('Invalid Microsoft recurrence end date.');
+  }
+  return _utc(providerWallTimeToInstant(wall, zone));
+}
+
+String _offset(Duration value) {
+  final minutes = value.inMinutes;
+  final absolute = minutes.abs();
+  return '${minutes < 0 ? '-' : '+'}${(absolute ~/ 60).toString().padLeft(2, '0')}'
+      '${(absolute % 60).toString().padLeft(2, '0')}';
+}
+
+List<String> _vtimezoneLines(String zone, CalendarEventDto master) {
+  providerInstantInTimeZone(DateTime.utc(2026), zone);
+  final location = tz.getLocation(zone);
+  final start = master.allDay ? master.startDate : master.startDateTime;
+  final firstYear = (DateTime.tryParse(start ?? '')?.year ?? 2026) - 1;
+  final firstInstant = DateTime.utc(firstYear, 1, 1);
+  final initial = location.timeZone(firstInstant.millisecondsSinceEpoch);
+  final lines = <String>['BEGIN:VTIMEZONE', 'TZID:$zone'];
+  void observance(
+    tz.TimeZone from,
+    tz.TimeZone to,
+    DateTime wall, {
+    String? rule,
+  }) {
+    lines.addAll([
+      'BEGIN:${to.isDst ? 'DAYLIGHT' : 'STANDARD'}',
+      'DTSTART:${_wall(wall)}',
+      'TZOFFSETFROM:${_offset(from.offset)}',
+      'TZOFFSETTO:${_offset(to.offset)}',
+      'TZNAME:${_text(to.abbreviation)}',
+      if (rule != null) 'RRULE:$rule',
+      'END:${to.isDst ? 'DAYLIGHT' : 'STANDARD'}',
+    ]);
+  }
+
+  observance(initial, initial, firstInstant.add(initial.offset));
+  final transitions = <({DateTime wall, tz.TimeZone from, tz.TimeZone to})>[];
+  for (var i = 0; i < location.transitionAt.length; i++) {
+    final at = DateTime.fromMillisecondsSinceEpoch(
+      location.transitionAt[i],
+      isUtc: true,
+    );
+    if (at.year < firstYear || at.year > 9998) continue;
+    final from = location.timeZone(at.millisecondsSinceEpoch - 1);
+    final to = location.zones[location.transitionZone[i]];
+    if (from.offset == to.offset) continue;
+    final wall = at.add(from.offset);
+    transitions.add((wall: wall, from: from, to: to));
+    observance(from, to, wall);
+  }
+  // tzdata records finite transitions. Only open-ended series (or a finite
+  // series extending beyond the supplied transition table) need an inferred
+  // future observance. A bounded series can use its exact transitions.
+  final recurrence = master.recurrenceJson;
+  final range = recurrence is Map ? recurrence['range'] : null;
+  final microsoftNoEnd = range is Map && range['type'] == 'noEnd';
+  final googleNoEnd =
+      recurrence is List &&
+      recurrence.whereType<String>().any(
+        (line) =>
+            line.startsWith('RRULE:') &&
+            !line.contains('COUNT=') &&
+            !line.contains('UNTIL='),
+      );
+  final needsFuture = microsoftNoEnd || googleNoEnd;
+  if (needsFuture &&
+      transitions.isNotEmpty &&
+      transitions
+          .where((entry) => entry.wall.year >= firstYear)
+          .any((entry) => entry.to.isDst)) {
+    for (final isDst in const [false, true]) {
+      final matching = transitions
+          .where((entry) => entry.to.isDst == isDst)
+          .toList();
+      if (matching.length < 3) {
+        throw FormatException('Timezone $zone has no safe future observance.');
+      }
+      final last = matching.sublist(matching.length - 3);
+      final descriptor = last
+          .map((entry) => _transitionDescriptor(entry.wall))
+          .toSet();
+      if (descriptor.length != 1 ||
+          last[0].wall.year + 1 != last[1].wall.year ||
+          last[1].wall.year + 1 != last[2].wall.year ||
+          last
+                  .map((entry) => '${entry.from.offset}/${entry.to.offset}')
+                  .toSet()
+                  .length !=
+              1) {
+        throw FormatException('Timezone $zone has no safe future observance.');
+      }
+      observance(
+        last.last.from,
+        last.last.to,
+        last.last.wall,
+        rule: 'FREQ=YEARLY;${descriptor.single}',
+      );
+    }
+  }
+  lines.add('END:VTIMEZONE');
+  return lines;
+}
+
+String _transitionDescriptor(DateTime wall) {
+  final monthEnd = DateTime.utc(wall.year, wall.month + 1, 0).day;
+  final ordinal = wall.day + 7 > monthEnd ? -1 : (wall.day - 1) ~/ 7 + 1;
+  final weekday = const [
+    'MO',
+    'TU',
+    'WE',
+    'TH',
+    'FR',
+    'SA',
+    'SU',
+  ][wall.weekday - 1];
+  return 'BYMONTH=${wall.month};BYDAY=$ordinal$weekday'
+      ';BYHOUR=${wall.hour};BYMINUTE=${wall.minute};BYSECOND=${wall.second}';
+}
+
+String _dateLine(
+  String key,
+  String value,
+  String? zone,
+  bool allDay, {
+  String? targetZone,
+}) {
+  if (allDay) {
+    final localized = targetZone != null && value.contains('T')
+        ? providerInstantInTimeZone(
+            providerDateTimeAsUtcInstant(value, zone)!,
+            targetZone,
+          )
+        : null;
+    final date =
+        localized ??
+        DateTime.tryParse(value.length >= 10 ? value.substring(0, 10) : value);
     if (date == null) throw const FormatException('Invalid all-day date.');
     return '$key;VALUE=DATE:${_date(date)}';
   }
-  final wall = providerDateTimeAsWallTime(value, zone);
+  final effectiveValue = _seriesWallValue(value, zone, targetZone);
+  final effectiveZone = targetZone ?? zone;
+  final wall = providerDateTimeAsWallTime(effectiveValue, effectiveZone);
   if (wall == null) throw const FormatException('Invalid event date-time.');
-  final safeZone = windowsToIanaTimeZones[zone] ?? zone?.trim();
+  final safeZone =
+      windowsToIanaTimeZones[effectiveZone] ?? effectiveZone?.trim();
   if (safeZone != null &&
       safeZone.isNotEmpty &&
       !isUtcTimeZone(safeZone) &&
@@ -453,12 +691,12 @@ String _dateLine(String key, String value, String? zone, bool allDay) {
     throw const FormatException('Unsupported event timezone.');
   }
   if (safeZone == null &&
-      !RegExp(r'(?:[zZ]|[+-]\d{2}(?::?\d{2})?)$').hasMatch(value)) {
+      !RegExp(r'(?:[zZ]|[+-]\d{2}(?::?\d{2})?)$').hasMatch(effectiveValue)) {
     throw const FormatException(
       'A floating provider time cannot be exported safely.',
     );
   }
-  final instant = providerDateTimeAsUtcInstant(value, zone);
+  final instant = providerDateTimeAsUtcInstant(effectiveValue, effectiveZone);
   if (instant == null) throw const FormatException('Unknown event timezone.');
   return '$key:${_utc(instant)}';
 }

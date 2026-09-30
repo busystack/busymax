@@ -16,6 +16,7 @@ import '../../../schedule/schedule_item.dart';
 import 'attachment_download.dart';
 import 'google_event_attachment_reference.dart';
 import 'schedule_event_details_format.dart';
+import 'attachment_upload_coordinator.dart';
 
 Future<void> showLinuxEventAttachmentsDialog(
   BuildContext context,
@@ -51,6 +52,14 @@ class _LinuxEventAttachmentsDialogState
     final microsoft = item.provider == BusyProvider.microsoft;
     final google = item.provider == BusyProvider.google;
     final nextcloud = item.provider == BusyProvider.nextcloud;
+    final uploads = ref.watch(attachmentUploadCoordinatorProvider);
+    final uploadKey = eventId == null
+        ? null
+        : AttachmentUploadCoordinator.eventKey(
+            item.accountId,
+            item.providerCalendarId,
+            eventId,
+          );
     final result = !microsoft || eventId == null
         ? null
         : ref.watch(
@@ -69,7 +78,13 @@ class _LinuxEventAttachmentsDialogState
             (nextcloud || eventId != null))
           BusyMaxPushButton.standard(
             key: const Key('event-attachment-add'),
-            onPressed: _saving ? null : () => unawaited(_add()),
+            onPressed:
+                _saving ||
+                    (microsoft &&
+                        uploadKey != null &&
+                        !uploads.canSubmit(uploadKey))
+                ? null
+                : () => unawaited(_add()),
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [const Icon(Icons.add), Text(context.l10n.attachments)],
@@ -81,6 +96,17 @@ class _LinuxEventAttachmentsDialogState
         ),
       ],
       children: [
+        if (microsoft &&
+            uploadKey != null &&
+            uploads.needsReconciliation(uploadKey)) ...[
+          Text(context.l10n.attachmentUploadUnresolved),
+          BusyMaxPushButton.standard(
+            onPressed: _saving
+                ? null
+                : () => unawaited(_reconcileUpload(eventId!)),
+            child: Text(context.l10n.refresh),
+          ),
+        ],
         if (!microsoft)
           if (_referenceLinks.isEmpty)
             Text(
@@ -219,10 +245,14 @@ class _LinuxEventAttachmentsDialogState
         throw StateError('Event file exceeds 150 MB.');
       }
       await ref
-          .read(
-            microsoftCalendarApiClientForAccountProvider(widget.item.accountId),
-          )
-          .uploadEventFileAttachment(
+          .read(attachmentUploadCoordinatorProvider)
+          .uploadEvent(
+            client: ref.read(
+              microsoftCalendarApiClientForAccountProvider(
+                widget.item.accountId,
+              ),
+            ),
+            accountId: widget.item.accountId,
             calendarId: widget.item.providerCalendarId,
             eventId: eventId,
             name: name,
@@ -232,6 +262,29 @@ class _LinuxEventAttachmentsDialogState
       _refresh();
     } on Object catch (error) {
       _refresh();
+      _error(error);
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  Future<void> _reconcileUpload(String eventId) async {
+    setState(() => _saving = true);
+    try {
+      await ref
+          .read(attachmentUploadCoordinatorProvider)
+          .reconcileEvent(
+            client: ref.read(
+              microsoftCalendarApiClientForAccountProvider(
+                widget.item.accountId,
+              ),
+            ),
+            accountId: widget.item.accountId,
+            calendarId: widget.item.providerCalendarId,
+            eventId: eventId,
+          );
+      _refresh();
+    } on Object catch (error) {
       _error(error);
     } finally {
       if (mounted) setState(() => _saving = false);
