@@ -2,6 +2,7 @@ import 'package:busymax/l10n/generated/app_localizations.dart';
 import 'package:busymax/src/app/app_bootstrap.dart';
 import 'package:busymax/src/app/busymax_design.dart';
 import 'package:busymax/src/app/busymax_yaru_theme.dart';
+import 'package:busymax/src/android/presentation/android_settings_screen.dart';
 import 'package:busymax/src/dav/presentation/nextcloud_collection_dialog.dart';
 import 'package:busymax/src/ui/windows/windows_nextcloud_dialogs.dart';
 import 'package:fluent_ui/fluent_ui.dart' as fluent;
@@ -43,6 +44,44 @@ void main() {
 
   for (final windows in [false, true]) {
     final platform = windows ? 'Windows' : 'Linux';
+    testWidgets('$platform initiates a federated calendar share', (
+      tester,
+    ) async {
+      final fixture = NextcloudAdminFixture();
+      await tester.runAsync(fixture.seed);
+      addTearDown(fixture.close);
+      await _pump(tester, fixture, windows);
+      const cloudId = 'alex@remote.example.test';
+      if (windows) {
+        final search = find
+            .byWidgetPredicate(
+              (widget) =>
+                  widget is fluent.TextBox && widget.placeholder == null,
+            )
+            .last;
+        await tester.enterText(search, cloudId);
+      } else {
+        final search = find.byWidgetPredicate(
+          (widget) =>
+              widget is TextField &&
+              widget.decoration?.labelText == 'Find people or groups',
+        );
+        await tester.enterText(search, cloudId);
+      }
+      await tester.ensureVisible(find.text('Search'));
+      await tester.tap(find.text('Search'));
+      await _settle(tester);
+      expect(find.text(cloudId), findsWidgets);
+      await tester.ensureVisible(find.text('Read-only').last);
+      await tester.tap(find.text('Read-only').last);
+      FocusManager.instance.primaryFocus?.unfocus();
+      await _waitForShare(tester, fixture);
+      expect(fixture.shares, hasLength(1));
+      expect(fixture.shares.values.single, isFalse);
+      expect(fixture.requests.where((r) => r.method == 'POST'), hasLength(1));
+      expect(tester.takeException(), isNull);
+    });
+
     testWidgets(
       '$platform can save metadata on a content-read-only collection',
       (tester) async {
@@ -109,6 +148,52 @@ void main() {
       await tester.pumpWidget(const SizedBox.shrink());
     });
   }
+
+  testWidgets('Android initiates a federated calendar share', (tester) async {
+    final fixture = NextcloudAdminFixture();
+    await tester.runAsync(fixture.seed);
+    addTearDown(fixture.close);
+    await tester.binding.setSurfaceSize(const Size(430, 800));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          localSettingsStoreProvider.overrideWithValue(MemorySettingsStore()),
+          nextcloudSharingServiceProvider(
+            'account',
+          ).overrideWithValue(fixture.sharing),
+        ],
+        child: localizedTestApp(
+          child: const AndroidNextcloudSharingScreen(
+            accountId: 'account',
+            collectionId: 'collection',
+            title: 'Work',
+          ),
+        ),
+      ),
+    );
+    await _settle(tester);
+    const cloudId = 'alex@remote.example.test';
+    await tester.enterText(
+      find.byWidgetPredicate(
+        (widget) =>
+            widget is TextField &&
+            widget.decoration?.labelText == 'Find people or groups',
+      ),
+      cloudId,
+    );
+    await tester.tap(find.byIcon(Icons.search).last);
+    await _settle(tester);
+    expect(find.text(cloudId), findsWidgets);
+    await tester.tap(find.byType(PopupMenuButton<bool>).last);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Read-only').last);
+    FocusManager.instance.primaryFocus?.unfocus();
+    await _waitForShare(tester, fixture);
+    expect(fixture.shares, hasLength(1));
+    expect(fixture.shares.values.single, isFalse);
+    expect(tester.takeException(), isNull);
+  });
 
   testWidgets('nested collection confirmation keeps the parent modal active', (
     tester,
@@ -286,6 +371,24 @@ Future<void> _settle(WidgetTester tester) async {
     await tester.pump(const Duration(milliseconds: 100));
   }
   await tester.pumpAndSettle();
+}
+
+Future<void> _waitForShare(
+  WidgetTester tester,
+  NextcloudAdminFixture fixture,
+) async {
+  for (var i = 0; i < 30 && fixture.shares.isEmpty; i++) {
+    await tester.runAsync(
+      () => Future<void>.delayed(const Duration(milliseconds: 20)),
+    );
+    await tester.pump(const Duration(milliseconds: 100));
+  }
+  for (var i = 0; i < 10; i++) {
+    await tester.runAsync(
+      () => Future<void>.delayed(const Duration(milliseconds: 20)),
+    );
+    await tester.pump(const Duration(milliseconds: 100));
+  }
 }
 
 Future<void> _pump(

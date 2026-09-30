@@ -56,6 +56,60 @@ void main() {
 
   tearDown(() => database.close());
 
+  for (final remove in [false, true]) {
+    test(
+      'Nextcloud ${remove ? 'removes' : 'adds'} URI ATTACH through DAV queue',
+      () async {
+        final baseline = _ical([
+          'BEGIN:VCALENDAR',
+          'VERSION:2.0',
+          'BEGIN:VEVENT',
+          'UID:attachment@example.test',
+          'DTSTART:20260810T090000Z',
+          'DTEND:20260810T100000Z',
+          'SUMMARY:Attachment event',
+          'X-CUSTOM;X-KEEP=one:untouched',
+          'ATTACH;VALUE=BINARY;ENCODING=BASE64:YWJj',
+          'ATTACH;FMTTYPE=application/pdf:https://files.example/old.pdf',
+          'END:VEVENT',
+          'END:VCALENDAR',
+        ]);
+        await _commitObjects(objectRepository, [
+          _prepared(
+            href: '${_collectionHref}attachment.ics',
+            etag: '"attachment"',
+            body: baseline,
+          ),
+        ]);
+        final event = await database
+            .select(database.calendarEvents)
+            .getSingle();
+        final detail = await calendarRepository
+            .changeNextcloudUriAttachmentReference(
+              accountId: _accountId,
+              eventId: event.id,
+              addUrl: remove ? null : 'https://files.example/new.pdf',
+              removeUrl: remove ? 'https://files.example/old.pdf' : null,
+            );
+        final operation = await database
+            .select(database.pendingOps)
+            .getSingle();
+        expect(operation.operationType, 'dav.update');
+        final candidate = DavMutationPatch.fromJsonString(
+          operation.mutationPatchJson!,
+        ).applyTo(baseline, nowUtc: _now);
+        expect(candidate, contains('ATTACH;VALUE=BINARY;ENCODING=BASE64:YWJj'));
+        expect(candidate, contains('X-CUSTOM;X-KEEP=one:untouched'));
+        expect(candidate.contains('https://files.example/old.pdf'), !remove);
+        expect(candidate.contains('https://files.example/new.pdf'), !remove);
+        expect(
+          jsonEncode(detail!.attachments),
+          remove ? isNot(contains('old.pdf')) : contains('new.pdf'),
+        );
+      },
+    );
+  }
+
   test(
     'timing-only occurrence exception retains guests, alarms and opaque provider fields',
     () async {
