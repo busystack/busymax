@@ -2196,6 +2196,7 @@ class _AndroidEventEditorState extends ConsumerState<AndroidEventEditor> {
   final Map<String, bool> _guestOptionalOverrides = {};
   int? _reminderMinutes;
   Object? _editedGoogleReminders;
+  List<AndroidNextcloudReminderRow>? _editedNextcloudReminders;
   late RecurrenceRule _recurrenceRule = EventRecurrenceCodec.decode(
     _provider,
     _draft.recurrence,
@@ -2269,6 +2270,7 @@ class _AndroidEventEditorState extends ConsumerState<AndroidEventEditor> {
       _guestOptionalOverrides.isNotEmpty ||
       _reminderMinutes != null ||
       _editedGoogleReminders != null ||
+      _editedNextcloudReminders != null ||
       _recurrenceChanged;
 
   Future<void> _editRecurrence() async {
@@ -2524,6 +2526,8 @@ class _AndroidEventEditorState extends ConsumerState<AndroidEventEditor> {
               const SizedBox(height: 12),
               if (_provider == BusyProvider.google)
                 ..._googleReminderRows()
+              else if (_provider == BusyProvider.nextcloud)
+                ..._nextcloudReminderRows()
               else ...[
                 DropdownButtonFormField<int>(
                   key: ValueKey('android-event-reminder-${_draft.sourceId}'),
@@ -2858,6 +2862,84 @@ class _AndroidEventEditorState extends ConsumerState<AndroidEventEditor> {
         if (androidGoogleHasUnsupportedReminder(value))
           Text(context.l10n.unsupportedReminder),
       ],
+    ];
+  }
+
+  List<Widget> _nextcloudReminderRows() {
+    final rows =
+        _editedNextcloudReminders ??
+        androidNextcloudEditableReminderRows(_draft.reminders);
+    if (rows == null) return [Text(context.l10n.unsupportedReminder)];
+    return [
+      Text(context.l10n.reminders),
+      if (rows.isEmpty) Text(context.l10n.noReminders),
+      for (var index = 0; index < rows.length; index++)
+        Row(
+          children: [
+            Expanded(
+              child: DropdownButtonFormField<int>(
+                key: ValueKey('android-event-dav-reminder-$index'),
+                initialValue: rows[index].minutes,
+                decoration: InputDecoration(labelText: context.l10n.reminder),
+                items: [
+                  for (final minute in <int>{
+                    0,
+                    5,
+                    10,
+                    30,
+                    60,
+                    1440,
+                    rows[index].minutes,
+                  })
+                    DropdownMenuItem(
+                      value: minute,
+                      child: Text(
+                        minute == 0
+                            ? context.l10n.reminderAtStart
+                            : context.l10n.reminderMinutesBefore(minute),
+                      ),
+                    ),
+                ],
+                onChanged: !_canEdit
+                    ? null
+                    : (minute) {
+                        if (minute == null) return;
+                        setState(() {
+                          final edited = [...rows];
+                          edited[index] = edited[index].copyWith(
+                            minutes: minute,
+                          );
+                          _editedNextcloudReminders = edited;
+                        });
+                      },
+              ),
+            ),
+            IconButton(
+              tooltip: context.l10n.removeReminder,
+              icon: const Icon(Icons.remove_circle_outline),
+              onPressed: !_canEdit
+                  ? null
+                  : () => setState(() {
+                      final edited = [...rows]..removeAt(index);
+                      _editedNextcloudReminders = edited;
+                    }),
+            ),
+          ],
+        ),
+      TextButton.icon(
+        onPressed: !_canEdit
+            ? null
+            : () => setState(() {
+                _editedNextcloudReminders = [
+                  ...rows,
+                  const AndroidNextcloudReminderRow(minutes: 10),
+                ];
+              }),
+        icon: const Icon(Icons.add),
+        label: Text(context.l10n.addReminder),
+      ),
+      if (androidNextcloudHasUnsupportedAlarms(_draft.reminders))
+        Text(context.l10n.unsupportedReminder),
     ];
   }
 
@@ -3244,6 +3326,17 @@ class _AndroidEventEditorState extends ConsumerState<AndroidEventEditor> {
         remindersChanged: true,
       );
     }
+    if (_provider == BusyProvider.nextcloud &&
+        _editedNextcloudReminders != null) {
+      draft = draft.copyWith(
+        reminders: {
+          'davEditableRows': [
+            for (final row in _editedNextcloudReminders!) row.toJson(),
+          ],
+        },
+        remindersChanged: true,
+      );
+    }
     if (_recurrenceChanged) {
       final rule = _recurrenceRule;
       draft = draft.copyWith(
@@ -3271,7 +3364,8 @@ class _AndroidEventEditorState extends ConsumerState<AndroidEventEditor> {
     setState(() => _saving = true);
     try {
       if ((_reminderMinutes ?? -2) >= 0 ||
-          androidGooglePopupReminderRows(_editedGoogleReminders).isNotEmpty) {
+          androidGooglePopupReminderRows(_editedGoogleReminders).isNotEmpty ||
+          (_editedNextcloudReminders?.isNotEmpty ?? false)) {
         await ref
             .read(androidNotificationServiceProvider)
             .requestNotificationPermission();
@@ -3581,6 +3675,12 @@ class _AndroidEventEditorState extends ConsumerState<AndroidEventEditor> {
         _editedGoogleReminders = map['googleReminders'] is Map
             ? (map['googleReminders'] as Map).cast<String, Object?>()
             : null;
+        _editedNextcloudReminders = map['nextcloudReminders'] is List
+            ? [
+                for (final value in map['nextcloudReminders'] as List)
+                  AndroidNextcloudReminderRow.fromJson(value),
+              ]
+            : null;
         if (recoveredRule != null && recoveredRule != _recurrenceRule) {
           _recurrenceRule = recoveredRule;
           _recurrenceChanged = true;
@@ -3683,6 +3783,9 @@ class _AndroidEventEditorState extends ConsumerState<AndroidEventEditor> {
       'end': _draft.end?.toIso8601String(),
       'reminderMinutes': _reminderMinutes,
       'googleReminders': _editedGoogleReminders,
+      'nextcloudReminders': _editedNextcloudReminders == null
+          ? null
+          : [for (final row in _editedNextcloudReminders!) row.toJson()],
       'createConference': _draft.createConference,
       'eventLabelId': _draft.eventLabelId,
       'eventLabelChanged': _draft.eventLabelChanged,
@@ -3996,6 +4099,102 @@ Object? _eventReminders(BusyProvider provider, int minutes) {
             {'method': 'popup', 'minutes': minutes},
           ],
         };
+}
+
+final class AndroidNextcloudReminderRow {
+  const AndroidNextcloudReminderRow({
+    required this.minutes,
+    this.originalIndex,
+  });
+
+  final int minutes;
+  final int? originalIndex;
+
+  AndroidNextcloudReminderRow copyWith({required int minutes}) =>
+      AndroidNextcloudReminderRow(
+        minutes: minutes,
+        originalIndex: originalIndex,
+      );
+
+  Map<String, Object?> toJson() => {
+    if (originalIndex != null) 'originalIndex': originalIndex,
+    'minutes': minutes,
+  };
+
+  static AndroidNextcloudReminderRow fromJson(Object? value) {
+    if (value is! Map ||
+        value['minutes'] is! int ||
+        (value['minutes'] as int) < 0 ||
+        (value['originalIndex'] != null && value['originalIndex'] is! int)) {
+      throw const FormatException('Invalid recovered DAV reminder.');
+    }
+    return AndroidNextcloudReminderRow(
+      minutes: value['minutes'] as int,
+      originalIndex: value['originalIndex'] as int?,
+    );
+  }
+}
+
+List<AndroidNextcloudReminderRow>? androidNextcloudEditableReminderRows(
+  Object? value,
+) {
+  if (value == null) return const [];
+  if (value is! Map) return null;
+  if (value['davEditableRows'] is List) {
+    try {
+      return [
+        for (final row in value['davEditableRows'] as List)
+          AndroidNextcloudReminderRow.fromJson(row),
+      ];
+    } on FormatException {
+      return null;
+    }
+  }
+  if (value['alarms'] case final List alarms) {
+    final rows = <AndroidNextcloudReminderRow>[];
+    for (var index = 0; index < alarms.length; index++) {
+      final alarm = alarms[index];
+      if (alarm is! Map || alarm['properties'] is! List) return null;
+      final properties = alarm['properties'] as List;
+      String? property(String name) {
+        for (final item in properties) {
+          if (item is Map && item['name'] == name) {
+            return item['value']?.toString();
+          }
+        }
+        return null;
+      }
+
+      if (property('ACTION')?.toUpperCase() != 'DISPLAY') continue;
+      final trigger = property('TRIGGER')?.toUpperCase();
+      final match = trigger == null
+          ? null
+          : RegExp(r'^-PT([0-9]+)M$').firstMatch(trigger);
+      if (match != null) {
+        rows.add(
+          AndroidNextcloudReminderRow(
+            minutes: int.parse(match.group(1)!),
+            originalIndex: index,
+          ),
+        );
+      }
+    }
+    return rows;
+  }
+  if (value['minutes'] case final List minutes) {
+    if (minutes.any((minute) => minute is! int || minute < 0)) return null;
+    return [
+      for (final minute in minutes)
+        AndroidNextcloudReminderRow(minutes: minute as int),
+    ];
+  }
+  return null;
+}
+
+bool androidNextcloudHasUnsupportedAlarms(Object? value) {
+  if (value is! Map || value['alarms'] is! List) return false;
+  final rows = androidNextcloudEditableReminderRows(value);
+  return rows != null && rows.length < (value['alarms'] as List).length;
 }
 
 /// A negative selection is explicit default (-1) or no reminder (-2).

@@ -20,6 +20,7 @@ import '../../features/recurrence/domain/event_recurrence_codec.dart';
 import '../../features/recurrence/domain/recurrence_rule.dart';
 import '../../features/schedule/presentation/schedule_event_details_format.dart';
 import '../../features/schedule/presentation/attachment_download.dart';
+import '../../features/schedule/presentation/attachment_upload_coordinator.dart';
 import '../../microsoft_todo/api/microsoft_todo_api_client.dart';
 import '../../microsoft_todo/api/microsoft_todo_api_models.dart';
 import '../../microsoft_calendar/microsoft_calendar_models.dart';
@@ -810,10 +811,37 @@ class _AndroidTaskEditorState extends ConsumerState<AndroidTaskEditor> {
                       !widget.task!.pendingDelete &&
                       !widget.task!.id.startsWith('local-task-'))
                     TextButton.icon(
-                      onPressed: _attachmentBusy ? null : _uploadTaskAttachment,
+                      onPressed:
+                          _attachmentBusy ||
+                              !ref
+                                  .watch(attachmentUploadCoordinatorProvider)
+                                  .canSubmit(
+                                    AttachmentUploadCoordinator.taskKey(
+                                      widget.accountId,
+                                      widget.task!.taskListId,
+                                      widget.task!.id,
+                                    ),
+                                  )
+                          ? null
+                          : _uploadTaskAttachment,
                       icon: const Icon(Icons.add),
                       label: Text(context.l10n.attachments),
                     ),
+                  if (ref
+                      .watch(attachmentUploadCoordinatorProvider)
+                      .needsReconciliation(
+                        AttachmentUploadCoordinator.taskKey(
+                          widget.accountId,
+                          widget.task!.taskListId,
+                          widget.task!.id,
+                        ),
+                      )) ...[
+                    Text(context.l10n.attachmentUploadUnresolved),
+                    TextButton(
+                      onPressed: _attachmentBusy ? null : _reconcileTaskUpload,
+                      child: Text(context.l10n.refresh),
+                    ),
+                  ],
                   if (_attachmentsFuture case final future?)
                     FutureBuilder<List<MicrosoftTodoAttachmentDto>>(
                       future: future,
@@ -2270,13 +2298,42 @@ class _AndroidTaskEditorState extends ConsumerState<AndroidTaskEditor> {
       if (client is! MicrosoftTodoAttachmentsApiClient) {
         throw StateError('Microsoft task attachments are unavailable.');
       }
-      await (client as MicrosoftTodoAttachmentsApiClient)
-          .uploadTaskFileAttachment(
+      await ref
+          .read(attachmentUploadCoordinatorProvider)
+          .uploadTask(
+            client: client as MicrosoftTodoAttachmentsApiClient,
+            accountId: widget.accountId,
             taskListId: task.taskListId,
             taskId: task.id,
             name: name,
             contentType: document.mimeType ?? 'application/octet-stream',
             bytes: document.bytes,
+          );
+      _reloadTaskAttachments();
+    } on Object catch (error) {
+      _reloadTaskAttachments();
+      _attachmentError(error);
+    } finally {
+      if (mounted) setState(() => _attachmentBusy = false);
+    }
+  }
+
+  Future<void> _reconcileTaskUpload() async {
+    final task = widget.task;
+    if (task == null) return;
+    setState(() => _attachmentBusy = true);
+    try {
+      final client = ref.read(
+        microsoftTodoApiClientForAccountProvider(widget.accountId),
+      );
+      if (client is! MicrosoftTodoAttachmentsApiClient) return;
+      await ref
+          .read(attachmentUploadCoordinatorProvider)
+          .reconcileTask(
+            client: client as MicrosoftTodoAttachmentsApiClient,
+            accountId: widget.accountId,
+            taskListId: task.taskListId,
+            taskId: task.id,
           );
       _reloadTaskAttachments();
     } on Object catch (error) {

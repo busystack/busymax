@@ -982,9 +982,22 @@ class _AndroidSettingsScreenState extends ConsumerState<AndroidSettingsScreen> {
             if (source.capabilities.canRemoveCalendar)
               ListTile(
                 leading: const Icon(Icons.delete_outline),
-                title: Text(context.l10n.delete),
-                textColor: Theme.of(context).colorScheme.error,
-                iconColor: Theme.of(context).colorScheme.error,
+                title: Text(
+                  source.capabilities.removalMode ==
+                          CalendarRemovalMode.removeFromList
+                      ? context.l10n.removeFromMyCalendars
+                      : context.l10n.delete,
+                ),
+                textColor:
+                    source.capabilities.removalMode ==
+                        CalendarRemovalMode.delete
+                    ? Theme.of(context).colorScheme.error
+                    : null,
+                iconColor:
+                    source.capabilities.removalMode ==
+                        CalendarRemovalMode.delete
+                    ? Theme.of(context).colorScheme.error
+                    : null,
                 onTap: () => Navigator.pop(context, 'delete'),
               ),
           ],
@@ -1048,16 +1061,22 @@ class _AndroidSettingsScreenState extends ConsumerState<AndroidSettingsScreen> {
         final remove =
             source.capabilities.removalMode ==
             CalendarRemovalMode.removeFromList;
+        final openedMicrosoftOwner =
+            remove && source.provider == BusyProvider.microsoft;
         final confirmed = await _confirm(
           remove ? l10n.removeFromMyCalendars : l10n.delete,
           remove
-              ? l10n.removeCalendarConfirmation(source.summary)
+              ? openedMicrosoftOwner
+                    ? l10n.removeOpenedSharedCalendarConfirmation(
+                        source.summary,
+                      )
+                    : l10n.removeCalendarConfirmation(source.summary)
               : l10n.deleteCalendarConfirmation(source.summary),
           remove ? l10n.removeAction : l10n.delete,
         );
         if (!confirmed) return;
         await ref.read(calendarRepositoryProvider).deleteLocalSource(source.id);
-        _requestQueuedCalendarSync(source);
+        if (!openedMicrosoftOwner) _requestQueuedCalendarSync(source);
       }
     } on Object catch (error) {
       _message(

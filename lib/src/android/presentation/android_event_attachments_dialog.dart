@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../app/app_bootstrap.dart';
 import '../../features/schedule/presentation/attachment_download.dart';
+import '../../features/schedule/presentation/attachment_upload_coordinator.dart';
 import '../../features/schedule/presentation/google_event_attachment_reference.dart';
 import '../../features/schedule/presentation/schedule_event_details_format.dart';
 import '../../l10n/l10n.dart';
@@ -49,6 +50,14 @@ class _AndroidEventAttachmentsDialogState
     final microsoft = item.provider == BusyProvider.microsoft;
     final google = item.provider == BusyProvider.google;
     final nextcloud = item.provider == BusyProvider.nextcloud;
+    final uploads = ref.watch(attachmentUploadCoordinatorProvider);
+    final uploadKey = eventId == null
+        ? null
+        : AttachmentUploadCoordinator.eventKey(
+            item.accountId,
+            item.providerCalendarId,
+            eventId,
+          );
     final result = !microsoft || eventId == null
         ? null
         : ref.watch(
@@ -146,12 +155,27 @@ class _AndroidEventAttachmentsDialogState
               ),
       ),
       actions: [
+        if (microsoft &&
+            uploadKey != null &&
+            uploads.needsReconciliation(uploadKey)) ...[
+          Text(context.l10n.attachmentUploadUnresolved),
+          TextButton(
+            onPressed: _saving ? null : () => _reconcileUpload(eventId!),
+            child: Text(context.l10n.refresh),
+          ),
+        ],
         if ((microsoft || google || nextcloud) &&
             item.capabilities.canEdit &&
             (nextcloud || eventId != null))
           TextButton.icon(
             key: const Key('event-attachment-add'),
-            onPressed: _saving ? null : _add,
+            onPressed:
+                _saving ||
+                    (microsoft &&
+                        uploadKey != null &&
+                        !uploads.canSubmit(uploadKey))
+                ? null
+                : _add,
             icon: const Icon(Icons.add),
             label: Text(context.l10n.attachments),
           ),
@@ -221,10 +245,14 @@ class _AndroidEventAttachmentsDialogState
     setState(() => _saving = true);
     try {
       await ref
-          .read(
-            microsoftCalendarApiClientForAccountProvider(widget.item.accountId),
-          )
-          .uploadEventFileAttachment(
+          .read(attachmentUploadCoordinatorProvider)
+          .uploadEvent(
+            client: ref.read(
+              microsoftCalendarApiClientForAccountProvider(
+                widget.item.accountId,
+              ),
+            ),
+            accountId: widget.item.accountId,
             calendarId: widget.item.providerCalendarId,
             eventId: eventId,
             name: name,
@@ -234,6 +262,29 @@ class _AndroidEventAttachmentsDialogState
       _refresh();
     } on Object catch (error) {
       _refresh();
+      _error(error);
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  Future<void> _reconcileUpload(String eventId) async {
+    setState(() => _saving = true);
+    try {
+      await ref
+          .read(attachmentUploadCoordinatorProvider)
+          .reconcileEvent(
+            client: ref.read(
+              microsoftCalendarApiClientForAccountProvider(
+                widget.item.accountId,
+              ),
+            ),
+            accountId: widget.item.accountId,
+            calendarId: widget.item.providerCalendarId,
+            eventId: eventId,
+          );
+      _refresh();
+    } on Object catch (error) {
       _error(error);
     } finally {
       if (mounted) setState(() => _saving = false);
