@@ -6,10 +6,13 @@ import 'package:busymax/src/google_calendar/google_calendar_api_client.dart';
 import 'package:busymax/src/google_calendar/google_calendar_mapper.dart';
 import 'package:busymax/src/ical/ical_ingestion.dart';
 import 'package:busymax/src/microsoft_calendar/microsoft_calendar_api_client.dart';
+import 'package:busymax/src/microsoft_calendar/microsoft_calendar_mapper.dart';
 import 'package:busymax/src/providers/busy_provider.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
+import 'package:timezone/data/latest_all.dart' as time_zone_data;
+import 'package:timezone/timezone.dart' as tz;
 
 void main() {
   test('series export is offered only with an authoritative series path', () {
@@ -165,14 +168,8 @@ void main() {
                 'seriesMasterId': 'master',
                 'originalStart': '2026-08-31T16:00:00Z',
                 'subject': 'Moved',
-                'start': {
-                  'dateTime': '2026-08-31T11:00:00',
-                  'timeZone': 'Pacific Standard Time',
-                },
-                'end': {
-                  'dateTime': '2026-08-31T12:00:00',
-                  'timeZone': 'Pacific Standard Time',
-                },
+                'start': {'dateTime': '2026-08-31T18:00:00', 'timeZone': 'UTC'},
+                'end': {'dateTime': '2026-08-31T19:00:00', 'timeZone': 'UTC'},
                 'recurrence': null,
               }),
               200,
@@ -194,6 +191,14 @@ void main() {
         hasLength(1),
       );
       expect(data, contains('RRULE:FREQ=DAILY;INTERVAL=1;COUNT=3'));
+      expect(
+        data,
+        contains('DTSTART;TZID=America/Los_Angeles:20260830T090000'),
+      );
+      expect(
+        data,
+        contains('RECURRENCE-ID;TZID=America/Los_Angeles:20260831T090000'),
+      );
       expect(data, contains('SUMMARY:Moved'));
       expect(data, contains('STATUS:CANCELLED'));
       expect(
@@ -205,6 +210,152 @@ void main() {
       );
     },
   );
+
+  test(
+    'Microsoft series uses recurrence zone and emits a valid timed UNTIL',
+    () {
+      final master = microsoftCalendarEventFromJson('calendar', {
+        ..._microsoftMaster,
+        'start': {'dateTime': '2026-08-30T16:00:00', 'timeZone': 'UTC'},
+        'end': {'dateTime': '2026-08-30T17:00:00', 'timeZone': 'UTC'},
+        'recurrence': {
+          'pattern': {'type': 'daily', 'interval': 1},
+          'range': {
+            'type': 'endDate',
+            'startDate': '2026-08-30',
+            'endDate': '2026-09-01',
+            'recurrenceTimeZone': 'Pacific Standard Time',
+          },
+        },
+      });
+      final data = cloudSeriesToICalendar(
+        master: master,
+        exceptions: const [],
+        nowUtc: DateTime.utc(2026, 8, 1),
+      );
+      expect(
+        data,
+        contains('DTSTART;TZID=America/Los_Angeles:20260830T090000'),
+      );
+      expect(data, contains('BEGIN:VTIMEZONE'));
+      expect(data, contains('TZID:America/Los_Angeles'));
+      expect(data, contains('UNTIL=20260901T160000Z'));
+      expect(data, isNot(contains('UNTIL=20260901;')));
+      time_zone_data.initializeTimeZones();
+      final location = tz.getLocation('America/Los_Angeles');
+      final until = DateTime.utc(2026, 9, 1, 16);
+      final occurrences = [
+        for (var day = 30; day <= 33; day++)
+          tz.TZDateTime(location, 2026, 8, day, 9).toUtc(),
+      ];
+      expect(
+        occurrences.take(3).every((instant) => !instant.isAfter(until)),
+        isTrue,
+      );
+      expect(occurrences.last.isAfter(until), isTrue);
+      final references = RegExp(
+        r';TZID=([^:]+):',
+      ).allMatches(data).map((match) => match.group(1)!).toSet();
+      final definitions = RegExp(
+        r'^TZID:([^\r\n]+)',
+        multiLine: true,
+      ).allMatches(data).map((match) => match.group(1)!).toSet();
+      expect(definitions, containsAll(references));
+    },
+  );
+
+  test(
+    'Microsoft no-end series keeps wall time across DST in response UTC',
+    () {
+      final master = microsoftCalendarEventFromJson('calendar', {
+        ..._microsoftMaster,
+        'start': {'dateTime': '2026-10-31T16:00:00', 'timeZone': 'UTC'},
+        'end': {'dateTime': '2026-10-31T17:00:00', 'timeZone': 'UTC'},
+        'recurrence': {
+          'pattern': {'type': 'daily', 'interval': 1},
+          'range': {
+            'type': 'noEnd',
+            'startDate': '2026-10-31',
+            'recurrenceTimeZone': 'Pacific Standard Time',
+          },
+        },
+      });
+      final data = cloudSeriesToICalendar(
+        master: master,
+        exceptions: const [],
+        nowUtc: DateTime.utc(2026, 10, 1),
+      );
+      expect(
+        data,
+        contains('DTSTART;TZID=America/Los_Angeles:20261031T090000'),
+      );
+      expect(data, contains('RRULE:FREQ=DAILY;INTERVAL=1'));
+      expect(data, isNot(contains('UNTIL=')));
+      expect(data, contains('BEGIN:DAYLIGHT'));
+      expect(data, contains('BEGIN:STANDARD'));
+      expect(data, contains('TZOFFSETTO:-0700'));
+      expect(data, contains('TZOFFSETTO:-0800'));
+      time_zone_data.initializeTimeZones();
+      final location = tz.getLocation('America/Los_Angeles');
+      final match = RegExp(
+        r'DTSTART;TZID=America/Los_Angeles:(\d{8})T(\d{6})',
+      ).firstMatch(data)!;
+      final date = match.group(1)!;
+      final time = match.group(2)!;
+      final year = int.parse(date.substring(0, 4));
+      final month = int.parse(date.substring(4, 6));
+      final day = int.parse(date.substring(6, 8));
+      final hour = int.parse(time.substring(0, 2));
+      expect(
+        [
+          for (var offset = 0; offset < 3; offset++)
+            tz.TZDateTime(location, year, month, day + offset, hour).toUtc(),
+        ],
+        [
+          DateTime.utc(2026, 10, 31, 16),
+          DateTime.utc(2026, 11, 1, 17),
+          DateTime.utc(2026, 11, 2, 17),
+        ],
+      );
+      expect(
+        RegExp(
+          r'BEGIN:(?:STANDARD|DAYLIGHT)[\s\S]*?RRULE:FREQ=YEARLY',
+        ).hasMatch(data),
+        isTrue,
+      );
+    },
+  );
+
+  test('Microsoft all-day end-date series retains DATE UNTIL', () {
+    final master = microsoftCalendarEventFromJson('calendar', {
+      ..._microsoftMaster,
+      'isAllDay': true,
+      'start': {
+        'dateTime': '2026-08-30T00:00:00',
+        'timeZone': 'Pacific Standard Time',
+      },
+      'end': {
+        'dateTime': '2026-08-31T00:00:00',
+        'timeZone': 'Pacific Standard Time',
+      },
+      'recurrence': {
+        'pattern': {'type': 'daily', 'interval': 1},
+        'range': {
+          'type': 'endDate',
+          'startDate': '2026-08-30',
+          'endDate': '2026-09-01',
+          'recurrenceTimeZone': 'Pacific Standard Time',
+        },
+      },
+    });
+    final data = cloudSeriesToICalendar(
+      master: master,
+      exceptions: const [],
+      nowUtc: DateTime.utc(2026, 8, 1),
+    );
+    expect(data, contains('DTSTART;VALUE=DATE:20260830'));
+    expect(data, contains('RRULE:FREQ=DAILY;INTERVAL=1;UNTIL=20260901'));
+  });
 
   test('series export refuses opaque provider IDs as iCalendar UIDs', () {
     expect(
@@ -360,20 +511,15 @@ const _microsoftMaster = <String, Object?>{
   'uid': 'series@example.test',
   'subject': 'Master',
   'type': 'seriesMaster',
-  'start': {
-    'dateTime': '2026-08-30T09:00:00',
-    'timeZone': 'Pacific Standard Time',
-  },
-  'end': {
-    'dateTime': '2026-08-30T10:00:00',
-    'timeZone': 'Pacific Standard Time',
-  },
+  'start': {'dateTime': '2026-08-30T16:00:00', 'timeZone': 'UTC'},
+  'end': {'dateTime': '2026-08-30T17:00:00', 'timeZone': 'UTC'},
   'recurrence': {
     'pattern': {'type': 'daily', 'interval': 1},
     'range': {
       'type': 'numbered',
       'startDate': '2026-08-30',
       'numberOfOccurrences': 3,
+      'recurrenceTimeZone': 'Pacific Standard Time',
     },
   },
 };

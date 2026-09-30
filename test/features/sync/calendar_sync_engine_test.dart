@@ -990,6 +990,87 @@ void main() {
     },
   );
 
+  test('removing an opened owner calendar wins an in-flight refresh', () async {
+    await _insertAccount(database, provider: BusyProvider.microsoft);
+    final key = const MicrosoftSharedPrimaryCalendarAddress(
+      owner: 'owner@example.com',
+      graphCalendarId: 'owner-calendar',
+    ).sourceCalendarId;
+    final repository = CalendarRepository(database: database);
+    final source = CalendarSourceDto(
+      provider: BusyProvider.microsoft,
+      providerCalendarId: key,
+      summary: 'Owner',
+      readOnly: true,
+      isRemovable: true,
+    );
+    await repository.upsertSource(accountId: 'account', source: source);
+    final entered = Completer<void>();
+    final release = Completer<void>();
+    final requests = <http.Request>[];
+    final client = MicrosoftCalendarApiClient(
+      httpClient: MockClient((request) async {
+        requests.add(request);
+        if (request.url.path == '/v1.0/me/calendars') {
+          return http.Response(jsonEncode({'value': <Object>[]}), 200);
+        }
+        if (request.url.path.endsWith('/calendar')) {
+          entered.complete();
+          await release.future;
+          return http.Response(
+            jsonEncode({
+              'id': 'owner-calendar',
+              'name': 'Owner',
+              'canEdit': true,
+            }),
+            200,
+          );
+        }
+        return http.Response(jsonEncode({'value': <Object>[]}), 200);
+      }),
+      baseUri: Uri.parse('https://graph.microsoft.com/v1.0'),
+      responseTimeZone: 'UTC',
+    );
+    final engine = CalendarSyncEngine(
+      database: database,
+      client: client,
+      accountId: 'account',
+      nowUtc: () => DateTime.utc(2026, 7, 10),
+    );
+    final running = engine.fullSync();
+    await entered.future;
+    await repository.deleteLocalSource('account|microsoft|$key');
+    release.complete();
+    await running;
+    expect(
+      (await database.select(database.calendarSources).getSingle()).isDeleted,
+      isTrue,
+    );
+    expect(await database.select(database.pendingOps).get(), isEmpty);
+    expect(
+      requests.where((request) => request.url.path.contains('calendarView')),
+      isEmpty,
+    );
+    await engine.fullSync();
+    expect(
+      requests.where((request) => request.url.path.endsWith('/calendar')),
+      hasLength(1),
+    );
+    await repository.upsertSource(
+      accountId: 'account',
+      source: source,
+      reopenLocallyRemovedOwner: true,
+    );
+    expect(
+      (await database.select(database.calendarSources).get()),
+      hasLength(1),
+    );
+    expect(
+      (await database.select(database.calendarSources).getSingle()).isDeleted,
+      isFalse,
+    );
+  });
+
   test(
     'Google full sync tombstones calendars absent from the calendar list',
     () async {

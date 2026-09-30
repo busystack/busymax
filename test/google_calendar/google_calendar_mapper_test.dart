@@ -154,12 +154,19 @@ void main() {
         expect(created[key], properties);
         final edited = googleEventMutationToJson(
           CalendarEventMutation(
-            providerRaw: {'eventType': type},
+            googleStatusEventTypeContext: type,
             googleStatusProperties: properties,
           ),
         );
         expect(edited[key], properties);
+        expect(edited, isNot(contains('eventType')));
       }
+      expect(
+        () => googleEventMutationToJson(
+          const CalendarEventMutation(googleStatusProperties: {}),
+        ),
+        throwsFormatException,
+      );
     },
   );
 }

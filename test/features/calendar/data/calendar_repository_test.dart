@@ -15,6 +15,7 @@ import 'package:busymax/src/features/maps/data/location_resolution_repository.da
 import 'package:busymax/src/features/maps/domain/geographic_point.dart';
 import 'package:busymax/src/features/maps/domain/location_result.dart';
 import 'package:busymax/src/core/time/provider_date_time.dart';
+import 'package:busymax/src/microsoft_calendar/microsoft_shared_calendar_address.dart';
 import 'package:busymax/src/schedule/schedule_event_rescheduling.dart';
 import 'package:busymax/src/schedule/schedule_item.dart';
 import 'package:busymax/src/schedule/schedule_range.dart';
@@ -1461,6 +1462,88 @@ void main() {
   );
 
   test(
+    'existing Google status edit queues context, not type conversion',
+    () async {
+      await repository.upsertSource(
+        accountId: 'google:g',
+        source: const CalendarSourceDto(
+          provider: BusyProvider.google,
+          providerCalendarId: 'calendar-1',
+          summary: 'Primary',
+          primaryCalendar: true,
+        ),
+      );
+      await repository.upsertEvent(
+        accountId: 'google:g',
+        event: const CalendarEventDto(
+          provider: BusyProvider.google,
+          providerCalendarId: 'calendar-1',
+          providerEventId: 'focus-existing',
+          title: 'Focus',
+          eventType: 'focusTime',
+          startDateTime: '2026-06-08T09:00:00Z',
+          startTimeZone: 'UTC',
+          endDateTime: '2026-06-08T10:00:00Z',
+          endTimeZone: 'UTC',
+          visibility: 'default',
+          transparencyOrShowAs: 'opaque',
+          organizerJson: {'self': true},
+          rawJson: {
+            'id': 'focus-existing',
+            'summary': 'Focus',
+            'eventType': 'focusTime',
+            'focusTimeProperties': {
+              'autoDeclineMode': 'declineNone',
+              'chatStatus': 'available',
+            },
+            'organizer': {'self': true},
+          },
+        ),
+      );
+      final id = CalendarRepository.eventId(
+        accountId: 'google:g',
+        provider: BusyProvider.google,
+        providerCalendarId: 'calendar-1',
+        providerEventId: 'focus-existing',
+      );
+      await repository.updateLocalEvent(
+        EventEditorDraft.fromEventDetail(
+          (await repository.loadEventDetail(id))!,
+        ).copyWith(title: 'Focus renamed'),
+      );
+      var request =
+          jsonDecode(
+                (await database.select(database.pendingOps).get())
+                    .last
+                    .requestJson,
+              )
+              as Map;
+      expect(request, isNot(contains('googleStatusProperties')));
+      expect(request, isNot(contains(calendarEventGoogleStatusTypeContextKey)));
+      await repository.updateLocalEvent(
+        EventEditorDraft.fromEventDetail(
+          (await repository.loadEventDetail(id))!,
+        ).copyWith(
+          googleStatusProperties: {
+            'autoDeclineMode': 'declineAllConflictingInvitations',
+            'chatStatus': 'available',
+          },
+        ),
+      );
+      request =
+          jsonDecode(
+                (await database.select(database.pendingOps).get())
+                    .last
+                    .requestJson,
+              )
+              as Map;
+      expect(request[calendarEventGoogleStatusTypeContextKey], 'focusTime');
+      expect(request, isNot(contains('eventType')));
+      expect(request, isNot(contains('providerRaw')));
+    },
+  );
+
+  test(
     'Google status creation on a secondary calendar leaves no local mutation',
     () async {
       await _upsertSource(repository);
@@ -1964,6 +2047,57 @@ void main() {
       isFalse,
     );
   });
+
+  test(
+    'opened Microsoft owner calendar removes only the local source',
+    () async {
+      final calendarId = const MicrosoftSharedPrimaryCalendarAddress(
+        owner: 'owner@example.test',
+        graphCalendarId: 'owner-primary',
+      ).sourceCalendarId;
+      final sourceId = CalendarRepository.sourceId(
+        accountId: 'google:g',
+        provider: BusyProvider.microsoft,
+        providerCalendarId: calendarId,
+      );
+      await repository.upsertSource(
+        accountId: 'google:g',
+        source: CalendarSourceDto(
+          provider: BusyProvider.microsoft,
+          providerCalendarId: calendarId,
+          summary: 'Opened',
+          readOnly: false,
+          isRemovable: true,
+        ),
+      );
+      final source = (await repository.watchSourcesForAccounts([
+        'google:g',
+      ]).first).single;
+      expect(source.capabilities.canRemoveCalendar, isTrue);
+      expect(source.capabilities.canRenameCalendar, isFalse);
+      expect(source.capabilities.canChangeCalendarColor, isFalse);
+      await repository.deleteLocalSource(sourceId);
+      expect(await database.select(database.pendingOps).get(), isEmpty);
+      expect(
+        (await database.select(database.calendarSources).getSingle()).isDeleted,
+        isTrue,
+      );
+      await repository.upsertSource(
+        accountId: 'google:g',
+        source: CalendarSourceDto(
+          provider: BusyProvider.microsoft,
+          providerCalendarId: calendarId,
+          summary: 'Opened',
+          readOnly: false,
+          isRemovable: true,
+        ),
+      );
+      expect(
+        (await database.select(database.calendarSources).getSingle()).isDeleted,
+        isTrue,
+      );
+    },
+  );
 
   test('provider hidden state can return to visible', () async {
     await repository.upsertSource(

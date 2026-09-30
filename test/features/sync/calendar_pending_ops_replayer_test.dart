@@ -27,6 +27,7 @@ import 'package:busymax/src/features/maps/data/location_resolution_repository.da
 import 'package:busymax/src/features/maps/application/location_destination_resolver.dart';
 import 'package:busymax/src/google_calendar/google_calendar_errors.dart';
 import 'package:busymax/src/google_calendar/google_calendar_api_client.dart';
+import 'package:busymax/src/google_calendar/google_calendar_mapper.dart';
 import 'package:busymax/src/ical/ical_import_service.dart';
 import 'package:busymax/src/microsoft_calendar/microsoft_calendar_errors.dart';
 import 'package:busymax/src/providers/busy_provider.dart';
@@ -2484,6 +2485,425 @@ END:VEVENT
       expect(
         (await repository.loadEventDetail(eventId))!.raw,
         containsPair('eventLabelId', 'label-1'),
+      );
+    },
+  );
+
+  for (final type in googleStatusEventTypes) {
+    test('existing Google $type settings survive queued HTTP replay', () async {
+      final repository = CalendarRepository(database: database);
+      await repository.upsertSource(
+        accountId: 'account',
+        source: const CalendarSourceDto(
+          provider: BusyProvider.google,
+          providerCalendarId: 'cal-1',
+          summary: 'Primary',
+          primaryCalendar: true,
+        ),
+      );
+      final key = googleStatusPropertiesKey(type)!;
+      final originalProperties = defaultGoogleStatusProperties(type);
+      final editedProperties = type == 'workingLocation'
+          ? <String, Object?>{
+              'type': 'customLocation',
+              'customLocation': {'label': 'Library'},
+            }
+          : <String, Object?>{
+              ...originalProperties,
+              'autoDeclineMode': 'declineAllConflictingInvitations',
+            };
+      var remote = <String, Object?>{
+        'id': 'status-existing',
+        'summary': 'Status',
+        'eventType': type,
+        key: originalProperties,
+        'start': {'dateTime': '2026-06-08T09:00:00Z', 'timeZone': 'UTC'},
+        'end': {'dateTime': '2026-06-08T10:00:00Z', 'timeZone': 'UTC'},
+        'visibility': type == 'workingLocation' ? 'public' : 'default',
+        'transparency': type == 'workingLocation' ? 'transparent' : 'opaque',
+        'organizer': {'self': true},
+        'updated': '2026-06-08T00:00:00Z',
+        'etag': '"v1"',
+      };
+      await repository.upsertEvent(
+        accountId: 'account',
+        event: googleCalendarEventFromJson('cal-1', remote),
+      );
+      final id = CalendarRepository.eventId(
+        accountId: 'account',
+        provider: BusyProvider.google,
+        providerCalendarId: 'cal-1',
+        providerEventId: 'status-existing',
+      );
+      await repository.updateLocalEvent(
+        EventEditorDraft.fromEventDetail(
+          (await repository.loadEventDetail(id))!,
+        ).copyWith(googleStatusProperties: editedProperties),
+      );
+      final patches = <Map<String, Object?>>[];
+      final api = GoogleCalendarApiClient(
+        httpClient: MockClient((request) async {
+          if (request.method == 'PATCH') {
+            final patch = Map<String, Object?>.from(
+              jsonDecode(request.body) as Map,
+            );
+            patches.add(patch);
+            remote = {...remote, ...patch, 'updated': '2026-06-08T01:00:00Z'};
+          }
+          return http.Response(jsonEncode(remote), 200);
+        }),
+        baseUri: Uri.parse('https://www.googleapis.com'),
+      );
+      expect(
+        await CalendarPendingOpsReplayer(
+          database: database,
+          client: api,
+          accountId: 'account',
+          nowUtc: () => DateTime.utc(2026, 6, 9),
+        ).replayDueOps(),
+        1,
+      );
+      expect(patches, hasLength(1));
+      expect(patches.single[key], editedProperties);
+      expect(patches.single, isNot(contains('eventType')));
+      expect(
+        EventEditorDraft.fromEventDetail(
+          (await repository.loadEventDetail(id))!,
+        ).googleStatusProperties,
+        editedProperties,
+      );
+    });
+  }
+
+  test('newer remote Google label blocks queued label replacement', () async {
+    final repository = CalendarRepository(database: database);
+    final baseline = <String, Object?>{
+      'id': 'label-conflict',
+      'summary': 'Base',
+      'eventLabelId': 'label-a',
+      'start': {'dateTime': '2026-06-08T09:00:00Z'},
+      'end': {'dateTime': '2026-06-08T10:00:00Z'},
+      'organizer': {'self': true},
+      'updated': '2026-06-08T00:00:00Z',
+      'etag': '"v1"',
+    };
+    await repository.upsertEvent(
+      accountId: 'account',
+      event: googleCalendarEventFromJson('cal-1', baseline),
+    );
+    final id = CalendarRepository.eventId(
+      accountId: 'account',
+      provider: BusyProvider.google,
+      providerCalendarId: 'cal-1',
+      providerEventId: 'label-conflict',
+    );
+    await repository.updateLocalEvent(
+      EventEditorDraft.fromEventDetail(
+        (await repository.loadEventDetail(id))!,
+      ).copyWith(eventLabelId: 'label-b'),
+    );
+    final requests = <http.Request>[];
+    final api = GoogleCalendarApiClient(
+      httpClient: MockClient((request) async {
+        requests.add(request);
+        return http.Response(
+          jsonEncode({
+            ...baseline,
+            'eventLabelId': 'label-c',
+            'updated': '2026-06-08T01:00:00Z',
+            'etag': '"v2"',
+          }),
+          200,
+        );
+      }),
+      baseUri: Uri.parse('https://www.googleapis.com'),
+    );
+    await CalendarPendingOpsReplayer(
+      database: database,
+      client: api,
+      accountId: 'account',
+      nowUtc: () => DateTime.utc(2026, 6, 9),
+    ).replayDueOps();
+    expect(requests.where((request) => request.method == 'PATCH'), isEmpty);
+    expect(
+      (await database.select(database.pendingOps).get()).single.lastErrorCode,
+      'conflict',
+    );
+  });
+
+  test('newer remote Google label blocks queued explicit removal', () async {
+    final eventId = await _insertEvent(
+      database,
+      providerEventId: 'label-clear-conflict',
+    );
+    final baseline = <String, Object?>{
+      'id': 'label-clear-conflict',
+      'summary': 'Base',
+      'eventLabelId': 'label-a',
+      'updated': '2026-06-08T00:00:00Z',
+    };
+    await _enqueueEventOp(
+      database,
+      id: 'clear-label',
+      operation: 'patch',
+      operationType: 'event.patch',
+      eventId: eventId,
+      request: {'eventLabelId': ''},
+      baselineRawJson: jsonEncode(baseline),
+    );
+    final requests = <http.Request>[];
+    final api = GoogleCalendarApiClient(
+      httpClient: MockClient((request) async {
+        requests.add(request);
+        return http.Response(
+          jsonEncode({
+            ...baseline,
+            'eventLabelId': 'label-c',
+            'updated': '2026-06-08T01:00:00Z',
+          }),
+          200,
+        );
+      }),
+      baseUri: Uri.parse('https://www.googleapis.com'),
+    );
+    await CalendarPendingOpsReplayer(
+      database: database,
+      client: api,
+      accountId: 'account',
+      nowUtc: () => DateTime.utc(2026, 6, 9),
+    ).replayDueOps();
+    expect(requests.where((request) => request.method == 'PATCH'), isEmpty);
+    expect(
+      (await database.select(database.pendingOps).get()).single.lastErrorCode,
+      'conflict',
+    );
+  });
+
+  test('remote Google status-setting change blocks queued settings', () async {
+    final eventId = await _insertEvent(
+      database,
+      providerEventId: 'status-conflict',
+    );
+    final baseline = <String, Object?>{
+      'id': 'status-conflict',
+      'summary': 'Base',
+      'eventType': 'focusTime',
+      'focusTimeProperties': {
+        'autoDeclineMode': 'declineNone',
+        'chatStatus': 'available',
+      },
+      'updated': '2026-06-08T00:00:00Z',
+    };
+    await _enqueueEventOp(
+      database,
+      id: 'status-conflict-op',
+      operation: 'patch',
+      operationType: 'event.patch',
+      eventId: eventId,
+      request: {
+        'googleStatusProperties': {
+          'autoDeclineMode': 'declineAllConflictingInvitations',
+          'chatStatus': 'available',
+        },
+        calendarEventGoogleStatusTypeContextKey: 'focusTime',
+      },
+      baselineRawJson: jsonEncode(baseline),
+    );
+    final requests = <http.Request>[];
+    final api = GoogleCalendarApiClient(
+      httpClient: MockClient((request) async {
+        requests.add(request);
+        return http.Response(
+          jsonEncode({
+            ...baseline,
+            'focusTimeProperties': {
+              'autoDeclineMode': 'declineNone',
+              'chatStatus': 'doNotDisturb',
+            },
+            'updated': '2026-06-08T01:00:00Z',
+          }),
+          200,
+        );
+      }),
+      baseUri: Uri.parse('https://www.googleapis.com'),
+    );
+    await CalendarPendingOpsReplayer(
+      database: database,
+      client: api,
+      accountId: 'account',
+      nowUtc: () => DateTime.utc(2026, 6, 9),
+    ).replayDueOps();
+    expect(requests.where((request) => request.method == 'PATCH'), isEmpty);
+    expect(
+      (await database.select(database.pendingOps).get()).single.lastErrorCode,
+      'conflict',
+    );
+  });
+
+  test('unrelated remote Google change permits status edit', () async {
+    final eventId = await _insertEvent(
+      database,
+      providerEventId: 'status-unrelated',
+    );
+    final baseline = <String, Object?>{
+      'id': 'status-unrelated',
+      'summary': 'Base',
+      'eventType': 'focusTime',
+      'focusTimeProperties': {
+        'chatStatus': 'available',
+        'autoDeclineMode': 'declineNone',
+      },
+      'updated': '2026-06-08T00:00:00Z',
+    };
+    await _enqueueEventOp(
+      database,
+      id: 'status-unrelated-op',
+      operation: 'patch',
+      operationType: 'event.patch',
+      eventId: eventId,
+      request: {
+        'googleStatusProperties': {
+          'chatStatus': 'doNotDisturb',
+          'autoDeclineMode': 'declineNone',
+        },
+        calendarEventGoogleStatusTypeContextKey: 'focusTime',
+      },
+      baselineRawJson: jsonEncode(baseline),
+    );
+    final requests = <http.Request>[];
+    final api = GoogleCalendarApiClient(
+      httpClient: MockClient((request) async {
+        requests.add(request);
+        return http.Response(
+          jsonEncode({
+            ...baseline,
+            'summary': 'Remote title',
+            'focusTimeProperties': {
+              'autoDeclineMode': 'declineNone',
+              'chatStatus': 'available',
+            },
+            'updated': '2026-06-08T01:00:00Z',
+          }),
+          200,
+        );
+      }),
+      baseUri: Uri.parse('https://www.googleapis.com'),
+    );
+    expect(
+      await CalendarPendingOpsReplayer(
+        database: database,
+        client: api,
+        accountId: 'account',
+        nowUtc: () => DateTime.utc(2026, 6, 9),
+      ).replayDueOps(),
+      1,
+    );
+    expect(
+      requests.where((request) => request.method == 'PATCH'),
+      hasLength(1),
+    );
+  });
+
+  test(
+    'dependent Google status edit rebases then detects newer remote change',
+    () async {
+      final repository = CalendarRepository(database: database);
+      await repository.upsertSource(
+        accountId: 'account',
+        source: const CalendarSourceDto(
+          provider: BusyProvider.google,
+          providerCalendarId: 'cal-1',
+          summary: 'Primary',
+          primaryCalendar: true,
+        ),
+      );
+      var remote = <String, Object?>{
+        'id': 'status-dependent',
+        'summary': 'Focus',
+        'eventType': 'focusTime',
+        'focusTimeProperties': {
+          'autoDeclineMode': 'declineNone',
+          'chatStatus': 'available',
+        },
+        'start': {'dateTime': '2026-06-08T09:00:00Z', 'timeZone': 'UTC'},
+        'end': {'dateTime': '2026-06-08T10:00:00Z', 'timeZone': 'UTC'},
+        'transparency': 'opaque',
+        'organizer': {'self': true},
+        'updated': '2026-06-08T00:00:00Z',
+        'etag': '"v1"',
+      };
+      await repository.upsertEvent(
+        accountId: 'account',
+        event: googleCalendarEventFromJson('cal-1', remote),
+      );
+      final id = CalendarRepository.eventId(
+        accountId: 'account',
+        provider: BusyProvider.google,
+        providerCalendarId: 'cal-1',
+        providerEventId: 'status-dependent',
+      );
+      await repository.updateLocalEvent(
+        EventEditorDraft.fromEventDetail(
+          (await repository.loadEventDetail(id))!,
+        ).copyWith(
+          googleStatusProperties: {
+            'autoDeclineMode': 'declineNone',
+            'chatStatus': 'doNotDisturb',
+          },
+        ),
+      );
+      await repository.updateLocalEvent(
+        EventEditorDraft.fromEventDetail(
+          (await repository.loadEventDetail(id))!,
+        ).copyWith(
+          googleStatusProperties: {
+            'autoDeclineMode': 'declineAllConflictingInvitations',
+            'chatStatus': 'doNotDisturb',
+          },
+        ),
+      );
+      var committedFirst = false;
+      final patches = <Map<String, Object?>>[];
+      final api = GoogleCalendarApiClient(
+        httpClient: MockClient((request) async {
+          if (request.method == 'GET' && committedFirst) {
+            remote = {
+              ...remote,
+              'focusTimeProperties': {
+                'autoDeclineMode': 'declineNone',
+                'chatStatus': 'available',
+              },
+              'updated': '2026-06-08T02:00:00Z',
+              'etag': '"v3"',
+            };
+          }
+          if (request.method == 'PATCH') {
+            final patch = Map<String, Object?>.from(
+              jsonDecode(request.body) as Map,
+            );
+            patches.add(patch);
+            remote = {
+              ...remote,
+              ...patch,
+              'updated': '2026-06-08T01:00:00Z',
+              'etag': '"v2"',
+            };
+            committedFirst = true;
+          }
+          return http.Response(jsonEncode(remote), 200);
+        }),
+        baseUri: Uri.parse('https://www.googleapis.com'),
+      );
+      await CalendarPendingOpsReplayer(
+        database: database,
+        client: api,
+        accountId: 'account',
+        nowUtc: () => DateTime.utc(2026, 6, 9),
+      ).replayDueOps();
+      expect(patches, hasLength(1));
+      expect(
+        (await database.select(database.pendingOps).get()).single.lastErrorCode,
+        'conflict',
       );
     },
   );

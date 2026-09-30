@@ -130,6 +130,58 @@ void main() {
     );
   });
 
+  test('Nextcloud reminder rows retain alarm identities and zero minutes', () {
+    final rows = androidNextcloudEditableReminderRows(const {
+      'minutes': [0, 10],
+      'alarms': [
+        {
+          'properties': [
+            {'name': 'ACTION', 'value': 'DISPLAY'},
+            {'name': 'TRIGGER', 'value': '-PT0M'},
+          ],
+        },
+        {
+          'properties': [
+            {'name': 'ACTION', 'value': 'AUDIO'},
+            {'name': 'TRIGGER', 'value': '-PT5M'},
+          ],
+        },
+        {
+          'properties': [
+            {'name': 'ACTION', 'value': 'DISPLAY'},
+            {'name': 'TRIGGER', 'value': '-PT10M'},
+          ],
+        },
+      ],
+    });
+    expect(rows!.map((row) => row.minutes), [0, 10]);
+    expect(rows.map((row) => row.originalIndex), [0, 2]);
+    expect(
+      androidNextcloudHasUnsupportedAlarms(const {
+        'alarms': [
+          {
+            'properties': [
+              {'name': 'ACTION', 'value': 'AUDIO'},
+            ],
+          },
+        ],
+      }),
+      isTrue,
+    );
+    expect(
+      androidNextcloudEditableReminderRows(const {
+        'davEditableRows': [
+          {'originalIndex': 0, 'minutes': 0},
+          {'minutes': 30},
+        ],
+      })!.map((row) => row.toJson()),
+      [
+        {'originalIndex': 0, 'minutes': 0},
+        {'minutes': 30},
+      ],
+    );
+  });
+
   test('Google popup edits preserve other and unsupported reminders', () {
     const original = {
       'useDefault': false,

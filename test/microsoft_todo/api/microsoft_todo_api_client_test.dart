@@ -5,8 +5,88 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:busymax/src/microsoft_todo/api/microsoft_todo_api_client.dart';
 import 'package:busymax/src/core/http/request_dispatch_exception.dart';
+import 'package:busymax/src/features/schedule/presentation/attachment_upload_coordinator.dart';
 
 void main() {
+  test(
+    'lost task session response cannot start another upload before reconciliation',
+    () async {
+      var visible = false;
+      var sessions = 0;
+      var chunks = 0;
+      final bytes = List<int>.filled(3 * 1024 * 1024, 65);
+      final client = MicrosoftTodoRestApiClient(
+        httpClient: MockClient((request) async {
+          if (request.method == 'GET' &&
+              request.url.path.endsWith('/attachments')) {
+            return http.Response(
+              jsonEncode({
+                'value': visible
+                    ? [
+                        {
+                          'id': 'file-1',
+                          'name': 'large.bin',
+                          'size': bytes.length,
+                          '@odata.type': '#microsoft.graph.taskFileAttachment',
+                        },
+                      ]
+                    : [],
+              }),
+              200,
+            );
+          }
+          if (request.method == 'POST' &&
+              request.url.path.endsWith('/createUploadSession')) {
+            sessions++;
+            return http.Response(
+              jsonEncode({
+                'uploadUrl':
+                    'https://graph.microsoft.com/v1.0/me/todo/lists/list/tasks/task/attachments/session',
+              }),
+              200,
+            );
+          }
+          if (request.method == 'PUT') {
+            chunks++;
+            if (chunks == 2) throw http.ClientException('final response lost');
+            return http.Response('', 200);
+          }
+          return http.Response('{}', 404);
+        }),
+        baseUri: Uri.parse('https://graph.microsoft.com/v1.0'),
+      );
+      final coordinator = AttachmentUploadCoordinator();
+      Future<void> upload() => coordinator.uploadTask(
+        client: client,
+        accountId: 'account',
+        taskListId: 'list',
+        taskId: 'task',
+        name: 'large.bin',
+        contentType: 'application/octet-stream',
+        bytes: bytes,
+      );
+      await expectLater(
+        upload(),
+        throwsA(isA<AttachmentUploadUnresolvedException>()),
+      );
+      await expectLater(
+        upload(),
+        throwsA(isA<AttachmentUploadUnresolvedException>()),
+      );
+      expect(sessions, 1);
+      expect(chunks, 2);
+      visible = true;
+      expect(
+        await coordinator.reconcileTask(
+          client: client,
+          accountId: 'account',
+          taskListId: 'list',
+          taskId: 'task',
+        ),
+        AttachmentUploadStatus.committed,
+      );
+    },
+  );
   test('task upload session uses task endpoint and Graph-only bearer', () async {
     final requests = <http.Request>[];
     final client = _client((request) {

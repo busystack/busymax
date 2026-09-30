@@ -8,6 +8,7 @@ import 'package:busymax/src/dav/storage/dav_object_repository.dart';
 import 'package:busymax/src/db/app_database.dart';
 import 'package:busymax/src/features/calendar/data/calendar_repository.dart';
 import 'package:busymax/src/features/schedule/presentation/linux_event_attachments_dialog.dart';
+import 'package:busymax/src/features/schedule/presentation/attachment_upload_coordinator.dart';
 import 'package:busymax/src/google_calendar/google_calendar_api_client.dart';
 import 'package:busymax/src/microsoft_calendar/microsoft_calendar_api_client.dart';
 import 'package:busymax/src/providers/busy_provider.dart';
@@ -37,6 +38,348 @@ const _event = CalendarScheduleItem(
 );
 
 void main() {
+  test(
+    'lost event upload response blocks a second upload until ID reconciliation',
+    () async {
+      var committed = false;
+      var visible = false;
+      var posts = 0;
+      final client = MicrosoftCalendarApiClient(
+        httpClient: MockClient((request) async {
+          if (request.method == 'GET' &&
+              request.url.path.endsWith('/attachments')) {
+            return http.Response(
+              jsonEncode({
+                'value': visible
+                    ? [
+                        {
+                          'id': 'new-attachment',
+                          'name': 'notes.txt',
+                          'size': 4,
+                          '@odata.type': '#microsoft.graph.fileAttachment',
+                        },
+                      ]
+                    : [],
+              }),
+              200,
+            );
+          }
+          if (request.method == 'POST' &&
+              request.url.path.endsWith('/attachments')) {
+            posts++;
+            committed = true;
+            throw http.ClientException('response lost');
+          }
+          return http.Response('{}', 404);
+        }),
+        baseUri: Uri.parse('https://graph.microsoft.com/v1.0'),
+        responseTimeZone: 'UTC',
+      );
+      final coordinator = AttachmentUploadCoordinator();
+      final key = AttachmentUploadCoordinator.eventKey(
+        'account',
+        'calendar',
+        'event',
+      );
+      Future<void> upload() => coordinator.uploadEvent(
+        client: client,
+        accountId: 'account',
+        calendarId: 'calendar',
+        eventId: 'event',
+        name: 'notes.txt',
+        contentType: 'text/plain',
+        bytes: [1, 2, 3, 4],
+      );
+      await expectLater(
+        upload(),
+        throwsA(isA<AttachmentUploadUnresolvedException>()),
+      );
+      expect(committed, isTrue);
+      expect(coordinator.status(key), AttachmentUploadStatus.unresolved);
+      await expectLater(
+        upload(),
+        throwsA(isA<AttachmentUploadUnresolvedException>()),
+      );
+      expect(posts, 1);
+      visible = true;
+      expect(
+        await coordinator.reconcileEvent(
+          client: client,
+          accountId: 'account',
+          calendarId: 'calendar',
+          eventId: 'event',
+        ),
+        AttachmentUploadStatus.committed,
+      );
+      expect(coordinator.canSubmit(key), isTrue);
+    },
+  );
+
+  test('lost final event upload-session response remains unresolved', () async {
+    var visible = false;
+    var sessions = 0;
+    var chunks = 0;
+    final bytes = List<int>.filled(3 * 1024 * 1024, 65);
+    final client = MicrosoftCalendarApiClient(
+      httpClient: MockClient((request) async {
+        if (request.method == 'GET' &&
+            request.url.path.endsWith('/attachments')) {
+          return http.Response(
+            jsonEncode({
+              'value': visible
+                  ? [
+                      {
+                        'id': 'session-attachment',
+                        'name': 'large.bin',
+                        'size': bytes.length,
+                        '@odata.type': '#microsoft.graph.fileAttachment',
+                      },
+                    ]
+                  : [],
+            }),
+            200,
+          );
+        }
+        if (request.method == 'POST' &&
+            request.url.path.endsWith('/createUploadSession')) {
+          sessions++;
+          return http.Response(
+            jsonEncode({
+              'uploadUrl': 'https://outlook.office.com/upload/session',
+            }),
+            200,
+          );
+        }
+        if (request.method == 'PUT') {
+          chunks++;
+          if (chunks == 2) throw http.ClientException('final response lost');
+          return http.Response('', 200);
+        }
+        return http.Response('{}', 404);
+      }),
+      baseUri: Uri.parse('https://graph.microsoft.com/v1.0'),
+      responseTimeZone: 'UTC',
+    );
+    final coordinator = AttachmentUploadCoordinator();
+    Future<void> upload() => coordinator.uploadEvent(
+      client: client,
+      accountId: 'account',
+      calendarId: 'calendar',
+      eventId: 'event',
+      name: 'large.bin',
+      contentType: 'application/octet-stream',
+      bytes: bytes,
+    );
+    await expectLater(
+      upload(),
+      throwsA(isA<AttachmentUploadUnresolvedException>()),
+    );
+    await expectLater(
+      upload(),
+      throwsA(isA<AttachmentUploadUnresolvedException>()),
+    );
+    expect(sessions, 1);
+    expect(chunks, 2);
+    visible = true;
+    expect(
+      await coordinator.reconcileEvent(
+        client: client,
+        accountId: 'account',
+        calendarId: 'calendar',
+        eventId: 'event',
+      ),
+      AttachmentUploadStatus.committed,
+    );
+  });
+
+  test(
+    'confirmed event attachment denial restores Add without committing',
+    () async {
+      var posts = 0;
+      final client = MicrosoftCalendarApiClient(
+        httpClient: MockClient((request) async {
+          if (request.method == 'GET') {
+            return http.Response(jsonEncode({'value': []}), 200);
+          }
+          posts++;
+          return http.Response(
+            jsonEncode({
+              'error': {'code': 'AccessDenied'},
+            }),
+            403,
+          );
+        }),
+        baseUri: Uri.parse('https://graph.microsoft.com/v1.0'),
+        responseTimeZone: 'UTC',
+      );
+      final coordinator = AttachmentUploadCoordinator();
+      final key = AttachmentUploadCoordinator.eventKey(
+        'account',
+        'calendar',
+        'event',
+      );
+      await expectLater(
+        coordinator.uploadEvent(
+          client: client,
+          accountId: 'account',
+          calendarId: 'calendar',
+          eventId: 'event',
+          name: 'notes.txt',
+          contentType: 'text/plain',
+          bytes: [1],
+        ),
+        throwsA(isA<Object>()),
+      );
+      expect(posts, 1);
+      expect(coordinator.status(key), AttachmentUploadStatus.ready);
+      expect(coordinator.canSubmit(key), isTrue);
+    },
+  );
+
+  test('confirmed upload with failed refresh cannot be repeated', () async {
+    var posts = 0;
+    var visible = false;
+    final client = MicrosoftCalendarApiClient(
+      httpClient: MockClient((request) async {
+        if (request.method == 'GET') {
+          if (posts > 0 && !visible) {
+            throw http.ClientException('attachment list unavailable');
+          }
+          return http.Response(
+            jsonEncode({
+              'value': visible
+                  ? [
+                      {
+                        'id': 'committed-id',
+                        'name': 'notes.txt',
+                        'size': 4,
+                        '@odata.type': '#microsoft.graph.fileAttachment',
+                      },
+                    ]
+                  : [],
+            }),
+            200,
+          );
+        }
+        posts++;
+        return http.Response(
+          jsonEncode({
+            'id': 'committed-id',
+            'name': 'notes.txt',
+            'size': 4,
+            '@odata.type': '#microsoft.graph.fileAttachment',
+          }),
+          201,
+        );
+      }),
+      baseUri: Uri.parse('https://graph.microsoft.com/v1.0'),
+      responseTimeZone: 'UTC',
+    );
+    final coordinator = AttachmentUploadCoordinator();
+    final key = AttachmentUploadCoordinator.eventKey(
+      'account',
+      'calendar',
+      'event',
+    );
+    Future<void> upload() => coordinator.uploadEvent(
+      client: client,
+      accountId: 'account',
+      calendarId: 'calendar',
+      eventId: 'event',
+      name: 'notes.txt',
+      contentType: 'text/plain',
+      bytes: [1, 2, 3, 4],
+    );
+    await upload();
+    expect(coordinator.status(key), AttachmentUploadStatus.committed);
+    expect(coordinator.needsReconciliation(key), isTrue);
+    expect(coordinator.canSubmit(key), isFalse);
+    await expectLater(
+      upload(),
+      throwsA(isA<AttachmentUploadUnresolvedException>()),
+    );
+    expect(posts, 1);
+    visible = true;
+    expect(
+      await coordinator.reconcileEvent(
+        client: client,
+        accountId: 'account',
+        calendarId: 'calendar',
+        eventId: 'event',
+      ),
+      AttachmentUploadStatus.committed,
+    );
+    expect(coordinator.needsReconciliation(key), isFalse);
+    expect(coordinator.canSubmit(key), isTrue);
+  });
+
+  test(
+    'malformed success response cannot authorize a duplicate upload',
+    () async {
+      var posts = 0;
+      var visible = false;
+      final client = MicrosoftCalendarApiClient(
+        httpClient: MockClient((request) async {
+          if (request.method == 'GET') {
+            return http.Response(
+              jsonEncode({
+                'value': visible
+                    ? [
+                        {
+                          'id': 'committed-id',
+                          'name': 'notes.txt',
+                          'size': 4,
+                          '@odata.type': '#microsoft.graph.fileAttachment',
+                        },
+                      ]
+                    : [],
+              }),
+              200,
+            );
+          }
+          posts++;
+          return http.Response('not-json', 201);
+        }),
+        baseUri: Uri.parse('https://graph.microsoft.com/v1.0'),
+        responseTimeZone: 'UTC',
+      );
+      final coordinator = AttachmentUploadCoordinator();
+      final key = AttachmentUploadCoordinator.eventKey(
+        'account',
+        'calendar',
+        'event',
+      );
+      Future<void> upload() => coordinator.uploadEvent(
+        client: client,
+        accountId: 'account',
+        calendarId: 'calendar',
+        eventId: 'event',
+        name: 'notes.txt',
+        contentType: 'text/plain',
+        bytes: [1, 2, 3, 4],
+      );
+      await expectLater(
+        upload(),
+        throwsA(isA<AttachmentUploadUnresolvedException>()),
+      );
+      expect(coordinator.status(key), AttachmentUploadStatus.unresolved);
+      await expectLater(
+        upload(),
+        throwsA(isA<AttachmentUploadUnresolvedException>()),
+      );
+      expect(posts, 1);
+      visible = true;
+      expect(
+        await coordinator.reconcileEvent(
+          client: client,
+          accountId: 'account',
+          calendarId: 'calendar',
+          eventId: 'event',
+        ),
+        AttachmentUploadStatus.committed,
+      );
+    },
+  );
   for (final platform in ['Linux', 'Windows', 'Android']) {
     testWidgets('$platform queues a Nextcloud URI reference from details', (
       tester,

@@ -464,6 +464,234 @@ END:VEVENT
     expect(patch.body, isNot(contains('attendees')));
   });
 
+  for (final scenario in const [
+    (
+      zone: 'Pacific Standard Time',
+      master: '2026-08-30',
+      original: '2026-08-31',
+      moved: '2026-09-02',
+      originalUtc: '2026-08-31T07:00:00Z',
+      cancelled: false,
+      transientPatchFailure: false,
+    ),
+    (
+      zone: 'Tokyo Standard Time',
+      master: '2026-08-30',
+      original: '2026-08-31',
+      moved: '2026-09-02',
+      originalUtc: '2026-08-30T15:00:00Z',
+      cancelled: false,
+      transientPatchFailure: false,
+    ),
+    (
+      zone: 'Pacific Standard Time',
+      master: '2026-03-07',
+      original: '2026-03-08',
+      moved: '2026-03-10',
+      originalUtc: '2026-03-08T08:00:00Z',
+      cancelled: false,
+      transientPatchFailure: false,
+    ),
+    (
+      zone: 'Tokyo Standard Time',
+      master: '2026-08-30',
+      original: '2026-08-31',
+      moved: '2026-08-31',
+      originalUtc: '2026-08-30T15:00:00Z',
+      cancelled: true,
+      transientPatchFailure: false,
+    ),
+    (
+      zone: 'Pacific Standard Time',
+      master: '2026-08-30',
+      original: '2026-08-31',
+      moved: '2026-09-02',
+      originalUtc: '2026-08-31T07:00:00Z',
+      cancelled: false,
+      transientPatchFailure: true,
+    ),
+  ]) {
+    test(
+      'Microsoft all-day import ${scenario.cancelled ? 'cancellation' : 'move'} matches Graph UTC originalStart in ${scenario.zone} on ${scenario.original}${scenario.transientPatchFailure ? ' after retry' : ''}',
+      () async {
+        await database
+            .into(database.accounts)
+            .insert(
+              AccountsCompanion.insert(
+                id: 'microsoft-account',
+                provider: 'microsoft',
+                authority: 'https://login.microsoftonline.com',
+                providerAccountId: 'user',
+                credentialKind: 'oauth',
+                authState: const Value('signed_in'),
+                calendarsEnabled: const Value(true),
+                tasksEnabled: const Value(false),
+                grantedScopes: const Value('Calendars.ReadWrite'),
+                createdAtUtc: _now,
+                updatedAtUtc: _now,
+              ),
+            );
+        await database
+            .into(database.calendarSources)
+            .insert(
+              CalendarSourcesCompanion.insert(
+                id: 'microsoft-account|microsoft|calendar',
+                accountId: 'microsoft-account',
+                provider: 'microsoft',
+                providerCalendarId: 'calendar',
+                summary: 'Calendar',
+                accessRole: const Value('owner'),
+                timeZone: Value(scenario.zone),
+                createdAtLocal: 1,
+                updatedAtLocal: 1,
+              ),
+            );
+        final masterEnd = DateTime.parse(
+          scenario.master,
+        ).add(const Duration(days: 1)).toIso8601String().substring(0, 10);
+        final originalEnd = DateTime.parse(
+          scenario.original,
+        ).add(const Duration(days: 1)).toIso8601String().substring(0, 10);
+        final movedEnd = DateTime.parse(
+          scenario.moved,
+        ).add(const Duration(days: 1)).toIso8601String().substring(0, 10);
+        String basic(String date) => date.replaceAll('-', '');
+        final preview = importService.parsePreview(
+          utf8.encode(
+            _calendar('''
+BEGIN:VEVENT
+UID:all-day-ms
+DTSTART;VALUE=DATE:${basic(scenario.master)}
+DTEND;VALUE=DATE:${basic(masterEnd)}
+SUMMARY:Master
+RRULE:FREQ=DAILY;COUNT=2
+END:VEVENT
+BEGIN:VEVENT
+UID:all-day-ms
+RECURRENCE-ID;VALUE=DATE:${basic(scenario.original)}
+${scenario.cancelled ? 'STATUS:CANCELLED' : 'DTSTART;VALUE=DATE:${basic(scenario.moved)}\nDTEND;VALUE=DATE:${basic(movedEnd)}\nSUMMARY:Moved'}
+END:VEVENT
+'''),
+          ),
+        );
+        final destination = (await importService.writableDestinations())
+            .singleWhere((source) => source.accountId == 'microsoft-account');
+        expect(
+          (await importService.importPreview(
+            preview: preview,
+            destination: destination,
+          )).queued,
+          1,
+        );
+        final requests = <http.Request>[];
+        Map<String, Object?> event(String id, String start) => {
+          'id': id,
+          'subject': 'Master',
+          'isAllDay': true,
+          'start': {'dateTime': start, 'timeZone': scenario.zone},
+          'end': {
+            'dateTime': '${originalEnd}T00:00:00',
+            'timeZone': scenario.zone,
+          },
+        };
+        final client = MicrosoftCalendarApiClient(
+          httpClient: MockClient((request) async {
+            requests.add(request);
+            if (request.method == 'POST') {
+              return http.Response(
+                jsonEncode(event('master-ms', '${scenario.master}T00:00:00')),
+                201,
+              );
+            }
+            if (request.method == 'DELETE') {
+              return http.Response('', 204);
+            }
+            if (request.method == 'PATCH' &&
+                scenario.transientPatchFailure &&
+                requests.where((entry) => entry.method == 'PATCH').length ==
+                    1) {
+              return http.Response('temporary failure', 503);
+            }
+            if (request.url.path.endsWith('/instances')) {
+              return http.Response(
+                jsonEncode({
+                  'value': [
+                    {
+                      ...event(
+                        'occurrence-ms',
+                        '${scenario.original}T00:00:00',
+                      ),
+                      'seriesMasterId': 'master-ms',
+                      'originalStart': scenario.originalUtc,
+                      'occurrenceId': 'oid-ms',
+                    },
+                  ],
+                }),
+                200,
+              );
+            }
+            if (request.url.queryParameters.containsKey(r'$expand')) {
+              return http.Response(
+                jsonEncode({
+                  ...event('master-ms', '${scenario.master}T00:00:00'),
+                  'exceptionOccurrences': <Object>[],
+                  'cancelledOccurrences': <Object>[],
+                }),
+                200,
+              );
+            }
+            return http.Response(
+              jsonEncode({
+                ...event('occurrence-ms', '${scenario.moved}T00:00:00'),
+                'seriesMasterId': 'master-ms',
+                'originalStart': scenario.originalUtc,
+              }),
+              200,
+            );
+          }),
+          baseUri: Uri.parse('https://graph.microsoft.com/v1.0'),
+          responseTimeZone: 'UTC',
+        );
+        final replayer = CalendarPendingOpsReplayer(
+          database: database,
+          client: client,
+          accountId: 'microsoft-account',
+          nowUtc: () => DateTime.utc(2026, 8, 29),
+        );
+        await replayer.replayDueOps();
+        await replayer.replayDueOps();
+        if (scenario.transientPatchFailure) {
+          final pending = await database.select(database.pendingOps).get();
+          expect(pending, hasLength(1));
+          await database.pendingOpsDao.retryNow(
+            pending.single.id,
+            DateTime.utc(2026, 8, 29),
+          );
+        }
+        await replayer.replayDueOps();
+        expect(
+          requests.where((request) => request.method == 'PATCH'),
+          hasLength(
+            scenario.cancelled
+                ? 0
+                : scenario.transientPatchFailure
+                ? 2
+                : 1,
+          ),
+        );
+        expect(
+          requests.where((request) => request.method == 'DELETE'),
+          hasLength(scenario.cancelled ? 1 : 0),
+        );
+        expect(
+          requests.where((request) => request.method == 'POST'),
+          hasLength(1),
+        );
+        expect(await database.select(database.pendingOps).get(), isEmpty);
+      },
+    );
+  }
+
   test('Google import persists a cancelled occurrence identity', () async {
     final preview = importService.parsePreview(
       utf8.encode(
