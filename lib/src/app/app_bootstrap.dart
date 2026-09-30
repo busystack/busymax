@@ -36,6 +36,7 @@ import '../dav/nextcloud/nextcloud_trash_service.dart';
 import '../dav/nextcloud/nextcloud_scheduling_service.dart';
 import '../features/calendar/data/calendar_repository.dart';
 import '../features/calendar/data/microsoft_shared_calendar_service.dart';
+import '../features/schedule/presentation/attachment_upload_coordinator.dart';
 import '../features/sync/cloud_calendar_range_coverage_service.dart';
 import '../features/calendar/data/calendar_collection_creation_service.dart';
 import '../ical/ical_import_service.dart';
@@ -595,6 +596,11 @@ final microsoftTaskLinkedResourcesProvider =
       } while (nextLink != null);
       return List.unmodifiable(links);
     });
+
+final attachmentUploadCoordinatorProvider =
+    ChangeNotifierProvider<AttachmentUploadCoordinator>(
+      (ref) => AttachmentUploadCoordinator(),
+    );
 
 final microsoftEventAttachmentsProvider =
     FutureProvider.family<
