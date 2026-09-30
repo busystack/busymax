@@ -2102,6 +2102,11 @@ class CalendarPendingOpsReplayer {
       attendees: request['attendeesJson'],
       clearAttendees: clearFields.contains(calendarEventAttendeesField),
       colorId: request['colorId']?.toString(),
+      eventLabelId: request['eventLabelId']?.toString(),
+      eventType: request['eventType']?.toString(),
+      googleStatusProperties: request['googleStatusProperties'] is Map
+          ? Map<String, Object?>.from(request['googleStatusProperties'] as Map)
+          : null,
       visibility:
           request['visibility']?.toString() ??
           request['sensitivity']?.toString(),
