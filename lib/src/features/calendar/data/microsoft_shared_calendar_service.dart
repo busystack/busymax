@@ -41,7 +41,11 @@ final class MicrosoftSharedCalendarService {
     final source = await clientForAccount(
       accountId,
     ).getSharedPrimaryCalendar(owner);
-    await repository.upsertSource(accountId: accountId, source: source);
+    await repository.upsertSource(
+      accountId: accountId,
+      source: source,
+      reopenLocallyRemovedOwner: true,
+    );
     final sourceId = CalendarRepository.sourceId(
       accountId: accountId,
       provider: BusyProvider.microsoft,

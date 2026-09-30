@@ -197,6 +197,12 @@ class CalendarSourceCapabilities {
   factory CalendarSourceCapabilities.fromSource(CalendarSourceEntity source) {
     final available = !source.isDeleted;
     final writable = !source.readOnly && available;
+    final openedMicrosoftOwner =
+        source.provider == BusyProvider.microsoft &&
+        MicrosoftSharedPrimaryCalendarAddress.parse(
+              source.providerCalendarId,
+            ) !=
+            null;
     final management = calendarManagementCapabilities(source.provider);
     final dav = source.davEffectivePermissions;
     final davMetadataWritable = available && dav['canWriteProperties'] == true;
@@ -224,7 +230,8 @@ class CalendarSourceCapabilities {
         source.primaryCalendar || source.isCurrentGoogleDataOwner
             ? CalendarRenameMode.global
             : CalendarRenameMode.personal,
-      BusyProvider.microsoft when writable => CalendarRenameMode.global,
+      BusyProvider.microsoft when writable && !openedMicrosoftOwner =>
+        CalendarRenameMode.global,
       _ => CalendarRenameMode.unavailable,
     };
     final removalMode = switch (source.provider) {
@@ -235,6 +242,8 @@ class CalendarSourceCapabilities {
       BusyProvider.google || BusyProvider.microsoft
           when available && source.pendingCreate =>
         CalendarRemovalMode.delete,
+      BusyProvider.microsoft when available && openedMicrosoftOwner =>
+        CalendarRemovalMode.removeFromList,
       BusyProvider.google
           when available &&
               !source.primaryCalendar &&
@@ -277,7 +286,7 @@ class CalendarSourceCapabilities {
               ? davMetadataWritable
               : source.provider == BusyProvider.google
               ? available
-              : writable),
+              : writable && !openedMicrosoftOwner),
       canChangeProviderVisibility:
           source.provider == BusyProvider.google &&
           available &&
@@ -853,6 +862,12 @@ class CalendarRepository {
       return;
     }
     final removalMode = entity.capabilities.removalMode;
+    final openedMicrosoftOwner =
+        entity.provider == BusyProvider.microsoft &&
+        MicrosoftSharedPrimaryCalendarAddress.parse(
+              source.providerCalendarId,
+            ) !=
+            null;
     final createOp = await _pendingCalendarCreate(source.id);
     _requireCalendarSourceCapability(
       source,
@@ -909,9 +924,18 @@ class CalendarRepository {
         CalendarSourcesCompanion(
           isDeleted: const Value(true),
           hidden: const Value(true),
+          rawJson: openedMicrosoftOwner
+              ? Value(
+                  jsonEncode({
+                    ..._jsonMap(source.rawJson),
+                    '_busymaxLocallyRemovedOwnerCalendar': true,
+                  }),
+                )
+              : const Value.absent(),
           updatedAtLocal: Value(now.millisecondsSinceEpoch),
         ),
       );
+      if (openedMicrosoftOwner) return;
       await _database.pendingOpsDao.enqueue(
         PendingOpsCompanion.insert(
           id: const Uuid().v4(),
@@ -947,6 +971,7 @@ class CalendarRepository {
   Future<void> upsertSource({
     required String accountId,
     required CalendarSourceDto source,
+    bool reopenLocallyRemovedOwner = false,
   }) async {
     final now = _now().millisecondsSinceEpoch;
     final id = sourceId(
@@ -958,6 +983,17 @@ class CalendarRepository {
       final existing = await (_database.select(
         _database.calendarSources,
       )..where((row) => row.id.equals(id))).getSingleOrNull();
+      final locallyRemovedOwner =
+          source.provider == BusyProvider.microsoft &&
+          MicrosoftSharedPrimaryCalendarAddress.parse(
+                source.providerCalendarId,
+              ) !=
+              null &&
+          existing != null &&
+          existing.isDeleted &&
+          _jsonMap(existing.rawJson)['_busymaxLocallyRemovedOwnerCalendar'] ==
+              true;
+      if (locallyRemovedOwner && !reopenLocallyRemovedOwner) return;
       final pendingPatchFields = existing == null
           ? const <String>{}
           : await _pendingCalendarPatchFields(existing.id);
@@ -5380,6 +5416,10 @@ Map<String, Object?> _eventDeltaRequest(
   }
   if (provider == BusyProvider.google && draft.googleStatusChanged) {
     copy('googleStatusProperties');
+    if (!googleStatusEventTypes.contains(original.eventType)) {
+      throw StateError('The existing Google status event type is unavailable.');
+    }
+    result[calendarEventGoogleStatusTypeContextKey] = original.eventType;
   }
   if (draft.categoriesChanged) copy('categoriesJson');
   if (draft.visibilityOrSensitivity != original.visibility) {
@@ -5955,6 +5995,7 @@ bool _eventRequestHasMutation(Map<String, Object?> request) {
     calendarEventTimingBaselineKey,
     calendarEventDestinationCalendarIdKey,
     calendarEventDestinationSourceIdKey,
+    calendarEventGoogleStatusTypeContextKey,
   };
   return request.entries.any(
     (entry) =>
