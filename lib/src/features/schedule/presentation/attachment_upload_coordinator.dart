@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 
+import '../../../calendar_providers/attachment_upload_session.dart';
 import '../../../core/http/request_dispatch_exception.dart';
 import '../../../microsoft_calendar/microsoft_calendar_errors.dart';
 import '../../../microsoft_calendar/microsoft_calendar_api_client.dart';
@@ -26,15 +27,21 @@ class AttachmentUploadUnresolvedException implements Exception {
 }
 
 final class _UnresolvedUpload {
-  const _UnresolvedUpload({
+  _UnresolvedUpload({
     required this.name,
     required this.size,
     required this.beforeIds,
+    required this.contentType,
+    required this.bytes,
   });
 
   final String name;
   final int size;
   final Set<String> beforeIds;
+  final String contentType;
+  final List<int> bytes;
+  MicrosoftAttachmentUploadSession? session;
+  bool reviewed = false;
 }
 
 /// Item-scoped operation state survives closing and reopening a detail view.
@@ -43,16 +50,27 @@ final class _UnresolvedUpload {
 final class AttachmentUploadCoordinator extends ChangeNotifier {
   final _statuses = <AttachmentUploadKey, AttachmentUploadStatus>{};
   final _unresolved = <AttachmentUploadKey, _UnresolvedUpload>{};
+  final _confirmedAwaitingList = <AttachmentUploadKey, String>{};
 
   AttachmentUploadStatus status(AttachmentUploadKey key) =>
       _statuses[key] ?? AttachmentUploadStatus.ready;
 
   bool canSubmit(AttachmentUploadKey key) =>
       status(key) != AttachmentUploadStatus.submitting &&
-      _unresolved[key] == null;
+      _unresolved[key] == null &&
+      !_confirmedAwaitingList.containsKey(key);
 
   bool needsReconciliation(AttachmentUploadKey key) =>
-      _unresolved[key] != null &&
+      (_unresolved[key] != null || _confirmedAwaitingList.containsKey(key)) &&
+      status(key) != AttachmentUploadStatus.submitting;
+
+  bool hasResumableSession(AttachmentUploadKey key) =>
+      _unresolved[key]?.session != null;
+
+  String? confirmedId(AttachmentUploadKey key) => _confirmedAwaitingList[key];
+
+  bool canResolveManually(AttachmentUploadKey key) =>
+      _unresolved[key]?.reviewed == true &&
       status(key) != AttachmentUploadStatus.submitting;
 
   static AttachmentUploadKey eventKey(
@@ -89,6 +107,8 @@ final class AttachmentUploadCoordinator extends ChangeNotifier {
     key: eventKey(accountId, calendarId, eventId),
     name: name,
     size: bytes.length,
+    contentType: contentType,
+    bytes: bytes,
     list: () async => [
       for (final item in await client.listEventAttachments(
         calendarId: calendarId,
@@ -96,12 +116,13 @@ final class AttachmentUploadCoordinator extends ChangeNotifier {
       ))
         (id: item.id, name: item.name, size: item.size),
     ],
-    submit: () => client.uploadEventFileAttachment(
+    submit: (onSession) => client.uploadEventFileAttachment(
       calendarId: calendarId,
       eventId: eventId,
       name: name,
       contentType: contentType,
       bytes: bytes,
+      onSession: onSession,
     ),
   );
 
@@ -110,7 +131,7 @@ final class AttachmentUploadCoordinator extends ChangeNotifier {
     required String accountId,
     required String calendarId,
     required String eventId,
-  }) => reconcile(
+  }) => _reconcile(
     key: eventKey(accountId, calendarId, eventId),
     list: () async => [
       for (final item in await client.listEventAttachments(
@@ -119,6 +140,24 @@ final class AttachmentUploadCoordinator extends ChangeNotifier {
       ))
         (id: item.id, name: item.name, size: item.size),
     ],
+    resume: (attempt) => client.uploadEventFileAttachment(
+      calendarId: calendarId,
+      eventId: eventId,
+      name: attempt.name,
+      contentType: attempt.contentType,
+      bytes: attempt.bytes,
+      resumeSession: attempt.session,
+    ),
+  );
+
+  Future<void> cancelEvent({
+    required MicrosoftCalendarApiClient client,
+    required String accountId,
+    required String calendarId,
+    required String eventId,
+  }) => cancelSession(
+    key: eventKey(accountId, calendarId, eventId),
+    cancel: client.cancelEventAttachmentUpload,
   );
 
   Future<List<AttachmentUploadRemoteItem>> _taskItems(
@@ -159,13 +198,16 @@ final class AttachmentUploadCoordinator extends ChangeNotifier {
     key: taskKey(accountId, taskListId, taskId),
     name: name,
     size: bytes.length,
+    contentType: contentType,
+    bytes: bytes,
     list: () => _taskItems(client, taskListId, taskId),
-    submit: () => client.uploadTaskFileAttachment(
+    submit: (onSession) => client.uploadTaskFileAttachment(
       taskListId: taskListId,
       taskId: taskId,
       name: name,
       contentType: contentType,
       bytes: bytes,
+      onSession: onSession,
     ),
   );
 
@@ -174,9 +216,27 @@ final class AttachmentUploadCoordinator extends ChangeNotifier {
     required String accountId,
     required String taskListId,
     required String taskId,
-  }) => reconcile(
+  }) => _reconcile(
     key: taskKey(accountId, taskListId, taskId),
     list: () => _taskItems(client, taskListId, taskId),
+    resume: (attempt) => client.uploadTaskFileAttachment(
+      taskListId: taskListId,
+      taskId: taskId,
+      name: attempt.name,
+      contentType: attempt.contentType,
+      bytes: attempt.bytes,
+      resumeSession: attempt.session,
+    ),
+  );
+
+  Future<void> cancelTask({
+    required MicrosoftTodoAttachmentsApiClient client,
+    required String accountId,
+    required String taskListId,
+    required String taskId,
+  }) => cancelSession(
+    key: taskKey(accountId, taskListId, taskId),
+    cancel: client.cancelTaskAttachmentUpload,
   );
 
   void _set(AttachmentUploadKey key, AttachmentUploadStatus value) {
@@ -188,8 +248,13 @@ final class AttachmentUploadCoordinator extends ChangeNotifier {
     required AttachmentUploadKey key,
     required String name,
     required int size,
+    required String contentType,
+    required List<int> bytes,
     required Future<List<AttachmentUploadRemoteItem>> Function() list,
-    required Future<void> Function() submit,
+    required Future<String> Function(
+      void Function(MicrosoftAttachmentUploadSession),
+    )
+    submit,
   }) async {
     if (!canSubmit(key)) throw const AttachmentUploadUnresolvedException();
     _set(key, AttachmentUploadStatus.submitting);
@@ -203,64 +268,123 @@ final class AttachmentUploadCoordinator extends ChangeNotifier {
       _set(key, AttachmentUploadStatus.ready);
       rethrow;
     }
+    final attempt = _UnresolvedUpload(
+      name: name,
+      size: size,
+      beforeIds: beforeIds,
+      contentType: contentType,
+      bytes: bytes,
+    );
     try {
-      await submit();
-      _unresolved[key] = _UnresolvedUpload(
-        name: name,
-        size: size,
-        beforeIds: beforeIds,
-      );
-      _set(key, AttachmentUploadStatus.committed);
-      try {
-        await reconcile(key: key, list: list);
-      } on Object {
-        // The write is confirmed. Keep it committed and block a repeat until
-        // an authoritative list identifies the new attachment.
-      }
+      final id = await submit((session) {
+        attempt.session = session;
+        _unresolved[key] = attempt;
+      });
+      _confirm(key, id);
+      await _refreshConfirmed(key, list);
       return;
     } on Object catch (error) {
-      if (_confirmedNotCommitted(error)) {
+      if (attempt.session == null && _confirmedNotCommitted(error)) {
         _unresolved.remove(key);
         _set(key, AttachmentUploadStatus.ready);
         rethrow;
       }
-      _unresolved[key] = _UnresolvedUpload(
-        name: name,
-        size: size,
-        beforeIds: beforeIds,
-      );
+      _unresolved[key] = attempt;
       _set(key, AttachmentUploadStatus.unresolved);
-      try {
-        await reconcile(key: key, list: list);
-      } on Object {
-        // Keep the unresolved state when authoritative retrieval fails.
-      }
-      if (status(key) == AttachmentUploadStatus.committed) return;
       throw const AttachmentUploadUnresolvedException();
     }
   }
 
-  Future<AttachmentUploadStatus> reconcile({
+  void _confirm(AttachmentUploadKey key, String id) {
+    if (id.isEmpty) throw const MicrosoftAttachmentUploadUncertain();
+    _unresolved.remove(key);
+    _confirmedAwaitingList[key] = id;
+    _set(key, AttachmentUploadStatus.committed);
+  }
+
+  Future<void> _refreshConfirmed(
+    AttachmentUploadKey key,
+    Future<List<AttachmentUploadRemoteItem>> Function() list,
+  ) async {
+    final id = _confirmedAwaitingList[key];
+    if (id == null) return;
+    try {
+      if ((await list()).any((item) => item.id == id)) {
+        _confirmedAwaitingList.remove(key);
+        notifyListeners();
+      }
+    } on Object {
+      // The attachment ID proves the write; a failed list is only a pending
+      // presentation refresh, never a reason to resubmit the payload.
+    }
+  }
+
+  Future<AttachmentUploadStatus> _reconcile({
     required AttachmentUploadKey key,
     required Future<List<AttachmentUploadRemoteItem>> Function() list,
+    required Future<String> Function(_UnresolvedUpload) resume,
   }) async {
     final attempt = _unresolved[key];
-    if (attempt == null) return status(key);
-    final items = await list();
-    final matching = items
-        .where(
-          (item) =>
-              item.id.isNotEmpty &&
-              !attempt.beforeIds.contains(item.id) &&
-              item.name == attempt.name &&
-              item.size == attempt.size,
-        )
-        .toList();
-    if (matching.length == 1) {
-      _unresolved.remove(key);
-      _set(key, AttachmentUploadStatus.committed);
+    if (attempt == null) {
+      await _refreshConfirmed(key, list);
+      return status(key);
     }
+    if (attempt.session != null) {
+      _set(key, AttachmentUploadStatus.submitting);
+      try {
+        final id = await resume(attempt);
+        _confirm(key, id);
+        await _refreshConfirmed(key, list);
+        return status(key);
+      } on Object {
+        attempt.reviewed = true;
+        _set(key, AttachmentUploadStatus.unresolved);
+        throw const AttachmentUploadUnresolvedException();
+      }
+    }
+    // A same-name, same-size attachment from another client is not evidence
+    // that this attempt committed. Listing is still useful for the user to
+    // inspect, but only the response ID can automatically confirm it.
+    await list();
+    attempt.reviewed = true;
     return status(key);
+  }
+
+  Future<void> cancelSession({
+    required AttachmentUploadKey key,
+    required Future<void> Function(MicrosoftAttachmentUploadSession) cancel,
+  }) async {
+    final attempt = _unresolved[key];
+    final session = attempt?.session;
+    if (session == null || status(key) == AttachmentUploadStatus.submitting) {
+      throw const AttachmentUploadUnresolvedException();
+    }
+    _set(key, AttachmentUploadStatus.submitting);
+    try {
+      await cancel(session);
+      _unresolved.remove(key);
+      _set(key, AttachmentUploadStatus.ready);
+    } on Object {
+      _set(key, AttachmentUploadStatus.unresolved);
+      throw const AttachmentUploadUnresolvedException();
+    }
+  }
+
+  /// The user has independently verified the outcome in the provider. This
+  /// must only be invoked behind an explicit confirmation in native UI.
+  void resolveUncertainManually(
+    AttachmentUploadKey key, {
+    required bool exists,
+  }) {
+    if (_unresolved[key]?.reviewed != true ||
+        status(key) == AttachmentUploadStatus.submitting) {
+      throw const AttachmentUploadUnresolvedException();
+    }
+    _unresolved.remove(key);
+    _set(
+      key,
+      exists ? AttachmentUploadStatus.committed : AttachmentUploadStatus.ready,
+    );
   }
 
   bool _confirmedNotCommitted(Object error) {

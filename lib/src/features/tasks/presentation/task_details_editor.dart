@@ -395,12 +395,71 @@ class _TaskDetailsEditorState extends State<TaskDetailsEditor> {
                                     _editingTask.id,
                                   ),
                                 )) ...[
-                              Text(l10n.attachmentUploadUnresolved),
+                              Text(
+                                ref
+                                            .watch(
+                                              attachmentUploadCoordinatorProvider,
+                                            )
+                                            .confirmedId(
+                                              AttachmentUploadCoordinator.taskKey(
+                                                _editingTask.accountId,
+                                                _editingTask.taskListId,
+                                                _editingTask.id,
+                                              ),
+                                            ) ==
+                                        null
+                                    ? l10n.attachmentUploadUnresolved
+                                    : l10n.completed,
+                              ),
                               BusyMaxPushButton.standard(
                                 onPressed: () =>
                                     unawaited(_reconcileTaskUpload(ref)),
                                 child: Text(l10n.refresh),
                               ),
+                              if (ref
+                                  .watch(attachmentUploadCoordinatorProvider)
+                                  .hasResumableSession(
+                                    AttachmentUploadCoordinator.taskKey(
+                                      _editingTask.accountId,
+                                      _editingTask.taskListId,
+                                      _editingTask.id,
+                                    ),
+                                  ))
+                                BusyMaxPushButton.standard(
+                                  onPressed: _attachmentBusy
+                                      ? null
+                                      : () => unawaited(_cancelTaskUpload(ref)),
+                                  child: Text(l10n.cancel),
+                                ),
+                              if (ref
+                                  .watch(attachmentUploadCoordinatorProvider)
+                                  .canResolveManually(
+                                    AttachmentUploadCoordinator.taskKey(
+                                      _editingTask.accountId,
+                                      _editingTask.taskListId,
+                                      _editingTask.id,
+                                    ),
+                                  )) ...[
+                                BusyMaxPushButton.standard(
+                                  onPressed: _attachmentBusy
+                                      ? null
+                                      : () => unawaited(
+                                          _resolveTaskUpload(ref, exists: true),
+                                        ),
+                                  child: Text(l10n.completed),
+                                ),
+                                BusyMaxPushButton.standard(
+                                  onPressed: _attachmentBusy
+                                      ? null
+                                      : () => unawaited(
+                                          _resolveTaskUpload(
+                                            ref,
+                                            exists: false,
+                                          ),
+                                        ),
+                                  child: Text(l10n.retry),
+                                ),
+                              ],
                             ],
                             if (_attachmentsFuture case final future?)
                               FutureBuilder<List<MicrosoftTodoAttachmentDto>>(
@@ -1552,6 +1611,51 @@ class _TaskDetailsEditorState extends State<TaskDetailsEditor> {
     }
   }
 
+  Future<void> _cancelTaskUpload(WidgetRef ref) async {
+    setState(() => _attachmentBusy = true);
+    try {
+      final client = ref.read(
+        microsoftTodoApiClientForAccountProvider(_editingTask.accountId),
+      );
+      if (client is! MicrosoftTodoAttachmentsApiClient) return;
+      await ref
+          .read(attachmentUploadCoordinatorProvider)
+          .cancelTask(
+            client: client as MicrosoftTodoAttachmentsApiClient,
+            accountId: _editingTask.accountId,
+            taskListId: _editingTask.taskListId,
+            taskId: _editingTask.id,
+          );
+      _reloadTaskAttachments(ref);
+    } on Object catch (error) {
+      _showAttachmentError(error);
+    } finally {
+      if (mounted) setState(() => _attachmentBusy = false);
+    }
+  }
+
+  Future<void> _resolveTaskUpload(WidgetRef ref, {required bool exists}) async {
+    final l10n = context.l10n;
+    final confirmed = await showBusyMaxConfirm(
+      context,
+      title: exists ? l10n.completed : l10n.retry,
+      message: l10n.attachmentUploadUnresolved,
+      confirmLabel: exists ? l10n.completed : l10n.retry,
+    );
+    if (confirmed != true || !mounted) return;
+    ref
+        .read(attachmentUploadCoordinatorProvider)
+        .resolveUncertainManually(
+          AttachmentUploadCoordinator.taskKey(
+            _editingTask.accountId,
+            _editingTask.taskListId,
+            _editingTask.id,
+          ),
+          exists: exists,
+        );
+    _reloadTaskAttachments(ref);
+  }
+
   Future<void> _deleteTaskAttachment(
     WidgetRef ref,
     MicrosoftTodoAttachmentDto attachment,
@@ -1589,12 +1693,11 @@ class _TaskDetailsEditorState extends State<TaskDetailsEditor> {
       taskId: _editingTask.id,
     );
     ref.invalidate(microsoftTaskAttachmentsProvider(key));
+    final future = ref.read(microsoftTaskAttachmentsProvider(key).future);
     if (mounted) {
-      setState(
-        () => _attachmentsFuture = ref.read(
-          microsoftTaskAttachmentsProvider(key).future,
-        ),
-      );
+      setState(() {
+        _attachmentsFuture = future;
+      });
     }
   }
 

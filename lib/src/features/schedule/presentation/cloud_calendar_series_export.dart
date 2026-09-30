@@ -7,6 +7,8 @@ import '../../../providers/busy_provider.dart';
 import '../../recurrence/domain/event_recurrence_codec.dart';
 import 'package:timezone/timezone.dart' as tz;
 
+import 'tz_continuations_2025c.dart';
+
 /// Only offer a series backup when the authoritative resource can be read.
 /// WebCal projections and unsynced cloud creates can still export an
 /// occurrence, but must not be presented as complete series exports.
@@ -506,10 +508,10 @@ String? _microsoftSeriesZone(CalendarEventDto master) {
 String _seriesWallValue(String? value, String? sourceZone, String? targetZone) {
   if (value == null) throw const FormatException('Series time is missing.');
   if (targetZone == null || !value.contains('T')) return value;
-  final instant = providerDateTimeAsUtcInstant(value, sourceZone);
+  final instant = _exportInstant(value, sourceZone);
   if (instant == null) throw const FormatException('Invalid series time.');
   return providerWallTimeIso8601String(
-    providerInstantInTimeZone(instant, targetZone),
+    _exportWallFromInstant(instant, targetZone),
   );
 }
 
@@ -535,7 +537,76 @@ String _microsoftTimedUntil(
   if (wall.year != year || wall.month != month || wall.day != day) {
     throw const FormatException('Invalid Microsoft recurrence end date.');
   }
-  return _utc(providerWallTimeToInstant(wall, zone));
+  return _utc(_exportInstantFromWall(wall, zone));
+}
+
+DateTime? _exportInstant(String? value, String? zone) {
+  if (value == null ||
+      zone == null ||
+      !value.contains('T') ||
+      RegExp(r'(?:[zZ]|[+-]\d{2}(?::?\d{2})?)$').hasMatch(value)) {
+    return providerDateTimeAsUtcInstant(value, zone);
+  }
+  final wall = providerDateTimeAsWallTime(value, zone);
+  return wall == null ? null : _exportInstantFromWall(wall, zone);
+}
+
+DateTime _exportWallFromInstant(DateTime instant, String zone) {
+  zone = windowsToIanaTimeZones[zone] ?? zone;
+  providerInstantInTimeZone(DateTime.utc(2026), zone);
+  final location = tz.getLocation(zone);
+  final last = location.transitionAt.lastOrNull;
+  if (last == null || instant.millisecondsSinceEpoch <= last) {
+    return providerInstantInTimeZone(instant, zone);
+  }
+  final offset = _PosixContinuation.parse(zone).zoneAt(instant).offset;
+  return DateTime.fromMillisecondsSinceEpoch(
+    instant.millisecondsSinceEpoch + offset.inMilliseconds,
+    isUtc: true,
+  );
+}
+
+DateTime _exportInstantFromWall(DateTime wall, String zone) {
+  zone = windowsToIanaTimeZones[zone] ?? zone;
+  providerInstantInTimeZone(DateTime.utc(2026), zone);
+  final location = tz.getLocation(zone);
+  final last = location.transitionAt.lastOrNull;
+  if (last == null ||
+      wall.year <=
+          DateTime.fromMillisecondsSinceEpoch(last, isUtc: true).year) {
+    return providerWallTimeToInstant(wall, zone);
+  }
+  final continuation = _PosixContinuation.parse(zone);
+  final civil = DateTime.utc(
+    wall.year,
+    wall.month,
+    wall.day,
+    wall.hour,
+    wall.minute,
+    wall.second,
+    wall.millisecond,
+    wall.microsecond,
+  );
+  final possible =
+      [
+          continuation.standard,
+          if (continuation.daylight case final daylight?) daylight,
+        ].map((candidate) => civil.subtract(candidate.offset)).where((instant) {
+          final resolved = _exportWallFromInstant(instant, zone);
+          return resolved.year == wall.year &&
+              resolved.month == wall.month &&
+              resolved.day == wall.day &&
+              resolved.hour == wall.hour &&
+              resolved.minute == wall.minute &&
+              resolved.second == wall.second;
+        }).toList()
+        ..sort();
+  if (possible.isEmpty) {
+    throw FormatException(
+      'Timezone $zone cannot resolve the recurrence wall time.',
+    );
+  }
+  return possible.first;
 }
 
 String _offset(Duration value) {
@@ -551,13 +622,18 @@ List<String> _vtimezoneLines(String zone, CalendarEventDto master) {
   final start = master.allDay ? master.startDate : master.startDateTime;
   final firstYear = (DateTime.tryParse(start ?? '')?.year ?? 2026) - 1;
   final firstInstant = DateTime.utc(firstYear, 1, 1);
-  final initial = location.timeZone(firstInstant.millisecondsSinceEpoch);
+  final initial =
+      location.transitionAt.isNotEmpty &&
+          firstInstant.millisecondsSinceEpoch > location.transitionAt.last
+      ? _PosixContinuation.parse(zone).zoneAt(firstInstant)
+      : location.timeZone(firstInstant.millisecondsSinceEpoch);
   final lines = <String>['BEGIN:VTIMEZONE', 'TZID:$zone'];
   void observance(
     tz.TimeZone from,
     tz.TimeZone to,
     DateTime wall, {
     String? rule,
+    List<DateTime> extraDates = const [],
   }) {
     lines.addAll([
       'BEGIN:${to.isDst ? 'DAYLIGHT' : 'STANDARD'}',
@@ -566,12 +642,14 @@ List<String> _vtimezoneLines(String zone, CalendarEventDto master) {
       'TZOFFSETTO:${_offset(to.offset)}',
       'TZNAME:${_text(to.abbreviation)}',
       if (rule != null) 'RRULE:$rule',
+      for (var i = 0; i < extraDates.length; i += 3)
+        'RDATE:${extraDates.skip(i).take(3).map(_wall).join(',')}',
       'END:${to.isDst ? 'DAYLIGHT' : 'STANDARD'}',
     ]);
   }
 
   observance(initial, initial, firstInstant.add(initial.offset));
-  final transitions = <({DateTime wall, tz.TimeZone from, tz.TimeZone to})>[];
+  DateTime? lastTransition;
   for (var i = 0; i < location.transitionAt.length; i++) {
     final at = DateTime.fromMillisecondsSinceEpoch(
       location.transitionAt[i],
@@ -580,57 +658,39 @@ List<String> _vtimezoneLines(String zone, CalendarEventDto master) {
     if (at.year < firstYear || at.year > 9998) continue;
     final from = location.timeZone(at.millisecondsSinceEpoch - 1);
     final to = location.zones[location.transitionZone[i]];
+    lastTransition = at;
     if (from.offset == to.offset) continue;
     final wall = at.add(from.offset);
-    transitions.add((wall: wall, from: from, to: to));
     observance(from, to, wall);
   }
-  // tzdata records finite transitions. Only open-ended series (or a finite
-  // series extending beyond the supplied transition table) need an inferred
-  // future observance. A bounded series can use its exact transitions.
-  final recurrence = master.recurrenceJson;
-  final range = recurrence is Map ? recurrence['range'] : null;
-  final microsoftNoEnd = range is Map && range['type'] == 'noEnd';
-  final googleNoEnd =
-      recurrence is List &&
-      recurrence.whereType<String>().any(
-        (line) =>
-            line.startsWith('RRULE:') &&
-            !line.contains('COUNT=') &&
-            !line.contains('UNTIL='),
-      );
-  final needsFuture = microsoftNoEnd || googleNoEnd;
-  if (needsFuture &&
-      transitions.isNotEmpty &&
-      transitions
-          .where((entry) => entry.wall.year >= firstYear)
-          .any((entry) => entry.to.isDst)) {
-    for (final isDst in const [false, true]) {
-      final matching = transitions
-          .where((entry) => entry.to.isDst == isDst)
-          .toList();
-      if (matching.length < 3) {
-        throw FormatException('Timezone $zone has no safe future observance.');
-      }
-      final last = matching.sublist(matching.length - 3);
-      final descriptor = last
-          .map((entry) => _transitionDescriptor(entry.wall))
-          .toSet();
-      if (descriptor.length != 1 ||
-          last[0].wall.year + 1 != last[1].wall.year ||
-          last[1].wall.year + 1 != last[2].wall.year ||
-          last
-                  .map((entry) => '${entry.from.offset}/${entry.to.offset}')
-                  .toSet()
-                  .length !=
-              1) {
-        throw FormatException('Timezone $zone has no safe future observance.');
-      }
+  // The compiled timezone TZF stops at its last explicit transition. Its
+  // matching IANA TZif footer is the authoritative rule beyond that point;
+  // historical patterns cannot distinguish discontinued DST from truncation.
+  final continuation = _PosixContinuation.parse(zone);
+  final lastAt = lastTransition ?? DateTime.utc(firstYear - 1);
+  final current = location.timeZone(lastAt.millisecondsSinceEpoch + 1);
+  final next = continuation.transitionsAfter(lastAt);
+  if (next.isNotEmpty && current.offset != next.first.from.offset) {
+    throw FormatException('Timezone $zone continuation does not match tzdata.');
+  }
+  for (final group in [
+    next.where((entry) => entry.to.isDst).toList(),
+    next.where((entry) => !entry.to.isDst).toList(),
+  ]) {
+    if (group.isEmpty) continue;
+    final first = group.first;
+    final rule = first.rule.icalRule;
+    if (rule != null) {
+      observance(first.from, first.to, first.wall, rule: rule);
+    } else {
+      // POSIX permits transition clocks outside 00:00–23:59 and Julian
+      // day rules. Enumerating those exact dates through iCalendar's final
+      // representable year avoids fabricating an inexact yearly RRULE.
       observance(
-        last.last.from,
-        last.last.to,
-        last.last.wall,
-        rule: 'FREQ=YEARLY;${descriptor.single}',
+        first.from,
+        first.to,
+        first.wall,
+        extraDates: [for (final entry in group.skip(1)) entry.wall],
       );
     }
   }
@@ -638,20 +698,202 @@ List<String> _vtimezoneLines(String zone, CalendarEventDto master) {
   return lines;
 }
 
-String _transitionDescriptor(DateTime wall) {
-  final monthEnd = DateTime.utc(wall.year, wall.month + 1, 0).day;
-  final ordinal = wall.day + 7 > monthEnd ? -1 : (wall.day - 1) ~/ 7 + 1;
-  final weekday = const [
-    'MO',
-    'TU',
-    'WE',
-    'TH',
-    'FR',
-    'SA',
-    'SU',
-  ][wall.weekday - 1];
-  return 'BYMONTH=${wall.month};BYDAY=$ordinal$weekday'
-      ';BYHOUR=${wall.hour};BYMINUTE=${wall.minute};BYSECOND=${wall.second}';
+typedef _FutureTransition = ({
+  DateTime at,
+  DateTime wall,
+  tz.TimeZone from,
+  tz.TimeZone to,
+  _PosixDateRule rule,
+});
+
+final class _PosixContinuation {
+  const _PosixContinuation(this.standard, this.daylight, this.start, this.end);
+
+  factory _PosixContinuation.parse(String zone) {
+    final source = tzContinuations2025c[zone];
+    if (source == null) {
+      throw FormatException('No IANA continuation for $zone.');
+    }
+    final match = RegExp(
+      r'^(<[^>]+>|[A-Za-z]{3,})([+-]?\d+(?::\d{1,2}){0,2})'
+      r'(?:(<[^>]+>|[A-Za-z]{3,})([+-]?\d+(?::\d{1,2}){0,2})?)?'
+      r'(?:,([^,]+),([^,]+))?$',
+    ).firstMatch(source);
+    if (match == null) {
+      throw FormatException('Invalid IANA continuation for $zone.');
+    }
+    String name(String raw) =>
+        raw.startsWith('<') ? raw.substring(1, raw.length - 1) : raw;
+    final standardOffset = -_posixSeconds(match.group(2)!);
+    final standard = tz.TimeZone(
+      Duration(seconds: standardOffset),
+      isDst: false,
+      abbreviation: name(match.group(1)!),
+    );
+    if (match.group(3) == null) {
+      return _PosixContinuation(standard, null, null, null);
+    }
+    if (match.group(5) == null || match.group(6) == null) {
+      throw FormatException('Incomplete IANA continuation for $zone.');
+    }
+    final daylight = tz.TimeZone(
+      Duration(
+        seconds: match.group(4) == null
+            ? standardOffset + 3600
+            : -_posixSeconds(match.group(4)!),
+      ),
+      isDst: true,
+      abbreviation: name(match.group(3)!),
+    );
+    return _PosixContinuation(
+      standard,
+      daylight,
+      _PosixDateRule.parse(match.group(5)!),
+      _PosixDateRule.parse(match.group(6)!),
+    );
+  }
+
+  final tz.TimeZone standard;
+  final tz.TimeZone? daylight;
+  final _PosixDateRule? start;
+  final _PosixDateRule? end;
+
+  tz.TimeZone zoneAt(DateTime instant) {
+    if (daylight == null) return standard;
+    final transitions = <_FutureTransition>[];
+    for (var year = instant.year - 1; year <= instant.year + 1; year++) {
+      if (year < 1 || year > 9999) continue;
+      for (final pair in [
+        (start!, standard, daylight!),
+        (end!, daylight!, standard),
+      ]) {
+        final (rule, from, to) = pair;
+        final wall = rule.wall(year);
+        transitions.add((
+          at: wall.subtract(from.offset),
+          wall: wall,
+          from: from,
+          to: to,
+          rule: rule,
+        ));
+      }
+    }
+    transitions.sort((a, b) => a.at.compareTo(b.at));
+    tz.TimeZone current = standard;
+    for (final transition in transitions) {
+      if (transition.at.isAfter(instant)) break;
+      current = transition.to;
+    }
+    return current;
+  }
+
+  List<_FutureTransition> transitionsAfter(DateTime lastAt) {
+    if (daylight == null) return const [];
+    final result = <_FutureTransition>[];
+    for (var year = lastAt.year; year <= 9999; year++) {
+      for (final pair in [
+        (start!, standard, daylight!),
+        (end!, daylight!, standard),
+      ]) {
+        final (rule, from, to) = pair;
+        final wall = rule.wall(year);
+        if (wall.year > 9999) continue;
+        final at = wall.subtract(from.offset);
+        if (!at.isAfter(lastAt)) continue;
+        result.add((at: at, wall: wall, from: from, to: to, rule: rule));
+      }
+    }
+    result.sort((a, b) => a.at.compareTo(b.at));
+    return result;
+  }
+}
+
+int _posixSeconds(String source) {
+  final sign = source.startsWith('-') ? -1 : 1;
+  final parts = source
+      .replaceFirst(RegExp(r'^[+-]'), '')
+      .split(':')
+      .map(int.parse)
+      .toList();
+  if (parts.length > 3 || parts.skip(1).any((value) => value > 59)) {
+    throw const FormatException('Invalid POSIX timezone offset.');
+  }
+  return sign *
+      (parts[0] * 3600 +
+          (parts.length > 1 ? parts[1] * 60 : 0) +
+          (parts.length > 2 ? parts[2] : 0));
+}
+
+final class _PosixDateRule {
+  const _PosixDateRule(this.date, this.seconds);
+
+  factory _PosixDateRule.parse(String value) {
+    final parts = value.split('/');
+    if (parts.length > 2) {
+      throw const FormatException('Invalid POSIX transition.');
+    }
+    return _PosixDateRule(
+      parts[0],
+      parts.length == 2 ? _posixSeconds(parts[1]) : 7200,
+    );
+  }
+
+  final String date;
+  final int seconds;
+
+  DateTime wall(int year) {
+    final monthRule = RegExp(r'^M(\d{1,2})\.(\d)\.(\d)$').firstMatch(date);
+    DateTime day;
+    if (monthRule != null) {
+      final month = int.parse(monthRule.group(1)!);
+      final week = int.parse(monthRule.group(2)!);
+      final weekday = int.parse(monthRule.group(3)!);
+      if (month < 1 || month > 12 || week < 1 || week > 5 || weekday > 6) {
+        throw const FormatException('Invalid POSIX month rule.');
+      }
+      final first = DateTime.utc(year, month, 1);
+      var d = 1 + (weekday - first.weekday % 7 + 7) % 7 + (week - 1) * 7;
+      if (week == 5 && d > DateTime.utc(year, month + 1, 0).day) d -= 7;
+      day = DateTime.utc(year, month, d);
+    } else if (date.startsWith('J')) {
+      final n = int.parse(date.substring(1));
+      if (n < 1 || n > 365) {
+        throw const FormatException('Invalid POSIX Julian rule.');
+      }
+      final leap =
+          DateTime.utc(
+            year,
+            3,
+            1,
+          ).difference(DateTime.utc(year, 1, 1)).inDays ==
+          60;
+      day = DateTime.utc(year, 1, 1 + n - 1 + (leap && n >= 60 ? 1 : 0));
+    } else {
+      final n = int.parse(date);
+      if (n < 0 || n > 365) {
+        throw const FormatException('Invalid POSIX day rule.');
+      }
+      day = DateTime.utc(year, 1, 1 + n);
+    }
+    return day.add(Duration(seconds: seconds));
+  }
+
+  String? get icalRule {
+    final match = RegExp(r'^M(\d{1,2})\.(\d)\.(\d)$').firstMatch(date);
+    if (match == null || seconds < 0 || seconds >= 86400) return null;
+    final week = int.parse(match.group(2)!);
+    final weekday = const [
+      'SU',
+      'MO',
+      'TU',
+      'WE',
+      'TH',
+      'FR',
+      'SA',
+    ][int.parse(match.group(3)!)];
+    return 'FREQ=YEARLY;BYMONTH=${match.group(1)};BYDAY=${week == 5 ? -1 : week}$weekday'
+        ';BYHOUR=${seconds ~/ 3600};BYMINUTE=${seconds ~/ 60 % 60};BYSECOND=${seconds % 60}';
+  }
 }
 
 String _dateLine(
@@ -663,10 +905,7 @@ String _dateLine(
 }) {
   if (allDay) {
     final localized = targetZone != null && value.contains('T')
-        ? providerInstantInTimeZone(
-            providerDateTimeAsUtcInstant(value, zone)!,
-            targetZone,
-          )
+        ? _exportWallFromInstant(_exportInstant(value, zone)!, targetZone)
         : null;
     final date =
         localized ??
@@ -696,7 +935,7 @@ String _dateLine(
       'A floating provider time cannot be exported safely.',
     );
   }
-  final instant = providerDateTimeAsUtcInstant(effectiveValue, effectiveZone);
+  final instant = _exportInstant(effectiveValue, effectiveZone);
   if (instant == null) throw const FormatException('Unknown event timezone.');
   return '$key:${_utc(instant)}';
 }
