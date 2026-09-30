@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:busymax/src/calendar_providers/calendar_mutation.dart';
 import 'package:busymax/src/calendar_providers/calendar_sync_dto.dart';
 import 'package:busymax/src/microsoft_calendar/microsoft_calendar_api_client.dart';
+import 'package:busymax/src/microsoft_calendar/microsoft_calendar_models.dart';
 import 'package:busymax/src/microsoft_calendar/microsoft_event_attachment.dart';
 import 'package:busymax/src/microsoft_calendar/microsoft_shared_calendar_address.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -10,6 +11,140 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 
 void main() {
+  test(
+    'primary calendar permissions paginate and enforce allowed roles',
+    () async {
+      final requests = <http.Request>[];
+      final client = _client((request) {
+        requests.add(request);
+        if (request.method == 'GET') {
+          return _json({
+            'value': [
+              {
+                'id': 'grant',
+                'role': 'read',
+                'allowedRoles': ['read', 'write'],
+                'isRemovable': true,
+                'emailAddress': {'address': 'alex@example.test'},
+              },
+            ],
+            if (request.url.queryParameters[r'$skiptoken'] == null)
+              '@odata.nextLink':
+                  'https://graph.microsoft.com/v1.0/me/calendar/calendarPermissions?%24skiptoken=next',
+          });
+        }
+        if (request.method == 'DELETE') return http.Response('', 204);
+        return _json({
+          'id': 'grant',
+          'role': request.method == 'POST'
+              ? 'read'
+              : jsonDecode(request.body)['role'],
+          'allowedRoles': ['read', 'write'],
+          'isRemovable': true,
+          'emailAddress': {'address': 'alex@example.test'},
+        });
+      });
+      final grants = await client.listPrimaryCalendarPermissions();
+      expect(grants, hasLength(2));
+      expect(requests.last.url.queryParameters[r'$skiptoken'], 'next');
+      final created = await client.addPrimaryCalendarPermission(
+        email: 'alex@example.test',
+        role: 'read',
+      );
+      expect(created.address, 'alex@example.test');
+      expect(jsonDecode(requests.last.body), {
+        'emailAddress': {'address': 'alex@example.test'},
+        'role': 'read',
+      });
+      await client.changePrimaryCalendarPermission(grants.first, 'write');
+      expect(requests.last.method, 'PATCH');
+      await expectLater(
+        client.changePrimaryCalendarPermission(
+          grants.first,
+          'delegateWithPrivateEventAccess',
+        ),
+        throwsArgumentError,
+      );
+      await client.revokePrimaryCalendarPermission(grants.first);
+      expect(requests.last.method, 'DELETE');
+      const nonRemovable = MicrosoftCalendarPermission(
+        id: 'default',
+        role: 'freeBusyRead',
+        allowedRoles: ['read'],
+        isRemovable: false,
+      );
+      expect(
+        () => client.revokePrimaryCalendarPermission(nonRemovable),
+        throwsArgumentError,
+      );
+      expect(
+        (await client.changePrimaryCalendarPermission(
+          nonRemovable,
+          'read',
+        )).role,
+        'read',
+      );
+    },
+  );
+  test('master category lookup paginates and keeps every named color', () async {
+    final requests = <http.Request>[];
+    final client = MicrosoftCalendarApiClient(
+      httpClient: MockClient((request) async {
+        requests.add(request);
+        if (request.url.queryParameters[r'$skiptoken'] == 'next') {
+          return _json({
+            'value': [
+              {'id': 'c2', 'displayName': 'Personal', 'color': 'preset1'},
+            ],
+          });
+        }
+        return _json({
+          'value': [
+            {'id': 'c1', 'displayName': 'Work', 'color': 'preset7'},
+          ],
+          '@odata.nextLink':
+              'https://graph.microsoft.com/v1.0/me/outlook/masterCategories?%24skiptoken=next',
+        });
+      }),
+      baseUri: Uri.parse('https://graph.microsoft.com/v1.0'),
+      responseTimeZone: 'UTC',
+    );
+    final categories = await client.listMasterCategories();
+    expect(categories.map((item) => item.displayName), ['Work', 'Personal']);
+    expect(categories.map((item) => item.color), ['preset7', 'preset1']);
+    expect(requests, hasLength(2));
+    expect(requests.first.url.path, '/v1.0/me/outlook/masterCategories');
+  });
+
+  test('malformed master category response does not look empty', () async {
+    final client = MicrosoftCalendarApiClient(
+      httpClient: MockClient((_) async => _json({'value': null})),
+      baseUri: Uri.parse('https://graph.microsoft.com/v1.0'),
+      responseTimeZone: 'UTC',
+    );
+    await expectLater(client.listMasterCategories(), throwsFormatException);
+  });
+
+  test(
+    'master categories use the optional category grant, not ordinary calendar authorization',
+    () async {
+      final headers = <String>[];
+      final client = MicrosoftCalendarApiClient(
+        httpClient: MockClient((request) async {
+          headers.add(request.headers['Authorization'] ?? '');
+          return _json({'value': <Object>[]});
+        }),
+        baseUri: Uri.parse('https://graph.microsoft.com/v1.0'),
+        responseTimeZone: 'UTC',
+        authorizationHeaderProvider: () async => 'Bearer calendar',
+        categoryAuthorizationHeaderProvider: () async => 'Bearer categories',
+      );
+      expect(await client.listMasterCategories(), isEmpty);
+      await client.listCalendars();
+      expect(headers, ['Bearer categories', 'Bearer calendar']);
+    },
+  );
+
   test(
     'series exception snapshot retains moved and cancelled identities',
     () async {
