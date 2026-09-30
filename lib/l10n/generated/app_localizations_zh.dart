@@ -2556,6 +2556,14 @@ class AppLocalizationsZh extends AppLocalizations {
   String get removeAction => '移除';
 
   @override
+  String removeOpenedSharedCalendarConfirmation(String title) {
+    return '要从 BusyMax 移除“$title”吗？所有者的日历和日程不会被删除。';
+  }
+
+  @override
+  String get attachmentUploadUnresolved => '上传可能已完成。再次上传前，请刷新附件以确认结果。';
+
+  @override
   String removeCalendarConfirmation(String title) {
     return '要从您的 Google 日历列表中移除“$title”吗？共享日历及其日程不会被删除。';
   }
@@ -5587,6 +5595,14 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
 
   @override
   String get removeAction => '移除';
+
+  @override
+  String removeOpenedSharedCalendarConfirmation(String title) {
+    return '要从 BusyMax 移除“$title”吗？所有者的日历和日程不会被删除。';
+  }
+
+  @override
+  String get attachmentUploadUnresolved => '上传可能已完成。再次上传前，请刷新附件以确认结果。';
 
   @override
   String removeCalendarConfirmation(String title) {
@@ -8621,6 +8637,14 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get removeAction => '移除';
+
+  @override
+  String removeOpenedSharedCalendarConfirmation(String title) {
+    return '要從 BusyMax 移除「$title」嗎？擁有者的日曆及活動不會被刪除。';
+  }
+
+  @override
+  String get attachmentUploadUnresolved => '上傳可能已完成。再次上傳前，請重新整理附件以確認結果。';
 
   @override
   String removeCalendarConfirmation(String title) {

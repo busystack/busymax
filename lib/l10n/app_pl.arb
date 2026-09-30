@@ -1368,6 +1368,8 @@
   "removeFromMyCalendars": "Usuń z moich kalendarzy",
   "removeAction": "Usuń",
   "removeCalendarConfirmation": "Usunąć „{title}” z listy Kalendarza Google? Udostępniony kalendarz i jego wydarzenia nie zostaną usunięte.",
+  "removeOpenedSharedCalendarConfirmation": "Usunąć „{title}” z BusyMax? Kalendarz właściciela i jego wydarzenia nie zostaną usunięte.",
+  "attachmentUploadUnresolved": "Przesyłanie mogło się zakończyć. Odśwież załączniki, aby sprawdzić wynik przed ponownym przesłaniem.",
   "@removeCalendarConfirmation": {
     "placeholders": {
       "title": {

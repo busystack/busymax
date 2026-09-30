@@ -831,6 +831,8 @@
   "removeFromMyCalendars": "मेरे कैलेंडर से हटाएँ",
   "removeAction": "हटाएँ",
   "removeCalendarConfirmation": "क्या \"{title}\" को आपकी Google Calendar सूची से हटाएँ? साझा कैलेंडर और उसके इवेंट नहीं मिटाए जाएँगे।",
+  "removeOpenedSharedCalendarConfirmation": "क्या \"{title}\" को BusyMax से हटाएँ? मालिक का कैलेंडर और उसके इवेंट नहीं मिटाए जाएँगे।",
+  "attachmentUploadUnresolved": "अपलोड पूरा हो गया हो सकता है। दोबारा अपलोड करने से पहले परिणाम जाँचने के लिए अटैचमेंट रीफ़्रेश करें।",
   "calendarCannotRemove": "इस कैलेंडर को इस खाते से हटाया या मिटाया नहीं जा सकता।",
   "calendarPendingChangesPreventRemoval": "कैलेंडर हटाने से पहले उसके लंबित बदलावों का सिंक पूरा होने की प्रतीक्षा करें।",
   "taskListPendingChangesPreventRemoval": "सूची को मिटाने या हटाने से पहले खाते को सिंक करें, या डायग्नोस्टिक्स में इस कार्य सूची के अवरुद्ध बदलावों का समाधान करें।",

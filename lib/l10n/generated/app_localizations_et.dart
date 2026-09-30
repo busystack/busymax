@@ -2611,6 +2611,15 @@ class AppLocalizationsEt extends AppLocalizations {
   String get removeAction => 'Eemalda';
 
   @override
+  String removeOpenedSharedCalendarConfirmation(String title) {
+    return 'Kas eemaldada „$title” BusyMaxist? Omaniku kalendrit ega sündmusi ei kustutata.';
+  }
+
+  @override
+  String get attachmentUploadUnresolved =>
+      'Üleslaadimine võis õnnestuda. Enne uut üleslaadimist värskendage manuseid ja kontrollige tulemust.';
+
+  @override
   String removeCalendarConfirmation(String title) {
     return 'Kas eemaldada „$title” teie Google’i kalendrite loendist? Jagatud kalendrit ega selle sündmusi ei kustutata.';
   }

@@ -2645,6 +2645,15 @@ class AppLocalizationsVi extends AppLocalizations {
   String get removeAction => 'Xóa';
 
   @override
+  String removeOpenedSharedCalendarConfirmation(String title) {
+    return 'Xóa “$title” khỏi BusyMax? Lịch và các sự kiện của chủ sở hữu sẽ không bị xóa.';
+  }
+
+  @override
+  String get attachmentUploadUnresolved =>
+      'Tệp có thể đã được tải lên. Làm mới danh sách tệp đính kèm để kiểm tra trước khi tải lên lại.';
+
+  @override
   String removeCalendarConfirmation(String title) {
     return 'Xóa “$title” khỏi danh sách Google Calendar của bạn? Lịch dùng chung và các sự kiện trong đó sẽ không bị xóa.';
   }

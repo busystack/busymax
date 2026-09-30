@@ -2593,6 +2593,15 @@ class AppLocalizationsKo extends AppLocalizations {
   String get removeAction => '삭제';
 
   @override
+  String removeOpenedSharedCalendarConfirmation(String title) {
+    return 'BusyMax에서 \"$title\"을(를) 제거할까요? 소유자의 캘린더와 일정은 삭제되지 않습니다.';
+  }
+
+  @override
+  String get attachmentUploadUnresolved =>
+      '업로드가 완료되었을 수 있습니다. 다시 업로드하기 전에 첨부 파일을 새로 고쳐 결과를 확인하세요.';
+
+  @override
   String removeCalendarConfirmation(String title) {
     return 'Google Calendar 목록에서 \"$title\"을(를) 삭제할까요? 공유 캘린더와 일정은 삭제되지 않습니다.';
   }

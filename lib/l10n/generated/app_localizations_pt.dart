@@ -2659,6 +2659,15 @@ class AppLocalizationsPt extends AppLocalizations {
   String get removeAction => 'Remove';
 
   @override
+  String removeOpenedSharedCalendarConfirmation(String title) {
+    return 'Remove \"$title\" from BusyMax? The owner\'s calendar and events will not be deleted.';
+  }
+
+  @override
+  String get attachmentUploadUnresolved =>
+      'The upload may have completed. Refresh attachments to resolve its outcome before uploading again.';
+
+  @override
   String removeCalendarConfirmation(String title) {
     return 'Remove \"$title\" from your Google Calendar list? The shared calendar and its events will not be deleted.';
   }
@@ -5833,6 +5842,15 @@ class AppLocalizationsPtPt extends AppLocalizationsPt {
 
   @override
   String get removeAction => 'Remover';
+
+  @override
+  String removeOpenedSharedCalendarConfirmation(String title) {
+    return 'Remover \"$title\" do BusyMax? O calendário e os eventos do proprietário não serão eliminados.';
+  }
+
+  @override
+  String get attachmentUploadUnresolved =>
+      'O carregamento pode ter sido concluído. Atualize os anexos para confirmar antes de carregar novamente.';
 
   @override
   String removeCalendarConfirmation(String title) {

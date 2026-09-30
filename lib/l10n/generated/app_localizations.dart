@@ -4518,6 +4518,18 @@ abstract class AppLocalizations {
   /// **'Remove'**
   String get removeAction;
 
+  /// No description provided for @removeOpenedSharedCalendarConfirmation.
+  ///
+  /// In en, this message translates to:
+  /// **'Remove \"{title}\" from BusyMax? The owner\'s calendar and events will not be deleted.'**
+  String removeOpenedSharedCalendarConfirmation(String title);
+
+  /// No description provided for @attachmentUploadUnresolved.
+  ///
+  /// In en, this message translates to:
+  /// **'The upload may have completed. Refresh attachments to resolve its outcome before uploading again.'**
+  String get attachmentUploadUnresolved;
+
   /// No description provided for @removeCalendarConfirmation.
   ///
   /// In en, this message translates to:

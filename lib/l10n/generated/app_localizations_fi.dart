@@ -2660,6 +2660,15 @@ class AppLocalizationsFi extends AppLocalizations {
   String get removeAction => 'Poista';
 
   @override
+  String removeOpenedSharedCalendarConfirmation(String title) {
+    return 'Poistetaanko ”$title” BusyMaxista? Omistajan kalenteria tai tapahtumia ei poisteta.';
+  }
+
+  @override
+  String get attachmentUploadUnresolved =>
+      'Lataus saattoi onnistua. Päivitä liitteet ja tarkista tulos ennen uutta latausta.';
+
+  @override
   String removeCalendarConfirmation(String title) {
     return 'Poistetaanko ”$title” Google Kalenterin luettelostasi? Jaettua kalenteria tai sen tapahtumia ei poisteta.';
   }

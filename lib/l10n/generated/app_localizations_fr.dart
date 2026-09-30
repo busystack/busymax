@@ -2650,6 +2650,15 @@ class AppLocalizationsFr extends AppLocalizations {
   String get removeAction => 'Retirer';
 
   @override
+  String removeOpenedSharedCalendarConfirmation(String title) {
+    return 'Retirer « $title » de BusyMax ? L’agenda et les événements du propriétaire ne seront pas supprimés.';
+  }
+
+  @override
+  String get attachmentUploadUnresolved =>
+      'L’envoi a peut-être réussi. Actualisez les pièces jointes pour vérifier le résultat avant de réessayer.';
+
+  @override
   String removeCalendarConfirmation(String title) {
     return 'Retirer « $title » de votre liste Google Agenda ? L’agenda partagé et ses événements ne seront pas supprimés.';
   }

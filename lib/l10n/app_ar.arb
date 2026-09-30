@@ -831,6 +831,8 @@
   "removeFromMyCalendars": "إزالة من تقاويمي",
   "removeAction": "إزالة",
   "removeCalendarConfirmation": "هل تريد إزالة \"⁨{title}⁩\" من قائمة تقويم Google؟ لن يتم حذف التقويم المشترك أو أحداثه.",
+  "removeOpenedSharedCalendarConfirmation": "هل تريد إزالة \"⁨{title}⁩\" من BusyMax؟ لن يُحذف تقويم المالك أو أحداثه.",
+  "attachmentUploadUnresolved": "ربما اكتمل رفع المرفق. حدّث المرفقات للتحقق من النتيجة قبل الرفع مرة أخرى.",
   "calendarCannotRemove": "لا يمكن حذف هذا التقويم أو إزالته من هذا الحساب.",
   "calendarPendingChangesPreventRemoval": "انتظر حتى تنتهي مزامنة التغييرات المعلقة لهذا التقويم قبل حذفه أو إزالته.",
   "taskListPendingChangesPreventRemoval": "زامِن الحساب، أو عالِج التغييرات المحظورة لقائمة المهام هذه في «التشخيصات»، قبل حذف القائمة أو إزالتها.",

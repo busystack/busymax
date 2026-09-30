@@ -2663,6 +2663,15 @@ class AppLocalizationsFa extends AppLocalizations {
   String get removeAction => 'حذف';
 
   @override
+  String removeOpenedSharedCalendarConfirmation(String title) {
+    return '«⁨$title⁩» از BusyMax حذف شود؟ تقویم و رویدادهای مالک حذف نخواهند شد.';
+  }
+
+  @override
+  String get attachmentUploadUnresolved =>
+      'ممکن است بارگذاری کامل شده باشد. پیش از بارگذاری دوباره، پیوست‌ها را تازه‌سازی کنید تا نتیجه مشخص شود.';
+
+  @override
   String removeCalendarConfirmation(String title) {
     return '«⁨$title⁩» از فهرست تقویم Google شما حذف شود؟ تقویم اشتراکی و رویدادهای آن حذف نخواهند شد.';
   }

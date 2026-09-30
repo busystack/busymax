@@ -2669,6 +2669,15 @@ class AppLocalizationsRu extends AppLocalizations {
   String get removeAction => 'Удалить';
 
   @override
+  String removeOpenedSharedCalendarConfirmation(String title) {
+    return 'Убрать «$title» из BusyMax? Календарь владельца и его события не будут удалены.';
+  }
+
+  @override
+  String get attachmentUploadUnresolved =>
+      'Загрузка могла завершиться. Обновите список вложений, чтобы проверить результат перед повторной загрузкой.';
+
+  @override
   String removeCalendarConfirmation(String title) {
     return 'Удалить «$title» из вашего списка Google Календаря? Общий календарь и его события удалены не будут.';
   }

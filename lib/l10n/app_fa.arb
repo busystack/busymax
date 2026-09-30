@@ -900,6 +900,8 @@
   "removeFromMyCalendars": "حذف از تقویم‌های من",
   "removeAction": "حذف",
   "removeCalendarConfirmation": "«⁨{title}⁩» از فهرست تقویم Google شما حذف شود؟ تقویم اشتراکی و رویدادهای آن حذف نخواهند شد.",
+  "removeOpenedSharedCalendarConfirmation": "«⁨{title}⁩» از BusyMax حذف شود؟ تقویم و رویدادهای مالک حذف نخواهند شد.",
+  "attachmentUploadUnresolved": "ممکن است بارگذاری کامل شده باشد. پیش از بارگذاری دوباره، پیوست‌ها را تازه‌سازی کنید تا نتیجه مشخص شود.",
   "calendarCannotRemove": "این تقویم را نمی‌توان از این حساب حذف یا جدا کرد.",
   "calendarPendingChangesPreventRemoval": "پیش از حذف یا جدا کردن این تقویم، صبر کنید تغییرات در انتظار آن همگام شوند.",
   "taskListPendingChangesPreventRemoval": "پیش از حذف یا برداشتن فهرست، حساب را همگام‌سازی کنید یا تغییرات مسدودشدهٔ این فهرست کار را در «عیب‌یابی» برطرف کنید.",

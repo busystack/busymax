@@ -831,6 +831,8 @@
   "removeFromMyCalendars": "Rimuovi dai miei calendari",
   "removeAction": "Rimuovi",
   "removeCalendarConfirmation": "Rimuovere \"{title}\" dall'elenco di Google Calendar? Il calendario condiviso e i relativi eventi non verranno eliminati.",
+  "removeOpenedSharedCalendarConfirmation": "Rimuovere \"{title}\" da BusyMax? Il calendario e gli eventi del proprietario non verranno eliminati.",
+  "attachmentUploadUnresolved": "Il caricamento potrebbe essere riuscito. Aggiorna gli allegati per verificarlo prima di riprovare.",
   "calendarCannotRemove": "Non è possibile eliminare o rimuovere questo calendario da questo account.",
   "calendarPendingChangesPreventRemoval": "Attendi il completamento della sincronizzazione delle modifiche in sospeso del calendario prima di eliminarlo o rimuoverlo.",
   "taskListPendingChangesPreventRemoval": "Sincronizza l’account oppure risolvi le modifiche bloccate di questo elenco di attività in Diagnostica prima di eliminare o rimuovere l’elenco.",

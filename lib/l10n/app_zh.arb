@@ -831,6 +831,8 @@
   "removeFromMyCalendars": "从“我的日历”中移除",
   "removeAction": "移除",
   "removeCalendarConfirmation": "要从您的 Google 日历列表中移除“{title}”吗？共享日历及其日程不会被删除。",
+  "removeOpenedSharedCalendarConfirmation": "要从 BusyMax 移除“{title}”吗？所有者的日历和日程不会被删除。",
+  "attachmentUploadUnresolved": "上传可能已完成。再次上传前，请刷新附件以确认结果。",
   "calendarCannotRemove": "无法从此账户删除或移除此日历。",
   "calendarPendingChangesPreventRemoval": "请等待此日历的待处理更改完成同步，然后再删除或移除它。",
   "taskListPendingChangesPreventRemoval": "删除或移除此列表前，请同步账户，或在“诊断”中解决此任务列表被阻止的更改。",

@@ -1277,6 +1277,11 @@
   "setAction": "Set",
   "removeFromMyCalendars": "Remove from my calendars",
   "removeAction": "Remove",
+  "removeOpenedSharedCalendarConfirmation": "Remove \"{title}\" from BusyMax? The owner's calendar and events will not be deleted.",
+  "@removeOpenedSharedCalendarConfirmation": {
+    "placeholders": {"title": {"type": "String"}}
+  },
+  "attachmentUploadUnresolved": "The upload may have completed. Refresh attachments to resolve its outcome before uploading again.",
   "removeCalendarConfirmation": "Remove \"{title}\" from your Google Calendar list? The shared calendar and its events will not be deleted.",
   "@removeCalendarConfirmation": {
     "placeholders": {
