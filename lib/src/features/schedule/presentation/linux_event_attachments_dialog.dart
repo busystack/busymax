@@ -438,6 +438,16 @@ class _LinuxEventAttachmentsDialogState
             eventId: eventId,
             attachmentId: attachment.id,
           );
+      ref
+          .read(attachmentUploadCoordinatorProvider)
+          .attachmentRemoved(
+            AttachmentUploadCoordinator.eventKey(
+              widget.item.accountId,
+              widget.item.providerCalendarId,
+              eventId,
+            ),
+            attachment.id,
+          );
       _refresh();
     } on Object catch (error) {
       _refresh();

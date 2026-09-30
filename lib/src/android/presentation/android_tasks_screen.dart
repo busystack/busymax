@@ -2472,6 +2472,16 @@ class _AndroidTaskEditorState extends ConsumerState<AndroidTaskEditor> {
         taskId: task.id,
         attachmentId: attachment.id,
       );
+      ref
+          .read(attachmentUploadCoordinatorProvider)
+          .attachmentRemoved(
+            AttachmentUploadCoordinator.taskKey(
+              widget.accountId,
+              task.taskListId,
+              task.id,
+            ),
+            attachment.id,
+          );
       _reloadTaskAttachments();
     } on Object catch (error) {
       _attachmentError(error);

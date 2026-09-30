@@ -217,6 +217,70 @@ void main() {
       );
     },
   );
+
+  test('IANA 2025c all-year DST continuation stays constant', () {
+    for (final zone in ['Africa/Casablanca', 'Africa/El_Aaiun']) {
+      final openEnded = cloudSeriesToICalendar(
+        master: zonedMicrosoftSeries(
+          zone: zone,
+          startUtc: '2026-01-01T08:00:00',
+          range: {'type': 'noEnd', 'startDate': '2026-01-01'},
+        ),
+        exceptions: const [],
+        nowUtc: DateTime.utc(2026),
+      );
+      // Historical Ramadan suspension remains represented before the TZif
+      // continuation boundary.
+      expect(
+        exportedInstant(openEnded, zone, DateTime.utc(2026, 3, 1, 9)),
+        DateTime.utc(2026, 3, 1, 9),
+      );
+      expect(
+        exportedInstant(openEnded, zone, DateTime.utc(2026, 6, 1, 9)),
+        DateTime.utc(2026, 6, 1, 8),
+      );
+      for (final wall in [
+        DateTime.utc(2088, 1, 1, 9),
+        DateTime.utc(2088, 6, 1, 9),
+        DateTime.utc(2088, 12, 31, 9),
+        DateTime.utc(2089, 1, 1, 9),
+        DateTime.utc(2089, 6, 1, 9),
+      ]) {
+        expect(
+          exportedInstant(openEnded, zone, wall),
+          wall.subtract(const Duration(hours: 1)),
+          reason: '$zone $wall must retain all-year daylight offset',
+        );
+      }
+      expect(
+        RegExp(
+          r'DTSTART:208[89][^\r\n]*\r\nTZOFFSETFROM:\+0000\r\nTZOFFSETTO:\+0100|'
+          r'DTSTART:208[89][^\r\n]*\r\nTZOFFSETFROM:\+0100\r\nTZOFFSETTO:\+0000',
+        ).allMatches(openEnded),
+        isEmpty,
+      );
+
+      final finite = cloudSeriesToICalendar(
+        master: zonedMicrosoftSeries(
+          zone: zone,
+          startUtc: '2088-06-01T08:00:00',
+          range: {
+            'type': 'endDate',
+            'startDate': '2088-06-01',
+            'endDate': '2088-12-31',
+          },
+        ),
+        exceptions: const [],
+        nowUtc: DateTime.utc(2026),
+      );
+      expect(finite, contains('DTSTART;TZID=$zone:20880601T090000'));
+      expect(finite, contains('UNTIL=20881231T080000Z'));
+      expect(
+        exportedInstant(finite, zone, DateTime.utc(2088, 6, 1, 9)),
+        DateTime.utc(2088, 6, 1, 8),
+      );
+    }
+  });
   test('series export is offered only with an authoritative series path', () {
     expect(
       canExportAuthoritativeEventSeries(

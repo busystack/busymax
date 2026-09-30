@@ -828,6 +828,18 @@ Future<bool> showWindowsTaskDetailsDialog(
                                                         attachmentId:
                                                             attachment.id,
                                                       );
+                                                  ref
+                                                      .read(
+                                                        attachmentUploadCoordinatorProvider,
+                                                      )
+                                                      .attachmentRemoved(
+                                                        AttachmentUploadCoordinator.taskKey(
+                                                          original.accountId,
+                                                          original.taskListId,
+                                                          original.id,
+                                                        ),
+                                                        attachment.id,
+                                                      );
                                                   final key = (
                                                     accountId:
                                                         original.accountId,

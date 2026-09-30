@@ -758,8 +758,18 @@ final class _PosixContinuation {
   final _PosixDateRule? start;
   final _PosixDateRule? end;
 
+  /// TZif v3 specifies this sentinel pair as daylight saving in effect all
+  /// year: January 1 00:00 through December 31 24:00 plus the DST difference.
+  bool get allYearDaylight =>
+      daylight != null &&
+      start?.date == '0' &&
+      start?.seconds == 0 &&
+      end?.date == 'J365' &&
+      end?.seconds == 86400 + (daylight!.offset - standard.offset).inSeconds;
+
   tz.TimeZone zoneAt(DateTime instant) {
     if (daylight == null) return standard;
+    if (allYearDaylight) return daylight!;
     final transitions = <_FutureTransition>[];
     for (var year = instant.year - 1; year <= instant.year + 1; year++) {
       if (year < 1 || year > 9999) continue;
@@ -789,6 +799,7 @@ final class _PosixContinuation {
 
   List<_FutureTransition> transitionsAfter(DateTime lastAt) {
     if (daylight == null) return const [];
+    if (allYearDaylight) return const [];
     final result = <_FutureTransition>[];
     for (var year = lastAt.year; year <= 9999; year++) {
       for (final pair in [

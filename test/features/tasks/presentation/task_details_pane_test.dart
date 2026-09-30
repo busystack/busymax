@@ -69,6 +69,113 @@ String _testAuthority(BusyProvider provider) => switch (provider) {
 
 void main() {
   testWidgets(
+    'Linux task detail permits another upload after confirmed refresh failure',
+    (tester) async {
+      var posts = 0;
+      var gets = 0;
+      final client = MicrosoftTodoRestApiClient(
+        httpClient: MockClient((request) async {
+          if (request.method == 'GET') {
+            gets++;
+            if (gets.isEven) {
+              throw http.ClientException('attachment list unavailable');
+            }
+            return http.Response(jsonEncode({'value': []}), 200);
+          }
+          posts++;
+          return http.Response(
+            jsonEncode({
+              'id': 'attachment-a',
+              'name': 'a.txt',
+              'size': 1,
+              '@odata.type': '#microsoft.graph.taskFileAttachment',
+            }),
+            201,
+          );
+        }),
+        baseUri: Uri.parse('https://graph.microsoft.com/v1.0'),
+        authorizationHeaderProvider: () async => 'Bearer token',
+      );
+      final coordinator = AttachmentUploadCoordinator();
+      final key = AttachmentUploadCoordinator.taskKey(
+        'microsoft:m',
+        'list-1',
+        'task-1',
+      );
+      await coordinator.uploadTask(
+        client: client,
+        accountId: 'microsoft:m',
+        taskListId: 'list-1',
+        taskId: 'task-1',
+        name: 'a.txt',
+        contentType: 'text/plain',
+        bytes: const [1],
+      );
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            attachmentUploadCoordinatorProvider.overrideWith(
+              (ref) => coordinator,
+            ),
+            microsoftTodoApiClientForAccountProvider(
+              'microsoft:m',
+            ).overrideWithValue(client),
+          ],
+          child: localizedTestApp(
+            child: Scaffold(
+              body: TaskDetailsEditor(
+                task: _switchTask('task-1', 'Task'),
+                provider: BusyProvider.microsoft,
+                taskLists: const [
+                  TaskListEntity(
+                    accountId: 'microsoft:m',
+                    id: 'list-1',
+                    title: 'Tasks',
+                    localDirty: false,
+                    pendingDelete: false,
+                    rawJson: '{}',
+                  ),
+                ],
+                capabilities: microsoftTaskCollectionCapabilities,
+                localTimeZone: 'UTC',
+                accountLabel: 'Account',
+                onRefresh: () {},
+                onSave: (_, _) async {},
+                onCreateSubtask: (_) async {},
+                onMoveToTop: () {},
+                onDelete: () async {},
+                onCancel: () {},
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      final attachmentButtons = tester
+          .widgetList<FilledButton>(
+            find.widgetWithText(FilledButton, 'Attachments'),
+          )
+          .toList();
+      expect(attachmentButtons, hasLength(2));
+      expect(
+        attachmentButtons.every((button) => button.onPressed != null),
+        isTrue,
+      );
+      expect(coordinator.canSubmit(key), isTrue);
+      await coordinator.uploadTask(
+        client: client,
+        accountId: 'microsoft:m',
+        taskListId: 'list-1',
+        taskId: 'task-1',
+        name: 'b.txt',
+        contentType: 'text/plain',
+        bytes: const [2],
+      );
+      expect(posts, 2);
+    },
+  );
+
+  testWidgets(
     'Linux task detail retains an uncertain upload until explicit review',
     (tester) async {
       var posts = 0;

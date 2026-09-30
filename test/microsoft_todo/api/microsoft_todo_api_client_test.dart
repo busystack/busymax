@@ -96,7 +96,8 @@ void main() {
         ),
         AttachmentUploadStatus.committed,
       );
-      expect(coordinator.confirmedId(key), 'task-upload-id');
+      expect(coordinator.confirmedId(key), equals(null));
+      expect(coordinator.canSubmit(key), isTrue);
       expect(sessions, 1);
       expect(statusReads, 1);
       expect(ranges, [

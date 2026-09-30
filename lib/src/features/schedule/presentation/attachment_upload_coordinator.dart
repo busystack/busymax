@@ -44,21 +44,26 @@ final class _UnresolvedUpload {
   bool reviewed = false;
 }
 
+final class _ConfirmedUpload {
+  const _ConfirmedUpload(this.id);
+
+  final String id;
+}
+
 /// Item-scoped operation state survives closing and reopening a detail view.
 /// A missing list item immediately after a lost response is not proof that the
 /// upload failed: Graph attachment collections may lag the write endpoint.
 final class AttachmentUploadCoordinator extends ChangeNotifier {
   final _statuses = <AttachmentUploadKey, AttachmentUploadStatus>{};
   final _unresolved = <AttachmentUploadKey, _UnresolvedUpload>{};
-  final _confirmedAwaitingList = <AttachmentUploadKey, String>{};
+  final _confirmedAwaitingList = <AttachmentUploadKey, _ConfirmedUpload>{};
 
   AttachmentUploadStatus status(AttachmentUploadKey key) =>
       _statuses[key] ?? AttachmentUploadStatus.ready;
 
   bool canSubmit(AttachmentUploadKey key) =>
       status(key) != AttachmentUploadStatus.submitting &&
-      _unresolved[key] == null &&
-      !_confirmedAwaitingList.containsKey(key);
+      _unresolved[key] == null;
 
   bool needsReconciliation(AttachmentUploadKey key) =>
       (_unresolved[key] != null || _confirmedAwaitingList.containsKey(key)) &&
@@ -67,7 +72,8 @@ final class AttachmentUploadCoordinator extends ChangeNotifier {
   bool hasResumableSession(AttachmentUploadKey key) =>
       _unresolved[key]?.session != null;
 
-  String? confirmedId(AttachmentUploadKey key) => _confirmedAwaitingList[key];
+  String? confirmedId(AttachmentUploadKey key) =>
+      _confirmedAwaitingList[key]?.id;
 
   bool canResolveManually(AttachmentUploadKey key) =>
       _unresolved[key]?.reviewed == true &&
@@ -257,6 +263,9 @@ final class AttachmentUploadCoordinator extends ChangeNotifier {
     submit,
   }) async {
     if (!canSubmit(key)) throw const AttachmentUploadUnresolvedException();
+    // A returned attachment ID completed the prior write. Its pending list
+    // refresh is presentation-only and must not become state for this attempt.
+    _confirmedAwaitingList.remove(key);
     _set(key, AttachmentUploadStatus.submitting);
     late final Set<String> beforeIds;
     try {
@@ -280,8 +289,8 @@ final class AttachmentUploadCoordinator extends ChangeNotifier {
         attempt.session = session;
         _unresolved[key] = attempt;
       });
-      _confirm(key, id);
-      await _refreshConfirmed(key, list);
+      final confirmed = _confirm(key, id);
+      await _refreshConfirmed(key, confirmed, list);
       return;
     } on Object catch (error) {
       if (attempt.session == null && _confirmedNotCommitted(error)) {
@@ -295,21 +304,25 @@ final class AttachmentUploadCoordinator extends ChangeNotifier {
     }
   }
 
-  void _confirm(AttachmentUploadKey key, String id) {
+  _ConfirmedUpload _confirm(AttachmentUploadKey key, String id) {
     if (id.isEmpty) throw const MicrosoftAttachmentUploadUncertain();
     _unresolved.remove(key);
-    _confirmedAwaitingList[key] = id;
+    final confirmed = _ConfirmedUpload(id);
+    _confirmedAwaitingList[key] = confirmed;
     _set(key, AttachmentUploadStatus.committed);
+    return confirmed;
   }
 
   Future<void> _refreshConfirmed(
     AttachmentUploadKey key,
+    _ConfirmedUpload confirmed,
     Future<List<AttachmentUploadRemoteItem>> Function() list,
   ) async {
-    final id = _confirmedAwaitingList[key];
-    if (id == null) return;
     try {
-      if ((await list()).any((item) => item.id == id)) {
+      await list();
+      // Any successful list completes the presentation refresh. Identity is
+      // checked so a late refresh for A cannot clear B's confirmation.
+      if (identical(_confirmedAwaitingList[key], confirmed)) {
         _confirmedAwaitingList.remove(key);
         notifyListeners();
       }
@@ -326,15 +339,18 @@ final class AttachmentUploadCoordinator extends ChangeNotifier {
   }) async {
     final attempt = _unresolved[key];
     if (attempt == null) {
-      await _refreshConfirmed(key, list);
+      final confirmed = _confirmedAwaitingList[key];
+      if (confirmed != null) {
+        await _refreshConfirmed(key, confirmed, list);
+      }
       return status(key);
     }
     if (attempt.session != null) {
       _set(key, AttachmentUploadStatus.submitting);
       try {
         final id = await resume(attempt);
-        _confirm(key, id);
-        await _refreshConfirmed(key, list);
+        final confirmed = _confirm(key, id);
+        await _refreshConfirmed(key, confirmed, list);
         return status(key);
       } on Object {
         attempt.reviewed = true;
@@ -348,6 +364,14 @@ final class AttachmentUploadCoordinator extends ChangeNotifier {
     await list();
     attempt.reviewed = true;
     return status(key);
+  }
+
+  /// Clears presentation-only confirmation for the attachment just removed.
+  /// The ID guard prevents a delayed deletion for A from affecting B.
+  void attachmentRemoved(AttachmentUploadKey key, String attachmentId) {
+    if (_confirmedAwaitingList[key]?.id != attachmentId) return;
+    _confirmedAwaitingList.remove(key);
+    notifyListeners();
   }
 
   Future<void> cancelSession({

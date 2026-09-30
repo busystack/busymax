@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:busymax/l10n/generated/app_localizations.dart';
@@ -507,37 +508,157 @@ void main() {
     },
   );
 
-  test('confirmed upload with failed refresh cannot be repeated', () async {
+  test(
+    'confirmed upload with failed refresh permits a distinct upload',
+    () async {
+      var posts = 0;
+      var gets = 0;
+      var visible = false;
+      final client = MicrosoftCalendarApiClient(
+        httpClient: MockClient((request) async {
+          if (request.method == 'GET') {
+            gets++;
+            if (!visible && gets.isEven) {
+              throw http.ClientException('attachment list unavailable');
+            }
+            return http.Response(
+              jsonEncode({
+                'value': visible
+                    ? [
+                        {
+                          'id': 'committed-id',
+                          'name': 'notes.txt',
+                          'size': 4,
+                          '@odata.type': '#microsoft.graph.fileAttachment',
+                        },
+                      ]
+                    : [],
+              }),
+              200,
+            );
+          }
+          posts++;
+          return http.Response(
+            jsonEncode({
+              'id': 'committed-id',
+              'name': 'notes.txt',
+              'size': 4,
+              '@odata.type': '#microsoft.graph.fileAttachment',
+            }),
+            201,
+          );
+        }),
+        baseUri: Uri.parse('https://graph.microsoft.com/v1.0'),
+        responseTimeZone: 'UTC',
+      );
+      final coordinator = AttachmentUploadCoordinator();
+      final key = AttachmentUploadCoordinator.eventKey(
+        'account',
+        'calendar',
+        'event',
+      );
+      Future<void> upload() => coordinator.uploadEvent(
+        client: client,
+        accountId: 'account',
+        calendarId: 'calendar',
+        eventId: 'event',
+        name: 'notes.txt',
+        contentType: 'text/plain',
+        bytes: [1, 2, 3, 4],
+      );
+      await upload();
+      expect(coordinator.status(key), AttachmentUploadStatus.committed);
+      expect(coordinator.needsReconciliation(key), isTrue);
+      expect(coordinator.canSubmit(key), isTrue);
+      await upload();
+      expect(posts, 2);
+      visible = true;
+      expect(
+        await coordinator.reconcileEvent(
+          client: client,
+          accountId: 'account',
+          calendarId: 'calendar',
+          eventId: 'event',
+        ),
+        AttachmentUploadStatus.committed,
+      );
+      expect(coordinator.needsReconciliation(key), isFalse);
+      expect(coordinator.canSubmit(key), isTrue);
+    },
+  );
+
+  test(
+    'late confirmed refresh cannot unlock or relabel a newer attempt',
+    () async {
+      final firstRefresh = Completer<List<AttachmentUploadRemoteItem>>();
+      var submissions = 0;
+      final coordinator = AttachmentUploadCoordinator();
+      final key = AttachmentUploadCoordinator.eventKey(
+        'account',
+        'calendar',
+        'event',
+      );
+      final uploadA = coordinator.upload(
+        key: key,
+        name: 'a.txt',
+        size: 1,
+        contentType: 'text/plain',
+        bytes: const [1],
+        list: () =>
+            submissions == 0 ? Future.value(const []) : firstRefresh.future,
+        submit: (_) async {
+          submissions++;
+          return 'attachment-a';
+        },
+      );
+      for (var i = 0; i < 10 && coordinator.confirmedId(key) == null; i++) {
+        await Future<void>.delayed(Duration.zero);
+      }
+      expect(coordinator.confirmedId(key), 'attachment-a');
+      expect(coordinator.canSubmit(key), isTrue);
+      await expectLater(
+        coordinator.upload(
+          key: key,
+          name: 'b.txt',
+          size: 1,
+          contentType: 'text/plain',
+          bytes: const [2],
+          list: () async => const [],
+          submit: (_) async {
+            submissions++;
+            throw http.ClientException('response lost');
+          },
+        ),
+        throwsA(isA<AttachmentUploadUnresolvedException>()),
+      );
+      expect(coordinator.status(key), AttachmentUploadStatus.unresolved);
+      expect(coordinator.confirmedId(key), equals(null));
+      coordinator.attachmentRemoved(key, 'attachment-a');
+      expect(coordinator.status(key), AttachmentUploadStatus.unresolved);
+      firstRefresh.complete(const []);
+      await uploadA;
+      expect(coordinator.status(key), AttachmentUploadStatus.unresolved);
+      expect(coordinator.canSubmit(key), isFalse);
+      expect(submissions, 2);
+    },
+  );
+
+  testWidgets('Linux Add remains enabled after confirmed refresh failure', (
+    tester,
+  ) async {
     var posts = 0;
-    var visible = false;
     final client = MicrosoftCalendarApiClient(
       httpClient: MockClient((request) async {
         if (request.method == 'GET') {
-          if (posts > 0 && !visible) {
-            throw http.ClientException('attachment list unavailable');
-          }
-          return http.Response(
-            jsonEncode({
-              'value': visible
-                  ? [
-                      {
-                        'id': 'committed-id',
-                        'name': 'notes.txt',
-                        'size': 4,
-                        '@odata.type': '#microsoft.graph.fileAttachment',
-                      },
-                    ]
-                  : [],
-            }),
-            200,
-          );
+          if (posts > 0) throw http.ClientException('list unavailable');
+          return http.Response(jsonEncode({'value': []}), 200);
         }
         posts++;
         return http.Response(
           jsonEncode({
-            'id': 'committed-id',
-            'name': 'notes.txt',
-            'size': 4,
+            'id': 'attachment-a',
+            'name': 'a.txt',
+            'size': 1,
             '@odata.type': '#microsoft.graph.fileAttachment',
           }),
           201,
@@ -547,42 +668,115 @@ void main() {
       responseTimeZone: 'UTC',
     );
     final coordinator = AttachmentUploadCoordinator();
-    final key = AttachmentUploadCoordinator.eventKey(
-      'account',
-      'calendar',
-      'event',
-    );
-    Future<void> upload() => coordinator.uploadEvent(
+    await coordinator.uploadEvent(
       client: client,
-      accountId: 'account',
-      calendarId: 'calendar',
-      eventId: 'event',
-      name: 'notes.txt',
+      accountId: 'microsoft:a',
+      calendarId: 'remote-calendar',
+      eventId: 'remote-event',
+      name: 'a.txt',
       contentType: 'text/plain',
-      bytes: [1, 2, 3, 4],
+      bytes: const [1],
     );
-    await upload();
-    expect(coordinator.status(key), AttachmentUploadStatus.committed);
-    expect(coordinator.needsReconciliation(key), isTrue);
-    expect(coordinator.canSubmit(key), isFalse);
-    await expectLater(
-      upload(),
-      throwsA(isA<AttachmentUploadUnresolvedException>()),
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          attachmentUploadCoordinatorProvider.overrideWith(
+            (ref) => coordinator,
+          ),
+          microsoftCalendarApiClientForAccountProvider(
+            'microsoft:a',
+          ).overrideWithValue(client),
+        ],
+        child: localizedTestApp(
+          child: Scaffold(
+            body: Builder(
+              builder: (context) => TextButton(
+                onPressed: () =>
+                    showLinuxEventAttachmentsDialog(context, _event),
+                child: const Text('Open attachments'),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.tap(find.text('Open attachments'));
+    await tester.pumpAndSettle();
+    final add = tester.widget<FilledButton>(
+      find.byKey(const Key('event-attachment-add')),
+    );
+    expect(add.onPressed, isNot(equals(null)));
+    await tester.tap(find.text('Close'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Open attachments'));
+    await tester.pumpAndSettle();
+    expect(
+      tester
+          .widget<FilledButton>(find.byKey(const Key('event-attachment-add')))
+          .onPressed,
+      isNot(equals(null)),
     );
     expect(posts, 1);
-    visible = true;
-    expect(
-      await coordinator.reconcileEvent(
+  });
+
+  test(
+    'successful empty refresh clears confirmed presentation state',
+    () async {
+      var posts = 0;
+      var failRefresh = true;
+      final client = MicrosoftCalendarApiClient(
+        httpClient: MockClient((request) async {
+          if (request.method == 'GET') {
+            if (posts > 0 && failRefresh) {
+              failRefresh = false;
+              throw http.ClientException('list unavailable');
+            }
+            return http.Response(jsonEncode({'value': []}), 200);
+          }
+          posts++;
+          return http.Response(
+            jsonEncode({
+              'id': 'attachment-a',
+              'name': 'a.txt',
+              'size': 1,
+              '@odata.type': '#microsoft.graph.fileAttachment',
+            }),
+            201,
+          );
+        }),
+        baseUri: Uri.parse('https://graph.microsoft.com/v1.0'),
+        responseTimeZone: 'UTC',
+      );
+      final coordinator = AttachmentUploadCoordinator();
+      final key = AttachmentUploadCoordinator.eventKey(
+        'account',
+        'calendar',
+        'event',
+      );
+      await coordinator.uploadEvent(
         client: client,
         accountId: 'account',
         calendarId: 'calendar',
         eventId: 'event',
-      ),
-      AttachmentUploadStatus.committed,
-    );
-    expect(coordinator.needsReconciliation(key), isFalse);
-    expect(coordinator.canSubmit(key), isTrue);
-  });
+        name: 'a.txt',
+        contentType: 'text/plain',
+        bytes: const [1],
+      );
+      expect(coordinator.confirmedId(key), 'attachment-a');
+      expect(
+        await coordinator.reconcileEvent(
+          client: client,
+          accountId: 'account',
+          calendarId: 'calendar',
+          eventId: 'event',
+        ),
+        AttachmentUploadStatus.committed,
+      );
+      expect(coordinator.confirmedId(key), equals(null));
+      expect(coordinator.canSubmit(key), isTrue);
+      expect(posts, 1);
+    },
+  );
 
   test(
     'malformed success response cannot authorize a duplicate upload',
@@ -1208,6 +1402,8 @@ void main() {
       '$platform removes a Microsoft attachment only after confirmation',
       (tester) async {
         var deletes = 0;
+        var posts = 0;
+        var failRefresh = false;
         final client = MicrosoftCalendarApiClient(
           httpClient: MockClient((request) async {
             if (request.method == 'DELETE') {
@@ -1217,6 +1413,23 @@ void main() {
                 '/v1.0/me/calendars/remote-calendar/events/remote-event/attachments/file',
               );
               return http.Response('', 204);
+            }
+            if (request.method == 'POST') {
+              posts++;
+              failRefresh = true;
+              return http.Response(
+                jsonEncode({
+                  'id': 'file',
+                  'name': 'Agenda.pdf',
+                  'size': 4,
+                  '@odata.type': '#microsoft.graph.fileAttachment',
+                }),
+                201,
+              );
+            }
+            if (failRefresh) {
+              failRefresh = false;
+              throw http.ClientException('list refresh unavailable');
             }
             return http.Response(
               jsonEncode({
@@ -1237,9 +1450,29 @@ void main() {
           baseUri: Uri.parse('https://graph.microsoft.com/v1.0'),
           responseTimeZone: 'UTC',
         );
+        final coordinator = AttachmentUploadCoordinator();
+        final uploadKey = AttachmentUploadCoordinator.eventKey(
+          'microsoft:a',
+          'remote-calendar',
+          'remote-event',
+        );
+        await coordinator.uploadEvent(
+          client: client,
+          accountId: 'microsoft:a',
+          calendarId: 'remote-calendar',
+          eventId: 'remote-event',
+          name: 'Agenda.pdf',
+          contentType: 'application/pdf',
+          bytes: const [1, 2, 3, 4],
+        );
+        expect(coordinator.confirmedId(uploadKey), 'file');
+        expect(coordinator.canSubmit(uploadKey), isTrue);
         await tester.pumpWidget(
           ProviderScope(
             overrides: [
+              attachmentUploadCoordinatorProvider.overrideWith(
+                (ref) => coordinator,
+              ),
               microsoftCalendarApiClientForAccountProvider(
                 'microsoft:a',
               ).overrideWithValue(client),
@@ -1297,6 +1530,9 @@ void main() {
         await tester.tap(find.text('Delete').last);
         await tester.pumpAndSettle();
         expect(deletes, 1);
+        expect(posts, 1);
+        expect(coordinator.confirmedId(uploadKey), equals(null));
+        expect(coordinator.canSubmit(uploadKey), isTrue);
       },
     );
   }

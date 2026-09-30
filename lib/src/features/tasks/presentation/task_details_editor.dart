@@ -1678,6 +1678,16 @@ class _TaskDetailsEditorState extends State<TaskDetailsEditor> {
         taskId: _editingTask.id,
         attachmentId: attachment.id,
       );
+      ref
+          .read(attachmentUploadCoordinatorProvider)
+          .attachmentRemoved(
+            AttachmentUploadCoordinator.taskKey(
+              _editingTask.accountId,
+              _editingTask.taskListId,
+              _editingTask.id,
+            ),
+            attachment.id,
+          );
       _reloadTaskAttachments(ref);
     } on Object catch (error) {
       _showAttachmentError(error);
