@@ -22,6 +22,7 @@ import '../../features/schedule/presentation/schedule_event_details_format.dart'
 import '../../features/schedule/presentation/attachment_download.dart';
 import '../../microsoft_todo/api/microsoft_todo_api_client.dart';
 import '../../microsoft_todo/api/microsoft_todo_api_models.dart';
+import '../../microsoft_calendar/microsoft_calendar_models.dart';
 import '../../features/maps/domain/location_result.dart';
 import '../../features/maps/application/external_location_launcher.dart';
 import '../../features/maps/application/location_destination_resolver.dart';
@@ -797,6 +798,103 @@ Future<bool> showWindowsTaskDetailsDialog(
                                 enabled: enabled,
                               ),
                             ),
+                            if (account.provider == BusyProvider.microsoft)
+                              FutureBuilder<List<MicrosoftMasterCategory>>(
+                                future: ref.read(
+                                  microsoftMasterCategoriesProvider(
+                                    task.accountId,
+                                  ).future,
+                                ),
+                                builder: (context, snapshot) {
+                                  final catalog = snapshot.data;
+                                  if (catalog == null) {
+                                    return snapshot.hasError
+                                        ? Button(
+                                            onPressed: () async {
+                                              try {
+                                                await ref
+                                                    .read(
+                                                      microsoftCategoryAuthorizationProvider,
+                                                    )
+                                                    ?.authorizeCategoryAccess(
+                                                      task.accountId,
+                                                    );
+                                                ref.invalidate(
+                                                  microsoftMasterCategoriesProvider(
+                                                    task.accountId,
+                                                  ),
+                                                );
+                                                setState(() {});
+                                              } on Object {
+                                                setState(
+                                                  () => error = l10n
+                                                      .outlookCategoriesUnavailable,
+                                                );
+                                              }
+                                            },
+                                            child: Text(
+                                              l10n.loadOutlookCategories,
+                                            ),
+                                          )
+                                        : Text(l10n.loadOutlookCategories);
+                                  }
+                                  return Wrap(
+                                    spacing: 6,
+                                    runSpacing: 6,
+                                    children: [
+                                      for (final category in catalog)
+                                        ToggleButton(
+                                          checked: _categories(
+                                            categories.text,
+                                          ).contains(category.displayName),
+                                          onChanged: !enabled
+                                              ? null
+                                              : (selected) {
+                                                  final names = [
+                                                    ..._categories(
+                                                      categories.text,
+                                                    ),
+                                                  ];
+                                                  if (selected) {
+                                                    if (!names.contains(
+                                                      category.displayName,
+                                                    )) {
+                                                      names.add(
+                                                        category.displayName,
+                                                      );
+                                                    }
+                                                  } else {
+                                                    names.remove(
+                                                      category.displayName,
+                                                    );
+                                                  }
+                                                  setState(
+                                                    () => categories.text =
+                                                        names.join(', '),
+                                                  );
+                                                },
+                                          child: Row(
+                                            mainAxisSize: MainAxisSize.min,
+                                            children: [
+                                              if (microsoftCategorySwatchArgb(
+                                                    category.color,
+                                                  )
+                                                  case final swatch?) ...[
+                                                Container(
+                                                  width: 12,
+                                                  height: 12,
+                                                  color: Color(swatch),
+                                                ),
+                                                const SizedBox(width: 5),
+                                              ],
+                                              Text(category.displayName),
+                                            ],
+                                          ),
+                                        ),
+                                    ],
+                                  );
+                                },
+                              ),
                           ],
                           if (capabilities.supportsTaskStatus) ...[
                             const SizedBox(height: 12),
@@ -1523,7 +1621,12 @@ Future<bool> showWindowsTaskDetailsDialog(
                         );
                         report(onTaskMutationStarted, mutation);
                         try {
-                          await repository.deleteTask(task.sourceId, task.id);
+                          await repository.deleteTask(
+                            task.sourceId,
+                            task.id,
+                            confirmedAssignedSourceDeletion:
+                                original.googleAssignment.isAssigned,
+                          );
                           report(onTaskMutationCommitted, mutation);
                           changed = true;
                           closeDialog();

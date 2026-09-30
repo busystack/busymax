@@ -9,7 +9,10 @@ import '../../features/schedule/presentation/attachment_download.dart';
 import '../../features/schedule/presentation/schedule_event_details_format.dart';
 import '../../l10n/l10n.dart';
 import '../../microsoft_calendar/microsoft_event_attachment.dart';
+import '../../providers/busy_provider.dart';
+import '../../schedule/event_attachment_link.dart';
 import '../../schedule/schedule_item.dart';
+import '../../features/schedule/presentation/google_event_attachment_reference.dart';
 
 Future<void> showWindowsEventAttachmentsDialog(
   BuildContext context,
@@ -32,12 +35,22 @@ class _WindowsEventAttachmentsDialogState
     extends ConsumerState<_WindowsEventAttachmentsDialog> {
   bool _saving = false;
   String? _error;
+  late List<EventAttachmentLink> _referenceLinks;
+
+  @override
+  void initState() {
+    super.initState();
+    _referenceLinks = List.of(widget.item.attachmentLinks);
+  }
 
   @override
   Widget build(BuildContext context) {
     final item = widget.item;
     final eventId = item.providerEventId;
-    final result = eventId == null
+    final microsoft = item.provider == BusyProvider.microsoft;
+    final google = item.provider == BusyProvider.google;
+    final nextcloud = item.provider == BusyProvider.nextcloud;
+    final result = !microsoft || eventId == null
         ? null
         : ref.watch(
             microsoftEventAttachmentsProvider((
@@ -56,7 +69,45 @@ class _WindowsEventAttachmentsDialogState
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               if (_error case final error?) Text(error),
-              if (result == null)
+              if (!microsoft)
+                if (_referenceLinks.isEmpty)
+                  Text(
+                    item.attachmentsLoaded
+                        ? context.l10n.noneValue
+                        : context.l10n.attachmentsNotLoaded,
+                  )
+                else
+                  for (final link in _referenceLinks)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 8),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(link.name),
+                          Wrap(
+                            spacing: 8,
+                            children: [
+                              Button(
+                                onPressed: () => unawaited(_open(link.url)),
+                                child: Text(context.l10n.openInProvider),
+                              ),
+                              if ((google || nextcloud) &&
+                                  item.capabilities.canEdit)
+                                Button(
+                                  key: const Key(
+                                    'event-attachment-remove-reference',
+                                  ),
+                                  onPressed: _saving
+                                      ? null
+                                      : () => unawaited(_removeReference(link)),
+                                  child: Text(context.l10n.delete),
+                                ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    )
+              else if (result == null)
                 Text(context.l10n.attachmentsNotLoaded)
               else
                 result.when(
@@ -125,8 +176,11 @@ class _WindowsEventAttachmentsDialogState
         ),
       ),
       actions: [
-        if (item.capabilities.canEdit && eventId != null)
+        if ((microsoft || google || nextcloud) &&
+            item.capabilities.canEdit &&
+            (nextcloud || eventId != null))
           Button(
+            key: const Key('event-attachment-add'),
             onPressed: _saving ? null : () => unawaited(_add()),
             child: Tooltip(
               message: context.l10n.attachments,
@@ -155,7 +209,38 @@ class _WindowsEventAttachmentsDialogState
 
   Future<void> _add() async {
     final eventId = widget.item.providerEventId;
-    if (eventId == null || !widget.item.capabilities.canEdit) return;
+    if (!widget.item.capabilities.canEdit) return;
+    if (widget.item.provider == BusyProvider.google ||
+        widget.item.provider == BusyProvider.nextcloud) {
+      var enteredUrl = '';
+      final url = await showDialog<String>(
+        context: context,
+        builder: (dialogContext) => ContentDialog(
+          title: Text(context.l10n.attachments),
+          content: InfoLabel(
+            label: context.l10n.webLink,
+            child: TextBox(
+              onChanged: (value) => enteredUrl = value,
+              autofocus: true,
+            ),
+          ),
+          actions: [
+            Button(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: Text(context.l10n.cancel),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(dialogContext, enteredUrl),
+              child: Text(context.l10n.save),
+            ),
+          ],
+        ),
+      );
+      if (url == null || !mounted) return;
+      await _changeReference(addFileUrl: url);
+      return;
+    }
+    if (eventId == null) return;
     final file = await openFile();
     if (file == null || !mounted) return;
     final name = safeAttachmentFileName(file.name);
@@ -185,6 +270,77 @@ class _WindowsEventAttachmentsDialogState
       _refresh();
     } on Object catch (error) {
       _refresh();
+      if (mounted) setState(() => _error = context.l10n.exportFailed('$error'));
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  Future<void> _removeReference(EventAttachmentLink link) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => ContentDialog(
+        title: Text(context.l10n.delete),
+        content: Text(link.name),
+        actions: [
+          Button(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: Text(context.l10n.cancel),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: Text(context.l10n.delete),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    await _changeReference(removeFileUrl: link.url);
+  }
+
+  Future<void> _changeReference({
+    String? addFileUrl,
+    String? removeFileUrl,
+  }) async {
+    setState(() {
+      _saving = true;
+      _error = null;
+    });
+    try {
+      final List<EventAttachmentLink> links;
+      var cacheUpdated = true;
+      if (widget.item.provider == BusyProvider.google) {
+        final changed = await changeGoogleEventAttachmentReference(
+          item: widget.item,
+          client: ref.read(
+            googleCalendarApiClientForAccountProvider(widget.item.accountId),
+          ),
+          repository: ref.read(calendarRepositoryProvider),
+          addFileUrl: addFileUrl,
+          removeFileUrl: removeFileUrl,
+        );
+        links = changed.links;
+        cacheUpdated = changed.cacheUpdated;
+      } else {
+        final detail = await ref
+            .read(calendarRepositoryProvider)
+            .changeNextcloudUriAttachmentReference(
+              accountId: widget.item.accountId,
+              eventId: widget.item.id,
+              addUrl: addFileUrl,
+              removeUrl: removeFileUrl,
+            );
+        links = eventAttachmentLinks(detail?.attachments);
+        cacheUpdated = detail != null;
+      }
+      if (!mounted) return;
+      setState(() {
+        _referenceLinks = links;
+        if (!cacheUpdated) {
+          _error = context.l10n.refreshFailed(context.l10n.attachments);
+        }
+      });
+    } on Object catch (error) {
       if (mounted) setState(() => _error = context.l10n.exportFailed('$error'));
     } finally {
       if (mounted) setState(() => _saving = false);

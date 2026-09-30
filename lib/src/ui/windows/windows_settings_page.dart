@@ -13,6 +13,7 @@ import '../../../l10n/generated/app_localizations.dart';
 import '../../app/app_bootstrap.dart';
 import '../../features/accounts/data/accounts_repository.dart';
 import '../../features/calendar/data/calendar_repository.dart';
+import '../../features/calendar/data/cloud_calendar_sharing_service.dart';
 import '../../features/calendar/data/microsoft_shared_calendar_service.dart';
 import '../../features/notifications/desktop_notification_backend.dart';
 import '../../features/sync/sync_auth_error.dart';
@@ -26,6 +27,7 @@ import '../common/busymax_glyph.dart';
 import 'windows_account_removal_dialog.dart';
 import 'windows_busymax_glyphs.dart';
 import 'windows_calendar_activation_flows.dart';
+import 'windows_cloud_calendar_sharing_dialog.dart';
 import 'windows_diagnostics_dialog.dart';
 import 'windows_feedback_dialog.dart';
 import 'windows_keyboard_shortcuts_dialog.dart';
@@ -463,6 +465,34 @@ class _WindowsSettingsPageState extends ConsumerState<WindowsSettingsPage> {
                                 context,
                                 ref,
                                 values[index].id,
+                              ),
+                            ),
+                          ),
+                        if (values[index].isSignedIn &&
+                            (calendarSources.valueOrNull ??
+                                    const <CalendarSourceEntity>[])
+                                .any(
+                                  (source) =>
+                                      source.accountId == values[index].id &&
+                                      CloudCalendarSharingService.canManageSource(
+                                        source,
+                                      ),
+                                ))
+                          MenuFlyoutItem(
+                            text: Text(l10n.manageCalendarSharing),
+                            onPressed: () => unawaited(
+                              showWindowsCloudCalendarSharingDialog(
+                                context,
+                                sources: [
+                                  for (final source
+                                      in calendarSources.valueOrNull ??
+                                          const <CalendarSourceEntity>[])
+                                    if (source.accountId == values[index].id &&
+                                        CloudCalendarSharingService.canManageSource(
+                                          source,
+                                        ))
+                                      source,
+                                ],
                               ),
                             ),
                           ),

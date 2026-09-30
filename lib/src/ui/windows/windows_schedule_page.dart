@@ -19,7 +19,9 @@ import '../../calendar_providers/calendar_mutation.dart';
 import '../../features/accounts/data/accounts_repository.dart';
 import '../../features/calendar/data/calendar_repository.dart';
 import '../../features/calendar/presentation/event_editor_draft.dart';
+import '../../features/calendar/presentation/google_status_event_labels.dart';
 import '../../features/schedule/presentation/schedule_item_exporter.dart';
+import '../../features/schedule/presentation/cloud_calendar_series_export.dart';
 import '../../features/task_lists/data/task_lists_repository.dart';
 import '../../schedule/schedule_filters.dart';
 import '../../schedule/schedule_commands.dart';
@@ -1466,6 +1468,12 @@ class _WindowsSchedulePageState extends ConsumerState<WindowsSchedulePage> {
                   ?item.accountDisplayName,
                   if (item is CalendarScheduleItem)
                     calendarEventDescription(item),
+                  if (item is CalendarScheduleItem)
+                    ...googleStatusDetailLines(
+                      l10n,
+                      item.eventType,
+                      item.googleStatusProperties,
+                    ),
                   if (item case TaskScheduleItem(:final notes?)) notes,
                 ].where((value) => value.trim().isNotEmpty).join('\n'),
               ),
@@ -1785,15 +1793,67 @@ class _WindowsSchedulePageState extends ConsumerState<WindowsSchedulePage> {
   Future<void> _export(ScheduleItem item) async {
     final l10n = AppLocalizations.of(context);
     try {
-      final rawICalendar = item is CalendarScheduleItem
-          ? await ref
-                .read(calendarRepositoryProvider)
-                .nativeEventExport(item.id)
-          : item is TaskScheduleItem && item.provider == BusyProvider.nextcloud
-          ? await ref
-                .read(tasksRepositoryForAccountProvider(item.accountId))
-                .nativeTaskExport(item.sourceId, item.id)
-          : null;
+      String? rawICalendar;
+      if (item is CalendarScheduleItem) {
+        final repository = ref.read(calendarRepositoryProvider);
+        final detail = await repository.loadEventDetail(item.id);
+        if (!mounted) return;
+        final recurring =
+            detail != null &&
+            (detail.recurrence != null ||
+                detail.providerRecurringEventId != null);
+        final series =
+            recurring &&
+                canExportAuthoritativeEventSeries(
+                  provider: item.provider,
+                  providerEventId: item.providerEventId,
+                  davCollectionId: detail.davCollectionId,
+                )
+            ? await showDialog<bool>(
+                context: context,
+                builder: (dialogContext) => ContentDialog(
+                  title: Text(l10n.export),
+                  actions: [
+                    Button(
+                      onPressed: () => Navigator.pop(dialogContext, false),
+                      child: Text(l10n.singleOccurrence),
+                    ),
+                    FilledButton(
+                      onPressed: () => Navigator.pop(dialogContext, true),
+                      child: Text(l10n.entireSeries),
+                    ),
+                  ],
+                ),
+              )
+            : false;
+        if (series == null) return;
+        if (series && item.provider == BusyProvider.google) {
+          rawICalendar = await exportGoogleEventSeries(
+            client: ref.read(
+              googleCalendarApiClientForAccountProvider(item.accountId),
+            ),
+            calendarId: item.providerCalendarId,
+            eventId: item.providerEventId!,
+            nowUtc: DateTime.now().toUtc(),
+          );
+        } else if (series && item.provider == BusyProvider.microsoft) {
+          rawICalendar = await exportMicrosoftEventSeries(
+            client: ref.read(
+              microsoftCalendarApiClientForAccountProvider(item.accountId),
+            ),
+            calendarId: item.providerCalendarId,
+            eventId: item.providerEventId!,
+            nowUtc: DateTime.now().toUtc(),
+          );
+        } else if (series || !recurring) {
+          rawICalendar = await repository.nativeEventExport(item.id);
+        }
+      } else if (item is TaskScheduleItem &&
+          item.provider == BusyProvider.nextcloud) {
+        rawICalendar = await ref
+            .read(tasksRepositoryForAccountProvider(item.accountId))
+            .nativeTaskExport(item.sourceId, item.id);
+      }
       final file = await exportScheduleItemWithSaveDialog(
         item,
         rawICalendar: rawICalendar,
@@ -1944,7 +2004,11 @@ class _WindowsSchedulePageState extends ConsumerState<WindowsSchedulePage> {
         case TaskScheduleItem():
           await ref
               .read(tasksRepositoryForAccountProvider(item.accountId))
-              .deleteTask(item.sourceId, item.id);
+              .deleteTask(
+                item.sourceId,
+                item.id,
+                confirmedAssignedSourceDeletion: item.isAssigned,
+              );
       }
       if (mounted) _reload();
     } on Object catch (_) {
