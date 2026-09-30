@@ -10,8 +10,11 @@ import '../../../app/busymax_design.dart';
 import '../../../app/busymax_dialogs.dart';
 import '../../../l10n/l10n.dart';
 import '../../../microsoft_calendar/microsoft_event_attachment.dart';
+import '../../../providers/busy_provider.dart';
+import '../../../schedule/event_attachment_link.dart';
 import '../../../schedule/schedule_item.dart';
 import 'attachment_download.dart';
+import 'google_event_attachment_reference.dart';
 import 'schedule_event_details_format.dart';
 
 Future<void> showLinuxEventAttachmentsDialog(
@@ -33,12 +36,22 @@ class _LinuxEventAttachmentsDialog extends ConsumerStatefulWidget {
 class _LinuxEventAttachmentsDialogState
     extends ConsumerState<_LinuxEventAttachmentsDialog> {
   bool _saving = false;
+  late List<EventAttachmentLink> _referenceLinks;
+
+  @override
+  void initState() {
+    super.initState();
+    _referenceLinks = List.of(widget.item.attachmentLinks);
+  }
 
   @override
   Widget build(BuildContext context) {
     final item = widget.item;
     final eventId = item.providerEventId;
-    final result = eventId == null
+    final microsoft = item.provider == BusyProvider.microsoft;
+    final google = item.provider == BusyProvider.google;
+    final nextcloud = item.provider == BusyProvider.nextcloud;
+    final result = !microsoft || eventId == null
         ? null
         : ref.watch(
             microsoftEventAttachmentsProvider((
@@ -51,8 +64,11 @@ class _LinuxEventAttachmentsDialogState
       title: context.l10n.attachments,
       maxWidth: 520,
       actions: [
-        if (item.capabilities.canEdit && eventId != null)
+        if ((microsoft || google || nextcloud) &&
+            item.capabilities.canEdit &&
+            (nextcloud || eventId != null))
           BusyMaxPushButton.standard(
+            key: const Key('event-attachment-add'),
             onPressed: _saving ? null : () => unawaited(_add()),
             child: Row(
               mainAxisSize: MainAxisSize.min,
@@ -65,7 +81,42 @@ class _LinuxEventAttachmentsDialogState
         ),
       ],
       children: [
-        if (result == null)
+        if (!microsoft)
+          if (_referenceLinks.isEmpty)
+            Text(
+              item.attachmentsLoaded
+                  ? context.l10n.noneValue
+                  : context.l10n.attachmentsNotLoaded,
+            )
+          else
+            for (final link in _referenceLinks)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(link.name),
+                    Wrap(
+                      spacing: 8,
+                      children: [
+                        BusyMaxPushButton.standard(
+                          onPressed: () => unawaited(_open(link.url)),
+                          child: Text(context.l10n.openInProvider),
+                        ),
+                        if ((google || nextcloud) && item.capabilities.canEdit)
+                          BusyMaxPushButton.standard(
+                            key: const Key('event-attachment-remove-reference'),
+                            onPressed: _saving
+                                ? null
+                                : () => unawaited(_removeReference(link)),
+                            child: Text(context.l10n.delete),
+                          ),
+                      ],
+                    ),
+                  ],
+                ),
+              )
+        else if (result == null)
           Text(context.l10n.attachmentsNotLoaded)
         else
           result.when(
@@ -140,7 +191,20 @@ class _LinuxEventAttachmentsDialogState
 
   Future<void> _add() async {
     final eventId = widget.item.providerEventId;
-    if (eventId == null || !widget.item.capabilities.canEdit) return;
+    if (!widget.item.capabilities.canEdit) return;
+    if (widget.item.provider == BusyProvider.google ||
+        widget.item.provider == BusyProvider.nextcloud) {
+      final url = await showBusyMaxTextPrompt(
+        context,
+        title: context.l10n.attachments,
+        label: context.l10n.webLink,
+        actionLabel: context.l10n.save,
+      );
+      if (url == null || !mounted) return;
+      await _changeReference(addFileUrl: url);
+      return;
+    }
+    if (eventId == null) return;
     final file = await openFile();
     if (file == null || !mounted) return;
     final name = safeAttachmentFileName(file.name);
@@ -168,6 +232,66 @@ class _LinuxEventAttachmentsDialogState
       _refresh();
     } on Object catch (error) {
       _refresh();
+      _error(error);
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  Future<void> _removeReference(EventAttachmentLink link) async {
+    final confirmed = await showBusyMaxConfirm(
+      context,
+      title: context.l10n.delete,
+      message: link.name,
+      confirmLabel: context.l10n.delete,
+      destructive: true,
+    );
+    if (!confirmed || !mounted) return;
+    await _changeReference(removeFileUrl: link.url);
+  }
+
+  Future<void> _changeReference({
+    String? addFileUrl,
+    String? removeFileUrl,
+  }) async {
+    setState(() => _saving = true);
+    try {
+      final List<EventAttachmentLink> links;
+      var cacheUpdated = true;
+      if (widget.item.provider == BusyProvider.google) {
+        final changed = await changeGoogleEventAttachmentReference(
+          item: widget.item,
+          client: ref.read(
+            googleCalendarApiClientForAccountProvider(widget.item.accountId),
+          ),
+          repository: ref.read(calendarRepositoryProvider),
+          addFileUrl: addFileUrl,
+          removeFileUrl: removeFileUrl,
+        );
+        links = changed.links;
+        cacheUpdated = changed.cacheUpdated;
+      } else {
+        final detail = await ref
+            .read(calendarRepositoryProvider)
+            .changeNextcloudUriAttachmentReference(
+              accountId: widget.item.accountId,
+              eventId: widget.item.id,
+              addUrl: addFileUrl,
+              removeUrl: removeFileUrl,
+            );
+        links = eventAttachmentLinks(detail?.attachments);
+        cacheUpdated = detail != null;
+      }
+      if (!mounted) return;
+      setState(() => _referenceLinks = links);
+      if (!cacheUpdated) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(context.l10n.refreshFailed(context.l10n.attachments)),
+          ),
+        );
+      }
+    } on Object catch (error) {
       _error(error);
     } finally {
       if (mounted) setState(() => _saving = false);

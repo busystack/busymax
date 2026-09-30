@@ -14,6 +14,7 @@ import '../application/saved_schedule_location.dart';
 import 'schedule_anchored_popover.dart';
 import 'schedule_event_block.dart';
 import 'schedule_event_details_format.dart';
+import '../../calendar/presentation/google_status_event_labels.dart';
 
 enum ScheduleItemDetailsAction {
   export,
@@ -525,6 +526,12 @@ List<Widget> _eventDetails(
         _attendeeResponseLabel(context, attendee),
   ];
   return [
+    for (final line in googleStatusDetailLines(
+      context.l10n,
+      item.eventType,
+      item.googleStatusProperties,
+    ))
+      _ScheduleDetailRow(icon: Icons.event_note_outlined, text: line),
     if (locationDestination != null)
       _ScheduleLocationDetailRow(item: item, destination: locationDestination)
     else if (scheduleItemLocationText(item).trim().isNotEmpty)

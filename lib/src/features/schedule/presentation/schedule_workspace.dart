@@ -59,6 +59,7 @@ import 'schedule_item_details_popover.dart';
 import 'linux_event_attachments_dialog.dart';
 import 'schedule_event_details_format.dart';
 import 'schedule_item_exporter.dart';
+import 'cloud_calendar_series_export.dart';
 import 'schedule_item_selection.dart';
 import 'schedule_month_view.dart';
 import 'schedule_sidebar.dart';
@@ -1752,9 +1753,43 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
     try {
       String? rawICalendar;
       if (item is CalendarScheduleItem) {
-        rawICalendar = await ref
-            .read(calendarRepositoryProvider)
-            .nativeEventExport(item.id);
+        final repository = ref.read(calendarRepositoryProvider);
+        final detail = await repository.loadEventDetail(item.id);
+        final recurring =
+            detail != null &&
+            (detail.recurrence != null ||
+                detail.providerRecurringEventId != null);
+        final series =
+            recurring &&
+                canExportAuthoritativeEventSeries(
+                  provider: item.provider,
+                  providerEventId: item.providerEventId,
+                  davCollectionId: detail.davCollectionId,
+                )
+            ? await _chooseSeriesExport()
+            : false;
+        if (series == null) return;
+        if (series && item.provider == BusyProvider.google) {
+          rawICalendar = await exportGoogleEventSeries(
+            client: ref.read(
+              googleCalendarApiClientForAccountProvider(item.accountId),
+            ),
+            calendarId: item.providerCalendarId,
+            eventId: item.providerEventId!,
+            nowUtc: DateTime.now().toUtc(),
+          );
+        } else if (series && item.provider == BusyProvider.microsoft) {
+          rawICalendar = await exportMicrosoftEventSeries(
+            client: ref.read(
+              microsoftCalendarApiClientForAccountProvider(item.accountId),
+            ),
+            calendarId: item.providerCalendarId,
+            eventId: item.providerEventId!,
+            nowUtc: DateTime.now().toUtc(),
+          );
+        } else if (series || !recurring) {
+          rawICalendar = await repository.nativeEventExport(item.id);
+        }
       }
       if (item is TaskScheduleItem &&
           (item.provider == BusyProvider.nextcloud ||
@@ -1788,6 +1823,33 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
       );
     }
   }
+
+  Future<bool?> _chooseSeriesExport() => showBusyMaxModalEditorDialog<bool>(
+    context,
+    maxHeight: 300,
+    builder: (dialogContext) => BusyMaxModalEditorScaffold(
+      title: context.l10n.export,
+      cancelLabel: context.l10n.cancel,
+      saveLabel: context.l10n.export,
+      onCancel: () => Navigator.of(dialogContext).pop(),
+      onSave: null,
+      children: [
+        BusyMaxGroupedList(
+          filled: true,
+          children: [
+            BusyMaxActionRow(
+              title: context.l10n.singleOccurrence,
+              onTap: () => Navigator.of(dialogContext).pop(false),
+            ),
+            BusyMaxActionRow(
+              title: context.l10n.entireSeries,
+              onTap: () => Navigator.of(dialogContext).pop(true),
+            ),
+          ],
+        ),
+      ],
+    ),
+  );
 
   void _openTaskDetails(TaskScheduleItem item) {
     unawaited(
@@ -2328,7 +2390,11 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
       try {
         await ref
             .read(tasksRepositoryForAccountProvider(item.accountId))
-            .deleteTask(item.sourceId, item.id);
+            .deleteTask(
+              item.sourceId,
+              item.id,
+              confirmedAssignedSourceDeletion: item.isAssigned,
+            );
         if (mounted) setState(() {});
       } on Object {
         if (mounted &&
