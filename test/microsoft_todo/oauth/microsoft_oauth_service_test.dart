@@ -161,6 +161,44 @@ void main() {
         service.sharedCalendarAuthorizationHeaderForAccount('microsoft:user'),
         throwsA(isA<OAuthException>()),
       );
+      await expectLater(
+        service.categoryAuthorizationHeaderForAccount('microsoft:user'),
+        throwsA(isA<OAuthException>()),
+      );
+    },
+  );
+
+  test(
+    'category consent remains account-scoped and survives refresh scope selection',
+    () async {
+      late http.Request captured;
+      final service = _service((request) async {
+        captured = request;
+        return http.Response(
+          jsonEncode({
+            'access_token': 'renewed',
+            'refresh_token': 'refresh',
+            'expires_in': 3600,
+            'token_type': 'Bearer',
+            'scope': '$microsoftTodoOAuthScopes $microsoftCategoryScope',
+          }),
+          200,
+        );
+      });
+      final token = await service.refreshToken(
+        OAuthTokenSet(
+          accessToken: 'access',
+          refreshToken: 'refresh',
+          expiresAtUtc: DateTime.utc(2026, 6, 6),
+          tokenType: 'Bearer',
+          scopes: const {microsoftCategoryScope},
+        ),
+      );
+      expect(
+        Uri.splitQueryString(captured.body)['scope'],
+        contains(microsoftCategoryScope),
+      );
+      expect(token.scopes, contains(microsoftCategoryScope));
     },
   );
 
