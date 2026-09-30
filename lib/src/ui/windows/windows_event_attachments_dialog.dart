@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../app/app_bootstrap.dart';
 import '../../features/schedule/presentation/attachment_download.dart';
+import '../../features/schedule/presentation/attachment_upload_coordinator.dart';
 import '../../features/schedule/presentation/schedule_event_details_format.dart';
 import '../../l10n/l10n.dart';
 import '../../microsoft_calendar/microsoft_event_attachment.dart';
@@ -50,6 +51,14 @@ class _WindowsEventAttachmentsDialogState
     final microsoft = item.provider == BusyProvider.microsoft;
     final google = item.provider == BusyProvider.google;
     final nextcloud = item.provider == BusyProvider.nextcloud;
+    final uploads = ref.watch(attachmentUploadCoordinatorProvider);
+    final uploadKey = eventId == null
+        ? null
+        : AttachmentUploadCoordinator.eventKey(
+            item.accountId,
+            item.providerCalendarId,
+            eventId,
+          );
     final result = !microsoft || eventId == null
         ? null
         : ref.watch(
@@ -69,6 +78,17 @@ class _WindowsEventAttachmentsDialogState
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               if (_error case final error?) Text(error),
+              if (microsoft &&
+                  uploadKey != null &&
+                  uploads.needsReconciliation(uploadKey)) ...[
+                Text(context.l10n.attachmentUploadUnresolved),
+                Button(
+                  onPressed: _saving
+                      ? null
+                      : () => unawaited(_reconcileUpload(eventId!)),
+                  child: Text(context.l10n.refresh),
+                ),
+              ],
               if (!microsoft)
                 if (_referenceLinks.isEmpty)
                   Text(
@@ -181,7 +201,13 @@ class _WindowsEventAttachmentsDialogState
             (nextcloud || eventId != null))
           Button(
             key: const Key('event-attachment-add'),
-            onPressed: _saving ? null : () => unawaited(_add()),
+            onPressed:
+                _saving ||
+                    (microsoft &&
+                        uploadKey != null &&
+                        !uploads.canSubmit(uploadKey))
+                ? null
+                : () => unawaited(_add()),
             child: Tooltip(
               message: context.l10n.attachments,
               child: const Icon(FluentIcons.add),
@@ -257,10 +283,14 @@ class _WindowsEventAttachmentsDialogState
         throw StateError('Event file exceeds 150 MB.');
       }
       await ref
-          .read(
-            microsoftCalendarApiClientForAccountProvider(widget.item.accountId),
-          )
-          .uploadEventFileAttachment(
+          .read(attachmentUploadCoordinatorProvider)
+          .uploadEvent(
+            client: ref.read(
+              microsoftCalendarApiClientForAccountProvider(
+                widget.item.accountId,
+              ),
+            ),
+            accountId: widget.item.accountId,
             calendarId: widget.item.providerCalendarId,
             eventId: eventId,
             name: name,
@@ -270,6 +300,29 @@ class _WindowsEventAttachmentsDialogState
       _refresh();
     } on Object catch (error) {
       _refresh();
+      if (mounted) setState(() => _error = context.l10n.exportFailed('$error'));
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  Future<void> _reconcileUpload(String eventId) async {
+    setState(() => _saving = true);
+    try {
+      await ref
+          .read(attachmentUploadCoordinatorProvider)
+          .reconcileEvent(
+            client: ref.read(
+              microsoftCalendarApiClientForAccountProvider(
+                widget.item.accountId,
+              ),
+            ),
+            accountId: widget.item.accountId,
+            calendarId: widget.item.providerCalendarId,
+            eventId: eventId,
+          );
+      _refresh();
+    } on Object catch (error) {
       if (mounted) setState(() => _error = context.l10n.exportFailed('$error'));
     } finally {
       if (mounted) setState(() => _saving = false);

@@ -20,6 +20,7 @@ import '../../features/tasks/presentation/task_details_draft.dart';
 import '../../features/schedule/presentation/schedule_item_exporter.dart';
 import '../../features/schedule/presentation/schedule_event_details_format.dart';
 import '../../features/schedule/presentation/attachment_download.dart';
+import '../../features/schedule/presentation/attachment_upload_coordinator.dart';
 import '../../microsoft_todo/api/microsoft_todo_api_client.dart';
 import '../../microsoft_todo/api/microsoft_todo_api_models.dart';
 import '../../microsoft_calendar/microsoft_calendar_models.dart';
@@ -460,7 +461,17 @@ Future<bool> showWindowsTaskDetailsDialog(
                         !original.pendingDelete &&
                         !original.id.startsWith('local-task-'))
                       Button(
-                        onPressed: busy
+                        onPressed:
+                            busy ||
+                                !ref
+                                    .watch(attachmentUploadCoordinatorProvider)
+                                    .canSubmit(
+                                      AttachmentUploadCoordinator.taskKey(
+                                        original.accountId,
+                                        original.taskListId,
+                                        original.id,
+                                      ),
+                                    )
                             ? null
                             : () async {
                                 final file = await openFile();
@@ -491,9 +502,13 @@ Future<bool> showWindowsTaskDetailsDialog(
                                       'Microsoft task attachments are unavailable.',
                                     );
                                   }
-                                  await (client
-                                          as MicrosoftTodoAttachmentsApiClient)
-                                      .uploadTaskFileAttachment(
+                                  await ref
+                                      .read(attachmentUploadCoordinatorProvider)
+                                      .uploadTask(
+                                        client:
+                                            client
+                                                as MicrosoftTodoAttachmentsApiClient,
+                                        accountId: original.accountId,
                                         taskListId: original.taskListId,
                                         taskId: original.id,
                                         name: name,
@@ -517,6 +532,14 @@ Future<bool> showWindowsTaskDetailsDialog(
                                   );
                                 } on Object catch (failure) {
                                   error = l10n.exportFailed('$failure');
+                                  final key = (
+                                    accountId: original.accountId,
+                                    taskListId: original.taskListId,
+                                    taskId: original.id,
+                                  );
+                                  ref.invalidate(
+                                    microsoftTaskAttachmentsProvider(key),
+                                  );
                                 } finally {
                                   if (context.mounted) {
                                     setState(() => busy = false);
@@ -531,6 +554,65 @@ Future<bool> showWindowsTaskDetailsDialog(
                           ],
                         ),
                       ),
+                    if (ref
+                        .watch(attachmentUploadCoordinatorProvider)
+                        .needsReconciliation(
+                          AttachmentUploadCoordinator.taskKey(
+                            original.accountId,
+                            original.taskListId,
+                            original.id,
+                          ),
+                        )) ...[
+                      Text(l10n.attachmentUploadUnresolved),
+                      Button(
+                        onPressed: busy
+                            ? null
+                            : () async {
+                                final client = ref.read(
+                                  microsoftTodoApiClientForAccountProvider(
+                                    original.accountId,
+                                  ),
+                                );
+                                if (client
+                                    is! MicrosoftTodoAttachmentsApiClient) {
+                                  return;
+                                }
+                                setState(() => busy = true);
+                                try {
+                                  await ref
+                                      .read(attachmentUploadCoordinatorProvider)
+                                      .reconcileTask(
+                                        client:
+                                            client
+                                                as MicrosoftTodoAttachmentsApiClient,
+                                        accountId: original.accountId,
+                                        taskListId: original.taskListId,
+                                        taskId: original.id,
+                                      );
+                                  final key = (
+                                    accountId: original.accountId,
+                                    taskListId: original.taskListId,
+                                    taskId: original.id,
+                                  );
+                                  ref.invalidate(
+                                    microsoftTaskAttachmentsProvider(key),
+                                  );
+                                  attachmentsFuture = ref.read(
+                                    microsoftTaskAttachmentsProvider(
+                                      key,
+                                    ).future,
+                                  );
+                                } on Object catch (failure) {
+                                  error = l10n.exportFailed('$failure');
+                                } finally {
+                                  if (context.mounted) {
+                                    setState(() => busy = false);
+                                  }
+                                }
+                              },
+                        child: Text(l10n.refresh),
+                      ),
+                    ],
                     if (attachmentsFuture case final future?)
                       FutureBuilder<List<MicrosoftTodoAttachmentDto>>(
                         future: future,

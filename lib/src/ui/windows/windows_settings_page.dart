@@ -837,7 +837,7 @@ class _WindowsCalendarSettingsColumnLabel extends StatelessWidget {
   }
 }
 
-class _WindowsCalendarSettingsRow extends StatelessWidget {
+class _WindowsCalendarSettingsRow extends ConsumerWidget {
   const _WindowsCalendarSettingsRow({
     super.key,
     required this.source,
@@ -853,7 +853,7 @@ class _WindowsCalendarSettingsRow extends StatelessWidget {
   onProviderVisibilityChanged;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context);
     final canChangeProviderVisibility =
         source.capabilities.canChangeProviderVisibility;
@@ -890,6 +890,50 @@ class _WindowsCalendarSettingsRow extends StatelessWidget {
                     : null,
                 semanticLabel: l10n.visibility,
               ),
+            ),
+          if (source.provider == BusyProvider.microsoft &&
+              source.capabilities.removalMode ==
+                  CalendarRemovalMode.removeFromList)
+            IconButton(
+              key: ValueKey('settings-calendar-remove-${source.id}'),
+              icon: Icon(windowsBusyMaxGlyph(BusyMaxGlyph.delete)),
+              onPressed: () async {
+                final confirmed = await showDialog<bool>(
+                  context: context,
+                  barrierDismissible: false,
+                  builder: (dialogContext) => ContentDialog(
+                    title: Text(l10n.removeFromMyCalendars),
+                    content: Text(
+                      l10n.removeOpenedSharedCalendarConfirmation(
+                        source.summary,
+                      ),
+                    ),
+                    actions: [
+                      Button(
+                        onPressed: () => Navigator.pop(dialogContext, false),
+                        child: Text(l10n.cancel),
+                      ),
+                      FilledButton(
+                        onPressed: () => Navigator.pop(dialogContext, true),
+                        child: Text(l10n.removeAction),
+                      ),
+                    ],
+                  ),
+                );
+                if (confirmed != true || !context.mounted) return;
+                try {
+                  await ref
+                      .read(calendarRepositoryProvider)
+                      .deleteLocalSource(source.id);
+                } on Object catch (error) {
+                  if (context.mounted) {
+                    await _showWindowsMessage(
+                      context,
+                      l10n.calendarUpdateFailed('$error'),
+                    );
+                  }
+                }
+              },
             ),
         ],
       ),
