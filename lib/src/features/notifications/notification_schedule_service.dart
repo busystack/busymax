@@ -617,6 +617,13 @@ List<_EventReminder> _davEventReminders(
   required DateTime startUtc,
   required DateTime? endUtc,
 }) {
+  if (reminderData['davEditableRows'] case final List rows) {
+    return _minuteReminders([
+      for (final row in rows)
+        if (row is Map && row['minutes'] is int && (row['minutes'] as int) >= 0)
+          row['minutes'] as int,
+    ], startUtc: startUtc);
+  }
   final rawAlarms = reminderData['alarms'];
   if (rawAlarms is List) {
     final result = <_EventReminder>[];
