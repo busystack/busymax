@@ -10,6 +10,81 @@ import 'dav_mutation_patch.dart';
 import '../../features/calendar/presentation/event_editor_draft.dart';
 import '../nextcloud/nextcloud_scheduling_mutations.dart';
 
+/// Edits only URI ATTACH properties on one concrete VEVENT. Replacing the
+/// component with a deep copy retains untouched binary ATTACH properties,
+/// grouped properties, parameter spelling, alarms, exceptions, and VTIMEZONE
+/// content exactly as parsed from the original resource.
+DavMutationPatch? buildDavUriAttachmentPatch({
+  required String baselineRawIcs,
+  required IcalComponentKey target,
+  String? addUrl,
+  String? removeUrl,
+}) {
+  if (target.componentType != 'VEVENT' ||
+      (addUrl == null) == (removeUrl == null)) {
+    throw ArgumentError('Specify one VEVENT URI attachment change.');
+  }
+  final candidate = addUrl ?? removeUrl!;
+  final uri = Uri.tryParse(candidate.trim());
+  if (uri == null ||
+      uri.host.isEmpty ||
+      uri.userInfo.isNotEmpty ||
+      (addUrl != null
+          ? uri.scheme != 'https'
+          : uri.scheme != 'https' && uri.scheme != 'http')) {
+    throw const FormatException('Attachment URL is not a supported URI.');
+  }
+  final document = IcalDocument.parse(baselineRawIcs);
+  final component = IcalDocumentPatcher(document).requireComponent(target);
+  final replacement = component.deepCopy();
+  bool matchingUri(IcalProperty property) {
+    if (property.name != 'ATTACH' ||
+        property.parameterValue('VALUE')?.toUpperCase() == 'BINARY' ||
+        property.parameterValue('ENCODING')?.toUpperCase() == 'BASE64') {
+      return false;
+    }
+    final parsed = Uri.tryParse(property.rawValue);
+    return parsed != null &&
+        (parsed.scheme == 'https' || parsed.scheme == 'http') &&
+        parsed.host.isNotEmpty &&
+        parsed.userInfo.isEmpty &&
+        parsed.toString() == uri.toString();
+  }
+
+  if (addUrl != null) {
+    if (replacement.propertiesNamed('ATTACH').any(matchingUri)) return null;
+    replacement.children.add(
+      IcalProperty(
+        group: null,
+        name: 'ATTACH',
+        parameters: const [
+          IcalParameter(name: 'VALUE', values: ['URI'], wasQuoted: false),
+        ],
+        rawValue: uri.toString(),
+        originalPhysicalLines: const [],
+        isDirty: true,
+      ),
+    );
+  } else {
+    final before = replacement.children.length;
+    replacement.children.removeWhere(
+      (node) => node is IcalProperty && matchingUri(node),
+    );
+    if (replacement.children.length == before) return null;
+  }
+  replacement.structurallyDirty = true;
+  return DavMutationPatch(
+    target: target,
+    scope: target.recurrenceIdKey == null
+        ? DavMutationScope.object
+        : DavMutationScope.recurrenceException,
+    operations: [
+      DavPatchOperation.removeComponent(componentKey: target),
+      DavPatchOperation.addComponent(replacement),
+    ],
+  );
+}
+
 final class DavEventMutationInput {
   const DavEventMutationInput({
     required this.title,
