@@ -55,6 +55,8 @@ class CalendarScheduleItem implements ScheduleItem {
     required this.allDay,
     this.start,
     this.providerRecurringEventId,
+    this.eventType,
+    this.googleStatusProperties = const {},
     this.timingBaseline,
     this.end,
     this.location,
@@ -98,6 +100,8 @@ class CalendarScheduleItem implements ScheduleItem {
   final String providerCalendarId;
   final String? providerEventId;
   final String? providerRecurringEventId;
+  final String? eventType;
+  final Map<String, Object?> googleStatusProperties;
   final EventTimingBaseline? timingBaseline;
 
   bool get canReschedule =>

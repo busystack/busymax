@@ -15,6 +15,7 @@ import '../db/app_database.dart';
 import '../features/accounts/data/accounts_repository.dart';
 import '../features/calendar/data/calendar_event_detail.dart';
 import '../features/calendar/domain/event_timing_policy.dart';
+import '../features/calendar/domain/google_status_event.dart';
 import '../features/tasks/domain/task_checklist_item.dart';
 import '../features/tasks/domain/google_task_assignment_policy.dart';
 import '../features/tasks/domain/task_source_links.dart';
@@ -33,13 +34,16 @@ class ScheduleRepository {
     Future<void> Function(ScheduleRange range)? ensureProjectionCoverage,
     Future<bool> Function(ScheduleRange range, ScheduleFilters filters)?
     ensureCloudCoverage,
+    DateTime Function()? nowUtc,
   }) : _ensureProjectionCoverage = ensureProjectionCoverage,
-       _ensureCloudCoverage = ensureCloudCoverage;
+       _ensureCloudCoverage = ensureCloudCoverage,
+       _nowUtc = nowUtc ?? (() => DateTime.now().toUtc());
 
   final AppDatabase _database;
   final Future<void> Function(ScheduleRange range)? _ensureProjectionCoverage;
   final Future<bool> Function(ScheduleRange range, ScheduleFilters filters)?
   _ensureCloudCoverage;
+  final DateTime Function() _nowUtc;
   final Map<String, bool> _rangeCoverage = {};
   final Map<String, int> _rangeCoverageGeneration = {};
   final Map<String, Future<void>> _coverageInFlight = {};
@@ -103,10 +107,15 @@ class ScheduleRepository {
     if (ensure == null) return;
     final key = _coverageKey(range, filters);
     if (_coverageInFlight.containsKey(key)) return;
-    final now = DateTime.now().toUtc();
+    final now = _nowUtc();
     final previous = _coverageLastAttempt[key];
-    if (previous != null &&
-        now.difference(previous) < const Duration(minutes: 5)) {
+    // A failed online request must not suppress reconnect for the entire
+    // successful-range freshness window. Bound retries to avoid an offline
+    // view triggering a network request on every rebuild.
+    final retryInterval = _rangeCoverage[key] == false
+        ? const Duration(seconds: 10)
+        : const Duration(minutes: 5);
+    if (previous != null && now.difference(previous) < retryInterval) {
       return;
     }
     _coverageLastAttempt[key] = now;
@@ -558,6 +567,10 @@ class ScheduleRepository {
           providerCalendarId: event.providerCalendarId,
           providerEventId: event.providerEventId,
           providerRecurringEventId: detail.recurringMutationSeriesId,
+          eventType: restrictedPrivate ? null : event.eventType,
+          googleStatusProperties: restrictedPrivate
+              ? const {}
+              : googleStatusPropertiesFromRaw(event.eventType, raw),
           timingBaseline: EventTimingBaseline.fromDetail(detail),
           title: restrictedPrivate ? '•••' : event.title,
           allDay: event.allDay,
