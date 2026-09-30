@@ -1187,6 +1187,15 @@ DavMutationPatch buildDavRecurringTaskCompletionPatch({
 List<int> reminderMinutes(Object? reminders) {
   if (reminders is! Map) return const [];
   final map = reminders.cast<Object?, Object?>();
+  if (map['davEditableRows'] case final List rows) {
+    if (rows.any(
+      (row) =>
+          row is! Map || row['minutes'] is! int || (row['minutes'] as int) < 0,
+    )) {
+      throw const FormatException('Invalid editable DAV reminder rows.');
+    }
+    return [for (final row in rows) row['minutes'] as int];
+  }
   final values = <int>[];
   if (map['reminderMinutesBeforeStart'] is int) {
     values.add(map['reminderMinutesBeforeStart']! as int);
@@ -1374,6 +1383,59 @@ List<DavPatchOperation> _eventAlarmUpdateOperations(
   IcalSemanticComponent current,
   Object? reminders,
 ) {
+  if (reminders is Map && reminders['davEditableRows'] is List) {
+    final rows = reminders['davEditableRows'] as List;
+    final editable = _editableDisplayAlarms(current);
+    final editableIndexes = {for (final row in editable) row.index};
+    final retained = <int>{};
+    final changes = <DavPatchOperation>[];
+    final additions = <int>[];
+    for (final row in rows) {
+      if (row is! Map ||
+          row['minutes'] is! int ||
+          (row['minutes'] as int) < 0) {
+        throw const FormatException('Invalid editable DAV reminder row.');
+      }
+      final minutes = row['minutes'] as int;
+      final originalIndex = row['originalIndex'];
+      if (originalIndex == null) {
+        additions.add(minutes);
+        continue;
+      }
+      if (originalIndex is! int ||
+          !editableIndexes.contains(originalIndex) ||
+          !retained.add(originalIndex)) {
+        throw const FormatException('Invalid original DAV alarm identity.');
+      }
+      final previous = editable.singleWhere(
+        (entry) => entry.index == originalIndex,
+      );
+      if (previous.minutes != minutes) {
+        final updated = current.alarms[originalIndex].deepCopy();
+        final trigger = updated.firstProperty('TRIGGER')!;
+        trigger.rawValue = '-PT${minutes}M';
+        trigger.isDirty = true;
+        changes.add(
+          DavPatchOperation.replaceAlarm(
+            alarmIndex: originalIndex,
+            alarm: updated,
+          ),
+        );
+      }
+    }
+    final removed = editableIndexes.difference(retained).toList()
+      ..sort((a, b) => b.compareTo(a));
+    return [
+      ...changes,
+      for (final index in removed)
+        DavPatchOperation.replaceAlarm(alarmIndex: index, alarm: null),
+      for (var index = 0; index < additions.length; index++)
+        DavPatchOperation.replaceAlarm(
+          alarmIndex: current.alarms.length - removed.length + index,
+          alarm: _displayAlarm(additions[index]),
+        ),
+    ];
+  }
   final projected = _projectedEventAlarms(reminders);
   if (projected != null) {
     return [
