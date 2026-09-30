@@ -170,6 +170,32 @@ optional without changing existing responses. Create a Meet/Teams conference
 only on a calendar that advertises its solution, and confirm that the provider
 created the meeting rather than BusyMax merely showing a local switch.
 
+For iCalendar export, choose both the standalone occurrence and entire-series
+options on each native platform. Use a disposable Google and Microsoft series
+with a moved exception, a cancelled occurrence, an all-day case, and a rule
+crossing a daylight-saving transition. Open the resulting file in a separate
+calendar application and inspect UID, original recurrence identities, local
+wall time, alarms, attendees, and any omitted provider-only metadata. Repeat
+with a failed later provider page and offline cache: neither may be reported
+as a complete series export. Import the same fixture into a disposable
+calendar, verify every remote master/exception independently, and confirm no
+unintended invitations were delivered.
+
+On disposable Google calendars, create and edit each native status event type
+(focus time, out of office, and working location) on an eligible primary
+calendar; verify type-specific properties, visibility/free-busy state, and the
+provider's own display after replay. Repeat against an ineligible account and
+nonprimary calendar and confirm rejection without an ordinary-event fallback.
+Confirm a title-only edit retains the status settings and unsafe recurring
+series splitting remains unavailable. On a labeled Google calendar, select and
+clear one returned event label, then edit only the title and verify label
+preservation; repeat on a different calendar to check ID isolation. On an
+Outlook mailbox with multiple existing master categories, select two on an
+event and task, leave one unknown/deleted assignment untouched, and verify
+the names and colors in Outlook/To Do. Decline optional category consent and
+confirm normal editing still works. Record the actual account eligibility,
+tenant consent, and provider application results; local tests are not proof.
+
 For task-source navigation, open a Docs- or Chat-assigned Google task and a
 Google task with related links and `webViewLink`, including after offline
 reopening. For Microsoft To Do, open a task with multiple linked resources,
@@ -186,8 +212,17 @@ explicit opening, that a successful empty list differs from a denied request,
 and that downloaded file bytes match the provider copy. Test a reference
 attachment separately from a file attachment, an unsafe URL, a malformed
 filename, pagination failure, read-only event, and offline cached metadata.
-Attachment addition/removal is not implemented yet and must remain recorded as
-not run rather than being inferred from these read/access checks.
+On disposable data, add and remove a Google event attachment reference using
+an existing Drive file URL; check the provider event retains other references
+and the underlying file still exists. Repeat after an uncertain mutation
+response, and verify a normal title edit did not replace a newer attachment
+array. Add and remove a Nextcloud URI `ATTACH`; inspect the raw iCalendar
+resource for preserved binary attachments, parameters, alarms, exceptions,
+and unrelated properties. Check the pending DAV queue, offline reopening,
+reconnect, and read-only denial. For Microsoft, separately exercise event and
+task file add/remove, small and upload-session paths, explicit download, and
+remote state after an uncertain upload outcome. Record each provider mutation
+not actually run as **not run**; local widget/API tests are not live acceptance.
 
 Deterministic suites under `test/dav/` cover parsing and preservation,
 discovery, exact ETags, mutation queues, conflicts, delegated discovery
@@ -206,6 +241,17 @@ Before a release claim, exercise and record:
 - collection creation/settings, mixed-collection deletion warnings,
   self-unshare, publishing, failed refresh after a committed change, and
   uncertain-outcome reconciliation;
+- calendar federation initiation from each native sharing entry point with a
+  disposable remote ID on an enabled Nextcloud 32+ server; verify recipient
+  appearance in Nextcloud Calendar, read-only behavior on version 32, and
+  permitted remote writes only on version 33+; repeat against a server with
+  federation disabled and confirm no local-only success;
+- Google owner-calendar and Microsoft signed-in primary-calendar sharing from
+  Linux, Windows, and Android settings: list the provider's grants, add a
+  disposable recipient with an explicit role, change only a provider-allowed
+  role, then revoke; confirm each state in Google Calendar or Outlook and
+  verify immutable owner grants, recipient/revoked access, and committed
+  mutation followed by refresh failure are presented accurately;
 - organizer invitations, updates, guest removal and cancellation; attendee
   occurrence/series replies; free/busy failures; inbox acknowledgement; and
   the actual count of delivered QA messages;

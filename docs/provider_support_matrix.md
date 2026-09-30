@@ -30,7 +30,9 @@ fixtures documented for live tests are test-only.
 | Recurrence and reminders | Yes | Yes | Preserved and editable subset | Preserved and editable subset | Read-only |
 | Attendee editing | Yes | Yes | No | Permission- and scheduling-dependent | No |
 | Free/busy workflow | Yes | Work/school accounts only | No | Permission- and scheduling-dependent | No |
-| Attachments | Supplied links can be opened; reference editing is not yet exposed | Event/task lists and explicit file downloads; addition/removal not yet exposed | Preserved when present | Supplied URI references can be opened; reference editing is not yet exposed | Read-only |
+| Attachments | Supplied links open; permission-gated event reference add/remove using an existing HTTPS file URL | Event/task lists, explicit file downloads, and permission-gated file addition/removal | Preserved when present | Supplied URI references open; permission-gated URI `ATTACH` add/remove through the DAV queue | Read-only |
+| Provider-native event organization | Calendar-scoped event labels can be selected or cleared; ordinary event colors remain separate | Existing mailbox categories can be selected by name and viewed with their account colors; multiple assignments remain intact | Existing fields preserved | Existing categories preserved | Read-only |
+| Status events | Primary-calendar focus time, out-of-office, and working location, subject to Google's account eligibility and provider validation | No special authoring | No special authoring | No special authoring | Read-only |
 
 DAV-backed events preserve data BusyMax does not edit, including recurrence
 exceptions, alarms, timezones, parameters, and provider extensions. See the
@@ -43,17 +45,45 @@ marks the range incomplete. Unrestricted **Any date** search searches only
 downloaded data. The additional range snapshots do not replace the baseline
 incremental-sync cursor.
 
+Individual export distinguishes a standalone occurrence from an entire
+recurring series. Google and Microsoft series export reads the provider's
+master and exception identities online before writing an iCalendar file; it
+does not call a finite local month cache a complete backup. Nextcloud and
+iCloud resource export keeps the effective original iCalendar document,
+including pending local changes. A standalone occurrence export remains a
+portable snapshot, not a series backup. Provider fields that iCalendar cannot
+represent are not silently treated as a complete provider-account backup.
+WebCal and cloud events still awaiting a remote identity offer occurrence
+export only; they do not claim an authoritative series export.
+
 Native event details show the full interval, available description and guest
 information, and provider-supplied meeting links even on read-only calendars.
 Nextcloud's ordinary event URL is shown as an event link; only a preserved
 conference property is presented as a meeting link. Link opening still depends
 on the system browser and on the provider returning a valid URL.
 
+Google event-label IDs belong to a single calendar. BusyMax requests label
+metadata for the selected calendar and uses Google's label-version request
+semantics only for explicit label mutations. Unknown labels and Microsoft
+category names remain on events when optional metadata lookup is unavailable.
+Microsoft's master-category lookup requests `MailboxSettings.Read` separately;
+declining that grant does not block ordinary event or task editing. Google's
+status-event controls are limited to eligible primary calendars, retain
+type-specific properties, and do not permit changing an existing event's type.
+BusyMax does not infer Workspace eligibility from an email address; Google's
+rejection is reported instead of converting a status event to an ordinary one.
+
 Attachment references in Google and Nextcloud event details open without
 passing provider credentials to those URLs. Microsoft event and task attachment
 metadata is fetched only when requested; a `hasAttachments` flag does not mean
 an empty list. Microsoft file downloads require an explicit native save action.
-This is read/access support, not yet an attachment add/remove workflow.
+Eligible Microsoft event and task details also offer file addition/removal;
+an upload error with an uncertain remote outcome requires a refresh before
+retrying. Google reference changes read the event's authoritative attachment
+array and use its ETag; they never delete the underlying Drive file. Nextcloud
+URI-reference changes preserve unrelated iCalendar properties, parameters,
+binary attachments, and pending DAV mutations. Neither workflow provides file
+browsing or upload to Drive or Nextcloud Files.
 
 Android's event editor retains untouched recurrence and reminder data. Its
 native recurrence dialog edits the shared supported interval, weekday, and
@@ -112,7 +142,7 @@ Object editing and collection administration are separate capabilities.
 | Rename/recolor/delete calendar | Yes | Yes | No | Online, property/owner permission-dependent | No |
 | Create task list | Yes | Yes | No | Online, with permission | No |
 | Rename/delete task list | Yes | Yes | No | Permission-dependent | No |
-| Share or publish collections | No | No | No | Advertised, permission-dependent | No |
+| Share or publish collections | Owner-calendar ACL list/add/role/revoke from native settings; no public/domain administration | Signed-in primary-calendar permission list/add/role/revoke from native settings; provider allowed-role/removability enforced | No | Advertised, permission-dependent; calendar federation initiation on supported servers | No |
 | Restore deleted objects/collections | No | No | No | Advertised, permission-dependent | No |
 | Native collection import/export | No | No | No | Supported subset | No |
 
@@ -121,6 +151,21 @@ Removing a received share removes the recipient's access. Nextcloud scheduling,
 sharing, publishing, trash, and native import/export behavior is described in
 [Nextcloud setup](nextcloud_setup.md) and the
 [technical reference](icalendar_data_model.md).
+
+Google and Microsoft sharing administration is available from Linux, Windows,
+and Android settings for eligible calendars. Google requires an owner access
+role; Microsoft management targets the signed-in account's primary calendar,
+not every recipient-local or delegated calendar. Provider denials and revoked
+access remain errors rather than local-only changes. A successful grant with a
+failed follow-up refresh is shown as committed but requires a fresh list before
+another change. Public publishing, ownership transfer, and domain-wide
+administration are not included.
+
+Nextcloud calendar sharing accepts local users/groups and a validated
+federated ID when the installed server supports calendar federation. BusyMax
+sends the share only through the authenticated local DAV server. Nextcloud 32
+provides read-only federation; writable federated shares require Nextcloud 33
+or later.
 
 ## Offline and verification boundaries
 

@@ -45,6 +45,18 @@ refresh tokens. See the official
 and
 [OpenID Connect scope reference](https://learn.microsoft.com/en-us/entra/identity-platform/scopes-oidc).
 
+The existing `Calendars.ReadWrite` grant is also used for permission
+management on the signed-in account's primary calendar. Outlook determines
+each grant's allowed roles and removability; delegated owner-calendar access
+is a separate contextual grant and is not a general sharing-administration
+permission.
+
+Selecting from the account's existing Outlook master categories is optional.
+BusyMax asks for the delegated `MailboxSettings.Read` permission when that
+lookup is requested. Denied or unavailable category metadata does not prevent
+editing ordinary calendar events or To Do tasks, and BusyMax does not create
+or administer categories.
+
 Supply the application ID as `MICROSOFT_OAUTH_CLIENT_ID`. It is embedded in
 the desktop package, so treat it as public application configuration and do not
 commit private build configuration. Do not create or embed a client secret:
