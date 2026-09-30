@@ -39,7 +39,7 @@ const _event = CalendarScheduleItem(
 
 void main() {
   test(
-    'lost event upload response blocks a second upload until ID reconciliation',
+    'another matching attachment never proves a lost upload succeeded',
     () async {
       var committed = false;
       var visible = false;
@@ -109,8 +109,11 @@ void main() {
           calendarId: 'calendar',
           eventId: 'event',
         ),
-        AttachmentUploadStatus.committed,
+        AttachmentUploadStatus.unresolved,
       );
+      expect(coordinator.canSubmit(key), isFalse);
+      expect(coordinator.canResolveManually(key), isTrue);
+      coordinator.resolveUncertainManually(key, exists: false);
       expect(coordinator.canSubmit(key), isTrue);
     },
   );
@@ -146,14 +149,21 @@ void main() {
           return http.Response(
             jsonEncode({
               'uploadUrl': 'https://outlook.office.com/upload/session',
+              'expirationDateTime': '2099-01-01T00:00:00Z',
+              'nextExpectedRanges': ['0-'],
             }),
-            200,
+            201,
           );
         }
         if (request.method == 'PUT') {
           chunks++;
           if (chunks == 2) throw http.ClientException('final response lost');
-          return http.Response('', 200);
+          return http.Response(
+            jsonEncode({
+              'nextExpectedRanges': ['2097152-'],
+            }),
+            200,
+          );
         }
         return http.Response('{}', 404);
       }),
@@ -181,6 +191,97 @@ void main() {
     expect(sessions, 1);
     expect(chunks, 2);
     visible = true;
+    await expectLater(
+      coordinator.reconcileEvent(
+        client: client,
+        accountId: 'account',
+        calendarId: 'calendar',
+        eventId: 'event',
+      ),
+      throwsA(isA<AttachmentUploadUnresolvedException>()),
+    );
+    expect(
+      coordinator.status(
+        AttachmentUploadCoordinator.eventKey('account', 'calendar', 'event'),
+      ),
+      AttachmentUploadStatus.unresolved,
+    );
+  });
+
+  test('lost nonfinal chunk resumes the same event session', () async {
+    var sessions = 0;
+    var statusReads = 0;
+    final ranges = <String>[];
+    final bytes = List<int>.filled(4 * 1024 * 1024, 65);
+    final client = MicrosoftCalendarApiClient(
+      httpClient: MockClient((request) async {
+        if (request.method == 'GET' &&
+            request.url.path.endsWith('/attachments')) {
+          return http.Response(jsonEncode({'value': []}), 200);
+        }
+        if (request.method == 'POST' &&
+            request.url.path.endsWith('/createUploadSession')) {
+          sessions++;
+          return http.Response(
+            jsonEncode({
+              'uploadUrl': 'https://outlook.office.com/upload/session',
+              'expirationDateTime': '2099-01-01T00:00:00Z',
+              'nextExpectedRanges': ['0-'],
+            }),
+            201,
+          );
+        }
+        if (request.method == 'GET' &&
+            request.url.path.endsWith('/upload/session')) {
+          statusReads++;
+          return http.Response(
+            jsonEncode({
+              'nextExpectedRanges': ['2097152-'],
+            }),
+            200,
+          );
+        }
+        if (request.method == 'PUT') {
+          final range =
+              request.headers['content-range'] ??
+              request.headers['Content-Range']!;
+          ranges.add(range);
+          if (range.startsWith('bytes 0-')) {
+            throw http.ClientException('first chunk response lost');
+          }
+          return http.Response(
+            '',
+            201,
+            headers: {
+              'Location':
+                  'https://outlook.office.com/events/event/attachments/confirmed-id',
+            },
+          );
+        }
+        return http.Response('{}', 404);
+      }),
+      baseUri: Uri.parse('https://graph.microsoft.com/v1.0'),
+      responseTimeZone: 'UTC',
+    );
+    final coordinator = AttachmentUploadCoordinator();
+    final key = AttachmentUploadCoordinator.eventKey(
+      'account',
+      'calendar',
+      'event',
+    );
+    await expectLater(
+      coordinator.uploadEvent(
+        client: client,
+        accountId: 'account',
+        calendarId: 'calendar',
+        eventId: 'event',
+        name: 'large.bin',
+        contentType: 'application/octet-stream',
+        bytes: bytes,
+      ),
+      throwsA(isA<AttachmentUploadUnresolvedException>()),
+    );
+    expect(coordinator.status(key), AttachmentUploadStatus.unresolved);
     expect(
       await coordinator.reconcileEvent(
         client: client,
@@ -190,7 +291,177 @@ void main() {
       ),
       AttachmentUploadStatus.committed,
     );
+    expect(sessions, 1);
+    expect(statusReads, greaterThanOrEqualTo(1));
+    expect(ranges, [
+      'bytes 0-2097151/${bytes.length}',
+      'bytes 2097152-4194303/${bytes.length}',
+    ]);
   });
+
+  test('incomplete event session can be cancelled before safe retry', () async {
+    var sessions = 0;
+    var cancellations = 0;
+    var denyCancellation = true;
+    final bytes = List<int>.filled(4 * 1024 * 1024, 65);
+    final client = MicrosoftCalendarApiClient(
+      httpClient: MockClient((request) async {
+        if (request.method == 'GET' &&
+            request.url.path.endsWith('/attachments')) {
+          return http.Response(jsonEncode({'value': []}), 200);
+        }
+        if (request.method == 'POST') {
+          sessions++;
+          return http.Response(
+            jsonEncode({
+              'uploadUrl': 'https://outlook.office.com/upload/session',
+              'expirationDateTime': '2099-01-01T00:00:00Z',
+              'nextExpectedRanges': ['0-'],
+            }),
+            201,
+          );
+        }
+        if (request.method == 'PUT') {
+          throw http.ClientException('nonfinal response lost');
+        }
+        if (request.method == 'DELETE') {
+          cancellations++;
+          expect(request.headers.containsKey('authorization'), isFalse);
+          return http.Response('', denyCancellation ? 503 : 204);
+        }
+        return http.Response('{}', 404);
+      }),
+      baseUri: Uri.parse('https://graph.microsoft.com/v1.0'),
+      responseTimeZone: 'UTC',
+    );
+    final coordinator = AttachmentUploadCoordinator();
+    final key = AttachmentUploadCoordinator.eventKey(
+      'account',
+      'calendar',
+      'event',
+    );
+    Future<void> upload() => coordinator.uploadEvent(
+      client: client,
+      accountId: 'account',
+      calendarId: 'calendar',
+      eventId: 'event',
+      name: 'large.bin',
+      contentType: 'application/octet-stream',
+      bytes: bytes,
+    );
+    await expectLater(
+      upload(),
+      throwsA(isA<AttachmentUploadUnresolvedException>()),
+    );
+    expect(coordinator.hasResumableSession(key), isTrue);
+    await expectLater(
+      coordinator.cancelEvent(
+        client: client,
+        accountId: 'account',
+        calendarId: 'calendar',
+        eventId: 'event',
+      ),
+      throwsA(isA<AttachmentUploadUnresolvedException>()),
+    );
+    expect(coordinator.canSubmit(key), isFalse);
+    denyCancellation = false;
+    await coordinator.cancelEvent(
+      client: client,
+      accountId: 'account',
+      calendarId: 'calendar',
+      eventId: 'event',
+    );
+    expect(cancellations, 2);
+    expect(coordinator.canSubmit(key), isTrue);
+    await expectLater(
+      upload(),
+      throwsA(isA<AttachmentUploadUnresolvedException>()),
+    );
+    expect(sessions, 2);
+  });
+
+  test(
+    'malformed or expired session status never silently unlocks retry',
+    () async {
+      var reads = 0;
+      var puts = 0;
+      var sessions = 0;
+      final bytes = List<int>.filled(4 * 1024 * 1024, 65);
+      final client = MicrosoftCalendarApiClient(
+        httpClient: MockClient((request) async {
+          if (request.method == 'GET' &&
+              request.url.path.endsWith('/attachments')) {
+            return http.Response(jsonEncode({'value': []}), 200);
+          }
+          if (request.method == 'POST') {
+            sessions++;
+            return http.Response(
+              jsonEncode({
+                'uploadUrl': 'https://outlook.office.com/upload/session',
+                'expirationDateTime': '2099-01-01T00:00:00Z',
+                'nextExpectedRanges': ['0-'],
+              }),
+              201,
+            );
+          }
+          if (request.method == 'PUT') {
+            puts++;
+            throw http.ClientException('chunk response lost');
+          }
+          if (request.method == 'GET') {
+            reads++;
+            return reads == 1
+                ? http.Response(jsonEncode({'nextExpectedRanges': 'bad'}), 200)
+                : http.Response(
+                    jsonEncode({
+                      'nextExpectedRanges': ['2097152-'],
+                      'expirationDateTime': '2000-01-01T00:00:00Z',
+                    }),
+                    200,
+                  );
+          }
+          return http.Response('{}', 404);
+        }),
+        baseUri: Uri.parse('https://graph.microsoft.com/v1.0'),
+        responseTimeZone: 'UTC',
+      );
+      final coordinator = AttachmentUploadCoordinator();
+      final key = AttachmentUploadCoordinator.eventKey(
+        'account',
+        'calendar',
+        'event',
+      );
+      await expectLater(
+        coordinator.uploadEvent(
+          client: client,
+          accountId: 'account',
+          calendarId: 'calendar',
+          eventId: 'event',
+          name: 'large.bin',
+          contentType: 'application/octet-stream',
+          bytes: bytes,
+        ),
+        throwsA(isA<AttachmentUploadUnresolvedException>()),
+      );
+      for (var i = 0; i < 2; i++) {
+        await expectLater(
+          coordinator.reconcileEvent(
+            client: client,
+            accountId: 'account',
+            calendarId: 'calendar',
+            eventId: 'event',
+          ),
+          throwsA(isA<AttachmentUploadUnresolvedException>()),
+        );
+        expect(coordinator.status(key), AttachmentUploadStatus.unresolved);
+        expect(coordinator.canSubmit(key), isFalse);
+      }
+      expect(sessions, 1);
+      expect(puts, 1);
+      expect(reads, 2);
+      expect(coordinator.canResolveManually(key), isTrue);
+    },
+  );
 
   test(
     'confirmed event attachment denial restores Add without committing',
@@ -376,11 +647,109 @@ void main() {
           calendarId: 'calendar',
           eventId: 'event',
         ),
-        AttachmentUploadStatus.committed,
+        AttachmentUploadStatus.unresolved,
       );
     },
   );
   for (final platform in ['Linux', 'Windows', 'Android']) {
+    testWidgets(
+      '$platform exposes review before retrying an uncertain event upload',
+      (tester) async {
+        var posts = 0;
+        final client = MicrosoftCalendarApiClient(
+          httpClient: MockClient((request) async {
+            if (request.method == 'GET') {
+              return http.Response(jsonEncode({'value': []}), 200);
+            }
+            posts++;
+            throw http.ClientException('direct response lost');
+          }),
+          baseUri: Uri.parse('https://graph.microsoft.com/v1.0'),
+          responseTimeZone: 'UTC',
+        );
+        final coordinator = AttachmentUploadCoordinator();
+        final key = AttachmentUploadCoordinator.eventKey(
+          'microsoft:a',
+          'remote-calendar',
+          'remote-event',
+        );
+        await expectLater(
+          coordinator.uploadEvent(
+            client: client,
+            accountId: 'microsoft:a',
+            calendarId: 'remote-calendar',
+            eventId: 'remote-event',
+            name: 'notes.txt',
+            contentType: 'text/plain',
+            bytes: [1],
+          ),
+          throwsA(isA<AttachmentUploadUnresolvedException>()),
+        );
+        expect(
+          await coordinator.reconcileEvent(
+            client: client,
+            accountId: 'microsoft:a',
+            calendarId: 'remote-calendar',
+            eventId: 'remote-event',
+          ),
+          AttachmentUploadStatus.unresolved,
+        );
+        await tester.pumpWidget(
+          ProviderScope(
+            overrides: [
+              attachmentUploadCoordinatorProvider.overrideWith(
+                (ref) => coordinator,
+              ),
+              microsoftCalendarApiClientForAccountProvider(
+                'microsoft:a',
+              ).overrideWithValue(client),
+            ],
+            child: platform == 'Windows'
+                ? fluent.FluentApp(
+                    localizationsDelegates: const [AppLocalizations.delegate],
+                    supportedLocales: AppLocalizations.supportedLocales,
+                    home: Builder(
+                      builder: (context) => fluent.Button(
+                        onPressed: () =>
+                            showWindowsEventAttachmentsDialog(context, _event),
+                        child: const fluent.Text('Open attachments'),
+                      ),
+                    ),
+                  )
+                : localizedTestApp(
+                    child: Scaffold(
+                      body: Builder(
+                        builder: (context) => TextButton(
+                          onPressed: () => platform == 'Android'
+                              ? showAndroidEventAttachmentsDialog(
+                                  context,
+                                  _event,
+                                )
+                              : showLinuxEventAttachmentsDialog(
+                                  context,
+                                  _event,
+                                ),
+                          child: const Text('Open attachments'),
+                        ),
+                      ),
+                    ),
+                  ),
+          ),
+        );
+        await tester.tap(find.text('Open attachments'));
+        await tester.pumpAndSettle();
+        expect(find.text('Retry'), findsOneWidget);
+        expect(find.byKey(const Key('event-attachment-add')), findsOneWidget);
+        expect(coordinator.canSubmit(key), isFalse);
+        await tester.tap(find.text('Retry'));
+        await tester.pumpAndSettle();
+        expect(coordinator.canSubmit(key), isFalse);
+        await tester.tap(find.text('Retry').last);
+        await tester.pumpAndSettle();
+        expect(coordinator.canSubmit(key), isTrue);
+        expect(posts, 1);
+      },
+    );
     testWidgets('$platform queues a Nextcloud URI reference from details', (
       tester,
     ) async {

@@ -1,6 +1,8 @@
 import 'dart:convert';
 
 import 'package:busymax/src/calendar_providers/calendar_sync_dto.dart';
+import 'package:busymax/src/dav/ical/ical_semantics.dart';
+import 'package:busymax/src/dav/ical/ical_timezone.dart';
 import 'package:busymax/src/features/schedule/presentation/cloud_calendar_series_export.dart';
 import 'package:busymax/src/google_calendar/google_calendar_api_client.dart';
 import 'package:busymax/src/google_calendar/google_calendar_mapper.dart';
@@ -15,6 +17,206 @@ import 'package:timezone/data/latest_all.dart' as time_zone_data;
 import 'package:timezone/timezone.dart' as tz;
 
 void main() {
+  // Resolve through the exported VTIMEZONE, not timezone's IANA fallback.
+  DateTime exportedInstant(String data, String zone, DateTime wall) {
+    final semantic = IcalIngestion.parseString(
+      data,
+      policy: IcalIngestionPolicy.fileImport,
+    ).recurrenceSets.single.semantic;
+    expect(
+      semantic.timeZones.any(
+        (component) => component.firstProperty('TZID')?.rawValue == zone,
+      ),
+      isTrue,
+    );
+    return IcalTimeZoneResolver.fromDocument(semantic).toUtc(
+      IcalTemporalValue(
+        rawValue: '',
+        kind: IcalTemporalKind.tzidDateTime,
+        localValue: wall,
+        timeZoneId: zone,
+      ),
+    );
+  }
+
+  CalendarEventDto zonedMicrosoftSeries({
+    required String zone,
+    required String startUtc,
+    required Map<String, Object?> range,
+  }) => microsoftCalendarEventFromJson('calendar', {
+    ..._microsoftMaster,
+    'start': {'dateTime': startUtc, 'timeZone': 'UTC'},
+    'end': {
+      'dateTime': DateTime.parse(
+        startUtc,
+      ).add(const Duration(hours: 1)).toIso8601String(),
+      'timeZone': 'UTC',
+    },
+    'recurrence': {
+      'pattern': {'type': 'daily', 'interval': 1},
+      'range': {...range, 'recurrenceTimeZone': zone},
+    },
+  });
+
+  test('IANA 2025c Apia ending DST never invents later daylight', () {
+    final data = cloudSeriesToICalendar(
+      master: zonedMicrosoftSeries(
+        zone: 'Pacific/Apia',
+        startUtc: '2018-12-31T20:00:00',
+        range: {'type': 'noEnd', 'startDate': '2019-01-01'},
+      ),
+      exceptions: const [],
+      nowUtc: DateTime.utc(2026),
+    );
+    expect(data, contains('TZID:Pacific/Apia'));
+    expect(data, contains('TZOFFSETTO:+1400'));
+    expect(
+      exportedInstant(data, 'Pacific/Apia', DateTime.utc(2022, 1, 15, 9)),
+      DateTime.utc(2022, 1, 14, 20),
+    );
+    expect(
+      exportedInstant(data, 'Pacific/Apia', DateTime.utc(2040, 1, 15, 9)),
+      DateTime.utc(2040, 1, 14, 20),
+    );
+  });
+
+  test('IANA 2025c finite Los Angeles COUNT and UNTIL reach 2038', () {
+    time_zone_data.initializeTimeZones();
+    expect(
+      DateTime.fromMillisecondsSinceEpoch(
+        tz.getLocation('America/Los_Angeles').transitionAt.last,
+        isUtc: true,
+      ).year,
+      2037,
+    );
+    for (final range in [
+      {
+        'type': 'numbered',
+        'startDate': '2030-01-01',
+        'numberOfOccurrences': 3300,
+      },
+      {'type': 'endDate', 'startDate': '2030-01-01', 'endDate': '2038-12-31'},
+    ]) {
+      final data = cloudSeriesToICalendar(
+        master: zonedMicrosoftSeries(
+          zone: 'America/Los_Angeles',
+          startUtc: '2030-01-01T17:00:00',
+          range: range,
+        ),
+        exceptions: const [],
+        nowUtc: DateTime.utc(2026),
+      );
+      expect(
+        exportedInstant(
+          data,
+          'America/Los_Angeles',
+          DateTime.utc(2038, 1, 15, 9),
+        ),
+        DateTime.utc(2038, 1, 15, 17),
+      );
+      expect(
+        exportedInstant(
+          data,
+          'America/Los_Angeles',
+          DateTime.utc(2038, 7, 15, 9),
+        ),
+        DateTime.utc(2038, 7, 15, 16),
+      );
+      final futureObservance = RegExp(
+        r'DTSTART:2038[^\r\n]*\r\nTZOFFSETFROM:-0800\r\nTZOFFSETTO:-0700',
+      ).firstMatch(data)!;
+      final corrupted = data.replaceRange(
+        futureObservance.start,
+        futureObservance.end,
+        futureObservance
+            .group(0)!
+            .replaceFirst('TZOFFSETTO:-0700', 'TZOFFSETTO:-0600'),
+      );
+      expect(corrupted, isNot(data));
+      expect(
+        exportedInstant(
+          corrupted,
+          'America/Los_Angeles',
+          DateTime.utc(2038, 7, 15, 9),
+        ),
+        isNot(DateTime.utc(2038, 7, 15, 16)),
+      );
+    }
+  });
+
+  test('IANA 2025c open-ended DST and fixed offsets remain distinct', () {
+    final losAngeles = cloudSeriesToICalendar(
+      master: zonedMicrosoftSeries(
+        zone: 'America/Los_Angeles',
+        startUtc: '2030-01-01T17:00:00',
+        range: {'type': 'noEnd', 'startDate': '2030-01-01'},
+      ),
+      exceptions: const [],
+      nowUtc: DateTime.utc(2026),
+    );
+    expect(
+      exportedInstant(
+        losAngeles,
+        'America/Los_Angeles',
+        DateTime.utc(2040, 1, 15, 9),
+      ),
+      DateTime.utc(2040, 1, 15, 17),
+    );
+    expect(
+      exportedInstant(
+        losAngeles,
+        'America/Los_Angeles',
+        DateTime.utc(2040, 7, 15, 9),
+      ),
+      DateTime.utc(2040, 7, 15, 16),
+    );
+    final kolkata = cloudSeriesToICalendar(
+      master: zonedMicrosoftSeries(
+        zone: 'Asia/Kolkata',
+        startUtc: '2030-01-01T03:30:00',
+        range: {'type': 'noEnd', 'startDate': '2030-01-01'},
+      ),
+      exceptions: const [],
+      nowUtc: DateTime.utc(2026),
+    );
+    expect(kolkata, isNot(contains('BEGIN:DAYLIGHT')));
+    expect(
+      exportedInstant(kolkata, 'Asia/Kolkata', DateTime.utc(2040, 7, 15, 9)),
+      DateTime.utc(2040, 7, 15, 3, 30),
+    );
+  });
+
+  test(
+    'a series starting after the 2037 table keeps its authoritative wall time and UNTIL',
+    () {
+      final data = cloudSeriesToICalendar(
+        master: zonedMicrosoftSeries(
+          zone: 'America/Los_Angeles',
+          startUtc: '2038-07-01T16:00:00',
+          range: {
+            'type': 'endDate',
+            'startDate': '2038-07-01',
+            'endDate': '2038-07-31',
+          },
+        ),
+        exceptions: const [],
+        nowUtc: DateTime.utc(2026),
+      );
+      expect(
+        data,
+        contains('DTSTART;TZID=America/Los_Angeles:20380701T090000'),
+      );
+      expect(data, contains('UNTIL=20380731T160000Z'));
+      expect(
+        exportedInstant(
+          data,
+          'America/Los_Angeles',
+          DateTime.utc(2038, 7, 31, 9),
+        ),
+        DateTime.utc(2038, 7, 31, 16),
+      );
+    },
+  );
   test('series export is offered only with an authoritative series path', () {
     expect(
       canExportAuthoritativeEventSeries(

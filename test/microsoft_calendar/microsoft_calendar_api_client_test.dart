@@ -315,22 +315,31 @@ void main() {
         if (request.method == 'POST') {
           return _json({
             'uploadUrl': 'https://outlook.office.com/upload/session',
+            'nextExpectedRanges': ['0-'],
+            'expirationDateTime': '2099-01-01T00:00:00Z',
           });
         }
-        return http.Response(
-          '',
-          request.headers['Content-Range']!.startsWith('bytes 2097152-')
-              ? 201
-              : 200,
-        );
+        return request.headers['Content-Range']!.startsWith('bytes 2097152-')
+            ? http.Response(
+                '',
+                201,
+                headers: {
+                  'Location':
+                      "https://outlook.office.com/api/v2.0/Events('event')/Attachments('new-id')",
+                },
+              )
+            : _json({
+                'nextExpectedRanges': ['2097152-'],
+              });
       });
-      await client.uploadEventFileAttachment(
+      final id = await client.uploadEventFileAttachment(
         calendarId: 'cal',
         eventId: 'event',
         name: 'large.bin',
         contentType: 'application/octet-stream',
         bytes: List<int>.filled(3 * 1024 * 1024, 65),
       );
+      expect(id, 'new-id');
       expect(
         requests.first.url.path,
         '/v1.0/me/events/event/attachments/createUploadSession',

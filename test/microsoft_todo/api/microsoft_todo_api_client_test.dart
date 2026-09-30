@@ -9,6 +9,169 @@ import 'package:busymax/src/features/schedule/presentation/attachment_upload_coo
 
 void main() {
   test(
+    'lost nonfinal task chunk resumes its Graph session and keeps bearer scoped',
+    () async {
+      var sessions = 0;
+      var statusReads = 0;
+      final ranges = <String>[];
+      final bytes = List<int>.filled(4 * 1024 * 1024, 65);
+      final client = MicrosoftTodoRestApiClient(
+        httpClient: MockClient((request) async {
+          if (request.method == 'GET' &&
+              request.url.path.endsWith('/attachments')) {
+            return http.Response(jsonEncode({'value': []}), 200);
+          }
+          if (request.method == 'POST') {
+            sessions++;
+            return http.Response(
+              jsonEncode({
+                'uploadUrl':
+                    'https://graph.microsoft.com/v1.0/me/todo/lists/list/tasks/task/attachmentSessions/session',
+                'expirationDateTime': '2099-01-01T00:00:00Z',
+                'nextExpectedRanges': ['0-'],
+              }),
+              201,
+            );
+          }
+          if (request.method == 'GET' &&
+              request.url.path.endsWith('/attachmentSessions/session')) {
+            statusReads++;
+            expect(request.headers['authorization'], 'Bearer token');
+            return http.Response(
+              jsonEncode({
+                'nextExpectedRanges': ['2097152-'],
+              }),
+              200,
+            );
+          }
+          if (request.method == 'PUT') {
+            expect(request.url.path.endsWith('/content'), isTrue);
+            expect(request.headers['authorization'], 'Bearer token');
+            final range =
+                request.headers['content-range'] ??
+                request.headers['Content-Range']!;
+            ranges.add(range);
+            if (range.startsWith('bytes 0-')) {
+              throw http.ClientException('first response lost');
+            }
+            return http.Response(
+              '',
+              201,
+              headers: {
+                'Location':
+                    'https://graph.microsoft.com/v1.0/me/todo/lists/list/tasks/task/attachments/task-upload-id',
+              },
+            );
+          }
+          return http.Response('{}', 404);
+        }),
+        baseUri: Uri.parse('https://graph.microsoft.com/v1.0'),
+        authorizationHeaderProvider: () async => 'Bearer token',
+      );
+      final coordinator = AttachmentUploadCoordinator();
+      final key = AttachmentUploadCoordinator.taskKey(
+        'account',
+        'list',
+        'task',
+      );
+      await expectLater(
+        coordinator.uploadTask(
+          client: client,
+          accountId: 'account',
+          taskListId: 'list',
+          taskId: 'task',
+          name: 'large.bin',
+          contentType: 'application/octet-stream',
+          bytes: bytes,
+        ),
+        throwsA(isA<AttachmentUploadUnresolvedException>()),
+      );
+      expect(coordinator.status(key), AttachmentUploadStatus.unresolved);
+      expect(
+        await coordinator.reconcileTask(
+          client: client,
+          accountId: 'account',
+          taskListId: 'list',
+          taskId: 'task',
+        ),
+        AttachmentUploadStatus.committed,
+      );
+      expect(coordinator.confirmedId(key), 'task-upload-id');
+      expect(sessions, 1);
+      expect(statusReads, 1);
+      expect(ranges, [
+        'bytes 0-2097151/${bytes.length}',
+        'bytes 2097152-4194303/${bytes.length}',
+      ]);
+    },
+  );
+  test(
+    'unfinished task session cancellation is Graph authenticated and releases retry',
+    () async {
+      var cancellations = 0;
+      final client = MicrosoftTodoRestApiClient(
+        httpClient: MockClient((request) async {
+          if (request.method == 'GET') {
+            return http.Response(jsonEncode({'value': []}), 200);
+          }
+          if (request.method == 'POST') {
+            return http.Response(
+              jsonEncode({
+                'uploadUrl':
+                    'https://graph.microsoft.com/v1.0/me/todo/lists/list/tasks/task/attachmentSessions/session',
+                'expirationDateTime': '2099-01-01T00:00:00Z',
+                'nextExpectedRanges': ['0-'],
+              }),
+              201,
+            );
+          }
+          if (request.method == 'PUT') {
+            throw http.ClientException('chunk response lost');
+          }
+          if (request.method == 'DELETE') {
+            cancellations++;
+            expect(
+              request.url.path.endsWith('/attachmentSessions/session'),
+              isTrue,
+            );
+            expect(request.headers['authorization'], 'Bearer token');
+            return http.Response('', 204);
+          }
+          return http.Response('{}', 404);
+        }),
+        baseUri: Uri.parse('https://graph.microsoft.com/v1.0'),
+        authorizationHeaderProvider: () async => 'Bearer token',
+      );
+      final coordinator = AttachmentUploadCoordinator();
+      final key = AttachmentUploadCoordinator.taskKey(
+        'account',
+        'list',
+        'task',
+      );
+      await expectLater(
+        coordinator.uploadTask(
+          client: client,
+          accountId: 'account',
+          taskListId: 'list',
+          taskId: 'task',
+          name: 'large.bin',
+          contentType: 'application/octet-stream',
+          bytes: List<int>.filled(4 * 1024 * 1024, 65),
+        ),
+        throwsA(isA<AttachmentUploadUnresolvedException>()),
+      );
+      expect(coordinator.hasResumableSession(key), isTrue);
+      await coordinator.cancelTask(
+        client: client,
+        accountId: 'account',
+        taskListId: 'list',
+        taskId: 'task',
+      );
+      expect(cancellations, 1);
+      expect(coordinator.canSubmit(key), isTrue);
+    },
+  );
+  test(
     'lost task session response cannot start another upload before reconciliation',
     () async {
       var visible = false;
@@ -42,6 +205,8 @@ void main() {
               jsonEncode({
                 'uploadUrl':
                     'https://graph.microsoft.com/v1.0/me/todo/lists/list/tasks/task/attachments/session',
+                'nextExpectedRanges': ['0-'],
+                'expirationDateTime': '2099-01-01T00:00:00Z',
               }),
               200,
             );
@@ -49,7 +214,12 @@ void main() {
           if (request.method == 'PUT') {
             chunks++;
             if (chunks == 2) throw http.ClientException('final response lost');
-            return http.Response('', 200);
+            return http.Response(
+              jsonEncode({
+                'nextExpectedRanges': ['2097152-'],
+              }),
+              200,
+            );
           }
           return http.Response('{}', 404);
         }),
@@ -76,14 +246,14 @@ void main() {
       expect(sessions, 1);
       expect(chunks, 2);
       visible = true;
-      expect(
-        await coordinator.reconcileTask(
+      await expectLater(
+        coordinator.reconcileTask(
           client: client,
           accountId: 'account',
           taskListId: 'list',
           taskId: 'task',
         ),
-        AttachmentUploadStatus.committed,
+        throwsA(isA<AttachmentUploadUnresolvedException>()),
       );
     },
   );
@@ -95,22 +265,32 @@ void main() {
         return _json({
           'uploadUrl':
               'https://graph.microsoft.com/v1.0/users/owner/todo/lists/list/tasks/task/attachmentSessions/session',
+          'nextExpectedRanges': ['0-'],
+          'expirationDateTime': '2099-01-01T00:00:00Z',
         });
       }
-      return http.Response(
-        '',
-        request.headers['content-range']?.startsWith('bytes 2097152-') == true
-            ? 201
-            : 200,
-      );
+      return request.headers['content-range']?.startsWith('bytes 2097152-') ==
+              true
+          ? http.Response(
+              '',
+              201,
+              headers: {
+                'Location':
+                    'https://graph.microsoft.com/v1.0/me/todo/lists/list/tasks/task/attachments/new-id',
+              },
+            )
+          : _json({
+              'nextExpectedRanges': ['2097152-'],
+            });
     });
-    await client.uploadTaskFileAttachment(
+    final id = await client.uploadTaskFileAttachment(
       taskListId: 'list',
       taskId: 'task',
       name: 'large.bin',
       contentType: 'application/octet-stream',
       bytes: List<int>.filled(3 * 1024 * 1024, 65),
     );
+    expect(id, 'new-id');
     expect(
       requests.first.url.path,
       '/v1.0/me/todo/lists/list/tasks/task/attachments/createUploadSession',

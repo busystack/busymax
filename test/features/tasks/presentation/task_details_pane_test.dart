@@ -25,6 +25,7 @@ import 'package:busymax/src/features/tasks/presentation/ical_task_fields_editor.
 import 'package:busymax/src/features/tasks/presentation/task_details_draft.dart';
 import 'package:busymax/src/features/tasks/presentation/desktop_date_time_fields.dart';
 import 'package:busymax/src/features/tasks/presentation/task_details_editor.dart';
+import 'package:busymax/src/features/schedule/presentation/attachment_upload_coordinator.dart';
 import 'package:busymax/src/features/tasks/presentation/task_details_pane.dart';
 import 'package:busymax/src/features/maps/domain/geographic_point.dart';
 import 'package:busymax/src/features/maps/domain/location_result.dart';
@@ -67,6 +68,100 @@ String _testAuthority(BusyProvider provider) => switch (provider) {
 };
 
 void main() {
+  testWidgets(
+    'Linux task detail retains an uncertain upload until explicit review',
+    (tester) async {
+      var posts = 0;
+      final client = MicrosoftTodoRestApiClient(
+        httpClient: MockClient((request) async {
+          if (request.method == 'GET') {
+            return http.Response(jsonEncode({'value': []}), 200);
+          }
+          posts++;
+          throw http.ClientException('direct response lost');
+        }),
+        baseUri: Uri.parse('https://graph.microsoft.com/v1.0'),
+        authorizationHeaderProvider: () async => 'Bearer token',
+      );
+      final coordinator = AttachmentUploadCoordinator();
+      final key = AttachmentUploadCoordinator.taskKey(
+        'microsoft:m',
+        'list-1',
+        'task-1',
+      );
+      await expectLater(
+        coordinator.uploadTask(
+          client: client,
+          accountId: 'microsoft:m',
+          taskListId: 'list-1',
+          taskId: 'task-1',
+          name: 'notes.txt',
+          contentType: 'text/plain',
+          bytes: [1],
+        ),
+        throwsA(isA<AttachmentUploadUnresolvedException>()),
+      );
+      expect(
+        await coordinator.reconcileTask(
+          client: client,
+          accountId: 'microsoft:m',
+          taskListId: 'list-1',
+          taskId: 'task-1',
+        ),
+        AttachmentUploadStatus.unresolved,
+      );
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            attachmentUploadCoordinatorProvider.overrideWith(
+              (ref) => coordinator,
+            ),
+            microsoftTodoApiClientForAccountProvider(
+              'microsoft:m',
+            ).overrideWithValue(client),
+          ],
+          child: localizedTestApp(
+            child: Scaffold(
+              body: TaskDetailsEditor(
+                task: _switchTask('task-1', 'Task'),
+                provider: BusyProvider.microsoft,
+                taskLists: [
+                  TaskListEntity(
+                    accountId: 'microsoft:m',
+                    id: 'list-1',
+                    title: 'Tasks',
+                    localDirty: false,
+                    pendingDelete: false,
+                    rawJson: '{}',
+                  ),
+                ],
+                capabilities: microsoftTaskCollectionCapabilities,
+                localTimeZone: 'UTC',
+                accountLabel: 'Account',
+                onRefresh: () {},
+                onSave: (_, _) async {},
+                onCreateSubtask: (_) async {},
+                onMoveToTop: () {},
+                onDelete: () async {},
+                onCancel: () {},
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(coordinator.canSubmit(key), isFalse);
+      final retry = find.text('Retry');
+      await tester.ensureVisible(retry);
+      await tester.tap(retry);
+      await tester.pumpAndSettle();
+      expect(coordinator.canSubmit(key), isFalse);
+      await tester.tap(find.text('Retry').last);
+      await tester.pumpAndSettle();
+      expect(coordinator.canSubmit(key), isTrue);
+      expect(posts, 1);
+    },
+  );
   testWidgets('Linux Microsoft task opens linked resources on demand', (
     tester,
   ) async {

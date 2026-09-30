@@ -21,6 +21,7 @@ import 'package:busymax/src/features/calendar/presentation/event_editor_draft.da
 import 'package:busymax/src/features/feedback/data/feedback_api_client.dart';
 import 'package:busymax/src/features/feedback/data/feedback_submission.dart';
 import 'package:busymax/src/features/notifications/notification_reconciler.dart';
+import 'package:busymax/src/features/schedule/presentation/attachment_upload_coordinator.dart';
 import 'package:busymax/src/features/recurrence/domain/recurrence_rule.dart';
 import 'package:busymax/src/features/sync/pending_mutation_sync_requester.dart';
 import 'package:busymax/src/google_calendar/google_calendar_api_client.dart';
@@ -1303,6 +1304,95 @@ void main() {
       expect(tester.takeException(), isNull);
     },
   );
+
+  testWidgets('Android task detail keeps an uncertain upload blocked', (
+    tester,
+  ) async {
+    var posts = 0;
+    final todoClient = MicrosoftTodoRestApiClient(
+      httpClient: MockClient((request) async {
+        if (request.method == 'GET') {
+          return http.Response(jsonEncode({'value': []}), 200);
+        }
+        posts++;
+        throw http.ClientException('direct response lost');
+      }),
+      baseUri: Uri.parse('https://graph.microsoft.com/v1.0'),
+      authorizationHeaderProvider: () async => 'Bearer token',
+    );
+    final harness = await _pumpApp(
+      tester,
+      AppSettings.defaults(),
+      todoClient: todoClient,
+    );
+    addTearDown(harness.dispose);
+    final coordinator = harness.container.read(
+      attachmentUploadCoordinatorProvider,
+    );
+    const accountId = 'microsoft:account';
+    const taskListId = 'list-1';
+    const taskId = 'task-1';
+    final key = AttachmentUploadCoordinator.taskKey(
+      accountId,
+      taskListId,
+      taskId,
+    );
+    await expectLater(
+      coordinator.uploadTask(
+        client: todoClient,
+        accountId: accountId,
+        taskListId: taskListId,
+        taskId: taskId,
+        name: 'notes.txt',
+        contentType: 'text/plain',
+        bytes: [1],
+      ),
+      throwsA(isA<AttachmentUploadUnresolvedException>()),
+    );
+    expect(
+      await coordinator.reconcileTask(
+        client: todoClient,
+        accountId: accountId,
+        taskListId: taskListId,
+        taskId: taskId,
+      ),
+      AttachmentUploadStatus.unresolved,
+    );
+    const task = TaskEntity(
+      accountId: accountId,
+      taskListId: taskListId,
+      id: taskId,
+      title: 'Task',
+      localDirty: false,
+      pendingDelete: false,
+      pendingMove: false,
+      rawJson: '{}',
+      updatedLocalAtUtc: '2026-09-14T00:00:00.000Z',
+    );
+    tester
+        .state<NavigatorState>(find.byType(Navigator).first)
+        .push<void>(
+          MaterialPageRoute(
+            builder: (_) => const AndroidTaskEditor(
+              accountId: accountId,
+              provider: BusyProvider.microsoft,
+              task: task,
+            ),
+          ),
+        );
+    await tester.pumpAndSettle();
+    expect(coordinator.canSubmit(key), isFalse);
+    final retry = find.text('Retry');
+    await tester.ensureVisible(retry);
+    await tester.tap(retry);
+    await tester.pumpAndSettle();
+    expect(coordinator.canSubmit(key), isFalse);
+    expect(posts, 1);
+    await tester.tap(find.text('Cancel').last);
+    await tester.pumpAndSettle();
+    expect(coordinator.canSubmit(key), isFalse);
+    expect(tester.takeException(), isNull);
+  });
 
   testWidgets('modified Android event requires discard confirmation', (
     tester,

@@ -8,6 +8,7 @@ import 'package:busymax/src/features/recurrence/domain/recurrence_rule.dart';
 import 'package:busymax/src/features/task_lists/data/task_lists_repository.dart';
 import 'package:busymax/src/features/tasks/data/tasks_repository.dart';
 import 'package:busymax/src/features/tasks/domain/task_capabilities.dart';
+import 'package:busymax/src/features/schedule/presentation/attachment_upload_coordinator.dart';
 import 'package:busymax/src/providers/busy_provider.dart';
 import 'package:busymax/src/microsoft_todo/api/microsoft_todo_api_client.dart';
 import 'package:busymax/src/schedule/schedule_item.dart';
@@ -21,6 +22,66 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 
 void main() {
+  testWidgets(
+    'Windows task detail requires review before retrying an uncertain upload',
+    (tester) async {
+      var posts = 0;
+      final client = MicrosoftTodoRestApiClient(
+        httpClient: MockClient((request) async {
+          if (request.method == 'GET') {
+            return http.Response(jsonEncode({'value': []}), 200);
+          }
+          posts++;
+          throw http.ClientException('direct response lost');
+        }),
+        baseUri: Uri.parse('https://graph.microsoft.com/v1.0'),
+      );
+      final coordinator = AttachmentUploadCoordinator();
+      final key = AttachmentUploadCoordinator.taskKey(
+        'microsoft',
+        'list',
+        'task',
+      );
+      await expectLater(
+        coordinator.uploadTask(
+          client: client,
+          accountId: 'microsoft',
+          taskListId: 'list',
+          taskId: 'task',
+          name: 'notes.txt',
+          contentType: 'text/plain',
+          bytes: [1],
+        ),
+        throwsA(isA<AttachmentUploadUnresolvedException>()),
+      );
+      expect(
+        await coordinator.reconcileTask(
+          client: client,
+          accountId: 'microsoft',
+          taskListId: 'list',
+          taskId: 'task',
+        ),
+        AttachmentUploadStatus.unresolved,
+      );
+      await _mount(
+        tester,
+        existing: true,
+        existingProvider: 'microsoft',
+        todoClient: client,
+        uploadCoordinator: coordinator,
+      );
+      final retry = find.text('Retry');
+      await tester.ensureVisible(retry);
+      await tester.tap(retry);
+      await tester.pumpAndSettle();
+      expect(coordinator.canSubmit(key), isFalse);
+      await tester.tap(find.text('Retry').last);
+      await tester.pumpAndSettle();
+      expect(coordinator.canSubmit(key), isTrue);
+      expect(posts, 1);
+      expect(tester.takeException(), isNull);
+    },
+  );
   testWidgets('Windows Microsoft task loads linked resources on request', (
     tester,
   ) async {
@@ -303,6 +364,7 @@ Future<AppDatabase> _mount(
   bool assigned = false,
   String existingProvider = 'google',
   MicrosoftTodoApiClient? todoClient,
+  AttachmentUploadCoordinator? uploadCoordinator,
   String initialAccount = 'nextcloud',
 }) async {
   tester.view.physicalSize = const Size(1280, 1000);
@@ -377,6 +439,10 @@ Future<AppDatabase> _mount(
         if (todoClient != null)
           microsoftTodoApiClientForAccountProvider.overrideWith(
             (ref, id) => todoClient,
+          ),
+        if (uploadCoordinator != null)
+          attachmentUploadCoordinatorProvider.overrideWith(
+            (ref) => uploadCoordinator,
           ),
         davTaskCollectionCapabilitiesProvider.overrideWith(
           (ref, key) async => nextcloudTaskCollectionCapabilities,
