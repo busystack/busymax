@@ -25,6 +25,7 @@ import '../../schedule/presentation/schedule_event_details_format.dart';
 import '../../schedule/presentation/attachment_download.dart';
 import '../../../microsoft_todo/api/microsoft_todo_api_client.dart';
 import '../../../microsoft_todo/api/microsoft_todo_api_models.dart';
+import '../../../microsoft_calendar/microsoft_calendar_models.dart';
 import 'desktop_date_time_fields.dart';
 import 'ical_task_fields_editor.dart';
 import 'task_details_draft.dart';
@@ -1013,7 +1014,7 @@ class _TaskDetailsEditorState extends State<TaskDetailsEditor> {
 
   Widget _categoriesRow(TaskDetailsDraft draft) {
     final l10n = context.l10n;
-    return BusyMaxCategoryEditorRow(
+    final editor = BusyMaxCategoryEditorRow(
       title: l10n.categories,
       addLabel: l10n.addCategory,
       categories: draft.categories,
@@ -1032,6 +1033,78 @@ class _TaskDetailsEditorState extends State<TaskDetailsEditor> {
         });
       },
       onDeleted: (category) => _removeCategory(draft, category),
+    );
+    if (widget.provider != BusyProvider.microsoft) return editor;
+    try {
+      ProviderScope.containerOf(context, listen: false);
+    } on StateError {
+      return editor;
+    }
+    return Column(
+      children: [
+        editor,
+        Consumer(
+          builder: (context, ref, _) {
+            final lookup = ref.watch(
+              microsoftMasterCategoriesProvider(_editingTask.accountId),
+            );
+            return lookup.when(
+              loading: () => const SizedBox.shrink(),
+              error: (_, _) => BusyMaxPushButton.standard(
+                onPressed: () async {
+                  try {
+                    await ref
+                        .read(microsoftCategoryAuthorizationProvider)
+                        ?.authorizeCategoryAccess(_editingTask.accountId);
+                    ref.invalidate(
+                      microsoftMasterCategoriesProvider(_editingTask.accountId),
+                    );
+                  } on Object {
+                    if (context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text(l10n.outlookCategoriesUnavailable),
+                        ),
+                      );
+                    }
+                  }
+                },
+                child: Text(l10n.loadOutlookCategories),
+              ),
+              data: (catalog) => Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  for (final category in catalog)
+                    BusyMaxPushButton.standard(
+                      onPressed: () =>
+                          (_draft ?? draft).categories.contains(
+                            category.displayName,
+                          )
+                          ? _removeCategory(draft, category.displayName)
+                          : _addCategory(draft, category.displayName),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          if (microsoftCategorySwatchArgb(category.color)
+                              case final swatch?) ...[
+                            Container(
+                              width: 12,
+                              height: 12,
+                              color: Color(swatch),
+                            ),
+                            const SizedBox(width: 6),
+                          ],
+                          Text(category.displayName),
+                        ],
+                      ),
+                    ),
+                ],
+              ),
+            );
+          },
+        ),
+      ],
     );
   }
 

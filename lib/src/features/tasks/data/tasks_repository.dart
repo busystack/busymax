@@ -915,7 +915,11 @@ class TasksRepository {
     _onMutationQueued?.call();
   }
 
-  Future<void> deleteTask(String taskListId, String taskId) async {
+  Future<void> deleteTask(
+    String taskListId,
+    String taskId, {
+    bool confirmedAssignedSourceDeletion = false,
+  }) async {
     final taskList = await _requiredTaskList(taskListId);
     if (taskList.davCollectionId != null) {
       await _deleteDavTask(taskList, taskId);
@@ -931,6 +935,17 @@ class TasksRepository {
         await _cancelPendingTaskCreation(pendingCreate);
         return;
       }
+      if (await _isGoogleAccount()) {
+        final assignment = GoogleTaskAssignmentPolicy.fromJson(
+          (await _requiredTask(taskListId, taskId)).assignmentInfoJson,
+        );
+        if (assignment.isAssigned && !confirmedAssignedSourceDeletion) {
+          throw UnsupportedError(
+            'Deleting this assigned task also deletes its original task in '
+            'Docs or Chat Spaces. Confirm that consequence first.',
+          );
+        }
+      }
       final baseline = await _baselineRow(taskListId, taskId);
       await _writeLocalTask(
         taskListId,
@@ -945,7 +960,10 @@ class TasksRepository {
         operation: 'delete_task',
         taskListId: taskListId,
         taskId: taskId,
-        request: const {},
+        request: {
+          if (confirmedAssignedSourceDeletion)
+            'confirmedAssignedSourceDeletion': true,
+        },
         baselineUpdatedUtc: baseline?.updatedUtc,
         baselineRawJson: baseline?.rawJson,
         createdAtUtc: now,
