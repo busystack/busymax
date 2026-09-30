@@ -6,6 +6,7 @@ import 'package:busymax/src/db/app_database.dart';
 import 'package:busymax/src/features/sync/calendar_sync_engine.dart';
 import 'package:busymax/src/google_calendar/google_calendar_api_client.dart';
 import 'package:busymax/src/google_calendar/google_calendar_errors.dart';
+import 'package:busymax/src/google_calendar/google_calendar_models.dart';
 import 'package:busymax/src/schedule/schedule_range.dart';
 import 'package:busymax/src/schedule/schedule_repository.dart';
 import 'package:drift/drift.dart';
@@ -15,6 +16,112 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 
 void main() {
+  test(
+    'ACL management pages rules and targets only the selected calendar',
+    () async {
+      final requests = <http.Request>[];
+      final client = _client((request) {
+        requests.add(request);
+        if (request.method == 'GET') {
+          return _json({
+            'items': [
+              {
+                'id': 'user:alex@example.test',
+                'role': 'reader',
+                'scope': {'type': 'user', 'value': 'alex@example.test'},
+              },
+            ],
+            if (request.url.queryParameters['pageToken'] == null)
+              'nextPageToken': 'second',
+          });
+        }
+        return _json({
+          'id': 'user:alex@example.test',
+          'role': request.method == 'POST' ? 'writer' : 'reader',
+          'scope': {'type': 'user', 'value': 'alex@example.test'},
+        });
+      });
+      final rules = await client.listAclRules('team@example.test');
+      expect(rules, hasLength(2));
+      expect(
+        requests.map((request) => request.url.path),
+        everyElement('/calendar/v3/calendars/team%40example.test/acl'),
+      );
+      expect(requests.last.url.queryParameters['pageToken'], 'second');
+      final added = await client.addAclUser(
+        'team@example.test',
+        email: 'alex@example.test',
+        role: 'writer',
+      );
+      expect(added.role, 'writer');
+      expect(jsonDecode(requests.last.body), {
+        'role': 'writer',
+        'scope': {'type': 'user', 'value': 'alex@example.test'},
+      });
+      await expectLater(
+        client.addAclUser('team', email: 'alex@example.test', role: 'owner'),
+        throwsArgumentError,
+      );
+    },
+  );
+  test('ACL role changes and revocation protect immutable grants', () async {
+    final requests = <http.Request>[];
+    final client = _client((request) {
+      requests.add(request);
+      if (request.method == 'DELETE') return http.Response('', 204);
+      return _json({
+        'id': 'user:alex@example.test',
+        'role': 'writer',
+        'scope': {'type': 'user', 'value': 'alex@example.test'},
+      });
+    });
+    const user = GoogleAclRule(
+      id: 'user:alex@example.test',
+      role: 'reader',
+      scopeType: 'user',
+      scopeValue: 'alex@example.test',
+    );
+    final changed = await client.changeAclRole('team', user, 'writer');
+    expect(changed.role, 'writer');
+    expect(requests.single.method, 'PATCH');
+    expect(
+      requests.single.url.path,
+      endsWith('/acl/user%3Aalex%40example.test'),
+    );
+    expect(jsonDecode(requests.single.body), {'role': 'writer'});
+    await client.revokeAclUser('team', user);
+    expect(requests.last.method, 'DELETE');
+    const owner = GoogleAclRule(id: 'owner', role: 'owner', scopeType: 'user');
+    expect(() => client.revokeAclUser('team', owner), throwsArgumentError);
+    await expectLater(
+      client.changeAclRole('team', owner, 'reader'),
+      throwsArgumentError,
+    );
+    expect(requests, hasLength(2));
+  });
+  test('event labels are retrieved from the selected calendar only', () async {
+    late http.Request captured;
+    final client = _client((request) {
+      captured = request;
+      return _json({
+        'labelProperties': {
+          'eventLabels': [
+            {'id': 'label-one', 'name': 'Review', 'backgroundColor': '#123abc'},
+          ],
+        },
+      });
+    });
+    final labels = await client.getEventLabels('team@example.com');
+    expect(captured.url.path, '/calendar/v3/calendars/team%40example.com');
+    expect(labels.single.id, 'label-one');
+    expect(labels.single.backgroundColor, '#123abc');
+  });
+
+  test('malformed event label metadata never appears empty', () async {
+    final client = _client((_) => _json({'labelProperties': {}}));
+    await expectLater(client.getEventLabels('calendar'), throwsFormatException);
+  });
+
   test(
     'Google attachment mutation preserves fresh collection and conflict token',
     () async {
@@ -86,6 +193,132 @@ void main() {
         throwsFormatException,
       );
       expect(requests, 1);
+    },
+  );
+
+  test(
+    'Google attachment retry accepts an already-applied reference',
+    () async {
+      var requests = 0;
+      final client = _client((request) {
+        requests++;
+        return _json({
+          'id': 'event',
+          'etag': '"v3"',
+          'attachments': [
+            {'fileUrl': 'https://drive.google.com/file/new', 'title': 'New'},
+          ],
+        });
+      });
+
+      final event = await client.changeEventAttachmentReferences(
+        calendarId: 'calendar',
+        eventId: 'event',
+        addFileUrl: 'https://drive.google.com/file/new',
+        addTitle: 'New',
+      );
+
+      expect(requests, 1);
+      expect(event.attachmentsJson, isNotEmpty);
+    },
+  );
+
+  test(
+    'Google attachment mutation reconciles uncertain PATCH response',
+    () async {
+      var requests = 0;
+      var applied = false;
+      final client = _client((request) {
+        requests++;
+        if (request.method == 'PATCH') {
+          applied = true;
+          return http.Response('{"error":{"message":"unknown"}}', 503);
+        }
+        return _json({
+          'id': 'event',
+          'etag': applied ? '"v3"' : '"v2"',
+          'attachments': applied
+              ? [
+                  {'fileUrl': 'https://drive.google.com/file/new'},
+                ]
+              : <Object>[],
+        });
+      });
+
+      final event = await client.changeEventAttachmentReferences(
+        calendarId: 'calendar',
+        eventId: 'event',
+        addFileUrl: 'https://drive.google.com/file/new',
+      );
+
+      expect(requests, 3);
+      expect(event.etagOrChangeKey, '"v3"');
+    },
+  );
+
+  test(
+    'ordinary Google event patch does not replace cached attachments',
+    () async {
+      late http.Request captured;
+      final client = _client((request) {
+        captured = request;
+        return _json(_googleEventJson());
+      });
+
+      await client.updateEvent(
+        calendarId: 'calendar@example.com',
+        eventId: 'event-1',
+        mutation: const CalendarEventMutation(
+          title: 'Updated title',
+          providerRaw: {
+            'attachments': [
+              {'fileUrl': 'https://drive.google.com/file/stale'},
+            ],
+          },
+        ),
+      );
+
+      expect(captured.method, 'PATCH');
+      expect(jsonDecode(captured.body), isNot(contains('attachments')));
+      expect(
+        captured.url.queryParameters,
+        isNot(contains('supportsAttachments')),
+      );
+    },
+  );
+
+  test(
+    'label mutations opt into version 1 without altering color-only edits',
+    () async {
+      final requests = <http.Request>[];
+      final client = _client((request) {
+        requests.add(request);
+        return _json(_googleEventJson());
+      });
+      await client.updateEvent(
+        calendarId: 'calendar@example.com',
+        eventId: 'event-1',
+        mutation: const CalendarEventMutation(eventLabelId: 'label-1'),
+      );
+      await client.updateEvent(
+        calendarId: 'calendar@example.com',
+        eventId: 'event-1',
+        mutation: const CalendarEventMutation(eventLabelId: ''),
+      );
+      await client.updateEvent(
+        calendarId: 'calendar@example.com',
+        eventId: 'event-1',
+        mutation: const CalendarEventMutation(colorId: '5'),
+      );
+      expect(requests[0].url.queryParameters['eventLabelVersion'], '1');
+      expect(jsonDecode(requests[0].body)['eventLabelId'], 'label-1');
+      expect(requests[1].url.queryParameters['eventLabelVersion'], '1');
+      expect(jsonDecode(requests[1].body)['eventLabelId'], '');
+      expect(
+        requests[2].url.queryParameters,
+        isNot(contains('eventLabelVersion')),
+      );
+      expect(jsonDecode(requests[2].body), {'colorId': '5'});
     },
   );
 

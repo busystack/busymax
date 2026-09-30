@@ -84,4 +84,82 @@ void main() {
       '0123456789abcdef',
     );
   });
+
+  test('Google status properties survive unrelated event edits', () {
+    const cases = {
+      'focusTime': {
+        'focusTimeProperties': {
+          'autoDeclineMode': 'declineOnlyNewConflictingInvitations',
+          'declineMessage': 'Heads down',
+        },
+      },
+      'outOfOffice': {
+        'outOfOfficeProperties': {
+          'autoDeclineMode': 'declineAllConflictingInvitations',
+        },
+      },
+      'workingLocation': {
+        'workingLocationProperties': {'type': 'homeOffice'},
+      },
+    };
+    for (final entry in cases.entries) {
+      final body = googleEventMutationToJson(
+        CalendarEventMutation(
+          title: 'Updated',
+          providerRaw: {'eventType': entry.key, ...entry.value},
+        ),
+      );
+      expect(body['eventType'], entry.key);
+      for (final property in entry.value.entries) {
+        expect(body[property.key], property.value);
+      }
+    }
+  });
+
+  test(
+    'Google status creation and targeted property edits use native fields',
+    () {
+      for (final (type, key, properties) in [
+        (
+          'focusTime',
+          'focusTimeProperties',
+          <String, Object?>{
+            'autoDeclineMode': 'declineNone',
+            'chatStatus': 'doNotDisturb',
+          },
+        ),
+        (
+          'outOfOffice',
+          'outOfOfficeProperties',
+          <String, Object?>{
+            'autoDeclineMode': 'declineOnlyNewConflictingInvitations',
+          },
+        ),
+        (
+          'workingLocation',
+          'workingLocationProperties',
+          <String, Object?>{
+            'type': 'customLocation',
+            'customLocation': {'label': 'Site'},
+          },
+        ),
+      ]) {
+        final created = googleEventMutationToJson(
+          CalendarEventMutation(
+            eventType: type,
+            googleStatusProperties: properties,
+          ),
+        );
+        expect(created['eventType'], type);
+        expect(created[key], properties);
+        final edited = googleEventMutationToJson(
+          CalendarEventMutation(
+            providerRaw: {'eventType': type},
+            googleStatusProperties: properties,
+          ),
+        );
+        expect(edited[key], properties);
+      }
+    },
+  );
 }
