@@ -21,7 +21,9 @@ import 'package:busymax/src/features/notifications/notification_reconciler.dart'
 import 'package:busymax/src/features/recurrence/domain/recurrence_rule.dart';
 import 'package:busymax/src/features/sync/pending_mutation_sync_requester.dart';
 import 'package:busymax/src/google_calendar/google_calendar_api_client.dart';
+import 'package:busymax/src/google_calendar/google_calendar_models.dart';
 import 'package:busymax/src/microsoft_calendar/microsoft_calendar_api_client.dart';
+import 'package:busymax/src/microsoft_calendar/microsoft_calendar_models.dart';
 import 'package:busymax/src/microsoft_todo/api/microsoft_todo_api_client.dart';
 import 'package:busymax/src/features/task_lists/data/task_lists_repository.dart';
 import 'package:busymax/src/features/tasks/data/tasks_repository.dart';
@@ -606,6 +608,91 @@ void main() {
     expect(find.text('Could not open the meeting link.'), findsOneWidget);
   });
 
+  testWidgets(
+    'Android recurring event export chooses occurrence or authoritative series',
+    (tester) async {
+      tester.view.physicalSize = const Size(412, 915);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      final today = DateTime.now();
+      final day =
+          '${today.year.toString().padLeft(4, '0')}-${today.month.toString().padLeft(2, '0')}-${today.day.toString().padLeft(2, '0')}';
+      final next = today.add(const Duration(days: 1));
+      final nextDay =
+          '${next.year.toString().padLeft(4, '0')}-${next.month.toString().padLeft(2, '0')}-${next.day.toString().padLeft(2, '0')}';
+      final master = <String, Object?>{
+        'id': 'invitation',
+        'iCalUID': 'series@example.test',
+        'summary': 'Invitation event',
+        'start': {'date': day},
+        'end': {'date': nextDay},
+        'recurrence': ['RRULE:FREQ=DAILY;COUNT=2'],
+        'reminders': {'useDefault': false, 'overrides': <Object>[]},
+      };
+      final client = GoogleCalendarApiClient(
+        httpClient: MockClient((request) async {
+          if (request.url.path.endsWith('/events/invitation')) {
+            return http.Response(jsonEncode(master), 200);
+          }
+          if (request.url.path.endsWith('/events')) {
+            expect(request.url.queryParameters['showDeleted'], 'true');
+            return http.Response(
+              jsonEncode({
+                'items': [master],
+              }),
+              200,
+            );
+          }
+          return http.Response('unexpected export request', 404);
+        }),
+        baseUri: Uri.parse('https://www.googleapis.com'),
+      );
+      final harness = await _pumpApp(
+        tester,
+        AppSettings.defaults().copyWith(
+          androidScheduleViewMode: ScheduleViewMode.day,
+        ),
+        populated: true,
+        googleSharingClient: client,
+      );
+      addTearDown(harness.dispose);
+      await (harness.database.update(
+        harness.database.calendarEvents,
+      )..where((row) => row.id.equals('invitation'))).write(
+        const CalendarEventsCompanion(
+          recurrenceJson: Value('["RRULE:FREQ=DAILY;COUNT=2"]'),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.textContaining('more').first);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Invitation event'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Export'));
+      await tester.pumpAndSettle();
+      expect(find.text('This event'), findsOneWidget);
+      expect(find.text('Entire series'), findsOneWidget);
+      String? exported;
+      messenger.setMockMethodCallHandler(platformChannel, (call) async {
+        if (call.method == 'createDocument') {
+          final args = (call.arguments as Map).cast<String, Object?>();
+          exported = utf8.decode((args['bytes'] as List).cast<int>());
+          return 'content://test/export.ics';
+        }
+        return null;
+      });
+      await tester.tap(find.text('Entire series'));
+      await tester.pumpAndSettle();
+      expect(exported, contains('UID:series@example.test'));
+      expect(exported, contains('RRULE:FREQ=DAILY;COUNT=2'));
+      expect(
+        await harness.database.select(harness.database.pendingOps).get(),
+        isEmpty,
+      );
+    },
+  );
+
   testWidgets('Android timed detail labels projected local time correctly', (
     tester,
   ) async {
@@ -621,17 +708,23 @@ void main() {
       populated: true,
     );
     addTearDown(harness.dispose);
-    final stored = await (harness.database.select(harness.database.calendarEvents)
-          ..where((row) => row.id.equals('overnight')))
-        .getSingle();
-    await (harness.database.update(harness.database.calendarEvents)
-          ..where((row) => row.id.equals('overnight')))
-        .write(CalendarEventsCompanion(
-          startDateTime: Value(DateTime.parse(stored.startDateTime!).toUtc().toIso8601String()),
-          endDateTime: Value(DateTime.parse(stored.endDateTime!).toUtc().toIso8601String()),
-          startTimeZone: const Value('Pacific/Honolulu'),
-          endTimeZone: const Value('Asia/Tokyo'),
-        ));
+    final stored = await (harness.database.select(
+      harness.database.calendarEvents,
+    )..where((row) => row.id.equals('overnight'))).getSingle();
+    await (harness.database.update(
+      harness.database.calendarEvents,
+    )..where((row) => row.id.equals('overnight'))).write(
+      CalendarEventsCompanion(
+        startDateTime: Value(
+          DateTime.parse(stored.startDateTime!).toUtc().toIso8601String(),
+        ),
+        endDateTime: Value(
+          DateTime.parse(stored.endDateTime!).toUtc().toIso8601String(),
+        ),
+        startTimeZone: const Value('Pacific/Honolulu'),
+        endTimeZone: const Value('Asia/Tokyo'),
+      ),
+    );
     await tester.pumpAndSettle();
     final eventLabel = find.textContaining('Overnight event').first;
     await tester.ensureVisible(eventLabel);
@@ -859,19 +952,21 @@ void main() {
       calendarClient: client,
     );
     addTearDown(harness.dispose);
-    await harness.database.into(harness.database.accounts).insert(
-      AccountsCompanion.insert(
-        id: 'microsoft:editable',
-        provider: 'microsoft',
-        authority: 'https://login.microsoftonline.com/common',
-        providerAccountId: 'editable',
-        credentialKind: 'oauth',
-        authState: const Value('signed_in'),
-        tenantId: const Value('11111111-2222-4333-8444-555555555555'),
-        createdAtUtc: '2026-09-14T00:00:00.000Z',
-        updatedAtUtc: '2026-09-14T00:00:00.000Z',
-      ),
-    );
+    await harness.database
+        .into(harness.database.accounts)
+        .insert(
+          AccountsCompanion.insert(
+            id: 'microsoft:editable',
+            provider: 'microsoft',
+            authority: 'https://login.microsoftonline.com/common',
+            providerAccountId: 'editable',
+            credentialKind: 'oauth',
+            authState: const Value('signed_in'),
+            tenantId: const Value('11111111-2222-4333-8444-555555555555'),
+            createdAtUtc: '2026-09-14T00:00:00.000Z',
+            updatedAtUtc: '2026-09-14T00:00:00.000Z',
+          ),
+        );
     await tester.pumpAndSettle();
     final now = DateTime.now();
     const source = CalendarSourceEntity(
@@ -1879,6 +1974,248 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets('Android sharing entry opens owner calendar permissions', (
+    tester,
+  ) async {
+    var permissionReads = 0;
+    final sharingClient = GoogleCalendarApiClient(
+      httpClient: MockClient((request) async {
+        if (request.url.path.endsWith('/acl')) {
+          permissionReads++;
+          return http.Response(jsonEncode({'items': <Object>[]}), 200);
+        }
+        return http.Response('unexpected request', 404);
+      }),
+      baseUri: Uri.parse('https://www.googleapis.com'),
+    );
+    final harness = await _pumpApp(
+      tester,
+      AppSettings.defaults(),
+      seedDatabase: _seedCalendarAdministration,
+      googleSharingClient: sharingClient,
+    );
+    addTearDown(harness.dispose);
+    tester
+        .state<NavigatorState>(find.byType(Navigator).first)
+        .push<void>(
+          MaterialPageRoute(builder: (_) => const AndroidSettingsScreen()),
+        );
+    await tester.pumpAndSettle();
+    final entry = find.byKey(
+      const Key('android-manage-sharing-google:administration'),
+    );
+    await _scrollUntilBuilt(tester, entry);
+    await tester.tap(entry);
+    await tester.pumpAndSettle();
+    expect(find.text('Manage calendar sharing'), findsWidgets);
+    expect(find.byKey(const Key('calendar-sharing-recipient')), findsOneWidget);
+    expect(permissionReads, 1);
+  });
+
+  testWidgets('Android event label selection queues the scoped ID', (
+    tester,
+  ) async {
+    final harness = await _pumpApp(
+      tester,
+      AppSettings.defaults(),
+      seedDatabase: _seedCalendarAdministration,
+      googleLabels: const [
+        GoogleEventLabel(
+          id: 'label-1',
+          name: 'Project',
+          backgroundColor: '#336699',
+        ),
+      ],
+    );
+    addTearDown(harness.dispose);
+    const source = CalendarSourceEntity(
+      id: 'administration-calendar',
+      accountId: 'google:administration',
+      provider: BusyProvider.google,
+      providerCalendarId: 'administration-calendar',
+      summary: 'Administration calendar',
+      selected: true,
+      hidden: false,
+      readOnly: false,
+      isDeleted: false,
+      accessRole: 'owner',
+    );
+    final now = DateTime.now().add(const Duration(hours: 1));
+    tester
+        .state<NavigatorState>(find.byType(Navigator).first)
+        .push<void>(
+          MaterialPageRoute(
+            builder: (_) => AndroidEventEditor(
+              sources: const [source],
+              draft: EventEditorDraft.newEvent(
+                accountId: source.accountId,
+                sourceId: source.id,
+                providerCalendarId: source.providerCalendarId,
+                start: now,
+                end: now.add(const Duration(hours: 1)),
+              ).copyWith(title: 'Planning'),
+            ),
+          ),
+        );
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
+    final selector = find.byKey(
+      const Key('android-event-label-administration-calendar'),
+    );
+    await _scrollUntilBuilt(tester, selector);
+    expect(tester.takeException(), isNull);
+    tester
+        .widget<DropdownButtonFormField<String>>(selector)
+        .onChanged!
+        .call('label-1');
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
+    await tester.tap(find.widgetWithText(TextButton, 'Save'));
+    await tester.pumpAndSettle();
+    final ops = await harness.database
+        .select(harness.database.pendingOps)
+        .get();
+    expect(ops, hasLength(1));
+    expect(jsonDecode(ops.single.requestJson)['eventLabelId'], 'label-1');
+    await tester.pump(const Duration(seconds: 6));
+  });
+
+  testWidgets('Android primary Google editor queues native focus time', (
+    tester,
+  ) async {
+    final harness = await _pumpApp(
+      tester,
+      AppSettings.defaults(),
+      seedDatabase: _seedGoogleStatusCalendar,
+      googleLabels: const [],
+    );
+    addTearDown(harness.dispose);
+    const source = CalendarSourceEntity(
+      id: 'status-calendar',
+      accountId: 'google:status',
+      provider: BusyProvider.google,
+      providerCalendarId: 'status-calendar',
+      summary: 'Primary',
+      selected: true,
+      hidden: false,
+      readOnly: false,
+      isDeleted: false,
+      primaryCalendar: true,
+      accessRole: 'owner',
+    );
+    final now = DateTime.now().add(const Duration(hours: 1));
+    tester
+        .state<NavigatorState>(find.byType(Navigator).first)
+        .push<void>(
+          MaterialPageRoute(
+            builder: (_) => AndroidEventEditor(
+              sources: const [source],
+              draft: EventEditorDraft.newEvent(
+                accountId: source.accountId,
+                sourceId: source.id,
+                providerCalendarId: source.providerCalendarId,
+                start: now,
+                end: now.add(const Duration(hours: 1)),
+              ).copyWith(title: 'Focus'),
+            ),
+          ),
+        );
+    await tester.pumpAndSettle();
+    final type = find.byKey(const Key('android-google-event-type'));
+    await _scrollUntilBuilt(tester, type);
+    tester
+        .widget<DropdownButtonFormField<String>>(type)
+        .onChanged!
+        .call('focusTime');
+    await tester.pumpAndSettle();
+    final decline = find.byKey(const Key('android-google-auto-decline'));
+    await _scrollUntilBuilt(tester, decline);
+    tester
+        .widget<DropdownButtonFormField<String>>(decline)
+        .onChanged!
+        .call('declineOnlyNewConflictingInvitations');
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(TextButton, 'Save'));
+    await tester.pumpAndSettle();
+    final request =
+        jsonDecode(
+              (await harness.database
+                      .select(harness.database.pendingOps)
+                      .getSingle())
+                  .requestJson,
+            )
+            as Map;
+    expect(request['eventType'], 'focusTime');
+    expect(
+      (request['googleStatusProperties'] as Map)['autoDeclineMode'],
+      'declineOnlyNewConflictingInvitations',
+    );
+    await tester.pump(const Duration(seconds: 6));
+  });
+
+  testWidgets('Android Microsoft category choice queues all assignments', (
+    tester,
+  ) async {
+    final harness = await _pumpApp(
+      tester,
+      AppSettings.defaults(),
+      seedDatabase: _seedMicrosoftCategoryCalendar,
+      microsoftCategories: const [
+        MicrosoftMasterCategory(
+          id: 'category-1',
+          displayName: 'Work',
+          color: 'preset7',
+        ),
+      ],
+    );
+    addTearDown(harness.dispose);
+    const source = CalendarSourceEntity(
+      id: 'microsoft-category-calendar',
+      accountId: 'microsoft:categories',
+      provider: BusyProvider.microsoft,
+      providerCalendarId: 'calendar',
+      summary: 'Work calendar',
+      selected: true,
+      hidden: false,
+      readOnly: false,
+      isDeleted: false,
+    );
+    final now = DateTime.now().add(const Duration(hours: 1));
+    tester
+        .state<NavigatorState>(find.byType(Navigator).first)
+        .push<void>(
+          MaterialPageRoute(
+            builder: (_) => AndroidEventEditor(
+              sources: const [source],
+              draft: EventEditorDraft.newEvent(
+                accountId: source.accountId,
+                sourceId: source.id,
+                providerCalendarId: source.providerCalendarId,
+                start: now,
+                end: now.add(const Duration(hours: 1)),
+              ).copyWith(title: 'Planning', categories: ['Unknown']),
+            ),
+          ),
+        );
+    await tester.pumpAndSettle();
+    final option = find.widgetWithText(FilterChip, 'Work');
+    await _scrollUntilBuilt(tester, option);
+    await tester.tap(option);
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(TextButton, 'Save'));
+    await tester.pumpAndSettle();
+    final request =
+        jsonDecode(
+              (await harness.database
+                      .select(harness.database.pendingOps)
+                      .getSingle())
+                  .requestJson,
+            )
+            as Map;
+    expect(request['categoriesJson'], ['Unknown', 'Work']);
+    await tester.pump(const Duration(seconds: 6));
+  });
+
   testWidgets('Android feedback preserves failure and rotates edited retry', (
     tester,
   ) async {
@@ -2015,6 +2352,9 @@ Future<_AndroidAppHarness> _pumpApp(
   Future<void> Function(String accountId)? onCalendarSync,
   FeedbackSubmissionService? feedbackService,
   CloudCalendarClient? calendarClient,
+  GoogleCalendarApiClient? googleSharingClient,
+  List<GoogleEventLabel>? googleLabels,
+  List<MicrosoftMasterCategory>? microsoftCategories,
   MicrosoftTodoApiClient? todoClient,
   Future<void> Function(ScheduleRange range)? scheduleProjectionCoverage,
 }) async {
@@ -2060,6 +2400,18 @@ Future<_AndroidAppHarness> _pumpApp(
       if (calendarClient != null)
         calendarRemoteApiClientForAccountProvider.overrideWith(
           (ref, accountId) => calendarClient,
+        ),
+      if (googleSharingClient != null)
+        googleCalendarApiClientForAccountProvider.overrideWith(
+          (ref, accountId) => googleSharingClient,
+        ),
+      if (googleLabels != null)
+        googleEventLabelsForCalendarProvider.overrideWith(
+          (ref, key) async => googleLabels,
+        ),
+      if (microsoftCategories != null)
+        microsoftMasterCategoriesProvider.overrideWith(
+          (ref, accountId) async => microsoftCategories,
         ),
       if (todoClient != null)
         microsoftTodoApiClientForAccountProvider.overrideWith(
@@ -2393,6 +2745,73 @@ Future<void> _seedCalendarAdministration(AppDatabase database) async {
           summary: 'Administration calendar',
           accessRole: const Value('owner'),
           dataOwner: const Value('owner@example.com'),
+          createdAtLocal: 1,
+          updatedAtLocal: 1,
+        ),
+      );
+}
+
+Future<void> _seedGoogleStatusCalendar(AppDatabase database) async {
+  const timestamp = '2026-09-14T00:00:00.000Z';
+  await database
+      .into(database.accounts)
+      .insert(
+        AccountsCompanion.insert(
+          id: 'google:status',
+          provider: 'google',
+          authority: 'https://accounts.google.com',
+          providerAccountId: 'status',
+          credentialKind: 'oauth',
+          authState: const Value('signed_in'),
+          displayName: const Value('Status account'),
+          email: const Value('owner@example.com'),
+          createdAtUtc: timestamp,
+          updatedAtUtc: timestamp,
+        ),
+      );
+  await database
+      .into(database.calendarSources)
+      .insert(
+        CalendarSourcesCompanion.insert(
+          id: 'status-calendar',
+          accountId: 'google:status',
+          provider: 'google',
+          providerCalendarId: 'status-calendar',
+          summary: 'Primary',
+          primaryCalendar: const Value(true),
+          accessRole: const Value('owner'),
+          createdAtLocal: 1,
+          updatedAtLocal: 1,
+        ),
+      );
+}
+
+Future<void> _seedMicrosoftCategoryCalendar(AppDatabase database) async {
+  const timestamp = '2026-09-14T00:00:00.000Z';
+  await database
+      .into(database.accounts)
+      .insert(
+        AccountsCompanion.insert(
+          id: 'microsoft:categories',
+          provider: 'microsoft',
+          authority: 'https://login.microsoftonline.com/common',
+          providerAccountId: 'categories',
+          credentialKind: 'oauth',
+          authState: const Value('signed_in'),
+          createdAtUtc: timestamp,
+          updatedAtUtc: timestamp,
+        ),
+      );
+  await database
+      .into(database.calendarSources)
+      .insert(
+        CalendarSourcesCompanion.insert(
+          id: 'microsoft-category-calendar',
+          accountId: 'microsoft:categories',
+          provider: 'microsoft',
+          providerCalendarId: 'calendar',
+          summary: 'Work calendar',
+          accessRole: const Value('writer'),
           createdAtLocal: 1,
           updatedAtLocal: 1,
         ),

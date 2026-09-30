@@ -493,7 +493,11 @@ class _TestTasksRepository extends TasksRepository {
   }
 
   @override
-  Future<void> deleteTask(String taskListId, String taskId) async {
+  Future<void> deleteTask(
+    String taskListId,
+    String taskId, {
+    bool confirmedAssignedSourceDeletion = false,
+  }) async {
     deletedTaskIds.add(taskId);
   }
 }
