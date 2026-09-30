@@ -4,6 +4,7 @@ import '../../maps/domain/geographic_point.dart';
 import '../../maps/domain/location_result.dart';
 import '../../../providers/busy_provider.dart';
 import '../data/calendar_event_detail.dart';
+import '../domain/google_status_event.dart';
 
 enum RecurringEventMutationScope {
   entireSeries,
@@ -161,6 +162,8 @@ class EventEditorDraft {
     this.originalDetail,
     this.providerRecurringEventId,
     this.eventType,
+    this.googleStatusProperties = const {},
+    this.googleStatusChanged = false,
     this.recurringMutationScope,
     this.start,
     this.end,
@@ -184,6 +187,8 @@ class EventEditorDraft {
     this.showAs,
     this.visibilityOrSensitivity,
     this.colorId,
+    this.eventLabelId,
+    this.eventLabelChanged = false,
     this.categories = const [],
     this.categoriesChanged = false,
     this.createConference = false,
@@ -249,6 +254,9 @@ class EventEditorDraft {
       providerCalendarId: detail.providerCalendarId,
       providerRecurringEventId: detail.recurringMutationSeriesId,
       eventType: detail.eventType,
+      googleStatusProperties: detail.provider == BusyProvider.google
+          ? googleStatusPropertiesFromRaw(detail.eventType, raw)
+          : const {},
       title: detail.title,
       allDay: detail.allDay,
       start: _eventEditorDateTime(
@@ -280,6 +288,9 @@ class EventEditorDraft {
       showAs: detail.transparencyOrShowAs,
       visibilityOrSensitivity: detail.visibility,
       colorId: detail.colorId,
+      eventLabelId: detail.provider == BusyProvider.google
+          ? raw['eventLabelId']?.toString()
+          : null,
       categories: _jsonStringList(detail.categories),
       conference: detail.conference,
       responseRequested: _jsonBool(raw['responseRequested']),
@@ -308,6 +319,7 @@ class EventEditorDraft {
     GeographicPoint? locationPoint,
     String? providerRecurringEventId,
     String? eventType,
+    Map<String, Object?> googleStatusProperties = const {},
     RecurringEventMutationScope? recurringMutationScope,
     String? description,
     String? descriptionContentType,
@@ -321,6 +333,7 @@ class EventEditorDraft {
     String? showAs,
     String? visibilityOrSensitivity,
     String? colorId,
+    String? eventLabelId,
     List<String> categories = const [],
     bool createConference = false,
     Object? conference,
@@ -338,6 +351,7 @@ class EventEditorDraft {
       providerCalendarId: providerCalendarId,
       providerRecurringEventId: providerRecurringEventId,
       eventType: eventType,
+      googleStatusProperties: googleStatusProperties,
       recurringMutationScope: recurringMutationScope,
       title: title,
       allDay: allDay,
@@ -358,6 +372,7 @@ class EventEditorDraft {
       showAs: showAs,
       visibilityOrSensitivity: visibilityOrSensitivity,
       colorId: colorId,
+      eventLabelId: eventLabelId,
       categories: categories,
       createConference: createConference,
       conference: conference,
@@ -373,6 +388,8 @@ class EventEditorDraft {
   final CalendarEventDetail? originalDetail;
   final String? providerRecurringEventId;
   final String? eventType;
+  final Map<String, Object?> googleStatusProperties;
+  final bool googleStatusChanged;
   final RecurringEventMutationScope? recurringMutationScope;
   final String accountId;
   final String sourceId;
@@ -462,6 +479,10 @@ class EventEditorDraft {
   final String? showAs;
   final String? visibilityOrSensitivity;
   final String? colorId;
+  final String? eventLabelId;
+
+  /// A null label with this flag set is an explicit removal.
+  final bool eventLabelChanged;
   final List<String> categories;
 
   /// True only after the editor deliberately changes the hydrated list.
@@ -523,6 +544,11 @@ class EventEditorDraft {
     String? showAs,
     String? visibilityOrSensitivity,
     String? colorId,
+    String? eventLabelId,
+    String? eventType,
+    Map<String, Object?>? googleStatusProperties,
+    bool? googleStatusChanged,
+    bool? eventLabelChanged,
     List<String>? categories,
     bool? categoriesChanged,
     bool? createConference,
@@ -541,6 +567,7 @@ class EventEditorDraft {
     bool clearShowAs = false,
     bool clearVisibilityOrSensitivity = false,
     bool clearColorId = false,
+    bool clearEventLabelId = false,
     bool clearConference = false,
     bool clearRecurringMutationScope = false,
   }) {
@@ -614,7 +641,14 @@ class EventEditorDraft {
       eventId: eventId,
       originalDetail: originalDetail,
       providerRecurringEventId: providerRecurringEventId,
-      eventType: eventType,
+      eventType: eventType ?? this.eventType,
+      googleStatusProperties:
+          googleStatusProperties ?? this.googleStatusProperties,
+      googleStatusChanged:
+          googleStatusChanged ??
+          (this.googleStatusChanged ||
+              googleStatusProperties != null ||
+              eventType != null),
       recurringMutationScope: clearRecurringMutationScope
           ? null
           : recurringMutationScope ?? this.recurringMutationScope,
@@ -658,6 +692,12 @@ class EventEditorDraft {
           ? null
           : visibilityOrSensitivity ?? this.visibilityOrSensitivity,
       colorId: clearColorId ? null : colorId ?? this.colorId,
+      eventLabelId: clearEventLabelId
+          ? null
+          : eventLabelId ?? this.eventLabelId,
+      eventLabelChanged:
+          eventLabelChanged ??
+          (this.eventLabelChanged || eventLabelId != null || clearEventLabelId),
       categories: categories ?? this.categories,
       categoriesChanged:
           categoriesChanged ?? (this.categoriesChanged || categories != null),
@@ -679,6 +719,8 @@ class EventEditorDraft {
         other.originalDetail == originalDetail &&
         other.providerRecurringEventId == providerRecurringEventId &&
         other.eventType == eventType &&
+        other.googleStatusProperties == googleStatusProperties &&
+        other.googleStatusChanged == googleStatusChanged &&
         other.recurringMutationScope == recurringMutationScope &&
         other.accountId == accountId &&
         other.sourceId == sourceId &&
@@ -707,6 +749,8 @@ class EventEditorDraft {
         other.showAs == showAs &&
         other.visibilityOrSensitivity == visibilityOrSensitivity &&
         other.colorId == colorId &&
+        other.eventLabelId == eventLabelId &&
+        other.eventLabelChanged == eventLabelChanged &&
         _listEquals(other.categories, categories) &&
         other.categoriesChanged == categoriesChanged &&
         other.createConference == createConference &&
@@ -724,6 +768,8 @@ class EventEditorDraft {
     originalDetail,
     providerRecurringEventId,
     eventType,
+    googleStatusProperties,
+    googleStatusChanged,
     recurringMutationScope,
     accountId,
     sourceId,
@@ -752,6 +798,8 @@ class EventEditorDraft {
     showAs,
     visibilityOrSensitivity,
     colorId,
+    eventLabelId,
+    eventLabelChanged,
     Object.hashAll(categories),
     categoriesChanged,
     createConference,

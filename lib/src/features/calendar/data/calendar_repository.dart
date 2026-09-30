@@ -33,6 +33,7 @@ import '../../notifications/notification_schedule_service.dart';
 import '../../recurrence/domain/event_recurrence_codec.dart';
 import '../../maps/domain/geographic_point.dart';
 import '../domain/event_move_policy.dart';
+import '../domain/google_status_event.dart';
 import '../domain/event_timing_policy.dart';
 import '../../maps/domain/location_result.dart';
 import '../../maps/data/location_resolution_repository.dart';
@@ -1782,6 +1783,19 @@ class CalendarRepository {
     final calendarCreateOp = await _pendingCalendarCreate(source.id);
     final now = _now().millisecondsSinceEpoch;
     final provider = BusyProviderCodec.requireStorageValue(source.provider);
+    if (provider == BusyProvider.google) {
+      validateGoogleStatusEvent(
+        primaryCalendar: source.primaryCalendar,
+        eventType: draft.eventType,
+        originalEventType: null,
+        allDay: draft.allDay,
+        start: draft.start,
+        end: draft.end,
+        visibility: draft.visibilityOrSensitivity,
+        transparency: draft.showAs,
+        properties: draft.googleStatusProperties,
+      );
+    }
     final conferenceRequest = _conferenceRequest(draft, provider);
     final localEventId = 'local:${const Uuid().v4()}';
     final operationId = const Uuid().v4();
@@ -1872,6 +1886,7 @@ class CalendarRepository {
                 _json(_optimisticOrganizer(draft, provider)),
               ),
               colorId: Value(draft.colorId),
+              eventType: Value(draft.eventType),
               visibility: Value(draft.visibilityOrSensitivity),
               transparencyOrShowAs: Value(draft.showAs),
               conferenceJson: Value(
@@ -2166,6 +2181,19 @@ class CalendarRepository {
       return true;
     }
     final provider = BusyProviderCodec.requireStorageValue(source.provider);
+    if (provider == BusyProvider.google) {
+      validateGoogleStatusEvent(
+        primaryCalendar: source.primaryCalendar,
+        eventType: draft.eventType,
+        originalEventType: existing.eventType ?? 'default',
+        allDay: draft.allDay,
+        start: draft.start,
+        end: draft.end,
+        visibility: draft.visibilityOrSensitivity,
+        transparency: draft.showAs,
+        properties: draft.googleStatusProperties,
+      );
+    }
     final recurringOccurrence = _eventRequiresRecurringScope(existing);
     final recurringScope = draft.recurringMutationScope;
     if (recurringOccurrence && recurringScope == null) {
@@ -2886,6 +2914,8 @@ class CalendarRepository {
         destinationProvider,
       ),
       colorId: sameProviderAccount ? draft.colorId : null,
+      // Google labels are scoped to one calendar, not merely one account.
+      eventLabelId: null,
       categories: destinationProvider == BusyProvider.google
           ? const []
           : draft.categories,
@@ -4098,6 +4128,123 @@ class CalendarRepository {
     await _onNotificationScheduleChanged?.call();
   }
 
+  /// Queues a lossless URI ATTACH change through the existing DAV conditional
+  /// mutation path. Binary and unrecognized ATTACH properties are untouched.
+  Future<CalendarEventDetail?> changeNextcloudUriAttachmentReference({
+    required String accountId,
+    required String eventId,
+    String? addUrl,
+    String? removeUrl,
+  }) async {
+    final existing =
+        await (_database.select(_database.calendarEvents)..where(
+              (row) =>
+                  row.id.equals(eventId) &
+                  row.accountId.equals(accountId) &
+                  row.isDeleted.equals(false),
+            ))
+            .getSingleOrNull();
+    if (existing == null || existing.provider != 'nextcloud') {
+      throw UnsupportedError('This is not an editable Nextcloud event.');
+    }
+    final source =
+        await (_database.select(_database.calendarSources)..where(
+              (row) =>
+                  row.id.equals(existing.calendarSourceId) &
+                  row.accountId.equals(accountId) &
+                  row.isDeleted.equals(false),
+            ))
+            .getSingleOrNull();
+    final collectionId = source?.davCollectionId;
+    final uid = existing.icalUid;
+    if (collectionId == null || uid == null) {
+      throw StateError('The DAV event identity is unavailable.');
+    }
+    if (existing.providerRecurringEventId != null &&
+        existing.occurrenceKey != null &&
+        existing.recurrenceIdKey == null) {
+      throw UnsupportedError(
+        'A virtual occurrence cannot change attachment references.',
+      );
+    }
+    final queue = DavPendingOperationQueue(
+      database: _database,
+      nowUtc: () => _now().toUtc(),
+    );
+    final objectId = existing.davObjectId;
+    final baselineRawIcs = objectId == null
+        ? _pendingCreateRawIcs(
+            await _pendingDavCreateForProjection(existing.id) ??
+                (throw StateError('The pending DAV create is unavailable.')),
+          )
+        : await queue.editableRawIcsForObject(
+            accountId: accountId,
+            collectionId: collectionId,
+            objectId: objectId,
+          );
+    final target = IcalComponentKey(
+      componentType: 'VEVENT',
+      uid: uid,
+      recurrenceIdKey: existing.recurrenceIdKey,
+    );
+    final patch = buildDavUriAttachmentPatch(
+      baselineRawIcs: baselineRawIcs,
+      target: target,
+      addUrl: addUrl,
+      removeUrl: removeUrl,
+    );
+    if (patch == null) return loadEventDetail(eventId);
+    final candidate = patch.applyTo(baselineRawIcs, nowUtc: _now().toUtc());
+    await _database.transaction(() async {
+      if (objectId == null) {
+        final updated = await queue.updateUnsentCreate(
+          accountId: accountId,
+          collectionId: collectionId,
+          localProjectionId: existing.id,
+          patch: patch,
+        );
+        if (!updated) {
+          throw StateError('The pending DAV create is no longer editable.');
+        }
+        final component = IcalDocumentPatcher(
+          IcalDocument.parse(candidate),
+        ).requireComponent(target);
+        await (_database.update(
+          _database.calendarEvents,
+        )..where((row) => row.id.equals(existing.id))).write(
+          CalendarEventsCompanion(
+            attachmentsJson: Value(
+              jsonEncode([
+                for (final property in component.propertiesNamed('ATTACH'))
+                  property.rawValue,
+              ]),
+            ),
+            syncStatus: const Value('pending'),
+            updatedAtLocal: Value(_now().millisecondsSinceEpoch),
+          ),
+        );
+      } else {
+        await queue.enqueueUpdate(
+          accountId: accountId,
+          collectionId: collectionId,
+          objectId: objectId,
+          patch: patch,
+        );
+        await DavObjectRepository(
+          database: _database,
+        ).projectLocalMutationCandidate(
+          accountId: accountId,
+          collectionId: collectionId,
+          provider: BusyProvider.nextcloud,
+          objectId: objectId,
+          candidateRawIcs: candidate,
+          projectedAtUtc: _now().toUtc(),
+        );
+      }
+    });
+    return loadEventDetail(eventId);
+  }
+
   Future<String> _deleteLocalDavEvent(
     CalendarSource source,
     CalendarEvent existing, {
@@ -5063,7 +5210,9 @@ CalendarEventsCompanion _eventPatchProjection({
 }) {
   final rangeChanged = request.containsKey('allDay');
   final rawChanged = switch (provider) {
-    BusyProvider.google => request.containsKey('hideAttendees'),
+    BusyProvider.google =>
+      request.containsKey('hideAttendees') ||
+          request.containsKey('eventLabelId'),
     BusyProvider.microsoft =>
       request.containsKey('importance') ||
           request.containsKey('description') ||
@@ -5223,6 +5372,15 @@ Map<String, Object?> _eventDeltaRequest(
   }
   if (draft.attendeesChanged) copy(calendarEventAttendeesField);
   if (draft.colorId != original.colorId) copy('colorId');
+  if (provider == BusyProvider.google &&
+      draft.eventLabelChanged &&
+      (draft.eventLabelId ?? '') !=
+          (_jsonObjectMap(original.raw)['eventLabelId']?.toString() ?? '')) {
+    copy('eventLabelId');
+  }
+  if (provider == BusyProvider.google && draft.googleStatusChanged) {
+    copy('googleStatusProperties');
+  }
   if (draft.categoriesChanged) copy('categoriesJson');
   if (draft.visibilityOrSensitivity != original.visibility) {
     copy(provider == BusyProvider.google ? 'visibility' : 'sensitivity');
@@ -5303,6 +5461,17 @@ Map<String, Object?> _eventRequest(
     if (isCreate || draft.attendeesChanged)
       calendarEventAttendeesField: attendees,
     'colorId': draft.colorId,
+    if (provider == BusyProvider.google &&
+        (isCreate ? draft.eventLabelId != null : draft.eventLabelChanged))
+      'eventLabelId': draft.eventLabelId ?? '',
+    if (provider == BusyProvider.google &&
+        isCreate &&
+        googleStatusEventTypes.contains(draft.eventType))
+      'eventType': draft.eventType,
+    if (provider == BusyProvider.google &&
+        googleStatusEventTypes.contains(draft.eventType) &&
+        (isCreate || draft.googleStatusChanged))
+      'googleStatusProperties': draft.googleStatusProperties,
     if (isCreate || draft.categoriesChanged)
       'categoriesJson': _categoriesJson(draft, provider),
     'visibility': provider == BusyProvider.google
@@ -5475,6 +5644,15 @@ Map<String, Object?> _optimisticEventRaw(
   }
   switch (provider) {
     case BusyProvider.google:
+      if (googleStatusEventTypes.contains(draft.eventType)) {
+        raw['eventType'] = draft.eventType;
+        if (googleStatusPropertiesKey(draft.eventType) case final key?) {
+          raw[key] = draft.googleStatusProperties;
+        }
+      }
+      if (draft.eventLabelId case final label?) {
+        raw['eventLabelId'] = label;
+      }
       if (draft.hideAttendees case final hidden?) {
         raw['guestsCanSeeOtherGuests'] = !hidden;
       }
@@ -5527,6 +5705,17 @@ Map<String, Object?> _optimisticEventRawForPatch(
   }
   switch (provider) {
     case BusyProvider.google:
+      final statusKey = googleStatusPropertiesKey(draft.eventType);
+      if (request.containsKey('googleStatusProperties') && statusKey != null) {
+        raw[statusKey] = draft.googleStatusProperties;
+      }
+      if (request.containsKey('eventLabelId')) {
+        if (draft.eventLabelId case final label? when label.isNotEmpty) {
+          raw['eventLabelId'] = label;
+        } else {
+          raw.remove('eventLabelId');
+        }
+      }
       if (request.containsKey('hideAttendees')) {
         final hidden = draft.hideAttendees;
         if (hidden == null) {
