@@ -24,6 +24,7 @@ import 'package:busymax/src/features/accounts/data/accounts_repository.dart';
 import 'package:busymax/src/features/accounts/domain/account_connection_state.dart';
 import 'package:busymax/src/features/auth/data/auth_repository.dart';
 import 'package:busymax/src/features/calendar/data/calendar_repository.dart';
+import 'package:busymax/src/google_calendar/google_calendar_api_client.dart';
 import 'package:busymax/src/features/settings/presentation/settings_screen.dart';
 import 'package:busymax/src/features/task_lists/data/task_lists_repository.dart';
 import 'package:busymax/src/features/sync/sync_auth_error.dart';
@@ -426,6 +427,58 @@ void main() {
         0.01,
       ),
     );
+  });
+
+  testWidgets('Linux sharing entry opens owner ACL permissions', (
+    tester,
+  ) async {
+    var permissionReads = 0;
+    final sharingClient = GoogleCalendarApiClient(
+      httpClient: MockClient((request) async {
+        if (request.url.path.endsWith('/acl')) {
+          permissionReads++;
+          return http.Response(jsonEncode({'items': <Object>[]}), 200);
+        }
+        return http.Response('unexpected request', 404);
+      }),
+      baseUri: Uri.parse('https://www.googleapis.com'),
+    );
+    final container = _container(
+      selectedAccountId: 'google:g',
+      authRepository: _FakeAuthRepository(),
+      accounts: const [_googleAccount],
+      googleSharingClient: sharingClient,
+      calendarSources: const [
+        CalendarSourceEntity(
+          id: 'owned',
+          accountId: 'google:g',
+          provider: BusyProvider.google,
+          providerCalendarId: 'owned@example.com',
+          summary: 'Owned',
+          selected: true,
+          hidden: false,
+          readOnly: false,
+          isDeleted: false,
+          accessRole: 'owner',
+        ),
+      ],
+    );
+    addTearDown(container.dispose);
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: localizedTestApp(
+          child: const SettingsScreen(initialPage: SettingsPage.accounts),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    final entry = find.text('Manage calendar sharing');
+    await tester.ensureVisible(entry);
+    await tester.tap(entry);
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('calendar-sharing-recipient')), findsOneWidget);
+    expect(permissionReads, 1);
   });
 
   testWidgets('Every Settings page uses only its headerbar title', (
@@ -1985,6 +2038,7 @@ ProviderContainer _container({
   DavAccountOnboardingService? davOnboardingService,
   List<DavCollectionSettingsEntity> davCollections = const [],
   List<CalendarSourceEntity> calendarSources = const [],
+  GoogleCalendarApiClient? googleSharingClient,
   List<TaskListEntity> taskLists = const [],
   DesktopAutostartService? autostartService,
   LocalSettingsStore? settingsStore,
@@ -2015,6 +2069,10 @@ ProviderContainer _container({
       calendarSourcesStreamProvider.overrideWith(
         (ref) => Stream.value(calendarSources),
       ),
+      if (googleSharingClient != null)
+        googleCalendarApiClientForAccountProvider.overrideWith(
+          (ref, accountId) => googleSharingClient,
+        ),
       scheduleTaskListsProvider.overrideWith((ref) async => taskLists),
       davConflictsStreamProvider.overrideWith((ref) => Stream.value(const [])),
       webCalSubscriptionsProvider.overrideWith((ref) => Stream.value(const [])),

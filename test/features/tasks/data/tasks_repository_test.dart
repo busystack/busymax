@@ -129,6 +129,39 @@ void main() {
     },
   );
 
+  test(
+    'assigned deletion requires explicit original-task confirmation',
+    () async {
+      await database.tasksDao.upsertTask(
+        _task(
+          id: 'assigned',
+          position: '1',
+          assignmentInfoJson: const Value('{"surfaceType":"DOCUMENT"}'),
+        ),
+      );
+
+      await expectLater(
+        repository.deleteTask('list-1', 'assigned'),
+        throwsUnsupportedError,
+      );
+      expect(await database.select(database.pendingOps).get(), isEmpty);
+      final before = await database.select(database.tasks).getSingle();
+      expect(before.localDirty, isFalse);
+      expect(before.pendingDelete, isFalse);
+      await repository.deleteTask(
+        'list-1',
+        'assigned',
+        confirmedAssignedSourceDeletion: true,
+      );
+      final after = await database.select(database.tasks).getSingle();
+      expect(after.pendingDelete, isTrue);
+      final op = await database.select(database.pendingOps).getSingle();
+      expect(jsonDecode(op.requestJson), {
+        'confirmedAssignedSourceDeletion': true,
+      });
+    },
+  );
+
   test('new task mutations form a chain rooted at its creation', () async {
     var tick = 0;
     repository = TasksRepository(

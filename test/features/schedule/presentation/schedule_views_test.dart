@@ -2564,6 +2564,52 @@ void main() {
     expect(find.text('Categories: Blue category, Work'), findsOneWidget);
   });
 
+  testWidgets(
+    'Google status detail exposes provider type and actual settings',
+    (tester) async {
+      final event = CalendarScheduleItem(
+        id: 'event:status',
+        accountId: 'google:g',
+        provider: BusyProvider.google,
+        sourceId: 'calendar:primary',
+        providerCalendarId: 'primary',
+        title: 'Focus',
+        allDay: false,
+        start: DateTime(2026, 1, 15, 9),
+        end: DateTime(2026, 1, 15, 10),
+        eventType: 'focusTime',
+        googleStatusProperties: const {
+          'autoDeclineMode': 'declineOnlyNewConflictingInvitations',
+          'chatStatus': 'doNotDisturb',
+        },
+      );
+      await tester.pumpWidget(
+        localizedTestApp(
+          child: Scaffold(
+            body: Builder(
+              builder: (context) => TextButton(
+                onPressed: () => showScheduleItemDetailsPopover(
+                  context: context,
+                  anchorContext: context,
+                  item: event,
+                ),
+                child: const Text('Open details'),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.tap(find.text('Open details'));
+      await tester.pumpAndSettle();
+      expect(find.text('Focus time'), findsOneWidget);
+      expect(
+        find.text('Decline overlapping invitations: Decline new invitations'),
+        findsOneWidget,
+      );
+      expect(find.text('Chat status: Do not disturb'), findsOneWidget);
+    },
+  );
+
   testWidgets('event reminder details use locale-aware labels', (tester) async {
     final event = CalendarScheduleItem(
       id: 'event:localized-reminders',

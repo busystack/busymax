@@ -574,6 +574,34 @@ void main() {
     expect(repo.cloudCoverageCompleteFor(range), isTrue);
   });
   test(
+    'failed cloud coverage retries on reconnect without a five-minute wait',
+    () async {
+      final db = AppDatabase.memoryForTests();
+      addTearDown(db.close);
+      var calls = 0;
+      var now = DateTime.utc(2026, 6, 12);
+      final repo = ScheduleRepository(
+        db,
+        ensureCloudCoverage: (_, _) async => ++calls > 1,
+        nowUtc: () => now,
+      );
+      final range = ScheduleRange.day(DateTime(2020, 1, 10));
+      final first = repo.watchChanges().firstWhere(
+        (_) => repo.cloudCoverageCompleteFor(range) == false,
+      );
+      await repo.listItems(range: range);
+      await first;
+      expect(calls, 1);
+      now = now.add(const Duration(seconds: 11));
+      final second = repo.watchChanges().firstWhere(
+        (_) => repo.cloudCoverageCompleteFor(range) == true,
+      );
+      await repo.listItems(range: range);
+      await second.timeout(const Duration(seconds: 1));
+      expect(calls, 2);
+    },
+  );
+  test(
     'repository date filter includes spanning events and excludes boundary and outside events',
     () async {
       final db = AppDatabase.memoryForTests();

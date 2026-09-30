@@ -17,6 +17,7 @@ import 'package:busymax/src/db/app_database.dart';
 import 'package:busymax/src/features/calendar/data/calendar_repository.dart';
 import 'package:busymax/src/features/calendar/presentation/event_editor_draft.dart';
 import 'package:busymax/src/features/calendar/domain/event_timing_policy.dart';
+import 'package:busymax/src/features/calendar/domain/google_status_event.dart';
 import 'package:busymax/src/features/sync/calendar_pending_ops_replayer.dart';
 import 'package:busymax/src/features/sync/calendar_sync_engine.dart';
 import 'package:busymax/src/features/sync/pending_op_resolution_service.dart';
@@ -25,12 +26,15 @@ import 'package:busymax/src/features/maps/domain/location_result.dart';
 import 'package:busymax/src/features/maps/data/location_resolution_repository.dart';
 import 'package:busymax/src/features/maps/application/location_destination_resolver.dart';
 import 'package:busymax/src/google_calendar/google_calendar_errors.dart';
+import 'package:busymax/src/google_calendar/google_calendar_api_client.dart';
 import 'package:busymax/src/ical/ical_import_service.dart';
 import 'package:busymax/src/microsoft_calendar/microsoft_calendar_errors.dart';
 import 'package:busymax/src/providers/busy_provider.dart';
 import 'package:drift/drift.dart' hide isNotNull, isNull;
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:http/http.dart' as http;
+import 'package:http/testing.dart';
 
 import '../../support/memory_settings_store.dart';
 import '../../support/process_time_zone.dart';
@@ -2430,6 +2434,139 @@ END:VEVENT
     );
     expect(client.ifMatches, ['"checked"']);
   });
+
+  test(
+    'Google label selection reaches replayed HTTP body and local detail',
+    () async {
+      final repository = CalendarRepository(database: database);
+      final eventId = await _insertEvent(
+        database,
+        providerEventId: 'label-event',
+      );
+      final detail = (await repository.loadEventDetail(eventId))!;
+      await repository.updateLocalEvent(
+        EventEditorDraft.fromEventDetail(
+          detail,
+        ).copyWith(eventLabelId: 'label-1'),
+      );
+      final requests = <http.Request>[];
+      final api = GoogleCalendarApiClient(
+        httpClient: MockClient((request) async {
+          requests.add(request);
+          final event = {
+            'id': 'label-event',
+            'summary': 'Base',
+            'etag': request.method == 'PATCH' ? '"v2"' : '"v1"',
+            'eventLabelId': request.method == 'PATCH' ? 'label-1' : 'old-label',
+            'start': {'dateTime': '2026-06-08T09:00:00.000Z'},
+            'end': {'dateTime': '2026-06-08T10:00:00.000Z'},
+            'organizer': {'self': true},
+            'updated': '2026-06-08T00:00:00.000Z',
+          };
+          return http.Response(jsonEncode(event), 200);
+        }),
+        baseUri: Uri.parse('https://www.googleapis.com'),
+      );
+      expect(
+        await CalendarPendingOpsReplayer(
+          database: database,
+          client: api,
+          accountId: 'account',
+          nowUtc: () => DateTime.utc(2026, 6, 8),
+        ).replayDueOps(),
+        1,
+      );
+      final patch = requests.singleWhere(
+        (request) => request.method == 'PATCH',
+      );
+      expect(patch.url.queryParameters['eventLabelVersion'], '1');
+      expect(jsonDecode(patch.body)['eventLabelId'], 'label-1');
+      expect(
+        (await repository.loadEventDetail(eventId))!.raw,
+        containsPair('eventLabelId', 'label-1'),
+      );
+    },
+  );
+
+  test(
+    'Google working location reaches replayed HTTP and reopened detail',
+    () async {
+      final repository = CalendarRepository(database: database);
+      await repository.upsertSource(
+        accountId: 'account',
+        source: const CalendarSourceDto(
+          provider: BusyProvider.google,
+          providerCalendarId: 'cal-1',
+          summary: 'Primary',
+          primaryCalendar: true,
+        ),
+      );
+      await repository.createLocalEvent(
+        EventEditorDraft.newEvent(
+          accountId: 'account',
+          sourceId: 'account|google|cal-1',
+          providerCalendarId: 'cal-1',
+          start: DateTime.utc(2026, 6, 8, 9),
+          end: DateTime.utc(2026, 6, 8, 10),
+        ).copyWith(
+          title: 'Work site',
+          eventType: 'workingLocation',
+          googleStatusProperties: {
+            ...defaultGoogleStatusProperties('workingLocation'),
+            'type': 'customLocation',
+            'customLocation': {'label': 'Library'},
+          },
+          showAs: 'transparent',
+          visibilityOrSensitivity: 'public',
+        ),
+      );
+      final requests = <http.Request>[];
+      final api = GoogleCalendarApiClient(
+        httpClient: MockClient((request) async {
+          requests.add(request);
+          if (request.method != 'POST') return http.Response('{}', 404);
+          final body = (jsonDecode(request.body) as Map)
+              .cast<String, Object?>();
+          return http.Response(
+            jsonEncode({
+              ...body,
+              'etag': '"v1"',
+              'updated': '2026-06-08T09:00:00Z',
+            }),
+            200,
+          );
+        }),
+        baseUri: Uri.parse('https://www.googleapis.com'),
+      );
+      expect(
+        await CalendarPendingOpsReplayer(
+          database: database,
+          client: api,
+          accountId: 'account',
+          nowUtc: () => DateTime.utc(2026, 6, 8),
+        ).replayDueOps(),
+        1,
+      );
+      final posted =
+          jsonDecode(
+                requests
+                    .singleWhere((request) => request.method == 'POST')
+                    .body,
+              )
+              as Map;
+      expect(posted['eventType'], 'workingLocation');
+      expect((posted['workingLocationProperties'] as Map)['customLocation'], {
+        'label': 'Library',
+      });
+      expect(posted['visibility'], 'public');
+      expect(posted['transparency'], 'transparent');
+      final row = (await database.select(database.calendarEvents).get()).single;
+      expect(
+        (await repository.loadEventDetail(row.id))!.eventType,
+        'workingLocation',
+      );
+    },
+  );
 
   test('zoned guarded series edit replays the same civil delta', () async {
     final repository = CalendarRepository(database: database);

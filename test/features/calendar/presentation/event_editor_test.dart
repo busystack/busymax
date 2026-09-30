@@ -16,6 +16,8 @@ import 'package:busymax/src/app/busymax_window_close.dart';
 import 'package:busymax/src/app/busymax_yaru_theme.dart';
 import 'package:busymax/src/app/app_bootstrap.dart';
 import 'package:busymax/src/google_calendar/google_calendar_api_client.dart';
+import 'package:busymax/src/google_calendar/google_calendar_models.dart';
+import 'package:busymax/src/microsoft_calendar/microsoft_calendar_models.dart';
 import 'package:busymax/src/platform/native_dialog_service.dart';
 import 'package:busymax/src/platform/native_menu_service.dart';
 import 'package:busymax/src/providers/busy_provider.dart';
@@ -2513,6 +2515,153 @@ void main() {
 
     expect(find.text('Categories'), findsNothing);
   });
+
+  testWidgets('Linux Google editor selects a calendar-scoped event label', (
+    tester,
+  ) async {
+    EventEditorDraft? saved;
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          googleEventLabelsForCalendarProvider.overrideWith(
+            (ref, key) async => [
+              const GoogleEventLabel(
+                id: 'label-1',
+                name: 'Project',
+                backgroundColor: '#336699',
+              ),
+            ],
+          ),
+        ],
+        child: localizedTestApp(
+          child: Scaffold(
+            body: EventEditor(
+              initialDraft: EventEditorDraft.newEvent(
+                accountId: 'account',
+                sourceId: 'source',
+                providerCalendarId: 'cal-1',
+                start: DateTime.utc(2026, 6, 8, 9),
+                end: DateTime.utc(2026, 6, 8, 10),
+              ).copyWith(title: 'Planning'),
+              sources: _sources,
+              onCancel: () {},
+              onSave: (draft) => saved = draft,
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    _comboRow(tester, 'Event label').onSelected('label-1');
+    await tester.pump();
+    await tester.tap(_headerButtonFinder('Save'));
+    expect(saved?.eventLabelId, 'label-1');
+    expect(saved?.eventLabelChanged, isTrue);
+  });
+
+  testWidgets('Linux primary Google editor creates native focus time', (
+    tester,
+  ) async {
+    EventEditorDraft? saved;
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          googleEventLabelsForCalendarProvider.overrideWith(
+            (ref, key) async => const [],
+          ),
+        ],
+        child: localizedTestApp(
+          child: Scaffold(
+            body: EventEditor(
+              initialDraft: EventEditorDraft.newEvent(
+                accountId: 'account',
+                sourceId: 'primary',
+                providerCalendarId: 'primary',
+                start: DateTime.utc(2026, 6, 8, 9),
+                end: DateTime.utc(2026, 6, 8, 10),
+              ).copyWith(title: 'Focus'),
+              sources: const [
+                CalendarSourceEntity(
+                  id: 'primary',
+                  accountId: 'account',
+                  provider: BusyProvider.google,
+                  providerCalendarId: 'primary',
+                  summary: 'Primary',
+                  selected: true,
+                  hidden: false,
+                  readOnly: false,
+                  isDeleted: false,
+                  primaryCalendar: true,
+                ),
+              ],
+              onCancel: () {},
+              onSave: (draft) => saved = draft,
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    _comboRow(tester, 'Event type').onSelected('focusTime');
+    await tester.pump();
+    _comboRow(
+      tester,
+      'Decline overlapping invitations',
+    ).onSelected('declineOnlyNewConflictingInvitations');
+    await tester.pump();
+    await tester.tap(_headerButtonFinder('Save'));
+    expect(saved?.eventType, 'focusTime');
+    expect(saved?.showAs, 'opaque');
+    expect(
+      saved?.googleStatusProperties['autoDeclineMode'],
+      'declineOnlyNewConflictingInvitations',
+    );
+  });
+
+  testWidgets(
+    'Linux Microsoft editor adds a master category without losing existing assignments',
+    (tester) async {
+      EventEditorDraft? saved;
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            microsoftMasterCategoriesProvider.overrideWith(
+              (ref, accountId) async => [
+                const MicrosoftMasterCategory(
+                  id: 'c1',
+                  displayName: 'Work',
+                  color: 'preset7',
+                ),
+              ],
+            ),
+          ],
+          child: localizedTestApp(
+            child: Scaffold(
+              body: EventEditor(
+                initialDraft: EventEditorDraft.newEvent(
+                  accountId: 'microsoft-account',
+                  sourceId: 'microsoft-source',
+                  providerCalendarId: 'ms-cal-1',
+                  start: DateTime.utc(2026, 6, 8, 9),
+                  end: DateTime.utc(2026, 6, 8, 10),
+                ).copyWith(title: 'Planning', categories: ['Existing']),
+                sources: _microsoftSources,
+                onCancel: () {},
+                onSave: (draft) => saved = draft,
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(find.text('Work').last);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Work').last);
+      await tester.pump();
+      await tester.tap(_headerButtonFinder('Save'));
+      expect(saved?.categories, ['Existing', 'Work']);
+    },
+  );
 
   testWidgets(
     'removing a Microsoft event reminder disables provider reminder',
