@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:http/http.dart' as http;
 
+import '../../calendar_providers/attachment_upload_session.dart';
 import '../../core/http/request_dispatch_exception.dart';
 import 'microsoft_todo_api_error.dart';
 import 'microsoft_todo_api_models.dart';
@@ -103,13 +104,18 @@ abstract interface class MicrosoftTodoAttachmentsApiClient {
     required String taskId,
     required String attachmentId,
   });
-  Future<void> uploadTaskFileAttachment({
+  Future<String> uploadTaskFileAttachment({
     required String taskListId,
     required String taskId,
     required String name,
     required String contentType,
     required List<int> bytes,
+    MicrosoftAttachmentUploadSession? resumeSession,
+    void Function(MicrosoftAttachmentUploadSession)? onSession,
   });
+  Future<void> cancelTaskAttachmentUpload(
+    MicrosoftAttachmentUploadSession session,
+  );
 }
 
 class MicrosoftTodoRestApiClient
@@ -336,12 +342,14 @@ class MicrosoftTodoRestApiClient
   );
 
   @override
-  Future<void> uploadTaskFileAttachment({
+  Future<String> uploadTaskFileAttachment({
     required String taskListId,
     required String taskId,
     required String name,
     required String contentType,
     required List<int> bytes,
+    MicrosoftAttachmentUploadSession? resumeSession,
+    void Function(MicrosoftAttachmentUploadSession)? onSession,
   }) async {
     if (name.trim().isEmpty || name.contains('/') || name.contains('\\')) {
       throw ArgumentError.value(name, 'name', 'Invalid attachment name.');
@@ -353,44 +361,74 @@ class MicrosoftTodoRestApiClient
         'Task file exceeds 25 MB.',
       );
     }
-    if (bytes.length < 3 * 1024 * 1024) {
-      await createSmallTaskAttachment(
+    if (bytes.length < 3 * 1024 * 1024 && resumeSession == null) {
+      final created = await createSmallTaskAttachment(
         taskListId: taskListId,
         taskId: taskId,
         name: name,
         contentType: contentType,
         bytes: bytes,
       );
-      return;
+      if (created.id.isEmpty) {
+        throw const MicrosoftAttachmentUploadUncertain();
+      }
+      return created.id;
     }
-    final session = await _requestJson(
-      'POST',
-      _uri(
-        '${microsoftTaskAttachmentsPath(taskListId, taskId)}/createUploadSession',
-      ),
-      body: {
-        'attachmentInfo': {
-          'attachmentType': 'file',
-          'name': name,
-          'size': bytes.length,
+    MicrosoftAttachmentUploadSession session;
+    if (resumeSession == null) {
+      final created = await _requestJson(
+        'POST',
+        _uri(
+          '${microsoftTaskAttachmentsPath(taskListId, taskId)}/createUploadSession',
+        ),
+        body: {
+          'attachmentInfo': {
+            'attachmentType': 'file',
+            'name': name,
+            'size': bytes.length,
+          },
         },
-      },
-    );
-    final uploadUrl = session['uploadUrl']?.toString();
-    if (uploadUrl == null) {
-      throw const FormatException('Task attachment upload URL is missing.');
+      );
+      final uploadUrl = created['uploadUrl']?.toString();
+      if (uploadUrl == null) {
+        throw const FormatException('Task attachment upload URL is missing.');
+      }
+      session = MicrosoftAttachmentUploadSession(
+        url: _trustedNextLink(uploadUrl),
+        expiresAt: null,
+        nextOffset: 0,
+      );
+      session.update(created, bytes.length);
+      onSession?.call(session);
+    } else {
+      session = resumeSession;
+      try {
+        session.update(await _requestJson('GET', session.url), bytes.length);
+      } on Object {
+        throw const MicrosoftAttachmentUploadUncertain();
+      }
     }
-    // Task sessions use a Graph URL. Never forward a bearer token to a
-    // provider-returned URL outside the configured Graph authority.
-    final sessionUri = _trustedNextLink(uploadUrl);
-    final contentUri = sessionUri.replace(path: '${sessionUri.path}/content');
-    var offset = 0;
+    if (session.expiresAt case final expiry?) {
+      if (!expiry.isAfter(DateTime.now().toUtc())) {
+        throw const MicrosoftAttachmentUploadUncertain();
+      }
+    }
+    // Task sessions are Graph-authenticated, unlike pre-authenticated Outlook
+    // event sessions. Never send a bearer token to a non-Graph authority.
+    final contentUri = session.url.replace(path: '${session.url.path}/content');
+    var offset = session.nextOffset;
+    if (offset == bytes.length) {
+      throw const MicrosoftAttachmentUploadUncertain();
+    }
     const chunkSize = 2 * 1024 * 1024;
     while (offset < bytes.length) {
       final end = offset + chunkSize < bytes.length
           ? offset + chunkSize
           : bytes.length;
       try {
+        if (end == bytes.length) {
+          session.finalRangeMayHaveBeenSubmitted = true;
+        }
         final authorization = await _authorizationHeaderProvider?.call();
         final response = await _httpClient.put(
           contentUri,
@@ -402,21 +440,41 @@ class MicrosoftTodoRestApiClient
           },
           body: bytes.sublist(offset, end),
         );
-        if (response.statusCode < 200 || response.statusCode >= 300) {
-          throw MicrosoftTodoApiError.fromResponse(
-            statusCode: response.statusCode,
-            body: response.body,
-          );
+        if (end == bytes.length) {
+          if (response.statusCode != 201) {
+            throw const MicrosoftAttachmentUploadUncertain();
+          }
+          return attachmentIdFromUploadHeaders(response.headers);
         }
-        if (end == bytes.length && response.statusCode != 201) {
-          throw StateError('Task attachment upload was not confirmed.');
+        if (response.statusCode != 200) {
+          throw const MicrosoftAttachmentUploadUncertain();
         }
-      } on Object catch (error) {
-        throw StateError(
-          'Task attachment upload outcome is uncertain; refresh before retrying: $error',
+        session.update(
+          (jsonDecode(response.body) as Map).cast<String, Object?>(),
+          bytes.length,
         );
+        if (session.nextOffset <= offset) {
+          throw const MicrosoftAttachmentUploadUncertain();
+        }
+      } on Object {
+        throw const MicrosoftAttachmentUploadUncertain();
       }
-      offset = end;
+      offset = session.nextOffset;
+    }
+    throw const MicrosoftAttachmentUploadUncertain();
+  }
+
+  @override
+  Future<void> cancelTaskAttachmentUpload(
+    MicrosoftAttachmentUploadSession session,
+  ) async {
+    try {
+      final response = await _send('DELETE', session.url);
+      if (response.statusCode != 204) {
+        throw const MicrosoftAttachmentUploadUncertain();
+      }
+    } on Object {
+      throw const MicrosoftAttachmentUploadUncertain();
     }
   }
 

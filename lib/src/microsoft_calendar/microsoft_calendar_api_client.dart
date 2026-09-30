@@ -1,5 +1,7 @@
 import 'dart:convert';
 
+import '../calendar_providers/attachment_upload_session.dart';
+
 import 'package:http/http.dart' as http;
 
 import '../calendar_providers/calendar_mutation.dart';
@@ -369,12 +371,14 @@ class MicrosoftCalendarApiClient
     return MicrosoftEventAttachment.fromJson(response);
   }
 
-  Future<void> uploadEventFileAttachment({
+  Future<String> uploadEventFileAttachment({
     required String calendarId,
     required String eventId,
     required String name,
     required String contentType,
     required List<int> bytes,
+    MicrosoftAttachmentUploadSession? resumeSession,
+    void Function(MicrosoftAttachmentUploadSession)? onSession,
   }) async {
     _checkAttachmentName(name);
     if (bytes.length > 150 * 1024 * 1024) {
@@ -384,46 +388,84 @@ class MicrosoftCalendarApiClient
         'Event file exceeds 150 MB.',
       );
     }
-    if (bytes.length < 3 * 1024 * 1024) {
-      await createSmallEventAttachment(
+    if (bytes.length < 3 * 1024 * 1024 && resumeSession == null) {
+      final created = await createSmallEventAttachment(
         calendarId: calendarId,
         eventId: eventId,
         name: name,
         contentType: contentType,
         bytes: bytes,
       );
-      return;
+      if (created.id.isEmpty) {
+        throw const MicrosoftAttachmentUploadUncertain();
+      }
+      return created.id;
     }
-    // Outlook's session action is event-scoped, not calendar-scoped.
-    final session = await _requestJson(
-      'POST',
-      _uri(
-        '${_mailboxPath(calendarId)}/events/${_enc(eventId)}/attachments/createUploadSession',
-      ),
-      body: {
-        'AttachmentItem': {
-          'attachmentType': 'file',
-          'name': name,
-          'size': bytes.length,
+    MicrosoftAttachmentUploadSession session;
+    if (resumeSession == null) {
+      // Outlook's session action is event-scoped, not calendar-scoped.
+      final created = await _requestJson(
+        'POST',
+        _uri(
+          '${_mailboxPath(calendarId)}/events/${_enc(eventId)}/attachments/createUploadSession',
+        ),
+        body: {
+          'AttachmentItem': {
+            'attachmentType': 'file',
+            'name': name,
+            'size': bytes.length,
+          },
         },
-      },
-    );
-    final uploadUri = Uri.tryParse(session['uploadUrl']?.toString() ?? '');
-    if (uploadUri == null ||
-        uploadUri.scheme != 'https' ||
-        uploadUri.host.isEmpty ||
-        uploadUri.userInfo.isNotEmpty) {
-      throw const FormatException('Invalid Outlook attachment upload URL.');
+      );
+      final uploadUri = Uri.tryParse(created['uploadUrl']?.toString() ?? '');
+      if (uploadUri == null ||
+          uploadUri.scheme != 'https' ||
+          uploadUri.host.isEmpty ||
+          uploadUri.userInfo.isNotEmpty) {
+        throw const FormatException('Invalid Outlook attachment upload URL.');
+      }
+      session = MicrosoftAttachmentUploadSession(
+        url: uploadUri,
+        expiresAt: null,
+        nextOffset: 0,
+      );
+      session.update(created, bytes.length);
+      onSession?.call(session); // Retain the opaque URL before the first PUT.
+    } else {
+      session = resumeSession;
+      try {
+        final response = await _httpClient.get(session.url);
+        if (response.statusCode != 200) {
+          throw const MicrosoftAttachmentUploadUncertain();
+        }
+        session.update(
+          (jsonDecode(response.body) as Map).cast<String, Object?>(),
+          bytes.length,
+        );
+      } on Object {
+        throw const MicrosoftAttachmentUploadUncertain();
+      }
     }
-    var offset = 0;
+    if (session.expiresAt case final expiry?) {
+      if (!expiry.isAfter(DateTime.now().toUtc())) {
+        throw const MicrosoftAttachmentUploadUncertain();
+      }
+    }
+    var offset = session.nextOffset;
+    if (offset == bytes.length) {
+      throw const MicrosoftAttachmentUploadUncertain();
+    }
     const chunkSize = 2 * 1024 * 1024;
     while (offset < bytes.length) {
       final end = offset + chunkSize < bytes.length
           ? offset + chunkSize
           : bytes.length;
       try {
+        if (end == bytes.length) {
+          session.finalRangeMayHaveBeenSubmitted = true;
+        }
         final response = await _httpClient.put(
-          uploadUri,
+          session.url,
           headers: {
             // This opaque Outlook URL is pre-authenticated. Never include the
             // Graph bearer token, including when it has a different host.
@@ -433,18 +475,39 @@ class MicrosoftCalendarApiClient
           },
           body: bytes.sublist(offset, end),
         );
-        if (response.statusCode < 200 || response.statusCode >= 300) {
-          throw MicrosoftCalendarApiError.fromResponse(response);
+        if (end == bytes.length) {
+          if (response.statusCode != 201) {
+            throw const MicrosoftAttachmentUploadUncertain();
+          }
+          return attachmentIdFromUploadHeaders(response.headers);
         }
-        if (end == bytes.length && response.statusCode != 201) {
-          throw StateError('Event attachment upload was not confirmed.');
+        if (response.statusCode != 200) {
+          throw const MicrosoftAttachmentUploadUncertain();
         }
-      } on Object catch (error) {
-        throw StateError(
-          'Event attachment upload outcome is uncertain; refresh before retrying: $error',
+        session.update(
+          (jsonDecode(response.body) as Map).cast<String, Object?>(),
+          bytes.length,
         );
+        if (session.nextOffset <= offset) {
+          throw const MicrosoftAttachmentUploadUncertain();
+        }
+      } on Object {
+        // This includes a lost response after the service accepted the chunk.
+        // The coordinator retains the session and queries its acknowledged
+        // range before sending another byte.
+        throw const MicrosoftAttachmentUploadUncertain();
       }
-      offset = end;
+      offset = session.nextOffset;
+    }
+    throw const MicrosoftAttachmentUploadUncertain();
+  }
+
+  Future<void> cancelEventAttachmentUpload(
+    MicrosoftAttachmentUploadSession session,
+  ) async {
+    final response = await _httpClient.delete(session.url);
+    if (response.statusCode != 204) {
+      throw const MicrosoftAttachmentUploadUncertain();
     }
   }
 
