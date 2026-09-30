@@ -3067,8 +3067,116 @@ class AppLocalizationsFa extends AppLocalizations {
   String get searchClearText => 'پاک کردن متن';
 
   @override
-  String get openSharedCalendar => 'Open shared calendar';
+  String get openSharedCalendar => 'باز کردن تقویم اشتراکی';
 
   @override
-  String get calendarOwnerEmail => 'Calendar owner email';
+  String get manageCalendarSharing => 'مدیریت اشتراک‌گذاری تقویم';
+
+  @override
+  String get shareRecipientEmail => 'ایمیل گیرنده';
+
+  @override
+  String get shareRole => 'نقش دسترسی';
+
+  @override
+  String get addCalendarShare => 'افزودن دسترسی';
+
+  @override
+  String get sharingRefreshFailed =>
+      'تغییر اشتراک‌گذاری انجام شد، اما فهرست مجوزها به‌روز نشد. پیش از تغییر دیگر فهرست را دوباره بارگیری کنید.';
+
+  @override
+  String get sharingPermissionUnavailable =>
+      'مجوزهای اشتراک‌گذاری برای این تقویم در دسترس نیست.';
+
+  @override
+  String get calendarShareFreeBusy => 'فقط آزاد/مشغول';
+
+  @override
+  String get calendarShareLimitedRead => 'خواندن جزئیات محدود';
+
+  @override
+  String get calendarShareRead => 'خواندن همه جزئیات';
+
+  @override
+  String get calendarShareWrite => 'ویرایش رویدادها';
+
+  @override
+  String get calendarShareWriteWithoutPrivate => 'ویرایش بدون جزئیات خصوصی';
+
+  @override
+  String get calendarShareOwner => 'مالک';
+
+  @override
+  String get eventLabel => 'برچسب رویداد';
+
+  @override
+  String get loadOutlookCategories => 'بارگیری دسته‌های Outlook';
+
+  @override
+  String get outlookCategoriesUnavailable =>
+      'دسته‌های Outlook در دسترس نیستند؛ انتساب‌های موجود حفظ می‌شوند.';
+
+  @override
+  String get googleEventType => 'نوع رویداد';
+
+  @override
+  String get googleRegularEvent => 'رویداد عادی';
+
+  @override
+  String get googleFocusTime => 'زمان تمرکز';
+
+  @override
+  String get googleOutOfOffice => 'خارج از دفتر';
+
+  @override
+  String get googleWorkingLocation => 'محل کار';
+
+  @override
+  String get googleDeclineInvitations => 'رد دعوت‌های هم‌زمان';
+
+  @override
+  String get googleDeclineNone => 'رد نکن';
+
+  @override
+  String get googleDeclineNew => 'رد دعوت‌های جدید';
+
+  @override
+  String get googleDeclineAll => 'رد همه دعوت‌های متداخل';
+
+  @override
+  String get googleDeclineMessage => 'پیام رد';
+
+  @override
+  String get googleChatStatus => 'وضعیت گفتگو';
+
+  @override
+  String get googleChatAvailable => 'در دسترس';
+
+  @override
+  String get googleChatDoNotDisturb => 'مزاحم نشوید';
+
+  @override
+  String get googleWorkAtHome => 'خانه';
+
+  @override
+  String get googleWorkAtOffice => 'دفتر';
+
+  @override
+  String get googleWorkAtCustomLocation => 'مکان سفارشی';
+
+  @override
+  String get googleWorkLocationLabel => 'عنوان مکان';
+
+  @override
+  String get googleStatusPrimaryOnly =>
+      'رویدادهای وضعیت Google به تقویم اصلی Google نیاز دارند.';
+
+  @override
+  String unknownEventLabel(String id) {
+    return 'برچسب ناشناخته (⁨$id⁩)';
+  }
+
+  @override
+  String get calendarOwnerEmail => 'ایمیل مالک تقویم';
 }

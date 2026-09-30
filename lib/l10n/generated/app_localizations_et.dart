@@ -3011,8 +3011,117 @@ class AppLocalizationsEt extends AppLocalizations {
   String get searchClearText => 'Tühjenda tekst';
 
   @override
-  String get openSharedCalendar => 'Open shared calendar';
+  String get openSharedCalendar => 'Ava jagatud kalender';
 
   @override
-  String get calendarOwnerEmail => 'Calendar owner email';
+  String get manageCalendarSharing => 'Halda kalendri jagamist';
+
+  @override
+  String get shareRecipientEmail => 'Saaja e-posti aadress';
+
+  @override
+  String get shareRole => 'Juurdepääsu roll';
+
+  @override
+  String get addCalendarShare => 'Lisa juurdepääs';
+
+  @override
+  String get sharingRefreshFailed =>
+      'Jagamine muudeti, kuid õiguste loendit ei saanud värskendada. Värskenda loendit enne järgmist muudatust.';
+
+  @override
+  String get sharingPermissionUnavailable =>
+      'Selle kalendri jagamisõigused pole saadaval.';
+
+  @override
+  String get calendarShareFreeBusy => 'Ainult vaba/hõivatud';
+
+  @override
+  String get calendarShareLimitedRead => 'Loe piiratud üksikasju';
+
+  @override
+  String get calendarShareRead => 'Loe kõiki üksikasju';
+
+  @override
+  String get calendarShareWrite => 'Muuda sündmusi';
+
+  @override
+  String get calendarShareWriteWithoutPrivate =>
+      'Muuda ilma privaatsete üksikasjadeta';
+
+  @override
+  String get calendarShareOwner => 'Omanik';
+
+  @override
+  String get eventLabel => 'Sündmuse silt';
+
+  @override
+  String get loadOutlookCategories => 'Laadi Outlooki kategooriad';
+
+  @override
+  String get outlookCategoriesUnavailable =>
+      'Outlooki kategooriad pole saadaval; senised määrangud säilivad.';
+
+  @override
+  String get googleEventType => 'Sündmuse tüüp';
+
+  @override
+  String get googleRegularEvent => 'Tavaline sündmus';
+
+  @override
+  String get googleFocusTime => 'Keskendumisaeg';
+
+  @override
+  String get googleOutOfOffice => 'Kontorist väljas';
+
+  @override
+  String get googleWorkingLocation => 'Tööasukoht';
+
+  @override
+  String get googleDeclineInvitations => 'Keeldu kattuvatest kutsetest';
+
+  @override
+  String get googleDeclineNone => 'Ära keeldu';
+
+  @override
+  String get googleDeclineNew => 'Keeldu uutest kutsetest';
+
+  @override
+  String get googleDeclineAll => 'Keeldu kõigist kattuvatest kutsetest';
+
+  @override
+  String get googleDeclineMessage => 'Keeldumissõnum';
+
+  @override
+  String get googleChatStatus => 'Vestluse olek';
+
+  @override
+  String get googleChatAvailable => 'Saadaval';
+
+  @override
+  String get googleChatDoNotDisturb => 'Ära sega';
+
+  @override
+  String get googleWorkAtHome => 'Kodus';
+
+  @override
+  String get googleWorkAtOffice => 'Kontoris';
+
+  @override
+  String get googleWorkAtCustomLocation => 'Kohandatud asukoht';
+
+  @override
+  String get googleWorkLocationLabel => 'Asukoha nimi';
+
+  @override
+  String get googleStatusPrimaryOnly =>
+      'Google’i olekusündmused nõuavad peamist Google’i kalendrit.';
+
+  @override
+  String unknownEventLabel(String id) {
+    return 'Tundmatu silt ($id)';
+  }
+
+  @override
+  String get calendarOwnerEmail => 'Kalendri omaniku e-posti aadress';
 }

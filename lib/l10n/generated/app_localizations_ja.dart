@@ -2968,8 +2968,115 @@ class AppLocalizationsJa extends AppLocalizations {
   String get searchClearText => 'テキストを消去';
 
   @override
-  String get openSharedCalendar => 'Open shared calendar';
+  String get openSharedCalendar => '共有カレンダーを開く';
 
   @override
-  String get calendarOwnerEmail => 'Calendar owner email';
+  String get manageCalendarSharing => 'カレンダーの共有を管理';
+
+  @override
+  String get shareRecipientEmail => '共有先のメールアドレス';
+
+  @override
+  String get shareRole => 'アクセス権';
+
+  @override
+  String get addCalendarShare => 'アクセスを追加';
+
+  @override
+  String get sharingRefreshFailed =>
+      '共有は変更されましたが、権限一覧を更新できませんでした。次の変更前に一覧を再読み込みしてください。';
+
+  @override
+  String get sharingPermissionUnavailable => 'このカレンダーの共有権限を取得できません。';
+
+  @override
+  String get calendarShareFreeBusy => '空き時間情報のみ';
+
+  @override
+  String get calendarShareLimitedRead => '限定された詳細を表示';
+
+  @override
+  String get calendarShareRead => 'すべての詳細を表示';
+
+  @override
+  String get calendarShareWrite => '予定を編集';
+
+  @override
+  String get calendarShareWriteWithoutPrivate => '非公開の詳細を除いて編集';
+
+  @override
+  String get calendarShareOwner => '所有者';
+
+  @override
+  String get eventLabel => '予定のラベル';
+
+  @override
+  String get loadOutlookCategories => 'Outlook カテゴリを読み込む';
+
+  @override
+  String get outlookCategoriesUnavailable =>
+      'Outlook カテゴリを取得できません。既存の割り当ては保持されます。';
+
+  @override
+  String get googleEventType => '予定の種類';
+
+  @override
+  String get googleRegularEvent => '通常の予定';
+
+  @override
+  String get googleFocusTime => '集中する時間';
+
+  @override
+  String get googleOutOfOffice => '不在';
+
+  @override
+  String get googleWorkingLocation => '勤務場所';
+
+  @override
+  String get googleDeclineInvitations => '重なる招待を辞退';
+
+  @override
+  String get googleDeclineNone => '辞退しない';
+
+  @override
+  String get googleDeclineNew => '新しい招待を辞退';
+
+  @override
+  String get googleDeclineAll => '競合する招待をすべて辞退';
+
+  @override
+  String get googleDeclineMessage => '辞退メッセージ';
+
+  @override
+  String get googleChatStatus => 'チャットの状態';
+
+  @override
+  String get googleChatAvailable => '連絡可能';
+
+  @override
+  String get googleChatDoNotDisturb => '通知をミュート';
+
+  @override
+  String get googleWorkAtHome => '自宅';
+
+  @override
+  String get googleWorkAtOffice => 'オフィス';
+
+  @override
+  String get googleWorkAtCustomLocation => 'カスタムの場所';
+
+  @override
+  String get googleWorkLocationLabel => '場所の名前';
+
+  @override
+  String get googleStatusPrimaryOnly =>
+      'Google のステータス予定にはメインの Google カレンダーが必要です。';
+
+  @override
+  String unknownEventLabel(String id) {
+    return '不明なラベル（$id）';
+  }
+
+  @override
+  String get calendarOwnerEmail => 'カレンダー所有者のメールアドレス';
 }

@@ -3032,8 +3032,117 @@ class AppLocalizationsDe extends AppLocalizations {
   String get searchClearText => 'Text löschen';
 
   @override
-  String get openSharedCalendar => 'Open shared calendar';
+  String get openSharedCalendar => 'Freigegebenen Kalender öffnen';
 
   @override
-  String get calendarOwnerEmail => 'Calendar owner email';
+  String get manageCalendarSharing => 'Kalenderfreigabe verwalten';
+
+  @override
+  String get shareRecipientEmail => 'E-Mail-Adresse des Empfängers';
+
+  @override
+  String get shareRole => 'Zugriffsrolle';
+
+  @override
+  String get addCalendarShare => 'Zugriff hinzufügen';
+
+  @override
+  String get sharingRefreshFailed =>
+      'Die Freigabe wurde geändert, aber die Berechtigungsliste konnte nicht aktualisiert werden. Laden Sie sie vor einer weiteren Änderung neu.';
+
+  @override
+  String get sharingPermissionUnavailable =>
+      'Freigabeberechtigungen sind für diesen Kalender nicht verfügbar.';
+
+  @override
+  String get calendarShareFreeBusy => 'Nur Frei/Gebucht';
+
+  @override
+  String get calendarShareLimitedRead => 'Eingeschränkte Details lesen';
+
+  @override
+  String get calendarShareRead => 'Alle Details lesen';
+
+  @override
+  String get calendarShareWrite => 'Termine bearbeiten';
+
+  @override
+  String get calendarShareWriteWithoutPrivate =>
+      'Ohne private Details bearbeiten';
+
+  @override
+  String get calendarShareOwner => 'Besitzer';
+
+  @override
+  String get eventLabel => 'Terminlabel';
+
+  @override
+  String get loadOutlookCategories => 'Outlook-Kategorien laden';
+
+  @override
+  String get outlookCategoriesUnavailable =>
+      'Outlook-Kategorien sind nicht verfügbar; bestehende Zuordnungen bleiben erhalten.';
+
+  @override
+  String get googleEventType => 'Termintyp';
+
+  @override
+  String get googleRegularEvent => 'Normaler Termin';
+
+  @override
+  String get googleFocusTime => 'Fokuszeit';
+
+  @override
+  String get googleOutOfOffice => 'Abwesend';
+
+  @override
+  String get googleWorkingLocation => 'Arbeitsort';
+
+  @override
+  String get googleDeclineInvitations => 'Überschneidende Einladungen ablehnen';
+
+  @override
+  String get googleDeclineNone => 'Nicht ablehnen';
+
+  @override
+  String get googleDeclineNew => 'Neue Einladungen ablehnen';
+
+  @override
+  String get googleDeclineAll => 'Alle kollidierenden Einladungen ablehnen';
+
+  @override
+  String get googleDeclineMessage => 'Ablehnungsnachricht';
+
+  @override
+  String get googleChatStatus => 'Chatstatus';
+
+  @override
+  String get googleChatAvailable => 'Verfügbar';
+
+  @override
+  String get googleChatDoNotDisturb => 'Nicht stören';
+
+  @override
+  String get googleWorkAtHome => 'Zu Hause';
+
+  @override
+  String get googleWorkAtOffice => 'Im Büro';
+
+  @override
+  String get googleWorkAtCustomLocation => 'Eigener Ort';
+
+  @override
+  String get googleWorkLocationLabel => 'Ortsbezeichnung';
+
+  @override
+  String get googleStatusPrimaryOnly =>
+      'Google-Statusereignisse benötigen Ihren primären Google-Kalender.';
+
+  @override
+  String unknownEventLabel(String id) {
+    return 'Unbekanntes Label ($id)';
+  }
+
+  @override
+  String get calendarOwnerEmail => 'E-Mail-Adresse des Kalenderbesitzers';
 }

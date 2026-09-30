@@ -3029,8 +3029,117 @@ class AppLocalizationsVi extends AppLocalizations {
   String get searchClearText => 'Xóa văn bản';
 
   @override
-  String get openSharedCalendar => 'Open shared calendar';
+  String get openSharedCalendar => 'Mở lịch được chia sẻ';
 
   @override
-  String get calendarOwnerEmail => 'Calendar owner email';
+  String get manageCalendarSharing => 'Quản lý chia sẻ lịch';
+
+  @override
+  String get shareRecipientEmail => 'Email người nhận';
+
+  @override
+  String get shareRole => 'Vai trò truy cập';
+
+  @override
+  String get addCalendarShare => 'Thêm quyền truy cập';
+
+  @override
+  String get sharingRefreshFailed =>
+      'Đã thay đổi chia sẻ nhưng không thể làm mới danh sách quyền. Hãy tải lại trước khi thay đổi tiếp.';
+
+  @override
+  String get sharingPermissionUnavailable =>
+      'Không có quyền chia sẻ cho lịch này.';
+
+  @override
+  String get calendarShareFreeBusy => 'Chỉ xem bận/rảnh';
+
+  @override
+  String get calendarShareLimitedRead => 'Đọc thông tin hạn chế';
+
+  @override
+  String get calendarShareRead => 'Đọc mọi thông tin';
+
+  @override
+  String get calendarShareWrite => 'Chỉnh sửa sự kiện';
+
+  @override
+  String get calendarShareWriteWithoutPrivate =>
+      'Chỉnh sửa không xem thông tin riêng tư';
+
+  @override
+  String get calendarShareOwner => 'Chủ sở hữu';
+
+  @override
+  String get eventLabel => 'Nhãn sự kiện';
+
+  @override
+  String get loadOutlookCategories => 'Tải danh mục Outlook';
+
+  @override
+  String get outlookCategoriesUnavailable =>
+      'Không có danh mục Outlook; các mục đã gán vẫn được giữ nguyên.';
+
+  @override
+  String get googleEventType => 'Loại sự kiện';
+
+  @override
+  String get googleRegularEvent => 'Sự kiện thường';
+
+  @override
+  String get googleFocusTime => 'Thời gian tập trung';
+
+  @override
+  String get googleOutOfOffice => 'Vắng mặt';
+
+  @override
+  String get googleWorkingLocation => 'Nơi làm việc';
+
+  @override
+  String get googleDeclineInvitations => 'Từ chối lời mời trùng lịch';
+
+  @override
+  String get googleDeclineNone => 'Không từ chối';
+
+  @override
+  String get googleDeclineNew => 'Từ chối lời mời mới';
+
+  @override
+  String get googleDeclineAll => 'Từ chối mọi lời mời trùng lịch';
+
+  @override
+  String get googleDeclineMessage => 'Lời nhắn từ chối';
+
+  @override
+  String get googleChatStatus => 'Trạng thái trò chuyện';
+
+  @override
+  String get googleChatAvailable => 'Có mặt';
+
+  @override
+  String get googleChatDoNotDisturb => 'Không làm phiền';
+
+  @override
+  String get googleWorkAtHome => 'Nhà';
+
+  @override
+  String get googleWorkAtOffice => 'Văn phòng';
+
+  @override
+  String get googleWorkAtCustomLocation => 'Địa điểm tùy chỉnh';
+
+  @override
+  String get googleWorkLocationLabel => 'Tên địa điểm';
+
+  @override
+  String get googleStatusPrimaryOnly =>
+      'Sự kiện trạng thái Google yêu cầu lịch Google chính của bạn.';
+
+  @override
+  String unknownEventLabel(String id) {
+    return 'Nhãn không xác định ($id)';
+  }
+
+  @override
+  String get calendarOwnerEmail => 'Email của chủ sở hữu lịch';
 }

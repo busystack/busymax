@@ -3096,8 +3096,116 @@ class AppLocalizationsAr extends AppLocalizations {
   String get searchClearText => 'مسح النص';
 
   @override
-  String get openSharedCalendar => 'Open shared calendar';
+  String get openSharedCalendar => 'فتح تقويم مشترك';
 
   @override
-  String get calendarOwnerEmail => 'Calendar owner email';
+  String get manageCalendarSharing => 'إدارة مشاركة التقويم';
+
+  @override
+  String get shareRecipientEmail => 'البريد الإلكتروني للمستلم';
+
+  @override
+  String get shareRole => 'دور الوصول';
+
+  @override
+  String get addCalendarShare => 'إضافة وصول';
+
+  @override
+  String get sharingRefreshFailed =>
+      'نجح تغيير المشاركة، لكن تعذر تحديث قائمة الأذونات. أعد تحميل القائمة قبل إجراء تغيير آخر.';
+
+  @override
+  String get sharingPermissionUnavailable =>
+      'أذونات المشاركة غير متاحة لهذا التقويم.';
+
+  @override
+  String get calendarShareFreeBusy => 'التوفر فقط';
+
+  @override
+  String get calendarShareLimitedRead => 'قراءة تفاصيل محدودة';
+
+  @override
+  String get calendarShareRead => 'قراءة جميع التفاصيل';
+
+  @override
+  String get calendarShareWrite => 'تعديل الأحداث';
+
+  @override
+  String get calendarShareWriteWithoutPrivate => 'تعديل دون التفاصيل الخاصة';
+
+  @override
+  String get calendarShareOwner => 'المالك';
+
+  @override
+  String get eventLabel => 'تسمية الحدث';
+
+  @override
+  String get loadOutlookCategories => 'تحميل فئات Outlook';
+
+  @override
+  String get outlookCategoriesUnavailable =>
+      'فئات Outlook غير متاحة؛ التعيينات الحالية محفوظة.';
+
+  @override
+  String get googleEventType => 'نوع الحدث';
+
+  @override
+  String get googleRegularEvent => 'حدث عادي';
+
+  @override
+  String get googleFocusTime => 'وقت التركيز';
+
+  @override
+  String get googleOutOfOffice => 'خارج المكتب';
+
+  @override
+  String get googleWorkingLocation => 'موقع العمل';
+
+  @override
+  String get googleDeclineInvitations => 'رفض الدعوات المتداخلة';
+
+  @override
+  String get googleDeclineNone => 'عدم الرفض';
+
+  @override
+  String get googleDeclineNew => 'رفض الدعوات الجديدة';
+
+  @override
+  String get googleDeclineAll => 'رفض جميع الدعوات المتعارضة';
+
+  @override
+  String get googleDeclineMessage => 'رسالة الرفض';
+
+  @override
+  String get googleChatStatus => 'حالة المحادثة';
+
+  @override
+  String get googleChatAvailable => 'متاح';
+
+  @override
+  String get googleChatDoNotDisturb => 'عدم الإزعاج';
+
+  @override
+  String get googleWorkAtHome => 'المنزل';
+
+  @override
+  String get googleWorkAtOffice => 'المكتب';
+
+  @override
+  String get googleWorkAtCustomLocation => 'موقع مخصص';
+
+  @override
+  String get googleWorkLocationLabel => 'وصف الموقع';
+
+  @override
+  String get googleStatusPrimaryOnly =>
+      'تتطلب أحداث الحالة تقويم Google الأساسي.';
+
+  @override
+  String unknownEventLabel(String id) {
+    return 'تسمية غير معروفة (⁨$id⁩)';
+  }
+
+  @override
+  String get calendarOwnerEmail => 'البريد الإلكتروني لمالك التقويم';
 }

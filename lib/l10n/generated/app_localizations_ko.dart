@@ -2973,8 +2973,114 @@ class AppLocalizationsKo extends AppLocalizations {
   String get searchClearText => '텍스트 지우기';
 
   @override
-  String get openSharedCalendar => 'Open shared calendar';
+  String get openSharedCalendar => '공유 캘린더 열기';
 
   @override
-  String get calendarOwnerEmail => 'Calendar owner email';
+  String get manageCalendarSharing => '캘린더 공유 관리';
+
+  @override
+  String get shareRecipientEmail => '받는 사람 이메일';
+
+  @override
+  String get shareRole => '액세스 역할';
+
+  @override
+  String get addCalendarShare => '액세스 추가';
+
+  @override
+  String get sharingRefreshFailed =>
+      '공유 변경은 완료되었지만 권한 목록을 새로 고치지 못했습니다. 다음 변경 전에 다시 불러오세요.';
+
+  @override
+  String get sharingPermissionUnavailable => '이 캘린더의 공유 권한을 사용할 수 없습니다.';
+
+  @override
+  String get calendarShareFreeBusy => '한가함/바쁨만 보기';
+
+  @override
+  String get calendarShareLimitedRead => '제한된 세부정보 읽기';
+
+  @override
+  String get calendarShareRead => '모든 세부정보 읽기';
+
+  @override
+  String get calendarShareWrite => '일정 수정';
+
+  @override
+  String get calendarShareWriteWithoutPrivate => '비공개 정보 제외하고 수정';
+
+  @override
+  String get calendarShareOwner => '소유자';
+
+  @override
+  String get eventLabel => '일정 라벨';
+
+  @override
+  String get loadOutlookCategories => 'Outlook 범주 불러오기';
+
+  @override
+  String get outlookCategoriesUnavailable =>
+      'Outlook 범주를 사용할 수 없습니다. 기존 지정은 유지됩니다.';
+
+  @override
+  String get googleEventType => '일정 유형';
+
+  @override
+  String get googleRegularEvent => '일반 일정';
+
+  @override
+  String get googleFocusTime => '집중 시간';
+
+  @override
+  String get googleOutOfOffice => '부재중';
+
+  @override
+  String get googleWorkingLocation => '근무 위치';
+
+  @override
+  String get googleDeclineInvitations => '겹치는 초대 거절';
+
+  @override
+  String get googleDeclineNone => '거절하지 않음';
+
+  @override
+  String get googleDeclineNew => '새 초대 거절';
+
+  @override
+  String get googleDeclineAll => '충돌하는 초대 모두 거절';
+
+  @override
+  String get googleDeclineMessage => '거절 메시지';
+
+  @override
+  String get googleChatStatus => '채팅 상태';
+
+  @override
+  String get googleChatAvailable => '사용 가능';
+
+  @override
+  String get googleChatDoNotDisturb => '방해 금지';
+
+  @override
+  String get googleWorkAtHome => '집';
+
+  @override
+  String get googleWorkAtOffice => '사무실';
+
+  @override
+  String get googleWorkAtCustomLocation => '사용자 지정 위치';
+
+  @override
+  String get googleWorkLocationLabel => '위치 이름';
+
+  @override
+  String get googleStatusPrimaryOnly => 'Google 상태 일정에는 기본 Google 캘린더가 필요합니다.';
+
+  @override
+  String unknownEventLabel(String id) {
+    return '알 수 없는 라벨 ($id)';
+  }
+
+  @override
+  String get calendarOwnerEmail => '캘린더 소유자 이메일';
 }

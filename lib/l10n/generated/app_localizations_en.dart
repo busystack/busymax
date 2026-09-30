@@ -3067,5 +3067,113 @@ class AppLocalizationsEn extends AppLocalizations {
   String get openSharedCalendar => 'Open shared calendar';
 
   @override
+  String get manageCalendarSharing => 'Manage calendar sharing';
+
+  @override
+  String get shareRecipientEmail => 'Recipient email';
+
+  @override
+  String get shareRole => 'Access role';
+
+  @override
+  String get addCalendarShare => 'Add access';
+
+  @override
+  String get sharingRefreshFailed =>
+      'The sharing change succeeded, but the permission list could not be refreshed. Retry the list before making another change.';
+
+  @override
+  String get sharingPermissionUnavailable =>
+      'Sharing permissions are unavailable for this calendar.';
+
+  @override
+  String get calendarShareFreeBusy => 'Free/busy only';
+
+  @override
+  String get calendarShareLimitedRead => 'Read limited details';
+
+  @override
+  String get calendarShareRead => 'Read all details';
+
+  @override
+  String get calendarShareWrite => 'Edit events';
+
+  @override
+  String get calendarShareWriteWithoutPrivate => 'Edit without private details';
+
+  @override
+  String get calendarShareOwner => 'Owner';
+
+  @override
+  String get eventLabel => 'Event label';
+
+  @override
+  String get loadOutlookCategories => 'Load Outlook categories';
+
+  @override
+  String get outlookCategoriesUnavailable =>
+      'Outlook categories are unavailable; existing assignments are preserved.';
+
+  @override
+  String get googleEventType => 'Event type';
+
+  @override
+  String get googleRegularEvent => 'Regular event';
+
+  @override
+  String get googleFocusTime => 'Focus time';
+
+  @override
+  String get googleOutOfOffice => 'Out of office';
+
+  @override
+  String get googleWorkingLocation => 'Working location';
+
+  @override
+  String get googleDeclineInvitations => 'Decline overlapping invitations';
+
+  @override
+  String get googleDeclineNone => 'Do not decline';
+
+  @override
+  String get googleDeclineNew => 'Decline new invitations';
+
+  @override
+  String get googleDeclineAll => 'Decline all conflicting invitations';
+
+  @override
+  String get googleDeclineMessage => 'Decline message';
+
+  @override
+  String get googleChatStatus => 'Chat status';
+
+  @override
+  String get googleChatAvailable => 'Available';
+
+  @override
+  String get googleChatDoNotDisturb => 'Do not disturb';
+
+  @override
+  String get googleWorkAtHome => 'Home';
+
+  @override
+  String get googleWorkAtOffice => 'Office';
+
+  @override
+  String get googleWorkAtCustomLocation => 'Custom location';
+
+  @override
+  String get googleWorkLocationLabel => 'Location label';
+
+  @override
+  String get googleStatusPrimaryOnly =>
+      'Google status events require your primary Google calendar.';
+
+  @override
+  String unknownEventLabel(String id) {
+    return 'Unknown label ($id)';
+  }
+
+  @override
   String get calendarOwnerEmail => 'Calendar owner email';
 }

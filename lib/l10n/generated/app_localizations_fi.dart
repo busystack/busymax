@@ -3061,8 +3061,117 @@ class AppLocalizationsFi extends AppLocalizations {
   String get searchClearText => 'Tyhjennä teksti';
 
   @override
-  String get openSharedCalendar => 'Open shared calendar';
+  String get openSharedCalendar => 'Avaa jaettu kalenteri';
 
   @override
-  String get calendarOwnerEmail => 'Calendar owner email';
+  String get manageCalendarSharing => 'Hallitse kalenterin jakamista';
+
+  @override
+  String get shareRecipientEmail => 'Vastaanottajan sähköposti';
+
+  @override
+  String get shareRole => 'Käyttöoikeusrooli';
+
+  @override
+  String get addCalendarShare => 'Lisää käyttöoikeus';
+
+  @override
+  String get sharingRefreshFailed =>
+      'Jako muutettiin, mutta oikeusluetteloa ei voitu päivittää. Lataa luettelo uudelleen ennen seuraavaa muutosta.';
+
+  @override
+  String get sharingPermissionUnavailable =>
+      'Tämän kalenterin jako-oikeudet eivät ole saatavilla.';
+
+  @override
+  String get calendarShareFreeBusy => 'Vain vapaa/varattu';
+
+  @override
+  String get calendarShareLimitedRead => 'Lue rajatut tiedot';
+
+  @override
+  String get calendarShareRead => 'Lue kaikki tiedot';
+
+  @override
+  String get calendarShareWrite => 'Muokkaa tapahtumia';
+
+  @override
+  String get calendarShareWriteWithoutPrivate =>
+      'Muokkaa ilman yksityisiä tietoja';
+
+  @override
+  String get calendarShareOwner => 'Omistaja';
+
+  @override
+  String get eventLabel => 'Tapahtuman tunniste';
+
+  @override
+  String get loadOutlookCategories => 'Lataa Outlook-luokat';
+
+  @override
+  String get outlookCategoriesUnavailable =>
+      'Outlook-luokat eivät ole saatavilla; aiemmat luokitukset säilyvät.';
+
+  @override
+  String get googleEventType => 'Tapahtuman tyyppi';
+
+  @override
+  String get googleRegularEvent => 'Tavallinen tapahtuma';
+
+  @override
+  String get googleFocusTime => 'Keskittymisaika';
+
+  @override
+  String get googleOutOfOffice => 'Poissa toimistolta';
+
+  @override
+  String get googleWorkingLocation => 'Työskentelypaikka';
+
+  @override
+  String get googleDeclineInvitations => 'Hylkää päällekkäiset kutsut';
+
+  @override
+  String get googleDeclineNone => 'Älä hylkää';
+
+  @override
+  String get googleDeclineNew => 'Hylkää uudet kutsut';
+
+  @override
+  String get googleDeclineAll => 'Hylkää kaikki päällekkäiset kutsut';
+
+  @override
+  String get googleDeclineMessage => 'Hylkäysviesti';
+
+  @override
+  String get googleChatStatus => 'Keskustelun tila';
+
+  @override
+  String get googleChatAvailable => 'Saatavilla';
+
+  @override
+  String get googleChatDoNotDisturb => 'Älä häiritse';
+
+  @override
+  String get googleWorkAtHome => 'Kotona';
+
+  @override
+  String get googleWorkAtOffice => 'Toimistolla';
+
+  @override
+  String get googleWorkAtCustomLocation => 'Mukautettu sijainti';
+
+  @override
+  String get googleWorkLocationLabel => 'Sijainnin nimi';
+
+  @override
+  String get googleStatusPrimaryOnly =>
+      'Googlen tilatapahtumat vaativat ensisijaisen Google-kalenterin.';
+
+  @override
+  String unknownEventLabel(String id) {
+    return 'Tuntematon tunniste ($id)';
+  }
+
+  @override
+  String get calendarOwnerEmail => 'Kalenterin omistajan sähköpostiosoite';
 }

@@ -3032,8 +3032,117 @@ class AppLocalizationsHi extends AppLocalizations {
   String get searchClearText => 'पाठ साफ़ करें';
 
   @override
-  String get openSharedCalendar => 'Open shared calendar';
+  String get openSharedCalendar => 'साझा कैलेंडर खोलें';
 
   @override
-  String get calendarOwnerEmail => 'Calendar owner email';
+  String get manageCalendarSharing => 'कैलेंडर साझाकरण प्रबंधित करें';
+
+  @override
+  String get shareRecipientEmail => 'प्राप्तकर्ता का ईमेल';
+
+  @override
+  String get shareRole => 'पहुँच की भूमिका';
+
+  @override
+  String get addCalendarShare => 'पहुँच जोड़ें';
+
+  @override
+  String get sharingRefreshFailed =>
+      'साझाकरण बदल गया, लेकिन अनुमतियों की सूची ताज़ा नहीं हो सकी। अगला बदलाव करने से पहले सूची फिर लोड करें।';
+
+  @override
+  String get sharingPermissionUnavailable =>
+      'इस कैलेंडर के लिए साझाकरण अनुमतियाँ उपलब्ध नहीं हैं।';
+
+  @override
+  String get calendarShareFreeBusy => 'केवल खाली/व्यस्त';
+
+  @override
+  String get calendarShareLimitedRead => 'सीमित विवरण पढ़ें';
+
+  @override
+  String get calendarShareRead => 'सभी विवरण पढ़ें';
+
+  @override
+  String get calendarShareWrite => 'कार्यक्रम संपादित करें';
+
+  @override
+  String get calendarShareWriteWithoutPrivate =>
+      'निजी विवरण के बिना संपादित करें';
+
+  @override
+  String get calendarShareOwner => 'स्वामी';
+
+  @override
+  String get eventLabel => 'कार्यक्रम लेबल';
+
+  @override
+  String get loadOutlookCategories => 'Outlook श्रेणियाँ लोड करें';
+
+  @override
+  String get outlookCategoriesUnavailable =>
+      'Outlook श्रेणियाँ उपलब्ध नहीं हैं; मौजूदा श्रेणियाँ बनी रहेंगी।';
+
+  @override
+  String get googleEventType => 'कार्यक्रम का प्रकार';
+
+  @override
+  String get googleRegularEvent => 'सामान्य कार्यक्रम';
+
+  @override
+  String get googleFocusTime => 'एकाग्रता का समय';
+
+  @override
+  String get googleOutOfOffice => 'कार्यालय से बाहर';
+
+  @override
+  String get googleWorkingLocation => 'कार्य स्थान';
+
+  @override
+  String get googleDeclineInvitations => 'साथ आने वाले आमंत्रण अस्वीकार करें';
+
+  @override
+  String get googleDeclineNone => 'अस्वीकार न करें';
+
+  @override
+  String get googleDeclineNew => 'नए आमंत्रण अस्वीकार करें';
+
+  @override
+  String get googleDeclineAll => 'सभी टकराने वाले आमंत्रण अस्वीकार करें';
+
+  @override
+  String get googleDeclineMessage => 'अस्वीकृति संदेश';
+
+  @override
+  String get googleChatStatus => 'चैट स्थिति';
+
+  @override
+  String get googleChatAvailable => 'उपलब्ध';
+
+  @override
+  String get googleChatDoNotDisturb => 'परेशान न करें';
+
+  @override
+  String get googleWorkAtHome => 'घर';
+
+  @override
+  String get googleWorkAtOffice => 'कार्यालय';
+
+  @override
+  String get googleWorkAtCustomLocation => 'कस्टम स्थान';
+
+  @override
+  String get googleWorkLocationLabel => 'स्थान का नाम';
+
+  @override
+  String get googleStatusPrimaryOnly =>
+      'Google स्थिति कार्यक्रम के लिए आपका मुख्य Google कैलेंडर आवश्यक है।';
+
+  @override
+  String unknownEventLabel(String id) {
+    return 'अज्ञात लेबल ($id)';
+  }
+
+  @override
+  String get calendarOwnerEmail => 'कैलेंडर स्वामी का ईमेल';
 }

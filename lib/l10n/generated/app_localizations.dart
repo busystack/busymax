@@ -5078,6 +5078,210 @@ abstract class AppLocalizations {
   /// **'Open shared calendar'**
   String get openSharedCalendar;
 
+  /// No description provided for @manageCalendarSharing.
+  ///
+  /// In en, this message translates to:
+  /// **'Manage calendar sharing'**
+  String get manageCalendarSharing;
+
+  /// No description provided for @shareRecipientEmail.
+  ///
+  /// In en, this message translates to:
+  /// **'Recipient email'**
+  String get shareRecipientEmail;
+
+  /// No description provided for @shareRole.
+  ///
+  /// In en, this message translates to:
+  /// **'Access role'**
+  String get shareRole;
+
+  /// No description provided for @addCalendarShare.
+  ///
+  /// In en, this message translates to:
+  /// **'Add access'**
+  String get addCalendarShare;
+
+  /// No description provided for @sharingRefreshFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'The sharing change succeeded, but the permission list could not be refreshed. Retry the list before making another change.'**
+  String get sharingRefreshFailed;
+
+  /// No description provided for @sharingPermissionUnavailable.
+  ///
+  /// In en, this message translates to:
+  /// **'Sharing permissions are unavailable for this calendar.'**
+  String get sharingPermissionUnavailable;
+
+  /// No description provided for @calendarShareFreeBusy.
+  ///
+  /// In en, this message translates to:
+  /// **'Free/busy only'**
+  String get calendarShareFreeBusy;
+
+  /// No description provided for @calendarShareLimitedRead.
+  ///
+  /// In en, this message translates to:
+  /// **'Read limited details'**
+  String get calendarShareLimitedRead;
+
+  /// No description provided for @calendarShareRead.
+  ///
+  /// In en, this message translates to:
+  /// **'Read all details'**
+  String get calendarShareRead;
+
+  /// No description provided for @calendarShareWrite.
+  ///
+  /// In en, this message translates to:
+  /// **'Edit events'**
+  String get calendarShareWrite;
+
+  /// No description provided for @calendarShareWriteWithoutPrivate.
+  ///
+  /// In en, this message translates to:
+  /// **'Edit without private details'**
+  String get calendarShareWriteWithoutPrivate;
+
+  /// No description provided for @calendarShareOwner.
+  ///
+  /// In en, this message translates to:
+  /// **'Owner'**
+  String get calendarShareOwner;
+
+  /// No description provided for @eventLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Event label'**
+  String get eventLabel;
+
+  /// No description provided for @loadOutlookCategories.
+  ///
+  /// In en, this message translates to:
+  /// **'Load Outlook categories'**
+  String get loadOutlookCategories;
+
+  /// No description provided for @outlookCategoriesUnavailable.
+  ///
+  /// In en, this message translates to:
+  /// **'Outlook categories are unavailable; existing assignments are preserved.'**
+  String get outlookCategoriesUnavailable;
+
+  /// No description provided for @googleEventType.
+  ///
+  /// In en, this message translates to:
+  /// **'Event type'**
+  String get googleEventType;
+
+  /// No description provided for @googleRegularEvent.
+  ///
+  /// In en, this message translates to:
+  /// **'Regular event'**
+  String get googleRegularEvent;
+
+  /// No description provided for @googleFocusTime.
+  ///
+  /// In en, this message translates to:
+  /// **'Focus time'**
+  String get googleFocusTime;
+
+  /// No description provided for @googleOutOfOffice.
+  ///
+  /// In en, this message translates to:
+  /// **'Out of office'**
+  String get googleOutOfOffice;
+
+  /// No description provided for @googleWorkingLocation.
+  ///
+  /// In en, this message translates to:
+  /// **'Working location'**
+  String get googleWorkingLocation;
+
+  /// No description provided for @googleDeclineInvitations.
+  ///
+  /// In en, this message translates to:
+  /// **'Decline overlapping invitations'**
+  String get googleDeclineInvitations;
+
+  /// No description provided for @googleDeclineNone.
+  ///
+  /// In en, this message translates to:
+  /// **'Do not decline'**
+  String get googleDeclineNone;
+
+  /// No description provided for @googleDeclineNew.
+  ///
+  /// In en, this message translates to:
+  /// **'Decline new invitations'**
+  String get googleDeclineNew;
+
+  /// No description provided for @googleDeclineAll.
+  ///
+  /// In en, this message translates to:
+  /// **'Decline all conflicting invitations'**
+  String get googleDeclineAll;
+
+  /// No description provided for @googleDeclineMessage.
+  ///
+  /// In en, this message translates to:
+  /// **'Decline message'**
+  String get googleDeclineMessage;
+
+  /// No description provided for @googleChatStatus.
+  ///
+  /// In en, this message translates to:
+  /// **'Chat status'**
+  String get googleChatStatus;
+
+  /// No description provided for @googleChatAvailable.
+  ///
+  /// In en, this message translates to:
+  /// **'Available'**
+  String get googleChatAvailable;
+
+  /// No description provided for @googleChatDoNotDisturb.
+  ///
+  /// In en, this message translates to:
+  /// **'Do not disturb'**
+  String get googleChatDoNotDisturb;
+
+  /// No description provided for @googleWorkAtHome.
+  ///
+  /// In en, this message translates to:
+  /// **'Home'**
+  String get googleWorkAtHome;
+
+  /// No description provided for @googleWorkAtOffice.
+  ///
+  /// In en, this message translates to:
+  /// **'Office'**
+  String get googleWorkAtOffice;
+
+  /// No description provided for @googleWorkAtCustomLocation.
+  ///
+  /// In en, this message translates to:
+  /// **'Custom location'**
+  String get googleWorkAtCustomLocation;
+
+  /// No description provided for @googleWorkLocationLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Location label'**
+  String get googleWorkLocationLabel;
+
+  /// No description provided for @googleStatusPrimaryOnly.
+  ///
+  /// In en, this message translates to:
+  /// **'Google status events require your primary Google calendar.'**
+  String get googleStatusPrimaryOnly;
+
+  /// No description provided for @unknownEventLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Unknown label ({id})'**
+  String unknownEventLabel(String id);
+
   /// No description provided for @calendarOwnerEmail.
   ///
   /// In en, this message translates to:
