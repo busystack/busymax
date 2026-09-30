@@ -217,6 +217,12 @@ Future<bool> showWindowsTaskDetailsDialog(
       ],
       builder: (context, setState) {
         final l10n = AppLocalizations.of(context);
+        final attachmentUploadKey = AttachmentUploadCoordinator.taskKey(
+          original.accountId,
+          original.taskListId,
+          original.id,
+        );
+        final uploads = ref.watch(attachmentUploadCoordinatorProvider);
         final enabled = !busy && capabilities.canUpdateTasks;
         final provisionalDraft = currentDraft();
         final validUrl =
@@ -563,7 +569,11 @@ Future<bool> showWindowsTaskDetailsDialog(
                             original.id,
                           ),
                         )) ...[
-                      Text(l10n.attachmentUploadUnresolved),
+                      Text(
+                        uploads.confirmedId(attachmentUploadKey) == null
+                            ? l10n.attachmentUploadUnresolved
+                            : l10n.completed,
+                      ),
                       Button(
                         onPressed: busy
                             ? null
@@ -612,6 +622,113 @@ Future<bool> showWindowsTaskDetailsDialog(
                               },
                         child: Text(l10n.refresh),
                       ),
+                      if (uploads.hasResumableSession(attachmentUploadKey))
+                        Button(
+                          onPressed: busy
+                              ? null
+                              : () async {
+                                  final client = ref.read(
+                                    microsoftTodoApiClientForAccountProvider(
+                                      original.accountId,
+                                    ),
+                                  );
+                                  if (client
+                                      is! MicrosoftTodoAttachmentsApiClient) {
+                                    return;
+                                  }
+                                  setState(() => busy = true);
+                                  try {
+                                    await uploads.cancelTask(
+                                      client:
+                                          client
+                                              as MicrosoftTodoAttachmentsApiClient,
+                                      accountId: original.accountId,
+                                      taskListId: original.taskListId,
+                                      taskId: original.id,
+                                    );
+                                    final key = (
+                                      accountId: original.accountId,
+                                      taskListId: original.taskListId,
+                                      taskId: original.id,
+                                    );
+                                    ref.invalidate(
+                                      microsoftTaskAttachmentsProvider(key),
+                                    );
+                                    attachmentsFuture = ref.read(
+                                      microsoftTaskAttachmentsProvider(
+                                        key,
+                                      ).future,
+                                    );
+                                  } on Object catch (failure) {
+                                    error = l10n.exportFailed('$failure');
+                                  } finally {
+                                    if (context.mounted) {
+                                      setState(() => busy = false);
+                                    }
+                                  }
+                                },
+                          child: Text(l10n.cancel),
+                        ),
+                      if (uploads.canResolveManually(attachmentUploadKey))
+                        for (final exists in [true, false])
+                          Button(
+                            onPressed: busy
+                                ? null
+                                : () async {
+                                    final label = exists
+                                        ? l10n.completed
+                                        : l10n.retry;
+                                    final confirmed = await showDialog<bool>(
+                                      context: context,
+                                      builder: (dialogContext) => ContentDialog(
+                                        title: Text(label),
+                                        content: Text(
+                                          l10n.attachmentUploadUnresolved,
+                                        ),
+                                        actions: [
+                                          Button(
+                                            onPressed: () => Navigator.pop(
+                                              dialogContext,
+                                              false,
+                                            ),
+                                            child: Text(l10n.cancel),
+                                          ),
+                                          FilledButton(
+                                            onPressed: () => Navigator.pop(
+                                              dialogContext,
+                                              true,
+                                            ),
+                                            child: Text(label),
+                                          ),
+                                        ],
+                                      ),
+                                    );
+                                    if (confirmed != true || !context.mounted) {
+                                      return;
+                                    }
+                                    uploads.resolveUncertainManually(
+                                      attachmentUploadKey,
+                                      exists: exists,
+                                    );
+                                    final key = (
+                                      accountId: original.accountId,
+                                      taskListId: original.taskListId,
+                                      taskId: original.id,
+                                    );
+                                    ref.invalidate(
+                                      microsoftTaskAttachmentsProvider(key),
+                                    );
+                                    final future = ref.read(
+                                      microsoftTaskAttachmentsProvider(
+                                        key,
+                                      ).future,
+                                    );
+                                    setState(() {
+                                      attachmentsFuture = future;
+                                    });
+                                  },
+                            child: Text(exists ? l10n.completed : l10n.retry),
+                          ),
                     ],
                     if (attachmentsFuture case final future?)
                       FutureBuilder<List<MicrosoftTodoAttachmentDto>>(
