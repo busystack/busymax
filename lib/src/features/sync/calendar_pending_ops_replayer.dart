@@ -15,6 +15,7 @@ import '../../core/http/request_dispatch_exception.dart';
 import '../../db/app_database.dart';
 import '../../google_calendar/google_calendar_errors.dart';
 import '../../google_calendar/google_calendar_mapper.dart';
+import '../calendar/domain/google_status_event.dart';
 import '../../google_calendar/google_calendar_api_client.dart';
 import '../../microsoft_calendar/microsoft_calendar_errors.dart';
 import '../../microsoft_calendar/microsoft_calendar_api_client.dart';
@@ -524,6 +525,13 @@ class CalendarPendingOpsReplayer {
       request['originalStart']?.toString(),
       'originalStart',
     );
+    final allDayOriginal =
+        localMaster.allDay &&
+        RegExp(r'^\d{4}-\d{2}-\d{2}$').hasMatch(originalStart);
+    final originalZone =
+        allDayOriginal && _client.provider == BusyProvider.microsoft
+        ? await _importOriginalStartZone(op, localMaster)
+        : null;
     if (_client.provider != BusyProvider.google &&
         _client.provider != BusyProvider.microsoft) {
       await _blockOp(
@@ -548,7 +556,12 @@ class CalendarPendingOpsReplayer {
         recurringEventId: masterId,
       );
       cancelledIds = snapshot.cancelledIds;
-      final originalInstant = DateTime.tryParse(originalStart);
+      final originalInstant = allDayOriginal
+          ? providerWallTimeToInstant(
+              DateTime.parse(originalStart),
+              originalZone,
+            )
+          : DateTime.tryParse(originalStart);
       if (originalInstant == null) {
         throw StateError('The original start cannot be searched in Graph.');
       }
@@ -568,6 +581,7 @@ class CalendarPendingOpsReplayer {
           (instance) => _sameImportOriginalStart(
             instance.providerOriginalStartKey,
             originalStart,
+            allDayZone: originalZone,
           ),
         )
         .toList();
@@ -662,9 +676,46 @@ class CalendarPendingOpsReplayer {
     await _repository.upsertEvent(accountId: _accountId, event: event);
   }
 
-  bool _sameImportOriginalStart(String? remote, String expected) {
+  Future<String> _importOriginalStartZone(
+    PendingOp op,
+    CalendarEvent master,
+  ) async {
+    final recurrence = master.recurrenceJson;
+    if (recurrence != null) {
+      final decoded = jsonDecode(recurrence);
+      if (decoded is Map && decoded['range'] is Map) {
+        final range = decoded['range'] as Map;
+        final zone = range['recurrenceTimeZone']?.toString().trim();
+        if (zone != null && zone.isNotEmpty) return zone;
+      }
+    }
+    final raw = _jsonObject(master.rawJson ?? '{}');
+    final originalZone = raw['originalStartTimeZone']?.toString().trim();
+    if (originalZone != null && originalZone.isNotEmpty) return originalZone;
+    final zone = await _fallbackTimeZone(op, local: master);
+    if (zone == null || zone.trim().isEmpty) {
+      throw StateError('The all-day series timezone is unavailable.');
+    }
+    return zone;
+  }
+
+  bool _sameImportOriginalStart(
+    String? remote,
+    String expected, {
+    String? allDayZone,
+  }) {
     if (remote == expected) return true;
-    if (remote == null || expected.length == 10 || remote.length == 10) {
+    if (remote == null) return false;
+    if (expected.length == 10 && allDayZone != null) {
+      final instant = DateTime.tryParse(remote);
+      if (instant == null || !instant.isUtc) return false;
+      final date = providerInstantInTimeZone(instant, allDayZone);
+      return '${date.year.toString().padLeft(4, '0')}-'
+              '${date.month.toString().padLeft(2, '0')}-'
+              '${date.day.toString().padLeft(2, '0')}' ==
+          expected;
+    }
+    if (expected.length == 10 || remote.length == 10) {
       return false;
     }
     final remoteInstant = DateTime.tryParse(remote);
@@ -745,6 +796,30 @@ class CalendarPendingOpsReplayer {
           ),
         );
       }
+    }
+    if (_client.provider == BusyProvider.google &&
+        mutationRequest.containsKey('googleStatusProperties')) {
+      // Older queued edits may predate the serialized discriminator. Read the
+      // authoritative event type, but never include eventType in the PATCH.
+      final current =
+          checkedVersion ??
+          await _client.getEvent(
+            calendarId: providerCalendarId,
+            eventId: providerEventId,
+          );
+      final type = current.rawJson['eventType']?.toString();
+      if (!googleStatusEventTypes.contains(type)) {
+        throw StateError('The Google status event type is unavailable.');
+      }
+      final queuedType =
+          mutationRequest[calendarEventGoogleStatusTypeContextKey]?.toString();
+      if (queuedType != null && queuedType != type) {
+        await _blockConflict(op, 'The Google status event type changed.');
+      }
+      mutationRequest = {
+        ...mutationRequest,
+        calendarEventGoogleStatusTypeContextKey: type,
+      };
     }
     final event = await _client.updateEvent(
       calendarId: providerCalendarId,
@@ -1964,6 +2039,7 @@ class CalendarPendingOpsReplayer {
       _googleSplitMasterRawKey,
       _googleSplitFollowingCountKey,
       _seriesResolvedRequestKey,
+      calendarEventGoogleStatusTypeContextKey,
     };
     final fields = {
       for (final entry in request.entries)
@@ -1974,6 +2050,10 @@ class CalendarPendingOpsReplayer {
     if (provider == BusyProvider.microsoft &&
         (fields.remove('location') | fields.remove('structuredLocation'))) {
       fields.add(_microsoftLocationStateField);
+    }
+    if (provider == BusyProvider.google &&
+        fields.contains('googleStatusProperties')) {
+      fields.add('googleStatusEventType');
     }
     return fields;
   }
@@ -2011,6 +2091,12 @@ class CalendarPendingOpsReplayer {
         'attendeesJson': raw['attendees'],
         'attachmentsJson': raw['attachments'],
         'colorId': raw['colorId'],
+        'eventLabelId': raw['eventLabelId']?.toString() ?? '',
+        'googleStatusEventType': raw['eventType']?.toString(),
+        'googleStatusProperties': googleStatusPropertiesFromRaw(
+          raw['eventType']?.toString(),
+          raw,
+        ),
         'visibility': raw['visibility'],
         'transparencyOrShowAs': raw['transparency'],
         'conferenceJson': raw['conferenceData'],
@@ -2104,6 +2190,8 @@ class CalendarPendingOpsReplayer {
       colorId: request['colorId']?.toString(),
       eventLabelId: request['eventLabelId']?.toString(),
       eventType: request['eventType']?.toString(),
+      googleStatusEventTypeContext:
+          request[calendarEventGoogleStatusTypeContextKey]?.toString(),
       googleStatusProperties: request['googleStatusProperties'] is Map
           ? Map<String, Object?>.from(request['googleStatusProperties'] as Map)
           : null,

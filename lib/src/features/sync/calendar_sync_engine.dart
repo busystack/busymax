@@ -280,14 +280,20 @@ class CalendarSyncEngine {
               ))
               .get();
       for (final source in opened) {
+        if (source.isDeleted) continue;
         final address = MicrosoftSharedPrimaryCalendarAddress.parse(
           source.providerCalendarId,
         );
         if (address == null) continue;
         try {
-          calendars.add(
-            await microsoftClient.getSharedPrimaryCalendar(address.owner),
+          final refreshed = await microsoftClient.getSharedPrimaryCalendar(
+            address.owner,
           );
+          final current = await (_database.select(
+            _database.calendarSources,
+          )..where((row) => row.id.equals(source.id))).getSingleOrNull();
+          if (current?.isDeleted == true) continue;
+          calendars.add(refreshed);
         } on MicrosoftCalendarApiError catch (error) {
           if (error.statusCode != 403 && error.statusCode != 404) rethrow;
           // Explicit owner-context denial is not an empty calendar. Keep its
