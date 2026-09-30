@@ -23,6 +23,7 @@ import '../data/tasks_repository.dart';
 import '../domain/task_source_links.dart';
 import '../../schedule/presentation/schedule_event_details_format.dart';
 import '../../schedule/presentation/attachment_download.dart';
+import '../../schedule/presentation/attachment_upload_coordinator.dart';
 import '../../../microsoft_todo/api/microsoft_todo_api_client.dart';
 import '../../../microsoft_todo/api/microsoft_todo_api_models.dart';
 import '../../../microsoft_calendar/microsoft_calendar_models.dart';
@@ -361,7 +362,19 @@ class _TaskDetailsEditorState extends State<TaskDetailsEditor> {
                                 !_editingTask.pendingDelete &&
                                 !_editingTask.id.startsWith('local-task-'))
                               BusyMaxPushButton.standard(
-                                onPressed: _attachmentBusy
+                                onPressed:
+                                    _attachmentBusy ||
+                                        !ref
+                                            .watch(
+                                              attachmentUploadCoordinatorProvider,
+                                            )
+                                            .canSubmit(
+                                              AttachmentUploadCoordinator.taskKey(
+                                                _editingTask.accountId,
+                                                _editingTask.taskListId,
+                                                _editingTask.id,
+                                              ),
+                                            )
                                     ? null
                                     : () =>
                                           unawaited(_uploadTaskAttachment(ref)),
@@ -373,6 +386,22 @@ class _TaskDetailsEditorState extends State<TaskDetailsEditor> {
                                   ],
                                 ),
                               ),
+                            if (ref
+                                .watch(attachmentUploadCoordinatorProvider)
+                                .needsReconciliation(
+                                  AttachmentUploadCoordinator.taskKey(
+                                    _editingTask.accountId,
+                                    _editingTask.taskListId,
+                                    _editingTask.id,
+                                  ),
+                                )) ...[
+                              Text(l10n.attachmentUploadUnresolved),
+                              BusyMaxPushButton.standard(
+                                onPressed: () =>
+                                    unawaited(_reconcileTaskUpload(ref)),
+                                child: Text(l10n.refresh),
+                              ),
+                            ],
                             if (_attachmentsFuture case final future?)
                               FutureBuilder<List<MicrosoftTodoAttachmentDto>>(
                                 future: future,
@@ -1480,13 +1509,40 @@ class _TaskDetailsEditorState extends State<TaskDetailsEditor> {
       if (size > 25 * 1024 * 1024) {
         throw StateError('Task file exceeds 25 MB.');
       }
-      await (client as MicrosoftTodoAttachmentsApiClient)
-          .uploadTaskFileAttachment(
+      await ref
+          .read(attachmentUploadCoordinatorProvider)
+          .uploadTask(
+            client: client as MicrosoftTodoAttachmentsApiClient,
+            accountId: _editingTask.accountId,
             taskListId: _editingTask.taskListId,
             taskId: _editingTask.id,
             name: name,
             contentType: file.mimeType ?? 'application/octet-stream',
             bytes: await file.readAsBytes(),
+          );
+      _reloadTaskAttachments(ref);
+    } on Object catch (error) {
+      _reloadTaskAttachments(ref);
+      _showAttachmentError(error);
+    } finally {
+      if (mounted) setState(() => _attachmentBusy = false);
+    }
+  }
+
+  Future<void> _reconcileTaskUpload(WidgetRef ref) async {
+    setState(() => _attachmentBusy = true);
+    try {
+      final client = ref.read(
+        microsoftTodoApiClientForAccountProvider(_editingTask.accountId),
+      );
+      if (client is! MicrosoftTodoAttachmentsApiClient) return;
+      await ref
+          .read(attachmentUploadCoordinatorProvider)
+          .reconcileTask(
+            client: client as MicrosoftTodoAttachmentsApiClient,
+            accountId: _editingTask.accountId,
+            taskListId: _editingTask.taskListId,
+            taskId: _editingTask.id,
           );
       _reloadTaskAttachments(ref);
     } on Object catch (error) {
