@@ -158,11 +158,34 @@ class _AndroidEventAttachmentsDialogState
         if (microsoft &&
             uploadKey != null &&
             uploads.needsReconciliation(uploadKey)) ...[
-          Text(context.l10n.attachmentUploadUnresolved),
+          Text(
+            uploads.confirmedId(uploadKey) == null
+                ? context.l10n.attachmentUploadUnresolved
+                : context.l10n.completed,
+          ),
           TextButton(
             onPressed: _saving ? null : () => _reconcileUpload(eventId!),
             child: Text(context.l10n.refresh),
           ),
+          if (uploads.hasResumableSession(uploadKey))
+            TextButton(
+              onPressed: _saving ? null : () => _cancelUpload(eventId!),
+              child: Text(context.l10n.cancel),
+            ),
+          if (uploads.canResolveManually(uploadKey)) ...[
+            TextButton(
+              onPressed: _saving
+                  ? null
+                  : () => _resolveUpload(uploadKey, exists: true),
+              child: Text(context.l10n.completed),
+            ),
+            TextButton(
+              onPressed: _saving
+                  ? null
+                  : () => _resolveUpload(uploadKey, exists: false),
+              child: Text(context.l10n.retry),
+            ),
+          ],
         ],
         if ((microsoft || google || nextcloud) &&
             item.capabilities.canEdit &&
@@ -289,6 +312,57 @@ class _AndroidEventAttachmentsDialogState
     } finally {
       if (mounted) setState(() => _saving = false);
     }
+  }
+
+  Future<void> _cancelUpload(String eventId) async {
+    setState(() => _saving = true);
+    try {
+      await ref
+          .read(attachmentUploadCoordinatorProvider)
+          .cancelEvent(
+            client: ref.read(
+              microsoftCalendarApiClientForAccountProvider(
+                widget.item.accountId,
+              ),
+            ),
+            accountId: widget.item.accountId,
+            calendarId: widget.item.providerCalendarId,
+            eventId: eventId,
+          );
+      _refresh();
+    } on Object catch (error) {
+      _error(error);
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  Future<void> _resolveUpload(
+    AttachmentUploadKey key, {
+    required bool exists,
+  }) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(exists ? context.l10n.completed : context.l10n.retry),
+        content: Text(context.l10n.attachmentUploadUnresolved),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: Text(context.l10n.cancel),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: Text(exists ? context.l10n.completed : context.l10n.retry),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    ref
+        .read(attachmentUploadCoordinatorProvider)
+        .resolveUncertainManually(key, exists: exists);
+    _refresh();
   }
 
   Future<void> _removeReference(EventAttachmentLink link) async {

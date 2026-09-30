@@ -836,11 +836,59 @@ class _AndroidTaskEditorState extends ConsumerState<AndroidTaskEditor> {
                           widget.task!.id,
                         ),
                       )) ...[
-                    Text(context.l10n.attachmentUploadUnresolved),
+                    Text(
+                      ref
+                                  .watch(attachmentUploadCoordinatorProvider)
+                                  .confirmedId(
+                                    AttachmentUploadCoordinator.taskKey(
+                                      widget.accountId,
+                                      widget.task!.taskListId,
+                                      widget.task!.id,
+                                    ),
+                                  ) ==
+                              null
+                          ? context.l10n.attachmentUploadUnresolved
+                          : context.l10n.completed,
+                    ),
                     TextButton(
                       onPressed: _attachmentBusy ? null : _reconcileTaskUpload,
                       child: Text(context.l10n.refresh),
                     ),
+                    if (ref
+                        .watch(attachmentUploadCoordinatorProvider)
+                        .hasResumableSession(
+                          AttachmentUploadCoordinator.taskKey(
+                            widget.accountId,
+                            widget.task!.taskListId,
+                            widget.task!.id,
+                          ),
+                        ))
+                      TextButton(
+                        onPressed: _attachmentBusy ? null : _cancelTaskUpload,
+                        child: Text(context.l10n.cancel),
+                      ),
+                    if (ref
+                        .watch(attachmentUploadCoordinatorProvider)
+                        .canResolveManually(
+                          AttachmentUploadCoordinator.taskKey(
+                            widget.accountId,
+                            widget.task!.taskListId,
+                            widget.task!.id,
+                          ),
+                        )) ...[
+                      TextButton(
+                        onPressed: _attachmentBusy
+                            ? null
+                            : () => _resolveTaskUpload(exists: true),
+                        child: Text(context.l10n.completed),
+                      ),
+                      TextButton(
+                        onPressed: _attachmentBusy
+                            ? null
+                            : () => _resolveTaskUpload(exists: false),
+                        child: Text(context.l10n.retry),
+                      ),
+                    ],
                   ],
                   if (_attachmentsFuture case final future?)
                     FutureBuilder<List<MicrosoftTodoAttachmentDto>>(
@@ -2343,6 +2391,65 @@ class _AndroidTaskEditorState extends ConsumerState<AndroidTaskEditor> {
     }
   }
 
+  Future<void> _cancelTaskUpload() async {
+    final task = widget.task;
+    if (task == null) return;
+    setState(() => _attachmentBusy = true);
+    try {
+      final client = ref.read(
+        microsoftTodoApiClientForAccountProvider(widget.accountId),
+      );
+      if (client is! MicrosoftTodoAttachmentsApiClient) return;
+      await ref
+          .read(attachmentUploadCoordinatorProvider)
+          .cancelTask(
+            client: client as MicrosoftTodoAttachmentsApiClient,
+            accountId: widget.accountId,
+            taskListId: task.taskListId,
+            taskId: task.id,
+          );
+      _reloadTaskAttachments();
+    } on Object catch (error) {
+      _attachmentError(error);
+    } finally {
+      if (mounted) setState(() => _attachmentBusy = false);
+    }
+  }
+
+  Future<void> _resolveTaskUpload({required bool exists}) async {
+    final task = widget.task;
+    if (task == null) return;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(exists ? context.l10n.completed : context.l10n.retry),
+        content: Text(context.l10n.attachmentUploadUnresolved),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: Text(context.l10n.cancel),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: Text(exists ? context.l10n.completed : context.l10n.retry),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    ref
+        .read(attachmentUploadCoordinatorProvider)
+        .resolveUncertainManually(
+          AttachmentUploadCoordinator.taskKey(
+            widget.accountId,
+            task.taskListId,
+            task.id,
+          ),
+          exists: exists,
+        );
+    _reloadTaskAttachments();
+  }
+
   Future<void> _deleteTaskAttachment(
     MicrosoftTodoAttachmentDto attachment,
   ) async {
@@ -2382,12 +2489,11 @@ class _AndroidTaskEditorState extends ConsumerState<AndroidTaskEditor> {
       taskId: task.id,
     );
     ref.invalidate(microsoftTaskAttachmentsProvider(key));
+    final future = ref.read(microsoftTaskAttachmentsProvider(key).future);
     if (mounted) {
-      setState(
-        () => _attachmentsFuture = ref.read(
-          microsoftTaskAttachmentsProvider(key).future,
-        ),
-      );
+      setState(() {
+        _attachmentsFuture = future;
+      });
     }
   }
 
