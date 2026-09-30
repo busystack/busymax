@@ -1730,7 +1730,7 @@ class _CalendarSettingsColumnLabel extends StatelessWidget {
   }
 }
 
-class _CalendarSettingsRow extends StatelessWidget {
+class _CalendarSettingsRow extends ConsumerWidget {
   const _CalendarSettingsRow({
     required this.source,
     required this.showsProviderVisibility,
@@ -1745,7 +1745,7 @@ class _CalendarSettingsRow extends StatelessWidget {
   onProviderVisibilityChanged;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final l10n = context.l10n;
     final canChangeProviderVisibility =
         source.capabilities.canChangeProviderVisibility;
@@ -1800,6 +1800,38 @@ class _CalendarSettingsRow extends StatelessWidget {
                         : null,
                   ),
                 ),
+              ),
+            if (source.provider == BusyProvider.microsoft &&
+                source.capabilities.removalMode ==
+                    CalendarRemovalMode.removeFromList)
+              YaruIconButton(
+                key: ValueKey('settings-calendar-remove-${source.id}'),
+                tooltip: l10n.removeFromMyCalendars,
+                icon: const Icon(YaruIcons.trash),
+                onPressed: () async {
+                  final confirmed = await showBusyMaxConfirm(
+                    context,
+                    title: l10n.removeFromMyCalendars,
+                    message: l10n.removeOpenedSharedCalendarConfirmation(
+                      source.summary,
+                    ),
+                    confirmLabel: l10n.removeAction,
+                  );
+                  if (!confirmed || !context.mounted) return;
+                  try {
+                    await ref
+                        .read(calendarRepositoryProvider)
+                        .deleteLocalSource(source.id);
+                  } on Object catch (error) {
+                    if (context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text(l10n.calendarUpdateFailed('$error')),
+                        ),
+                      );
+                    }
+                  }
+                },
               ),
           ],
         ),
