@@ -117,7 +117,17 @@ Map<String, Object?> googleCalendarListColorMutationToJson(
 
 Map<String, Object?> googleEventMutationToJson(CalendarEventMutation mutation) {
   final statusType =
-      mutation.eventType ?? mutation.providerRaw?['eventType']?.toString();
+      mutation.eventType ??
+      mutation.googleStatusEventTypeContext ??
+      mutation.providerRaw?['eventType']?.toString();
+  if (mutation.googleStatusProperties != null &&
+      !const {
+        'focusTime',
+        'outOfOffice',
+        'workingLocation',
+      }.contains(statusType)) {
+    throw const FormatException('Google status event type is unavailable.');
+  }
   final allDay = mutation.allDay ?? mutation.startDate != null;
   final start = allDay
       ? _compact({'date': mutation.startDate})
