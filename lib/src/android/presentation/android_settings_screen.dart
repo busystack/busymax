@@ -19,7 +19,9 @@ import '../../dav/nextcloud/nextcloud_trash_service.dart';
 import '../../features/accounts/data/accounts_repository.dart';
 import '../../features/accounts/domain/account_collection_creation_capabilities.dart';
 import '../../features/calendar/data/calendar_repository.dart';
+import '../../features/calendar/data/cloud_calendar_sharing_service.dart';
 import '../../features/calendar/data/microsoft_shared_calendar_service.dart';
+import 'android_cloud_calendar_sharing_content.dart';
 import '../../features/sync/sync_auth_error.dart';
 import '../../features/task_lists/data/task_lists_repository.dart';
 import '../../features/tasks/domain/task_capabilities.dart';
@@ -148,6 +150,32 @@ class _AndroidSettingsScreenState extends ConsumerState<AndroidSettingsScreen> {
                       account.displayName ?? account.email ?? account.id,
                     ),
                     onTap: () => unawaited(_openSharedCalendar(account.id)),
+                  ),
+              for (final account in accounts)
+                if (account.isSignedIn &&
+                    sources.any(
+                      (source) =>
+                          source.accountId == account.id &&
+                          CloudCalendarSharingService.canManageSource(source),
+                    ))
+                  ListTile(
+                    key: Key('android-manage-sharing-${account.id}'),
+                    leading: const Icon(Icons.people_outline),
+                    title: Text(context.l10n.manageCalendarSharing),
+                    subtitle: Text(account.displayLabel),
+                    onTap: () => unawaited(
+                      _manageCalendarSharing(
+                        sources
+                            .where(
+                              (source) =>
+                                  source.accountId == account.id &&
+                                  CloudCalendarSharingService.canManageSource(
+                                    source,
+                                  ),
+                            )
+                            .toList(),
+                      ),
+                    ),
                   ),
               if (accounts.any(
                 (account) =>
@@ -878,6 +906,29 @@ class _AndroidSettingsScreenState extends ConsumerState<AndroidSettingsScreen> {
     } on Object catch (error) {
       _message(l10n.calendarUpdateFailed('$error'));
     }
+  }
+
+  Future<void> _manageCalendarSharing(
+    List<CalendarSourceEntity> sources,
+  ) async {
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(dialogContext.l10n.manageCalendarSharing),
+        content: SizedBox(
+          width: double.maxFinite,
+          child: SingleChildScrollView(
+            child: CloudCalendarSharingContent(sources: sources),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: Text(dialogContext.l10n.close),
+          ),
+        ],
+      ),
+    );
   }
 
   Future<void> _editCalendarSource(CalendarSourceEntity source) async {

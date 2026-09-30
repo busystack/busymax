@@ -30,6 +30,7 @@ const _microsoftNativeScopes = <String>[
 ];
 
 const _microsoftSharedNativeScope = 'Calendars.ReadWrite.Shared';
+const _microsoftCategoryNativeScope = 'MailboxSettings.Read';
 
 const _microsoftStoredScopes = <String>{
   'https://graph.microsoft.com/User.Read',
@@ -59,6 +60,7 @@ final class AndroidAuthorizationBroker
         OAuthGateway,
         MicrosoftOAuthGateway,
         MicrosoftSharedCalendarAuthorization,
+        MicrosoftCategoryAuthorization,
         AccountTokenBroker {
   AndroidAuthorizationBroker({
     required BusyMaxAndroidPlatform platform,
@@ -168,16 +170,83 @@ final class AndroidAuthorizationBroker
       // consent request is appropriate when silent acquisition is unavailable.
     }
     try {
+      var keepCategoryScope = false;
+      try {
+        await microsoftCategoryAuthorizationHeader(accountId);
+        keepCategoryScope = true;
+      } on OAuthException {
+        // Category lookup is independently optional.
+      }
       final native = await _platform.authorizeMicrosoftInteractively(
-        scopes: [..._microsoftNativeScopes, _microsoftSharedNativeScope],
+        scopes: [
+          ..._microsoftNativeScopes,
+          _microsoftSharedNativeScope,
+          if (keepCategoryScope) _microsoftCategoryNativeScope,
+        ],
       );
       final tokenSet = _tokenSet(native);
       final user = await _microsoftMe(native.accessToken);
       if ('microsoft:${user.id}' != accountId ||
-          !tokenSet.scopes.contains(microsoftSharedCalendarScope)) {
+          !tokenSet.scopes.contains(microsoftSharedCalendarScope) ||
+          (keepCategoryScope &&
+              !tokenSet.scopes.contains(microsoftCategoryScope))) {
         throw const OAuthException(
           'MicrosoftOAuthSharedConsentDenied',
           'Shared-calendar access was not granted for this account.',
+        );
+      }
+      _requireSilentScopes(BusyProvider.microsoft, tokenSet);
+      await _platform.bindAuthorization(
+        provider: BusyProvider.microsoft.storageValue,
+        accountId: accountId,
+        nativeAccountId: native.nativeAccountId,
+        username: native.username ?? user.mail ?? user.userPrincipalName,
+        authority: native.authority,
+      );
+      _lastAccessTokens[accountId] = native.accessToken;
+    } on PlatformException catch (error) {
+      throw _oauthError(error, provider: 'Microsoft');
+    }
+  }
+
+  @override
+  Future<void> authorizeCategoryAccess(String accountId) async {
+    if (!accountId.startsWith('microsoft:')) {
+      throw const OAuthException(
+        'MicrosoftOAuthCategoryAccountMismatch',
+        'Select a Microsoft account to load categories.',
+      );
+    }
+    try {
+      await microsoftCategoryAuthorizationHeader(accountId);
+      return;
+    } on OAuthException {
+      // This user-requested lookup can ask for optional incremental consent.
+    }
+    var keepSharedScope = false;
+    try {
+      await microsoftSharedCalendarAuthorizationHeader(accountId);
+      keepSharedScope = true;
+    } on OAuthException {
+      // Shared-calendar access is independently optional.
+    }
+    try {
+      final native = await _platform.authorizeMicrosoftInteractively(
+        scopes: [
+          ..._microsoftNativeScopes,
+          if (keepSharedScope) _microsoftSharedNativeScope,
+          _microsoftCategoryNativeScope,
+        ],
+      );
+      final tokenSet = _tokenSet(native);
+      final user = await _microsoftMe(native.accessToken);
+      if ('microsoft:${user.id}' != accountId ||
+          !tokenSet.scopes.contains(microsoftCategoryScope) ||
+          (keepSharedScope &&
+              !tokenSet.scopes.contains(microsoftSharedCalendarScope))) {
+        throw const OAuthException(
+          'MicrosoftOAuthCategoryConsentDenied',
+          'Outlook category access was not granted for this account.',
         );
       }
       _requireSilentScopes(BusyProvider.microsoft, tokenSet);
@@ -269,6 +338,28 @@ final class AndroidAuthorizationBroker
         throw const OAuthException(
           'MicrosoftOAuthSharedConsentRequired',
           'Shared-calendar permission must be granted for this account.',
+        );
+      }
+      _lastAccessTokens[accountId] = native.accessToken;
+      return 'Bearer ${native.accessToken}';
+    } on PlatformException catch (error) {
+      throw _silentOAuthError(error, provider: BusyProvider.microsoft);
+    }
+  }
+
+  @override
+  Future<String> microsoftCategoryAuthorizationHeader(String accountId) async {
+    try {
+      final native = await _platform.authorizeMicrosoftSilently(
+        accountId: accountId,
+        scopes: [..._microsoftNativeScopes, _microsoftCategoryNativeScope],
+      );
+      final tokenSet = _tokenSet(native);
+      _requireSilentScopes(BusyProvider.microsoft, tokenSet);
+      if (!tokenSet.scopes.contains(microsoftCategoryScope)) {
+        throw const OAuthException(
+          'MicrosoftOAuthCategoryConsentRequired',
+          'Outlook category lookup requires optional mailbox-settings consent.',
         );
       }
       _lastAccessTokens[accountId] = native.accessToken;
@@ -401,6 +492,7 @@ String _storedScope(String value) {
   for (final nativeScope in [
     ..._microsoftNativeScopes,
     _microsoftSharedNativeScope,
+    _microsoftCategoryNativeScope,
   ]) {
     if (scope.toLowerCase() == nativeScope.toLowerCase()) {
       return 'https://graph.microsoft.com/$nativeScope';

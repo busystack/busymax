@@ -22,6 +22,7 @@ import '../../features/schedule/presentation/schedule_event_details_format.dart'
 import '../../features/schedule/presentation/attachment_download.dart';
 import '../../microsoft_todo/api/microsoft_todo_api_client.dart';
 import '../../microsoft_todo/api/microsoft_todo_api_models.dart';
+import '../../microsoft_calendar/microsoft_calendar_models.dart';
 import '../../l10n/l10n.dart';
 import '../../providers/busy_provider.dart';
 import '../../schedule/schedule_filters.dart';
@@ -1115,6 +1116,8 @@ class _AndroidTaskEditorState extends ConsumerState<AndroidTaskEditor> {
                   ),
                 ),
               ),
+              if (widget.provider == BusyProvider.microsoft)
+                _microsoftCategories(canWrite),
             ],
             if (capabilities.supportsLocation) ...[
               const SizedBox(height: 12),
@@ -1765,6 +1768,73 @@ class _AndroidTaskEditorState extends ConsumerState<AndroidTaskEditor> {
     return alarm.triggerRaw;
   }
 
+  Widget _microsoftCategories(bool canWrite) {
+    final catalog = ref.watch(
+      microsoftMasterCategoriesProvider(widget.accountId),
+    );
+    return catalog.when(
+      loading: () => const LinearProgressIndicator(),
+      error: (_, _) => TextButton(
+        onPressed: () async {
+          try {
+            await ref
+                .read(microsoftCategoryAuthorizationProvider)
+                ?.authorizeCategoryAccess(widget.accountId);
+            if (mounted) {
+              ref.invalidate(
+                microsoftMasterCategoriesProvider(widget.accountId),
+              );
+            }
+          } on Object {
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text(context.l10n.outlookCategoriesUnavailable),
+                ),
+              );
+            }
+          }
+        },
+        child: Text(context.l10n.loadOutlookCategories),
+      ),
+      data: (categories) => Wrap(
+        spacing: 8,
+        runSpacing: 4,
+        children: [
+          for (final category in categories)
+            FilterChip(
+              label: Text(category.displayName),
+              avatar: microsoftCategorySwatchArgb(category.color) == null
+                  ? null
+                  : CircleAvatar(
+                      backgroundColor: Color(
+                        microsoftCategorySwatchArgb(category.color)!,
+                      ),
+                      radius: 7,
+                    ),
+              selected: _draft.categories.contains(category.displayName),
+              onSelected: !canWrite
+                  ? null
+                  : (selected) {
+                      final values = [..._draft.categories];
+                      if (selected) {
+                        if (!values.contains(category.displayName)) {
+                          values.add(category.displayName);
+                        }
+                      } else {
+                        values.remove(category.displayName);
+                      }
+                      setState(() {
+                        _categories.text = values.join(', ');
+                        _draft = _draft.copyWith(categories: values);
+                      });
+                    },
+            ),
+        ],
+      ),
+    );
+  }
+
   Future<void> _save() async {
     setState(_syncDraftFromControllers);
     if (!_draftIsValid) return;
@@ -1996,7 +2066,12 @@ class _AndroidTaskEditorState extends ConsumerState<AndroidTaskEditor> {
     try {
       await ref
           .read(tasksRepositoryForAccountProvider(widget.accountId))
-          .deleteTask(widget.task!.taskListId, widget.task!.id);
+          .deleteTask(
+            widget.task!.taskListId,
+            widget.task!.id,
+            confirmedAssignedSourceDeletion:
+                widget.task!.googleAssignment.isAssigned,
+          );
       mutationPersisted = true;
       widget.onMutationCommitted?.call(result);
       if (mounted) {

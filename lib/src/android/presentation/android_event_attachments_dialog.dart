@@ -6,9 +6,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../app/app_bootstrap.dart';
 import '../../features/schedule/presentation/attachment_download.dart';
+import '../../features/schedule/presentation/google_event_attachment_reference.dart';
 import '../../features/schedule/presentation/schedule_event_details_format.dart';
 import '../../l10n/l10n.dart';
 import '../../microsoft_calendar/microsoft_event_attachment.dart';
+import '../../providers/busy_provider.dart';
+import '../../schedule/event_attachment_link.dart';
 import '../../schedule/schedule_item.dart';
 
 Future<void> showAndroidEventAttachmentsDialog(
@@ -31,12 +34,22 @@ class _AndroidEventAttachmentsDialog extends ConsumerStatefulWidget {
 class _AndroidEventAttachmentsDialogState
     extends ConsumerState<_AndroidEventAttachmentsDialog> {
   bool _saving = false;
+  late List<EventAttachmentLink> _referenceLinks;
+
+  @override
+  void initState() {
+    super.initState();
+    _referenceLinks = List.of(widget.item.attachmentLinks);
+  }
 
   @override
   Widget build(BuildContext context) {
     final item = widget.item;
     final eventId = item.providerEventId;
-    final result = eventId == null
+    final microsoft = item.provider == BusyProvider.microsoft;
+    final google = item.provider == BusyProvider.google;
+    final nextcloud = item.provider == BusyProvider.nextcloud;
+    final result = !microsoft || eventId == null
         ? null
         : ref.watch(
             microsoftEventAttachmentsProvider((
@@ -49,7 +62,38 @@ class _AndroidEventAttachmentsDialogState
       title: Text(context.l10n.attachments),
       content: SizedBox(
         width: 420,
-        child: result == null
+        child: !microsoft
+            ? _referenceLinks.isEmpty
+                  ? Text(
+                      item.attachmentsLoaded
+                          ? context.l10n.noneValue
+                          : context.l10n.attachmentsNotLoaded,
+                    )
+                  : ListView(
+                      shrinkWrap: true,
+                      children: [
+                        for (final link in _referenceLinks)
+                          ListTile(
+                            title: Text(link.name),
+                            trailing:
+                                (google || nextcloud) &&
+                                    item.capabilities.canEdit
+                                ? IconButton(
+                                    key: const Key(
+                                      'event-attachment-remove-reference',
+                                    ),
+                                    tooltip: context.l10n.delete,
+                                    onPressed: _saving
+                                        ? null
+                                        : () => _removeReference(link),
+                                    icon: const Icon(Icons.delete_outline),
+                                  )
+                                : null,
+                            onTap: () => _open(link.url),
+                          ),
+                      ],
+                    )
+            : result == null
             ? Text(context.l10n.attachmentsNotLoaded)
             : result.when(
                 loading: () => const LinearProgressIndicator(),
@@ -102,8 +146,11 @@ class _AndroidEventAttachmentsDialogState
               ),
       ),
       actions: [
-        if (item.capabilities.canEdit && eventId != null)
+        if ((microsoft || google || nextcloud) &&
+            item.capabilities.canEdit &&
+            (nextcloud || eventId != null))
           TextButton.icon(
+            key: const Key('event-attachment-add'),
             onPressed: _saving ? null : _add,
             icon: const Icon(Icons.add),
             label: Text(context.l10n.attachments),
@@ -130,7 +177,37 @@ class _AndroidEventAttachmentsDialogState
 
   Future<void> _add() async {
     final eventId = widget.item.providerEventId;
-    if (eventId == null || !widget.item.capabilities.canEdit) return;
+    if (!widget.item.capabilities.canEdit) return;
+    if (widget.item.provider == BusyProvider.google ||
+        widget.item.provider == BusyProvider.nextcloud) {
+      var enteredUrl = '';
+      final url = await showDialog<String>(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          title: Text(context.l10n.attachments),
+          content: TextField(
+            onChanged: (value) => enteredUrl = value,
+            autofocus: true,
+            keyboardType: TextInputType.url,
+            decoration: InputDecoration(labelText: context.l10n.webLink),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: Text(context.l10n.cancel),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext, enteredUrl),
+              child: Text(context.l10n.save),
+            ),
+          ],
+        ),
+      );
+      if (url == null || !mounted) return;
+      await _changeReference(addFileUrl: url);
+      return;
+    }
+    if (eventId == null) return;
     final document = await BusyMaxAndroidPlatform.instance.openDocument(
       mimeTypes: const ['*/*'],
       maximumBytes: 150 * 1024 * 1024,
@@ -157,6 +234,76 @@ class _AndroidEventAttachmentsDialogState
       _refresh();
     } on Object catch (error) {
       _refresh();
+      _error(error);
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  Future<void> _removeReference(EventAttachmentLink link) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(context.l10n.delete),
+        content: Text(link.name),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: Text(context.l10n.cancel),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: Text(context.l10n.delete),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    await _changeReference(removeFileUrl: link.url);
+  }
+
+  Future<void> _changeReference({
+    String? addFileUrl,
+    String? removeFileUrl,
+  }) async {
+    setState(() => _saving = true);
+    try {
+      final List<EventAttachmentLink> links;
+      var cacheUpdated = true;
+      if (widget.item.provider == BusyProvider.google) {
+        final changed = await changeGoogleEventAttachmentReference(
+          item: widget.item,
+          client: ref.read(
+            googleCalendarApiClientForAccountProvider(widget.item.accountId),
+          ),
+          repository: ref.read(calendarRepositoryProvider),
+          addFileUrl: addFileUrl,
+          removeFileUrl: removeFileUrl,
+        );
+        links = changed.links;
+        cacheUpdated = changed.cacheUpdated;
+      } else {
+        final detail = await ref
+            .read(calendarRepositoryProvider)
+            .changeNextcloudUriAttachmentReference(
+              accountId: widget.item.accountId,
+              eventId: widget.item.id,
+              addUrl: addFileUrl,
+              removeUrl: removeFileUrl,
+            );
+        links = eventAttachmentLinks(detail?.attachments);
+        cacheUpdated = detail != null;
+      }
+      if (!mounted) return;
+      setState(() => _referenceLinks = links);
+      if (!cacheUpdated) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(context.l10n.refreshFailed(context.l10n.attachments)),
+          ),
+        );
+      }
+    } on Object catch (error) {
       _error(error);
     } finally {
       if (mounted) setState(() => _saving = false);

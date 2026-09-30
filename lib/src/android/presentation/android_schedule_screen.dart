@@ -16,15 +16,20 @@ import '../../core/logging/redacting_logger.dart';
 import '../../features/accounts/data/accounts_repository.dart';
 import '../../features/calendar/data/calendar_repository.dart';
 import '../../features/calendar/presentation/event_editor_draft.dart';
+import '../../features/calendar/domain/google_status_event.dart';
+import '../../features/calendar/presentation/google_status_event_labels.dart';
 import '../../features/maps/application/external_location_launcher.dart';
 import '../../features/schedule/application/saved_schedule_location.dart';
 import '../../features/schedule/presentation/schedule_event_details_format.dart';
+import '../../features/schedule/presentation/schedule_item_exporter.dart';
+import '../../features/schedule/presentation/cloud_calendar_series_export.dart';
 import '../../features/tasks/data/tasks_repository.dart';
 import '../../features/recurrence/domain/event_recurrence_codec.dart';
 import '../../features/recurrence/domain/recurrence_rule.dart';
 import '../../l10n/l10n.dart';
 import '../../l10n/time_format_scope.dart';
 import '../../l10n/week_preferences_scope.dart';
+import '../../microsoft_calendar/microsoft_calendar_models.dart';
 import '../../providers/busy_provider.dart';
 import '../../schedule/schedule_filters.dart';
 import '../../schedule/schedule_item.dart';
@@ -714,6 +719,12 @@ class _AndroidScheduleScreenState extends ConsumerState<AndroidScheduleScreen> {
                     ),
                   ),
                 if (item is CalendarScheduleItem) ...[
+                  for (final line in googleStatusDetailLines(
+                    context.l10n,
+                    item.eventType,
+                    item.googleStatusProperties,
+                  ))
+                    Text(line),
                   if (calendarEventDescription(item).trim().isNotEmpty)
                     Padding(
                       padding: const EdgeInsets.only(top: 12),
@@ -911,7 +922,8 @@ class _AndroidScheduleScreenState extends ConsumerState<AndroidScheduleScreen> {
                           : context.l10n.editTask,
                     ),
                   ),
-                if (item.provider == BusyProvider.nextcloud) ...[
+                if (item is CalendarScheduleItem ||
+                    item.provider == BusyProvider.nextcloud) ...[
                   const SizedBox(height: 8),
                   OutlinedButton.icon(
                     onPressed: () => _exportItem(sheetContext, item),
@@ -942,15 +954,67 @@ class _AndroidScheduleScreenState extends ConsumerState<AndroidScheduleScreen> {
 
   Future<void> _exportItem(BuildContext context, ScheduleItem item) async {
     try {
-      final raw = item is CalendarScheduleItem
-          ? await ref
-                .read(calendarRepositoryProvider)
-                .nativeEventExport(item.id)
-          : item is TaskScheduleItem
-          ? await ref
-                .read(tasksRepositoryForAccountProvider(item.accountId))
-                .nativeTaskExport(item.sourceId, item.id)
-          : null;
+      String? raw;
+      if (item is CalendarScheduleItem) {
+        final repository = ref.read(calendarRepositoryProvider);
+        final detail = await repository.loadEventDetail(item.id);
+        if (!mounted || !context.mounted) return;
+        final recurring =
+            detail != null &&
+            (detail.recurrence != null ||
+                detail.providerRecurringEventId != null);
+        final series =
+            recurring &&
+                canExportAuthoritativeEventSeries(
+                  provider: item.provider,
+                  providerEventId: item.providerEventId,
+                  davCollectionId: detail.davCollectionId,
+                )
+            ? await showDialog<bool>(
+                context: context,
+                builder: (dialogContext) => AlertDialog(
+                  title: Text(context.l10n.export),
+                  actions: [
+                    TextButton(
+                      onPressed: () => Navigator.pop(dialogContext, false),
+                      child: Text(context.l10n.singleOccurrence),
+                    ),
+                    TextButton(
+                      onPressed: () => Navigator.pop(dialogContext, true),
+                      child: Text(context.l10n.entireSeries),
+                    ),
+                  ],
+                ),
+              )
+            : false;
+        if (series == null) return;
+        if (series && item.provider == BusyProvider.google) {
+          raw = await exportGoogleEventSeries(
+            client: ref.read(
+              googleCalendarApiClientForAccountProvider(item.accountId),
+            ),
+            calendarId: item.providerCalendarId,
+            eventId: item.providerEventId!,
+            nowUtc: DateTime.now().toUtc(),
+          );
+        } else if (series && item.provider == BusyProvider.microsoft) {
+          raw = await exportMicrosoftEventSeries(
+            client: ref.read(
+              microsoftCalendarApiClientForAccountProvider(item.accountId),
+            ),
+            calendarId: item.providerCalendarId,
+            eventId: item.providerEventId!,
+            nowUtc: DateTime.now().toUtc(),
+          );
+        } else if (series || !recurring) {
+          raw = await repository.nativeEventExport(item.id);
+        }
+        raw ??= scheduleItemToICalendar(item, nowUtc: DateTime.now().toUtc());
+      } else if (item is TaskScheduleItem) {
+        raw = await ref
+            .read(tasksRepositoryForAccountProvider(item.accountId))
+            .nativeTaskExport(item.sourceId, item.id);
+      }
       if (raw == null) return;
       final uri = await BusyMaxAndroidPlatform.instance.createDocument(
         suggestedName: item is TaskScheduleItem ? 'task.ics' : 'event.ics',
@@ -2274,6 +2338,7 @@ class _AndroidEventEditorState extends ConsumerState<AndroidEventEditor> {
               ),
               const SizedBox(height: 12),
               DropdownButtonFormField<String>(
+                isExpanded: true,
                 initialValue: _source?.id,
                 decoration: InputDecoration(labelText: context.l10n.calendar),
                 items: [
@@ -2292,13 +2357,32 @@ class _AndroidEventEditorState extends ConsumerState<AndroidEventEditor> {
                         final source = widget.sources.firstWhere(
                           (s) => s.id == id,
                         );
+                        if (googleStatusEventTypes.contains(_draft.eventType) &&
+                            (source.provider != BusyProvider.google ||
+                                !source.primaryCalendar)) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text(
+                                context.l10n.googleStatusPrimaryOnly,
+                              ),
+                            ),
+                          );
+                          return;
+                        }
                         setState(
                           () => _draft = _draft.copyWith(
                             accountId: source.accountId,
                             sourceId: source.id,
                             providerCalendarId: source.providerCalendarId,
-                            clearShowAs: true,
-                            clearVisibilityOrSensitivity: true,
+                            clearEventLabelId: _draft.sourceId != source.id,
+                            eventLabelChanged: _draft.sourceId != source.id,
+                            clearShowAs: !googleStatusEventTypes.contains(
+                              _draft.eventType,
+                            ),
+                            clearVisibilityOrSensitivity:
+                                !googleStatusEventTypes.contains(
+                                  _draft.eventType,
+                                ),
                           ),
                         );
                       },
@@ -2307,7 +2391,10 @@ class _AndroidEventEditorState extends ConsumerState<AndroidEventEditor> {
                 contentPadding: EdgeInsets.zero,
                 title: Text(context.l10n.allDay),
                 value: _draft.allDay,
-                onChanged: !_canEdit
+                onChanged:
+                    !_canEdit ||
+                        _draft.eventType == 'focusTime' ||
+                        _draft.eventType == 'outOfOffice'
                     ? null
                     : (value) => setState(
                         () => _draft = _draft.copyWith(allDay: value),
@@ -2349,7 +2436,9 @@ class _AndroidEventEditorState extends ConsumerState<AndroidEventEditor> {
                       child: Text(_eventAvailabilityLabel(context, value)),
                     ),
                 ],
-                onChanged: !_canEdit
+                onChanged:
+                    !_canEdit ||
+                        googleStatusEventTypes.contains(_draft.eventType)
                     ? null
                     : (value) => setState(
                         () => _draft = _draft.copyWith(showAs: value),
@@ -2372,7 +2461,7 @@ class _AndroidEventEditorState extends ConsumerState<AndroidEventEditor> {
                       child: Text(_eventVisibilityLabel(context, value)),
                     ),
                 ],
-                onChanged: !_canEdit
+                onChanged: !_canEdit || _draft.eventType == 'workingLocation'
                     ? null
                     : (value) => setState(
                         () => _draft = _draft.copyWith(
@@ -2640,6 +2729,14 @@ class _AndroidEventEditorState extends ConsumerState<AndroidEventEditor> {
                 decoration: InputDecoration(labelText: context.l10n.categories),
                 onChanged: (_) => setState(() {}),
               ),
+              if (_provider == BusyProvider.microsoft && _source != null)
+                _microsoftCategoryField(_source!),
+              if (_provider == BusyProvider.google &&
+                  (_source?.primaryCalendar == true ||
+                      googleStatusEventTypes.contains(_draft.eventType)))
+                ..._googleStatusRows(),
+              if (_provider == BusyProvider.google && _source != null)
+                _googleEventLabelField(_source!),
               if (_canDelete) ...[
                 const SizedBox(height: 24),
                 OutlinedButton.icon(
@@ -2762,6 +2859,352 @@ class _AndroidEventEditorState extends ConsumerState<AndroidEventEditor> {
           Text(context.l10n.unsupportedReminder),
       ],
     ];
+  }
+
+  List<Widget> _googleStatusRows() {
+    final l10n = context.l10n;
+    final type = _draft.eventType ?? 'default';
+    final types = <String>['default', ...googleStatusEventTypes];
+    final rows = <Widget>[
+      DropdownButtonFormField<String>(
+        key: const Key('android-google-event-type'),
+        isExpanded: true,
+        initialValue: types.contains(type) ? type : 'default',
+        decoration: InputDecoration(labelText: l10n.googleEventType),
+        items: [
+          for (final value in types)
+            DropdownMenuItem(
+              value: value,
+              child: Text(googleEventTypeLabel(l10n, value)),
+            ),
+        ],
+        onChanged: !_canEdit || _draft.eventId != null
+            ? null
+            : (value) {
+                if (value == null) return;
+                final start = _draft.start;
+                setState(
+                  () => _draft = _draft.copyWith(
+                    eventType: value,
+                    googleStatusProperties: defaultGoogleStatusProperties(
+                      value,
+                    ),
+                    showAs: value == 'workingLocation'
+                        ? 'transparent'
+                        : 'opaque',
+                    visibilityOrSensitivity: value == 'workingLocation'
+                        ? 'public'
+                        : 'default',
+                    allDay: value == 'workingLocation' ? _draft.allDay : false,
+                    end:
+                        value == 'workingLocation' &&
+                            _draft.allDay &&
+                            start != null
+                        ? DateTime(start.year, start.month, start.day + 1)
+                        : _draft.end,
+                  ),
+                );
+              },
+      ),
+    ];
+    if (!googleStatusEventTypes.contains(type)) return rows;
+    final properties = _draft.googleStatusProperties;
+    if (type == 'focusTime' || type == 'outOfOffice') {
+      const modes = [
+        'declineNone',
+        'declineOnlyNewConflictingInvitations',
+        'declineAllConflictingInvitations',
+      ];
+      final mode = properties['autoDeclineMode']?.toString() ?? modes.first;
+      rows.add(
+        DropdownButtonFormField<String>(
+          key: const Key('android-google-auto-decline'),
+          initialValue: modes.contains(mode) ? mode : modes.first,
+          decoration: InputDecoration(labelText: l10n.googleDeclineInvitations),
+          items: [
+            for (final value in modes)
+              DropdownMenuItem(
+                value: value,
+                child: Text(googleAutoDeclineLabel(l10n, value)),
+              ),
+          ],
+          onChanged: !_canEdit
+              ? null
+              : (value) {
+                  if (value == null) return;
+                  setState(
+                    () => _draft = _draft.copyWith(
+                      googleStatusProperties: {
+                        ...properties,
+                        'autoDeclineMode': value,
+                      },
+                    ),
+                  );
+                },
+        ),
+      );
+      if (type == 'focusTime') {
+        rows.add(
+          DropdownButtonFormField<String>(
+            key: const Key('android-google-chat-status'),
+            initialValue: properties['chatStatus'] == 'doNotDisturb'
+                ? 'doNotDisturb'
+                : 'available',
+            decoration: InputDecoration(labelText: l10n.googleChatStatus),
+            items: [
+              DropdownMenuItem(
+                value: 'available',
+                child: Text(l10n.googleChatAvailable),
+              ),
+              DropdownMenuItem(
+                value: 'doNotDisturb',
+                child: Text(l10n.googleChatDoNotDisturb),
+              ),
+            ],
+            onChanged: !_canEdit
+                ? null
+                : (value) {
+                    if (value == null) return;
+                    setState(
+                      () => _draft = _draft.copyWith(
+                        googleStatusProperties: {
+                          ...properties,
+                          'chatStatus': value,
+                        },
+                      ),
+                    );
+                  },
+          ),
+        );
+      }
+      rows.add(
+        TextFormField(
+          key: ValueKey('android-google-decline-message-$type'),
+          initialValue: properties['declineMessage']?.toString() ?? '',
+          enabled: _canEdit,
+          decoration: InputDecoration(labelText: l10n.googleDeclineMessage),
+          onChanged: (value) => setState(
+            () => _draft = _draft.copyWith(
+              googleStatusProperties: {...properties, 'declineMessage': value},
+            ),
+          ),
+        ),
+      );
+      return rows;
+    }
+    const locations = ['homeOffice', 'officeLocation', 'customLocation'];
+    final locationType = properties['type']?.toString() ?? locations.first;
+    rows.add(
+      DropdownButtonFormField<String>(
+        key: const Key('android-google-working-location'),
+        initialValue: locations.contains(locationType)
+            ? locationType
+            : locations.first,
+        decoration: InputDecoration(labelText: l10n.googleWorkingLocation),
+        items: [
+          for (final value in locations)
+            DropdownMenuItem(
+              value: value,
+              child: Text(googleWorkingLocationLabel(l10n, value)),
+            ),
+        ],
+        onChanged: !_canEdit
+            ? null
+            : (value) {
+                if (value == null) return;
+                final next = {...properties}
+                  ..remove('homeOffice')
+                  ..remove('officeLocation')
+                  ..remove('customLocation');
+                next['type'] = value;
+                next[value] = value == 'homeOffice'
+                    ? <String, Object?>{}
+                    : (properties[value] is Map
+                          ? Map<String, Object?>.from(properties[value] as Map)
+                          : <String, Object?>{});
+                setState(
+                  () => _draft = _draft.copyWith(googleStatusProperties: next),
+                );
+              },
+      ),
+    );
+    if (locationType != 'homeOffice') {
+      final detail = properties[locationType] is Map
+          ? Map<String, Object?>.from(properties[locationType] as Map)
+          : <String, Object?>{};
+      rows.add(
+        TextFormField(
+          key: ValueKey('android-google-location-label-$locationType'),
+          initialValue: detail['label']?.toString() ?? '',
+          enabled: _canEdit,
+          decoration: InputDecoration(labelText: l10n.googleWorkLocationLabel),
+          onChanged: (value) => setState(
+            () => _draft = _draft.copyWith(
+              googleStatusProperties: {
+                ...properties,
+                locationType: {...detail, 'label': value},
+              },
+            ),
+          ),
+        ),
+      );
+    }
+    return rows;
+  }
+
+  Widget _googleEventLabelField(CalendarSourceEntity source) {
+    final labels = ref.watch(
+      googleEventLabelsForCalendarProvider((
+        accountId: source.accountId,
+        calendarId: source.providerCalendarId,
+      )),
+    );
+    final current = _draft.eventLabelId;
+    return labels.when(
+      loading: () => ListTile(
+        title: Text(context.l10n.eventLabel),
+        subtitle: Text(current ?? context.l10n.noneValue),
+      ),
+      error: (_, _) => ListTile(
+        title: Text(context.l10n.eventLabel),
+        subtitle: Text(current ?? context.l10n.noneValue),
+        trailing: TextButton(
+          onPressed: () => ref.invalidate(
+            googleEventLabelsForCalendarProvider((
+              accountId: source.accountId,
+              calendarId: source.providerCalendarId,
+            )),
+          ),
+          child: Text(context.l10n.retry),
+        ),
+      ),
+      data: (available) {
+        final byId = {for (final label in available) label.id: label};
+        final ids = <String>[
+          '',
+          ...byId.keys,
+          if (current != null && !byId.containsKey(current)) current,
+        ];
+        return DropdownButtonFormField<String>(
+          key: ValueKey('android-event-label-${source.id}'),
+          isExpanded: true,
+          initialValue: current ?? '',
+          decoration: InputDecoration(labelText: context.l10n.eventLabel),
+          items: [
+            for (final id in ids)
+              DropdownMenuItem(
+                key: ValueKey('android-event-label-option-$id'),
+                value: id,
+                child: Text.rich(
+                  TextSpan(
+                    children: [
+                      if (byId[id] case final label?)
+                        TextSpan(
+                          text: '● ',
+                          style: TextStyle(
+                            color: Color(
+                              0xff000000 |
+                                  int.parse(
+                                    label.backgroundColor.substring(1),
+                                    radix: 16,
+                                  ),
+                            ),
+                          ),
+                        ),
+                      TextSpan(
+                        text: id.isEmpty
+                            ? context.l10n.noneValue
+                            : byId[id]?.name ??
+                                  context.l10n.unknownEventLabel(id),
+                      ),
+                    ],
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+          ],
+          onChanged: !_canEdit
+              ? null
+              : (id) => setState(
+                  () => _draft = id == null || id.isEmpty
+                      ? _draft.copyWith(clearEventLabelId: true)
+                      : _draft.copyWith(eventLabelId: id),
+                ),
+        );
+      },
+    );
+  }
+
+  Widget _microsoftCategoryField(CalendarSourceEntity source) {
+    final catalog = ref.watch(
+      microsoftMasterCategoriesProvider(source.accountId),
+    );
+    return catalog.when(
+      loading: () => const LinearProgressIndicator(),
+      error: (_, _) => TextButton(
+        onPressed: () async {
+          try {
+            await ref
+                .read(microsoftCategoryAuthorizationProvider)
+                ?.authorizeCategoryAccess(source.accountId);
+            if (mounted) {
+              ref.invalidate(
+                microsoftMasterCategoriesProvider(source.accountId),
+              );
+            }
+          } on Object {
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text(context.l10n.outlookCategoriesUnavailable),
+                ),
+              );
+            }
+          }
+        },
+        child: Text(context.l10n.loadOutlookCategories),
+      ),
+      data: (categories) => Wrap(
+        spacing: 8,
+        runSpacing: 4,
+        children: [
+          for (final category in categories)
+            FilterChip(
+              label: Text(category.displayName),
+              avatar: microsoftCategorySwatchArgb(category.color) == null
+                  ? null
+                  : CircleAvatar(
+                      backgroundColor: Color(
+                        microsoftCategorySwatchArgb(category.color)!,
+                      ),
+                      radius: 7,
+                    ),
+              selected: _categories.text
+                  .split(',')
+                  .map((value) => value.trim())
+                  .contains(category.displayName),
+              onSelected: !_canEdit
+                  ? null
+                  : (selected) {
+                      final values = _categories.text
+                          .split(',')
+                          .map((value) => value.trim())
+                          .where((value) => value.isNotEmpty)
+                          .toList();
+                      if (selected) {
+                        if (!values.contains(category.displayName)) {
+                          values.add(category.displayName);
+                        }
+                      } else {
+                        values.remove(category.displayName);
+                      }
+                      setState(() => _categories.text = values.join(', '));
+                    },
+            ),
+        ],
+      ),
+    );
   }
 
   Future<void> _save() async {
@@ -3173,6 +3616,34 @@ class _AndroidEventEditorState extends ConsumerState<AndroidEventEditor> {
                         recoveredSource.allowedConferenceSolutions.contains(
                           'teamsForBusiness',
                         )),
+          eventLabelId:
+              map['eventLabelChanged'] == true &&
+                  recoveredSource.provider == BusyProvider.google &&
+                  map['eventLabelSourceId'] == recoveredSource.id
+              ? map['eventLabelId']?.toString()
+              : null,
+          clearEventLabelId:
+              map['eventLabelChanged'] == true &&
+              recoveredSource.provider == BusyProvider.google &&
+              map['eventLabelSourceId'] == recoveredSource.id &&
+              map['eventLabelId'] == null,
+          eventLabelChanged:
+              map['eventLabelChanged'] == true &&
+              recoveredSource.provider == BusyProvider.google &&
+              map['eventLabelSourceId'] == recoveredSource.id,
+          eventType:
+              recoveredSource.provider == BusyProvider.google &&
+                  recoveredSource.primaryCalendar &&
+                  (widget.draft.eventId == null ||
+                      map['eventType'] == widget.draft.eventType)
+              ? map['eventType']?.toString()
+              : null,
+          googleStatusProperties:
+              recoveredSource.provider == BusyProvider.google &&
+                  recoveredSource.primaryCalendar &&
+                  map['googleStatusProperties'] is Map
+              ? Map<String, Object?>.from(map['googleStatusProperties'] as Map)
+              : null,
         );
       });
     } on Object {
@@ -3213,6 +3684,11 @@ class _AndroidEventEditorState extends ConsumerState<AndroidEventEditor> {
       'reminderMinutes': _reminderMinutes,
       'googleReminders': _editedGoogleReminders,
       'createConference': _draft.createConference,
+      'eventLabelId': _draft.eventLabelId,
+      'eventLabelChanged': _draft.eventLabelChanged,
+      'eventLabelSourceId': _draft.sourceId,
+      'eventType': _draft.eventType,
+      'googleStatusProperties': _draft.googleStatusProperties,
       'frequency': _recurrenceRule.frequency.name,
       if (_recurrenceChanged && _recurrenceRule.isSupported)
         'recurrenceRule': _recurrenceRule.toJsonString(),
