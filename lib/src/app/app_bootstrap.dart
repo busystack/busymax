@@ -66,7 +66,9 @@ import '../google_tasks/http/retrying_http_client.dart';
 import '../google_tasks/oauth/oauth_loopback_flow.dart';
 import '../google_tasks/oauth/oauth_service.dart';
 import '../google_calendar/google_calendar_api_client.dart';
+import '../google_calendar/google_calendar_models.dart';
 import '../microsoft_calendar/microsoft_calendar_api_client.dart';
+import '../microsoft_calendar/microsoft_calendar_models.dart';
 import '../microsoft_calendar/microsoft_event_attachment.dart';
 import '../microsoft_todo/api/microsoft_todo_api_models.dart';
 import '../microsoft_todo/api/microsoft_todo_api_client.dart';
@@ -515,6 +517,16 @@ final googleCalendarApiClientForAccountProvider =
       );
     });
 
+final googleEventLabelsForCalendarProvider =
+    FutureProvider.family<
+      List<GoogleEventLabel>,
+      ({String accountId, String calendarId})
+    >(
+      (ref, key) async => ref
+          .watch(googleCalendarApiClientForAccountProvider(key.accountId))
+          .getEventLabels(key.calendarId),
+    );
+
 final microsoftTodoApiClientForAccountProvider =
     Provider.family<MicrosoftTodoApiClient, String>((ref, accountId) {
       final config = ref.watch(buildConfigProvider);
@@ -646,10 +658,28 @@ final microsoftCalendarApiClientForAccountProvider =
         sharedCalendarAuthorizationHeaderProvider: () => ref
             .read(accountTokenBrokerProvider)
             .microsoftSharedCalendarAuthorizationHeader(accountId),
+        categoryAuthorizationHeaderProvider: () => ref
+            .read(accountTokenBrokerProvider)
+            .microsoftCategoryAuthorizationHeader(accountId),
         unauthorizedRefreshProvider: () => ref
             .read(accountTokenBrokerProvider)
             .recoverUnauthorized(BusyProvider.microsoft, accountId),
       );
+    });
+
+final microsoftMasterCategoriesProvider =
+    FutureProvider.family<List<MicrosoftMasterCategory>, String>(
+      (ref, accountId) => ref
+          .watch(microsoftCalendarApiClientForAccountProvider(accountId))
+          .listMasterCategories(),
+    );
+
+final microsoftCategoryAuthorizationProvider =
+    Provider<MicrosoftCategoryAuthorization?>((ref) {
+      final gateway = ref.watch(applicationMicrosoftOAuthServiceProvider);
+      return gateway is MicrosoftCategoryAuthorization
+          ? gateway as MicrosoftCategoryAuthorization
+          : null;
     });
 
 final microsoftTodoTaskRemoteClientForAccountProvider =
