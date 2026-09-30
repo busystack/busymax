@@ -70,6 +70,106 @@ class GoogleCalendarApiClient
     );
   }
 
+  /// Labels belong to one calendar; never cache these against an account or
+  /// reuse an ID after the editor changes calendars.
+  Future<List<GoogleEventLabel>> getEventLabels(String calendarId) async {
+    final json = await _requestJson(
+      'GET',
+      _uri('/calendar/v3/calendars/${_enc(calendarId)}'),
+    );
+    final properties = json['labelProperties'];
+    if (properties == null) {
+      throw const FormatException('Calendar label metadata is unavailable.');
+    }
+    if (properties is! Map || properties['eventLabels'] is! List) {
+      throw const FormatException('Malformed calendar label properties.');
+    }
+    final entries = properties['eventLabels'] as List;
+    if (entries.any((entry) => entry is! Map)) {
+      throw const FormatException('Malformed calendar event labels.');
+    }
+    return List.unmodifiable([
+      for (final entry in entries)
+        GoogleEventLabel.fromJson(Map<String, Object?>.from(entry as Map)),
+    ]);
+  }
+
+  Future<List<GoogleAclRule>> listAclRules(String calendarId) async {
+    final path = '/calendar/v3/calendars/${_enc(calendarId)}/acl';
+    final rules = <GoogleAclRule>[];
+    final seenTokens = <String>{};
+    String? pageToken;
+    do {
+      final json = await _requestJson(
+        'GET',
+        _uri(path, query: _compactQuery({'pageToken': pageToken})),
+      );
+      final items = json['items'];
+      if (items is! List || items.any((item) => item is! Map)) {
+        throw const FormatException('Malformed Google calendar ACL list.');
+      }
+      for (final item in items) {
+        rules.add(
+          GoogleAclRule.fromJson(Map<String, Object?>.from(item as Map)),
+        );
+      }
+      pageToken = json['nextPageToken']?.toString();
+      if (pageToken != null &&
+          pageToken.isNotEmpty &&
+          !seenTokens.add(pageToken)) {
+        throw const FormatException('Repeated Google calendar ACL page.');
+      }
+    } while (pageToken != null && pageToken.isNotEmpty);
+    return List.unmodifiable(rules);
+  }
+
+  Future<GoogleAclRule> addAclUser(
+    String calendarId, {
+    required String email,
+    required String role,
+  }) async {
+    _validateAclUserRole(role);
+    if (!RegExp(r'^[^\s@/]+@[^\s@/]+\.[^\s@/]+$').hasMatch(email)) {
+      throw ArgumentError.value(email, 'email', 'Invalid recipient address');
+    }
+    final json = await _requestJson(
+      'POST',
+      _uri('/calendar/v3/calendars/${_enc(calendarId)}/acl'),
+      body: {
+        'role': role,
+        'scope': {'type': 'user', 'value': email},
+      },
+    );
+    return GoogleAclRule.fromJson(json);
+  }
+
+  Future<GoogleAclRule> changeAclRole(
+    String calendarId,
+    GoogleAclRule rule,
+    String role,
+  ) async {
+    _validateAclUserRole(role);
+    if (rule.role == 'owner' || rule.scopeType != 'user') {
+      throw ArgumentError('This ACL rule is not mutable here.');
+    }
+    final json = await _requestJson(
+      'PATCH',
+      _uri('/calendar/v3/calendars/${_enc(calendarId)}/acl/${_enc(rule.id)}'),
+      body: {'role': role},
+    );
+    return GoogleAclRule.fromJson(json);
+  }
+
+  Future<void> revokeAclUser(String calendarId, GoogleAclRule rule) {
+    if (rule.role == 'owner' || rule.scopeType != 'user') {
+      throw ArgumentError('This ACL rule is not revocable here.');
+    }
+    return _requestEmpty(
+      'DELETE',
+      _uri('/calendar/v3/calendars/${_enc(calendarId)}/acl/${_enc(rule.id)}'),
+    );
+  }
+
   @override
   Future<CalendarSourceDto> createCalendar(CalendarMutation mutation) async {
     final json = await _requestJson(
@@ -207,6 +307,7 @@ class GoogleCalendarApiClient
     CalendarGuestUpdatePolicy guestUpdatePolicy =
         CalendarGuestUpdatePolicy.send,
   }) async {
+    final body = googleEventMutationToJson(mutation);
     final json = await _requestJson(
       'POST',
       _uri(
@@ -214,16 +315,18 @@ class GoogleCalendarApiClient
         query: {
           'conferenceDataVersion': '1',
           'supportsAttachments': 'true',
+          if (body.containsKey('eventLabelId')) 'eventLabelVersion': '1',
           'sendUpdates': _googleGuestUpdatePolicy(guestUpdatePolicy),
         },
       ),
-      body: googleEventMutationToJson(mutation),
+      body: body,
     );
     return googleCalendarEventFromJson(calendarId, json);
   }
 
   /// Calendar's import operation creates a private copy identified by the
   /// iCalendar UID; it is not an ordinary event insertion or invitation send.
+  @override
   Future<CalendarEventDto> importEvent({
     required String calendarId,
     required String iCalUid,
@@ -239,20 +342,29 @@ class GoogleCalendarApiClient
       'POST',
       _uri(
         '/calendar/v3/calendars/${_enc(calendarId)}/events/import',
-        query: const {'supportsAttachments': 'true'},
+        query: {
+          'supportsAttachments': 'true',
+          if (body.containsKey('eventLabelId')) 'eventLabelVersion': '1',
+        },
       ),
       body: body,
     );
     return googleCalendarEventFromJson(calendarId, json);
   }
 
+  @override
   Future<List<CalendarEventDto>> eventsWithICalUid({
     required String calendarId,
     required String iCalUid,
+    bool includeCancelled = false,
   }) async {
     final events = <CalendarEventDto>[];
     String? pageToken;
+    final visited = <String>{};
     do {
+      if (pageToken != null && !visited.add(pageToken)) {
+        throw const FormatException('Google series pagination loop.');
+      }
       final json = await _requestJson(
         'GET',
         _uri(
@@ -260,7 +372,7 @@ class GoogleCalendarApiClient
           query: _compactQuery({
             'iCalUID': iCalUid,
             'singleEvents': 'false',
-            'showDeleted': 'false',
+            'showDeleted': includeCancelled ? 'true' : 'false',
             'maxResults': '250',
             'pageToken': pageToken,
           }),
@@ -326,11 +438,11 @@ class GoogleCalendarApiClient
         Map<String, Object?>.from(entry as Map),
     ];
     if (addFileUrl != null) {
+      if (attachments.any((entry) => entry['fileUrl'] == uri.toString())) {
+        return googleCalendarEventFromJson(calendarId, current);
+      }
       if (attachments.length >= 25) {
         throw StateError('Google events allow at most 25 attachments.');
-      }
-      if (attachments.any((entry) => entry['fileUrl'] == uri.toString())) {
-        throw StateError('Attachment reference already exists.');
       }
       attachments.add({
         'fileUrl': uri.toString(),
@@ -341,17 +453,41 @@ class GoogleCalendarApiClient
       final before = attachments.length;
       attachments.removeWhere((entry) => entry['fileUrl'] == uri.toString());
       if (attachments.length == before) {
-        throw StateError('Attachment reference is no longer present.');
+        return googleCalendarEventFromJson(calendarId, current);
       }
     }
-    final updated = await _requestJson(
-      'PATCH',
-      eventUri.replace(
-        queryParameters: {'supportsAttachments': 'true', 'sendUpdates': 'none'},
-      ),
-      body: {'attachments': attachments},
-      headers: {'If-Match': etag},
-    );
+    late final Map<String, Object?> updated;
+    try {
+      updated = await _requestJson(
+        'PATCH',
+        eventUri.replace(
+          queryParameters: {
+            'supportsAttachments': 'true',
+            'sendUpdates': 'none',
+          },
+        ),
+        body: {'attachments': attachments},
+        headers: {'If-Match': etag},
+      );
+    } on Object catch (error, stack) {
+      // A failed response can follow a committed write. Read the authoritative
+      // resource before allowing an operator to retry the array replacement.
+      try {
+        final after = await _requestJson('GET', eventUri);
+        final afterRaw = after['attachments'];
+        if (afterRaw is List && afterRaw.every((entry) => entry is Map)) {
+          final present = afterRaw.any(
+            (entry) => (entry as Map)['fileUrl'] == uri.toString(),
+          );
+          if (present == (addFileUrl != null)) {
+            return googleCalendarEventFromJson(calendarId, after);
+          }
+        }
+      } on Object {
+        // Preserve the original failure if reconciliation is unavailable.
+      }
+      Error.throwWithStackTrace(error, stack);
+    }
     return googleCalendarEventFromJson(calendarId, updated);
   }
 
@@ -364,16 +500,22 @@ class GoogleCalendarApiClient
         CalendarGuestUpdatePolicy.send,
     String? ifMatch,
   }) async {
+    // A normal event edit is a PATCH. Sending the cached attachment array
+    // would replace the provider's entire collection, including references
+    // added after our last sync. The dedicated attachment operation reads the
+    // fresh event and uses its ETag before replacing that array.
+    final body = googleEventMutationToJson(mutation)..remove('attachments');
     final json = await _requestJson(
       'PATCH',
       _uri(
         '/calendar/v3/calendars/${_enc(calendarId)}/events/${_enc(eventId)}',
         query: {
           'conferenceDataVersion': '1',
+          if (body.containsKey('eventLabelId')) 'eventLabelVersion': '1',
           'sendUpdates': _googleGuestUpdatePolicy(guestUpdatePolicy),
         },
       ),
-      body: googleEventMutationToJson(mutation),
+      body: body,
       headers: {if (ifMatch != null) 'If-Match': ifMatch},
     );
     return googleCalendarEventFromJson(calendarId, json);
@@ -386,16 +528,18 @@ class GoogleCalendarApiClient
     CalendarGuestUpdatePolicy guestUpdatePolicy =
         CalendarGuestUpdatePolicy.send,
   }) async {
+    final body = googleEventMutationToJson(mutation);
     final json = await _requestJson(
       'PUT',
       _uri(
         '/calendar/v3/calendars/${_enc(calendarId)}/events/${_enc(eventId)}',
         query: {
           'conferenceDataVersion': '1',
+          if (body.containsKey('eventLabelId')) 'eventLabelVersion': '1',
           'sendUpdates': _googleGuestUpdatePolicy(guestUpdatePolicy),
         },
       ),
-      body: googleEventMutationToJson(mutation),
+      body: body,
     );
     return googleCalendarEventFromJson(calendarId, json);
   }
@@ -826,6 +970,17 @@ bool _hasCalendarListColor(CalendarMutation mutation) {
 }
 
 String _enc(String value) => Uri.encodeComponent(value);
+
+void _validateAclUserRole(String role) {
+  if (!const {
+    'freeBusyReader',
+    'reader',
+    'writerWithoutPrivateAccess',
+    'writer',
+  }.contains(role)) {
+    throw ArgumentError.value(role, 'role', 'Unsupported sharing role');
+  }
+}
 
 String _rfc3339(DateTime value) => value.toUtc().toIso8601String();
 

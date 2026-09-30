@@ -67,6 +67,9 @@ class CalendarEventMutation {
     this.attendees,
     this.clearAttendees = false,
     this.colorId,
+    this.eventLabelId,
+    this.eventType,
+    this.googleStatusProperties,
     this.visibility,
     this.transparencyOrShowAs,
     this.conference,
@@ -102,6 +105,11 @@ class CalendarEventMutation {
   final Object? attendees;
   final bool clearAttendees;
   final String? colorId;
+
+  /// Null leaves the label untouched; empty explicitly clears it.
+  final String? eventLabelId;
+  final String? eventType;
+  final Map<String, Object?>? googleStatusProperties;
   final String? visibility;
   final String? transparencyOrShowAs;
   final Object? conference;

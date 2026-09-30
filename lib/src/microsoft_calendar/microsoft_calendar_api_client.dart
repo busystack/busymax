@@ -23,6 +23,7 @@ class MicrosoftCalendarApiClient
     this.accountTenantId,
     Future<String> Function()? authorizationHeaderProvider,
     Future<String> Function()? sharedCalendarAuthorizationHeaderProvider,
+    Future<String> Function()? categoryAuthorizationHeaderProvider,
     Future<void> Function()? unauthorizedRefreshProvider,
   }) : _httpClient = httpClient,
        _baseUri = baseUri,
@@ -30,6 +31,8 @@ class MicrosoftCalendarApiClient
        _authorizationHeaderProvider = authorizationHeaderProvider,
        _sharedCalendarAuthorizationHeaderProvider =
            sharedCalendarAuthorizationHeaderProvider,
+       _categoryAuthorizationHeaderProvider =
+           categoryAuthorizationHeaderProvider,
        _unauthorizedRefreshProvider = unauthorizedRefreshProvider;
 
   final http.Client _httpClient;
@@ -38,6 +41,7 @@ class MicrosoftCalendarApiClient
   final String? accountTenantId;
   final Future<String> Function()? _authorizationHeaderProvider;
   final Future<String> Function()? _sharedCalendarAuthorizationHeaderProvider;
+  final Future<String> Function()? _categoryAuthorizationHeaderProvider;
   final Future<void> Function()? _unauthorizedRefreshProvider;
 
   @override
@@ -46,6 +50,91 @@ class MicrosoftCalendarApiClient
   @override
   CalendarProviderCapabilities get capabilities =>
       microsoftCalendarProviderCapabilities;
+
+  /// Optional account-scoped metadata. A denied MailboxSettings.Read grant
+  /// must not prevent event or task mutations using existing category names.
+  Future<List<MicrosoftMasterCategory>> listMasterCategories() async {
+    final categories = <MicrosoftMasterCategory>[];
+    final seen = <Uri>{};
+    Uri? uri = _uri('/me/outlook/masterCategories');
+    while (uri != null) {
+      if (!seen.add(uri)) {
+        throw const FormatException('Master category pagination loop.');
+      }
+      final page = MicrosoftGraphCollectionPage.fromJson(
+        await _requestJson('GET', uri),
+      );
+      categories.addAll(page.items.map(MicrosoftMasterCategory.fromJson));
+      uri = page.nextLink == null ? null : _trustedNextLink(page.nextLink!);
+    }
+    return List.unmodifiable(categories);
+  }
+
+  /// Graph's documented permission collection belongs to the signed-in
+  /// user's primary calendar. Other calendar IDs are not interchangeable.
+  Future<List<MicrosoftCalendarPermission>>
+  listPrimaryCalendarPermissions() async {
+    final permissions = <MicrosoftCalendarPermission>[];
+    final seen = <Uri>{};
+    Uri? uri = _uri('/me/calendar/calendarPermissions');
+    while (uri != null) {
+      if (!seen.add(uri)) {
+        throw const FormatException('Calendar permission pagination loop.');
+      }
+      final page = MicrosoftGraphCollectionPage.fromJson(
+        await _requestJson('GET', uri),
+      );
+      permissions.addAll(page.items.map(MicrosoftCalendarPermission.fromJson));
+      uri = page.nextLink == null ? null : _trustedNextLink(page.nextLink!);
+    }
+    return List.unmodifiable(permissions);
+  }
+
+  Future<MicrosoftCalendarPermission> addPrimaryCalendarPermission({
+    required String email,
+    required String role,
+  }) async {
+    _validateNewShareRole(role);
+    if (!RegExp(r'^[^\s@/]+@[^\s@/]+\.[^\s@/]+$').hasMatch(email)) {
+      throw ArgumentError.value(email, 'email', 'Invalid recipient address.');
+    }
+    final json = await _requestJson(
+      'POST',
+      _uri('/me/calendar/calendarPermissions'),
+      body: {
+        'emailAddress': {'address': email},
+        'role': role,
+      },
+    );
+    return MicrosoftCalendarPermission.fromJson(json);
+  }
+
+  Future<MicrosoftCalendarPermission> changePrimaryCalendarPermission(
+    MicrosoftCalendarPermission permission,
+    String role,
+  ) async {
+    if (!permission.allowedRoles.contains(role) || role == 'custom') {
+      throw ArgumentError.value(role, 'role', 'This role is not permitted.');
+    }
+    final json = await _requestJson(
+      'PATCH',
+      _uri('/me/calendar/calendarPermissions/${_enc(permission.id)}'),
+      body: {'role': role},
+    );
+    return MicrosoftCalendarPermission.fromJson(json);
+  }
+
+  Future<void> revokePrimaryCalendarPermission(
+    MicrosoftCalendarPermission permission,
+  ) {
+    if (!permission.isRemovable) {
+      throw ArgumentError('This calendar permission cannot be removed.');
+    }
+    return _requestEmpty(
+      'DELETE',
+      _uri('/me/calendar/calendarPermissions/${_enc(permission.id)}'),
+    );
+  }
 
   @override
   Future<List<CalendarSourceDto>> listCalendars() async {
@@ -513,13 +602,15 @@ class MicrosoftCalendarApiClient
     );
     final rawExceptions = json['exceptionOccurrences'];
     final rawCancelled = json['cancelledOccurrences'];
-    if (rawExceptions != null && rawExceptions is! List ||
-        rawCancelled != null && rawCancelled is! List) {
+    if (rawExceptions is! List ||
+        rawCancelled is! List ||
+        json.containsKey('exceptionOccurrences@odata.nextLink') ||
+        json.containsKey('cancelledOccurrences@odata.nextLink')) {
       throw const FormatException('Malformed series exception collection.');
     }
     return (
       exceptions: [
-        for (final value in rawExceptions as List? ?? const [])
+        for (final value in rawExceptions)
           if (value is Map)
             microsoftCalendarEventFromJson(
               calendarId,
@@ -529,7 +620,7 @@ class MicrosoftCalendarApiClient
             throw const FormatException('Malformed series exception event.'),
       ],
       cancelledIds: {
-        for (final value in rawCancelled as List? ?? const [])
+        for (final value in rawCancelled)
           if (value is String)
             value
           else
@@ -764,7 +855,10 @@ class MicrosoftCalendarApiClient
     bool retried = false,
   }) async {
     _trustedNextLink(uri.toString());
-    final authorizationHeaderProvider = uri.pathSegments.contains('users')
+    final authorizationHeaderProvider =
+        uri.pathSegments.contains('masterCategories')
+        ? _categoryAuthorizationHeaderProvider ?? _authorizationHeaderProvider
+        : uri.pathSegments.contains('users')
         ? _sharedCalendarAuthorizationHeaderProvider ??
               _authorizationHeaderProvider
         : _authorizationHeaderProvider;
@@ -935,3 +1029,9 @@ String _microsoftInvitationAction(CalendarInvitationResponse response) =>
       CalendarInvitationResponse.tentative => 'tentativelyAccept',
       CalendarInvitationResponse.decline => 'decline',
     };
+
+void _validateNewShareRole(String role) {
+  if (!const {'freeBusyRead', 'limitedRead', 'read', 'write'}.contains(role)) {
+    throw ArgumentError.value(role, 'role', 'Unsupported sharing role.');
+  }
+}

@@ -21,6 +21,13 @@ const microsoftTodoOAuthScopes =
 const microsoftSharedCalendarScope =
     'https://graph.microsoft.com/Calendars.ReadWrite.Shared';
 
+const microsoftCategoryScope =
+    'https://graph.microsoft.com/MailboxSettings.Read';
+
+abstract interface class MicrosoftCategoryAuthorization {
+  Future<void> authorizeCategoryAccess(String accountId);
+}
+
 abstract interface class MicrosoftSharedCalendarAuthorization {
   Future<void> authorizeSharedCalendarAccess(String accountId);
 }
@@ -39,7 +46,10 @@ abstract interface class MicrosoftOAuthGateway {
 }
 
 class MicrosoftOAuthService
-    implements MicrosoftOAuthGateway, MicrosoftSharedCalendarAuthorization {
+    implements
+        MicrosoftOAuthGateway,
+        MicrosoftSharedCalendarAuthorization,
+        MicrosoftCategoryAuthorization {
   MicrosoftOAuthService({
     required BuildConfig config,
     required http.Client httpClient,
@@ -158,6 +168,84 @@ class MicrosoftOAuthService
     return 'Bearer ${tokenSet.accessToken}';
   }
 
+  Future<String> categoryAuthorizationHeaderForAccount(String accountId) async {
+    final tokenSet = await validTokenForAccount(accountId);
+    if (!tokenSet.scopes.contains(microsoftCategoryScope)) {
+      throw const OAuthException(
+        'MicrosoftOAuthCategoryConsentRequired',
+        'Outlook category lookup requires optional mailbox-settings consent.',
+      );
+    }
+    return 'Bearer ${tokenSet.accessToken}';
+  }
+
+  @override
+  Future<void> authorizeCategoryAccess(String accountId) async {
+    final generation = _credentialGenerations[accountId] ?? 0;
+    final existing = await _readTokenSet(accountId);
+    if (existing == null) {
+      throw const OAuthException(
+        'MicrosoftOAuthMissingToken',
+        'Reconnect this Microsoft account before loading categories.',
+      );
+    }
+    if (existing.scopes.contains(microsoftCategoryScope)) return;
+    final result = await _loopbackFlow.start(
+      authorizationEndpoint: _authorizationEndpoint,
+      clientId: _config.microsoftOAuthClientId.trim(),
+      scope: [
+        microsoftTodoOAuthScopes,
+        if (existing.scopes.contains(microsoftSharedCalendarScope))
+          microsoftSharedCalendarScope,
+        microsoftCategoryScope,
+      ].join(' '),
+      redirectHost: 'localhost',
+      signInCancelledMessage: 'Microsoft category consent was cancelled.',
+      callbackNotReceivedMessage: microsoftSignInCallbackNotReceivedMessage,
+      serverStartFailureMessage:
+          'Could not start the Microsoft sign-in callback listener.',
+      browserLaunchFailureMessage:
+          'Could not open the browser for Microsoft sign-in.',
+      extraAuthorizationParameters: const {
+        'response_mode': 'query',
+        'prompt': 'consent',
+      },
+    );
+    final candidate = await exchangeAuthorizationCode(
+      code: result.callback.code,
+      codeVerifier: result.codeVerifier,
+      redirectUri: result.redirectUri,
+      fallbackScopeText: '',
+    );
+    final user = await _getMe(candidate);
+    if ('microsoft:${user.id}' != accountId ||
+        !candidate.scopes.contains(microsoftCategoryScope) ||
+        !candidate.scopes.containsAll({
+          'https://graph.microsoft.com/User.Read',
+          'https://graph.microsoft.com/Tasks.ReadWrite',
+          'https://graph.microsoft.com/Calendars.ReadWrite',
+          if (existing.scopes.contains(microsoftSharedCalendarScope))
+            microsoftSharedCalendarScope,
+        })) {
+      throw const OAuthException(
+        'MicrosoftOAuthCategoryConsentDenied',
+        'Outlook category access was not granted for this account.',
+      );
+    }
+    if ((_credentialGenerations[accountId] ?? 0) != generation ||
+        await _readTokenSet(accountId) == null) {
+      throw const OAuthException(
+        'MicrosoftOAuthCategoryConsentCancelled',
+        'The account was removed before category consent completed.',
+      );
+    }
+    await _tokenStore.saveOAuthTokenSet(
+      accountId,
+      BusyProvider.microsoft,
+      candidate,
+    );
+  }
+
   @override
   Future<void> authorizeSharedCalendarAccess(String accountId) async {
     final generation = _credentialGenerations[accountId] ?? 0;
@@ -172,7 +260,12 @@ class MicrosoftOAuthService
     final result = await _loopbackFlow.start(
       authorizationEndpoint: _authorizationEndpoint,
       clientId: _config.microsoftOAuthClientId.trim(),
-      scope: '$microsoftTodoOAuthScopes $microsoftSharedCalendarScope',
+      scope: [
+        microsoftTodoOAuthScopes,
+        microsoftSharedCalendarScope,
+        if (existing.scopes.contains(microsoftCategoryScope))
+          microsoftCategoryScope,
+      ].join(' '),
       redirectHost: 'localhost',
       signInCancelledMessage:
           'Microsoft shared-calendar consent was cancelled.',
@@ -201,7 +294,9 @@ class MicrosoftOAuthService
         ) ||
         !candidate.scopes.contains(
           'https://graph.microsoft.com/Calendars.ReadWrite',
-        )) {
+        ) ||
+        (existing.scopes.contains(microsoftCategoryScope) &&
+            !candidate.scopes.contains(microsoftCategoryScope))) {
       throw const OAuthException(
         'MicrosoftOAuthSharedConsentDenied',
         'Shared-calendar access was not granted for this account.',
@@ -320,9 +415,13 @@ class MicrosoftOAuthService
         'client_id': clientId,
         'grant_type': 'refresh_token',
         'refresh_token': current.refreshToken!,
-        'scope': current.scopes.contains(microsoftSharedCalendarScope)
-            ? '$microsoftTodoOAuthScopes $microsoftSharedCalendarScope'
-            : microsoftTodoOAuthScopes,
+        'scope': [
+          microsoftTodoOAuthScopes,
+          if (current.scopes.contains(microsoftSharedCalendarScope))
+            microsoftSharedCalendarScope,
+          if (current.scopes.contains(microsoftCategoryScope))
+            microsoftCategoryScope,
+        ].join(' '),
       },
     );
     if (response.statusCode < 200 || response.statusCode >= 300) {

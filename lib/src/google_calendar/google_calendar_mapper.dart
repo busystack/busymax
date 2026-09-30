@@ -116,6 +116,8 @@ Map<String, Object?> googleCalendarListColorMutationToJson(
 }
 
 Map<String, Object?> googleEventMutationToJson(CalendarEventMutation mutation) {
+  final statusType =
+      mutation.eventType ?? mutation.providerRaw?['eventType']?.toString();
   final allDay = mutation.allDay ?? mutation.startDate != null;
   final start = allDay
       ? _compact({'date': mutation.startDate})
@@ -147,6 +149,14 @@ Map<String, Object?> googleEventMutationToJson(CalendarEventMutation mutation) {
           ? const <Object?>[]
           : mutation.attendees,
       'colorId': mutation.colorId,
+      if (mutation.eventLabelId != null) 'eventLabelId': mutation.eventLabelId,
+      'eventType': mutation.eventType,
+      if (statusType case final type?
+          when mutation.googleStatusProperties != null)
+        if (type == 'focusTime' ||
+            type == 'outOfOffice' ||
+            type == 'workingLocation')
+          '${type}Properties': mutation.googleStatusProperties,
       'visibility': mutation.visibility,
       'transparency': mutation.transparencyOrShowAs,
       if (mutation.hideAttendees != null)
@@ -169,6 +179,7 @@ Map<String, Object?> _googleWritableEventFields(Map<String, Object?>? source) {
     'reminders',
     'attachments',
     'colorId',
+    'eventLabelId',
     'visibility',
     'transparency',
     'guestsCanInviteOthers',
@@ -177,6 +188,10 @@ Map<String, Object?> _googleWritableEventFields(Map<String, Object?>? source) {
     'extendedProperties',
     'source',
     'conferenceData',
+    'eventType',
+    'focusTimeProperties',
+    'outOfOfficeProperties',
+    'workingLocationProperties',
   };
   return {
     for (final entry in source.entries)
