@@ -382,10 +382,14 @@ final class CloudCalendarSharingService {
     RequestNotDispatchedException _ => true,
     ArgumentError _ => true,
     GoogleCalendarApiError e
-        when e.statusCode >= 400 && e.statusCode < 500 && e.statusCode != 408 =>
+        when e.statusCode >= 400 &&
+            e.statusCode < 500 &&
+            !const {408, 409, 429}.contains(e.statusCode) =>
       true,
     MicrosoftCalendarApiError e
-        when e.statusCode >= 400 && e.statusCode < 500 && e.statusCode != 408 =>
+        when e.statusCode >= 400 &&
+            e.statusCode < 500 &&
+            !const {408, 409, 429}.contains(e.statusCode) =>
       true,
     _ => false,
   };

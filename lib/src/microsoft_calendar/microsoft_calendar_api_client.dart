@@ -8,6 +8,7 @@ import '../calendar_providers/calendar_mutation.dart';
 import '../calendar_providers/calendar_provider_capabilities.dart';
 import '../calendar_providers/calendar_sync_dto.dart';
 import '../calendar_providers/cloud_calendar_client.dart';
+import '../core/http/request_dispatch_exception.dart';
 import '../core/time/provider_date_time.dart';
 import 'package:busymax/src/providers/busy_provider.dart';
 import 'microsoft_calendar_errors.dart';
@@ -925,12 +926,23 @@ class MicrosoftCalendarApiClient
         ? _sharedCalendarAuthorizationHeaderProvider ??
               _authorizationHeaderProvider
         : _authorizationHeaderProvider;
+    String? authorizationHeader;
+    try {
+      authorizationHeader = await authorizationHeaderProvider?.call();
+    } on Object catch (error, stackTrace) {
+      Error.throwWithStackTrace(
+        KnownUnsentRequestException(
+          kind: RequestPreDispatchFailureKind.authentication,
+          cause: error,
+        ),
+        stackTrace,
+      );
+    }
     final headers = <String, String>{
       'Accept': 'application/json',
       'Prefer': 'outlook.timezone="$_responseTimeZone"',
       if (body != null) 'Content-Type': 'application/json',
-      if (authorizationHeaderProvider != null)
-        'Authorization': await authorizationHeaderProvider(),
+      if (authorizationHeader != null) 'Authorization': authorizationHeader,
     };
     final encodedBody = body == null ? null : jsonEncode(body);
     final response = switch (method) {
@@ -952,7 +964,17 @@ class MicrosoftCalendarApiClient
     if (response.statusCode == 401 &&
         !retried &&
         unauthorizedRefreshProvider != null) {
-      await unauthorizedRefreshProvider();
+      try {
+        await unauthorizedRefreshProvider();
+      } on Object catch (error, stackTrace) {
+        Error.throwWithStackTrace(
+          KnownUnsentRequestException(
+            kind: RequestPreDispatchFailureKind.authentication,
+            cause: error,
+          ),
+          stackTrace,
+        );
+      }
       return _send(method, uri, body: body, retried: true);
     }
     return response;

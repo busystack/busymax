@@ -2,6 +2,8 @@ import 'dart:convert';
 
 import 'package:busymax/src/calendar_providers/calendar_mutation.dart';
 import 'package:busymax/src/calendar_providers/calendar_sync_dto.dart';
+import 'package:busymax/src/core/auth/oauth_models.dart';
+import 'package:busymax/src/core/http/request_dispatch_exception.dart';
 import 'package:busymax/src/microsoft_calendar/microsoft_calendar_api_client.dart';
 import 'package:busymax/src/microsoft_calendar/microsoft_calendar_models.dart';
 import 'package:busymax/src/microsoft_calendar/microsoft_event_attachment.dart';
@@ -11,6 +13,129 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 
 void main() {
+  test('primary sharing authorization fails before Graph dispatch', () async {
+    const failure = OAuthException('TokenUnavailable', 'Token unavailable');
+    var requests = 0;
+    var ordinaryHeaders = 0;
+    var sharedHeaders = 0;
+    final client = MicrosoftCalendarApiClient(
+      httpClient: MockClient((request) async {
+        requests++;
+        return _json({'value': <Object>[]});
+      }),
+      baseUri: Uri.parse('https://graph.microsoft.com/v1.0'),
+      responseTimeZone: 'UTC',
+      authorizationHeaderProvider: () async {
+        ordinaryHeaders++;
+        throw failure;
+      },
+      sharedCalendarAuthorizationHeaderProvider: () async {
+        sharedHeaders++;
+        return 'Bearer shared';
+      },
+    );
+    await expectLater(
+      client.addPrimaryCalendarPermission(
+        email: 'friend@example.test',
+        role: 'read',
+      ),
+      throwsA(
+        isA<RequestNotDispatchedException>()
+            .having(
+              (error) => error.kind,
+              'kind',
+              RequestPreDispatchFailureKind.authentication,
+            )
+            .having((error) => error.cause, 'cause', same(failure)),
+      ),
+    );
+    expect(requests, 0);
+    expect(ordinaryHeaders, 1);
+    expect(sharedHeaders, 0);
+  });
+
+  test('primary sharing 401 and failed refresh is known uncommitted', () async {
+    const failure = OAuthRefreshException(
+      'RefreshDenied',
+      'Refresh denied',
+      statusCode: 400,
+    );
+    var recovered = false;
+    var requests = 0;
+    var refreshes = 0;
+    var sharedHeaders = 0;
+    final client = MicrosoftCalendarApiClient(
+      httpClient: MockClient((request) async {
+        requests++;
+        if (!recovered) return http.Response('{}', 401);
+        return _json({
+          'id': 'grant',
+          'role': 'read',
+          'allowedRoles': ['read', 'write'],
+          'isRemovable': true,
+          'emailAddress': {'address': 'friend@example.test'},
+        });
+      }),
+      baseUri: Uri.parse('https://graph.microsoft.com/v1.0'),
+      responseTimeZone: 'UTC',
+      authorizationHeaderProvider: () async => 'Bearer calendar',
+      sharedCalendarAuthorizationHeaderProvider: () async {
+        sharedHeaders++;
+        return 'Bearer shared';
+      },
+      unauthorizedRefreshProvider: () async {
+        refreshes++;
+        throw failure;
+      },
+    );
+    await expectLater(
+      client.addPrimaryCalendarPermission(
+        email: 'friend@example.test',
+        role: 'read',
+      ),
+      throwsA(
+        isA<RequestNotDispatchedException>()
+            .having(
+              (error) => error.kind,
+              'kind',
+              RequestPreDispatchFailureKind.authentication,
+            )
+            .having((error) => error.cause, 'cause', same(failure)),
+      ),
+    );
+    expect(requests, 1);
+    expect(refreshes, 1);
+    expect(sharedHeaders, 0);
+    recovered = true;
+    await client.addPrimaryCalendarPermission(
+      email: 'friend@example.test',
+      role: 'read',
+    );
+    expect(requests, 2);
+    expect(refreshes, 1);
+  });
+
+  test('lost Graph sharing response is not known-unsent', () async {
+    var requests = 0;
+    final client = MicrosoftCalendarApiClient(
+      httpClient: MockClient((request) async {
+        requests++;
+        throw http.ClientException('response lost');
+      }),
+      baseUri: Uri.parse('https://graph.microsoft.com/v1.0'),
+      responseTimeZone: 'UTC',
+      authorizationHeaderProvider: () async => 'Bearer calendar',
+    );
+    await expectLater(
+      client.addPrimaryCalendarPermission(
+        email: 'friend@example.test',
+        role: 'read',
+      ),
+      throwsA(isA<http.ClientException>()),
+    );
+    expect(requests, 1);
+  });
+
   test(
     'primary calendar permissions paginate and enforce allowed roles',
     () async {

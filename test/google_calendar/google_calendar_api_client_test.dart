@@ -2,6 +2,8 @@ import 'dart:convert';
 
 import 'package:busymax/src/calendar_providers/calendar_mutation.dart';
 import 'package:busymax/src/calendar_providers/calendar_sync_dto.dart';
+import 'package:busymax/src/core/auth/oauth_models.dart';
+import 'package:busymax/src/core/http/request_dispatch_exception.dart';
 import 'package:busymax/src/db/app_database.dart';
 import 'package:busymax/src/features/sync/calendar_sync_engine.dart';
 import 'package:busymax/src/google_calendar/google_calendar_api_client.dart';
@@ -16,6 +18,114 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 
 void main() {
+  test('ACL authorization failure before dispatch retains its cause', () async {
+    const failure = OAuthException('TokenUnavailable', 'Token unavailable');
+    var requests = 0;
+    final client = GoogleCalendarApiClient(
+      httpClient: MockClient((request) async {
+        requests++;
+        return _json({'items': <Object>[]});
+      }),
+      baseUri: Uri.parse('https://www.googleapis.com'),
+      authorizationHeaderProvider: () async => throw failure,
+    );
+    await expectLater(
+      client.addAclUser(
+        'calendar',
+        email: 'friend@example.test',
+        role: 'reader',
+      ),
+      throwsA(
+        isA<RequestNotDispatchedException>()
+            .having(
+              (error) => error.kind,
+              'kind',
+              RequestPreDispatchFailureKind.authentication,
+            )
+            .having((error) => error.cause, 'cause', same(failure)),
+      ),
+    );
+    expect(requests, 0);
+  });
+
+  test('ACL 401 followed by failed refresh is known uncommitted', () async {
+    const failure = OAuthRefreshException(
+      'RefreshDenied',
+      'Refresh denied',
+      statusCode: 400,
+    );
+    var recovered = false;
+    var requests = 0;
+    var refreshes = 0;
+    final client = GoogleCalendarApiClient(
+      httpClient: MockClient((request) async {
+        requests++;
+        if (!recovered) return http.Response('{}', 401);
+        return _json({
+          'id': 'grant',
+          'role': 'reader',
+          'scope': {'type': 'user', 'value': 'friend@example.test'},
+        });
+      }),
+      baseUri: Uri.parse('https://www.googleapis.com'),
+      authorizationHeaderProvider: () async => 'Bearer token',
+      unauthorizedRefreshProvider: () async {
+        refreshes++;
+        throw failure;
+      },
+    );
+    await expectLater(
+      client.addAclUser(
+        'calendar',
+        email: 'friend@example.test',
+        role: 'reader',
+      ),
+      throwsA(
+        isA<RequestNotDispatchedException>()
+            .having(
+              (error) => error.kind,
+              'kind',
+              RequestPreDispatchFailureKind.authentication,
+            )
+            .having((error) => error.cause, 'cause', same(failure)),
+      ),
+    );
+    expect(requests, 1);
+    expect(refreshes, 1);
+    recovered = true;
+    await client.addAclUser(
+      'calendar',
+      email: 'friend@example.test',
+      role: 'reader',
+    );
+    expect(requests, 2);
+    expect(refreshes, 1);
+  });
+
+  test(
+    'lost ACL response is not a known-unsent authentication failure',
+    () async {
+      var requests = 0;
+      final client = GoogleCalendarApiClient(
+        httpClient: MockClient((request) async {
+          requests++;
+          throw http.ClientException('response lost');
+        }),
+        baseUri: Uri.parse('https://www.googleapis.com'),
+        authorizationHeaderProvider: () async => 'Bearer token',
+      );
+      await expectLater(
+        client.addAclUser(
+          'calendar',
+          email: 'friend@example.test',
+          role: 'reader',
+        ),
+        throwsA(isA<http.ClientException>()),
+      );
+      expect(requests, 1);
+    },
+  );
+
   test(
     'ACL management pages rules and targets only the selected calendar',
     () async {

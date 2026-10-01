@@ -6,6 +6,7 @@ import '../calendar_providers/calendar_mutation.dart';
 import '../calendar_providers/calendar_provider_capabilities.dart';
 import '../calendar_providers/calendar_sync_dto.dart';
 import '../calendar_providers/cloud_calendar_client.dart';
+import '../core/http/request_dispatch_exception.dart';
 import 'package:busymax/src/providers/busy_provider.dart';
 import 'google_calendar_errors.dart';
 import 'google_calendar_mapper.dart';
@@ -914,11 +915,22 @@ class GoogleCalendarApiClient
     bool retried = false,
   }) async {
     final authorizationHeaderProvider = _authorizationHeaderProvider;
+    String? authorizationHeader;
+    try {
+      authorizationHeader = await authorizationHeaderProvider?.call();
+    } on Object catch (error, stackTrace) {
+      Error.throwWithStackTrace(
+        KnownUnsentRequestException(
+          kind: RequestPreDispatchFailureKind.authentication,
+          cause: error,
+        ),
+        stackTrace,
+      );
+    }
     final requestHeaders = <String, String>{
       'Accept': 'application/json',
       if (body != null) 'Content-Type': 'application/json',
-      if (authorizationHeaderProvider != null)
-        'Authorization': await authorizationHeaderProvider(),
+      if (authorizationHeader != null) 'Authorization': authorizationHeader,
       ...headers,
     };
     final encodedBody = body == null ? null : jsonEncode(body);
@@ -946,7 +958,17 @@ class GoogleCalendarApiClient
     if (response.statusCode == 401 &&
         !retried &&
         unauthorizedRefreshProvider != null) {
-      await unauthorizedRefreshProvider();
+      try {
+        await unauthorizedRefreshProvider();
+      } on Object catch (error, stackTrace) {
+        Error.throwWithStackTrace(
+          KnownUnsentRequestException(
+            kind: RequestPreDispatchFailureKind.authentication,
+            cause: error,
+          ),
+          stackTrace,
+        );
+      }
       return _send(method, uri, body: body, headers: headers, retried: true);
     }
     return response;

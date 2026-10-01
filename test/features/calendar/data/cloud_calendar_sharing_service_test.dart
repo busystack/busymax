@@ -6,6 +6,7 @@ import 'package:busymax/src/app/busymax_design.dart';
 import 'package:busymax/src/features/calendar/data/cloud_calendar_sharing_service.dart';
 import 'package:busymax/src/android/presentation/android_cloud_calendar_sharing_content.dart';
 import 'package:busymax/src/core/http/request_dispatch_exception.dart';
+import 'package:busymax/src/core/auth/oauth_models.dart';
 import 'package:busymax/src/features/connectivity/network_connectivity_service.dart';
 import 'package:busymax/src/features/calendar/presentation/cloud_calendar_sharing_content.dart'
     as linux;
@@ -114,19 +115,217 @@ void main() {
     },
   );
 
+  test('calendar authorization failure cannot strand sharing intent', () async {
+    const source = CalendarSourceEntity(
+      id: 'auth-unsent-source',
+      accountId: 'auth-unsent-account',
+      provider: BusyProvider.google,
+      providerCalendarId: 'auth-unsent-calendar',
+      summary: 'Calendar',
+      selected: true,
+      hidden: false,
+      readOnly: false,
+      isDeleted: false,
+      accessRole: 'owner',
+    );
+    const failure = OAuthException('TokenUnavailable', 'Token unavailable');
+    var failAuthorization = false;
+    var mutations = 0;
+    final client = GoogleCalendarApiClient(
+      httpClient: MockClient((request) async {
+        if (request.method == 'GET') {
+          return http.Response(jsonEncode({'items': <Object>[]}), 200);
+        }
+        mutations++;
+        return http.Response(
+          jsonEncode({
+            'id': 'auth-grant',
+            'role': 'reader',
+            'scope': {'type': 'user', 'value': 'friend@example.test'},
+          }),
+          200,
+        );
+      }),
+      baseUri: Uri.parse('https://www.googleapis.com'),
+      authorizationHeaderProvider: () async {
+        if (failAuthorization) throw failure;
+        return 'Bearer token';
+      },
+    );
+    final service = CloudCalendarSharingService(source: source, google: client);
+    expect((await service.load()).grants, isEmpty);
+    failAuthorization = true;
+    await expectLater(
+      service.add(recipient: 'friend@example.test', role: 'reader'),
+      throwsA(isA<RequestNotDispatchedException>()),
+    );
+    expect(mutations, 0);
+    expect(service.hasUnresolvedOutcome, isFalse);
+    failAuthorization = false;
+    expect((await service.load()).outcomeUnknown, isFalse);
+    await service.add(recipient: 'friend@example.test', role: 'reader');
+    expect(mutations, 1);
+  });
+
   for (final provider in [BusyProvider.google, BusyProvider.microsoft]) {
-    for (final operation in ['add', 'change', 'revoke']) {
+    test(
+      '$provider rejected 401 and failed refresh permits a safe sharing retry',
+      () async {
+        final google = provider == BusyProvider.google;
+        final source = CalendarSourceEntity(
+          id: 'auth-401-$provider',
+          accountId: 'auth-401-account-$provider',
+          provider: provider,
+          providerCalendarId: 'auth-401-calendar-$provider',
+          summary: 'Calendar',
+          selected: true,
+          hidden: false,
+          readOnly: false,
+          isDeleted: false,
+          accessRole: 'owner',
+          primaryCalendar: !google,
+        );
+        const failure = OAuthRefreshException(
+          'RefreshDenied',
+          'Refresh denied',
+          statusCode: 400,
+        );
+        var recovered = false;
+        var committed = false;
+        var mutationRequests = 0;
+        var refreshes = 0;
+        final httpClient = MockClient((request) async {
+          if (request.method == 'GET') {
+            return http.Response(
+              jsonEncode(
+                google
+                    ? {
+                        'items': committed
+                            ? [
+                                {
+                                  'id': 'auth-401-grant',
+                                  'role': 'reader',
+                                  'scope': {
+                                    'type': 'user',
+                                    'value': 'friend@example.test',
+                                  },
+                                },
+                              ]
+                            : <Object>[],
+                      }
+                    : {
+                        'value': committed
+                            ? [
+                                {
+                                  'id': 'auth-401-grant',
+                                  'role': 'read',
+                                  'allowedRoles': ['read', 'write'],
+                                  'isRemovable': true,
+                                  'emailAddress': {
+                                    'address': 'friend@example.test',
+                                  },
+                                },
+                              ]
+                            : <Object>[],
+                      },
+              ),
+              200,
+            );
+          }
+          mutationRequests++;
+          if (!recovered) return http.Response('{}', 401);
+          committed = true;
+          return http.Response(
+            jsonEncode(
+              google
+                  ? {
+                      'id': 'auth-401-grant',
+                      'role': 'reader',
+                      'scope': {'type': 'user', 'value': 'friend@example.test'},
+                    }
+                  : {
+                      'id': 'auth-401-grant',
+                      'role': 'read',
+                      'allowedRoles': ['read', 'write'],
+                      'isRemovable': true,
+                      'emailAddress': {'address': 'friend@example.test'},
+                    },
+            ),
+            201,
+          );
+        });
+        Future<void> refresh() async {
+          refreshes++;
+          throw failure;
+        }
+
+        CloudCalendarSharingService create() => CloudCalendarSharingService(
+          source: source,
+          google: google
+              ? GoogleCalendarApiClient(
+                  httpClient: httpClient,
+                  baseUri: Uri.parse('https://www.googleapis.com'),
+                  authorizationHeaderProvider: () async => 'Bearer google',
+                  unauthorizedRefreshProvider: refresh,
+                )
+              : null,
+          microsoft: google
+              ? null
+              : MicrosoftCalendarApiClient(
+                  httpClient: httpClient,
+                  baseUri: Uri.parse('https://graph.microsoft.com/v1.0'),
+                  responseTimeZone: 'UTC',
+                  authorizationHeaderProvider: () async => 'Bearer microsoft',
+                  unauthorizedRefreshProvider: refresh,
+                ),
+        );
+        final service = create();
+        expect((await service.load()).grants, isEmpty);
+        await expectLater(
+          service.add(
+            recipient: 'friend@example.test',
+            role: google ? 'reader' : 'read',
+          ),
+          throwsA(
+            isA<RequestNotDispatchedException>()
+                .having(
+                  (error) => error.kind,
+                  'kind',
+                  RequestPreDispatchFailureKind.authentication,
+                )
+                .having((error) => error.cause, 'cause', same(failure)),
+          ),
+        );
+        expect(mutationRequests, 1);
+        expect(refreshes, 1);
+        expect(committed, isFalse);
+        expect(service.hasUnresolvedOutcome, isFalse);
+        recovered = true;
+        final reopened = create();
+        expect((await reopened.load()).grants, isEmpty);
+        final result = await reopened.add(
+          recipient: 'friend@example.test',
+          role: google ? 'reader' : 'read',
+        );
+        expect(result.outcomeUnknown, isFalse);
+        expect(result.grants.single.recipient, 'friend@example.test');
+        expect(mutationRequests, 2);
+        expect(refreshes, 1);
+      },
+    );
+  }
+
+  for (final provider in [BusyProvider.google, BusyProvider.microsoft]) {
+    for (final status in [408, 409, 429, 503]) {
       test(
-        '$provider $operation known-unsent mutation preserves grant state',
+        '$provider ambiguous status $status retains sharing intent',
         () async {
           final google = provider == BusyProvider.google;
-          final initialRole = google ? 'reader' : 'read';
-          final changedRole = google ? 'writer' : 'write';
           final source = CalendarSourceEntity(
-            id: 'unsent-$provider-$operation',
-            accountId: 'unsent-account-$provider-$operation',
+            id: 'ambiguous-$provider-$status',
+            accountId: 'ambiguous-account-$provider-$status',
             provider: provider,
-            providerCalendarId: 'unsent-calendar-$provider-$operation',
+            providerCalendarId: 'ambiguous-calendar-$provider-$status',
             summary: 'Calendar',
             selected: true,
             hidden: false,
@@ -135,131 +334,247 @@ void main() {
             accessRole: 'owner',
             primaryCalendar: !google,
           );
-          String? remoteRole = operation == 'add' ? null : initialRole;
-          var offline = false;
-          var providerMutations = 0;
-          final guardedHttp = ConnectivityAwareHttpClient(
-            inner: MockClient((request) async {
-              if (request.method == 'GET') {
-                return http.Response(
-                  jsonEncode(
-                    google
-                        ? {
-                            'items': remoteRole == null
-                                ? <Object>[]
-                                : [
-                                    {
-                                      'id': 'unsent-grant',
-                                      'role': remoteRole,
-                                      'scope': {
-                                        'type': 'user',
-                                        'value': 'friend@example.com',
-                                      },
-                                    },
-                                  ],
-                          }
-                        : {
-                            'value': remoteRole == null
-                                ? <Object>[]
-                                : [
-                                    {
-                                      'id': 'unsent-grant',
-                                      'role': remoteRole,
-                                      'allowedRoles': ['read', 'write'],
-                                      'isRemovable': true,
-                                      'emailAddress': {
-                                        'address': 'friend@example.com',
-                                      },
-                                    },
-                                  ],
-                          },
-                  ),
-                  200,
-                );
-              }
-              providerMutations++;
-              remoteRole = switch (operation) {
-                'add' => initialRole,
-                'change' => changedRole,
-                _ => null,
-              };
-              if (request.method == 'DELETE') return http.Response('', 204);
-              return http.Response(
-                jsonEncode(
-                  google
-                      ? {
-                          'id': 'unsent-grant',
-                          'role': remoteRole,
-                          'scope': {
-                            'type': 'user',
-                            'value': 'friend@example.com',
-                          },
-                        }
-                      : {
-                          'id': 'unsent-grant',
-                          'role': remoteRole,
-                          'allowedRoles': ['read', 'write'],
-                          'isRemovable': true,
-                          'emailAddress': {'address': 'friend@example.com'},
-                        },
-                ),
-                request.method == 'POST' ? 201 : 200,
-              );
-            }),
-            requireNetwork: () async {
-              if (offline) throw const NetworkUnavailableException();
-            },
-          );
-          CloudCalendarSharingService create() => CloudCalendarSharingService(
+          var mutationRequests = 0;
+          final httpClient = MockClient((request) async {
+            if (request.method == 'GET') {
+              return mutationRequests == 0
+                  ? http.Response(
+                      jsonEncode(
+                        google ? {'items': <Object>[]} : {'value': <Object>[]},
+                      ),
+                      200,
+                    )
+                  : http.Response('permission list unavailable', 503);
+            }
+            mutationRequests++;
+            return http.Response('{}', status);
+          });
+          final service = CloudCalendarSharingService(
             source: source,
             google: google
                 ? GoogleCalendarApiClient(
-                    httpClient: guardedHttp,
+                    httpClient: httpClient,
                     baseUri: Uri.parse('https://www.googleapis.com'),
                   )
                 : null,
             microsoft: google
                 ? null
                 : MicrosoftCalendarApiClient(
-                    httpClient: guardedHttp,
+                    httpClient: httpClient,
                     baseUri: Uri.parse('https://graph.microsoft.com/v1.0'),
                     responseTimeZone: 'UTC',
-                    accountTenantId: 'tenant',
                   ),
           );
-          final service = create();
-          final initial = await service.load();
-          expect(initial.grants.singleOrNull?.role, remoteRole);
-          Future<CloudCalendarShareSnapshot> mutate(
-            CloudCalendarSharingService target,
-            CloudCalendarShareSnapshot snapshot,
-          ) => switch (operation) {
-            'add' => target.add(
-              recipient: 'friend@example.com',
-              role: initialRole,
-            ),
-            'change' => target.change(snapshot.grants.single, changedRole),
-            _ => target.revoke(snapshot.grants.single),
-          };
-          offline = true;
-          await expectLater(
-            mutate(service, initial),
-            throwsA(isA<RequestNotDispatchedException>()),
+          expect((await service.load()).grants, isEmpty);
+          final result = await service.add(
+            recipient: 'friend@example.test',
+            role: google ? 'reader' : 'read',
           );
-          expect(providerMutations, 0);
-          expect(remoteRole, operation == 'add' ? null : initialRole);
-          expect(service.hasUnresolvedOutcome, isFalse);
-          offline = false;
-          final reopened = create();
-          final baseline = await reopened.load();
-          expect(baseline.outcomeUnknown, isFalse);
-          expect(baseline.grants.singleOrNull?.role, remoteRole);
-          final committed = await mutate(reopened, baseline);
-          expect(committed.outcomeUnknown, isFalse);
-          expect(providerMutations, 1);
-          expect(committed.grants.singleOrNull?.role, remoteRole);
+          expect(result.outcomeUnknown, isTrue);
+          expect(result.refreshError, isNotNull);
+          expect(service.hasUnresolvedOutcome, isTrue);
+          await expectLater(
+            service.add(
+              recipient: 'friend@example.test',
+              role: google ? 'reader' : 'read',
+            ),
+            throwsStateError,
+          );
+          expect(mutationRequests, 1);
         },
       );
+    }
+  }
+
+  for (final provider in [BusyProvider.google, BusyProvider.microsoft]) {
+    for (final operation in ['add', 'change', 'revoke']) {
+      for (final failureMode in ['connectivity', 'authentication']) {
+        test(
+          '$provider $operation $failureMode known-unsent mutation preserves grant state',
+          () async {
+            final google = provider == BusyProvider.google;
+            final initialRole = google ? 'reader' : 'read';
+            final changedRole = google ? 'writer' : 'write';
+            final source = CalendarSourceEntity(
+              id: 'unsent-$provider-$operation-$failureMode',
+              accountId: 'unsent-account-$provider-$operation-$failureMode',
+              provider: provider,
+              providerCalendarId:
+                  'unsent-calendar-$provider-$operation-$failureMode',
+              summary: 'Calendar',
+              selected: true,
+              hidden: false,
+              readOnly: false,
+              isDeleted: false,
+              accessRole: 'owner',
+              primaryCalendar: !google,
+            );
+            String? remoteRole = operation == 'add' ? null : initialRole;
+            const authFailure = OAuthException(
+              'TokenUnavailable',
+              'Token unavailable',
+            );
+            var offline = false;
+            var providerMutations = 0;
+            var sharedHeaders = 0;
+            final guardedHttp = ConnectivityAwareHttpClient(
+              inner: MockClient((request) async {
+                if (request.method == 'GET') {
+                  return http.Response(
+                    jsonEncode(
+                      google
+                          ? {
+                              'items': remoteRole == null
+                                  ? <Object>[]
+                                  : [
+                                      {
+                                        'id': 'unsent-grant',
+                                        'role': remoteRole,
+                                        'scope': {
+                                          'type': 'user',
+                                          'value': 'friend@example.com',
+                                        },
+                                      },
+                                    ],
+                            }
+                          : {
+                              'value': remoteRole == null
+                                  ? <Object>[]
+                                  : [
+                                      {
+                                        'id': 'unsent-grant',
+                                        'role': remoteRole,
+                                        'allowedRoles': ['read', 'write'],
+                                        'isRemovable': true,
+                                        'emailAddress': {
+                                          'address': 'friend@example.com',
+                                        },
+                                      },
+                                    ],
+                            },
+                    ),
+                    200,
+                  );
+                }
+                providerMutations++;
+                remoteRole = switch (operation) {
+                  'add' => initialRole,
+                  'change' => changedRole,
+                  _ => null,
+                };
+                if (request.method == 'DELETE') return http.Response('', 204);
+                return http.Response(
+                  jsonEncode(
+                    google
+                        ? {
+                            'id': 'unsent-grant',
+                            'role': remoteRole,
+                            'scope': {
+                              'type': 'user',
+                              'value': 'friend@example.com',
+                            },
+                          }
+                        : {
+                            'id': 'unsent-grant',
+                            'role': remoteRole,
+                            'allowedRoles': ['read', 'write'],
+                            'isRemovable': true,
+                            'emailAddress': {'address': 'friend@example.com'},
+                          },
+                  ),
+                  request.method == 'POST' ? 201 : 200,
+                );
+              }),
+              requireNetwork: () async {
+                if (offline && failureMode == 'connectivity') {
+                  throw const NetworkUnavailableException();
+                }
+              },
+            );
+            CloudCalendarSharingService create() => CloudCalendarSharingService(
+              source: source,
+              google: google
+                  ? GoogleCalendarApiClient(
+                      httpClient: guardedHttp,
+                      baseUri: Uri.parse('https://www.googleapis.com'),
+                      authorizationHeaderProvider: () async {
+                        if (offline && failureMode == 'authentication') {
+                          throw authFailure;
+                        }
+                        return 'Bearer google';
+                      },
+                    )
+                  : null,
+              microsoft: google
+                  ? null
+                  : MicrosoftCalendarApiClient(
+                      httpClient: guardedHttp,
+                      baseUri: Uri.parse('https://graph.microsoft.com/v1.0'),
+                      responseTimeZone: 'UTC',
+                      accountTenantId: 'tenant',
+                      authorizationHeaderProvider: () async {
+                        if (offline && failureMode == 'authentication') {
+                          throw authFailure;
+                        }
+                        return 'Bearer microsoft';
+                      },
+                      sharedCalendarAuthorizationHeaderProvider: () async {
+                        sharedHeaders++;
+                        return 'Bearer shared';
+                      },
+                    ),
+            );
+            final service = create();
+            final initial = await service.load();
+            expect(initial.grants.singleOrNull?.role, remoteRole);
+            Future<CloudCalendarShareSnapshot> mutate(
+              CloudCalendarSharingService target,
+              CloudCalendarShareSnapshot snapshot,
+            ) => switch (operation) {
+              'add' => target.add(
+                recipient: 'friend@example.com',
+                role: initialRole,
+              ),
+              'change' => target.change(snapshot.grants.single, changedRole),
+              _ => target.revoke(snapshot.grants.single),
+            };
+            offline = true;
+            await expectLater(
+              mutate(service, initial),
+              throwsA(
+                isA<RequestNotDispatchedException>()
+                    .having(
+                      (error) => error.kind,
+                      'kind',
+                      failureMode == 'authentication'
+                          ? RequestPreDispatchFailureKind.authentication
+                          : RequestPreDispatchFailureKind.connectivity,
+                    )
+                    .having(
+                      (error) => error.cause,
+                      'cause',
+                      failureMode == 'authentication'
+                          ? same(authFailure)
+                          : isNull,
+                    ),
+              ),
+            );
+            expect(providerMutations, 0);
+            expect(remoteRole, operation == 'add' ? null : initialRole);
+            expect(service.hasUnresolvedOutcome, isFalse);
+            offline = false;
+            final reopened = create();
+            final baseline = await reopened.load();
+            expect(baseline.outcomeUnknown, isFalse);
+            expect(baseline.grants.singleOrNull?.role, remoteRole);
+            final committed = await mutate(reopened, baseline);
+            expect(committed.outcomeUnknown, isFalse);
+            expect(providerMutations, 1);
+            expect(committed.grants.singleOrNull?.role, remoteRole);
+            expect(sharedHeaders, 0);
+          },
+        );
+      }
     }
   }
 
