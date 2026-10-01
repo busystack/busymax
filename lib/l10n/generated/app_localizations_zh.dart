@@ -2957,6 +2957,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get sharingRefreshFailed => '共享更改已成功，但无法刷新权限列表。请在再次更改前重新加载列表。';
 
   @override
+  String get sharingRateLimited => '共享暂时受到限制。请在等待时间结束后重试。';
+
+  @override
   String get sharingPermissionUnavailable => '此日历的共享权限不可用。';
 
   @override
@@ -5996,6 +5999,9 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
 
   @override
   String get sharingRefreshFailed => '共享更改已成功，但无法刷新权限列表。请在再次更改前重新加载列表。';
+
+  @override
+  String get sharingRateLimited => '共享暂时受到限制。请在等待时间结束后重试。';
 
   @override
   String get sharingPermissionUnavailable => '此日历的共享权限不可用。';
@@ -9038,6 +9044,9 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get sharingRefreshFailed => '共用設定已變更，但無法重新整理權限清單。再次變更前請重新載入清單。';
+
+  @override
+  String get sharingRateLimited => '共用暫時受到限制。請在等待時間結束後重試。';
 
   @override
   String get sharingPermissionUnavailable => '此行事曆的共用權限無法使用。';

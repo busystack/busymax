@@ -35,6 +35,7 @@ class _CloudCalendarSharingContentState
   CloudCalendarShareSnapshot? _snapshot;
   Object? _error;
   bool _busy = false;
+  Timer? _cooldownTimer;
   String? _newRole;
   int _generation = 0;
 
@@ -77,12 +78,14 @@ class _CloudCalendarSharingContentState
   @override
   void dispose() {
     _generation++;
+    _cooldownTimer?.cancel();
     _recipient.dispose();
     super.dispose();
   }
 
   Future<void> _select(CalendarSourceEntity source) async {
     final generation = ++_generation;
+    _cooldownTimer?.cancel();
     setState(() {
       _service = null;
       _snapshot = null;
@@ -121,6 +124,7 @@ class _CloudCalendarSharingContentState
     } finally {
       if (mounted && generation == _generation) {
         setState(() => _busy = false);
+        _scheduleCooldown();
       }
     }
   }
@@ -162,8 +166,26 @@ class _CloudCalendarSharingContentState
     } finally {
       if (mounted && generation == _generation) {
         setState(() => _busy = false);
+        _scheduleCooldown();
       }
     }
+  }
+
+  void _scheduleCooldown() {
+    _cooldownTimer?.cancel();
+    final service = _service;
+    final delay = service?.retryAfter;
+    if (service == null || delay == null) return;
+    final generation = _generation;
+    _cooldownTimer = Timer(delay + const Duration(milliseconds: 1), () {
+      if (!mounted ||
+          generation != _generation ||
+          !identical(_service, service)) {
+        return;
+      }
+      setState(() {});
+      _scheduleCooldown();
+    });
   }
 
   @override
@@ -201,6 +223,8 @@ class _CloudCalendarSharingContentState
             child: Text(context.l10n.retry),
           ),
         ],
+        if (service?.isRateLimited == true)
+          Text(context.l10n.sharingRateLimited),
         if (_snapshot?.outcomeUnknown == true) ...[
           Text(context.l10n.nextcloudOutcomeUnknown),
           TextButton(
@@ -238,6 +262,7 @@ class _CloudCalendarSharingContentState
                           PopupMenuButton<String>(
                             enabled:
                                 !_busy &&
+                                service?.isRateLimited != true &&
                                 _snapshot?.refreshError == null &&
                                 _snapshot?.outcomeUnknown != true,
                             tooltip: context.l10n.shareRole,
@@ -263,6 +288,7 @@ class _CloudCalendarSharingContentState
                             tooltip: context.l10n.nextcloudRevokeShare,
                             onPressed:
                                 _busy ||
+                                    service?.isRateLimited == true ||
                                     _snapshot?.refreshError != null ||
                                     _snapshot?.outcomeUnknown == true
                                 ? null
@@ -306,6 +332,7 @@ class _CloudCalendarSharingContentState
               key: const Key('calendar-sharing-add'),
               onPressed:
                   _busy ||
+                      service.isRateLimited ||
                       _newRole == null ||
                       _snapshot?.refreshError != null ||
                       _snapshot?.outcomeUnknown == true

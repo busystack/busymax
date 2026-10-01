@@ -3065,6 +3065,10 @@ class AppLocalizationsEs extends AppLocalizations {
       'Se cambió el acceso, pero no se pudo actualizar la lista de permisos. Vuelve a cargarla antes de otro cambio.';
 
   @override
+  String get sharingRateLimited =>
+      'El uso compartido está limitado temporalmente. Inténtalo de nuevo cuando termine la espera.';
+
+  @override
   String get sharingPermissionUnavailable =>
       'Los permisos para compartir no están disponibles para este calendario.';
 

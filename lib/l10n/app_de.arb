@@ -1160,6 +1160,7 @@
   "shareRole": "Zugriffsrolle",
   "sharingPermissionUnavailable": "Freigabeberechtigungen sind für diesen Kalender nicht verfügbar.",
   "sharingRefreshFailed": "Die Freigabe wurde geändert, aber die Berechtigungsliste konnte nicht aktualisiert werden. Laden Sie sie vor einer weiteren Änderung neu.",
+  "sharingRateLimited": "Die Freigabe ist vorübergehend begrenzt. Versuchen Sie es nach der Wartezeit erneut.",
   "unknownEventLabel": "Unbekanntes Label ({id})",
   "@unknownEventLabel": {"placeholders": {"id": {"type": "String"}}}
 }

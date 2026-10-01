@@ -1171,6 +1171,7 @@
   "shareRole": "نقش دسترسی",
   "sharingPermissionUnavailable": "مجوزهای اشتراک‌گذاری برای این تقویم در دسترس نیست.",
   "sharingRefreshFailed": "تغییر اشتراک‌گذاری انجام شد، اما فهرست مجوزها به‌روز نشد. پیش از تغییر دیگر فهرست را دوباره بارگیری کنید.",
+  "sharingRateLimited": "اشتراک‌گذاری موقتاً محدود شده است. پس از پایان زمان انتظار دوباره تلاش کنید.",
   "unknownEventLabel": "برچسب ناشناخته (⁨{id}⁩)",
   "@unknownEventLabel": {"placeholders": {"id": {"type": "String"}}}
 }

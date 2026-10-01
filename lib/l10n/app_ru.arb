@@ -1097,6 +1097,7 @@
   "shareRole": "Роль доступа",
   "sharingPermissionUnavailable": "Разрешения на общий доступ к этому календарю недоступны.",
   "sharingRefreshFailed": "Доступ изменён, но список разрешений не обновился. Обновите его перед следующим изменением.",
+  "sharingRateLimited": "Общий доступ временно ограничен. Повторите попытку после окончания ожидания.",
   "unknownEventLabel": "Неизвестная метка ({id})",
   "@unknownEventLabel": {"placeholders": {"id": {"type": "String"}}}
 }

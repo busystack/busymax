@@ -3081,6 +3081,10 @@ class AppLocalizationsIt extends AppLocalizations {
       'La condivisione è stata modificata, ma l’elenco delle autorizzazioni non è stato aggiornato. Ricaricalo prima di un’altra modifica.';
 
   @override
+  String get sharingRateLimited =>
+      'La condivisione è temporaneamente limitata. Riprova al termine dell’attesa.';
+
+  @override
   String get sharingPermissionUnavailable =>
       'Le autorizzazioni di condivisione non sono disponibili per questo calendario.';
 

@@ -1097,6 +1097,7 @@
   "shareRole": "Käyttöoikeusrooli",
   "sharingPermissionUnavailable": "Tämän kalenterin jako-oikeudet eivät ole saatavilla.",
   "sharingRefreshFailed": "Jako muutettiin, mutta oikeusluetteloa ei voitu päivittää. Lataa luettelo uudelleen ennen seuraavaa muutosta.",
+  "sharingRateLimited": "Jakamista on rajoitettu tilapäisesti. Yritä uudelleen odotusajan päätyttyä.",
   "unknownEventLabel": "Tuntematon tunniste ({id})",
   "@unknownEventLabel": {"placeholders": {"id": {"type": "String"}}}
 }

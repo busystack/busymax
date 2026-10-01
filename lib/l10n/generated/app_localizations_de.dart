@@ -3060,6 +3060,10 @@ class AppLocalizationsDe extends AppLocalizations {
       'Die Freigabe wurde geändert, aber die Berechtigungsliste konnte nicht aktualisiert werden. Laden Sie sie vor einer weiteren Änderung neu.';
 
   @override
+  String get sharingRateLimited =>
+      'Die Freigabe ist vorübergehend begrenzt. Versuchen Sie es nach der Wartezeit erneut.';
+
+  @override
   String get sharingPermissionUnavailable =>
       'Freigabeberechtigungen sind für diesen Kalender nicht verfügbar.';
 

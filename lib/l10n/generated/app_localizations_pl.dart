@@ -3234,6 +3234,10 @@ class AppLocalizationsPl extends AppLocalizations {
       'Udostępnienie zmieniono, ale nie udało się odświeżyć listy uprawnień. Wczytaj ją ponownie przed następną zmianą.';
 
   @override
+  String get sharingRateLimited =>
+      'Udostępnianie jest tymczasowo ograniczone. Spróbuj ponownie po upływie czasu oczekiwania.';
+
+  @override
   String get sharingPermissionUnavailable =>
       'Uprawnienia udostępniania nie są dostępne dla tego kalendarza.';
 

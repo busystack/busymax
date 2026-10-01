@@ -15,6 +15,190 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 
 void main() {
+  testWidgets(
+    'Windows rejected throttle keeps Close usable and gates retry across reopening',
+    (tester) async {
+      const source = CalendarSourceEntity(
+        id: 'windows-throttle',
+        accountId: 'windows-throttle-account',
+        provider: BusyProvider.microsoft,
+        providerCalendarId: 'windows-throttle-calendar',
+        summary: 'My calendar',
+        selected: true,
+        hidden: false,
+        readOnly: false,
+        isDeleted: false,
+        primaryCalendar: true,
+      );
+      var clock = DateTime.now();
+      var posts = 0;
+      var committed = false;
+      final client = MicrosoftCalendarApiClient(
+        httpClient: MockClient((request) async {
+          if (request.method == 'GET') {
+            return http.Response(
+              jsonEncode({
+                'value': [
+                  {
+                    'id': 'existing-grant',
+                    'role': 'read',
+                    'allowedRoles': ['read', 'write'],
+                    'isRemovable': true,
+                    'emailAddress': {'address': 'existing@example.test'},
+                  },
+                  if (committed)
+                    {
+                      'id': 'new-grant',
+                      'role': 'freeBusyRead',
+                      'allowedRoles': ['freeBusyRead', 'read'],
+                      'isRemovable': true,
+                      'emailAddress': {'address': 'friend@example.test'},
+                    },
+                ],
+              }),
+              200,
+            );
+          }
+          posts++;
+          if (posts == 1) {
+            return http.Response(
+              jsonEncode({
+                'error': {'code': 'TooManyRequests', 'message': 'Throttled'},
+              }),
+              429,
+              headers: {'retry-after': '5'},
+            );
+          }
+          committed = true;
+          return http.Response(
+            jsonEncode({
+              'id': 'new-grant',
+              'role': 'freeBusyRead',
+              'allowedRoles': ['freeBusyRead', 'read'],
+              'isRemovable': true,
+              'emailAddress': {'address': 'friend@example.test'},
+            }),
+            201,
+          );
+        }),
+        baseUri: Uri.parse('https://graph.microsoft.com/v1.0'),
+        responseTimeZone: 'UTC',
+      );
+      await tester.pumpWidget(
+        ProviderScope(
+          child: FluentApp(
+            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
+            home: Builder(
+              builder: (context) => Button(
+                onPressed: () => showWindowsCloudCalendarSharingDialog(
+                  context,
+                  sources: const [source],
+                  serviceFactory: (s) => CloudCalendarSharingService(
+                    source: s,
+                    microsoft: client,
+                    now: () => clock,
+                  ),
+                ),
+                child: const Text('Open sharing'),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.tap(find.text('Open sharing'));
+      await tester.pumpAndSettle();
+      await tester.enterText(
+        find.byKey(const Key('windows-sharing-recipient')),
+        'friend@example.test',
+      );
+      await tester.ensureVisible(find.byKey(const Key('windows-sharing-add')));
+      await tester.tap(find.byKey(const Key('windows-sharing-add')));
+      for (var i = 0; i < 4; i++) {
+        await tester.pump();
+      }
+      expect(posts, 1);
+      expect(
+        find.text(
+          'Sharing is temporarily rate-limited. Try again when the wait ends.',
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const Key('windows-sharing-grant-existing-grant')),
+        findsOneWidget,
+      );
+      expect(
+        tester
+            .widget<Button>(find.byKey(const Key('windows-sharing-add')))
+            .onPressed,
+        isNull,
+      );
+      final existing = find.byKey(
+        const Key('windows-sharing-grant-existing-grant'),
+      );
+      final role = tester.widget<DropDownButton>(
+        find.descendant(of: existing, matching: find.byType(DropDownButton)),
+      );
+      expect((role.items.first as MenuFlyoutItem).onPressed, isNull);
+      final revoke = find.ancestor(
+        of: find.descendant(of: existing, matching: find.text('Revoke access')),
+        matching: find.byType(Button),
+      );
+      expect(tester.widget<Button>(revoke).onPressed, isNull);
+      await tester.ensureVisible(find.text('Retry'));
+      await tester.pump();
+      await tester.tap(find.text('Retry'));
+      for (var i = 0; i < 4; i++) {
+        await tester.pump();
+      }
+      expect(posts, 1);
+      expect(
+        tester
+            .widget<Button>(find.byKey(const Key('windows-sharing-add')))
+            .onPressed,
+        isNull,
+      );
+      await tester.tap(find.text('Close'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Open sharing'));
+      await tester.pumpAndSettle();
+      expect(
+        tester
+            .widget<Button>(find.byKey(const Key('windows-sharing-add')))
+            .onPressed,
+        isNull,
+      );
+      clock = clock.add(const Duration(seconds: 5));
+      await tester.pump(const Duration(seconds: 5, milliseconds: 1));
+      await tester.pump();
+      expect(
+        tester
+            .widget<Button>(find.byKey(const Key('windows-sharing-add')))
+            .onPressed,
+        isNotNull,
+      );
+      final enabledRole = tester.widget<DropDownButton>(
+        find.descendant(of: existing, matching: find.byType(DropDownButton)),
+      );
+      expect((enabledRole.items.first as MenuFlyoutItem).onPressed, isNotNull);
+      expect(tester.widget<Button>(revoke).onPressed, isNotNull);
+      expect(posts, 1);
+      await tester.enterText(
+        find.byKey(const Key('windows-sharing-recipient')),
+        'friend@example.test',
+      );
+      await tester.ensureVisible(find.byKey(const Key('windows-sharing-add')));
+      await tester.tap(find.byKey(const Key('windows-sharing-add')));
+      await tester.pumpAndSettle();
+      expect(posts, 2);
+      expect(
+        find.byKey(const Key('windows-sharing-grant-new-grant')),
+        findsOneWidget,
+      );
+    },
+  );
+
   testWidgets('Windows known-unsent sharing add restores mutation controls', (
     tester,
   ) async {

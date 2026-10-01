@@ -1097,6 +1097,7 @@
   "shareRole": "访问角色",
   "sharingPermissionUnavailable": "此日历的共享权限不可用。",
   "sharingRefreshFailed": "共享更改已成功，但无法刷新权限列表。请在再次更改前重新加载列表。",
+  "sharingRateLimited": "共享暂时受到限制。请在等待时间结束后重试。",
   "unknownEventLabel": "未知标签（{id}）",
   "@unknownEventLabel": {"placeholders": {"id": {"type": "String"}}}
 }

@@ -3057,6 +3057,10 @@ class AppLocalizationsVi extends AppLocalizations {
       'Đã thay đổi chia sẻ nhưng không thể làm mới danh sách quyền. Hãy tải lại trước khi thay đổi tiếp.';
 
   @override
+  String get sharingRateLimited =>
+      'Việc chia sẻ đang tạm thời bị giới hạn. Hãy thử lại sau khi hết thời gian chờ.';
+
+  @override
   String get sharingPermissionUnavailable =>
       'Không có quyền chia sẻ cho lịch này.';
 

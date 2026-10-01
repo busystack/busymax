@@ -3039,6 +3039,10 @@ class AppLocalizationsEt extends AppLocalizations {
       'Jagamine muudeti, kuid õiguste loendit ei saanud värskendada. Värskenda loendit enne järgmist muudatust.';
 
   @override
+  String get sharingRateLimited =>
+      'Jagamine on ajutiselt piiratud. Proovi pärast ooteaja lõppu uuesti.';
+
+  @override
   String get sharingPermissionUnavailable =>
       'Selle kalendri jagamisõigused pole saadaval.';
 

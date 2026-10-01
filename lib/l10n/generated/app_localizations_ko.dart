@@ -3001,6 +3001,9 @@ class AppLocalizationsKo extends AppLocalizations {
       '공유 변경은 완료되었지만 권한 목록을 새로 고치지 못했습니다. 다음 변경 전에 다시 불러오세요.';
 
   @override
+  String get sharingRateLimited => '공유가 일시적으로 제한되었습니다. 대기 시간이 끝나면 다시 시도하세요.';
+
+  @override
   String get sharingPermissionUnavailable => '이 캘린더의 공유 권한을 사용할 수 없습니다.';
 
   @override

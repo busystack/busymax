@@ -57,6 +57,7 @@ class _WindowsCloudCalendarSharingContentState
   CloudCalendarShareSnapshot? _snapshot;
   Object? _error;
   bool _busy = false;
+  Timer? _cooldownTimer;
   String? _role;
   int _generation = 0;
 
@@ -73,12 +74,14 @@ class _WindowsCloudCalendarSharingContentState
   @override
   void dispose() {
     _generation++;
+    _cooldownTimer?.cancel();
     _recipient.dispose();
     super.dispose();
   }
 
   Future<void> _load(CalendarSourceEntity source) async {
     final generation = ++_generation;
+    _cooldownTimer?.cancel();
     setState(() {
       _service = null;
       _snapshot = null;
@@ -117,6 +120,7 @@ class _WindowsCloudCalendarSharingContentState
     } finally {
       if (mounted && generation == _generation) {
         setState(() => _busy = false);
+        _scheduleCooldown();
       }
     }
   }
@@ -149,8 +153,26 @@ class _WindowsCloudCalendarSharingContentState
     } finally {
       if (mounted && generation == _generation) {
         setState(() => _busy = false);
+        _scheduleCooldown();
       }
     }
+  }
+
+  void _scheduleCooldown() {
+    _cooldownTimer?.cancel();
+    final service = _service;
+    final delay = service?.retryAfter;
+    if (service == null || delay == null) return;
+    final generation = _generation;
+    _cooldownTimer = Timer(delay + const Duration(milliseconds: 1), () {
+      if (!mounted ||
+          generation != _generation ||
+          !identical(_service, service)) {
+        return;
+      }
+      setState(() {});
+      _scheduleCooldown();
+    });
   }
 
   @override
@@ -194,6 +216,11 @@ class _WindowsCloudCalendarSharingContentState
             child: Text(l10n.retry),
           ),
         ],
+        if (service?.isRateLimited == true)
+          InfoBar(
+            title: Text(l10n.sharingRateLimited),
+            severity: InfoBarSeverity.warning,
+          ),
         if (_snapshot?.outcomeUnknown == true)
           Column(
             children: [
@@ -253,6 +280,7 @@ class _WindowsCloudCalendarSharingContentState
                                       ),
                                       onPressed:
                                           _busy ||
+                                              service?.isRateLimited == true ||
                                               _snapshot?.refreshError != null ||
                                               _snapshot?.outcomeUnknown == true
                                           ? null
@@ -268,6 +296,7 @@ class _WindowsCloudCalendarSharingContentState
                               Button(
                                 onPressed:
                                     _busy ||
+                                        service?.isRateLimited == true ||
                                         _snapshot?.refreshError != null ||
                                         _snapshot?.outcomeUnknown == true
                                     ? null
@@ -316,6 +345,7 @@ class _WindowsCloudCalendarSharingContentState
               key: const Key('windows-sharing-add'),
               onPressed:
                   _busy ||
+                      service.isRateLimited ||
                       _role == null ||
                       _snapshot?.refreshError != null ||
                       _snapshot?.outcomeUnknown == true

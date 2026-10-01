@@ -3065,6 +3065,10 @@ class AppLocalizationsFr extends AppLocalizations {
       'Le partage a été modifié, mais la liste des autorisations n’a pas pu être actualisée. Rechargez-la avant une autre modification.';
 
   @override
+  String get sharingRateLimited =>
+      'Le partage est temporairement limité. Réessayez après le délai d’attente.';
+
+  @override
   String get sharingPermissionUnavailable =>
       'Les autorisations de partage sont indisponibles pour cet agenda.';
 

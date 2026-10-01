@@ -2996,6 +2996,9 @@ class AppLocalizationsJa extends AppLocalizations {
       '共有は変更されましたが、権限一覧を更新できませんでした。次の変更前に一覧を再読み込みしてください。';
 
   @override
+  String get sharingRateLimited => '共有は一時的に制限されています。待機時間が終了してから再試行してください。';
+
+  @override
   String get sharingPermissionUnavailable => 'このカレンダーの共有権限を取得できません。';
 
   @override

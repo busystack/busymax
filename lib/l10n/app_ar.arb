@@ -1097,6 +1097,7 @@
   "shareRole": "دور الوصول",
   "sharingPermissionUnavailable": "أذونات المشاركة غير متاحة لهذا التقويم.",
   "sharingRefreshFailed": "نجح تغيير المشاركة، لكن تعذر تحديث قائمة الأذونات. أعد تحميل القائمة قبل إجراء تغيير آخر.",
+  "sharingRateLimited": "المشاركة مقيّدة مؤقتًا. حاول مرة أخرى بعد انتهاء فترة الانتظار.",
   "unknownEventLabel": "تسمية غير معروفة (⁨{id}⁩)",
   "@unknownEventLabel": {"placeholders": {"id": {"type": "String"}}}
 }

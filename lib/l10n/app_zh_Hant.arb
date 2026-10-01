@@ -1097,6 +1097,7 @@
   "shareRole": "存取角色",
   "sharingPermissionUnavailable": "此行事曆的共用權限無法使用。",
   "sharingRefreshFailed": "共用設定已變更，但無法重新整理權限清單。再次變更前請重新載入清單。",
+  "sharingRateLimited": "共用暫時受到限制。請在等待時間結束後重試。",
   "unknownEventLabel": "未知標籤（{id}）",
   "@unknownEventLabel": {"placeholders": {"id": {"type": "String"}}}
 }

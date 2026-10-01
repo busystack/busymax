@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import '../../../core/http/request_dispatch_exception.dart';
 import '../../../google_calendar/google_calendar_api_client.dart';
 import '../../../google_calendar/google_calendar_models.dart';
@@ -48,6 +50,17 @@ final class CloudCalendarShareSnapshot {
   final bool outcomeUnknown;
 }
 
+/// A rejected sharing write may be retried explicitly after this delay.
+/// It is separate from an uncertain write that requires reconciliation.
+final class CloudCalendarSharingCooldownException implements Exception {
+  const CloudCalendarSharingCooldownException(this.retryAfter);
+
+  final Duration retryAfter;
+
+  @override
+  String toString() => 'Calendar sharing is rate-limited. Try again later.';
+}
+
 typedef _ShareScope = ({
   BusyProvider provider,
   String accountId,
@@ -75,16 +88,26 @@ final class _PendingShareMutation {
   bool dispatching = true;
 }
 
+final class _ShareCooldown {
+  const _ShareCooldown({required this.until, required this.attempts});
+
+  final DateTime until;
+  final int attempts;
+}
+
 final class CloudCalendarSharingService {
   // A reopened native view gets a new service object. Keep uncertain intent
   // scoped to the provider account and calendar until an authoritative read
   // resolves it; never infer failure from a missing or failed list response.
   static final Map<_ShareScope, _PendingShareMutation> _pending = {};
+  static final Map<_ShareScope, _ShareCooldown> _cooldowns = {};
   CloudCalendarSharingService({
     required this.source,
     this.google,
     this.microsoft,
+    DateTime Function()? now,
   }) {
+    _now = now ?? DateTime.now;
     if (!canManageSource(source)) {
       throw StateError('Calendar sharing management is unavailable.');
     }
@@ -97,6 +120,7 @@ final class CloudCalendarSharingService {
   final CalendarSourceEntity source;
   final GoogleCalendarApiClient? google;
   final MicrosoftCalendarApiClient? microsoft;
+  late final DateTime Function() _now;
   List<CloudCalendarShareGrant> _grants = const [];
   bool _loaded = false;
 
@@ -107,6 +131,15 @@ final class CloudCalendarSharingService {
   );
 
   bool get hasUnresolvedOutcome => _pending.containsKey(_scope);
+
+  Duration? get retryAfter {
+    final cooldown = _cooldowns[_scope];
+    if (cooldown == null) return null;
+    final remaining = cooldown.until.difference(_now());
+    return remaining > Duration.zero ? remaining : null;
+  }
+
+  bool get isRateLimited => retryAfter != null;
 
   static bool canManageSource(CalendarSourceEntity source) =>
       !source.isDeleted &&
@@ -215,13 +248,13 @@ final class CloudCalendarSharingService {
             );
     } on Object catch (error) {
       if (_isKnownUncommittedFailure(error)) {
-        _pending.remove(_scope);
+        _finishKnownFailure(pending, error);
         rethrow;
       }
       pending.dispatching = false;
       return load();
     }
-    _pending.remove(_scope);
+    _finishAcknowledged(pending);
     _grants = List.unmodifiable([
       ..._grants.where((e) => e.id != grant.id),
       grant,
@@ -260,13 +293,13 @@ final class CloudCalendarSharingService {
             );
     } on Object catch (error) {
       if (_isKnownUncommittedFailure(error)) {
-        _pending.remove(_scope);
+        _finishKnownFailure(pending, error);
         rethrow;
       }
       pending.dispatching = false;
       return load();
     }
-    _pending.remove(_scope);
+    _finishAcknowledged(pending);
     _grants = List.unmodifiable([
       for (final current in _grants) current.id == grant.id ? updated : current,
     ]);
@@ -297,13 +330,13 @@ final class CloudCalendarSharingService {
       }
     } on Object catch (error) {
       if (_isKnownUncommittedFailure(error)) {
-        _pending.remove(_scope);
+        _finishKnownFailure(pending, error);
         rethrow;
       }
       pending.dispatching = false;
       return load();
     }
-    _pending.remove(_scope);
+    _finishAcknowledged(pending);
     _grants = List.unmodifiable(_grants.where((e) => e.id != grant.id));
     return _refreshAfterAcknowledgedMutation();
   }
@@ -326,6 +359,10 @@ final class CloudCalendarSharingService {
       throw StateError(
         'Refresh and resolve this calendar sharing change before another mutation.',
       );
+    }
+    final remaining = retryAfter;
+    if (remaining != null) {
+      throw CloudCalendarSharingCooldownException(remaining);
     }
     if (grantId != null && !_grants.any((grant) => grant.id == grantId)) {
       throw StateError('This calendar grant is no longer in the loaded list.');
@@ -381,6 +418,8 @@ final class CloudCalendarSharingService {
   bool _isKnownUncommittedFailure(Object error) => switch (error) {
     RequestNotDispatchedException _ => true,
     ArgumentError _ => true,
+    GoogleCalendarApiError e when e.isRateLimited => true,
+    MicrosoftCalendarApiError e when e.isRateLimited => true,
     GoogleCalendarApiError e
         when e.statusCode >= 400 &&
             e.statusCode < 500 &&
@@ -393,6 +432,37 @@ final class CloudCalendarSharingService {
       true,
     _ => false,
   };
+
+  void _finishKnownFailure(_PendingShareMutation pending, Object error) {
+    if (!identical(_pending[_scope], pending)) return;
+    _pending.remove(_scope);
+    final serverDelay = switch (error) {
+      GoogleCalendarApiError e when e.isRateLimited => e.retryAfter,
+      MicrosoftCalendarApiError e when e.isRateLimited => e.retryAfter,
+      _ => null,
+    };
+    if (error is GoogleCalendarApiError && error.isRateLimited ||
+        error is MicrosoftCalendarApiError && error.isRateLimited) {
+      final attempt = (_cooldowns[_scope]?.attempts ?? 0) + 1;
+      // Explicit Retry-After is authoritative. Otherwise bound exponential
+      // backoff with positive jitter, without silently resending a write.
+      final baseMs = min(300000, 2000 * (1 << min(attempt - 1, 7)));
+      final jitterMs = (baseMs * Random().nextDouble() / 4).round();
+      final delay = serverDelay ?? Duration(milliseconds: baseMs + jitterMs);
+      _cooldowns[_scope] = _ShareCooldown(
+        until: _now().add(delay),
+        attempts: attempt,
+      );
+    } else {
+      _cooldowns.remove(_scope);
+    }
+  }
+
+  void _finishAcknowledged(_PendingShareMutation pending) {
+    if (!identical(_pending[_scope], pending)) return;
+    _pending.remove(_scope);
+    _cooldowns.remove(_scope);
+  }
 
   CloudCalendarShareGrant _googleGrant(GoogleAclRule rule) {
     final mutable = rule.scopeType == 'user' && rule.role != 'owner';

@@ -5,6 +5,7 @@ import 'package:busymax/src/calendar_providers/calendar_sync_dto.dart';
 import 'package:busymax/src/core/auth/oauth_models.dart';
 import 'package:busymax/src/core/http/request_dispatch_exception.dart';
 import 'package:busymax/src/microsoft_calendar/microsoft_calendar_api_client.dart';
+import 'package:busymax/src/microsoft_calendar/microsoft_calendar_errors.dart';
 import 'package:busymax/src/microsoft_calendar/microsoft_calendar_models.dart';
 import 'package:busymax/src/microsoft_calendar/microsoft_event_attachment.dart';
 import 'package:busymax/src/microsoft_calendar/microsoft_shared_calendar_address.dart';
@@ -13,6 +14,45 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 
 void main() {
+  test(
+    'primary permission 429 retains code and Retry-After without retrying',
+    () async {
+      var requests = 0;
+      final client = MicrosoftCalendarApiClient(
+        httpClient: MockClient((request) async {
+          requests++;
+          return http.Response(
+            jsonEncode({
+              'error': {'code': 'TooManyRequests', 'message': 'Throttled'},
+            }),
+            429,
+            headers: {'retry-after': '113'},
+          );
+        }),
+        baseUri: Uri.parse('https://graph.microsoft.com/v1.0'),
+        responseTimeZone: 'UTC',
+      );
+      await expectLater(
+        client.addPrimaryCalendarPermission(
+          email: 'friend@example.test',
+          role: 'read',
+        ),
+        throwsA(
+          isA<MicrosoftCalendarApiError>()
+              .having((e) => e.statusCode, 'status', 429)
+              .having((e) => e.code, 'code', 'TooManyRequests')
+              .having((e) => e.isRateLimited, 'throttle', true)
+              .having(
+                (e) => e.retryAfter,
+                'retry-after',
+                const Duration(seconds: 113),
+              ),
+        ),
+      );
+      expect(requests, 1);
+    },
+  );
+
   test('primary sharing authorization fails before Graph dispatch', () async {
     const failure = OAuthException('TokenUnavailable', 'Token unavailable');
     var requests = 0;

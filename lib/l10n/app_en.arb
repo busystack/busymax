@@ -1611,6 +1611,7 @@
   "shareRole": "Access role",
   "addCalendarShare": "Add access",
   "sharingRefreshFailed": "The sharing change succeeded, but the permission list could not be refreshed. Retry the list before making another change.",
+  "sharingRateLimited": "Sharing is temporarily rate-limited. Try again when the wait ends.",
   "sharingPermissionUnavailable": "Sharing permissions are unavailable for this calendar.",
   "calendarShareFreeBusy": "Free/busy only",
   "calendarShareLimitedRead": "Read limited details",

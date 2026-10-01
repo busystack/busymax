@@ -3089,6 +3089,10 @@ class AppLocalizationsFi extends AppLocalizations {
       'Jako muutettiin, mutta oikeusluetteloa ei voitu päivittää. Lataa luettelo uudelleen ennen seuraavaa muutosta.';
 
   @override
+  String get sharingRateLimited =>
+      'Jakamista on rajoitettu tilapäisesti. Yritä uudelleen odotusajan päätyttyä.';
+
+  @override
   String get sharingPermissionUnavailable =>
       'Tämän kalenterin jako-oikeudet eivät ole saatavilla.';
 

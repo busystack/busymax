@@ -3092,6 +3092,10 @@ class AppLocalizationsPt extends AppLocalizations {
       'The sharing change succeeded, but the permission list could not be refreshed. Retry the list before making another change.';
 
   @override
+  String get sharingRateLimited =>
+      'Sharing is temporarily rate-limited. Try again when the wait ends.';
+
+  @override
   String get sharingPermissionUnavailable =>
       'Sharing permissions are unavailable for this calendar.';
 
@@ -6257,6 +6261,10 @@ class AppLocalizationsPtPt extends AppLocalizationsPt {
   @override
   String get sharingRefreshFailed =>
       'A partilha foi alterada, mas a lista de permissões não foi atualizada. Recarregue-a antes de fazer outra alteração.';
+
+  @override
+  String get sharingRateLimited =>
+      'A partilha está temporariamente limitada. Volte a tentar quando terminar o tempo de espera.';
 
   @override
   String get sharingPermissionUnavailable =>

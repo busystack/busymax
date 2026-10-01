@@ -13,6 +13,7 @@ import 'package:busymax/src/features/calendar/presentation/cloud_calendar_sharin
 import 'package:busymax/src/google_calendar/google_calendar_api_client.dart';
 import 'package:busymax/src/google_calendar/google_calendar_errors.dart';
 import 'package:busymax/src/microsoft_calendar/microsoft_calendar_api_client.dart';
+import 'package:busymax/src/microsoft_calendar/microsoft_calendar_errors.dart';
 import 'package:busymax/src/providers/busy_provider.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter/material.dart';
@@ -316,7 +317,7 @@ void main() {
   }
 
   for (final provider in [BusyProvider.google, BusyProvider.microsoft]) {
-    for (final status in [408, 409, 429, 503]) {
+    for (final status in [408, 409, 503]) {
       test(
         '$provider ambiguous status $status retains sharing intent',
         () async {
@@ -384,6 +385,552 @@ void main() {
         },
       );
     }
+  }
+
+  for (final provider in [BusyProvider.google, BusyProvider.microsoft]) {
+    test(
+      '$provider rejected sharing throttle is not unresolved after an unchanged read',
+      () async {
+        final google = provider == BusyProvider.google;
+        final source = CalendarSourceEntity(
+          id: 'throttle-regression-$provider',
+          accountId: 'throttle-regression-account-$provider',
+          provider: provider,
+          providerCalendarId: 'throttle-regression-calendar-$provider',
+          summary: 'Calendar',
+          selected: true,
+          hidden: false,
+          readOnly: false,
+          isDeleted: false,
+          accessRole: 'owner',
+          primaryCalendar: !google,
+        );
+        var writes = 0;
+        var failRead = false;
+        final client = MockClient((request) async {
+          if (request.method == 'GET') {
+            if (failRead) return http.Response('read unavailable', 503);
+            return http.Response(
+              jsonEncode(
+                google ? {'items': <Object>[]} : {'value': <Object>[]},
+              ),
+              200,
+            );
+          }
+          writes++;
+          return http.Response(
+            jsonEncode(
+              google
+                  ? {
+                      'error': {
+                        'code': 429,
+                        'message': 'Rate limited',
+                        'errors': [
+                          {
+                            'domain': 'usageLimits',
+                            'reason': 'rateLimitExceeded',
+                          },
+                        ],
+                      },
+                    }
+                  : {
+                      'error': {
+                        'code': 'TooManyRequests',
+                        'message': 'Throttled',
+                      },
+                    },
+            ),
+            429,
+            headers: {'retry-after': '30'},
+          );
+        });
+        final service = CloudCalendarSharingService(
+          source: source,
+          google: google
+              ? GoogleCalendarApiClient(
+                  httpClient: client,
+                  baseUri: Uri.parse('https://www.googleapis.com'),
+                )
+              : null,
+          microsoft: google
+              ? null
+              : MicrosoftCalendarApiClient(
+                  httpClient: client,
+                  baseUri: Uri.parse('https://graph.microsoft.com/v1.0'),
+                  responseTimeZone: 'UTC',
+                ),
+        );
+        expect((await service.load()).grants, isEmpty);
+        await expectLater(
+          service.add(
+            recipient: 'friend@example.test',
+            role: google ? 'reader' : 'read',
+          ),
+          throwsA(
+            google
+                ? isA<GoogleCalendarApiError>()
+                : isA<MicrosoftCalendarApiError>(),
+          ),
+        );
+        failRead = true;
+        await expectLater(service.load(), throwsA(anything));
+        expect(service.hasUnresolvedOutcome, isFalse);
+        failRead = false;
+        expect((await service.load()).grants, isEmpty);
+        expect(service.hasUnresolvedOutcome, isFalse);
+        expect(writes, 1);
+      },
+    );
+  }
+
+  for (final provider in [BusyProvider.google, BusyProvider.microsoft]) {
+    for (final operation in ['add', 'change', 'revoke']) {
+      for (final status
+          in provider == BusyProvider.google ? [403, 429] : [429]) {
+        test(
+          '$provider $operation $status throttle permits only an explicit eligible retry',
+          () async {
+            final google = provider == BusyProvider.google;
+            final initialRole = google ? 'reader' : 'read';
+            final changedRole = google ? 'writer' : 'write';
+            final reason = operation == 'change'
+                ? 'userRateLimitExceeded'
+                : 'rateLimitExceeded';
+            final source = CalendarSourceEntity(
+              id: 'throttle-$provider-$operation-$status',
+              accountId: 'throttle-account-$provider-$operation-$status',
+              provider: provider,
+              providerCalendarId:
+                  'throttle-calendar-$provider-$operation-$status',
+              summary: 'Calendar',
+              selected: true,
+              hidden: false,
+              readOnly: false,
+              isDeleted: false,
+              accessRole: 'owner',
+              primaryCalendar: !google,
+            );
+            var clock = DateTime.utc(2026, 1, 1);
+            String? remoteRole = operation == 'add' ? null : initialRole;
+            var writes = 0;
+            var reads = 0;
+            final transport = MockClient((request) async {
+              if (request.method == 'GET') {
+                reads++;
+                return http.Response(
+                  jsonEncode(
+                    google
+                        ? {
+                            'items': remoteRole == null
+                                ? <Object>[]
+                                : [
+                                    {
+                                      'id': 'throttle-grant',
+                                      'role': remoteRole,
+                                      'scope': {
+                                        'type': 'user',
+                                        'value': 'friend@example.test',
+                                      },
+                                    },
+                                  ],
+                          }
+                        : {
+                            'value': remoteRole == null
+                                ? <Object>[]
+                                : [
+                                    {
+                                      'id': 'throttle-grant',
+                                      'role': remoteRole,
+                                      'allowedRoles': ['read', 'write'],
+                                      'isRemovable': true,
+                                      'emailAddress': {
+                                        'address': 'friend@example.test',
+                                      },
+                                    },
+                                  ],
+                          },
+                  ),
+                  200,
+                );
+              }
+              writes++;
+              if (writes == 1) {
+                return http.Response(
+                  jsonEncode(
+                    google
+                        ? {
+                            'error': {
+                              'code': status,
+                              'message': 'Quota',
+                              'errors': [
+                                {'domain': 'usageLimits', 'reason': reason},
+                              ],
+                            },
+                          }
+                        : {
+                            'error': {
+                              'code': 'TooManyRequests',
+                              'message': 'Throttled',
+                            },
+                          },
+                  ),
+                  status,
+                  headers: {'retry-after': '17'},
+                );
+              }
+              remoteRole = switch (operation) {
+                'add' => initialRole,
+                'change' => changedRole,
+                _ => null,
+              };
+              if (request.method == 'DELETE') return http.Response('', 204);
+              return http.Response(
+                jsonEncode(
+                  google
+                      ? {
+                          'id': 'throttle-grant',
+                          'role': remoteRole,
+                          'scope': {
+                            'type': 'user',
+                            'value': 'friend@example.test',
+                          },
+                        }
+                      : {
+                          'id': 'throttle-grant',
+                          'role': remoteRole,
+                          'allowedRoles': ['read', 'write'],
+                          'isRemovable': true,
+                          'emailAddress': {'address': 'friend@example.test'},
+                        },
+                ),
+                request.method == 'POST' ? 201 : 200,
+              );
+            });
+            CloudCalendarSharingService create() => CloudCalendarSharingService(
+              source: source,
+              now: () => clock,
+              google: google
+                  ? GoogleCalendarApiClient(
+                      httpClient: transport,
+                      baseUri: Uri.parse('https://www.googleapis.com'),
+                    )
+                  : null,
+              microsoft: google
+                  ? null
+                  : MicrosoftCalendarApiClient(
+                      httpClient: transport,
+                      baseUri: Uri.parse('https://graph.microsoft.com/v1.0'),
+                      responseTimeZone: 'UTC',
+                    ),
+            );
+            Future<CloudCalendarShareSnapshot> mutate(
+              CloudCalendarSharingService service,
+              CloudCalendarShareSnapshot snapshot,
+            ) => switch (operation) {
+              'add' => service.add(
+                recipient: 'friend@example.test',
+                role: initialRole,
+              ),
+              'change' => service.change(snapshot.grants.single, changedRole),
+              _ => service.revoke(snapshot.grants.single),
+            };
+            final service = create();
+            final baseline = await service.load();
+            expect(baseline.grants.singleOrNull?.role, remoteRole);
+            await expectLater(
+              mutate(service, baseline),
+              throwsA(
+                google
+                    ? isA<GoogleCalendarApiError>()
+                          .having((e) => e.isRateLimited, 'rate limited', true)
+                          .having((e) => e.reasons, 'reasons', contains(reason))
+                          .having(
+                            (e) => e.retryAfter,
+                            'retry-after',
+                            const Duration(seconds: 17),
+                          )
+                    : isA<MicrosoftCalendarApiError>()
+                          .having((e) => e.isRateLimited, 'rate limited', true)
+                          .having(
+                            (e) => e.retryAfter,
+                            'retry-after',
+                            const Duration(seconds: 17),
+                          ),
+              ),
+            );
+            expect(writes, 1);
+            expect(remoteRole, operation == 'add' ? null : initialRole);
+            expect(service.hasUnresolvedOutcome, isFalse);
+            expect(service.isRateLimited, isTrue);
+            final unchanged = await service.load();
+            expect(unchanged.outcomeUnknown, isFalse);
+            expect(unchanged.grants.singleOrNull?.role, remoteRole);
+            final reopened = create();
+            final reopenedSnapshot = await reopened.load();
+            expect(reopened.isRateLimited, isTrue);
+            await expectLater(
+              mutate(reopened, reopenedSnapshot),
+              throwsA(isA<CloudCalendarSharingCooldownException>()),
+            );
+            expect(writes, 1);
+            clock = clock.add(const Duration(seconds: 16));
+            expect(reopened.isRateLimited, isTrue);
+            clock = clock.add(const Duration(seconds: 1));
+            expect(reopened.isRateLimited, isFalse);
+            expect(writes, 1);
+            final result = await mutate(reopened, reopenedSnapshot);
+            expect(result.outcomeUnknown, isFalse);
+            expect(result.grants.singleOrNull?.role, remoteRole);
+            expect(writes, 2);
+            expect(reads, greaterThanOrEqualTo(3));
+          },
+        );
+      }
+    }
+  }
+
+  for (final provider in [BusyProvider.google, BusyProvider.microsoft]) {
+    test(
+      '$provider repeated throttles back off without a usable header',
+      () async {
+        final google = provider == BusyProvider.google;
+        final source = CalendarSourceEntity(
+          id: 'backoff-$provider',
+          accountId: 'backoff-account-$provider',
+          provider: provider,
+          providerCalendarId: 'backoff-calendar-$provider',
+          summary: 'Calendar',
+          selected: true,
+          hidden: false,
+          readOnly: false,
+          isDeleted: false,
+          accessRole: 'owner',
+          primaryCalendar: !google,
+        );
+        var clock = DateTime.utc(2026, 1, 1);
+        var writes = 0;
+        var committed = false;
+        final transport = MockClient((request) async {
+          if (request.method == 'GET') {
+            return http.Response(
+              jsonEncode(
+                google
+                    ? {
+                        'items': committed
+                            ? [
+                                {
+                                  'id': 'backoff-grant',
+                                  'role': 'reader',
+                                  'scope': {
+                                    'type': 'user',
+                                    'value': 'friend@example.test',
+                                  },
+                                },
+                              ]
+                            : <Object>[],
+                      }
+                    : {
+                        'value': committed
+                            ? [
+                                {
+                                  'id': 'backoff-grant',
+                                  'role': 'read',
+                                  'allowedRoles': ['read', 'write'],
+                                  'isRemovable': true,
+                                  'emailAddress': {
+                                    'address': 'friend@example.test',
+                                  },
+                                },
+                              ]
+                            : <Object>[],
+                      },
+              ),
+              200,
+            );
+          }
+          writes++;
+          if (writes < 3) {
+            return http.Response(
+              jsonEncode(
+                google
+                    ? {
+                        'error': {
+                          'code': 429,
+                          'errors': [
+                            {'reason': 'rateLimitExceeded'},
+                          ],
+                        },
+                      }
+                    : {
+                        'error': {'code': 'TooManyRequests'},
+                      },
+              ),
+              429,
+              headers: writes == 1 ? {'retry-after': 'invalid'} : {},
+            );
+          }
+          committed = true;
+          return http.Response(
+            jsonEncode(
+              google
+                  ? {
+                      'id': 'backoff-grant',
+                      'role': 'reader',
+                      'scope': {'type': 'user', 'value': 'friend@example.test'},
+                    }
+                  : {
+                      'id': 'backoff-grant',
+                      'role': 'read',
+                      'allowedRoles': ['read', 'write'],
+                      'isRemovable': true,
+                      'emailAddress': {'address': 'friend@example.test'},
+                    },
+            ),
+            201,
+          );
+        });
+        final service = CloudCalendarSharingService(
+          source: source,
+          now: () => clock,
+          google: google
+              ? GoogleCalendarApiClient(
+                  httpClient: transport,
+                  baseUri: Uri.parse('https://www.googleapis.com'),
+                )
+              : null,
+          microsoft: google
+              ? null
+              : MicrosoftCalendarApiClient(
+                  httpClient: transport,
+                  baseUri: Uri.parse('https://graph.microsoft.com/v1.0'),
+                  responseTimeZone: 'UTC',
+                ),
+        );
+        Future<CloudCalendarShareSnapshot> add() => service.add(
+          recipient: 'friend@example.test',
+          role: google ? 'reader' : 'read',
+        );
+        await service.load();
+        await expectLater(add(), throwsA(anything));
+        expect(service.hasUnresolvedOutcome, isFalse);
+        expect(
+          service.retryAfter,
+          greaterThanOrEqualTo(const Duration(seconds: 2)),
+        );
+        expect(
+          service.retryAfter,
+          lessThanOrEqualTo(const Duration(milliseconds: 2500)),
+        );
+        await expectLater(
+          add(),
+          throwsA(isA<CloudCalendarSharingCooldownException>()),
+        );
+        expect(writes, 1);
+        clock = clock.add(const Duration(seconds: 3));
+        await expectLater(add(), throwsA(anything));
+        expect(
+          service.retryAfter,
+          greaterThanOrEqualTo(const Duration(seconds: 4)),
+        );
+        expect(
+          service.retryAfter,
+          lessThanOrEqualTo(const Duration(seconds: 5)),
+        );
+        expect(writes, 2);
+        clock = clock.add(const Duration(seconds: 6));
+        expect((await add()).outcomeUnknown, isFalse);
+        expect(service.isRateLimited, isFalse);
+        expect(writes, 3);
+      },
+    );
+
+    test(
+      '$provider throttled reconciliation read retains earlier uncertain write',
+      () async {
+        final google = provider == BusyProvider.google;
+        final source = CalendarSourceEntity(
+          id: 'throttle-read-$provider',
+          accountId: 'throttle-read-account-$provider',
+          provider: provider,
+          providerCalendarId: 'throttle-read-calendar-$provider',
+          summary: 'Calendar',
+          selected: true,
+          hidden: false,
+          readOnly: false,
+          isDeleted: false,
+          accessRole: 'owner',
+          primaryCalendar: !google,
+        );
+        var writes = 0;
+        var reads = 0;
+        final transport = MockClient((request) async {
+          if (request.method == 'GET') {
+            reads++;
+            if (reads == 1) {
+              return http.Response(
+                jsonEncode(
+                  google ? {'items': <Object>[]} : {'value': <Object>[]},
+                ),
+                200,
+              );
+            }
+            return http.Response(
+              jsonEncode(
+                google
+                    ? {
+                        'error': {
+                          'code': 429,
+                          'errors': [
+                            {'reason': 'rateLimitExceeded'},
+                          ],
+                        },
+                      }
+                    : {
+                        'error': {'code': 'TooManyRequests'},
+                      },
+              ),
+              429,
+            );
+          }
+          writes++;
+          throw http.ClientException('response lost');
+        });
+        final service = CloudCalendarSharingService(
+          source: source,
+          google: google
+              ? GoogleCalendarApiClient(
+                  httpClient: transport,
+                  baseUri: Uri.parse('https://www.googleapis.com'),
+                )
+              : null,
+          microsoft: google
+              ? null
+              : MicrosoftCalendarApiClient(
+                  httpClient: transport,
+                  baseUri: Uri.parse('https://graph.microsoft.com/v1.0'),
+                  responseTimeZone: 'UTC',
+                ),
+        );
+        await service.load();
+        final result = await service.add(
+          recipient: 'friend@example.test',
+          role: google ? 'reader' : 'read',
+        );
+        expect(result.outcomeUnknown, isTrue);
+        expect(result.refreshError, isNotNull);
+        expect(service.hasUnresolvedOutcome, isTrue);
+        expect(service.isRateLimited, isFalse);
+        expect((await service.load()).outcomeUnknown, isTrue);
+        await expectLater(
+          service.add(
+            recipient: 'friend@example.test',
+            role: google ? 'reader' : 'read',
+          ),
+          throwsStateError,
+        );
+        expect(writes, 1);
+      },
+    );
   }
 
   for (final provider in [BusyProvider.google, BusyProvider.microsoft]) {
@@ -1016,7 +1563,18 @@ void main() {
             return http.Response(jsonEncode({'items': <Object>[]}), 200);
           }
           posts++;
-          return http.Response('denied', 403);
+          return http.Response(
+            jsonEncode({
+              'error': {
+                'code': 403,
+                'message': 'Denied',
+                'errors': [
+                  {'domain': 'global', 'reason': 'forbidden'},
+                ],
+              },
+            }),
+            403,
+          );
         }),
         baseUri: Uri.parse('https://www.googleapis.com'),
       ),
@@ -1027,6 +1585,7 @@ void main() {
       throwsA(isA<GoogleCalendarApiError>()),
     );
     expect(service.hasUnresolvedOutcome, isFalse);
+    expect(service.isRateLimited, isFalse);
     expect(posts, 1);
   });
 
@@ -1160,6 +1719,220 @@ void main() {
   });
 
   for (final android in [false, true]) {
+    testWidgets(
+      '${android ? 'Android' : 'Linux'} throttle keeps grants visible and gates only until explicit retry',
+      (tester) async {
+        final source = CalendarSourceEntity(
+          id: 'native-throttle-$android',
+          accountId: 'native-throttle-account-$android',
+          provider: BusyProvider.google,
+          providerCalendarId: 'native-throttle-calendar-$android',
+          summary: 'Calendar',
+          selected: true,
+          hidden: false,
+          readOnly: false,
+          isDeleted: false,
+          accessRole: 'owner',
+        );
+        var clock = DateTime.now();
+        var posts = 0;
+        var committed = false;
+        final client = GoogleCalendarApiClient(
+          httpClient: MockClient((request) async {
+            if (request.method == 'GET') {
+              return http.Response(
+                jsonEncode({
+                  'items': [
+                    {
+                      'id': 'existing-grant',
+                      'role': 'reader',
+                      'scope': {
+                        'type': 'user',
+                        'value': 'existing@example.test',
+                      },
+                    },
+                    if (committed)
+                      {
+                        'id': 'new-grant',
+                        'role': 'freeBusyReader',
+                        'scope': {
+                          'type': 'user',
+                          'value': 'friend@example.test',
+                        },
+                      },
+                  ],
+                }),
+                200,
+              );
+            }
+            posts++;
+            if (posts == 1) {
+              return http.Response(
+                jsonEncode({
+                  'error': {
+                    'code': 403,
+                    'message': 'Quota',
+                    'errors': [
+                      {'reason': 'userRateLimitExceeded'},
+                    ],
+                  },
+                }),
+                403,
+                headers: {'retry-after': '5'},
+              );
+            }
+            committed = true;
+            return http.Response(
+              jsonEncode({
+                'id': 'new-grant',
+                'role': 'freeBusyReader',
+                'scope': {'type': 'user', 'value': 'friend@example.test'},
+              }),
+              200,
+            );
+          }),
+          baseUri: Uri.parse('https://www.googleapis.com'),
+        );
+        Widget content() => android
+            ? CloudCalendarSharingContent(
+                sources: [source],
+                serviceFactory: (s) => CloudCalendarSharingService(
+                  source: s,
+                  google: client,
+                  now: () => clock,
+                ),
+              )
+            : linux.CloudCalendarSharingContent(
+                sources: [source],
+                serviceFactory: (s) => CloudCalendarSharingService(
+                  source: s,
+                  google: client,
+                  now: () => clock,
+                ),
+              );
+        bool addEnabled() => switch (tester.widget(
+          find.byKey(const Key('calendar-sharing-add')),
+        )) {
+          TextButton button => button.onPressed != null,
+          FilledButton button => button.onPressed != null,
+          _ => throw StateError('Unexpected Add control.'),
+        };
+        bool roleEnabled() {
+          final grant = find.byKey(
+            const Key('calendar-sharing-grant-existing-grant'),
+          );
+          return android
+              ? tester
+                    .widget<PopupMenuButton<String>>(
+                      find.descendant(
+                        of: grant,
+                        matching: find.byType(PopupMenuButton<String>),
+                      ),
+                    )
+                    .enabled
+              : tester
+                    .widget<BusyMaxMenuButton<String>>(
+                      find.descendant(
+                        of: grant,
+                        matching: find.byType(BusyMaxMenuButton<String>),
+                      ),
+                    )
+                    .enabled;
+        }
+
+        bool revokeEnabled() {
+          final grant = find.byKey(
+            const Key('calendar-sharing-grant-existing-grant'),
+          );
+          return android
+              ? tester
+                        .widget<IconButton>(
+                          find.ancestor(
+                            of: find.descendant(
+                              of: grant,
+                              matching: find.byIcon(
+                                Icons.person_remove_outlined,
+                              ),
+                            ),
+                            matching: find.byType(IconButton),
+                          ),
+                        )
+                        .onPressed !=
+                    null
+              : tester
+                        .widget<FilledButton>(
+                          find.descendant(
+                            of: grant,
+                            matching: find.byType(FilledButton),
+                          ),
+                        )
+                        .onPressed !=
+                    null;
+        }
+
+        await tester.pumpWidget(
+          ProviderScope(
+            child: localizedTestApp(child: Scaffold(body: content())),
+          ),
+        );
+        await tester.pumpAndSettle();
+        await tester.enterText(
+          find.byKey(const Key('calendar-sharing-recipient')),
+          'friend@example.test',
+        );
+        await tester.tap(find.byKey(const Key('calendar-sharing-add')));
+        for (var i = 0; i < 4; i++) {
+          await tester.pump();
+        }
+        expect(posts, 1);
+        expect(
+          find.text(
+            'Sharing is temporarily rate-limited. Try again when the wait ends.',
+          ),
+          findsOneWidget,
+        );
+        expect(
+          find.byKey(const Key('calendar-sharing-grant-existing-grant')),
+          findsOneWidget,
+        );
+        expect(addEnabled(), isFalse);
+        expect(roleEnabled(), isFalse);
+        expect(revokeEnabled(), isFalse);
+        await tester.tap(find.text('Retry'));
+        for (var i = 0; i < 4; i++) {
+          await tester.pump();
+        }
+        expect(posts, 1);
+        expect(addEnabled(), isFalse);
+        await tester.pumpWidget(const SizedBox());
+        await tester.pumpWidget(
+          ProviderScope(
+            child: localizedTestApp(child: Scaffold(body: content())),
+          ),
+        );
+        await tester.pumpAndSettle();
+        expect(addEnabled(), isFalse);
+        clock = clock.add(const Duration(seconds: 5));
+        await tester.pump(const Duration(seconds: 5));
+        await tester.pump();
+        expect(addEnabled(), isTrue);
+        expect(roleEnabled(), isTrue);
+        expect(revokeEnabled(), isTrue);
+        expect(posts, 1);
+        await tester.enterText(
+          find.byKey(const Key('calendar-sharing-recipient')),
+          'friend@example.test',
+        );
+        await tester.tap(find.byKey(const Key('calendar-sharing-add')));
+        await tester.pumpAndSettle();
+        expect(posts, 2);
+        expect(
+          find.byKey(const Key('calendar-sharing-grant-new-grant')),
+          findsOneWidget,
+        );
+      },
+    );
+
     testWidgets(
       '${android ? 'Android' : 'Linux'} known-unsent sharing add restores mutation controls',
       (tester) async {

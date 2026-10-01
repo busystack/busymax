@@ -3095,6 +3095,10 @@ class AppLocalizationsFa extends AppLocalizations {
       'تغییر اشتراک‌گذاری انجام شد، اما فهرست مجوزها به‌روز نشد. پیش از تغییر دیگر فهرست را دوباره بارگیری کنید.';
 
   @override
+  String get sharingRateLimited =>
+      'اشتراک‌گذاری موقتاً محدود شده است. پس از پایان زمان انتظار دوباره تلاش کنید.';
+
+  @override
   String get sharingPermissionUnavailable =>
       'مجوزهای اشتراک‌گذاری برای این تقویم در دسترس نیست.';
 

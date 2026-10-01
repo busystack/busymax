@@ -1807,6 +1807,7 @@
   "shareRole": "Rola dostępu",
   "sharingPermissionUnavailable": "Uprawnienia udostępniania nie są dostępne dla tego kalendarza.",
   "sharingRefreshFailed": "Udostępnienie zmieniono, ale nie udało się odświeżyć listy uprawnień. Wczytaj ją ponownie przed następną zmianą.",
+  "sharingRateLimited": "Udostępnianie jest tymczasowo ograniczone. Spróbuj ponownie po upływie czasu oczekiwania.",
   "unknownEventLabel": "Nieznana etykieta ({id})",
   "@unknownEventLabel": {"placeholders": {"id": {"type": "String"}}}
 }

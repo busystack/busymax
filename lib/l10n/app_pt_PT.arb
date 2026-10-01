@@ -1097,6 +1097,7 @@
   "shareRole": "Papel de acesso",
   "sharingPermissionUnavailable": "As permissões de partilha não estão disponíveis para este calendário.",
   "sharingRefreshFailed": "A partilha foi alterada, mas a lista de permissões não foi atualizada. Recarregue-a antes de fazer outra alteração.",
+  "sharingRateLimited": "A partilha está temporariamente limitada. Volte a tentar quando terminar o tempo de espera.",
   "unknownEventLabel": "Etiqueta desconhecida ({id})",
   "@unknownEventLabel": {"placeholders": {"id": {"type": "String"}}}
 }

@@ -3084,6 +3084,10 @@ class AppLocalizationsRu extends AppLocalizations {
       'Доступ изменён, но список разрешений не обновился. Обновите его перед следующим изменением.';
 
   @override
+  String get sharingRateLimited =>
+      'Общий доступ временно ограничен. Повторите попытку после окончания ожидания.';
+
+  @override
   String get sharingPermissionUnavailable =>
       'Разрешения на общий доступ к этому календарю недоступны.';
 

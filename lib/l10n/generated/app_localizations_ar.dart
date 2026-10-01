@@ -3124,6 +3124,10 @@ class AppLocalizationsAr extends AppLocalizations {
       'نجح تغيير المشاركة، لكن تعذر تحديث قائمة الأذونات. أعد تحميل القائمة قبل إجراء تغيير آخر.';
 
   @override
+  String get sharingRateLimited =>
+      'المشاركة مقيّدة مؤقتًا. حاول مرة أخرى بعد انتهاء فترة الانتظار.';
+
+  @override
   String get sharingPermissionUnavailable =>
       'أذونات المشاركة غير متاحة لهذا التقويم.';
 

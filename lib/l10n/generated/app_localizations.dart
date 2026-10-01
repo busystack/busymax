@@ -5120,6 +5120,12 @@ abstract class AppLocalizations {
   /// **'The sharing change succeeded, but the permission list could not be refreshed. Retry the list before making another change.'**
   String get sharingRefreshFailed;
 
+  /// No description provided for @sharingRateLimited.
+  ///
+  /// In en, this message translates to:
+  /// **'Sharing is temporarily rate-limited. Try again when the wait ends.'**
+  String get sharingRateLimited;
+
   /// No description provided for @sharingPermissionUnavailable.
   ///
   /// In en, this message translates to:

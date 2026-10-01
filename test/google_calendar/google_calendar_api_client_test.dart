@@ -18,6 +18,92 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 
 void main() {
+  for (final status in [403, 429]) {
+    test(
+      'ACL $status quota response retains reason and retry timing',
+      () async {
+        var requests = 0;
+        final client = GoogleCalendarApiClient(
+          httpClient: MockClient((request) async {
+            requests++;
+            return http.Response(
+              jsonEncode({
+                'error': {
+                  'code': status,
+                  'message': 'Quota',
+                  'errors': [
+                    {
+                      'domain': 'usageLimits',
+                      'reason': 'userRateLimitExceeded',
+                    },
+                  ],
+                },
+              }),
+              status,
+              headers: {'retry-after': '91'},
+            );
+          }),
+          baseUri: Uri.parse('https://www.googleapis.com'),
+        );
+        await expectLater(
+          client.addAclUser(
+            'calendar',
+            email: 'friend@example.test',
+            role: 'reader',
+          ),
+          throwsA(
+            isA<GoogleCalendarApiError>()
+                .having((e) => e.statusCode, 'status', status)
+                .having((e) => e.isRateLimited, 'throttle', true)
+                .having(
+                  (e) => e.reasons,
+                  'reason',
+                  contains('userRateLimitExceeded'),
+                )
+                .having(
+                  (e) => e.retryAfter,
+                  'retry-after',
+                  const Duration(seconds: 91),
+                ),
+          ),
+        );
+        expect(requests, 1);
+      },
+    );
+  }
+
+  test('ACL permission denial is not a quota response', () async {
+    final client = GoogleCalendarApiClient(
+      httpClient: MockClient(
+        (request) async => http.Response(
+          jsonEncode({
+            'error': {
+              'code': 403,
+              'message': 'No access',
+              'errors': [
+                {'domain': 'global', 'reason': 'forbidden'},
+              ],
+            },
+          }),
+          403,
+        ),
+      ),
+      baseUri: Uri.parse('https://www.googleapis.com'),
+    );
+    await expectLater(
+      client.addAclUser(
+        'calendar',
+        email: 'friend@example.test',
+        role: 'reader',
+      ),
+      throwsA(
+        isA<GoogleCalendarApiError>()
+            .having((e) => e.isRateLimited, 'throttle', false)
+            .having((e) => e.reasons, 'reason', contains('forbidden')),
+      ),
+    );
+  });
+
   test('ACL authorization failure before dispatch retains its cause', () async {
     const failure = OAuthException('TokenUnavailable', 'Token unavailable');
     var requests = 0;
