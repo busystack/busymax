@@ -11,6 +11,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+// The file_selector package does not re-export its platform test seam.
+// ignore: depend_on_referenced_packages
+import 'package:file_selector_platform_interface/file_selector_platform_interface.dart';
 import 'package:busymax/src/app/app_bootstrap.dart';
 import 'package:busymax/src/app/busymax_design.dart';
 import 'package:busymax/src/app/busymax_yaru_theme.dart';
@@ -67,7 +70,124 @@ String _testAuthority(BusyProvider provider) => switch (provider) {
   BusyProvider.webCal => 'https://calendar.example.test',
 };
 
+class _AttachmentTestFileSelector extends FileSelectorPlatform {
+  @override
+  Future<XFile?> openFile({
+    List<XTypeGroup>? acceptedTypeGroups,
+    String? initialDirectory,
+    String? confirmButtonText,
+  }) async => XFile.fromData(
+    Uint8List.fromList(const [1, 2, 3]),
+    path: '/test/agenda.txt',
+    mimeType: 'text/plain',
+  );
+}
+
 void main() {
+  testWidgets('Linux task Add releases after confirmed upload', (tester) async {
+    final previousSelector = FileSelectorPlatform.instance;
+    FileSelectorPlatform.instance = _AttachmentTestFileSelector();
+    addTearDown(() => FileSelectorPlatform.instance = previousSelector);
+
+    final heldRefresh = Completer<http.Response>();
+    var uploads = 0;
+    var held = false;
+    final client = MicrosoftTodoRestApiClient(
+      httpClient: MockClient((request) async {
+        if (request.method == 'GET' &&
+            request.url.path.endsWith('/attachments')) {
+          if (uploads == 1 && !held) {
+            held = true;
+            return heldRefresh.future;
+          }
+          return http.Response(jsonEncode({'value': []}), 200);
+        }
+        if (request.method == 'POST' &&
+            request.url.path.endsWith('/attachments')) {
+          uploads++;
+          return http.Response(
+            jsonEncode({
+              'id': 'task-attachment-a',
+              'name': 'agenda.txt',
+              'size': 3,
+              '@odata.type': '#microsoft.graph.taskFileAttachment',
+            }),
+            201,
+          );
+        }
+        return http.Response('{}', 404);
+      }),
+      baseUri: Uri.parse('https://graph.microsoft.com/v1.0'),
+      authorizationHeaderProvider: () async => 'Bearer token',
+    );
+    final coordinator = AttachmentUploadCoordinator();
+    final key = AttachmentUploadCoordinator.taskKey(
+      'microsoft:m',
+      'list-1',
+      'task-1',
+    );
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          attachmentUploadCoordinatorProvider.overrideWith(
+            (ref) => coordinator,
+          ),
+          microsoftTodoApiClientForAccountProvider(
+            'microsoft:m',
+          ).overrideWithValue(client),
+        ],
+        child: localizedTestApp(
+          child: Scaffold(
+            body: TaskDetailsEditor(
+              task: _switchTask('task-1', 'Task'),
+              provider: BusyProvider.microsoft,
+              taskLists: const [
+                TaskListEntity(
+                  accountId: 'microsoft:m',
+                  id: 'list-1',
+                  title: 'Tasks',
+                  localDirty: false,
+                  pendingDelete: false,
+                  rawJson: '{}',
+                ),
+              ],
+              capabilities: microsoftTaskCollectionCapabilities,
+              localTimeZone: 'UTC',
+              accountLabel: 'Account',
+              onRefresh: () {},
+              onSave: (_, _) async {},
+              onCreateSubtask: (_) async {},
+              onMoveToTop: () {},
+              onDelete: () async {},
+              onCancel: () {},
+            ),
+          ),
+        ),
+      ),
+    );
+    for (var i = 0; i < 4; i++) {
+      await tester.pump();
+    }
+    final add = find.widgetWithText(FilledButton, 'Attachments').last;
+    await tester.ensureVisible(add);
+    await tester.tap(add);
+    for (var i = 0; i < 30 && !held; i++) {
+      await tester.pump(const Duration(milliseconds: 1));
+    }
+    try {
+      expect(held, isTrue);
+      expect(coordinator.status(key), AttachmentUploadStatus.committed);
+      for (var i = 0; i < 3; i++) {
+        await tester.pump();
+      }
+      expect(tester.widget<FilledButton>(add).onPressed, isNot(equals(null)));
+      expect(uploads, 1);
+    } finally {
+      heldRefresh.complete(http.Response(jsonEncode({'value': []}), 200));
+      await tester.pump();
+    }
+  });
+
   testWidgets(
     'Linux task detail permits another upload after confirmed refresh failure',
     (tester) async {

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
@@ -13,12 +14,19 @@ void main() {
     () async {
       var sessions = 0;
       var statusReads = 0;
+      var finalChunkAcknowledged = false;
+      final heldRefresh = Completer<http.Response>();
+      final refreshStarted = Completer<void>();
       final ranges = <String>[];
       final bytes = List<int>.filled(4 * 1024 * 1024, 65);
       final client = MicrosoftTodoRestApiClient(
         httpClient: MockClient((request) async {
           if (request.method == 'GET' &&
               request.url.path.endsWith('/attachments')) {
+            if (finalChunkAcknowledged) {
+              refreshStarted.complete();
+              return heldRefresh.future;
+            }
             return http.Response(jsonEncode({'value': []}), 200);
           }
           if (request.method == 'POST') {
@@ -54,6 +62,7 @@ void main() {
             if (range.startsWith('bytes 0-')) {
               throw http.ClientException('first response lost');
             }
+            finalChunkAcknowledged = true;
             return http.Response(
               '',
               201,
@@ -87,15 +96,32 @@ void main() {
         throwsA(isA<AttachmentUploadUnresolvedException>()),
       );
       expect(coordinator.status(key), AttachmentUploadStatus.unresolved);
-      expect(
-        await coordinator.reconcileTask(
-          client: client,
-          accountId: 'account',
-          taskListId: 'list',
-          taskId: 'task',
-        ),
-        AttachmentUploadStatus.committed,
-      );
+      var completed = false;
+      final resumed = coordinator
+          .reconcileTask(
+            client: client,
+            accountId: 'account',
+            taskListId: 'list',
+            taskId: 'task',
+          )
+          .then((status) {
+            completed = true;
+            return status;
+          });
+      await refreshStarted.future;
+      for (var i = 0; i < 4; i++) {
+        await Future<void>.value();
+      }
+      try {
+        expect(completed, isTrue);
+        expect(await resumed, AttachmentUploadStatus.committed);
+      } finally {
+        heldRefresh.complete(http.Response(jsonEncode({'value': []}), 200));
+        await resumed;
+      }
+      for (var i = 0; i < 4; i++) {
+        await Future<void>.value();
+      }
       expect(coordinator.confirmedId(key), equals(null));
       expect(coordinator.canSubmit(key), isTrue);
       expect(sessions, 1);

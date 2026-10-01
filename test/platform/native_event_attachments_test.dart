@@ -20,8 +20,12 @@ import 'package:fluent_ui/fluent_ui.dart' as fluent;
 import 'package:drift/drift.dart';
 import 'package:drift/native.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+// The file_selector package does not re-export its platform test seam.
+// ignore: depend_on_referenced_packages
+import 'package:file_selector_platform_interface/file_selector_platform_interface.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 
@@ -38,7 +42,274 @@ const _event = CalendarScheduleItem(
   allDay: false,
 );
 
+class _AttachmentTestFileSelector extends FileSelectorPlatform {
+  @override
+  Future<XFile?> openFile({
+    List<XTypeGroup>? acceptedTypeGroups,
+    String? initialDirectory,
+    String? confirmButtonText,
+  }) async => XFile.fromData(
+    Uint8List.fromList(const [1, 2, 3]),
+    path: '/test/agenda.txt',
+    mimeType: 'text/plain',
+  );
+}
+
 void main() {
+  test('confirmed direct upload returns before its list refresh', () async {
+    final heldRefresh = Completer<List<AttachmentUploadRemoteItem>>();
+    final refreshStarted = Completer<void>();
+    var lists = 0;
+    var submissions = 0;
+    final coordinator = AttachmentUploadCoordinator();
+    final key = AttachmentUploadCoordinator.eventKey(
+      'account',
+      'calendar',
+      'event',
+    );
+    var completed = false;
+    final upload = coordinator
+        .upload(
+          key: key,
+          name: 'agenda.txt',
+          size: 1,
+          contentType: 'text/plain',
+          bytes: const [1],
+          list: () {
+            lists++;
+            if (lists == 1) return Future.value(const []);
+            refreshStarted.complete();
+            return heldRefresh.future;
+          },
+          submit: (_) async {
+            submissions++;
+            return 'attachment-a';
+          },
+        )
+        .then((_) => completed = true);
+    await refreshStarted.future;
+    for (var i = 0; i < 4; i++) {
+      await Future<void>.value();
+    }
+    try {
+      expect(coordinator.status(key), AttachmentUploadStatus.committed);
+      expect(completed, isTrue);
+      expect(submissions, 1);
+      expect(lists, 2);
+    } finally {
+      heldRefresh.complete(const []);
+      await upload;
+    }
+  });
+
+  test(
+    'a delayed confirmed refresh is harmless after coordinator disposal',
+    () async {
+      final heldRefresh = Completer<List<AttachmentUploadRemoteItem>>();
+      final refreshStarted = Completer<void>();
+      var lists = 0;
+      final coordinator = AttachmentUploadCoordinator();
+      final key = AttachmentUploadCoordinator.eventKey(
+        'account',
+        'calendar',
+        'event',
+      );
+      await coordinator.upload(
+        key: key,
+        name: 'agenda.txt',
+        size: 1,
+        contentType: 'text/plain',
+        bytes: const [1],
+        list: () {
+          if (lists++ == 0) return Future.value(const []);
+          refreshStarted.complete();
+          return heldRefresh.future;
+        },
+        submit: (_) async => 'attachment-a',
+      );
+      await refreshStarted.future;
+      coordinator.dispose();
+      heldRefresh.complete(const []);
+      for (var i = 0; i < 4; i++) {
+        await Future<void>.value();
+      }
+      expect(lists, 2);
+    },
+  );
+
+  for (final platform in ['Linux', 'Windows', 'Android']) {
+    for (final refreshFails in [false, true]) {
+      testWidgets(
+        '$platform confirmed upload releases Add and Close before ${refreshFails ? 'failed' : 'successful'} list refresh',
+        (tester) async {
+          final previousSelector = FileSelectorPlatform.instance;
+          FileSelectorPlatform.instance = _AttachmentTestFileSelector();
+          addTearDown(() => FileSelectorPlatform.instance = previousSelector);
+          const android = MethodChannel('io.busystack.busymax/android');
+          final messenger =
+              TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+          messenger.setMockMethodCallHandler(android, (call) async {
+            if (call.method != 'openDocument') return null;
+            return {
+              'uri': 'content://busymax.test/agenda',
+              'name': 'agenda.txt',
+              'mimeType': 'text/plain',
+              'bytes': Uint8List.fromList(const [1, 2, 3]),
+            };
+          });
+          addTearDown(() {
+            messenger.setMockMethodCallHandler(android, null);
+          });
+
+          final heldRefresh = Completer<http.Response>();
+          var uploads = 0;
+          var listRequests = 0;
+          var held = false;
+          final client = MicrosoftCalendarApiClient(
+            httpClient: MockClient((request) async {
+              if (request.method == 'GET' &&
+                  request.url.path.endsWith('/attachments')) {
+                listRequests++;
+                if (uploads == 1 && !held) {
+                  held = true;
+                  return heldRefresh.future;
+                }
+                return http.Response(jsonEncode({'value': []}), 200);
+              }
+              if (request.method == 'POST' &&
+                  request.url.path.endsWith('/attachments')) {
+                uploads++;
+                return http.Response(
+                  jsonEncode({
+                    'id': 'attachment-a',
+                    'name': 'agenda.txt',
+                    'size': 3,
+                    '@odata.type': '#microsoft.graph.fileAttachment',
+                  }),
+                  201,
+                );
+              }
+              return http.Response('{}', 404);
+            }),
+            baseUri: Uri.parse('https://graph.microsoft.com/v1.0'),
+            responseTimeZone: 'UTC',
+          );
+          final coordinator = AttachmentUploadCoordinator();
+          final key = AttachmentUploadCoordinator.eventKey(
+            'microsoft:a',
+            'remote-calendar',
+            'remote-event',
+          );
+          await tester.pumpWidget(
+            ProviderScope(
+              overrides: [
+                attachmentUploadCoordinatorProvider.overrideWith(
+                  (ref) => coordinator,
+                ),
+                microsoftCalendarApiClientForAccountProvider(
+                  'microsoft:a',
+                ).overrideWithValue(client),
+              ],
+              child: platform == 'Windows'
+                  ? fluent.FluentApp(
+                      localizationsDelegates: const [AppLocalizations.delegate],
+                      supportedLocales: AppLocalizations.supportedLocales,
+                      home: Builder(
+                        builder: (context) => fluent.Button(
+                          onPressed: () => showWindowsEventAttachmentsDialog(
+                            context,
+                            _event,
+                          ),
+                          child: const fluent.Text('Open attachments'),
+                        ),
+                      ),
+                    )
+                  : localizedTestApp(
+                      child: Scaffold(
+                        body: Builder(
+                          builder: (context) => TextButton(
+                            onPressed: () => platform == 'Android'
+                                ? showAndroidEventAttachmentsDialog(
+                                    context,
+                                    _event,
+                                  )
+                                : showLinuxEventAttachmentsDialog(
+                                    context,
+                                    _event,
+                                  ),
+                            child: const Text('Open attachments'),
+                          ),
+                        ),
+                      ),
+                    ),
+            ),
+          );
+          await tester.tap(find.text('Open attachments'));
+          for (var i = 0; i < 4; i++) {
+            await tester.pump();
+          }
+          await tester.tap(find.byKey(const Key('event-attachment-add')));
+          for (var i = 0; i < 30 && !held; i++) {
+            await tester.pump(const Duration(milliseconds: 1));
+          }
+          expect(held, isTrue, reason: 'uploads=$uploads lists=$listRequests');
+          expect(coordinator.status(key), AttachmentUploadStatus.committed);
+          for (var i = 0; i < 3; i++) {
+            await tester.pump();
+          }
+          final add = tester.widget(
+            find.byKey(const Key('event-attachment-add')),
+          );
+          final close = platform == 'Windows'
+              ? tester.widget<fluent.Button>(
+                  find.widgetWithText(fluent.Button, 'Close'),
+                )
+              : platform == 'Android'
+              ? tester.widget<TextButton>(
+                  find.widgetWithText(TextButton, 'Close'),
+                )
+              : tester.widget<ElevatedButton>(
+                  find.widgetWithText(ElevatedButton, 'Close'),
+                );
+          expect(switch (add) {
+            fluent.Button button => button.onPressed,
+            TextButton button => button.onPressed,
+            FilledButton button => button.onPressed,
+            _ => null,
+          }, isNot(equals(null)));
+          expect(switch (close) {
+            fluent.Button button => button.onPressed,
+            TextButton button => button.onPressed,
+            ElevatedButton button => button.onPressed,
+            _ => null,
+          }, isNot(equals(null)));
+          expect(uploads, 1);
+          await tester.tap(find.text('Close'));
+          await tester.pump();
+          await tester.tap(find.text('Open attachments'));
+          await tester.pump();
+          expect(uploads, 1);
+          if (refreshFails) {
+            heldRefresh.completeError(http.ClientException('list failed'));
+          } else {
+            heldRefresh.complete(http.Response(jsonEncode({'value': []}), 200));
+          }
+          for (var i = 0; i < 4; i++) {
+            await tester.pump();
+          }
+          expect(coordinator.status(key), AttachmentUploadStatus.committed);
+          expect(coordinator.canSubmit(key), isTrue);
+          expect(uploads, 1);
+          expect(listRequests, greaterThanOrEqualTo(2));
+          expect(tester.takeException(), equals(null));
+          if (platform == 'Windows') {
+            await tester.pump(const Duration(milliseconds: 200));
+          }
+        },
+      );
+    }
+  }
+
   test(
     'another matching attachment never proves a lost upload succeeded',
     () async {
@@ -637,6 +908,9 @@ void main() {
       expect(coordinator.status(key), AttachmentUploadStatus.unresolved);
       firstRefresh.complete(const []);
       await uploadA;
+      for (var i = 0; i < 4; i++) {
+        await Future<void>.value();
+      }
       expect(coordinator.status(key), AttachmentUploadStatus.unresolved);
       expect(coordinator.canSubmit(key), isFalse);
       expect(submissions, 2);

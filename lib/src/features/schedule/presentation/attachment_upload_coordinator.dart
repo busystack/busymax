@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 
 import '../../../calendar_providers/attachment_upload_session.dart';
@@ -54,9 +56,16 @@ final class _ConfirmedUpload {
 /// A missing list item immediately after a lost response is not proof that the
 /// upload failed: Graph attachment collections may lag the write endpoint.
 final class AttachmentUploadCoordinator extends ChangeNotifier {
+  bool _disposed = false;
   final _statuses = <AttachmentUploadKey, AttachmentUploadStatus>{};
   final _unresolved = <AttachmentUploadKey, _UnresolvedUpload>{};
   final _confirmedAwaitingList = <AttachmentUploadKey, _ConfirmedUpload>{};
+
+  @override
+  void dispose() {
+    _disposed = true;
+    super.dispose();
+  }
 
   AttachmentUploadStatus status(AttachmentUploadKey key) =>
       _statuses[key] ?? AttachmentUploadStatus.ready;
@@ -290,7 +299,7 @@ final class AttachmentUploadCoordinator extends ChangeNotifier {
         _unresolved[key] = attempt;
       });
       final confirmed = _confirm(key, id);
-      await _refreshConfirmed(key, confirmed, list);
+      unawaited(_refreshConfirmed(key, confirmed, list));
       return;
     } on Object catch (error) {
       if (attempt.session == null && _confirmedNotCommitted(error)) {
@@ -324,7 +333,7 @@ final class AttachmentUploadCoordinator extends ChangeNotifier {
       // checked so a late refresh for A cannot clear B's confirmation.
       if (identical(_confirmedAwaitingList[key], confirmed)) {
         _confirmedAwaitingList.remove(key);
-        notifyListeners();
+        if (!_disposed) notifyListeners();
       }
     } on Object {
       // The attachment ID proves the write; a failed list is only a pending
@@ -350,7 +359,7 @@ final class AttachmentUploadCoordinator extends ChangeNotifier {
       try {
         final id = await resume(attempt);
         final confirmed = _confirm(key, id);
-        await _refreshConfirmed(key, confirmed, list);
+        unawaited(_refreshConfirmed(key, confirmed, list));
         return status(key);
       } on Object {
         attempt.reviewed = true;
