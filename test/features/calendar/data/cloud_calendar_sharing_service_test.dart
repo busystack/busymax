@@ -5,6 +5,8 @@ import 'package:busymax/src/features/calendar/data/calendar_repository.dart';
 import 'package:busymax/src/app/busymax_design.dart';
 import 'package:busymax/src/features/calendar/data/cloud_calendar_sharing_service.dart';
 import 'package:busymax/src/android/presentation/android_cloud_calendar_sharing_content.dart';
+import 'package:busymax/src/core/http/request_dispatch_exception.dart';
+import 'package:busymax/src/features/connectivity/network_connectivity_service.dart';
 import 'package:busymax/src/features/calendar/presentation/cloud_calendar_sharing_content.dart'
     as linux;
 import 'package:busymax/src/google_calendar/google_calendar_api_client.dart';
@@ -53,6 +55,213 @@ void main() {
       isFalse,
     );
   });
+
+  test(
+    'pre-dispatch add failure leaves sharing usable without reconciliation',
+    () async {
+      const source = CalendarSourceEntity(
+        id: 'unsent-add-source',
+        accountId: 'unsent-add-account',
+        provider: BusyProvider.google,
+        providerCalendarId: 'unsent-add-calendar',
+        summary: 'Calendar',
+        selected: true,
+        hidden: false,
+        readOnly: false,
+        isDeleted: false,
+        accessRole: 'owner',
+      );
+      var offline = false;
+      var providerMutations = 0;
+      final client = GoogleCalendarApiClient(
+        httpClient: ConnectivityAwareHttpClient(
+          inner: MockClient((request) async {
+            if (request.method == 'GET') {
+              return http.Response(jsonEncode({'items': <Object>[]}), 200);
+            }
+            providerMutations++;
+            return http.Response(
+              jsonEncode({
+                'id': 'grant-unsent',
+                'role': 'reader',
+                'scope': {'type': 'user', 'value': 'friend@example.com'},
+              }),
+              200,
+            );
+          }),
+          requireNetwork: () async {
+            if (offline) throw const NetworkUnavailableException();
+          },
+        ),
+        baseUri: Uri.parse('https://www.googleapis.com'),
+      );
+      final service = CloudCalendarSharingService(
+        source: source,
+        google: client,
+      );
+      expect((await service.load()).grants, isEmpty);
+      offline = true;
+      await expectLater(
+        service.add(recipient: 'friend@example.com', role: 'reader'),
+        throwsA(isA<RequestNotDispatchedException>()),
+      );
+      expect(providerMutations, 0);
+      expect(service.hasUnresolvedOutcome, isFalse);
+      offline = false;
+      expect((await service.load()).outcomeUnknown, isFalse);
+      await service.add(recipient: 'friend@example.com', role: 'reader');
+      expect(providerMutations, 1);
+    },
+  );
+
+  for (final provider in [BusyProvider.google, BusyProvider.microsoft]) {
+    for (final operation in ['add', 'change', 'revoke']) {
+      test(
+        '$provider $operation known-unsent mutation preserves grant state',
+        () async {
+          final google = provider == BusyProvider.google;
+          final initialRole = google ? 'reader' : 'read';
+          final changedRole = google ? 'writer' : 'write';
+          final source = CalendarSourceEntity(
+            id: 'unsent-$provider-$operation',
+            accountId: 'unsent-account-$provider-$operation',
+            provider: provider,
+            providerCalendarId: 'unsent-calendar-$provider-$operation',
+            summary: 'Calendar',
+            selected: true,
+            hidden: false,
+            readOnly: false,
+            isDeleted: false,
+            accessRole: 'owner',
+            primaryCalendar: !google,
+          );
+          String? remoteRole = operation == 'add' ? null : initialRole;
+          var offline = false;
+          var providerMutations = 0;
+          final guardedHttp = ConnectivityAwareHttpClient(
+            inner: MockClient((request) async {
+              if (request.method == 'GET') {
+                return http.Response(
+                  jsonEncode(
+                    google
+                        ? {
+                            'items': remoteRole == null
+                                ? <Object>[]
+                                : [
+                                    {
+                                      'id': 'unsent-grant',
+                                      'role': remoteRole,
+                                      'scope': {
+                                        'type': 'user',
+                                        'value': 'friend@example.com',
+                                      },
+                                    },
+                                  ],
+                          }
+                        : {
+                            'value': remoteRole == null
+                                ? <Object>[]
+                                : [
+                                    {
+                                      'id': 'unsent-grant',
+                                      'role': remoteRole,
+                                      'allowedRoles': ['read', 'write'],
+                                      'isRemovable': true,
+                                      'emailAddress': {
+                                        'address': 'friend@example.com',
+                                      },
+                                    },
+                                  ],
+                          },
+                  ),
+                  200,
+                );
+              }
+              providerMutations++;
+              remoteRole = switch (operation) {
+                'add' => initialRole,
+                'change' => changedRole,
+                _ => null,
+              };
+              if (request.method == 'DELETE') return http.Response('', 204);
+              return http.Response(
+                jsonEncode(
+                  google
+                      ? {
+                          'id': 'unsent-grant',
+                          'role': remoteRole,
+                          'scope': {
+                            'type': 'user',
+                            'value': 'friend@example.com',
+                          },
+                        }
+                      : {
+                          'id': 'unsent-grant',
+                          'role': remoteRole,
+                          'allowedRoles': ['read', 'write'],
+                          'isRemovable': true,
+                          'emailAddress': {'address': 'friend@example.com'},
+                        },
+                ),
+                request.method == 'POST' ? 201 : 200,
+              );
+            }),
+            requireNetwork: () async {
+              if (offline) throw const NetworkUnavailableException();
+            },
+          );
+          CloudCalendarSharingService create() => CloudCalendarSharingService(
+            source: source,
+            google: google
+                ? GoogleCalendarApiClient(
+                    httpClient: guardedHttp,
+                    baseUri: Uri.parse('https://www.googleapis.com'),
+                  )
+                : null,
+            microsoft: google
+                ? null
+                : MicrosoftCalendarApiClient(
+                    httpClient: guardedHttp,
+                    baseUri: Uri.parse('https://graph.microsoft.com/v1.0'),
+                    responseTimeZone: 'UTC',
+                    accountTenantId: 'tenant',
+                  ),
+          );
+          final service = create();
+          final initial = await service.load();
+          expect(initial.grants.singleOrNull?.role, remoteRole);
+          Future<CloudCalendarShareSnapshot> mutate(
+            CloudCalendarSharingService target,
+            CloudCalendarShareSnapshot snapshot,
+          ) => switch (operation) {
+            'add' => target.add(
+              recipient: 'friend@example.com',
+              role: initialRole,
+            ),
+            'change' => target.change(snapshot.grants.single, changedRole),
+            _ => target.revoke(snapshot.grants.single),
+          };
+          offline = true;
+          await expectLater(
+            mutate(service, initial),
+            throwsA(isA<RequestNotDispatchedException>()),
+          );
+          expect(providerMutations, 0);
+          expect(remoteRole, operation == 'add' ? null : initialRole);
+          expect(service.hasUnresolvedOutcome, isFalse);
+          offline = false;
+          final reopened = create();
+          final baseline = await reopened.load();
+          expect(baseline.outcomeUnknown, isFalse);
+          expect(baseline.grants.singleOrNull?.role, remoteRole);
+          final committed = await mutate(reopened, baseline);
+          expect(committed.outcomeUnknown, isFalse);
+          expect(providerMutations, 1);
+          expect(committed.grants.singleOrNull?.role, remoteRole);
+        },
+      );
+    }
+  }
 
   test('acknowledged Google grant survives failed follow-up refresh', () async {
     var listCalls = 0;
@@ -636,6 +845,189 @@ void main() {
   });
 
   for (final android in [false, true]) {
+    testWidgets(
+      '${android ? 'Android' : 'Linux'} known-unsent sharing add restores mutation controls',
+      (tester) async {
+        final source = CalendarSourceEntity(
+          id: 'native-unsent-$android',
+          accountId: 'native-unsent-account-$android',
+          provider: BusyProvider.google,
+          providerCalendarId: 'native-unsent-calendar-$android',
+          summary: 'Calendar',
+          selected: true,
+          hidden: false,
+          readOnly: false,
+          isDeleted: false,
+          accessRole: 'owner',
+        );
+        final preflight = Completer<void>();
+        var blockDispatch = false;
+        var providerMutations = 0;
+        final client = GoogleCalendarApiClient(
+          httpClient: ConnectivityAwareHttpClient(
+            inner: MockClient((request) async {
+              if (request.method == 'GET') {
+                return http.Response(
+                  jsonEncode({
+                    'items': [
+                      {
+                        'id': 'existing-grant',
+                        'role': 'reader',
+                        'scope': {
+                          'type': 'user',
+                          'value': 'existing@example.com',
+                        },
+                      },
+                      if (providerMutations > 0)
+                        {
+                          'id': 'new-grant',
+                          'role': 'freeBusyReader',
+                          'scope': {
+                            'type': 'user',
+                            'value': 'friend@example.com',
+                          },
+                        },
+                    ],
+                  }),
+                  200,
+                );
+              }
+              providerMutations++;
+              return http.Response(
+                jsonEncode({
+                  'id': 'new-grant',
+                  'role': 'freeBusyReader',
+                  'scope': {'type': 'user', 'value': 'friend@example.com'},
+                }),
+                200,
+              );
+            }),
+            requireNetwork: () async {
+              if (blockDispatch) {
+                await preflight.future;
+                throw const NetworkUnavailableException();
+              }
+            },
+          ),
+          baseUri: Uri.parse('https://www.googleapis.com'),
+        );
+        Widget content() => android
+            ? CloudCalendarSharingContent(
+                sources: [source],
+                serviceFactory: (s) =>
+                    CloudCalendarSharingService(source: s, google: client),
+              )
+            : linux.CloudCalendarSharingContent(
+                sources: [source],
+                serviceFactory: (s) =>
+                    CloudCalendarSharingService(source: s, google: client),
+              );
+        VoidCallback? addAction() => switch (tester.widget(
+          find.byKey(const Key('calendar-sharing-add')),
+        )) {
+          TextButton button => button.onPressed,
+          FilledButton button => button.onPressed,
+          _ => throw StateError('Unexpected native Add control.'),
+        };
+        bool roleEnabled() {
+          final grant = find.byKey(
+            const Key('calendar-sharing-grant-existing-grant'),
+          );
+          return android
+              ? tester
+                    .widget<PopupMenuButton<String>>(
+                      find.descendant(
+                        of: grant,
+                        matching: find.byType(PopupMenuButton<String>),
+                      ),
+                    )
+                    .enabled
+              : tester
+                    .widget<BusyMaxMenuButton<String>>(
+                      find.descendant(
+                        of: grant,
+                        matching: find.byType(BusyMaxMenuButton<String>),
+                      ),
+                    )
+                    .enabled;
+        }
+
+        bool revokeEnabled() {
+          final grant = find.byKey(
+            const Key('calendar-sharing-grant-existing-grant'),
+          );
+          return android
+              ? tester
+                        .widget<IconButton>(
+                          find.ancestor(
+                            of: find.descendant(
+                              of: grant,
+                              matching: find.byIcon(
+                                Icons.person_remove_outlined,
+                              ),
+                            ),
+                            matching: find.byType(IconButton),
+                          ),
+                        )
+                        .onPressed !=
+                    null
+              : tester
+                        .widget<FilledButton>(
+                          find.descendant(
+                            of: grant,
+                            matching: find.byType(FilledButton),
+                          ),
+                        )
+                        .onPressed !=
+                    null;
+        }
+
+        await tester.pumpWidget(
+          ProviderScope(
+            child: localizedTestApp(child: Scaffold(body: content())),
+          ),
+        );
+        await tester.pumpAndSettle();
+        await tester.enterText(
+          find.byKey(const Key('calendar-sharing-recipient')),
+          'friend@example.com',
+        );
+        blockDispatch = true;
+        await tester.tap(find.byKey(const Key('calendar-sharing-add')));
+        await tester.pump();
+        expect(addAction(), isNull);
+        expect(providerMutations, 0);
+        preflight.complete();
+        for (var i = 0; i < 4; i++) {
+          await tester.pump();
+        }
+        expect(
+          find.textContaining('NetworkUnavailableException'),
+          findsOneWidget,
+        );
+        expect(addAction(), isNotNull);
+        expect(roleEnabled(), isTrue);
+        expect(revokeEnabled(), isTrue);
+        expect(providerMutations, 0);
+        await tester.pumpWidget(const SizedBox());
+        blockDispatch = false;
+        await tester.pumpWidget(
+          ProviderScope(
+            child: localizedTestApp(child: Scaffold(body: content())),
+          ),
+        );
+        await tester.pumpAndSettle();
+        expect(addAction(), isNotNull);
+        await tester.enterText(
+          find.byKey(const Key('calendar-sharing-recipient')),
+          'friend@example.com',
+        );
+        await tester.tap(find.byKey(const Key('calendar-sharing-add')));
+        await tester.pumpAndSettle();
+        expect(providerMutations, 1);
+      },
+    );
+
     testWidgets(
       '${android ? 'Android' : 'Linux'} sharing remains read-only after lost response and recovers on Refresh',
       (tester) async {

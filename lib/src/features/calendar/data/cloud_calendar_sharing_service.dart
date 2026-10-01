@@ -1,3 +1,4 @@
+import '../../../core/http/request_dispatch_exception.dart';
 import '../../../google_calendar/google_calendar_api_client.dart';
 import '../../../google_calendar/google_calendar_models.dart';
 import '../../../google_calendar/google_calendar_errors.dart';
@@ -213,7 +214,7 @@ final class CloudCalendarSharingService {
               ),
             );
     } on Object catch (error) {
-      if (_isConfirmedRejection(error)) {
+      if (_isKnownUncommittedFailure(error)) {
         _pending.remove(_scope);
         rethrow;
       }
@@ -258,7 +259,7 @@ final class CloudCalendarSharingService {
               ),
             );
     } on Object catch (error) {
-      if (_isConfirmedRejection(error)) {
+      if (_isKnownUncommittedFailure(error)) {
         _pending.remove(_scope);
         rethrow;
       }
@@ -295,7 +296,7 @@ final class CloudCalendarSharingService {
         );
       }
     } on Object catch (error) {
-      if (_isConfirmedRejection(error)) {
+      if (_isKnownUncommittedFailure(error)) {
         _pending.remove(_scope);
         rethrow;
       }
@@ -377,7 +378,8 @@ final class CloudCalendarSharingService {
     ),
   };
 
-  bool _isConfirmedRejection(Object error) => switch (error) {
+  bool _isKnownUncommittedFailure(Object error) => switch (error) {
+    RequestNotDispatchedException _ => true,
     ArgumentError _ => true,
     GoogleCalendarApiError e
         when e.statusCode >= 400 && e.statusCode < 500 && e.statusCode != 408 =>
