@@ -2999,6 +2999,10 @@ class AppLocalizationsJa extends AppLocalizations {
   String get sharingRateLimited => '共有は一時的に制限されています。待機時間が終了してから再試行してください。';
 
   @override
+  String get attachmentUploadRateLimited =>
+      '添付ファイルのアップロードは一時的に制限されています。待機時間が終了してから再試行してください。';
+
+  @override
   String get sharingPermissionUnavailable => 'このカレンダーの共有権限を取得できません。';
 
   @override

@@ -3061,6 +3061,10 @@ class AppLocalizationsVi extends AppLocalizations {
       'Việc chia sẻ đang tạm thời bị giới hạn. Hãy thử lại sau khi hết thời gian chờ.';
 
   @override
+  String get attachmentUploadRateLimited =>
+      'Việc tải tệp đính kèm lên đang tạm thời bị giới hạn. Hãy thử lại sau khi hết thời gian chờ.';
+
+  @override
   String get sharingPermissionUnavailable =>
       'Không có quyền chia sẻ cho lịch này.';
 

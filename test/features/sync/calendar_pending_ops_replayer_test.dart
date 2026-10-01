@@ -3589,6 +3589,118 @@ END:VEVENT
   );
 
   test(
+    'imported Google exception replays explicit metadata and at-start alarm',
+    () async {
+      final repository = CalendarRepository(
+        database: database,
+        now: () => DateTime.utc(2026, 8, 29),
+      );
+      final importer = IcalImportService(
+        database: database,
+        calendarRepository: repository,
+      );
+      final preview = importer.parsePreview(
+        utf8.encode(
+          _icalCalendar('''
+BEGIN:VEVENT
+UID:replay-import-metadata
+DTSTART:20260830T160000Z
+DTEND:20260830T170000Z
+SUMMARY:Master
+RRULE:FREQ=DAILY;COUNT=2
+CLASS:PRIVATE
+TRANSP:TRANSPARENT
+END:VEVENT
+BEGIN:VEVENT
+UID:replay-import-metadata
+RECURRENCE-ID:20260831T160000Z
+DTSTART:20260831T180000Z
+DTEND:20260831T190000Z
+SUMMARY:Moved
+CLASS:PUBLIC
+TRANSP:OPAQUE
+BEGIN:VALARM
+ACTION:DISPLAY
+TRIGGER:PT0M
+END:VALARM
+END:VEVENT
+'''),
+        ),
+      );
+      expect(
+        (await importer.importPreview(
+          preview: preview,
+          destination: (await importer.writableDestinations()).single,
+        )).queued,
+        1,
+      );
+      final remoteOccurrence = <String, Object?>{
+        'id': 'occurrence-1',
+        'recurringEventId': 'imported-master',
+        'originalStartTime': {'dateTime': '2026-08-31T16:00:00Z'},
+        'summary': 'Master',
+        'start': {'dateTime': '2026-08-31T16:00:00Z'},
+        'end': {'dateTime': '2026-08-31T17:00:00Z'},
+      };
+      final patches = <Map<String, Object?>>[];
+      final realClient = GoogleCalendarApiClient(
+        httpClient: MockClient((request) async {
+          if (request.method == 'GET' &&
+              request.url.path.endsWith('/instances')) {
+            return http.Response(
+              jsonEncode({
+                'items': [remoteOccurrence],
+              }),
+              200,
+            );
+          }
+          if (request.method == 'GET') {
+            return http.Response(jsonEncode({'items': <Object>[]}), 200);
+          }
+          if (request.method == 'POST') {
+            return http.Response(
+              jsonEncode({
+                'id': 'imported-master',
+                'summary': 'Master',
+                'start': {'dateTime': '2026-08-30T16:00:00Z'},
+                'end': {'dateTime': '2026-08-30T17:00:00Z'},
+              }),
+              200,
+            );
+          }
+          if (request.method == 'PATCH') {
+            final patch = (jsonDecode(request.body) as Map)
+                .cast<String, Object?>();
+            patches.add(patch);
+            remoteOccurrence.addAll(patch);
+            return http.Response(jsonEncode(remoteOccurrence), 200);
+          }
+          return http.Response('{}', 404);
+        }),
+        baseUri: Uri.parse('https://www.googleapis.com'),
+      );
+      final replayer = CalendarPendingOpsReplayer(
+        database: database,
+        client: realClient,
+        accountId: 'account',
+        nowUtc: () => DateTime.utc(2026, 10, 2),
+      );
+      await replayer.replayDueOps();
+      await replayer.replayDueOps();
+      expect(patches, hasLength(1));
+      expect(patches.single['visibility'], 'public');
+      expect(patches.single['transparency'], 'opaque');
+      expect(patches.single['reminders'], {
+        'useDefault': false,
+        'overrides': [
+          {'method': 'popup', 'minutes': 0},
+        ],
+      });
+      expect(await database.select(database.pendingOps).get(), isEmpty);
+    },
+  );
+
+  test(
     'Google following title/time split copies the series point once across retry and sync',
     () async {
       final repository = CalendarRepository(database: database);

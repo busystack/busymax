@@ -5,10 +5,100 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:busymax/src/microsoft_todo/api/microsoft_todo_api_client.dart';
+import 'package:busymax/src/microsoft_todo/api/microsoft_todo_api_error.dart';
 import 'package:busymax/src/core/http/request_dispatch_exception.dart';
 import 'package:busymax/src/features/schedule/presentation/attachment_upload_coordinator.dart';
 
 void main() {
+  test(
+    'fresh direct task 429 retains retry delay and allows one explicit retry',
+    () async {
+      var now = DateTime.utc(2026, 10, 1);
+      var posts = 0;
+      final heldRefresh = Completer<http.Response>();
+      final refreshStarted = Completer<void>();
+      final client = MicrosoftTodoRestApiClient(
+        httpClient: MockClient((request) async {
+          if (request.method == 'GET') {
+            if (posts == 2) {
+              refreshStarted.complete();
+              return heldRefresh.future;
+            }
+            return http.Response(jsonEncode({'value': []}), 200);
+          }
+          posts++;
+          if (posts == 1) {
+            return http.Response(
+              jsonEncode({
+                'error': {'code': 'TooManyRequests', 'message': 'Slow down'},
+              }),
+              429,
+              headers: {'retry-after': '30'},
+            );
+          }
+          return http.Response(
+            jsonEncode({
+              'id': 'confirmed-task-attachment',
+              'name': 'notes.txt',
+              'size': 1,
+              '@odata.type': '#microsoft.graph.taskFileAttachment',
+            }),
+            201,
+          );
+        }),
+        baseUri: Uri.parse('https://graph.microsoft.com/v1.0'),
+      );
+      final coordinator = AttachmentUploadCoordinator(now: () => now);
+      addTearDown(coordinator.dispose);
+      final key = AttachmentUploadCoordinator.taskKey(
+        'account',
+        'list',
+        'task',
+      );
+      Future<void> upload() => coordinator.uploadTask(
+        client: client,
+        accountId: 'account',
+        taskListId: 'list',
+        taskId: 'task',
+        name: 'notes.txt',
+        contentType: 'text/plain',
+        bytes: const [1],
+      );
+      await expectLater(
+        upload(),
+        throwsA(
+          isA<MicrosoftTodoApiError>().having(
+            (e) => e.retryAfter,
+            'retryAfter',
+            const Duration(seconds: 30),
+          ),
+        ),
+      );
+      expect(posts, 1);
+      expect(coordinator.needsReconciliation(key), isFalse);
+      expect(coordinator.retryAfter(key), const Duration(seconds: 30));
+      expect(coordinator.canSubmit(key), isFalse);
+      expect(
+        await client.listTaskAttachmentsPage(
+          taskListId: 'list',
+          taskId: 'task',
+        ),
+        isNotNull,
+      );
+      await expectLater(
+        upload(),
+        throwsA(isA<AttachmentUploadRateLimitedException>()),
+      );
+      expect(posts, 1);
+      now = now.add(const Duration(seconds: 31));
+      await upload();
+      await refreshStarted.future;
+      expect(posts, 2);
+      expect(coordinator.status(key), AttachmentUploadStatus.committed);
+      expect(coordinator.canSubmit(key), isTrue);
+      heldRefresh.complete(http.Response(jsonEncode({'value': []}), 200));
+    },
+  );
   test(
     'lost nonfinal task chunk resumes its Graph session and keeps bearer scoped',
     () async {

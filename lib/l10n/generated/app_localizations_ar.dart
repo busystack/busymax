@@ -3128,6 +3128,10 @@ class AppLocalizationsAr extends AppLocalizations {
       'المشاركة مقيّدة مؤقتًا. حاول مرة أخرى بعد انتهاء فترة الانتظار.';
 
   @override
+  String get attachmentUploadRateLimited =>
+      'تحميل المرفقات مقيّد مؤقتًا. حاول مرة أخرى بعد انتهاء فترة الانتظار.';
+
+  @override
   String get sharingPermissionUnavailable =>
       'أذونات المشاركة غير متاحة لهذا التقويم.';
 

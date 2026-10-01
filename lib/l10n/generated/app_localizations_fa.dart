@@ -3099,6 +3099,10 @@ class AppLocalizationsFa extends AppLocalizations {
       'اشتراک‌گذاری موقتاً محدود شده است. پس از پایان زمان انتظار دوباره تلاش کنید.';
 
   @override
+  String get attachmentUploadRateLimited =>
+      'بارگذاری پیوست‌ها موقتاً محدود شده است. پس از پایان زمان انتظار دوباره تلاش کنید.';
+
+  @override
   String get sharingPermissionUnavailable =>
       'مجوزهای اشتراک‌گذاری برای این تقویم در دسترس نیست.';
 

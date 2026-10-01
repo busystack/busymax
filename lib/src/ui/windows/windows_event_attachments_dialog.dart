@@ -80,6 +80,10 @@ class _WindowsEventAttachmentsDialogState
               if (_error case final error?) Text(error),
               if (microsoft &&
                   uploadKey != null &&
+                  uploads.retryAfter(uploadKey) != null)
+                Text(context.l10n.attachmentUploadRateLimited),
+              if (microsoft &&
+                  uploadKey != null &&
                   uploads.needsReconciliation(uploadKey)) ...[
                 Text(
                   uploads.confirmedId(uploadKey) == null

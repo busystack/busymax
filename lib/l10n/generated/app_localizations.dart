@@ -5126,6 +5126,12 @@ abstract class AppLocalizations {
   /// **'Sharing is temporarily rate-limited. Try again when the wait ends.'**
   String get sharingRateLimited;
 
+  /// No description provided for @attachmentUploadRateLimited.
+  ///
+  /// In en, this message translates to:
+  /// **'Attachment upload is temporarily rate-limited. Try again when the wait ends.'**
+  String get attachmentUploadRateLimited;
+
   /// No description provided for @sharingPermissionUnavailable.
   ///
   /// In en, this message translates to:

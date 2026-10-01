@@ -561,6 +561,17 @@ Future<bool> showWindowsTaskDetailsDialog(
                         ),
                       ),
                     if (ref
+                            .watch(attachmentUploadCoordinatorProvider)
+                            .retryAfter(
+                              AttachmentUploadCoordinator.taskKey(
+                                original.accountId,
+                                original.taskListId,
+                                original.id,
+                              ),
+                            ) !=
+                        null)
+                      Text(l10n.attachmentUploadRateLimited),
+                    if (ref
                         .watch(attachmentUploadCoordinatorProvider)
                         .needsReconciliation(
                           AttachmentUploadCoordinator.taskKey(

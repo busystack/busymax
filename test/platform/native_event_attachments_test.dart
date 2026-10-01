@@ -5,6 +5,7 @@ import 'package:busymax/l10n/generated/app_localizations.dart';
 import 'package:busymax/src/android/presentation/android_event_attachments_dialog.dart';
 import 'package:busymax/src/app/app_bootstrap.dart';
 import 'package:busymax/src/calendar_providers/calendar_sync_dto.dart';
+import 'package:busymax/src/calendar_providers/attachment_upload_session.dart';
 import 'package:busymax/src/dav/storage/dav_object_repository.dart';
 import 'package:busymax/src/db/app_database.dart';
 import 'package:busymax/src/features/calendar/data/calendar_repository.dart';
@@ -12,6 +13,7 @@ import 'package:busymax/src/features/schedule/presentation/linux_event_attachmen
 import 'package:busymax/src/features/schedule/presentation/attachment_upload_coordinator.dart';
 import 'package:busymax/src/google_calendar/google_calendar_api_client.dart';
 import 'package:busymax/src/microsoft_calendar/microsoft_calendar_api_client.dart';
+import 'package:busymax/src/microsoft_calendar/microsoft_calendar_errors.dart';
 import 'package:busymax/src/providers/busy_provider.dart';
 import 'package:busymax/src/schedule/schedule_item.dart';
 import 'package:busymax/src/schedule/event_attachment_link.dart';
@@ -56,6 +58,342 @@ class _AttachmentTestFileSelector extends FileSelectorPlatform {
 }
 
 void main() {
+  test(
+    'R3 missing retry header backs off repeated direct 429s without creating uncertainty',
+    () async {
+      var now = DateTime.utc(2026, 10, 1);
+      var submissions = 0;
+      final coordinator = AttachmentUploadCoordinator(now: () => now);
+      addTearDown(coordinator.dispose);
+      final key = AttachmentUploadCoordinator.eventKey(
+        'account',
+        'calendar',
+        'event',
+      );
+      Future<void> upload() => coordinator.upload(
+        key: key,
+        name: 'a.txt',
+        size: 1,
+        contentType: 'text/plain',
+        bytes: const [1],
+        list: () async => const [],
+        submit: (_) async {
+          submissions++;
+          if (submissions <= 2) {
+            throw const MicrosoftCalendarApiError(
+              statusCode: 429,
+              code: 'TooManyRequests',
+              message: 'Throttled',
+            );
+          }
+          return 'confirmed';
+        },
+      );
+      await expectLater(upload(), throwsA(isA<MicrosoftCalendarApiError>()));
+      final first = coordinator.retryAfter(key)!;
+      expect(first, greaterThanOrEqualTo(const Duration(seconds: 2)));
+      expect(first, lessThan(const Duration(seconds: 3)));
+      await expectLater(
+        upload(),
+        throwsA(isA<AttachmentUploadRateLimitedException>()),
+      );
+      expect(submissions, 1);
+      now = now.add(first + const Duration(milliseconds: 1));
+      await expectLater(upload(), throwsA(isA<MicrosoftCalendarApiError>()));
+      final second = coordinator.retryAfter(key)!;
+      expect(second, greaterThanOrEqualTo(const Duration(seconds: 4)));
+      expect(second, lessThan(const Duration(seconds: 5)));
+      expect(coordinator.needsReconciliation(key), isFalse);
+      now = now.add(second + const Duration(milliseconds: 1));
+      await upload();
+      expect(submissions, 3);
+      expect(coordinator.canSubmit(key), isTrue);
+    },
+  );
+
+  test(
+    'R3 throttled chunk does not discard an existing upload session',
+    () async {
+      final coordinator = AttachmentUploadCoordinator();
+      addTearDown(coordinator.dispose);
+      final key = AttachmentUploadCoordinator.eventKey(
+        'account',
+        'calendar',
+        'event',
+      );
+      await expectLater(
+        coordinator.upload(
+          key: key,
+          name: 'large.bin',
+          size: 1,
+          contentType: 'application/octet-stream',
+          bytes: const [1],
+          list: () async => const [],
+          submit: (onSession) async {
+            onSession(
+              MicrosoftAttachmentUploadSession(
+                url: Uri.parse('https://graph.microsoft.com/session'),
+                expiresAt: DateTime.utc(2099),
+                nextOffset: 0,
+              ),
+            );
+            throw const MicrosoftCalendarApiError(
+              statusCode: 429,
+              code: 'TooManyRequests',
+              message: 'Throttled',
+            );
+          },
+        ),
+        throwsA(isA<AttachmentUploadUnresolvedException>()),
+      );
+      expect(coordinator.hasResumableSession(key), isTrue);
+      expect(coordinator.needsReconciliation(key), isTrue);
+      expect(coordinator.retryAfter(key), equals(null));
+    },
+  );
+  test(
+    'R3 fresh direct event 429 is a rejected attempt, not an unresolved upload',
+    () async {
+      var now = DateTime.utc(2026, 10, 1);
+      var posts = 0;
+      final heldRefresh = Completer<http.Response>();
+      final refreshStarted = Completer<void>();
+      final client = MicrosoftCalendarApiClient(
+        httpClient: MockClient((request) async {
+          if (request.method == 'GET') {
+            if (posts == 2) {
+              refreshStarted.complete();
+              return heldRefresh.future;
+            }
+            return http.Response(jsonEncode({'value': <Object>[]}), 200);
+          }
+          posts++;
+          if (posts == 2) {
+            return http.Response(
+              jsonEncode({
+                'id': 'confirmed-a',
+                'name': 'notes.txt',
+                'size': 1,
+                '@odata.type': '#microsoft.graph.fileAttachment',
+              }),
+              201,
+            );
+          }
+          return http.Response(
+            jsonEncode({
+              'error': {'code': 'TooManyRequests', 'message': 'Throttled'},
+            }),
+            429,
+            headers: {'retry-after': '30'},
+          );
+        }),
+        baseUri: Uri.parse('https://graph.microsoft.com/v1.0'),
+        responseTimeZone: 'UTC',
+      );
+      final coordinator = AttachmentUploadCoordinator(now: () => now);
+      addTearDown(coordinator.dispose);
+      final key = AttachmentUploadCoordinator.eventKey(
+        'account',
+        'calendar',
+        'event',
+      );
+      Future<void> upload() => coordinator.uploadEvent(
+        client: client,
+        accountId: 'account',
+        calendarId: 'calendar',
+        eventId: 'event',
+        name: 'notes.txt',
+        contentType: 'text/plain',
+        bytes: [1],
+      );
+      await expectLater(
+        upload(),
+        throwsA(
+          isA<MicrosoftCalendarApiError>().having(
+            (e) => e.retryAfter,
+            'retryAfter',
+            const Duration(seconds: 30),
+          ),
+        ),
+      );
+      expect(posts, 1);
+      expect(coordinator.status(key), AttachmentUploadStatus.ready);
+      expect(coordinator.needsReconciliation(key), isFalse);
+      expect(coordinator.retryAfter(key), const Duration(seconds: 30));
+      expect(coordinator.canSubmit(key), isFalse);
+      expect(
+        await client.listEventAttachments(
+          calendarId: 'calendar',
+          eventId: 'event',
+        ),
+        isEmpty,
+      );
+      await expectLater(
+        upload(),
+        throwsA(isA<AttachmentUploadRateLimitedException>()),
+      );
+      expect(posts, 1);
+      now = now.add(const Duration(seconds: 31));
+      await upload();
+      await refreshStarted.future;
+      expect(posts, 2);
+      expect(coordinator.status(key), AttachmentUploadStatus.committed);
+      expect(coordinator.canSubmit(key), isTrue);
+      heldRefresh.complete(
+        http.Response(jsonEncode({'value': <Object>[]}), 200),
+      );
+    },
+  );
+
+  for (final platform in ['Linux', 'Windows', 'Android']) {
+    testWidgets(
+      '$platform R3 direct upload throttling keeps Close usable and gates explicit retry',
+      (tester) async {
+        final previousSelector = FileSelectorPlatform.instance;
+        FileSelectorPlatform.instance = _AttachmentTestFileSelector();
+        addTearDown(() => FileSelectorPlatform.instance = previousSelector);
+        const android = MethodChannel('io.busystack.busymax/android');
+        final messenger =
+            TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+        messenger.setMockMethodCallHandler(android, (call) async {
+          if (call.method != 'openDocument') return null;
+          return {
+            'uri': 'content://busymax.test/agenda',
+            'name': 'agenda.txt',
+            'mimeType': 'text/plain',
+            'bytes': Uint8List.fromList(const [1, 2, 3]),
+          };
+        });
+        addTearDown(() => messenger.setMockMethodCallHandler(android, null));
+        var now = DateTime.utc(2026, 10, 1);
+        var posts = 0;
+        final client = MicrosoftCalendarApiClient(
+          httpClient: MockClient((request) async {
+            if (request.method == 'GET') {
+              return http.Response(jsonEncode({'value': <Object>[]}), 200);
+            }
+            posts++;
+            if (posts == 1) {
+              return http.Response(
+                jsonEncode({
+                  'error': {'code': 'TooManyRequests', 'message': 'Throttled'},
+                }),
+                429,
+                headers: {'retry-after': '30'},
+              );
+            }
+            return http.Response(
+              jsonEncode({
+                'id': 'attachment-a',
+                'name': 'agenda.txt',
+                'size': 3,
+                '@odata.type': '#microsoft.graph.fileAttachment',
+              }),
+              201,
+            );
+          }),
+          baseUri: Uri.parse('https://graph.microsoft.com/v1.0'),
+          responseTimeZone: 'UTC',
+        );
+        final coordinator = AttachmentUploadCoordinator(now: () => now);
+        final key = AttachmentUploadCoordinator.eventKey(
+          'microsoft:a',
+          'remote-calendar',
+          'remote-event',
+        );
+        await tester.pumpWidget(
+          ProviderScope(
+            overrides: [
+              attachmentUploadCoordinatorProvider.overrideWith(
+                (ref) => coordinator,
+              ),
+              microsoftCalendarApiClientForAccountProvider(
+                'microsoft:a',
+              ).overrideWithValue(client),
+            ],
+            child: platform == 'Windows'
+                ? fluent.FluentApp(
+                    localizationsDelegates: const [AppLocalizations.delegate],
+                    supportedLocales: AppLocalizations.supportedLocales,
+                    home: Builder(
+                      builder: (context) => fluent.Button(
+                        onPressed: () =>
+                            showWindowsEventAttachmentsDialog(context, _event),
+                        child: const fluent.Text('Open attachments'),
+                      ),
+                    ),
+                  )
+                : localizedTestApp(
+                    child: Scaffold(
+                      body: Builder(
+                        builder: (context) => TextButton(
+                          onPressed: () => platform == 'Android'
+                              ? showAndroidEventAttachmentsDialog(
+                                  context,
+                                  _event,
+                                )
+                              : showLinuxEventAttachmentsDialog(
+                                  context,
+                                  _event,
+                                ),
+                          child: const Text('Open attachments'),
+                        ),
+                      ),
+                    ),
+                  ),
+          ),
+        );
+        await tester.tap(find.text('Open attachments'));
+        for (var i = 0; i < 4; i++) {
+          await tester.pump();
+        }
+        await tester.tap(find.byKey(const Key('event-attachment-add')));
+        for (var i = 0; i < 20 && posts == 0; i++) {
+          await tester.pump(const Duration(milliseconds: 1));
+        }
+        for (var i = 0; i < 4; i++) {
+          await tester.pump();
+        }
+        expect(posts, 1);
+        expect(coordinator.needsReconciliation(key), isFalse);
+        expect(coordinator.canSubmit(key), isFalse);
+        expect(
+          find.text(
+            'Attachment upload is temporarily rate-limited. Try again when the wait ends.',
+          ),
+          findsOneWidget,
+        );
+        final add = tester.widget(
+          find.byKey(const Key('event-attachment-add')),
+        );
+        expect(switch (add) {
+          fluent.Button button => button.onPressed,
+          TextButton button => button.onPressed,
+          FilledButton button => button.onPressed,
+          _ => null,
+        }, equals(null));
+        await tester.tap(find.text('Close'));
+        await tester.pump();
+        await tester.tap(find.text('Open attachments'));
+        for (var i = 0; i < 4; i++) {
+          await tester.pump();
+        }
+        expect(posts, 1);
+        now = now.add(const Duration(seconds: 31));
+        await tester.pump(const Duration(seconds: 31));
+        expect(coordinator.canSubmit(key), isTrue);
+        await tester.tap(find.byKey(const Key('event-attachment-add')));
+        for (var i = 0; i < 20 && posts < 2; i++) {
+          await tester.pump(const Duration(milliseconds: 1));
+        }
+        expect(posts, 2);
+        if (platform == 'Windows') {
+          await tester.pump(const Duration(milliseconds: 200));
+        }
+      },
+    );
+  }
+
   test('confirmed direct upload returns before its list refresh', () async {
     final heldRefresh = Completer<List<AttachmentUploadRemoteItem>>();
     final refreshStarted = Completer<void>();

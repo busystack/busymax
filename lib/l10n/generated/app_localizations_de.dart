@@ -3064,6 +3064,10 @@ class AppLocalizationsDe extends AppLocalizations {
       'Die Freigabe ist vorübergehend begrenzt. Versuchen Sie es nach der Wartezeit erneut.';
 
   @override
+  String get attachmentUploadRateLimited =>
+      'Das Hochladen von Anhängen ist vorübergehend begrenzt. Versuchen Sie es nach der Wartezeit erneut.';
+
+  @override
   String get sharingPermissionUnavailable =>
       'Freigabeberechtigungen sind für diesen Kalender nicht verfügbar.';
 

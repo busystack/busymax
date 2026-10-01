@@ -3064,6 +3064,10 @@ class AppLocalizationsHi extends AppLocalizations {
       'साझाकरण अस्थायी रूप से सीमित है। प्रतीक्षा अवधि समाप्त होने पर फिर प्रयास करें।';
 
   @override
+  String get attachmentUploadRateLimited =>
+      'अटैचमेंट अपलोड अस्थायी रूप से सीमित है। प्रतीक्षा अवधि समाप्त होने पर फिर प्रयास करें।';
+
+  @override
   String get sharingPermissionUnavailable =>
       'इस कैलेंडर के लिए साझाकरण अनुमतियाँ उपलब्ध नहीं हैं।';
 

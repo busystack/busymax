@@ -1098,6 +1098,7 @@
   "sharingPermissionUnavailable": "इस कैलेंडर के लिए साझाकरण अनुमतियाँ उपलब्ध नहीं हैं।",
   "sharingRefreshFailed": "साझाकरण बदल गया, लेकिन अनुमतियों की सूची ताज़ा नहीं हो सकी। अगला बदलाव करने से पहले सूची फिर लोड करें।",
   "sharingRateLimited": "साझाकरण अस्थायी रूप से सीमित है। प्रतीक्षा अवधि समाप्त होने पर फिर प्रयास करें।",
+  "attachmentUploadRateLimited": "अटैचमेंट अपलोड अस्थायी रूप से सीमित है। प्रतीक्षा अवधि समाप्त होने पर फिर प्रयास करें।",
   "unknownEventLabel": "अज्ञात लेबल ({id})",
   "@unknownEventLabel": {"placeholders": {"id": {"type": "String"}}}
 }

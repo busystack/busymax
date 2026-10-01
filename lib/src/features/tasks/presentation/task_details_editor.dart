@@ -387,6 +387,17 @@ class _TaskDetailsEditorState extends State<TaskDetailsEditor> {
                                 ),
                               ),
                             if (ref
+                                    .watch(attachmentUploadCoordinatorProvider)
+                                    .retryAfter(
+                                      AttachmentUploadCoordinator.taskKey(
+                                        _editingTask.accountId,
+                                        _editingTask.taskListId,
+                                        _editingTask.id,
+                                      ),
+                                    ) !=
+                                null)
+                              Text(l10n.attachmentUploadRateLimited),
+                            if (ref
                                 .watch(attachmentUploadCoordinatorProvider)
                                 .needsReconciliation(
                                   AttachmentUploadCoordinator.taskKey(

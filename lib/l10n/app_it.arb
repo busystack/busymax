@@ -1098,6 +1098,7 @@
   "sharingPermissionUnavailable": "Le autorizzazioni di condivisione non sono disponibili per questo calendario.",
   "sharingRefreshFailed": "La condivisione è stata modificata, ma l’elenco delle autorizzazioni non è stato aggiornato. Ricaricalo prima di un’altra modifica.",
   "sharingRateLimited": "La condivisione è temporaneamente limitata. Riprova al termine dell’attesa.",
+  "attachmentUploadRateLimited": "Il caricamento degli allegati è temporaneamente limitato. Riprova al termine dell’attesa.",
   "unknownEventLabel": "Etichetta sconosciuta ({id})",
   "@unknownEventLabel": {"placeholders": {"id": {"type": "String"}}}
 }

@@ -157,6 +157,10 @@ class _AndroidEventAttachmentsDialogState
       actions: [
         if (microsoft &&
             uploadKey != null &&
+            uploads.retryAfter(uploadKey) != null)
+          Text(context.l10n.attachmentUploadRateLimited),
+        if (microsoft &&
+            uploadKey != null &&
             uploads.needsReconciliation(uploadKey)) ...[
           Text(
             uploads.confirmedId(uploadKey) == null

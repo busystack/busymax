@@ -295,6 +295,7 @@ class MicrosoftTodoRestApiClient
       throw MicrosoftTodoApiError.fromResponse(
         statusCode: response.statusCode,
         body: response.body,
+        headers: response.headers,
       );
     }
     return response.bodyBytes;
@@ -560,6 +561,7 @@ class MicrosoftTodoRestApiClient
       throw MicrosoftTodoApiError.fromResponse(
         statusCode: response.statusCode,
         body: response.body,
+        headers: response.headers,
       );
     }
   }
@@ -574,6 +576,7 @@ class MicrosoftTodoRestApiClient
       throw MicrosoftTodoApiError.fromResponse(
         statusCode: response.statusCode,
         body: response.body,
+        headers: response.headers,
       );
     }
     return microsoftJsonObjectFromBody(response.body);

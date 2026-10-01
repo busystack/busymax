@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:busymax/src/calendar_providers/calendar_mutation.dart';
+import 'package:busymax/src/calendar_providers/cloud_calendar_client.dart';
 import 'package:busymax/src/db/app_database.dart';
 import 'package:busymax/src/features/calendar/data/calendar_repository.dart';
 import 'package:busymax/src/features/schedule/presentation/cloud_calendar_series_export.dart';
@@ -39,6 +40,466 @@ void main() {
   });
 
   tearDown(() async => database.close());
+
+  test(
+    'R1 exported Microsoft exception retains privacy, availability and categories in queued patch',
+    () async {
+      await _seedMicrosoftDestination(database);
+      time_zone_data.initializeTimeZones();
+      final master = microsoftCalendarEventFromJson('source-calendar', {
+        'id': 'source-master',
+        'uid': 'r1-series',
+        'subject': 'Master',
+        'type': 'seriesMaster',
+        'sensitivity': 'normal',
+        'showAs': 'busy',
+        'categories': ['A'],
+        'start': {'dateTime': '2026-08-30T16:00:00', 'timeZone': 'UTC'},
+        'end': {'dateTime': '2026-08-30T17:00:00', 'timeZone': 'UTC'},
+        'recurrence': {
+          'pattern': {'type': 'daily', 'interval': 1},
+          'range': {
+            'type': 'numbered',
+            'startDate': '2026-08-30',
+            'numberOfOccurrences': 2,
+            'recurrenceTimeZone': 'UTC',
+          },
+        },
+      });
+      final exception = microsoftCalendarEventFromJson('source-calendar', {
+        'id': 'source-exception',
+        'uid': 'r1-series',
+        'seriesMasterId': 'source-master',
+        'originalStart': '2026-08-31T16:00:00Z',
+        'subject': 'Moved',
+        'sensitivity': 'private',
+        'showAs': 'free',
+        'categories': ['B'],
+        'start': {'dateTime': '2026-08-31T18:00:00', 'timeZone': 'UTC'},
+        'end': {'dateTime': '2026-08-31T19:00:00', 'timeZone': 'UTC'},
+      });
+      final exported = cloudSeriesToICalendar(
+        master: master,
+        exceptions: [exception],
+        nowUtc: DateTime.utc(2026, 8, 29),
+      );
+      expect(exported, contains('CLASS:PRIVATE'));
+      expect(exported, contains('TRANSP:TRANSPARENT'));
+      expect(exported, contains('CATEGORIES:B'));
+      final preview = importService.parsePreview(utf8.encode(exported));
+      final destination = (await importService.writableDestinations())
+          .singleWhere((source) => source.accountId == 'microsoft-account');
+      expect(
+        (await importService.importPreview(
+          preview: preview,
+          destination: destination,
+        )).queued,
+        1,
+      );
+      final pending = await database.select(database.pendingOps).get();
+      final request =
+          jsonDecode(
+                pending
+                    .singleWhere(
+                      (op) => op.operationType == 'event.importException',
+                    )
+                    .requestJson,
+              )
+              as Map;
+      expect(request['sensitivity'], 'private');
+      expect(request['transparencyOrShowAs'], 'free');
+      expect(request['categoriesJson'], ['B']);
+      final masterRemote = <String, Object?>{
+        'id': 'imported-master',
+        'uid': 'r1-series',
+        'subject': 'Master',
+        'type': 'seriesMaster',
+        'sensitivity': 'normal',
+        'showAs': 'busy',
+        'categories': ['A'],
+        'start': {'dateTime': '2026-08-30T16:00:00', 'timeZone': 'UTC'},
+        'end': {'dateTime': '2026-08-30T17:00:00', 'timeZone': 'UTC'},
+      };
+      final occurrenceRemote = <String, Object?>{
+        'id': 'imported-occurrence',
+        'uid': 'r1-series',
+        'seriesMasterId': 'imported-master',
+        'originalStart': '2026-08-31T16:00:00Z',
+        'occurrenceId': 'oid-r1',
+        'subject': 'Master',
+        'sensitivity': 'normal',
+        'showAs': 'busy',
+        'categories': ['A'],
+        'start': {'dateTime': '2026-08-31T16:00:00', 'timeZone': 'UTC'},
+        'end': {'dateTime': '2026-08-31T17:00:00', 'timeZone': 'UTC'},
+      };
+      final patches = <Map<String, Object?>>[];
+      final client = MicrosoftCalendarApiClient(
+        httpClient: MockClient((httpRequest) async {
+          if (httpRequest.method == 'POST') {
+            return http.Response(jsonEncode(masterRemote), 201);
+          }
+          if (httpRequest.url.path.endsWith('/instances')) {
+            return http.Response(
+              jsonEncode({
+                'value': [occurrenceRemote],
+              }),
+              200,
+            );
+          }
+          if (httpRequest.method == 'GET' &&
+              httpRequest.url.queryParameters.containsKey(r'$expand')) {
+            return http.Response(
+              jsonEncode({
+                ...masterRemote,
+                'exceptionOccurrences': <Object>[],
+                'cancelledOccurrences': <Object>[],
+              }),
+              200,
+            );
+          }
+          if (httpRequest.method == 'PATCH') {
+            final patch = (jsonDecode(httpRequest.body) as Map)
+                .cast<String, Object?>();
+            patches.add(patch);
+            occurrenceRemote.addAll(patch);
+          }
+          return http.Response(jsonEncode(occurrenceRemote), 200);
+        }),
+        baseUri: Uri.parse('https://graph.microsoft.com/v1.0'),
+        responseTimeZone: 'UTC',
+      );
+      final replayer = CalendarPendingOpsReplayer(
+        database: database,
+        client: client,
+        accountId: 'microsoft-account',
+        nowUtc: () => DateTime.utc(2026, 8, 29),
+      );
+      await replayer.replayDueOps();
+      await replayer.replayDueOps();
+      expect(patches, hasLength(1));
+      expect(patches.single['sensitivity'], 'private');
+      expect(patches.single['showAs'], 'free');
+      expect(patches.single['categories'], ['B']);
+      expect(masterRemote['sensitivity'], 'normal');
+      expect(masterRemote['showAs'], 'busy');
+      final reloaded = (await database.select(database.calendarEvents).get())
+          .singleWhere(
+            (event) => event.providerEventId == 'imported-occurrence',
+          );
+      expect(reloaded.visibility, 'private');
+      expect(reloaded.transparencyOrShowAs, 'free');
+      expect(jsonDecode(reloaded.categoriesJson!), ['B']);
+    },
+  );
+
+  test(
+    'R1 Google exception overrides visibility and transparency without importing categories',
+    () async {
+      final preview = importService.parsePreview(
+        utf8.encode(
+          _calendar('''
+BEGIN:VEVENT
+UID:r1-google
+DTSTART:20260830T160000Z
+DTEND:20260830T170000Z
+SUMMARY:Master
+RRULE:FREQ=DAILY;COUNT=3
+CLASS:PRIVATE
+TRANSP:TRANSPARENT
+END:VEVENT
+BEGIN:VEVENT
+UID:r1-google
+RECURRENCE-ID:20260831T160000Z
+DTSTART:20260831T180000Z
+DTEND:20260831T190000Z
+SUMMARY:Override
+CLASS:PUBLIC
+TRANSP:OPAQUE
+CATEGORIES:Do not import
+END:VEVENT
+BEGIN:VEVENT
+UID:r1-google
+RECURRENCE-ID:20260901T160000Z
+DTSTART:20260901T160000Z
+DTEND:20260901T170000Z
+SUMMARY:Inherited
+END:VEVENT
+'''),
+        ),
+      );
+      final report = await importService.importPreview(
+        preview: preview,
+        destination: (await importService.writableDestinations()).single,
+      );
+      expect(report.queued, 1);
+      expect(report.fieldsIntentionallyOmitted, contains('categories'));
+      final requests = (await database.select(database.pendingOps).get())
+          .where((op) => op.operationType == 'event.importException')
+          .map((op) => jsonDecode(op.requestJson) as Map)
+          .toList();
+      expect(requests, hasLength(2));
+      expect(requests.first['sensitivity'], 'public');
+      expect(requests.first['transparencyOrShowAs'], 'opaque');
+      expect(requests.first, isNot(contains('categoriesJson')));
+      expect(requests.last, isNot(contains('sensitivity')));
+      expect(requests.last, isNot(contains('transparencyOrShowAs')));
+    },
+  );
+
+  test(
+    'R1 unsupported exception classification rejects the set before master creation',
+    () async {
+      final preview = importService.parsePreview(
+        utf8.encode(
+          _calendar('''
+BEGIN:VEVENT
+UID:r1-unsupported
+DTSTART:20260830T160000Z
+DTEND:20260830T170000Z
+SUMMARY:Master
+RRULE:FREQ=DAILY;COUNT=2
+END:VEVENT
+BEGIN:VEVENT
+UID:r1-unsupported
+RECURRENCE-ID:20260831T160000Z
+DTSTART:20260831T160000Z
+DTEND:20260831T170000Z
+CLASS:SECRET
+END:VEVENT
+'''),
+        ),
+      );
+      final report = await importService.importPreview(
+        preview: preview,
+        destination: (await importService.writableDestinations()).single,
+      );
+      expect(report.queued, 0);
+      expect(report.unsupportedRecurrenceSets, hasLength(1));
+      expect(await database.select(database.pendingOps).get(), isEmpty);
+    },
+  );
+
+  for (final provider in [BusyProvider.google, BusyProvider.microsoft]) {
+    test(
+      'R2 $provider zero-minute master and exception alarms stay explicit',
+      () async {
+        if (provider == BusyProvider.microsoft) {
+          await _seedMicrosoftDestination(database);
+        }
+        final preview = importService.parsePreview(
+          utf8.encode(
+            _calendar('''
+BEGIN:VEVENT
+UID:r2-zero-$provider
+DTSTART:20260830T160000Z
+DTEND:20260830T170000Z
+SUMMARY:Master
+RRULE:FREQ=DAILY;COUNT=2
+BEGIN:VALARM
+ACTION:DISPLAY
+TRIGGER:-PT0M
+END:VALARM
+END:VEVENT
+BEGIN:VEVENT
+UID:r2-zero-$provider
+RECURRENCE-ID:20260831T160000Z
+DTSTART:20260831T180000Z
+DTEND:20260831T190000Z
+SUMMARY:Moved
+BEGIN:VALARM
+ACTION:DISPLAY
+TRIGGER:PT0M
+END:VALARM
+END:VEVENT
+'''),
+          ),
+        );
+        expect(
+          preview.fieldsThatWillBeOmitted,
+          isNot(contains('unsupported alarms')),
+        );
+        final destination = (await importService.writableDestinations())
+            .singleWhere((source) => source.provider == provider);
+        expect(
+          (await importService.importPreview(
+            preview: preview,
+            destination: destination,
+          )).queued,
+          1,
+        );
+        final requests = (await database.select(database.pendingOps).get())
+            .map((op) => jsonDecode(op.requestJson) as Map)
+            .toList();
+        final expected = provider == BusyProvider.microsoft
+            ? {'isReminderOn': true, 'reminderMinutesBeforeStart': 0}
+            : {
+                'useDefault': false,
+                'overrides': [
+                  {'method': 'popup', 'minutes': 0},
+                ],
+              };
+        expect(requests.first['remindersJson'], expected);
+        expect(requests.last['remindersJson'], expected);
+        final isMicrosoft = provider == BusyProvider.microsoft;
+        final masterRemote = <String, Object?>{
+          'id': 'r2-master',
+          if (isMicrosoft) 'subject': 'Master' else 'summary': 'Master',
+          if (isMicrosoft)
+            'type': 'seriesMaster'
+          else
+            'iCalUID': 'r2-zero-$provider',
+          'start': isMicrosoft
+              ? {'dateTime': '2026-08-30T16:00:00', 'timeZone': 'UTC'}
+              : {'dateTime': '2026-08-30T16:00:00Z'},
+          'end': isMicrosoft
+              ? {'dateTime': '2026-08-30T17:00:00', 'timeZone': 'UTC'}
+              : {'dateTime': '2026-08-30T17:00:00Z'},
+        };
+        final occurrenceRemote = <String, Object?>{
+          'id': 'r2-occurrence',
+          if (isMicrosoft)
+            'seriesMasterId': 'r2-master'
+          else
+            'recurringEventId': 'r2-master',
+          if (isMicrosoft)
+            'originalStart': '2026-08-31T16:00:00Z'
+          else
+            'originalStartTime': {'dateTime': '2026-08-31T16:00:00Z'},
+          if (isMicrosoft) 'subject': 'Master' else 'summary': 'Master',
+          'start': isMicrosoft
+              ? {'dateTime': '2026-08-31T16:00:00', 'timeZone': 'UTC'}
+              : {'dateTime': '2026-08-31T16:00:00Z'},
+          'end': isMicrosoft
+              ? {'dateTime': '2026-08-31T17:00:00', 'timeZone': 'UTC'}
+              : {'dateTime': '2026-08-31T17:00:00Z'},
+          if (isMicrosoft) 'occurrenceId': 'r2-occurrence-id',
+        };
+        final patches = <Map<String, Object?>>[];
+        final httpClient = MockClient((httpRequest) async {
+          if (httpRequest.method == 'POST') {
+            masterRemote.addAll(
+              (jsonDecode(httpRequest.body) as Map).cast<String, Object?>(),
+            );
+            return http.Response(
+              jsonEncode(masterRemote),
+              isMicrosoft ? 201 : 200,
+            );
+          }
+          if (httpRequest.url.path.endsWith('/instances')) {
+            return http.Response(
+              jsonEncode(
+                isMicrosoft
+                    ? {
+                        'value': [occurrenceRemote],
+                      }
+                    : {
+                        'items': [occurrenceRemote],
+                      },
+              ),
+              200,
+            );
+          }
+          if (httpRequest.method == 'GET' &&
+              isMicrosoft &&
+              httpRequest.url.queryParameters.containsKey(r'$expand')) {
+            return http.Response(
+              jsonEncode({
+                ...masterRemote,
+                'exceptionOccurrences': <Object>[],
+                'cancelledOccurrences': <Object>[],
+              }),
+              200,
+            );
+          }
+          if (httpRequest.method == 'GET' && !isMicrosoft) {
+            return http.Response(jsonEncode({'items': <Object>[]}), 200);
+          }
+          if (httpRequest.method == 'PATCH') {
+            final patch = (jsonDecode(httpRequest.body) as Map)
+                .cast<String, Object?>();
+            patches.add(patch);
+            occurrenceRemote.addAll(patch);
+          }
+          return http.Response(jsonEncode(occurrenceRemote), 200);
+        });
+        final CloudCalendarClient client = isMicrosoft
+            ? MicrosoftCalendarApiClient(
+                httpClient: httpClient,
+                baseUri: Uri.parse('https://graph.microsoft.com/v1.0'),
+                responseTimeZone: 'UTC',
+              )
+            : GoogleCalendarApiClient(
+                httpClient: httpClient,
+                baseUri: Uri.parse('https://www.googleapis.com'),
+              );
+        final replayer = CalendarPendingOpsReplayer(
+          database: database,
+          client: client,
+          accountId: destination.accountId,
+          nowUtc: () => DateTime.utc(2026, 8, 29),
+        );
+        await replayer.replayDueOps();
+        await replayer.replayDueOps();
+        expect(patches, hasLength(1));
+        if (isMicrosoft) {
+          expect(patches.single['isReminderOn'], true);
+          expect(patches.single['reminderMinutesBeforeStart'], 0);
+          expect(masterRemote['isReminderOn'], true);
+          expect(masterRemote['reminderMinutesBeforeStart'], 0);
+        } else {
+          expect(patches.single['reminders'], expected);
+          expect(masterRemote['reminders'], expected);
+        }
+        final reloaded = (await database.select(database.calendarEvents).get())
+            .singleWhere((event) => event.providerEventId == 'r2-occurrence');
+        expect(jsonDecode(reloaded.remindersJson!), expected);
+      },
+    );
+  }
+
+  test(
+    'R2 zero-offset alarms are supported without accepting after-start or end-relative alarms',
+    () {
+      IcalImportPreview previewFor(String trigger) =>
+          importService.parsePreview(
+            utf8.encode(
+              _calendar('''
+BEGIN:VEVENT
+UID:r2-trigger
+DTSTART:20260830T160000Z
+DTEND:20260830T170000Z
+SUMMARY:Alarm
+BEGIN:VALARM
+ACTION:DISPLAY
+$trigger
+END:VALARM
+END:VEVENT
+'''),
+            ),
+          );
+      for (final trigger in [
+        'TRIGGER:-PT0M',
+        'TRIGGER:PT0M',
+        'TRIGGER:-PT10M',
+      ]) {
+        expect(
+          previewFor(trigger).fieldsThatWillBeOmitted,
+          isNot(contains('unsupported alarms')),
+        );
+      }
+      for (final trigger in [
+        'TRIGGER:PT10M',
+        'TRIGGER;RELATED=END:-PT0M',
+        'TRIGGER:invalid',
+      ]) {
+        expect(
+          previewFor(trigger).fieldsThatWillBeOmitted,
+          contains('unsupported alarms'),
+        );
+      }
+    },
+  );
 
   test('Microsoft PUBLIC import replays as normal sensitivity', () async {
     await _seedMicrosoftDestination(database);
@@ -419,6 +880,8 @@ DTSTART:20260830T160000Z
 DTEND:20260830T170000Z
 SUMMARY:Master
 RRULE:FREQ=DAILY;COUNT=2
+CLASS:PRIVATE
+TRANSP:TRANSPARENT
 END:VEVENT
 BEGIN:VEVENT
 UID:with-exception
@@ -426,6 +889,9 @@ RECURRENCE-ID:20260831T160000Z
 DTSTART:20260831T180000Z
 DTEND:20260831T190000Z
 SUMMARY:Moved
+CLASS:PUBLIC
+TRANSP:OPAQUE
+CATEGORIES:Not imported
 END:VEVENT
 '''),
         ),
@@ -440,6 +906,15 @@ END:VEVENT
       expect(report.unsupportedRecurrenceSets, isEmpty);
       expect(await database.select(database.pendingOps).get(), hasLength(2));
       final requests = <http.Request>[];
+      final remoteOccurrence = <String, Object?>{
+        'id': 'occurrence-1',
+        'recurringEventId': 'master-1',
+        'originalStartTime': {'dateTime': '2026-08-31T16:00:00Z'},
+        'start': {'dateTime': '2026-08-31T16:00:00Z'},
+        'end': {'dateTime': '2026-08-31T17:00:00Z'},
+        'visibility': 'private',
+        'transparency': 'transparent',
+      };
       final client = GoogleCalendarApiClient(
         httpClient: MockClient((request) async {
           requests.add(request);
@@ -447,21 +922,19 @@ END:VEVENT
               request.url.path.endsWith('/instances')) {
             return http.Response(
               jsonEncode({
-                'items': [
-                  {
-                    'id': 'occurrence-1',
-                    'recurringEventId': 'master-1',
-                    'originalStartTime': {'dateTime': '2026-08-31T16:00:00Z'},
-                    'start': {'dateTime': '2026-08-31T16:00:00Z'},
-                    'end': {'dateTime': '2026-08-31T17:00:00Z'},
-                  },
-                ],
+                'items': [remoteOccurrence],
               }),
               200,
             );
           }
           if (request.method == 'GET') {
             return http.Response(jsonEncode({'items': <Object>[]}), 200);
+          }
+          if (request.method == 'PATCH') {
+            remoteOccurrence.addAll(
+              (jsonDecode(request.body) as Map).cast<String, Object?>(),
+            );
+            return http.Response(jsonEncode(remoteOccurrence), 200);
           }
           return http.Response(
             jsonEncode({
@@ -503,6 +976,13 @@ END:VEVENT
       );
       expect(patch.url.queryParameters['sendUpdates'], 'none');
       expect((jsonDecode(patch.body) as Map)['summary'], 'Moved');
+      expect((jsonDecode(patch.body) as Map)['visibility'], 'public');
+      expect((jsonDecode(patch.body) as Map)['transparency'], 'opaque');
+      expect(patch.body, isNot(contains('categories')));
+      final reloaded = (await database.select(database.calendarEvents).get())
+          .singleWhere((event) => event.providerEventId == 'occurrence-1');
+      expect(reloaded.visibility, 'public');
+      expect(reloaded.transparencyOrShowAs, 'opaque');
     },
   );
 

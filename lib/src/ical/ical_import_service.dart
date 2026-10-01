@@ -450,22 +450,15 @@ _PreparedImportDraft _prepareDraft(
   final categories = destination.provider == BusyProvider.google
       ? const <String>[]
       : master.categories;
-  final classification = master.classification?.trim().toUpperCase();
-  if (destination.provider == BusyProvider.microsoft &&
-      classification != null &&
-      !const {'PUBLIC', 'PRIVATE', 'CONFIDENTIAL'}.contains(classification)) {
+  if (!_supportedClassification(master.classification)) {
     return _PreparedImportDraft.unsupported(
-      'This iCalendar classification is not supported by Microsoft.',
+      'This iCalendar classification is not supported by ${destination.provider.displayName}.',
     );
   }
-  final visibilityOrSensitivity = destination.provider == BusyProvider.microsoft
-      ? switch (classification) {
-          'PUBLIC' => 'normal',
-          'PRIVATE' => 'private',
-          'CONFIDENTIAL' => 'confidential',
-          _ => null,
-        }
-      : master.classification?.toLowerCase();
+  final visibilityOrSensitivity = _classification(
+    master.classification,
+    destination.provider,
+  );
   final preparedExceptions = _prepareExceptions(
     set,
     master: master,
@@ -474,6 +467,13 @@ _PreparedImportDraft _prepareDraft(
   );
   if (preparedExceptions.reason case final reason?) {
     return _PreparedImportDraft.unsupported(reason);
+  }
+  if (destination.provider == BusyProvider.google &&
+      set.semantic.components.any(
+        (component) =>
+            component.recurrenceId != null && component.categories.isNotEmpty,
+      )) {
+    omitted.add('categories');
   }
   return _PreparedImportDraft(
     draft:
@@ -573,6 +573,29 @@ _PreparedImportDraft _prepareDraft(
     final cancelled = component.status == 'CANCELLED';
     final fields = <String, Object?>{};
     if (!cancelled) {
+      if (!_supportedClassification(component.classification)) {
+        return (
+          values: const [],
+          reason:
+              'This iCalendar classification is not supported by ${destination.provider.displayName}.',
+        );
+      }
+      if (component.classification != null) {
+        fields['sensitivity'] = _classification(
+          component.classification,
+          destination.provider,
+        );
+      }
+      if (component.transparency != null) {
+        fields['transparencyOrShowAs'] = _transparency(
+          component.transparency,
+          destination.provider,
+        );
+      }
+      if (destination.provider == BusyProvider.microsoft &&
+          component.documentComponent.firstProperty('CATEGORIES') != null) {
+        fields['categoriesJson'] = component.categories;
+      }
       if (component.summary case final title?) fields['title'] = title;
       if (component.description case final description?) {
         fields['description'] = description;
@@ -654,6 +677,27 @@ _PreparedImportDraft _prepareDraft(
   return (values: List.unmodifiable(exceptions), reason: null);
 }
 
+bool _supportedClassification(String? value) =>
+    value == null ||
+    const {
+      'PUBLIC',
+      'PRIVATE',
+      'CONFIDENTIAL',
+    }.contains(value.trim().toUpperCase());
+
+String? _classification(String? value, BusyProvider provider) {
+  final normalized = value?.trim().toUpperCase();
+  if (provider == BusyProvider.microsoft) {
+    return switch (normalized) {
+      'PUBLIC' => 'normal',
+      'PRIVATE' => 'private',
+      'CONFIDENTIAL' => 'confidential',
+      _ => null,
+    };
+  }
+  return normalized?.toLowerCase();
+}
+
 String _dateOnly(DateTime value) =>
     '${value.year.toString().padLeft(4, '0')}-${value.month.toString().padLeft(2, '0')}-${value.day.toString().padLeft(2, '0')}';
 
@@ -717,9 +761,9 @@ List<int> _alarmMinutes(List<IcalComponent> alarms) {
     if (trigger.parameterValue('RELATED')?.toUpperCase() == 'END') continue;
     try {
       final duration = parseIcalDuration(trigger.rawValue.toUpperCase());
-      if (duration == null || !duration.negative) continue;
+      if (duration == null || duration.duration > Duration.zero) continue;
       final before = -duration.duration;
-      if (before.inSeconds <= 0 || before.inSeconds % 60 != 0) continue;
+      if (before.inSeconds % 60 != 0) continue;
       if (!values.contains(before.inMinutes)) values.add(before.inMinutes);
     } on DavException {
       // Unsupported alarms are intentionally omitted and reported by preview.

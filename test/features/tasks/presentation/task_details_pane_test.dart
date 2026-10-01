@@ -296,6 +296,119 @@ void main() {
   );
 
   testWidgets(
+    'R3 Linux task attachment Add waits for direct-upload retry eligibility',
+    (tester) async {
+      final previousSelector = FileSelectorPlatform.instance;
+      FileSelectorPlatform.instance = _AttachmentTestFileSelector();
+      addTearDown(() => FileSelectorPlatform.instance = previousSelector);
+      var now = DateTime.utc(2026, 10, 1);
+      var posts = 0;
+      final client = MicrosoftTodoRestApiClient(
+        httpClient: MockClient((request) async {
+          if (request.method == 'GET') {
+            return http.Response(jsonEncode({'value': []}), 200);
+          }
+          posts++;
+          if (posts == 1) {
+            return http.Response(
+              jsonEncode({
+                'error': {'code': 'TooManyRequests', 'message': 'Throttled'},
+              }),
+              429,
+              headers: {'retry-after': '30'},
+            );
+          }
+          return http.Response(
+            jsonEncode({
+              'id': 'task-attachment-a',
+              'name': 'agenda.txt',
+              'size': 3,
+              '@odata.type': '#microsoft.graph.taskFileAttachment',
+            }),
+            201,
+          );
+        }),
+        baseUri: Uri.parse('https://graph.microsoft.com/v1.0'),
+        authorizationHeaderProvider: () async => 'Bearer token',
+      );
+      final coordinator = AttachmentUploadCoordinator(now: () => now);
+      final key = AttachmentUploadCoordinator.taskKey(
+        'microsoft:m',
+        'list-1',
+        'task-1',
+      );
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            attachmentUploadCoordinatorProvider.overrideWith(
+              (ref) => coordinator,
+            ),
+            microsoftTodoApiClientForAccountProvider(
+              'microsoft:m',
+            ).overrideWithValue(client),
+          ],
+          child: localizedTestApp(
+            child: Scaffold(
+              body: TaskDetailsEditor(
+                task: _switchTask('task-1', 'Task'),
+                provider: BusyProvider.microsoft,
+                taskLists: const [
+                  TaskListEntity(
+                    accountId: 'microsoft:m',
+                    id: 'list-1',
+                    title: 'Tasks',
+                    localDirty: false,
+                    pendingDelete: false,
+                    rawJson: '{}',
+                  ),
+                ],
+                capabilities: microsoftTaskCollectionCapabilities,
+                localTimeZone: 'UTC',
+                accountLabel: 'Account',
+                onRefresh: () {},
+                onSave: (_, _) async {},
+                onCreateSubtask: (_) async {},
+                onMoveToTop: () {},
+                onDelete: () async {},
+                onCancel: () {},
+              ),
+            ),
+          ),
+        ),
+      );
+      for (var i = 0; i < 4; i++) {
+        await tester.pump();
+      }
+      final add = find.widgetWithText(FilledButton, 'Attachments').last;
+      await tester.ensureVisible(add);
+      await tester.tap(add);
+      for (var i = 0; i < 20 && posts == 0; i++) {
+        await tester.pump(const Duration(milliseconds: 1));
+      }
+      for (var i = 0; i < 3; i++) {
+        await tester.pump();
+      }
+      expect(posts, 1);
+      expect(coordinator.needsReconciliation(key), isFalse);
+      expect(tester.widget<FilledButton>(add).onPressed, equals(null));
+      expect(
+        find.text(
+          'Attachment upload is temporarily rate-limited. Try again when the wait ends.',
+        ),
+        findsOneWidget,
+      );
+      now = now.add(const Duration(seconds: 31));
+      await tester.pump(const Duration(seconds: 31));
+      expect(tester.widget<FilledButton>(add).onPressed, isNot(equals(null)));
+      await tester.tap(add);
+      for (var i = 0; i < 20 && posts < 2; i++) {
+        await tester.pump(const Duration(milliseconds: 1));
+      }
+      expect(posts, 2);
+    },
+  );
+
+  testWidgets(
     'Linux task detail retains an uncertain upload until explicit review',
     (tester) async {
       var posts = 0;

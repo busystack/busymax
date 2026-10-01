@@ -1098,6 +1098,7 @@
   "sharingPermissionUnavailable": "このカレンダーの共有権限を取得できません。",
   "sharingRefreshFailed": "共有は変更されましたが、権限一覧を更新できませんでした。次の変更前に一覧を再読み込みしてください。",
   "sharingRateLimited": "共有は一時的に制限されています。待機時間が終了してから再試行してください。",
+  "attachmentUploadRateLimited": "添付ファイルのアップロードは一時的に制限されています。待機時間が終了してから再試行してください。",
   "unknownEventLabel": "不明なラベル（{id}）",
   "@unknownEventLabel": {"placeholders": {"id": {"type": "String"}}}
 }

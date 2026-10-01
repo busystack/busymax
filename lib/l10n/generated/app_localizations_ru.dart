@@ -3088,6 +3088,10 @@ class AppLocalizationsRu extends AppLocalizations {
       'Общий доступ временно ограничен. Повторите попытку после окончания ожидания.';
 
   @override
+  String get attachmentUploadRateLimited =>
+      'Загрузка вложений временно ограничена. Повторите попытку после окончания ожидания.';
+
+  @override
   String get sharingPermissionUnavailable =>
       'Разрешения на общий доступ к этому календарю недоступны.';
 

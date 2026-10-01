@@ -3096,6 +3096,10 @@ class AppLocalizationsEn extends AppLocalizations {
       'Sharing is temporarily rate-limited. Try again when the wait ends.';
 
   @override
+  String get attachmentUploadRateLimited =>
+      'Attachment upload is temporarily rate-limited. Try again when the wait ends.';
+
+  @override
   String get sharingPermissionUnavailable =>
       'Sharing permissions are unavailable for this calendar.';
 

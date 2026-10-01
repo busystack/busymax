@@ -3085,6 +3085,10 @@ class AppLocalizationsIt extends AppLocalizations {
       'La condivisione è temporaneamente limitata. Riprova al termine dell’attesa.';
 
   @override
+  String get attachmentUploadRateLimited =>
+      'Il caricamento degli allegati è temporaneamente limitato. Riprova al termine dell’attesa.';
+
+  @override
   String get sharingPermissionUnavailable =>
       'Le autorizzazioni di condivisione non sono disponibili per questo calendario.';
 

@@ -3096,6 +3096,10 @@ class AppLocalizationsPt extends AppLocalizations {
       'Sharing is temporarily rate-limited. Try again when the wait ends.';
 
   @override
+  String get attachmentUploadRateLimited =>
+      'Attachment upload is temporarily rate-limited. Try again when the wait ends.';
+
+  @override
   String get sharingPermissionUnavailable =>
       'Sharing permissions are unavailable for this calendar.';
 
@@ -6265,6 +6269,10 @@ class AppLocalizationsPtPt extends AppLocalizationsPt {
   @override
   String get sharingRateLimited =>
       'A partilha está temporariamente limitada. Volte a tentar quando terminar o tempo de espera.';
+
+  @override
+  String get attachmentUploadRateLimited =>
+      'O carregamento de anexos está temporariamente limitado. Volte a tentar quando terminar o tempo de espera.';
 
   @override
   String get sharingPermissionUnavailable =>

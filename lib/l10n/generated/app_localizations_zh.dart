@@ -2960,6 +2960,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get sharingRateLimited => '共享暂时受到限制。请在等待时间结束后重试。';
 
   @override
+  String get attachmentUploadRateLimited => '附件上传暂时受到限制。请在等待时间结束后重试。';
+
+  @override
   String get sharingPermissionUnavailable => '此日历的共享权限不可用。';
 
   @override
@@ -6002,6 +6005,9 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
 
   @override
   String get sharingRateLimited => '共享暂时受到限制。请在等待时间结束后重试。';
+
+  @override
+  String get attachmentUploadRateLimited => '附件上传暂时受到限制。请在等待时间结束后重试。';
 
   @override
   String get sharingPermissionUnavailable => '此日历的共享权限不可用。';
@@ -9047,6 +9053,9 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get sharingRateLimited => '共用暫時受到限制。請在等待時間結束後重試。';
+
+  @override
+  String get attachmentUploadRateLimited => '附件上傳暫時受到限制。請在等待時間結束後重試。';
 
   @override
   String get sharingPermissionUnavailable => '此行事曆的共用權限無法使用。';

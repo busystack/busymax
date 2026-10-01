@@ -3238,6 +3238,10 @@ class AppLocalizationsPl extends AppLocalizations {
       'Udostępnianie jest tymczasowo ograniczone. Spróbuj ponownie po upływie czasu oczekiwania.';
 
   @override
+  String get attachmentUploadRateLimited =>
+      'Przesyłanie załączników jest tymczasowo ograniczone. Spróbuj ponownie po upływie czasu oczekiwania.';
+
+  @override
   String get sharingPermissionUnavailable =>
       'Uprawnienia udostępniania nie są dostępne dla tego kalendarza.';
 

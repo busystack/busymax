@@ -3069,6 +3069,10 @@ class AppLocalizationsEs extends AppLocalizations {
       'El uso compartido está limitado temporalmente. Inténtalo de nuevo cuando termine la espera.';
 
   @override
+  String get attachmentUploadRateLimited =>
+      'La carga de archivos adjuntos está limitada temporalmente. Inténtalo de nuevo cuando termine la espera.';
+
+  @override
   String get sharingPermissionUnavailable =>
       'Los permisos para compartir no están disponibles para este calendario.';
 

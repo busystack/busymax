@@ -3069,6 +3069,10 @@ class AppLocalizationsFr extends AppLocalizations {
       'Le partage est temporairement limité. Réessayez après le délai d’attente.';
 
   @override
+  String get attachmentUploadRateLimited =>
+      'L’envoi de pièces jointes est temporairement limité. Réessayez après le délai d’attente.';
+
+  @override
   String get sharingPermissionUnavailable =>
       'Les autorisations de partage sont indisponibles pour cet agenda.';
 

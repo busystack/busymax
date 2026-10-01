@@ -1276,6 +1276,7 @@
   "sharingPermissionUnavailable": "Selle kalendri jagamisõigused pole saadaval.",
   "sharingRefreshFailed": "Jagamine muudeti, kuid õiguste loendit ei saanud värskendada. Värskenda loendit enne järgmist muudatust.",
   "sharingRateLimited": "Jagamine on ajutiselt piiratud. Proovi pärast ooteaja lõppu uuesti.",
+  "attachmentUploadRateLimited": "Manuste üleslaadimine on ajutiselt piiratud. Proovi pärast ooteaja lõppu uuesti.",
   "unknownEventLabel": "Tundmatu silt ({id})",
   "@unknownEventLabel": {"placeholders": {"id": {"type": "String"}}}
 }

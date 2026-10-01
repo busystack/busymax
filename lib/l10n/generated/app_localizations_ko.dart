@@ -3004,6 +3004,10 @@ class AppLocalizationsKo extends AppLocalizations {
   String get sharingRateLimited => '공유가 일시적으로 제한되었습니다. 대기 시간이 끝나면 다시 시도하세요.';
 
   @override
+  String get attachmentUploadRateLimited =>
+      '첨부 파일 업로드가 일시적으로 제한되었습니다. 대기 시간이 끝나면 다시 시도하세요.';
+
+  @override
   String get sharingPermissionUnavailable => '이 캘린더의 공유 권한을 사용할 수 없습니다.';
 
   @override

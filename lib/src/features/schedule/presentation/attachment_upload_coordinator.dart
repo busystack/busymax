@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math';
 
 import 'package:flutter/foundation.dart';
 
@@ -26,6 +27,23 @@ class AttachmentUploadUnresolvedException implements Exception {
   @override
   String toString() =>
       'Attachment upload outcome is unresolved. Refresh attachments before retrying.';
+}
+
+class AttachmentUploadRateLimitedException implements Exception {
+  const AttachmentUploadRateLimitedException(this.retryAfter);
+
+  final Duration retryAfter;
+
+  @override
+  String toString() => 'Attachment upload is rate-limited. Retry later.';
+}
+
+final class _UploadCooldown {
+  _UploadCooldown(this.until, this.attempts, this.timer);
+
+  final DateTime until;
+  final int attempts;
+  final Timer timer;
 }
 
 final class _UnresolvedUpload {
@@ -56,14 +74,22 @@ final class _ConfirmedUpload {
 /// A missing list item immediately after a lost response is not proof that the
 /// upload failed: Graph attachment collections may lag the write endpoint.
 final class AttachmentUploadCoordinator extends ChangeNotifier {
+  AttachmentUploadCoordinator({DateTime Function()? now})
+    : _now = now ?? DateTime.now;
+
+  final DateTime Function() _now;
   bool _disposed = false;
   final _statuses = <AttachmentUploadKey, AttachmentUploadStatus>{};
   final _unresolved = <AttachmentUploadKey, _UnresolvedUpload>{};
   final _confirmedAwaitingList = <AttachmentUploadKey, _ConfirmedUpload>{};
+  final _cooldowns = <AttachmentUploadKey, _UploadCooldown>{};
 
   @override
   void dispose() {
     _disposed = true;
+    for (final cooldown in _cooldowns.values) {
+      cooldown.timer.cancel();
+    }
     super.dispose();
   }
 
@@ -72,7 +98,15 @@ final class AttachmentUploadCoordinator extends ChangeNotifier {
 
   bool canSubmit(AttachmentUploadKey key) =>
       status(key) != AttachmentUploadStatus.submitting &&
-      _unresolved[key] == null;
+      _unresolved[key] == null &&
+      retryAfter(key) == null;
+
+  Duration? retryAfter(AttachmentUploadKey key) {
+    final cooldown = _cooldowns[key];
+    if (cooldown == null) return null;
+    final remaining = cooldown.until.difference(_now());
+    return remaining > Duration.zero ? remaining : null;
+  }
 
   bool needsReconciliation(AttachmentUploadKey key) =>
       (_unresolved[key] != null || _confirmedAwaitingList.containsKey(key)) &&
@@ -271,6 +305,9 @@ final class AttachmentUploadCoordinator extends ChangeNotifier {
     )
     submit,
   }) async {
+    if (retryAfter(key) case final remaining?) {
+      throw AttachmentUploadRateLimitedException(remaining);
+    }
     if (!canSubmit(key)) throw const AttachmentUploadUnresolvedException();
     // A returned attachment ID completed the prior write. Its pending list
     // refresh is presentation-only and must not become state for this attempt.
@@ -299,9 +336,16 @@ final class AttachmentUploadCoordinator extends ChangeNotifier {
         _unresolved[key] = attempt;
       });
       final confirmed = _confirm(key, id);
+      _clearCooldown(key);
       unawaited(_refreshConfirmed(key, confirmed, list));
       return;
     } on Object catch (error) {
+      if (attempt.session == null && _rateLimitDelay(error) != null) {
+        _unresolved.remove(key);
+        _startCooldown(key, _rateLimitDelay(error));
+        _set(key, AttachmentUploadStatus.ready);
+        rethrow;
+      }
       if (attempt.session == null && _confirmedNotCommitted(error)) {
         _unresolved.remove(key);
         _set(key, AttachmentUploadStatus.ready);
@@ -311,6 +355,33 @@ final class AttachmentUploadCoordinator extends ChangeNotifier {
       _set(key, AttachmentUploadStatus.unresolved);
       throw const AttachmentUploadUnresolvedException();
     }
+  }
+
+  Duration? _rateLimitDelay(Object error) => switch (error) {
+    MicrosoftCalendarApiError e when e.isRateLimited =>
+      e.retryAfter ?? Duration.zero,
+    MicrosoftTodoApiError e when e.statusCode == 429 =>
+      e.retryAfter ?? Duration.zero,
+    _ => null,
+  };
+
+  void _startCooldown(AttachmentUploadKey key, Duration? serverDelay) {
+    final prior = _cooldowns[key];
+    final attempts = (prior?.attempts ?? 0) + 1;
+    prior?.timer.cancel();
+    final baseMs = min(300000, 2000 * (1 << min(attempts - 1, 7)));
+    final jitterMs = (baseMs * Random().nextDouble() / 4).round();
+    final delay = serverDelay == null || serverDelay <= Duration.zero
+        ? Duration(milliseconds: baseMs + jitterMs)
+        : serverDelay;
+    final timer = Timer(delay, () {
+      if (!_disposed) notifyListeners();
+    });
+    _cooldowns[key] = _UploadCooldown(_now().add(delay), attempts, timer);
+  }
+
+  void _clearCooldown(AttachmentUploadKey key) {
+    _cooldowns.remove(key)?.timer.cancel();
   }
 
   _ConfirmedUpload _confirm(AttachmentUploadKey key, String id) {

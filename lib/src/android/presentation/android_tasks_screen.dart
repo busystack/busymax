@@ -828,6 +828,17 @@ class _AndroidTaskEditorState extends ConsumerState<AndroidTaskEditor> {
                       label: Text(context.l10n.attachments),
                     ),
                   if (ref
+                          .watch(attachmentUploadCoordinatorProvider)
+                          .retryAfter(
+                            AttachmentUploadCoordinator.taskKey(
+                              widget.accountId,
+                              widget.task!.taskListId,
+                              widget.task!.id,
+                            ),
+                          ) !=
+                      null)
+                    Text(context.l10n.attachmentUploadRateLimited),
+                  if (ref
                       .watch(attachmentUploadCoordinatorProvider)
                       .needsReconciliation(
                         AttachmentUploadCoordinator.taskKey(

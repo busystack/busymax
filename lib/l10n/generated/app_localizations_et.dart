@@ -3043,6 +3043,10 @@ class AppLocalizationsEt extends AppLocalizations {
       'Jagamine on ajutiselt piiratud. Proovi pärast ooteaja lõppu uuesti.';
 
   @override
+  String get attachmentUploadRateLimited =>
+      'Manuste üleslaadimine on ajutiselt piiratud. Proovi pärast ooteaja lõppu uuesti.';
+
+  @override
   String get sharingPermissionUnavailable =>
       'Selle kalendri jagamisõigused pole saadaval.';
 

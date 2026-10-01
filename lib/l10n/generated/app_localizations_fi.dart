@@ -3093,6 +3093,10 @@ class AppLocalizationsFi extends AppLocalizations {
       'Jakamista on rajoitettu tilapäisesti. Yritä uudelleen odotusajan päätyttyä.';
 
   @override
+  String get attachmentUploadRateLimited =>
+      'Liitteiden lataamista on rajoitettu tilapäisesti. Yritä uudelleen odotusajan päätyttyä.';
+
+  @override
   String get sharingPermissionUnavailable =>
       'Tämän kalenterin jako-oikeudet eivät ole saatavilla.';
 
