@@ -129,7 +129,9 @@ class _CloudCalendarSharingContentState
     if (service == null ||
         _busy ||
         _snapshot == null ||
-        _snapshot!.refreshError != null) {
+        _snapshot!.refreshError != null ||
+        _snapshot!.outcomeUnknown ||
+        service.hasUnresolvedOutcome) {
       return;
     }
     final generation = _generation;
@@ -141,7 +143,11 @@ class _CloudCalendarSharingContentState
       final snapshot = await action(service);
       if (!mounted || generation != _generation) return;
       setState(() => _snapshot = snapshot);
-      if (snapshot.refreshError != null) {
+      if (snapshot.outcomeUnknown) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(context.l10n.nextcloudOutcomeUnknown)),
+        );
+      } else if (snapshot.refreshError != null) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(context.l10n.sharingRefreshFailed)),
         );
@@ -192,7 +198,16 @@ class _CloudCalendarSharingContentState
               child: Text(context.l10n.retry),
             ),
         ],
-        if (_snapshot?.refreshError != null) ...[
+        if (_snapshot?.outcomeUnknown == true) ...[
+          Text(context.l10n.nextcloudOutcomeUnknown),
+          if (service != null)
+            BusyMaxPushButton.standard(
+              onPressed: _busy
+                  ? null
+                  : () => unawaited(_select(service.source)),
+              child: Text(context.l10n.retry),
+            ),
+        ] else if (_snapshot?.refreshError != null) ...[
           Text(context.l10n.sharingRefreshFailed),
           if (service != null)
             BusyMaxPushButton.standard(
@@ -222,7 +237,10 @@ class _CloudCalendarSharingContentState
                           BusyMaxMenuButton<String>(
                             tooltip: context.l10n.shareRole,
                             icon: const Icon(Icons.edit_outlined),
-                            enabled: !_busy && _snapshot?.refreshError == null,
+                            enabled:
+                                !_busy &&
+                                _snapshot?.refreshError == null &&
+                                _snapshot?.outcomeUnknown != true,
                             entries: [
                               for (final role in grant.allowedRoles)
                                 BusyMaxMenuEntry(
@@ -239,7 +257,10 @@ class _CloudCalendarSharingContentState
                           ),
                         if (grant.canRevoke)
                           BusyMaxPushButton.standard(
-                            onPressed: _busy || _snapshot?.refreshError != null
+                            onPressed:
+                                _busy ||
+                                    _snapshot?.refreshError != null ||
+                                    _snapshot?.outcomeUnknown == true
                                 ? null
                                 : () => unawaited(_confirmRevoke(grant)),
                             child: const Icon(Icons.person_remove_outlined),
@@ -258,7 +279,7 @@ class _CloudCalendarSharingContentState
                 title: TextField(
                   key: const Key('calendar-sharing-recipient'),
                   controller: _recipient,
-                  enabled: !_busy,
+                  enabled: !_busy && _snapshot?.outcomeUnknown != true,
                   keyboardType: TextInputType.emailAddress,
                   decoration: busyMaxGroupedTextFieldDecoration(
                     context,
@@ -274,7 +295,7 @@ class _CloudCalendarSharingContentState
               tooltip: _newRole == null
                   ? context.l10n.shareRole
                   : calendarSharingRoleLabel(context.l10n, _newRole!),
-              enabled: !_busy,
+              enabled: !_busy && _snapshot?.outcomeUnknown != true,
               entries: [
                 for (final role in service.newGrantRoles)
                   BusyMaxMenuEntry(
@@ -291,7 +312,10 @@ class _CloudCalendarSharingContentState
             child: BusyMaxPushButton.standard(
               key: const Key('calendar-sharing-add'),
               onPressed:
-                  _busy || _newRole == null || _snapshot?.refreshError != null
+                  _busy ||
+                      _newRole == null ||
+                      _snapshot?.refreshError != null ||
+                      _snapshot?.outcomeUnknown == true
                   ? null
                   : () => unawaited(_add()),
               child: Text(context.l10n.addCalendarShare),

@@ -48,6 +48,18 @@ void main() {
   });
 
   test(
+    'existing Gmail-derived type remains valid without allowing creation',
+    () {
+      validate('fromGmail', original: 'fromGmail');
+      expect(() => validate('fromGmail'), throwsUnsupportedError);
+      expect(
+        () => validate('default', original: 'fromGmail'),
+        throwsUnsupportedError,
+      );
+    },
+  );
+
+  test(
     'timing, transparency, visibility, and working-location form are enforced',
     () {
       expect(() => validate('focusTime', allDay: true), throwsArgumentError);

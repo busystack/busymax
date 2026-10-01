@@ -1,6 +1,8 @@
 import '../../../google_calendar/google_calendar_api_client.dart';
 import '../../../google_calendar/google_calendar_models.dart';
+import '../../../google_calendar/google_calendar_errors.dart';
 import '../../../microsoft_calendar/microsoft_calendar_api_client.dart';
+import '../../../microsoft_calendar/microsoft_calendar_errors.dart';
 import '../../../microsoft_calendar/microsoft_calendar_models.dart';
 import '../../../microsoft_calendar/microsoft_shared_calendar_address.dart';
 import '../../../providers/busy_provider.dart';
@@ -31,16 +33,52 @@ final class CloudCalendarShareGrant {
 }
 
 final class CloudCalendarShareSnapshot {
-  const CloudCalendarShareSnapshot(this.grants, {this.refreshError});
+  const CloudCalendarShareSnapshot(
+    this.grants, {
+    this.refreshError,
+    this.outcomeUnknown = false,
+  });
 
   final List<CloudCalendarShareGrant> grants;
 
   /// A committed mutation must not be reported as failed just because the
   /// follow-up read failed. The returned grants contain the acknowledged row.
   final Object? refreshError;
+  final bool outcomeUnknown;
+}
+
+typedef _ShareScope = ({
+  BusyProvider provider,
+  String accountId,
+  String calendarId,
+});
+
+enum _ShareMutationKind { add, change, revoke }
+
+final class _PendingShareMutation {
+  _PendingShareMutation({
+    required this.kind,
+    required this.recipient,
+    required this.role,
+    required this.grantId,
+    required this.baselineIds,
+    required this.visibleGrants,
+  });
+
+  final _ShareMutationKind kind;
+  final String recipient;
+  final String? role;
+  final String? grantId;
+  final Set<String> baselineIds;
+  List<CloudCalendarShareGrant> visibleGrants;
+  bool dispatching = true;
 }
 
 final class CloudCalendarSharingService {
+  // A reopened native view gets a new service object. Keep uncertain intent
+  // scoped to the provider account and calendar until an authoritative read
+  // resolves it; never infer failure from a missing or failed list response.
+  static final Map<_ShareScope, _PendingShareMutation> _pending = {};
   CloudCalendarSharingService({
     required this.source,
     this.google,
@@ -59,6 +97,15 @@ final class CloudCalendarSharingService {
   final GoogleCalendarApiClient? google;
   final MicrosoftCalendarApiClient? microsoft;
   List<CloudCalendarShareGrant> _grants = const [];
+  bool _loaded = false;
+
+  _ShareScope get _scope => (
+    provider: source.provider,
+    accountId: source.accountId,
+    calendarId: source.providerCalendarId,
+  );
+
+  bool get hasUnresolvedOutcome => _pending.containsKey(_scope);
 
   static bool canManageSource(CalendarSourceEntity source) =>
       !source.isDeleted &&
@@ -84,21 +131,52 @@ final class CloudCalendarSharingService {
       : const ['freeBusyRead', 'limitedRead', 'read', 'write'];
 
   Future<CloudCalendarShareSnapshot> load() async {
-    final grants = source.provider == BusyProvider.google
-        ? [
-            for (final rule in await google!.listAclRules(
-              source.providerCalendarId,
-            ))
-              _googleGrant(rule),
-          ]
-        : [
-            for (final permission
-                in await microsoft!.listPrimaryCalendarPermissions())
-              _microsoftGrant(permission),
-          ];
-    _grants = List.unmodifiable(grants);
-    return CloudCalendarShareSnapshot(_grants);
+    final pending = _pending[_scope];
+    if (pending != null && pending.dispatching) {
+      _grants = pending.visibleGrants;
+      _loaded = true;
+      return CloudCalendarShareSnapshot(_grants, outcomeUnknown: true);
+    }
+    try {
+      final grants = await _fetchGrants();
+      _grants = List.unmodifiable(grants);
+      _loaded = true;
+      if (pending != null) {
+        pending.visibleGrants = _grants;
+        if (_confirmsIntent(pending, _grants) &&
+            identical(_pending[_scope], pending)) {
+          _pending.remove(_scope);
+        }
+      }
+      return CloudCalendarShareSnapshot(
+        _grants,
+        outcomeUnknown: _pending.containsKey(_scope),
+      );
+    } on Object catch (error) {
+      if (pending == null) rethrow;
+      _grants = pending.visibleGrants;
+      _loaded = true;
+      return CloudCalendarShareSnapshot(
+        _grants,
+        refreshError: error,
+        outcomeUnknown: true,
+      );
+    }
   }
+
+  Future<List<CloudCalendarShareGrant>> _fetchGrants() async =>
+      source.provider == BusyProvider.google
+      ? [
+          for (final rule in await google!.listAclRules(
+            source.providerCalendarId,
+          ))
+            _googleGrant(rule),
+        ]
+      : [
+          for (final permission
+              in await microsoft!.listPrimaryCalendarPermissions())
+            _microsoftGrant(permission),
+        ];
 
   Future<CloudCalendarShareSnapshot> add({
     required String recipient,
@@ -107,20 +185,42 @@ final class CloudCalendarSharingService {
     if (!newGrantRoles.contains(role)) {
       throw ArgumentError.value(role, 'role', 'Unsupported sharing role.');
     }
-    final grant = source.provider == BusyProvider.google
-        ? _googleGrant(
-            await google!.addAclUser(
-              source.providerCalendarId,
-              email: recipient.trim(),
-              role: role,
-            ),
-          )
-        : _microsoftGrant(
-            await microsoft!.addPrimaryCalendarPermission(
-              email: recipient.trim(),
-              role: role,
-            ),
-          );
+    final target = recipient.trim();
+    if (_grants.any(
+      (grant) => grant.recipient.toLowerCase() == target.toLowerCase(),
+    )) {
+      throw StateError('This recipient already has a calendar grant.');
+    }
+    final pending = _begin(
+      kind: _ShareMutationKind.add,
+      recipient: target,
+      role: role,
+    );
+    late final CloudCalendarShareGrant grant;
+    try {
+      grant = source.provider == BusyProvider.google
+          ? _googleGrant(
+              await google!.addAclUser(
+                source.providerCalendarId,
+                email: target,
+                role: role,
+              ),
+            )
+          : _microsoftGrant(
+              await microsoft!.addPrimaryCalendarPermission(
+                email: target,
+                role: role,
+              ),
+            );
+    } on Object catch (error) {
+      if (_isConfirmedRejection(error)) {
+        _pending.remove(_scope);
+        rethrow;
+      }
+      pending.dispatching = false;
+      return load();
+    }
+    _pending.remove(_scope);
     _grants = List.unmodifiable([
       ..._grants.where((e) => e.id != grant.id),
       grant,
@@ -135,20 +235,37 @@ final class CloudCalendarSharingService {
     if (!grant.canChange || !grant.allowedRoles.contains(role)) {
       throw ArgumentError.value(role, 'role', 'This role cannot be changed.');
     }
-    final updated = source.provider == BusyProvider.google
-        ? _googleGrant(
-            await google!.changeAclRole(
-              source.providerCalendarId,
-              grant.googleRule!,
-              role,
-            ),
-          )
-        : _microsoftGrant(
-            await microsoft!.changePrimaryCalendarPermission(
-              grant.microsoftPermission!,
-              role,
-            ),
-          );
+    final pending = _begin(
+      kind: _ShareMutationKind.change,
+      recipient: grant.recipient,
+      role: role,
+      grantId: grant.id,
+    );
+    late final CloudCalendarShareGrant updated;
+    try {
+      updated = source.provider == BusyProvider.google
+          ? _googleGrant(
+              await google!.changeAclRole(
+                source.providerCalendarId,
+                grant.googleRule!,
+                role,
+              ),
+            )
+          : _microsoftGrant(
+              await microsoft!.changePrimaryCalendarPermission(
+                grant.microsoftPermission!,
+                role,
+              ),
+            );
+    } on Object catch (error) {
+      if (_isConfirmedRejection(error)) {
+        _pending.remove(_scope);
+        rethrow;
+      }
+      pending.dispatching = false;
+      return load();
+    }
+    _pending.remove(_scope);
     _grants = List.unmodifiable([
       for (final current in _grants) current.id == grant.id ? updated : current,
     ]);
@@ -161,13 +278,31 @@ final class CloudCalendarSharingService {
     if (!grant.canRevoke) {
       throw ArgumentError.value(grant.id, 'grant', 'Grant cannot be revoked.');
     }
-    if (source.provider == BusyProvider.google) {
-      await google!.revokeAclUser(source.providerCalendarId, grant.googleRule!);
-    } else {
-      await microsoft!.revokePrimaryCalendarPermission(
-        grant.microsoftPermission!,
-      );
+    final pending = _begin(
+      kind: _ShareMutationKind.revoke,
+      recipient: grant.recipient,
+      grantId: grant.id,
+    );
+    try {
+      if (source.provider == BusyProvider.google) {
+        await google!.revokeAclUser(
+          source.providerCalendarId,
+          grant.googleRule!,
+        );
+      } else {
+        await microsoft!.revokePrimaryCalendarPermission(
+          grant.microsoftPermission!,
+        );
+      }
+    } on Object catch (error) {
+      if (_isConfirmedRejection(error)) {
+        _pending.remove(_scope);
+        rethrow;
+      }
+      pending.dispatching = false;
+      return load();
     }
+    _pending.remove(_scope);
     _grants = List.unmodifiable(_grants.where((e) => e.id != grant.id));
     return _refreshAfterAcknowledgedMutation();
   }
@@ -179,6 +314,79 @@ final class CloudCalendarSharingService {
       return CloudCalendarShareSnapshot(_grants, refreshError: error);
     }
   }
+
+  _PendingShareMutation _begin({
+    required _ShareMutationKind kind,
+    required String recipient,
+    String? role,
+    String? grantId,
+  }) {
+    if (!_loaded || _pending.containsKey(_scope)) {
+      throw StateError(
+        'Refresh and resolve this calendar sharing change before another mutation.',
+      );
+    }
+    if (grantId != null && !_grants.any((grant) => grant.id == grantId)) {
+      throw StateError('This calendar grant is no longer in the loaded list.');
+    }
+    final pending = _PendingShareMutation(
+      kind: kind,
+      recipient: recipient,
+      role: role,
+      grantId: grantId,
+      baselineIds: {for (final grant in _grants) grant.id},
+      visibleGrants: _grants,
+    );
+    _pending[_scope] = pending;
+    return pending;
+  }
+
+  bool _confirmsIntent(
+    _PendingShareMutation pending,
+    List<CloudCalendarShareGrant> grants,
+  ) => switch (pending.kind) {
+    _ShareMutationKind.add =>
+      grants
+                  .where(
+                    (grant) =>
+                        !pending.baselineIds.contains(grant.id) &&
+                        grant.recipient.toLowerCase() ==
+                            pending.recipient.toLowerCase() &&
+                        grant.role == pending.role,
+                  )
+                  .length ==
+              1 &&
+          grants
+                  .where(
+                    (grant) =>
+                        grant.recipient.toLowerCase() ==
+                        pending.recipient.toLowerCase(),
+                  )
+                  .length ==
+              1,
+    _ShareMutationKind.change =>
+      grants
+              .where(
+                (grant) =>
+                    grant.id == pending.grantId && grant.role == pending.role,
+              )
+              .length ==
+          1,
+    _ShareMutationKind.revoke => !grants.any(
+      (grant) => grant.id == pending.grantId,
+    ),
+  };
+
+  bool _isConfirmedRejection(Object error) => switch (error) {
+    ArgumentError _ => true,
+    GoogleCalendarApiError e
+        when e.statusCode >= 400 && e.statusCode < 500 && e.statusCode != 408 =>
+      true,
+    MicrosoftCalendarApiError e
+        when e.statusCode >= 400 && e.statusCode < 500 && e.statusCode != 408 =>
+      true,
+    _ => false,
+  };
 
   CloudCalendarShareGrant _googleGrant(GoogleAclRule rule) {
     final mutable = rule.scopeType == 'user' && rule.role != 'owner';

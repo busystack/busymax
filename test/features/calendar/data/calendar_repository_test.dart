@@ -1571,6 +1571,134 @@ void main() {
     },
   );
 
+  test(
+    'existing Gmail event queues only supported color and reminder edits',
+    () async {
+      await _upsertSource(repository);
+      await repository.upsertEvent(
+        accountId: 'google:g',
+        event: const CalendarEventDto(
+          provider: BusyProvider.google,
+          providerCalendarId: 'calendar-1',
+          providerEventId: 'gmail-event',
+          title: 'Flight',
+          eventType: 'fromGmail',
+          colorId: '1',
+          startDateTime: '2026-06-08T09:00:00Z',
+          endDateTime: '2026-06-08T10:00:00Z',
+          organizerJson: {'self': true},
+          remindersJson: {'useDefault': true},
+          rawJson: {
+            'id': 'gmail-event',
+            'summary': 'Flight',
+            'eventType': 'fromGmail',
+            'organizer': {'self': true},
+            'reminders': {'useDefault': true},
+            'colorId': '1',
+          },
+        ),
+      );
+      final id = CalendarRepository.eventId(
+        accountId: 'google:g',
+        provider: BusyProvider.google,
+        providerCalendarId: 'calendar-1',
+        providerEventId: 'gmail-event',
+      );
+      final initial = EventEditorDraft.fromEventDetail(
+        (await repository.loadEventDetail(id))!,
+      );
+      await repository.updateLocalEvent(initial);
+      expect(await database.select(database.pendingOps).get(), isEmpty);
+      await repository.updateLocalEvent(initial.copyWith(colorId: '2'));
+      var request =
+          jsonDecode(
+                (await database.select(database.pendingOps).get())
+                    .last
+                    .requestJson,
+              )
+              as Map;
+      expect(request['colorId'], '2');
+      expect(request, isNot(contains('eventType')));
+      await repository.updateLocalEvent(
+        EventEditorDraft.fromEventDetail(
+          (await repository.loadEventDetail(id))!,
+        ).copyWith(
+          reminders: const {
+            'useDefault': false,
+            'overrides': [
+              {'method': 'popup', 'minutes': 10},
+            ],
+          },
+          remindersChanged: true,
+        ),
+      );
+      request =
+          jsonDecode(
+                (await database.select(database.pendingOps).get())
+                    .last
+                    .requestJson,
+              )
+              as Map;
+      expect((request['remindersJson'] as Map)['useDefault'], false);
+      final count = (await database.select(database.pendingOps).get()).length;
+      await expectLater(
+        repository.updateLocalEvent(
+          EventEditorDraft.fromEventDetail(
+            (await repository.loadEventDetail(id))!,
+          ).copyWith(title: 'Changed flight'),
+        ),
+        throwsA(isA<CalendarMutationNotAllowed>()),
+      );
+      expect((await database.select(database.pendingOps).get()).length, count);
+      expect((await repository.loadEventDetail(id))!.title, 'Flight');
+      await expectLater(
+        repository.updateLocalEvent(
+          EventEditorDraft.fromEventDetail(
+            (await repository.loadEventDetail(id))!,
+          ).copyWith(eventType: 'default'),
+        ),
+        throwsUnsupportedError,
+      );
+      await (database.update(database.calendarSources)
+            ..where((row) => row.id.equals(_sourceId)))
+          .write(const CalendarSourcesCompanion(readOnly: Value(true)));
+      await expectLater(
+        repository.updateLocalEvent(
+          EventEditorDraft.fromEventDetail(
+            (await repository.loadEventDetail(id))!,
+          ).copyWith(colorId: '3'),
+        ),
+        throwsA(isA<CalendarMutationNotAllowed>()),
+      );
+      await (database.update(database.calendarSources)
+            ..where((row) => row.id.equals(_sourceId)))
+          .write(const CalendarSourcesCompanion(readOnly: Value(false)));
+      final local =
+          (await database.select(database.calendarEvents).get()).single;
+      await (database.update(
+        database.calendarEvents,
+      )..where((row) => row.id.equals(id))).write(
+        CalendarEventsCompanion(
+          rawJson: Value(
+            jsonEncode({
+              ...jsonDecode(local.rawJson!) as Map<String, dynamic>,
+              'locked': true,
+            }),
+          ),
+        ),
+      );
+      await expectLater(
+        repository.updateLocalEvent(
+          EventEditorDraft.fromEventDetail(
+            (await repository.loadEventDetail(id))!,
+          ).copyWith(colorId: '3'),
+        ),
+        throwsA(isA<CalendarMutationNotAllowed>()),
+      );
+      expect((await database.select(database.pendingOps).get()).length, count);
+    },
+  );
+
   test('title-only Google edit preserves offset-only timestamps', () async {
     await _upsertSource(repository);
     await repository.upsertEvent(

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:busymax/l10n/generated/app_localizations.dart';
@@ -13,6 +14,128 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 
 void main() {
+  testWidgets(
+    'Windows lost sharing response keeps Add blocked across reopening',
+    (tester) async {
+      const source = CalendarSourceEntity(
+        id: 'windows-uncertain',
+        accountId: 'windows-uncertain-account',
+        provider: BusyProvider.microsoft,
+        providerCalendarId: 'primary-uncertain',
+        summary: 'My calendar',
+        selected: true,
+        hidden: false,
+        readOnly: false,
+        isDeleted: false,
+        primaryCalendar: true,
+      );
+      var posts = 0;
+      var failed = true;
+      final heldRead = Completer<http.Response>();
+      final client = MicrosoftCalendarApiClient(
+        httpClient: MockClient((request) async {
+          if (request.method == 'GET') {
+            if (posts == 0) {
+              return http.Response(jsonEncode({'value': <Object>[]}), 200);
+            }
+            if (failed) return heldRead.future;
+            return http.Response(
+              jsonEncode({
+                'value': [
+                  {
+                    'id': 'grant-windows',
+                    'role': 'freeBusyRead',
+                    'allowedRoles': ['freeBusyRead', 'read'],
+                    'isRemovable': true,
+                    'emailAddress': {'address': 'friend@example.com'},
+                  },
+                ],
+              }),
+              200,
+            );
+          }
+          posts++;
+          throw http.ClientException('response lost');
+        }),
+        baseUri: Uri.parse('https://graph.microsoft.com/v1.0'),
+        responseTimeZone: 'UTC',
+        accountTenantId: 'tenant',
+      );
+      await tester.pumpWidget(
+        ProviderScope(
+          child: FluentApp(
+            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
+            home: Builder(
+              builder: (context) => Button(
+                onPressed: () => showWindowsCloudCalendarSharingDialog(
+                  context,
+                  sources: const [source],
+                  serviceFactory: (s) =>
+                      CloudCalendarSharingService(source: s, microsoft: client),
+                ),
+                child: const Text('Open sharing'),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.tap(find.text('Open sharing'));
+      await tester.pumpAndSettle();
+      await tester.enterText(
+        find.byKey(const Key('windows-sharing-recipient')),
+        'friend@example.com',
+      );
+      await tester.ensureVisible(find.byKey(const Key('windows-sharing-add')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('windows-sharing-add')));
+      for (var i = 0; i < 4; i++) {
+        await tester.pump();
+      }
+      expect(posts, 1);
+      expect(
+        tester
+            .widget<Button>(find.byKey(const Key('windows-sharing-add')))
+            .onPressed,
+        isNull,
+      );
+      heldRead.complete(http.Response('unavailable', 503));
+      for (var i = 0; i < 4; i++) {
+        await tester.pump();
+      }
+      expect(
+        tester
+            .widget<Button>(find.byKey(const Key('windows-sharing-add')))
+            .onPressed,
+        isNull,
+      );
+      expect(find.text('Retry'), findsOneWidget);
+      await tester.tap(find.text('Close'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Open sharing'));
+      for (var i = 0; i < 5; i++) {
+        await tester.pump();
+      }
+      expect(
+        tester
+            .widget<Button>(find.byKey(const Key('windows-sharing-add')))
+            .onPressed,
+        isNull,
+      );
+      failed = false;
+      await tester.tap(find.text('Retry'));
+      await tester.pumpAndSettle();
+      expect(posts, 1);
+      expect(
+        tester
+            .widget<Button>(find.byKey(const Key('windows-sharing-add')))
+            .onPressed,
+        isNotNull,
+      );
+      await tester.pump(const Duration(milliseconds: 200));
+    },
+  );
+
   testWidgets('Windows sharing dialog adds a grant through Graph', (
     tester,
   ) async {

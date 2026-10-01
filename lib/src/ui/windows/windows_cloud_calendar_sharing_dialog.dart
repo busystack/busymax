@@ -129,7 +129,9 @@ class _WindowsCloudCalendarSharingContentState
     if (service == null ||
         _busy ||
         _snapshot == null ||
-        _snapshot!.refreshError != null) {
+        _snapshot!.refreshError != null ||
+        _snapshot!.outcomeUnknown ||
+        service.hasUnresolvedOutcome) {
       return;
     }
     final generation = _generation;
@@ -192,7 +194,22 @@ class _WindowsCloudCalendarSharingContentState
             child: Text(l10n.retry),
           ),
         ],
-        if (_snapshot?.refreshError != null)
+        if (_snapshot?.outcomeUnknown == true)
+          Column(
+            children: [
+              InfoBar(
+                title: Text(l10n.nextcloudOutcomeUnknown),
+                severity: InfoBarSeverity.warning,
+              ),
+              Button(
+                onPressed: _busy || service == null
+                    ? null
+                    : () => unawaited(_load(service.source)),
+                child: Text(l10n.retry),
+              ),
+            ],
+          )
+        else if (_snapshot?.refreshError != null)
           Column(
             children: [
               InfoBar(
@@ -236,7 +253,8 @@ class _WindowsCloudCalendarSharingContentState
                                       ),
                                       onPressed:
                                           _busy ||
-                                              _snapshot?.refreshError != null
+                                              _snapshot?.refreshError != null ||
+                                              _snapshot?.outcomeUnknown == true
                                           ? null
                                           : () => unawaited(
                                               _mutate(
@@ -249,7 +267,9 @@ class _WindowsCloudCalendarSharingContentState
                             if (grant.canRevoke)
                               Button(
                                 onPressed:
-                                    _busy || _snapshot?.refreshError != null
+                                    _busy ||
+                                        _snapshot?.refreshError != null ||
+                                        _snapshot?.outcomeUnknown == true
                                     ? null
                                     : () => unawaited(_confirmRevoke(grant)),
                                 child: Text(l10n.nextcloudRevokeShare),
@@ -267,7 +287,7 @@ class _WindowsCloudCalendarSharingContentState
             child: TextBox(
               key: const Key('windows-sharing-recipient'),
               controller: _recipient,
-              enabled: !_busy,
+              enabled: !_busy && _snapshot?.outcomeUnknown != true,
             ),
           ),
           const SizedBox(height: 8),
@@ -284,7 +304,7 @@ class _WindowsCloudCalendarSharingContentState
                     child: Text(calendarSharingRoleLabel(l10n, role)),
                   ),
               ],
-              onChanged: _busy
+              onChanged: _busy || _snapshot?.outcomeUnknown == true
                   ? null
                   : (value) => setState(() => _role = value),
             ),
@@ -295,7 +315,10 @@ class _WindowsCloudCalendarSharingContentState
             child: Button(
               key: const Key('windows-sharing-add'),
               onPressed:
-                  _busy || _role == null || _snapshot?.refreshError != null
+                  _busy ||
+                      _role == null ||
+                      _snapshot?.refreshError != null ||
+                      _snapshot?.outcomeUnknown == true
                   ? null
                   : () => unawaited(_add()),
               child: Text(l10n.addCalendarShare),

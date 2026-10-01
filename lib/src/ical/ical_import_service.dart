@@ -450,6 +450,22 @@ _PreparedImportDraft _prepareDraft(
   final categories = destination.provider == BusyProvider.google
       ? const <String>[]
       : master.categories;
+  final classification = master.classification?.trim().toUpperCase();
+  if (destination.provider == BusyProvider.microsoft &&
+      classification != null &&
+      !const {'PUBLIC', 'PRIVATE', 'CONFIDENTIAL'}.contains(classification)) {
+    return _PreparedImportDraft.unsupported(
+      'This iCalendar classification is not supported by Microsoft.',
+    );
+  }
+  final visibilityOrSensitivity = destination.provider == BusyProvider.microsoft
+      ? switch (classification) {
+          'PUBLIC' => 'normal',
+          'PRIVATE' => 'private',
+          'CONFIDENTIAL' => 'confidential',
+          _ => null,
+        }
+      : master.classification?.toLowerCase();
   final preparedExceptions = _prepareExceptions(
     set,
     master: master,
@@ -491,7 +507,7 @@ _PreparedImportDraft _prepareDraft(
           attendees: const [],
           attendeesChanged: false,
           showAs: _transparency(master.transparency, destination.provider),
-          visibilityOrSensitivity: master.classification?.toLowerCase(),
+          visibilityOrSensitivity: visibilityOrSensitivity,
           categories: categories,
           categoriesChanged: categories.isNotEmpty,
           createConference: false,

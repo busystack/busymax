@@ -2489,6 +2489,114 @@ END:VEVENT
     },
   );
 
+  test(
+    'existing Gmail color and reminders replay as targeted PATCHes',
+    () async {
+      final repository = CalendarRepository(database: database);
+      await repository.upsertEvent(
+        accountId: 'account',
+        event: const CalendarEventDto(
+          provider: BusyProvider.google,
+          providerCalendarId: 'cal-1',
+          providerEventId: 'gmail-existing',
+          eventType: 'fromGmail',
+          title: 'Flight',
+          colorId: '1',
+          startDateTime: '2026-06-08T09:00:00Z',
+          endDateTime: '2026-06-08T10:00:00Z',
+          remindersJson: {'useDefault': true},
+          organizerJson: {'self': true},
+          etagOrChangeKey: '"v1"',
+          rawJson: {
+            'id': 'gmail-existing',
+            'summary': 'Flight',
+            'eventType': 'fromGmail',
+            'colorId': '1',
+            'reminders': {'useDefault': true},
+            'organizer': {'self': true},
+            'etag': '"v1"',
+          },
+        ),
+      );
+      final id = CalendarRepository.eventId(
+        accountId: 'account',
+        provider: BusyProvider.google,
+        providerCalendarId: 'cal-1',
+        providerEventId: 'gmail-existing',
+      );
+      var remoteColor = '1';
+      Map<String, Object?> remoteReminders = {'useDefault': true};
+      var version = 1;
+      final patches = <Map<String, Object?>>[];
+      final api = GoogleCalendarApiClient(
+        httpClient: MockClient((request) async {
+          if (request.method == 'PATCH') {
+            final body = (jsonDecode(request.body) as Map)
+                .cast<String, Object?>();
+            patches.add(body);
+            if (body['colorId'] case final String value) remoteColor = value;
+            if (body['reminders'] case final Map value) {
+              remoteReminders = value.cast<String, Object?>();
+            }
+            version++;
+          }
+          return http.Response(
+            jsonEncode({
+              'id': 'gmail-existing',
+              'summary': 'Flight',
+              'eventType': 'fromGmail',
+              'colorId': remoteColor,
+              'reminders': remoteReminders,
+              'start': {'dateTime': '2026-06-08T09:00:00Z'},
+              'end': {'dateTime': '2026-06-08T10:00:00Z'},
+              'organizer': {'self': true},
+              'etag': '"v$version"',
+            }),
+            200,
+          );
+        }),
+        baseUri: Uri.parse('https://www.googleapis.com'),
+      );
+      Future<void> replay() async {
+        expect(
+          await CalendarPendingOpsReplayer(
+            database: database,
+            client: api,
+            accountId: 'account',
+            nowUtc: () => DateTime.utc(2026, 6, 8),
+          ).replayDueOps(),
+          1,
+        );
+      }
+
+      await repository.updateLocalEvent(
+        EventEditorDraft.fromEventDetail(
+          (await repository.loadEventDetail(id))!,
+        ).copyWith(colorId: '2'),
+      );
+      await replay();
+      expect(patches.single, {'colorId': '2'});
+      expect((await repository.loadEventDetail(id))!.eventType, 'fromGmail');
+      await repository.updateLocalEvent(
+        EventEditorDraft.fromEventDetail(
+          (await repository.loadEventDetail(id))!,
+        ).copyWith(
+          reminders: const {
+            'useDefault': false,
+            'overrides': [
+              {'method': 'popup', 'minutes': 10},
+            ],
+          },
+          remindersChanged: true,
+        ),
+      );
+      await replay();
+      expect(patches.last.keys, {'reminders'});
+      expect((patches.last['reminders'] as Map)['useDefault'], false);
+      expect((await repository.loadEventDetail(id))!.eventType, 'fromGmail');
+    },
+  );
+
   for (final type in googleStatusEventTypes) {
     test('existing Google $type settings survive queued HTTP replay', () async {
       final repository = CalendarRepository(database: database);

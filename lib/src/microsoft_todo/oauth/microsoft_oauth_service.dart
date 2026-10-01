@@ -5,6 +5,7 @@ import 'package:logging/logging.dart';
 
 import '../../config/build_config.dart';
 import '../../core/logging/redacting_logger.dart';
+import '../../core/auth/microsoft_graph_scopes.dart';
 import '../../google_tasks/oauth/oauth_loopback_flow.dart';
 import '../../providers/busy_provider.dart';
 import 'package:busymax/src/core/auth/oauth_models.dart';
@@ -159,7 +160,10 @@ class MicrosoftOAuthService
     String accountId,
   ) async {
     final tokenSet = await validTokenForAccount(accountId);
-    if (!tokenSet.scopes.contains(microsoftSharedCalendarScope)) {
+    if (!hasMicrosoftGraphScope(
+      tokenSet.scopes,
+      microsoftSharedCalendarScope,
+    )) {
       throw const OAuthException(
         'MicrosoftOAuthSharedConsentRequired',
         'Shared-calendar permission must be granted for this account.',
@@ -170,7 +174,7 @@ class MicrosoftOAuthService
 
   Future<String> categoryAuthorizationHeaderForAccount(String accountId) async {
     final tokenSet = await validTokenForAccount(accountId);
-    if (!tokenSet.scopes.contains(microsoftCategoryScope)) {
+    if (!hasMicrosoftGraphScope(tokenSet.scopes, microsoftCategoryScope)) {
       throw const OAuthException(
         'MicrosoftOAuthCategoryConsentRequired',
         'Outlook category lookup requires optional mailbox-settings consent.',
@@ -189,13 +193,16 @@ class MicrosoftOAuthService
         'Reconnect this Microsoft account before loading categories.',
       );
     }
-    if (existing.scopes.contains(microsoftCategoryScope)) return;
+    if (hasMicrosoftGraphScope(existing.scopes, microsoftCategoryScope)) return;
     final result = await _loopbackFlow.start(
       authorizationEndpoint: _authorizationEndpoint,
       clientId: _config.microsoftOAuthClientId.trim(),
       scope: [
         microsoftTodoOAuthScopes,
-        if (existing.scopes.contains(microsoftSharedCalendarScope))
+        if (hasMicrosoftGraphScope(
+          existing.scopes,
+          microsoftSharedCalendarScope,
+        ))
           microsoftSharedCalendarScope,
         microsoftCategoryScope,
       ].join(' '),
@@ -216,15 +223,20 @@ class MicrosoftOAuthService
       codeVerifier: result.codeVerifier,
       redirectUri: result.redirectUri,
       fallbackScopeText: '',
+      existingRefreshToken: existing.refreshToken,
+      existingIdToken: existing.idToken,
     );
     final user = await _getMe(candidate);
     if ('microsoft:${user.id}' != accountId ||
-        !candidate.scopes.contains(microsoftCategoryScope) ||
-        !candidate.scopes.containsAll({
+        !hasMicrosoftGraphScope(candidate.scopes, microsoftCategoryScope) ||
+        !hasMicrosoftGraphScopes(candidate.scopes, {
           'https://graph.microsoft.com/User.Read',
           'https://graph.microsoft.com/Tasks.ReadWrite',
           'https://graph.microsoft.com/Calendars.ReadWrite',
-          if (existing.scopes.contains(microsoftSharedCalendarScope))
+          if (hasMicrosoftGraphScope(
+            existing.scopes,
+            microsoftSharedCalendarScope,
+          ))
             microsoftSharedCalendarScope,
         })) {
       throw const OAuthException(
@@ -256,14 +268,16 @@ class MicrosoftOAuthService
         'Reconnect this Microsoft account before opening a shared calendar.',
       );
     }
-    if (existing.scopes.contains(microsoftSharedCalendarScope)) return;
+    if (hasMicrosoftGraphScope(existing.scopes, microsoftSharedCalendarScope)) {
+      return;
+    }
     final result = await _loopbackFlow.start(
       authorizationEndpoint: _authorizationEndpoint,
       clientId: _config.microsoftOAuthClientId.trim(),
       scope: [
         microsoftTodoOAuthScopes,
         microsoftSharedCalendarScope,
-        if (existing.scopes.contains(microsoftCategoryScope))
+        if (hasMicrosoftGraphScope(existing.scopes, microsoftCategoryScope))
           microsoftCategoryScope,
       ].join(' '),
       redirectHost: 'localhost',
@@ -284,19 +298,19 @@ class MicrosoftOAuthService
       codeVerifier: result.codeVerifier,
       redirectUri: result.redirectUri,
       fallbackScopeText: '',
+      existingRefreshToken: existing.refreshToken,
+      existingIdToken: existing.idToken,
     );
     final user = await _getMe(candidate);
     if ('microsoft:${user.id}' != accountId ||
-        !candidate.scopes.contains(microsoftSharedCalendarScope) ||
-        !candidate.scopes.contains('https://graph.microsoft.com/User.Read') ||
-        !candidate.scopes.contains(
+        !hasMicrosoftGraphScopes(candidate.scopes, {
+          microsoftSharedCalendarScope,
+          'https://graph.microsoft.com/User.Read',
           'https://graph.microsoft.com/Tasks.ReadWrite',
-        ) ||
-        !candidate.scopes.contains(
           'https://graph.microsoft.com/Calendars.ReadWrite',
-        ) ||
-        (existing.scopes.contains(microsoftCategoryScope) &&
-            !candidate.scopes.contains(microsoftCategoryScope))) {
+          if (hasMicrosoftGraphScope(existing.scopes, microsoftCategoryScope))
+            microsoftCategoryScope,
+        })) {
       throw const OAuthException(
         'MicrosoftOAuthSharedConsentDenied',
         'Shared-calendar access was not granted for this account.',
@@ -321,6 +335,8 @@ class MicrosoftOAuthService
     required String codeVerifier,
     required String redirectUri,
     String fallbackScopeText = microsoftTodoOAuthScopes,
+    String? existingRefreshToken,
+    String? existingIdToken,
   }) async {
     final clientId = _config.microsoftOAuthClientId.trim();
     _validateTokenExchangeParameters(
@@ -364,6 +380,8 @@ class MicrosoftOAuthService
       json,
       issuedAtUtc: _nowUtc(),
       fallbackScopeText: fallbackScopeText,
+      existingRefreshToken: existingRefreshToken,
+      existingIdToken: existingIdToken,
     );
   }
 
@@ -417,9 +435,12 @@ class MicrosoftOAuthService
         'refresh_token': current.refreshToken!,
         'scope': [
           microsoftTodoOAuthScopes,
-          if (current.scopes.contains(microsoftSharedCalendarScope))
+          if (hasMicrosoftGraphScope(
+            current.scopes,
             microsoftSharedCalendarScope,
-          if (current.scopes.contains(microsoftCategoryScope))
+          ))
+            microsoftSharedCalendarScope,
+          if (hasMicrosoftGraphScope(current.scopes, microsoftCategoryScope))
             microsoftCategoryScope,
         ].join(' '),
       },

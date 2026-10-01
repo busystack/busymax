@@ -2183,6 +2183,12 @@ class CalendarRepository {
         draft.accountId != existing.accountId ||
         draft.sourceId != existing.calendarSourceId ||
         draft.providerCalendarId != existing.providerCalendarId;
+    if (sourceChanged && existing.eventType == 'fromGmail') {
+      throw CalendarMutationNotAllowed(
+        operation: CalendarMutationOperation.moveEvent,
+        sourceId: existing.calendarSourceId,
+      );
+    }
     if (sourceChanged) {
       await _requireWritableSource(
         originalSource,
@@ -2304,6 +2310,31 @@ class CalendarRepository {
             (match) => '${match[1]}:${match[2]}',
           );
         }
+      }
+    }
+    if (provider == BusyProvider.google && existing.eventType == 'fromGmail') {
+      const allowed = {
+        'colorId',
+        'remindersJson',
+        'visibility',
+        'transparencyOrShowAs',
+        calendarEventAttendeesField,
+        calendarEventGuestUpdatePolicyKey,
+      };
+      final cleared = request[calendarEventClearFieldsKey];
+      final clearsOnlyAttendees =
+          cleared is List &&
+          cleared.length == 1 &&
+          cleared.single == calendarEventAttendeesField;
+      if (request.keys.any(
+        (field) =>
+            !allowed.contains(field) &&
+            !(field == calendarEventClearFieldsKey && clearsOnlyAttendees),
+      )) {
+        throw CalendarMutationNotAllowed(
+          operation: CalendarMutationOperation.editEvent,
+          sourceId: source.id,
+        );
       }
     }
     if (!_eventRequestHasMutation(request)) {

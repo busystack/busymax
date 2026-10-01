@@ -54,6 +54,7 @@ void validateGoogleStatusEvent({
     throw UnsupportedError('Google event types cannot be changed in place.');
   }
   if (type == 'default') return;
+  if (type == 'fromGmail' && original == 'fromGmail') return;
   if (!googleStatusEventTypes.contains(type)) {
     throw UnsupportedError('This Google event type cannot be created here.');
   }

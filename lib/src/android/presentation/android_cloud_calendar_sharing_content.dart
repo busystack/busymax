@@ -133,7 +133,9 @@ class _CloudCalendarSharingContentState
     if (service == null ||
         _busy ||
         _snapshot == null ||
-        _snapshot!.refreshError != null) {
+        _snapshot!.refreshError != null ||
+        _snapshot!.outcomeUnknown ||
+        service.hasUnresolvedOutcome) {
       return;
     }
     final generation = _generation;
@@ -145,7 +147,11 @@ class _CloudCalendarSharingContentState
       final snapshot = await action(service);
       if (!mounted || generation != _generation) return;
       setState(() => _snapshot = snapshot);
-      if (snapshot.refreshError != null) {
+      if (snapshot.outcomeUnknown) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(context.l10n.nextcloudOutcomeUnknown)),
+        );
+      } else if (snapshot.refreshError != null) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(context.l10n.sharingRefreshFailed)),
         );
@@ -195,7 +201,15 @@ class _CloudCalendarSharingContentState
             child: Text(context.l10n.retry),
           ),
         ],
-        if (_snapshot?.refreshError != null) ...[
+        if (_snapshot?.outcomeUnknown == true) ...[
+          Text(context.l10n.nextcloudOutcomeUnknown),
+          TextButton(
+            onPressed: _busy || service == null
+                ? null
+                : () => unawaited(_select(service.source)),
+            child: Text(context.l10n.retry),
+          ),
+        ] else if (_snapshot?.refreshError != null) ...[
           Text(context.l10n.sharingRefreshFailed),
           TextButton(
             onPressed: _busy || service == null
@@ -222,7 +236,10 @@ class _CloudCalendarSharingContentState
                       children: [
                         if (grant.canChange)
                           PopupMenuButton<String>(
-                            enabled: !_busy && _snapshot?.refreshError == null,
+                            enabled:
+                                !_busy &&
+                                _snapshot?.refreshError == null &&
+                                _snapshot?.outcomeUnknown != true,
                             tooltip: context.l10n.shareRole,
                             onSelected: (role) => unawaited(
                               _mutate((s) => s.change(grant, role)),
@@ -244,7 +261,10 @@ class _CloudCalendarSharingContentState
                         if (grant.canRevoke)
                           IconButton(
                             tooltip: context.l10n.nextcloudRevokeShare,
-                            onPressed: _busy || _snapshot?.refreshError != null
+                            onPressed:
+                                _busy ||
+                                    _snapshot?.refreshError != null ||
+                                    _snapshot?.outcomeUnknown == true
                                 ? null
                                 : () => unawaited(_confirmRevoke(grant)),
                             icon: const Icon(Icons.person_remove_outlined),
@@ -259,7 +279,7 @@ class _CloudCalendarSharingContentState
           TextField(
             key: const Key('calendar-sharing-recipient'),
             controller: _recipient,
-            enabled: !_busy,
+            enabled: !_busy && _snapshot?.outcomeUnknown != true,
             keyboardType: TextInputType.emailAddress,
             decoration: InputDecoration(
               labelText: context.l10n.shareRecipientEmail,
@@ -276,14 +296,19 @@ class _CloudCalendarSharingContentState
                   child: Text(calendarSharingRoleLabel(context.l10n, role)),
                 ),
             ],
-            onChanged: _busy ? null : (role) => setState(() => _newRole = role),
+            onChanged: _busy || _snapshot?.outcomeUnknown == true
+                ? null
+                : (role) => setState(() => _newRole = role),
           ),
           Align(
             alignment: Alignment.centerRight,
             child: TextButton.icon(
               key: const Key('calendar-sharing-add'),
               onPressed:
-                  _busy || _newRole == null || _snapshot?.refreshError != null
+                  _busy ||
+                      _newRole == null ||
+                      _snapshot?.refreshError != null ||
+                      _snapshot?.outcomeUnknown == true
                   ? null
                   : () => unawaited(_add()),
               icon: const Icon(Icons.person_add_alt_1_outlined),

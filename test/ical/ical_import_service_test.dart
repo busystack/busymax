@@ -3,15 +3,19 @@ import 'dart:convert';
 import 'package:busymax/src/calendar_providers/calendar_mutation.dart';
 import 'package:busymax/src/db/app_database.dart';
 import 'package:busymax/src/features/calendar/data/calendar_repository.dart';
+import 'package:busymax/src/features/schedule/presentation/cloud_calendar_series_export.dart';
 import 'package:busymax/src/features/sync/calendar_pending_ops_replayer.dart';
 import 'package:busymax/src/google_calendar/google_calendar_api_client.dart';
 import 'package:busymax/src/microsoft_calendar/microsoft_calendar_api_client.dart';
+import 'package:busymax/src/microsoft_calendar/microsoft_calendar_mapper.dart';
+import 'package:busymax/src/providers/busy_provider.dart';
 import 'package:busymax/src/ical/ical_import_service.dart';
 import 'package:drift/drift.dart' show Value;
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
+import 'package:timezone/data/latest_all.dart' as time_zone_data;
 
 void main() {
   late AppDatabase database;
@@ -35,6 +39,182 @@ void main() {
   });
 
   tearDown(() async => database.close());
+
+  test('Microsoft PUBLIC import replays as normal sensitivity', () async {
+    await _seedMicrosoftDestination(database);
+    time_zone_data.initializeTimeZones();
+    final exported = cloudSeriesToICalendar(
+      master: microsoftCalendarEventFromJson('source-calendar', {
+        'id': 'source-series',
+        'uid': 'public-import',
+        'subject': 'Public import',
+        'type': 'seriesMaster',
+        'sensitivity': 'normal',
+        'start': {'dateTime': '2026-08-30T16:00:00', 'timeZone': 'UTC'},
+        'end': {'dateTime': '2026-08-30T17:00:00', 'timeZone': 'UTC'},
+        'recurrence': {
+          'pattern': {'type': 'daily', 'interval': 1},
+          'range': {
+            'type': 'numbered',
+            'startDate': '2026-08-30',
+            'numberOfOccurrences': 2,
+            'recurrenceTimeZone': 'UTC',
+          },
+        },
+      }),
+      exceptions: const [],
+      nowUtc: DateTime.utc(2026, 8, 29),
+    );
+    expect(exported, contains('CLASS:PUBLIC'));
+    final preview = importService.parsePreview(utf8.encode(exported));
+    final destination = (await importService.writableDestinations())
+        .singleWhere((source) => source.accountId == 'microsoft-account');
+    expect(
+      (await importService.importPreview(
+        preview: preview,
+        destination: destination,
+      )).queued,
+      1,
+    );
+    final requests = <http.Request>[];
+    final client = MicrosoftCalendarApiClient(
+      httpClient: MockClient((request) async {
+        requests.add(request);
+        return http.Response(
+          jsonEncode({
+            'id': 'remote-public',
+            'subject': 'Public import',
+            'sensitivity': 'normal',
+            'start': {'dateTime': '2026-08-30T16:00:00', 'timeZone': 'UTC'},
+            'end': {'dateTime': '2026-08-30T17:00:00', 'timeZone': 'UTC'},
+          }),
+          201,
+        );
+      }),
+      baseUri: Uri.parse('https://graph.microsoft.com/v1.0'),
+      responseTimeZone: 'UTC',
+    );
+    await CalendarPendingOpsReplayer(
+      database: database,
+      client: client,
+      accountId: 'microsoft-account',
+      nowUtc: () => DateTime.utc(2026, 8, 29),
+    ).replayDueOps();
+    final post = requests.singleWhere((request) => request.method == 'POST');
+    expect((jsonDecode(post.body) as Map)['sensitivity'], 'normal');
+    final detail = (await calendarRepository.loadEventDetail(
+      CalendarRepository.eventId(
+        accountId: 'microsoft-account',
+        provider: BusyProvider.microsoft,
+        providerCalendarId: 'calendar',
+        providerEventId: 'remote-public',
+      ),
+    ))!;
+    expect(detail.visibility, 'normal');
+  });
+
+  for (final scenario in const [
+    (classification: 'PRIVATE', expected: 'private'),
+    (classification: 'CONFIDENTIAL', expected: 'confidential'),
+    (classification: '', expected: null),
+  ]) {
+    test(
+      'Microsoft ${scenario.classification.isEmpty ? 'absent' : scenario.classification} classification queues ${scenario.expected}',
+      () async {
+        await _seedMicrosoftDestination(database);
+        final classification = scenario.classification.isEmpty
+            ? ''
+            : 'CLASS:${scenario.classification}\n';
+        final preview = importService.parsePreview(
+          utf8.encode(
+            _calendar('''
+BEGIN:VEVENT
+UID:classification-${scenario.classification}
+DTSTART:20260830T160000Z
+DTEND:20260830T170000Z
+SUMMARY:Classification
+${classification}END:VEVENT
+'''),
+          ),
+        );
+        final destination = (await importService.writableDestinations())
+            .singleWhere((source) => source.accountId == 'microsoft-account');
+        expect(
+          (await importService.importPreview(
+            preview: preview,
+            destination: destination,
+          )).queued,
+          1,
+        );
+        final request =
+            jsonDecode(
+                  (await database.select(database.pendingOps).get())
+                      .single
+                      .requestJson,
+                )
+                as Map;
+        expect(request['sensitivity'], scenario.expected);
+      },
+    );
+  }
+
+  test(
+    'Google PUBLIC classification keeps visibility and Microsoft rejects unknown',
+    () async {
+      final googlePreview = importService.parsePreview(
+        utf8.encode(
+          _calendar('''
+BEGIN:VEVENT
+UID:google-public
+DTSTART:20260830T160000Z
+DTEND:20260830T170000Z
+SUMMARY:Google public
+CLASS:PUBLIC
+END:VEVENT
+'''),
+        ),
+      );
+      final google = (await importService.writableDestinations()).singleWhere(
+        (source) => source.accountId == 'google-account',
+      );
+      expect(
+        (await importService.importPreview(
+          preview: googlePreview,
+          destination: google,
+        )).queued,
+        1,
+      );
+      expect(
+        jsonDecode(
+          (await database.select(database.pendingOps).get()).single.requestJson,
+        )['visibility'],
+        'public',
+      );
+      await _seedMicrosoftDestination(database);
+      final unsupported = importService.parsePreview(
+        utf8.encode(
+          _calendar('''
+BEGIN:VEVENT
+UID:unknown-class
+DTSTART:20260830T160000Z
+DTEND:20260830T170000Z
+SUMMARY:Unknown
+CLASS:SECRET
+END:VEVENT
+'''),
+        ),
+      );
+      final microsoft = (await importService.writableDestinations())
+          .singleWhere((source) => source.accountId == 'microsoft-account');
+      final report = await importService.importPreview(
+        preview: unsupported,
+        destination: microsoft,
+      );
+      expect(report.queued, 0);
+      expect(report.unsupportedRecurrenceSets, hasLength(1));
+      expect((await database.select(database.pendingOps).get()), hasLength(1));
+    },
+  );
 
   test(
     'preview performs no mutation and reports omitted scheduling fields',
@@ -921,6 +1101,40 @@ Future<void> _seedAccountAndSource(AppDatabase database) async {
           accountId: 'google-account',
           provider: 'google',
           providerCalendarId: 'primary',
+          summary: 'Calendar',
+          accessRole: const Value('owner'),
+          createdAtLocal: 1,
+          updatedAtLocal: 1,
+        ),
+      );
+}
+
+Future<void> _seedMicrosoftDestination(AppDatabase database) async {
+  await database
+      .into(database.accounts)
+      .insert(
+        AccountsCompanion.insert(
+          id: 'microsoft-account',
+          provider: 'microsoft',
+          authority: 'https://login.microsoftonline.com',
+          providerAccountId: 'user',
+          credentialKind: 'oauth',
+          authState: const Value('signed_in'),
+          calendarsEnabled: const Value(true),
+          tasksEnabled: const Value(false),
+          grantedScopes: const Value('Calendars.ReadWrite'),
+          createdAtUtc: _now,
+          updatedAtUtc: _now,
+        ),
+      );
+  await database
+      .into(database.calendarSources)
+      .insert(
+        CalendarSourcesCompanion.insert(
+          id: 'microsoft-account|microsoft|calendar',
+          accountId: 'microsoft-account',
+          provider: 'microsoft',
+          providerCalendarId: 'calendar',
           summary: 'Calendar',
           accessRole: const Value('owner'),
           createdAtLocal: 1,
