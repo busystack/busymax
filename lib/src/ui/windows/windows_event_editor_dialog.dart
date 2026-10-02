@@ -1404,6 +1404,7 @@ Future<bool> showWindowsEventEditorDialog(
                           ? null
                           : () => showWindowsCloudAvailabilityDialog(
                               context,
+                              calendarTimeZone: selectedSource.timeZone,
                               draft:
                                   (originalDraft ??
                                           EventEditorDraft.newEvent(

@@ -991,6 +991,109 @@ void main() {
     expect(requestBody?['timeMax'], '2026-07-15T17:00:00.000Z');
   });
 
+  testWidgets('Google all-day availability uses selected calendar timezone', (
+    tester,
+  ) async {
+    Map<String, dynamic>? requestBody;
+    late EventEditorDraft draft;
+    late String calendarTimeZone;
+    final client = GoogleCalendarApiClient(
+      httpClient: MockClient((request) async {
+        requestBody = jsonDecode(request.body) as Map<String, dynamic>;
+        return http.Response(
+          jsonEncode({
+            'calendars': {
+              'guest@example.com': {'busy': <Object>[]},
+            },
+          }),
+          200,
+        );
+      }),
+      baseUri: Uri.parse('https://www.googleapis.com'),
+      authorizationHeaderProvider: () async => 'Bearer token',
+    );
+    final harness = await _pumpApp(
+      tester,
+      AppSettings.defaults(),
+      calendarClient: client,
+      seedDatabase: (database) async {
+        await database
+            .into(database.accounts)
+            .insert(
+              AccountsCompanion.insert(
+                id: 'google:editable',
+                provider: 'google',
+                authority: 'https://accounts.google.com',
+                providerAccountId: 'me@example.com',
+                credentialKind: 'oauth',
+                authState: const Value('signed_in'),
+                createdAtUtc: '2026-07-01T00:00:00Z',
+                updatedAtUtc: '2026-07-01T00:00:00Z',
+              ),
+            );
+        final repository = CalendarRepository(database: database);
+        await repository.upsertSource(
+          accountId: 'google:editable',
+          source: const CalendarSourceDto(
+            provider: BusyProvider.google,
+            providerCalendarId: 'calendar',
+            summary: 'Tokyo',
+            timeZone: 'Asia/Tokyo',
+            accessRole: 'owner',
+          ),
+        );
+        await repository.upsertEvent(
+          accountId: 'google:editable',
+          event: const CalendarEventDto(
+            provider: BusyProvider.google,
+            providerCalendarId: 'calendar',
+            providerEventId: 'all-day',
+            title: 'All day',
+            allDay: true,
+            startDate: '2026-07-15',
+            endDate: '2026-07-16',
+            attendeesJson: [
+              {'email': 'guest@example.com'},
+            ],
+          ),
+        );
+        final detail = await repository.loadEventDetail(
+          (await database.select(database.calendarEvents).getSingle()).id,
+        );
+        draft = EventEditorDraft.fromEventDetail(detail!);
+        calendarTimeZone = CalendarSourceEntity.fromRow(
+          await database.select(database.calendarSources).getSingle(),
+        ).timeZone!;
+      },
+    );
+    addTearDown(harness.dispose);
+    expect(draft.startTimeZone, isNull);
+    final navigator = tester.state<NavigatorState>(
+      find.byType(Navigator).first,
+    );
+    navigator.push<void>(
+      MaterialPageRoute(
+        builder: (context) => Scaffold(
+          body: TextButton(
+            onPressed: () => showAndroidGuestAvailabilityDialog(
+              context,
+              accountId: draft.accountId,
+              provider: BusyProvider.google,
+              draft: draft,
+              calendarTimeZone: calendarTimeZone,
+            ),
+            child: const Text('Open availability'),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Open availability'));
+    await tester.pumpAndSettle();
+    expect(requestBody?['timeMin'], '2026-07-14T15:00:00.000Z');
+    expect(requestBody?['timeMax'], '2026-07-15T15:00:00.000Z');
+  });
+
   testWidgets('Microsoft guest availability preserves mixed results', (
     tester,
   ) async {

@@ -73,13 +73,16 @@ Future<String> exportGoogleEventSeries({
     final matching = calendars
         .where((source) => source.providerCalendarId == calendarId)
         .toList();
-    if (matching.length != 1 ||
-        matching.single.rawJson['defaultReminders'] is! List) {
+    if (matching.length != 1) {
       throw const FormatException(
         'Google calendar default reminders are unavailable.',
       );
     }
-    final raw = matching.single.rawJson['defaultReminders'] as List;
+    final rawValue = matching.single.rawJson['defaultReminders'];
+    if (rawValue != null && rawValue is! List) {
+      throw const FormatException('Malformed Google default reminders.');
+    }
+    final raw = rawValue as List? ?? const [];
     if (raw.any((value) => value is! Map)) {
       throw const FormatException('Malformed Google default reminders.');
     }

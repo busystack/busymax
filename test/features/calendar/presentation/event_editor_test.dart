@@ -2,6 +2,8 @@ import 'dart:io';
 import 'dart:convert';
 
 import 'package:busymax/src/features/accounts/data/accounts_repository.dart';
+import 'package:busymax/src/calendar_providers/calendar_sync_dto.dart';
+import 'package:busymax/src/db/app_database.dart';
 import 'package:busymax/src/features/calendar/data/calendar_repository.dart';
 import 'package:busymax/src/features/calendar/presentation/event_editor.dart';
 import 'package:busymax/src/features/calendar/presentation/event_editor_draft.dart';
@@ -27,6 +29,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:drift/drift.dart' show Value;
+import 'package:drift/native.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:yaru/yaru.dart';
@@ -37,6 +41,109 @@ const _nativeDialogChannel = MethodChannel(nativeDialogChannelName);
 const _nativeMenuChannel = MethodChannel(nativeMenuChannelName);
 
 void main() {
+  testWidgets('Google all-day Linux availability uses calendar timezone', (
+    tester,
+  ) async {
+    final database = AppDatabase(NativeDatabase.memory());
+    addTearDown(database.close);
+    await database
+        .into(database.accounts)
+        .insert(
+          AccountsCompanion.insert(
+            id: 'account',
+            provider: 'google',
+            authority: 'https://accounts.google.com',
+            providerAccountId: 'me@example.test',
+            credentialKind: 'oauth',
+            authState: const Value('signed_in'),
+            createdAtUtc: '2026-07-01T00:00:00Z',
+            updatedAtUtc: '2026-07-01T00:00:00Z',
+          ),
+        );
+    final repository = CalendarRepository(database: database);
+    await repository.upsertSource(
+      accountId: 'account',
+      source: const CalendarSourceDto(
+        provider: BusyProvider.google,
+        providerCalendarId: 'calendar',
+        summary: 'Tokyo',
+        timeZone: 'Asia/Tokyo',
+        accessRole: 'owner',
+      ),
+    );
+    await repository.upsertEvent(
+      accountId: 'account',
+      event: const CalendarEventDto(
+        provider: BusyProvider.google,
+        providerCalendarId: 'calendar',
+        providerEventId: 'all-day',
+        title: 'All day',
+        allDay: true,
+        startDate: '2026-07-15',
+        endDate: '2026-07-16',
+        attendeesJson: [
+          {'email': 'guest@example.test'},
+        ],
+      ),
+    );
+    final detail = await repository.loadEventDetail(
+      (await database.select(database.calendarEvents).getSingle()).id,
+    );
+    final draft = EventEditorDraft.fromEventDetail(detail!);
+    final source = CalendarSourceEntity.fromRow(
+      await database.select(database.calendarSources).getSingle(),
+    );
+    expect(draft.allDay, isTrue);
+    expect(draft.startTimeZone, isNull);
+    expect(source.timeZone, 'Asia/Tokyo');
+    Map<String, Object?>? sent;
+    final client = GoogleCalendarApiClient(
+      httpClient: MockClient((request) async {
+        sent = (jsonDecode(request.body) as Map).cast<String, Object?>();
+        return http.Response(
+          jsonEncode({
+            'calendars': {
+              'guest@example.test': {'busy': <Object>[]},
+            },
+          }),
+          200,
+        );
+      }),
+      baseUri: Uri.parse('https://www.googleapis.com'),
+      authorizationHeaderProvider: () async => 'Bearer token',
+    );
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          calendarRemoteApiClientForAccountProvider(
+            'account',
+          ).overrideWithValue(client),
+        ],
+        child: localizedTestApp(
+          theme: BusyMaxYaruTheme.build(
+            brightness: Brightness.light,
+            accentColor: const Color(0xFF3584E4),
+          ),
+          child: Scaffold(
+            body: Builder(
+              builder: (context) => TextButton(
+                onPressed: () => showLinuxCloudAvailabilityDialog(
+                  context,
+                  draft: draft,
+                  calendarTimeZone: source.timeZone,
+                ),
+                child: const Text('Open availability'),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.tap(find.text('Open availability'));
+    await tester.pumpAndSettle();
+    expect(sent?['timeMin'], '2026-07-14T15:00:00.000Z');
+    expect(sent?['timeMax'], '2026-07-15T15:00:00.000Z');
+  });
   testWidgets('C Linux Google availability sends resolved UTC interval', (
     tester,
   ) async {
@@ -110,14 +217,14 @@ void main() {
       DateTime(2026, 7, 15, 9),
       DateTime(2026, 7, 15, 13),
       'America/New_York',
-    ).cloudAvailabilityInterval!;
+    ).cloudAvailabilityInterval()!;
     expect(summer.start.toUtc(), DateTime.utc(2026, 7, 15, 16));
     expect(summer.end.toUtc(), DateTime.utc(2026, 7, 15, 17));
     final transition = draft(
       DateTime(2026, 3, 8, 1, 30),
       DateTime(2026, 3, 8, 3, 30),
       'America/Los_Angeles',
-    ).cloudAvailabilityInterval!;
+    ).cloudAvailabilityInterval()!;
     expect(transition.start.toUtc(), DateTime.utc(2026, 3, 8, 9, 30));
     expect(transition.end.toUtc(), DateTime.utc(2026, 3, 8, 10, 30));
   });

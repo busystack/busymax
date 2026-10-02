@@ -18,16 +18,24 @@ import 'event_editor_draft.dart';
 Future<void> showLinuxCloudAvailabilityDialog(
   BuildContext context, {
   required EventEditorDraft draft,
+  String? calendarTimeZone,
 }) => showBusyMaxModalDialog<void>(
   context,
   barrierDismissible: false,
-  builder: (_) => _LinuxCloudAvailabilityDialog(draft: draft),
+  builder: (_) => _LinuxCloudAvailabilityDialog(
+    draft: draft,
+    calendarTimeZone: calendarTimeZone,
+  ),
 );
 
 class _LinuxCloudAvailabilityDialog extends ConsumerStatefulWidget {
-  const _LinuxCloudAvailabilityDialog({required this.draft});
+  const _LinuxCloudAvailabilityDialog({
+    required this.draft,
+    this.calendarTimeZone,
+  });
 
   final EventEditorDraft draft;
+  final String? calendarTimeZone;
 
   @override
   ConsumerState<_LinuxCloudAvailabilityDialog> createState() =>
@@ -57,7 +65,9 @@ class _LinuxCloudAvailabilityDialogState
       final client = ref.read(
         calendarRemoteApiClientForAccountProvider(widget.draft.accountId),
       );
-      final interval = widget.draft.cloudAvailabilityInterval;
+      final interval = widget.draft.cloudAvailabilityInterval(
+        calendarTimeZone: widget.calendarTimeZone,
+      );
       if (client is! DetailedFreeBusyClient || interval == null) {
         throw StateError('Availability is unavailable.');
       }

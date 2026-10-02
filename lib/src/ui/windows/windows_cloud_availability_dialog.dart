@@ -15,16 +15,24 @@ import '../../l10n/time_format_scope.dart';
 Future<void> showWindowsCloudAvailabilityDialog(
   BuildContext context, {
   required EventEditorDraft draft,
+  String? calendarTimeZone,
 }) => showDialog<void>(
   context: context,
   barrierDismissible: false,
-  builder: (_) => _WindowsCloudAvailabilityDialog(draft: draft),
+  builder: (_) => _WindowsCloudAvailabilityDialog(
+    draft: draft,
+    calendarTimeZone: calendarTimeZone,
+  ),
 );
 
 class _WindowsCloudAvailabilityDialog extends ConsumerStatefulWidget {
-  const _WindowsCloudAvailabilityDialog({required this.draft});
+  const _WindowsCloudAvailabilityDialog({
+    required this.draft,
+    this.calendarTimeZone,
+  });
 
   final EventEditorDraft draft;
+  final String? calendarTimeZone;
 
   @override
   ConsumerState<_WindowsCloudAvailabilityDialog> createState() =>
@@ -54,7 +62,9 @@ class _WindowsCloudAvailabilityDialogState
       final client = ref.read(
         calendarRemoteApiClientForAccountProvider(widget.draft.accountId),
       );
-      final interval = widget.draft.cloudAvailabilityInterval;
+      final interval = widget.draft.cloudAvailabilityInterval(
+        calendarTimeZone: widget.calendarTimeZone,
+      );
       if (client is! DetailedFreeBusyClient || interval == null) {
         throw StateError('Availability is unavailable.');
       }

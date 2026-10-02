@@ -3452,6 +3452,7 @@ class _AndroidEventEditorState extends ConsumerState<AndroidEventEditor> {
       accountId: source.accountId,
       provider: source.provider,
       collectionId: source.davCollectionId,
+      calendarTimeZone: source.timeZone,
       draft: _draft.copyWith(attendees: attendees),
     );
   }

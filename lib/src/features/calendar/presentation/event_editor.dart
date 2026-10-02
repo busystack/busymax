@@ -623,8 +623,11 @@ class _EventEditorState extends ConsumerState<EventEditor> {
                   (attendee) => !attendee.self && !attendee.organizer,
                 ))
               BusyMaxPushButton.standard(
-                onPressed: () =>
-                    showLinuxCloudAvailabilityDialog(context, draft: _draft),
+                onPressed: () => showLinuxCloudAvailabilityDialog(
+                  context,
+                  draft: _draft,
+                  calendarTimeZone: currentSource?.timeZone,
+                ),
                 child: Text(l10n.nextcloudGuestAvailability),
               ),
             YaruExpandable(

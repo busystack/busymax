@@ -7,11 +7,14 @@ import 'package:busymax/src/core/time/provider_date_time.dart';
 import 'package:busymax/src/db/app_database.dart';
 import 'package:busymax/src/features/accounts/data/accounts_repository.dart';
 import 'package:busymax/src/features/calendar/data/calendar_repository.dart';
+import 'package:busymax/src/features/calendar/presentation/event_editor_draft.dart';
 import 'package:busymax/src/providers/busy_provider.dart';
+import 'package:busymax/src/google_calendar/google_calendar_api_client.dart';
 import 'package:busymax/src/microsoft_calendar/microsoft_calendar_api_client.dart';
 import 'package:busymax/src/microsoft_calendar/microsoft_calendar_models.dart';
 import 'package:busymax/src/google_calendar/google_calendar_models.dart';
 import 'package:busymax/src/ui/windows/windows_event_editor_dialog.dart';
+import 'package:busymax/src/ui/windows/windows_cloud_availability_dialog.dart';
 import 'package:drift/drift.dart' show Value;
 import 'package:drift/native.dart';
 import 'package:fluent_ui/fluent_ui.dart';
@@ -21,6 +24,107 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 
 void main() {
+  testWidgets('Google all-day Windows availability uses calendar timezone', (
+    tester,
+  ) async {
+    final db = AppDatabase(NativeDatabase.memory());
+    addTearDown(() async {
+      await tester.pumpWidget(const SizedBox.shrink());
+      await db.close();
+    });
+    await db
+        .into(db.accounts)
+        .insert(
+          AccountsCompanion.insert(
+            id: 'account',
+            provider: 'google',
+            authority: 'https://accounts.google.com',
+            providerAccountId: 'me@example.test',
+            credentialKind: 'oauth',
+            authState: const Value('signed_in'),
+            createdAtUtc: _now,
+            updatedAtUtc: _now,
+          ),
+        );
+    final repository = CalendarRepository(database: db);
+    await repository.upsertSource(
+      accountId: 'account',
+      source: const CalendarSourceDto(
+        provider: BusyProvider.google,
+        providerCalendarId: 'calendar',
+        summary: 'Tokyo',
+        timeZone: 'Asia/Tokyo',
+        accessRole: 'owner',
+      ),
+    );
+    await repository.upsertEvent(
+      accountId: 'account',
+      event: const CalendarEventDto(
+        provider: BusyProvider.google,
+        providerCalendarId: 'calendar',
+        providerEventId: 'all-day',
+        title: 'All day',
+        allDay: true,
+        startDate: '2026-07-15',
+        endDate: '2026-07-16',
+        attendeesJson: [
+          {'email': 'guest@example.test'},
+        ],
+      ),
+    );
+    final detail = await repository.loadEventDetail(
+      (await db.select(db.calendarEvents).getSingle()).id,
+    );
+    final draft = EventEditorDraft.fromEventDetail(detail!);
+    final source = CalendarSourceEntity.fromRow(
+      await db.select(db.calendarSources).getSingle(),
+    );
+    expect(draft.startTimeZone, isNull);
+    Map<String, Object?>? requestBody;
+    final client = GoogleCalendarApiClient(
+      httpClient: MockClient((request) async {
+        requestBody = (jsonDecode(request.body) as Map).cast<String, Object?>();
+        return http.Response(
+          jsonEncode({
+            'calendars': {
+              'guest@example.test': {'busy': <Object>[]},
+            },
+          }),
+          200,
+        );
+      }),
+      baseUri: Uri.parse('https://www.googleapis.com'),
+      authorizationHeaderProvider: () async => 'Bearer token',
+    );
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          calendarRemoteApiClientForAccountProvider(
+            'account',
+          ).overrideWithValue(client),
+        ],
+        child: FluentApp(
+          localizationsDelegates: const [AppLocalizations.delegate],
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: Builder(
+            builder: (context) => Button(
+              onPressed: () => showWindowsCloudAvailabilityDialog(
+                context,
+                draft: draft,
+                calendarTimeZone: source.timeZone,
+              ),
+              child: const Text('Open availability'),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.tap(find.text('Open availability'));
+    await tester.pumpAndSettle();
+    expect(requestBody?['timeMin'], '2026-07-14T15:00:00.000Z');
+    expect(requestBody?['timeMax'], '2026-07-15T15:00:00.000Z');
+  });
+
   testWidgets('B Windows synced occurrence hides Repeat but retains scope', (
     tester,
   ) async {

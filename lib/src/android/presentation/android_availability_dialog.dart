@@ -19,6 +19,7 @@ Future<void> showAndroidGuestAvailabilityDialog(
   required String accountId,
   required BusyProvider provider,
   required EventEditorDraft draft,
+  String? calendarTimeZone,
   String? collectionId,
 }) => showDialog<void>(
   context: context,
@@ -27,6 +28,7 @@ Future<void> showAndroidGuestAvailabilityDialog(
     provider: provider,
     collectionId: collectionId,
     draft: draft,
+    calendarTimeZone: calendarTimeZone,
   ),
 );
 
@@ -36,6 +38,7 @@ class AndroidGuestAvailabilityDialog extends ConsumerStatefulWidget {
     required this.accountId,
     required this.provider,
     required this.draft,
+    this.calendarTimeZone,
     this.collectionId,
   });
 
@@ -43,6 +46,7 @@ class AndroidGuestAvailabilityDialog extends ConsumerStatefulWidget {
   final BusyProvider provider;
   final String? collectionId;
   final EventEditorDraft draft;
+  final String? calendarTimeZone;
 
   @override
   ConsumerState<AndroidGuestAvailabilityDialog> createState() =>
@@ -76,6 +80,7 @@ class _AndroidGuestAvailabilityDialogState
     if (oldWidget.accountId != widget.accountId ||
         oldWidget.provider != widget.provider ||
         oldWidget.collectionId != widget.collectionId ||
+        oldWidget.calendarTimeZone != widget.calendarTimeZone ||
         oldWidget.draft != widget.draft) {
       unawaited(_load());
     }
@@ -105,7 +110,9 @@ class _AndroidGuestAvailabilityDialogState
         final client = ref.read(
           calendarRemoteApiClientForAccountProvider(widget.accountId),
         );
-        final interval = widget.draft.cloudAvailabilityInterval;
+        final interval = widget.draft.cloudAvailabilityInterval(
+          calendarTimeZone: widget.calendarTimeZone,
+        );
         if (client == null || interval == null) {
           throw StateError('Availability is unavailable');
         }

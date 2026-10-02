@@ -403,13 +403,22 @@ class EventEditorDraft {
 
   /// Resolves the editor's civil wall times in their provider zones before
   /// passing an interval to cloud availability endpoints.
-  ({DateTime start, DateTime end})? get cloudAvailabilityInterval {
+  ({DateTime start, DateTime end})? cloudAvailabilityInterval({
+    String? calendarTimeZone,
+  }) {
     final wallStart = start;
     final wallEnd = end;
     if (wallStart == null || wallEnd == null) return null;
+    final dateOnlyZone = allDay ? calendarTimeZone : null;
     return (
-      start: providerWallTimeToInstant(wallStart, startTimeZone),
-      end: providerWallTimeToInstant(wallEnd, endTimeZone ?? startTimeZone),
+      start: providerWallTimeToInstant(
+        wallStart,
+        startTimeZone ?? dateOnlyZone,
+      ),
+      end: providerWallTimeToInstant(
+        wallEnd,
+        endTimeZone ?? startTimeZone ?? dateOnlyZone,
+      ),
     );
   }
 

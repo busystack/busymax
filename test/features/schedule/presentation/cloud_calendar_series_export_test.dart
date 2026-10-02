@@ -752,15 +752,64 @@ void main() {
     },
   );
 
-  test('E missing required exception defaults fail explicitly', () async {
-    final moved = {
-      ..._googleMoved,
+  test('Google exception inherits absent or null empty defaults', () async {
+    for (final calendar in <Map<String, Object?>>[
+      {'id': 'primary', 'summary': 'Primary'},
+      {'id': 'primary', 'summary': 'Primary', 'defaultReminders': null},
+    ]) {
+      var defaultReads = 0;
+      final moved = {
+        ..._googleMoved,
+        'reminders': {'useDefault': true},
+      };
+      final client = GoogleCalendarApiClient(
+        httpClient: MockClient((request) async {
+          if (request.url.path.endsWith('/events/master')) {
+            return http.Response(jsonEncode(_googleMaster), 200);
+          }
+          if (request.url.path.endsWith('/users/me/calendarList')) {
+            defaultReads++;
+            return http.Response(
+              jsonEncode({
+                'items': [calendar],
+              }),
+              200,
+            );
+          }
+          return http.Response(
+            jsonEncode({
+              'items': [_googleMaster, moved],
+            }),
+            200,
+          );
+        }),
+        baseUri: Uri.parse('https://www.googleapis.com'),
+      );
+      final exported = await exportGoogleEventSeries(
+        client: client,
+        calendarId: 'primary',
+        eventId: 'master',
+        nowUtc: DateTime.utc(2026, 8, 1),
+      );
+      final events = RegExp(
+        r'BEGIN:VEVENT[\s\S]*?END:VEVENT',
+      ).allMatches(exported).map((match) => match.group(0)!).toList();
+      expect(defaultReads, 1);
+      expect(events, hasLength(2));
+      expect(events.first, contains('TRIGGER:-PT10M'));
+      expect(events.last, isNot(contains('BEGIN:VALARM')));
+    }
+  });
+
+  test('Google master inherits an empty default reminder set', () async {
+    final master = {
+      ..._googleMaster,
       'reminders': {'useDefault': true},
     };
     final client = GoogleCalendarApiClient(
       httpClient: MockClient((request) async {
         if (request.url.path.endsWith('/events/master')) {
-          return http.Response(jsonEncode(_googleMaster), 200);
+          return http.Response(jsonEncode(master), 200);
         }
         if (request.url.path.endsWith('/users/me/calendarList')) {
           return http.Response(
@@ -774,23 +823,73 @@ void main() {
         }
         return http.Response(
           jsonEncode({
-            'items': [_googleMaster, moved],
+            'items': [master],
           }),
           200,
         );
       }),
       baseUri: Uri.parse('https://www.googleapis.com'),
     );
-    await expectLater(
-      exportGoogleEventSeries(
-        client: client,
-        calendarId: 'primary',
-        eventId: 'master',
-        nowUtc: DateTime.utc(2026, 8, 1),
-      ),
-      throwsA(isA<FormatException>()),
+    final exported = await exportGoogleEventSeries(
+      client: client,
+      calendarId: 'primary',
+      eventId: 'master',
+      nowUtc: DateTime.utc(2026, 8, 1),
     );
+    expect(exported, isNot(contains('BEGIN:VALARM')));
   });
+
+  test(
+    'Google default reminder lookup rejects absent and malformed calendars',
+    () async {
+      final moved = {
+        ..._googleMoved,
+        'reminders': {'useDefault': true},
+      };
+      for (final calendars in <List<Map<String, Object?>>>[
+        [
+          {'id': 'other', 'summary': 'Other'},
+        ],
+        [
+          {'id': 'primary', 'summary': 'Primary', 'defaultReminders': 'bad'},
+        ],
+        [
+          {
+            'id': 'primary',
+            'summary': 'Primary',
+            'defaultReminders': [42],
+          },
+        ],
+      ]) {
+        final client = GoogleCalendarApiClient(
+          httpClient: MockClient((request) async {
+            if (request.url.path.endsWith('/events/master')) {
+              return http.Response(jsonEncode(_googleMaster), 200);
+            }
+            if (request.url.path.endsWith('/users/me/calendarList')) {
+              return http.Response(jsonEncode({'items': calendars}), 200);
+            }
+            return http.Response(
+              jsonEncode({
+                'items': [_googleMaster, moved],
+              }),
+              200,
+            );
+          }),
+          baseUri: Uri.parse('https://www.googleapis.com'),
+        );
+        await expectLater(
+          exportGoogleEventSeries(
+            client: client,
+            calendarId: 'primary',
+            eventId: 'master',
+            nowUtc: DateTime.utc(2026, 8, 1),
+          ),
+          throwsA(isA<FormatException>()),
+        );
+      }
+    },
+  );
 
   test('series export rejects a floating cloud time without an event zone', () {
     expect(
