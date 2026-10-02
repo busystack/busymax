@@ -3,19 +3,30 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/services.dart';
+import 'package:file_selector/file_selector.dart';
 import 'package:yaru/yaru.dart';
 
 import '../../../app/busymax_design.dart';
+import '../../../app/app_bootstrap.dart';
 import '../../../app/busymax_dialogs.dart';
 import '../../../app/busymax_glyphs.dart';
 import '../../../google_tasks/api/google_tasks_json.dart';
 import '../../../l10n/l10n.dart';
+import '../../../providers/busy_provider.dart';
 import '../../maps/domain/location_result.dart';
 import '../../maps/application/external_location_launcher.dart';
 import 'package:busymax/src/features/tasks/domain/task_capabilities.dart';
 import '../../task_lists/data/task_lists_repository.dart';
 import '../data/tasks_repository.dart';
+import '../domain/task_source_links.dart';
+import '../../schedule/presentation/schedule_event_details_format.dart';
+import '../../schedule/presentation/attachment_download.dart';
+import '../../schedule/presentation/attachment_upload_coordinator.dart';
+import '../../../microsoft_todo/api/microsoft_todo_api_client.dart';
+import '../../../microsoft_todo/api/microsoft_todo_api_models.dart';
+import '../../../microsoft_calendar/microsoft_calendar_models.dart';
 import 'desktop_date_time_fields.dart';
 import 'ical_task_fields_editor.dart';
 import 'task_details_draft.dart';
@@ -24,6 +35,7 @@ class TaskDetailsEditor extends StatefulWidget {
   const TaskDetailsEditor({
     super.key,
     required this.task,
+    this.provider,
     required this.taskLists,
     required this.capabilities,
     required this.localTimeZone,
@@ -66,6 +78,7 @@ class TaskDetailsEditor extends StatefulWidget {
   });
 
   final TaskEntity task;
+  final BusyProvider? provider;
   final List<TaskListEntity> taskLists;
   final TaskCollectionCapabilities capabilities;
   final String localTimeZone;
@@ -132,6 +145,9 @@ class _TaskDetailsEditorState extends State<TaskDetailsEditor> {
   var _confirmingTaskSwitch = false;
   var _confirmingDelete = false;
   var _creatingSubtask = false;
+  Future<List<TaskSourceLink>>? _linkedResourcesFuture;
+  Future<List<MicrosoftTodoAttachmentDto>>? _attachmentsFuture;
+  bool _attachmentBusy = false;
 
   @override
   void initState() {
@@ -239,6 +255,285 @@ class _TaskDetailsEditorState extends State<TaskDetailsEditor> {
                         ),
                       ],
                     ),
+                    if (_editingTask.googleSourceLinks.isNotEmpty)
+                      BusyMaxGroupedList(
+                        filled: true,
+                        children: [
+                          for (final link in _editingTask.googleSourceLinks)
+                            BusyMaxActionRow(
+                              title: link.label?.isNotEmpty == true
+                                  ? link.label!
+                                  : l10n.openInProvider,
+                              subtitle: link.url,
+                              leading: const Icon(Icons.open_in_new),
+                              onTap: () =>
+                                  unawaited(_openOriginalTask(link.url)),
+                            ),
+                        ],
+                      ),
+                    if (widget.provider == BusyProvider.microsoft &&
+                        !widget.isCreate)
+                      Consumer(
+                        builder: (context, ref, _) {
+                          return Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              BusyMaxPushButton.standard(
+                                onPressed: () => setState(() {
+                                  ref.invalidate(
+                                    microsoftTaskLinkedResourcesProvider((
+                                      accountId: _editingTask.accountId,
+                                      taskListId: _editingTask.taskListId,
+                                      taskId: _editingTask.id,
+                                    )),
+                                  );
+                                  _linkedResourcesFuture = ref.read(
+                                    microsoftTaskLinkedResourcesProvider((
+                                      accountId: _editingTask.accountId,
+                                      taskListId: _editingTask.taskListId,
+                                      taskId: _editingTask.id,
+                                    )).future,
+                                  );
+                                }),
+                                child: Text(l10n.linkedResources),
+                              ),
+                              if (_linkedResourcesFuture case final future?)
+                                FutureBuilder<List<TaskSourceLink>>(
+                                  future: future,
+                                  builder: (context, snapshot) {
+                                    if (snapshot.hasError) {
+                                      return Text(l10n.operationFailed);
+                                    }
+                                    if (!snapshot.hasData) {
+                                      return const YaruCircularProgressIndicator();
+                                    }
+                                    if (snapshot.data!.isEmpty) {
+                                      return Text(l10n.noLinkedResources);
+                                    }
+                                    return BusyMaxGroupedList(
+                                      filled: true,
+                                      children: [
+                                        for (final link in snapshot.data!)
+                                          BusyMaxActionRow(
+                                            title:
+                                                link.label?.isNotEmpty == true
+                                                ? link.label!
+                                                : l10n.openInProvider,
+                                            subtitle: link.url,
+                                            leading: const Icon(
+                                              Icons.open_in_new,
+                                            ),
+                                            onTap: () => unawaited(
+                                              _openOriginalTask(link.url),
+                                            ),
+                                          ),
+                                      ],
+                                    );
+                                  },
+                                ),
+                            ],
+                          );
+                        },
+                      ),
+                    if (widget.provider == BusyProvider.microsoft &&
+                        !widget.isCreate)
+                      Consumer(
+                        builder: (context, ref, _) => Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            BusyMaxPushButton.standard(
+                              key: const Key('task-attachments-load'),
+                              onPressed: () => setState(() {
+                                final key = (
+                                  accountId: _editingTask.accountId,
+                                  taskListId: _editingTask.taskListId,
+                                  taskId: _editingTask.id,
+                                );
+                                ref.invalidate(
+                                  microsoftTaskAttachmentsProvider(key),
+                                );
+                                _attachmentsFuture = ref.read(
+                                  microsoftTaskAttachmentsProvider(key).future,
+                                );
+                              }),
+                              child: Text(l10n.attachments),
+                            ),
+                            if (_canWrite &&
+                                !_editingTask.pendingDelete &&
+                                !_editingTask.id.startsWith('local-task-'))
+                              BusyMaxPushButton.standard(
+                                onPressed:
+                                    _attachmentBusy ||
+                                        !ref
+                                            .watch(
+                                              attachmentUploadCoordinatorProvider,
+                                            )
+                                            .canSubmit(
+                                              AttachmentUploadCoordinator.taskKey(
+                                                _editingTask.accountId,
+                                                _editingTask.taskListId,
+                                                _editingTask.id,
+                                              ),
+                                            )
+                                    ? null
+                                    : () =>
+                                          unawaited(_uploadTaskAttachment(ref)),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    const Icon(Icons.add, size: 18),
+                                    Text(l10n.attachments),
+                                  ],
+                                ),
+                              ),
+                            if (ref
+                                    .watch(attachmentUploadCoordinatorProvider)
+                                    .retryAfter(
+                                      AttachmentUploadCoordinator.taskKey(
+                                        _editingTask.accountId,
+                                        _editingTask.taskListId,
+                                        _editingTask.id,
+                                      ),
+                                    ) !=
+                                null)
+                              Text(l10n.attachmentUploadRateLimited),
+                            if (ref
+                                .watch(attachmentUploadCoordinatorProvider)
+                                .needsReconciliation(
+                                  AttachmentUploadCoordinator.taskKey(
+                                    _editingTask.accountId,
+                                    _editingTask.taskListId,
+                                    _editingTask.id,
+                                  ),
+                                )) ...[
+                              Text(
+                                ref
+                                            .watch(
+                                              attachmentUploadCoordinatorProvider,
+                                            )
+                                            .confirmedId(
+                                              AttachmentUploadCoordinator.taskKey(
+                                                _editingTask.accountId,
+                                                _editingTask.taskListId,
+                                                _editingTask.id,
+                                              ),
+                                            ) ==
+                                        null
+                                    ? l10n.attachmentUploadUnresolved
+                                    : l10n.completed,
+                              ),
+                              BusyMaxPushButton.standard(
+                                onPressed: () =>
+                                    unawaited(_reconcileTaskUpload(ref)),
+                                child: Text(l10n.refresh),
+                              ),
+                              if (ref
+                                  .watch(attachmentUploadCoordinatorProvider)
+                                  .hasResumableSession(
+                                    AttachmentUploadCoordinator.taskKey(
+                                      _editingTask.accountId,
+                                      _editingTask.taskListId,
+                                      _editingTask.id,
+                                    ),
+                                  ))
+                                BusyMaxPushButton.standard(
+                                  onPressed: _attachmentBusy
+                                      ? null
+                                      : () => unawaited(_cancelTaskUpload(ref)),
+                                  child: Text(l10n.cancel),
+                                ),
+                              if (ref
+                                  .watch(attachmentUploadCoordinatorProvider)
+                                  .canResolveManually(
+                                    AttachmentUploadCoordinator.taskKey(
+                                      _editingTask.accountId,
+                                      _editingTask.taskListId,
+                                      _editingTask.id,
+                                    ),
+                                  )) ...[
+                                BusyMaxPushButton.standard(
+                                  onPressed: _attachmentBusy
+                                      ? null
+                                      : () => unawaited(
+                                          _resolveTaskUpload(ref, exists: true),
+                                        ),
+                                  child: Text(l10n.completed),
+                                ),
+                                BusyMaxPushButton.standard(
+                                  onPressed: _attachmentBusy
+                                      ? null
+                                      : () => unawaited(
+                                          _resolveTaskUpload(
+                                            ref,
+                                            exists: false,
+                                          ),
+                                        ),
+                                  child: Text(l10n.retry),
+                                ),
+                              ],
+                            ],
+                            if (_attachmentsFuture case final future?)
+                              FutureBuilder<List<MicrosoftTodoAttachmentDto>>(
+                                future: future,
+                                builder: (context, snapshot) {
+                                  if (snapshot.hasError) {
+                                    return Text(l10n.attachmentsNotLoaded);
+                                  }
+                                  if (!snapshot.hasData) {
+                                    return const YaruCircularProgressIndicator();
+                                  }
+                                  if (snapshot.data!.isEmpty) {
+                                    return Text(l10n.noneValue);
+                                  }
+                                  return BusyMaxGroupedList(
+                                    filled: true,
+                                    children: [
+                                      for (final attachment in snapshot.data!)
+                                        BusyMaxActionRow(
+                                          title: attachment.name,
+                                          subtitle: attachment.size == null
+                                              ? null
+                                              : '${attachment.size} B',
+                                          leading: const Icon(
+                                            Icons.attach_file,
+                                          ),
+                                          onTap: attachment.isFile
+                                              ? () => unawaited(
+                                                  _downloadTaskAttachment(
+                                                    ref,
+                                                    attachment,
+                                                  ),
+                                                )
+                                              : null,
+                                          trailing:
+                                              _canWrite &&
+                                                  !_editingTask.pendingDelete &&
+                                                  !_editingTask.id.startsWith(
+                                                    'local-task-',
+                                                  )
+                                              ? YaruIconButton(
+                                                  tooltip: l10n.delete,
+                                                  onPressed: _attachmentBusy
+                                                      ? null
+                                                      : () => unawaited(
+                                                          _deleteTaskAttachment(
+                                                            ref,
+                                                            attachment,
+                                                          ),
+                                                        ),
+                                                  icon: const Icon(
+                                                    Icons.delete_outline,
+                                                  ),
+                                                )
+                                              : null,
+                                        ),
+                                    ],
+                                  );
+                                },
+                              ),
+                          ],
+                        ),
+                      ),
                     if (_hasAccountSelector)
                       BusyMaxGroupedList(
                         filled: true,
@@ -308,7 +603,9 @@ class _TaskDetailsEditorState extends State<TaskDetailsEditor> {
                         YaruListTile.square(
                           title: TextField(
                             controller: _notesController,
-                            enabled: _canWrite,
+                            enabled:
+                                _canWrite &&
+                                !_editingTask.googleAssignment.isFromDocument,
                             minLines: 3,
                             maxLines: 5,
                             decoration: busyMaxGroupedTextFieldDecoration(
@@ -816,7 +1113,7 @@ class _TaskDetailsEditorState extends State<TaskDetailsEditor> {
 
   Widget _categoriesRow(TaskDetailsDraft draft) {
     final l10n = context.l10n;
-    return BusyMaxCategoryEditorRow(
+    final editor = BusyMaxCategoryEditorRow(
       title: l10n.categories,
       addLabel: l10n.addCategory,
       categories: draft.categories,
@@ -835,6 +1132,78 @@ class _TaskDetailsEditorState extends State<TaskDetailsEditor> {
         });
       },
       onDeleted: (category) => _removeCategory(draft, category),
+    );
+    if (widget.provider != BusyProvider.microsoft) return editor;
+    try {
+      ProviderScope.containerOf(context, listen: false);
+    } on StateError {
+      return editor;
+    }
+    return Column(
+      children: [
+        editor,
+        Consumer(
+          builder: (context, ref, _) {
+            final lookup = ref.watch(
+              microsoftMasterCategoriesProvider(_editingTask.accountId),
+            );
+            return lookup.when(
+              loading: () => const SizedBox.shrink(),
+              error: (_, _) => BusyMaxPushButton.standard(
+                onPressed: () async {
+                  try {
+                    await ref
+                        .read(microsoftCategoryAuthorizationProvider)
+                        ?.authorizeCategoryAccess(_editingTask.accountId);
+                    ref.invalidate(
+                      microsoftMasterCategoriesProvider(_editingTask.accountId),
+                    );
+                  } on Object {
+                    if (context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text(l10n.outlookCategoriesUnavailable),
+                        ),
+                      );
+                    }
+                  }
+                },
+                child: Text(l10n.loadOutlookCategories),
+              ),
+              data: (catalog) => Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  for (final category in catalog)
+                    BusyMaxPushButton.standard(
+                      onPressed: () =>
+                          (_draft ?? draft).categories.contains(
+                            category.displayName,
+                          )
+                          ? _removeCategory(draft, category.displayName)
+                          : _addCategory(draft, category.displayName),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          if (microsoftCategorySwatchArgb(category.color)
+                              case final swatch?) ...[
+                            Container(
+                              width: 12,
+                              height: 12,
+                              color: Color(swatch),
+                            ),
+                            const SizedBox(width: 6),
+                          ],
+                          Text(category.displayName),
+                        ],
+                      ),
+                    ),
+                ],
+              ),
+            );
+          },
+        ),
+      ],
     );
   }
 
@@ -975,8 +1344,14 @@ class _TaskDetailsEditorState extends State<TaskDetailsEditor> {
           leading: Icon(
             BusyMaxGlyphs.subdirectoryFor(Directionality.of(context)),
           ),
-          enabled: widget.capabilities.canCreateTasks && !_creatingSubtask,
-          onTap: widget.capabilities.canCreateTasks && !_creatingSubtask
+          enabled:
+              widget.capabilities.canCreateTasks &&
+              !_editingTask.googleAssignment.isAssigned &&
+              !_creatingSubtask,
+          onTap:
+              widget.capabilities.canCreateTasks &&
+                  !_editingTask.googleAssignment.isAssigned &&
+                  !_creatingSubtask
               ? _createSubtask
               : null,
         ),
@@ -1093,7 +1468,11 @@ class _TaskDetailsEditorState extends State<TaskDetailsEditor> {
   }
 
   Future<void> _createSubtask() async {
-    if (!widget.capabilities.canCreateTasks || _creatingSubtask) return;
+    if (!widget.capabilities.canCreateTasks ||
+        _editingTask.googleAssignment.isAssigned ||
+        _creatingSubtask) {
+      return;
+    }
     final title = await showBusyMaxTextPrompt(
       context,
       title: context.l10n.newSubtask,
@@ -1121,7 +1500,9 @@ class _TaskDetailsEditorState extends State<TaskDetailsEditor> {
       final confirmed = await showBusyMaxConfirm(
         context,
         title: context.l10n.deleteTask,
-        message: context.l10n.deleteTaskConfirmation(_editingTask.title),
+        message: _editingTask.googleAssignment.isAssigned
+            ? '${context.l10n.deleteTaskConfirmation(_editingTask.title)}\n\n${context.l10n.deleteAssignedTaskWarning}'
+            : context.l10n.deleteTaskConfirmation(_editingTask.title),
         confirmLabel: context.l10n.delete,
         destructive: true,
         barrierColor: widget.dialogBarrierColor,
@@ -1134,6 +1515,220 @@ class _TaskDetailsEditorState extends State<TaskDetailsEditor> {
     }
   }
 
+  Future<void> _openOriginalTask(String url) async {
+    final opened = await openScheduleWebLink(url);
+    if (!opened && mounted) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(context.l10n.eventLinkOpenFailed)));
+    }
+  }
+
+  Future<void> _downloadTaskAttachment(
+    WidgetRef ref,
+    MicrosoftTodoAttachmentDto attachment,
+  ) async {
+    if (!attachment.isFile || safeAttachmentFileName(attachment.name) == null) {
+      return;
+    }
+    try {
+      final client = ref.read(
+        microsoftTodoApiClientForAccountProvider(_editingTask.accountId),
+      );
+      if (client is! MicrosoftTodoAttachmentsApiClient) {
+        throw StateError('Microsoft task attachments are unavailable.');
+      }
+      final bytes = await (client as MicrosoftTodoAttachmentsApiClient)
+          .downloadTaskAttachment(
+            taskListId: _editingTask.taskListId,
+            taskId: _editingTask.id,
+            attachmentId: attachment.id,
+          );
+      await saveAttachmentOnDesktop(name: attachment.name, bytes: bytes);
+    } on Object catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(context.l10n.exportFailed('$error'))),
+        );
+      }
+    }
+  }
+
+  Future<void> _uploadTaskAttachment(WidgetRef ref) async {
+    if (!_canWrite ||
+        _editingTask.pendingDelete ||
+        _editingTask.id.startsWith('local-task-')) {
+      return;
+    }
+    final file = await openFile();
+    if (file == null || !mounted) return;
+    final name = safeAttachmentFileName(file.name);
+    if (name == null) {
+      _showAttachmentError(const FormatException('Invalid attachment name.'));
+      return;
+    }
+    setState(() => _attachmentBusy = true);
+    try {
+      final client = ref.read(
+        microsoftTodoApiClientForAccountProvider(_editingTask.accountId),
+      );
+      if (client is! MicrosoftTodoAttachmentsApiClient) {
+        throw StateError('Microsoft task attachments are unavailable.');
+      }
+      final size = await file.length();
+      if (size > 25 * 1024 * 1024) {
+        throw StateError('Task file exceeds 25 MB.');
+      }
+      await ref
+          .read(attachmentUploadCoordinatorProvider)
+          .uploadTask(
+            client: client as MicrosoftTodoAttachmentsApiClient,
+            accountId: _editingTask.accountId,
+            taskListId: _editingTask.taskListId,
+            taskId: _editingTask.id,
+            name: name,
+            contentType: file.mimeType ?? 'application/octet-stream',
+            bytes: await file.readAsBytes(),
+          );
+      _reloadTaskAttachments(ref);
+    } on Object catch (error) {
+      _reloadTaskAttachments(ref);
+      _showAttachmentError(error);
+    } finally {
+      if (mounted) setState(() => _attachmentBusy = false);
+    }
+  }
+
+  Future<void> _reconcileTaskUpload(WidgetRef ref) async {
+    setState(() => _attachmentBusy = true);
+    try {
+      final client = ref.read(
+        microsoftTodoApiClientForAccountProvider(_editingTask.accountId),
+      );
+      if (client is! MicrosoftTodoAttachmentsApiClient) return;
+      await ref
+          .read(attachmentUploadCoordinatorProvider)
+          .reconcileTask(
+            client: client as MicrosoftTodoAttachmentsApiClient,
+            accountId: _editingTask.accountId,
+            taskListId: _editingTask.taskListId,
+            taskId: _editingTask.id,
+          );
+      _reloadTaskAttachments(ref);
+    } on Object catch (error) {
+      _showAttachmentError(error);
+    } finally {
+      if (mounted) setState(() => _attachmentBusy = false);
+    }
+  }
+
+  Future<void> _cancelTaskUpload(WidgetRef ref) async {
+    setState(() => _attachmentBusy = true);
+    try {
+      final client = ref.read(
+        microsoftTodoApiClientForAccountProvider(_editingTask.accountId),
+      );
+      if (client is! MicrosoftTodoAttachmentsApiClient) return;
+      await ref
+          .read(attachmentUploadCoordinatorProvider)
+          .cancelTask(
+            client: client as MicrosoftTodoAttachmentsApiClient,
+            accountId: _editingTask.accountId,
+            taskListId: _editingTask.taskListId,
+            taskId: _editingTask.id,
+          );
+      _reloadTaskAttachments(ref);
+    } on Object catch (error) {
+      _showAttachmentError(error);
+    } finally {
+      if (mounted) setState(() => _attachmentBusy = false);
+    }
+  }
+
+  Future<void> _resolveTaskUpload(WidgetRef ref, {required bool exists}) async {
+    final l10n = context.l10n;
+    final confirmed = await showBusyMaxConfirm(
+      context,
+      title: exists ? l10n.completed : l10n.retry,
+      message: l10n.attachmentUploadUnresolved,
+      confirmLabel: exists ? l10n.completed : l10n.retry,
+    );
+    if (confirmed != true || !mounted) return;
+    ref
+        .read(attachmentUploadCoordinatorProvider)
+        .resolveUncertainManually(
+          AttachmentUploadCoordinator.taskKey(
+            _editingTask.accountId,
+            _editingTask.taskListId,
+            _editingTask.id,
+          ),
+          exists: exists,
+        );
+    _reloadTaskAttachments(ref);
+  }
+
+  Future<void> _deleteTaskAttachment(
+    WidgetRef ref,
+    MicrosoftTodoAttachmentDto attachment,
+  ) async {
+    if (!_canWrite ||
+        _editingTask.pendingDelete ||
+        _editingTask.id.startsWith('local-task-')) {
+      return;
+    }
+    setState(() => _attachmentBusy = true);
+    try {
+      final client = ref.read(
+        microsoftTodoApiClientForAccountProvider(_editingTask.accountId),
+      );
+      if (client is! MicrosoftTodoAttachmentsApiClient) {
+        throw StateError('Microsoft task attachments are unavailable.');
+      }
+      await (client as MicrosoftTodoAttachmentsApiClient).deleteTaskAttachment(
+        taskListId: _editingTask.taskListId,
+        taskId: _editingTask.id,
+        attachmentId: attachment.id,
+      );
+      ref
+          .read(attachmentUploadCoordinatorProvider)
+          .attachmentRemoved(
+            AttachmentUploadCoordinator.taskKey(
+              _editingTask.accountId,
+              _editingTask.taskListId,
+              _editingTask.id,
+            ),
+            attachment.id,
+          );
+      _reloadTaskAttachments(ref);
+    } on Object catch (error) {
+      _showAttachmentError(error);
+    } finally {
+      if (mounted) setState(() => _attachmentBusy = false);
+    }
+  }
+
+  void _reloadTaskAttachments(WidgetRef ref) {
+    final key = (
+      accountId: _editingTask.accountId,
+      taskListId: _editingTask.taskListId,
+      taskId: _editingTask.id,
+    );
+    ref.invalidate(microsoftTaskAttachmentsProvider(key));
+    final future = ref.read(microsoftTaskAttachmentsProvider(key).future);
+    if (mounted) {
+      setState(() {
+        _attachmentsFuture = future;
+      });
+    }
+  }
+
+  void _showAttachmentError(Object error) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(context.l10n.exportFailed('$error'))),
+    );
+  }
+
   void _loadDraft(TaskEntity task, {required bool force}) {
     final taskKey = _taskKey(task);
     if (!force && _loadedTaskKey == taskKey) {
@@ -1143,6 +1738,8 @@ class _TaskDetailsEditorState extends State<TaskDetailsEditor> {
         widget.initialDraft ??
         TaskDetailsDraft.fromTask(task, widget.localTimeZone);
     _editingTask = task;
+    _linkedResourcesFuture = null;
+    _attachmentsFuture = null;
     _loadedTaskKey = taskKey;
     _invalidTimeFields.clear();
     _draft = draft;

@@ -1,6 +1,14 @@
+import 'dart:convert';
+
 import '../../calendar_providers/cloud_calendar_client.dart';
 import '../../calendar_providers/calendar_sync_dto.dart';
 import '../../db/app_database.dart';
+import '../../core/time/stored_temporal_projection.dart';
+import '../../google_calendar/google_calendar_errors.dart';
+import '../../microsoft_calendar/microsoft_calendar_errors.dart';
+import '../../microsoft_calendar/microsoft_calendar_api_client.dart';
+import '../../microsoft_calendar/microsoft_shared_calendar_address.dart';
+import 'package:drift/drift.dart';
 import 'package:busymax/src/providers/busy_provider.dart';
 import '../calendar/data/calendar_repository.dart';
 import '../notifications/notification_schedule_service.dart';
@@ -39,6 +47,137 @@ class CalendarSyncEngine {
   final DateTime Function() _nowUtc;
 
   BusyProvider get provider => _client.provider;
+
+  /// Retrieves one additional month as an independent snapshot. Range reads
+  /// must never consume or replace the baseline events cursor.
+  Future<void> retrieveMonth(DateTime month, {Set<String>? sourceIds}) async {
+    if (sourceIds != null && sourceIds.isEmpty) return;
+    final start = DateTime.utc(month.year, month.month);
+    final end = DateTime.utc(month.year, month.month + 1);
+    final query = _database.select(_database.calendarSources)
+      ..where(
+        (row) =>
+            row.accountId.equals(_accountId) &
+            row.provider.equals(provider.storageValue) &
+            row.isDeleted.equals(false),
+      );
+    if (sourceIds == null) {
+      query.where(
+        (row) => row.selected.equals(true) & row.hidden.equals(false),
+      );
+    } else {
+      query.where((row) => row.id.isIn(sourceIds));
+    }
+    final sources = await query.get();
+    try {
+      for (final source in sources) {
+        // Both clients finish pagination before returning. A failed later page
+        // therefore cannot turn a partial response into an empty snapshot.
+        final events = await _client.listEvents(
+          calendarId: source.providerCalendarId,
+          rangeStart: start,
+          rangeEnd: end,
+        );
+        final recurringIds = <String>{
+          for (final event in events)
+            if (event.providerRecurringEventId case final id?) id,
+        };
+        final existingInstances =
+            await (_database.select(_database.calendarEvents)..where(
+                  (row) =>
+                      row.calendarSourceId.equals(source.id) &
+                      row.providerRecurringEventId.isNotNull(),
+                ))
+                .get();
+        recurringIds.addAll(
+          existingInstances
+              .where((row) {
+                return storedCalendarEventOverlapsUtcRange(row, start, end);
+              })
+              .map((row) => row.providerRecurringEventId!),
+        );
+        final instances = <CalendarEventDto>[];
+        final masters = <CalendarEventDto>[];
+        for (final id in recurringIds) {
+          try {
+            instances.addAll(
+              await _client.listEventInstances(
+                calendarId: source.providerCalendarId,
+                recurringEventId: id,
+                rangeStart: start,
+                rangeEnd: end,
+              ),
+            );
+            masters.add(
+              await _client.getEvent(
+                calendarId: source.providerCalendarId,
+                eventId: id,
+              ),
+            );
+          } on GoogleCalendarApiError catch (error) {
+            if (error.statusCode != 404 && error.statusCode != 410) rethrow;
+          } on MicrosoftCalendarApiError catch (error) {
+            if (error.statusCode != 404 && error.statusCode != 410) rethrow;
+          }
+        }
+        final returnedIds = <String>{};
+        for (final event in [...events, ...instances]) {
+          await _repository.upsertEvent(
+            accountId: _accountId,
+            event: event,
+            preservePendingLocalChanges: true,
+          );
+          returnedIds.add(
+            CalendarRepository.eventId(
+              accountId: _accountId,
+              provider: event.provider,
+              providerCalendarId: event.providerCalendarId,
+              providerEventId: event.providerEventId,
+              providerOriginalStartKey: event.providerOriginalStartKey,
+            ),
+          );
+        }
+        for (final master in masters) {
+          await _repository.upsertEvent(
+            accountId: _accountId,
+            event: master,
+            preservePendingLocalChanges: true,
+          );
+        }
+        await _repository.markExpandedRecurringMastersDeleted(
+          accountId: _accountId,
+          provider: provider,
+          providerCalendarId: source.providerCalendarId,
+          providerRecurringEventIds: recurringIds,
+        );
+        await _repository.markMissingEventsDeleted(
+          accountId: _accountId,
+          provider: provider,
+          providerCalendarId: source.providerCalendarId,
+          rangeStart: start,
+          rangeEnd: end,
+          returnedLocalEventIds: returnedIds,
+        );
+        await _repository.saveSyncState(
+          accountId: _accountId,
+          provider: provider,
+          syncKind: 'events_range_${start.year}_${start.month}',
+          calendarSourceId: source.id,
+          rangeStart: start.toIso8601String(),
+          rangeEnd: end.toIso8601String(),
+          cursorKind: 'snapshot_generation',
+          cursorValue: '0',
+          full: true,
+        );
+      }
+    } finally {
+      await NotificationScheduleService(
+        database: _database,
+        nowUtc: _nowUtc,
+      ).rebuildUpcomingEventNotifications(_accountId);
+      await _onNotificationScheduleChanged?.call();
+    }
+  }
 
   Future<void> fullSync() async {
     try {
@@ -132,6 +271,52 @@ class CalendarSyncEngine {
     // listCalendars() returns only after every page has been retrieved, so an
     // absent cloud calendar can be treated as a provider-side deletion.
     final calendars = await _client.listCalendars();
+    if (_client case final MicrosoftCalendarApiClient microsoftClient) {
+      final opened =
+          await (_database.select(_database.calendarSources)..where(
+                (row) =>
+                    row.accountId.equals(_accountId) &
+                    row.provider.equals(BusyProvider.microsoft.storageValue),
+              ))
+              .get();
+      for (final source in opened) {
+        if (source.isDeleted) continue;
+        final address = MicrosoftSharedPrimaryCalendarAddress.parse(
+          source.providerCalendarId,
+        );
+        if (address == null) continue;
+        try {
+          final refreshed = await microsoftClient.getSharedPrimaryCalendar(
+            address.owner,
+          );
+          final current = await (_database.select(
+            _database.calendarSources,
+          )..where((row) => row.id.equals(source.id))).getSingleOrNull();
+          if (current?.isDeleted == true) continue;
+          calendars.add(refreshed);
+        } on MicrosoftCalendarApiError catch (error) {
+          if (error.statusCode != 403 && error.statusCode != 404) rethrow;
+          // Explicit owner-context denial is not an empty calendar. Keep its
+          // cached source, but remove write actions until access is restored.
+          final oldMetadata = jsonDecode(source.rawJson ?? '{}');
+          await (_database.update(
+            _database.calendarSources,
+          )..where((row) => row.id.equals(source.id))).write(
+            CalendarSourcesCompanion(
+              readOnly: const Value(true),
+              accessRole: const Value('unavailable'),
+              rawJson: Value(
+                jsonEncode({
+                  if (oldMetadata is Map)
+                    ...oldMetadata.cast<String, Object?>(),
+                  '_busymaxOwnerAccessUnavailable': true,
+                }),
+              ),
+            ),
+          );
+        }
+      }
+    }
     for (final calendar in calendars) {
       await _repository.upsertSource(accountId: _accountId, source: calendar);
     }
@@ -178,6 +363,31 @@ class CalendarSyncEngine {
     final expandedRecurringMasterIds = <String>{};
     while (true) {
       for (final event in page.events) {
+        if (provider == BusyProvider.microsoft && event.isDeleted) {
+          // A calendar-view delta removal describes membership in this view,
+          // not necessarily deletion of the event in the mailbox. Resolve it
+          // before touching independently cached ranges. Graph's ID-only
+          // marker also cannot identify a stored occurrence by itself.
+          try {
+            final current = await _client.getEvent(
+              calendarId: providerCalendarId,
+              eventId: event.providerEventId,
+            );
+            await _repository.upsertEvent(
+              accountId: _accountId,
+              event: current,
+              preservePendingLocalChanges: true,
+            );
+          } on MicrosoftCalendarApiError catch (error) {
+            if (error.statusCode != 404 && error.statusCode != 410) rethrow;
+            await _repository.markMicrosoftRemovedEventDeleted(
+              accountId: _accountId,
+              providerCalendarId: providerCalendarId,
+              providerEventId: event.providerEventId,
+            );
+          }
+          continue;
+        }
         await _repository.upsertEvent(
           accountId: _accountId,
           event: event,

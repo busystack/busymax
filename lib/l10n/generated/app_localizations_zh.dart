@@ -514,6 +514,18 @@ class AppLocalizationsZh extends AppLocalizations {
   String get openInProvider => '在服务中打开';
 
   @override
+  String get linkedResources => '关联资源';
+
+  @override
+  String get noLinkedResources => '没有关联资源';
+
+  @override
+  String get attachments => '附件';
+
+  @override
+  String get attachmentsNotLoaded => '附件未加载';
+
+  @override
   String get hideFromSchedule => '从日程中隐藏';
 
   @override
@@ -1935,6 +1947,9 @@ class AppLocalizationsZh extends AppLocalizations {
   }
 
   @override
+  String get deleteAssignedTaskWarning => '这也会删除 Google 文档或 Chat 聊天室中的原始任务。';
+
+  @override
   String get metadata => '元数据';
 
   @override
@@ -2541,6 +2556,14 @@ class AppLocalizationsZh extends AppLocalizations {
   String get removeAction => '移除';
 
   @override
+  String removeOpenedSharedCalendarConfirmation(String title) {
+    return '要从 BusyMax 移除“$title”吗？所有者的日历和日程不会被删除。';
+  }
+
+  @override
+  String get attachmentUploadUnresolved => '上传可能已完成。再次上传前，请刷新附件以确认结果。';
+
+  @override
   String removeCalendarConfirmation(String title) {
     return '要从您的 Google 日历列表中移除“$title”吗？共享日历及其日程不会被删除。';
   }
@@ -2868,7 +2891,16 @@ class AppLocalizationsZh extends AppLocalizations {
   String get searchDate => '日期';
 
   @override
-  String get searchAnyDate => '任何日期';
+  String get searchAnyDate => '任何日期（已下載資料）';
+
+  @override
+  String get eventLink => '活動連結';
+
+  @override
+  String get eventLinkOpenFailed => '無法開啟連結。';
+
+  @override
+  String get scheduleRangeIncomplete => '部分活動無法確認，正在顯示已下載資料。';
 
   @override
   String get searchThisWeek => '本周';
@@ -2905,6 +2937,122 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get searchClearText => '清除文字';
+
+  @override
+  String get openSharedCalendar => '打开共享日历';
+
+  @override
+  String get manageCalendarSharing => '管理日历共享';
+
+  @override
+  String get shareRecipientEmail => '接收者邮箱';
+
+  @override
+  String get shareRole => '访问角色';
+
+  @override
+  String get addCalendarShare => '添加访问权限';
+
+  @override
+  String get sharingRefreshFailed => '共享更改已成功，但无法刷新权限列表。请在再次更改前重新加载列表。';
+
+  @override
+  String get sharingRateLimited => '共享暂时受到限制。请在等待时间结束后重试。';
+
+  @override
+  String get attachmentUploadRateLimited => '附件上传暂时受到限制。请在等待时间结束后重试。';
+
+  @override
+  String get sharingPermissionUnavailable => '此日历的共享权限不可用。';
+
+  @override
+  String get calendarShareFreeBusy => '仅查看忙闲';
+
+  @override
+  String get calendarShareLimitedRead => '读取有限详情';
+
+  @override
+  String get calendarShareRead => '读取全部详情';
+
+  @override
+  String get calendarShareWrite => '编辑日程';
+
+  @override
+  String get calendarShareWriteWithoutPrivate => '编辑但不查看私人详情';
+
+  @override
+  String get calendarShareOwner => '所有者';
+
+  @override
+  String get eventLabel => '日程标签';
+
+  @override
+  String get loadOutlookCategories => '加载 Outlook 类别';
+
+  @override
+  String get outlookCategoriesUnavailable => 'Outlook 类别不可用；现有分配会保留。';
+
+  @override
+  String get googleEventType => '日程类型';
+
+  @override
+  String get googleRegularEvent => '普通日程';
+
+  @override
+  String get googleFocusTime => '专注时间';
+
+  @override
+  String get googleOutOfOffice => '外出';
+
+  @override
+  String get googleWorkingLocation => '工作地点';
+
+  @override
+  String get googleDeclineInvitations => '拒绝重叠的邀请';
+
+  @override
+  String get googleDeclineNone => '不拒绝';
+
+  @override
+  String get googleDeclineNew => '拒绝新邀请';
+
+  @override
+  String get googleDeclineAll => '拒绝所有冲突邀请';
+
+  @override
+  String get googleDeclineMessage => '拒绝消息';
+
+  @override
+  String get googleChatStatus => '聊天状态';
+
+  @override
+  String get googleChatAvailable => '有空';
+
+  @override
+  String get googleChatDoNotDisturb => '勿扰';
+
+  @override
+  String get googleWorkAtHome => '家';
+
+  @override
+  String get googleWorkAtOffice => '办公室';
+
+  @override
+  String get googleWorkAtCustomLocation => '自定义地点';
+
+  @override
+  String get googleWorkLocationLabel => '地点名称';
+
+  @override
+  String get googleStatusPrimaryOnly => 'Google 状态日程需要您的 Google 主日历。';
+
+  @override
+  String unknownEventLabel(String id) {
+    return '未知标签（$id）';
+  }
+
+  @override
+  String get calendarOwnerEmail => '日历所有者的电子邮件地址';
 }
 
 /// The translations for Chinese, using the Han script (`zh_Hans`).
@@ -3413,6 +3561,18 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
   String get openInProvider => '在服务中打开';
 
   @override
+  String get linkedResources => '关联资源';
+
+  @override
+  String get noLinkedResources => '没有关联资源';
+
+  @override
+  String get attachments => '附件';
+
+  @override
+  String get attachmentsNotLoaded => '附件未加载';
+
+  @override
   String get hideFromSchedule => '从日程中隐藏';
 
   @override
@@ -4834,6 +4994,9 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
   }
 
   @override
+  String get deleteAssignedTaskWarning => '这也会删除 Google 文档或 Chat 聊天室中的原始任务。';
+
+  @override
   String get metadata => '元数据';
 
   @override
@@ -5440,6 +5603,14 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
   String get removeAction => '移除';
 
   @override
+  String removeOpenedSharedCalendarConfirmation(String title) {
+    return '要从 BusyMax 移除“$title”吗？所有者的日历和日程不会被删除。';
+  }
+
+  @override
+  String get attachmentUploadUnresolved => '上传可能已完成。再次上传前，请刷新附件以确认结果。';
+
+  @override
   String removeCalendarConfirmation(String title) {
     return '要从您的 Google 日历列表中移除“$title”吗？共享日历及其日程不会被删除。';
   }
@@ -5767,7 +5938,16 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
   String get searchDate => '日期';
 
   @override
-  String get searchAnyDate => '任何日期';
+  String get searchAnyDate => '任何日期（已下载数据）';
+
+  @override
+  String get eventLink => '日程链接';
+
+  @override
+  String get eventLinkOpenFailed => '无法打开链接。';
+
+  @override
+  String get scheduleRangeIncomplete => '部分日程无法核实，正在显示已下载数据。';
 
   @override
   String get searchThisWeek => '本周';
@@ -5804,6 +5984,122 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
 
   @override
   String get searchClearText => '清除文字';
+
+  @override
+  String get openSharedCalendar => '打开共享日历';
+
+  @override
+  String get manageCalendarSharing => '管理日历共享';
+
+  @override
+  String get shareRecipientEmail => '接收者邮箱';
+
+  @override
+  String get shareRole => '访问角色';
+
+  @override
+  String get addCalendarShare => '添加访问权限';
+
+  @override
+  String get sharingRefreshFailed => '共享更改已成功，但无法刷新权限列表。请在再次更改前重新加载列表。';
+
+  @override
+  String get sharingRateLimited => '共享暂时受到限制。请在等待时间结束后重试。';
+
+  @override
+  String get attachmentUploadRateLimited => '附件上传暂时受到限制。请在等待时间结束后重试。';
+
+  @override
+  String get sharingPermissionUnavailable => '此日历的共享权限不可用。';
+
+  @override
+  String get calendarShareFreeBusy => '仅查看忙闲';
+
+  @override
+  String get calendarShareLimitedRead => '读取有限详情';
+
+  @override
+  String get calendarShareRead => '读取全部详情';
+
+  @override
+  String get calendarShareWrite => '编辑日程';
+
+  @override
+  String get calendarShareWriteWithoutPrivate => '编辑但不查看私人详情';
+
+  @override
+  String get calendarShareOwner => '所有者';
+
+  @override
+  String get eventLabel => '日程标签';
+
+  @override
+  String get loadOutlookCategories => '加载 Outlook 类别';
+
+  @override
+  String get outlookCategoriesUnavailable => 'Outlook 类别不可用；现有分配会保留。';
+
+  @override
+  String get googleEventType => '日程类型';
+
+  @override
+  String get googleRegularEvent => '普通日程';
+
+  @override
+  String get googleFocusTime => '专注时间';
+
+  @override
+  String get googleOutOfOffice => '外出';
+
+  @override
+  String get googleWorkingLocation => '工作地点';
+
+  @override
+  String get googleDeclineInvitations => '拒绝重叠的邀请';
+
+  @override
+  String get googleDeclineNone => '不拒绝';
+
+  @override
+  String get googleDeclineNew => '拒绝新邀请';
+
+  @override
+  String get googleDeclineAll => '拒绝所有冲突邀请';
+
+  @override
+  String get googleDeclineMessage => '拒绝消息';
+
+  @override
+  String get googleChatStatus => '聊天状态';
+
+  @override
+  String get googleChatAvailable => '有空';
+
+  @override
+  String get googleChatDoNotDisturb => '勿扰';
+
+  @override
+  String get googleWorkAtHome => '家';
+
+  @override
+  String get googleWorkAtOffice => '办公室';
+
+  @override
+  String get googleWorkAtCustomLocation => '自定义地点';
+
+  @override
+  String get googleWorkLocationLabel => '地点名称';
+
+  @override
+  String get googleStatusPrimaryOnly => 'Google 状态日程需要您的 Google 主日历。';
+
+  @override
+  String unknownEventLabel(String id) {
+    return '未知标签（$id）';
+  }
+
+  @override
+  String get calendarOwnerEmail => '日历所有者的电子邮件地址';
 }
 
 /// The translations for Chinese, using the Han script (`zh_Hant`).
@@ -6310,6 +6606,18 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get openInProvider => '在服務中開啟';
+
+  @override
+  String get linkedResources => '關聯資源';
+
+  @override
+  String get noLinkedResources => '沒有關聯資源';
+
+  @override
+  String get attachments => '附件';
+
+  @override
+  String get attachmentsNotLoaded => '附件尚未載入';
 
   @override
   String get hideFromSchedule => '從行程中隱藏';
@@ -7734,6 +8042,9 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   }
 
   @override
+  String get deleteAssignedTaskWarning => '這也會刪除 Google 文件或 Chat 聊天室中的原始工作。';
+
+  @override
   String get metadata => '中繼資料';
 
   @override
@@ -8340,6 +8651,14 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get removeAction => '移除';
 
   @override
+  String removeOpenedSharedCalendarConfirmation(String title) {
+    return '要從 BusyMax 移除「$title」嗎？擁有者的日曆及活動不會被刪除。';
+  }
+
+  @override
+  String get attachmentUploadUnresolved => '上傳可能已完成。再次上傳前，請重新整理附件以確認結果。';
+
+  @override
   String removeCalendarConfirmation(String title) {
     return '要從您的 Google 日曆清單移除「$title」嗎？共用日曆及其活動不會被刪除。';
   }
@@ -8667,7 +8986,16 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get searchDate => '日期';
 
   @override
-  String get searchAnyDate => '任何日期';
+  String get searchAnyDate => '任何日期（已下載資料）';
+
+  @override
+  String get eventLink => '活動連結';
+
+  @override
+  String get eventLinkOpenFailed => '無法開啟連結。';
+
+  @override
+  String get scheduleRangeIncomplete => '部分活動無法確認，正在顯示已下載資料。';
 
   @override
   String get searchThisWeek => '本週';
@@ -8704,4 +9032,120 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get searchClearText => '清除文字';
+
+  @override
+  String get openSharedCalendar => '開啟共用行事曆';
+
+  @override
+  String get manageCalendarSharing => '管理行事曆共用';
+
+  @override
+  String get shareRecipientEmail => '收件者電子郵件';
+
+  @override
+  String get shareRole => '存取角色';
+
+  @override
+  String get addCalendarShare => '新增存取權';
+
+  @override
+  String get sharingRefreshFailed => '共用設定已變更，但無法重新整理權限清單。再次變更前請重新載入清單。';
+
+  @override
+  String get sharingRateLimited => '共用暫時受到限制。請在等待時間結束後重試。';
+
+  @override
+  String get attachmentUploadRateLimited => '附件上傳暫時受到限制。請在等待時間結束後重試。';
+
+  @override
+  String get sharingPermissionUnavailable => '此行事曆的共用權限無法使用。';
+
+  @override
+  String get calendarShareFreeBusy => '僅顯示忙閒';
+
+  @override
+  String get calendarShareLimitedRead => '讀取有限詳情';
+
+  @override
+  String get calendarShareRead => '讀取全部詳情';
+
+  @override
+  String get calendarShareWrite => '編輯行事曆事件';
+
+  @override
+  String get calendarShareWriteWithoutPrivate => '編輯但不顯示私人詳情';
+
+  @override
+  String get calendarShareOwner => '擁有者';
+
+  @override
+  String get eventLabel => '事件標籤';
+
+  @override
+  String get loadOutlookCategories => '載入 Outlook 類別';
+
+  @override
+  String get outlookCategoriesUnavailable => 'Outlook 類別無法使用；現有指派會保留。';
+
+  @override
+  String get googleEventType => '事件類型';
+
+  @override
+  String get googleRegularEvent => '一般事件';
+
+  @override
+  String get googleFocusTime => '專注時間';
+
+  @override
+  String get googleOutOfOffice => '不在辦公室';
+
+  @override
+  String get googleWorkingLocation => '工作地點';
+
+  @override
+  String get googleDeclineInvitations => '拒絕重疊邀請';
+
+  @override
+  String get googleDeclineNone => '不要拒絕';
+
+  @override
+  String get googleDeclineNew => '拒絕新邀請';
+
+  @override
+  String get googleDeclineAll => '拒絕所有衝突邀請';
+
+  @override
+  String get googleDeclineMessage => '拒絕訊息';
+
+  @override
+  String get googleChatStatus => '聊天狀態';
+
+  @override
+  String get googleChatAvailable => '有空';
+
+  @override
+  String get googleChatDoNotDisturb => '零打擾';
+
+  @override
+  String get googleWorkAtHome => '家中';
+
+  @override
+  String get googleWorkAtOffice => '辦公室';
+
+  @override
+  String get googleWorkAtCustomLocation => '自訂地點';
+
+  @override
+  String get googleWorkLocationLabel => '地點名稱';
+
+  @override
+  String get googleStatusPrimaryOnly => 'Google 狀態事件需要您的 Google 主要行事曆。';
+
+  @override
+  String unknownEventLabel(String id) {
+    return '未知標籤（$id）';
+  }
+
+  @override
+  String get calendarOwnerEmail => '行事曆擁有者的電子郵件地址';
 }

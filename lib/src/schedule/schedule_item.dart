@@ -1,7 +1,9 @@
 import 'package:busymax/src/providers/busy_provider.dart';
 import '../features/calendar/domain/event_timing_policy.dart';
 import '../features/tasks/domain/task_checklist_item.dart';
+import '../features/tasks/domain/task_source_links.dart';
 import '../features/maps/domain/geographic_point.dart';
+import 'event_attachment_link.dart';
 
 enum ScheduleItemKind { calendarEvent, task, localReminder }
 
@@ -48,10 +50,13 @@ class CalendarScheduleItem implements ScheduleItem {
     required this.provider,
     required this.sourceId,
     required this.providerCalendarId,
+    this.providerEventId,
     required this.title,
     required this.allDay,
     this.start,
     this.providerRecurringEventId,
+    this.eventType,
+    this.googleStatusProperties = const {},
     this.timingBaseline,
     this.end,
     this.location,
@@ -62,6 +67,12 @@ class CalendarScheduleItem implements ScheduleItem {
     this.attendees = const [],
     this.organizer,
     this.joinMeetingUrl,
+    this.eventLinkUrl,
+    this.attachmentLinks = const [],
+    this.attachmentsLoaded = false,
+    this.attachmentsMayExist = false,
+    this.startTimeZone,
+    this.endTimeZone,
     this.isOrganizer,
     this.guestsCanModify,
     this.locked = false,
@@ -87,7 +98,10 @@ class CalendarScheduleItem implements ScheduleItem {
   @override
   final String sourceId;
   final String providerCalendarId;
+  final String? providerEventId;
   final String? providerRecurringEventId;
+  final String? eventType;
+  final Map<String, Object?> googleStatusProperties;
   final EventTimingBaseline? timingBaseline;
 
   bool get canReschedule =>
@@ -121,6 +135,12 @@ class CalendarScheduleItem implements ScheduleItem {
   final List<Map<String, Object?>> attendees;
   final Map<String, Object?>? organizer;
   final String? joinMeetingUrl;
+  final String? eventLinkUrl;
+  final List<EventAttachmentLink> attachmentLinks;
+  final bool attachmentsLoaded;
+  final bool attachmentsMayExist;
+  final String? startTimeZone;
+  final String? endTimeZone;
   final bool? isOrganizer;
   final bool? guestsCanModify;
   final bool locked;
@@ -173,6 +193,9 @@ class TaskScheduleItem implements ScheduleItem {
     this.due,
     this.end,
     this.notes,
+    this.isAssigned = false,
+    this.originalTaskUrl,
+    this.sourceLinks = const [],
     this.location,
     this.locationPoint,
     this.categories = const [],
@@ -205,6 +228,15 @@ class TaskScheduleItem implements ScheduleItem {
   @override
   final bool allDay;
   final bool completed;
+  final bool isAssigned;
+  final String? originalTaskUrl;
+  final List<TaskSourceLink> sourceLinks;
+
+  List<TaskSourceLink> get availableSourceLinks => sourceLinks.isNotEmpty
+      ? sourceLinks
+      : originalTaskUrl == null
+      ? const []
+      : [TaskSourceLink(url: originalTaskUrl!)];
 
   /// Actual provider due value, independent of the scheduling start.
   final DateTime? due;

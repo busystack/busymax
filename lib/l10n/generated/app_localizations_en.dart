@@ -549,6 +549,18 @@ class AppLocalizationsEn extends AppLocalizations {
   String get openInProvider => 'Open in provider';
 
   @override
+  String get linkedResources => 'Linked resources';
+
+  @override
+  String get noLinkedResources => 'No linked resources';
+
+  @override
+  String get attachments => 'Attachments';
+
+  @override
+  String get attachmentsNotLoaded => 'Attachments not loaded';
+
+  @override
   String get hideFromSchedule => 'Hide from schedule';
 
   @override
@@ -2019,6 +2031,10 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
+  String get deleteAssignedTaskWarning =>
+      'This also deletes the original task in Google Docs or Chat Spaces.';
+
+  @override
   String get metadata => 'Metadata';
 
   @override
@@ -2643,6 +2659,15 @@ class AppLocalizationsEn extends AppLocalizations {
   String get removeAction => 'Remove';
 
   @override
+  String removeOpenedSharedCalendarConfirmation(String title) {
+    return 'Remove \"$title\" from BusyMax? The owner\'s calendar and events will not be deleted.';
+  }
+
+  @override
+  String get attachmentUploadUnresolved =>
+      'The upload may have completed. Refresh attachments to resolve its outcome before uploading again.';
+
+  @override
   String removeCalendarConfirmation(String title) {
     return 'Remove \"$title\" from your Google Calendar list? The shared calendar and its events will not be deleted.';
   }
@@ -2999,7 +3024,17 @@ class AppLocalizationsEn extends AppLocalizations {
   String get searchDate => 'Date';
 
   @override
-  String get searchAnyDate => 'Any date';
+  String get searchAnyDate => 'Any date (downloaded data)';
+
+  @override
+  String get eventLink => 'Event link';
+
+  @override
+  String get eventLinkOpenFailed => 'Could not open the link.';
+
+  @override
+  String get scheduleRangeIncomplete =>
+      'Some events could not be checked. Showing downloaded data.';
 
   @override
   String get searchThisWeek => 'This week';
@@ -3036,4 +3071,126 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get searchClearText => 'Clear text';
+
+  @override
+  String get openSharedCalendar => 'Open shared calendar';
+
+  @override
+  String get manageCalendarSharing => 'Manage calendar sharing';
+
+  @override
+  String get shareRecipientEmail => 'Recipient email';
+
+  @override
+  String get shareRole => 'Access role';
+
+  @override
+  String get addCalendarShare => 'Add access';
+
+  @override
+  String get sharingRefreshFailed =>
+      'The sharing change succeeded, but the permission list could not be refreshed. Retry the list before making another change.';
+
+  @override
+  String get sharingRateLimited =>
+      'Sharing is temporarily rate-limited. Try again when the wait ends.';
+
+  @override
+  String get attachmentUploadRateLimited =>
+      'Attachment upload is temporarily rate-limited. Try again when the wait ends.';
+
+  @override
+  String get sharingPermissionUnavailable =>
+      'Sharing permissions are unavailable for this calendar.';
+
+  @override
+  String get calendarShareFreeBusy => 'Free/busy only';
+
+  @override
+  String get calendarShareLimitedRead => 'Read limited details';
+
+  @override
+  String get calendarShareRead => 'Read all details';
+
+  @override
+  String get calendarShareWrite => 'Edit events';
+
+  @override
+  String get calendarShareWriteWithoutPrivate => 'Edit without private details';
+
+  @override
+  String get calendarShareOwner => 'Owner';
+
+  @override
+  String get eventLabel => 'Event label';
+
+  @override
+  String get loadOutlookCategories => 'Load Outlook categories';
+
+  @override
+  String get outlookCategoriesUnavailable =>
+      'Outlook categories are unavailable; existing assignments are preserved.';
+
+  @override
+  String get googleEventType => 'Event type';
+
+  @override
+  String get googleRegularEvent => 'Regular event';
+
+  @override
+  String get googleFocusTime => 'Focus time';
+
+  @override
+  String get googleOutOfOffice => 'Out of office';
+
+  @override
+  String get googleWorkingLocation => 'Working location';
+
+  @override
+  String get googleDeclineInvitations => 'Decline overlapping invitations';
+
+  @override
+  String get googleDeclineNone => 'Do not decline';
+
+  @override
+  String get googleDeclineNew => 'Decline new invitations';
+
+  @override
+  String get googleDeclineAll => 'Decline all conflicting invitations';
+
+  @override
+  String get googleDeclineMessage => 'Decline message';
+
+  @override
+  String get googleChatStatus => 'Chat status';
+
+  @override
+  String get googleChatAvailable => 'Available';
+
+  @override
+  String get googleChatDoNotDisturb => 'Do not disturb';
+
+  @override
+  String get googleWorkAtHome => 'Home';
+
+  @override
+  String get googleWorkAtOffice => 'Office';
+
+  @override
+  String get googleWorkAtCustomLocation => 'Custom location';
+
+  @override
+  String get googleWorkLocationLabel => 'Location label';
+
+  @override
+  String get googleStatusPrimaryOnly =>
+      'Google status events require your primary Google calendar.';
+
+  @override
+  String unknownEventLabel(String id) {
+    return 'Unknown label ($id)';
+  }
+
+  @override
+  String get calendarOwnerEmail => 'Calendar owner email';
 }

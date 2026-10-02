@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:http/http.dart' as http;
 
+import '../../calendar_providers/attachment_upload_session.dart';
 import '../../core/http/request_dispatch_exception.dart';
 import 'microsoft_todo_api_error.dart';
 import 'microsoft_todo_api_models.dart';
@@ -72,8 +73,57 @@ abstract interface class MicrosoftTodoChecklistApiClient {
   });
 }
 
+abstract interface class MicrosoftTodoLinkedResourcesApiClient {
+  Future<MicrosoftTodoLinkedResourcesPageDto> listLinkedResourcesPage({
+    required String taskListId,
+    required String taskId,
+    String? nextLink,
+  });
+}
+
+abstract interface class MicrosoftTodoAttachmentsApiClient {
+  Future<MicrosoftTodoAttachmentsPageDto> listTaskAttachmentsPage({
+    required String taskListId,
+    required String taskId,
+    String? nextLink,
+  });
+  Future<List<int>> downloadTaskAttachment({
+    required String taskListId,
+    required String taskId,
+    required String attachmentId,
+  });
+  Future<MicrosoftTodoAttachmentDto> createSmallTaskAttachment({
+    required String taskListId,
+    required String taskId,
+    required String name,
+    required String contentType,
+    required List<int> bytes,
+  });
+  Future<void> deleteTaskAttachment({
+    required String taskListId,
+    required String taskId,
+    required String attachmentId,
+  });
+  Future<String> uploadTaskFileAttachment({
+    required String taskListId,
+    required String taskId,
+    required String name,
+    required String contentType,
+    required List<int> bytes,
+    MicrosoftAttachmentUploadSession? resumeSession,
+    void Function(MicrosoftAttachmentUploadSession)? onSession,
+  });
+  Future<void> cancelTaskAttachmentUpload(
+    MicrosoftAttachmentUploadSession session,
+  );
+}
+
 class MicrosoftTodoRestApiClient
-    implements MicrosoftTodoApiClient, MicrosoftTodoChecklistApiClient {
+    implements
+        MicrosoftTodoApiClient,
+        MicrosoftTodoChecklistApiClient,
+        MicrosoftTodoLinkedResourcesApiClient,
+        MicrosoftTodoAttachmentsApiClient {
   MicrosoftTodoRestApiClient({
     required http.Client httpClient,
     required Uri baseUri,
@@ -203,6 +253,233 @@ class MicrosoftTodoRestApiClient
   }
 
   @override
+  Future<MicrosoftTodoLinkedResourcesPageDto> listLinkedResourcesPage({
+    required String taskListId,
+    required String taskId,
+    String? nextLink,
+  }) async {
+    final uri = nextLink == null
+        ? _uri(microsoftLinkedResourcesPath(taskListId, taskId))
+        : _trustedNextLink(nextLink);
+    final json = await _requestJson('GET', uri);
+    return MicrosoftTodoLinkedResourcesPageDto.fromJson(json);
+  }
+
+  @override
+  Future<MicrosoftTodoAttachmentsPageDto> listTaskAttachmentsPage({
+    required String taskListId,
+    required String taskId,
+    String? nextLink,
+  }) async {
+    final uri = nextLink == null
+        ? _uri(microsoftTaskAttachmentsPath(taskListId, taskId))
+        : _trustedNextLink(nextLink);
+    return MicrosoftTodoAttachmentsPageDto.fromJson(
+      await _requestJson('GET', uri),
+    );
+  }
+
+  @override
+  Future<List<int>> downloadTaskAttachment({
+    required String taskListId,
+    required String taskId,
+    required String attachmentId,
+  }) async {
+    final response = await _send(
+      'GET',
+      _uri(
+        '${microsoftTaskAttachmentPath(taskListId, taskId, attachmentId)}/\$value',
+      ),
+    );
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      throw MicrosoftTodoApiError.fromResponse(
+        statusCode: response.statusCode,
+        body: response.body,
+        headers: response.headers,
+      );
+    }
+    return response.bodyBytes;
+  }
+
+  @override
+  Future<MicrosoftTodoAttachmentDto> createSmallTaskAttachment({
+    required String taskListId,
+    required String taskId,
+    required String name,
+    required String contentType,
+    required List<int> bytes,
+  }) async {
+    if (name.trim().isEmpty ||
+        name.contains('/') ||
+        name.contains('\\') ||
+        bytes.length >= 3 * 1024 * 1024) {
+      throw ArgumentError(
+        'Invalid name or file exceeds the direct-upload limit.',
+      );
+    }
+    return MicrosoftTodoAttachmentDto.fromJson(
+      await _requestJson(
+        'POST',
+        _uri(microsoftTaskAttachmentsPath(taskListId, taskId)),
+        body: {
+          '@odata.type': '#microsoft.graph.taskFileAttachment',
+          'name': name,
+          'contentType': contentType,
+          'size': bytes.length,
+          'contentBytes': base64Encode(bytes),
+        },
+      ),
+    );
+  }
+
+  @override
+  Future<void> deleteTaskAttachment({
+    required String taskListId,
+    required String taskId,
+    required String attachmentId,
+  }) => _requestEmpty(
+    'DELETE',
+    _uri(microsoftTaskAttachmentPath(taskListId, taskId, attachmentId)),
+  );
+
+  @override
+  Future<String> uploadTaskFileAttachment({
+    required String taskListId,
+    required String taskId,
+    required String name,
+    required String contentType,
+    required List<int> bytes,
+    MicrosoftAttachmentUploadSession? resumeSession,
+    void Function(MicrosoftAttachmentUploadSession)? onSession,
+  }) async {
+    if (name.trim().isEmpty || name.contains('/') || name.contains('\\')) {
+      throw ArgumentError.value(name, 'name', 'Invalid attachment name.');
+    }
+    if (bytes.length > 25 * 1024 * 1024) {
+      throw ArgumentError.value(
+        bytes.length,
+        'bytes',
+        'Task file exceeds 25 MB.',
+      );
+    }
+    if (bytes.length < 3 * 1024 * 1024 && resumeSession == null) {
+      final created = await createSmallTaskAttachment(
+        taskListId: taskListId,
+        taskId: taskId,
+        name: name,
+        contentType: contentType,
+        bytes: bytes,
+      );
+      if (created.id.isEmpty) {
+        throw const MicrosoftAttachmentUploadUncertain();
+      }
+      return created.id;
+    }
+    MicrosoftAttachmentUploadSession session;
+    if (resumeSession == null) {
+      final created = await _requestJson(
+        'POST',
+        _uri(
+          '${microsoftTaskAttachmentsPath(taskListId, taskId)}/createUploadSession',
+        ),
+        body: {
+          'attachmentInfo': {
+            'attachmentType': 'file',
+            'name': name,
+            'size': bytes.length,
+          },
+        },
+      );
+      final uploadUrl = created['uploadUrl']?.toString();
+      if (uploadUrl == null) {
+        throw const FormatException('Task attachment upload URL is missing.');
+      }
+      session = MicrosoftAttachmentUploadSession(
+        url: _trustedNextLink(uploadUrl),
+        expiresAt: null,
+        nextOffset: 0,
+      );
+      session.update(created, bytes.length);
+      onSession?.call(session);
+    } else {
+      session = resumeSession;
+      try {
+        session.update(await _requestJson('GET', session.url), bytes.length);
+      } on Object {
+        throw const MicrosoftAttachmentUploadUncertain();
+      }
+    }
+    if (session.expiresAt case final expiry?) {
+      if (!expiry.isAfter(DateTime.now().toUtc())) {
+        throw const MicrosoftAttachmentUploadUncertain();
+      }
+    }
+    // Task sessions are Graph-authenticated, unlike pre-authenticated Outlook
+    // event sessions. Never send a bearer token to a non-Graph authority.
+    final contentUri = session.url.replace(path: '${session.url.path}/content');
+    var offset = session.nextOffset;
+    if (offset == bytes.length) {
+      throw const MicrosoftAttachmentUploadUncertain();
+    }
+    const chunkSize = 2 * 1024 * 1024;
+    while (offset < bytes.length) {
+      final end = offset + chunkSize < bytes.length
+          ? offset + chunkSize
+          : bytes.length;
+      try {
+        if (end == bytes.length) {
+          session.finalRangeMayHaveBeenSubmitted = true;
+        }
+        final authorization = await _authorizationHeaderProvider?.call();
+        final response = await _httpClient.put(
+          contentUri,
+          headers: {
+            if (authorization != null) 'Authorization': authorization,
+            'Content-Type': 'application/octet-stream',
+            'Content-Length': '${end - offset}',
+            'Content-Range': 'bytes $offset-${end - 1}/${bytes.length}',
+          },
+          body: bytes.sublist(offset, end),
+        );
+        if (end == bytes.length) {
+          if (response.statusCode != 201) {
+            throw const MicrosoftAttachmentUploadUncertain();
+          }
+          return attachmentIdFromUploadHeaders(response.headers);
+        }
+        if (response.statusCode != 200) {
+          throw const MicrosoftAttachmentUploadUncertain();
+        }
+        session.update(
+          (jsonDecode(response.body) as Map).cast<String, Object?>(),
+          bytes.length,
+        );
+        if (session.nextOffset <= offset) {
+          throw const MicrosoftAttachmentUploadUncertain();
+        }
+      } on Object {
+        throw const MicrosoftAttachmentUploadUncertain();
+      }
+      offset = session.nextOffset;
+    }
+    throw const MicrosoftAttachmentUploadUncertain();
+  }
+
+  @override
+  Future<void> cancelTaskAttachmentUpload(
+    MicrosoftAttachmentUploadSession session,
+  ) async {
+    try {
+      final response = await _send('DELETE', session.url);
+      if (response.statusCode != 204) {
+        throw const MicrosoftAttachmentUploadUncertain();
+      }
+    } on Object {
+      throw const MicrosoftAttachmentUploadUncertain();
+    }
+  }
+
+  @override
   Future<MicrosoftTodoTaskDto> updateTask({
     required String taskListId,
     required String taskId,
@@ -284,6 +561,7 @@ class MicrosoftTodoRestApiClient
       throw MicrosoftTodoApiError.fromResponse(
         statusCode: response.statusCode,
         body: response.body,
+        headers: response.headers,
       );
     }
   }
@@ -298,6 +576,7 @@ class MicrosoftTodoRestApiClient
       throw MicrosoftTodoApiError.fromResponse(
         statusCode: response.statusCode,
         body: response.body,
+        headers: response.headers,
       );
     }
     return microsoftJsonObjectFromBody(response.body);
@@ -378,6 +657,21 @@ class MicrosoftTodoRestApiClient
       return Uri.parse(fullUrl);
     }
     return _uri(path);
+  }
+
+  Uri _trustedNextLink(String value) {
+    final uri = Uri.tryParse(value);
+    if (uri == null ||
+        uri.scheme != _baseUri.scheme ||
+        uri.host != _baseUri.host ||
+        uri.port != _baseUri.port ||
+        uri.userInfo.isNotEmpty ||
+        !uri.path.startsWith(
+          _baseUri.path.endsWith('/') ? _baseUri.path : '${_baseUri.path}/',
+        )) {
+      throw FormatException('Untrusted Microsoft Graph continuation URL.');
+    }
+    return uri;
   }
 
   Uri _uri(String path, {Map<String, String>? query}) {

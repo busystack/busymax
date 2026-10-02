@@ -241,7 +241,14 @@ final class IcalImportService {
       _database.icalImportReceipts,
     )..where((row) => row.calendarSourceId.equals(destination.id))).get();
     final importedUids = {for (final receipt in receipts) receipt.icalUid};
-    final drafts = <({String icalUid, EventEditorDraft draft})>[];
+    final drafts =
+        <
+          ({
+            String icalUid,
+            EventEditorDraft draft,
+            List<ImportedEventException> exceptions,
+          })
+        >[];
     final unsupported = <IcalImportSkippedSet>[];
     var duplicates = 0;
     final omitted = {...preview.fieldsThatWillBeOmitted};
@@ -258,7 +265,11 @@ final class IcalImportService {
         continue;
       }
       omitted.addAll(prepared.omittedFields);
-      drafts.add((icalUid: set.uid, draft: prepared.draft!));
+      drafts.add((
+        icalUid: set.uid,
+        draft: prepared.draft!,
+        exceptions: prepared.exceptions,
+      ));
     }
     await _calendarRepository.createImportedEventsBatch(
       destination: destination,
@@ -285,11 +296,6 @@ _PreparedImportDraft _prepareDraft(
   if (masters.length != 1) {
     return const _PreparedImportDraft.unsupported(
       'The recurrence set does not contain exactly one master event.',
-    );
-  }
-  if (semantic.components.length != 1) {
-    return const _PreparedImportDraft.unsupported(
-      'Detached recurrence exceptions are not supported by this destination import.',
     );
   }
   final master = masters.single;
@@ -444,6 +450,46 @@ _PreparedImportDraft _prepareDraft(
   final categories = destination.provider == BusyProvider.google
       ? const <String>[]
       : master.categories;
+  if (!_supportedClassification(master.classification)) {
+    return _PreparedImportDraft.unsupported(
+      'This iCalendar classification is not supported by ${destination.provider.displayName}.',
+    );
+  }
+  final visibilityOrSensitivity = _classification(
+    master.classification,
+    destination.provider,
+  );
+  if (destination.provider == BusyProvider.google) {
+    for (final component in set.semantic.components) {
+      if (component.recurrenceId == null ||
+          component.status == 'CANCELLED' ||
+          component.classification == null) {
+        continue;
+      }
+      if (_classification(component.classification, destination.provider) !=
+          visibilityOrSensitivity) {
+        return const _PreparedImportDraft.unsupported(
+          'Google cannot represent a detached occurrence with different visibility from its series.',
+        );
+      }
+    }
+  }
+  final preparedExceptions = _prepareExceptions(
+    set,
+    master: master,
+    resolver: resolver,
+    destination: destination,
+  );
+  if (preparedExceptions.reason case final reason?) {
+    return _PreparedImportDraft.unsupported(reason);
+  }
+  if (destination.provider == BusyProvider.google &&
+      set.semantic.components.any(
+        (component) =>
+            component.recurrenceId != null && component.categories.isNotEmpty,
+      )) {
+    omitted.add('categories');
+  }
   return _PreparedImportDraft(
     draft:
         EventEditorDraft.newEvent(
@@ -476,7 +522,7 @@ _PreparedImportDraft _prepareDraft(
           attendees: const [],
           attendeesChanged: false,
           showAs: _transparency(master.transparency, destination.provider),
-          visibilityOrSensitivity: master.classification?.toLowerCase(),
+          visibilityOrSensitivity: visibilityOrSensitivity,
           categories: categories,
           categoriesChanged: categories.isNotEmpty,
           createConference: false,
@@ -485,7 +531,196 @@ _PreparedImportDraft _prepareDraft(
         ),
     reason: null,
     omittedFields: omitted,
+    exceptions: preparedExceptions.values,
   );
+}
+
+({List<ImportedEventException> values, String? reason}) _prepareExceptions(
+  IcalRecurrenceSet set, {
+  required IcalSemanticComponent master,
+  required IcalTimeZoneResolver resolver,
+  required CalendarSourceEntity destination,
+}) {
+  final exceptions = <ImportedEventException>[];
+  if (set.semantic.components.any(
+        (component) => component.recurrenceId != null,
+      ) &&
+      destination.provider != BusyProvider.google &&
+      destination.provider != BusyProvider.microsoft) {
+    return (
+      values: const [],
+      reason: 'This destination cannot safely import detached occurrences.',
+    );
+  }
+  for (final component in set.semantic.components) {
+    final recurrenceId = component.recurrenceId;
+    if (recurrenceId == null) continue;
+    if (component.recurrenceRange != null ||
+        component.recurrenceRules.isNotEmpty ||
+        component.recurrenceDates.isNotEmpty) {
+      return (
+        values: const [],
+        reason: 'This detached recurrence rule cannot be represented.',
+      );
+    }
+    if (recurrenceId.kind == IcalTemporalKind.floatingDateTime ||
+        (recurrenceId.kind == IcalTemporalKind.date) !=
+            (master.start?.kind == IcalTemporalKind.date)) {
+      return (
+        values: const [],
+        reason: 'The exception original start has an incompatible time type.',
+      );
+    }
+    final String originalStart;
+    try {
+      if (recurrenceId.kind == IcalTemporalKind.date) {
+        originalStart = _dateOnly(_draftDateTime(recurrenceId));
+      } else {
+        IcalTimeZoneResolver.system().toUtc(recurrenceId);
+        originalStart = resolver.toUtc(recurrenceId).toIso8601String();
+      }
+    } on DavException {
+      return (
+        values: const [],
+        reason: 'The exception timezone cannot be represented.',
+      );
+    }
+    final cancelled = component.status == 'CANCELLED';
+    final fields = <String, Object?>{};
+    if (!cancelled) {
+      if (!_supportedClassification(component.classification)) {
+        return (
+          values: const [],
+          reason:
+              'This iCalendar classification is not supported by ${destination.provider.displayName}.',
+        );
+      }
+      if (component.classification != null) {
+        fields['sensitivity'] = _classification(
+          component.classification,
+          destination.provider,
+        );
+      }
+      if (component.transparency != null) {
+        fields['transparencyOrShowAs'] = _transparency(
+          component.transparency,
+          destination.provider,
+        );
+      }
+      if (destination.provider == BusyProvider.microsoft &&
+          component.documentComponent.firstProperty('CATEGORIES') != null) {
+        fields['categoriesJson'] = component.categories;
+      }
+      if (component.summary case final title?) fields['title'] = title;
+      if (component.description case final description?) {
+        fields['description'] = description;
+      }
+      if (component.location case final location?) {
+        fields['location'] = location;
+      }
+      final start = component.start;
+      final end = component.end;
+      if ((start == null) != (end == null)) {
+        return (
+          values: const [],
+          reason: 'A moved exception needs both start and end.',
+        );
+      }
+      if (start != null && end != null) {
+        if (start.kind == IcalTemporalKind.floatingDateTime ||
+            end.kind == IcalTemporalKind.floatingDateTime ||
+            (start.kind == IcalTemporalKind.date) !=
+                (end.kind == IcalTemporalKind.date)) {
+          return (
+            values: const [],
+            reason: 'The moved exception uses incompatible time values.',
+          );
+        }
+        try {
+          if (start.kind != IcalTemporalKind.date) {
+            IcalTimeZoneResolver.system().toUtc(start);
+            IcalTimeZoneResolver.system().toUtc(end);
+            if (!resolver.toUtc(end).isAfter(resolver.toUtc(start))) {
+              return (
+                values: const [],
+                reason: 'The moved exception has a non-positive interval.',
+              );
+            }
+          } else if (!_draftDateTime(end).isAfter(_draftDateTime(start))) {
+            return (
+              values: const [],
+              reason:
+                  'The moved all-day exception has a non-positive interval.',
+            );
+          }
+        } on DavException {
+          return (
+            values: const [],
+            reason: 'The moved exception timezone cannot be represented.',
+          );
+        }
+        fields['allDay'] = start.kind == IcalTemporalKind.date;
+        fields['start'] = _wireTemporal(start);
+        fields['end'] = _wireTemporal(end);
+        fields['startTimeZone'] = _timeZone(start);
+        fields['endTimeZone'] = _timeZone(end);
+      }
+      final minutes = _alarmMinutes(component.alarms);
+      if (minutes.isNotEmpty) {
+        fields['remindersJson'] = destination.provider == BusyProvider.microsoft
+            ? {
+                'isReminderOn': true,
+                'reminderMinutesBeforeStart': minutes.first,
+              }
+            : {
+                'useDefault': false,
+                'overrides': [
+                  for (final value in minutes)
+                    {'method': 'popup', 'minutes': value},
+                ],
+              };
+      }
+    }
+    exceptions.add(
+      ImportedEventException(
+        originalStart: originalStart,
+        cancelled: cancelled,
+        fields: fields,
+      ),
+    );
+  }
+  return (values: List.unmodifiable(exceptions), reason: null);
+}
+
+bool _supportedClassification(String? value) =>
+    value == null ||
+    const {
+      'PUBLIC',
+      'PRIVATE',
+      'CONFIDENTIAL',
+    }.contains(value.trim().toUpperCase());
+
+String? _classification(String? value, BusyProvider provider) {
+  final normalized = value?.trim().toUpperCase();
+  if (provider == BusyProvider.microsoft) {
+    return switch (normalized) {
+      'PUBLIC' => 'normal',
+      'PRIVATE' => 'private',
+      'CONFIDENTIAL' => 'confidential',
+      _ => null,
+    };
+  }
+  return normalized?.toLowerCase();
+}
+
+String _dateOnly(DateTime value) =>
+    '${value.year.toString().padLeft(4, '0')}-${value.month.toString().padLeft(2, '0')}-${value.day.toString().padLeft(2, '0')}';
+
+String _wireTemporal(IcalTemporalValue value) {
+  final instant = _draftDateTime(value);
+  return value.kind == IcalTemporalKind.date
+      ? _dateOnly(instant)
+      : instant.toIso8601String();
 }
 
 DateTime _draftDateTime(IcalTemporalValue value) {
@@ -541,9 +776,9 @@ List<int> _alarmMinutes(List<IcalComponent> alarms) {
     if (trigger.parameterValue('RELATED')?.toUpperCase() == 'END') continue;
     try {
       final duration = parseIcalDuration(trigger.rawValue.toUpperCase());
-      if (duration == null || !duration.negative) continue;
+      if (duration == null || duration.duration > Duration.zero) continue;
       final before = -duration.duration;
-      if (before.inSeconds <= 0 || before.inSeconds % 60 != 0) continue;
+      if (before.inSeconds % 60 != 0) continue;
       if (!values.contains(before.inMinutes)) values.add(before.inMinutes);
     } on DavException {
       // Unsupported alarms are intentionally omitted and reported by preview.
@@ -557,14 +792,17 @@ final class _PreparedImportDraft {
     required this.draft,
     required this.reason,
     this.omittedFields = const {},
+    this.exceptions = const [],
   });
 
   const _PreparedImportDraft.unsupported(String reason)
     : draft = null,
       reason = reason,
-      omittedFields = const {};
+      omittedFields = const {},
+      exceptions = const [];
 
   final EventEditorDraft? draft;
   final String? reason;
   final Set<String> omittedFields;
+  final List<ImportedEventException> exceptions;
 }

@@ -547,6 +547,18 @@ class AppLocalizationsDe extends AppLocalizations {
   String get openInProvider => 'Beim Anbieter öffnen';
 
   @override
+  String get linkedResources => 'Verknüpfte Ressourcen';
+
+  @override
+  String get noLinkedResources => 'Keine verknüpften Ressourcen';
+
+  @override
+  String get attachments => 'Anhänge';
+
+  @override
+  String get attachmentsNotLoaded => 'Anhänge nicht geladen';
+
+  @override
   String get hideFromSchedule => 'Im Zeitplan ausblenden';
 
   @override
@@ -2000,6 +2012,10 @@ class AppLocalizationsDe extends AppLocalizations {
   }
 
   @override
+  String get deleteAssignedTaskWarning =>
+      'Dadurch wird auch die ursprüngliche Aufgabe in Google Docs oder Chat-Bereichen gelöscht.';
+
+  @override
   String get metadata => 'Metadaten';
 
   @override
@@ -2629,6 +2645,15 @@ class AppLocalizationsDe extends AppLocalizations {
   String get removeAction => 'Entfernen';
 
   @override
+  String removeOpenedSharedCalendarConfirmation(String title) {
+    return '„$title“ aus BusyMax entfernen? Der Kalender und die Termine des Besitzers werden nicht gelöscht.';
+  }
+
+  @override
+  String get attachmentUploadUnresolved =>
+      'Der Upload wurde möglicherweise abgeschlossen. Aktualisieren Sie die Anhänge, bevor Sie erneut hochladen.';
+
+  @override
   String removeCalendarConfirmation(String title) {
     return '„$title“ aus Ihrer Google-Kalenderliste entfernen? Der freigegebene Kalender und seine Termine werden nicht gelöscht.';
   }
@@ -2967,7 +2992,17 @@ class AppLocalizationsDe extends AppLocalizations {
   String get searchDate => 'Datum';
 
   @override
-  String get searchAnyDate => 'Beliebiges Datum';
+  String get searchAnyDate => 'Beliebiges Datum (heruntergeladene Daten)';
+
+  @override
+  String get eventLink => 'Terminlink';
+
+  @override
+  String get eventLinkOpenFailed => 'Der Link konnte nicht geöffnet werden.';
+
+  @override
+  String get scheduleRangeIncomplete =>
+      'Einige Termine konnten nicht geprüft werden. Heruntergeladene Daten werden angezeigt.';
 
   @override
   String get searchThisWeek => 'Diese Woche';
@@ -3004,4 +3039,127 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get searchClearText => 'Text löschen';
+
+  @override
+  String get openSharedCalendar => 'Freigegebenen Kalender öffnen';
+
+  @override
+  String get manageCalendarSharing => 'Kalenderfreigabe verwalten';
+
+  @override
+  String get shareRecipientEmail => 'E-Mail-Adresse des Empfängers';
+
+  @override
+  String get shareRole => 'Zugriffsrolle';
+
+  @override
+  String get addCalendarShare => 'Zugriff hinzufügen';
+
+  @override
+  String get sharingRefreshFailed =>
+      'Die Freigabe wurde geändert, aber die Berechtigungsliste konnte nicht aktualisiert werden. Laden Sie sie vor einer weiteren Änderung neu.';
+
+  @override
+  String get sharingRateLimited =>
+      'Die Freigabe ist vorübergehend begrenzt. Versuchen Sie es nach der Wartezeit erneut.';
+
+  @override
+  String get attachmentUploadRateLimited =>
+      'Das Hochladen von Anhängen ist vorübergehend begrenzt. Versuchen Sie es nach der Wartezeit erneut.';
+
+  @override
+  String get sharingPermissionUnavailable =>
+      'Freigabeberechtigungen sind für diesen Kalender nicht verfügbar.';
+
+  @override
+  String get calendarShareFreeBusy => 'Nur Frei/Gebucht';
+
+  @override
+  String get calendarShareLimitedRead => 'Eingeschränkte Details lesen';
+
+  @override
+  String get calendarShareRead => 'Alle Details lesen';
+
+  @override
+  String get calendarShareWrite => 'Termine bearbeiten';
+
+  @override
+  String get calendarShareWriteWithoutPrivate =>
+      'Ohne private Details bearbeiten';
+
+  @override
+  String get calendarShareOwner => 'Besitzer';
+
+  @override
+  String get eventLabel => 'Terminlabel';
+
+  @override
+  String get loadOutlookCategories => 'Outlook-Kategorien laden';
+
+  @override
+  String get outlookCategoriesUnavailable =>
+      'Outlook-Kategorien sind nicht verfügbar; bestehende Zuordnungen bleiben erhalten.';
+
+  @override
+  String get googleEventType => 'Termintyp';
+
+  @override
+  String get googleRegularEvent => 'Normaler Termin';
+
+  @override
+  String get googleFocusTime => 'Fokuszeit';
+
+  @override
+  String get googleOutOfOffice => 'Abwesend';
+
+  @override
+  String get googleWorkingLocation => 'Arbeitsort';
+
+  @override
+  String get googleDeclineInvitations => 'Überschneidende Einladungen ablehnen';
+
+  @override
+  String get googleDeclineNone => 'Nicht ablehnen';
+
+  @override
+  String get googleDeclineNew => 'Neue Einladungen ablehnen';
+
+  @override
+  String get googleDeclineAll => 'Alle kollidierenden Einladungen ablehnen';
+
+  @override
+  String get googleDeclineMessage => 'Ablehnungsnachricht';
+
+  @override
+  String get googleChatStatus => 'Chatstatus';
+
+  @override
+  String get googleChatAvailable => 'Verfügbar';
+
+  @override
+  String get googleChatDoNotDisturb => 'Nicht stören';
+
+  @override
+  String get googleWorkAtHome => 'Zu Hause';
+
+  @override
+  String get googleWorkAtOffice => 'Im Büro';
+
+  @override
+  String get googleWorkAtCustomLocation => 'Eigener Ort';
+
+  @override
+  String get googleWorkLocationLabel => 'Ortsbezeichnung';
+
+  @override
+  String get googleStatusPrimaryOnly =>
+      'Google-Statusereignisse benötigen Ihren primären Google-Kalender.';
+
+  @override
+  String unknownEventLabel(String id) {
+    return 'Unbekanntes Label ($id)';
+  }
+
+  @override
+  String get calendarOwnerEmail => 'E-Mail-Adresse des Kalenderbesitzers';
 }

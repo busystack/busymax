@@ -544,6 +544,18 @@ class AppLocalizationsRu extends AppLocalizations {
   String get openInProvider => 'Открыть в сервисе';
 
   @override
+  String get linkedResources => 'Связанные ресурсы';
+
+  @override
+  String get noLinkedResources => 'Нет связанных ресурсов';
+
+  @override
+  String get attachments => 'Вложения';
+
+  @override
+  String get attachmentsNotLoaded => 'Вложения не загружены';
+
+  @override
   String get hideFromSchedule => 'Скрыть из расписания';
 
   @override
@@ -2021,6 +2033,10 @@ class AppLocalizationsRu extends AppLocalizations {
   }
 
   @override
+  String get deleteAssignedTaskWarning =>
+      'Это также удалит исходную задачу в Google Документах или пространствах Chat.';
+
+  @override
   String get metadata => 'Метаданные';
 
   @override
@@ -2653,6 +2669,15 @@ class AppLocalizationsRu extends AppLocalizations {
   String get removeAction => 'Удалить';
 
   @override
+  String removeOpenedSharedCalendarConfirmation(String title) {
+    return 'Убрать «$title» из BusyMax? Календарь владельца и его события не будут удалены.';
+  }
+
+  @override
+  String get attachmentUploadUnresolved =>
+      'Загрузка могла завершиться. Обновите список вложений, чтобы проверить результат перед повторной загрузкой.';
+
+  @override
   String removeCalendarConfirmation(String title) {
     return 'Удалить «$title» из вашего списка Google Календаря? Общий календарь и его события удалены не будут.';
   }
@@ -2991,7 +3016,17 @@ class AppLocalizationsRu extends AppLocalizations {
   String get searchDate => 'Дата';
 
   @override
-  String get searchAnyDate => 'Любая дата';
+  String get searchAnyDate => 'Любая дата (загруженные данные)';
+
+  @override
+  String get eventLink => 'Ссылка на событие';
+
+  @override
+  String get eventLinkOpenFailed => 'Не удалось открыть ссылку.';
+
+  @override
+  String get scheduleRangeIncomplete =>
+      'Не удалось проверить некоторые события. Показаны загруженные данные.';
 
   @override
   String get searchThisWeek => 'Эта неделя';
@@ -3028,4 +3063,128 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String get searchClearText => 'Очистить текст';
+
+  @override
+  String get openSharedCalendar => 'Открыть общий календарь';
+
+  @override
+  String get manageCalendarSharing => 'Управление доступом к календарю';
+
+  @override
+  String get shareRecipientEmail => 'Адрес получателя';
+
+  @override
+  String get shareRole => 'Роль доступа';
+
+  @override
+  String get addCalendarShare => 'Добавить доступ';
+
+  @override
+  String get sharingRefreshFailed =>
+      'Доступ изменён, но список разрешений не обновился. Обновите его перед следующим изменением.';
+
+  @override
+  String get sharingRateLimited =>
+      'Общий доступ временно ограничен. Повторите попытку после окончания ожидания.';
+
+  @override
+  String get attachmentUploadRateLimited =>
+      'Загрузка вложений временно ограничена. Повторите попытку после окончания ожидания.';
+
+  @override
+  String get sharingPermissionUnavailable =>
+      'Разрешения на общий доступ к этому календарю недоступны.';
+
+  @override
+  String get calendarShareFreeBusy => 'Только занятость';
+
+  @override
+  String get calendarShareLimitedRead => 'Просмотр ограниченных сведений';
+
+  @override
+  String get calendarShareRead => 'Просмотр всех сведений';
+
+  @override
+  String get calendarShareWrite => 'Изменение событий';
+
+  @override
+  String get calendarShareWriteWithoutPrivate =>
+      'Изменение без личных сведений';
+
+  @override
+  String get calendarShareOwner => 'Владелец';
+
+  @override
+  String get eventLabel => 'Метка события';
+
+  @override
+  String get loadOutlookCategories => 'Загрузить категории Outlook';
+
+  @override
+  String get outlookCategoriesUnavailable =>
+      'Категории Outlook недоступны; существующие назначения сохранены.';
+
+  @override
+  String get googleEventType => 'Тип события';
+
+  @override
+  String get googleRegularEvent => 'Обычное событие';
+
+  @override
+  String get googleFocusTime => 'Время концентрации';
+
+  @override
+  String get googleOutOfOffice => 'Вне офиса';
+
+  @override
+  String get googleWorkingLocation => 'Рабочее место';
+
+  @override
+  String get googleDeclineInvitations => 'Отклонять пересекающиеся приглашения';
+
+  @override
+  String get googleDeclineNone => 'Не отклонять';
+
+  @override
+  String get googleDeclineNew => 'Отклонять новые приглашения';
+
+  @override
+  String get googleDeclineAll => 'Отклонять все пересекающиеся приглашения';
+
+  @override
+  String get googleDeclineMessage => 'Сообщение об отклонении';
+
+  @override
+  String get googleChatStatus => 'Статус чата';
+
+  @override
+  String get googleChatAvailable => 'Доступен';
+
+  @override
+  String get googleChatDoNotDisturb => 'Не беспокоить';
+
+  @override
+  String get googleWorkAtHome => 'Дома';
+
+  @override
+  String get googleWorkAtOffice => 'В офисе';
+
+  @override
+  String get googleWorkAtCustomLocation => 'Другое место';
+
+  @override
+  String get googleWorkLocationLabel => 'Название места';
+
+  @override
+  String get googleStatusPrimaryOnly =>
+      'Для событий статуса Google нужен основной календарь Google.';
+
+  @override
+  String unknownEventLabel(String id) {
+    return 'Неизвестная метка ($id)';
+  }
+
+  @override
+  String get calendarOwnerEmail =>
+      'Адрес электронной почты владельца календаря';
 }

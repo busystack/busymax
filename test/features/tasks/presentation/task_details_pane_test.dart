@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 import 'dart:ui';
 import 'package:busymax/src/l10n/time_format_scope.dart';
@@ -10,6 +11,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+// The file_selector package does not re-export its platform test seam.
+// ignore: depend_on_referenced_packages
+import 'package:file_selector_platform_interface/file_selector_platform_interface.dart';
 import 'package:busymax/src/app/app_bootstrap.dart';
 import 'package:busymax/src/app/busymax_design.dart';
 import 'package:busymax/src/app/busymax_yaru_theme.dart';
@@ -24,6 +28,7 @@ import 'package:busymax/src/features/tasks/presentation/ical_task_fields_editor.
 import 'package:busymax/src/features/tasks/presentation/task_details_draft.dart';
 import 'package:busymax/src/features/tasks/presentation/desktop_date_time_fields.dart';
 import 'package:busymax/src/features/tasks/presentation/task_details_editor.dart';
+import 'package:busymax/src/features/schedule/presentation/attachment_upload_coordinator.dart';
 import 'package:busymax/src/features/tasks/presentation/task_details_pane.dart';
 import 'package:busymax/src/features/maps/domain/geographic_point.dart';
 import 'package:busymax/src/features/maps/domain/location_result.dart';
@@ -37,6 +42,9 @@ import 'package:busymax/src/platform/native_dialog_service.dart';
 import 'package:busymax/src/platform/native_menu_service.dart';
 import 'package:busymax/src/providers/busy_provider.dart';
 import 'package:busymax/src/google_tasks/oauth/oauth_service.dart';
+import 'package:busymax/src/microsoft_todo/api/microsoft_todo_api_client.dart';
+import 'package:http/http.dart' as http;
+import 'package:http/testing.dart';
 import 'package:busymax/src/features/tasks/domain/task_capabilities.dart';
 import 'package:busymax/src/features/tasks/domain/task_checklist_item.dart';
 import 'package:yaru/yaru.dart';
@@ -62,7 +70,593 @@ String _testAuthority(BusyProvider provider) => switch (provider) {
   BusyProvider.webCal => 'https://calendar.example.test',
 };
 
+class _AttachmentTestFileSelector extends FileSelectorPlatform {
+  @override
+  Future<XFile?> openFile({
+    List<XTypeGroup>? acceptedTypeGroups,
+    String? initialDirectory,
+    String? confirmButtonText,
+  }) async => XFile.fromData(
+    Uint8List.fromList(const [1, 2, 3]),
+    path: '/test/agenda.txt',
+    mimeType: 'text/plain',
+  );
+}
+
 void main() {
+  testWidgets('Linux task Add releases after confirmed upload', (tester) async {
+    final previousSelector = FileSelectorPlatform.instance;
+    FileSelectorPlatform.instance = _AttachmentTestFileSelector();
+    addTearDown(() => FileSelectorPlatform.instance = previousSelector);
+
+    final heldRefresh = Completer<http.Response>();
+    var uploads = 0;
+    var held = false;
+    final client = MicrosoftTodoRestApiClient(
+      httpClient: MockClient((request) async {
+        if (request.method == 'GET' &&
+            request.url.path.endsWith('/attachments')) {
+          if (uploads == 1 && !held) {
+            held = true;
+            return heldRefresh.future;
+          }
+          return http.Response(jsonEncode({'value': []}), 200);
+        }
+        if (request.method == 'POST' &&
+            request.url.path.endsWith('/attachments')) {
+          uploads++;
+          return http.Response(
+            jsonEncode({
+              'id': 'task-attachment-a',
+              'name': 'agenda.txt',
+              'size': 3,
+              '@odata.type': '#microsoft.graph.taskFileAttachment',
+            }),
+            201,
+          );
+        }
+        return http.Response('{}', 404);
+      }),
+      baseUri: Uri.parse('https://graph.microsoft.com/v1.0'),
+      authorizationHeaderProvider: () async => 'Bearer token',
+    );
+    final coordinator = AttachmentUploadCoordinator();
+    final key = AttachmentUploadCoordinator.taskKey(
+      'microsoft:m',
+      'list-1',
+      'task-1',
+    );
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          attachmentUploadCoordinatorProvider.overrideWith(
+            (ref) => coordinator,
+          ),
+          microsoftTodoApiClientForAccountProvider(
+            'microsoft:m',
+          ).overrideWithValue(client),
+        ],
+        child: localizedTestApp(
+          child: Scaffold(
+            body: TaskDetailsEditor(
+              task: _switchTask('task-1', 'Task'),
+              provider: BusyProvider.microsoft,
+              taskLists: const [
+                TaskListEntity(
+                  accountId: 'microsoft:m',
+                  id: 'list-1',
+                  title: 'Tasks',
+                  localDirty: false,
+                  pendingDelete: false,
+                  rawJson: '{}',
+                ),
+              ],
+              capabilities: microsoftTaskCollectionCapabilities,
+              localTimeZone: 'UTC',
+              accountLabel: 'Account',
+              onRefresh: () {},
+              onSave: (_, _) async {},
+              onCreateSubtask: (_) async {},
+              onMoveToTop: () {},
+              onDelete: () async {},
+              onCancel: () {},
+            ),
+          ),
+        ),
+      ),
+    );
+    for (var i = 0; i < 4; i++) {
+      await tester.pump();
+    }
+    final add = find.widgetWithText(FilledButton, 'Attachments').last;
+    await tester.ensureVisible(add);
+    await tester.tap(add);
+    for (var i = 0; i < 30 && !held; i++) {
+      await tester.pump(const Duration(milliseconds: 1));
+    }
+    try {
+      expect(held, isTrue);
+      expect(coordinator.status(key), AttachmentUploadStatus.committed);
+      for (var i = 0; i < 3; i++) {
+        await tester.pump();
+      }
+      expect(tester.widget<FilledButton>(add).onPressed, isNot(equals(null)));
+      expect(uploads, 1);
+    } finally {
+      heldRefresh.complete(http.Response(jsonEncode({'value': []}), 200));
+      await tester.pump();
+    }
+  });
+
+  testWidgets(
+    'Linux task detail permits another upload after confirmed refresh failure',
+    (tester) async {
+      var posts = 0;
+      var gets = 0;
+      final client = MicrosoftTodoRestApiClient(
+        httpClient: MockClient((request) async {
+          if (request.method == 'GET') {
+            gets++;
+            if (gets.isEven) {
+              throw http.ClientException('attachment list unavailable');
+            }
+            return http.Response(jsonEncode({'value': []}), 200);
+          }
+          posts++;
+          return http.Response(
+            jsonEncode({
+              'id': 'attachment-a',
+              'name': 'a.txt',
+              'size': 1,
+              '@odata.type': '#microsoft.graph.taskFileAttachment',
+            }),
+            201,
+          );
+        }),
+        baseUri: Uri.parse('https://graph.microsoft.com/v1.0'),
+        authorizationHeaderProvider: () async => 'Bearer token',
+      );
+      final coordinator = AttachmentUploadCoordinator();
+      final key = AttachmentUploadCoordinator.taskKey(
+        'microsoft:m',
+        'list-1',
+        'task-1',
+      );
+      await coordinator.uploadTask(
+        client: client,
+        accountId: 'microsoft:m',
+        taskListId: 'list-1',
+        taskId: 'task-1',
+        name: 'a.txt',
+        contentType: 'text/plain',
+        bytes: const [1],
+      );
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            attachmentUploadCoordinatorProvider.overrideWith(
+              (ref) => coordinator,
+            ),
+            microsoftTodoApiClientForAccountProvider(
+              'microsoft:m',
+            ).overrideWithValue(client),
+          ],
+          child: localizedTestApp(
+            child: Scaffold(
+              body: TaskDetailsEditor(
+                task: _switchTask('task-1', 'Task'),
+                provider: BusyProvider.microsoft,
+                taskLists: const [
+                  TaskListEntity(
+                    accountId: 'microsoft:m',
+                    id: 'list-1',
+                    title: 'Tasks',
+                    localDirty: false,
+                    pendingDelete: false,
+                    rawJson: '{}',
+                  ),
+                ],
+                capabilities: microsoftTaskCollectionCapabilities,
+                localTimeZone: 'UTC',
+                accountLabel: 'Account',
+                onRefresh: () {},
+                onSave: (_, _) async {},
+                onCreateSubtask: (_) async {},
+                onMoveToTop: () {},
+                onDelete: () async {},
+                onCancel: () {},
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      final attachmentButtons = tester
+          .widgetList<FilledButton>(
+            find.widgetWithText(FilledButton, 'Attachments'),
+          )
+          .toList();
+      expect(attachmentButtons, hasLength(2));
+      expect(
+        attachmentButtons.every((button) => button.onPressed != null),
+        isTrue,
+      );
+      expect(coordinator.canSubmit(key), isTrue);
+      await coordinator.uploadTask(
+        client: client,
+        accountId: 'microsoft:m',
+        taskListId: 'list-1',
+        taskId: 'task-1',
+        name: 'b.txt',
+        contentType: 'text/plain',
+        bytes: const [2],
+      );
+      expect(posts, 2);
+    },
+  );
+
+  testWidgets(
+    'R3 Linux task attachment Add waits for direct-upload retry eligibility',
+    (tester) async {
+      final previousSelector = FileSelectorPlatform.instance;
+      FileSelectorPlatform.instance = _AttachmentTestFileSelector();
+      addTearDown(() => FileSelectorPlatform.instance = previousSelector);
+      var now = DateTime.utc(2026, 10, 1);
+      var posts = 0;
+      final client = MicrosoftTodoRestApiClient(
+        httpClient: MockClient((request) async {
+          if (request.method == 'GET') {
+            return http.Response(jsonEncode({'value': []}), 200);
+          }
+          posts++;
+          if (posts == 1) {
+            return http.Response(
+              jsonEncode({
+                'error': {'code': 'TooManyRequests', 'message': 'Throttled'},
+              }),
+              429,
+              headers: {'retry-after': '30'},
+            );
+          }
+          return http.Response(
+            jsonEncode({
+              'id': 'task-attachment-a',
+              'name': 'agenda.txt',
+              'size': 3,
+              '@odata.type': '#microsoft.graph.taskFileAttachment',
+            }),
+            201,
+          );
+        }),
+        baseUri: Uri.parse('https://graph.microsoft.com/v1.0'),
+        authorizationHeaderProvider: () async => 'Bearer token',
+      );
+      final coordinator = AttachmentUploadCoordinator(now: () => now);
+      final key = AttachmentUploadCoordinator.taskKey(
+        'microsoft:m',
+        'list-1',
+        'task-1',
+      );
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            attachmentUploadCoordinatorProvider.overrideWith(
+              (ref) => coordinator,
+            ),
+            microsoftTodoApiClientForAccountProvider(
+              'microsoft:m',
+            ).overrideWithValue(client),
+          ],
+          child: localizedTestApp(
+            child: Scaffold(
+              body: TaskDetailsEditor(
+                task: _switchTask('task-1', 'Task'),
+                provider: BusyProvider.microsoft,
+                taskLists: const [
+                  TaskListEntity(
+                    accountId: 'microsoft:m',
+                    id: 'list-1',
+                    title: 'Tasks',
+                    localDirty: false,
+                    pendingDelete: false,
+                    rawJson: '{}',
+                  ),
+                ],
+                capabilities: microsoftTaskCollectionCapabilities,
+                localTimeZone: 'UTC',
+                accountLabel: 'Account',
+                onRefresh: () {},
+                onSave: (_, _) async {},
+                onCreateSubtask: (_) async {},
+                onMoveToTop: () {},
+                onDelete: () async {},
+                onCancel: () {},
+              ),
+            ),
+          ),
+        ),
+      );
+      for (var i = 0; i < 4; i++) {
+        await tester.pump();
+      }
+      final add = find.widgetWithText(FilledButton, 'Attachments').last;
+      await tester.ensureVisible(add);
+      await tester.tap(add);
+      for (var i = 0; i < 20 && posts == 0; i++) {
+        await tester.pump(const Duration(milliseconds: 1));
+      }
+      for (var i = 0; i < 3; i++) {
+        await tester.pump();
+      }
+      expect(posts, 1);
+      expect(coordinator.needsReconciliation(key), isFalse);
+      expect(tester.widget<FilledButton>(add).onPressed, equals(null));
+      expect(
+        find.text(
+          'Attachment upload is temporarily rate-limited. Try again when the wait ends.',
+        ),
+        findsOneWidget,
+      );
+      now = now.add(const Duration(seconds: 31));
+      await tester.pump(const Duration(seconds: 31));
+      expect(tester.widget<FilledButton>(add).onPressed, isNot(equals(null)));
+      await tester.tap(add);
+      for (var i = 0; i < 20 && posts < 2; i++) {
+        await tester.pump(const Duration(milliseconds: 1));
+      }
+      expect(posts, 2);
+    },
+  );
+
+  testWidgets(
+    'Linux task detail retains an uncertain upload until explicit review',
+    (tester) async {
+      var posts = 0;
+      final client = MicrosoftTodoRestApiClient(
+        httpClient: MockClient((request) async {
+          if (request.method == 'GET') {
+            return http.Response(jsonEncode({'value': []}), 200);
+          }
+          posts++;
+          throw http.ClientException('direct response lost');
+        }),
+        baseUri: Uri.parse('https://graph.microsoft.com/v1.0'),
+        authorizationHeaderProvider: () async => 'Bearer token',
+      );
+      final coordinator = AttachmentUploadCoordinator();
+      final key = AttachmentUploadCoordinator.taskKey(
+        'microsoft:m',
+        'list-1',
+        'task-1',
+      );
+      await expectLater(
+        coordinator.uploadTask(
+          client: client,
+          accountId: 'microsoft:m',
+          taskListId: 'list-1',
+          taskId: 'task-1',
+          name: 'notes.txt',
+          contentType: 'text/plain',
+          bytes: [1],
+        ),
+        throwsA(isA<AttachmentUploadUnresolvedException>()),
+      );
+      expect(
+        await coordinator.reconcileTask(
+          client: client,
+          accountId: 'microsoft:m',
+          taskListId: 'list-1',
+          taskId: 'task-1',
+        ),
+        AttachmentUploadStatus.unresolved,
+      );
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            attachmentUploadCoordinatorProvider.overrideWith(
+              (ref) => coordinator,
+            ),
+            microsoftTodoApiClientForAccountProvider(
+              'microsoft:m',
+            ).overrideWithValue(client),
+          ],
+          child: localizedTestApp(
+            child: Scaffold(
+              body: TaskDetailsEditor(
+                task: _switchTask('task-1', 'Task'),
+                provider: BusyProvider.microsoft,
+                taskLists: [
+                  TaskListEntity(
+                    accountId: 'microsoft:m',
+                    id: 'list-1',
+                    title: 'Tasks',
+                    localDirty: false,
+                    pendingDelete: false,
+                    rawJson: '{}',
+                  ),
+                ],
+                capabilities: microsoftTaskCollectionCapabilities,
+                localTimeZone: 'UTC',
+                accountLabel: 'Account',
+                onRefresh: () {},
+                onSave: (_, _) async {},
+                onCreateSubtask: (_) async {},
+                onMoveToTop: () {},
+                onDelete: () async {},
+                onCancel: () {},
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(coordinator.canSubmit(key), isFalse);
+      final retry = find.text('Retry');
+      await tester.ensureVisible(retry);
+      await tester.tap(retry);
+      await tester.pumpAndSettle();
+      expect(coordinator.canSubmit(key), isFalse);
+      await tester.tap(find.text('Retry').last);
+      await tester.pumpAndSettle();
+      expect(coordinator.canSubmit(key), isTrue);
+      expect(posts, 1);
+    },
+  );
+  testWidgets('Linux Microsoft task opens linked resources on demand', (
+    tester,
+  ) async {
+    var requests = 0;
+    final client = MicrosoftTodoRestApiClient(
+      httpClient: MockClient((request) async {
+        requests++;
+        if (request.url.path.endsWith('/attachments')) {
+          return http.Response(
+            jsonEncode({
+              'value': [
+                {
+                  'id': 'attachment-1',
+                  'name': 'Notes.txt',
+                  'size': 12,
+                  '@odata.type': '#microsoft.graph.taskFileAttachment',
+                },
+              ],
+            }),
+            200,
+          );
+        }
+        expect(
+          request.url.path,
+          '/v1.0/me/todo/lists/list-1/tasks/task-1/linkedResources',
+        );
+        return http.Response(
+          jsonEncode({
+            'value': [
+              {
+                'id': 'resource-1',
+                'applicationName': 'Planner',
+                'displayName': 'Launch plan',
+                'webUrl': 'https://example.test/plan',
+              },
+            ],
+          }),
+          200,
+        );
+      }),
+      baseUri: Uri.parse('https://graph.microsoft.com/v1.0'),
+      authorizationHeaderProvider: () async => 'Bearer token',
+    );
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          microsoftTodoApiClientForAccountProvider(
+            'microsoft:m',
+          ).overrideWithValue(client),
+        ],
+        child: localizedTestApp(
+          child: Scaffold(
+            body: TaskDetailsEditor(
+              task: _switchTask('task-1', 'Task'),
+              provider: BusyProvider.microsoft,
+              taskLists: [
+                TaskListEntity(
+                  accountId: 'microsoft:m',
+                  id: 'list-1',
+                  title: 'Tasks',
+                  localDirty: false,
+                  pendingDelete: false,
+                  rawJson: '{}',
+                ),
+              ],
+              capabilities: microsoftTaskCollectionCapabilities,
+              localTimeZone: 'UTC',
+              accountLabel: 'Account',
+              onRefresh: () {},
+              onSave: (_, _) async {},
+              onCreateSubtask: (_) async {},
+              onMoveToTop: () {},
+              onDelete: () async {},
+              onCancel: () {},
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(requests, 0);
+    await tester.tap(find.text('Linked resources'));
+    await tester.pumpAndSettle();
+    expect(requests, 1);
+    expect(find.text('Launch plan · Planner'), findsOneWidget);
+    await tester.tap(find.byKey(const Key('task-attachments-load')));
+    await tester.pumpAndSettle();
+    expect(requests, 2);
+    expect(find.text('Notes.txt'), findsOneWidget);
+    expect(find.text('Task'), findsWidgets);
+  });
+
+  testWidgets(
+    'Docs-assigned task disables notes and child creation and warns before delete',
+    (tester) async {
+      var deleted = false;
+      await tester.pumpWidget(
+        localizedTestApp(
+          child: Scaffold(
+            body: TaskDetailsEditor(
+              task: _switchTask(
+                'assigned',
+                'Assigned task',
+                assignmentInfoJson:
+                    '{"surfaceType":"DOCUMENT","linkToTask":"https://docs.google.com/document/d/example"}',
+              ),
+              taskLists: [
+                TaskListEntity(
+                  accountId: 'microsoft:m',
+                  id: 'list-1',
+                  title: 'Tasks',
+                  localDirty: false,
+                  pendingDelete: false,
+                  rawJson: '{}',
+                ),
+              ],
+              capabilities: googleTaskCollectionCapabilities,
+              localTimeZone: 'UTC',
+              accountLabel: 'Account',
+              onRefresh: () {},
+              onSave: (_, _) async {},
+              onCreateSubtask: (_) async {},
+              onMoveToTop: () {},
+              onDelete: () async => deleted = true,
+              onCancel: () {},
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(
+        tester
+            .widget<TextField>(find.widgetWithText(TextField, 'Notes'))
+            .enabled,
+        isFalse,
+      );
+      final create = tester.widget<BusyMaxActionRow>(
+        find.byKey(const ValueKey('create-subtask-action')),
+      );
+      expect(create.enabled, isFalse);
+      expect(find.text('Open in provider'), findsOneWidget);
+
+      _focusEditorShortcuts(tester);
+      await tester.sendKeyEvent(LogicalKeyboardKey.delete);
+      await tester.pumpAndSettle();
+      expect(
+        find.textContaining('original task in Google Docs'),
+        findsOneWidget,
+      );
+      await tester.tap(find.text('Cancel').last);
+      await tester.pumpAndSettle();
+      expect(deleted, isFalse);
+    },
+  );
+
   testWidgets('new task opens with the title field focused', (tester) async {
     await tester.pumpWidget(
       localizedTestApp(
@@ -2557,7 +3151,11 @@ class _FakeTasksRepository implements TasksRepository {
   }
 
   @override
-  Future<void> deleteTask(String taskListId, String taskId) async {
+  Future<void> deleteTask(
+    String taskListId,
+    String taskId, {
+    bool confirmedAssignedSourceDeletion = false,
+  }) async {
     deleteCalls += 1;
   }
 
@@ -2653,7 +3251,7 @@ class _SwitchingTasksRepository implements TasksRepository {
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 
-TaskEntity _switchTask(String id, String title) {
+TaskEntity _switchTask(String id, String title, {String? assignmentInfoJson}) {
   return TaskEntity(
     accountId: 'microsoft:m',
     taskListId: 'list-1',
@@ -2665,6 +3263,7 @@ TaskEntity _switchTask(String id, String title) {
     rawJson: '{}',
     updatedLocalAtUtc: '2026-06-04T00:00:00.000Z',
     status: 'needsAction',
+    assignmentInfoJson: assignmentInfoJson,
   );
 }
 

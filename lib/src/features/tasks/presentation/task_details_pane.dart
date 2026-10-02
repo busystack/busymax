@@ -395,6 +395,7 @@ class _TaskDetailsPaneState extends ConsumerState<TaskDetailsPane> {
   }) {
     return TaskDetailsEditor(
       task: task,
+      provider: account.provider,
       taskLists: taskLists,
       capabilities: capabilities,
       localTimeZone: localTimeZone,
@@ -418,7 +419,11 @@ class _TaskDetailsPaneState extends ConsumerState<TaskDetailsPane> {
       onDuplicate: () => _duplicateTask(repository, task),
       onExport: () => _exportTask(repository, task),
       onDelete: () async {
-        await repository.deleteTask(task.taskListId, task.id);
+        await repository.deleteTask(
+          task.taskListId,
+          task.id,
+          confirmedAssignedSourceDeletion: task.googleAssignment.isAssigned,
+        );
         await widget.onTaskMutationCommitted?.call(
           TaskMutationResult(
             kind: TaskMutationKind.deleted,

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'package:busymax/src/schedule/schedule_search_match.dart';
 import 'package:busymax/src/schedule/schedule_search_criteria.dart';
@@ -462,13 +463,22 @@ void main() {
       addTearDown(db.close);
       await _seedSearchDatabase(db);
       var calls = 0;
+      var cloudCalls = 0;
       final repo = ScheduleRepository(
         db,
+        ensureCloudCoverage: (_, filters) async {
+          cloudCalls++;
+          expect(filters.sourceIds, isEmpty);
+          return false;
+        },
         ensureProjectionCoverage: (_) async {
           calls++;
         },
       );
       final range = ScheduleRange.day(DateTime(2026, 1, 1));
+      final coverageFinished = repo.watchChanges().firstWhere(
+        (_) => repo.cloudCoverageCompleteFor(range) == false,
+      );
       expect(
         await repo.listItems(
           range: range,
@@ -476,7 +486,10 @@ void main() {
         ),
         isEmpty,
       );
+      await coverageFinished;
       expect(calls, 1);
+      expect(cloudCalls, 1);
+      expect(repo.cloudCoverageCompleteFor(range), isFalse);
       expect(
         await repo.listItems(
           range: range,
@@ -488,6 +501,7 @@ void main() {
         hasLength(1),
       );
       expect(calls, 1);
+      expect(cloudCalls, 1);
       expect(
         await repo.listItems(
           range: ScheduleRange.day(DateTime(2026, 2, 15)),
@@ -498,6 +512,93 @@ void main() {
         ),
         hasLength(1),
       );
+    },
+  );
+  test('range completion is keyed to requested search sources', () async {
+    final db = AppDatabase.memoryForTests();
+    addTearDown(db.close);
+    ScheduleFilters? requested;
+    final repo = ScheduleRepository(
+      db,
+      ensureCloudCoverage: (_, filters) async {
+        requested = filters;
+        return true;
+      },
+    );
+    final range = ScheduleRange.day(DateTime(2020, 1, 10));
+    const filters = ScheduleFilters(
+      accountIds: {'account-a'},
+      sourceIds: {'unselected-source'},
+      sourceFilterActive: true,
+    );
+    final coverageFinished = repo.watchChanges().firstWhere(
+      (_) => repo.cloudCoverageCompleteFor(range, filters: filters) == true,
+    );
+    await repo.listItems(range: range, filters: filters);
+    await coverageFinished;
+    expect(requested?.accountIds, {'account-a'});
+    expect(requested?.sourceIds, {'unselected-source'});
+    expect(repo.cloudCoverageCompleteFor(range, filters: filters), isTrue);
+    expect(
+      repo.cloudCoverageCompleteFor(
+        range,
+        filters: const ScheduleFilters(
+          accountIds: {'account-b'},
+          sourceIds: {'another-source'},
+          sourceFilterActive: true,
+        ),
+      ),
+      isNull,
+    );
+  });
+  test('cached items return while scoped cloud coverage is loading', () async {
+    final db = AppDatabase.memoryForTests();
+    addTearDown(db.close);
+    await _seedSearchDatabase(db);
+    final release = Completer<bool>();
+    final repo = ScheduleRepository(
+      db,
+      ensureCloudCoverage: (_, _) => release.future,
+    );
+    final range = ScheduleRange.day(DateTime(2026, 2, 15));
+    final cached = await repo
+        .listItems(range: range)
+        .timeout(const Duration(milliseconds: 100));
+    expect(cached.map((item) => item.title), ['Future budget review']);
+    expect(repo.cloudCoverageCompleteFor(range), isNull);
+    final finished = repo.watchChanges().firstWhere(
+      (_) => repo.cloudCoverageCompleteFor(range) == true,
+    );
+    release.complete(true);
+    await finished;
+    expect(repo.cloudCoverageCompleteFor(range), isTrue);
+  });
+  test(
+    'failed cloud coverage retries on reconnect without a five-minute wait',
+    () async {
+      final db = AppDatabase.memoryForTests();
+      addTearDown(db.close);
+      var calls = 0;
+      var now = DateTime.utc(2026, 6, 12);
+      final repo = ScheduleRepository(
+        db,
+        ensureCloudCoverage: (_, _) async => ++calls > 1,
+        nowUtc: () => now,
+      );
+      final range = ScheduleRange.day(DateTime(2020, 1, 10));
+      final first = repo.watchChanges().firstWhere(
+        (_) => repo.cloudCoverageCompleteFor(range) == false,
+      );
+      await repo.listItems(range: range);
+      await first;
+      expect(calls, 1);
+      now = now.add(const Duration(seconds: 11));
+      final second = repo.watchChanges().firstWhere(
+        (_) => repo.cloudCoverageCompleteFor(range) == true,
+      );
+      await repo.listItems(range: range);
+      await second.timeout(const Duration(seconds: 1));
+      expect(calls, 2);
     },
   );
   test(
@@ -1272,6 +1373,52 @@ void main() {
     expect(task.allDay, isFalse);
     expect(dueDayItems, isEmpty);
   });
+
+  test(
+    'Google task projection retains supplied source and task-page links',
+    () async {
+      final database = AppDatabase(NativeDatabase.memory());
+      addTearDown(database.close);
+      await _insertScheduleAccount(database, provider: BusyProvider.google);
+      await _insertTaskList(database);
+      await database
+          .into(database.tasks)
+          .insert(
+            TasksCompanion.insert(
+              accountId: 'account',
+              taskListId: 'inbox',
+              id: 'assigned-task',
+              title: 'Review document',
+              status: const Value('needsAction'),
+              dueUtc: const Value('2026-06-12T00:00:00Z'),
+              assignmentInfoJson: const Value(
+                '{"surfaceType":"DOCUMENT","linkToTask":"https://docs.google.com/document/d/example"}',
+              ),
+              linksJson: const Value(
+                '[{"description":"Related brief","link":"https://example.test/brief"}]',
+              ),
+              webViewLink: const Value('https://tasks.google.com/task/example'),
+              rawJson: '{}',
+              createdLocalAtUtc: _now,
+              updatedLocalAtUtc: _now,
+            ),
+          );
+      final items = await ScheduleRepository(database).listItems(
+        range: ScheduleRange.day(DateTime(2026, 6, 12)),
+        filters: const ScheduleFilters(
+          accountIds: {'account'},
+          includeCalendarEvents: false,
+        ),
+      );
+      final task = items.single as TaskScheduleItem;
+      expect(task.isAssigned, isTrue);
+      expect(task.availableSourceLinks.map((link) => link.url), [
+        'https://docs.google.com/document/d/example',
+        'https://example.test/brief',
+        'https://tasks.google.com/task/example',
+      ]);
+    },
+  );
 
   test('Microsoft task with midnight due appears as timed slot', () async {
     final database = AppDatabase(NativeDatabase.memory());

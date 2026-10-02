@@ -1,5 +1,24 @@
 import '../providers/busy_provider.dart';
 
+const microsoftPersonalTenantId = '9188040d-6c67-4c5b-b112-36a304b66dad';
+
+enum MicrosoftAvailabilityAccountType { workSchool, personal, unknown }
+
+MicrosoftAvailabilityAccountType microsoftAvailabilityAccountType(
+  String? tenantId,
+) {
+  final normalized = tenantId?.trim().toLowerCase();
+  if (normalized == null ||
+      !RegExp(
+        r'^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$',
+      ).hasMatch(normalized)) {
+    return MicrosoftAvailabilityAccountType.unknown;
+  }
+  return normalized == microsoftPersonalTenantId
+      ? MicrosoftAvailabilityAccountType.personal
+      : MicrosoftAvailabilityAccountType.workSchool;
+}
+
 class CalendarProviderCapabilities {
   const CalendarProviderCapabilities({
     required this.supportsCreateCalendar,

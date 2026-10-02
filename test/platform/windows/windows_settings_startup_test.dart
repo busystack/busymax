@@ -3,16 +3,87 @@ import 'dart:ui' show ViewFocusEvent, ViewFocusState, ViewFocusDirection;
 
 import 'package:busymax/l10n/generated/app_localizations.dart';
 import 'package:busymax/src/app/app_bootstrap.dart';
+import 'package:busymax/src/features/accounts/data/accounts_repository.dart';
+import 'package:busymax/src/features/calendar/data/calendar_repository.dart';
+import 'package:busymax/src/google_calendar/google_calendar_api_client.dart';
+import 'package:busymax/src/providers/busy_provider.dart';
 import 'package:busymax/src/platform/common/desktop_services.dart';
 import 'package:busymax/src/ui/windows/windows_settings_page.dart';
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:http/http.dart' as http;
+import 'package:http/testing.dart';
 
 import '../../support/fake_autostart_service.dart';
 import '../../support/memory_settings_store.dart';
 
 void main() {
+  testWidgets('Windows settings opens owner sharing management', (
+    tester,
+  ) async {
+    var permissionReads = 0;
+    final client = GoogleCalendarApiClient(
+      httpClient: MockClient((request) async {
+        if (request.url.path.endsWith('/acl')) {
+          permissionReads++;
+          return http.Response('{"items":[]}', 200);
+        }
+        return http.Response('unexpected request', 404);
+      }),
+      baseUri: Uri.parse('https://www.googleapis.com'),
+    );
+    final container = _container(
+      FakeAutostartService(),
+      accounts: const [
+        AccountEntity(
+          id: 'google:g',
+          provider: BusyProvider.google,
+          authority: 'https://accounts.google.com',
+          providerAccountId: 'g',
+          displayName: 'Owner account',
+          email: 'owner@example.com',
+          authState: 'signed_in',
+        ),
+      ],
+      sources: const [
+        CalendarSourceEntity(
+          id: 'owned',
+          accountId: 'google:g',
+          provider: BusyProvider.google,
+          providerCalendarId: 'owned@example.com',
+          summary: 'Owned calendar',
+          selected: true,
+          hidden: false,
+          readOnly: false,
+          isDeleted: false,
+          accessRole: 'owner',
+        ),
+      ],
+      googleSharingClient: client,
+    );
+    addTearDown(container.dispose);
+    await _pumpSettings(tester, container);
+    await tester.scrollUntilVisible(
+      find.text('Owner account'),
+      240,
+      scrollable: find.byType(Scrollable).first,
+    );
+    final accountRow = find.ancestor(
+      of: find.text('Owner account'),
+      matching: find.byType(ListTile),
+    );
+    await tester.ensureVisible(accountRow);
+    await tester.tap(
+      find.descendant(of: accountRow, matching: find.byType(DropDownButton)),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Manage calendar sharing').last);
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('windows-sharing-recipient')), findsOneWidget);
+    expect(permissionReads, 1);
+  });
+
   testWidgets('Windows Settings reports unsaved preferences and retries', (
     tester,
   ) async {
@@ -167,6 +238,9 @@ final _switch = find.byKey(const ValueKey('launch-at-login-switch'));
 ProviderContainer _container(
   FakeAutostartService service, {
   LocalSettingsStore? settingsStore,
+  List<AccountEntity> accounts = const [],
+  List<CalendarSourceEntity> sources = const [],
+  GoogleCalendarApiClient? googleSharingClient,
 }) => ProviderContainer(
   overrides: [
     desktopAutostartServiceProvider.overrideWithValue(service),
@@ -174,9 +248,13 @@ ProviderContainer _container(
       settingsStore ?? MemorySettingsStore(),
     ),
     accountManagementStreamProvider.overrideWith(
-      (ref) => Stream.value(const []),
+      (ref) => Stream.value(accounts),
     ),
-    calendarSourcesStreamProvider.overrideWith((ref) => Stream.value(const [])),
+    calendarSourcesStreamProvider.overrideWith((ref) => Stream.value(sources)),
+    if (googleSharingClient != null)
+      googleCalendarApiClientForAccountProvider.overrideWith(
+        (ref, accountId) => googleSharingClient,
+      ),
     webCalSubscriptionsProvider.overrideWith((ref) => Stream.value(const [])),
   ],
 );

@@ -13,6 +13,8 @@ import '../../../l10n/generated/app_localizations.dart';
 import '../../app/app_bootstrap.dart';
 import '../../features/accounts/data/accounts_repository.dart';
 import '../../features/calendar/data/calendar_repository.dart';
+import '../../features/calendar/data/cloud_calendar_sharing_service.dart';
+import '../../features/calendar/data/microsoft_shared_calendar_service.dart';
 import '../../features/notifications/desktop_notification_backend.dart';
 import '../../features/sync/sync_auth_error.dart';
 import '../../features/settings/presentation/launch_at_login_refresh.dart';
@@ -25,6 +27,7 @@ import '../common/busymax_glyph.dart';
 import 'windows_account_removal_dialog.dart';
 import 'windows_busymax_glyphs.dart';
 import 'windows_calendar_activation_flows.dart';
+import 'windows_cloud_calendar_sharing_dialog.dart';
 import 'windows_diagnostics_dialog.dart';
 import 'windows_feedback_dialog.dart';
 import 'windows_keyboard_shortcuts_dialog.dart';
@@ -453,6 +456,46 @@ class _WindowsSettingsPageState extends ConsumerState<WindowsSettingsPage> {
                               accountId: values[index].id,
                             ),
                           ),
+                        if (values[index].provider == BusyProvider.microsoft &&
+                            values[index].isSignedIn)
+                          MenuFlyoutItem(
+                            text: Text(l10n.openSharedCalendar),
+                            onPressed: () => unawaited(
+                              _openWindowsSharedCalendar(
+                                context,
+                                ref,
+                                values[index].id,
+                              ),
+                            ),
+                          ),
+                        if (values[index].isSignedIn &&
+                            (calendarSources.valueOrNull ??
+                                    const <CalendarSourceEntity>[])
+                                .any(
+                                  (source) =>
+                                      source.accountId == values[index].id &&
+                                      CloudCalendarSharingService.canManageSource(
+                                        source,
+                                      ),
+                                ))
+                          MenuFlyoutItem(
+                            text: Text(l10n.manageCalendarSharing),
+                            onPressed: () => unawaited(
+                              showWindowsCloudCalendarSharingDialog(
+                                context,
+                                sources: [
+                                  for (final source
+                                      in calendarSources.valueOrNull ??
+                                          const <CalendarSourceEntity>[])
+                                    if (source.accountId == values[index].id &&
+                                        CloudCalendarSharingService.canManageSource(
+                                          source,
+                                        ))
+                                      source,
+                                ],
+                              ),
+                            ),
+                          ),
                         MenuFlyoutItem(
                           leading: Icon(
                             windowsBusyMaxGlyph(BusyMaxGlyph.delete),
@@ -794,7 +837,7 @@ class _WindowsCalendarSettingsColumnLabel extends StatelessWidget {
   }
 }
 
-class _WindowsCalendarSettingsRow extends StatelessWidget {
+class _WindowsCalendarSettingsRow extends ConsumerWidget {
   const _WindowsCalendarSettingsRow({
     super.key,
     required this.source,
@@ -810,7 +853,7 @@ class _WindowsCalendarSettingsRow extends StatelessWidget {
   onProviderVisibilityChanged;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context);
     final canChangeProviderVisibility =
         source.capabilities.canChangeProviderVisibility;
@@ -847,6 +890,50 @@ class _WindowsCalendarSettingsRow extends StatelessWidget {
                     : null,
                 semanticLabel: l10n.visibility,
               ),
+            ),
+          if (source.provider == BusyProvider.microsoft &&
+              source.capabilities.removalMode ==
+                  CalendarRemovalMode.removeFromList)
+            IconButton(
+              key: ValueKey('settings-calendar-remove-${source.id}'),
+              icon: Icon(windowsBusyMaxGlyph(BusyMaxGlyph.delete)),
+              onPressed: () async {
+                final confirmed = await showDialog<bool>(
+                  context: context,
+                  barrierDismissible: false,
+                  builder: (dialogContext) => ContentDialog(
+                    title: Text(l10n.removeFromMyCalendars),
+                    content: Text(
+                      l10n.removeOpenedSharedCalendarConfirmation(
+                        source.summary,
+                      ),
+                    ),
+                    actions: [
+                      Button(
+                        onPressed: () => Navigator.pop(dialogContext, false),
+                        child: Text(l10n.cancel),
+                      ),
+                      FilledButton(
+                        onPressed: () => Navigator.pop(dialogContext, true),
+                        child: Text(l10n.removeAction),
+                      ),
+                    ],
+                  ),
+                );
+                if (confirmed != true || !context.mounted) return;
+                try {
+                  await ref
+                      .read(calendarRepositoryProvider)
+                      .deleteLocalSource(source.id);
+                } on Object catch (error) {
+                  if (context.mounted) {
+                    await _showWindowsMessage(
+                      context,
+                      l10n.calendarUpdateFailed('$error'),
+                    );
+                  }
+                }
+              },
             ),
         ],
       ),
@@ -1103,6 +1190,58 @@ Future<void> _runWindowsSubscriptionOperation(
         l10n.subscriptionOperationFailed(l10n.operationFailed),
       );
     }
+  }
+}
+
+Future<void> _openWindowsSharedCalendar(
+  BuildContext context,
+  WidgetRef ref,
+  String accountId,
+) async {
+  final l10n = AppLocalizations.of(context);
+  final owner = await _showWindowsTextPrompt(
+    context,
+    title: l10n.openSharedCalendar,
+    label: l10n.calendarOwnerEmail,
+    initialValue: '',
+    actionLabel: l10n.openSharedCalendar,
+  );
+  if (!context.mounted || owner == null || owner.trim().isEmpty) return;
+  try {
+    final result = await ref
+        .read(microsoftSharedCalendarServiceProvider)
+        .openPrimaryCalendar(accountId: accountId, owner: owner);
+    if (context.mounted &&
+        result.outcome == MicrosoftSharedCalendarOpenOutcome.rangeUnavailable) {
+      await showDialog<void>(
+        context: context,
+        builder: (dialogContext) => ContentDialog(
+          title: Text(l10n.openSharedCalendar),
+          content: Text(l10n.scheduleRangeIncomplete),
+          actions: [
+            Button(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: Text(l10n.close),
+            ),
+          ],
+        ),
+      );
+    }
+  } on Object catch (error) {
+    if (!context.mounted) return;
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) => ContentDialog(
+        title: Text(l10n.operationFailed),
+        content: SelectableText('$error'),
+        actions: [
+          Button(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: Text(l10n.close),
+          ),
+        ],
+      ),
+    );
   }
 }
 

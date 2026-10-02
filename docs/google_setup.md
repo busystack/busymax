@@ -27,6 +27,11 @@ the console as `https://www.googleapis.com/auth/userinfo.email` and
 provide the account identity and display label; the Tasks and Calendar scopes
 authorize provider data access.
 
+Calendar-owner accounts can manage individual user ACL grants from BusyMax
+settings using the existing Calendar read/write scope. This does not grant
+domain administration, public publishing, or ownership transfer. The server's
+actual owner access role and ACL response determine available actions.
+
 Google documents the current console areas in
 [Get started with Google Auth Platform](https://support.google.com/cloud/answer/15544987)
 and the Tasks permission in

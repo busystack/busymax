@@ -194,6 +194,84 @@ void main() {
     expect(result, contains('X-ALARM-UNKNOWN:keep'));
   });
 
+  test(
+    'editing one DAV reminder preserves the other editable alarm verbatim',
+    () {
+      final baseline = _baselineEvent.replaceFirst(
+        'BEGIN:VALARM\r\nACTION:AUDIO',
+        'BEGIN:VALARM\r\nACTION:DISPLAY\r\nTRIGGER:-PT30M\r\n'
+            'DESCRIPTION:Second reminder\r\nX-ALARM-KEEP:second\r\nEND:VALARM\r\n'
+            'BEGIN:VALARM\r\nACTION:AUDIO',
+      );
+      final patch = buildDavEventUpdatePatch(
+        target: target,
+        baselineRawIcs: baseline,
+        input: DavEventMutationInput(
+          title: 'Baseline',
+          allDay: false,
+          start: DateTime(2026, 8, 3, 9),
+          end: DateTime(2026, 8, 3, 10),
+          startTimeZone: 'America/Vancouver',
+          endTimeZone: 'America/Vancouver',
+          description: 'Baseline details',
+          location: 'Room one',
+          reminders: const {
+            'davEditableRows': [
+              {'originalIndex': 0, 'minutes': 15},
+              {'originalIndex': 1, 'minutes': 45},
+            ],
+          },
+          remindersChanged: true,
+        ),
+      );
+      final result = patch!.applyTo(baseline, nowUtc: DateTime.utc(2026, 8, 8));
+      expect(result, contains('TRIGGER:-PT15M'));
+      expect(result, contains('X-ALARM-UNKNOWN:keep'));
+      expect(result, contains('TRIGGER:-PT45M'));
+      expect(result, contains('ACTION:AUDIO'));
+    },
+  );
+
+  test('DAV reminder removal and addition preserve unrelated alarms', () {
+    final baseline = _baselineEvent.replaceFirst(
+      'BEGIN:VALARM\r\nACTION:AUDIO',
+      'BEGIN:VALARM\r\nACTION:DISPLAY\r\nTRIGGER:-PT30M\r\n'
+          'DESCRIPTION:Second reminder\r\nX-ALARM-KEEP:second\r\nEND:VALARM\r\n'
+          'BEGIN:VALARM\r\nACTION:AUDIO',
+    );
+    String apply(List<Map<String, Object?>> rows) => buildDavEventUpdatePatch(
+      target: target,
+      baselineRawIcs: baseline,
+      input: DavEventMutationInput(
+        title: 'Baseline',
+        allDay: false,
+        start: DateTime(2026, 8, 3, 9),
+        end: DateTime(2026, 8, 3, 10),
+        startTimeZone: 'America/Vancouver',
+        endTimeZone: 'America/Vancouver',
+        description: 'Baseline details',
+        location: 'Room one',
+        reminders: {'davEditableRows': rows},
+        remindersChanged: true,
+      ),
+    )!.applyTo(baseline, nowUtc: DateTime.utc(2026, 8, 8));
+    final removed = apply(const [
+      {'originalIndex': 1, 'minutes': 30},
+    ]);
+    expect(removed, isNot(contains('TRIGGER:-PT15M')));
+    expect(removed, contains('X-ALARM-KEEP:second'));
+    expect(removed, contains('ACTION:AUDIO'));
+    final added = apply(const [
+      {'originalIndex': 0, 'minutes': 15},
+      {'originalIndex': 1, 'minutes': 30},
+      {'minutes': 0},
+    ]);
+    expect(added, contains('X-ALARM-UNKNOWN:keep'));
+    expect(added, contains('X-ALARM-KEEP:second'));
+    expect(added, contains('TRIGGER:-PT0M'));
+    expect(added, contains('ACTION:AUDIO'));
+  });
+
   test('UTC task dates preserve the entered wall-clock value', () {
     final object = buildDavTaskObject(
       const {

@@ -1,9 +1,14 @@
 import 'dart:io';
+import 'dart:convert';
 
 import 'package:busymax/src/features/accounts/data/accounts_repository.dart';
+import 'package:busymax/src/calendar_providers/calendar_sync_dto.dart';
+import 'package:busymax/src/db/app_database.dart';
 import 'package:busymax/src/features/calendar/data/calendar_repository.dart';
 import 'package:busymax/src/features/calendar/presentation/event_editor.dart';
 import 'package:busymax/src/features/calendar/presentation/event_editor_draft.dart';
+import 'package:busymax/src/features/calendar/presentation/linux_cloud_availability_dialog.dart';
+import 'package:busymax/src/features/calendar/presentation/event_description_editor.dart';
 import 'package:busymax/src/features/maps/domain/geographic_point.dart';
 import 'package:busymax/src/features/maps/domain/location_result.dart';
 import 'package:busymax/src/features/recurrence/domain/event_recurrence_codec.dart';
@@ -13,12 +18,21 @@ import 'package:busymax/src/features/tasks/presentation/desktop_date_time_fields
 import 'package:busymax/src/app/busymax_design.dart';
 import 'package:busymax/src/app/busymax_window_close.dart';
 import 'package:busymax/src/app/busymax_yaru_theme.dart';
+import 'package:busymax/src/app/app_bootstrap.dart';
+import 'package:busymax/src/google_calendar/google_calendar_api_client.dart';
+import 'package:busymax/src/google_calendar/google_calendar_models.dart';
+import 'package:busymax/src/microsoft_calendar/microsoft_calendar_models.dart';
 import 'package:busymax/src/platform/native_dialog_service.dart';
 import 'package:busymax/src/platform/native_menu_service.dart';
 import 'package:busymax/src/providers/busy_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:drift/drift.dart' show Value;
+import 'package:drift/native.dart';
+import 'package:http/http.dart' as http;
+import 'package:http/testing.dart';
 import 'package:yaru/yaru.dart';
 
 import '../../../test_localized_app.dart';
@@ -27,6 +41,223 @@ const _nativeDialogChannel = MethodChannel(nativeDialogChannelName);
 const _nativeMenuChannel = MethodChannel(nativeMenuChannelName);
 
 void main() {
+  testWidgets('Google all-day Linux availability uses calendar timezone', (
+    tester,
+  ) async {
+    final database = AppDatabase(NativeDatabase.memory());
+    addTearDown(database.close);
+    await database
+        .into(database.accounts)
+        .insert(
+          AccountsCompanion.insert(
+            id: 'account',
+            provider: 'google',
+            authority: 'https://accounts.google.com',
+            providerAccountId: 'me@example.test',
+            credentialKind: 'oauth',
+            authState: const Value('signed_in'),
+            createdAtUtc: '2026-07-01T00:00:00Z',
+            updatedAtUtc: '2026-07-01T00:00:00Z',
+          ),
+        );
+    final repository = CalendarRepository(database: database);
+    await repository.upsertSource(
+      accountId: 'account',
+      source: const CalendarSourceDto(
+        provider: BusyProvider.google,
+        providerCalendarId: 'calendar',
+        summary: 'Tokyo',
+        timeZone: 'Asia/Tokyo',
+        accessRole: 'owner',
+      ),
+    );
+    await repository.upsertEvent(
+      accountId: 'account',
+      event: const CalendarEventDto(
+        provider: BusyProvider.google,
+        providerCalendarId: 'calendar',
+        providerEventId: 'all-day',
+        title: 'All day',
+        allDay: true,
+        startDate: '2026-07-15',
+        endDate: '2026-07-16',
+        attendeesJson: [
+          {'email': 'guest@example.test'},
+        ],
+      ),
+    );
+    final detail = await repository.loadEventDetail(
+      (await database.select(database.calendarEvents).getSingle()).id,
+    );
+    final draft = EventEditorDraft.fromEventDetail(detail!);
+    final source = CalendarSourceEntity.fromRow(
+      await database.select(database.calendarSources).getSingle(),
+    );
+    expect(draft.allDay, isTrue);
+    expect(draft.startTimeZone, isNull);
+    expect(source.timeZone, 'Asia/Tokyo');
+    Map<String, Object?>? sent;
+    final client = GoogleCalendarApiClient(
+      httpClient: MockClient((request) async {
+        sent = (jsonDecode(request.body) as Map).cast<String, Object?>();
+        return http.Response(
+          jsonEncode({
+            'calendars': {
+              'guest@example.test': {'busy': <Object>[]},
+            },
+          }),
+          200,
+        );
+      }),
+      baseUri: Uri.parse('https://www.googleapis.com'),
+      authorizationHeaderProvider: () async => 'Bearer token',
+    );
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          calendarRemoteApiClientForAccountProvider(
+            'account',
+          ).overrideWithValue(client),
+        ],
+        child: localizedTestApp(
+          theme: BusyMaxYaruTheme.build(
+            brightness: Brightness.light,
+            accentColor: const Color(0xFF3584E4),
+          ),
+          child: Scaffold(
+            body: Builder(
+              builder: (context) => TextButton(
+                onPressed: () => showLinuxCloudAvailabilityDialog(
+                  context,
+                  draft: draft,
+                  calendarTimeZone: source.timeZone,
+                ),
+                child: const Text('Open availability'),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.tap(find.text('Open availability'));
+    await tester.pumpAndSettle();
+    expect(sent?['timeMin'], '2026-07-14T15:00:00.000Z');
+    expect(sent?['timeMax'], '2026-07-15T15:00:00.000Z');
+  });
+  testWidgets('C Linux Google availability sends resolved UTC interval', (
+    tester,
+  ) async {
+    Map<String, Object?>? sent;
+    final client = GoogleCalendarApiClient(
+      httpClient: MockClient((request) async {
+        sent = (jsonDecode(request.body) as Map).cast<String, Object?>();
+        return http.Response(
+          jsonEncode({
+            'calendars': {
+              'guest@example.test': {'busy': <Object>[]},
+            },
+          }),
+          200,
+        );
+      }),
+      baseUri: Uri.parse('https://www.googleapis.com'),
+      authorizationHeaderProvider: () async => 'Bearer token',
+    );
+    final draft =
+        EventEditorDraft.newEvent(
+          accountId: 'account',
+          sourceId: 'calendar',
+          providerCalendarId: 'calendar',
+          start: DateTime(2026, 7, 15, 9),
+          end: DateTime(2026, 7, 15, 10),
+        ).copyWith(
+          startTimeZone: 'America/Los_Angeles',
+          endTimeZone: 'America/Los_Angeles',
+          attendees: const [EventAttendeeDraft(email: 'guest@example.test')],
+        );
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          calendarRemoteApiClientForAccountProvider(
+            'account',
+          ).overrideWithValue(client),
+        ],
+        child: localizedTestApp(
+          theme: BusyMaxYaruTheme.build(
+            brightness: Brightness.light,
+            accentColor: const Color(0xFF3584E4),
+          ),
+          child: Scaffold(
+            body: Builder(
+              builder: (context) => TextButton(
+                onPressed: () =>
+                    showLinuxCloudAvailabilityDialog(context, draft: draft),
+                child: const Text('Open availability'),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.tap(find.text('Open availability'));
+    await tester.pumpAndSettle();
+    expect(sent?['timeMin'], '2026-07-15T16:00:00.000Z');
+    expect(sent?['timeMax'], '2026-07-15T17:00:00.000Z');
+  });
+  test('C cloud availability resolves civil times in their provider zones', () {
+    EventEditorDraft draft(DateTime start, DateTime end, String endZone) =>
+        EventEditorDraft.newEvent(
+          accountId: 'account',
+          sourceId: 'calendar',
+          providerCalendarId: 'calendar',
+          start: start,
+          end: end,
+        ).copyWith(startTimeZone: 'America/Los_Angeles', endTimeZone: endZone);
+    final summer = draft(
+      DateTime(2026, 7, 15, 9),
+      DateTime(2026, 7, 15, 13),
+      'America/New_York',
+    ).cloudAvailabilityInterval()!;
+    expect(summer.start.toUtc(), DateTime.utc(2026, 7, 15, 16));
+    expect(summer.end.toUtc(), DateTime.utc(2026, 7, 15, 17));
+    final transition = draft(
+      DateTime(2026, 3, 8, 1, 30),
+      DateTime(2026, 3, 8, 3, 30),
+      'America/Los_Angeles',
+    ).cloudAvailabilityInterval()!;
+    expect(transition.start.toUtc(), DateTime.utc(2026, 3, 8, 9, 30));
+    expect(transition.end.toUtc(), DateTime.utc(2026, 3, 8, 10, 30));
+  });
+  testWidgets('Microsoft description selection does not emit a body change', (
+    tester,
+  ) async {
+    final changes = <EventDescriptionValue>[];
+    await tester.pumpWidget(
+      localizedTestApp(
+        child: Scaffold(
+          body: EventDescriptionEditor(
+            provider: BusyProvider.microsoft,
+            text: 'Original agenda',
+            contentType: 'html',
+            html: '<p>Original agenda</p>',
+            onChanged: changes.add,
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    final controller = tester
+        .widget<TextField>(find.byType(TextField))
+        .controller!;
+    controller.selection = const TextSelection(baseOffset: 0, extentOffset: 8);
+    await tester.pump();
+    expect(changes, isEmpty);
+    await tester.tap(find.byTooltip('Bold').first);
+    await tester.pump();
+    expect(changes, hasLength(1));
+    expect(changes.single.html, contains('<strong>Original</strong>'));
+  });
+
   setUp(() {
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(_nativeDialogChannel, (_) async => null);
@@ -70,6 +301,69 @@ void main() {
       matching: find.byType(EditableText),
     );
     expect(tester.widget<EditableText>(title).focusNode.hasFocus, isTrue);
+  });
+
+  testWidgets('Linux Google editor opens detailed guest availability', (
+    tester,
+  ) async {
+    var requests = 0;
+    final client = GoogleCalendarApiClient(
+      httpClient: MockClient((request) async {
+        requests++;
+        expect(request.url.path, '/calendar/v3/freeBusy');
+        return http.Response(
+          '{"calendars":{"guest@example.test":{"busy":[]}}}',
+          200,
+        );
+      }),
+      baseUri: Uri.parse('https://www.googleapis.com'),
+    );
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          calendarRemoteApiClientForAccountProvider(
+            'account',
+          ).overrideWithValue(client),
+        ],
+        child: localizedTestApp(
+          child: Scaffold(
+            body: EventEditor(
+              initialDraft: EventEditorDraft.existing(
+                eventId: 'event-1',
+                accountId: 'account',
+                sourceId: 'source',
+                providerCalendarId: 'cal-1',
+                title: 'Planning',
+                allDay: false,
+                start: DateTime.utc(2026, 6, 8, 9),
+                end: DateTime.utc(2026, 6, 8, 10),
+                attendees: const [
+                  EventAttendeeDraft(email: 'guest@example.test'),
+                ],
+              ),
+              sources: _sources,
+              onCancel: () {},
+              onSave: (_) {},
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    final action = find.text('Check guest availability');
+    await tester.ensureVisible(action);
+    await tester.tap(action);
+    await tester.pumpAndSettle();
+    expect(
+      find.byKey(const ValueKey('linux-cloud-availability-dialog')),
+      findsOneWidget,
+    );
+    expect(find.text('guest@example.test'), findsWidgets);
+    expect(
+      find.text('No busy periods reported for this interval'),
+      findsWidgets,
+    );
+    expect(requests, 1);
   });
 
   testWidgets(
@@ -2414,6 +2708,153 @@ void main() {
 
     expect(find.text('Categories'), findsNothing);
   });
+
+  testWidgets('Linux Google editor selects a calendar-scoped event label', (
+    tester,
+  ) async {
+    EventEditorDraft? saved;
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          googleEventLabelsForCalendarProvider.overrideWith(
+            (ref, key) async => [
+              const GoogleEventLabel(
+                id: 'label-1',
+                name: 'Project',
+                backgroundColor: '#336699',
+              ),
+            ],
+          ),
+        ],
+        child: localizedTestApp(
+          child: Scaffold(
+            body: EventEditor(
+              initialDraft: EventEditorDraft.newEvent(
+                accountId: 'account',
+                sourceId: 'source',
+                providerCalendarId: 'cal-1',
+                start: DateTime.utc(2026, 6, 8, 9),
+                end: DateTime.utc(2026, 6, 8, 10),
+              ).copyWith(title: 'Planning'),
+              sources: _sources,
+              onCancel: () {},
+              onSave: (draft) => saved = draft,
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    _comboRow(tester, 'Event label').onSelected('label-1');
+    await tester.pump();
+    await tester.tap(_headerButtonFinder('Save'));
+    expect(saved?.eventLabelId, 'label-1');
+    expect(saved?.eventLabelChanged, isTrue);
+  });
+
+  testWidgets('Linux primary Google editor creates native focus time', (
+    tester,
+  ) async {
+    EventEditorDraft? saved;
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          googleEventLabelsForCalendarProvider.overrideWith(
+            (ref, key) async => const [],
+          ),
+        ],
+        child: localizedTestApp(
+          child: Scaffold(
+            body: EventEditor(
+              initialDraft: EventEditorDraft.newEvent(
+                accountId: 'account',
+                sourceId: 'primary',
+                providerCalendarId: 'primary',
+                start: DateTime.utc(2026, 6, 8, 9),
+                end: DateTime.utc(2026, 6, 8, 10),
+              ).copyWith(title: 'Focus'),
+              sources: const [
+                CalendarSourceEntity(
+                  id: 'primary',
+                  accountId: 'account',
+                  provider: BusyProvider.google,
+                  providerCalendarId: 'primary',
+                  summary: 'Primary',
+                  selected: true,
+                  hidden: false,
+                  readOnly: false,
+                  isDeleted: false,
+                  primaryCalendar: true,
+                ),
+              ],
+              onCancel: () {},
+              onSave: (draft) => saved = draft,
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    _comboRow(tester, 'Event type').onSelected('focusTime');
+    await tester.pump();
+    _comboRow(
+      tester,
+      'Decline overlapping invitations',
+    ).onSelected('declineOnlyNewConflictingInvitations');
+    await tester.pump();
+    await tester.tap(_headerButtonFinder('Save'));
+    expect(saved?.eventType, 'focusTime');
+    expect(saved?.showAs, 'opaque');
+    expect(
+      saved?.googleStatusProperties['autoDeclineMode'],
+      'declineOnlyNewConflictingInvitations',
+    );
+  });
+
+  testWidgets(
+    'Linux Microsoft editor adds a master category without losing existing assignments',
+    (tester) async {
+      EventEditorDraft? saved;
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            microsoftMasterCategoriesProvider.overrideWith(
+              (ref, accountId) async => [
+                const MicrosoftMasterCategory(
+                  id: 'c1',
+                  displayName: 'Work',
+                  color: 'preset7',
+                ),
+              ],
+            ),
+          ],
+          child: localizedTestApp(
+            child: Scaffold(
+              body: EventEditor(
+                initialDraft: EventEditorDraft.newEvent(
+                  accountId: 'microsoft-account',
+                  sourceId: 'microsoft-source',
+                  providerCalendarId: 'ms-cal-1',
+                  start: DateTime.utc(2026, 6, 8, 9),
+                  end: DateTime.utc(2026, 6, 8, 10),
+                ).copyWith(title: 'Planning', categories: ['Existing']),
+                sources: _microsoftSources,
+                onCancel: () {},
+                onSave: (draft) => saved = draft,
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(find.text('Work').last);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Work').last);
+      await tester.pump();
+      await tester.tap(_headerButtonFinder('Save'));
+      expect(saved?.categories, ['Existing', 'Work']);
+    },
+  );
 
   testWidgets(
     'removing a Microsoft event reminder disables provider reminder',

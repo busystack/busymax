@@ -12,6 +12,7 @@ import 'package:busymax/src/ui/windows/windows_schedule_page.dart';
 import 'package:fluent_ui/fluent_ui.dart' as fluent;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
+import 'package:intl/date_symbol_data_local.dart';
 import 'package:busymax/src/app/busymax_yaru_theme.dart';
 import 'package:busymax/src/features/schedule/presentation/calendar_day_semantics.dart';
 import 'package:busymax/src/features/schedule/presentation/schedule_agenda_view.dart';
@@ -20,6 +21,7 @@ import 'package:busymax/src/features/schedule/presentation/schedule_day_week_vie
 import 'package:busymax/src/features/schedule/presentation/schedule_event_block.dart';
 import 'package:busymax/src/features/schedule/presentation/schedule_item_chip.dart';
 import 'package:busymax/src/features/schedule/presentation/schedule_item_details_popover.dart';
+import 'package:busymax/src/features/schedule/presentation/schedule_event_details_format.dart';
 import 'package:busymax/src/features/schedule/presentation/schedule_item_exporter.dart';
 import 'package:busymax/src/features/schedule/presentation/mini_calendar.dart';
 import 'package:busymax/src/features/schedule/presentation/schedule_month_view.dart';
@@ -28,6 +30,7 @@ import 'package:busymax/src/features/tasks/domain/task_checklist_item.dart';
 import 'package:busymax/src/features/maps/domain/geographic_point.dart';
 import 'package:busymax/src/platform/gtk_font_service.dart';
 import 'package:busymax/src/schedule/schedule_item.dart';
+import 'package:busymax/src/schedule/event_attachment_link.dart';
 import 'package:busymax/src/schedule/schedule_range.dart';
 import 'package:busymax/src/schedule/schedule_search_criteria.dart';
 import 'package:busymax/src/providers/busy_provider.dart';
@@ -68,6 +71,12 @@ class _EmptyCalendarSources implements CalendarRepository {
 
 class _TestScheduleItems implements ScheduleRepository {
   @override
+  bool? cloudCoverageCompleteFor(
+    ScheduleRange range, {
+    ScheduleFilters filters = const ScheduleFilters(),
+  }) => null;
+
+  @override
   Future<List<ScheduleItem>> listItems({
     required ScheduleRange range,
     ScheduleFilters filters = const ScheduleFilters(),
@@ -77,6 +86,7 @@ class _TestScheduleItems implements ScheduleRepository {
 }
 
 void main() {
+  setUpAll(initializeDateFormatting);
   scheduleDateGestureTests(
     'Linux',
     (scenario) => localizedTestApp(
@@ -1702,6 +1712,116 @@ void main() {
     expect(await action, ScheduleItemDetailsAction.joinMeeting);
   });
 
+  testWidgets(
+    'detail interval labels the displayed local time, not event zones',
+    (tester) async {
+      final event = CalendarScheduleItem(
+        id: 'zoned-event',
+        accountId: 'account',
+        provider: BusyProvider.microsoft,
+        sourceId: 'calendar',
+        providerCalendarId: 'calendar',
+        title: 'Cross-zone meeting',
+        allDay: false,
+        start: DateTime.utc(2026, 7, 1, 12).toLocal(),
+        end: DateTime.utc(2026, 7, 1, 13).toLocal(),
+        startTimeZone: 'Pacific/Honolulu',
+        endTimeZone: 'Asia/Tokyo',
+        capabilities: ScheduleItemCapabilities.readOnly,
+      );
+      await tester.pumpWidget(
+        localizedTestApp(
+          child: Builder(
+            builder: (context) =>
+                Text(scheduleEventIntervalLabel(context, event)),
+          ),
+        ),
+      );
+      final label = tester.widget<Text>(find.byType(Text)).data!;
+      expect(label, contains('UTC'));
+      expect(label, isNot(contains('Pacific/Honolulu')));
+      expect(label, isNot(contains('Asia/Tokyo')));
+    },
+  );
+
+  testWidgets('floating DAV detail without TZID uses the local offset', (
+    tester,
+  ) async {
+    final event = CalendarScheduleItem(
+      id: 'floating-event',
+      accountId: 'account',
+      provider: BusyProvider.nextcloud,
+      sourceId: 'calendar',
+      providerCalendarId: 'calendar',
+      title: 'Floating event',
+      allDay: false,
+      start: DateTime(2026, 3, 8, 1, 30),
+      end: DateTime(2026, 3, 8, 3, 30),
+      capabilities: ScheduleItemCapabilities.readOnly,
+    );
+    await tester.pumpWidget(
+      localizedTestApp(
+        child: Builder(
+          builder: (context) =>
+              Text(scheduleEventIntervalLabel(context, event)),
+        ),
+      ),
+    );
+    expect(tester.widget<Text>(find.byType(Text)).data, contains('UTC'));
+  });
+
+  testWidgets('all-day details end on the last included day and expose links', (
+    tester,
+  ) async {
+    final event = CalendarScheduleItem(
+      id: 'event-link',
+      accountId: 'account',
+      provider: BusyProvider.nextcloud,
+      sourceId: 'calendar',
+      providerCalendarId: 'calendar',
+      title: 'Conference',
+      allDay: true,
+      start: DateTime(2026, 3, 8),
+      end: DateTime(2026, 3, 10),
+      description: 'Read https://example.com/agenda',
+      eventLinkUrl: 'https://example.com/event',
+      attachmentLinks: const [
+        EventAttachmentLink(
+          url: 'https://example.com/notes',
+          name: 'Notes attachment',
+        ),
+      ],
+      attachmentsLoaded: true,
+      attachmentsMayExist: true,
+      capabilities: ScheduleItemCapabilities.readOnly,
+    );
+    await tester.pumpWidget(
+      localizedTestApp(
+        child: Scaffold(
+          body: Builder(
+            builder: (context) => TextButton(
+              onPressed: () => showScheduleItemDetailsPopover(
+                context: context,
+                anchorContext: context,
+                item: event,
+              ),
+              child: const Text('Open details'),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.tap(find.text('Open details'));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('Mar 8, 2026 – Mar 9, 2026'), findsOneWidget);
+    expect(find.textContaining('Mar 10, 2026'), findsNothing);
+    expect(find.text('Event link'), findsOneWidget);
+    expect(find.text('Notes attachment'), findsOneWidget);
+    expect(find.text('https://example.com/agenda'), findsOneWidget);
+    expect(find.text('Join meeting'), findsNothing);
+    expect(find.byTooltip('Edit Event'), findsNothing);
+  });
+
   testWidgets('invitation RSVP returns the selected response action', (
     tester,
   ) async {
@@ -2443,6 +2563,52 @@ void main() {
     );
     expect(find.text('Categories: Blue category, Work'), findsOneWidget);
   });
+
+  testWidgets(
+    'Google status detail exposes provider type and actual settings',
+    (tester) async {
+      final event = CalendarScheduleItem(
+        id: 'event:status',
+        accountId: 'google:g',
+        provider: BusyProvider.google,
+        sourceId: 'calendar:primary',
+        providerCalendarId: 'primary',
+        title: 'Focus',
+        allDay: false,
+        start: DateTime(2026, 1, 15, 9),
+        end: DateTime(2026, 1, 15, 10),
+        eventType: 'focusTime',
+        googleStatusProperties: const {
+          'autoDeclineMode': 'declineOnlyNewConflictingInvitations',
+          'chatStatus': 'doNotDisturb',
+        },
+      );
+      await tester.pumpWidget(
+        localizedTestApp(
+          child: Scaffold(
+            body: Builder(
+              builder: (context) => TextButton(
+                onPressed: () => showScheduleItemDetailsPopover(
+                  context: context,
+                  anchorContext: context,
+                  item: event,
+                ),
+                child: const Text('Open details'),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.tap(find.text('Open details'));
+      await tester.pumpAndSettle();
+      expect(find.text('Focus time'), findsOneWidget);
+      expect(
+        find.text('Decline overlapping invitations: Decline new invitations'),
+        findsOneWidget,
+      );
+      expect(find.text('Chat status: Do not disturb'), findsOneWidget);
+    },
+  );
 
   testWidgets('event reminder details use locale-aware labels', (tester) async {
     final event = CalendarScheduleItem(

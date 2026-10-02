@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:logging/logging.dart';
 
 import '../../../core/logging/redacting_logger.dart';
+import '../../../core/auth/microsoft_graph_scopes.dart';
 import '../../../dav/dav_errors.dart';
 import '../../../db/app_database.dart';
 import '../../../features/accounts/data/accounts_repository.dart';
@@ -17,14 +18,6 @@ import 'package:busymax/src/core/secrets/secret_store.dart';
 import '../../../microsoft_todo/oauth/microsoft_oauth_service.dart';
 import '../../sync/sync_auth_error.dart';
 import 'package:busymax/src/providers/busy_provider.dart';
-
-String _microsoftGraphScopeName(String scope) {
-  final normalized = scope.trim().toLowerCase();
-  const graphPrefix = 'https://graph.microsoft.com/';
-  return normalized.startsWith(graphPrefix)
-      ? normalized.substring(graphPrefix.length)
-      : normalized;
-}
 
 enum AuthSessionStatus {
   unconfigured,
@@ -170,6 +163,7 @@ class AuthRepository {
       providerAccountId: result.user.id,
       displayName: result.user.displayName,
       email: result.user.mail ?? result.user.userPrincipalName,
+      tenantId: result.tenantId,
       grantedScopes: result.tokenSet.scopes.join(' '),
       providerMetadata: result.user.rawJson,
     );
@@ -296,10 +290,11 @@ class AuthRepository {
   }
 
   bool _hasRequiredMicrosoftScopes(OAuthTokenSet tokenSet) {
-    final granted = tokenSet.scopes.map(_microsoftGraphScopeName).toSet();
-    return granted.contains('user.read') &&
-        granted.contains('tasks.readwrite') &&
-        granted.contains('calendars.readwrite');
+    return hasMicrosoftGraphScopes(tokenSet.scopes, const [
+      'User.Read',
+      'Tasks.ReadWrite',
+      'Calendars.ReadWrite',
+    ]);
   }
 
   Future<void> _upsertGoogleSignedInAccount(

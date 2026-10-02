@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:xml/xml.dart';
 
 import '../dav_errors.dart';
@@ -11,10 +13,12 @@ final class NextcloudShareRecipient {
     required this.href,
     required this.label,
     required this.group,
+    this.federated = false,
   });
   final String href;
   final String label;
   final bool group;
+  final bool federated;
 }
 
 final class NextcloudCollectionShare {
@@ -43,8 +47,9 @@ final class NextcloudSharingState {
   final Uri? publishUrl;
 }
 
-/// DAV resource sharing, never the OCS Files sharing API. Recipients can only
-/// originate in a successful server principal search or current-share read.
+/// DAV resource sharing, never the OCS Files sharing API. Local recipients
+/// come from server principal search; a federated ID becomes a remote-user
+/// principal using Nextcloud's CalDAV sharing backend representation.
 final class NextcloudSharingService {
   NextcloudSharingService(this.collections);
   final NextcloudCollectionService collections;
@@ -140,6 +145,10 @@ final class NextcloudSharingService {
     final text = query.trim();
     if (text.isEmpty) return const [];
     if (text.length > 256) throw ArgumentError('Principal search is too long');
+    final federated = text.contains('@') ? _federatedRecipient(text) : null;
+    if (text.contains('@') && federated == null) {
+      throw const FormatException('Invalid federated calendar recipient.');
+    }
     final context = await collections.openContext();
     final root = context.resolve(
       context.service.canonicalServiceUri,
@@ -164,6 +173,10 @@ final class NextcloudSharingService {
       }
     }
     if (targets.isEmpty || targets.length > 16) {
+      if (federated != null) {
+        _knownRecipients.add(federated.href);
+        return [federated];
+      }
       throw nextcloudOperationError(403, 'DavPrincipalSearchUnavailable');
     }
     final found = <String, NextcloudShareRecipient>{};
@@ -222,6 +235,10 @@ final class NextcloudSharingService {
         _knownRecipients.add(scheme);
         if (found.length >= 20) return List.unmodifiable(found.values);
       }
+    }
+    if (found.isEmpty && federated != null) {
+      _knownRecipients.add(federated.href);
+      return [federated];
     }
     return List.unmodifiable(found.values);
   }
@@ -347,4 +364,41 @@ final class NextcloudSharingService {
     }
     return collections.refreshResult();
   }
+}
+
+NextcloudShareRecipient? _federatedRecipient(String value) {
+  final at = value.indexOf('@');
+  if (at < 1 || at == value.length - 1) return null;
+  final user = value.substring(0, at);
+  final server = value.substring(at + 1);
+  if (user.contains(RegExp(r'[/\\\s:@?#]')) ||
+      server.contains(RegExp(r'\s')) ||
+      server.contains('@') ||
+      RegExp(
+        r'(^|/)(?:\.{1,2}|%2e(?:%2e)?)(?:/|$)',
+        caseSensitive: false,
+      ).hasMatch(server)) {
+    return null;
+  }
+  final uri = Uri.tryParse(
+    server.startsWith('https://') ? server : 'https://$server',
+  );
+  if (uri == null ||
+      uri.scheme != 'https' ||
+      uri.host.isEmpty ||
+      !uri.host.contains('.') ||
+      uri.host.endsWith('.') ||
+      uri.userInfo.isNotEmpty ||
+      uri.hasQuery ||
+      uri.hasFragment ||
+      uri.pathSegments.any((part) => part == '..')) {
+    return null;
+  }
+  final id = base64.encode(utf8.encode(value));
+  return NextcloudShareRecipient._(
+    href: 'principal:principals/remote-users/$id',
+    label: value,
+    group: false,
+    federated: true,
+  );
 }

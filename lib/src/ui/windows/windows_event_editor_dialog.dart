@@ -8,13 +8,18 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../l10n/generated/app_localizations.dart';
 import '../../app/app_bootstrap.dart';
 import '../../calendar_providers/calendar_mutation.dart';
+import '../../calendar_providers/calendar_provider_capabilities.dart';
 import '../../features/accounts/data/accounts_repository.dart';
 import '../../features/calendar/data/calendar_repository.dart';
 import '../../features/calendar/domain/event_move_policy.dart';
 import '../../features/calendar/domain/event_timing_policy.dart';
+import '../../features/calendar/domain/google_status_event.dart';
+import '../../features/calendar/presentation/google_status_event_labels.dart';
 import '../../schedule/schedule_event_rescheduling.dart';
 import '../../core/time/provider_date_time.dart';
 import '../../features/calendar/presentation/event_editor_draft.dart';
+import '../../google_calendar/google_calendar_models.dart';
+import '../../microsoft_calendar/microsoft_calendar_models.dart';
 import '../../features/recurrence/domain/event_recurrence_codec.dart';
 import '../../features/recurrence/domain/recurrence_rule.dart';
 import '../../features/maps/domain/location_result.dart';
@@ -27,6 +32,7 @@ import 'windows_guest_update_dialog.dart';
 import 'windows_recurrence_dialog.dart';
 import 'windows_time_zone_dialog.dart';
 import 'windows_nextcloud_scheduling_dialog.dart';
+import 'windows_cloud_availability_dialog.dart';
 
 Future<bool> showWindowsEventEditorDialog(
   BuildContext context,
@@ -74,7 +80,9 @@ Future<bool> showWindowsEventEditorDialog(
   }
 
   final title = TextEditingController(text: originalDraft?.title);
-  final description = TextEditingController(text: originalDraft?.description);
+  final description = TextEditingController(
+    text: originalDraft?.editableDescription,
+  );
   final location = TextEditingController(text: originalDraft?.location);
   final guestEmail = TextEditingController();
   final categories = TextEditingController(
@@ -142,6 +150,27 @@ Future<bool> showWindowsEventEditorDialog(
   var attendees = [...?originalDraft?.attendees];
   var attendeesChanged = false;
   var categoriesChanged = false;
+  var eventLabelId = originalDraft?.eventLabelId;
+  var eventLabelChanged = false;
+  var eventType = originalDraft?.eventType ?? 'default';
+  var googleStatusProperties = <String, Object?>{
+    ...?originalDraft?.googleStatusProperties,
+  };
+  var googleStatusChanged = false;
+  final statusMessage = TextEditingController(
+    text: googleStatusProperties['declineMessage']?.toString() ?? '',
+  );
+  final statusLocationLabel = TextEditingController(
+    text: googleStatusProperties['customLocation'] is Map
+        ? (googleStatusProperties['customLocation'] as Map)['label']
+                  ?.toString() ??
+              ''
+        : googleStatusProperties['officeLocation'] is Map
+        ? (googleStatusProperties['officeLocation'] as Map)['label']
+                  ?.toString() ??
+              ''
+        : '',
+  );
   var onlineMeeting =
       originalDraft?.conference != null ||
       (originalDraft?.createConference ?? false);
@@ -200,6 +229,8 @@ Future<bool> showWindowsEventEditorDialog(
       remindersChanged ||
       attendeesChanged ||
       categoriesChanged ||
+      eventLabelId != originalDraft?.eventLabelId ||
+      googleStatusChanged ||
       onlineMeeting != initialOnlineMeeting ||
       responseRequested != initialResponseRequested ||
       hideAttendees != initialHideAttendees ||
@@ -278,7 +309,21 @@ Future<bool> showWindowsEventEditorDialog(
                           ? null
                           : (source) {
                               if (source != null) {
+                                if (googleStatusEventTypes.contains(
+                                      eventType,
+                                    ) &&
+                                    (source.provider != BusyProvider.google ||
+                                        !source.primaryCalendar)) {
+                                  setState(
+                                    () => error = l10n.googleStatusPrimaryOnly,
+                                  );
+                                  return;
+                                }
                                 setState(() {
+                                  if (source.id != selectedSource.id) {
+                                    eventLabelId = null;
+                                    eventLabelChanged = true;
+                                  }
                                   selectedSource = source;
                                   // Destination conversion belongs to the shared save
                                   // policy. Keep the editable data intact while browsing.
@@ -290,7 +335,10 @@ Future<bool> showWindowsEventEditorDialog(
                   const SizedBox(height: 12),
                   ToggleSwitch(
                     checked: allDay,
-                    onChanged: saving
+                    onChanged:
+                        saving ||
+                            eventType == 'focusTime' ||
+                            eventType == 'outOfOffice'
                         ? null
                         : (value) => setState(() => allDay = value),
                     content: Text(l10n.allDay),
@@ -555,44 +603,45 @@ Future<bool> showWindowsEventEditorDialog(
                           ),
                         ),
                         const SizedBox(height: 12),
-                        InfoLabel(
-                          label: l10n.repeat,
-                          child: Button(
-                            onPressed: saving
-                                ? null
-                                : () async {
-                                    final result =
-                                        await showWindowsRecurrenceDialog(
-                                          context,
-                                          initial: recurrence,
-                                          baseDate: start,
-                                          allDay: allDay,
-                                          timeZone:
-                                              selectedTimeZone ??
-                                              ref.read(localTimeZoneProvider),
-                                          providerLabel: selectedSource
-                                              .provider
-                                              .displayName,
-                                          limits:
-                                              EventRecurrenceCodec.limitsFor(
-                                                selectedSource.provider,
-                                              ),
-                                        );
-                                    if (result != null) {
-                                      setState(() {
-                                        recurrence = result;
-                                        recurrenceChanged = true;
-                                      });
-                                    }
-                                  },
-                            child: Align(
-                              alignment: AlignmentDirectional.centerStart,
-                              child: Text(
-                                _recurrenceLabel(l10n, recurrence.frequency),
+                        if (originalDraft?.providerRecurringEventId == null)
+                          InfoLabel(
+                            label: l10n.repeat,
+                            child: Button(
+                              onPressed: saving
+                                  ? null
+                                  : () async {
+                                      final result =
+                                          await showWindowsRecurrenceDialog(
+                                            context,
+                                            initial: recurrence,
+                                            baseDate: start,
+                                            allDay: allDay,
+                                            timeZone:
+                                                selectedTimeZone ??
+                                                ref.read(localTimeZoneProvider),
+                                            providerLabel: selectedSource
+                                                .provider
+                                                .displayName,
+                                            limits:
+                                                EventRecurrenceCodec.limitsFor(
+                                                  selectedSource.provider,
+                                                ),
+                                          );
+                                      if (result != null) {
+                                        setState(() {
+                                          recurrence = result;
+                                          recurrenceChanged = true;
+                                        });
+                                      }
+                                    },
+                              child: Align(
+                                alignment: AlignmentDirectional.centerStart,
+                                child: Text(
+                                  _recurrenceLabel(l10n, recurrence.frequency),
+                                ),
                               ),
                             ),
                           ),
-                        ),
                         const SizedBox(height: 12),
                       ],
                     ),
@@ -634,7 +683,13 @@ Future<bool> showWindowsEventEditorDialog(
                                   child: Text(_availabilityLabel(l10n, value)),
                                 ),
                             ],
-                            onChanged: saving
+                            onChanged:
+                                saving ||
+                                    (selectedSource.provider ==
+                                            BusyProvider.google &&
+                                        googleStatusEventTypes.contains(
+                                          eventType,
+                                        ))
                                 ? null
                                 : (value) {
                                     if (value != null) {
@@ -661,7 +716,11 @@ Future<bool> showWindowsEventEditorDialog(
                                   child: Text(_visibilityLabel(l10n, value)),
                                 ),
                             ],
-                            onChanged: saving
+                            onChanged:
+                                saving ||
+                                    (selectedSource.provider ==
+                                            BusyProvider.google &&
+                                        eventType == 'workingLocation')
                                 ? null
                                 : (value) {
                                     if (value != null) {
@@ -714,6 +773,441 @@ Future<bool> showWindowsEventEditorDialog(
                             ),
                           ),
                         ],
+                        if (selectedSource.provider == BusyProvider.microsoft)
+                          FutureBuilder<List<MicrosoftMasterCategory>>(
+                            key: ValueKey(
+                              'outlook-categories-${selectedSource.accountId}',
+                            ),
+                            future: ref.read(
+                              microsoftMasterCategoriesProvider(
+                                selectedSource.accountId,
+                              ).future,
+                            ),
+                            builder: (context, snapshot) {
+                              final catalog = snapshot.data;
+                              if (catalog == null) {
+                                return snapshot.hasError
+                                    ? Button(
+                                        onPressed: () async {
+                                          try {
+                                            await ref
+                                                .read(
+                                                  microsoftCategoryAuthorizationProvider,
+                                                )
+                                                ?.authorizeCategoryAccess(
+                                                  selectedSource.accountId,
+                                                );
+                                            ref.invalidate(
+                                              microsoftMasterCategoriesProvider(
+                                                selectedSource.accountId,
+                                              ),
+                                            );
+                                            setState(() {});
+                                          } on Object {
+                                            setState(
+                                              () => error = l10n
+                                                  .outlookCategoriesUnavailable,
+                                            );
+                                          }
+                                        },
+                                        child: Text(l10n.loadOutlookCategories),
+                                      )
+                                    : Text(l10n.loadOutlookCategories);
+                              }
+                              return Wrap(
+                                spacing: 6,
+                                runSpacing: 6,
+                                children: [
+                                  for (final category in catalog)
+                                    ToggleButton(
+                                      checked: _categories(
+                                        categories.text,
+                                      ).contains(category.displayName),
+                                      onChanged: saving
+                                          ? null
+                                          : (checked) {
+                                              final names = _categories(
+                                                categories.text,
+                                              ).toList();
+                                              if (checked) {
+                                                if (!names.contains(
+                                                  category.displayName,
+                                                )) {
+                                                  names.add(
+                                                    category.displayName,
+                                                  );
+                                                }
+                                              } else {
+                                                names.remove(
+                                                  category.displayName,
+                                                );
+                                              }
+                                              setState(() {
+                                                categories.text = names.join(
+                                                  ', ',
+                                                );
+                                                categoriesChanged = true;
+                                              });
+                                            },
+                                      child: Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          if (microsoftCategorySwatchArgb(
+                                                category.color,
+                                              )
+                                              case final swatch?) ...[
+                                            Container(
+                                              width: 12,
+                                              height: 12,
+                                              color: Color(swatch),
+                                            ),
+                                            const SizedBox(width: 5),
+                                          ],
+                                          Text(category.displayName),
+                                        ],
+                                      ),
+                                    ),
+                                ],
+                              );
+                            },
+                          ),
+                        if (selectedSource.provider == BusyProvider.google &&
+                            (selectedSource.primaryCalendar ||
+                                googleStatusEventTypes.contains(
+                                  eventType,
+                                ))) ...[
+                          const SizedBox(height: 12),
+                          InfoLabel(
+                            label: l10n.googleEventType,
+                            child: ComboBox<String>(
+                              key: const Key('windows-google-event-type'),
+                              isExpanded: true,
+                              value: eventType,
+                              items: [
+                                for (final value in <String>[
+                                  'default',
+                                  ...googleStatusEventTypes,
+                                ])
+                                  ComboBoxItem(
+                                    value: value,
+                                    child: Text(
+                                      googleEventTypeLabel(l10n, value),
+                                    ),
+                                  ),
+                              ],
+                              onChanged: saving || originalDraft != null
+                                  ? null
+                                  : (value) {
+                                      if (value == null) return;
+                                      setState(() {
+                                        eventType = value;
+                                        googleStatusProperties = {
+                                          ...defaultGoogleStatusProperties(
+                                            value,
+                                          ),
+                                        };
+                                        googleStatusChanged = true;
+                                        showAs = value == 'workingLocation'
+                                            ? 'transparent'
+                                            : 'opaque';
+                                        visibility = value == 'workingLocation'
+                                            ? 'public'
+                                            : 'default';
+                                        if (value == 'focusTime' ||
+                                            value == 'outOfOffice') {
+                                          allDay = false;
+                                        } else if (value == 'workingLocation' &&
+                                            allDay) {
+                                          end = DateTime(
+                                            start.year,
+                                            start.month,
+                                            start.day + 1,
+                                          );
+                                        }
+                                        statusMessage.clear();
+                                        statusLocationLabel.clear();
+                                      });
+                                    },
+                            ),
+                          ),
+                          if (eventType == 'focusTime' ||
+                              eventType == 'outOfOffice') ...[
+                            const SizedBox(height: 12),
+                            InfoLabel(
+                              label: l10n.googleDeclineInvitations,
+                              child: ComboBox<String>(
+                                isExpanded: true,
+                                value:
+                                    googleStatusProperties['autoDeclineMode']
+                                        ?.toString() ??
+                                    'declineNone',
+                                items: [
+                                  for (final value in const [
+                                    'declineNone',
+                                    'declineOnlyNewConflictingInvitations',
+                                    'declineAllConflictingInvitations',
+                                  ])
+                                    ComboBoxItem(
+                                      value: value,
+                                      child: Text(
+                                        googleAutoDeclineLabel(l10n, value),
+                                      ),
+                                    ),
+                                ],
+                                onChanged: saving
+                                    ? null
+                                    : (value) {
+                                        if (value == null) return;
+                                        setState(() {
+                                          googleStatusProperties = {
+                                            ...googleStatusProperties,
+                                            'autoDeclineMode': value,
+                                          };
+                                          googleStatusChanged = true;
+                                        });
+                                      },
+                              ),
+                            ),
+                            if (eventType == 'focusTime') ...[
+                              const SizedBox(height: 12),
+                              InfoLabel(
+                                label: l10n.googleChatStatus,
+                                child: ComboBox<String>(
+                                  isExpanded: true,
+                                  value:
+                                      googleStatusProperties['chatStatus'] ==
+                                          'doNotDisturb'
+                                      ? 'doNotDisturb'
+                                      : 'available',
+                                  items: [
+                                    ComboBoxItem(
+                                      value: 'available',
+                                      child: Text(l10n.googleChatAvailable),
+                                    ),
+                                    ComboBoxItem(
+                                      value: 'doNotDisturb',
+                                      child: Text(l10n.googleChatDoNotDisturb),
+                                    ),
+                                  ],
+                                  onChanged: saving
+                                      ? null
+                                      : (value) {
+                                          if (value == null) return;
+                                          setState(() {
+                                            googleStatusProperties = {
+                                              ...googleStatusProperties,
+                                              'chatStatus': value,
+                                            };
+                                            googleStatusChanged = true;
+                                          });
+                                        },
+                                ),
+                              ),
+                            ],
+                            const SizedBox(height: 12),
+                            InfoLabel(
+                              label: l10n.googleDeclineMessage,
+                              child: TextBox(
+                                controller: statusMessage,
+                                enabled: !saving,
+                                onChanged: (value) => setState(() {
+                                  googleStatusProperties = {
+                                    ...googleStatusProperties,
+                                    'declineMessage': value,
+                                  };
+                                  googleStatusChanged = true;
+                                }),
+                              ),
+                            ),
+                          ],
+                          if (eventType == 'workingLocation') ...[
+                            const SizedBox(height: 12),
+                            InfoLabel(
+                              label: l10n.googleWorkingLocation,
+                              child: ComboBox<String>(
+                                isExpanded: true,
+                                value:
+                                    googleStatusProperties['type']
+                                        ?.toString() ??
+                                    'homeOffice',
+                                items: [
+                                  for (final value in const [
+                                    'homeOffice',
+                                    'officeLocation',
+                                    'customLocation',
+                                  ])
+                                    ComboBoxItem(
+                                      value: value,
+                                      child: Text(
+                                        googleWorkingLocationLabel(l10n, value),
+                                      ),
+                                    ),
+                                ],
+                                onChanged: saving
+                                    ? null
+                                    : (value) {
+                                        if (value == null) return;
+                                        setState(() {
+                                          final next =
+                                              {...googleStatusProperties}
+                                                ..remove('homeOffice')
+                                                ..remove('officeLocation')
+                                                ..remove('customLocation');
+                                          next['type'] = value;
+                                          next[value] = value == 'homeOffice'
+                                              ? <String, Object?>{}
+                                              : <String, Object?>{
+                                                  'label':
+                                                      statusLocationLabel.text,
+                                                };
+                                          googleStatusProperties = next;
+                                          googleStatusChanged = true;
+                                        });
+                                      },
+                              ),
+                            ),
+                            if (googleStatusProperties['type'] !=
+                                'homeOffice') ...[
+                              const SizedBox(height: 12),
+                              InfoLabel(
+                                label: l10n.googleWorkLocationLabel,
+                                child: TextBox(
+                                  controller: statusLocationLabel,
+                                  enabled: !saving,
+                                  onChanged: (value) => setState(() {
+                                    final locationType =
+                                        googleStatusProperties['type']
+                                            ?.toString() ??
+                                        'customLocation';
+                                    final detail =
+                                        googleStatusProperties[locationType]
+                                            is Map
+                                        ? Map<String, Object?>.from(
+                                            googleStatusProperties[locationType]
+                                                as Map,
+                                          )
+                                        : <String, Object?>{};
+                                    googleStatusProperties = {
+                                      ...googleStatusProperties,
+                                      locationType: {...detail, 'label': value},
+                                    };
+                                    googleStatusChanged = true;
+                                  }),
+                                ),
+                              ),
+                            ],
+                          ],
+                        ],
+                        if (selectedSource.provider == BusyProvider.google) ...[
+                          const SizedBox(height: 12),
+                          FutureBuilder<List<GoogleEventLabel>>(
+                            key: ValueKey(
+                              'google-labels-${selectedSource.accountId}-${selectedSource.providerCalendarId}',
+                            ),
+                            future: ref.read(
+                              googleEventLabelsForCalendarProvider((
+                                accountId: selectedSource.accountId,
+                                calendarId: selectedSource.providerCalendarId,
+                              )).future,
+                            ),
+                            builder: (context, snapshot) {
+                              final labels = snapshot.data;
+                              if (labels == null) {
+                                return InfoLabel(
+                                  label: l10n.eventLabel,
+                                  child: Row(
+                                    children: [
+                                      Expanded(
+                                        child: Text(
+                                          eventLabelId ?? l10n.noneValue,
+                                        ),
+                                      ),
+                                      if (snapshot.hasError)
+                                        Button(
+                                          onPressed: () {
+                                            ref.invalidate(
+                                              googleEventLabelsForCalendarProvider(
+                                                (
+                                                  accountId:
+                                                      selectedSource.accountId,
+                                                  calendarId: selectedSource
+                                                      .providerCalendarId,
+                                                ),
+                                              ),
+                                            );
+                                            setState(() {});
+                                          },
+                                          child: Text(l10n.retry),
+                                        ),
+                                    ],
+                                  ),
+                                );
+                              }
+                              final byId = {
+                                for (final label in labels) label.id: label,
+                              };
+                              final values = <String>[
+                                '',
+                                ...byId.keys,
+                                if (eventLabelId != null &&
+                                    !byId.containsKey(eventLabelId))
+                                  eventLabelId!,
+                              ];
+                              return InfoLabel(
+                                label: l10n.eventLabel,
+                                child: ComboBox<String>(
+                                  key: const Key('windows-event-label'),
+                                  isExpanded: true,
+                                  value: eventLabelId ?? '',
+                                  items: [
+                                    for (final id in values)
+                                      ComboBoxItem(
+                                        value: id,
+                                        child: Row(
+                                          children: [
+                                            if (byId[id] case final label?) ...[
+                                              Container(
+                                                width: 12,
+                                                height: 12,
+                                                color: Color(
+                                                  0xff000000 |
+                                                      int.parse(
+                                                        label.backgroundColor
+                                                            .substring(1),
+                                                        radix: 16,
+                                                      ),
+                                                ),
+                                              ),
+                                              const SizedBox(width: 6),
+                                            ],
+                                            Text(
+                                              id.isEmpty
+                                                  ? l10n.noneValue
+                                                  : byId[id]?.name ??
+                                                        l10n.unknownEventLabel(
+                                                          id,
+                                                        ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                  ],
+                                  onChanged: saving
+                                      ? null
+                                      : (id) => setState(() {
+                                          eventLabelId =
+                                              id == null || id.isEmpty
+                                              ? null
+                                              : id;
+                                          eventLabelChanged =
+                                              eventLabelId !=
+                                              originalDraft?.eventLabelId;
+                                        }),
+                                ),
+                              );
+                            },
+                          ),
+                        ],
                       ],
                     ),
                   ),
@@ -761,14 +1255,7 @@ Future<bool> showWindowsEventEditorDialog(
                                 attendees = [
                                   for (final item in attendees)
                                     if (identical(item, attendee))
-                                      EventAttendeeDraft(
-                                        email: item.email,
-                                        displayName: item.displayName,
-                                        optional: optional,
-                                        self: item.self,
-                                        organizer: item.organizer,
-                                        responseStatus: item.responseStatus,
-                                      )
+                                      item.withOptional(optional)
                                     else
                                       item,
                                 ];
@@ -895,6 +1382,54 @@ Future<bool> showWindowsEventEditorDialog(
                             ),
                       child: Text(l10n.nextcloudGuestAvailability),
                     ),
+                  if ((selectedSource.provider == BusyProvider.google ||
+                          (selectedSource.provider == BusyProvider.microsoft &&
+                              microsoftAvailabilityAccountType(
+                                    accounts
+                                        .where(
+                                          (account) =>
+                                              account.id ==
+                                              selectedSource.accountId,
+                                        )
+                                        .firstOrNull
+                                        ?.tenantId,
+                                  ) ==
+                                  MicrosoftAvailabilityAccountType
+                                      .workSchool)) &&
+                      attendees.any(
+                        (attendee) => !attendee.self && !attendee.organizer,
+                      ))
+                    Button(
+                      onPressed: saving
+                          ? null
+                          : () => showWindowsCloudAvailabilityDialog(
+                              context,
+                              calendarTimeZone: selectedSource.timeZone,
+                              draft:
+                                  (originalDraft ??
+                                          EventEditorDraft.newEvent(
+                                            accountId: selectedSource.accountId,
+                                            sourceId: selectedSource.id,
+                                            providerCalendarId: selectedSource
+                                                .providerCalendarId,
+                                            start: start,
+                                            end: end,
+                                          ))
+                                      .copyWith(
+                                        accountId: selectedSource.accountId,
+                                        sourceId: selectedSource.id,
+                                        providerCalendarId:
+                                            selectedSource.providerCalendarId,
+                                        start: start,
+                                        end: end,
+                                        allDay: allDay,
+                                        startTimeZone: selectedTimeZone,
+                                        endTimeZone: endTimeZone,
+                                        attendees: attendees,
+                                      ),
+                            ),
+                      child: Text(l10n.nextcloudGuestAvailability),
+                    ),
                   if (error != null) ...[
                     const SizedBox(height: 12),
                     InfoBar(
@@ -968,7 +1503,13 @@ Future<bool> showWindowsEventEditorDialog(
                                         ? location.text
                                         : originalDraft.location,
                                     locationChange: locationChange,
-                                    description: description.text.trim(),
+                                    description:
+                                        description.text ==
+                                            (originalDraft
+                                                    ?.editableDescription ??
+                                                '')
+                                        ? originalDraft?.description
+                                        : description.text.trim(),
                                     startTimeZone: selectedTimeZone,
                                     endTimeZone: endTimeZone,
                                     recurrence: recurrenceChanged
@@ -1009,6 +1550,28 @@ Future<bool> showWindowsEventEditorDialog(
                                         ? _categories(categories.text)
                                         : null,
                                     categoriesChanged: categoriesChanged,
+                                    eventLabelId:
+                                        eventLabelChanged &&
+                                            eventLabelId != null
+                                        ? eventLabelId
+                                        : null,
+                                    clearEventLabelId:
+                                        eventLabelChanged &&
+                                        eventLabelId == null,
+                                    eventLabelChanged: eventLabelChanged,
+                                    eventType:
+                                        selectedSource.provider ==
+                                            BusyProvider.google
+                                        ? eventType
+                                        : null,
+                                    googleStatusProperties:
+                                        selectedSource.provider ==
+                                                BusyProvider.google &&
+                                            (googleStatusChanged ||
+                                                originalDraft == null)
+                                        ? googleStatusProperties
+                                        : null,
+                                    googleStatusChanged: googleStatusChanged,
                                     createConference:
                                         onlineMeeting &&
                                         originalDraft?.conference == null,
@@ -1187,6 +1750,8 @@ Future<bool> showWindowsEventEditorDialog(
   location.dispose();
   guestEmail.dispose();
   categories.dispose();
+  statusMessage.dispose();
+  statusLocationLabel.dispose();
   return saved;
 }
 

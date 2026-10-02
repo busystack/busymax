@@ -5,6 +5,7 @@ import 'package:logging/logging.dart';
 
 import '../../config/build_config.dart';
 import '../../core/logging/redacting_logger.dart';
+import '../../core/auth/microsoft_graph_scopes.dart';
 import '../../google_tasks/oauth/oauth_loopback_flow.dart';
 import '../../providers/busy_provider.dart';
 import 'package:busymax/src/core/auth/oauth_models.dart';
@@ -17,6 +18,20 @@ const microsoftTodoOAuthScopes =
     'https://graph.microsoft.com/User.Read '
     'https://graph.microsoft.com/Tasks.ReadWrite '
     'https://graph.microsoft.com/Calendars.ReadWrite';
+
+const microsoftSharedCalendarScope =
+    'https://graph.microsoft.com/Calendars.ReadWrite.Shared';
+
+const microsoftCategoryScope =
+    'https://graph.microsoft.com/MailboxSettings.Read';
+
+abstract interface class MicrosoftCategoryAuthorization {
+  Future<void> authorizeCategoryAccess(String accountId);
+}
+
+abstract interface class MicrosoftSharedCalendarAuthorization {
+  Future<void> authorizeSharedCalendarAccess(String accountId);
+}
 
 const microsoftSignInCallbackNotReceivedMessage =
     'Microsoft sign-in callback was not received by BusyMax. Try signing in '
@@ -31,7 +46,11 @@ abstract interface class MicrosoftOAuthGateway {
   Future<void> signOutAccount(String accountId);
 }
 
-class MicrosoftOAuthService implements MicrosoftOAuthGateway {
+class MicrosoftOAuthService
+    implements
+        MicrosoftOAuthGateway,
+        MicrosoftSharedCalendarAuthorization,
+        MicrosoftCategoryAuthorization {
   MicrosoftOAuthService({
     required BuildConfig config,
     required http.Client httpClient,
@@ -104,6 +123,7 @@ class MicrosoftOAuthService implements MicrosoftOAuthGateway {
       accountId: accountId,
       tokenSet: tokenSet,
       user: user,
+      tenantId: microsoftTenantIdFromIdToken(tokenSet.idToken),
     );
   }
 
@@ -136,10 +156,187 @@ class MicrosoftOAuthService implements MicrosoftOAuthGateway {
     return 'Bearer ${tokenSet.accessToken}';
   }
 
+  Future<String> sharedCalendarAuthorizationHeaderForAccount(
+    String accountId,
+  ) async {
+    final tokenSet = await validTokenForAccount(accountId);
+    if (!hasMicrosoftGraphScope(
+      tokenSet.scopes,
+      microsoftSharedCalendarScope,
+    )) {
+      throw const OAuthException(
+        'MicrosoftOAuthSharedConsentRequired',
+        'Shared-calendar permission must be granted for this account.',
+      );
+    }
+    return 'Bearer ${tokenSet.accessToken}';
+  }
+
+  Future<String> categoryAuthorizationHeaderForAccount(String accountId) async {
+    final tokenSet = await validTokenForAccount(accountId);
+    if (!hasMicrosoftGraphScope(tokenSet.scopes, microsoftCategoryScope)) {
+      throw const OAuthException(
+        'MicrosoftOAuthCategoryConsentRequired',
+        'Outlook category lookup requires optional mailbox-settings consent.',
+      );
+    }
+    return 'Bearer ${tokenSet.accessToken}';
+  }
+
+  @override
+  Future<void> authorizeCategoryAccess(String accountId) async {
+    final generation = _credentialGenerations[accountId] ?? 0;
+    final existing = await _readTokenSet(accountId);
+    if (existing == null) {
+      throw const OAuthException(
+        'MicrosoftOAuthMissingToken',
+        'Reconnect this Microsoft account before loading categories.',
+      );
+    }
+    if (hasMicrosoftGraphScope(existing.scopes, microsoftCategoryScope)) return;
+    final result = await _loopbackFlow.start(
+      authorizationEndpoint: _authorizationEndpoint,
+      clientId: _config.microsoftOAuthClientId.trim(),
+      scope: [
+        microsoftTodoOAuthScopes,
+        if (hasMicrosoftGraphScope(
+          existing.scopes,
+          microsoftSharedCalendarScope,
+        ))
+          microsoftSharedCalendarScope,
+        microsoftCategoryScope,
+      ].join(' '),
+      redirectHost: 'localhost',
+      signInCancelledMessage: 'Microsoft category consent was cancelled.',
+      callbackNotReceivedMessage: microsoftSignInCallbackNotReceivedMessage,
+      serverStartFailureMessage:
+          'Could not start the Microsoft sign-in callback listener.',
+      browserLaunchFailureMessage:
+          'Could not open the browser for Microsoft sign-in.',
+      extraAuthorizationParameters: const {
+        'response_mode': 'query',
+        'prompt': 'consent',
+      },
+    );
+    final candidate = await exchangeAuthorizationCode(
+      code: result.callback.code,
+      codeVerifier: result.codeVerifier,
+      redirectUri: result.redirectUri,
+      fallbackScopeText: '',
+      existingRefreshToken: existing.refreshToken,
+      existingIdToken: existing.idToken,
+    );
+    final user = await _getMe(candidate);
+    if ('microsoft:${user.id}' != accountId ||
+        !hasMicrosoftGraphScope(candidate.scopes, microsoftCategoryScope) ||
+        !hasMicrosoftGraphScopes(candidate.scopes, {
+          'https://graph.microsoft.com/User.Read',
+          'https://graph.microsoft.com/Tasks.ReadWrite',
+          'https://graph.microsoft.com/Calendars.ReadWrite',
+          if (hasMicrosoftGraphScope(
+            existing.scopes,
+            microsoftSharedCalendarScope,
+          ))
+            microsoftSharedCalendarScope,
+        })) {
+      throw const OAuthException(
+        'MicrosoftOAuthCategoryConsentDenied',
+        'Outlook category access was not granted for this account.',
+      );
+    }
+    if ((_credentialGenerations[accountId] ?? 0) != generation ||
+        await _readTokenSet(accountId) == null) {
+      throw const OAuthException(
+        'MicrosoftOAuthCategoryConsentCancelled',
+        'The account was removed before category consent completed.',
+      );
+    }
+    await _tokenStore.saveOAuthTokenSet(
+      accountId,
+      BusyProvider.microsoft,
+      candidate,
+    );
+  }
+
+  @override
+  Future<void> authorizeSharedCalendarAccess(String accountId) async {
+    final generation = _credentialGenerations[accountId] ?? 0;
+    final existing = await _readTokenSet(accountId);
+    if (existing == null) {
+      throw const OAuthException(
+        'MicrosoftOAuthMissingToken',
+        'Reconnect this Microsoft account before opening a shared calendar.',
+      );
+    }
+    if (hasMicrosoftGraphScope(existing.scopes, microsoftSharedCalendarScope)) {
+      return;
+    }
+    final result = await _loopbackFlow.start(
+      authorizationEndpoint: _authorizationEndpoint,
+      clientId: _config.microsoftOAuthClientId.trim(),
+      scope: [
+        microsoftTodoOAuthScopes,
+        microsoftSharedCalendarScope,
+        if (hasMicrosoftGraphScope(existing.scopes, microsoftCategoryScope))
+          microsoftCategoryScope,
+      ].join(' '),
+      redirectHost: 'localhost',
+      signInCancelledMessage:
+          'Microsoft shared-calendar consent was cancelled.',
+      callbackNotReceivedMessage: microsoftSignInCallbackNotReceivedMessage,
+      serverStartFailureMessage:
+          'Could not start the Microsoft sign-in callback listener.',
+      browserLaunchFailureMessage:
+          'Could not open the browser for Microsoft sign-in.',
+      extraAuthorizationParameters: const {
+        'response_mode': 'query',
+        'prompt': 'consent',
+      },
+    );
+    final candidate = await exchangeAuthorizationCode(
+      code: result.callback.code,
+      codeVerifier: result.codeVerifier,
+      redirectUri: result.redirectUri,
+      fallbackScopeText: '',
+      existingRefreshToken: existing.refreshToken,
+      existingIdToken: existing.idToken,
+    );
+    final user = await _getMe(candidate);
+    if ('microsoft:${user.id}' != accountId ||
+        !hasMicrosoftGraphScopes(candidate.scopes, {
+          microsoftSharedCalendarScope,
+          'https://graph.microsoft.com/User.Read',
+          'https://graph.microsoft.com/Tasks.ReadWrite',
+          'https://graph.microsoft.com/Calendars.ReadWrite',
+          if (hasMicrosoftGraphScope(existing.scopes, microsoftCategoryScope))
+            microsoftCategoryScope,
+        })) {
+      throw const OAuthException(
+        'MicrosoftOAuthSharedConsentDenied',
+        'Shared-calendar access was not granted for this account.',
+      );
+    }
+    if ((_credentialGenerations[accountId] ?? 0) != generation ||
+        await _readTokenSet(accountId) == null) {
+      throw const OAuthException(
+        'MicrosoftOAuthSharedConsentCancelled',
+        'The account was removed before shared-calendar consent completed.',
+      );
+    }
+    await _tokenStore.saveOAuthTokenSet(
+      accountId,
+      BusyProvider.microsoft,
+      candidate,
+    );
+  }
+
   Future<OAuthTokenSet> exchangeAuthorizationCode({
     required String code,
     required String codeVerifier,
     required String redirectUri,
+    String fallbackScopeText = microsoftTodoOAuthScopes,
+    String? existingRefreshToken,
+    String? existingIdToken,
   }) async {
     final clientId = _config.microsoftOAuthClientId.trim();
     _validateTokenExchangeParameters(
@@ -182,7 +379,9 @@ class MicrosoftOAuthService implements MicrosoftOAuthGateway {
     return OAuthTokenSet.fromTokenEndpointJson(
       json,
       issuedAtUtc: _nowUtc(),
-      fallbackScopeText: microsoftTodoOAuthScopes,
+      fallbackScopeText: fallbackScopeText,
+      existingRefreshToken: existingRefreshToken,
+      existingIdToken: existingIdToken,
     );
   }
 
@@ -234,7 +433,16 @@ class MicrosoftOAuthService implements MicrosoftOAuthGateway {
         'client_id': clientId,
         'grant_type': 'refresh_token',
         'refresh_token': current.refreshToken!,
-        'scope': microsoftTodoOAuthScopes,
+        'scope': [
+          microsoftTodoOAuthScopes,
+          if (hasMicrosoftGraphScope(
+            current.scopes,
+            microsoftSharedCalendarScope,
+          ))
+            microsoftSharedCalendarScope,
+          if (hasMicrosoftGraphScope(current.scopes, microsoftCategoryScope))
+            microsoftCategoryScope,
+        ].join(' '),
       },
     );
     if (response.statusCode < 200 || response.statusCode >= 300) {
@@ -305,11 +513,36 @@ class MicrosoftOAuthSignInResult {
     required this.accountId,
     required this.tokenSet,
     required this.user,
+    this.tenantId,
   });
 
   final String accountId;
   final OAuthTokenSet tokenSet;
   final MicrosoftTodoUserDto user;
+  final String? tenantId;
+}
+
+/// ID tokens are issued to this client; Graph access tokens are opaque and
+/// must never be decoded to infer account capabilities.
+String? microsoftTenantIdFromIdToken(String? idToken) {
+  if (idToken == null) return null;
+  final parts = idToken.split('.');
+  if (parts.length != 3) return null;
+  try {
+    final decoded = jsonDecode(
+      utf8.decode(base64Url.decode(base64Url.normalize(parts[1]))),
+    );
+    if (decoded is! Map) return null;
+    final tenantId = decoded['tid']?.toString().toLowerCase();
+    return tenantId != null &&
+            RegExp(
+              r'^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$',
+            ).hasMatch(tenantId)
+        ? tenantId
+        : null;
+  } on Object {
+    return null;
+  }
 }
 
 void _validateTokenExchangeParameters({

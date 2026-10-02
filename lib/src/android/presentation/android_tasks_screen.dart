@@ -14,9 +14,16 @@ import '../../dav/ical/ical_task_alarm.dart';
 import '../../features/task_lists/data/task_lists_repository.dart';
 import '../../features/tasks/data/tasks_repository.dart';
 import '../../features/tasks/domain/task_capabilities.dart';
+import '../../features/tasks/domain/task_source_links.dart';
 import '../../features/tasks/presentation/task_details_draft.dart';
 import '../../features/recurrence/domain/event_recurrence_codec.dart';
 import '../../features/recurrence/domain/recurrence_rule.dart';
+import '../../features/schedule/presentation/schedule_event_details_format.dart';
+import '../../features/schedule/presentation/attachment_download.dart';
+import '../../features/schedule/presentation/attachment_upload_coordinator.dart';
+import '../../microsoft_todo/api/microsoft_todo_api_client.dart';
+import '../../microsoft_todo/api/microsoft_todo_api_models.dart';
+import '../../microsoft_calendar/microsoft_calendar_models.dart';
 import '../../l10n/l10n.dart';
 import '../../providers/busy_provider.dart';
 import '../../schedule/schedule_filters.dart';
@@ -558,6 +565,9 @@ class AndroidTaskEditor extends ConsumerStatefulWidget {
 }
 
 class _AndroidTaskEditorState extends ConsumerState<AndroidTaskEditor> {
+  Future<List<TaskSourceLink>>? _linkedResourcesFuture;
+  Future<List<MicrosoftTodoAttachmentDto>>? _attachmentsFuture;
+  bool _attachmentBusy = false;
   late TaskDetailsDraft _draft = widget.task == null
       ? TaskDetailsDraft.forCreation(
           taskListId: widget.creationList!.id,
@@ -696,6 +706,249 @@ class _AndroidTaskEditorState extends ConsumerState<AndroidTaskEditor> {
                 subtitle: Text(widget.accountLabel ?? widget.accountId),
               ),
             ),
+            if (widget.provider == BusyProvider.google && widget.task != null)
+              for (final link in widget.task!.googleSourceLinks)
+                ListTile(
+                  leading: const Icon(Icons.open_in_new),
+                  title: Text(
+                    link.label?.isNotEmpty == true
+                        ? link.label!
+                        : context.l10n.openInProvider,
+                  ),
+                  subtitle: Text(link.url),
+                  onTap: () async {
+                    if (!await openScheduleWebLink(link.url) &&
+                        context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text(context.l10n.eventLinkOpenFailed),
+                        ),
+                      );
+                    }
+                  },
+                ),
+            if (widget.provider == BusyProvider.microsoft &&
+                widget.task != null)
+              Column(
+                children: [
+                  TextButton(
+                    onPressed: () => setState(() {
+                      final key = (
+                        accountId: widget.accountId,
+                        taskListId: widget.task!.taskListId,
+                        taskId: widget.task!.id,
+                      );
+                      ref.invalidate(microsoftTaskLinkedResourcesProvider(key));
+                      _linkedResourcesFuture = ref.read(
+                        microsoftTaskLinkedResourcesProvider(key).future,
+                      );
+                    }),
+                    child: Text(context.l10n.linkedResources),
+                  ),
+                  if (_linkedResourcesFuture case final future?)
+                    FutureBuilder<List<TaskSourceLink>>(
+                      future: future,
+                      builder: (context, snapshot) {
+                        if (snapshot.hasError) {
+                          return Text(context.l10n.operationFailed);
+                        }
+                        if (!snapshot.hasData) {
+                          return const LinearProgressIndicator();
+                        }
+                        if (snapshot.data!.isEmpty) {
+                          return Text(context.l10n.noLinkedResources);
+                        }
+                        return Column(
+                          children: [
+                            for (final link in snapshot.data!)
+                              ListTile(
+                                leading: const Icon(Icons.open_in_new),
+                                title: Text(
+                                  link.label?.isNotEmpty == true
+                                      ? link.label!
+                                      : context.l10n.openInProvider,
+                                ),
+                                subtitle: Text(link.url),
+                                onTap: () async {
+                                  if (!await openScheduleWebLink(link.url) &&
+                                      context.mounted) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(
+                                        content: Text(
+                                          context.l10n.eventLinkOpenFailed,
+                                        ),
+                                      ),
+                                    );
+                                  }
+                                },
+                              ),
+                          ],
+                        );
+                      },
+                    ),
+                ],
+              ),
+            if (widget.provider == BusyProvider.microsoft &&
+                widget.task != null)
+              Column(
+                children: [
+                  TextButton(
+                    key: const Key('task-attachments-load'),
+                    onPressed: () => setState(() {
+                      final key = (
+                        accountId: widget.accountId,
+                        taskListId: widget.task!.taskListId,
+                        taskId: widget.task!.id,
+                      );
+                      ref.invalidate(microsoftTaskAttachmentsProvider(key));
+                      _attachmentsFuture = ref.read(
+                        microsoftTaskAttachmentsProvider(key).future,
+                      );
+                    }),
+                    child: Text(context.l10n.attachments),
+                  ),
+                  if (canWrite &&
+                      !widget.task!.pendingDelete &&
+                      !widget.task!.id.startsWith('local-task-'))
+                    TextButton.icon(
+                      onPressed:
+                          _attachmentBusy ||
+                              !ref
+                                  .watch(attachmentUploadCoordinatorProvider)
+                                  .canSubmit(
+                                    AttachmentUploadCoordinator.taskKey(
+                                      widget.accountId,
+                                      widget.task!.taskListId,
+                                      widget.task!.id,
+                                    ),
+                                  )
+                          ? null
+                          : _uploadTaskAttachment,
+                      icon: const Icon(Icons.add),
+                      label: Text(context.l10n.attachments),
+                    ),
+                  if (ref
+                          .watch(attachmentUploadCoordinatorProvider)
+                          .retryAfter(
+                            AttachmentUploadCoordinator.taskKey(
+                              widget.accountId,
+                              widget.task!.taskListId,
+                              widget.task!.id,
+                            ),
+                          ) !=
+                      null)
+                    Text(context.l10n.attachmentUploadRateLimited),
+                  if (ref
+                      .watch(attachmentUploadCoordinatorProvider)
+                      .needsReconciliation(
+                        AttachmentUploadCoordinator.taskKey(
+                          widget.accountId,
+                          widget.task!.taskListId,
+                          widget.task!.id,
+                        ),
+                      )) ...[
+                    Text(
+                      ref
+                                  .watch(attachmentUploadCoordinatorProvider)
+                                  .confirmedId(
+                                    AttachmentUploadCoordinator.taskKey(
+                                      widget.accountId,
+                                      widget.task!.taskListId,
+                                      widget.task!.id,
+                                    ),
+                                  ) ==
+                              null
+                          ? context.l10n.attachmentUploadUnresolved
+                          : context.l10n.completed,
+                    ),
+                    TextButton(
+                      onPressed: _attachmentBusy ? null : _reconcileTaskUpload,
+                      child: Text(context.l10n.refresh),
+                    ),
+                    if (ref
+                        .watch(attachmentUploadCoordinatorProvider)
+                        .hasResumableSession(
+                          AttachmentUploadCoordinator.taskKey(
+                            widget.accountId,
+                            widget.task!.taskListId,
+                            widget.task!.id,
+                          ),
+                        ))
+                      TextButton(
+                        onPressed: _attachmentBusy ? null : _cancelTaskUpload,
+                        child: Text(context.l10n.cancel),
+                      ),
+                    if (ref
+                        .watch(attachmentUploadCoordinatorProvider)
+                        .canResolveManually(
+                          AttachmentUploadCoordinator.taskKey(
+                            widget.accountId,
+                            widget.task!.taskListId,
+                            widget.task!.id,
+                          ),
+                        )) ...[
+                      TextButton(
+                        onPressed: _attachmentBusy
+                            ? null
+                            : () => _resolveTaskUpload(exists: true),
+                        child: Text(context.l10n.completed),
+                      ),
+                      TextButton(
+                        onPressed: _attachmentBusy
+                            ? null
+                            : () => _resolveTaskUpload(exists: false),
+                        child: Text(context.l10n.retry),
+                      ),
+                    ],
+                  ],
+                  if (_attachmentsFuture case final future?)
+                    FutureBuilder<List<MicrosoftTodoAttachmentDto>>(
+                      future: future,
+                      builder: (context, snapshot) {
+                        if (snapshot.hasError) {
+                          return Text(context.l10n.attachmentsNotLoaded);
+                        }
+                        if (!snapshot.hasData) {
+                          return const LinearProgressIndicator();
+                        }
+                        if (snapshot.data!.isEmpty) {
+                          return Text(context.l10n.noneValue);
+                        }
+                        return Column(
+                          children: [
+                            for (final attachment in snapshot.data!)
+                              ListTile(
+                                leading: const Icon(Icons.attach_file),
+                                title: Text(attachment.name),
+                                subtitle: attachment.size == null
+                                    ? null
+                                    : Text('${attachment.size} B'),
+                                trailing:
+                                    canWrite &&
+                                        !widget.task!.pendingDelete &&
+                                        !widget.task!.id.startsWith(
+                                          'local-task-',
+                                        )
+                                    ? IconButton(
+                                        tooltip: context.l10n.delete,
+                                        onPressed: _attachmentBusy
+                                            ? null
+                                            : () => _deleteTaskAttachment(
+                                                attachment,
+                                              ),
+                                        icon: const Icon(Icons.delete_outline),
+                                      )
+                                    : null,
+                                onTap: attachment.isFile
+                                    ? () => _downloadTaskAttachment(attachment)
+                                    : null,
+                              ),
+                          ],
+                        );
+                      },
+                    ),
+                ],
+              ),
             const SizedBox(height: 12),
             TextField(
               controller: _title,
@@ -708,7 +961,9 @@ class _AndroidTaskEditorState extends ConsumerState<AndroidTaskEditor> {
             const SizedBox(height: 12),
             TextField(
               controller: _notes,
-              enabled: canWrite,
+              enabled:
+                  canWrite &&
+                  !(widget.task?.googleAssignment.isFromDocument ?? false),
               minLines: 3,
               maxLines: 8,
               decoration: InputDecoration(labelText: context.l10n.notes),
@@ -948,6 +1203,8 @@ class _AndroidTaskEditorState extends ConsumerState<AndroidTaskEditor> {
                   ),
                 ),
               ),
+              if (widget.provider == BusyProvider.microsoft)
+                _microsoftCategories(canWrite),
             ],
             if (capabilities.supportsLocation) ...[
               const SizedBox(height: 12),
@@ -1214,7 +1471,11 @@ class _AndroidTaskEditorState extends ConsumerState<AndroidTaskEditor> {
               : () => _openHierarchyTask(subtask.task!),
         ),
       OutlinedButton.icon(
-        onPressed: capabilities.canCreateTasks ? _createSubtask : null,
+        onPressed:
+            capabilities.canCreateTasks &&
+                !(widget.task?.googleAssignment.isAssigned ?? false)
+            ? _createSubtask
+            : null,
         icon: const Icon(Icons.add_task),
         label: Text(context.l10n.createSubtask),
       ),
@@ -1270,6 +1531,7 @@ class _AndroidTaskEditorState extends ConsumerState<AndroidTaskEditor> {
   }
 
   Future<void> _createSubtask() async {
+    if (widget.task?.googleAssignment.isAssigned ?? false) return;
     final controller = TextEditingController();
     final title = await showDialog<String>(
       context: context,
@@ -1593,6 +1855,73 @@ class _AndroidTaskEditorState extends ConsumerState<AndroidTaskEditor> {
     return alarm.triggerRaw;
   }
 
+  Widget _microsoftCategories(bool canWrite) {
+    final catalog = ref.watch(
+      microsoftMasterCategoriesProvider(widget.accountId),
+    );
+    return catalog.when(
+      loading: () => const LinearProgressIndicator(),
+      error: (_, _) => TextButton(
+        onPressed: () async {
+          try {
+            await ref
+                .read(microsoftCategoryAuthorizationProvider)
+                ?.authorizeCategoryAccess(widget.accountId);
+            if (mounted) {
+              ref.invalidate(
+                microsoftMasterCategoriesProvider(widget.accountId),
+              );
+            }
+          } on Object {
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text(context.l10n.outlookCategoriesUnavailable),
+                ),
+              );
+            }
+          }
+        },
+        child: Text(context.l10n.loadOutlookCategories),
+      ),
+      data: (categories) => Wrap(
+        spacing: 8,
+        runSpacing: 4,
+        children: [
+          for (final category in categories)
+            FilterChip(
+              label: Text(category.displayName),
+              avatar: microsoftCategorySwatchArgb(category.color) == null
+                  ? null
+                  : CircleAvatar(
+                      backgroundColor: Color(
+                        microsoftCategorySwatchArgb(category.color)!,
+                      ),
+                      radius: 7,
+                    ),
+              selected: _draft.categories.contains(category.displayName),
+              onSelected: !canWrite
+                  ? null
+                  : (selected) {
+                      final values = [..._draft.categories];
+                      if (selected) {
+                        if (!values.contains(category.displayName)) {
+                          values.add(category.displayName);
+                        }
+                      } else {
+                        values.remove(category.displayName);
+                      }
+                      setState(() {
+                        _categories.text = values.join(', ');
+                        _draft = _draft.copyWith(categories: values);
+                      });
+                    },
+            ),
+        ],
+      ),
+    );
+  }
+
   Future<void> _save() async {
     setState(_syncDraftFromControllers);
     if (!_draftIsValid) return;
@@ -1794,7 +2123,11 @@ class _AndroidTaskEditorState extends ConsumerState<AndroidTaskEditor> {
       context: context,
       builder: (context) => AlertDialog(
         title: Text(context.l10n.deleteTask),
-        content: Text(context.l10n.deleteTaskConfirmation(widget.task!.title)),
+        content: Text(
+          widget.task!.googleAssignment.isAssigned
+              ? '${context.l10n.deleteTaskConfirmation(widget.task!.title)}\n\n${context.l10n.deleteAssignedTaskWarning}'
+              : context.l10n.deleteTaskConfirmation(widget.task!.title),
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
@@ -1820,7 +2153,12 @@ class _AndroidTaskEditorState extends ConsumerState<AndroidTaskEditor> {
     try {
       await ref
           .read(tasksRepositoryForAccountProvider(widget.accountId))
-          .deleteTask(widget.task!.taskListId, widget.task!.id);
+          .deleteTask(
+            widget.task!.taskListId,
+            widget.task!.id,
+            confirmedAssignedSourceDeletion:
+                widget.task!.googleAssignment.isAssigned,
+          );
       mutationPersisted = true;
       widget.onMutationCommitted?.call(result);
       if (mounted) {
@@ -1991,6 +2329,232 @@ class _AndroidTaskEditorState extends ConsumerState<AndroidTaskEditor> {
       }
     } finally {
       if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  Future<void> _uploadTaskAttachment() async {
+    final task = widget.task;
+    if (task == null ||
+        task.pendingDelete ||
+        task.id.startsWith('local-task-')) {
+      return;
+    }
+    final document = await BusyMaxAndroidPlatform.instance.openDocument(
+      mimeTypes: const ['*/*'],
+      maximumBytes: 25 * 1024 * 1024,
+    );
+    if (document == null || !mounted) return;
+    final name = safeAttachmentFileName(document.name ?? '');
+    if (name == null) {
+      _attachmentError(const FormatException('Invalid attachment name.'));
+      return;
+    }
+    setState(() => _attachmentBusy = true);
+    try {
+      final client = ref.read(
+        microsoftTodoApiClientForAccountProvider(widget.accountId),
+      );
+      if (client is! MicrosoftTodoAttachmentsApiClient) {
+        throw StateError('Microsoft task attachments are unavailable.');
+      }
+      await ref
+          .read(attachmentUploadCoordinatorProvider)
+          .uploadTask(
+            client: client as MicrosoftTodoAttachmentsApiClient,
+            accountId: widget.accountId,
+            taskListId: task.taskListId,
+            taskId: task.id,
+            name: name,
+            contentType: document.mimeType ?? 'application/octet-stream',
+            bytes: document.bytes,
+          );
+      _reloadTaskAttachments();
+    } on Object catch (error) {
+      _reloadTaskAttachments();
+      _attachmentError(error);
+    } finally {
+      if (mounted) setState(() => _attachmentBusy = false);
+    }
+  }
+
+  Future<void> _reconcileTaskUpload() async {
+    final task = widget.task;
+    if (task == null) return;
+    setState(() => _attachmentBusy = true);
+    try {
+      final client = ref.read(
+        microsoftTodoApiClientForAccountProvider(widget.accountId),
+      );
+      if (client is! MicrosoftTodoAttachmentsApiClient) return;
+      await ref
+          .read(attachmentUploadCoordinatorProvider)
+          .reconcileTask(
+            client: client as MicrosoftTodoAttachmentsApiClient,
+            accountId: widget.accountId,
+            taskListId: task.taskListId,
+            taskId: task.id,
+          );
+      _reloadTaskAttachments();
+    } on Object catch (error) {
+      _attachmentError(error);
+    } finally {
+      if (mounted) setState(() => _attachmentBusy = false);
+    }
+  }
+
+  Future<void> _cancelTaskUpload() async {
+    final task = widget.task;
+    if (task == null) return;
+    setState(() => _attachmentBusy = true);
+    try {
+      final client = ref.read(
+        microsoftTodoApiClientForAccountProvider(widget.accountId),
+      );
+      if (client is! MicrosoftTodoAttachmentsApiClient) return;
+      await ref
+          .read(attachmentUploadCoordinatorProvider)
+          .cancelTask(
+            client: client as MicrosoftTodoAttachmentsApiClient,
+            accountId: widget.accountId,
+            taskListId: task.taskListId,
+            taskId: task.id,
+          );
+      _reloadTaskAttachments();
+    } on Object catch (error) {
+      _attachmentError(error);
+    } finally {
+      if (mounted) setState(() => _attachmentBusy = false);
+    }
+  }
+
+  Future<void> _resolveTaskUpload({required bool exists}) async {
+    final task = widget.task;
+    if (task == null) return;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(exists ? context.l10n.completed : context.l10n.retry),
+        content: Text(context.l10n.attachmentUploadUnresolved),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: Text(context.l10n.cancel),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: Text(exists ? context.l10n.completed : context.l10n.retry),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    ref
+        .read(attachmentUploadCoordinatorProvider)
+        .resolveUncertainManually(
+          AttachmentUploadCoordinator.taskKey(
+            widget.accountId,
+            task.taskListId,
+            task.id,
+          ),
+          exists: exists,
+        );
+    _reloadTaskAttachments();
+  }
+
+  Future<void> _deleteTaskAttachment(
+    MicrosoftTodoAttachmentDto attachment,
+  ) async {
+    final task = widget.task;
+    if (task == null ||
+        task.pendingDelete ||
+        task.id.startsWith('local-task-')) {
+      return;
+    }
+    setState(() => _attachmentBusy = true);
+    try {
+      final client = ref.read(
+        microsoftTodoApiClientForAccountProvider(widget.accountId),
+      );
+      if (client is! MicrosoftTodoAttachmentsApiClient) {
+        throw StateError('Microsoft task attachments are unavailable.');
+      }
+      await (client as MicrosoftTodoAttachmentsApiClient).deleteTaskAttachment(
+        taskListId: task.taskListId,
+        taskId: task.id,
+        attachmentId: attachment.id,
+      );
+      ref
+          .read(attachmentUploadCoordinatorProvider)
+          .attachmentRemoved(
+            AttachmentUploadCoordinator.taskKey(
+              widget.accountId,
+              task.taskListId,
+              task.id,
+            ),
+            attachment.id,
+          );
+      _reloadTaskAttachments();
+    } on Object catch (error) {
+      _attachmentError(error);
+    } finally {
+      if (mounted) setState(() => _attachmentBusy = false);
+    }
+  }
+
+  void _reloadTaskAttachments() {
+    final task = widget.task;
+    if (task == null) return;
+    final key = (
+      accountId: widget.accountId,
+      taskListId: task.taskListId,
+      taskId: task.id,
+    );
+    ref.invalidate(microsoftTaskAttachmentsProvider(key));
+    final future = ref.read(microsoftTaskAttachmentsProvider(key).future);
+    if (mounted) {
+      setState(() {
+        _attachmentsFuture = future;
+      });
+    }
+  }
+
+  void _attachmentError(Object error) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(context.l10n.exportFailed('$error'))),
+    );
+  }
+
+  Future<void> _downloadTaskAttachment(
+    MicrosoftTodoAttachmentDto attachment,
+  ) async {
+    final task = widget.task;
+    final name = safeAttachmentFileName(attachment.name);
+    if (task == null || !attachment.isFile || name == null) return;
+    try {
+      final client = ref.read(
+        microsoftTodoApiClientForAccountProvider(widget.accountId),
+      );
+      if (client is! MicrosoftTodoAttachmentsApiClient) {
+        throw StateError('Microsoft task attachments are unavailable.');
+      }
+      final bytes = await (client as MicrosoftTodoAttachmentsApiClient)
+          .downloadTaskAttachment(
+            taskListId: task.taskListId,
+            taskId: task.id,
+            attachmentId: attachment.id,
+          );
+      await BusyMaxAndroidPlatform.instance.createDocument(
+        suggestedName: name,
+        mimeType: attachment.contentType ?? 'application/octet-stream',
+        bytes: Uint8List.fromList(bytes),
+      );
+    } on Object catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(context.l10n.exportFailed('$error'))),
+        );
+      }
     }
   }
 

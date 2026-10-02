@@ -19,6 +19,9 @@ import '../../dav/nextcloud/nextcloud_trash_service.dart';
 import '../../features/accounts/data/accounts_repository.dart';
 import '../../features/accounts/domain/account_collection_creation_capabilities.dart';
 import '../../features/calendar/data/calendar_repository.dart';
+import '../../features/calendar/data/cloud_calendar_sharing_service.dart';
+import '../../features/calendar/data/microsoft_shared_calendar_service.dart';
+import 'android_cloud_calendar_sharing_content.dart';
 import '../../features/sync/sync_auth_error.dart';
 import '../../features/task_lists/data/task_lists_repository.dart';
 import '../../features/tasks/domain/task_capabilities.dart';
@@ -137,6 +140,43 @@ class _AndroidSettingsScreenState extends ConsumerState<AndroidSettingsScreen> {
                   onTap: () =>
                       unawaited(_createCollection(accounts, calendar: true)),
                 ),
+              for (final account in accounts)
+                if (account.provider == BusyProvider.microsoft &&
+                    account.isSignedIn)
+                  ListTile(
+                    leading: const Icon(Icons.people_outline),
+                    title: Text(context.l10n.openSharedCalendar),
+                    subtitle: Text(
+                      account.displayName ?? account.email ?? account.id,
+                    ),
+                    onTap: () => unawaited(_openSharedCalendar(account.id)),
+                  ),
+              for (final account in accounts)
+                if (account.isSignedIn &&
+                    sources.any(
+                      (source) =>
+                          source.accountId == account.id &&
+                          CloudCalendarSharingService.canManageSource(source),
+                    ))
+                  ListTile(
+                    key: Key('android-manage-sharing-${account.id}'),
+                    leading: const Icon(Icons.people_outline),
+                    title: Text(context.l10n.manageCalendarSharing),
+                    subtitle: Text(account.displayLabel),
+                    onTap: () => unawaited(
+                      _manageCalendarSharing(
+                        sources
+                            .where(
+                              (source) =>
+                                  source.accountId == account.id &&
+                                  CloudCalendarSharingService.canManageSource(
+                                    source,
+                                  ),
+                            )
+                            .toList(),
+                      ),
+                    ),
+                  ),
               if (accounts.any(
                 (account) =>
                     account.isSignedIn &&
@@ -828,6 +868,69 @@ class _AndroidSettingsScreenState extends ConsumerState<AndroidSettingsScreen> {
     }
   }
 
+  Future<void> _openSharedCalendar(String accountId) async {
+    final controller = TextEditingController();
+    final l10n = context.l10n;
+    final owner = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(l10n.openSharedCalendar),
+        content: TextField(
+          controller: controller,
+          keyboardType: TextInputType.emailAddress,
+          autofocus: true,
+          decoration: InputDecoration(labelText: l10n.calendarOwnerEmail),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: Text(l10n.cancel),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, controller.text),
+            child: Text(l10n.openSharedCalendar),
+          ),
+        ],
+      ),
+    );
+    controller.dispose();
+    if (!mounted || owner == null || owner.trim().isEmpty) return;
+    try {
+      final result = await ref
+          .read(microsoftSharedCalendarServiceProvider)
+          .openPrimaryCalendar(accountId: accountId, owner: owner);
+      if (result.outcome ==
+          MicrosoftSharedCalendarOpenOutcome.rangeUnavailable) {
+        _message(l10n.scheduleRangeIncomplete);
+      }
+    } on Object catch (error) {
+      _message(l10n.calendarUpdateFailed('$error'));
+    }
+  }
+
+  Future<void> _manageCalendarSharing(
+    List<CalendarSourceEntity> sources,
+  ) async {
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(dialogContext.l10n.manageCalendarSharing),
+        content: SizedBox(
+          width: double.maxFinite,
+          child: SingleChildScrollView(
+            child: CloudCalendarSharingContent(sources: sources),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: Text(dialogContext.l10n.close),
+          ),
+        ],
+      ),
+    );
+  }
+
   Future<void> _editCalendarSource(CalendarSourceEntity source) async {
     final l10n = context.l10n;
     final action = await showModalBottomSheet<String>(
@@ -879,9 +982,22 @@ class _AndroidSettingsScreenState extends ConsumerState<AndroidSettingsScreen> {
             if (source.capabilities.canRemoveCalendar)
               ListTile(
                 leading: const Icon(Icons.delete_outline),
-                title: Text(context.l10n.delete),
-                textColor: Theme.of(context).colorScheme.error,
-                iconColor: Theme.of(context).colorScheme.error,
+                title: Text(
+                  source.capabilities.removalMode ==
+                          CalendarRemovalMode.removeFromList
+                      ? context.l10n.removeFromMyCalendars
+                      : context.l10n.delete,
+                ),
+                textColor:
+                    source.capabilities.removalMode ==
+                        CalendarRemovalMode.delete
+                    ? Theme.of(context).colorScheme.error
+                    : null,
+                iconColor:
+                    source.capabilities.removalMode ==
+                        CalendarRemovalMode.delete
+                    ? Theme.of(context).colorScheme.error
+                    : null,
                 onTap: () => Navigator.pop(context, 'delete'),
               ),
           ],
@@ -945,16 +1061,22 @@ class _AndroidSettingsScreenState extends ConsumerState<AndroidSettingsScreen> {
         final remove =
             source.capabilities.removalMode ==
             CalendarRemovalMode.removeFromList;
+        final openedMicrosoftOwner =
+            remove && source.provider == BusyProvider.microsoft;
         final confirmed = await _confirm(
           remove ? l10n.removeFromMyCalendars : l10n.delete,
           remove
-              ? l10n.removeCalendarConfirmation(source.summary)
+              ? openedMicrosoftOwner
+                    ? l10n.removeOpenedSharedCalendarConfirmation(
+                        source.summary,
+                      )
+                    : l10n.removeCalendarConfirmation(source.summary)
               : l10n.deleteCalendarConfirmation(source.summary),
           remove ? l10n.removeAction : l10n.delete,
         );
         if (!confirmed) return;
         await ref.read(calendarRepositoryProvider).deleteLocalSource(source.id);
-        _requestQueuedCalendarSync(source);
+        if (!openedMicrosoftOwner) _requestQueuedCalendarSync(source);
       }
     } on Object catch (error) {
       _message(

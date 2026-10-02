@@ -10,6 +10,81 @@ import 'dav_mutation_patch.dart';
 import '../../features/calendar/presentation/event_editor_draft.dart';
 import '../nextcloud/nextcloud_scheduling_mutations.dart';
 
+/// Edits only URI ATTACH properties on one concrete VEVENT. Replacing the
+/// component with a deep copy retains untouched binary ATTACH properties,
+/// grouped properties, parameter spelling, alarms, exceptions, and VTIMEZONE
+/// content exactly as parsed from the original resource.
+DavMutationPatch? buildDavUriAttachmentPatch({
+  required String baselineRawIcs,
+  required IcalComponentKey target,
+  String? addUrl,
+  String? removeUrl,
+}) {
+  if (target.componentType != 'VEVENT' ||
+      (addUrl == null) == (removeUrl == null)) {
+    throw ArgumentError('Specify one VEVENT URI attachment change.');
+  }
+  final candidate = addUrl ?? removeUrl!;
+  final uri = Uri.tryParse(candidate.trim());
+  if (uri == null ||
+      uri.host.isEmpty ||
+      uri.userInfo.isNotEmpty ||
+      (addUrl != null
+          ? uri.scheme != 'https'
+          : uri.scheme != 'https' && uri.scheme != 'http')) {
+    throw const FormatException('Attachment URL is not a supported URI.');
+  }
+  final document = IcalDocument.parse(baselineRawIcs);
+  final component = IcalDocumentPatcher(document).requireComponent(target);
+  final replacement = component.deepCopy();
+  bool matchingUri(IcalProperty property) {
+    if (property.name != 'ATTACH' ||
+        property.parameterValue('VALUE')?.toUpperCase() == 'BINARY' ||
+        property.parameterValue('ENCODING')?.toUpperCase() == 'BASE64') {
+      return false;
+    }
+    final parsed = Uri.tryParse(property.rawValue);
+    return parsed != null &&
+        (parsed.scheme == 'https' || parsed.scheme == 'http') &&
+        parsed.host.isNotEmpty &&
+        parsed.userInfo.isEmpty &&
+        parsed.toString() == uri.toString();
+  }
+
+  if (addUrl != null) {
+    if (replacement.propertiesNamed('ATTACH').any(matchingUri)) return null;
+    replacement.children.add(
+      IcalProperty(
+        group: null,
+        name: 'ATTACH',
+        parameters: const [
+          IcalParameter(name: 'VALUE', values: ['URI'], wasQuoted: false),
+        ],
+        rawValue: uri.toString(),
+        originalPhysicalLines: const [],
+        isDirty: true,
+      ),
+    );
+  } else {
+    final before = replacement.children.length;
+    replacement.children.removeWhere(
+      (node) => node is IcalProperty && matchingUri(node),
+    );
+    if (replacement.children.length == before) return null;
+  }
+  replacement.structurallyDirty = true;
+  return DavMutationPatch(
+    target: target,
+    scope: target.recurrenceIdKey == null
+        ? DavMutationScope.object
+        : DavMutationScope.recurrenceException,
+    operations: [
+      DavPatchOperation.removeComponent(componentKey: target),
+      DavPatchOperation.addComponent(replacement),
+    ],
+  );
+}
+
 final class DavEventMutationInput {
   const DavEventMutationInput({
     required this.title,
@@ -1112,6 +1187,15 @@ DavMutationPatch buildDavRecurringTaskCompletionPatch({
 List<int> reminderMinutes(Object? reminders) {
   if (reminders is! Map) return const [];
   final map = reminders.cast<Object?, Object?>();
+  if (map['davEditableRows'] case final List rows) {
+    if (rows.any(
+      (row) =>
+          row is! Map || row['minutes'] is! int || (row['minutes'] as int) < 0,
+    )) {
+      throw const FormatException('Invalid editable DAV reminder rows.');
+    }
+    return [for (final row in rows) row['minutes'] as int];
+  }
   final values = <int>[];
   if (map['reminderMinutesBeforeStart'] is int) {
     values.add(map['reminderMinutesBeforeStart']! as int);
@@ -1299,6 +1383,59 @@ List<DavPatchOperation> _eventAlarmUpdateOperations(
   IcalSemanticComponent current,
   Object? reminders,
 ) {
+  if (reminders is Map && reminders['davEditableRows'] is List) {
+    final rows = reminders['davEditableRows'] as List;
+    final editable = _editableDisplayAlarms(current);
+    final editableIndexes = {for (final row in editable) row.index};
+    final retained = <int>{};
+    final changes = <DavPatchOperation>[];
+    final additions = <int>[];
+    for (final row in rows) {
+      if (row is! Map ||
+          row['minutes'] is! int ||
+          (row['minutes'] as int) < 0) {
+        throw const FormatException('Invalid editable DAV reminder row.');
+      }
+      final minutes = row['minutes'] as int;
+      final originalIndex = row['originalIndex'];
+      if (originalIndex == null) {
+        additions.add(minutes);
+        continue;
+      }
+      if (originalIndex is! int ||
+          !editableIndexes.contains(originalIndex) ||
+          !retained.add(originalIndex)) {
+        throw const FormatException('Invalid original DAV alarm identity.');
+      }
+      final previous = editable.singleWhere(
+        (entry) => entry.index == originalIndex,
+      );
+      if (previous.minutes != minutes) {
+        final updated = current.alarms[originalIndex].deepCopy();
+        final trigger = updated.firstProperty('TRIGGER')!;
+        trigger.rawValue = '-PT${minutes}M';
+        trigger.isDirty = true;
+        changes.add(
+          DavPatchOperation.replaceAlarm(
+            alarmIndex: originalIndex,
+            alarm: updated,
+          ),
+        );
+      }
+    }
+    final removed = editableIndexes.difference(retained).toList()
+      ..sort((a, b) => b.compareTo(a));
+    return [
+      ...changes,
+      for (final index in removed)
+        DavPatchOperation.replaceAlarm(alarmIndex: index, alarm: null),
+      for (var index = 0; index < additions.length; index++)
+        DavPatchOperation.replaceAlarm(
+          alarmIndex: current.alarms.length - removed.length + index,
+          alarm: _displayAlarm(additions[index]),
+        ),
+    ];
+  }
   final projected = _projectedEventAlarms(reminders);
   if (projected != null) {
     return [
@@ -1406,7 +1543,10 @@ List<({int index, int minutes})> _editableDisplayAlarms(
     if (alarm.firstProperty('ACTION')?.rawValue.toUpperCase() != 'DISPLAY') {
       continue;
     }
-    final trigger = alarm.firstProperty('TRIGGER')?.rawValue.toUpperCase();
+    final triggerProperty = alarm.firstProperty('TRIGGER');
+    final related = triggerProperty?.parameterValue('RELATED')?.toUpperCase();
+    if (related != null && related != 'START') continue;
+    final trigger = triggerProperty?.rawValue.toUpperCase();
     final match = trigger == null
         ? null
         : RegExp(r'^-PT([0-9]+)M$').firstMatch(trigger);

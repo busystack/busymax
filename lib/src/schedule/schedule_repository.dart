@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:async';
 
 import 'package:drift/drift.dart';
 import 'package:busymax/src/providers/busy_provider.dart';
@@ -7,15 +8,20 @@ import '../core/time/provider_date_time.dart';
 import '../features/maps/domain/geographic_point.dart';
 import '../calendar_providers/calendar_colors.dart';
 import '../calendar_providers/calendar_description.dart';
+import '../microsoft_calendar/microsoft_shared_calendar_address.dart';
 import '../core/time/stored_temporal_projection.dart';
 import '../dav/storage/dav_collection_capabilities.dart';
 import '../db/app_database.dart';
 import '../features/accounts/data/accounts_repository.dart';
 import '../features/calendar/data/calendar_event_detail.dart';
 import '../features/calendar/domain/event_timing_policy.dart';
+import '../features/calendar/domain/google_status_event.dart';
 import '../features/tasks/domain/task_checklist_item.dart';
+import '../features/tasks/domain/google_task_assignment_policy.dart';
+import '../features/tasks/domain/task_source_links.dart';
 import 'schedule_filters.dart';
 import 'schedule_item.dart';
+import 'event_attachment_link.dart';
 import 'schedule_projection.dart';
 import 'schedule_range.dart';
 import 'schedule_sorting.dart';
@@ -23,33 +29,115 @@ import 'schedule_search_match.dart';
 export 'schedule_search_match.dart' show matchesScheduleQuery;
 
 class ScheduleRepository {
-  const ScheduleRepository(
+  ScheduleRepository(
     this._database, {
     Future<void> Function(ScheduleRange range)? ensureProjectionCoverage,
-  }) : _ensureProjectionCoverage = ensureProjectionCoverage;
+    Future<bool> Function(ScheduleRange range, ScheduleFilters filters)?
+    ensureCloudCoverage,
+    DateTime Function()? nowUtc,
+  }) : _ensureProjectionCoverage = ensureProjectionCoverage,
+       _ensureCloudCoverage = ensureCloudCoverage,
+       _nowUtc = nowUtc ?? (() => DateTime.now().toUtc());
 
   final AppDatabase _database;
   final Future<void> Function(ScheduleRange range)? _ensureProjectionCoverage;
+  final Future<bool> Function(ScheduleRange range, ScheduleFilters filters)?
+  _ensureCloudCoverage;
+  final DateTime Function() _nowUtc;
+  final Map<String, bool> _rangeCoverage = {};
+  final Map<String, int> _rangeCoverageGeneration = {};
+  final Map<String, Future<void>> _coverageInFlight = {};
+  final Map<String, DateTime> _coverageLastAttempt = {};
+  final StreamController<void> _coverageChanges =
+      StreamController<void>.broadcast();
+
+  bool? cloudCoverageCompleteFor(
+    ScheduleRange range, {
+    ScheduleFilters filters = const ScheduleFilters(),
+  }) => _rangeCoverage[_coverageKey(range, filters)];
+
+  String _coverageKey(ScheduleRange range, ScheduleFilters filters) {
+    final accounts = filters.accountIds.toList()..sort();
+    final sources = filters.sourceFilterActive
+        ? (filters.sourceIds.toList()..sort())
+        : <String>[];
+    return jsonEncode([
+      range.start.toUtc().millisecondsSinceEpoch,
+      range.end.toUtc().millisecondsSinceEpoch,
+      accounts,
+      filters.sourceFilterActive,
+      sources,
+    ]);
+  }
 
   /// Invalidates presentation queries after committed local or sync writes.
   /// Include joined metadata as well as items: permissions, source names and
   /// account availability can change without an item's identity changing.
-  Stream<void> watchChanges() => _database
-      .tableUpdates(
-        TableUpdateQuery.onAllTables([
-          _database.accounts,
-          _database.tasks,
-          _database.taskLists,
-          _database.calendarEvents,
-          _database.calendarSources,
-          _database.calendarEventAttendees,
-          _database.calendarEventReminders,
-          _database.calendarColors,
-          _database.davCollections,
-          _database.scheduleItemOverrides,
-        ]),
-      )
-      .map((_) {});
+  Stream<void> watchChanges() {
+    final databaseChanges = _database
+        .tableUpdates(
+          TableUpdateQuery.onAllTables([
+            _database.accounts,
+            _database.tasks,
+            _database.taskLists,
+            _database.calendarEvents,
+            _database.calendarSources,
+            _database.calendarEventAttendees,
+            _database.calendarEventReminders,
+            _database.calendarColors,
+            _database.davCollections,
+            _database.scheduleItemOverrides,
+          ]),
+        )
+        .map((_) {});
+    return Stream<void>.multi((controller) {
+      final databaseSubscription = databaseChanges.listen(controller.add);
+      final coverageSubscription = _coverageChanges.stream.listen(
+        controller.add,
+      );
+      controller.onCancel = () async {
+        await databaseSubscription.cancel();
+        await coverageSubscription.cancel();
+      };
+    });
+  }
+
+  void _requestCloudCoverage(ScheduleRange range, ScheduleFilters filters) {
+    final ensure = _ensureCloudCoverage;
+    if (ensure == null) return;
+    final key = _coverageKey(range, filters);
+    if (_coverageInFlight.containsKey(key)) return;
+    final now = _nowUtc();
+    final previous = _coverageLastAttempt[key];
+    // A failed online request must not suppress reconnect for the entire
+    // successful-range freshness window. Bound retries to avoid an offline
+    // view triggering a network request on every rebuild.
+    final retryInterval = _rangeCoverage[key] == false
+        ? const Duration(seconds: 10)
+        : const Duration(minutes: 5);
+    if (previous != null && now.difference(previous) < retryInterval) {
+      return;
+    }
+    _coverageLastAttempt[key] = now;
+    final generation = (_rangeCoverageGeneration[key] ?? 0) + 1;
+    _rangeCoverageGeneration[key] = generation;
+    _rangeCoverage.remove(key);
+    _coverageChanges.add(null);
+    final pending = Future<void>.sync(() async {
+      bool complete;
+      try {
+        complete = await ensure(range, filters);
+      } on Object {
+        complete = false;
+      }
+      if (_rangeCoverageGeneration[key] == generation) {
+        _rangeCoverage[key] = complete;
+        _coverageChanges.add(null);
+      }
+    });
+    _coverageInFlight[key] = pending;
+    unawaited(pending.whenComplete(() => _coverageInFlight.remove(key)));
+  }
 
   Future<ScheduleTaskTarget?> findTaskTarget({
     required String accountId,
@@ -132,6 +220,7 @@ class ScheduleRepository {
     ScheduleFilters filters = const ScheduleFilters(),
   }) async {
     if (filters.includeCalendarEvents && !filters.ignoreDateRange) {
+      _requestCloudCoverage(range, filters);
       await _ensureProjectionCoverage?.call(range);
     }
     final context = await _accountContext(filters);
@@ -444,6 +533,17 @@ class ScheduleRepository {
       final organizer = _jsonMapFromString(event.organizerJson);
       final conference = _jsonValueFromString(event.conferenceJson);
       final raw = _jsonMapFromString(event.rawJson) ?? const {};
+      final sourceRaw = _jsonMapFromString(source?.rawJson) ?? const {};
+      final restrictedPrivate =
+          provider == BusyProvider.microsoft &&
+          source != null &&
+          MicrosoftSharedPrimaryCalendarAddress.parse(
+                source.providerCalendarId,
+              ) !=
+              null &&
+          (sourceRaw['_busymaxOwnerAccessUnavailable'] == true ||
+              (event.visibility?.toLowerCase() == 'private' &&
+                  sourceRaw['canViewPrivateItems'] != true));
       final isOrganizer = _eventIsOrganizer(provider, organizer, raw);
       final sourceWritable =
           source != null && !source.readOnly && !source.isDeleted;
@@ -465,23 +565,47 @@ class ScheduleRepository {
           provider: provider,
           sourceId: event.calendarSourceId,
           providerCalendarId: event.providerCalendarId,
+          providerEventId: event.providerEventId,
           providerRecurringEventId: detail.recurringMutationSeriesId,
+          eventType: restrictedPrivate ? null : event.eventType,
+          googleStatusProperties: restrictedPrivate
+              ? const {}
+              : googleStatusPropertiesFromRaw(event.eventType, raw),
           timingBaseline: EventTimingBaseline.fromDetail(detail),
-          title: event.title,
+          title: restrictedPrivate ? '•••' : event.title,
           allDay: event.allDay,
           start: start,
           end: end,
-          location: event.location,
-          locationPoint: GeographicPoint.tryParse(
-            latitude: event.locationLatitude,
-            longitude: event.locationLongitude,
-          ),
-          description: event.description,
-          descriptionContentType: descriptionBody.contentType,
-          descriptionHtml: descriptionBody.html,
-          attendees: attendees,
-          organizer: organizer,
-          joinMeetingUrl: _eventJoinMeetingUrl(provider, conference, raw),
+          location: restrictedPrivate ? null : event.location,
+          locationPoint: restrictedPrivate
+              ? null
+              : GeographicPoint.tryParse(
+                  latitude: event.locationLatitude,
+                  longitude: event.locationLongitude,
+                ),
+          description: restrictedPrivate ? null : event.description,
+          descriptionContentType: restrictedPrivate
+              ? null
+              : descriptionBody.contentType,
+          descriptionHtml: restrictedPrivate ? null : descriptionBody.html,
+          attendees: restrictedPrivate ? const [] : attendees,
+          organizer: restrictedPrivate ? null : organizer,
+          joinMeetingUrl: restrictedPrivate
+              ? null
+              : _eventJoinMeetingUrl(provider, conference, raw),
+          eventLinkUrl: restrictedPrivate
+              ? null
+              : (_isWebUrl(event.webLink) ? event.webLink : null),
+          attachmentLinks: restrictedPrivate
+              ? const []
+              : eventAttachmentLinks(detail.attachments),
+          attachmentsLoaded: !restrictedPrivate && detail.attachments is List,
+          attachmentsMayExist:
+              !restrictedPrivate &&
+              (raw['hasAttachments'] == true ||
+                  eventAttachmentLinks(detail.attachments).isNotEmpty),
+          startTimeZone: event.startTimeZone,
+          endTimeZone: event.endTimeZone,
           isOrganizer: isOrganizer,
           isFederated:
               provider == BusyProvider.nextcloud &&
@@ -499,12 +623,12 @@ class ScheduleRepository {
               ? raw['guestsCanModify'] == true
               : null,
           locked: provider == BusyProvider.google && raw['locked'] == true,
-          currentUserResponse: _eventCurrentUserResponse(
-            provider,
-            attendees,
-            raw,
-          ),
-          categories: _stringListFromJson(event.categoriesJson),
+          currentUserResponse: restrictedPrivate
+              ? null
+              : _eventCurrentUserResponse(provider, attendees, raw),
+          categories: restrictedPrivate
+              ? const []
+              : _stringListFromJson(event.categoriesJson),
           reminderMinutesBeforeStart: _eventReminderMinutes(
             provider,
             event.remindersJson,
@@ -522,6 +646,7 @@ class ScheduleRepository {
           accountEmail: accountEmails[event.accountId],
           capabilities: ScheduleItemCapabilities(
             canEdit:
+                !restrictedPrivate &&
                 (provider == BusyProvider.nextcloud
                     ? davCapabilities?.canUpdateEvent == true &&
                           source?.isDeleted == false
@@ -532,10 +657,12 @@ class ScheduleRepository {
                   raw,
                   attendees.isNotEmpty,
                 ),
-            canDelete: provider == BusyProvider.nextcloud
-                ? davCapabilities?.canDeleteEvent == true &&
-                      source?.isDeleted == false
-                : sourceWritable,
+            canDelete:
+                !restrictedPrivate &&
+                (provider == BusyProvider.nextcloud
+                    ? davCapabilities?.canDeleteEvent == true &&
+                          source?.isDeleted == false
+                    : sourceWritable),
           ),
         ),
       );
@@ -783,6 +910,23 @@ class ScheduleRepository {
       end: _taskEnd(task, provider),
       due: _taskDue(task, provider),
       notes: task.notes ?? task.bodyContent,
+      isAssigned:
+          provider == BusyProvider.google &&
+          GoogleTaskAssignmentPolicy.fromJson(
+            task.assignmentInfoJson,
+          ).isAssigned,
+      originalTaskUrl: provider == BusyProvider.google
+          ? GoogleTaskAssignmentPolicy.fromJson(
+              task.assignmentInfoJson,
+            ).originalTaskUrl
+          : null,
+      sourceLinks: provider == BusyProvider.google
+          ? googleTaskSourceLinks(
+              assignmentInfoJson: task.assignmentInfoJson,
+              linksJson: task.linksJson,
+              webViewLink: task.webViewLink,
+            )
+          : const [],
       location: task.taskLocation,
       locationPoint: GeographicPoint.tryParse(
         latitude: task.locationLatitude,
@@ -1345,11 +1489,24 @@ String? _eventJoinMeetingUrl(
   final fallback = switch (provider) {
     BusyProvider.google => raw['hangoutLink']?.toString().trim(),
     BusyProvider.microsoft => raw['onlineMeetingUrl']?.toString().trim(),
-    BusyProvider.appleICloud ||
-    BusyProvider.nextcloud ||
-    BusyProvider.webCal => null,
+    BusyProvider.nextcloud => _nextcloudConferenceUrl(raw),
+    BusyProvider.appleICloud || BusyProvider.webCal => null,
   };
   return _isWebUrl(fallback) ? fallback : null;
+}
+
+String? _nextcloudConferenceUrl(Map<String, Object?> raw) {
+  final links = raw['conferenceLinks'];
+  if (links is! List) return null;
+  for (final link in links.whereType<Map>()) {
+    final features = link['features']?.toString().toUpperCase() ?? '';
+    final url = link['url']?.toString().trim();
+    if ((features.contains('VIDEO') || features.contains('AUDIO')) &&
+        _isWebUrl(url)) {
+      return url;
+    }
+  }
+  return null;
 }
 
 bool _isWebUrl(String? value) {

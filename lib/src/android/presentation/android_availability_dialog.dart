@@ -19,6 +19,7 @@ Future<void> showAndroidGuestAvailabilityDialog(
   required String accountId,
   required BusyProvider provider,
   required EventEditorDraft draft,
+  String? calendarTimeZone,
   String? collectionId,
 }) => showDialog<void>(
   context: context,
@@ -27,6 +28,7 @@ Future<void> showAndroidGuestAvailabilityDialog(
     provider: provider,
     collectionId: collectionId,
     draft: draft,
+    calendarTimeZone: calendarTimeZone,
   ),
 );
 
@@ -36,6 +38,7 @@ class AndroidGuestAvailabilityDialog extends ConsumerStatefulWidget {
     required this.accountId,
     required this.provider,
     required this.draft,
+    this.calendarTimeZone,
     this.collectionId,
   });
 
@@ -43,6 +46,7 @@ class AndroidGuestAvailabilityDialog extends ConsumerStatefulWidget {
   final BusyProvider provider;
   final String? collectionId;
   final EventEditorDraft draft;
+  final String? calendarTimeZone;
 
   @override
   ConsumerState<AndroidGuestAvailabilityDialog> createState() =>
@@ -54,7 +58,8 @@ class _AndroidGuestAvailabilityDialogState
   bool _loading = true;
   Object? _error;
   List<NextcloudFreeBusyResult> _nextcloud = const [];
-  Map<String, FreeBusyCalendarResultDto> _google = const {};
+  Map<String, FreeBusyCalendarResultDto> _cloud = const {};
+  int _loadGeneration = 0;
 
   List<String> get _recipients => widget.draft.attendees
       .where((attendee) => !attendee.self && !attendee.organizer)
@@ -69,41 +74,61 @@ class _AndroidGuestAvailabilityDialogState
     unawaited(_load());
   }
 
+  @override
+  void didUpdateWidget(covariant AndroidGuestAvailabilityDialog oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.accountId != widget.accountId ||
+        oldWidget.provider != widget.provider ||
+        oldWidget.collectionId != widget.collectionId ||
+        oldWidget.calendarTimeZone != widget.calendarTimeZone ||
+        oldWidget.draft != widget.draft) {
+      unawaited(_load());
+    }
+  }
+
   Future<void> _load() async {
+    final generation = ++_loadGeneration;
     if (!_loading && mounted) setState(() => _loading = true);
     _error = null;
+    _nextcloud = const [];
+    _cloud = const {};
     try {
       if (widget.provider == BusyProvider.nextcloud) {
         final collectionId = widget.collectionId;
         if (collectionId == null) throw StateError('Missing collection');
-        _nextcloud = await ref
+        final results = await ref
             .read(nextcloudSchedulingServiceProvider(widget.accountId))
             .freeBusyForDraft(
               collectionId: collectionId,
               draft: widget.draft,
               fallbackTimeZone: ref.read(localTimeZoneProvider),
             );
-      } else if (widget.provider == BusyProvider.google) {
+        if (generation != _loadGeneration || !mounted) return;
+        _nextcloud = results;
+      } else if (widget.provider == BusyProvider.google ||
+          widget.provider == BusyProvider.microsoft) {
         final client = ref.read(
           calendarRemoteApiClientForAccountProvider(widget.accountId),
         );
-        final start = widget.draft.start;
-        final end = widget.draft.end;
-        if (client == null || start == null || end == null) {
+        final interval = widget.draft.cloudAvailabilityInterval(
+          calendarTimeZone: widget.calendarTimeZone,
+        );
+        if (client == null || interval == null) {
           throw StateError('Availability is unavailable');
         }
         if (client is DetailedFreeBusyClient) {
           final results = await (client as DetailedFreeBusyClient)
               .freeBusyDetails(
                 calendarIds: _recipients,
-                rangeStart: start.toUtc(),
-                rangeEnd: end.toUtc(),
+                rangeStart: interval.start.toUtc(),
+                rangeEnd: interval.end.toUtc(),
               );
           final byCalendar = {
             for (final result in results)
               result.calendarId.toLowerCase(): result,
           };
-          _google = {
+          if (generation != _loadGeneration || !mounted) return;
+          _cloud = {
             for (final recipient in _recipients)
               recipient:
                   byCalendar[recipient.toLowerCase()] ??
@@ -113,7 +138,7 @@ class _AndroidGuestAvailabilityDialogState
                   ),
           };
         } else {
-          _google = {
+          _cloud = {
             for (final recipient in _recipients)
               recipient: FreeBusyCalendarResultDto(
                 calendarId: recipient,
@@ -125,9 +150,11 @@ class _AndroidGuestAvailabilityDialogState
         throw StateError('Availability is unsupported');
       }
     } on Object catch (error) {
-      _error = error;
+      if (generation == _loadGeneration) _error = error;
     } finally {
-      if (mounted) setState(() => _loading = false);
+      if (mounted && generation == _loadGeneration) {
+        setState(() => _loading = false);
+      }
     }
   }
 
@@ -166,7 +193,7 @@ class _AndroidGuestAvailabilityDialogState
                           interval(value.startUtc, value.endUtc),
                       ],
                     ),
-                  for (final entry in _google.entries)
+                  for (final entry in _cloud.entries)
                     _AvailabilityEntry(
                       recipient: entry.key,
                       free:

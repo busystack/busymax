@@ -349,6 +349,64 @@ void main() {
       expect(requests.every((r) => !r.url.path.contains('/ocs/')), isTrue);
     },
   );
+  test('federated calendar share uses local DAV remote-user principal', () async {
+    const cloudId = 'alice@remote.example.test';
+    const principal =
+        'principal:principals/remote-users/YWxpY2VAcmVtb3RlLmV4YW1wbGUudGVzdA==';
+    final recipient = (await fixture.sharing.search(cloudId)).single;
+    expect(recipient.federated, isTrue);
+    expect(recipient.group, isFalse);
+    expect(recipient.href, principal);
+    await fixture.sharing.changeShare('collection', recipient, writable: true);
+    expect(fixture.shares[recipient.href], isTrue);
+    final post = fixture.requests.singleWhere((r) => r.method == 'POST');
+    expect(post.url.host, 'cloud.example.test');
+    expect(post.url.path, NextcloudAdminFixture.collection);
+    expect(post.body, contains('<d:href>$principal</d:href>'));
+    expect(post.body, isNot(contains('%3D')));
+    expect(
+      fixture.requests.every(
+        (request) => request.url.host == 'cloud.example.test',
+      ),
+      isTrue,
+    );
+  });
+
+  test(
+    'committed federated grant remains committed when refresh fails',
+    () async {
+      final recipient = (await fixture.sharing.search(
+        'alex@remote.example.test',
+      )).single;
+      fixture.failRefresh = true;
+      expect(
+        await fixture.sharing.changeShare(
+          'collection',
+          recipient,
+          writable: false,
+        ),
+        NextcloudMutationOutcome.refreshPending,
+      );
+      expect(fixture.shares[recipient.href], isFalse);
+      expect(
+        fixture.requests.where((request) => request.method == 'POST'),
+        hasLength(1),
+      );
+    },
+  );
+
+  test('invalid federated identifiers cannot create a share', () async {
+    for (final value in [
+      'alex@http://remote.example.test',
+      'alex@https://user:pass@remote.example.test',
+      'alex@remote.example.test?token=secret',
+      'alex@localhost',
+      'alex@remote.example.test/../other',
+    ]) {
+      await expectLater(fixture.sharing.search(value), throwsFormatException);
+    }
+    expect(fixture.requests.where((r) => r.method == 'POST'), isEmpty);
+  });
   test(
     'publishing rereads the server-selected URL and unpublishing removes it',
     () async {

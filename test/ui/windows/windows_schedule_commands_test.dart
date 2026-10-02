@@ -64,15 +64,21 @@ void main() {
                     filter == 'hidden' ? 'Custom/Embedded' : 'Asia/Tokyo',
                   ),
                   description: const Value('Exact notification event details'),
+                  webLink: const Value('https://calendar.example.test/event'),
+                  attachmentsJson: const Value(
+                    '[{"fileUrl":"https://example.test/agenda",'
+                    '"title":"Agenda attachment"}]',
+                  ),
                   rawJson: Value(
                     filter == 'hidden'
                         ? jsonEncode({
+                            'hangoutLink': 'https://meet.example.test/room',
                             'startUtc': instant.toIso8601String(),
                             'endUtc': instant
                                 .add(const Duration(hours: 1))
                                 .toIso8601String(),
                           })
-                        : '{}',
+                        : '{"hangoutLink":"https://meet.example.test/room"}',
                   ),
                 ),
               );
@@ -146,6 +152,12 @@ void main() {
             find.textContaining('Exact notification event details'),
             findsOneWidget,
           );
+          expect(find.text('Join meeting'), findsOneWidget);
+          expect(find.textContaining('UTC'), findsWidgets);
+          expect(find.textContaining('Asia/Tokyo'), findsNothing);
+          expect(find.textContaining('Custom/Embedded'), findsNothing);
+          expect(find.text('Event link'), findsOneWidget);
+          expect(find.text('Agenda attachment'), findsOneWidget);
           if (!linux) {
             final planner = tester.widget<WindowsScheduleDayWeekView>(
               find.byType(WindowsScheduleDayWeekView),

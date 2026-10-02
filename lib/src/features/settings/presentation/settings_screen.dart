@@ -38,6 +38,9 @@ import '../../accounts/data/accounts_repository.dart';
 import '../../accounts/domain/account_connection_state.dart';
 import '../../auth/data/auth_repository.dart';
 import '../../calendar/data/calendar_repository.dart';
+import '../../calendar/data/microsoft_shared_calendar_service.dart';
+import '../../calendar/data/cloud_calendar_sharing_service.dart';
+import '../../calendar/presentation/cloud_calendar_sharing_content.dart';
 import '../../calendar/presentation/ical_import_flow.dart';
 import '../../connectivity/network_connectivity_service.dart';
 import '../../diagnostics/presentation/diagnostics_screen.dart';
@@ -155,6 +158,10 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         onAddGoogle: () => unawaited(_connectAccount(BusyProvider.google)),
         onAddMicrosoft: () =>
             unawaited(_connectAccount(BusyProvider.microsoft)),
+        onOpenSharedCalendar: (account) =>
+            unawaited(_openSharedCalendar(account)),
+        onManageCalendarSharing: (account) =>
+            unawaited(_manageCalendarSharing(account, calendarSources)),
         onAddApple: () => unawaited(_connectAccount(BusyProvider.appleICloud)),
         onAddNextcloud: () =>
             unawaited(_connectAccount(BusyProvider.nextcloud)),
@@ -970,6 +977,56 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     }
   }
 
+  Future<void> _openSharedCalendar(AccountEntity account) async {
+    final owner = await showBusyMaxTextPrompt(
+      context,
+      title: context.l10n.openSharedCalendar,
+      label: context.l10n.calendarOwnerEmail,
+      actionLabel: context.l10n.openSharedCalendar,
+    );
+    if (!mounted || owner == null || owner.trim().isEmpty) return;
+    try {
+      final result = await ref
+          .read(microsoftSharedCalendarServiceProvider)
+          .openPrimaryCalendar(accountId: account.id, owner: owner);
+      if (mounted &&
+          result.outcome ==
+              MicrosoftSharedCalendarOpenOutcome.rangeUnavailable) {
+        _showMessage(context, context.l10n.scheduleRangeIncomplete);
+      }
+    } on Object catch (error) {
+      if (mounted) {
+        _showMessage(context, context.l10n.calendarUpdateFailed('$error'));
+      }
+    }
+  }
+
+  Future<void> _manageCalendarSharing(
+    AccountEntity account,
+    List<CalendarSourceEntity> sources,
+  ) async {
+    final eligible = [
+      for (final source in sources)
+        if (source.accountId == account.id &&
+            CloudCalendarSharingService.canManageSource(source))
+          source,
+    ];
+    await showBusyMaxModalDialog<void>(
+      context,
+      builder: (_) => BusyMaxDialogShell(
+        title: context.l10n.manageCalendarSharing,
+        maxWidth: 580,
+        actions: [
+          BusyMaxPushButton.suggested(
+            onPressed: () => Navigator.pop(context),
+            child: Text(context.l10n.close),
+          ),
+        ],
+        children: [CloudCalendarSharingContent(sources: eligible)],
+      ),
+    );
+  }
+
   Future<void> _setCalendarProviderVisibility(
     CalendarSourceEntity source,
     bool visible,
@@ -1272,6 +1329,8 @@ class _AccountManagementSection extends StatelessWidget {
     required this.connectingProvider,
     required this.onAddGoogle,
     required this.onAddMicrosoft,
+    required this.onOpenSharedCalendar,
+    required this.onManageCalendarSharing,
     required this.onAddApple,
     required this.onAddNextcloud,
     required this.onCancelConnection,
@@ -1303,6 +1362,8 @@ class _AccountManagementSection extends StatelessWidget {
   final BusyProvider? connectingProvider;
   final VoidCallback onAddGoogle;
   final VoidCallback onAddMicrosoft;
+  final void Function(AccountEntity account) onOpenSharedCalendar;
+  final void Function(AccountEntity account) onManageCalendarSharing;
   final VoidCallback onAddApple;
   final VoidCallback onAddNextcloud;
   final VoidCallback onCancelConnection;
@@ -1414,6 +1475,34 @@ class _AccountManagementSection extends StatelessWidget {
                   onSelected: onCalendarSelected,
                   onProviderVisibilityChanged:
                       onCalendarProviderVisibilityChanged,
+                ),
+              if (account.provider == BusyProvider.microsoft &&
+                  account.isSignedIn)
+                BusyMaxGroupedList(
+                  filled: true,
+                  children: [
+                    BusyMaxActionRow(
+                      title: context.l10n.openSharedCalendar,
+                      leading: const Icon(YaruIcons.calendar),
+                      onTap: () => onOpenSharedCalendar(account),
+                    ),
+                  ],
+                ),
+              if (account.isSignedIn &&
+                  calendarSources.any(
+                    (source) =>
+                        source.accountId == account.id &&
+                        CloudCalendarSharingService.canManageSource(source),
+                  ))
+                BusyMaxGroupedList(
+                  filled: true,
+                  children: [
+                    BusyMaxActionRow(
+                      title: context.l10n.manageCalendarSharing,
+                      leading: const Icon(YaruIcons.user),
+                      onTap: () => onManageCalendarSharing(account),
+                    ),
+                  ],
                 ),
               if (account.provider == BusyProvider.appleICloud ||
                   account.provider == BusyProvider.nextcloud)
@@ -1641,7 +1730,7 @@ class _CalendarSettingsColumnLabel extends StatelessWidget {
   }
 }
 
-class _CalendarSettingsRow extends StatelessWidget {
+class _CalendarSettingsRow extends ConsumerWidget {
   const _CalendarSettingsRow({
     required this.source,
     required this.showsProviderVisibility,
@@ -1656,7 +1745,7 @@ class _CalendarSettingsRow extends StatelessWidget {
   onProviderVisibilityChanged;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final l10n = context.l10n;
     final canChangeProviderVisibility =
         source.capabilities.canChangeProviderVisibility;
@@ -1711,6 +1800,38 @@ class _CalendarSettingsRow extends StatelessWidget {
                         : null,
                   ),
                 ),
+              ),
+            if (source.provider == BusyProvider.microsoft &&
+                source.capabilities.removalMode ==
+                    CalendarRemovalMode.removeFromList)
+              YaruIconButton(
+                key: ValueKey('settings-calendar-remove-${source.id}'),
+                tooltip: l10n.removeFromMyCalendars,
+                icon: const Icon(YaruIcons.trash),
+                onPressed: () async {
+                  final confirmed = await showBusyMaxConfirm(
+                    context,
+                    title: l10n.removeFromMyCalendars,
+                    message: l10n.removeOpenedSharedCalendarConfirmation(
+                      source.summary,
+                    ),
+                    confirmLabel: l10n.removeAction,
+                  );
+                  if (!confirmed || !context.mounted) return;
+                  try {
+                    await ref
+                        .read(calendarRepositoryProvider)
+                        .deleteLocalSource(source.id);
+                  } on Object catch (error) {
+                    if (context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text(l10n.calendarUpdateFailed('$error')),
+                        ),
+                      );
+                    }
+                  }
+                },
               ),
           ],
         ),

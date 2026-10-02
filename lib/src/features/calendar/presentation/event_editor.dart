@@ -7,10 +7,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:yaru/yaru.dart';
 
 import '../../../app/busymax_design.dart';
+import '../../../app/app_bootstrap.dart';
 import '../../../app/busymax_dialogs.dart';
 import '../../../app/busymax_window_close.dart';
 import '../../../calendar_providers/calendar_colors.dart';
 import '../../../calendar_providers/calendar_mutation.dart';
+import '../../../calendar_providers/calendar_provider_capabilities.dart';
+import '../../../microsoft_calendar/microsoft_calendar_models.dart';
 import '../../../l10n/l10n.dart';
 import '../../../schedule/schedule_projection.dart';
 import 'package:busymax/src/providers/busy_provider.dart';
@@ -25,8 +28,11 @@ import '../domain/event_move_policy.dart';
 import 'event_description_editor.dart';
 import 'event_editor_draft.dart';
 import '../domain/event_timing_policy.dart';
+import '../domain/google_status_event.dart';
+import 'google_status_event_labels.dart';
 import 'event_guest_delivery_dialog.dart';
 import '../../../dav/presentation/nextcloud_scheduling_dialog.dart';
+import 'linux_cloud_availability_dialog.dart';
 
 Future<EventEditorDialogResult?> showBusyMaxEventEditorDialog(
   BuildContext context, {
@@ -547,9 +553,9 @@ class _EventEditorState extends ConsumerState<EventEditor> {
                 YaruListTile.square(
                   title: EventDescriptionEditor(
                     provider: provider,
-                    text: _draft.description,
+                    text: _draft.editableDescription,
                     contentType: _draft.descriptionContentType,
-                    html: _draft.descriptionHtml,
+                    html: _draft.editableDescriptionHtml,
                     onChanged: (value) {
                       setState(() {
                         _draft = _draft.copyWith(
@@ -601,11 +607,35 @@ class _EventEditorState extends ConsumerState<EventEditor> {
                 ),
                 child: Text(l10n.nextcloudGuestAvailability),
               ),
+            if ((provider == BusyProvider.google ||
+                    (provider == BusyProvider.microsoft &&
+                        microsoftAvailabilityAccountType(
+                              widget.accounts
+                                  .where(
+                                    (account) =>
+                                        account.id == currentSource!.accountId,
+                                  )
+                                  .firstOrNull
+                                  ?.tenantId,
+                            ) ==
+                            MicrosoftAvailabilityAccountType.workSchool)) &&
+                _draft.attendees.any(
+                  (attendee) => !attendee.self && !attendee.organizer,
+                ))
+              BusyMaxPushButton.standard(
+                onPressed: () => showLinuxCloudAvailabilityDialog(
+                  context,
+                  draft: _draft,
+                  calendarTimeZone: currentSource?.timeZone,
+                ),
+                child: Text(l10n.nextcloudGuestAvailability),
+              ),
             YaruExpandable(
               header: Text(l10n.organizationSection),
               expandIconSemanticLabel: l10n.organizationSection,
               isExpanded:
                   _draft.categories.isNotEmpty ||
+                  _draft.eventLabelId != null ||
                   _draft.conference != null ||
                   _draft.createConference ||
                   (_draft.importance != null &&
@@ -639,6 +669,20 @@ class _EventEditorState extends ConsumerState<EventEditor> {
                         if (provider == BusyProvider.microsoft)
                           _importanceRow(),
                       ],
+                    ),
+                  if (provider == BusyProvider.google)
+                    if (currentSource.primaryCalendar ||
+                        googleStatusEventTypes.contains(_draft.eventType))
+                      BusyMaxGroupedList(
+                        title: l10n.googleEventType,
+                        filled: true,
+                        children: _googleStatusRows(),
+                      ),
+                  if (provider == BusyProvider.google)
+                    BusyMaxGroupedList(
+                      title: l10n.eventLabel,
+                      filled: true,
+                      children: [_googleLabelRow(currentSource)],
                     ),
                   BusyMaxGroupedList(
                     filled: true,
@@ -997,6 +1041,13 @@ class _EventEditorState extends ConsumerState<EventEditor> {
   }
 
   void _selectCalendarSource(CalendarSourceEntity source) {
+    if (googleStatusEventTypes.contains(_draft.eventType) &&
+        (source.provider != BusyProvider.google || !source.primaryCalendar)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(context.l10n.googleStatusPrimaryOnly)),
+      );
+      return;
+    }
     final currentProvider = _providerForDraft(_draft, _selectableSources);
     Object? adjustedRecurrence;
     var clearRecurrence = false;
@@ -1067,6 +1118,10 @@ class _EventEditorState extends ConsumerState<EventEditor> {
       clearRecurrence: clearRecurrence,
       clearImportance: source.provider != BusyProvider.microsoft,
       clearColorId: _draft.accountId != source.accountId || providerChanged,
+      clearEventLabelId: _draft.sourceId != source.id,
+      eventLabelChanged: _draft.sourceId == source.id
+          ? _draft.eventLabelChanged
+          : true,
     );
     final scope = updated.recurringMutationScope;
     if (scope != null && !_supportsRecurringScopeFor(updated, source, scope)) {
@@ -1376,17 +1431,7 @@ class _EventEditorState extends ConsumerState<EventEditor> {
       _draft = _draft.copyWith(
         attendees: [
           for (final item in _draft.attendees)
-            if (item == attendee)
-              EventAttendeeDraft(
-                email: item.email,
-                displayName: item.displayName,
-                optional: optional,
-                self: item.self,
-                organizer: item.organizer,
-                responseStatus: item.responseStatus,
-              )
-            else
-              item,
+            if (item == attendee) item.withOptional(optional) else item,
         ],
       );
     });
@@ -1403,34 +1448,317 @@ class _EventEditorState extends ConsumerState<EventEditor> {
     });
   }
 
+  List<Widget> _googleStatusRows() {
+    final l10n = context.l10n;
+    final type = _draft.eventType ?? 'default';
+    final values = <String>['default', ...googleStatusEventTypes];
+    final rows = <Widget>[
+      BusyMaxComboRow<String>(
+        title: l10n.googleEventType,
+        leading: const Icon(Icons.event_note_outlined),
+        values: values,
+        selected: values.contains(type) ? type : 'default',
+        labelFor: (value) => googleEventTypeLabel(l10n, value),
+        enabled: _draft.eventId == null,
+        onSelected: (value) => setState(() {
+          final start = _draft.start;
+          _draft = _draft.copyWith(
+            eventType: value,
+            googleStatusProperties: defaultGoogleStatusProperties(value),
+            showAs: value == 'workingLocation' ? 'transparent' : 'opaque',
+            visibilityOrSensitivity: value == 'workingLocation'
+                ? 'public'
+                : 'default',
+            allDay: value == 'workingLocation' ? _draft.allDay : false,
+            end: value == 'workingLocation' && _draft.allDay && start != null
+                ? DateTime(start.year, start.month, start.day + 1)
+                : _draft.end,
+          );
+        }),
+      ),
+    ];
+    if (!googleStatusEventTypes.contains(type)) return rows;
+    final properties = _draft.googleStatusProperties;
+    if (type == 'focusTime' || type == 'outOfOffice') {
+      const modes = [
+        'declineNone',
+        'declineOnlyNewConflictingInvitations',
+        'declineAllConflictingInvitations',
+      ];
+      final mode = properties['autoDeclineMode']?.toString() ?? 'declineNone';
+      rows.add(
+        BusyMaxComboRow<String>(
+          title: l10n.googleDeclineInvitations,
+          values: modes,
+          selected: modes.contains(mode) ? mode : modes.first,
+          labelFor: (value) => googleAutoDeclineLabel(l10n, value),
+          onSelected: (value) => setState(
+            () => _draft = _draft.copyWith(
+              googleStatusProperties: {...properties, 'autoDeclineMode': value},
+            ),
+          ),
+        ),
+      );
+      if (type == 'focusTime') {
+        rows.add(
+          BusyMaxComboRow<String>(
+            title: l10n.googleChatStatus,
+            values: const ['available', 'doNotDisturb'],
+            selected: properties['chatStatus'] == 'doNotDisturb'
+                ? 'doNotDisturb'
+                : 'available',
+            labelFor: (value) => value == 'doNotDisturb'
+                ? l10n.googleChatDoNotDisturb
+                : l10n.googleChatAvailable,
+            onSelected: (value) => setState(
+              () => _draft = _draft.copyWith(
+                googleStatusProperties: {...properties, 'chatStatus': value},
+              ),
+            ),
+          ),
+        );
+      }
+      rows.add(
+        TextFormField(
+          key: ValueKey('google-status-message-$type'),
+          initialValue: properties['declineMessage']?.toString() ?? '',
+          decoration: InputDecoration(labelText: l10n.googleDeclineMessage),
+          onChanged: (value) => setState(
+            () => _draft = _draft.copyWith(
+              googleStatusProperties: {...properties, 'declineMessage': value},
+            ),
+          ),
+        ),
+      );
+      return rows;
+    }
+    final locationType = properties['type']?.toString() ?? 'homeOffice';
+    const locations = ['homeOffice', 'officeLocation', 'customLocation'];
+    rows.add(
+      BusyMaxComboRow<String>(
+        title: l10n.googleWorkingLocation,
+        values: locations,
+        selected: locations.contains(locationType)
+            ? locationType
+            : locations.first,
+        labelFor: (value) => googleWorkingLocationLabel(l10n, value),
+        onSelected: (value) => setState(() {
+          final next = {...properties}
+            ..remove('homeOffice')
+            ..remove('officeLocation')
+            ..remove('customLocation');
+          next['type'] = value;
+          next[value] = value == 'homeOffice'
+              ? <String, Object?>{}
+              : (properties[value] is Map
+                    ? Map<String, Object?>.from(properties[value] as Map)
+                    : <String, Object?>{});
+          _draft = _draft.copyWith(googleStatusProperties: next);
+        }),
+      ),
+    );
+    if (locationType != 'homeOffice') {
+      final detail = properties[locationType] is Map
+          ? Map<String, Object?>.from(properties[locationType] as Map)
+          : <String, Object?>{};
+      rows.add(
+        TextFormField(
+          key: ValueKey('google-status-location-$locationType'),
+          initialValue: detail['label']?.toString() ?? '',
+          decoration: InputDecoration(labelText: l10n.googleWorkLocationLabel),
+          onChanged: (value) => setState(
+            () => _draft = _draft.copyWith(
+              googleStatusProperties: {
+                ...properties,
+                locationType: {...detail, 'label': value},
+              },
+            ),
+          ),
+        ),
+      );
+    }
+    return rows;
+  }
+
   Widget _categoriesRow() {
     final l10n = context.l10n;
-    return BusyMaxCategoryEditorRow(
-      title: l10n.categories,
-      addLabel: l10n.addCategory,
-      categories: _draft.categories,
-      suggestions:
-          widget.categorySuggestionsByAccount[_draft.accountId] ??
-          const <String>[],
-      adding: _addingCategory,
-      inputKey: const Key('event-category-input'),
-      onAddPressed: () {
-        setState(() {
-          _addingCategory = true;
-        });
+    final isMicrosoft =
+        _providerForDraft(_draft, widget.sources) == BusyProvider.microsoft;
+    var hasProviderScope = false;
+    if (isMicrosoft) {
+      try {
+        ProviderScope.containerOf(context, listen: false);
+        hasProviderScope = true;
+      } on StateError {
+        // Optional account metadata is absent in standalone editor previews.
+      }
+    }
+    final categoryLookup = isMicrosoft && hasProviderScope
+        ? ref.watch(microsoftMasterCategoriesProvider(_draft.accountId))
+        : null;
+    final masterCategories = categoryLookup?.valueOrNull;
+    return Column(
+      children: [
+        BusyMaxCategoryEditorRow(
+          title: l10n.categories,
+          addLabel: l10n.addCategory,
+          categories: _draft.categories,
+          suggestions:
+              masterCategories
+                  ?.map((category) => category.displayName)
+                  .toList() ??
+              widget.categorySuggestionsByAccount[_draft.accountId] ??
+              const <String>[],
+          adding: _addingCategory,
+          inputKey: const Key('event-category-input'),
+          onAddPressed: () {
+            setState(() {
+              _addingCategory = true;
+            });
+          },
+          onSubmitted: _addCategory,
+          onCancelAdding: () {
+            setState(() {
+              _addingCategory = false;
+            });
+          },
+          onDeleted: _removeCategory,
+        ),
+        if (masterCategories != null)
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              for (final category in masterCategories)
+                BusyMaxPushButton.standard(
+                  onPressed: () =>
+                      _draft.categories.contains(category.displayName)
+                      ? _removeCategory(category.displayName)
+                      : _addCategory(category.displayName),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (microsoftCategorySwatchArgb(category.color)
+                          case final color?) ...[
+                        Container(width: 12, height: 12, color: Color(color)),
+                        const SizedBox(width: 6),
+                      ],
+                      Text(category.displayName),
+                      if (_draft.categories.contains(category.displayName)) ...[
+                        const SizedBox(width: 4),
+                        const Icon(Icons.check, size: 16),
+                      ],
+                    ],
+                  ),
+                ),
+            ],
+          )
+        else if (isMicrosoft && categoryLookup?.hasError == true)
+          BusyMaxPushButton.standard(
+            onPressed: () async {
+              try {
+                await ref
+                    .read(microsoftCategoryAuthorizationProvider)
+                    ?.authorizeCategoryAccess(_draft.accountId);
+                if (mounted) {
+                  ref.invalidate(
+                    microsoftMasterCategoriesProvider(_draft.accountId),
+                  );
+                }
+              } on Object {
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text(l10n.outlookCategoriesUnavailable)),
+                  );
+                }
+              }
+            },
+            child: Text(l10n.loadOutlookCategories),
+          ),
+      ],
+    );
+  }
+
+  Widget _googleLabelRow(CalendarSourceEntity source) {
+    // The editor can also be embedded without an application scope (for
+    // example, a standalone preview). Metadata is optional; editing the
+    // event itself must remain available in that composition.
+    try {
+      ProviderScope.containerOf(context, listen: false);
+    } on StateError {
+      return BusyMaxActionRow(
+        title: context.l10n.eventLabel,
+        subtitle: _draft.eventLabelId ?? context.l10n.noneValue,
+      );
+    }
+    final labels = ref.watch(
+      googleEventLabelsForCalendarProvider((
+        accountId: source.accountId,
+        calendarId: source.providerCalendarId,
+      )),
+    );
+    final current = _draft.eventLabelId;
+    return labels.when(
+      loading: () => BusyMaxActionRow(
+        title: context.l10n.eventLabel,
+        subtitle: current ?? context.l10n.noneValue,
+        onTap: null,
+      ),
+      error: (_, _) => BusyMaxActionRow(
+        title: context.l10n.eventLabel,
+        subtitle: current ?? context.l10n.noneValue,
+        onTap: () => ref.invalidate(
+          googleEventLabelsForCalendarProvider((
+            accountId: source.accountId,
+            calendarId: source.providerCalendarId,
+          )),
+        ),
+      ),
+      data: (available) {
+        final byId = {for (final label in available) label.id: label};
+        final values = <String>[
+          '',
+          ...byId.keys,
+          if (current != null && !byId.containsKey(current)) current,
+        ];
+        return BusyMaxComboRow<String>(
+          title: context.l10n.eventLabel,
+          leading: Icon(
+            Icons.label_outline,
+            color: byId[current] == null
+                ? null
+                : Color(
+                    0xff000000 |
+                        int.parse(
+                          byId[current]!.backgroundColor.substring(1),
+                          radix: 16,
+                        ),
+                  ),
+          ),
+          values: values,
+          selected: current ?? '',
+          labelFor: (id) => id.isEmpty
+              ? context.l10n.noneValue
+              : byId[id]?.name ?? context.l10n.unknownEventLabel(id),
+          onSelected: (id) => setState(() {
+            _draft = id.isEmpty
+                ? _draft.copyWith(clearEventLabelId: true)
+                : _draft.copyWith(eventLabelId: id);
+          }),
+        );
       },
-      onSubmitted: _addCategory,
-      onCancelAdding: () {
-        setState(() {
-          _addingCategory = false;
-        });
-      },
-      onDeleted: _removeCategory,
     );
   }
 
   Widget _availabilityRow(BusyProvider provider) {
-    final values = provider != BusyProvider.microsoft
+    final statusType = provider == BusyProvider.google
+        ? _draft.eventType
+        : null;
+    final values = statusType == 'workingLocation'
+        ? const ['transparent']
+        : statusType == 'focusTime' || statusType == 'outOfOffice'
+        ? const ['opaque']
+        : provider != BusyProvider.microsoft
         ? const ['opaque', 'transparent']
         : const ['free', 'tentative', 'busy', 'oof', 'workingElsewhere'];
     final selected = values.contains(_draft.showAs)
@@ -1444,6 +1772,7 @@ class _EventEditorState extends ConsumerState<EventEditor> {
       values: values,
       selected: selected,
       labelFor: (value) => _availabilityLabel(context, value),
+      enabled: values.length > 1,
       onSelected: (value) {
         setState(() {
           _draft = _draft.copyWith(showAs: value);
@@ -1453,7 +1782,10 @@ class _EventEditorState extends ConsumerState<EventEditor> {
   }
 
   Widget _visibilityRow(BusyProvider provider) {
-    final values = provider != BusyProvider.microsoft
+    final values =
+        provider == BusyProvider.google && _draft.eventType == 'workingLocation'
+        ? const ['public']
+        : provider != BusyProvider.microsoft
         ? const ['default', 'public', 'private', 'confidential']
         : const ['normal', 'personal', 'private', 'confidential'];
     final selected = values.contains(_draft.visibilityOrSensitivity)
@@ -1465,6 +1797,7 @@ class _EventEditorState extends ConsumerState<EventEditor> {
       values: values,
       selected: selected,
       labelFor: (value) => _visibilityLabel(context, value),
+      enabled: values.length > 1,
       onSelected: (value) {
         setState(() {
           _draft = _draft.copyWith(visibilityOrSensitivity: value);

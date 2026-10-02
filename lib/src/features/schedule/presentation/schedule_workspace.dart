@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
-import 'package:url_launcher/url_launcher.dart';
 
 import '../../../app/app_bootstrap.dart';
 import '../../../app/busymax_about_dialog.dart';
@@ -57,7 +56,10 @@ import 'schedule_create_menu.dart';
 import 'schedule_day_week_view.dart';
 import 'schedule_empty_states.dart';
 import 'schedule_item_details_popover.dart';
+import 'linux_event_attachments_dialog.dart';
+import 'schedule_event_details_format.dart';
 import 'schedule_item_exporter.dart';
+import 'cloud_calendar_series_export.dart';
 import 'schedule_item_selection.dart';
 import 'schedule_month_view.dart';
 import 'schedule_sidebar.dart';
@@ -652,9 +654,53 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
                                 searchActive && _searchCriteria != null,
                             child: buildSidebar(),
                           );
+                          final cloudCoverage =
+                              snapshot.hasData &&
+                                  !scheduleLoading &&
+                                  _searchCriteria?.date !=
+                                      ScheduleSearchDate.any
+                              ? ref
+                                    .read(scheduleRepositoryProvider)
+                                    .cloudCoverageCompleteFor(
+                                      _searchCriteria?.range ?? range,
+                                      filters:
+                                          searchActive &&
+                                              _searchCriteria != null
+                                          ? _searchCriteria!.filters(
+                                              _searchQuery,
+                                            )
+                                          : ScheduleFilters(
+                                              accountIds: accountIds.toSet(),
+                                              sourceIds: visibility
+                                                  .visibleCalendarSourceIds,
+                                              sourceFilterActive: true,
+                                            ),
+                                    )
+                              : true;
                           final frame = LinuxPageFrame(
                             header: header,
-                            body: main,
+                            body: cloudCoverage != true
+                                ? Column(
+                                    children: [
+                                      ListTile(
+                                        leading: Icon(
+                                          cloudCoverage == null
+                                              ? Icons.sync
+                                              : Icons.cloud_off,
+                                        ),
+                                        title: Text(
+                                          cloudCoverage == null
+                                              ? context.l10n.scheduleLoading
+                                              : context
+                                                    .l10n
+                                                    .scheduleRangeIncomplete,
+                                        ),
+                                        dense: true,
+                                      ),
+                                      Expanded(child: main),
+                                    ],
+                                  )
+                                : main,
                             sidebarHeader: const BusyMaxLinuxBrandHeader(),
                             sidebarBody: sidebar,
                             sidebarAvailable: showSidebar,
@@ -1636,6 +1682,10 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
         if (item is CalendarScheduleItem) {
           await _joinMeeting(item);
         }
+      case ScheduleItemDetailsAction.attachments:
+        if (item is CalendarScheduleItem) {
+          await showLinuxEventAttachmentsDialog(context, item);
+        }
       case ScheduleItemDetailsAction.acceptInvitation:
         if (item is CalendarScheduleItem) {
           await _respondToInvitation(item, CalendarInvitationResponse.accept);
@@ -1703,9 +1753,43 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
     try {
       String? rawICalendar;
       if (item is CalendarScheduleItem) {
-        rawICalendar = await ref
-            .read(calendarRepositoryProvider)
-            .nativeEventExport(item.id);
+        final repository = ref.read(calendarRepositoryProvider);
+        final detail = await repository.loadEventDetail(item.id);
+        final recurring =
+            detail != null &&
+            (detail.recurrence != null ||
+                detail.providerRecurringEventId != null);
+        final series =
+            recurring &&
+                canExportAuthoritativeEventSeries(
+                  provider: item.provider,
+                  providerEventId: item.providerEventId,
+                  davCollectionId: detail.davCollectionId,
+                )
+            ? await _chooseSeriesExport()
+            : false;
+        if (series == null) return;
+        if (series && item.provider == BusyProvider.google) {
+          rawICalendar = await exportGoogleEventSeries(
+            client: ref.read(
+              googleCalendarApiClientForAccountProvider(item.accountId),
+            ),
+            calendarId: item.providerCalendarId,
+            eventId: item.providerEventId!,
+            nowUtc: DateTime.now().toUtc(),
+          );
+        } else if (series && item.provider == BusyProvider.microsoft) {
+          rawICalendar = await exportMicrosoftEventSeries(
+            client: ref.read(
+              microsoftCalendarApiClientForAccountProvider(item.accountId),
+            ),
+            calendarId: item.providerCalendarId,
+            eventId: item.providerEventId!,
+            nowUtc: DateTime.now().toUtc(),
+          );
+        } else if (series || !recurring) {
+          rawICalendar = await repository.nativeEventExport(item.id);
+        }
       }
       if (item is TaskScheduleItem &&
           (item.provider == BusyProvider.nextcloud ||
@@ -1739,6 +1823,33 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
       );
     }
   }
+
+  Future<bool?> _chooseSeriesExport() => showBusyMaxModalEditorDialog<bool>(
+    context,
+    maxHeight: 300,
+    builder: (dialogContext) => BusyMaxModalEditorScaffold(
+      title: context.l10n.export,
+      cancelLabel: context.l10n.cancel,
+      saveLabel: context.l10n.export,
+      onCancel: () => Navigator.of(dialogContext).pop(),
+      onSave: null,
+      children: [
+        BusyMaxGroupedList(
+          filled: true,
+          children: [
+            BusyMaxActionRow(
+              title: context.l10n.singleOccurrence,
+              onTap: () => Navigator.of(dialogContext).pop(false),
+            ),
+            BusyMaxActionRow(
+              title: context.l10n.entireSeries,
+              onTap: () => Navigator.of(dialogContext).pop(true),
+            ),
+          ],
+        ),
+      ],
+    ),
+  );
 
   void _openTaskDetails(TaskScheduleItem item) {
     unawaited(
@@ -2248,7 +2359,9 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
         message: item is CalendarScheduleItem && item.isNextcloudAttendee
             ? context.l10n.nextcloudDeclineRemovalWarning
             : item is TaskScheduleItem
-            ? context.l10n.deleteTaskConfirmation(item.title)
+            ? item.isAssigned
+                  ? '${context.l10n.deleteTaskConfirmation(item.title)}\n\n${context.l10n.deleteAssignedTaskWarning}'
+                  : context.l10n.deleteTaskConfirmation(item.title)
             : context.l10n.deleteCalendarConfirmation(item.title),
         confirmLabel: item is CalendarScheduleItem && item.isNextcloudAttendee
             ? context.l10n.nextcloudDeclineAndRemove
@@ -2277,7 +2390,11 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
       try {
         await ref
             .read(tasksRepositoryForAccountProvider(item.accountId))
-            .deleteTask(item.sourceId, item.id);
+            .deleteTask(
+              item.sourceId,
+              item.id,
+              confirmedAssignedSourceDeletion: item.isAssigned,
+            );
         if (mounted) setState(() {});
       } on Object {
         if (mounted &&
@@ -2323,16 +2440,7 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
   }
 
   Future<void> _joinMeeting(CalendarScheduleItem item) async {
-    final value = item.joinMeetingUrl;
-    final uri = value == null ? null : Uri.tryParse(value);
-    var opened = false;
-    if (uri != null) {
-      try {
-        opened = await launchUrl(uri, mode: LaunchMode.externalApplication);
-      } on Object {
-        opened = false;
-      }
-    }
+    final opened = await openScheduleWebLink(item.joinMeetingUrl);
     if (!opened && mounted) {
       ScaffoldMessenger.of(
         context,
