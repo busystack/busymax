@@ -396,7 +396,7 @@ NextcloudShareRecipient? _federatedRecipient(String value) {
   }
   final id = base64.encode(utf8.encode(value));
   return NextcloudShareRecipient._(
-    href: 'principal:principals/remote-users/${Uri.encodeComponent(id)}',
+    href: 'principal:principals/remote-users/$id',
     label: value,
     group: false,
     federated: true,

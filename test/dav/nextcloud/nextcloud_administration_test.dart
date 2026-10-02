@@ -1,5 +1,3 @@
-import 'dart:convert';
-
 import 'package:busymax/src/dav/dav_errors.dart';
 import 'package:busymax/src/dav/nextcloud/nextcloud_dav_context.dart';
 import 'package:busymax/src/dav/nextcloud/nextcloud_trash_service.dart';
@@ -352,20 +350,20 @@ void main() {
     },
   );
   test('federated calendar share uses local DAV remote-user principal', () async {
-    const cloudId = 'alex@remote.example.test';
+    const cloudId = 'alice@remote.example.test';
+    const principal =
+        'principal:principals/remote-users/YWxpY2VAcmVtb3RlLmV4YW1wbGUudGVzdA==';
     final recipient = (await fixture.sharing.search(cloudId)).single;
     expect(recipient.federated, isTrue);
     expect(recipient.group, isFalse);
-    expect(
-      recipient.href,
-      'principal:principals/remote-users/${Uri.encodeComponent(base64.encode(utf8.encode(cloudId)))}',
-    );
+    expect(recipient.href, principal);
     await fixture.sharing.changeShare('collection', recipient, writable: true);
     expect(fixture.shares[recipient.href], isTrue);
     final post = fixture.requests.singleWhere((r) => r.method == 'POST');
     expect(post.url.host, 'cloud.example.test');
     expect(post.url.path, NextcloudAdminFixture.collection);
-    expect(post.body, contains('<d:href>${recipient.href}</d:href>'));
+    expect(post.body, contains('<d:href>$principal</d:href>'));
+    expect(post.body, isNot(contains('%3D')));
     expect(
       fixture.requests.every(
         (request) => request.url.host == 'cloud.example.test',
