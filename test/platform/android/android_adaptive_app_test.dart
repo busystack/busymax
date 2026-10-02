@@ -928,6 +928,69 @@ void main() {
     },
   );
 
+  testWidgets('C Android Google availability resolves event wall time', (
+    tester,
+  ) async {
+    Map<String, dynamic>? requestBody;
+    final client = GoogleCalendarApiClient(
+      httpClient: MockClient((request) async {
+        requestBody = jsonDecode(request.body) as Map<String, dynamic>;
+        return http.Response(
+          jsonEncode({
+            'calendars': {
+              'guest@example.com': {'busy': <Object>[]},
+            },
+          }),
+          200,
+        );
+      }),
+      baseUri: Uri.parse('https://www.googleapis.com'),
+      authorizationHeaderProvider: () async => 'Bearer token',
+    );
+    final harness = await _pumpApp(
+      tester,
+      AppSettings.defaults(),
+      calendarClient: client,
+    );
+    addTearDown(harness.dispose);
+    final draft = EventEditorDraft.existing(
+      eventId: 'event',
+      accountId: 'google:editable',
+      sourceId: 'calendar',
+      providerCalendarId: 'calendar',
+      title: 'Meeting',
+      allDay: false,
+      start: DateTime(2026, 7, 15, 9),
+      end: DateTime(2026, 7, 15, 10),
+      startTimeZone: 'America/Los_Angeles',
+      endTimeZone: 'America/Los_Angeles',
+      attendees: const [EventAttendeeDraft(email: 'guest@example.com')],
+    );
+    final navigator = tester.state<NavigatorState>(
+      find.byType(Navigator).first,
+    );
+    navigator.push<void>(
+      MaterialPageRoute(
+        builder: (context) => Scaffold(
+          body: TextButton(
+            onPressed: () => showAndroidGuestAvailabilityDialog(
+              context,
+              accountId: draft.accountId,
+              provider: BusyProvider.google,
+              draft: draft,
+            ),
+            child: const Text('Open availability'),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Open availability'));
+    await tester.pumpAndSettle();
+    expect(requestBody?['timeMin'], '2026-07-15T16:00:00.000Z');
+    expect(requestBody?['timeMax'], '2026-07-15T17:00:00.000Z');
+  });
+
   testWidgets('Microsoft guest availability preserves mixed results', (
     tester,
   ) async {
@@ -1774,6 +1837,55 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets('B synced occurrence hides recurrence-rule editor', (
+    tester,
+  ) async {
+    final harness = await _pumpApp(tester, AppSettings.defaults());
+    addTearDown(harness.dispose);
+    const source = CalendarSourceEntity(
+      id: 'calendar',
+      accountId: 'google:a',
+      provider: BusyProvider.google,
+      providerCalendarId: 'provider-a',
+      summary: 'Calendar',
+      selected: true,
+      hidden: false,
+      readOnly: false,
+      isDeleted: false,
+    );
+    final start = DateTime(2026, 8, 3, 9);
+    tester
+        .state<NavigatorState>(find.byType(Navigator).first)
+        .push<void>(
+          MaterialPageRoute(
+            builder: (_) => AndroidEventEditor(
+              sources: const [source],
+              draft: EventEditorDraft.existing(
+                eventId: 'occurrence',
+                providerRecurringEventId: 'series',
+                accountId: source.accountId,
+                sourceId: source.id,
+                providerCalendarId: source.providerCalendarId,
+                title: 'Occurrence',
+                allDay: false,
+                start: start,
+                end: start.add(const Duration(hours: 1)),
+              ),
+            ),
+          ),
+        );
+    await tester.pumpAndSettle();
+    final scopeAction = find.text(
+      'Choose whether this change applies to the entire series, only this occurrence, or this and following events.',
+    );
+    await _scrollUntilBuilt(tester, scopeAction);
+    expect(
+      find.byKey(const ValueKey('android-event-recurrence')),
+      findsNothing,
+    );
+    expect(scopeAction, findsOneWidget);
+  });
+
   testWidgets('task recovery retains full creation recurrence semantics', (
     tester,
   ) async {
@@ -2215,6 +2327,9 @@ void main() {
         'DESCRIPTION:First\r\nX-KEEP:first\r\nEND:VALARM\r\n'
         'BEGIN:VALARM\r\nACTION:DISPLAY\r\nTRIGGER:-PT30M\r\n'
         'DESCRIPTION:Second\r\nX-KEEP:second\r\nEND:VALARM\r\n'
+        'BEGIN:VALARM\r\nACTION:DISPLAY\r\n'
+        'TRIGGER;RELATED=END:-PT0M\r\n'
+        'DESCRIPTION:At end\r\nX-KEEP:end\r\nEND:VALARM\r\n'
         'BEGIN:VALARM\r\nACTION:AUDIO\r\nTRIGGER:-PT5M\r\n'
         'X-KEEP:audio\r\nEND:VALARM\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n';
     final harness = await _pumpApp(
@@ -2360,6 +2475,8 @@ void main() {
     expect(queuedBody, contains('TRIGGER:-PT45M'));
     expect(queuedBody, contains('X-KEEP:first'));
     expect(queuedBody, contains('X-KEEP:second'));
+    expect(queuedBody, contains('TRIGGER;RELATED=END:-PT0M'));
+    expect(queuedBody, contains('X-KEEP:end'));
     expect(queuedBody, contains('X-KEEP:audio'));
     final updated = (await tester.runAsync(
       () => repository.loadEventDetail(seededEventId),

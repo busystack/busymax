@@ -15,8 +15,12 @@ import 'package:busymax/src/features/notifications/notification_schedule_service
 import 'package:busymax/src/features/sync/calendar_sync_engine.dart';
 import 'package:busymax/src/features/sync/cloud_calendar_range_coverage_service.dart';
 import 'package:busymax/src/microsoft_calendar/microsoft_calendar_api_client.dart';
+import 'package:busymax/src/microsoft_calendar/microsoft_calendar_errors.dart';
+import 'package:busymax/src/microsoft_calendar/microsoft_calendar_mapper.dart';
 import 'package:busymax/src/microsoft_calendar/microsoft_shared_calendar_address.dart';
 import 'package:busymax/src/providers/busy_provider.dart';
+import 'package:busymax/src/schedule/schedule_repository.dart';
+import 'package:busymax/src/schedule/schedule_range.dart';
 import 'package:drift/drift.dart';
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -1220,6 +1224,241 @@ void main() {
   );
 
   test(
+    'A Microsoft ID-only occurrence removal deletes its original row and reminder',
+    () async {
+      const source = CalendarSourceDto(
+        provider: BusyProvider.microsoft,
+        providerCalendarId: 'cal-primary',
+        summary: 'Calendar',
+        primaryCalendar: true,
+      );
+      await _insertAccount(database, provider: BusyProvider.microsoft);
+      await _insertSource(database, source);
+      final repository = CalendarRepository(database: database);
+      await repository.upsertEvent(
+        accountId: 'account',
+        event: const CalendarEventDto(
+          provider: BusyProvider.microsoft,
+          providerCalendarId: 'cal-primary',
+          providerEventId: 'occurrence-1',
+          providerRecurringEventId: 'master-1',
+          providerOriginalStartKey: '2026-07-15T09:00:00Z',
+          title: 'Occurrence',
+          startDateTime: '2026-07-15T09:00:00Z',
+          endDateTime: '2026-07-15T10:00:00Z',
+          remindersJson: {
+            'isReminderOn': true,
+            'reminderMinutesBeforeStart': 10,
+          },
+        ),
+      );
+      await NotificationScheduleService(
+        database: database,
+        nowUtc: () => DateTime.utc(2026, 7, 15, 8),
+      ).rebuildUpcomingEventNotifications('account');
+      expect(
+        await database.select(database.notificationSchedule).get(),
+        hasLength(1),
+      );
+      expect(
+        await ScheduleRepository(
+          database,
+        ).listItems(range: ScheduleRange.day(DateTime(2026, 7, 15))),
+        isNotEmpty,
+      );
+      await repository.saveSyncState(
+        accountId: 'account',
+        provider: BusyProvider.microsoft,
+        syncKind: 'events',
+        calendarSourceId: CalendarRepository.sourceId(
+          accountId: 'account',
+          provider: BusyProvider.microsoft,
+          providerCalendarId: 'cal-primary',
+        ),
+        rangeStart: DateTime.utc(2025, 7).toIso8601String(),
+        rangeEnd: DateTime.utc(2028, 8).toIso8601String(),
+        cursorKind: 'microsoft_delta_link',
+        cursorValue: 'https://graph.example/delta',
+        full: true,
+      );
+      final marker = microsoftCalendarEventFromJson('cal-primary', {
+        'id': 'occurrence-1',
+        '@removed': {'reason': 'deleted'},
+      });
+      final client = _FakeCalendarClient(
+        provider: BusyProvider.microsoft,
+        calendars: const [source],
+        pages: [
+          CalendarSyncPageDto(events: [marker]),
+          CalendarSyncPageDto(events: [marker]),
+        ],
+        missingEventIds: const {'occurrence-1'},
+      );
+      final engine = CalendarSyncEngine(
+        database: database,
+        client: client,
+        accountId: 'account',
+        nowUtc: () => DateTime.utc(2026, 7, 15, 8),
+      );
+      await engine.incrementalSync();
+      await engine.incrementalSync();
+      final rows = await database.select(database.calendarEvents).get();
+      expect(rows, hasLength(1));
+      expect(rows.single.providerOriginalStartKey, '2026-07-15T09:00:00Z');
+      expect(rows.single.isDeleted, isTrue);
+      expect(
+        await ScheduleRepository(
+          database,
+        ).listItems(range: ScheduleRange.day(DateTime(2026, 7, 15))),
+        isEmpty,
+      );
+      expect(
+        await database.select(database.notificationSchedule).get(),
+        isEmpty,
+      );
+    },
+  );
+
+  test(
+    'A Microsoft view removal preserves an event cached from another range',
+    () async {
+      const source = CalendarSourceDto(
+        provider: BusyProvider.microsoft,
+        providerCalendarId: 'cal-primary',
+        summary: 'Calendar',
+        primaryCalendar: true,
+      );
+      await _insertAccount(database, provider: BusyProvider.microsoft);
+      await _insertSource(database, source);
+      const future = CalendarEventDto(
+        provider: BusyProvider.microsoft,
+        providerCalendarId: 'cal-primary',
+        providerEventId: 'moved-future',
+        title: 'Still exists',
+        startDateTime: '2030-01-15T09:00:00Z',
+        endDateTime: '2030-01-15T10:00:00Z',
+      );
+      final marker = microsoftCalendarEventFromJson('cal-primary', {
+        'id': 'moved-future',
+        '@removed': {'reason': 'deleted'},
+      });
+      final client = _FakeCalendarClient(
+        provider: BusyProvider.microsoft,
+        calendars: const [source],
+        pages: [
+          CalendarSyncPageDto(events: [marker]),
+        ],
+        eventsById: const {'moved-future': future},
+        onListEvents: (_, _, _) async => const [future],
+      );
+      final engine = CalendarSyncEngine(
+        database: database,
+        client: client,
+        accountId: 'account',
+        nowUtc: () => DateTime.utc(2026, 7, 10),
+      );
+      await engine.retrieveMonth(DateTime.utc(2030, 1));
+      await CalendarRepository(database: database).saveSyncState(
+        accountId: 'account',
+        provider: BusyProvider.microsoft,
+        syncKind: 'events',
+        calendarSourceId: CalendarRepository.sourceId(
+          accountId: 'account',
+          provider: BusyProvider.microsoft,
+          providerCalendarId: 'cal-primary',
+        ),
+        rangeStart: DateTime.utc(2025, 7).toIso8601String(),
+        rangeEnd: DateTime.utc(2028, 8).toIso8601String(),
+        cursorKind: 'microsoft_delta_link',
+        cursorValue: 'https://graph.example/delta',
+        full: true,
+      );
+      await engine.incrementalSync();
+      final rows = await database.select(database.calendarEvents).get();
+      expect(rows, hasLength(1));
+      expect(rows.single.isDeleted, isFalse);
+      expect(rows.single.startDateTime, '2030-01-15T09:00:00Z');
+      expect(
+        await ScheduleRepository(
+          database,
+        ).listItems(range: ScheduleRange.day(DateTime(2030, 1, 15))),
+        hasLength(1),
+      );
+    },
+  );
+
+  test(
+    'A Microsoft confirmed removal leaves a dirty local occurrence intact',
+    () async {
+      const source = CalendarSourceDto(
+        provider: BusyProvider.microsoft,
+        providerCalendarId: 'cal-primary',
+        summary: 'Calendar',
+        primaryCalendar: true,
+      );
+      await _insertAccount(database, provider: BusyProvider.microsoft);
+      await _insertSource(database, source);
+      final repository = CalendarRepository(database: database);
+      await repository.upsertEvent(
+        accountId: 'account',
+        event: const CalendarEventDto(
+          provider: BusyProvider.microsoft,
+          providerCalendarId: 'cal-primary',
+          providerEventId: 'occurrence-1',
+          providerRecurringEventId: 'master-1',
+          providerOriginalStartKey: '2026-07-15T09:00:00Z',
+          title: 'Pending edit',
+          startDateTime: '2026-07-15T09:00:00Z',
+          endDateTime: '2026-07-15T10:00:00Z',
+        ),
+      );
+      await database
+          .update(database.calendarEvents)
+          .write(const CalendarEventsCompanion(syncStatus: Value('dirty')));
+      await repository.saveSyncState(
+        accountId: 'account',
+        provider: BusyProvider.microsoft,
+        syncKind: 'events',
+        calendarSourceId: CalendarRepository.sourceId(
+          accountId: 'account',
+          provider: BusyProvider.microsoft,
+          providerCalendarId: 'cal-primary',
+        ),
+        rangeStart: DateTime.utc(2025, 7).toIso8601String(),
+        rangeEnd: DateTime.utc(2028, 8).toIso8601String(),
+        cursorKind: 'microsoft_delta_link',
+        cursorValue: 'https://graph.example/delta',
+        full: true,
+      );
+      final client = _FakeCalendarClient(
+        provider: BusyProvider.microsoft,
+        calendars: const [source],
+        pages: [
+          CalendarSyncPageDto(
+            events: [
+              microsoftCalendarEventFromJson('cal-primary', {
+                'id': 'occurrence-1',
+                '@removed': {'reason': 'deleted'},
+              }),
+            ],
+          ),
+        ],
+        missingEventIds: const {'occurrence-1'},
+      );
+      await CalendarSyncEngine(
+        database: database,
+        client: client,
+        accountId: 'account',
+        nowUtc: () => DateTime.utc(2026, 7, 15, 8),
+      ).incrementalSync();
+      final rows = await database.select(database.calendarEvents).get();
+      expect(rows, hasLength(1));
+      expect(rows.single.isDeleted, isFalse);
+      expect(rows.single.syncStatus, 'dirty');
+    },
+  );
+
+  test(
     'Microsoft non-primary incremental sync reconciles each full snapshot',
     () async {
       const source = CalendarSourceDto(
@@ -1843,6 +2082,7 @@ class _FakeCalendarClient implements CloudCalendarClient {
     required this.calendars,
     required List<CalendarSyncPageDto> pages,
     this.eventsById = const {},
+    this.missingEventIds = const {},
     this.onListEvents,
   }) : _pages = List.of(pages);
 
@@ -1850,6 +2090,7 @@ class _FakeCalendarClient implements CloudCalendarClient {
   final BusyProvider provider;
   final List<CalendarSourceDto> calendars;
   final Map<String, CalendarEventDto> eventsById;
+  final Set<String> missingEventIds;
   final Future<List<CalendarEventDto>> Function(
     String calendarId,
     DateTime start,
@@ -1954,6 +2195,13 @@ class _FakeCalendarClient implements CloudCalendarClient {
     required String calendarId,
     required String eventId,
   }) async {
+    if (missingEventIds.contains(eventId)) {
+      throw const MicrosoftCalendarApiError(
+        statusCode: 404,
+        code: 'ErrorItemNotFound',
+        message: 'Not found',
+      );
+    }
     final event = eventsById[eventId];
     if (event == null) {
       throw StateError('No fake event exists for $eventId.');

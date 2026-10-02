@@ -21,6 +21,115 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 
 void main() {
+  testWidgets('B Windows synced occurrence hides Repeat but retains scope', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(1200, 1200);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    addTearDown(tester.view.resetPhysicalSize);
+    final db = AppDatabase(NativeDatabase.memory());
+    addTearDown(() async {
+      await tester.pumpWidget(const SizedBox.shrink());
+      await db.close();
+    });
+    await db
+        .into(db.accounts)
+        .insert(
+          AccountsCompanion.insert(
+            id: 'account',
+            provider: 'google',
+            authority: 'https://accounts.google.com',
+            providerAccountId: 'me@example.test',
+            credentialKind: 'oauth',
+            authState: const Value('signed_in'),
+            createdAtUtc: _now,
+            updatedAtUtc: _now,
+          ),
+        );
+    final repository = CalendarRepository(database: db);
+    await repository.upsertSource(
+      accountId: 'account',
+      source: const CalendarSourceDto(
+        provider: BusyProvider.google,
+        providerCalendarId: 'calendar',
+        summary: 'Calendar',
+        accessRole: 'writer',
+      ),
+    );
+    await repository.upsertEvent(
+      accountId: 'account',
+      event: const CalendarEventDto(
+        provider: BusyProvider.google,
+        providerCalendarId: 'calendar',
+        providerEventId: 'occurrence',
+        providerRecurringEventId: 'master',
+        providerOriginalStartKey: '2026-08-03T09:00:00Z',
+        title: 'Occurrence',
+        startDateTime: '2026-08-03T09:00:00Z',
+        endDateTime: '2026-08-03T10:00:00Z',
+        rawJson: {
+          'id': 'occurrence',
+          'recurringEventId': 'master',
+          'originalStartTime': {'dateTime': '2026-08-03T09:00:00Z'},
+        },
+      ),
+    );
+    final eventId = (await db.select(db.calendarEvents).getSingle()).id;
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          databaseProvider.overrideWithValue(db),
+          accountsRepositoryProvider.overrideWithValue(
+            AccountsRepository(database: db),
+          ),
+          calendarRepositoryProvider.overrideWithValue(repository),
+          localTimeZoneProvider.overrideWithValue('UTC'),
+        ],
+        child: FluentApp(
+          localizationsDelegates: const [AppLocalizations.delegate],
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: Consumer(
+            builder: (context, ref, _) => Button(
+              onPressed: () =>
+                  showWindowsEventEditorDialog(context, ref, eventId: eventId),
+              child: const Text('Open'),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.runAsync(() async {
+      await tester.tap(find.text('Open'));
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+    });
+    await tester.pumpAndSettle();
+    expect(find.text('Repeat'), findsNothing);
+    await tester.runAsync(() async {
+      await tester.tap(find.widgetWithText(FilledButton, 'Save').last);
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+    });
+    for (
+      var i = 0;
+      i < 30 &&
+          find
+              .text(
+                'Choose whether this change applies to the entire series, only this occurrence, or this and following events.',
+              )
+              .evaluate()
+              .isEmpty;
+      i++
+    ) {
+      await tester.pump(const Duration(milliseconds: 20));
+    }
+    expect(
+      find.text(
+        'Choose whether this change applies to the entire series, only this occurrence, or this and following events.',
+      ),
+      findsWidgets,
+    );
+  });
+
   testWidgets('Windows Microsoft category choice retains unknown assignments', (
     tester,
   ) async {
@@ -308,6 +417,29 @@ void main() {
     await tester.pumpAndSettle();
     tester.widget<ComboBox<String>>(selector).onChanged?.call('label-1');
     await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(Button, 'Cancel').last);
+    await tester.pumpAndSettle();
+    expect(find.text('Discard changes?'), findsOneWidget);
+    await tester.tap(find.widgetWithText(Button, 'Cancel').last);
+    await tester.pumpAndSettle();
+    tester.widget<ComboBox<String>>(selector).onChanged?.call('');
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(Button, 'Cancel').last);
+    await tester.pumpAndSettle();
+    expect(find.text('Discard changes?'), findsNothing);
+    expect(selector, findsNothing);
+    await tester.runAsync(() async {
+      await tester.tap(find.text('Open'));
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+    });
+    await tester.pumpAndSettle();
+    final reopenedSelector = find.byKey(const Key('windows-event-label'));
+    await tester.ensureVisible(reopenedSelector);
+    tester
+        .widget<ComboBox<String>>(reopenedSelector)
+        .onChanged
+        ?.call('label-1');
+    await tester.pumpAndSettle();
     await tester.tap(find.widgetWithText(FilledButton, 'Save').last);
     await tester.pumpAndSettle();
     final operation = await db.select(db.pendingOps).getSingle();
@@ -356,9 +488,9 @@ void main() {
           providerEventId: 'event',
           title: 'Planning',
           startDateTime: '2026-06-08T09:00:00',
-          startTimeZone: 'UTC',
+          startTimeZone: 'America/Los_Angeles',
           endDateTime: '2026-06-08T10:00:00',
-          endTimeZone: 'UTC',
+          endTimeZone: 'America/Los_Angeles',
           attendeesJson: [
             {
               'emailAddress': {'address': 'guest@example.test'},
@@ -370,10 +502,13 @@ void main() {
       );
       final event = await db.select(db.calendarEvents).getSingle();
       var requests = 0;
+      Map<String, Object?>? scheduleRequest;
       final client = MicrosoftCalendarApiClient(
         httpClient: MockClient((request) async {
           requests++;
           expect(request.url.path, '/v1.0/me/calendar/getSchedule');
+          scheduleRequest = (jsonDecode(request.body) as Map)
+              .cast<String, Object?>();
           return http.Response(
             '{"value":[{"scheduleId":"guest@example.test","scheduleItems":[]}]}',
             200,
@@ -432,6 +567,14 @@ void main() {
         findsOneWidget,
       );
       expect(requests, 1);
+      expect(
+        (scheduleRequest?['startTime'] as Map)['dateTime'],
+        '2026-06-08T16:00:00.000',
+      );
+      expect(
+        (scheduleRequest?['endTime'] as Map)['dateTime'],
+        '2026-06-08T17:00:00.000',
+      );
       expect(await db.select(db.pendingOps).get(), isEmpty);
       // Drain Drift's deferred stream-close timer while the test clock is
       // still active, after the editor's provider scope is disposed.

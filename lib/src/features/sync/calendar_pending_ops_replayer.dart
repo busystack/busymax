@@ -544,11 +544,11 @@ class CalendarPendingOpsReplayer {
     final List<CalendarEventDto> instances;
     Set<String> cancelledIds = const {};
     if (_client is GoogleCalendarApiClient) {
-      instances = await (_client as CompleteRecurringInstanceClient)
-          .listAllEventInstances(
-            calendarId: calendarId,
-            recurringEventId: masterId,
-          );
+      instances = await _client.findImportEventInstances(
+        calendarId: calendarId,
+        recurringEventId: masterId,
+        originalStart: originalStart,
+      );
     } else {
       final microsoft = _client as MicrosoftCalendarApiClient;
       final snapshot = await microsoft.getSeriesExceptionSnapshot(

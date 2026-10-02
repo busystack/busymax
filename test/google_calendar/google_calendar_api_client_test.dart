@@ -763,6 +763,44 @@ void main() {
     expect(requests[2].headers['if-match'], '"delete-version"');
   });
 
+  test(
+    'H import occurrence lookup targets timed and all-day original starts',
+    () async {
+      final requests = <http.Request>[];
+      final client = _client((request) {
+        requests.add(request);
+        return _json({'items': <Object>[]});
+      });
+      await client.findImportEventInstances(
+        calendarId: 'calendar@example.com',
+        recurringEventId: 'series-1',
+        originalStart: '2026-08-31T16:00:00.000Z',
+      );
+      await client.findImportEventInstances(
+        calendarId: 'calendar@example.com',
+        recurringEventId: 'series-1',
+        originalStart: '2026-09-01',
+      );
+      expect(requests, hasLength(2));
+      expect(
+        requests.map((request) => request.url.queryParameters['originalStart']),
+        ['2026-08-31T16:00:00.000Z', '2026-09-01'],
+      );
+      expect(
+        requests.every(
+          (request) => request.url.queryParameters['showDeleted'] == 'true',
+        ),
+        isTrue,
+      );
+      expect(
+        requests.every(
+          (request) => !request.url.queryParameters.containsKey('timeMin'),
+        ),
+        isTrue,
+      );
+    },
+  );
+
   test('native event move sends destination and guest update policy', () async {
     late http.Request captured;
     final client = _client((request) {

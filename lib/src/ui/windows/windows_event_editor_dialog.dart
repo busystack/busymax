@@ -229,6 +229,7 @@ Future<bool> showWindowsEventEditorDialog(
       remindersChanged ||
       attendeesChanged ||
       categoriesChanged ||
+      eventLabelId != originalDraft?.eventLabelId ||
       googleStatusChanged ||
       onlineMeeting != initialOnlineMeeting ||
       responseRequested != initialResponseRequested ||
@@ -602,44 +603,45 @@ Future<bool> showWindowsEventEditorDialog(
                           ),
                         ),
                         const SizedBox(height: 12),
-                        InfoLabel(
-                          label: l10n.repeat,
-                          child: Button(
-                            onPressed: saving
-                                ? null
-                                : () async {
-                                    final result =
-                                        await showWindowsRecurrenceDialog(
-                                          context,
-                                          initial: recurrence,
-                                          baseDate: start,
-                                          allDay: allDay,
-                                          timeZone:
-                                              selectedTimeZone ??
-                                              ref.read(localTimeZoneProvider),
-                                          providerLabel: selectedSource
-                                              .provider
-                                              .displayName,
-                                          limits:
-                                              EventRecurrenceCodec.limitsFor(
-                                                selectedSource.provider,
-                                              ),
-                                        );
-                                    if (result != null) {
-                                      setState(() {
-                                        recurrence = result;
-                                        recurrenceChanged = true;
-                                      });
-                                    }
-                                  },
-                            child: Align(
-                              alignment: AlignmentDirectional.centerStart,
-                              child: Text(
-                                _recurrenceLabel(l10n, recurrence.frequency),
+                        if (originalDraft?.providerRecurringEventId == null)
+                          InfoLabel(
+                            label: l10n.repeat,
+                            child: Button(
+                              onPressed: saving
+                                  ? null
+                                  : () async {
+                                      final result =
+                                          await showWindowsRecurrenceDialog(
+                                            context,
+                                            initial: recurrence,
+                                            baseDate: start,
+                                            allDay: allDay,
+                                            timeZone:
+                                                selectedTimeZone ??
+                                                ref.read(localTimeZoneProvider),
+                                            providerLabel: selectedSource
+                                                .provider
+                                                .displayName,
+                                            limits:
+                                                EventRecurrenceCodec.limitsFor(
+                                                  selectedSource.provider,
+                                                ),
+                                          );
+                                      if (result != null) {
+                                        setState(() {
+                                          recurrence = result;
+                                          recurrenceChanged = true;
+                                        });
+                                      }
+                                    },
+                              child: Align(
+                                alignment: AlignmentDirectional.centerStart,
+                                child: Text(
+                                  _recurrenceLabel(l10n, recurrence.frequency),
+                                ),
                               ),
                             ),
                           ),
-                        ),
                         const SizedBox(height: 12),
                       ],
                     ),
@@ -1197,7 +1199,9 @@ Future<bool> showWindowsEventEditorDialog(
                                               id == null || id.isEmpty
                                               ? null
                                               : id;
-                                          eventLabelChanged = true;
+                                          eventLabelChanged =
+                                              eventLabelId !=
+                                              originalDraft?.eventLabelId;
                                         }),
                                 ),
                               );

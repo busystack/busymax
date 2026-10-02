@@ -42,9 +42,33 @@ Future<String> exportGoogleEventSeries({
       ? selected
       : await client.getEvent(calendarId: calendarId, eventId: masterId);
   final uid = _uid(master);
+  final members = await client.eventsWithICalUid(
+    calendarId: calendarId,
+    iCalUid: uid,
+    includeCancelled: true,
+  );
+  final authoritativeMaster = members
+      .where(
+        (event) =>
+            event.providerEventId == masterId &&
+            event.providerRecurringEventId == null,
+      )
+      .toList();
+  if (authoritativeMaster.length != 1) {
+    throw const FormatException(
+      'The complete Google series master is unavailable.',
+    );
+  }
+  final exceptions = members
+      .where((event) => event.providerRecurringEventId == masterId)
+      .toList();
   List<Map<String, Object?>>? defaultReminders;
-  if (master.remindersJson is Map &&
-      (master.remindersJson as Map)['useDefault'] == true) {
+  if ([authoritativeMaster.single, ...exceptions].any(
+    (event) =>
+        !event.isCancelled &&
+        event.remindersJson is Map &&
+        (event.remindersJson as Map)['useDefault'] == true,
+  )) {
     final calendars = await client.listCalendars();
     final matching = calendars
         .where((source) => source.providerCalendarId == calendarId)
@@ -63,28 +87,9 @@ Future<String> exportGoogleEventSeries({
       for (final value in raw) Map<String, Object?>.from(value as Map),
     ];
   }
-  final members = await client.eventsWithICalUid(
-    calendarId: calendarId,
-    iCalUid: uid,
-    includeCancelled: true,
-  );
-  final authoritativeMaster = members
-      .where(
-        (event) =>
-            event.providerEventId == masterId &&
-            event.providerRecurringEventId == null,
-      )
-      .toList();
-  if (authoritativeMaster.length != 1) {
-    throw const FormatException(
-      'The complete Google series master is unavailable.',
-    );
-  }
   return cloudSeriesToICalendar(
     master: authoritativeMaster.single,
-    exceptions: members
-        .where((event) => event.providerRecurringEventId == masterId)
-        .toList(),
+    exceptions: exceptions,
     googleDefaultReminders: defaultReminders,
     nowUtc: nowUtc,
   );

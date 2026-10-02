@@ -459,6 +459,21 @@ _PreparedImportDraft _prepareDraft(
     master.classification,
     destination.provider,
   );
+  if (destination.provider == BusyProvider.google) {
+    for (final component in set.semantic.components) {
+      if (component.recurrenceId == null ||
+          component.status == 'CANCELLED' ||
+          component.classification == null) {
+        continue;
+      }
+      if (_classification(component.classification, destination.provider) !=
+          visibilityOrSensitivity) {
+        return const _PreparedImportDraft.unsupported(
+          'Google cannot represent a detached occurrence with different visibility from its series.',
+        );
+      }
+    }
+  }
   final preparedExceptions = _prepareExceptions(
     set,
     master: master,

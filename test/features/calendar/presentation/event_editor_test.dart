@@ -1,9 +1,11 @@
 import 'dart:io';
+import 'dart:convert';
 
 import 'package:busymax/src/features/accounts/data/accounts_repository.dart';
 import 'package:busymax/src/features/calendar/data/calendar_repository.dart';
 import 'package:busymax/src/features/calendar/presentation/event_editor.dart';
 import 'package:busymax/src/features/calendar/presentation/event_editor_draft.dart';
+import 'package:busymax/src/features/calendar/presentation/linux_cloud_availability_dialog.dart';
 import 'package:busymax/src/features/calendar/presentation/event_description_editor.dart';
 import 'package:busymax/src/features/maps/domain/geographic_point.dart';
 import 'package:busymax/src/features/maps/domain/location_result.dart';
@@ -35,6 +37,90 @@ const _nativeDialogChannel = MethodChannel(nativeDialogChannelName);
 const _nativeMenuChannel = MethodChannel(nativeMenuChannelName);
 
 void main() {
+  testWidgets('C Linux Google availability sends resolved UTC interval', (
+    tester,
+  ) async {
+    Map<String, Object?>? sent;
+    final client = GoogleCalendarApiClient(
+      httpClient: MockClient((request) async {
+        sent = (jsonDecode(request.body) as Map).cast<String, Object?>();
+        return http.Response(
+          jsonEncode({
+            'calendars': {
+              'guest@example.test': {'busy': <Object>[]},
+            },
+          }),
+          200,
+        );
+      }),
+      baseUri: Uri.parse('https://www.googleapis.com'),
+      authorizationHeaderProvider: () async => 'Bearer token',
+    );
+    final draft =
+        EventEditorDraft.newEvent(
+          accountId: 'account',
+          sourceId: 'calendar',
+          providerCalendarId: 'calendar',
+          start: DateTime(2026, 7, 15, 9),
+          end: DateTime(2026, 7, 15, 10),
+        ).copyWith(
+          startTimeZone: 'America/Los_Angeles',
+          endTimeZone: 'America/Los_Angeles',
+          attendees: const [EventAttendeeDraft(email: 'guest@example.test')],
+        );
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          calendarRemoteApiClientForAccountProvider(
+            'account',
+          ).overrideWithValue(client),
+        ],
+        child: localizedTestApp(
+          theme: BusyMaxYaruTheme.build(
+            brightness: Brightness.light,
+            accentColor: const Color(0xFF3584E4),
+          ),
+          child: Scaffold(
+            body: Builder(
+              builder: (context) => TextButton(
+                onPressed: () =>
+                    showLinuxCloudAvailabilityDialog(context, draft: draft),
+                child: const Text('Open availability'),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.tap(find.text('Open availability'));
+    await tester.pumpAndSettle();
+    expect(sent?['timeMin'], '2026-07-15T16:00:00.000Z');
+    expect(sent?['timeMax'], '2026-07-15T17:00:00.000Z');
+  });
+  test('C cloud availability resolves civil times in their provider zones', () {
+    EventEditorDraft draft(DateTime start, DateTime end, String endZone) =>
+        EventEditorDraft.newEvent(
+          accountId: 'account',
+          sourceId: 'calendar',
+          providerCalendarId: 'calendar',
+          start: start,
+          end: end,
+        ).copyWith(startTimeZone: 'America/Los_Angeles', endTimeZone: endZone);
+    final summer = draft(
+      DateTime(2026, 7, 15, 9),
+      DateTime(2026, 7, 15, 13),
+      'America/New_York',
+    ).cloudAvailabilityInterval!;
+    expect(summer.start.toUtc(), DateTime.utc(2026, 7, 15, 16));
+    expect(summer.end.toUtc(), DateTime.utc(2026, 7, 15, 17));
+    final transition = draft(
+      DateTime(2026, 3, 8, 1, 30),
+      DateTime(2026, 3, 8, 3, 30),
+      'America/Los_Angeles',
+    ).cloudAvailabilityInterval!;
+    expect(transition.start.toUtc(), DateTime.utc(2026, 3, 8, 9, 30));
+    expect(transition.end.toUtc(), DateTime.utc(2026, 3, 8, 10, 30));
+  });
   testWidgets('Microsoft description selection does not emit a body change', (
     tester,
   ) async {

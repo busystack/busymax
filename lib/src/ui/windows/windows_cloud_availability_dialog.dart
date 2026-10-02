@@ -54,9 +54,8 @@ class _WindowsCloudAvailabilityDialogState
       final client = ref.read(
         calendarRemoteApiClientForAccountProvider(widget.draft.accountId),
       );
-      final start = widget.draft.start;
-      final end = widget.draft.end;
-      if (client is! DetailedFreeBusyClient || start == null || end == null) {
+      final interval = widget.draft.cloudAvailabilityInterval;
+      if (client is! DetailedFreeBusyClient || interval == null) {
         throw StateError('Availability is unavailable.');
       }
       final recipients = widget.draft.attendees
@@ -67,8 +66,8 @@ class _WindowsCloudAvailabilityDialogState
           .toList();
       final fetched = await (client as DetailedFreeBusyClient).freeBusyDetails(
         calendarIds: recipients,
-        rangeStart: start.toUtc(),
-        rangeEnd: end.toUtc(),
+        rangeStart: interval.start.toUtc(),
+        rangeEnd: interval.end.toUtc(),
       );
       if (mounted && generation == _generation) _results = fetched;
     } on Object catch (error) {

@@ -4787,6 +4787,57 @@ class CalendarRepository {
     }
   }
 
+  /// Applies a confirmed Microsoft deletion to its existing scoped identity.
+  /// ID-only calendar-view markers must not create a second occurrence row.
+  Future<void> markMicrosoftRemovedEventDeleted({
+    required String accountId,
+    required String providerCalendarId,
+    required String providerEventId,
+  }) async {
+    final scopedSourceId = sourceId(
+      accountId: accountId,
+      provider: BusyProvider.microsoft,
+      providerCalendarId: providerCalendarId,
+    );
+    await _database.transaction(() async {
+      final matches =
+          await (_database.select(_database.calendarEvents)..where(
+                (row) =>
+                    row.accountId.equals(accountId) &
+                    row.calendarSourceId.equals(scopedSourceId) &
+                    row.provider.equals(BusyProvider.microsoft.storageValue) &
+                    row.providerEventId.equals(providerEventId) &
+                    row.isDeleted.equals(false),
+              ))
+              .get();
+      if (matches.isEmpty) return;
+      if (matches.length != 1) {
+        throw StateError('Ambiguous Microsoft event removal identity.');
+      }
+      final match = matches.single;
+      if (match.syncStatus != 'synced') return;
+      final pending =
+          await (_database.select(_database.pendingOps)
+                ..where(
+                  (row) =>
+                      row.accountId.equals(accountId) &
+                      row.entityType.equals('event') &
+                      row.eventId.equals(match.id),
+                )
+                ..limit(1))
+              .getSingleOrNull();
+      if (pending != null) return;
+      await (_database.update(
+        _database.calendarEvents,
+      )..where((row) => row.id.equals(match.id))).write(
+        CalendarEventsCompanion(
+          isDeleted: const Value(true),
+          updatedAtLocal: Value(_now().millisecondsSinceEpoch),
+        ),
+      );
+    });
+  }
+
   Future<void> markExpandedRecurringMastersDeleted({
     required String accountId,
     required BusyProvider provider,

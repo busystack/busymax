@@ -363,6 +363,31 @@ class CalendarSyncEngine {
     final expandedRecurringMasterIds = <String>{};
     while (true) {
       for (final event in page.events) {
+        if (provider == BusyProvider.microsoft && event.isDeleted) {
+          // A calendar-view delta removal describes membership in this view,
+          // not necessarily deletion of the event in the mailbox. Resolve it
+          // before touching independently cached ranges. Graph's ID-only
+          // marker also cannot identify a stored occurrence by itself.
+          try {
+            final current = await _client.getEvent(
+              calendarId: providerCalendarId,
+              eventId: event.providerEventId,
+            );
+            await _repository.upsertEvent(
+              accountId: _accountId,
+              event: current,
+              preservePendingLocalChanges: true,
+            );
+          } on MicrosoftCalendarApiError catch (error) {
+            if (error.statusCode != 404 && error.statusCode != 410) rethrow;
+            await _repository.markMicrosoftRemovedEventDeleted(
+              accountId: _accountId,
+              providerCalendarId: providerCalendarId,
+              providerEventId: event.providerEventId,
+            );
+          }
+          continue;
+        }
         await _repository.upsertEvent(
           accountId: _accountId,
           event: event,

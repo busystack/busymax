@@ -1543,7 +1543,10 @@ List<({int index, int minutes})> _editableDisplayAlarms(
     if (alarm.firstProperty('ACTION')?.rawValue.toUpperCase() != 'DISPLAY') {
       continue;
     }
-    final trigger = alarm.firstProperty('TRIGGER')?.rawValue.toUpperCase();
+    final triggerProperty = alarm.firstProperty('TRIGGER');
+    final related = triggerProperty?.parameterValue('RELATED')?.toUpperCase();
+    if (related != null && related != 'START') continue;
+    final trigger = triggerProperty?.rawValue.toUpperCase();
     final match = trigger == null
         ? null
         : RegExp(r'^-PT([0-9]+)M$').firstMatch(trigger);

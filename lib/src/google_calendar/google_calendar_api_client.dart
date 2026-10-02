@@ -620,11 +620,24 @@ class GoogleCalendarApiClient
     recurringEventId: recurringEventId,
   );
 
+  /// Resolves an imported detached occurrence by its original (not moved)
+  /// start. Keep complete-series enumeration for workflows that need it.
+  Future<List<CalendarEventDto>> findImportEventInstances({
+    required String calendarId,
+    required String recurringEventId,
+    required String originalStart,
+  }) => _listEventInstances(
+    calendarId: calendarId,
+    recurringEventId: recurringEventId,
+    originalStart: originalStart,
+  );
+
   Future<List<CalendarEventDto>> _listEventInstances({
     required String calendarId,
     required String recurringEventId,
     DateTime? rangeStart,
     DateTime? rangeEnd,
+    String? originalStart,
   }) async {
     assert((rangeStart == null) == (rangeEnd == null));
     final events = <CalendarEventDto>[];
@@ -638,6 +651,7 @@ class GoogleCalendarApiClient
           query: _compactQuery({
             'timeMin': rangeStart == null ? null : _rfc3339(rangeStart),
             'timeMax': rangeEnd == null ? null : _rfc3339(rangeEnd),
+            'originalStart': originalStart,
             'showDeleted': 'true',
             'pageToken': pageToken,
           }),

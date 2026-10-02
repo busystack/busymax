@@ -400,6 +400,19 @@ class EventEditorDraft {
   final DateTime? end;
   final String? startTimeZone;
   final String? endTimeZone;
+
+  /// Resolves the editor's civil wall times in their provider zones before
+  /// passing an interval to cloud availability endpoints.
+  ({DateTime start, DateTime end})? get cloudAvailabilityInterval {
+    final wallStart = start;
+    final wallEnd = end;
+    if (wallStart == null || wallEnd == null) return null;
+    return (
+      start: providerWallTimeToInstant(wallStart, startTimeZone),
+      end: providerWallTimeToInstant(wallEnd, endTimeZone ?? startTimeZone),
+    );
+  }
+
   final String? location;
   final String? originalLocation;
   final GeographicPoint? locationPoint;

@@ -105,17 +105,16 @@ class _AndroidGuestAvailabilityDialogState
         final client = ref.read(
           calendarRemoteApiClientForAccountProvider(widget.accountId),
         );
-        final start = widget.draft.start;
-        final end = widget.draft.end;
-        if (client == null || start == null || end == null) {
+        final interval = widget.draft.cloudAvailabilityInterval;
+        if (client == null || interval == null) {
           throw StateError('Availability is unavailable');
         }
         if (client is DetailedFreeBusyClient) {
           final results = await (client as DetailedFreeBusyClient)
               .freeBusyDetails(
                 calendarIds: _recipients,
-                rangeStart: start.toUtc(),
-                rangeEnd: end.toUtc(),
+                rangeStart: interval.start.toUtc(),
+                rangeEnd: interval.end.toUtc(),
               );
           final byCalendar = {
             for (final result in results)

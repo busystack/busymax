@@ -194,7 +194,7 @@ void main() {
   );
 
   test(
-    'R1 Google exception overrides visibility and transparency without importing categories',
+    'R1 Google same-visibility exception retains transparency and omits categories',
     () async {
       final preview = importService.parsePreview(
         utf8.encode(
@@ -214,7 +214,7 @@ RECURRENCE-ID:20260831T160000Z
 DTSTART:20260831T180000Z
 DTEND:20260831T190000Z
 SUMMARY:Override
-CLASS:PUBLIC
+CLASS:PRIVATE
 TRANSP:OPAQUE
 CATEGORIES:Do not import
 END:VEVENT
@@ -239,11 +239,50 @@ END:VEVENT
           .map((op) => jsonDecode(op.requestJson) as Map)
           .toList();
       expect(requests, hasLength(2));
-      expect(requests.first['sensitivity'], 'public');
+      expect(requests.first['sensitivity'], 'private');
       expect(requests.first['transparencyOrShowAs'], 'opaque');
       expect(requests.first, isNot(contains('categoriesJson')));
       expect(requests.last, isNot(contains('sensitivity')));
       expect(requests.last, isNot(contains('transparencyOrShowAs')));
+    },
+  );
+
+  test(
+    'D Google mixed recurrence privacy is rejected before creation',
+    () async {
+      for (final (masterClass, exceptionClass) in [
+        ('PRIVATE', 'PUBLIC'),
+        ('PUBLIC', 'PRIVATE'),
+      ]) {
+        final preview = importService.parsePreview(
+          utf8.encode(
+            _calendar('''
+BEGIN:VEVENT
+UID:d-google-$masterClass-$exceptionClass
+DTSTART:20260830T160000Z
+DTEND:20260830T170000Z
+SUMMARY:Master
+RRULE:FREQ=DAILY;COUNT=2
+CLASS:$masterClass
+END:VEVENT
+BEGIN:VEVENT
+UID:d-google-$masterClass-$exceptionClass
+RECURRENCE-ID:20260831T160000Z
+DTSTART:20260831T160000Z
+DTEND:20260831T170000Z
+CLASS:$exceptionClass
+END:VEVENT
+'''),
+          ),
+        );
+        final report = await importService.importPreview(
+          preview: preview,
+          destination: (await importService.writableDestinations()).single,
+        );
+        expect(report.queued, 0);
+        expect(report.unsupportedRecurrenceSets, isNotEmpty);
+        expect(await database.select(database.pendingOps).get(), isEmpty);
+      }
     },
   );
 
@@ -889,7 +928,7 @@ RECURRENCE-ID:20260831T160000Z
 DTSTART:20260831T180000Z
 DTEND:20260831T190000Z
 SUMMARY:Moved
-CLASS:PUBLIC
+CLASS:PRIVATE
 TRANSP:OPAQUE
 CATEGORIES:Not imported
 END:VEVENT
@@ -976,12 +1015,12 @@ END:VEVENT
       );
       expect(patch.url.queryParameters['sendUpdates'], 'none');
       expect((jsonDecode(patch.body) as Map)['summary'], 'Moved');
-      expect((jsonDecode(patch.body) as Map)['visibility'], 'public');
+      expect((jsonDecode(patch.body) as Map)['visibility'], 'private');
       expect((jsonDecode(patch.body) as Map)['transparency'], 'opaque');
       expect(patch.body, isNot(contains('categories')));
       final reloaded = (await database.select(database.calendarEvents).get())
           .singleWhere((event) => event.providerEventId == 'occurrence-1');
-      expect(reloaded.visibility, 'public');
+      expect(reloaded.visibility, 'private');
       expect(reloaded.transparencyOrShowAs, 'opaque');
     },
   );

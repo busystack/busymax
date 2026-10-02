@@ -2495,20 +2495,21 @@ class _AndroidEventEditorState extends ConsumerState<AndroidEventEditor> {
                     setState(() => _draft = _draft.copyWith(description: v)),
               ),
               const SizedBox(height: 12),
-              ListTile(
-                key: const ValueKey('android-event-recurrence'),
-                contentPadding: EdgeInsets.zero,
-                leading: const Icon(Icons.repeat),
-                title: Text(context.l10n.repeat),
-                subtitle: Text(
-                  _recurrenceRule.isSupported
-                      ? _recurrenceRule.repeats
-                            ? _recurrenceRule.toRrule()
-                            : context.l10n.repeatNone
-                      : context.l10n.unsupportedRecurrencePreserved,
+              if (_draft.providerRecurringEventId == null)
+                ListTile(
+                  key: const ValueKey('android-event-recurrence'),
+                  contentPadding: EdgeInsets.zero,
+                  leading: const Icon(Icons.repeat),
+                  title: Text(context.l10n.repeat),
+                  subtitle: Text(
+                    _recurrenceRule.isSupported
+                        ? _recurrenceRule.repeats
+                              ? _recurrenceRule.toRrule()
+                              : context.l10n.repeatNone
+                        : context.l10n.unsupportedRecurrencePreserved,
+                  ),
+                  onTap: _canEdit ? _editRecurrence : null,
                 ),
-                onTap: _canEdit ? _editRecurrence : null,
-              ),
               if (_draft.providerRecurringEventId != null) ...[
                 const SizedBox(height: 12),
                 ListTile(
@@ -4166,6 +4167,23 @@ List<AndroidNextcloudReminderRow>? androidNextcloudEditableReminderRows(
       }
 
       if (property('ACTION')?.toUpperCase() != 'DISPLAY') continue;
+      final triggerProperty = properties
+          .whereType<Map>()
+          .where((item) => item['name']?.toString().toUpperCase() == 'TRIGGER')
+          .firstOrNull;
+      final triggerParameters = triggerProperty?['parameters'];
+      if (triggerParameters is List &&
+          triggerParameters.whereType<Map>().any((parameter) {
+            if (parameter['name']?.toString().toUpperCase() != 'RELATED') {
+              return false;
+            }
+            final values = parameter['values'];
+            return values is! List ||
+                values.length != 1 ||
+                values.single.toString().toUpperCase() != 'START';
+          })) {
+        continue;
+      }
       final trigger = property('TRIGGER')?.toUpperCase();
       final match = trigger == null
           ? null

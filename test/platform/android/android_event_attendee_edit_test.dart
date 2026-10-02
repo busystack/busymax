@@ -182,6 +182,57 @@ void main() {
     );
   });
 
+  test('G end-relative DISPLAY alarm is not an editable start reminder', () {
+    final rows = androidNextcloudEditableReminderRows(const {
+      'alarms': [
+        {
+          'properties': [
+            {'name': 'ACTION', 'value': 'DISPLAY'},
+            {'name': 'TRIGGER', 'value': '-PT15M'},
+          ],
+        },
+        {
+          'properties': [
+            {'name': 'ACTION', 'value': 'DISPLAY'},
+            {
+              'name': 'TRIGGER',
+              'value': '-PT0M',
+              'parameters': [
+                {
+                  'name': 'RELATED',
+                  'values': ['END'],
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    });
+    expect(rows!.map((row) => row.originalIndex), [0]);
+    expect(
+      androidNextcloudHasUnsupportedAlarms(const {
+        'alarms': [
+          {
+            'properties': [
+              {'name': 'ACTION', 'value': 'DISPLAY'},
+              {
+                'name': 'TRIGGER',
+                'value': '-PT0M',
+                'parameters': [
+                  {
+                    'name': 'RELATED',
+                    'values': ['END'],
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      }),
+      isTrue,
+    );
+  });
+
   test('Google popup edits preserve other and unsupported reminders', () {
     const original = {
       'useDefault': false,

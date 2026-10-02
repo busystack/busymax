@@ -505,6 +505,34 @@ void main() {
     );
   });
 
+  test('G start and zero-minute end DAV alarms project separately', () async {
+    await _upsertEvent(
+      database,
+      accountId: 'nextcloud:n',
+      provider: BusyProvider.nextcloud,
+      remindersJson: {
+        'alarms': [
+          _displayAlarm('-PT15M'),
+          _displayAlarm(
+            '-PT0M',
+            triggerParameters: [
+              {
+                'name': 'RELATED',
+                'values': ['END'],
+              },
+            ],
+          ),
+        ],
+      },
+    );
+    await service.rebuildUpcomingEventNotifications('nextcloud:n');
+    final rows = await database.select(database.notificationSchedule).get();
+    expect(rows.map((row) => row.scheduledAtUtc).toSet(), {
+      DateTime.utc(2026, 6, 8, 8, 45).millisecondsSinceEpoch,
+      DateTime.utc(2026, 6, 8, 10).millisecondsSinceEpoch,
+    });
+  });
+
   test('DAV repeating alarm schedules every RFC repetition', () async {
     await _upsertEvent(
       database,

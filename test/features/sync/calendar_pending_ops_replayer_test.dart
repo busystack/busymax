@@ -3589,7 +3589,7 @@ END:VEVENT
   );
 
   test(
-    'imported Google exception replays explicit metadata and at-start alarm',
+    'H imported Google exception uses targeted originalStart lookup',
     () async {
       final repository = CalendarRepository(
         database: database,
@@ -3617,7 +3617,7 @@ RECURRENCE-ID:20260831T160000Z
 DTSTART:20260831T180000Z
 DTEND:20260831T190000Z
 SUMMARY:Moved
-CLASS:PUBLIC
+CLASS:PRIVATE
 TRANSP:OPAQUE
 BEGIN:VALARM
 ACTION:DISPLAY
@@ -3643,10 +3643,16 @@ END:VEVENT
         'end': {'dateTime': '2026-08-31T17:00:00Z'},
       };
       final patches = <Map<String, Object?>>[];
+      final instanceQueries = <Uri>[];
       final realClient = GoogleCalendarApiClient(
         httpClient: MockClient((request) async {
           if (request.method == 'GET' &&
               request.url.path.endsWith('/instances')) {
+            instanceQueries.add(request.url);
+            if (request.url.queryParameters['originalStart'] !=
+                '2026-08-31T16:00:00.000Z') {
+              return http.Response('Targeted originalStart required', 400);
+            }
             return http.Response(
               jsonEncode({
                 'items': [remoteOccurrence],
@@ -3687,8 +3693,9 @@ END:VEVENT
       );
       await replayer.replayDueOps();
       await replayer.replayDueOps();
+      expect(instanceQueries, hasLength(1));
       expect(patches, hasLength(1));
-      expect(patches.single['visibility'], 'public');
+      expect(patches.single['visibility'], 'private');
       expect(patches.single['transparency'], 'opaque');
       expect(patches.single['reminders'], {
         'useDefault': false,
