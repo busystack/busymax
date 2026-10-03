@@ -3162,4 +3162,100 @@ class AppLocalizationsHi extends AppLocalizations {
 
   @override
   String get calendarOwnerEmail => 'कैलेंडर स्वामी का ईमेल';
+
+  @override
+  String registrationSetupTitle(String provider) {
+    return '$provider सेट अप करें';
+  }
+
+  @override
+  String get registrationSetupGuide => 'सेटअप मार्गदर्शिका';
+
+  @override
+  String get registrationGoogleInstructions =>
+      'अपना Google Cloud प्रोजेक्ट बनाएँ, Calendar और Tasks API चालू करें और Desktop OAuth क्लाइंट का JSON आयात करें। इच्छित खाते को अनुमति दें।';
+
+  @override
+  String get registrationMicrosoftInstructions =>
+      'ऐसे Entra टेनेंट में सार्वजनिक ऐप पंजीकरण इस्तेमाल करें जो पंजीकरण की अनुमति देता हो। क्लाइंट ID और खाते के प्रकार दर्ज करें। क्लाइंट सीक्रेट की आवश्यकता नहीं है।';
+
+  @override
+  String get registrationImportGoogle => 'Desktop OAuth JSON चुनें';
+
+  @override
+  String get registrationValidate => 'पंजीकरण जाँचें';
+
+  @override
+  String get registrationAuthorize => 'ब्राउज़र में अनुमति दें';
+
+  @override
+  String get registrationClientId => 'एप्लिकेशन/क्लाइंट ID';
+
+  @override
+  String get registrationTenantId => 'टेनेंट ID';
+
+  @override
+  String get registrationAudience => 'समर्थित खाते';
+
+  @override
+  String get registrationBothAudience => 'व्यक्तिगत और संगठन के खाते';
+
+  @override
+  String get registrationOrganizationAudience => 'संगठन के खाते';
+
+  @override
+  String get registrationPersonalAudience => 'व्यक्तिगत खाते';
+
+  @override
+  String get registrationTenantAudience => 'एक संगठन का टेनेंट';
+
+  @override
+  String registrationSummary(String clientId) {
+    return 'पंजीकरण: $clientId';
+  }
+
+  @override
+  String get registrationMigrate => 'अभी माइग्रेट करें';
+
+  @override
+  String get registrationReplace => 'पंजीकरण बदलें';
+
+  @override
+  String registrationRetirementNotice(String provider, String setup) {
+    return 'यह खाता BusyMax के साझा $provider ऐप पंजीकरण का उपयोग करता है, जो अगले रिलीज़ में बंद होगा। अपना $setup सेट अप करें और सिंक्रोनाइज़ेशन जारी रखने के लिए इस खाते को फिर कनेक्ट करें। मौजूदा कैलेंडर, कार्य और स्थानीय बदलाव सुरक्षित रहेंगे।';
+  }
+
+  @override
+  String get registrationContinue => 'इस खाते का उपयोग जारी रखें';
+
+  @override
+  String get registrationGoogleProject => 'Google Cloud प्रोजेक्ट';
+
+  @override
+  String get registrationMicrosoftApp => 'Microsoft ऐप पंजीकरण';
+
+  @override
+  String get registrationUserOwned => 'उपयोगकर्ता द्वारा दिया गया पंजीकरण';
+
+  @override
+  String get registrationNativeGoogle => 'मूल Google Android पंजीकरण';
+
+  @override
+  String get registrationShared => 'साझा पंजीकरण (संक्रमण)';
+
+  @override
+  String get registrationUnresolved =>
+      'पंजीकरण का स्रोत स्पष्ट नहीं है। खाते का डेटा सुरक्षित है।';
+
+  @override
+  String get registrationOfficialDocumentation => 'आधिकारिक दस्तावेज़';
+
+  @override
+  String registrationAndroidIdentity(
+    String packageName,
+    String signatureHash,
+    String redirectUri,
+  ) {
+    return 'पैकेज: $packageName\nहस्ताक्षर हैश: $signatureHash\nरीडायरेक्ट URI: $redirectUri';
+  }
 }

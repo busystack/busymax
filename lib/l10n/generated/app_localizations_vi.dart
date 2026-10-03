@@ -3159,4 +3159,100 @@ class AppLocalizationsVi extends AppLocalizations {
 
   @override
   String get calendarOwnerEmail => 'Email của chủ sở hữu lịch';
+
+  @override
+  String registrationSetupTitle(String provider) {
+    return 'Thiết lập $provider';
+  }
+
+  @override
+  String get registrationSetupGuide => 'Hướng dẫn thiết lập';
+
+  @override
+  String get registrationGoogleInstructions =>
+      'Tạo dự án Google Cloud của riêng bạn, bật Calendar và Tasks, rồi nhập JSON của ứng dụng OAuth Desktop. Cấp quyền cho tài khoản mong muốn.';
+
+  @override
+  String get registrationMicrosoftInstructions =>
+      'Dùng đăng ký ứng dụng công khai trong đối tượng thuê Entra cho phép đăng ký. Nhập ID ứng dụng và loại tài khoản. Không cần bí mật ứng dụng.';
+
+  @override
+  String get registrationImportGoogle => 'Chọn JSON OAuth Desktop';
+
+  @override
+  String get registrationValidate => 'Kiểm tra đăng ký';
+
+  @override
+  String get registrationAuthorize => 'Cấp quyền trong trình duyệt';
+
+  @override
+  String get registrationClientId => 'ID ứng dụng/khách';
+
+  @override
+  String get registrationTenantId => 'ID đối tượng thuê';
+
+  @override
+  String get registrationAudience => 'Tài khoản được hỗ trợ';
+
+  @override
+  String get registrationBothAudience => 'Tài khoản cá nhân và tổ chức';
+
+  @override
+  String get registrationOrganizationAudience => 'Tài khoản tổ chức';
+
+  @override
+  String get registrationPersonalAudience => 'Tài khoản cá nhân';
+
+  @override
+  String get registrationTenantAudience => 'Một đối tượng thuê tổ chức';
+
+  @override
+  String registrationSummary(String clientId) {
+    return 'Đăng ký: $clientId';
+  }
+
+  @override
+  String get registrationMigrate => 'Chuyển đổi ngay';
+
+  @override
+  String get registrationReplace => 'Thay đăng ký';
+
+  @override
+  String registrationRetirementNotice(String provider, String setup) {
+    return 'Tài khoản này dùng đăng ký $provider chung của BusyMax, sẽ ngừng hoạt động ở bản phát hành tiếp theo. Thiết lập $setup của riêng bạn và kết nối lại tài khoản để tiếp tục đồng bộ. Lịch, công việc và thay đổi cục bộ của bạn sẽ được giữ lại.';
+  }
+
+  @override
+  String get registrationContinue => 'Tiếp tục dùng tài khoản này';
+
+  @override
+  String get registrationGoogleProject => 'Dự án Google Cloud';
+
+  @override
+  String get registrationMicrosoftApp => 'Đăng ký ứng dụng Microsoft';
+
+  @override
+  String get registrationUserOwned => 'Đăng ký do người dùng cung cấp';
+
+  @override
+  String get registrationNativeGoogle => 'Đăng ký Google gốc cho Android';
+
+  @override
+  String get registrationShared => 'Đăng ký chung (chuyển tiếp)';
+
+  @override
+  String get registrationUnresolved =>
+      'Chưa xác định nguồn đăng ký. Dữ liệu tài khoản được giữ lại.';
+
+  @override
+  String get registrationOfficialDocumentation => 'Tài liệu chính thức';
+
+  @override
+  String registrationAndroidIdentity(
+    String packageName,
+    String signatureHash,
+    String redirectUri,
+  ) {
+    return 'Gói: $packageName\nMã băm chữ ký: $signatureHash\nURI chuyển hướng: $redirectUri';
+  }
 }

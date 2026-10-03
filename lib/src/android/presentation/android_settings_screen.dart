@@ -1,3 +1,6 @@
+import '../../l10n/registration_description.dart';
+import 'android_registration_setup_dialog.dart';
+import '../../core/auth/oauth_registration.dart';
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
@@ -77,7 +80,13 @@ class _AndroidSettingsScreenState extends ConsumerState<AndroidSettingsScreen> {
                   leading: const Icon(Icons.account_circle_outlined),
                   title: Text(context.l10n.providerConnectionDescription),
                 ),
-              for (final account in accounts)
+              for (final account in accounts) ...[
+                if (account.provider == BusyProvider.microsoft ||
+                    account.provider == BusyProvider.google)
+                  _AndroidRegistrationCard(
+                    account: account,
+                    onMigrate: () => _connect(account.provider, account, true),
+                  ),
                 ListTile(
                   leading: Icon(_providerIcon(account.provider)),
                   title: Text(account.displayLabel),
@@ -91,6 +100,10 @@ class _AndroidSettingsScreenState extends ConsumerState<AndroidSettingsScreen> {
                           onSelected: (value) {
                             if (value == 'sync') {
                               unawaited(_syncAccount(account.id));
+                            } else if (value == 'migrate') {
+                              unawaited(
+                                _connect(account.provider, account, true),
+                              );
                             } else if (value == 'reconnect') {
                               unawaited(_connect(account.provider, account));
                             } else if (value == 'remove') {
@@ -103,7 +116,14 @@ class _AndroidSettingsScreenState extends ConsumerState<AndroidSettingsScreen> {
                                 value: 'sync',
                                 child: Text(context.l10n.sync),
                               ),
-                            if (account.needsReconnect)
+                            if (account.provider == BusyProvider.microsoft)
+                              PopupMenuItem(
+                                value: 'migrate',
+                                child: Text(context.l10n.registrationReplace),
+                              ),
+                            if (account.provider == BusyProvider.google ||
+                                account.provider == BusyProvider.microsoft ||
+                                account.needsReconnect)
                               PopupMenuItem(
                                 value: 'reconnect',
                                 child: Text(context.l10n.connectAccountAction),
@@ -115,6 +135,7 @@ class _AndroidSettingsScreenState extends ConsumerState<AndroidSettingsScreen> {
                           ],
                         ),
                 ),
+              ],
               const Divider(height: 1),
               _AccountButtons(
                 connecting: _connecting,
@@ -671,6 +692,7 @@ class _AndroidSettingsScreenState extends ConsumerState<AndroidSettingsScreen> {
   Future<void> _connect(
     BusyProvider provider, [
     AccountEntity? reconnecting,
+    bool replaceRegistration = false,
   ]) async {
     if (_connecting != null) return;
     final localNetworkDenied = context.l10n.nextcloudOperationDenied;
@@ -704,16 +726,38 @@ class _AndroidSettingsScreenState extends ConsumerState<AndroidSettingsScreen> {
         }
       }
     }
+    if (!mounted) return;
+    AuthorizationRequest? request;
+    if (provider == BusyProvider.microsoft) {
+      if (reconnecting != null && !replaceRegistration) {
+        request = AuthorizationRequest.reconnect(reconnecting.id);
+      } else {
+        final handle = await showAndroidRegistrationSetup(
+          context,
+          ref,
+          provider,
+        );
+        if (handle == null || !mounted) return;
+        request = reconnecting == null
+            ? AuthorizationRequest.newConnection(handle)
+            : AuthorizationRequest.replace(reconnecting.id, handle);
+      }
+    } else if (provider == BusyProvider.google && reconnecting != null) {
+      request = AuthorizationRequest.reconnect(reconnecting.id);
+    }
     setState(() => _connecting = provider);
     try {
       String? accountId;
       switch (provider) {
         case BusyProvider.google:
           accountId =
-              (await ref.read(authRepositoryProvider).signIn()).accountId;
+              (await ref.read(authRepositoryProvider).signIn(request: request))
+                  .accountId;
         case BusyProvider.microsoft:
           accountId =
-              (await ref.read(authRepositoryProvider).signInWithMicrosoft())
+              (await ref
+                      .read(authRepositoryProvider)
+                      .signInWithMicrosoft(request: request))
                   .accountId;
         case BusyProvider.appleICloud:
           final service = ref.read(davAccountOnboardingServiceProvider);
@@ -2399,6 +2443,51 @@ Future<void> showAndroidIcsImport(
     if (!context.mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text(context.l10n.importIcsFailed('$error'))),
+    );
+  }
+}
+
+class _AndroidRegistrationCard extends ConsumerWidget {
+  const _AndroidRegistrationCard({
+    required this.account,
+    required this.onMigrate,
+  });
+  final AccountEntity account;
+  final VoidCallback onMigrate;
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final summary = ref
+        .watch(registrationSummariesProvider)
+        .valueOrNull?[account.id];
+    if (summary == null) return const SizedBox.shrink();
+    final l10n = context.l10n;
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          children: [
+            Text(l10n.registrationDescription(summary)),
+            if (summary.showRetirementNotice) ...[
+              Text(
+                l10n.registrationRetirementNotice(
+                  account.provider.displayName,
+                  l10n.registrationMicrosoftApp,
+                ),
+              ),
+              Text(l10n.registrationContinue),
+            ],
+            if (account.provider == BusyProvider.microsoft)
+              TextButton(
+                onPressed: onMigrate,
+                child: Text(
+                  summary.showRetirementNotice
+                      ? l10n.registrationMigrate
+                      : l10n.registrationReplace,
+                ),
+              ),
+          ],
+        ),
+      ),
     );
   }
 }

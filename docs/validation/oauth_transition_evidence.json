@@ -1,0 +1,126 @@
+{
+  "base_git_revision": "5986de8f07a9845826dbf5a27cfae34be2c3dd16",
+  "date_local": "2026-10-03",
+  "timezone": "America/Vancouver",
+  "committed": false,
+  "toolchain": {
+    "flutter": "3.47.5",
+    "framework_revision": "6a19cca564",
+    "dart": "3.13.4",
+    "engine_revision": "af7e796e16",
+    "devtools": "2.60.0",
+    "java": "25.0.1 Temurin",
+    "gradle": "9.4.1",
+    "android_platform": "37",
+    "android_build_tools": "37.0.0"
+  },
+  "results": {
+    "fresh_extraction_full_suite": {
+      "passed": 3158,
+      "skipped": 10,
+      "failed": 0,
+      "elapsed_test_time": "04:16",
+      "process_exit_code": 0
+    },
+    "authorization_generation_recovery_and_binding_focused": {
+      "passed": 116,
+      "skipped": 0,
+      "failed": 0
+    },
+    "final_android_native_token_selection_focused": {
+      "passed": 17,
+      "skipped": 0,
+      "failed": 0
+    },
+    "linux_gtk_header_integration": {
+      "passed": 1,
+      "skipped": 0,
+      "failed": 0
+    },
+    "isolated_linux_secure_storage": {
+      "passed": 1,
+      "skipped": 0,
+      "failed": 0
+    },
+    "linux_native_executables": {
+      "passed": 7,
+      "failed": 0
+    },
+    "android_kotlin_junit": {
+      "tests": 10,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    }
+  },
+  "release_builds": {
+    "linux": {
+      "user_owned": "passed",
+      "transitional_synthetic_protected_inputs": "passed"
+    },
+    "android": {
+      "transitional_test_signed_apk_aab": "passed",
+      "user_owned_test_signed_apk_aab": "passed",
+      "elf_load_alignment": "16 KB passed",
+      "apk_zip_alignment": "16 KB passed",
+      "aab_bundle_config": "PAGE_ALIGNMENT_16K confirmed with cached bundletool 1.18.3"
+    },
+    "windows": "not executed: no Windows host or PowerShell",
+    "snap": "not executed: no snapcraft packaging environment",
+    "final_release_validation": "passed; five final summary checks, four Android artifacts, two Linux modes, local Android properties restored"
+  },
+  "artifact_sha256": {
+    "build/android/registration-modes/transitional/app-release.aab": "bfed9f6b96ed83004782a8d14207a1a81792763e29e33a1d672a12ff13f8794f",
+    "build/android/registration-modes/transitional/app-release.apk": "3f6199274cee455df52f59eb39e4dd96a3af87439084678fcaee0b62a4dc8378",
+    "build/android/registration-modes/user-owned/app-release.aab": "ee1f43c73bf20ac6b09c0d91b53902e511e8a574c677fa89b0378eaf1dd785d7",
+    "build/android/registration-modes/user-owned/app-release.apk": "f265962d6c31fe66bef0472cb73ecdda23e15f1041becda9c96fdb95d69a5e9e",
+    "build/handoff/release/linux-transitional/busymax": "c968db1d692b1b8e04b1d94a2f364607c38f63e32703c15a485e1163671d63ba",
+    "build/handoff/release/linux-transitional/data/flutter_assets/docs/google_setup.md": "43a3e1ed5c5c6e8e09f61f6db4ac197764f4b1860bdefb514b367d03ad73e652",
+    "build/handoff/release/linux-transitional/data/flutter_assets/docs/microsoft_setup.md": "d387ce5ee72baf4a8ff7efec46193503a1e3679d5e8b3c75aa9ae1870a0c9dab",
+    "build/handoff/release/linux-transitional/lib/libapp.so": "4d0b8a15d229d5e7041ede60361e9e397a86d86bea12413a4a9b7d607b50ecd6",
+    "build/handoff/release/linux-user-owned/busymax": "c968db1d692b1b8e04b1d94a2f364607c38f63e32703c15a485e1163671d63ba",
+    "build/handoff/release/linux-user-owned/data/flutter_assets/docs/google_setup.md": "43a3e1ed5c5c6e8e09f61f6db4ac197764f4b1860bdefb514b367d03ad73e652",
+    "build/handoff/release/linux-user-owned/data/flutter_assets/docs/microsoft_setup.md": "d387ce5ee72baf4a8ff7efec46193503a1e3679d5e8b3c75aa9ae1870a0c9dab",
+    "build/handoff/release/linux-user-owned/lib/libapp.so": "998ff41028aacb41392783fae7eb27cb550411265cc9bdfca8dd0fb879f6128b"
+  },
+  "native_file_picker": {
+    "passed": 0,
+    "timed_out_attempts": 2,
+    "status": "unverified: automated interaction did not complete the real dialog"
+  },
+  "secure_storage_initial_failure": "Default/private-bus keyring unavailable; resolved with an isolated unlocked temporary keyring. Final native storage test passed.",
+  "live_oauth_checks": {
+    "executed": 0,
+    "reason": "No authorized real OAuth registration/account test inputs were supplied."
+  },
+  "android_device_checks": {
+    "executed": 0,
+    "reason": "Attached device is ADB unauthorized; no device installation or account access occurred."
+  },
+  "external_changes": {
+    "registrations": 0,
+    "quota_settings": 0,
+    "publishes": 0,
+    "provider_writes": 0
+  },
+  "measurement_scope": "Synthetic actual HTTP request counts through production Tasks API, sync engine, durable replay and coordination. No live quota approval or project-isolation demonstration.",
+  "raw_log_policy": "Only this sanitized summary is distributed. Operating-system/provider diagnostics and account contents are excluded.",
+  "pipeline": {
+    "locked_dependency_resolution": "passed; approved SDK, --enforce-lockfile",
+    "localization_and_drift_regeneration": "passed; generated source hashes unchanged",
+    "formatting": {
+      "files": 838,
+      "changed": 0
+    },
+    "analysis": "passed; no issues",
+    "platform_boundaries": "passed",
+    "source_hash_check_before_and_after": "passed",
+    "android_native_tests_and_lint": "passed; BUILD SUCCESSFUL in 19s, 506 actionable tasks",
+    "tested_source_comparison": "implementation identical to fresh extraction; only final documentation/evidence updated afterward"
+  },
+  "authorization_recovery": {
+    "normal_refresh_and_binding_upgrade": "same authorization generation",
+    "commit_receipt": "versioned receipt committed in same SQLite transaction as account metadata",
+    "native_token_selection": "secure-record registration/native account/authority captured before SDK request; generation/native account/actual tenant verified on result"
+  }
+}

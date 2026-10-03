@@ -294,7 +294,7 @@
   },
   "newEvent": "Nowe wydarzenie",
   "refreshCalendar": "Odśwież kalendarz",
-"openInProvider": "Otwórz u dostawcy",
+  "openInProvider": "Otwórz u dostawcy",
   "linkedResources": "Połączone zasoby",
   "noLinkedResources": "Brak połączonych zasobów",
   "attachments": "Załączniki",
@@ -1026,7 +1026,7 @@
   "moveToTop": "Przenieś na początek",
   "deleteTask": "Usuń zadanie",
   "newSubtask": "Nowe podzadanie",
- "deleteTaskConfirmation": "Usunąć „{title}”?",
+  "deleteTaskConfirmation": "Usunąć „{title}”?",
   "deleteAssignedTaskWarning": "Spowoduje to również usunięcie oryginalnego zadania w Dokumentach Google lub pokojach Chat.",
   "@deleteTaskConfirmation": {
     "placeholders": {
@@ -1810,5 +1810,75 @@
   "sharingRateLimited": "Udostępnianie jest tymczasowo ograniczone. Spróbuj ponownie po upływie czasu oczekiwania.",
   "attachmentUploadRateLimited": "Przesyłanie załączników jest tymczasowo ograniczone. Spróbuj ponownie po upływie czasu oczekiwania.",
   "unknownEventLabel": "Nieznana etykieta ({id})",
-  "@unknownEventLabel": {"placeholders": {"id": {"type": "String"}}}
+  "@unknownEventLabel": {
+    "placeholders": {
+      "id": {
+        "type": "String"
+      }
+    }
+  },
+  "registrationSetupTitle": "Skonfiguruj {provider}",
+  "@registrationSetupTitle": {
+    "placeholders": {
+      "provider": {
+        "type": "String"
+      }
+    }
+  },
+  "registrationSetupGuide": "Instrukcja konfiguracji",
+  "registrationGoogleInstructions": "Utwórz własny projekt Google Cloud, włącz Calendar i Tasks oraz zaimportuj JSON klienta OAuth dla aplikacji komputerowej. Autoryzuj właściwe konto.",
+  "registrationMicrosoftInstructions": "Użyj publicznej rejestracji aplikacji w dzierżawie Entra, która zezwala na rejestracje. Podaj identyfikator klienta i typy kont. Sekret klienta nie jest potrzebny.",
+  "registrationImportGoogle": "Wybierz JSON OAuth dla komputera",
+  "registrationValidate": "Sprawdź rejestrację",
+  "registrationAuthorize": "Autoryzuj w przeglądarce",
+  "registrationClientId": "Identyfikator aplikacji/klienta",
+  "registrationTenantId": "Identyfikator dzierżawy",
+  "registrationAudience": "Obsługiwane konta",
+  "registrationBothAudience": "Konta osobiste i organizacyjne",
+  "registrationOrganizationAudience": "Konta organizacyjne",
+  "registrationPersonalAudience": "Konta osobiste",
+  "registrationTenantAudience": "Jedna dzierżawa organizacji",
+  "registrationSummary": "Rejestracja: {clientId}",
+  "@registrationSummary": {
+    "placeholders": {
+      "clientId": {
+        "type": "String"
+      }
+    }
+  },
+  "registrationMigrate": "Migruj teraz",
+  "registrationReplace": "Zastąp rejestrację",
+  "registrationRetirementNotice": "To konto używa wspólnej rejestracji {provider} BusyMax, która zostanie wycofana w następnym wydaniu. Skonfiguruj własny {setup} i połącz to konto ponownie, aby zachować synchronizację. Kalendarze, zadania i lokalne zmiany zostaną zachowane.",
+  "@registrationRetirementNotice": {
+    "placeholders": {
+      "provider": {
+        "type": "String"
+      },
+      "setup": {
+        "type": "String"
+      }
+    }
+  },
+  "registrationContinue": "Kontynuuj używanie tego konta",
+  "registrationGoogleProject": "Projekt Google Cloud",
+  "registrationMicrosoftApp": "Rejestracja aplikacji Microsoft",
+  "registrationUserOwned": "Rejestracja podana przez użytkownika",
+  "registrationNativeGoogle": "Natywna rejestracja Google dla Androida",
+  "registrationShared": "Wspólna rejestracja (okres przejściowy)",
+  "registrationUnresolved": "Pochodzenie rejestracji nie jest ustalone. Dane konta są zachowane.",
+  "registrationOfficialDocumentation": "Oficjalna dokumentacja",
+  "registrationAndroidIdentity": "Pakiet: {packageName}\nSkrót podpisu: {signatureHash}\nURI przekierowania: {redirectUri}",
+  "@registrationAndroidIdentity": {
+    "placeholders": {
+      "packageName": {
+        "type": "String"
+      },
+      "signatureHash": {
+        "type": "String"
+      },
+      "redirectUri": {
+        "type": "String"
+      }
+    }
+  }
 }

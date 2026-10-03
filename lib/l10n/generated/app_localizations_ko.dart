@@ -3099,4 +3099,99 @@ class AppLocalizationsKo extends AppLocalizations {
 
   @override
   String get calendarOwnerEmail => '캘린더 소유자 이메일';
+
+  @override
+  String registrationSetupTitle(String provider) {
+    return '$provider 설정';
+  }
+
+  @override
+  String get registrationSetupGuide => '설정 안내';
+
+  @override
+  String get registrationGoogleInstructions =>
+      '자신의 Google Cloud 프로젝트를 만들고 Calendar 및 Tasks API를 사용 설정한 후 Desktop OAuth 클라이언트 JSON을 가져오세요. 원하는 계정에 권한을 부여하세요.';
+
+  @override
+  String get registrationMicrosoftInstructions =>
+      '앱 등록을 허용하는 Entra 테넌트에서 공용 앱 등록을 사용하세요. 클라이언트 ID와 지원 계정 유형을 입력하세요. 클라이언트 암호는 필요 없습니다.';
+
+  @override
+  String get registrationImportGoogle => 'Desktop OAuth JSON 선택';
+
+  @override
+  String get registrationValidate => '등록 확인';
+
+  @override
+  String get registrationAuthorize => '브라우저에서 권한 부여';
+
+  @override
+  String get registrationClientId => '애플리케이션/클라이언트 ID';
+
+  @override
+  String get registrationTenantId => '테넌트 ID';
+
+  @override
+  String get registrationAudience => '지원 계정';
+
+  @override
+  String get registrationBothAudience => '개인 및 조직 계정';
+
+  @override
+  String get registrationOrganizationAudience => '조직 계정';
+
+  @override
+  String get registrationPersonalAudience => '개인 계정';
+
+  @override
+  String get registrationTenantAudience => '하나의 조직 테넌트';
+
+  @override
+  String registrationSummary(String clientId) {
+    return '등록: $clientId';
+  }
+
+  @override
+  String get registrationMigrate => '지금 이전';
+
+  @override
+  String get registrationReplace => '등록 교체';
+
+  @override
+  String registrationRetirementNotice(String provider, String setup) {
+    return '이 계정은 다음 릴리스에서 중단될 BusyMax의 공유 $provider 앱 등록을 사용합니다. 자신의 $setup을 설정하고 이 계정을 다시 연결하여 동기화를 유지하세요. 기존 캘린더, 작업 및 로컬 변경 사항은 보존됩니다.';
+  }
+
+  @override
+  String get registrationContinue => '이 계정 계속 사용';
+
+  @override
+  String get registrationGoogleProject => 'Google Cloud 프로젝트';
+
+  @override
+  String get registrationMicrosoftApp => 'Microsoft 앱 등록';
+
+  @override
+  String get registrationUserOwned => '사용자가 제공한 등록';
+
+  @override
+  String get registrationNativeGoogle => 'Google Android 기본 등록';
+
+  @override
+  String get registrationShared => '공유 등록(전환 기간)';
+
+  @override
+  String get registrationUnresolved => '등록 출처를 확인할 수 없습니다. 계정 데이터는 보존됩니다.';
+
+  @override
+  String get registrationOfficialDocumentation => '공식 문서';
+
+  @override
+  String registrationAndroidIdentity(
+    String packageName,
+    String signatureHash,
+    String redirectUri,
+  ) {
+    return '패키지: $packageName\n서명 해시: $signatureHash\n리디렉션 URI: $redirectUri';
+  }
 }

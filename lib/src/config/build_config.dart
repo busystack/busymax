@@ -142,6 +142,10 @@ class BuildConfig {
   final bool useFakeProviderData;
   final BusyMaxDemoTheme demoTheme;
 
+  /// Protected original registration values serve eligible existing accounts only.
+  bool get googleSetupAvailable => true;
+  bool get microsoftSetupAvailable => !useFakeProviderData;
+
   bool get hasGoogleOAuthClientId =>
       useFakeProviderData ||
       androidNativeAuthorization ||
@@ -152,8 +156,8 @@ class BuildConfig {
   bool get hasAppleICloudProvider => !useFakeProviderData;
   bool get hasNextcloudProvider => !useFakeProviderData;
   bool get hasAnyProviderConfigured =>
-      hasGoogleOAuthClientId ||
-      hasMicrosoftOAuthClientId ||
+      googleSetupAvailable ||
+      microsoftSetupAvailable ||
       hasAppleICloudProvider ||
       hasNextcloudProvider;
 

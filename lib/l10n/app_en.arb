@@ -4,7 +4,13 @@
   "firstDayOfWeek": "First day of the week",
   "systemDefault": "System Default",
   "systemDefaultResolved": "System Default ({weekday})",
-  "@systemDefaultResolved": {"placeholders": {"weekday": {"type": "String"}}},
+  "@systemDefaultResolved": {
+    "placeholders": {
+      "weekday": {
+        "type": "String"
+      }
+    }
+  },
   "timeFormatTwelveHour": "12-hour",
   "timeFormatTwentyFourHour": "24-hour",
   "timeEndOfDay": "end of day",
@@ -15,7 +21,13 @@
   "settingsSaveFailed": "Could not save settings. Your changes may be lost when BusyMax restarts.",
   "nextcloudExportCollection": "Export collection resources",
   "nextcloudImportItems": "{count} event/task resources found",
-  "@nextcloudImportItems": {"placeholders": {"count": {"type": "int"}}},
+  "@nextcloudImportItems": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "nextcloudSchedulingInbox": "Scheduling inbox",
   "nextcloudInboxExplanation": "Nextcloud processes these messages into your calendars. Acknowledging a message removes only the inbox message, not the event.",
   "nextcloudInboxEmpty": "No scheduling messages.",
@@ -23,7 +35,13 @@
   "nextcloudAcknowledgeConfirm": "Remove this scheduling message from the inbox? The calendar event will be kept.",
   "nextcloudGuestAvailability": "Check guest availability",
   "nextcloudTrashRetention": "Server trash retention: {days} days",
-  "@nextcloudTrashRetention": {"placeholders": {"days": {"type": "int"}}},
+  "@nextcloudTrashRetention": {
+    "placeholders": {
+      "days": {
+        "type": "int"
+      }
+    }
+  },
   "nextcloudCancelMeeting": "Cancel meeting",
   "nextcloudDeclineAndRemove": "Decline and remove invitation",
   "nextcloudDeclineRemovalWarning": "Removing this invitation sends a decline when synchronized. It does not cancel the organizer’s meeting.",
@@ -34,48 +52,58 @@
   "nextcloudAttendeeRestrictions": "Only the organizer or an authorized delegate can change meeting details. You can respond to this invitation from its details.",
   "nextcloudMeetingMoveUnsupported": "This meeting cannot be moved by copying and deleting it. Use a calendar under the same scheduling identity.",
   "nextcloudSchedulingStatus": "Server scheduling status",
-"nextcloudImportFollowUp": "The imported resources were saved locally. Reminder refresh is pending; do not import them again.",
-"nextcloudNativeImport": "Import complete event and task resources without sending invitations. Existing UIDs are skipped unless you choose new copies. Unsupported resources are reported individually.",
-"nextcloudImportMethod": "This file contains scheduling messages. Import stores their content and removes METHOD; it does not process an invitation or reply.",
-"nextcloudImportCopies": "Import as new copies with new identities",
-"nextcloudCollectionSettings": "Collection settings",
-"nextcloudSharing": "Sharing",
-"nextcloudOwned": "Owned",
-"nextcloudShared": "Shared",
-"nextcloudDelegated": "Delegated",
-"nextcloudSubscription": "Subscription",
-"nextcloudDeleted": "Deleted",
-"nextcloudMetadataEditable": "Calendar contents are read-only; collection properties can be changed.",
-"nextcloudServerOrder": "Server order (separate from sidebar order)",
-"nextcloudCalendarEnabled": "Enabled on the server",
-"nextcloudAvailability": "Include this collection in availability",
-"nextcloudCalendarTimezone": "Calendar timezone (VTIMEZONE document)",
-"nextcloudRefreshPending": "The change was saved on Nextcloud. Refresh is pending; do not repeat the change.",
-"nextcloudOutcomeUnknown": "The server outcome could not be confirmed. Refresh before trying again.",
-"nextcloudRemoveShared": "Remove shared calendar/list",
-"nextcloudRemoveMixed": "This collection contains events and tasks. Deleting it removes both its events and tasks.",
-"nextcloudReadAccess": "Read-only",
-"nextcloudWriteAccess": "Read and write",
-"nextcloudRecipientSearch": "Find people or groups",
-"nextcloudNoRecipients": "No matching people or groups.",
-"nextcloudRevokeShare": "Revoke access",
-"nextcloudPublish": "Publish link",
-"nextcloudUnpublish": "Stop publishing",
-"nextcloudPublishWarning": "Anyone with the published link may be able to read this calendar. Publish it?",
-"nextcloudTrash": "Deleted calendars and tasks",
-"nextcloudTrashEmpty": "No deleted calendar items.",
-"nextcloudRestore": "Restore",
-"nextcloudPermanentDelete": "Permanently delete",
-"nextcloudPermanentDeleteWarning": "Permanently delete this item? It cannot be restored from Nextcloud's calendar trash.",
-"nextcloudOperationDenied": "Nextcloud did not allow this operation.",
-"nextcloudUnsupported": "The server does not support this operation.",
-"nextcloudPendingChanges": "Save or discard collection changes before closing.",
-"nextcloudServerUnavailable": "Nextcloud could not be reached. Cached items and pending work are unchanged.",
-"mapsShow": "Show on map",
-"openLink": "Open link",
-"externalLocationOpenFailed": "The location could not be opened in an external application.",
+  "nextcloudImportFollowUp": "The imported resources were saved locally. Reminder refresh is pending; do not import them again.",
+  "nextcloudNativeImport": "Import complete event and task resources without sending invitations. Existing UIDs are skipped unless you choose new copies. Unsupported resources are reported individually.",
+  "nextcloudImportMethod": "This file contains scheduling messages. Import stores their content and removes METHOD; it does not process an invitation or reply.",
+  "nextcloudImportCopies": "Import as new copies with new identities",
+  "nextcloudCollectionSettings": "Collection settings",
+  "nextcloudSharing": "Sharing",
+  "nextcloudOwned": "Owned",
+  "nextcloudShared": "Shared",
+  "nextcloudDelegated": "Delegated",
+  "nextcloudSubscription": "Subscription",
+  "nextcloudDeleted": "Deleted",
+  "nextcloudMetadataEditable": "Calendar contents are read-only; collection properties can be changed.",
+  "nextcloudServerOrder": "Server order (separate from sidebar order)",
+  "nextcloudCalendarEnabled": "Enabled on the server",
+  "nextcloudAvailability": "Include this collection in availability",
+  "nextcloudCalendarTimezone": "Calendar timezone (VTIMEZONE document)",
+  "nextcloudRefreshPending": "The change was saved on Nextcloud. Refresh is pending; do not repeat the change.",
+  "nextcloudOutcomeUnknown": "The server outcome could not be confirmed. Refresh before trying again.",
+  "nextcloudRemoveShared": "Remove shared calendar/list",
+  "nextcloudRemoveMixed": "This collection contains events and tasks. Deleting it removes both its events and tasks.",
+  "nextcloudReadAccess": "Read-only",
+  "nextcloudWriteAccess": "Read and write",
+  "nextcloudRecipientSearch": "Find people or groups",
+  "nextcloudNoRecipients": "No matching people or groups.",
+  "nextcloudRevokeShare": "Revoke access",
+  "nextcloudPublish": "Publish link",
+  "nextcloudUnpublish": "Stop publishing",
+  "nextcloudPublishWarning": "Anyone with the published link may be able to read this calendar. Publish it?",
+  "nextcloudTrash": "Deleted calendars and tasks",
+  "nextcloudTrashEmpty": "No deleted calendar items.",
+  "nextcloudRestore": "Restore",
+  "nextcloudPermanentDelete": "Permanently delete",
+  "nextcloudPermanentDeleteWarning": "Permanently delete this item? It cannot be restored from Nextcloud's calendar trash.",
+  "nextcloudOperationDenied": "Nextcloud did not allow this operation.",
+  "nextcloudUnsupported": "The server does not support this operation.",
+  "nextcloudPendingChanges": "Save or discard collection changes before closing.",
+  "nextcloudServerUnavailable": "Nextcloud could not be reached. Cached items and pending work are unchanged.",
+  "mapsShow": "Show on map",
+  "openLink": "Open link",
+  "externalLocationOpenFailed": "The location could not be opened in an external application.",
   "scheduleProposedRange": "{start} – {end}",
-  "@scheduleProposedRange": {"description": "Proposed event interval while dragging.", "placeholders": {"start": {"type": "String"}, "end": {"type": "String"}}},
+  "@scheduleProposedRange": {
+    "description": "Proposed event interval while dragging.",
+    "placeholders": {
+      "start": {
+        "type": "String"
+      },
+      "end": {
+        "type": "String"
+      }
+    }
+  },
   "scheduleRescheduleFailed": "The event could not be rescheduled. Its stored time has not been changed.",
   "scheduleRescheduleStale": "This event changed while you were dragging. Please try again.",
   "scheduleRescheduleNotificationsFailed": "The new time was saved, but reminders could not be refreshed.",
@@ -96,32 +124,101 @@
   "repeatWeeklyDaySummary": "{dayKey, select, MO{Monday} TU{Tuesday} WE{Wednesday} TH{Thursday} FR{Friday} SA{Saturday} SU{Sunday} other{{day}}}",
   "@repeatWeeklyDaySummary": {
     "description": "Sentence-form weekday used inside a weekly recurrence summary. {dayKey} is MO through SU; {day} is the locale-formatted fallback.",
-    "placeholders": {"dayKey": {"type": "String"}, "day": {"type": "String"}}
+    "placeholders": {
+      "dayKey": {
+        "type": "String"
+      },
+      "day": {
+        "type": "String"
+      }
+    }
   },
   "repeatOnTwoMonthDaysSummary": "on days {first} and {second}",
   "@repeatOnTwoMonthDaysSummary": {
     "description": "Sentence fragment for a monthly recurrence on exactly two dates.",
-    "placeholders": {"first": {"type": "String"}, "second": {"type": "String"}}
+    "placeholders": {
+      "first": {
+        "type": "String"
+      },
+      "second": {
+        "type": "String"
+      }
+    }
   },
   "repeatYearlyOnTwoMonthDaysSummary": "{frequency} on days {firstDay} and {secondDay} of {month}",
   "@repeatYearlyOnTwoMonthDaysSummary": {
     "description": "Complete yearly recurrence summary for exactly two dates in one month.",
-    "placeholders": {"frequency": {"type": "String"}, "month": {"type": "String"}, "firstDay": {"type": "String"}, "secondDay": {"type": "String"}}
+    "placeholders": {
+      "frequency": {
+        "type": "String"
+      },
+      "month": {
+        "type": "String"
+      },
+      "firstDay": {
+        "type": "String"
+      },
+      "secondDay": {
+        "type": "String"
+      }
+    }
   },
   "repeatYearlyInTwoMonthsOnMonthDaySummary": "{frequency} on day {day} of {firstMonth} and {secondMonth}",
   "@repeatYearlyInTwoMonthsOnMonthDaySummary": {
     "description": "Complete yearly recurrence summary for one date in exactly two months.",
-    "placeholders": {"frequency": {"type": "String"}, "firstMonth": {"type": "String"}, "secondMonth": {"type": "String"}, "day": {"type": "String"}}
+    "placeholders": {
+      "frequency": {
+        "type": "String"
+      },
+      "firstMonth": {
+        "type": "String"
+      },
+      "secondMonth": {
+        "type": "String"
+      },
+      "day": {
+        "type": "String"
+      }
+    }
   },
   "repeatYearlyInTwoMonthsOnTwoMonthDaysSummary": "{frequency} on days {firstDay} and {secondDay} of {firstMonth} and {secondMonth}",
   "@repeatYearlyInTwoMonthsOnTwoMonthDaysSummary": {
     "description": "Complete yearly recurrence summary for exactly two dates in exactly two months.",
-    "placeholders": {"frequency": {"type": "String"}, "firstMonth": {"type": "String"}, "secondMonth": {"type": "String"}, "firstDay": {"type": "String"}, "secondDay": {"type": "String"}}
+    "placeholders": {
+      "frequency": {
+        "type": "String"
+      },
+      "firstMonth": {
+        "type": "String"
+      },
+      "secondMonth": {
+        "type": "String"
+      },
+      "firstDay": {
+        "type": "String"
+      },
+      "secondDay": {
+        "type": "String"
+      }
+    }
   },
   "repeatYearlyInTwoMonthsOnMonthDaysSummary": "{frequency} on days {days} of {firstMonth} and {secondMonth}",
   "@repeatYearlyInTwoMonthsOnMonthDaysSummary": {
     "description": "Complete yearly recurrence summary for three or more dates in exactly two months.",
-    "placeholders": {"frequency": {"type": "String"}, "firstMonth": {"type": "String"}, "secondMonth": {"type": "String"}, "days": {"type": "String"}}
+    "placeholders": {
+      "frequency": {
+        "type": "String"
+      },
+      "firstMonth": {
+        "type": "String"
+      },
+      "secondMonth": {
+        "type": "String"
+      },
+      "days": {
+        "type": "String"
+      }
+    }
   },
   "appTitle": "BusyMax",
   "connectGoogleAccount": "Connect Google, Microsoft, Apple iCloud Calendar, or Nextcloud accounts.",
@@ -172,7 +269,7 @@
     "placeholders": {
       "number": {
         "type": "int",
-      "format": "decimalPattern"
+        "format": "decimalPattern"
       }
     }
   },
@@ -205,7 +302,7 @@
   },
   "newEvent": "New event",
   "refreshCalendar": "Refresh calendar",
-"openInProvider": "Open in provider",
+  "openInProvider": "Open in provider",
   "linkedResources": "Linked resources",
   "noLinkedResources": "No linked resources",
   "attachments": "Attachments",
@@ -219,7 +316,7 @@
     "placeholders": {
       "count": {
         "type": "int",
-      "format": "decimalPattern"
+        "format": "decimalPattern"
       }
     }
   },
@@ -248,7 +345,7 @@
     "placeholders": {
       "count": {
         "type": "int",
-      "format": "decimalPattern"
+        "format": "decimalPattern"
       }
     }
   },
@@ -263,7 +360,7 @@
     "placeholders": {
       "count": {
         "type": "int",
-      "format": "decimalPattern"
+        "format": "decimalPattern"
       }
     }
   },
@@ -272,7 +369,7 @@
     "placeholders": {
       "count": {
         "type": "int",
-      "format": "decimalPattern"
+        "format": "decimalPattern"
       }
     }
   },
@@ -281,7 +378,7 @@
     "placeholders": {
       "count": {
         "type": "int",
-      "format": "decimalPattern"
+        "format": "decimalPattern"
       }
     }
   },
@@ -382,7 +479,7 @@
     "placeholders": {
       "minutes": {
         "type": "int",
-      "format": "decimalPattern"
+        "format": "decimalPattern"
       }
     }
   },
@@ -392,7 +489,7 @@
     "placeholders": {
       "hours": {
         "type": "int",
-      "format": "decimalPattern"
+        "format": "decimalPattern"
       }
     }
   },
@@ -401,7 +498,7 @@
     "placeholders": {
       "days": {
         "type": "int",
-      "format": "decimalPattern"
+        "format": "decimalPattern"
       }
     }
   },
@@ -664,7 +761,7 @@
     "placeholders": {
       "percent": {
         "type": "int",
-      "format": "decimalPattern"
+        "format": "decimalPattern"
       }
     }
   },
@@ -676,7 +773,7 @@
     "placeholders": {
       "priority": {
         "type": "int",
-      "format": "decimalPattern"
+        "format": "decimalPattern"
       }
     }
   },
@@ -685,7 +782,7 @@
     "placeholders": {
       "priority": {
         "type": "int",
-      "format": "decimalPattern"
+        "format": "decimalPattern"
       }
     }
   },
@@ -694,7 +791,7 @@
     "placeholders": {
       "priority": {
         "type": "int",
-      "format": "decimalPattern"
+        "format": "decimalPattern"
       }
     }
   },
@@ -747,7 +844,7 @@
     "placeholders": {
       "count": {
         "type": "int",
-      "format": "decimalPattern"
+        "format": "decimalPattern"
       }
     }
   },
@@ -795,8 +892,12 @@
   "@repeatOrdinalDaySummary": {
     "description": "Sentence-form day label used inside ordinal recurrence summaries. {dayKey} is MO through SU, day, weekday, or weekend; {day} is the locale-formatted weekday fallback.",
     "placeholders": {
-      "dayKey": {"type": "String"},
-      "day": {"type": "String"}
+      "dayKey": {
+        "type": "String"
+      },
+      "day": {
+        "type": "String"
+      }
     }
   },
   "repeatEveryDays": "Every {count} days",
@@ -804,7 +905,7 @@
     "placeholders": {
       "count": {
         "type": "int",
-      "format": "decimalPattern"
+        "format": "decimalPattern"
       }
     }
   },
@@ -813,7 +914,7 @@
     "placeholders": {
       "count": {
         "type": "int",
-      "format": "decimalPattern"
+        "format": "decimalPattern"
       }
     }
   },
@@ -822,7 +923,7 @@
     "placeholders": {
       "count": {
         "type": "int",
-      "format": "decimalPattern"
+        "format": "decimalPattern"
       }
     }
   },
@@ -831,7 +932,7 @@
     "placeholders": {
       "count": {
         "type": "int",
-      "format": "decimalPattern"
+        "format": "decimalPattern"
       }
     }
   },
@@ -880,7 +981,7 @@
     "placeholders": {
       "count": {
         "type": "int",
-      "format": "decimalPattern"
+        "format": "decimalPattern"
       }
     }
   },
@@ -936,7 +1037,7 @@
   "moveToTop": "Move to top",
   "deleteTask": "Delete Task",
   "newSubtask": "New subtask",
- "deleteTaskConfirmation": "Delete \"{title}\"?",
+  "deleteTaskConfirmation": "Delete \"{title}\"?",
   "deleteAssignedTaskWarning": "This also deletes the original task in Google Docs or Chat Spaces.",
   "@deleteTaskConfirmation": {
     "placeholders": {
@@ -1057,7 +1158,7 @@
     "placeholders": {
       "count": {
         "type": "int",
-      "format": "decimalPattern"
+        "format": "decimalPattern"
       }
     }
   },
@@ -1097,7 +1198,7 @@
     "placeholders": {
       "count": {
         "type": "int",
-      "format": "decimalPattern"
+        "format": "decimalPattern"
       }
     }
   },
@@ -1123,7 +1224,7 @@
     "placeholders": {
       "number": {
         "type": "int",
-      "format": "decimalPattern"
+        "format": "decimalPattern"
       }
     }
   },
@@ -1133,7 +1234,7 @@
     "placeholders": {
       "count": {
         "type": "int",
-      "format": "decimalPattern"
+        "format": "decimalPattern"
       }
     }
   },
@@ -1279,7 +1380,11 @@
   "removeAction": "Remove",
   "removeOpenedSharedCalendarConfirmation": "Remove \"{title}\" from BusyMax? The owner's calendar and events will not be deleted.",
   "@removeOpenedSharedCalendarConfirmation": {
-    "placeholders": {"title": {"type": "String"}}
+    "placeholders": {
+      "title": {
+        "type": "String"
+      }
+    }
   },
   "attachmentUploadUnresolved": "The upload may have completed. Refresh attachments to resolve its outcome before uploading again.",
   "removeCalendarConfirmation": "Remove \"{title}\" from your Google Calendar list? The shared calendar and its events will not be deleted.",
@@ -1373,7 +1478,7 @@
     "placeholders": {
       "count": {
         "type": "int",
-      "format": "decimalPattern"
+        "format": "decimalPattern"
       }
     }
   },
@@ -1382,7 +1487,7 @@
     "placeholders": {
       "count": {
         "type": "int",
-      "format": "decimalPattern"
+        "format": "decimalPattern"
       }
     }
   },
@@ -1403,7 +1508,7 @@
     "placeholders": {
       "count": {
         "type": "int",
-      "format": "decimalPattern"
+        "format": "decimalPattern"
       }
     }
   },
@@ -1412,7 +1517,7 @@
     "placeholders": {
       "count": {
         "type": "int",
-      "format": "decimalPattern"
+        "format": "decimalPattern"
       }
     }
   },
@@ -1421,7 +1526,7 @@
     "placeholders": {
       "count": {
         "type": "int",
-      "format": "decimalPattern"
+        "format": "decimalPattern"
       }
     }
   },
@@ -1462,128 +1567,204 @@
   "@repeatWeekdayListPair": {
     "description": "Joins the final two weekday names in a recurrence summary.",
     "placeholders": {
-      "first": {"type": "String"},
-      "second": {"type": "String"}
+      "first": {
+        "type": "String"
+      },
+      "second": {
+        "type": "String"
+      }
     }
   },
   "repeatWeekdayListStart": "{first}, {rest}",
   "@repeatWeekdayListStart": {
     "description": "Prepends a weekday name to an already localized recurrence weekday list.",
     "placeholders": {
-      "first": {"type": "String"},
-      "rest": {"type": "String"}
+      "first": {
+        "type": "String"
+      },
+      "rest": {
+        "type": "String"
+      }
     }
   },
   "repeatMonthDayListPair": "{first} and {second}",
   "@repeatMonthDayListPair": {
     "description": "Joins the final two day-of-month values in a monthly recurrence summary.",
     "placeholders": {
-      "first": {"type": "String"},
-      "second": {"type": "String"}
+      "first": {
+        "type": "String"
+      },
+      "second": {
+        "type": "String"
+      }
     }
   },
   "repeatMonthDayListStart": "{first}, {rest}",
   "@repeatMonthDayListStart": {
     "description": "Prepends a day-of-month value to an already localized monthly recurrence day list.",
     "placeholders": {
-      "first": {"type": "String"},
-      "rest": {"type": "String"}
+      "first": {
+        "type": "String"
+      },
+      "rest": {
+        "type": "String"
+      }
     }
   },
   "repeatYearlyMonthValue": "{monthKey, select, other{{month}}}",
   "@repeatYearlyMonthValue": {
     "description": "Month value used in yearly recurrence sentences. Locales may select an inflected form with {monthKey}; {month} is the CLDR abbreviated month fallback.",
     "placeholders": {
-      "month": {"type": "String"},
-      "monthKey": {"type": "String"}
+      "month": {
+        "type": "String"
+      },
+      "monthKey": {
+        "type": "String"
+      }
     }
   },
   "repeatYearlyMonthDayListPair": "{first} and {second}",
   "@repeatYearlyMonthDayListPair": {
     "description": "Joins the final two localized day-of-month values in a yearly recurrence summary.",
     "placeholders": {
-      "first": {"type": "String"},
-      "second": {"type": "String"}
+      "first": {
+        "type": "String"
+      },
+      "second": {
+        "type": "String"
+      }
     }
   },
   "repeatYearlyMonthDayListStart": "{first}, {rest}",
   "@repeatYearlyMonthDayListStart": {
     "description": "Prepends a localized day-of-month value to an already localized yearly recurrence day list.",
     "placeholders": {
-      "first": {"type": "String"},
-      "rest": {"type": "String"}
+      "first": {
+        "type": "String"
+      },
+      "rest": {
+        "type": "String"
+      }
     }
   },
   "repeatYearlyMonthListPair": "{first} and {second}",
   "@repeatYearlyMonthListPair": {
     "description": "Joins the final two localized month names in a yearly recurrence summary.",
     "placeholders": {
-      "first": {"type": "String"},
-      "second": {"type": "String"}
+      "first": {
+        "type": "String"
+      },
+      "second": {
+        "type": "String"
+      }
     }
   },
   "repeatYearlyMonthListStart": "{first}, {rest}",
   "@repeatYearlyMonthListStart": {
     "description": "Prepends a localized month name to an already localized yearly recurrence month list.",
     "placeholders": {
-      "first": {"type": "String"},
-      "rest": {"type": "String"}
+      "first": {
+        "type": "String"
+      },
+      "rest": {
+        "type": "String"
+      }
     }
   },
   "repeatYearlyOnMonthDaySummary": "{frequency} on {month} {day}",
   "@repeatYearlyOnMonthDaySummary": {
     "description": "Complete yearly recurrence summary for one day in one month.",
     "placeholders": {
-      "frequency": {"type": "String"},
-      "month": {"type": "String"},
-      "day": {"type": "String"}
+      "frequency": {
+        "type": "String"
+      },
+      "month": {
+        "type": "String"
+      },
+      "day": {
+        "type": "String"
+      }
     }
   },
   "repeatYearlyOnMonthDaysSummary": "{frequency} on days {days} of {month}",
   "@repeatYearlyOnMonthDaysSummary": {
     "description": "Complete yearly recurrence summary for multiple days in one month.",
     "placeholders": {
-      "frequency": {"type": "String"},
-      "month": {"type": "String"},
-      "days": {"type": "String"}
+      "frequency": {
+        "type": "String"
+      },
+      "month": {
+        "type": "String"
+      },
+      "days": {
+        "type": "String"
+      }
     }
   },
   "repeatYearlyInMonthsOnMonthDaySummary": "{frequency} on day {day} of {months}",
   "@repeatYearlyInMonthsOnMonthDaySummary": {
     "description": "Complete yearly recurrence summary for one day in multiple months.",
     "placeholders": {
-      "frequency": {"type": "String"},
-      "months": {"type": "String"},
-      "day": {"type": "String"}
+      "frequency": {
+        "type": "String"
+      },
+      "months": {
+        "type": "String"
+      },
+      "day": {
+        "type": "String"
+      }
     }
   },
   "repeatYearlyInMonthsOnMonthDaysSummary": "{frequency} on days {days} of {months}",
   "@repeatYearlyInMonthsOnMonthDaysSummary": {
     "description": "Complete yearly recurrence summary for multiple days in multiple months.",
     "placeholders": {
-      "frequency": {"type": "String"},
-      "months": {"type": "String"},
-      "days": {"type": "String"}
+      "frequency": {
+        "type": "String"
+      },
+      "months": {
+        "type": "String"
+      },
+      "days": {
+        "type": "String"
+      }
     }
   },
   "repeatYearlyOnOrdinalSummary": "{frequency} {position, select, first{on the first {days} of {month}} second{on the second {days} of {month}} third{on the third {days} of {month}} fourth{on the fourth {days} of {month}} fifth{on the fifth {days} of {month}} secondToLast{on the second to last {days} of {month}} last{on the last {days} of {month}} other{on {days} of {month}}}",
   "@repeatYearlyOnOrdinalSummary": {
     "description": "Complete yearly ordinal recurrence summary; {position} selects the ordinal wording and placeholders may be reordered by locale.",
     "placeholders": {
-      "frequency": {"type": "String"},
-      "month": {"type": "String"},
-      "position": {"type": "String"},
-      "days": {"type": "String"}
+      "frequency": {
+        "type": "String"
+      },
+      "month": {
+        "type": "String"
+      },
+      "position": {
+        "type": "String"
+      },
+      "days": {
+        "type": "String"
+      }
     }
   },
   "repeatYearlyInMonthsOnOrdinalSummary": "{frequency} {position, select, first{on the first {days} of {months}} second{on the second {days} of {months}} third{on the third {days} of {months}} fourth{on the fourth {days} of {months}} fifth{on the fifth {days} of {months}} secondToLast{on the second to last {days} of {months}} last{on the last {days} of {months}} other{on {days} of {months}}}",
   "@repeatYearlyInMonthsOnOrdinalSummary": {
     "description": "Complete yearly ordinal-weekday recurrence summary for multiple months.",
     "placeholders": {
-      "frequency": {"type": "String"},
-      "months": {"type": "String"},
-      "position": {"type": "String"},
-      "days": {"type": "String"}
+      "frequency": {
+        "type": "String"
+      },
+      "months": {
+        "type": "String"
+      },
+      "position": {
+        "type": "String"
+      },
+      "days": {
+        "type": "String"
+      }
     }
   },
   "searchFilters": "Search filters",
@@ -1642,6 +1823,76 @@
   "googleWorkLocationLabel": "Location label",
   "googleStatusPrimaryOnly": "Google status events require your primary Google calendar.",
   "unknownEventLabel": "Unknown label ({id})",
-  "@unknownEventLabel": {"placeholders": {"id": {"type": "String"}}},
-  "calendarOwnerEmail": "Calendar owner email"
+  "@unknownEventLabel": {
+    "placeholders": {
+      "id": {
+        "type": "String"
+      }
+    }
+  },
+  "calendarOwnerEmail": "Calendar owner email",
+  "registrationSetupTitle": "Set up {provider}",
+  "@registrationSetupTitle": {
+    "placeholders": {
+      "provider": {
+        "type": "String"
+      }
+    }
+  },
+  "registrationSetupGuide": "Setup guide",
+  "registrationGoogleInstructions": "Create your own Google Cloud project, enable both Calendar and Tasks APIs, and download a Desktop OAuth client JSON. Import the configuration, then authorize the intended account.",
+  "registrationMicrosoftInstructions": "Use a public app registration in an Entra tenant that permits registration. Enter its Application/client ID and supported account audience. No client secret is required.",
+  "registrationImportGoogle": "Select Desktop OAuth JSON",
+  "registrationValidate": "Validate registration",
+  "registrationAuthorize": "Authorize in browser",
+  "registrationClientId": "Application/client ID",
+  "registrationTenantId": "Tenant ID",
+  "registrationAudience": "Supported accounts",
+  "registrationBothAudience": "Personal and organizational accounts",
+  "registrationOrganizationAudience": "Organizational accounts",
+  "registrationPersonalAudience": "Personal accounts",
+  "registrationTenantAudience": "One organizational tenant",
+  "registrationSummary": "Registration: {clientId}",
+  "@registrationSummary": {
+    "placeholders": {
+      "clientId": {
+        "type": "String"
+      }
+    }
+  },
+  "registrationMigrate": "Migrate now",
+  "registrationReplace": "Replace registration",
+  "registrationRetirementNotice": "This account uses BusyMax’s shared {provider} app registration, which will be discontinued in the next release. Set up your own {setup} and reconnect this account to keep synchronization working. Your existing calendars, tasks, and local changes will be preserved.",
+  "@registrationRetirementNotice": {
+    "placeholders": {
+      "provider": {
+        "type": "String"
+      },
+      "setup": {
+        "type": "String"
+      }
+    }
+  },
+  "registrationContinue": "Continue using this account",
+  "registrationGoogleProject": "Google Cloud project",
+  "registrationMicrosoftApp": "Microsoft app registration",
+  "registrationUserOwned": "User-provided registration",
+  "registrationNativeGoogle": "Native Google Android registration",
+  "registrationShared": "Shared registration (transition)",
+  "registrationUnresolved": "Registration provenance is unresolved. Account data is preserved.",
+  "registrationOfficialDocumentation": "Official documentation",
+  "registrationAndroidIdentity": "Package: {packageName}\nSignature hash: {signatureHash}\nRedirect URI: {redirectUri}",
+  "@registrationAndroidIdentity": {
+    "placeholders": {
+      "packageName": {
+        "type": "String"
+      },
+      "signatureHash": {
+        "type": "String"
+      },
+      "redirectUri": {
+        "type": "String"
+      }
+    }
+  }
 }

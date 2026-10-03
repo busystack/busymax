@@ -27,6 +27,8 @@ class OAuthLoopbackFlow {
   HttpServer? _server;
   Future<OAuthLoopbackResult>? _activeOperation;
   var _cancelRequested = false;
+  var _timedOut = false;
+  Completer<void>? _cancellation;
 
   Future<OAuthLoopbackResult> start({
     required Uri authorizationEndpoint,
@@ -50,6 +52,8 @@ class OAuthLoopbackFlow {
     }
 
     _cancelRequested = false;
+    _timedOut = false;
+    _cancellation = Completer<void>();
     final operation = _start(
       authorizationEndpoint: authorizationEndpoint,
       clientId: clientId,
@@ -91,6 +95,10 @@ class OAuthLoopbackFlow {
       redirectHost: redirectHost,
     );
     _server = server;
+    final deadline = Timer(timeout, () {
+      _timedOut = true;
+      unawaited(close());
+    });
     _logger.info('OAuth loopback server selected port ${server.port}');
 
     final redirectUri = 'http://$redirectHost:${server.port}/';
@@ -113,17 +121,30 @@ class OAuthLoopbackFlow {
       if (_cancelRequested) {
         throw OAuthException('OAuthSignInCancelled', signInCancelledMessage);
       }
-      await _launchBrowser(authorizationUri, browserLaunchFailureMessage);
+      await Future.any([
+        _launchBrowser(authorizationUri, browserLaunchFailureMessage),
+        _cancellation!.future.then<void>(
+          (_) => throw OAuthException(
+            _timedOut ? 'OAuthCallbackTimeout' : 'OAuthSignInCancelled',
+            _timedOut ? callbackNotReceivedMessage : signInCancelledMessage,
+          ),
+        ),
+      ]);
 
       await for (final request in server.timeout(timeout)) {
         _logger.info(
           'OAuth callback request received: '
-          'method=${request.method} path=${request.uri.path} '
-          'hasQuery=${request.uri.hasQuery} '
-          'host=${request.headers.value(HttpHeaders.hostHeader) ?? ''}',
+          'method=${request.method} isRoot=${request.uri.path == '/'} '
+          'hasQuery=${request.uri.hasQuery}',
         );
 
         try {
+          if (request.method != 'GET') {
+            throw const OAuthException(
+              'OAuthCallbackInvalidMethod',
+              'Invalid callback method.',
+            );
+          }
           final callback = parseOAuthCallback(
             request.uri,
             expectedState: state,
@@ -146,6 +167,12 @@ class OAuthLoopbackFlow {
         }
       }
 
+      if (_timedOut) {
+        throw OAuthException(
+          'OAuthCallbackTimeout',
+          callbackNotReceivedMessage,
+        );
+      }
       if (_cancelRequested) {
         throw OAuthException('OAuthSignInCancelled', signInCancelledMessage);
       }
@@ -156,6 +183,12 @@ class OAuthLoopbackFlow {
     } on TimeoutException {
       throw OAuthException('OAuthCallbackTimeout', callbackNotReceivedMessage);
     } on HttpException {
+      if (_timedOut) {
+        throw OAuthException(
+          'OAuthCallbackTimeout',
+          callbackNotReceivedMessage,
+        );
+      }
       if (_cancelRequested) {
         throw OAuthException('OAuthSignInCancelled', signInCancelledMessage);
       }
@@ -164,6 +197,7 @@ class OAuthLoopbackFlow {
         callbackNotReceivedMessage,
       );
     } finally {
+      deadline.cancel();
       await close();
     }
   }
@@ -172,6 +206,9 @@ class OAuthLoopbackFlow {
 
   Future<void> close() async {
     _cancelRequested = true;
+    if (_cancellation case final cancellation? when !cancellation.isCompleted) {
+      cancellation.complete();
+    }
     final server = _server;
     _server = null;
     if (server == null) {
@@ -232,7 +269,9 @@ class OAuthLoopbackFlow {
     String failureMessage,
   ) async {
     try {
-      final launched = await _authorizationLauncher(authorizationUri);
+      final launched = await _authorizationLauncher(
+        authorizationUri,
+      ).timeout(const Duration(seconds: 20));
       _logger.info('OAuth browser launch result: $launched');
       if (!launched) {
         throw OAuthException('OAuthBrowserLaunchFailed', failureMessage);
@@ -305,6 +344,15 @@ OAuthCallbackResult parseOAuthCallback(
     );
   }
 
+  if (uri.hasFragment ||
+      uri.queryParametersAll.values.any((values) => values.length != 1) ||
+      (uri.queryParameters.containsKey('code') &&
+          uri.queryParameters.containsKey('error'))) {
+    throw const OAuthException(
+      'OAuthCallbackContradictoryParameters',
+      'Invalid callback parameters.',
+    );
+  }
   final state = uri.queryParameters['state'];
   if (state == null || !_constantTimeEquals(state, expectedState)) {
     throw const OAuthException(
@@ -315,7 +363,10 @@ OAuthCallbackResult parseOAuthCallback(
 
   final error = uri.queryParameters['error'];
   if (error != null && error.isNotEmpty) {
-    throw OAuthException('OAuthCallbackProviderError', error);
+    throw const OAuthException(
+      'OAuthSignInCancelled',
+      'Authorization was declined.',
+    );
   }
 
   final code = uri.queryParameters['code'];
@@ -343,9 +394,7 @@ bool _constantTimeEquals(String left, String right) {
 
 bool _isTerminalCallbackError(OAuthException error) {
   return switch (error.code) {
-    'OAuthCallbackStateMismatch' ||
-    'OAuthCallbackProviderError' ||
-    'OAuthCallbackMissingCode' => true,
+    'OAuthSignInCancelled' => true,
     _ => false,
   };
 }

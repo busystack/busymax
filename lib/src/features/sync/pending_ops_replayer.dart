@@ -114,11 +114,12 @@ class PendingOpsReplayer {
           } else if (_isCreationOp(op) &&
               _hasUnknownCreationOutcome(error.statusCode)) {
             await _blockUnknownCreationOutcome(op, error.message);
-          } else if (_isRetryableStatus(error.statusCode)) {
+          } else if (error.retryable || _isRetryableStatus(error.statusCode)) {
             await _scheduleRetry(
               op,
               error.statusCode.toString(),
               error.message,
+              retryAfter: error.retryAfter,
             );
           } else {
             await _blockOp(op, error.statusCode.toString(), error.message);
@@ -1354,9 +1355,16 @@ class PendingOpsReplayer {
   Future<void> _scheduleRetry(
     PendingOp op,
     String errorCode,
-    String errorMessage,
-  ) async {
-    final nextAttempt = _nextAttempt(op.attemptCount);
+    String errorMessage, {
+    Duration? retryAfter,
+  }) async {
+    var nextAttempt = _nextAttempt(op.attemptCount);
+    if (retryAfter != null) {
+      final providerNotBefore = _nowUtc().add(retryAfter);
+      if (providerNotBefore.isAfter(nextAttempt)) {
+        nextAttempt = providerNotBefore;
+      }
+    }
     await _database.pendingOpsDao.updateAttempt(
       id: op.id,
       attemptCount: op.attemptCount + 1,

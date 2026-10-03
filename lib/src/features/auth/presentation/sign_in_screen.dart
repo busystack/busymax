@@ -1,3 +1,7 @@
+import '../../../core/http/request_dispatch_exception.dart';
+import '../../../providers/busy_provider.dart';
+import 'registration_setup_dialog.dart';
+import '../../../core/auth/oauth_registration.dart';
 import 'dart:async';
 import 'dart:math' as math;
 
@@ -140,9 +144,9 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
                                         _AccountsOnboardingStep(
                                           accounts: accounts,
                                           googleConfigured:
-                                              config.hasGoogleOAuthClientId,
+                                              config.googleSetupAvailable,
                                           microsoftConfigured:
-                                              config.hasMicrosoftOAuthClientId,
+                                              config.microsoftSetupAvailable,
                                           isGoogleSigningIn:
                                               _signingInProvider ==
                                               _OnboardingProvider.google,
@@ -214,6 +218,19 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
       nextcloudServer = await showNextcloudServerDialog(context);
       if (nextcloudServer == null || !mounted) return;
     }
+    AuthorizationRequest? request;
+    if (provider == _OnboardingProvider.google ||
+        provider == _OnboardingProvider.microsoft) {
+      final handle = await showRegistrationSetup(
+        context,
+        ref,
+        provider == _OnboardingProvider.google
+            ? BusyProvider.google
+            : BusyProvider.microsoft,
+      );
+      if (handle == null || !mounted) return;
+      request = AuthorizationRequest.newConnection(handle);
+    }
     setState(() {
       _signingInProvider = provider;
       _errorMessage = null;
@@ -224,9 +241,11 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
       String? accountId;
       switch (provider) {
         case _OnboardingProvider.google:
-          accountId = (await repository.signIn()).accountId;
+          accountId = (await repository.signIn(request: request)).accountId;
         case _OnboardingProvider.microsoft:
-          accountId = (await repository.signInWithMicrosoft()).accountId;
+          accountId = (await repository.signInWithMicrosoft(
+            request: request,
+          )).accountId;
         case _OnboardingProvider.appleICloud:
           final cancellation = DavCancellationToken();
           _davCancellation = cancellation;
@@ -279,7 +298,13 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
         try {
           await ref
               .read(authRepositoryProvider)
-              .markReconnectRequired(accountId);
+              .markReconnectRequired(
+                accountId,
+                authorizationGeneration: failureAuthorizationGeneration(
+                  error,
+                  accountId,
+                ),
+              );
         } on Object {
           // Preserve the original sync failure message below.
         }

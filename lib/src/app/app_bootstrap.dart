@@ -1,3 +1,8 @@
+import '../core/http/request_dispatch_exception.dart';
+import '../features/sync/domain_sync_schedule.dart';
+import '../core/auth/authorization_persistence.dart';
+import '../core/auth/registration_staging.dart';
+import '../core/auth/oauth_registration.dart';
 import 'dart:async';
 
 import 'package:drift/drift.dart';
@@ -220,12 +225,85 @@ final secretStoreProvider = Provider<SecretStore>((ref) {
   return SecureSecretStore(ref.watch(secureStorageProvider));
 });
 
+final registrationSummariesProvider =
+    StreamProvider<Map<String, RegistrationSummary>>((ref) async* {
+      final persistence = ref.watch(authorizationPersistenceProvider);
+      await persistence.recover();
+      final existing = await persistence.database
+          .select(persistence.database.oAuthTransitionAccounts)
+          .get();
+      for (final row in existing) {
+        final account = await (persistence.database.select(
+          persistence.database.accounts,
+        )..where((r) => r.id.equals(row.accountId))).getSingleOrNull();
+        if (account == null) continue;
+        final provider = BusyProviderCodec.requireStorageValue(
+          account.provider,
+        );
+        final gateway = provider == BusyProvider.google
+            ? ref.read(applicationOAuthGatewayProvider)
+            : ref.read(applicationMicrosoftOAuthServiceProvider);
+        if (gateway is RegistrationBindingResolver) {
+          try {
+            await gateway.establishExistingBinding(row.accountId, provider);
+          } on Object {
+            /* Unresolved records stay intact and have no retirement label. */
+          }
+        }
+      }
+      await for (final rows
+          in persistence.database
+              .select(persistence.database.accountAuthorizations)
+              .watch()) {
+        final summaries = <String, RegistrationSummary>{};
+        for (final row in rows) {
+          try {
+            final record = await persistence.readCurrentCredential(
+              row.accountId,
+            );
+            if (record is BoundOAuthSecretRecord &&
+                record.generation == row.generation) {
+              summaries[row.accountId] = record.registration.summary(
+                transitionEligible: record.transitionEligible,
+              );
+            } else if (record is NativeOAuthCredential &&
+                record.generation == row.generation) {
+              summaries[row.accountId] = record.summary;
+            }
+          } on Object {
+            /* Missing/corrupt credentials have unresolved provenance. */
+          }
+        }
+        yield summaries;
+      }
+    });
+
+final registrationStagingProvider = Provider<RegistrationStaging>((ref) {
+  final staging = RegistrationStaging(ref.watch(buildConfigProvider));
+  ref.onDispose(staging.dispose);
+  return staging;
+});
+final authorizationPersistenceProvider = Provider<AuthorizationPersistence>(
+  (ref) => AuthorizationPersistence(
+    database: ref.watch(databaseProvider),
+    secrets: ref.watch(secretStoreProvider),
+    gate: ref.watch(crossEngineAccountGateProvider),
+  ),
+);
+
+final authorizationGenerationReaderProvider =
+    Provider<Future<int> Function(String)>(
+      (ref) => ref.watch(authorizationPersistenceProvider).generation,
+    );
+
 final applicationOAuthServiceProvider = Provider<OAuthService>((ref) {
   return OAuthService(
     config: ref.watch(buildConfigProvider),
     httpClient: ref.watch(baseHttpClientProvider),
     tokenStore: ref.watch(secretStoreProvider),
     loopbackFlow: OAuthLoopbackFlow(),
+    registrations: ref.watch(registrationStagingProvider),
+    persistence: ref.watch(authorizationPersistenceProvider),
   );
 });
 
@@ -241,6 +319,8 @@ final microsoftOAuthServiceProvider = Provider<MicrosoftOAuthService>((ref) {
     httpClient: ref.watch(baseHttpClientProvider),
     tokenStore: ref.watch(secretStoreProvider),
     loopbackFlow: OAuthLoopbackFlow(),
+    registrations: ref.watch(registrationStagingProvider),
+    persistence: ref.watch(authorizationPersistenceProvider),
   );
 });
 
@@ -379,6 +459,7 @@ final systemAppearanceSourceProvider = Provider<SystemAppearanceSource>((ref) {
 final authRepositoryProvider = Provider<AuthRepository>((ref) {
   return AuthRepository(
     oAuth: ref.watch(applicationOAuthGatewayProvider),
+    authorizationPersistence: ref.watch(authorizationPersistenceProvider),
     database: ref.watch(databaseProvider),
     accountsRepository: ref.watch(accountsRepositoryProvider),
     microsoftOAuth: ref.watch(applicationMicrosoftOAuthServiceProvider),
@@ -891,30 +972,47 @@ final accountSyncOperationsProvider = Provider<AccountSyncOperations>((ref) {
     syncWebCal: (accountId, {required full}) => ref
         .read(webCalSubscriptionServiceProvider)
         .refreshAccount(accountId, force: full),
-    syncTasksRest: (accountId, {required full}) =>
-        syncCoordinator.trackTaskImport(accountId, () async {
-          final provider = await providerForAccount(accountId);
-          final engine = ref.read(syncEngineForAccountFactoryProvider)(
-            accountId,
-            provider,
-          );
+    syncTasksRest: (accountId, {required full}) async {
+      final provider = await providerForAccount(accountId);
+      final engine = ref.read(syncEngineForAccountFactoryProvider)(
+        accountId,
+        provider,
+      );
+      await DomainSyncPolicy(ref.read(databaseProvider)).run(
+        accountId,
+        SyncDomain.tasks,
+        full: full,
+        deferred: engine.dispatchPendingWrites,
+        maintainCached: engine.maintainCachedReminders,
+        pull: () => syncCoordinator.trackTaskImport(accountId, () async {
           if (full) {
             await engine.fullSync();
           } else {
             await engine.incrementalSync();
           }
-        }),
+        }, changedOnFailure: () => engine.remoteImportWroteData),
+      );
+    },
     syncCalendarRest: (accountId, {required full}) async {
       final provider = await providerForAccount(accountId);
       final engine = ref.read(calendarSyncEngineForAccountFactoryProvider)(
         accountId,
         provider,
       );
-      if (full) {
-        await engine.fullSync();
-      } else {
-        await engine.incrementalSync();
-      }
+      await DomainSyncPolicy(ref.read(databaseProvider)).run(
+        accountId,
+        SyncDomain.calendar,
+        full: full,
+        deferred: engine.dispatchPendingWrites,
+        maintainCached: engine.maintainCachedReminders,
+        pull: () async {
+          if (full) {
+            await engine.fullSync();
+          } else {
+            await engine.incrementalSync();
+          }
+        },
+      );
     },
   );
   return CrossEngineCoordinatedAccountSyncOperations(
@@ -938,7 +1036,10 @@ final signedInSyncRunnerProvider = Provider<SignedInSyncRunner>((ref) {
       await _runAccountSyncIfEligible(
         ref,
         accountId,
-        (operations) => operations.syncAccount(accountId, full: initial),
+        (operations) => withSyncTrigger(
+          initial ? SyncTrigger.manual : SyncTrigger.foreground,
+          () => operations.syncAccount(accountId, full: initial),
+        ),
       );
     } on Object catch (error) {
       await _markAccountReconnectRequiredForSyncError(ref, accountId, error);
@@ -951,7 +1052,11 @@ typedef AllAccountsSyncRunner = Future<void> Function();
 
 final allAccountsSyncRunnerProvider = Provider<AllAccountsSyncRunner>((ref) {
   Future<void> syncAccount(String accountId) async {
-    await ref.read(signedInSyncRunnerProvider)(accountId, false);
+    await _runAccountSyncIfEligible(
+      ref,
+      accountId,
+      (operations) => operations.syncAccount(accountId, full: false),
+    );
   }
 
   return () async {
@@ -1393,7 +1498,14 @@ final pendingOpResolutionServiceProvider =
 
 final syncSchedulerProvider = Provider<AllAccountsSyncScheduler>((ref) {
   Future<void> syncAccount(String accountId) async {
-    await ref.read(signedInSyncRunnerProvider)(accountId, false);
+    await _runAccountSyncIfEligible(
+      ref,
+      accountId,
+      (operations) => withSyncTrigger(
+        SyncTrigger.background,
+        () => operations.syncAccount(accountId, full: false),
+      ),
+    );
   }
 
   final scheduler = AllAccountsSyncScheduler(
@@ -1463,7 +1575,15 @@ Future<void> _markAccountReconnectRequiredForSyncError(
     return;
   }
   try {
-    await ref.read(authRepositoryProvider).markReconnectRequired(accountId);
+    await ref
+        .read(authRepositoryProvider)
+        .markReconnectRequired(
+          accountId,
+          authorizationGeneration: failureAuthorizationGeneration(
+            error,
+            accountId,
+          ),
+        );
   } on Object {
     // Keep the original sync failure as the reported error.
   }
@@ -1480,7 +1600,18 @@ Future<void> _runAccountSyncIfEligible(
   if (account?.isSyncEligible != true) {
     return;
   }
-  await synchronize(ref.read(accountSyncOperationsProvider));
+  final generation = await ref
+      .read(authorizationPersistenceProvider)
+      .generation(accountId);
+  try {
+    await synchronize(ref.read(accountSyncOperationsProvider));
+  } on Object catch (error) {
+    throw AuthorizationScopedFailure(
+      accountId: accountId,
+      generation: generation,
+      cause: error,
+    );
+  }
 }
 
 // This handler outlives individual schedulers, so a visible Linux notification

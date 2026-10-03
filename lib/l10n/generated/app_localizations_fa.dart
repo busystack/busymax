@@ -3196,4 +3196,100 @@ class AppLocalizationsFa extends AppLocalizations {
 
   @override
   String get calendarOwnerEmail => 'ایمیل مالک تقویم';
+
+  @override
+  String registrationSetupTitle(String provider) {
+    return 'راه‌اندازی ⁨$provider⁩';
+  }
+
+  @override
+  String get registrationSetupGuide => 'راهنمای راه‌اندازی';
+
+  @override
+  String get registrationGoogleInstructions =>
+      'پروژهٔ Google Cloud خود را بسازید، APIهای Calendar و Tasks را فعال کنید و JSON کلاینت OAuth دسکتاپ را وارد کنید. به حساب موردنظر مجوز بدهید.';
+
+  @override
+  String get registrationMicrosoftInstructions =>
+      'از ثبت برنامهٔ عمومی در مستأجر Entra که ثبت را مجاز می‌داند استفاده کنید. شناسهٔ کلاینت و نوع حساب‌ها را وارد کنید. رمز کلاینت لازم نیست.';
+
+  @override
+  String get registrationImportGoogle => 'انتخاب JSON کلاینت OAuth دسکتاپ';
+
+  @override
+  String get registrationValidate => 'اعتبارسنجی ثبت';
+
+  @override
+  String get registrationAuthorize => 'دادن مجوز در مرورگر';
+
+  @override
+  String get registrationClientId => 'شناسهٔ برنامه/کلاینت';
+
+  @override
+  String get registrationTenantId => 'شناسهٔ مستأجر';
+
+  @override
+  String get registrationAudience => 'حساب‌های پشتیبانی‌شده';
+
+  @override
+  String get registrationBothAudience => 'حساب‌های شخصی و سازمانی';
+
+  @override
+  String get registrationOrganizationAudience => 'حساب‌های سازمانی';
+
+  @override
+  String get registrationPersonalAudience => 'حساب‌های شخصی';
+
+  @override
+  String get registrationTenantAudience => 'یک مستأجر سازمانی';
+
+  @override
+  String registrationSummary(String clientId) {
+    return 'ثبت: ⁨$clientId⁩';
+  }
+
+  @override
+  String get registrationMigrate => 'انتقال اکنون';
+
+  @override
+  String get registrationReplace => 'جایگزینی ثبت';
+
+  @override
+  String registrationRetirementNotice(String provider, String setup) {
+    return 'این حساب از ثبت مشترک ⁨$provider⁩ در BusyMax استفاده می‌کند که در نسخهٔ بعدی متوقف می‌شود. ⁨$setup⁩ خود را راه‌اندازی و این حساب را دوباره متصل کنید تا همگام‌سازی ادامه یابد. تقویم‌ها، کارها و تغییرات محلی موجود حفظ می‌شوند.';
+  }
+
+  @override
+  String get registrationContinue => 'ادامهٔ استفاده از این حساب';
+
+  @override
+  String get registrationGoogleProject => 'پروژهٔ Google Cloud';
+
+  @override
+  String get registrationMicrosoftApp => 'ثبت برنامهٔ Microsoft';
+
+  @override
+  String get registrationUserOwned => 'ثبت ارائه‌شده توسط کاربر';
+
+  @override
+  String get registrationNativeGoogle => 'ثبت بومی Google برای Android';
+
+  @override
+  String get registrationShared => 'ثبت مشترک (دورهٔ انتقال)';
+
+  @override
+  String get registrationUnresolved =>
+      'منشأ ثبت مشخص نیست. داده‌های حساب حفظ شده‌اند.';
+
+  @override
+  String get registrationOfficialDocumentation => 'مستندات رسمی';
+
+  @override
+  String registrationAndroidIdentity(
+    String packageName,
+    String signatureHash,
+    String redirectUri,
+  ) {
+    return 'بسته: ⁨$packageName⁩\nهش امضا: ⁨$signatureHash⁩\nنشانی هدایت: ⁨$redirectUri⁩';
+  }
 }

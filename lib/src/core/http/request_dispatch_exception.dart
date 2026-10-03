@@ -1,4 +1,5 @@
 import 'dart:collection';
+import '../auth/oauth_models.dart';
 
 /// A request failure that is known to have happened before the HTTP client
 /// forwarded the request to the network.
@@ -34,6 +35,52 @@ final class KnownUnsentRequestException
   String toString() => 'KnownUnsentRequestException($code)';
 }
 
+final class AuthorizationScopedFailure implements Exception {
+  const AuthorizationScopedFailure({
+    required this.accountId,
+    required this.generation,
+    required this.cause,
+  });
+  final String accountId;
+  final int generation;
+  final Object cause;
+  @override
+  String toString() =>
+      'Synchronization failed for the authorization used by this operation.';
+}
+
+/// Retains the typed, safe OAuth UI error while attaching the authorization
+/// that was actually used by optional consent.
+final class AuthorizationScopedOAuthException extends OAuthException {
+  AuthorizationScopedOAuthException({
+    required this.accountId,
+    required this.generation,
+    required this.cause,
+  }) : super(cause.code, cause.message);
+  final String accountId;
+  final int generation;
+  final OAuthException cause;
+  @override
+  OAuthFailureKind get classification => cause.classification;
+}
+
+int? failureAuthorizationGeneration(Object error, String id) {
+  var current = error;
+  for (var i = 0; i < 8; i++) {
+    if (current is AuthorizationScopedFailure) {
+      return current.accountId == id ? current.generation : null;
+    }
+    if (current is AuthorizationScopedOAuthException) {
+      return current.accountId == id ? current.generation : null;
+    }
+    if (current is! RequestNotDispatchedException || current.cause == null) {
+      return null;
+    }
+    current = current.cause!;
+  }
+  return null;
+}
+
 /// Resolves the substantive failure while preserving pre-dispatch wrappers.
 ///
 /// Classification and user messaging can inspect the returned cause without
@@ -47,6 +94,14 @@ Object resolveEffectiveSyncFailure(Object error) {
   for (var depth = 0; depth < maximumCauseDepth; depth += 1) {
     if (!visited.add(current)) {
       return current;
+    }
+    if (current is AuthorizationScopedFailure) {
+      current = current.cause;
+      continue;
+    }
+    if (current is AuthorizationScopedOAuthException) {
+      current = current.cause;
+      continue;
     }
     if (current is! RequestNotDispatchedException || current.cause == null) {
       return current;

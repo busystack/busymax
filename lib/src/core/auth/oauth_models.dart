@@ -1,3 +1,19 @@
+import 'dart:convert';
+
+/// Decoding failures never include a provider response body in exception text.
+Map<String, Object?> decodeOAuthProviderObject(String body) {
+  try {
+    final decoded = jsonDecode(body);
+    if (decoded is Map<String, dynamic>) return decoded;
+  } on Object {
+    /* safely classified below */
+  }
+  throw const OAuthException(
+    'OAuthTemporaryResponse',
+    'The provider returned an invalid authorization response. Try again.',
+  );
+}
+
 /// OAuth token record shared by the Google and Microsoft adapters.
 class OAuthTokenSet {
   const OAuthTokenSet({
@@ -17,10 +33,25 @@ class OAuthTokenSet {
     Set<String>? existingScopes,
     String? fallbackScopeText,
   }) {
+    final accessToken = json['access_token'];
     final expiresIn = json['expires_in'];
     final expiresInSeconds = expiresIn is int
         ? expiresIn
-        : int.parse(expiresIn?.toString() ?? '0');
+        : expiresIn is String
+        ? int.tryParse(expiresIn)
+        : null;
+    if (accessToken is! String ||
+        accessToken.trim().isEmpty ||
+        expiresInSeconds == null ||
+        expiresInSeconds <= 0 ||
+        (json['refresh_token'] != null && json['refresh_token'] is! String) ||
+        (json['id_token'] != null && json['id_token'] is! String) ||
+        (json['scope'] != null && json['scope'] is! String)) {
+      throw const OAuthException(
+        'OAuthTemporaryResponse',
+        'The provider returned an incomplete authorization response. Try again.',
+      );
+    }
     final responseScopes = _scopesFromText(json['scope']?.toString());
     final fallbackScopes = _scopesFromText(fallbackScopeText);
     final scopes = responseScopes.isNotEmpty
@@ -30,7 +61,7 @@ class OAuthTokenSet {
         : fallbackScopes;
 
     return OAuthTokenSet(
-      accessToken: json['access_token']?.toString() ?? '',
+      accessToken: accessToken,
       refreshToken: json['refresh_token']?.toString().isNotEmpty == true
           ? json['refresh_token']!.toString()
           : existingRefreshToken,
@@ -91,11 +122,47 @@ class OAuthCallbackResult {
   final String? scope;
 }
 
+enum OAuthFailureKind {
+  configuration,
+  wrongAccount,
+  permission,
+  storage,
+  corruptRecord,
+  expiredGrant,
+  cancelled,
+  timeout,
+  throttled,
+  temporary,
+  stale,
+  alreadyConnected,
+}
+
 class OAuthException implements Exception {
   const OAuthException(this.code, this.message);
 
   final String code;
   final String message;
+  OAuthFailureKind get classification => switch (code) {
+    'OAuthWrongAccount' => OAuthFailureKind.wrongAccount,
+    'OAuthSignInCancelled' => OAuthFailureKind.cancelled,
+    'OAuthStaleAuthorization' => OAuthFailureKind.stale,
+    'OAuthAccountAlreadyConnected' => OAuthFailureKind.alreadyConnected,
+    'OAuthMissingRequiredScope' ||
+    'MicrosoftOAuthMissingRequiredScope' ||
+    'OAuthMissingRefreshToken' ||
+    'MicrosoftOAuthMissingRefreshToken' => OAuthFailureKind.permission,
+    'OAuthCallbackTimeout' || 'OAuthRequestTimeout' => OAuthFailureKind.timeout,
+    'OAuthSetupRequired' ||
+    'OAuthRegistrationUnresolved' ||
+    'OAuthConfigurationRejected' ||
+    'OAuthConfigurationExpired' ||
+    'OAuthWrongClientType' ||
+    'OAuthConfigurationMalformed' ||
+    'OAuthConfigurationTooLarge' ||
+    'OAuthUnsupportedFileSource' ||
+    'OAuthConfigurationUnreadable' => OAuthFailureKind.configuration,
+    _ => OAuthFailureKind.temporary,
+  };
 
   @override
   String toString() => '$code: $message';
@@ -108,9 +175,26 @@ class OAuthRefreshException extends OAuthException {
     required this.statusCode,
     this.oauthError,
     this.oauthErrorDescription,
+    this.retryAfter,
   });
 
   final int statusCode;
+  final Duration? retryAfter;
+  @override
+  OAuthFailureKind get classification {
+    if (statusCode == 429) return OAuthFailureKind.throttled;
+    if (statusCode != 400 && statusCode != 401) {
+      return OAuthFailureKind.temporary;
+    }
+    return switch (oauthError) {
+      'invalid_grant' => OAuthFailureKind.expiredGrant,
+      'invalid_client' ||
+      'unauthorized_client' ||
+      'invalid_scope' => OAuthFailureKind.configuration,
+      'access_denied' => OAuthFailureKind.permission,
+      _ => OAuthFailureKind.temporary,
+    };
+  }
 
   /// The structured OAuth `error` value returned by the provider.
   final String? oauthError;

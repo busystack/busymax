@@ -1,3 +1,4 @@
+import '../../support/oauth_binding_fixture.dart';
 import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
@@ -27,7 +28,7 @@ void main() {
         authorization = request.headers[authorizationHeaderName];
         return http.Response('{}', 200);
       }),
-      oAuthService: _service(
+      oAuthService: await _service(
         store,
         MockClient((request) async {
           fail('refresh should not be called');
@@ -74,7 +75,7 @@ void main() {
 
     final client = AuthenticatedHttpClient(
       inner: apiClient,
-      oAuthService: _service(store, tokenClient),
+      oAuthService: await _service(store, tokenClient),
       nowUtc: () => DateTime.utc(2026, 6, 4),
     );
 
@@ -87,7 +88,10 @@ void main() {
   });
 }
 
-OAuthService _service(SecretStore store, http.Client tokenClient) {
+Future<OAuthService> _service(
+  SecretStore store,
+  http.Client tokenClient,
+) async {
   return OAuthService(
     config: const BuildConfig(
       googleOAuthClientId: 'client-id',
@@ -100,6 +104,7 @@ OAuthService _service(SecretStore store, http.Client tokenClient) {
     ),
     httpClient: tokenClient,
     tokenStore: store,
+    persistence: await seedBoundFixtures(store),
     loopbackFlow: OAuthLoopbackFlow(),
     nowUtc: () => DateTime.utc(2026, 6, 4),
   );

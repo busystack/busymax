@@ -1,3 +1,7 @@
+import '../../l10n/registration_description.dart';
+import 'windows_registration_setup_dialog.dart';
+import '../../core/auth/oauth_registration.dart';
+import '../../features/auth/data/auth_repository.dart';
 import 'windows_time_picker.dart';
 import 'dart:async';
 import 'windows_nextcloud_dialogs.dart';
@@ -433,6 +437,9 @@ class _WindowsSettingsPageState extends ConsumerState<WindowsSettingsPage> {
                 ),
                 if (values.isNotEmpty) const Divider(),
                 for (var index = 0; index < values.length; index++) ...[
+                  if (values[index].provider == BusyProvider.google ||
+                      values[index].provider == BusyProvider.microsoft)
+                    _WindowsRegistrationCard(account: values[index]),
                   ListTile(
                     leading: Icon(windowsBusyMaxGlyph(BusyMaxGlyph.account)),
                     title: Semantics(
@@ -1519,4 +1526,100 @@ Future<void> showWindowsLicensesDialog(BuildContext context) async {
       ],
     ),
   );
+}
+
+class _WindowsRegistrationCard extends ConsumerStatefulWidget {
+  const _WindowsRegistrationCard({required this.account});
+  final AccountEntity account;
+  @override
+  ConsumerState<_WindowsRegistrationCard> createState() =>
+      _WindowsRegistrationCardState();
+}
+
+class _WindowsRegistrationCardState
+    extends ConsumerState<_WindowsRegistrationCard> {
+  bool connecting = false;
+  AccountEntity get account => widget.account;
+  @override
+  Widget build(BuildContext context) {
+    final summary = ref
+        .watch(registrationSummariesProvider)
+        .valueOrNull?[account.id];
+    final l10n = AppLocalizations.of(context);
+    Future<void> connect(bool replace) async {
+      if (connecting) return;
+      setState(() => connecting = true);
+      try {
+        AuthorizationRequest request;
+        if (replace) {
+          final handle = await showWindowsRegistrationSetup(
+            context,
+            ref,
+            account.provider,
+          );
+          if (handle == null) return;
+          request = AuthorizationRequest.replace(account.id, handle);
+        } else {
+          request = AuthorizationRequest.reconnect(account.id);
+        }
+        final repository = ref.read(authRepositoryProvider);
+        if (account.provider == BusyProvider.google) {
+          await repository.signIn(request: request);
+        } else {
+          await repository.signInWithMicrosoft(request: request);
+        }
+        await ref.read(signedInSyncRunnerProvider)(account.id, false);
+      } on Object catch (error) {
+        if (context.mounted) {
+          await displayInfoBar(
+            context,
+            builder: (_, close) => InfoBar(
+              title: Text(authErrorMessage(error)),
+              severity: InfoBarSeverity.error,
+              onClose: close,
+            ),
+          );
+        }
+      } finally {
+        if (mounted) setState(() => connecting = false);
+      }
+    }
+
+    return Card(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            summary == null
+                ? l10n.registrationUnresolved
+                : l10n.registrationDescription(summary),
+          ),
+          if (summary?.showRetirementNotice == true)
+            InfoBar(
+              severity: InfoBarSeverity.warning,
+              title: Text(
+                l10n.registrationRetirementNotice(
+                  account.provider.displayName,
+                  account.provider == BusyProvider.google
+                      ? l10n.registrationGoogleProject
+                      : l10n.registrationMicrosoftApp,
+                ),
+              ),
+            ),
+          Button(
+            onPressed: connecting ? null : () => connect(true),
+            child: Text(
+              summary?.showRetirementNotice == true
+                  ? l10n.registrationMigrate
+                  : l10n.registrationReplace,
+            ),
+          ),
+          Button(
+            onPressed: connecting ? null : () => connect(false),
+            child: Text(l10n.connectAccountAction),
+          ),
+        ],
+      ),
+    );
+  }
 }

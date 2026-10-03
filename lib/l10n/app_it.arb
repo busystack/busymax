@@ -16,7 +16,13 @@
   "settingsSaveFailed": "Impossibile salvare le impostazioni. Le modifiche potrebbero andare perse al riavvio di BusyMax.",
   "nextcloudExportCollection": "Esporta risorse della raccolta",
   "nextcloudImportItems": "Trovate {count} risorse di eventi/attività",
-  "@nextcloudImportItems": {"placeholders": {"count": {"type": "int"}}},
+  "@nextcloudImportItems": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "nextcloudSchedulingInbox": "Posta in arrivo degli inviti",
   "nextcloudInboxExplanation": "Nextcloud elabora questi messaggi nei calendari. La conferma rimuove solo il messaggio, non l’evento.",
   "nextcloudInboxEmpty": "Nessun messaggio di pianificazione.",
@@ -24,7 +30,13 @@
   "nextcloudAcknowledgeConfirm": "Rimuovere questo messaggio dalla posta in arrivo? L’evento verrà conservato.",
   "nextcloudGuestAvailability": "Verifica disponibilità degli invitati",
   "nextcloudTrashRetention": "Conservazione nel cestino del server: {days} giorni",
-  "@nextcloudTrashRetention": {"placeholders": {"days": {"type": "int"}}},
+  "@nextcloudTrashRetention": {
+    "placeholders": {
+      "days": {
+        "type": "int"
+      }
+    }
+  },
   "nextcloudCancelMeeting": "Annulla riunione",
   "nextcloudDeclineAndRemove": "Rifiuta e rimuovi invito",
   "nextcloudDeclineRemovalWarning": "Alla sincronizzazione verrà inviato un rifiuto. La riunione dell’organizzatore non verrà annullata.",
@@ -171,7 +183,7 @@
   },
   "newEvent": "Nuovo evento",
   "refreshCalendar": "Aggiorna calendario",
-"openInProvider": "Apri nel servizio",
+  "openInProvider": "Apri nel servizio",
   "linkedResources": "Risorse collegate",
   "noLinkedResources": "Nessuna risorsa collegata",
   "attachments": "Allegati",
@@ -471,7 +483,7 @@
   "moveToTop": "Sposta in cima",
   "deleteTask": "Elimina attività",
   "newSubtask": "Nuova sottoattività",
- "deleteTaskConfirmation": "Eliminare «{title}»?",
+  "deleteTaskConfirmation": "Eliminare «{title}»?",
   "deleteAssignedTaskWarning": "Questa operazione elimina anche l’attività originale in Google Docs o negli spazi di Chat.",
   "metadata": "Metadati",
   "id": "ID",
@@ -1025,19 +1037,33 @@
   "@repeatYearlyOnMonthDaysSummary": {
     "description": "Complete yearly recurrence summary for selected month days; placeholders may be reordered by locale.",
     "placeholders": {
-      "frequency": {"type": "String"},
-      "month": {"type": "String"},
-      "days": {"type": "String"}
+      "frequency": {
+        "type": "String"
+      },
+      "month": {
+        "type": "String"
+      },
+      "days": {
+        "type": "String"
+      }
     }
   },
   "repeatYearlyOnOrdinalSummary": "{frequency} {position, select, first{il primo {days} di {month}} second{il secondo {days} di {month}} third{il terzo {days} di {month}} fourth{il quarto {days} di {month}} fifth{il quinto {days} di {month}} secondToLast{il penultimo {days} di {month}} last{l’ultimo {days} di {month}} other{nei giorni {days} di {month}}}",
   "@repeatYearlyOnOrdinalSummary": {
     "description": "Complete yearly ordinal recurrence summary; {position} selects the ordinal wording and placeholders may be reordered by locale.",
     "placeholders": {
-      "frequency": {"type": "String"},
-      "month": {"type": "String"},
-      "position": {"type": "String"},
-      "days": {"type": "String"}
+      "frequency": {
+        "type": "String"
+      },
+      "month": {
+        "type": "String"
+      },
+      "position": {
+        "type": "String"
+      },
+      "days": {
+        "type": "String"
+      }
     }
   },
   "searchFilters": "Filtri di ricerca",
@@ -1100,5 +1126,75 @@
   "sharingRateLimited": "La condivisione è temporaneamente limitata. Riprova al termine dell’attesa.",
   "attachmentUploadRateLimited": "Il caricamento degli allegati è temporaneamente limitato. Riprova al termine dell’attesa.",
   "unknownEventLabel": "Etichetta sconosciuta ({id})",
-  "@unknownEventLabel": {"placeholders": {"id": {"type": "String"}}}
+  "@unknownEventLabel": {
+    "placeholders": {
+      "id": {
+        "type": "String"
+      }
+    }
+  },
+  "registrationSetupTitle": "Configura {provider}",
+  "@registrationSetupTitle": {
+    "placeholders": {
+      "provider": {
+        "type": "String"
+      }
+    }
+  },
+  "registrationSetupGuide": "Guida alla configurazione",
+  "registrationGoogleInstructions": "Crea il tuo progetto Google Cloud, abilita Calendar e Tasks e importa il JSON di un client OAuth desktop. Autorizza l’account desiderato.",
+  "registrationMicrosoftInstructions": "Usa una registrazione pubblica in un tenant Entra che consenta la registrazione di app. Inserisci ID client e tipi di account. Non serve un segreto client.",
+  "registrationImportGoogle": "Seleziona JSON OAuth desktop",
+  "registrationValidate": "Convalida registrazione",
+  "registrationAuthorize": "Autorizza nel browser",
+  "registrationClientId": "ID applicazione/client",
+  "registrationTenantId": "ID tenant",
+  "registrationAudience": "Account supportati",
+  "registrationBothAudience": "Account personali e aziendali",
+  "registrationOrganizationAudience": "Account aziendali",
+  "registrationPersonalAudience": "Account personali",
+  "registrationTenantAudience": "Un tenant aziendale",
+  "registrationSummary": "Registrazione: {clientId}",
+  "@registrationSummary": {
+    "placeholders": {
+      "clientId": {
+        "type": "String"
+      }
+    }
+  },
+  "registrationMigrate": "Migra ora",
+  "registrationReplace": "Sostituisci registrazione",
+  "registrationRetirementNotice": "Questo account usa la registrazione {provider} condivisa di BusyMax, che sarà ritirata nella prossima versione. Configura il tuo {setup} e riconnetti questo account per continuare la sincronizzazione. Calendari, attività e modifiche locali saranno conservati.",
+  "@registrationRetirementNotice": {
+    "placeholders": {
+      "provider": {
+        "type": "String"
+      },
+      "setup": {
+        "type": "String"
+      }
+    }
+  },
+  "registrationContinue": "Continua a usare questo account",
+  "registrationGoogleProject": "Progetto Google Cloud",
+  "registrationMicrosoftApp": "Registrazione app Microsoft",
+  "registrationUserOwned": "Registrazione fornita dall’utente",
+  "registrationNativeGoogle": "Registrazione nativa Google per Android",
+  "registrationShared": "Registrazione condivisa (transizione)",
+  "registrationUnresolved": "L’origine della registrazione non è identificata. I dati dell’account sono conservati.",
+  "registrationOfficialDocumentation": "Documentazione ufficiale",
+  "registrationAndroidIdentity": "Pacchetto: {packageName}\nHash della firma: {signatureHash}\nURI di reindirizzamento: {redirectUri}",
+  "@registrationAndroidIdentity": {
+    "placeholders": {
+      "packageName": {
+        "type": "String"
+      },
+      "signatureHash": {
+        "type": "String"
+      },
+      "redirectUri": {
+        "type": "String"
+      }
+    }
+  }
 }

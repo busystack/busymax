@@ -138,8 +138,14 @@ class CalendarPendingOpsReplayer {
         } else if (_isCalendarCreation(op) &&
             (error.statusCode == 408 || error.statusCode >= 500)) {
           await _blockUnknownCalendarCreation(op, error.message);
-        } else if (_isRetryableStatus(error.statusCode)) {
-          await _scheduleRetry(op, error.code, error.message);
+        } else if (error.isRateLimited ||
+            _isRetryableStatus(error.statusCode)) {
+          await _scheduleRetry(
+            op,
+            error.code,
+            error.message,
+            retryAfter: error.retryAfter,
+          );
         } else {
           await _blockOp(op, error.code, error.message);
         }
@@ -151,8 +157,14 @@ class CalendarPendingOpsReplayer {
         } else if (_isCalendarCreation(op) &&
             (error.statusCode == 408 || error.statusCode >= 500)) {
           await _blockUnknownCalendarCreation(op, error.message);
-        } else if (_isRetryableStatus(error.statusCode)) {
-          await _scheduleRetry(op, error.code, error.message);
+        } else if (error.isRateLimited ||
+            _isRetryableStatus(error.statusCode)) {
+          await _scheduleRetry(
+            op,
+            error.code,
+            error.message,
+            retryAfter: error.retryAfter,
+          );
         } else {
           await _blockOp(op, error.code, error.message);
         }
@@ -2365,9 +2377,16 @@ class CalendarPendingOpsReplayer {
   Future<void> _scheduleRetry(
     PendingOp op,
     String errorCode,
-    String errorMessage,
-  ) async {
-    final nextAttempt = _nextAttempt(op.attemptCount);
+    String errorMessage, {
+    Duration? retryAfter,
+  }) async {
+    var nextAttempt = _nextAttempt(op.attemptCount);
+    if (retryAfter != null) {
+      final providerNotBefore = _nowUtc().add(retryAfter);
+      if (providerNotBefore.isAfter(nextAttempt)) {
+        nextAttempt = providerNotBefore;
+      }
+    }
     if (_requiresRevisionMatch(op)) {
       await _database.pendingOpsDao.updateAttemptIfUnchanged(
         snapshot: op,

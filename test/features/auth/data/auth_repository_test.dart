@@ -101,15 +101,18 @@ void main() {
     expect(oAuth.revoked, isFalse);
   });
 
-  test('sign-in without required write scope revokes and fails', () async {
-    oAuth.nextTokenSet = _tokenSet(scopes: {googleTasksReadOnlyScope});
+  test(
+    'sign-in without required write scope rejects without destructive cleanup',
+    () async {
+      oAuth.nextTokenSet = _tokenSet(scopes: {googleTasksReadOnlyScope});
 
-    await expectLater(repository.signIn(), throwsA(isA<OAuthException>()));
+      await expectLater(repository.signIn(), throwsA(isA<OAuthException>()));
 
-    expect(oAuth.revoked, isTrue);
-    expect(oAuth.revokedAccountId, 'account-1');
-    expect(await database.select(database.accounts).get(), isEmpty);
-  });
+      expect(oAuth.revoked, isFalse);
+      expect(oAuth.revokedAccountId, null);
+      expect(await database.select(database.accounts).get(), isEmpty);
+    },
+  );
 
   for (final qualified in [false, true]) {
     test(
@@ -167,7 +170,7 @@ void main() {
         ),
       ),
     );
-    expect(microsoftOAuth.signOutAccountIds, ['microsoft:user-1']);
+    expect(microsoftOAuth.signOutAccountIds, isEmpty);
   });
 
   test('revocation failure does not mask missing-scope guidance', () async {
@@ -185,8 +188,8 @@ void main() {
       ),
     );
 
-    expect(oAuth.revoked, isTrue);
-    expect(oAuth.revokedAccountId, 'account-1');
+    expect(oAuth.revoked, isFalse);
+    expect(oAuth.revokedAccountId, null);
     expect(await database.select(database.accounts).get(), isEmpty);
   });
 
@@ -269,8 +272,10 @@ void main() {
     final notifications = await database
         .select(database.notificationSchedule)
         .get();
-    expect(notifications.map((row) => row.accountId), ['google-b']);
-    expect(notifications.single.title, 'Private google-b reminder');
+    expect(
+      notifications.map((row) => row.accountId),
+      containsAll(['google-a', 'google-b']),
+    );
   });
 
   test(
@@ -288,7 +293,7 @@ void main() {
 
       await repository.markReconnectRequired(opaqueAccountId);
 
-      expect(microsoftOAuth.signOutAccountIds, [opaqueAccountId]);
+      expect(microsoftOAuth.signOutAccountIds, isEmpty);
       expect(oAuth.clearedAccountId, null);
     },
   );

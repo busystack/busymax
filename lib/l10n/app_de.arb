@@ -16,7 +16,13 @@
   "settingsSaveFailed": "Die Einstellungen konnten nicht gespeichert werden. Ihre Änderungen können beim Neustart von BusyMax verloren gehen.",
   "nextcloudExportCollection": "Sammlungsressourcen exportieren",
   "nextcloudImportItems": "{count} Ereignis-/Aufgabenressourcen gefunden",
-  "@nextcloudImportItems": {"placeholders": {"count": {"type": "int"}}},
+  "@nextcloudImportItems": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "nextcloudSchedulingInbox": "Einladungsposteingang",
   "nextcloudInboxExplanation": "Nextcloud verarbeitet diese Nachrichten in Ihren Kalendern. Eine Bestätigung entfernt nur die Nachricht, nicht den Termin.",
   "nextcloudInboxEmpty": "Keine Planungsnachrichten.",
@@ -24,7 +30,13 @@
   "nextcloudAcknowledgeConfirm": "Diese Nachricht aus dem Posteingang entfernen? Der Termin bleibt erhalten.",
   "nextcloudGuestAvailability": "Verfügbarkeit der Gäste prüfen",
   "nextcloudTrashRetention": "Aufbewahrung im Server-Papierkorb: {days} Tage",
-  "@nextcloudTrashRetention": {"placeholders": {"days": {"type": "int"}}},
+  "@nextcloudTrashRetention": {
+    "placeholders": {
+      "days": {
+        "type": "int"
+      }
+    }
+  },
   "nextcloudCancelMeeting": "Besprechung absagen",
   "nextcloudDeclineAndRemove": "Einladung ablehnen und entfernen",
   "nextcloudDeclineRemovalWarning": "Beim Synchronisieren wird eine Absage gesendet. Die Besprechung des Organisators wird nicht abgesagt.",
@@ -171,7 +183,7 @@
   },
   "newEvent": "Neuer Termin",
   "refreshCalendar": "Kalender aktualisieren",
-"openInProvider": "Beim Anbieter öffnen",
+  "openInProvider": "Beim Anbieter öffnen",
   "linkedResources": "Verknüpfte Ressourcen",
   "noLinkedResources": "Keine verknüpften Ressourcen",
   "attachments": "Anhänge",
@@ -513,7 +525,7 @@
   "moveToTop": "Ganz nach oben verschieben",
   "deleteTask": "Aufgabe löschen",
   "newSubtask": "Neue Unteraufgabe",
- "deleteTaskConfirmation": "\"{title}\" löschen?",
+  "deleteTaskConfirmation": "\"{title}\" löschen?",
   "deleteAssignedTaskWarning": "Dadurch wird auch die ursprüngliche Aufgabe in Google Docs oder Chat-Bereichen gelöscht.",
   "metadata": "Metadaten",
   "id": "ID",
@@ -1088,19 +1100,33 @@
   "@repeatYearlyOnMonthDaysSummary": {
     "description": "Complete yearly recurrence summary for selected month days; placeholders may be reordered by locale.",
     "placeholders": {
-      "frequency": {"type": "String"},
-      "month": {"type": "String"},
-      "days": {"type": "String"}
+      "frequency": {
+        "type": "String"
+      },
+      "month": {
+        "type": "String"
+      },
+      "days": {
+        "type": "String"
+      }
     }
   },
   "repeatYearlyOnOrdinalSummary": "{frequency} {position, select, first{am ersten} second{am zweiten} third{am dritten} fourth{am vierten} fifth{am fünften} secondToLast{am vorletzten} last{am letzten} other{an}} {days} im {month}",
   "@repeatYearlyOnOrdinalSummary": {
     "description": "Complete yearly ordinal recurrence summary; {position} selects the ordinal wording and placeholders may be reordered by locale.",
     "placeholders": {
-      "frequency": {"type": "String"},
-      "month": {"type": "String"},
-      "position": {"type": "String"},
-      "days": {"type": "String"}
+      "frequency": {
+        "type": "String"
+      },
+      "month": {
+        "type": "String"
+      },
+      "position": {
+        "type": "String"
+      },
+      "days": {
+        "type": "String"
+      }
     }
   },
   "searchFilters": "Suchfilter",
@@ -1163,5 +1189,75 @@
   "sharingRateLimited": "Die Freigabe ist vorübergehend begrenzt. Versuchen Sie es nach der Wartezeit erneut.",
   "attachmentUploadRateLimited": "Das Hochladen von Anhängen ist vorübergehend begrenzt. Versuchen Sie es nach der Wartezeit erneut.",
   "unknownEventLabel": "Unbekanntes Label ({id})",
-  "@unknownEventLabel": {"placeholders": {"id": {"type": "String"}}}
+  "@unknownEventLabel": {
+    "placeholders": {
+      "id": {
+        "type": "String"
+      }
+    }
+  },
+  "registrationSetupTitle": "{provider} einrichten",
+  "@registrationSetupTitle": {
+    "placeholders": {
+      "provider": {
+        "type": "String"
+      }
+    }
+  },
+  "registrationSetupGuide": "Einrichtungsanleitung",
+  "registrationGoogleInstructions": "Erstellen Sie Ihr eigenes Google Cloud-Projekt, aktivieren Sie Calendar und Tasks und importieren Sie die JSON-Datei eines Desktop-OAuth-Clients. Autorisieren Sie das gewünschte Konto.",
+  "registrationMicrosoftInstructions": "Verwenden Sie eine öffentliche App-Registrierung in einem Entra-Mandanten, der Registrierungen erlaubt. Geben Sie Client-ID und Kontotypen an. Kein Clientgeheimnis erforderlich.",
+  "registrationImportGoogle": "Desktop-OAuth-JSON auswählen",
+  "registrationValidate": "Registrierung prüfen",
+  "registrationAuthorize": "Im Browser autorisieren",
+  "registrationClientId": "Anwendungs-/Client-ID",
+  "registrationTenantId": "Mandanten-ID",
+  "registrationAudience": "Unterstützte Konten",
+  "registrationBothAudience": "Private und Organisationskonten",
+  "registrationOrganizationAudience": "Organisationskonten",
+  "registrationPersonalAudience": "Private Konten",
+  "registrationTenantAudience": "Ein Organisationsmandant",
+  "registrationSummary": "Registrierung: {clientId}",
+  "@registrationSummary": {
+    "placeholders": {
+      "clientId": {
+        "type": "String"
+      }
+    }
+  },
+  "registrationMigrate": "Jetzt migrieren",
+  "registrationReplace": "Registrierung ersetzen",
+  "registrationRetirementNotice": "Dieses Konto verwendet die gemeinsame {provider}-App-Registrierung von BusyMax, die in der nächsten Version eingestellt wird. Richten Sie Ihre eigene {setup} ein und verbinden Sie dieses Konto erneut, damit die Synchronisierung weiter funktioniert. Kalender, Aufgaben und lokale Änderungen bleiben erhalten.",
+  "@registrationRetirementNotice": {
+    "placeholders": {
+      "provider": {
+        "type": "String"
+      },
+      "setup": {
+        "type": "String"
+      }
+    }
+  },
+  "registrationContinue": "Dieses Konto weiter verwenden",
+  "registrationGoogleProject": "Google Cloud-Projekt",
+  "registrationMicrosoftApp": "Microsoft-App-Registrierung",
+  "registrationUserOwned": "Vom Benutzer bereitgestellte Registrierung",
+  "registrationNativeGoogle": "Native Google-Android-Registrierung",
+  "registrationShared": "Gemeinsame Registrierung (Übergang)",
+  "registrationUnresolved": "Die Herkunft der Registrierung ist ungeklärt. Kontodaten bleiben erhalten.",
+  "registrationOfficialDocumentation": "Offizielle Dokumentation",
+  "registrationAndroidIdentity": "Paket: {packageName}\nSignaturhash: {signatureHash}\nUmleitungs-URI: {redirectUri}",
+  "@registrationAndroidIdentity": {
+    "placeholders": {
+      "packageName": {
+        "type": "String"
+      },
+      "signatureHash": {
+        "type": "String"
+      },
+      "redirectUri": {
+        "type": "String"
+      }
+    }
+  }
 }

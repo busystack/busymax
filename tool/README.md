@@ -12,6 +12,19 @@ in the linked development or release guides.
 - `check_platform_boundaries.dart` scans `lib/` and generated plugin
   registrations for forbidden Linux/Windows dependency crossings. It is
   read-only and is part of normal validation.
+- `create_source_handoff.py --output build/handoff/busymax-source.tar.gz`
+  archives tracked and unignored source, generated code, help and fixtures.
+  It excludes Git metadata, local credentials/configuration and build outputs,
+  and includes a per-file SHA-256 manifest plus an archive checksum sidecar.
+
+`check_generated_sources.dart snapshot|verify <file>` compares regeneration
+against the reviewed source tree, including intentional uncommitted changes.
+Android and Windows local verification use this check; CI also requires checked-in
+generated sources. Windows `-Ci -UserOwnedOnly -Stage WindowsCompile` validates
+setup without original registrations; default official packaging preserves them.
+Android's redirect/signing identity remains required even without the original
+Microsoft client. The pinned Gradle 9.4.1 supports JDK 17–26; use an installed
+supported runtime without downgrading it.
 
 ## Linux and Snap
 

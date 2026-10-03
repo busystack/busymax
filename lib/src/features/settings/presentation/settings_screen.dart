@@ -1,3 +1,6 @@
+import '../../../l10n/registration_description.dart';
+import '../../auth/presentation/registration_setup_dialog.dart';
+import '../../../core/auth/oauth_registration.dart';
 import 'package:busymax/src/l10n/time_format_scope.dart';
 import 'package:busymax/src/l10n/week_preferences_scope.dart';
 import 'dart:async';
@@ -152,8 +155,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     final pageBody = switch (_page) {
       SettingsPage.accounts => _AccountManagementSection(
         accounts: _selectedAccountFirst(accounts, selectedAccount?.id),
-        googleConfigured: config.hasGoogleOAuthClientId,
-        microsoftConfigured: config.hasMicrosoftOAuthClientId,
+        googleConfigured: config.googleSetupAvailable,
+        microsoftConfigured: config.microsoftSetupAvailable,
         connectingProvider: _connectingProvider,
         onAddGoogle: () => unawaited(_connectAccount(BusyProvider.google)),
         onAddMicrosoft: () =>
@@ -166,6 +169,13 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         onAddNextcloud: () =>
             unawaited(_connectAccount(BusyProvider.nextcloud)),
         onCancelConnection: _cancelAccountConnection,
+        onMigrate: (account) => unawaited(
+          _connectAccount(
+            account.provider,
+            reconnecting: account,
+            replaceRegistration: true,
+          ),
+        ),
         onReconnect: (account) =>
             unawaited(_connectAccount(account.provider, reconnecting: account)),
         removingAccountIds: _removingAccountIds,
@@ -740,6 +750,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   Future<void> _connectAccount(
     BusyProvider provider, {
     AccountEntity? reconnecting,
+    bool replaceRegistration = false,
   }) async {
     if (_connectingProvider != null) {
       return;
@@ -759,6 +770,18 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       );
       if (nextcloudServer == null || !mounted) return;
     }
+    AuthorizationRequest? request;
+    if (provider == BusyProvider.google || provider == BusyProvider.microsoft) {
+      if (reconnecting != null && !replaceRegistration) {
+        request = AuthorizationRequest.reconnect(reconnecting.id);
+      } else {
+        final handle = await showRegistrationSetup(context, ref, provider);
+        if (handle == null || !mounted) return;
+        request = reconnecting == null
+            ? AuthorizationRequest.newConnection(handle)
+            : AuthorizationRequest.replace(reconnecting.id, handle);
+      }
+    }
     final repository = ref.read(authRepositoryProvider);
     final runSync = ref.read(signedInSyncRunnerProvider);
     setState(() => _connectingProvider = provider);
@@ -766,9 +789,11 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       String? accountId;
       switch (provider) {
         case BusyProvider.google:
-          accountId = (await repository.signIn()).accountId;
+          accountId = (await repository.signIn(request: request)).accountId;
         case BusyProvider.microsoft:
-          accountId = (await repository.signInWithMicrosoft()).accountId;
+          accountId = (await repository.signInWithMicrosoft(
+            request: request,
+          )).accountId;
         case BusyProvider.appleICloud:
           final cancellation = DavCancellationToken();
           _davCancellation = cancellation;
@@ -1335,6 +1360,7 @@ class _AccountManagementSection extends StatelessWidget {
     required this.onAddNextcloud,
     required this.onCancelConnection,
     required this.onReconnect,
+    required this.onMigrate,
     required this.removingAccountIds,
     required this.onRemoveAccount,
     required this.davCollections,
@@ -1368,6 +1394,7 @@ class _AccountManagementSection extends StatelessWidget {
   final VoidCallback onAddNextcloud;
   final VoidCallback onCancelConnection;
   final void Function(AccountEntity account) onReconnect;
+  final void Function(AccountEntity account) onMigrate;
   final Set<String> removingAccountIds;
   final void Function(AccountEntity account) onRemoveAccount;
   final List<DavCollectionSettingsEntity> davCollections;
@@ -1464,6 +1491,13 @@ class _AccountManagementSection extends StatelessWidget {
               onRemoveAccount: () => onRemoveAccount(account),
             ),
             subsections: [
+              if (account.provider == BusyProvider.google ||
+                  account.provider == BusyProvider.microsoft)
+                _RegistrationAccountCard(
+                  account: account,
+                  onMigrate: () => onMigrate(account),
+                  onReconnect: () => onReconnect(account),
+                ),
               if (account.calendarsEnabled &&
                   (account.provider == BusyProvider.google ||
                       account.provider == BusyProvider.microsoft))
@@ -2687,4 +2721,47 @@ Color? _parseDavColor(String? source) {
   if (normalized == null) return null;
   final parsed = int.tryParse(normalized, radix: 16);
   return parsed == null ? null : Color(parsed);
+}
+
+class _RegistrationAccountCard extends ConsumerWidget {
+  const _RegistrationAccountCard({
+    required this.account,
+    required this.onMigrate,
+    required this.onReconnect,
+  });
+  final AccountEntity account;
+  final VoidCallback onMigrate;
+  final VoidCallback onReconnect;
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final summary = ref
+        .watch(registrationSummariesProvider)
+        .valueOrNull?[account.id];
+    final l10n = context.l10n;
+    return BusyMaxGroupedList(
+      filled: true,
+      children: [
+        BusyMaxActionRow(
+          title: summary == null
+              ? l10n.registrationUnresolved
+              : l10n.registrationDescription(summary),
+          subtitle: summary?.showRetirementNotice == true
+              ? l10n.registrationRetirementNotice(
+                  account.provider.displayName,
+                  account.provider == BusyProvider.google
+                      ? l10n.registrationGoogleProject
+                      : l10n.registrationMicrosoftApp,
+                )
+              : null,
+        ),
+        BusyMaxActionRow(
+          title: summary?.showRetirementNotice == true
+              ? l10n.registrationMigrate
+              : l10n.registrationReplace,
+          onTap: onMigrate,
+        ),
+        BusyMaxActionRow(title: l10n.connectAccountAction, onTap: onReconnect),
+      ],
+    );
+  }
 }

@@ -46,6 +46,9 @@ jobs:
           tool/android/build_release.sh --all --test-signing
           --allow-unconfigured-providers
 
+      - name: Validate both registration modes with the installed test signing identity
+        run: tool/android/test_registration_modes.sh
+
       - name: Inspect test-signed artifacts
         run: tool/android/inspect_artifacts.sh
 
@@ -57,5 +60,6 @@ jobs:
             build/app/outputs/flutter-apk/app-release.apk
             build/app/outputs/bundle/release/app-release.aab
             build/android/android-artifact-inspection.txt
+            build/android/registration-modes/
           if-no-files-found: error
           retention-days: 7

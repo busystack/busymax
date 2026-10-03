@@ -3141,4 +3141,101 @@ class AppLocalizationsEt extends AppLocalizations {
 
   @override
   String get calendarOwnerEmail => 'Kalendri omaniku e-posti aadress';
+
+  @override
+  String registrationSetupTitle(String provider) {
+    return 'Seadista $provider';
+  }
+
+  @override
+  String get registrationSetupGuide => 'Seadistusjuhend';
+
+  @override
+  String get registrationGoogleInstructions =>
+      'Loo oma Google Cloudi projekt, luba Calendar ja Tasks ning impordi töölaua OAuth-kliendi JSON-fail. Autoriseeri soovitud konto.';
+
+  @override
+  String get registrationMicrosoftInstructions =>
+      'Kasuta avalikku rakenduse registreeringut Entra rentnikus, mis lubab registreerimist. Sisesta kliendi ID ja kontotüübid. Kliendisaladust pole vaja.';
+
+  @override
+  String get registrationImportGoogle => 'Vali töölaua OAuthi JSON';
+
+  @override
+  String get registrationValidate => 'Kontrolli registreeringut';
+
+  @override
+  String get registrationAuthorize => 'Autoriseeri brauseris';
+
+  @override
+  String get registrationClientId => 'Rakenduse/kliendi ID';
+
+  @override
+  String get registrationTenantId => 'Rentniku ID';
+
+  @override
+  String get registrationAudience => 'Toetatud kontod';
+
+  @override
+  String get registrationBothAudience => 'Isiklikud ja organisatsiooni kontod';
+
+  @override
+  String get registrationOrganizationAudience => 'Organisatsiooni kontod';
+
+  @override
+  String get registrationPersonalAudience => 'Isiklikud kontod';
+
+  @override
+  String get registrationTenantAudience => 'Üks organisatsiooni rentnik';
+
+  @override
+  String registrationSummary(String clientId) {
+    return 'Registreering: $clientId';
+  }
+
+  @override
+  String get registrationMigrate => 'Migreeri kohe';
+
+  @override
+  String get registrationReplace => 'Asenda registreering';
+
+  @override
+  String registrationRetirementNotice(String provider, String setup) {
+    return 'See konto kasutab BusyMaxi ühist $provider rakenduse registreeringut, mis lõpetatakse järgmises väljalaskes. Seadista oma $setup ja ühenda konto uuesti, et sünkroonimine jätkuks. Kalendrid, ülesanded ja kohalikud muudatused säilivad.';
+  }
+
+  @override
+  String get registrationContinue => 'Jätka selle konto kasutamist';
+
+  @override
+  String get registrationGoogleProject => 'Google Cloudi projekt';
+
+  @override
+  String get registrationMicrosoftApp => 'Microsofti rakenduse registreering';
+
+  @override
+  String get registrationUserOwned => 'Kasutaja antud registreering';
+
+  @override
+  String get registrationNativeGoogle =>
+      'Google Androidi natiivne registreering';
+
+  @override
+  String get registrationShared => 'Ühine registreering (üleminek)';
+
+  @override
+  String get registrationUnresolved =>
+      'Registreeringu päritolu on teadmata. Konto andmed säilivad.';
+
+  @override
+  String get registrationOfficialDocumentation => 'Ametlik dokumentatsioon';
+
+  @override
+  String registrationAndroidIdentity(
+    String packageName,
+    String signatureHash,
+    String redirectUri,
+  ) {
+    return 'Pakett: $packageName\nAllkirja räsi: $signatureHash\nÜmbersuunamise URI: $redirectUri';
+  }
 }

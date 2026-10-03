@@ -3169,4 +3169,101 @@ class AppLocalizationsFr extends AppLocalizations {
   @override
   String get calendarOwnerEmail =>
       'Adresse e-mail du propriétaire du calendrier';
+
+  @override
+  String registrationSetupTitle(String provider) {
+    return 'Configurer $provider';
+  }
+
+  @override
+  String get registrationSetupGuide => 'Guide de configuration';
+
+  @override
+  String get registrationGoogleInstructions =>
+      'Créez votre propre projet Google Cloud, activez Calendar et Tasks et importez le JSON d’un client OAuth de bureau. Autorisez le compte souhaité.';
+
+  @override
+  String get registrationMicrosoftInstructions =>
+      'Utilisez une inscription d’application publique dans un locataire Entra qui autorise les inscriptions. Saisissez l’ID client et les types de comptes. Aucun secret client n’est nécessaire.';
+
+  @override
+  String get registrationImportGoogle => 'Choisir le JSON OAuth de bureau';
+
+  @override
+  String get registrationValidate => 'Valider l’inscription';
+
+  @override
+  String get registrationAuthorize => 'Autoriser dans le navigateur';
+
+  @override
+  String get registrationClientId => 'ID d’application/client';
+
+  @override
+  String get registrationTenantId => 'ID du locataire';
+
+  @override
+  String get registrationAudience => 'Comptes pris en charge';
+
+  @override
+  String get registrationBothAudience => 'Comptes personnels et professionnels';
+
+  @override
+  String get registrationOrganizationAudience => 'Comptes professionnels';
+
+  @override
+  String get registrationPersonalAudience => 'Comptes personnels';
+
+  @override
+  String get registrationTenantAudience => 'Un locataire professionnel';
+
+  @override
+  String registrationSummary(String clientId) {
+    return 'Inscription : $clientId';
+  }
+
+  @override
+  String get registrationMigrate => 'Migrer maintenant';
+
+  @override
+  String get registrationReplace => 'Remplacer l’inscription';
+
+  @override
+  String registrationRetirementNotice(String provider, String setup) {
+    return 'Ce compte utilise l’inscription $provider partagée de BusyMax, qui sera abandonnée dans la prochaine version. Configurez votre propre $setup et reconnectez ce compte pour maintenir la synchronisation. Vos calendriers, tâches et modifications locales seront conservés.';
+  }
+
+  @override
+  String get registrationContinue => 'Continuer à utiliser ce compte';
+
+  @override
+  String get registrationGoogleProject => 'Projet Google Cloud';
+
+  @override
+  String get registrationMicrosoftApp => 'Inscription d’application Microsoft';
+
+  @override
+  String get registrationUserOwned => 'Inscription fournie par l’utilisateur';
+
+  @override
+  String get registrationNativeGoogle =>
+      'Inscription native Google pour Android';
+
+  @override
+  String get registrationShared => 'Inscription partagée (transition)';
+
+  @override
+  String get registrationUnresolved =>
+      'L’origine de l’inscription est inconnue. Les données du compte sont conservées.';
+
+  @override
+  String get registrationOfficialDocumentation => 'Documentation officielle';
+
+  @override
+  String registrationAndroidIdentity(
+    String packageName,
+    String signatureHash,
+    String redirectUri,
+  ) {
+    return 'Paquet : $packageName\nEmpreinte de signature : $signatureHash\nURI de redirection : $redirectUri';
+  }
 }

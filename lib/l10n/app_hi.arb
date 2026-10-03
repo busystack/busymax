@@ -16,7 +16,13 @@
   "settingsSaveFailed": "सेटिंग्स सहेजी नहीं जा सकीं। BusyMax फिर से शुरू होने पर आपके बदलाव खो सकते हैं।",
   "nextcloudExportCollection": "संग्रह के संसाधन निर्यात करें",
   "nextcloudImportItems": "{count} इवेंट/कार्य संसाधन मिले",
-  "@nextcloudImportItems": {"placeholders": {"count": {"type": "int"}}},
+  "@nextcloudImportItems": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "nextcloudSchedulingInbox": "निमंत्रण इनबॉक्स",
   "nextcloudInboxExplanation": "Nextcloud इन संदेशों को आपके कैलेंडर में संसाधित करता है। पुष्टि करने पर केवल संदेश हटता है, इवेंट नहीं।",
   "nextcloudInboxEmpty": "कोई शेड्यूलिंग संदेश नहीं।",
@@ -24,7 +30,13 @@
   "nextcloudAcknowledgeConfirm": "यह संदेश इनबॉक्स से हटाएँ? कैलेंडर इवेंट बना रहेगा।",
   "nextcloudGuestAvailability": "अतिथियों की उपलब्धता जाँचें",
   "nextcloudTrashRetention": "सर्वर के कूड़ेदान में रखने की अवधि: {days} दिन",
-  "@nextcloudTrashRetention": {"placeholders": {"days": {"type": "int"}}},
+  "@nextcloudTrashRetention": {
+    "placeholders": {
+      "days": {
+        "type": "int"
+      }
+    }
+  },
   "nextcloudCancelMeeting": "मीटिंग रद्द करें",
   "nextcloudDeclineAndRemove": "निमंत्रण अस्वीकार करके हटाएँ",
   "nextcloudDeclineRemovalWarning": "सिंक होने पर अस्वीकृति भेजी जाएगी। आयोजक की मीटिंग रद्द नहीं होगी।",
@@ -171,7 +183,7 @@
   },
   "newEvent": "नया इवेंट",
   "refreshCalendar": "कैलेंडर रीफ़्रेश करें",
-"openInProvider": "सेवा में खोलें",
+  "openInProvider": "सेवा में खोलें",
   "linkedResources": "लिंक किए गए संसाधन",
   "noLinkedResources": "कोई लिंक किया गया संसाधन नहीं",
   "attachments": "अटैचमेंट",
@@ -471,7 +483,7 @@
   "moveToTop": "सबसे ऊपर ले जाएँ",
   "deleteTask": "कार्य मिटाएँ",
   "newSubtask": "नया उपकार्य",
- "deleteTaskConfirmation": "“{title}” मिटाएँ?",
+  "deleteTaskConfirmation": "“{title}” मिटाएँ?",
   "deleteAssignedTaskWarning": "इससे Google Docs या Chat Spaces में मूल टास्क भी मिट जाएगा।",
   "metadata": "मेटाडेटा",
   "id": "आईडी",
@@ -1025,19 +1037,33 @@
   "@repeatYearlyOnMonthDaysSummary": {
     "description": "Complete yearly recurrence summary for selected month days; placeholders may be reordered by locale.",
     "placeholders": {
-      "frequency": {"type": "String"},
-      "month": {"type": "String"},
-      "days": {"type": "String"}
+      "frequency": {
+        "type": "String"
+      },
+      "month": {
+        "type": "String"
+      },
+      "days": {
+        "type": "String"
+      }
     }
   },
   "repeatYearlyOnOrdinalSummary": "{frequency} {month} के {position, select, first{पहले} second{दूसरे} third{तीसरे} fourth{चौथे} fifth{पाँचवें} secondToLast{अंतिम से दूसरे} last{अंतिम} other{}} {days} को",
   "@repeatYearlyOnOrdinalSummary": {
     "description": "Complete yearly ordinal recurrence summary; {position} selects the ordinal wording and placeholders may be reordered by locale.",
     "placeholders": {
-      "frequency": {"type": "String"},
-      "month": {"type": "String"},
-      "position": {"type": "String"},
-      "days": {"type": "String"}
+      "frequency": {
+        "type": "String"
+      },
+      "month": {
+        "type": "String"
+      },
+      "position": {
+        "type": "String"
+      },
+      "days": {
+        "type": "String"
+      }
     }
   },
   "searchFilters": "खोज फ़िल्टर",
@@ -1100,5 +1126,75 @@
   "sharingRateLimited": "साझाकरण अस्थायी रूप से सीमित है। प्रतीक्षा अवधि समाप्त होने पर फिर प्रयास करें।",
   "attachmentUploadRateLimited": "अटैचमेंट अपलोड अस्थायी रूप से सीमित है। प्रतीक्षा अवधि समाप्त होने पर फिर प्रयास करें।",
   "unknownEventLabel": "अज्ञात लेबल ({id})",
-  "@unknownEventLabel": {"placeholders": {"id": {"type": "String"}}}
+  "@unknownEventLabel": {
+    "placeholders": {
+      "id": {
+        "type": "String"
+      }
+    }
+  },
+  "registrationSetupTitle": "{provider} सेट अप करें",
+  "@registrationSetupTitle": {
+    "placeholders": {
+      "provider": {
+        "type": "String"
+      }
+    }
+  },
+  "registrationSetupGuide": "सेटअप मार्गदर्शिका",
+  "registrationGoogleInstructions": "अपना Google Cloud प्रोजेक्ट बनाएँ, Calendar और Tasks API चालू करें और Desktop OAuth क्लाइंट का JSON आयात करें। इच्छित खाते को अनुमति दें।",
+  "registrationMicrosoftInstructions": "ऐसे Entra टेनेंट में सार्वजनिक ऐप पंजीकरण इस्तेमाल करें जो पंजीकरण की अनुमति देता हो। क्लाइंट ID और खाते के प्रकार दर्ज करें। क्लाइंट सीक्रेट की आवश्यकता नहीं है।",
+  "registrationImportGoogle": "Desktop OAuth JSON चुनें",
+  "registrationValidate": "पंजीकरण जाँचें",
+  "registrationAuthorize": "ब्राउज़र में अनुमति दें",
+  "registrationClientId": "एप्लिकेशन/क्लाइंट ID",
+  "registrationTenantId": "टेनेंट ID",
+  "registrationAudience": "समर्थित खाते",
+  "registrationBothAudience": "व्यक्तिगत और संगठन के खाते",
+  "registrationOrganizationAudience": "संगठन के खाते",
+  "registrationPersonalAudience": "व्यक्तिगत खाते",
+  "registrationTenantAudience": "एक संगठन का टेनेंट",
+  "registrationSummary": "पंजीकरण: {clientId}",
+  "@registrationSummary": {
+    "placeholders": {
+      "clientId": {
+        "type": "String"
+      }
+    }
+  },
+  "registrationMigrate": "अभी माइग्रेट करें",
+  "registrationReplace": "पंजीकरण बदलें",
+  "registrationRetirementNotice": "यह खाता BusyMax के साझा {provider} ऐप पंजीकरण का उपयोग करता है, जो अगले रिलीज़ में बंद होगा। अपना {setup} सेट अप करें और सिंक्रोनाइज़ेशन जारी रखने के लिए इस खाते को फिर कनेक्ट करें। मौजूदा कैलेंडर, कार्य और स्थानीय बदलाव सुरक्षित रहेंगे।",
+  "@registrationRetirementNotice": {
+    "placeholders": {
+      "provider": {
+        "type": "String"
+      },
+      "setup": {
+        "type": "String"
+      }
+    }
+  },
+  "registrationContinue": "इस खाते का उपयोग जारी रखें",
+  "registrationGoogleProject": "Google Cloud प्रोजेक्ट",
+  "registrationMicrosoftApp": "Microsoft ऐप पंजीकरण",
+  "registrationUserOwned": "उपयोगकर्ता द्वारा दिया गया पंजीकरण",
+  "registrationNativeGoogle": "मूल Google Android पंजीकरण",
+  "registrationShared": "साझा पंजीकरण (संक्रमण)",
+  "registrationUnresolved": "पंजीकरण का स्रोत स्पष्ट नहीं है। खाते का डेटा सुरक्षित है।",
+  "registrationOfficialDocumentation": "आधिकारिक दस्तावेज़",
+  "registrationAndroidIdentity": "पैकेज: {packageName}\nहस्ताक्षर हैश: {signatureHash}\nरीडायरेक्ट URI: {redirectUri}",
+  "@registrationAndroidIdentity": {
+    "placeholders": {
+      "packageName": {
+        "type": "String"
+      },
+      "signatureHash": {
+        "type": "String"
+      },
+      "redirectUri": {
+        "type": "String"
+      }
+    }
+  }
 }

@@ -16,7 +16,13 @@
   "settingsSaveFailed": "Không thể lưu cài đặt. Các thay đổi có thể bị mất khi BusyMax khởi động lại.",
   "nextcloudExportCollection": "Xuất tài nguyên bộ sưu tập",
   "nextcloudImportItems": "Tìm thấy {count} tài nguyên sự kiện/công việc",
-  "@nextcloudImportItems": {"placeholders": {"count": {"type": "int"}}},
+  "@nextcloudImportItems": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "nextcloudSchedulingInbox": "Hộp thư lời mời",
   "nextcloudInboxExplanation": "Nextcloud xử lý các thư này vào lịch của bạn. Xác nhận chỉ xóa thư, không xóa sự kiện.",
   "nextcloudInboxEmpty": "Không có thư lập lịch.",
@@ -24,7 +30,13 @@
   "nextcloudAcknowledgeConfirm": "Xóa thư này khỏi hộp thư đến? Sự kiện lịch sẽ được giữ lại.",
   "nextcloudGuestAvailability": "Kiểm tra thời gian rảnh của khách",
   "nextcloudTrashRetention": "Thời gian lưu trong thùng rác máy chủ: {days} ngày",
-  "@nextcloudTrashRetention": {"placeholders": {"days": {"type": "int"}}},
+  "@nextcloudTrashRetention": {
+    "placeholders": {
+      "days": {
+        "type": "int"
+      }
+    }
+  },
   "nextcloudCancelMeeting": "Hủy cuộc họp",
   "nextcloudDeclineAndRemove": "Từ chối và xóa lời mời",
   "nextcloudDeclineRemovalWarning": "Việc xóa sẽ gửi lời từ chối khi đồng bộ. Cuộc họp của người tổ chức không bị hủy.",
@@ -171,7 +183,7 @@
   },
   "newEvent": "Sự kiện mới",
   "refreshCalendar": "Làm mới lịch",
-"openInProvider": "Mở trong dịch vụ",
+  "openInProvider": "Mở trong dịch vụ",
   "linkedResources": "Tài nguyên liên kết",
   "noLinkedResources": "Không có tài nguyên liên kết",
   "attachments": "Tệp đính kèm",
@@ -471,7 +483,7 @@
   "moveToTop": "Chuyển lên đầu",
   "deleteTask": "Xóa công việc",
   "newSubtask": "Công việc con mới",
- "deleteTaskConfirmation": "Xóa “{title}”?",
+  "deleteTaskConfirmation": "Xóa “{title}”?",
   "deleteAssignedTaskWarning": "Thao tác này cũng xóa công việc gốc trong Google Tài liệu hoặc không gian Chat.",
   "metadata": "Siêu dữ liệu",
   "id": "ID",
@@ -1025,19 +1037,33 @@
   "@repeatYearlyOnMonthDaysSummary": {
     "description": "Complete yearly recurrence summary for selected month days; placeholders may be reordered by locale.",
     "placeholders": {
-      "frequency": {"type": "String"},
-      "month": {"type": "String"},
-      "days": {"type": "String"}
+      "frequency": {
+        "type": "String"
+      },
+      "month": {
+        "type": "String"
+      },
+      "days": {
+        "type": "String"
+      }
     }
   },
   "repeatYearlyOnOrdinalSummary": "{frequency} vào {days} {position, select, first{đầu tiên} second{thứ hai} third{thứ ba} fourth{thứ tư} fifth{thứ năm} secondToLast{áp chót} last{cuối cùng} other{}} của {month}",
   "@repeatYearlyOnOrdinalSummary": {
     "description": "Complete yearly ordinal recurrence summary; {position} selects the ordinal wording and placeholders may be reordered by locale.",
     "placeholders": {
-      "frequency": {"type": "String"},
-      "month": {"type": "String"},
-      "position": {"type": "String"},
-      "days": {"type": "String"}
+      "frequency": {
+        "type": "String"
+      },
+      "month": {
+        "type": "String"
+      },
+      "position": {
+        "type": "String"
+      },
+      "days": {
+        "type": "String"
+      }
     }
   },
   "searchFilters": "Bộ lọc tìm kiếm",
@@ -1100,5 +1126,75 @@
   "sharingRateLimited": "Việc chia sẻ đang tạm thời bị giới hạn. Hãy thử lại sau khi hết thời gian chờ.",
   "attachmentUploadRateLimited": "Việc tải tệp đính kèm lên đang tạm thời bị giới hạn. Hãy thử lại sau khi hết thời gian chờ.",
   "unknownEventLabel": "Nhãn không xác định ({id})",
-  "@unknownEventLabel": {"placeholders": {"id": {"type": "String"}}}
+  "@unknownEventLabel": {
+    "placeholders": {
+      "id": {
+        "type": "String"
+      }
+    }
+  },
+  "registrationSetupTitle": "Thiết lập {provider}",
+  "@registrationSetupTitle": {
+    "placeholders": {
+      "provider": {
+        "type": "String"
+      }
+    }
+  },
+  "registrationSetupGuide": "Hướng dẫn thiết lập",
+  "registrationGoogleInstructions": "Tạo dự án Google Cloud của riêng bạn, bật Calendar và Tasks, rồi nhập JSON của ứng dụng OAuth Desktop. Cấp quyền cho tài khoản mong muốn.",
+  "registrationMicrosoftInstructions": "Dùng đăng ký ứng dụng công khai trong đối tượng thuê Entra cho phép đăng ký. Nhập ID ứng dụng và loại tài khoản. Không cần bí mật ứng dụng.",
+  "registrationImportGoogle": "Chọn JSON OAuth Desktop",
+  "registrationValidate": "Kiểm tra đăng ký",
+  "registrationAuthorize": "Cấp quyền trong trình duyệt",
+  "registrationClientId": "ID ứng dụng/khách",
+  "registrationTenantId": "ID đối tượng thuê",
+  "registrationAudience": "Tài khoản được hỗ trợ",
+  "registrationBothAudience": "Tài khoản cá nhân và tổ chức",
+  "registrationOrganizationAudience": "Tài khoản tổ chức",
+  "registrationPersonalAudience": "Tài khoản cá nhân",
+  "registrationTenantAudience": "Một đối tượng thuê tổ chức",
+  "registrationSummary": "Đăng ký: {clientId}",
+  "@registrationSummary": {
+    "placeholders": {
+      "clientId": {
+        "type": "String"
+      }
+    }
+  },
+  "registrationMigrate": "Chuyển đổi ngay",
+  "registrationReplace": "Thay đăng ký",
+  "registrationRetirementNotice": "Tài khoản này dùng đăng ký {provider} chung của BusyMax, sẽ ngừng hoạt động ở bản phát hành tiếp theo. Thiết lập {setup} của riêng bạn và kết nối lại tài khoản để tiếp tục đồng bộ. Lịch, công việc và thay đổi cục bộ của bạn sẽ được giữ lại.",
+  "@registrationRetirementNotice": {
+    "placeholders": {
+      "provider": {
+        "type": "String"
+      },
+      "setup": {
+        "type": "String"
+      }
+    }
+  },
+  "registrationContinue": "Tiếp tục dùng tài khoản này",
+  "registrationGoogleProject": "Dự án Google Cloud",
+  "registrationMicrosoftApp": "Đăng ký ứng dụng Microsoft",
+  "registrationUserOwned": "Đăng ký do người dùng cung cấp",
+  "registrationNativeGoogle": "Đăng ký Google gốc cho Android",
+  "registrationShared": "Đăng ký chung (chuyển tiếp)",
+  "registrationUnresolved": "Chưa xác định nguồn đăng ký. Dữ liệu tài khoản được giữ lại.",
+  "registrationOfficialDocumentation": "Tài liệu chính thức",
+  "registrationAndroidIdentity": "Gói: {packageName}\nMã băm chữ ký: {signatureHash}\nURI chuyển hướng: {redirectUri}",
+  "@registrationAndroidIdentity": {
+    "placeholders": {
+      "packageName": {
+        "type": "String"
+      },
+      "signatureHash": {
+        "type": "String"
+      },
+      "redirectUri": {
+        "type": "String"
+      }
+    }
+  }
 }

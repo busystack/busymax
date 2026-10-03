@@ -3193,4 +3193,100 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get calendarOwnerEmail => 'Calendar owner email';
+
+  @override
+  String registrationSetupTitle(String provider) {
+    return 'Set up $provider';
+  }
+
+  @override
+  String get registrationSetupGuide => 'Setup guide';
+
+  @override
+  String get registrationGoogleInstructions =>
+      'Create your own Google Cloud project, enable both Calendar and Tasks APIs, and download a Desktop OAuth client JSON. Import the configuration, then authorize the intended account.';
+
+  @override
+  String get registrationMicrosoftInstructions =>
+      'Use a public app registration in an Entra tenant that permits registration. Enter its Application/client ID and supported account audience. No client secret is required.';
+
+  @override
+  String get registrationImportGoogle => 'Select Desktop OAuth JSON';
+
+  @override
+  String get registrationValidate => 'Validate registration';
+
+  @override
+  String get registrationAuthorize => 'Authorize in browser';
+
+  @override
+  String get registrationClientId => 'Application/client ID';
+
+  @override
+  String get registrationTenantId => 'Tenant ID';
+
+  @override
+  String get registrationAudience => 'Supported accounts';
+
+  @override
+  String get registrationBothAudience => 'Personal and organizational accounts';
+
+  @override
+  String get registrationOrganizationAudience => 'Organizational accounts';
+
+  @override
+  String get registrationPersonalAudience => 'Personal accounts';
+
+  @override
+  String get registrationTenantAudience => 'One organizational tenant';
+
+  @override
+  String registrationSummary(String clientId) {
+    return 'Registration: $clientId';
+  }
+
+  @override
+  String get registrationMigrate => 'Migrate now';
+
+  @override
+  String get registrationReplace => 'Replace registration';
+
+  @override
+  String registrationRetirementNotice(String provider, String setup) {
+    return 'This account uses BusyMax’s shared $provider app registration, which will be discontinued in the next release. Set up your own $setup and reconnect this account to keep synchronization working. Your existing calendars, tasks, and local changes will be preserved.';
+  }
+
+  @override
+  String get registrationContinue => 'Continue using this account';
+
+  @override
+  String get registrationGoogleProject => 'Google Cloud project';
+
+  @override
+  String get registrationMicrosoftApp => 'Microsoft app registration';
+
+  @override
+  String get registrationUserOwned => 'User-provided registration';
+
+  @override
+  String get registrationNativeGoogle => 'Native Google Android registration';
+
+  @override
+  String get registrationShared => 'Shared registration (transition)';
+
+  @override
+  String get registrationUnresolved =>
+      'Registration provenance is unresolved. Account data is preserved.';
+
+  @override
+  String get registrationOfficialDocumentation => 'Official documentation';
+
+  @override
+  String registrationAndroidIdentity(
+    String packageName,
+    String signatureHash,
+    String redirectUri,
+  ) {
+    return 'Package: $packageName\nSignature hash: $signatureHash\nRedirect URI: $redirectUri';
+  }
 }

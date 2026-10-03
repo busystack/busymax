@@ -287,6 +287,9 @@ class _TaskDetailsPaneState extends ConsumerState<TaskDetailsPane> {
   }
 
   Future<void> _refreshTask(TasksRepository repository, TaskEntity task) async {
+    final generation = await ref.read(authorizationGenerationReaderProvider)(
+      task.accountId,
+    );
     try {
       final account = await ref
           .read(accountsRepositoryProvider)
@@ -310,7 +313,10 @@ class _TaskDetailsPaneState extends ConsumerState<TaskDetailsPane> {
         try {
           await ref
               .read(authRepositoryProvider)
-              .markReconnectRequired(task.accountId);
+              .markReconnectRequired(
+                task.accountId,
+                authorizationGeneration: generation,
+              );
         } on Object {
           // Keep the original refresh failure visible below.
         }

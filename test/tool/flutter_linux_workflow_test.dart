@@ -62,8 +62,16 @@ void main() {
     );
     expect(workflow, contains('uses: snapcore/action-build@v1'));
     expect(workflow, contains('uses: actions/upload-artifact@v7'));
-    expect(workflow, contains('Validate release provider configuration'));
-    expect(workflow, contains('Verify release provider configuration'));
+    expect(
+      workflow,
+      contains('Validate original registrations for the transitional release'),
+    );
+    expect(
+      workflow,
+      contains(
+        'Verify intended original registrations in the transitional binary',
+      ),
+    );
     expect(
       workflow,
       contains("echo '::error::Release provider configuration is incomplete.'"),

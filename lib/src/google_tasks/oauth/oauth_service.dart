@@ -1,3 +1,6 @@
+import '../../core/http/bounded_http.dart';
+import '../../core/http/retry_after.dart';
+import 'package:drift/drift.dart' show BooleanExpressionOperators, Value;
 import 'dart:async';
 import 'dart:convert';
 
@@ -6,6 +9,10 @@ import 'package:http/http.dart' as http;
 import 'package:logging/logging.dart';
 
 import '../../config/build_config.dart';
+import '../../db/app_database.dart' show AccountsCompanion;
+import '../../core/auth/oauth_registration.dart';
+import '../../core/auth/registration_staging.dart';
+import '../../core/auth/authorization_persistence.dart';
 import '../../core/logging/redacting_logger.dart';
 import '../../providers/busy_provider.dart';
 import '../api/google_tasks_api_surface.dart';
@@ -33,21 +40,38 @@ abstract interface class OAuthGateway {
   Future<void> cancelSignIn();
 }
 
-class OAuthService implements OAuthGateway {
+abstract interface class GoogleConnectionGateway {
+  Future<OAuthSignInResult> connectGoogle(AuthorizationRequest request);
+}
+
+class OAuthService
+    implements
+        OAuthGateway,
+        GoogleConnectionGateway,
+        RegistrationBindingResolver {
   OAuthService({
     required BuildConfig config,
     required http.Client httpClient,
     required SecretStore tokenStore,
     required OAuthLoopbackFlow loopbackFlow,
     DateTime Function()? nowUtc,
+    RegistrationStaging? registrations,
+    AuthorizationPersistence? persistence,
     Duration authorizationRevocationTimeout = const Duration(seconds: 10),
-  }) : _config = config,
+  }) : _registrations = registrations ?? RegistrationStaging(config),
+       _persistence = persistence,
+       _config = config,
        _httpClient = httpClient,
        _tokenStore = tokenStore,
        _loopbackFlow = loopbackFlow,
        _nowUtc = nowUtc ?? (() => DateTime.now().toUtc()),
        _authorizationRevocationTimeout = authorizationRevocationTimeout;
 
+  final RegistrationStaging _registrations;
+  final AuthorizationPersistence? _persistence;
+  final Map<String, Future<OAuthTokenSet>> _refreshes = {};
+  int _attemptGeneration = 0;
+  Completer<void>? _authorizationAbort;
   final BuildConfig _config;
   final http.Client _httpClient;
   final SecretStore _tokenStore;
@@ -74,12 +98,18 @@ class OAuthService implements OAuthGateway {
   }
 
   @override
-  Future<GoogleUserInfo?> fetchUserInfo(OAuthTokenSet tokenSet) async {
+  Future<GoogleUserInfo?> fetchUserInfo(
+    OAuthTokenSet tokenSet, {
+    Future<void>? cancellation,
+  }) async {
     if (tokenSet.accessToken.trim().isEmpty) {
       return null;
     }
-    final response = await _httpClient.get(
+    final response = await boundedHttpRequest(
+      _httpClient,
+      'GET',
       Uri.https('openidconnect.googleapis.com', '/v1/userinfo'),
+      cancellation: cancellation,
       headers: {
         'Authorization': '${tokenSet.tokenType} ${tokenSet.accessToken}',
       },
@@ -90,14 +120,8 @@ class OAuthService implements OAuthGateway {
       );
       return null;
     }
-    final decoded = jsonDecode(response.body);
-    if (decoded is Map<String, Object?>) {
-      return GoogleUserInfo.fromJson(decoded);
-    }
-    if (decoded is Map) {
-      return GoogleUserInfo.fromJson(decoded.cast<String, Object?>());
-    }
-    return null;
+    final decoded = decodeOAuthProviderObject(response.body);
+    return GoogleUserInfo.fromJson(decoded);
   }
 
   Future<OAuthTokenSet> validTokenForAccount(String accountId) async {
@@ -126,70 +150,331 @@ class OAuthService implements OAuthGateway {
   }
 
   @override
-  Future<OAuthSignInResult> signIn({String? loginHint}) async {
-    if (!_config.hasGoogleOAuthClientId) {
+  Future<OAuthSignInResult> signIn({String? loginHint}) =>
+      connectGoogle(const AuthorizationRequest.newConnection(null));
+
+  @override
+  Future<OAuthSignInResult> connectGoogle(AuthorizationRequest request) async {
+    final persistence = _persistence;
+    if (persistence == null) {
       throw const OAuthException(
-        'OAuthMissingClientId',
-        'BusyMax is missing GOOGLE_OAUTH_CLIENT_ID.',
+        'OAuthConfigurationRejected',
+        'Account authorization storage is unavailable.',
       );
     }
-
+    await persistence.recover();
+    final attempt = ++_attemptGeneration;
+    final candidateDeadline = _nowUtc().add(const Duration(minutes: 10));
+    _authorizationAbort = Completer<void>();
+    final target = request.accountId;
+    final previous = target == null
+        ? null
+        : request.intent == AuthorizationIntent.reconnect
+        ? await boundCredentialForAccount(target)
+        : await _existingBoundCredential(target);
+    final intendedSubject = target == null
+        ? null
+        : previous?.subject ?? await _existingSubject(target);
+    var expected = target == null ? 0 : await persistence.generation(target);
+    final registration = request.intent == AuthorizationIntent.reconnect
+        ? previous!.registration
+        : request.registration == null
+        ? null
+        : _registrations.consume(request.registration!);
+    if (registration is! GoogleDesktopRegistration) {
+      throw const OAuthException(
+        'OAuthSetupRequired',
+        'Set up your Google Cloud project and import its Desktop OAuth JSON.',
+      );
+    }
+    if (registration.origin == RegistrationOrigin.retiringShared &&
+        (request.intent != AuthorizationIntent.reconnect ||
+            previous?.transitionEligible != true ||
+            !await persistence.wasPreexisting(target!))) {
+      throw const OAuthException(
+        'OAuthConfigurationRejected',
+        'This is the retiring shared client. Select a Desktop client from your own Google Cloud project.',
+      );
+    }
     final result = await _loopbackFlow.start(
-      authorizationEndpoint: Uri.parse(_config.oauthAuthorizationEndpoint),
-      clientId: _config.googleOAuthClientId,
+      authorizationEndpoint: Uri.https(
+        'accounts.google.com',
+        '/o/oauth2/v2/auth',
+      ),
+      clientId: registration.clientId,
       scope: googleBusyMaxOAuthScope,
       extraAuthorizationParameters: const {
         'access_type': 'offline',
         'prompt': 'consent',
-        'include_granted_scopes': 'true',
       },
-      loginHint: loginHint,
+      loginHint: previous?.subject,
     );
-    var tokenSet = await exchangeAuthorizationCode(
+    final tokens = await exchangeAuthorizationCode(
       code: result.callback.code,
       codeVerifier: result.codeVerifier,
       redirectUri: result.redirectUri,
       fallbackScopeText: result.callback.scope,
+      registration: registration,
+      cancellation: _authorizationAbort!.future,
     );
-    final accountId = deriveAccountId(tokenSet);
-    if (!tokenSet.canRefresh) {
-      final previous = await _readTokenSet(accountId);
-      if (previous?.canRefresh == true) {
-        tokenSet = tokenSet.copyWith(refreshToken: previous!.refreshToken);
-      } else {
+    if (!tokens.scopes.contains(googleTasksReadWriteScope) ||
+        !tokens.scopes.contains(googleCalendarReadWriteScope)) {
+      throw const OAuthException(
+        'OAuthMissingRequiredScope',
+        'Grant both Google Tasks and Google Calendar permissions.',
+      );
+    }
+    final user = await fetchUserInfo(
+      tokens,
+      cancellation: _authorizationAbort!.future,
+    );
+    final subject = user?.subject;
+    if (subject == null || subject.isEmpty) {
+      throw const OAuthException(
+        'OAuthIdentityUnavailable',
+        'Google account identity could not be verified. Try again.',
+      );
+    }
+    if (target != null && intendedSubject != subject) {
+      throw const OAuthException(
+        'OAuthWrongAccount',
+        'Authorize the account selected for reconnection.',
+      );
+    }
+    if (attempt != _attemptGeneration ||
+        !_nowUtc().isBefore(candidateDeadline)) {
+      throw const OAuthException(
+        'OAuthSignInCancelled',
+        'Google sign-in was cancelled.',
+      );
+    }
+    final id = target ?? 'google:$subject';
+    if (target == null) {
+      expected = await persistence.generation(id);
+      final matches =
+          await (persistence.database.select(persistence.database.accounts)
+                ..where(
+                  (r) =>
+                      r.provider.equals('google') &
+                      r.providerAccountId.equals(subject),
+                ))
+              .get();
+      if (matches.isNotEmpty ||
+          await (_persistence?.readCurrentCredential(id) ??
+                  _tokenStore.readCredential(id)) !=
+              null) {
         throw const OAuthException(
-          'OAuthMissingRefreshToken',
-          'Google did not provide a refresh token. Try connecting again.',
+          'OAuthAccountAlreadyConnected',
+          'This account already exists. Use its Reconnect or Migrate action.',
         );
       }
     }
-    await _tokenStore.saveOAuthTokenSet(
-      accountId,
-      BusyProvider.google,
-      tokenSet,
+    final candidate = GoogleDesktopCredential(
+      registration: registration,
+      tokenSet: tokens,
+      subject: subject,
+      generation: expected + 1,
+      transitionEligible:
+          request.intent == AuthorizationIntent.reconnect &&
+          previous!.transitionEligible,
     );
-    await _tokenStore.setActiveAccountId(accountId);
-    return OAuthSignInResult(accountId: accountId, tokenSet: tokenSet);
+    return OAuthSignInResult(
+      accountId: id,
+      tokenSet: tokens,
+      user: user,
+      commit: (persistAccount) async {
+        if (attempt != _attemptGeneration ||
+            !_nowUtc().isBefore(candidateDeadline)) {
+          throw const OAuthException(
+            'OAuthSignInCancelled',
+            'Google sign-in was cancelled.',
+          );
+        }
+        await persistence.commit(
+          accountId: id,
+          expectedGeneration: expected,
+          candidate: candidate,
+          validateCandidate: () {
+            if (attempt != _attemptGeneration ||
+                !_nowUtc().isBefore(candidateDeadline)) {
+              throw const OAuthException(
+                'OAuthSignInCancelled',
+                'Authorization was cancelled.',
+              );
+            }
+          },
+          requireExisting: target != null,
+          persistAccount: persistAccount,
+        );
+      },
+    );
+  }
+
+  Future<GoogleDesktopCredential?> _existingBoundCredential(String id) async {
+    final record =
+        await (_persistence?.readCurrentCredential(id) ??
+            _tokenStore.readCredential(id));
+    return record is GoogleDesktopCredential ? record : null;
+  }
+
+  Future<String> _existingSubject(String id) async {
+    final account = await (_persistence!.database.select(
+      _persistence.database.accounts,
+    )..where((r) => r.id.equals(id))).getSingleOrNull();
+    if (account == null || account.provider != 'google') {
+      throw const OAuthException(
+        'OAuthStaleAuthorization',
+        'The selected account is unavailable.',
+      );
+    }
+    // A previously verified provider subject is independent of its local key.
+    if (account.providerAccountId.isNotEmpty &&
+        account.providerAccountId != id) {
+      return account.providerAccountId;
+    }
+    final record = await _persistence.readCurrentCredential(id);
+    if (record is OAuthSecretRecord && record.provider == BusyProvider.google) {
+      final user = await fetchUserInfo(
+        record.tokenSet,
+        cancellation: _authorizationAbort!.future,
+      );
+      if (user?.subject case final subject? when subject.isNotEmpty) {
+        return subject;
+      }
+    }
+    throw const OAuthException(
+      'OAuthRegistrationUnresolved',
+      'This account lacks a verified Google identity. Its data and credentials are preserved; restore its original configuration before reconnecting.',
+    );
   }
 
   @override
-  Future<void> cancelSignIn() => _loopbackFlow.cancel();
+  Future<void> establishExistingBinding(
+    String id,
+    BusyProvider provider,
+  ) async {
+    if (provider == BusyProvider.google) await boundCredentialForAccount(id);
+  }
+
+  /// Legacy desktop records are bound only after a successful refresh against
+  /// the protected original client, followed by provider identity validation.
+  Future<GoogleDesktopCredential> boundCredentialForAccount(String id) async {
+    await _tokenStore.migrateLegacyOAuthCredential(id, BusyProvider.google);
+    final record =
+        await (_persistence?.readCurrentCredential(id) ??
+            _tokenStore.readCredential(id));
+    if (record is GoogleDesktopCredential) {
+      if (record.registration.origin == RegistrationOrigin.retiringShared) {
+        _registrations.rememberRetiringClient(record.registration.clientId);
+      }
+      return record;
+    }
+    final persistence = _persistence;
+    if (record is! OAuthSecretRecord ||
+        record.provider != BusyProvider.google ||
+        persistence == null ||
+        !await persistence.wasPreexisting(id) ||
+        _config.googleOAuthClientId.trim().isEmpty) {
+      throw const OAuthException(
+        'OAuthRegistrationUnresolved',
+        'The original Google registration is unavailable or unidentified. Account data is preserved; configure this account explicitly.',
+      );
+    }
+    final expected = await persistence.generation(id);
+    final registration = GoogleDesktopRegistration(
+      clientId: _config.googleOAuthClientId.trim(),
+      clientSecret: _config.googleOAuthClientSecret.trim().isEmpty
+          ? null
+          : _config.googleOAuthClientSecret.trim(),
+      projectId: 'original-shipped-project',
+      origin: RegistrationOrigin.retiringShared,
+    );
+    await persistence.checkTokenCooldown(id, registration.clientId, _nowUtc());
+    final OAuthTokenSet tokens;
+    try {
+      tokens = await refreshToken(record.tokenSet, registration: registration);
+    } on OAuthRefreshException catch (failure) {
+      if (failure.statusCode == 400 || failure.statusCode == 401) {
+        throw const OAuthException(
+          'OAuthRegistrationUnresolved',
+          'The original Google registration could not be established. Account data and credentials are preserved; configure this account explicitly.',
+        );
+      }
+      await persistence.recordTokenRequestCooldown(
+        id,
+        expected,
+        registration.clientId,
+        failure,
+        _nowUtc(),
+      );
+      rethrow;
+    }
+    final user = await fetchUserInfo(tokens);
+    final account = await (persistence.database.select(
+      persistence.database.accounts,
+    )..where((r) => r.id.equals(id))).getSingleOrNull();
+    if (user?.subject == null ||
+        account == null ||
+        (account.providerAccountId != id &&
+            account.providerAccountId != user!.subject)) {
+      throw const OAuthException(
+        'OAuthRegistrationUnresolved',
+        'The original Google account identity could not be established. Account data is preserved.',
+      );
+    }
+    final bound = GoogleDesktopCredential(
+      registration: registration,
+      tokenSet: tokens,
+      subject: user!.subject!,
+      generation: expected,
+      transitionEligible: true,
+    );
+    await persistence.commit(
+      accountId: id,
+      expectedGeneration: expected,
+      candidate: bound,
+      requireExisting: true,
+      persistAccount: () async {
+        // An old token-derived local key remains unchanged. Record the
+        // independently verified subject so future onboarding recognizes it.
+        await (persistence.database.update(persistence.database.accounts)
+              ..where((row) => row.id.equals(id)))
+            .write(AccountsCompanion(providerAccountId: Value(bound.subject)));
+      },
+    );
+    return bound;
+  }
+
+  @override
+  Future<void> cancelSignIn() async {
+    _attemptGeneration++;
+    if (_authorizationAbort case final abort? when !abort.isCompleted) {
+      abort.complete();
+    }
+    _registrations.cancel();
+    await _loopbackFlow.cancel();
+  }
 
   Future<OAuthTokenSet> exchangeAuthorizationCode({
     required String code,
     required String codeVerifier,
     required String redirectUri,
     String? fallbackScopeText,
+    GoogleDesktopRegistration? registration,
+    Future<void>? cancellation,
   }) async {
-    final clientId = _config.googleOAuthClientId.trim();
-    final clientSecret = _config.googleOAuthClientSecret.trim();
+    final clientId =
+        registration?.clientId ?? _config.googleOAuthClientId.trim();
+    final clientSecret = registration == null
+        ? _config.googleOAuthClientSecret.trim()
+        : registration.clientSecret ?? '';
     _validateTokenExchangeParameters(
       clientId: clientId,
       code: code,
       codeVerifier: codeVerifier,
       redirectUri: redirectUri,
     );
-    final tokenEndpoint = Uri.parse(_config.oauthTokenEndpoint);
+    final tokenEndpoint = Uri.https('oauth2.googleapis.com', '/token');
     _logger.info(
       'OAuth token exchange request: '
       'endpoint=${_tokenEndpointLabel(tokenEndpoint)} '
@@ -201,8 +486,11 @@ class OAuthService implements OAuthGateway {
       'client_id_suffix=${_clientIdSuffix(clientId)}',
     );
 
-    final response = await _httpClient.post(
+    final response = await boundedHttpRequest(
+      _httpClient,
+      'POST',
       tokenEndpoint,
+      cancellation: cancellation,
       headers: {'Content-Type': 'application/x-www-form-urlencoded'},
       body: {
         'client_id': clientId,
@@ -221,7 +509,7 @@ class OAuthService implements OAuthGateway {
       );
     }
 
-    final json = jsonDecode(response.body) as Map<String, Object?>;
+    final json = decodeOAuthProviderObject(response.body);
     return OAuthTokenSet.fromTokenEndpointJson(
       json,
       issuedAtUtc: _nowUtc(),
@@ -239,39 +527,62 @@ class OAuthService implements OAuthGateway {
     return refreshTokenForAccount(accountId);
   }
 
-  Future<OAuthTokenSet> refreshTokenForAccount(String accountId) async {
-    final generation = _credentialGenerations[accountId] ?? 0;
-    final current = await _readTokenSet(accountId);
-    if (current == null || !current.canRefresh) {
-      throw const OAuthException(
-        'OAuthMissingRefreshToken',
-        'No refresh token is available.',
-      );
-    }
+  Future<OAuthTokenSet> refreshTokenForAccount(String accountId) {
+    final running = _refreshes[accountId];
+    if (running != null) return running;
+    final operation = _refreshBound(accountId);
+    _refreshes[accountId] = operation;
+    unawaited(
+      operation.then<void>(
+        (_) => _refreshes.remove(accountId),
+        onError: (Object _, StackTrace _) {
+          _refreshes.remove(accountId);
+        },
+      ),
+    );
+    return operation;
+  }
 
-    final refreshed = await refreshToken(current);
-    if ((_credentialGenerations[accountId] ?? 0) != generation) {
-      throw const OAuthException(
-        'OAuthRefreshCancelled',
-        'The account was removed while its credential was refreshing.',
+  Future<OAuthTokenSet> _refreshBound(String id) async {
+    final current = await boundCredentialForAccount(id);
+    await _persistence!.checkTokenCooldown(
+      id,
+      current.registration.clientId,
+      _nowUtc(),
+    );
+    late final OAuthTokenSet refreshed;
+    try {
+      refreshed = await refreshToken(
+        current.tokenSet,
+        registration: current.registration,
       );
+    } on OAuthRefreshException catch (error) {
+      await _persistence.recordTokenCooldown(id, current, error, _nowUtc());
+      rethrow;
     }
-    await _tokenStore.saveOAuthTokenSet(
-      accountId,
-      BusyProvider.google,
-      refreshed,
+    await _persistence.writeRefresh(
+      id,
+      current.generation,
+      current.withTokens(refreshed),
+      expectedRefreshToken: current.tokenSet.refreshToken,
     );
     return refreshed;
   }
 
-  Future<OAuthTokenSet> refreshToken(OAuthTokenSet current) async {
-    final clientId = _config.googleOAuthClientId.trim();
-    final clientSecret = _config.googleOAuthClientSecret.trim();
+  Future<OAuthTokenSet> refreshToken(
+    OAuthTokenSet current, {
+    GoogleDesktopRegistration? registration,
+  }) async {
+    final clientId =
+        registration?.clientId ?? _config.googleOAuthClientId.trim();
+    final clientSecret = registration == null
+        ? _config.googleOAuthClientSecret.trim()
+        : registration.clientSecret ?? '';
     _validateTokenRefreshParameters(
       clientId: clientId,
       refreshToken: current.refreshToken,
     );
-    final tokenEndpoint = Uri.parse(_config.oauthTokenEndpoint);
+    final tokenEndpoint = Uri.https('oauth2.googleapis.com', '/token');
     _logger.info(
       'OAuth token refresh request: '
       'endpoint=${_tokenEndpointLabel(tokenEndpoint)} '
@@ -281,7 +592,9 @@ class OAuthService implements OAuthGateway {
       'client_id_suffix=${_clientIdSuffix(clientId)}',
     );
 
-    final response = await _httpClient.post(
+    final response = await boundedHttpRequest(
+      _httpClient,
+      'POST',
       tokenEndpoint,
       headers: {'Content-Type': 'application/x-www-form-urlencoded'},
       body: {
@@ -302,12 +615,18 @@ class OAuthService implements OAuthGateway {
           details: details,
         ),
         statusCode: response.statusCode,
-        oauthError: details?.oauthError,
-        oauthErrorDescription: details?.oauthErrorDescription,
+        oauthError: response.statusCode == 400 || response.statusCode == 401
+            ? details?.oauthError
+            : null,
+        oauthErrorDescription: null,
+        retryAfter: parseHttpRetryAfter(
+          response.headers['retry-after'],
+          now: _nowUtc(),
+        ),
       );
     }
 
-    final json = jsonDecode(response.body) as Map<String, Object?>;
+    final json = decodeOAuthProviderObject(response.body);
     return OAuthTokenSet.fromTokenEndpointJson(
       json,
       issuedAtUtc: _nowUtc(),
@@ -339,14 +658,16 @@ class OAuthService implements OAuthGateway {
 
     late final http.Response response;
     try {
-      response = await _httpClient
-          .post(
-            Uri.parse(_config.oauthRevocationEndpoint),
-            headers: {'Content-Type': 'application/x-www-form-urlencoded'},
-            body: {'token': token},
-          )
-          .timeout(_authorizationRevocationTimeout);
-    } on TimeoutException {
+      response = await boundedHttpRequest(
+        _httpClient,
+        'POST',
+        Uri.https('oauth2.googleapis.com', '/revoke'),
+        headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+        body: {'token': token},
+        timeout: _authorizationRevocationTimeout,
+      );
+    } on OAuthException catch (error) {
+      if (error.classification != OAuthFailureKind.timeout) rethrow;
       throw const OAuthException(
         'OAuthRevocationTimedOut',
         'Google authorization revocation timed out.',
@@ -386,12 +707,23 @@ class OAuthService implements OAuthGateway {
       accountId,
       BusyProvider.google,
     );
+    if (_persistence != null) {
+      return (await boundCredentialForAccount(accountId)).tokenSet;
+    }
     return _tokenStore.readOAuthTokenSet(accountId, BusyProvider.google);
   }
 }
 
 class OAuthSignInResult {
-  const OAuthSignInResult({required this.accountId, required this.tokenSet});
+  const OAuthSignInResult({
+    required this.accountId,
+    required this.tokenSet,
+    this.user,
+    this.commit,
+  });
+
+  final GoogleUserInfo? user;
+  final AuthorizationCommit? commit;
 
   final String accountId;
   final OAuthTokenSet tokenSet;
@@ -456,7 +788,7 @@ Map<String, Object?> googleIdTokenClaims(OAuthTokenSet tokenSet) {
 }
 
 String? _nonBlankString(Object? value) {
-  final text = value?.toString().trim();
+  final text = value is String ? value.trim() : null;
   return text == null || text.isEmpty ? null : text;
 }
 
@@ -553,20 +885,7 @@ String _tokenEndpointFailureMessage({
   required http.Response response,
   _TokenEndpointFailureDetails? details,
 }) {
-  final safeDetails = details ?? _tokenEndpointFailureDetails(response.body);
-  if (safeDetails == null || safeDetails.text.isEmpty) {
-    return 'Google token $operation failed with HTTP ${response.statusCode}.';
-  }
-  if (_isMissingClientSecretError(safeDetails)) {
-    return 'This Google Desktop OAuth client requires a client secret. Re-run '
-        'BusyMax with GOOGLE_OAUTH_CLIENT_SECRET set from the same Desktop '
-        'OAuth client credentials.';
-  }
-
-  final statusPrefix = safeDetails.isJson
-      ? 'Google token $operation failed'
-      : 'Google token $operation failed with HTTP ${response.statusCode}';
-  return '$statusPrefix: ${safeDetails.text}.';
+  return 'Google token $operation failed (HTTP ${response.statusCode}). Check the registration or try again after a temporary outage.';
 }
 
 _TokenEndpointFailureDetails? _tokenEndpointFailureDetails(String body) {
@@ -611,13 +930,6 @@ _TokenEndpointFailureDetails? _tokenEndpointFailureDetails(String body) {
   }
 
   return _TokenEndpointFailureDetails(redactForLog(trimmedBody), isJson: false);
-}
-
-bool _isMissingClientSecretError(_TokenEndpointFailureDetails details) {
-  final normalized = details.text.toLowerCase();
-  return normalized.contains('invalid_request') &&
-      normalized.contains('client_secret') &&
-      normalized.contains('missing');
 }
 
 class _TokenEndpointFailureDetails {

@@ -226,10 +226,7 @@ class MicrosoftTodoTaskRemoteClient
         taskListId: taskListId,
         taskId: taskId,
         checklistItemId: checklistItemId,
-        patch: {
-          if (title != null) 'displayName': title,
-          if (completed != null) 'isChecked': completed,
-        },
+        patch: {'displayName': ?title, 'isChecked': ?completed},
       ),
     );
     return _checklistItemDto(item);
@@ -395,6 +392,7 @@ class MicrosoftTodoTaskRemoteClient
         code: error.code ?? 'microsoft_todo_error',
         message: error.message,
         providerDetails: error.rawJson,
+        retryAfter: error.retryAfter,
         retryable: error.statusCode == 429 || error.statusCode >= 500,
       );
     }

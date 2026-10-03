@@ -46,6 +46,22 @@ class CalendarSyncEngine {
   final Future<void> Function()? _onNotificationScheduleChanged;
   final DateTime Function() _nowUtc;
 
+  Future<void> dispatchPendingWrites() async {
+    try {
+      await _replayPendingOps();
+    } finally {
+      await maintainCachedReminders();
+    }
+  }
+
+  Future<void> maintainCachedReminders() async {
+    await NotificationScheduleService(
+      database: _database,
+      nowUtc: _nowUtc,
+    ).rebuildUpcomingNotifications(_accountId);
+    await _onNotificationScheduleChanged?.call();
+  }
+
   BusyProvider get provider => _client.provider;
 
   /// Retrieves one additional month as an independent snapshot. Range reads
@@ -79,8 +95,7 @@ class CalendarSyncEngine {
           rangeEnd: end,
         );
         final recurringIds = <String>{
-          for (final event in events)
-            if (event.providerRecurringEventId case final id?) id,
+          for (final event in events) ?event.providerRecurringEventId,
         };
         final existingInstances =
             await (_database.select(_database.calendarEvents)..where(

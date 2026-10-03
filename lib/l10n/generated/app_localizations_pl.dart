@@ -3336,4 +3336,101 @@ class AppLocalizationsPl extends AppLocalizations {
 
   @override
   String get calendarOwnerEmail => 'Adres e-mail właściciela kalendarza';
+
+  @override
+  String registrationSetupTitle(String provider) {
+    return 'Skonfiguruj $provider';
+  }
+
+  @override
+  String get registrationSetupGuide => 'Instrukcja konfiguracji';
+
+  @override
+  String get registrationGoogleInstructions =>
+      'Utwórz własny projekt Google Cloud, włącz Calendar i Tasks oraz zaimportuj JSON klienta OAuth dla aplikacji komputerowej. Autoryzuj właściwe konto.';
+
+  @override
+  String get registrationMicrosoftInstructions =>
+      'Użyj publicznej rejestracji aplikacji w dzierżawie Entra, która zezwala na rejestracje. Podaj identyfikator klienta i typy kont. Sekret klienta nie jest potrzebny.';
+
+  @override
+  String get registrationImportGoogle => 'Wybierz JSON OAuth dla komputera';
+
+  @override
+  String get registrationValidate => 'Sprawdź rejestrację';
+
+  @override
+  String get registrationAuthorize => 'Autoryzuj w przeglądarce';
+
+  @override
+  String get registrationClientId => 'Identyfikator aplikacji/klienta';
+
+  @override
+  String get registrationTenantId => 'Identyfikator dzierżawy';
+
+  @override
+  String get registrationAudience => 'Obsługiwane konta';
+
+  @override
+  String get registrationBothAudience => 'Konta osobiste i organizacyjne';
+
+  @override
+  String get registrationOrganizationAudience => 'Konta organizacyjne';
+
+  @override
+  String get registrationPersonalAudience => 'Konta osobiste';
+
+  @override
+  String get registrationTenantAudience => 'Jedna dzierżawa organizacji';
+
+  @override
+  String registrationSummary(String clientId) {
+    return 'Rejestracja: $clientId';
+  }
+
+  @override
+  String get registrationMigrate => 'Migruj teraz';
+
+  @override
+  String get registrationReplace => 'Zastąp rejestrację';
+
+  @override
+  String registrationRetirementNotice(String provider, String setup) {
+    return 'To konto używa wspólnej rejestracji $provider BusyMax, która zostanie wycofana w następnym wydaniu. Skonfiguruj własny $setup i połącz to konto ponownie, aby zachować synchronizację. Kalendarze, zadania i lokalne zmiany zostaną zachowane.';
+  }
+
+  @override
+  String get registrationContinue => 'Kontynuuj używanie tego konta';
+
+  @override
+  String get registrationGoogleProject => 'Projekt Google Cloud';
+
+  @override
+  String get registrationMicrosoftApp => 'Rejestracja aplikacji Microsoft';
+
+  @override
+  String get registrationUserOwned => 'Rejestracja podana przez użytkownika';
+
+  @override
+  String get registrationNativeGoogle =>
+      'Natywna rejestracja Google dla Androida';
+
+  @override
+  String get registrationShared => 'Wspólna rejestracja (okres przejściowy)';
+
+  @override
+  String get registrationUnresolved =>
+      'Pochodzenie rejestracji nie jest ustalone. Dane konta są zachowane.';
+
+  @override
+  String get registrationOfficialDocumentation => 'Oficjalna dokumentacja';
+
+  @override
+  String registrationAndroidIdentity(
+    String packageName,
+    String signatureHash,
+    String redirectUri,
+  ) {
+    return 'Pakiet: $packageName\nSkrót podpisu: $signatureHash\nURI przekierowania: $redirectUri';
+  }
 }

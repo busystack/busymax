@@ -38,6 +38,28 @@ class SyncEngine {
   final CollectionIdReplacement? _onTaskListIdReplaced;
   final Uuid _uuid;
   final DateTime Function() _nowUtc;
+  bool _remoteImportWroteData = false;
+  bool get remoteImportWroteData => _remoteImportWroteData;
+
+  Future<void> dispatchPendingWrites() async {
+    try {
+      await PendingOpsReplayer(
+        database: _database,
+        apiClient: _apiClient,
+        accountId: _accountId,
+        nowUtc: _nowUtc,
+        onConflictBlocked: _onConflictBlocked,
+        onTaskListIdReplaced: _onTaskListIdReplaced,
+      ).replayDueOps();
+    } finally {
+      await maintainCachedReminders();
+    }
+  }
+
+  Future<void> maintainCachedReminders() => NotificationScheduleService(
+    database: _database,
+    nowUtc: _nowUtc,
+  ).rebuildUpcomingTaskNotifications(_accountId);
 
   Future<void> fullSync() {
     return _runSync(mode: 'full', updatedMin: null, markMissingTasks: true);
@@ -77,6 +99,7 @@ class SyncEngine {
     required DateTime? updatedMin,
     required bool markMissingTasks,
   }) async {
+    _remoteImportWroteData = false;
     final runId = _uuid.v4();
     final startedAt = _now();
     await _database.syncRunsDao.insertRun(
@@ -161,6 +184,7 @@ class SyncEngine {
         if (await _hasLocalPendingTaskListMutation(item.id)) {
           continue;
         }
+        _remoteImportWroteData = true;
         await _database.taskListsDao.upsertTaskList(
           taskListFromDto(_accountId, item, now),
         );
@@ -252,6 +276,7 @@ class SyncEngine {
         if (await _hasLocalPendingTaskMutation(taskListId, item.id)) {
           continue;
         }
+        _remoteImportWroteData = true;
         await _database.tasksDao.upsertTask(
           taskFromDto(_accountId, taskListId, item, now),
         );
@@ -311,6 +336,7 @@ class SyncEngine {
       for (final list in lists) {
         if (seenTaskListIds.contains(list.id)) {
           if (list.serverMissing) {
+            _remoteImportWroteData = true;
             await (_database.update(_database.taskLists)..where(
                   (row) =>
                       row.accountId.equals(_accountId) & row.id.equals(list.id),
@@ -320,6 +346,7 @@ class SyncEngine {
           continue;
         }
         if (list.localDirty) continue;
+        _remoteImportWroteData = true;
         await (_database.update(_database.taskLists)..where(
               (row) =>
                   row.accountId.equals(_accountId) & row.id.equals(list.id),

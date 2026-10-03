@@ -248,7 +248,13 @@ void main() {
 
       await expectLater(
         container.read(signedInSyncRunnerProvider)('account-1', false),
-        throwsA(same(failure)),
+        throwsA(
+          isA<AuthorizationScopedFailure>().having(
+            (e) => resolveEffectiveSyncFailure(e),
+            'effective failure',
+            same(resolveEffectiveSyncFailure(failure)),
+          ),
+        ),
       );
 
       final account = await AccountsRepository(
@@ -438,7 +444,13 @@ void main() {
 
     await expectLater(
       container.read(signedInSyncRunnerProvider)('account-1', false),
-      throwsA(same(failure)),
+      throwsA(
+        isA<AuthorizationScopedFailure>().having(
+          (e) => resolveEffectiveSyncFailure(e),
+          'effective failure',
+          same(resolveEffectiveSyncFailure(failure)),
+        ),
+      ),
     );
 
     final account = await AccountsRepository(

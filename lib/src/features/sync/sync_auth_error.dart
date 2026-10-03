@@ -1,3 +1,5 @@
+import 'account_sync_operations.dart';
+import 'domain_sync_schedule.dart';
 import '../../core/logging/redacting_logger.dart';
 import '../../core/http/request_dispatch_exception.dart';
 import 'package:busymax/src/core/auth/oauth_models.dart';
@@ -37,6 +39,12 @@ String syncFailureMessage(
   String networkUnavailableMessage = 'No network connection is available.',
 }) {
   final effectiveError = resolveEffectiveSyncFailure(error);
+  if (effectiveError is PartialAccountSyncException) {
+    return effectiveError.toString();
+  }
+  if (effectiveError is DomainCooldownException) {
+    return effectiveError.toString();
+  }
   if (effectiveError is NetworkUnavailableException) {
     return networkUnavailableMessage;
   }
@@ -47,6 +55,8 @@ String syncFailureMessage(
   }
   if (isMissingOAuthTokenError(effectiveError) ||
       (effectiveError is OAuthRefreshException &&
+          (effectiveError.statusCode == 400 ||
+              effectiveError.statusCode == 401) &&
           effectiveError.oauthError == 'invalid_grant')) {
     return accountReconnectRequiredSyncMessage;
   }

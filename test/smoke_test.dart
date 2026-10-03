@@ -41,7 +41,8 @@ void main() {
     expect(find.text('Add Microsoft account'), findsOneWidget);
     expect(find.text('Add Apple iCloud Calendar account'), findsOneWidget);
     expect(find.text('Add Nextcloud account'), findsOneWidget);
-    expect(find.textContaining('GOOGLE_OAUTH_CLIENT_ID'), findsOneWidget);
+    expect(find.textContaining('GOOGLE_OAUTH_CLIENT_ID'), findsNothing);
+    expect(find.textContaining('discontinued'), findsNothing);
     expect(
       find.text('Connect calendars and tasks from one of these providers.'),
       findsOneWidget,

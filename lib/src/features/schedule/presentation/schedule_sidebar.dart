@@ -1,3 +1,4 @@
+import '../../../core/http/request_dispatch_exception.dart';
 import 'dart:async';
 import 'dart:math' as math;
 import '../../../dav/presentation/nextcloud_collection_dialog.dart';
@@ -1257,6 +1258,9 @@ Future<void> _refreshCalendarSource(
   if (!await _manualRefreshAccountIsEligible(context, ref, source.accountId)) {
     return;
   }
+  final generation = await ref.read(authorizationGenerationReaderProvider)(
+    source.accountId,
+  );
   try {
     await ref
         .read(accountSyncOperationsProvider)
@@ -1265,7 +1269,16 @@ Future<void> _refreshCalendarSource(
     if (!context.mounted) {
       return;
     }
-    await _handleRefreshFailure(context, ref, source.accountId, error);
+    await _handleRefreshFailure(
+      context,
+      ref,
+      source.accountId,
+      AuthorizationScopedFailure(
+        accountId: source.accountId,
+        generation: generation,
+        cause: error,
+      ),
+    );
   }
 }
 
@@ -1277,6 +1290,9 @@ Future<void> _refreshTaskListAccount(
   if (!await _manualRefreshAccountIsEligible(context, ref, accountId)) {
     return;
   }
+  final generation = await ref.read(authorizationGenerationReaderProvider)(
+    accountId,
+  );
   try {
     await ref
         .read(accountSyncOperationsProvider)
@@ -1285,7 +1301,16 @@ Future<void> _refreshTaskListAccount(
     if (!context.mounted) {
       return;
     }
-    await _handleRefreshFailure(context, ref, accountId, error);
+    await _handleRefreshFailure(
+      context,
+      ref,
+      accountId,
+      AuthorizationScopedFailure(
+        accountId: accountId,
+        generation: generation,
+        cause: error,
+      ),
+    );
   }
 }
 
@@ -1298,7 +1323,15 @@ Future<void> _handleRefreshFailure(
   try {
     if (syncFailureNotificationDisposition(error) ==
         SyncFailureNotificationDisposition.reconnectRequired) {
-      await ref.read(authRepositoryProvider).markReconnectRequired(accountId);
+      await ref
+          .read(authRepositoryProvider)
+          .markReconnectRequired(
+            accountId,
+            authorizationGeneration: failureAuthorizationGeneration(
+              error,
+              accountId,
+            ),
+          );
     }
   } on Object {
     // Keep the original refresh failure visible even if cleanup fails.

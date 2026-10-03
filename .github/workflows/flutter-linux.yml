@@ -157,7 +157,13 @@ jobs:
           xvfb-run -a env GDK_BACKEND=x11 \
             build/linux/native-tests/gtk_search_entry_theme_test
 
-      - name: Validate release provider configuration
+      - name: Build release with user-owned setup and no shared registrations
+        run: |
+          "$BUSYMAX_FLUTTER_EXECUTABLE" build linux --release -t lib/main_linux.dart
+          test -f build/linux/x64/release/bundle/data/flutter_assets/docs/google_setup.md
+          test -f build/linux/x64/release/bundle/data/flutter_assets/docs/microsoft_setup.md
+
+      - name: Validate original registrations for the transitional release
         if: github.event_name == 'push'
         env:
           GOOGLE_OAUTH_CLIENT_ID: ${{ vars.GOOGLE_OAUTH_CLIENT_ID }}
@@ -190,7 +196,7 @@ jobs:
           "$BUSYMAX_FLUTTER_EXECUTABLE" build linux \
             -t lib/main_linux.dart "${args[@]}"
 
-      - name: Verify release provider configuration
+      - name: Verify intended original registrations in the transitional binary
         if: github.event_name == 'push'
         env:
           GOOGLE_OAUTH_CLIENT_ID: ${{ vars.GOOGLE_OAUTH_CLIENT_ID }}

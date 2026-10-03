@@ -1,16 +1,23 @@
+import '../../core/http/request_dispatch_exception.dart';
+import '../../core/http/bounded_http.dart';
+import '../../core/http/retry_after.dart';
+import 'package:drift/drift.dart' show BooleanExpressionOperators;
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:http/http.dart' as http;
 import 'package:logging/logging.dart';
 
 import '../../config/build_config.dart';
+import '../../core/auth/oauth_registration.dart';
+import '../../core/auth/registration_staging.dart';
+import '../../core/auth/authorization_persistence.dart';
 import '../../core/logging/redacting_logger.dart';
 import '../../core/auth/microsoft_graph_scopes.dart';
 import '../../google_tasks/oauth/oauth_loopback_flow.dart';
 import '../../providers/busy_provider.dart';
 import 'package:busymax/src/core/auth/oauth_models.dart';
 import 'package:busymax/src/core/secrets/secret_store.dart';
-import '../api/microsoft_todo_api_client.dart';
 import '../api/microsoft_todo_api_models.dart';
 
 const microsoftTodoOAuthScopes =
@@ -46,9 +53,17 @@ abstract interface class MicrosoftOAuthGateway {
   Future<void> signOutAccount(String accountId);
 }
 
+abstract interface class MicrosoftConnectionGateway {
+  Future<MicrosoftOAuthSignInResult> connectMicrosoft(
+    AuthorizationRequest request,
+  );
+}
+
 class MicrosoftOAuthService
     implements
         MicrosoftOAuthGateway,
+        MicrosoftConnectionGateway,
+        RegistrationBindingResolver,
         MicrosoftSharedCalendarAuthorization,
         MicrosoftCategoryAuthorization {
   MicrosoftOAuthService({
@@ -57,12 +72,21 @@ class MicrosoftOAuthService
     required SecretStore tokenStore,
     required OAuthLoopbackFlow loopbackFlow,
     DateTime Function()? nowUtc,
-  }) : _config = config,
+    RegistrationStaging? registrations,
+    AuthorizationPersistence? persistence,
+  }) : _registrations = registrations ?? RegistrationStaging(config),
+       _persistence = persistence,
+       _config = config,
        _httpClient = httpClient,
        _tokenStore = tokenStore,
        _loopbackFlow = loopbackFlow,
        _nowUtc = nowUtc ?? (() => DateTime.now().toUtc());
 
+  final RegistrationStaging _registrations;
+  final AuthorizationPersistence? _persistence;
+  final Map<String, Future<OAuthTokenSet>> _refreshes = {};
+  int _attemptGeneration = 0;
+  Completer<void>? _authorizationAbort;
   final BuildConfig _config;
   final http.Client _httpClient;
   final SecretStore _tokenStore;
@@ -73,65 +97,335 @@ class MicrosoftOAuthService
   );
   final Map<String, int> _credentialGenerations = {};
 
-  Future<MicrosoftOAuthSignInResult> signIn() async {
-    final clientId = _config.microsoftOAuthClientId.trim();
-    if (clientId.isEmpty) {
+  Future<MicrosoftOAuthSignInResult> signIn() =>
+      connectMicrosoft(const AuthorizationRequest.newConnection(null));
+  @override
+  Future<MicrosoftOAuthSignInResult> signInWithMicrosoft() => signIn();
+  @override
+  Future<MicrosoftOAuthSignInResult> connectMicrosoft(
+    AuthorizationRequest request,
+  ) => _connect(request);
+
+  Future<MicrosoftOAuthSignInResult> _connect(
+    AuthorizationRequest request, {
+    Set<String> optionalScopes = const {},
+  }) async {
+    final persistence = _persistence;
+    if (persistence == null) {
       throw const OAuthException(
-        'MicrosoftOAuthMissingClientId',
-        'Microsoft sign-in is not configured. Set MICROSOFT_OAUTH_CLIENT_ID.',
+        'OAuthConfigurationRejected',
+        'Account authorization storage is unavailable.',
       );
     }
-
+    await persistence.recover();
+    final attempt = ++_attemptGeneration;
+    final candidateDeadline = _nowUtc().add(const Duration(minutes: 10));
+    _authorizationAbort = Completer<void>();
+    final target = request.accountId;
+    final previous = target == null
+        ? null
+        : request.intent == AuthorizationIntent.reconnect
+        ? await boundCredentialForAccount(target)
+        : await _existingBoundCredential(target);
+    final intendedIdentity = target == null
+        ? null
+        : previous == null
+        ? await _existingIdentity(target)
+        : (previous.subject, previous.tenantId);
+    var expected = target == null ? 0 : await persistence.generation(target);
+    final registration = request.intent == AuthorizationIntent.reconnect
+        ? previous!.registration
+        : request.registration == null
+        ? null
+        : _registrations.consume(request.registration!);
+    if (registration is! MicrosoftPublicRegistration ||
+        registration.platform != AuthenticationPlatform.desktop) {
+      throw const OAuthException(
+        'OAuthSetupRequired',
+        'Set up a Microsoft public app registration with an Application/client ID and account audience.',
+      );
+    }
+    if (registration.origin == RegistrationOrigin.retiringShared &&
+        (request.intent != AuthorizationIntent.reconnect ||
+            previous?.transitionEligible != true ||
+            !await persistence.wasPreexisting(target!))) {
+      throw const OAuthException(
+        'OAuthConfigurationRejected',
+        'This is the retiring shared client. Use your own Microsoft app registration.',
+      );
+    }
+    final scopes = [
+      microsoftTodoOAuthScopes,
+      ...optionalScopes,
+      if (previous != null &&
+          hasMicrosoftGraphScope(
+            previous.tokenSet.scopes,
+            microsoftSharedCalendarScope,
+          ))
+        microsoftSharedCalendarScope,
+      if (previous != null &&
+          hasMicrosoftGraphScope(
+            previous.tokenSet.scopes,
+            microsoftCategoryScope,
+          ))
+        microsoftCategoryScope,
+    ].join(' ');
     final result = await _loopbackFlow.start(
-      authorizationEndpoint: _authorizationEndpoint,
-      clientId: clientId,
-      scope: microsoftTodoOAuthScopes,
+      authorizationEndpoint: registration.endpoint('authorize'),
+      clientId: registration.clientId,
+      scope: scopes,
       redirectHost: 'localhost',
       signInCancelledMessage: 'Microsoft sign-in was cancelled.',
       callbackNotReceivedMessage: microsoftSignInCallbackNotReceivedMessage,
-      serverStartFailureMessage:
-          'Could not start the local Microsoft sign-in callback listener.',
-      browserLaunchFailureMessage:
-          'Could not open the browser for Microsoft sign-in.',
       extraAuthorizationParameters: const {
         'response_mode': 'query',
-        'prompt': 'select_account',
+        'prompt': 'consent',
       },
     );
-
-    final tokenSet = await exchangeAuthorizationCode(
+    final tokens = await exchangeAuthorizationCode(
       code: result.callback.code,
       codeVerifier: result.codeVerifier,
       redirectUri: result.redirectUri,
+      fallbackScopeText: '',
+      registration: registration,
+      cancellation: _authorizationAbort!.future,
     );
-    final user = await _getMe(tokenSet);
-    if (user.id.trim().isEmpty) {
+    if (!hasMicrosoftGraphScopes(tokens.scopes, {
+      'User.Read',
+      'Tasks.ReadWrite',
+      'Calendars.ReadWrite',
+      ...optionalScopes,
+    })) {
       throw const OAuthException(
-        'MicrosoftOAuthMissingUserId',
-        'Microsoft Graph did not return a user id.',
+        'MicrosoftOAuthMissingRequiredScope',
+        'Grant Microsoft Tasks and Calendar permissions.',
       );
     }
-
-    final accountId = 'microsoft:${user.id}';
-    await _tokenStore.saveOAuthTokenSet(
-      accountId,
-      BusyProvider.microsoft,
-      tokenSet,
+    final user = await _getMe(
+      tokens,
+      cancellation: _authorizationAbort!.future,
     );
-    await _tokenStore.setActiveAccountId(accountId);
+    final tenant = microsoftTenantIdFromIdToken(
+      tokens.idToken,
+      clientId: registration.clientId,
+    );
+    if (user.id.isEmpty || tenant == null) {
+      throw const OAuthException(
+        'OAuthIdentityUnavailable',
+        'Microsoft account and tenant identity could not be verified.',
+      );
+    }
+    if (intendedIdentity != null &&
+        (intendedIdentity.$1 != user.id || intendedIdentity.$2 != tenant)) {
+      throw const OAuthException(
+        'OAuthWrongAccount',
+        'Authorize the selected Microsoft account in the same tenant.',
+      );
+    }
+    if (attempt != _attemptGeneration ||
+        !_nowUtc().isBefore(candidateDeadline)) {
+      throw const OAuthException(
+        'OAuthSignInCancelled',
+        'Microsoft sign-in was cancelled.',
+      );
+    }
+    final id = target ?? 'microsoft:${user.id}';
+    if (target == null) {
+      expected = await persistence.generation(id);
+      final matches =
+          await (persistence.database.select(persistence.database.accounts)
+                ..where(
+                  (r) =>
+                      r.provider.equals('microsoft') &
+                      r.providerAccountId.equals(user.id),
+                ))
+              .get();
+      if (matches.isNotEmpty ||
+          await (_persistence?.readCurrentCredential(id) ??
+                  _tokenStore.readCredential(id)) !=
+              null) {
+        throw const OAuthException(
+          'OAuthAccountAlreadyConnected',
+          'This account already exists. Use its Reconnect or Migrate action.',
+        );
+      }
+    }
+    final candidate = MicrosoftDesktopCredential(
+      registration: registration,
+      tokenSet: tokens,
+      subject: user.id,
+      tenantId: tenant,
+      generation: expected + 1,
+      transitionEligible:
+          request.intent == AuthorizationIntent.reconnect &&
+          previous!.transitionEligible,
+    );
     return MicrosoftOAuthSignInResult(
-      accountId: accountId,
-      tokenSet: tokenSet,
+      accountId: id,
+      tokenSet: tokens,
       user: user,
-      tenantId: microsoftTenantIdFromIdToken(tokenSet.idToken),
+      tenantId: tenant,
+      commit: (persistAccount) async {
+        if (attempt != _attemptGeneration ||
+            !_nowUtc().isBefore(candidateDeadline)) {
+          throw const OAuthException(
+            'OAuthSignInCancelled',
+            'Microsoft sign-in was cancelled.',
+          );
+        }
+        await persistence.commit(
+          accountId: id,
+          expectedGeneration: expected,
+          candidate: candidate,
+          validateCandidate: () {
+            if (attempt != _attemptGeneration ||
+                !_nowUtc().isBefore(candidateDeadline)) {
+              throw const OAuthException(
+                'OAuthSignInCancelled',
+                'Authorization was cancelled.',
+              );
+            }
+          },
+          requireExisting: target != null,
+          persistAccount: persistAccount,
+        );
+      },
+    );
+  }
+
+  Future<MicrosoftDesktopCredential?> _existingBoundCredential(
+    String id,
+  ) async {
+    final record =
+        await (_persistence?.readCurrentCredential(id) ??
+            _tokenStore.readCredential(id));
+    return record is MicrosoftDesktopCredential ? record : null;
+  }
+
+  Future<(String, String)> _existingIdentity(String id) async {
+    final account = await (_persistence!.database.select(
+      _persistence.database.accounts,
+    )..where((r) => r.id.equals(id))).getSingleOrNull();
+    if (account == null || account.provider != 'microsoft') {
+      throw const OAuthException(
+        'OAuthStaleAuthorization',
+        'The selected account is unavailable.',
+      );
+    }
+    final record = await _persistence.readCurrentCredential(id);
+    final tenant =
+        account.tenantId ??
+        (record is OAuthSecretRecord
+            ? microsoftTenantIdFromIdToken(record.tokenSet.idToken)
+            : null);
+    if (account.providerAccountId.isNotEmpty && tenant != null) {
+      return (account.providerAccountId, tenant);
+    }
+    throw const OAuthException(
+      'OAuthRegistrationUnresolved',
+      'This account lacks verified Microsoft tenant identity. Data and credentials are preserved; restore its original configuration before reconnecting.',
     );
   }
 
   @override
-  Future<MicrosoftOAuthSignInResult> signInWithMicrosoft() => signIn();
+  Future<void> establishExistingBinding(
+    String id,
+    BusyProvider provider,
+  ) async {
+    if (provider == BusyProvider.microsoft) await boundCredentialForAccount(id);
+  }
+
+  Future<MicrosoftDesktopCredential> boundCredentialForAccount(
+    String id,
+  ) async {
+    await _tokenStore.migrateLegacyOAuthCredential(id, BusyProvider.microsoft);
+    final record =
+        await (_persistence?.readCurrentCredential(id) ??
+            _tokenStore.readCredential(id));
+    if (record is MicrosoftDesktopCredential) {
+      if (record.registration.origin == RegistrationOrigin.retiringShared) {
+        _registrations.rememberRetiringClient(record.registration.clientId);
+      }
+      return record;
+    }
+    final persistence = _persistence;
+    if (record is! OAuthSecretRecord ||
+        record.provider != BusyProvider.microsoft ||
+        persistence == null ||
+        !await persistence.wasPreexisting(id) ||
+        _config.microsoftOAuthClientId.trim().isEmpty) {
+      throw const OAuthException(
+        'OAuthRegistrationUnresolved',
+        'The original Microsoft registration is unavailable or unidentified. Account data is preserved; configure this account explicitly.',
+      );
+    }
+    final expected = await persistence.generation(id);
+    final registration = _originalRegistration;
+    await persistence.checkTokenCooldown(id, registration.clientId, _nowUtc());
+    final OAuthTokenSet tokens;
+    try {
+      tokens = await refreshToken(record.tokenSet, registration: registration);
+    } on OAuthRefreshException catch (failure) {
+      if (failure.statusCode == 400 || failure.statusCode == 401) {
+        throw const OAuthException(
+          'OAuthRegistrationUnresolved',
+          'The original Microsoft registration could not be established. Account data and credentials are preserved; configure this account explicitly.',
+        );
+      }
+      await persistence.recordTokenRequestCooldown(
+        id,
+        expected,
+        registration.clientId,
+        failure,
+        _nowUtc(),
+      );
+      rethrow;
+    }
+    final user = await _getMe(tokens);
+    final tenant = microsoftTenantIdFromIdToken(
+      tokens.idToken,
+      clientId: registration.clientId,
+    );
+    final account = await (persistence.database.select(
+      persistence.database.accounts,
+    )..where((r) => r.id.equals(id))).getSingleOrNull();
+    if (user.id.isEmpty ||
+        tenant == null ||
+        account == null ||
+        account.providerAccountId != user.id ||
+        (account.tenantId != null && account.tenantId != tenant)) {
+      throw const OAuthException(
+        'OAuthRegistrationUnresolved',
+        'The original Microsoft identity could not be established. Account data is preserved.',
+      );
+    }
+    final bound = MicrosoftDesktopCredential(
+      registration: registration,
+      tokenSet: tokens,
+      subject: user.id,
+      tenantId: tenant,
+      generation: expected,
+      transitionEligible: true,
+    );
+    await persistence.commit(
+      accountId: id,
+      expectedGeneration: expected,
+      candidate: bound,
+      requireExisting: true,
+      persistAccount: () async {},
+    );
+    return bound;
+  }
 
   @override
-  Future<void> cancelSignIn() => _loopbackFlow.cancel();
+  Future<void> cancelSignIn() async {
+    _attemptGeneration++;
+    if (_authorizationAbort case final abort? when !abort.isCompleted) {
+      abort.complete();
+    }
+    _registrations.cancel();
+    await _loopbackFlow.cancel();
+  }
 
   Future<OAuthTokenSet?> readTokenSet(String accountId) {
     return _readTokenSet(accountId);
@@ -184,150 +478,27 @@ class MicrosoftOAuthService
   }
 
   @override
-  Future<void> authorizeCategoryAccess(String accountId) async {
-    final generation = _credentialGenerations[accountId] ?? 0;
-    final existing = await _readTokenSet(accountId);
-    if (existing == null) {
-      throw const OAuthException(
-        'MicrosoftOAuthMissingToken',
-        'Reconnect this Microsoft account before loading categories.',
-      );
-    }
-    if (hasMicrosoftGraphScope(existing.scopes, microsoftCategoryScope)) return;
-    final result = await _loopbackFlow.start(
-      authorizationEndpoint: _authorizationEndpoint,
-      clientId: _config.microsoftOAuthClientId.trim(),
-      scope: [
-        microsoftTodoOAuthScopes,
-        if (hasMicrosoftGraphScope(
-          existing.scopes,
-          microsoftSharedCalendarScope,
-        ))
-          microsoftSharedCalendarScope,
-        microsoftCategoryScope,
-      ].join(' '),
-      redirectHost: 'localhost',
-      signInCancelledMessage: 'Microsoft category consent was cancelled.',
-      callbackNotReceivedMessage: microsoftSignInCallbackNotReceivedMessage,
-      serverStartFailureMessage:
-          'Could not start the Microsoft sign-in callback listener.',
-      browserLaunchFailureMessage:
-          'Could not open the browser for Microsoft sign-in.',
-      extraAuthorizationParameters: const {
-        'response_mode': 'query',
-        'prompt': 'consent',
-      },
-    );
-    final candidate = await exchangeAuthorizationCode(
-      code: result.callback.code,
-      codeVerifier: result.codeVerifier,
-      redirectUri: result.redirectUri,
-      fallbackScopeText: '',
-      existingRefreshToken: existing.refreshToken,
-      existingIdToken: existing.idToken,
-    );
-    final user = await _getMe(candidate);
-    if ('microsoft:${user.id}' != accountId ||
-        !hasMicrosoftGraphScope(candidate.scopes, microsoftCategoryScope) ||
-        !hasMicrosoftGraphScopes(candidate.scopes, {
-          'https://graph.microsoft.com/User.Read',
-          'https://graph.microsoft.com/Tasks.ReadWrite',
-          'https://graph.microsoft.com/Calendars.ReadWrite',
-          if (hasMicrosoftGraphScope(
-            existing.scopes,
-            microsoftSharedCalendarScope,
-          ))
-            microsoftSharedCalendarScope,
-        })) {
-      throw const OAuthException(
-        'MicrosoftOAuthCategoryConsentDenied',
-        'Outlook category access was not granted for this account.',
-      );
-    }
-    if ((_credentialGenerations[accountId] ?? 0) != generation ||
-        await _readTokenSet(accountId) == null) {
-      throw const OAuthException(
-        'MicrosoftOAuthCategoryConsentCancelled',
-        'The account was removed before category consent completed.',
-      );
-    }
-    await _tokenStore.saveOAuthTokenSet(
-      accountId,
-      BusyProvider.microsoft,
-      candidate,
-    );
-  }
-
+  Future<void> authorizeCategoryAccess(String accountId) =>
+      _optionalConsent(accountId, microsoftCategoryScope);
   @override
-  Future<void> authorizeSharedCalendarAccess(String accountId) async {
-    final generation = _credentialGenerations[accountId] ?? 0;
-    final existing = await _readTokenSet(accountId);
-    if (existing == null) {
-      throw const OAuthException(
-        'MicrosoftOAuthMissingToken',
-        'Reconnect this Microsoft account before opening a shared calendar.',
+  Future<void> authorizeSharedCalendarAccess(String accountId) =>
+      _optionalConsent(accountId, microsoftSharedCalendarScope);
+  Future<void> _optionalConsent(String id, String scope) async {
+    final current = await boundCredentialForAccount(id);
+    if (hasMicrosoftGraphScope(current.tokenSet.scopes, scope)) return;
+    try {
+      final result = await _connect(
+        AuthorizationRequest.reconnect(id),
+        optionalScopes: {scope},
+      );
+      await result.commit!(() async {});
+    } on OAuthException catch (error) {
+      throw AuthorizationScopedOAuthException(
+        accountId: id,
+        generation: current.generation,
+        cause: error,
       );
     }
-    if (hasMicrosoftGraphScope(existing.scopes, microsoftSharedCalendarScope)) {
-      return;
-    }
-    final result = await _loopbackFlow.start(
-      authorizationEndpoint: _authorizationEndpoint,
-      clientId: _config.microsoftOAuthClientId.trim(),
-      scope: [
-        microsoftTodoOAuthScopes,
-        microsoftSharedCalendarScope,
-        if (hasMicrosoftGraphScope(existing.scopes, microsoftCategoryScope))
-          microsoftCategoryScope,
-      ].join(' '),
-      redirectHost: 'localhost',
-      signInCancelledMessage:
-          'Microsoft shared-calendar consent was cancelled.',
-      callbackNotReceivedMessage: microsoftSignInCallbackNotReceivedMessage,
-      serverStartFailureMessage:
-          'Could not start the Microsoft sign-in callback listener.',
-      browserLaunchFailureMessage:
-          'Could not open the browser for Microsoft sign-in.',
-      extraAuthorizationParameters: const {
-        'response_mode': 'query',
-        'prompt': 'consent',
-      },
-    );
-    final candidate = await exchangeAuthorizationCode(
-      code: result.callback.code,
-      codeVerifier: result.codeVerifier,
-      redirectUri: result.redirectUri,
-      fallbackScopeText: '',
-      existingRefreshToken: existing.refreshToken,
-      existingIdToken: existing.idToken,
-    );
-    final user = await _getMe(candidate);
-    if ('microsoft:${user.id}' != accountId ||
-        !hasMicrosoftGraphScopes(candidate.scopes, {
-          microsoftSharedCalendarScope,
-          'https://graph.microsoft.com/User.Read',
-          'https://graph.microsoft.com/Tasks.ReadWrite',
-          'https://graph.microsoft.com/Calendars.ReadWrite',
-          if (hasMicrosoftGraphScope(existing.scopes, microsoftCategoryScope))
-            microsoftCategoryScope,
-        })) {
-      throw const OAuthException(
-        'MicrosoftOAuthSharedConsentDenied',
-        'Shared-calendar access was not granted for this account.',
-      );
-    }
-    if ((_credentialGenerations[accountId] ?? 0) != generation ||
-        await _readTokenSet(accountId) == null) {
-      throw const OAuthException(
-        'MicrosoftOAuthSharedConsentCancelled',
-        'The account was removed before shared-calendar consent completed.',
-      );
-    }
-    await _tokenStore.saveOAuthTokenSet(
-      accountId,
-      BusyProvider.microsoft,
-      candidate,
-    );
   }
 
   Future<OAuthTokenSet> exchangeAuthorizationCode({
@@ -337,15 +508,20 @@ class MicrosoftOAuthService
     String fallbackScopeText = microsoftTodoOAuthScopes,
     String? existingRefreshToken,
     String? existingIdToken,
+    MicrosoftPublicRegistration? registration,
+    Future<void>? cancellation,
   }) async {
-    final clientId = _config.microsoftOAuthClientId.trim();
+    final clientId =
+        registration?.clientId ?? _config.microsoftOAuthClientId.trim();
     _validateTokenExchangeParameters(
       clientId: clientId,
       code: code,
       codeVerifier: codeVerifier,
       redirectUri: redirectUri,
     );
-    final tokenEndpoint = _tokenEndpoint;
+    final tokenEndpoint = (registration ?? _originalRegistration).endpoint(
+      'token',
+    );
     _logger.info(
       'Microsoft OAuth token exchange request: '
       'endpoint=${_endpointLabel(tokenEndpoint)} '
@@ -357,8 +533,11 @@ class MicrosoftOAuthService
       'client_id_suffix=${_clientIdSuffix(clientId)}',
     );
 
-    final response = await _httpClient.post(
+    final response = await boundedHttpRequest(
+      _httpClient,
+      'POST',
       tokenEndpoint,
+      cancellation: cancellation,
       headers: {'Content-Type': 'application/x-www-form-urlencoded'},
       body: {
         'client_id': clientId,
@@ -375,7 +554,7 @@ class MicrosoftOAuthService
       );
     }
 
-    final json = jsonDecode(response.body) as Map<String, Object?>;
+    final json = decodeOAuthProviderObject(response.body);
     return OAuthTokenSet.fromTokenEndpointJson(
       json,
       issuedAtUtc: _nowUtc(),
@@ -385,38 +564,61 @@ class MicrosoftOAuthService
     );
   }
 
-  Future<OAuthTokenSet> refreshTokenForAccount(String accountId) async {
-    final generation = _credentialGenerations[accountId] ?? 0;
-    final current = await _readTokenSet(accountId);
-    if (current == null || !current.canRefresh) {
-      throw const OAuthException(
-        'MicrosoftOAuthMissingRefreshToken',
-        'No Microsoft refresh token is available.',
-      );
-    }
+  Future<OAuthTokenSet> refreshTokenForAccount(String id) {
+    final running = _refreshes[id];
+    if (running != null) return running;
+    final operation = _refreshBound(id);
+    _refreshes[id] = operation;
+    unawaited(
+      operation.then<void>(
+        (_) => _refreshes.remove(id),
+        onError: (Object _, StackTrace _) {
+          _refreshes.remove(id);
+        },
+      ),
+    );
+    return operation;
+  }
 
-    final refreshed = await refreshToken(current);
-    if ((_credentialGenerations[accountId] ?? 0) != generation) {
-      throw const OAuthException(
-        'MicrosoftOAuthRefreshCancelled',
-        'The account was removed while its credential was refreshing.',
+  Future<OAuthTokenSet> _refreshBound(String id) async {
+    final current = await boundCredentialForAccount(id);
+    await _persistence!.checkTokenCooldown(
+      id,
+      current.registration.clientId,
+      _nowUtc(),
+    );
+    late final OAuthTokenSet refreshed;
+    try {
+      refreshed = await refreshToken(
+        current.tokenSet,
+        registration: current.registration,
       );
+    } on OAuthRefreshException catch (error) {
+      await _persistence.recordTokenCooldown(id, current, error, _nowUtc());
+      rethrow;
     }
-    await _tokenStore.saveOAuthTokenSet(
-      accountId,
-      BusyProvider.microsoft,
-      refreshed,
+    await _persistence.writeRefresh(
+      id,
+      current.generation,
+      current.withTokens(refreshed),
+      expectedRefreshToken: current.tokenSet.refreshToken,
     );
     return refreshed;
   }
 
-  Future<OAuthTokenSet> refreshToken(OAuthTokenSet current) async {
-    final clientId = _config.microsoftOAuthClientId.trim();
+  Future<OAuthTokenSet> refreshToken(
+    OAuthTokenSet current, {
+    MicrosoftPublicRegistration? registration,
+  }) async {
+    final clientId =
+        registration?.clientId ?? _config.microsoftOAuthClientId.trim();
     _validateTokenRefreshParameters(
       clientId: clientId,
       refreshToken: current.refreshToken,
     );
-    final tokenEndpoint = _tokenEndpoint;
+    final tokenEndpoint = (registration ?? _originalRegistration).endpoint(
+      'token',
+    );
     _logger.info(
       'Microsoft OAuth token refresh request: '
       'endpoint=${_endpointLabel(tokenEndpoint)} '
@@ -426,7 +628,9 @@ class MicrosoftOAuthService
       'client_id_suffix=${_clientIdSuffix(clientId)}',
     );
 
-    final response = await _httpClient.post(
+    final response = await boundedHttpRequest(
+      _httpClient,
+      'POST',
       tokenEndpoint,
       headers: {'Content-Type': 'application/x-www-form-urlencoded'},
       body: {
@@ -451,12 +655,18 @@ class MicrosoftOAuthService
         'MicrosoftOAuthRefreshFailed',
         _tokenEndpointFailureMessage('refresh', response, details: details),
         statusCode: response.statusCode,
-        oauthError: details?.oauthError,
-        oauthErrorDescription: details?.oauthErrorDescription,
+        oauthError: response.statusCode == 400 || response.statusCode == 401
+            ? details?.oauthError
+            : null,
+        oauthErrorDescription: null,
+        retryAfter: parseHttpRetryAfter(
+          response.headers['retry-after'],
+          now: _nowUtc(),
+        ),
       );
     }
 
-    final json = jsonDecode(response.body) as Map<String, Object?>;
+    final json = decodeOAuthProviderObject(response.body);
     return OAuthTokenSet.fromTokenEndpointJson(
       json,
       issuedAtUtc: _nowUtc(),
@@ -481,29 +691,52 @@ class MicrosoftOAuthService
       accountId,
       BusyProvider.microsoft,
     );
+    if (_persistence != null) {
+      return (await boundCredentialForAccount(accountId)).tokenSet;
+    }
     return _tokenStore.readOAuthTokenSet(accountId, BusyProvider.microsoft);
   }
 
-  Future<MicrosoftTodoUserDto> _getMe(OAuthTokenSet tokenSet) {
-    final client = MicrosoftTodoRestApiClient(
-      httpClient: _httpClient,
-      baseUri: Uri.parse(_config.microsoftGraphBaseUrl),
-      authorizationHeaderProvider: () async => 'Bearer ${tokenSet.accessToken}',
+  Future<MicrosoftTodoUserDto> _getMe(
+    OAuthTokenSet tokenSet, {
+    Future<void>? cancellation,
+  }) async {
+    final response = await boundedHttpRequest(
+      _httpClient,
+      'GET',
+      Uri.https('graph.microsoft.com', '/v1.0/me'),
+      cancellation: cancellation,
+      headers: {'Authorization': 'Bearer ${tokenSet.accessToken}'},
     );
-    return client.getMe();
+    if (response.statusCode != 200) {
+      throw const OAuthException(
+        'OAuthIdentityUnavailable',
+        'Microsoft account identity could not be verified.',
+      );
+    }
+    final decoded = decodeOAuthProviderObject(response.body);
+    if (decoded['id'] is! String || (decoded['id'] as String).trim().isEmpty) {
+      throw const OAuthException(
+        'OAuthTemporaryResponse',
+        'Microsoft returned an incomplete account response.',
+      );
+    }
+    return MicrosoftTodoUserDto.fromJson(decoded);
   }
 
-  Uri get _authorizationEndpoint {
-    return Uri.https(
-      'login.microsoftonline.com',
-      '/${_config.microsoftOAuthAuthorityTenant.trim()}/oauth2/v2.0/authorize',
-    );
-  }
-
-  Uri get _tokenEndpoint {
-    return Uri.https(
-      'login.microsoftonline.com',
-      '/${_config.microsoftOAuthAuthorityTenant.trim()}/oauth2/v2.0/token',
+  MicrosoftPublicRegistration get _originalRegistration {
+    final tenant = _config.microsoftOAuthAuthorityTenant.trim().toLowerCase();
+    final audience = switch (tenant) {
+      'common' => MicrosoftAudience.personalAndOrganizations,
+      'organizations' => MicrosoftAudience.organizations,
+      'consumers' => MicrosoftAudience.personal,
+      _ => MicrosoftAudience.tenant,
+    };
+    return MicrosoftPublicRegistration(
+      clientId: _config.microsoftOAuthClientId,
+      audience: audience,
+      tenantId: audience == MicrosoftAudience.tenant ? tenant : null,
+      origin: RegistrationOrigin.retiringShared,
     );
   }
 }
@@ -514,17 +747,19 @@ class MicrosoftOAuthSignInResult {
     required this.tokenSet,
     required this.user,
     this.tenantId,
+    this.commit,
   });
 
   final String accountId;
   final OAuthTokenSet tokenSet;
   final MicrosoftTodoUserDto user;
   final String? tenantId;
+  final AuthorizationCommit? commit;
 }
 
 /// ID tokens are issued to this client; Graph access tokens are opaque and
 /// must never be decoded to infer account capabilities.
-String? microsoftTenantIdFromIdToken(String? idToken) {
+String? microsoftTenantIdFromIdToken(String? idToken, {String? clientId}) {
   if (idToken == null) return null;
   final parts = idToken.split('.');
   if (parts.length != 3) return null;
@@ -533,11 +768,13 @@ String? microsoftTenantIdFromIdToken(String? idToken) {
       utf8.decode(base64Url.decode(base64Url.normalize(parts[1]))),
     );
     if (decoded is! Map) return null;
-    final tenantId = decoded['tid']?.toString().toLowerCase();
-    return tenantId != null &&
-            RegExp(
-              r'^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$',
-            ).hasMatch(tenantId)
+    if (clientId != null && decoded['aud'] != clientId) return null;
+    final value = decoded['tid'];
+    if (value is! String) return null;
+    final tenantId = value.toLowerCase();
+    return RegExp(
+          r'^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$',
+        ).hasMatch(tenantId)
         ? tenantId
         : null;
   } on Object {
@@ -631,12 +868,7 @@ String _tokenEndpointFailureMessage(
   http.Response response, {
   _TokenEndpointFailureDetails? details,
 }) {
-  final safeDetails = details ?? _tokenEndpointFailureDetails(response.body);
-  if (safeDetails == null || safeDetails.text.isEmpty) {
-    return 'Microsoft token $operation failed with HTTP '
-        '${response.statusCode}.';
-  }
-  return 'Microsoft token $operation failed: ${safeDetails.text}.';
+  return 'Microsoft token $operation failed (HTTP ${response.statusCode}). Check the registration or try again after a temporary outage.';
 }
 
 _TokenEndpointFailureDetails? _tokenEndpointFailureDetails(String body) {

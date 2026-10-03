@@ -56,24 +56,19 @@ void main() {
     expect(result.redirectUri, 'http://localhost:${started.port}/');
   });
 
-  test('state mismatch reports controlled OAuth error', () async {
+  test('mismatched state cannot terminate legitimate consent', () async {
     final started = await _startFlow();
-
-    final response = await http.get(
-      started.callbackUri(code: 'code', state: 'wrong-state'),
+    expect(
+      (await http.get(
+        started.callbackUri(code: 'wrong', state: 'wrong-state'),
+      )).statusCode,
+      HttpStatus.badRequest,
     );
-    expect(response.statusCode, HttpStatus.badRequest);
-
-    await expectLater(
-      started.result,
-      throwsA(
-        isA<OAuthException>().having(
-          (error) => error.code,
-          'code',
-          'OAuthCallbackStateMismatch',
-        ),
-      ),
+    expect(
+      (await http.get(started.callbackUri(code: 'legitimate'))).statusCode,
+      HttpStatus.ok,
     );
+    expect((await started.result).callback.code, 'legitimate');
   });
 
   test('timeout closes server cleanly', () async {

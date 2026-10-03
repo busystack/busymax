@@ -58,7 +58,9 @@ class GoogleCalendarApiError implements Exception {
           reasons.any(
             (reason) =>
                 reason == 'rateLimitExceeded' ||
-                reason == 'userRateLimitExceeded',
+                reason == 'userRateLimitExceeded' ||
+                reason == 'quotaExceeded' ||
+                reason == 'dailyLimitExceeded',
           );
 
   bool get isInvalidSyncToken => statusCode == 410;

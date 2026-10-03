@@ -1,3 +1,6 @@
+import '../../support/oauth_binding_fixture.dart';
+import 'package:busymax/src/core/auth/oauth_registration.dart';
+import 'package:busymax/src/core/auth/registration_staging.dart';
 import 'dart:async';
 import 'dart:convert';
 
@@ -14,6 +17,73 @@ import 'package:busymax/src/core/secrets/secret_store.dart';
 import 'package:busymax/src/providers/busy_provider.dart';
 
 void main() {
+  for (final scenario in [
+    (400, 'invalid_client', OAuthFailureKind.configuration),
+    (429, 'invalid_grant', OAuthFailureKind.throttled),
+    (503, 'invalid_grant', OAuthFailureKind.temporary),
+  ]) {
+    test(
+      'refresh HTTP ${scenario.$1} safely classifies ${scenario.$2}',
+      () async {
+        final store = InMemorySecretStore();
+        await store.saveOAuthTokenSet(
+          'google-a',
+          BusyProvider.google,
+          const OAuthTokenSetFixture().tokenSet,
+        );
+        final persistence = await seedBoundFixtures(store);
+        var requests = 0;
+        final service = OAuthService(
+          config: _config,
+          tokenStore: store,
+          persistence: persistence,
+          loopbackFlow: OAuthLoopbackFlow(),
+          httpClient: MockClient((request) async {
+            requests++;
+            return http.Response(
+              jsonEncode({
+                'error': scenario.$2,
+                'error_description': 'synthetic-sensitive-provider-description',
+              }),
+              scenario.$1,
+              headers: {'retry-after': '7200'},
+            );
+          }),
+        );
+        await expectLater(
+          service.refreshTokenForAccount('google-a'),
+          throwsA(
+            isA<OAuthRefreshException>()
+                .having((error) => error.classification, 'kind', scenario.$3)
+                .having(
+                  (error) => error.toString(),
+                  'safe error',
+                  isNot(contains('synthetic-sensitive-provider-description')),
+                ),
+          ),
+        );
+        expect(requests, 1);
+        expect(await persistence.generation('google-a'), 1);
+        expect(
+          await store.readCredential('google-a'),
+          isA<GoogleDesktopCredential>(),
+        );
+        if (scenario.$1 >= 429) {
+          final rows = await persistence.database
+              .select(persistence.database.domainSyncSchedules)
+              .get();
+          expect(rows, hasLength(1));
+          expect(
+            DateTime.parse(
+              rows.single.cooldownUntilUtc!,
+            ).difference(DateTime.now().toUtc()),
+            greaterThan(const Duration(minutes: 119)),
+          );
+        }
+      },
+    );
+  }
+
   test('fetchUserInfo reads Google profile from OpenID userinfo', () async {
     late http.Request captured;
     final service = OAuthService(
@@ -86,7 +156,7 @@ void main() {
         'application/x-www-form-urlencoded',
       );
       expect(Uri.splitQueryString(captured.body), {
-        'client_id': 'client-id',
+        'client_id': 'client-id.apps.googleusercontent.com',
         'code': 'code',
         'code_verifier': 'verifier',
         'grant_type': 'authorization_code',
@@ -134,50 +204,28 @@ void main() {
   );
 
   test(
-    'Google sign-in requests incremental auth and does not assume missing granted scopes',
+    'Google new connection requires explicit setup even with shared values',
     () async {
-      final tokenStore = InMemorySecretStore();
-      final loopbackFlow = _FakeOAuthLoopbackFlow(
-        callback: const OAuthCallbackResult(code: 'code', scope: null),
-      );
       final service = OAuthService(
         config: _config,
-        httpClient: MockClient((request) async {
-          return http.Response(
-            jsonEncode({
-              'access_token': 'access',
-              'refresh_token': 'refresh',
-              'expires_in': 3600,
-              'token_type': 'Bearer',
-            }),
-            200,
-          );
-        }),
-        tokenStore: tokenStore,
-        loopbackFlow: loopbackFlow,
-        nowUtc: () => DateTime.utc(2026, 6, 4),
+        httpClient: MockClient(
+          (_) async => throw StateError('No request allowed'),
+        ),
+        tokenStore: InMemorySecretStore(),
+        loopbackFlow: OAuthLoopbackFlow(),
       );
-
-      final result = await service.signIn();
-      final storedTokenSet = await tokenStore.readOAuthTokenSet(
-        result.accountId,
-        BusyProvider.google,
-      );
-
-      expect(loopbackFlow.extraAuthorizationParameters, {
-        'access_type': 'offline',
-        'prompt': 'consent',
-        'include_granted_scopes': 'true',
-      });
-      expect(result.tokenSet.scopes, isEmpty);
-      expect(storedTokenSet?.scopes, isEmpty);
+      await expectLater(service.signIn(), throwsA(isA<OAuthException>()));
     },
   );
 
   test(
-    'Google sign-in uses callback granted scopes when token response omits scope',
+    'Google configured candidate uses callback scopes and remains staged',
     () async {
-      final loopbackFlow = _FakeOAuthLoopbackFlow(
+      final store = InMemorySecretStore();
+      final persistence = await seedBoundFixtures(store);
+      final staging = RegistrationStaging(_config);
+      addTearDown(staging.dispose);
+      final flow = _FakeOAuthLoopbackFlow(
         callback: const OAuthCallbackResult(
           code: 'code',
           scope: '$googleTasksReadWriteScope $googleCalendarReadWriteScope',
@@ -185,69 +233,95 @@ void main() {
       );
       final service = OAuthService(
         config: _config,
-        httpClient: MockClient((request) async {
-          return http.Response(
-            jsonEncode({
-              'access_token': 'access',
-              'refresh_token': 'refresh',
-              'expires_in': 3600,
-              'token_type': 'Bearer',
-            }),
+        tokenStore: store,
+        persistence: persistence,
+        registrations: staging,
+        loopbackFlow: flow,
+        httpClient: MockClient(
+          (request) async => http.Response(
+            jsonEncode(
+              request.method == 'GET'
+                  ? {'sub': 'subject'}
+                  : {
+                      'access_token': 'access',
+                      'refresh_token': 'refresh',
+                      'expires_in': 3600,
+                    },
+            ),
             200,
-          );
-        }),
-        tokenStore: InMemorySecretStore(),
-        loopbackFlow: loopbackFlow,
-        nowUtc: () => DateTime.utc(2026, 6, 4),
+          ),
+        ),
       );
-
-      final result = await service.signIn();
-
+      final result = await service.connectGoogle(
+        AuthorizationRequest.newConnection(
+          staging.stage(
+            const GoogleDesktopRegistration(
+              clientId: 'owned.apps.googleusercontent.com',
+              projectId: 'owned-project',
+            ),
+          ),
+        ),
+      );
       expect(result.tokenSet.scopes, {
         googleTasksReadWriteScope,
         googleCalendarReadWriteScope,
       });
+      expect(await store.readCredential(result.accountId), isNull);
     },
   );
 
-  test('Google sign-in rejects a token without renewable access', () async {
-    final tokenStore = InMemorySecretStore();
-    final idToken =
-        'header.${base64UrlEncode(utf8.encode(jsonEncode({'sub': 'subject'})))}.signature';
-    final service = OAuthService(
-      config: _config,
-      httpClient: MockClient(
-        (_) async => http.Response(
-          jsonEncode({
-            'access_token': 'access',
-            'id_token': idToken,
-            'expires_in': 3600,
-          }),
-          200,
+  test(
+    'Google different-client connection without offline access cannot commit',
+    () async {
+      final store = InMemorySecretStore();
+      final persistence = await seedBoundFixtures(store);
+      final staging = RegistrationStaging(_config);
+      addTearDown(staging.dispose);
+      final service = OAuthService(
+        config: _config,
+        tokenStore: store,
+        persistence: persistence,
+        registrations: staging,
+        loopbackFlow: _FakeOAuthLoopbackFlow(
+          callback: const OAuthCallbackResult(
+            code: 'code',
+            scope: '$googleTasksReadWriteScope $googleCalendarReadWriteScope',
+          ),
         ),
-      ),
-      tokenStore: tokenStore,
-      loopbackFlow: _FakeOAuthLoopbackFlow(
-        callback: const OAuthCallbackResult(code: 'code', scope: null),
-      ),
-      nowUtc: () => DateTime.utc(2026, 6, 4),
-    );
-
-    await expectLater(
-      service.signIn(),
-      throwsA(
-        isA<OAuthException>().having(
-          (error) => error.code,
-          'code',
-          'OAuthMissingRefreshToken',
+        httpClient: MockClient(
+          (request) async => http.Response(
+            jsonEncode(
+              request.method == 'GET'
+                  ? {'sub': 'subject'}
+                  : {'access_token': 'access', 'expires_in': 3600},
+            ),
+            200,
+          ),
         ),
-      ),
-    );
-    expect(
-      await tokenStore.readOAuthTokenSet('google:subject', BusyProvider.google),
-      isNull,
-    );
-  });
+      );
+      final result = await service.connectGoogle(
+        AuthorizationRequest.newConnection(
+          staging.stage(
+            const GoogleDesktopRegistration(
+              clientId: 'owned.apps.googleusercontent.com',
+              projectId: 'owned-project',
+            ),
+          ),
+        ),
+      );
+      await expectLater(
+        result.commit!(() async {}),
+        throwsA(
+          isA<OAuthException>().having(
+            (e) => e.code,
+            'code',
+            'OAuthMissingRefreshToken',
+          ),
+        ),
+      );
+      expect(await store.readCredential('google:subject'), isNull);
+    },
+  );
 
   test(
     'cached Google access without a refresh token requires reconnect',
@@ -284,54 +358,41 @@ void main() {
     },
   );
 
-  test('Google reconnect retains an existing refresh token', () async {
-    final tokenStore = InMemorySecretStore();
-    final idToken =
-        'header.${base64UrlEncode(utf8.encode(jsonEncode({'sub': 'subject'})))}.signature';
-    await tokenStore.saveOAuthTokenSet(
-      'google:subject',
-      BusyProvider.google,
-      OAuthTokenSet(
-        accessToken: 'old-access',
-        refreshToken: 'old-refresh',
-        idToken: idToken,
-        expiresAtUtc: DateTime.utc(2026, 6, 4),
-        tokenType: 'Bearer',
-        scopes: const {},
-      ),
-    );
-    final service = OAuthService(
-      config: _config,
-      httpClient: MockClient(
-        (_) async => http.Response(
-          jsonEncode({
-            'access_token': 'new-access',
-            'id_token': idToken,
-            'expires_in': 3600,
-          }),
-          200,
-        ),
-      ),
-      tokenStore: tokenStore,
-      loopbackFlow: _FakeOAuthLoopbackFlow(
-        callback: const OAuthCallbackResult(code: 'code', scope: null),
-      ),
-      nowUtc: () => DateTime.utc(2026, 6, 4),
-    );
-
-    final result = await service.signIn();
-
-    expect(result.accountId, 'google:subject');
-    expect(result.tokenSet.accessToken, 'new-access');
-    expect(result.tokenSet.refreshToken, 'old-refresh');
-    expect(
-      (await tokenStore.readOAuthTokenSet(
+  test(
+    'Google unbound record cannot borrow refresh token into a new client',
+    () async {
+      final store = InMemorySecretStore();
+      await store.saveOAuthTokenSet(
         'google:subject',
         BusyProvider.google,
-      ))?.refreshToken,
-      'old-refresh',
-    );
-  });
+        const OAuthTokenSetFixture().tokenSet,
+      );
+      final staging = RegistrationStaging(_config);
+      addTearDown(staging.dispose);
+      final service = OAuthService(
+        config: _config,
+        tokenStore: store,
+        registrations: staging,
+        httpClient: MockClient(
+          (_) async => throw StateError('No unbound refresh allowed'),
+        ),
+        loopbackFlow: OAuthLoopbackFlow(),
+      );
+      await expectLater(
+        service.connectGoogle(
+          const AuthorizationRequest.reconnect('google:subject'),
+        ),
+        throwsA(isA<OAuthException>()),
+      );
+      expect(
+        (await store.readOAuthTokenSet(
+          'google:subject',
+          BusyProvider.google,
+        ))!.refreshToken,
+        'refresh',
+      );
+    },
+  );
 
   test(
     'token exchange with configured client secret sends client_secret',
@@ -440,16 +501,8 @@ void main() {
       throwsA(
         isA<OAuthException>()
             .having((error) => error.code, 'code', 'OAuthTokenExchangeFailed')
-            .having(
-              (error) => error.message,
-              'message',
-              contains('invalid_grant'),
-            )
-            .having(
-              (error) => error.message,
-              'message',
-              contains('Bad Request'),
-            )
+            .having((error) => error.message, 'message', contains('HTTP 400'))
+            .having((error) => error.message, 'message', contains('HTTP 400'))
             .having(
               (error) => error.message,
               'message',
@@ -487,20 +540,16 @@ void main() {
       throwsA(
         isA<OAuthException>()
             .having((error) => error.code, 'code', 'OAuthTokenExchangeFailed')
+            .having((error) => error.message, 'message', contains('HTTP 400'))
             .having(
               (error) => error.message,
               'message',
-              contains('Google token exchange failed with HTTP 400'),
+              isNot(contains('auth-code-secret')),
             )
             .having(
               (error) => error.message,
               'message',
-              contains('code=[REDACTED]'),
-            )
-            .having(
-              (error) => error.message,
-              'message',
-              contains('code_verifier=[REDACTED]'),
+              isNot(contains('verifier-secret')),
             )
             .having(
               (error) => error.message,
@@ -542,13 +591,7 @@ void main() {
       throwsA(
         isA<OAuthException>()
             .having((error) => error.code, 'code', 'OAuthTokenExchangeFailed')
-            .having(
-              (error) => error.message,
-              'message',
-              'This Google Desktop OAuth client requires a client secret. '
-                  'Re-run BusyMax with GOOGLE_OAUTH_CLIENT_SECRET set from '
-                  'the same Desktop OAuth client credentials.',
-            ),
+            .having((error) => error.message, 'message', contains('HTTP 400')),
       ),
     );
   });
@@ -671,7 +714,7 @@ void main() {
       );
 
       expect(Uri.splitQueryString(captured.body), {
-        'client_id': 'client-id',
+        'client_id': 'client-id.apps.googleusercontent.com',
         'grant_type': 'refresh_token',
         'refresh_token': 'refresh',
       });
@@ -755,6 +798,7 @@ void main() {
       config: _config,
       httpClient: MockClient((request) async => http.Response('', 200)),
       tokenStore: tokenStore,
+      persistence: await seedBoundFixtures(tokenStore),
       loopbackFlow: OAuthLoopbackFlow(),
     );
 
@@ -801,6 +845,7 @@ void main() {
           return http.Response('', 200);
         }),
         tokenStore: tokenStore,
+        persistence: await seedBoundFixtures(tokenStore),
         loopbackFlow: OAuthLoopbackFlow(),
       );
 
@@ -840,6 +885,7 @@ void main() {
         config: _config,
         httpClient: MockClient((request) async => http.Response('', 503)),
         tokenStore: tokenStore,
+        persistence: await seedBoundFixtures(tokenStore),
         loopbackFlow: OAuthLoopbackFlow(),
       );
 
@@ -889,12 +935,13 @@ void main() {
           return http.Response(
             jsonEncode({
               'error': 'invalid_grant',
-              'error_description': 'The authorization cannot be refreshed',
+              'error_description': 'token expired',
             }),
             400,
           );
         }),
         tokenStore: tokenStore,
+        persistence: await seedBoundFixtures(tokenStore),
         loopbackFlow: OAuthLoopbackFlow(),
       );
 
@@ -911,7 +958,7 @@ void main() {
               .having(
                 (error) => error.oauthErrorDescription,
                 'oauthErrorDescription',
-                'The authorization cannot be refreshed',
+                isNull,
               ),
         ),
       );
@@ -954,6 +1001,7 @@ void main() {
         );
       }),
       tokenStore: tokenStore,
+      persistence: await seedBoundFixtures(tokenStore),
       loopbackFlow: OAuthLoopbackFlow(),
     );
 
@@ -995,6 +1043,7 @@ void main() {
         ),
       ),
       tokenStore: tokenStore,
+      persistence: await seedBoundFixtures(tokenStore),
       loopbackFlow: OAuthLoopbackFlow(),
     );
 
@@ -1003,11 +1052,7 @@ void main() {
       throwsA(
         isA<OAuthRefreshException>()
             .having((error) => error.statusCode, 'statusCode', 503)
-            .having(
-              (error) => error.oauthError,
-              'oauthError',
-              'temporarily_unavailable',
-            ),
+            .having((error) => error.oauthError, 'oauthError', isNull),
       ),
     );
     expect(
@@ -1020,6 +1065,12 @@ void main() {
     final tokenStore = InMemorySecretStore();
     final started = Completer<void>();
     final release = Completer<void>();
+    await tokenStore.saveOAuthTokenSet(
+      'google-a',
+      BusyProvider.google,
+      const OAuthTokenSetFixture().tokenSet,
+    );
+
     final service = OAuthService(
       config: _config,
       httpClient: MockClient((request) async {
@@ -1037,15 +1088,10 @@ void main() {
         );
       }),
       tokenStore: tokenStore,
+      persistence: await seedBoundFixtures(tokenStore),
       loopbackFlow: OAuthLoopbackFlow(),
       nowUtc: () => DateTime.utc(2026, 6, 4),
     );
-    await tokenStore.saveOAuthTokenSet(
-      'google-a',
-      BusyProvider.google,
-      const OAuthTokenSetFixture().tokenSet,
-    );
-
     final refresh = service.refreshTokenForAccount('google-a');
     await started.future;
     await service.clearLocalSession(accountId: 'google-a');
@@ -1099,7 +1145,7 @@ void main() {
             .having(
               (error) => error.oauthErrorDescription,
               'oauthErrorDescription',
-              contains('refresh_token=[REDACTED]'),
+              isNull,
             )
             .having(
               (error) => error.toString(),
@@ -1115,7 +1161,7 @@ void main() {
 }
 
 const _config = BuildConfig(
-  googleOAuthClientId: 'client-id',
+  googleOAuthClientId: 'client-id.apps.googleusercontent.com',
   googleOAuthClientSecret: '',
   apiBaseUrl: 'https://tasks.googleapis.com',
   oauthAuthorizationEndpoint: 'https://accounts.google.com/o/oauth2/v2/auth',
@@ -1136,7 +1182,7 @@ BuildConfig _configWithClientId(String clientId) {
 
 BuildConfig _configWithClientSecret(String clientSecret) {
   return BuildConfig(
-    googleOAuthClientId: 'client-id',
+    googleOAuthClientId: 'client-id.apps.googleusercontent.com',
     googleOAuthClientSecret: clientSecret,
     apiBaseUrl: 'https://tasks.googleapis.com',
     oauthAuthorizationEndpoint: 'https://accounts.google.com/o/oauth2/v2/auth',

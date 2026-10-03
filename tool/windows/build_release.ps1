@@ -1,6 +1,7 @@
 param(
   [Parameter(Mandatory)][string]$ConfigPath,
   [switch]$Ci,
+  [switch]$UserOwnedOnly,
   [ValidateSet(
     'All', 'PesterTests', 'SourceGeneration', 'StaticAnalysis',
     'FlutterTests', 'WindowsCompile', 'NativeTests', 'Package')]
@@ -46,6 +47,9 @@ function Invoke-BusyMaxPesterTests {
 }
 
 function Invoke-BusyMaxSourceGeneration {
+  $snapshot = [System.IO.Path]::GetTempFileName()
+  & $dartExecutable run tool/check_generated_sources.dart snapshot $snapshot
+  if ($LASTEXITCODE -ne 0) { throw 'Generated source snapshot failed.' }
   & $flutterExecutable pub get --enforce-lockfile
   if ($LASTEXITCODE -ne 0) { throw 'Dependency resolution failed.' }
   & $flutterExecutable gen-l10n
@@ -53,8 +57,9 @@ function Invoke-BusyMaxSourceGeneration {
   & $dartExecutable run build_runner build `
     --delete-conflicting-outputs --force-jit
   if ($LASTEXITCODE -ne 0) { throw 'Code generation failed.' }
-  & git diff --exit-code -- lib/l10n/generated lib/src/db
-  if ($LASTEXITCODE -ne 0) { throw 'Generated files are not committed.' }
+  & $dartExecutable run tool/check_generated_sources.dart verify $snapshot
+  Remove-Item -LiteralPath $snapshot
+  if ($LASTEXITCODE -ne 0) { throw 'Generated files differ from the reviewed snapshot.' }
 }
 
 function Invoke-BusyMaxStaticAnalysis {
@@ -82,12 +87,18 @@ function Invoke-BusyMaxWindowsCompile {
     "--dart-define=BUSYMAX_PRIVACY_POLICY_URL=$($config.privacyPolicyUrl)",
     "--dart-define=BUSYMAX_SUPPORT_URL=$($config.supportUrl)",
     "--dart-define=BUSYMAX_HOMEPAGE_URL=$($config.homepageUrl)",
-    "--dart-define=GOOGLE_OAUTH_CLIENT_ID=$($config.googleOAuthClientId)",
-    "--dart-define=MICROSOFT_OAUTH_CLIENT_ID=$($config.microsoftOAuthClientId)",
-    "--dart-define=MICROSOFT_OAUTH_AUTHORITY_TENANT=$($config.microsoftOAuthAuthorityTenant)",
     '--dart-define=BUSYMAX_FAKE_DATA=false'
   )
-  if (-not [string]::IsNullOrWhiteSpace($config.googleOAuthClientSecret)) {
+  if ($UserOwnedOnly) {
+    if (-not $Ci) { throw 'UserOwnedOnly is a validation build; official transitional packages retain their original registrations.' }
+  } else {
+    $defines += @(
+    "--dart-define=GOOGLE_OAUTH_CLIENT_ID=$($config.googleOAuthClientId)",
+    "--dart-define=MICROSOFT_OAUTH_CLIENT_ID=$($config.microsoftOAuthClientId)",
+    "--dart-define=MICROSOFT_OAUTH_AUTHORITY_TENANT=$($config.microsoftOAuthAuthorityTenant)"
+    )
+  }
+  if (-not $UserOwnedOnly -and -not [string]::IsNullOrWhiteSpace($config.googleOAuthClientSecret)) {
     $defines += "--dart-define=GOOGLE_OAUTH_CLIENT_SECRET=$($config.googleOAuthClientSecret)"
   }
   New-Item -ItemType Directory -Force `
@@ -107,6 +118,7 @@ function Invoke-BusyMaxNativeTests {
 }
 
 function Invoke-BusyMaxPackage {
+  if ($UserOwnedOnly) { throw 'Official transitional packaging must retain original registrations. Build the transitional binary before packaging.' }
   New-Item -ItemType Directory -Force `
     -Path 'build\windows\test-results' | Out-Null
   $logPath = 'build\windows\test-results\package-store.log'

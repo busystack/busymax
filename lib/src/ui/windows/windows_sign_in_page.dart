@@ -1,3 +1,5 @@
+import 'windows_registration_setup_dialog.dart';
+import '../../core/auth/oauth_registration.dart';
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -76,24 +78,16 @@ class _WindowsSignInPageState extends ConsumerState<WindowsSignInPage> {
                   ],
                   const SizedBox(height: 24),
                   FilledButton(
-                    onPressed: busy || !config.hasGoogleOAuthClientId
+                    onPressed: busy || !config.googleSetupAvailable
                         ? null
-                        : () => _signIn(
-                            ref
-                                .read(authSessionControllerProvider.notifier)
-                                .signIn,
-                          ),
+                        : () => _signIn(() => _setup(BusyProvider.google)),
                     child: Text(l10n.signInWithGoogle),
                   ),
                   const SizedBox(height: 8),
                   Button(
-                    onPressed: busy || !config.hasMicrosoftOAuthClientId
+                    onPressed: busy || !config.microsoftSetupAvailable
                         ? null
-                        : () => _signIn(
-                            ref
-                                .read(authSessionControllerProvider.notifier)
-                                .signInWithMicrosoft,
-                          ),
+                        : () => _signIn(() => _setup(BusyProvider.microsoft)),
                     child: Text(l10n.signInWithMicrosoft),
                   ),
                   const SizedBox(height: 8),
@@ -133,6 +127,18 @@ class _WindowsSignInPageState extends ConsumerState<WindowsSignInPage> {
         ),
       ),
     );
+  }
+
+  Future<void> _setup(BusyProvider provider) async {
+    final handle = await showWindowsRegistrationSetup(context, ref, provider);
+    if (handle == null || !mounted) return;
+    final controller = ref.read(authSessionControllerProvider.notifier);
+    final request = AuthorizationRequest.newConnection(handle);
+    if (provider == BusyProvider.google) {
+      await controller.signIn(request: request);
+    } else {
+      await controller.signInWithMicrosoft(request: request);
+    }
   }
 
   Future<void> _signIn(Future<void> Function() action) async {

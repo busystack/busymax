@@ -68,6 +68,7 @@ android {
         versionName = flutter.versionName
         manifestPlaceholders["busymaxMsalRedirectHost"] = applicationId!!
         manifestPlaceholders["busymaxMsalSignatureHash"] = msalSignatureHash
+        resValue("string", "busymax_msal_signature_hash", msalSignatureHash)
         resValue("string", "busymax_msal_client_id", msalClientId)
         resValue("string", "busymax_msal_authority_tenant", msalAuthorityTenant)
     }

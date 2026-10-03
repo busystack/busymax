@@ -70,23 +70,35 @@ final class BusyMaxAndroidPlatform {
 
   Future<AndroidAuthorizationToken> authorizeMicrosoftInteractively({
     required List<String> scopes,
+    String? clientId,
+    String? authorityTenant,
   }) async => AndroidAuthorizationToken.fromMap(
     _stringMap(
-      await _methodChannel.invokeMethod<Object?>(
-        'authorizeMicrosoftInteractive',
-        {'scopes': scopes},
-      ),
+      await _methodChannel
+          .invokeMethod<Object?>('authorizeMicrosoftInteractive', {
+            'scopes': scopes,
+            'clientId': ?clientId,
+            'authorityTenant': ?authorityTenant,
+          }),
     ),
   );
 
   Future<AndroidAuthorizationToken> authorizeMicrosoftSilently({
     required String accountId,
     required List<String> scopes,
+    String? clientId,
+    String? authorityTenant,
+    String? nativeAccountId,
+    String? authority,
   }) async => AndroidAuthorizationToken.fromMap(
     _stringMap(
       await _methodChannel.invokeMethod<Object?>('authorizeMicrosoftSilent', {
         'accountId': accountId,
         'scopes': scopes,
+        'clientId': ?clientId,
+        'authorityTenant': ?authorityTenant,
+        'nativeAccountId': ?nativeAccountId,
+        'authority': ?authority,
       }),
     ),
   );
@@ -97,6 +109,8 @@ final class BusyMaxAndroidPlatform {
     required String nativeAccountId,
     String? username,
     String? authority,
+    String? clientId,
+    String? authorityTenant,
   }) {
     final arguments = <String, Object?>{
       'provider': provider,
@@ -105,8 +119,37 @@ final class BusyMaxAndroidPlatform {
     };
     if (username != null) arguments['username'] = username;
     if (authority != null) arguments['authority'] = authority;
+    if (clientId != null) arguments['clientId'] = clientId;
+    if (authorityTenant != null) arguments['authorityTenant'] = authorityTenant;
     return _methodChannel.invokeMethod<void>('bindAuthorization', arguments);
   }
+
+  Future<AndroidRegistrationIdentity> microsoftRegistrationIdentity() async =>
+      AndroidRegistrationIdentity.fromMap(
+        _stringMap(
+          await _methodChannel.invokeMethod<Object?>(
+            'microsoftRegistrationIdentity',
+          ),
+        ),
+      );
+  Future<AndroidNativeBinding?> readAuthorizationBinding(
+    String provider,
+    String accountId,
+  ) async {
+    final value = await _methodChannel.invokeMethod<Object?>(
+      'readAuthorizationBinding',
+      {'provider': provider, 'accountId': accountId},
+    );
+    return value == null
+        ? null
+        : AndroidNativeBinding.fromMap(_stringMap(value));
+  }
+
+  Future<void> clearAuthorizationBinding(String provider, String accountId) =>
+      _methodChannel.invokeMethod<void>('clearAuthorizationBinding', {
+        'provider': provider,
+        'accountId': accountId,
+      });
 
   Future<void> clearRejectedToken(String token) => _methodChannel
       .invokeMethod<void>('clearRejectedGoogleToken', {'token': token});
@@ -333,4 +376,50 @@ Map<String, Object?> _stringMap(Object? value) {
   if (value is Map<String, Object?>) return value;
   if (value is Map) return value.cast<String, Object?>();
   throw const FormatException('Android platform response is not a map.');
+}
+
+final class AndroidRegistrationIdentity {
+  const AndroidRegistrationIdentity({
+    required this.packageName,
+    required this.signatureHash,
+    required this.redirectUri,
+    this.retiringClientId,
+  });
+  factory AndroidRegistrationIdentity.fromMap(Map<String, Object?> map) =>
+      AndroidRegistrationIdentity(
+        packageName: map['packageName']! as String,
+        signatureHash: map['signatureHash']! as String,
+        redirectUri: map['redirectUri']! as String,
+        retiringClientId: map['retiringClientId'] as String?,
+      );
+  final String? retiringClientId;
+  final String packageName;
+  final String signatureHash;
+  final String redirectUri;
+}
+
+final class AndroidNativeBinding {
+  const AndroidNativeBinding({
+    required this.nativeAccountId,
+    this.username,
+    this.authority,
+    this.clientId,
+    this.authorityTenant,
+    this.originalRegistration = false,
+  });
+  factory AndroidNativeBinding.fromMap(Map<String, Object?> map) =>
+      AndroidNativeBinding(
+        nativeAccountId: map['nativeAccountId']! as String,
+        username: map['username'] as String?,
+        authority: map['authority'] as String?,
+        clientId: map['clientId'] as String?,
+        authorityTenant: map['authorityTenant'] as String?,
+        originalRegistration: map['originalRegistration'] == true,
+      );
+  final bool originalRegistration;
+  final String nativeAccountId;
+  final String? username;
+  final String? authority;
+  final String? clientId;
+  final String? authorityTenant;
 }

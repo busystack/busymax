@@ -17,6 +17,11 @@ part 'daos/tasks_dao.dart';
 @DriftDatabase(
   tables: [
     Accounts,
+    OAuthTransitionAccounts,
+    AccountAuthorizations,
+    AuthorizationCommits,
+    AuthorizationGenerations,
+    DomainSyncSchedules,
     DavAccountServices,
     DavCollections,
     DavObjects,

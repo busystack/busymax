@@ -3,10 +3,15 @@ package io.busystack.busymax_android_platform
 import android.accounts.Account
 import android.app.Activity
 import android.content.BroadcastReceiver
+import android.content.pm.PackageManager
+import android.util.Base64
+import java.security.MessageDigest
+import java.util.UUID
+import java.net.URLEncoder
+import java.nio.charset.StandardCharsets
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
-import android.content.pm.PackageManager
 import android.database.Cursor
 import android.net.Uri
 import android.os.Build
@@ -47,7 +52,6 @@ import io.flutter.plugin.common.PluginRegistry
 import org.json.JSONObject
 import java.io.ByteArrayOutputStream
 import java.util.TimeZone
-import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.Executors
 import java.util.concurrent.Semaphore
@@ -223,11 +227,12 @@ class BusymaxAndroidPlatformPlugin : FlutterPlugin,
     private val main by lazy { Handler(Looper.getMainLooper()) }
     private val executor = Executors.newCachedThreadPool()
     private var pendingInteractive: PendingInteractive? = null
+    private var interactiveSequence = 0
     private var pendingDocument: PendingDocument? = null
     private var pendingPermission: MethodChannel.Result? = null
     private val engineId = UUID.randomUUID().toString()
     @Volatile private var detached = false
-    @Volatile private var msal: IMultipleAccountPublicClientApplication? = null
+    private val msalClients = MicrosoftRegistrationClients<IMultipleAccountPublicClientApplication>()
     private var initialActivation: Map<String, Any?>? = null
 
     private val settingsReceiver = object : BroadcastReceiver() {
@@ -316,12 +321,39 @@ class BusymaxAndroidPlatformPlugin : FlutterPlugin,
             "getFirstWeekday" -> result.success(firstWeekday())
             "googleAuthorizationAvailable" -> result.success(GoogleApiAvailability.getInstance().isGooglePlayServicesAvailable(context) == 0)
             "microsoftAuthorizationAvailable" -> result.success(
-                context.resources.getIdentifier("busymax_msal_config", "raw", context.packageName) != 0,
+                runCatching { nativeMicrosoftIdentity(); true }.getOrDefault(false),
             )
             "authorizeGoogleInteractive" -> authorizeGoogle(call, result, true)
             "authorizeGoogleSilent" -> authorizeGoogle(call, result, false)
             "authorizeMicrosoftInteractive" -> authorizeMicrosoft(call, result, true)
             "authorizeMicrosoftSilent" -> authorizeMicrosoft(call, result, false)
+            "microsoftRegistrationIdentity" -> try { result.success(nativeMicrosoftIdentity()) } catch (_: Exception) {
+                result.error("android/microsoft-redirect-invalid", "The installed signing identity does not match the MSAL manifest redirect.", null)
+            }
+            "readAuthorizationBinding" -> {
+                val provider = call.argument<String>("provider").orEmpty()
+                val binding = readBinding(provider, call.argument<String>("accountId").orEmpty())
+                if (binding != null && provider == "microsoft" && !binding.has("clientId")) {
+                    val resourceId = context.resources.getIdentifier("busymax_msal_config", "raw", context.packageName)
+                    if (resourceId != 0) {
+                        val original = JSONObject(context.resources.openRawResource(resourceId).bufferedReader().use { it.readText() })
+                        binding.put("clientId", original.getString("client_id"))
+                        binding.put("authorityTenant", original.getJSONArray("authorities").getJSONObject(0).getJSONObject("audience").getString("tenant_id"))
+                    }
+                }
+                if (binding != null && provider == "microsoft") {
+                    val resourceId = context.resources.getIdentifier("busymax_msal_config", "raw", context.packageName)
+                    val originalId = if (resourceId == 0) null else runCatching {
+                        JSONObject(context.resources.openRawResource(resourceId).bufferedReader().use { it.readText() }).getString("client_id")
+                    }.getOrNull()
+                    binding.put("originalRegistration", originalId != null && originalId.equals(binding.optString("clientId"), ignoreCase = true))
+                }
+                result.success(binding?.let { value -> value.keys().asSequence().associateWith { key -> value.opt(key).takeUnless { it == JSONObject.NULL } } })
+            }
+            "clearAuthorizationBinding" -> {
+                val cleared = bindingPreferences().edit().remove(bindingKey(call.argument<String>("provider").orEmpty(), call.argument<String>("accountId").orEmpty())).commit()
+                if (cleared) result.success(null) else result.error("android/auth-storage-failed", "Native account binding could not be saved.", null)
+            }
             "bindAuthorization" -> bindAuthorization(call, result)
             "clearRejectedGoogleToken" -> clearGoogleToken(call, result)
             "removeAuthorization" -> removeAuthorization(call, result)
@@ -369,6 +401,7 @@ class BusymaxAndroidPlatformPlugin : FlutterPlugin,
         val scopes = stringList(call.argument<List<*>>("scopes"))
         if (scopes.isEmpty()) return result.error("android/invalid-arguments", "Scopes are required.", null)
         if (interactive && !reserveInteractive("google", result)) return
+        val attempt = if (interactive) pendingInteractive else null
         val builder = AuthorizationRequest.builder()
             .setRequestedScopes(scopes.map(::Scope))
             .setPrompt(if (interactive) AuthorizationRequest.Prompt.SELECT_ACCOUNT else AuthorizationRequest.Prompt.NOT_SET)
@@ -380,26 +413,28 @@ class BusymaxAndroidPlatformPlugin : FlutterPlugin,
         }
         Identity.getAuthorizationClient(context).authorize(builder.build())
             .addOnSuccessListener { authorization ->
+                if (interactive && pendingInteractive !== attempt) return@addOnSuccessListener
                 if (authorization.hasResolution()) {
                     val host = activity
                     if (!interactive || host == null) {
-                        if (interactive) clearPendingInteractive()
+                        if (interactive) clearPendingInteractive(attempt)
                         result.error("android/auth-interaction-required", "Authorization requires user interaction.", null)
                         return@addOnSuccessListener
                     }
                     try {
-                        host.startIntentSenderForResult(authorization.pendingIntent!!.intentSender, GOOGLE_AUTH_REQUEST, null, 0, 0, 0)
+                        host.startIntentSenderForResult(authorization.pendingIntent!!.intentSender, attempt!!.requestCode, null, 0, 0, 0)
                     } catch (error: Exception) {
-                        clearPendingInteractive()
+                        clearPendingInteractive(attempt)
                         result.error("android/auth-launch-failed", "Google authorization could not be opened.", safeError(error))
                     }
                 } else {
-                    if (interactive) clearPendingInteractive()
+                    if (interactive) clearPendingInteractive(attempt)
                     completeGoogleAuthorization(authorization, result)
                 }
             }
             .addOnFailureListener { error ->
-                if (interactive) clearPendingInteractive()
+                if (interactive && pendingInteractive !== attempt) return@addOnFailureListener
+                if (interactive) clearPendingInteractive(attempt)
                 result.error("android/google-authorization-failed", "Google authorization failed.", safeError(error))
             }
     }
@@ -426,12 +461,26 @@ class BusymaxAndroidPlatformPlugin : FlutterPlugin,
         val scopes = stringList(call.argument<List<*>>("scopes"))
         if (scopes.isEmpty()) return result.error("android/invalid-arguments", "Scopes are required.", null)
         if (interactive && !reserveInteractive("microsoft", result)) return
-        ensureMsal(
+        val attempt = if (interactive) pendingInteractive else null
+        val selectedBinding = if (interactive) null else readBinding("microsoft", call.argument<String>("accountId").orEmpty())
+        val explicitClient = call.argument<String>("clientId")
+        val selectedClientId = if (interactive || explicitClient != null) explicitClient else selectedBinding?.optString("clientId")?.takeIf { it.isNotBlank() }
+        val selectedTenant = if (interactive || explicitClient != null) call.argument<String>("authorityTenant") else selectedBinding?.optString("authorityTenant")?.takeIf { it.isNotBlank() }
+        if (!interactive && explicitClient != null &&
+            (explicitClient.isBlank() || selectedTenant.isNullOrBlank() || call.argument<String>("nativeAccountId").isNullOrBlank())) {
+            return result.error("android/microsoft-not-configured", "The selected native registration binding is incomplete.", null)
+        }
+        if (interactive && selectedClientId.isNullOrBlank()) {
+            clearPendingInteractive(attempt)
+            return result.error("android/microsoft-setup-required", "Set up a user-owned Microsoft registration.", null)
+        }
+        ensureMsal(clientId = selectedClientId, tenant = selectedTenant,
             onSuccess = { application ->
+                if (interactive && pendingInteractive !== attempt) return@ensureMsal
                 if (interactive) {
                     val host = activity
                     if (host == null) {
-                        clearPendingInteractive()
+                        clearPendingInteractive(attempt)
                         result.error("android/activity-unavailable", "Microsoft sign-in requires a visible Activity.", null)
                         return@ensureMsal
                     }
@@ -441,28 +490,29 @@ class BusymaxAndroidPlatformPlugin : FlutterPlugin,
                         .withPrompt(Prompt.SELECT_ACCOUNT)
                         .withCallback(object : AuthenticationCallback {
                             override fun onSuccess(authenticationResult: IAuthenticationResult) {
-                                if (takePendingInteractive("microsoft") == null) return
+                                if (takePendingInteractive("microsoft", attempt) == null) return
                                 result.success(msalResult(authenticationResult))
                             }
                             override fun onError(exception: MsalException) {
-                                if (takePendingInteractive("microsoft") == null) return
+                                if (takePendingInteractive("microsoft", attempt) == null) return
                                 result.error("android/microsoft-authorization-failed", "Microsoft authorization failed.", safeError(exception))
                             }
                             override fun onCancel() {
-                                if (takePendingInteractive("microsoft") == null) return
+                                if (takePendingInteractive("microsoft", attempt) == null) return
                                 result.error("android/auth-cancelled", "Microsoft sign-in was cancelled.", null)
                             }
                         }).build()
                     application.acquireToken(parameters)
                 } else {
-                    val binding = readBinding("microsoft", call.argument<String>("accountId").orEmpty())
-                    val nativeId = binding?.optString("nativeAccountId").orEmpty()
+                    val nativeId = if (explicitClient != null) call.argument<String>("nativeAccountId").orEmpty()
+                        else selectedBinding?.optString("nativeAccountId").orEmpty()
+                    val selectedAuthority = if (explicitClient != null) call.argument<String>("authority") else selectedBinding?.optString("authority")?.takeIf { it.isNotBlank() }
                     executor.execute {
                         try {
                             val account = application.accounts.firstOrNull { it.id == nativeId }
                                 ?: throw MicrosoftAccountMissingException()
                             val parameters = AcquireTokenSilentParameters.Builder()
-                                .withScopes(scopes).forAccount(account).fromAuthority(account.authority).build()
+                                .withScopes(scopes).forAccount(account).fromAuthority(selectedAuthority ?: account.authority).build()
                             postSuccess(result, msalResult(application.acquireTokenSilent(parameters)))
                         } catch (error: Exception) {
                             val failure = classifyMicrosoftSilentFailure(error)
@@ -472,21 +522,63 @@ class BusymaxAndroidPlatformPlugin : FlutterPlugin,
                 }
             },
             onError = { error ->
-                if (interactive) clearPendingInteractive()
+                if (interactive && pendingInteractive !== attempt) return@ensureMsal
+                if (interactive) clearPendingInteractive(attempt)
                 result.error("android/microsoft-not-configured", "Microsoft sign-in is not configured for this build.", safeError(error))
             },
         )
     }
 
-    private fun ensureMsal(onSuccess: (IMultipleAccountPublicClientApplication) -> Unit, onError: (Throwable) -> Unit) {
-        msal?.let { return onSuccess(it) }
+    @Suppress("DEPRECATION")
+    private fun nativeMicrosoftIdentity(): Map<String, String> {
+        val info = if (android.os.Build.VERSION.SDK_INT >= 28) {
+            context.packageManager.getPackageInfo(context.packageName, PackageManager.GET_SIGNING_CERTIFICATES)
+        } else context.packageManager.getPackageInfo(context.packageName, PackageManager.GET_SIGNATURES)
+        val signatures = if (android.os.Build.VERSION.SDK_INT >= 28) info.signingInfo?.apkContentsSigners else info.signatures
+        require(signatures?.size == 1) { "Ambiguous installed signature." }
+        val hash = Base64.encodeToString(MessageDigest.getInstance("SHA-1").digest(signatures!![0].toByteArray()), Base64.NO_WRAP)
+        val redirect = "msauth://${context.packageName}/${URLEncoder.encode(hash, StandardCharsets.UTF_8.name())}"
+        val intent = Intent(Intent.ACTION_VIEW, Uri.parse(redirect)).addCategory(Intent.CATEGORY_BROWSABLE).addCategory(Intent.CATEGORY_DEFAULT)
+        require(context.packageManager.queryIntentActivities(intent, 0).any {
+            it.activityInfo.packageName == context.packageName && it.activityInfo.name == "com.microsoft.identity.client.BrowserTabActivity"
+        }) { "Installed signature and manifest redirect differ." }
         val resourceId = context.resources.getIdentifier("busymax_msal_config", "raw", context.packageName)
-        if (resourceId == 0) return onError(IllegalStateException("Missing generated MSAL configuration."))
+        val originalId = if (resourceId == 0) null else runCatching {
+            JSONObject(context.resources.openRawResource(resourceId).bufferedReader().use { it.readText() }).getString("client_id")
+        }.getOrNull()
+        return mapOf("packageName" to context.packageName, "signatureHash" to hash, "redirectUri" to redirect) +
+            (originalId?.let { mapOf("retiringClientId" to it) } ?: emptyMap())
+    }
+
+    private fun ensureMsal(clientId: String? = null, tenant: String? = null,
+        onSuccess: (IMultipleAccountPublicClientApplication) -> Unit, onError: (Throwable) -> Unit) {
         executor.execute {
             try {
-                val created = PublicClientApplication.createMultipleAccountPublicClientApplication(context, resourceId)
-                msal = created
-                main.post { onSuccess(created) }
+                val registration = clientId?.let { MicrosoftRegistration(it, tenant ?: "common") }
+                val application = msalClients.getOrCreate(registration) {
+                        val created = if (clientId == null) {
+                            val resourceId = context.resources.getIdentifier("busymax_msal_config", "raw", context.packageName)
+                            require(resourceId != 0) { "Original registration unavailable." }
+                            PublicClientApplication.createMultipleAccountPublicClientApplication(context, resourceId)
+                        } else {
+                            val selectedTenant = registration!!.tenant
+                            val audienceType = registration.audienceType
+                            val config = JSONObject().put("client_id", clientId)
+                                .put("redirect_uri", nativeMicrosoftIdentity().getValue("redirectUri"))
+                                .put("authorization_user_agent", "BROWSER").put("account_mode", "MULTIPLE")
+                                .put("broker_redirect_uri_registered", false)
+                                .put("logging", JSONObject().put("pii_enabled", false).put("log_level", "WARNING"))
+                                .put("authorities", org.json.JSONArray().put(JSONObject().put("type", "AAD").put("default", true)
+                                    .put("audience", JSONObject().put("type", audienceType).put("tenant_id", selectedTenant))))
+                            val file = java.io.File.createTempFile("busymax-msal-", ".json", context.cacheDir)
+                            try {
+                                file.writeText(config.toString())
+                                PublicClientApplication.createMultipleAccountPublicClientApplication(context, file)
+                            } finally { file.delete() }
+                        }
+                        created
+                }
+                main.post { onSuccess(application) }
             } catch (error: Throwable) { main.post { onError(error) } }
         }
     }
@@ -496,7 +588,7 @@ class BusymaxAndroidPlatformPlugin : FlutterPlugin,
         "scopes" to token.scope.toList(),
         "nativeAccountId" to token.account.id,
         "username" to token.account.username,
-        "authority" to token.account.authority,
+        "authority" to "https://login.microsoftonline.com/${token.tenantId}",
         "expiresAtEpochMillis" to token.expiresOn.time,
     )
 
@@ -511,7 +603,11 @@ class BusymaxAndroidPlatformPlugin : FlutterPlugin,
         val value = JSONObject().put("provider", provider).put("accountId", accountId)
             .put("nativeAccountId", nativeId).put("username", call.argument<String>("username"))
             .put("authority", call.argument<String>("authority"))
-        bindingPreferences().edit().putString(bindingKey(provider, accountId), value.toString()).apply()
+            .put("clientId", call.argument<String>("clientId"))
+            .put("authorityTenant", call.argument<String>("authorityTenant"))
+        if (!bindingPreferences().edit().putString(bindingKey(provider, accountId), value.toString()).commit()) {
+            return result.error("android/binding-storage-unavailable", "Native account binding could not be saved.", null)
+        }
         result.success(null)
     }
 
@@ -539,7 +635,8 @@ class BusymaxAndroidPlatformPlugin : FlutterPlugin,
         }
         if (provider == "microsoft" && binding != null) {
             val nativeId = binding.optString("nativeAccountId")
-            ensureMsal(onSuccess = { application -> executor.execute {
+            ensureMsal(clientId = binding.optString("clientId").takeIf { it.isNotBlank() },
+                tenant = binding.optString("authorityTenant").takeIf { it.isNotBlank() }, onSuccess = { application -> executor.execute {
                 try {
                     application.accounts.firstOrNull { it.id == nativeId }?.let(application::removeAccount)
                     removeBinding(); postSuccess(result, null)
@@ -553,18 +650,18 @@ class BusymaxAndroidPlatformPlugin : FlutterPlugin,
     private fun reserveInteractive(provider: String, result: MethodChannel.Result): Boolean {
         if (activity == null) { result.error("android/activity-unavailable", "Sign-in requires a visible Activity.", null); return false }
         if (pendingInteractive != null) { result.error("android/auth-in-progress", "Another sign-in is already in progress.", null); return false }
-        pendingInteractive = PendingInteractive(provider, result)
+        pendingInteractive = PendingInteractive(provider, result, 0x5200 + (++interactiveSequence % 0x1000))
         return true
     }
 
-    private fun takePendingInteractive(provider: String): PendingInteractive? {
+    private fun takePendingInteractive(provider: String, expected: PendingInteractive? = pendingInteractive): PendingInteractive? {
         val pending = pendingInteractive
-        if (pending?.provider != provider) return null
+        if (pending?.provider != provider || pending !== expected) return null
         pendingInteractive = null
         return pending
     }
 
-    private fun clearPendingInteractive() { pendingInteractive = null }
+    private fun clearPendingInteractive(expected: PendingInteractive? = pendingInteractive) { if (pendingInteractive === expected) pendingInteractive = null }
     private fun cancelInteractive(result: MethodChannel.Result) {
         val pending = pendingInteractive
         pendingInteractive = null
@@ -573,7 +670,7 @@ class BusymaxAndroidPlatformPlugin : FlutterPlugin,
     }
 
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?): Boolean {
-        if (requestCode == GOOGLE_AUTH_REQUEST) {
+        if (pendingInteractive?.provider == "google" && requestCode == pendingInteractive?.requestCode) {
             val pending = takePendingInteractive("google") ?: return true
             if (resultCode != Activity.RESULT_OK || data == null) {
                 pending.result.error("android/auth-cancelled", "Google sign-in was cancelled.", null)
@@ -781,7 +878,7 @@ class BusymaxAndroidPlatformPlugin : FlutterPlugin,
     private fun postSuccess(result: MethodChannel.Result, value: Any?) { main.post { result.success(value) } }
     private fun postError(result: MethodChannel.Result, code: String, message: String, error: Throwable?) { main.post { result.error(code, message, error?.let(::safeError)) } }
 
-    private data class PendingInteractive(val provider: String, val result: MethodChannel.Result)
+    private data class PendingInteractive(val provider: String, val result: MethodChannel.Result, val requestCode: Int)
     private data class ExportResource(val name: String, val bytes: ByteArray)
     private sealed class PendingDocument(val result: MethodChannel.Result, val requestCode: Int) {
         class Open(result: MethodChannel.Result, val maximumBytes: Long) : PendingDocument(result, OPEN_DOCUMENT_REQUEST)

@@ -16,7 +16,13 @@
   "settingsSaveFailed": "تنظیمات ذخیره نشد. ممکن است تغییرات شما با راه‌اندازی دوبارهٔ BusyMax از بین برود.",
   "nextcloudExportCollection": "برون‌بری منابع مجموعه",
   "nextcloudImportItems": "{count} منبع رویداد/کار پیدا شد",
-  "@nextcloudImportItems": {"placeholders": {"count": {"type": "int"}}},
+  "@nextcloudImportItems": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "nextcloudSchedulingInbox": "صندوق ورودی دعوت‌ها",
   "nextcloudInboxExplanation": "Nextcloud این پیام‌ها را در تقویم‌ها پردازش می‌کند. تأیید دریافت فقط پیام را حذف می‌کند، نه رویداد را.",
   "nextcloudInboxEmpty": "پیام زمان‌بندی وجود ندارد.",
@@ -24,7 +30,13 @@
   "nextcloudAcknowledgeConfirm": "این پیام از صندوق ورودی حذف شود؟ رویداد تقویم حفظ می‌شود.",
   "nextcloudGuestAvailability": "بررسی زمان آزاد مهمانان",
   "nextcloudTrashRetention": "مدت نگهداری در زباله‌دان سرور: {days} روز",
-  "@nextcloudTrashRetention": {"placeholders": {"days": {"type": "int"}}},
+  "@nextcloudTrashRetention": {
+    "placeholders": {
+      "days": {
+        "type": "int"
+      }
+    }
+  },
   "nextcloudCancelMeeting": "لغو جلسه",
   "nextcloudDeclineAndRemove": "رد و حذف دعوت",
   "nextcloudDeclineRemovalWarning": "هنگام همگام‌سازی پاسخ رد ارسال می‌شود. جلسهٔ برگزارکننده لغو نمی‌شود.",
@@ -139,7 +151,7 @@
     "placeholders": {
       "number": {
         "type": "int",
-      "format": "decimalPattern"
+        "format": "decimalPattern"
       }
     }
   },
@@ -172,7 +184,7 @@
   },
   "newEvent": "رویداد جدید",
   "refreshCalendar": "تازه‌سازی تقویم",
-"openInProvider": "باز کردن در سرویس",
+  "openInProvider": "باز کردن در سرویس",
   "linkedResources": "منابع پیوندشده",
   "noLinkedResources": "منبع پیوندشده‌ای وجود ندارد",
   "attachments": "پیوست‌ها",
@@ -207,7 +219,7 @@
     "placeholders": {
       "count": {
         "type": "int",
-      "format": "decimalPattern"
+        "format": "decimalPattern"
       }
     }
   },
@@ -222,7 +234,7 @@
     "placeholders": {
       "count": {
         "type": "int",
-      "format": "decimalPattern"
+        "format": "decimalPattern"
       }
     }
   },
@@ -231,7 +243,7 @@
     "placeholders": {
       "count": {
         "type": "int",
-      "format": "decimalPattern"
+        "format": "decimalPattern"
       }
     }
   },
@@ -240,7 +252,7 @@
     "placeholders": {
       "count": {
         "type": "int",
-      "format": "decimalPattern"
+        "format": "decimalPattern"
       }
     }
   },
@@ -476,7 +488,7 @@
   "moveToTop": "انتقال به بالاترین جایگاه",
   "deleteTask": "حذف کار",
   "newSubtask": "زیرکار جدید",
- "deleteTaskConfirmation": "«⁨⁨{title}⁩⁩» حذف شود؟",
+  "deleteTaskConfirmation": "«⁨⁨{title}⁩⁩» حذف شود؟",
   "deleteAssignedTaskWarning": "این کار، وظیفهٔ اصلی را نیز در Google Docs یا فضاهای Chat حذف می‌کند.",
   "metadata": "فراداده",
   "id": "شناسه",
@@ -986,7 +998,7 @@
     "placeholders": {
       "count": {
         "type": "int",
-      "format": "decimalPattern"
+        "format": "decimalPattern"
       }
     }
   },
@@ -995,7 +1007,7 @@
     "placeholders": {
       "count": {
         "type": "int",
-      "format": "decimalPattern"
+        "format": "decimalPattern"
       }
     }
   },
@@ -1016,7 +1028,7 @@
     "placeholders": {
       "count": {
         "type": "int",
-      "format": "decimalPattern"
+        "format": "decimalPattern"
       }
     }
   },
@@ -1025,7 +1037,7 @@
     "placeholders": {
       "count": {
         "type": "int",
-      "format": "decimalPattern"
+        "format": "decimalPattern"
       }
     }
   },
@@ -1034,7 +1046,7 @@
     "placeholders": {
       "count": {
         "type": "int",
-      "format": "decimalPattern"
+        "format": "decimalPattern"
       }
     }
   },
@@ -1099,19 +1111,33 @@
   "@repeatYearlyOnMonthDaysSummary": {
     "description": "Complete yearly recurrence summary for selected month days; placeholders may be reordered by locale.",
     "placeholders": {
-      "frequency": {"type": "String"},
-      "month": {"type": "String"},
-      "days": {"type": "String"}
+      "frequency": {
+        "type": "String"
+      },
+      "month": {
+        "type": "String"
+      },
+      "days": {
+        "type": "String"
+      }
     }
   },
   "repeatYearlyOnOrdinalSummary": "{frequency} در {position, select, first{اولین} second{دومین} third{سومین} fourth{چهارمین} fifth{پنجمین} secondToLast{یکی‌مانده‌به‌آخرین} last{آخرین} other{}} {days} ماه {month}",
   "@repeatYearlyOnOrdinalSummary": {
     "description": "Complete yearly ordinal recurrence summary; {position} selects the ordinal wording and placeholders may be reordered by locale.",
     "placeholders": {
-      "frequency": {"type": "String"},
-      "month": {"type": "String"},
-      "position": {"type": "String"},
-      "days": {"type": "String"}
+      "frequency": {
+        "type": "String"
+      },
+      "month": {
+        "type": "String"
+      },
+      "position": {
+        "type": "String"
+      },
+      "days": {
+        "type": "String"
+      }
     }
   },
   "searchFilters": "فیلترهای جستجو",
@@ -1174,5 +1200,75 @@
   "sharingRateLimited": "اشتراک‌گذاری موقتاً محدود شده است. پس از پایان زمان انتظار دوباره تلاش کنید.",
   "attachmentUploadRateLimited": "بارگذاری پیوست‌ها موقتاً محدود شده است. پس از پایان زمان انتظار دوباره تلاش کنید.",
   "unknownEventLabel": "برچسب ناشناخته (⁨{id}⁩)",
-  "@unknownEventLabel": {"placeholders": {"id": {"type": "String"}}}
+  "@unknownEventLabel": {
+    "placeholders": {
+      "id": {
+        "type": "String"
+      }
+    }
+  },
+  "registrationSetupTitle": "راه‌اندازی ⁨{provider}⁩",
+  "@registrationSetupTitle": {
+    "placeholders": {
+      "provider": {
+        "type": "String"
+      }
+    }
+  },
+  "registrationSetupGuide": "راهنمای راه‌اندازی",
+  "registrationGoogleInstructions": "پروژهٔ Google Cloud خود را بسازید، APIهای Calendar و Tasks را فعال کنید و JSON کلاینت OAuth دسکتاپ را وارد کنید. به حساب موردنظر مجوز بدهید.",
+  "registrationMicrosoftInstructions": "از ثبت برنامهٔ عمومی در مستأجر Entra که ثبت را مجاز می‌داند استفاده کنید. شناسهٔ کلاینت و نوع حساب‌ها را وارد کنید. رمز کلاینت لازم نیست.",
+  "registrationImportGoogle": "انتخاب JSON کلاینت OAuth دسکتاپ",
+  "registrationValidate": "اعتبارسنجی ثبت",
+  "registrationAuthorize": "دادن مجوز در مرورگر",
+  "registrationClientId": "شناسهٔ برنامه/کلاینت",
+  "registrationTenantId": "شناسهٔ مستأجر",
+  "registrationAudience": "حساب‌های پشتیبانی‌شده",
+  "registrationBothAudience": "حساب‌های شخصی و سازمانی",
+  "registrationOrganizationAudience": "حساب‌های سازمانی",
+  "registrationPersonalAudience": "حساب‌های شخصی",
+  "registrationTenantAudience": "یک مستأجر سازمانی",
+  "registrationSummary": "ثبت: ⁨{clientId}⁩",
+  "@registrationSummary": {
+    "placeholders": {
+      "clientId": {
+        "type": "String"
+      }
+    }
+  },
+  "registrationMigrate": "انتقال اکنون",
+  "registrationReplace": "جایگزینی ثبت",
+  "registrationRetirementNotice": "این حساب از ثبت مشترک ⁨{provider}⁩ در BusyMax استفاده می‌کند که در نسخهٔ بعدی متوقف می‌شود. ⁨{setup}⁩ خود را راه‌اندازی و این حساب را دوباره متصل کنید تا همگام‌سازی ادامه یابد. تقویم‌ها، کارها و تغییرات محلی موجود حفظ می‌شوند.",
+  "@registrationRetirementNotice": {
+    "placeholders": {
+      "provider": {
+        "type": "String"
+      },
+      "setup": {
+        "type": "String"
+      }
+    }
+  },
+  "registrationContinue": "ادامهٔ استفاده از این حساب",
+  "registrationGoogleProject": "پروژهٔ Google Cloud",
+  "registrationMicrosoftApp": "ثبت برنامهٔ Microsoft",
+  "registrationUserOwned": "ثبت ارائه‌شده توسط کاربر",
+  "registrationNativeGoogle": "ثبت بومی Google برای Android",
+  "registrationShared": "ثبت مشترک (دورهٔ انتقال)",
+  "registrationUnresolved": "منشأ ثبت مشخص نیست. داده‌های حساب حفظ شده‌اند.",
+  "registrationOfficialDocumentation": "مستندات رسمی",
+  "registrationAndroidIdentity": "بسته: ⁨{packageName}⁩\nهش امضا: ⁨{signatureHash}⁩\nنشانی هدایت: ⁨{redirectUri}⁩",
+  "@registrationAndroidIdentity": {
+    "placeholders": {
+      "packageName": {
+        "type": "String"
+      },
+      "signatureHash": {
+        "type": "String"
+      },
+      "redirectUri": {
+        "type": "String"
+      }
+    }
+  }
 }
