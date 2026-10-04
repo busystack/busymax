@@ -3124,7 +3124,7 @@ class AppLocalizationsKo extends AppLocalizations {
 
   @override
   String registrationRetirementNotice(String provider, String setup) {
-    return '이 계정은 다음 릴리스에서 중단될 BusyMax의 공유 $provider 앱 등록을 사용합니다. 자신의 $setup을 설정하고 이 계정을 다시 연결하여 동기화를 유지하세요. 기존 캘린더, 작업 및 로컬 변경 사항은 보존됩니다.';
+    return '이 계정은 기존 계정용 원래 $provider 등록을 사용합니다. 바꾸려면 $setup을 설정하고 이 계정을 다시 연결하세요. 기존 캘린더, 작업 및 로컬 변경 사항은 유지됩니다.';
   }
 
   @override
@@ -3253,7 +3253,7 @@ class AppLocalizationsKo extends AppLocalizations {
 
   @override
   String get registrationGuideGoogleAudience =>
-      'Google Auth Platform → Branding으로 이동하세요. 아직 설정하지 않았다면 Get started를 선택하세요. App name에 BusyMax를 입력하고 본인 User support email을 선택한 뒤 Next를 선택하세요. Audience에서 개인 Google 계정은 External을 선택하세요. Internal은 프로젝트 조직의 계정에만 사용할 수 있습니다. Next를 선택하고 Contact Information에 이메일을 입력한 뒤 Next를 선택하세요. User Data Policy에 동의하고 Continue와 Create를 선택하세요. 이미 설정했다면 Branding과 Audience를 확인하세요.\n\nExternal의 Testing 상태에서는 Audience → Test users → Add users를 열고 연결할 Google 계정을 입력한 뒤 Save를 선택하세요. 등록된 테스트 사용자만 연결할 수 있으며 승인과 갱신 토큰은 7일 후 만료됩니다.';
+      'Google Auth Platform → Branding으로 이동하세요. 아직 설정하지 않았다면 Get started를 선택하세요. App name에 BusyMax를 입력하고 본인 User support email을 선택한 뒤 Next를 선택하세요. Audience에서 External을 선택하세요. Next를 선택하고 Contact Information에 이메일을 입력한 뒤 Next를 선택하세요. User Data Policy에 동의하고 Continue와 Create를 선택하세요. 이미 설정했다면 Branding과 Audience를 확인하세요.';
 
   @override
   String get registrationGuideGooglePermissions =>
@@ -3261,7 +3261,7 @@ class AppLocalizationsKo extends AppLocalizations {
 
   @override
   String get registrationGuideGoogleClient =>
-      'Google Auth Platform → Clients → Create client를 여세요. Application type을 Desktop app으로 설정하고 Name에 BusyMax를 입력한 뒤 Create를 선택하세요. 생성 대화상자에서 Download JSON을 선택하고 파일을 저장하세요. ×로 이 안내를 닫고 양식으로 돌아와 파일을 선택하고 프로젝트 및 클라이언트 ID를 확인하세요. 연결을 선택하고 브라우저에서 캘린더와 작업 접근을 승인하세요.';
+      'Google Auth Platform → Clients → Create client를 여세요. Application type을 Desktop app으로 설정하고 Name에 BusyMax를 입력한 뒤 Create를 선택하세요. 생성 대화상자에서 Download JSON을 선택하고 파일을 저장하세요. 뒤로를 선택하고 양식으로 돌아와 파일을 선택하고 프로젝트 및 클라이언트 ID를 확인하세요. 연결을 선택하고 브라우저에서 캘린더와 작업 접근을 승인하세요.';
 
   @override
   String get registrationGuideMicrosoftApp =>
@@ -3277,7 +3277,7 @@ class AppLocalizationsKo extends AppLocalizations {
 
   @override
   String get registrationGuideMicrosoftConnect =>
-      '×로 이 안내를 닫고 양식으로 돌아오세요. Application (client) ID를 붙여넣고 등록과 같은 지원 계정을 선택하세요. 단일 조직 테넌트라면 Directory (tenant) ID도 붙여넣으세요. 연결을 선택하고 브라우저에서 원하는 계정으로 로그인하세요. BusyMax는 필드를 로컬에서 검사하며 Microsoft는 브라우저 로그인 중 동의를 요청합니다.';
+      '뒤로를 선택하고 양식으로 돌아오세요. Application (client) ID를 붙여넣고 등록과 같은 지원 계정을 선택하세요. 단일 조직 테넌트라면 Directory (tenant) ID도 붙여넣으세요. 연결을 선택하고 브라우저에서 원하는 계정으로 로그인하세요. BusyMax는 필드를 로컬에서 검사하며 Microsoft는 브라우저 로그인 중 동의를 요청합니다.';
 
   @override
   String get registrationGoogleImportFailed =>
@@ -3364,4 +3364,78 @@ class AppLocalizationsKo extends AppLocalizations {
   @override
   String get registrationGuideMicrosoftAudience =>
       'Supported account types에서 개인 계정은 Personal accounts only, 조직 계정은 Multiple Entra ID tenants, 둘 다는 Any Entra ID Tenant + Personal Microsoft accounts, 이 디렉터리만은 Single tenant only를 선택하세요. Register를 선택하세요. Overview에서 Application (client) ID를 복사하고 단일 테넌트라면 Directory (tenant) ID도 복사하세요. BusyMax에서 같은 지원 계정 선택을 사용하세요.';
+
+  @override
+  String get registrationConnectBusyMax => 'BusyMax로 연결';
+
+  @override
+  String get registrationRecommended => '권장';
+
+  @override
+  String get registrationOtherMethods => '다른 연결 방법';
+
+  @override
+  String get registrationWorkspace => 'Google Workspace 조직';
+
+  @override
+  String get registrationGoogleCustom => '사용자 지정 OAuth 클라이언트';
+
+  @override
+  String get registrationMicrosoftCustom => '사용자 지정 앱 등록';
+
+  @override
+  String get registrationMethodsIntroduction => '계정을 연결할 방법을 선택하세요.';
+
+  @override
+  String get registrationWorkspaceDescription => '조직이 관리하는 구성을 사용하세요.';
+
+  @override
+  String get registrationCustomDescription => '직접 관리하는 등록을 사용하세요.';
+
+  @override
+  String get registrationSharedUnavailable =>
+      '이 빌드에서는 BusyMax 연결을 사용할 수 없습니다. 아래에서 다른 연결 방법을 사용할 수 있습니다.';
+
+  @override
+  String get registrationWorkspaceIntroduction =>
+      '조직에서 제공하거나 관리하는 데스크톱 OAuth JSON을 선택하세요. 파일은 조직 소유권, 대상 계정 또는 인증 상태를 증명하지 않습니다.';
+
+  @override
+  String get registrationWorkspaceSetupInstructions => 'Google Workspace 설정 안내';
+
+  @override
+  String get registrationBusyMaxManaged => 'BusyMax에서 관리하는 등록';
+
+  @override
+  String get registrationBranding => '브랜딩 및 도메인 구성';
+
+  @override
+  String get registrationPublishing => '일반 사용을 위해 게시';
+
+  @override
+  String get registrationOpenAudience => 'Google Auth Platform Audience 열기';
+
+  @override
+  String get registrationGuideWorkspaceProject =>
+      '관리자에게 Desktop OAuth JSON을 받거나 Google Cloud Console에서 Google Workspace 조직이 소유한 프로젝트를 선택하세요. 새로 만들려면 리소스 관리 → 프로젝트 만들기를 열고 프로젝트 이름을 입력한 뒤 상위 리소스에서 조직 또는 조직의 폴더를 선택하고 만들기를 누르세요. 다음 단계에서도 해당 프로젝트를 선택하세요. 생성에는 Project Creator, OAuth 설정에는 OAuth Config Editor, API 사용 설정에는 Service Usage Admin 또는 동등한 권한이 필요합니다. 작업이 차단되면 관리자에게 문의하세요.';
+
+  @override
+  String get registrationGuideGoogleBranding =>
+      'Branding → App domain에서 프로젝트의 승인된 도메인을 먼저 추가한 뒤 홈페이지, 개인정보 처리방침, 서비스 약관 URL을 입력하고 Save를 선택하세요. External 프로덕션 앱에는 이 링크가 필요합니다. 소유한 도메인을 사용하고 Google이 브랜드 인증을 요구하면 Search Console에서 소유권을 확인하세요. 아래 BusyMax 개인정보 링크는 프로젝트의 busystack.org 소유권을 증명하지 않습니다.';
+
+  @override
+  String get registrationGuideGooglePublishing =>
+      'Audience에서 Publish app을 선택하고 In production을 확인하세요. 일반 사용을 Testing으로 두지 마세요. 이 Calendar/Tasks 승인과 갱신 토큰은 7일 후 만료됩니다. 게시와 인증은 별개입니다. 100명 미만의 개인 사용은 경고와 사용자 제한을 적용하여 인증 면제가 가능하며, 광범위 배포는 브랜드와 범위 승인이 필요할 수 있습니다. 프로덕션 승인도 만료되거나 취소될 수 있습니다.';
+
+  @override
+  String get registrationGuideWorkspacePermissions =>
+      '이 범위를 관리자와 검토하세요. Internal 앱은 동의 화면에 범위를 나열할 필요가 없습니다. 요청받으면 Data Access → Add or remove scopes에서 값을 추가하고 Update와 Save를 선택하세요. 관리자 제어로 승인이 제한될 수 있습니다.';
+
+  @override
+  String get registrationGuideMicrosoftOptionalPermissions =>
+      '공유 캘린더와 범주 권한은 선택 기능을 활성화할 때 별도로 요청됩니다. 위의 필수 설정에 추가하지 마세요.';
+
+  @override
+  String get registrationGuideWorkspaceAudience =>
+      'Google Auth Platform → Branding으로 이동하세요. 아직 설정하지 않았다면 Get started를 선택하세요. App name에 BusyMax를 입력하고 본인 User support email을 선택한 뒤 Next를 선택하세요. Audience에서 Internal을 선택하세요. Next를 선택하고 Contact Information에 이메일을 입력한 뒤 Next를 선택하세요. User Data Policy에 동의하고 Continue와 Create를 선택하세요. 이미 설정했다면 Branding과 Audience를 확인하세요.\n\nInternal은 프로젝트의 상위 조직 계정만 허용하며 관리자 제어도 적용됩니다. 테스트 사용자 목록은 필요 없습니다. BusyMax는 다운로드한 JSON으로 이러한 콘솔 설정을 확인할 수 없습니다.';
 }

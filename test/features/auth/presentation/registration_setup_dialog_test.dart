@@ -1,3 +1,4 @@
+import '../../../support/desktop_registration_config.dart';
 import 'dart:async';
 import 'dart:io';
 
@@ -36,9 +37,23 @@ void main() {
   test('guide scope values match actual OAuth configuration', () {
     final l10n = lookupAppLocalizations(const Locale('en'));
     expect(
-      l10n.registrationDesktopSteps(BusyProvider.google)[3].values!.split('\n'),
+      l10n
+          .registrationDesktopSteps(BusyProvider.google)
+          .singleWhere((s) => s.copyAll)
+          .values!
+          .split('\n'),
       googleBusyMaxOAuthScopes,
     );
+    final workspace = l10n.registrationDesktopSteps(
+      BusyProvider.google,
+      method: DesktopConnectionMethod.googleWorkspace,
+    );
+    expect(
+      workspace.singleWhere((s) => s.copyAll).values!.split('\n'),
+      googleBusyMaxOAuthScopes,
+    );
+    expect(workspace.map((s) => s.body).join(' '), isNot(contains('Testing')));
+    expect(workspace, hasLength(5));
     final microsoft = l10n.registrationDesktopSteps(BusyProvider.microsoft);
     final scopes = microsoft[3].values!.split(RegExp(r'\s+'));
     expect(
@@ -49,7 +64,7 @@ void main() {
     expect(microsoft[2].values, 'http://localhost');
     for (final provider in [BusyProvider.google, BusyProvider.microsoft]) {
       final guide = l10n.registrationDesktopSteps(provider);
-      expect(guide.length, 5);
+      expect(guide.length, provider == BusyProvider.google ? 7 : 5);
       expect(guide.where((step) => step.copyAll), hasLength(1));
       expect(guide.map((s) => s.body).join(' '), isNot(contains('Android')));
       expect(guide.map((s) => s.body).join(' '), isNot(contains('migration')));
@@ -80,6 +95,92 @@ void main() {
         harness = _Harness(windows, staging);
         addTearDown(() => staging.dispose());
       });
+
+      for (final provider in [BusyProvider.google, BusyProvider.microsoft]) {
+        testWidgets(
+          '$provider methods expose unavailable shared and usable custom paths',
+          (tester) async {
+            await harness.open(tester, provider, methods: true);
+            expect(_key('authorize'), findsNothing);
+            expect(_key('back'), findsNothing);
+            expect(_callback(tester, 'busymax'), isNull);
+            expect(_key('shared-unavailable'), findsOneWidget);
+            await tester.sendKeyDownEvent(LogicalKeyboardKey.altLeft);
+            await tester.sendKeyEvent(LogicalKeyboardKey.arrowLeft);
+            await tester.sendKeyUpEvent(LogicalKeyboardKey.altLeft);
+            await tester.pumpAndSettle();
+            expect(_key('methods-dialog'), findsOneWidget);
+            expect(harness.results, isEmpty);
+            expect(
+              _key('workspace'),
+              provider == BusyProvider.google ? findsOneWidget : findsNothing,
+            );
+            if (provider == BusyProvider.google) {
+              await tester.tap(_key('workspace'));
+              await tester.pumpAndSettle();
+              expect(
+                find.text('Google Workspace organization'),
+                findsOneWidget,
+              );
+              await tester.tap(_key('guide'));
+              await tester.pumpAndSettle();
+              expect(
+                find.text('Google Workspace setup instructions'),
+                findsOneWidget,
+              );
+              expect(
+                find.byWidgetPredicate(
+                  (w) => w is ModalBarrier && (w.color?.a ?? 0) > 0,
+                ),
+                findsOneWidget,
+              );
+              expect(_key('authorize'), findsNothing);
+              await tester.tap(_key('back'));
+              await tester.pumpAndSettle();
+              await tester.tap(_key('back'));
+              await tester.pumpAndSettle();
+            }
+            await tester.tap(_key('custom'));
+            await tester.pumpAndSettle();
+            expect(_key('authorize'), findsOneWidget);
+            await tester.tap(_key('guide'));
+            await tester.pumpAndSettle();
+            await tester.tap(_key('close'));
+            await tester.pumpAndSettle();
+            expect(harness.results, [null]);
+            expect(
+              find.byWidgetPredicate(
+                (w) => w is ModalBarrier && (w.color?.a ?? 0) > 0,
+              ),
+              findsNothing,
+            );
+            await tester.pumpWidget(const SizedBox.shrink());
+          },
+        );
+        testWidgets(
+          '$provider configured shared returns a managed handle without fields or import',
+          (tester) async {
+            staging.dispose();
+            staging = RegistrationStaging(syntheticDesktopConfig());
+            harness = _Harness(windows, staging);
+            await harness.open(tester, provider, methods: true);
+            expect(_key('shared-unavailable'), findsNothing);
+            expect(_key('import'), findsNothing);
+            expect(_key('client-id'), findsNothing);
+            final connect = _callback(tester, 'busymax')!;
+            connect();
+            connect();
+            await tester.pumpAndSettle();
+            expect(harness.results, hasLength(1));
+            expect(
+              harness.results.single!.summary.origin,
+              RegistrationOrigin.busyMaxManaged,
+            );
+            staging.consume(harness.results.single!);
+            await tester.pumpWidget(const SizedBox.shrink());
+          },
+        );
+      }
 
       testWidgets('native form hierarchy and inline validation', (
         tester,
@@ -128,8 +229,7 @@ void main() {
           expect(_fieldText(tester, windows, 'tenant-id'), _tenantId);
           await tester.tap(_key('guide'));
           await tester.pumpAndSettle();
-          expect(_key('client-id'), findsOneWidget);
-          expect(_key('client-id').hitTestable(), findsNothing);
+          expect(_key('client-id'), findsNothing);
           expect(_key('authorize').hitTestable(), findsNothing);
           expect(
             find.descendant(
@@ -138,7 +238,7 @@ void main() {
             ),
             findsNothing,
           );
-          expect(_key('back'), findsNothing);
+          expect(_key('back'), findsOneWidget);
           expect(
             find.descendant(
               of: _key('instructions-dialog'),
@@ -147,7 +247,7 @@ void main() {
             findsOneWidget,
           );
           expect(find.text('1. Microsoft app registration'), findsOneWidget);
-          await tester.tap(_key('instructions-close'));
+          await tester.tap(_key('back'));
           await tester.pumpAndSettle();
           expect(_fieldText(tester, windows, 'client-id'), _clientId);
           expect(_fieldText(tester, windows, 'tenant-id'), _tenantId);
@@ -187,6 +287,12 @@ void main() {
             await tester.tap(_key('audience'));
             await tester.pumpAndSettle();
             final entries = (menu!.arguments as Map)['entries'] as List;
+            final anchor = (menu!.arguments as Map)['anchor'] as Map;
+            expect(anchor['width'], greaterThan(400));
+            expect(
+              find.text('Personal and organizational accounts'),
+              findsOneWidget,
+            );
             expect(entries.map((entry) => entry['label']), [
               'Personal and organizational accounts',
               'Organizational accounts',
@@ -211,7 +317,7 @@ void main() {
       }
 
       testWidgets(
-        'instructions keep header fixed, hide footer, copy scopes and close by keyboard',
+        'instructions keep header fixed, hide footer, copy scopes and navigate by keyboard',
         (tester) async {
           String? copied;
           tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
@@ -243,7 +349,7 @@ void main() {
             ),
             findsNothing,
           );
-          expect(_key('back'), findsNothing);
+          expect(_key('back'), findsOneWidget);
           if (windows) {
             expect(
               tester
@@ -252,18 +358,18 @@ void main() {
               isNull,
             );
           }
-          final headerPosition = tester.getTopLeft(_key('instructions-close'));
+          final headerPosition = tester.getTopLeft(_key('back'));
           await tester.ensureVisible(_key('copy-all'));
           await tester.pumpAndSettle();
-          expect(tester.getTopLeft(_key('instructions-close')), headerPosition);
+          expect(tester.getTopLeft(_key('back')), headerPosition);
           await tester.tap(_key('copy-all'));
           await tester.pumpAndSettle();
           final steps = lookupAppLocalizations(
             const Locale('en'),
           ).registrationDesktopSteps(BusyProvider.microsoft);
           expect(copied, steps.singleWhere((step) => step.copyAll).values);
-          // Close only the instructions; Escape must also preserve the form.
-          await tester.tap(_key('instructions-close'));
+          // Back and its shortcut stay inside the one modal, preserving controllers.
+          await tester.tap(_key('back'));
           await tester.pumpAndSettle();
           expect(_key('instructions-dialog'), findsNothing);
           expect(harness.results, isEmpty);
@@ -276,7 +382,9 @@ void main() {
           );
           await tester.tap(_key('guide'));
           await tester.pumpAndSettle();
-          await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+          await tester.sendKeyDownEvent(LogicalKeyboardKey.altLeft);
+          await tester.sendKeyEvent(LogicalKeyboardKey.arrowLeft);
+          await tester.sendKeyUpEvent(LogicalKeyboardKey.altLeft);
           await tester.pumpAndSettle();
           expect(_key('instructions-dialog'), findsNothing);
           expect(harness.results, isEmpty);
@@ -288,7 +396,7 @@ void main() {
         },
       );
 
-      testWidgets('instructions open once and close independently of setup', (
+      testWidgets('instructions use one barrier and Back preserves setup', (
         tester,
       ) async {
         await harness.open(tester, BusyProvider.microsoft);
@@ -300,9 +408,15 @@ void main() {
         openInstructions();
         await tester.pumpAndSettle();
         expect(_key('instructions-dialog'), findsOneWidget);
-        expect(_key('back'), findsNothing);
+        expect(
+          find.byWidgetPredicate(
+            (w) => w is ModalBarrier && (w.color?.a ?? 0) > 0,
+          ),
+          findsOneWidget,
+        );
+        expect(_key('back'), findsOneWidget);
         expect(harness.results, isEmpty);
-        await tester.tap(_key('instructions-close'));
+        await tester.tap(_key('back'));
         await tester.pumpAndSettle();
         expect(_key('instructions-dialog'), findsNothing);
         expect(_fieldText(tester, windows, 'client-id'), _clientId);
@@ -381,7 +495,7 @@ void main() {
           expect(_callback(tester, 'authorize'), isNotNull);
           await tester.tap(_key('guide'));
           await tester.pumpAndSettle();
-          expect(_key('summary'), findsOneWidget);
+          expect(_key('summary'), findsNothing);
           expect(find.text('1. Google Cloud project'), findsOneWidget);
           expect(
             find.descendant(
@@ -390,7 +504,7 @@ void main() {
             ),
             findsOneWidget,
           );
-          await tester.tap(_key('instructions-close'));
+          await tester.tap(_key('back'));
           await tester.pumpAndSettle();
           expect(_key('summary'), findsOneWidget);
           expect(_key('error'), findsOneWidget);
@@ -475,7 +589,7 @@ void main() {
         await tester.tap(_key('guide'));
         await tester.pumpAndSettle();
         await tester.pump(const Duration(seconds: 3));
-        await tester.tap(_key('instructions-close'));
+        await tester.tap(_key('back'));
         await tester.pumpAndSettle();
         expect(_key('error'), findsOneWidget);
         expect(
@@ -519,8 +633,8 @@ void main() {
               ),
               findsOneWidget,
             );
-            await tester.ensureVisible(_key('instructions-close'));
-            await tester.tap(_key('instructions-close'));
+            await tester.ensureVisible(_key('back'));
+            await tester.tap(_key('back'));
             await tester.pumpAndSettle();
             expect(_key('link-error'), findsNothing);
             await tester.pumpWidget(const SizedBox.shrink());
@@ -554,7 +668,7 @@ void main() {
             await tester.pumpAndSettle();
             expect(_key('link-error'), findsOneWidget);
             expect(_key('link-error').hitTestable(), findsOneWidget);
-            await tester.tap(_key('instructions-close'));
+            await tester.tap(_key('back'));
             await tester.pumpAndSettle();
             await tester.pumpWidget(const SizedBox.shrink());
             await tester.pumpAndSettle();
@@ -581,7 +695,7 @@ void main() {
         await tester.pumpAndSettle();
         await tester.tap(find.text('Open Google Cloud Console'));
         await tester.pump();
-        await tester.tap(_key('instructions-close'));
+        await tester.tap(_key('back'));
         await tester.pumpAndSettle();
         await tester.tap(_key('guide'));
         await tester.pumpAndSettle();
@@ -662,7 +776,11 @@ class _Harness {
   final RegistrationStaging staging;
   final results = <RegistrationHandle?>[];
 
-  Future<void> open(WidgetTester tester, BusyProvider provider) async {
+  Future<void> open(
+    WidgetTester tester,
+    BusyProvider provider, {
+    bool methods = false,
+  }) async {
     tester.view.physicalSize = const Size(1100, 950);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.resetPhysicalSize);
@@ -702,5 +820,9 @@ class _Harness {
     await tester.pumpAndSettle();
     await tester.tap(find.text('Open'));
     await tester.pumpAndSettle();
+    if (!methods) {
+      await tester.tap(_key('custom'));
+      await tester.pumpAndSettle();
+    }
   }
 }

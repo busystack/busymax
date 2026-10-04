@@ -3183,7 +3183,7 @@ class AppLocalizationsVi extends AppLocalizations {
 
   @override
   String registrationRetirementNotice(String provider, String setup) {
-    return 'Tài khoản này dùng đăng ký $provider chung của BusyMax, sẽ ngừng hoạt động ở bản phát hành tiếp theo. Thiết lập $setup của riêng bạn và kết nối lại tài khoản để tiếp tục đồng bộ. Lịch, công việc và thay đổi cục bộ của bạn sẽ được giữ lại.';
+    return 'Tài khoản này dùng đăng ký $provider gốc dành cho tài khoản hiện có. Để thay thế, thiết lập $setup và kết nối lại tài khoản. Lịch, tác vụ và thay đổi cục bộ sẽ được giữ nguyên.';
   }
 
   @override
@@ -3318,7 +3318,7 @@ class AppLocalizationsVi extends AppLocalizations {
 
   @override
   String get registrationGuideGoogleAudience =>
-      'Vào Google Auth Platform → Branding. Nếu chưa bắt đầu thiết lập, chọn Get started. Nhập BusyMax vào App name, chọn User support email của bạn rồi chọn Next. Trong Audience, chọn External cho tài khoản Google cá nhân; Internal chỉ dành cho tài khoản thuộc tổ chức của dự án. Chọn Next, nhập email vào Contact Information rồi chọn Next. Chấp nhận User Data Policy rồi chọn Continue và Create. Nếu đã thiết lập, kiểm tra Branding và Audience.\n\nVới External ở chế độ Testing, mở Audience → Test users → Add users, nhập tài khoản Google sẽ kết nối rồi chọn Save. Chỉ người dùng thử được liệt kê mới có thể kết nối; quyền ủy nhiệm và mã làm mới hết hạn sau bảy ngày.';
+      'Vào Google Auth Platform → Branding. Nếu chưa bắt đầu thiết lập, chọn Get started. Nhập BusyMax vào App name, chọn User support email của bạn rồi chọn Next. Trong Audience, chọn External. Chọn Next, nhập email vào Contact Information rồi chọn Next. Chấp nhận User Data Policy rồi chọn Continue và Create. Nếu đã thiết lập, kiểm tra Branding và Audience.';
 
   @override
   String get registrationGuideGooglePermissions =>
@@ -3326,7 +3326,7 @@ class AppLocalizationsVi extends AppLocalizations {
 
   @override
   String get registrationGuideGoogleClient =>
-      'Mở Google Auth Platform → Clients → Create client. Đặt Application type thành Desktop app, nhập BusyMax vào Name rồi chọn Create. Trong hộp thoại tạo, chọn Download JSON và lưu tệp. Đóng hướng dẫn này bằng × để quay lại biểu mẫu, chọn tệp rồi kiểm tra dự án và ID máy khách. Chọn Kết nối và cho phép truy cập lịch và tác vụ trong trình duyệt.';
+      'Mở Google Auth Platform → Clients → Create client. Đặt Application type thành Desktop app, nhập BusyMax vào Name rồi chọn Create. Trong hộp thoại tạo, chọn Download JSON và lưu tệp. Chọn Quay lại để trở về biểu mẫu, chọn tệp rồi kiểm tra dự án và ID máy khách. Chọn Kết nối và cho phép truy cập lịch và tác vụ trong trình duyệt.';
 
   @override
   String get registrationGuideMicrosoftApp =>
@@ -3342,7 +3342,7 @@ class AppLocalizationsVi extends AppLocalizations {
 
   @override
   String get registrationGuideMicrosoftConnect =>
-      'Đóng hướng dẫn này bằng × để quay lại biểu mẫu. Dán Application (client) ID và chọn Tài khoản được hỗ trợ giống đăng ký. Với Một đối tượng thuê tổ chức, dán cả Directory (tenant) ID. Chọn Kết nối và đăng nhập tài khoản mong muốn trong trình duyệt. BusyMax kiểm tra các trường cục bộ; Microsoft yêu cầu sự đồng ý khi đăng nhập trong trình duyệt.';
+      'Chọn Quay lại để trở về biểu mẫu. Dán Application (client) ID và chọn Tài khoản được hỗ trợ giống đăng ký. Với Một đối tượng thuê tổ chức, dán cả Directory (tenant) ID. Chọn Kết nối và đăng nhập tài khoản mong muốn trong trình duyệt. BusyMax kiểm tra các trường cục bộ; Microsoft yêu cầu sự đồng ý khi đăng nhập trong trình duyệt.';
 
   @override
   String get registrationGoogleImportFailed =>
@@ -3433,4 +3433,81 @@ class AppLocalizationsVi extends AppLocalizations {
   @override
   String get registrationGuideMicrosoftAudience =>
       'Trong Supported account types, chọn Personal accounts only cho tài khoản cá nhân, Multiple Entra ID tenants cho tài khoản tổ chức, Any Entra ID Tenant + Personal Microsoft accounts cho cả hai, hoặc Single tenant only cho thư mục này. Chọn Register. Trong Overview, sao chép Application (client) ID; với một đối tượng thuê, sao chép cả Directory (tenant) ID. Chọn mục Tài khoản được hỗ trợ tương ứng trong BusyMax.';
+
+  @override
+  String get registrationConnectBusyMax => 'Kết nối bằng BusyMax';
+
+  @override
+  String get registrationRecommended => 'Được đề xuất';
+
+  @override
+  String get registrationOtherMethods => 'Các cách kết nối khác';
+
+  @override
+  String get registrationWorkspace => 'Tổ chức Google Workspace';
+
+  @override
+  String get registrationGoogleCustom => 'Ứng dụng khách OAuth tùy chỉnh';
+
+  @override
+  String get registrationMicrosoftCustom => 'Đăng ký ứng dụng tùy chỉnh';
+
+  @override
+  String get registrationMethodsIntroduction =>
+      'Chọn cách kết nối tài khoản của bạn.';
+
+  @override
+  String get registrationWorkspaceDescription =>
+      'Dùng cấu hình do tổ chức của bạn quản lý.';
+
+  @override
+  String get registrationCustomDescription => 'Dùng đăng ký do bạn quản lý.';
+
+  @override
+  String get registrationSharedUnavailable =>
+      'Kết nối bằng BusyMax không khả dụng trong bản dựng này. Bạn có thể dùng cách kết nối khác bên dưới.';
+
+  @override
+  String get registrationWorkspaceIntroduction =>
+      'Chọn JSON OAuth máy tính do tổ chức cung cấp hoặc quản lý. Tệp không chứng minh quyền sở hữu của tổ chức, đối tượng hay trạng thái xác minh.';
+
+  @override
+  String get registrationWorkspaceSetupInstructions =>
+      'Hướng dẫn thiết lập Google Workspace';
+
+  @override
+  String get registrationBusyMaxManaged => 'Đăng ký do BusyMax quản lý';
+
+  @override
+  String get registrationBranding => 'Cấu hình thương hiệu và miền';
+
+  @override
+  String get registrationPublishing => 'Xuất bản để sử dụng thông thường';
+
+  @override
+  String get registrationOpenAudience => 'Mở Audience của Google Auth Platform';
+
+  @override
+  String get registrationGuideWorkspaceProject =>
+      'Xin Desktop OAuth JSON từ quản trị viên hoặc mở Google Cloud Console và chọn dự án thuộc tổ chức Google Workspace của bạn. Để tạo dự án, mở Quản lý tài nguyên → Tạo dự án, nhập Tên dự án, chọn tổ chức hoặc thư mục của tổ chức trong Tài nguyên mẹ rồi chọn Tạo. Chọn dự án đó cho các bước tiếp theo. Việc tạo cần Project Creator, cấu hình OAuth cần OAuth Config Editor, và bật API cần Service Usage Admin hoặc quyền tương đương. Nhờ quản trị viên trợ giúp nếu bị chặn.';
+
+  @override
+  String get registrationGuideGoogleBranding =>
+      'Trong Branding → App domain, thêm miền được ủy quyền của dự án trước URL trang chủ, quyền riêng tư và điều khoản dịch vụ, rồi Save. Ứng dụng External trong sản xuất cần các liên kết này. Dùng miền bạn sở hữu và xác minh quyền sở hữu trong Search Console khi Google yêu cầu xác minh thương hiệu. Liên kết quyền riêng tư BusyMax không chứng minh dự án của bạn sở hữu busystack.org.';
+
+  @override
+  String get registrationGuideGooglePublishing =>
+      'Trong Audience, chọn Publish app và xác nhận In production. Không để sử dụng thông thường ở Testing: các ủy quyền Calendar/Tasks và mã làm mới này hết hạn sau bảy ngày. Xuất bản và xác minh là hai việc riêng. Sử dụng cá nhân dưới 100 người có thể được miễn xác minh, với cảnh báo và giới hạn người dùng; phân phối rộng hơn có thể cần phê duyệt thương hiệu và phạm vi. Ủy quyền sản xuất vẫn có thể hết hạn hoặc bị thu hồi.';
+
+  @override
+  String get registrationGuideWorkspacePermissions =>
+      'Xem các phạm vi này với quản trị viên. Ứng dụng Internal không cần liệt kê phạm vi trên màn hình đồng ý. Nếu được yêu cầu, mở Data Access → Add or remove scopes, thêm giá trị rồi Update và Save. Kiểm soát quản trị vẫn có thể hạn chế ủy quyền.';
+
+  @override
+  String get registrationGuideMicrosoftOptionalPermissions =>
+      'Quyền lịch dùng chung và danh mục được yêu cầu riêng khi bật các tính năng tùy chọn; không thêm chúng vào thiết lập bắt buộc ở trên.';
+
+  @override
+  String get registrationGuideWorkspaceAudience =>
+      'Vào Google Auth Platform → Branding. Nếu chưa bắt đầu thiết lập, chọn Get started. Nhập BusyMax vào App name, chọn User support email của bạn rồi chọn Next. Trong Audience, chọn Internal. Chọn Next, nhập email vào Contact Information rồi chọn Next. Chấp nhận User Data Policy rồi chọn Continue và Create. Nếu đã thiết lập, kiểm tra Branding và Audience.\n\nInternal chỉ cho phép tài khoản thuộc tổ chức mẹ của dự án, chịu kiểm soát của quản trị viên. Không cần danh sách người dùng thử. BusyMax không thể xác minh các thiết lập này từ JSON tải xuống.';
 }

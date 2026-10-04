@@ -163,56 +163,69 @@ jobs:
           cmake --build build/linux/registration-reader-tests --target busymax_registration_reader_tests
           ctest --test-dir build/linux/registration-reader-tests --output-on-failure
 
-      - name: Build release with user-owned setup and no shared registrations
+      - name: Build unconfigured release with usable custom registration paths
         run: |
           "$BUSYMAX_FLUTTER_EXECUTABLE" build linux --release -t lib/main_linux.dart
           test -f build/linux/x64/release/bundle/data/flutter_assets/docs/google_setup.md
           test -f build/linux/x64/release/bundle/data/flutter_assets/docs/microsoft_setup.md
 
-      - name: Validate original registrations for the transitional release
+      - name: Validate production registrations and protected originals
         if: github.event_name == 'push'
         env:
           GOOGLE_OAUTH_CLIENT_ID: ${{ vars.GOOGLE_OAUTH_CLIENT_ID }}
           GOOGLE_OAUTH_CLIENT_SECRET: ${{ secrets.GOOGLE_OAUTH_CLIENT_SECRET }}
+          GOOGLE_OAUTH_PROJECT_ID: ${{ vars.GOOGLE_OAUTH_PROJECT_ID }}
           MICROSOFT_OAUTH_CLIENT_ID: ${{ vars.MICROSOFT_OAUTH_CLIENT_ID }}
-        run: |
-          if [ -z "$GOOGLE_OAUTH_CLIENT_ID" ] ||
-             [ -z "$GOOGLE_OAUTH_CLIENT_SECRET" ] ||
-             [ -z "$MICROSOFT_OAUTH_CLIENT_ID" ]; then
-            echo '::error::Release provider configuration is incomplete.'
-            exit 1
-          fi
+          MICROSOFT_OAUTH_AUTHORITY_TENANT: ${{ vars.MICROSOFT_OAUTH_AUTHORITY_TENANT }}
+          BUSYMAX_GOOGLE_OAUTH_CLIENT_ID: ${{ vars.BUSYMAX_GOOGLE_OAUTH_CLIENT_ID }}
+          BUSYMAX_GOOGLE_OAUTH_CLIENT_SECRET: ${{ secrets.BUSYMAX_GOOGLE_OAUTH_CLIENT_SECRET }}
+          BUSYMAX_GOOGLE_OAUTH_PROJECT_ID: ${{ vars.BUSYMAX_GOOGLE_OAUTH_PROJECT_ID }}
+          BUSYMAX_MICROSOFT_OAUTH_CLIENT_ID: ${{ vars.BUSYMAX_MICROSOFT_OAUTH_CLIENT_ID }}
+          BUSYMAX_MICROSOFT_OAUTH_AUTHORITY_TENANT: ${{ vars.BUSYMAX_MICROSOFT_OAUTH_AUTHORITY_TENANT }}
+          BUSYMAX_PRIVACY_POLICY_URL: https://busystack.org/privacy-busymax
+        run: '"$BUSYMAX_DART_EXECUTABLE" run tool/check_desktop_oauth_config.dart'
 
-      - name: Build Linux release
-        env:
-          GOOGLE_OAUTH_CLIENT_ID: ${{ vars.GOOGLE_OAUTH_CLIENT_ID }}
-          GOOGLE_OAUTH_CLIENT_SECRET: ${{ secrets.GOOGLE_OAUTH_CLIENT_SECRET }}
-          MICROSOFT_OAUTH_CLIENT_ID: ${{ vars.MICROSOFT_OAUTH_CLIENT_ID }}
-        run: |
-          args=(--release)
-          if [ -n "$GOOGLE_OAUTH_CLIENT_ID" ]; then
-            args+=("--dart-define=GOOGLE_OAUTH_CLIENT_ID=$GOOGLE_OAUTH_CLIENT_ID")
-          fi
-          if [ -n "$GOOGLE_OAUTH_CLIENT_SECRET" ]; then
-            args+=("--dart-define=GOOGLE_OAUTH_CLIENT_SECRET=$GOOGLE_OAUTH_CLIENT_SECRET")
-          fi
-          if [ -n "$MICROSOFT_OAUTH_CLIENT_ID" ]; then
-            args+=("--dart-define=MICROSOFT_OAUTH_CLIENT_ID=$MICROSOFT_OAUTH_CLIENT_ID")
-          fi
-          "$BUSYMAX_FLUTTER_EXECUTABLE" build linux \
-            -t lib/main_linux.dart "${args[@]}"
-
-      - name: Verify intended original registrations in the transitional binary
+      - name: Build official Linux release with explicit active registrations
         if: github.event_name == 'push'
         env:
           GOOGLE_OAUTH_CLIENT_ID: ${{ vars.GOOGLE_OAUTH_CLIENT_ID }}
           GOOGLE_OAUTH_CLIENT_SECRET: ${{ secrets.GOOGLE_OAUTH_CLIENT_SECRET }}
+          GOOGLE_OAUTH_PROJECT_ID: ${{ vars.GOOGLE_OAUTH_PROJECT_ID }}
           MICROSOFT_OAUTH_CLIENT_ID: ${{ vars.MICROSOFT_OAUTH_CLIENT_ID }}
+          MICROSOFT_OAUTH_AUTHORITY_TENANT: ${{ vars.MICROSOFT_OAUTH_AUTHORITY_TENANT }}
+          BUSYMAX_GOOGLE_OAUTH_CLIENT_ID: ${{ vars.BUSYMAX_GOOGLE_OAUTH_CLIENT_ID }}
+          BUSYMAX_GOOGLE_OAUTH_CLIENT_SECRET: ${{ secrets.BUSYMAX_GOOGLE_OAUTH_CLIENT_SECRET }}
+          BUSYMAX_GOOGLE_OAUTH_PROJECT_ID: ${{ vars.BUSYMAX_GOOGLE_OAUTH_PROJECT_ID }}
+          BUSYMAX_MICROSOFT_OAUTH_CLIENT_ID: ${{ vars.BUSYMAX_MICROSOFT_OAUTH_CLIENT_ID }}
+          BUSYMAX_MICROSOFT_OAUTH_AUTHORITY_TENANT: ${{ vars.BUSYMAX_MICROSOFT_OAUTH_AUTHORITY_TENANT }}
+          BUSYMAX_PRIVACY_POLICY_URL: https://busystack.org/privacy-busymax
         run: |
+          registration_file="$(mktemp "$RUNNER_TEMP/busymax-oauth.XXXXXX.json")"
+          trap 'rm -f "$registration_file"' EXIT
+          python3 - "$registration_file" <<'PYCONFIG'
+          import json, os, sys
+          keys = [
+              'GOOGLE_OAUTH_CLIENT_ID', 'GOOGLE_OAUTH_CLIENT_SECRET',
+              'GOOGLE_OAUTH_PROJECT_ID', 'MICROSOFT_OAUTH_CLIENT_ID',
+              'MICROSOFT_OAUTH_AUTHORITY_TENANT',
+              'BUSYMAX_GOOGLE_OAUTH_CLIENT_ID', 'BUSYMAX_GOOGLE_OAUTH_CLIENT_SECRET',
+              'BUSYMAX_GOOGLE_OAUTH_PROJECT_ID', 'BUSYMAX_MICROSOFT_OAUTH_CLIENT_ID',
+              'BUSYMAX_MICROSOFT_OAUTH_AUTHORITY_TENANT', 'BUSYMAX_PRIVACY_POLICY_URL',
+          ]
+          with open(sys.argv[1], 'w') as output:
+              json.dump({key: os.environ[key] for key in keys if os.environ.get(key)}, output)
+          PYCONFIG
+          "$BUSYMAX_FLUTTER_EXECUTABLE" build linux --release \
+            -t lib/main_linux.dart --dart-define-from-file="$registration_file"
           binary=build/linux/x64/release/bundle/lib/libapp.so
-          grep -aFq -- "$GOOGLE_OAUTH_CLIENT_ID" "$binary"
-          grep -aFq -- "$GOOGLE_OAUTH_CLIENT_SECRET" "$binary"
-          grep -aFq -- "$MICROSOFT_OAUTH_CLIENT_ID" "$binary"
+          for key in GOOGLE_OAUTH_CLIENT_ID MICROSOFT_OAUTH_CLIENT_ID \
+            BUSYMAX_GOOGLE_OAUTH_CLIENT_ID BUSYMAX_GOOGLE_OAUTH_CLIENT_SECRET \
+            BUSYMAX_GOOGLE_OAUTH_PROJECT_ID BUSYMAX_MICROSOFT_OAUTH_CLIENT_ID; do
+            grep -aFq -- "${!key}" "$binary"
+          done
+          if [ -n "$GOOGLE_OAUTH_CLIENT_SECRET" ]; then
+            grep -aFq -- "$GOOGLE_OAUTH_CLIENT_SECRET" "$binary"
+          fi
 
       - name: Build strict Snap from the release bundle
         id: snapcraft

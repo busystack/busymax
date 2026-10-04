@@ -154,3 +154,22 @@ commands or checklist cases executed, pass/fail/not-run results, CI links,
 screenshots, WACK files, privacy review, and relevant redacted evidence. List
 remaining external verification or owner-supplied values explicitly. Do not
 mark unexecuted cases as passed.
+
+## Desktop connection registrations
+
+Official packages require separate `busyMaxGoogleOAuthClientId`,
+`busyMaxGoogleOAuthClientSecret`, `busyMaxGoogleOAuthProjectId`,
+`busyMaxMicrosoftOAuthClientId`, and `busyMaxMicrosoftOAuthAuthorityTenant`
+values in the owner-controlled Store configuration. Preserve the protected
+original `googleOAuth*`/`microsoftOAuth*` values for existing bindings; never
+replace them with a newly designated client. Use
+`https://busystack.org/privacy-busymax` as the product privacy URL.
+
+The validator reports missing Google and Microsoft configuration separately
+as external prerequisites. Google publishing and applicable verification,
+and Microsoft registration/audience/permissions/consent must be completed
+by the owner. Local and CI tests do not prove these prerequisites.
+Synthetic CI clients may be included only in the explicit nonproduction
+CI package. Unconfigured CI builds show Connect with BusyMax as unavailable
+and leave custom registration usable; they cannot become official packages.
+See the [desktop OAuth release checklist](oauth_next_release_checklist.md).

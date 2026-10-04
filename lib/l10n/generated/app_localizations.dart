@@ -5351,7 +5351,7 @@ abstract class AppLocalizations {
   /// No description provided for @registrationRetirementNotice.
   ///
   /// In en, this message translates to:
-  /// **'This account uses BusyMax’s shared {provider} app registration, which will be discontinued in the next release. Set up your own {setup} and reconnect this account to keep synchronization working. Your existing calendars, tasks, and local changes will be preserved.'**
+  /// **'This account uses an original {provider} registration reserved for existing accounts. To replace it, set up {setup} and reconnect this account. Your existing calendars, tasks, and local changes will be preserved.'**
   String registrationRetirementNotice(String provider, String setup);
 
   /// No description provided for @registrationContinue.
@@ -5577,7 +5577,7 @@ abstract class AppLocalizations {
   /// No description provided for @registrationGuideGoogleAudience.
   ///
   /// In en, this message translates to:
-  /// **'Go to Google Auth Platform → Branding. If setup has not started, select Get started. Enter BusyMax as the App name, choose your own User support email and select Next. In Audience, choose External for a personal Google account; Internal is available only for accounts in your project’s organization. Select Next, enter your email under Contact Information and select Next. Accept the User Data Policy, then select Continue and Create. If already configured, review Branding and Audience.\n\nFor External in Testing, open Audience → Test users → Add users, enter the Google account you will connect and select Save. Only listed test users can connect; their authorizations and refresh tokens expire after seven days.'**
+  /// **'Go to Google Auth Platform → Branding. If setup has not started, select Get started. Enter BusyMax as the App name, choose your own User support email and select Next. In Audience, choose External. Select Next, enter your email under Contact Information and select Next. Accept the User Data Policy, then select Continue and Create. If already configured, review Branding and Audience.'**
   String get registrationGuideGoogleAudience;
 
   /// No description provided for @registrationGuideGooglePermissions.
@@ -5589,7 +5589,7 @@ abstract class AppLocalizations {
   /// No description provided for @registrationGuideGoogleClient.
   ///
   /// In en, this message translates to:
-  /// **'Open Google Auth Platform → Clients → Create client. Set Application type to Desktop app, enter BusyMax as the Name and select Create. In the creation dialog, select Download JSON and save the file. Close these instructions with × to return to the form, choose that file and review its project and client ID. Select Connect and approve calendar and task access in your browser.'**
+  /// **'Open Google Auth Platform → Clients → Create client. Set Application type to Desktop app, enter BusyMax as the Name and select Create. In the creation dialog, select Download JSON and save the file. Select Back to return to the form, choose that file and review its project and client ID. Select Connect and approve calendar and task access in your browser.'**
   String get registrationGuideGoogleClient;
 
   /// No description provided for @registrationGuideMicrosoftApp.
@@ -5613,7 +5613,7 @@ abstract class AppLocalizations {
   /// No description provided for @registrationGuideMicrosoftConnect.
   ///
   /// In en, this message translates to:
-  /// **'Close these instructions with × to return to the form. Paste Application (client) ID and select the same Supported accounts as the registration. For One organizational tenant, also paste Directory (tenant) ID. Select Connect and sign in to the intended account in your browser. BusyMax checks the fields locally; Microsoft requests your permission during browser sign-in.'**
+  /// **'Select Back to return to the form. Paste Application (client) ID and select the same Supported accounts as the registration. For One organizational tenant, also paste Directory (tenant) ID. Select Connect and sign in to the intended account in your browser. BusyMax checks the fields locally; Microsoft requests your permission during browser sign-in.'**
   String get registrationGuideMicrosoftConnect;
 
   /// No description provided for @registrationGoogleImportFailed.
@@ -5771,6 +5771,138 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Under Supported account types, choose Personal accounts only for a personal account, Multiple Entra ID tenants for organizational accounts, Any Entra ID Tenant + Personal Microsoft accounts for both, or Single tenant only for this directory. Select Register. In Overview, copy Application (client) ID; for one tenant, also copy Directory (tenant) ID. Use the matching Supported accounts choice in BusyMax.'**
   String get registrationGuideMicrosoftAudience;
+
+  /// No description provided for @registrationConnectBusyMax.
+  ///
+  /// In en, this message translates to:
+  /// **'Connect with BusyMax'**
+  String get registrationConnectBusyMax;
+
+  /// No description provided for @registrationRecommended.
+  ///
+  /// In en, this message translates to:
+  /// **'Recommended'**
+  String get registrationRecommended;
+
+  /// No description provided for @registrationOtherMethods.
+  ///
+  /// In en, this message translates to:
+  /// **'Other connection methods'**
+  String get registrationOtherMethods;
+
+  /// No description provided for @registrationWorkspace.
+  ///
+  /// In en, this message translates to:
+  /// **'Google Workspace organization'**
+  String get registrationWorkspace;
+
+  /// No description provided for @registrationGoogleCustom.
+  ///
+  /// In en, this message translates to:
+  /// **'Custom OAuth client'**
+  String get registrationGoogleCustom;
+
+  /// No description provided for @registrationMicrosoftCustom.
+  ///
+  /// In en, this message translates to:
+  /// **'Custom app registration'**
+  String get registrationMicrosoftCustom;
+
+  /// No description provided for @registrationMethodsIntroduction.
+  ///
+  /// In en, this message translates to:
+  /// **'Choose how to connect your account.'**
+  String get registrationMethodsIntroduction;
+
+  /// No description provided for @registrationWorkspaceDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Use a configuration managed by your organization.'**
+  String get registrationWorkspaceDescription;
+
+  /// No description provided for @registrationCustomDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Use a registration that you manage.'**
+  String get registrationCustomDescription;
+
+  /// No description provided for @registrationSharedUnavailable.
+  ///
+  /// In en, this message translates to:
+  /// **'BusyMax connection is unavailable in this build. You can use another connection method below.'**
+  String get registrationSharedUnavailable;
+
+  /// No description provided for @registrationWorkspaceIntroduction.
+  ///
+  /// In en, this message translates to:
+  /// **'Choose the Desktop OAuth JSON supplied or managed by your organization. The file does not prove organization ownership, audience, or verification status.'**
+  String get registrationWorkspaceIntroduction;
+
+  /// No description provided for @registrationWorkspaceSetupInstructions.
+  ///
+  /// In en, this message translates to:
+  /// **'Google Workspace setup instructions'**
+  String get registrationWorkspaceSetupInstructions;
+
+  /// No description provided for @registrationBusyMaxManaged.
+  ///
+  /// In en, this message translates to:
+  /// **'BusyMax-managed registration'**
+  String get registrationBusyMaxManaged;
+
+  /// No description provided for @registrationBranding.
+  ///
+  /// In en, this message translates to:
+  /// **'Configure branding and domains'**
+  String get registrationBranding;
+
+  /// No description provided for @registrationPublishing.
+  ///
+  /// In en, this message translates to:
+  /// **'Publish for normal use'**
+  String get registrationPublishing;
+
+  /// No description provided for @registrationOpenAudience.
+  ///
+  /// In en, this message translates to:
+  /// **'Open Google Auth Platform Audience'**
+  String get registrationOpenAudience;
+
+  /// No description provided for @registrationGuideWorkspaceProject.
+  ///
+  /// In en, this message translates to:
+  /// **'Ask your administrator for the Desktop OAuth JSON, or open Google Cloud Console and select a project owned by your Google Workspace organization. To create one, open Manage resources → Create project, enter Project name, choose your organization or one of its folders in Parent resource and select Create. Select that project for the remaining steps. Creation needs Project Creator access; configuring OAuth needs OAuth Config Editor, and enabling APIs needs Service Usage Admin or equivalent permissions. Ask the administrator if blocked.'**
+  String get registrationGuideWorkspaceProject;
+
+  /// No description provided for @registrationGuideGoogleBranding.
+  ///
+  /// In en, this message translates to:
+  /// **'In Branding → App domain, add your project’s authorized domains before entering its homepage, privacy-policy and terms-of-service URLs, then Save. External production apps need these links. Use domains you own; complete Search Console ownership verification when Google requires brand verification. BusyMax’s product privacy link below does not establish ownership of busystack.org for your project.'**
+  String get registrationGuideGoogleBranding;
+
+  /// No description provided for @registrationGuideGooglePublishing.
+  ///
+  /// In en, this message translates to:
+  /// **'In Audience, select Publish app and confirm In production. Do not leave normal use in Testing: these Calendar/Tasks authorizations and refresh tokens expire after seven days. Publishing and verification are separate. Personal use with fewer than 100 users can be exempt from verification, with unverified-app warnings and a user cap; broader distribution may require brand and scope approval. Production authorizations can still expire or be revoked.'**
+  String get registrationGuideGooglePublishing;
+
+  /// No description provided for @registrationGuideWorkspacePermissions.
+  ///
+  /// In en, this message translates to:
+  /// **'Review the scopes below with your administrator. Internal apps do not need a consent-screen scope listing. If your administrator requests one, open Data Access → Add or remove scopes, add these values, then Update and Save. Administrator controls can still restrict authorization.'**
+  String get registrationGuideWorkspacePermissions;
+
+  /// No description provided for @registrationGuideMicrosoftOptionalPermissions.
+  ///
+  /// In en, this message translates to:
+  /// **'Shared-calendar and category permissions are requested separately when those optional features are enabled; do not add them to the required setup above.'**
+  String get registrationGuideMicrosoftOptionalPermissions;
+
+  /// No description provided for @registrationGuideWorkspaceAudience.
+  ///
+  /// In en, this message translates to:
+  /// **'Go to Google Auth Platform → Branding. If setup has not started, select Get started. Enter BusyMax as the App name, choose your own User support email and select Next. In Audience, choose Internal. Select Next, enter your email under Contact Information and select Next. Accept the User Data Policy, then select Continue and Create. If already configured, review Branding and Audience.\n\nInternal allows only accounts in the project’s parent organization, subject to administrator controls. No test-user list is needed. BusyMax cannot verify these console settings from the downloaded JSON.'**
+  String get registrationGuideWorkspaceAudience;
 }
 
 class _AppLocalizationsDelegate

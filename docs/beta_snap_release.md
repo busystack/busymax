@@ -26,9 +26,16 @@ For a configured release, create the ignored file
 
 ```json
 {
-  "GOOGLE_OAUTH_CLIENT_ID": "your-google-client-id",
-  "GOOGLE_OAUTH_CLIENT_SECRET": "your-google-client-secret",
-  "MICROSOFT_OAUTH_CLIENT_ID": "your-microsoft-client-id"
+  "GOOGLE_OAUTH_CLIENT_ID": "PROTECTED_ORIGINAL_GOOGLE_CLIENT_ID",
+  "GOOGLE_OAUTH_CLIENT_SECRET": "PROTECTED_ORIGINAL_GOOGLE_CLIENT_SECRET",
+  "MICROSOFT_OAUTH_CLIENT_ID": "PROTECTED_ORIGINAL_MICROSOFT_CLIENT_ID",
+  "MICROSOFT_OAUTH_AUTHORITY_TENANT": "PROTECTED_ORIGINAL_AUTHORITY",
+  "BUSYMAX_GOOGLE_OAUTH_CLIENT_ID": "PRODUCTION_GOOGLE_DESKTOP_CLIENT_ID",
+  "BUSYMAX_GOOGLE_OAUTH_CLIENT_SECRET": "PRODUCTION_GOOGLE_DESKTOP_CLIENT_SECRET",
+  "BUSYMAX_GOOGLE_OAUTH_PROJECT_ID": "ACTUAL_PRODUCTION_GOOGLE_PROJECT_ID",
+  "BUSYMAX_MICROSOFT_OAUTH_CLIENT_ID": "PRODUCTION_MICROSOFT_PUBLIC_CLIENT_ID",
+  "BUSYMAX_MICROSOFT_OAUTH_AUTHORITY_TENANT": "EXPLICIT_PRODUCTION_AUDIENCE_OR_TENANT",
+  "BUSYMAX_PRIVACY_POLICY_URL": "https://busystack.org/privacy-busymax"
 }
 ```
 
@@ -42,9 +49,11 @@ not belong in this file.
 ## Build the canonical artifact
 
 Complete the shared preparation and normal validation in
-[Development](development.md), then run:
+[Development](development.md), supply the real owner-controlled values, then run:
 
 ```bash
+dart run tool/check_desktop_oauth_config.dart \
+  --config .snap-local/busymax-dart-defines.json
 flutter build linux --release -t lib/main_linux.dart \
   --dart-define-from-file=.snap-local/busymax-dart-defines.json
 snapcraft pack --use-lxd
@@ -199,3 +208,15 @@ Official references:
 [upload](https://documentation.ubuntu.com/snapcraft/stable/reference/commands/upload/),
 and
 [revision management](https://documentation.ubuntu.com/snapcraft/stable/how-to/publishing/manage-revisions-and-releases/).
+
+Official desktop packages require explicit active registration values in addition
+to preserved originals. Provide `BUSYMAX_GOOGLE_OAUTH_CLIENT_ID`,
+`BUSYMAX_GOOGLE_OAUTH_CLIENT_SECRET`, `BUSYMAX_GOOGLE_OAUTH_PROJECT_ID`,
+`BUSYMAX_MICROSOFT_OAUTH_CLIENT_ID`, and
+`BUSYMAX_MICROSOFT_OAUTH_AUTHORITY_TENANT` in a protected define file, along with
+`BUSYMAX_PRIVACY_POLICY_URL=https://busystack.org/privacy-busymax`. Validate it
+with `dart run tool/check_desktop_oauth_config.dart --config <file>` before
+building. Retain original IDs/secrets separately for existing account bindings.
+Never use CI fixture values as production credentials. See the
+[current OAuth release prerequisites](oauth_next_release_checklist.md);
+provider publishing, verification and consent require owner approval.

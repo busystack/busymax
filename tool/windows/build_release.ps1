@@ -1,7 +1,7 @@
 param(
   [Parameter(Mandatory)][string]$ConfigPath,
   [switch]$Ci,
-  [switch]$UserOwnedOnly,
+  [switch]$Unconfigured,
   [ValidateSet(
     'All', 'PesterTests', 'SourceGeneration', 'StaticAnalysis',
     'FlutterTests', 'WindowsCompile', 'NativeTests', 'Package')]
@@ -89,17 +89,25 @@ function Invoke-BusyMaxWindowsCompile {
     "--dart-define=BUSYMAX_HOMEPAGE_URL=$($config.homepageUrl)",
     '--dart-define=BUSYMAX_FAKE_DATA=false'
   )
-  if ($UserOwnedOnly) {
-    if (-not $Ci) { throw 'UserOwnedOnly is a validation build; official transitional packages retain their original registrations.' }
+  if ($Unconfigured) {
+    if (-not $Ci) { throw 'Unconfigured is a CI validation build; official packages require explicit active registrations and retain protected originals.' }
   } else {
     $defines += @(
     "--dart-define=GOOGLE_OAUTH_CLIENT_ID=$($config.googleOAuthClientId)",
     "--dart-define=MICROSOFT_OAUTH_CLIENT_ID=$($config.microsoftOAuthClientId)",
-    "--dart-define=MICROSOFT_OAUTH_AUTHORITY_TENANT=$($config.microsoftOAuthAuthorityTenant)"
+    "--dart-define=MICROSOFT_OAUTH_AUTHORITY_TENANT=$($config.microsoftOAuthAuthorityTenant)",
+    "--dart-define=BUSYMAX_GOOGLE_OAUTH_CLIENT_ID=$($config.busyMaxGoogleOAuthClientId)",
+    "--dart-define=BUSYMAX_GOOGLE_OAUTH_CLIENT_SECRET=$($config.busyMaxGoogleOAuthClientSecret)",
+    "--dart-define=BUSYMAX_GOOGLE_OAUTH_PROJECT_ID=$($config.busyMaxGoogleOAuthProjectId)",
+    "--dart-define=BUSYMAX_MICROSOFT_OAUTH_CLIENT_ID=$($config.busyMaxMicrosoftOAuthClientId)",
+    "--dart-define=BUSYMAX_MICROSOFT_OAUTH_AUTHORITY_TENANT=$($config.busyMaxMicrosoftOAuthAuthorityTenant)"
     )
   }
-  if (-not $UserOwnedOnly -and -not [string]::IsNullOrWhiteSpace($config.googleOAuthClientSecret)) {
+  if (-not $Unconfigured -and -not [string]::IsNullOrWhiteSpace($config.googleOAuthClientSecret)) {
     $defines += "--dart-define=GOOGLE_OAUTH_CLIENT_SECRET=$($config.googleOAuthClientSecret)"
+  }
+  if (-not $Unconfigured -and -not [string]::IsNullOrWhiteSpace($config.googleOAuthProjectId)) {
+    $defines += "--dart-define=GOOGLE_OAUTH_PROJECT_ID=$($config.googleOAuthProjectId)"
   }
   New-Item -ItemType Directory -Force `
     -Path 'build\windows\test-results' | Out-Null
@@ -118,7 +126,7 @@ function Invoke-BusyMaxNativeTests {
 }
 
 function Invoke-BusyMaxPackage {
-  if ($UserOwnedOnly) { throw 'Official transitional packaging must retain original registrations. Build the transitional binary before packaging.' }
+  if ($Unconfigured) { throw 'Unconfigured builds cannot be packaged as official releases. Supply active registrations and preserve protected originals.' }
   New-Item -ItemType Directory -Force `
     -Path 'build\windows\test-results' | Out-Null
   $logPath = 'build\windows\test-results\package-store.log'

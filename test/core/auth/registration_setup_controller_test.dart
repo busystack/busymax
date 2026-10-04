@@ -1,3 +1,4 @@
+import '../../support/desktop_registration_config.dart';
 import 'dart:async';
 import 'dart:io';
 
@@ -17,6 +18,44 @@ const clientId = '11223344-5566-7788-99aa-bbccddeeff00';
 const tenantId = 'aabbccdd-1122-3344-5566-77889900aabb';
 
 void main() {
+  for (final provider in [BusyProvider.google, BusyProvider.microsoft]) {
+    test('$provider shared connection is explicit, validated and single use', () {
+      final staging = RegistrationStaging(syntheticDesktopConfig());
+      final setup = RegistrationSetupController(staging, provider);
+      addTearDown(() {
+        setup.dispose();
+        staging.dispose();
+      });
+      // Remembered retired IDs cannot relabel an explicitly active registration.
+      staging.rememberRetiringClient(
+        provider == BusyProvider.google
+            ? staging.config.busyMaxGoogleOAuthClientId
+            : staging.config.busyMaxMicrosoftOAuthClientId,
+      );
+      final selected = setup.connectWithBusyMax()!;
+      expect(selected.summary.origin, RegistrationOrigin.busyMaxManaged);
+      expect(selected.summary.showRetirementNotice, isFalse);
+      expect(setup.connectWithBusyMax(), isNull);
+      final registration = staging.consume(selected);
+      expect(registration.summary().origin, RegistrationOrigin.busyMaxManaged);
+      expect(() => staging.consume(selected), throwsA(isA<OAuthException>()));
+    });
+    test('$provider originals do not make shared authorization available', () {
+      final staging = RegistrationStaging(
+        syntheticDesktopConfig(managed: false),
+      );
+      final setup = RegistrationSetupController(staging, provider);
+      addTearDown(() {
+        setup.dispose();
+        staging.dispose();
+      });
+      expect(setup.connectWithBusyMax(), isNull);
+      expect(setup.errorCode, 'OAuthSharedUnavailable');
+      expect(setup.handle, isNull);
+      expect(setup.canConnect, isFalse);
+    });
+  }
+
   group('Google configuration replacement', () {
     late RegistrationStaging staging;
     late RegistrationSetupController setup;

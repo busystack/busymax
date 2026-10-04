@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:yaru/yaru.dart';
 import 'package:url_launcher/url_launcher.dart';
+import '../../../app/busymax_shortcuts.dart';
 import '../../../app/app_bootstrap.dart';
 import '../../../core/auth/oauth_registration.dart';
 import '../../../core/auth/registration_setup_controller.dart';
@@ -29,6 +30,8 @@ Future<RegistrationHandle?> showRegistrationSetup(
   );
 }
 
+enum _SetupPage { methods, configuration, instructions }
+
 class _RegistrationDialog extends StatefulWidget {
   const _RegistrationDialog({required this.provider, required this.controller});
   final BusyProvider provider;
@@ -45,7 +48,15 @@ class _RegistrationDialogState extends State<_RegistrationDialog> {
   late final TextEditingController tenant = TextEditingController(
     text: setup.tenantId,
   );
-  bool instructionsOpen = false;
+  _SetupPage page = _SetupPage.methods;
+  DesktopConnectionMethod method = DesktopConnectionMethod.custom;
+  bool returningFromInstructions = false;
+  bool launching = false;
+  String? linkError;
+  int? failedStep;
+  int linkRevision = 0;
+  final linkErrorAnchor = GlobalKey();
+  final backFocus = FocusNode(debugLabel: 'Registration Back');
 
   @override
   void initState() {
@@ -57,18 +68,45 @@ class _RegistrationDialogState extends State<_RegistrationDialog> {
     if (mounted) setState(() {});
   }
 
-  Future<void> showGuide() async {
-    if (instructionsOpen) return;
-    instructionsOpen = true;
-    try {
-      await showBusyMaxModalDialog<void>(
-        context,
-        builder: (_) =>
-            _RegistrationInstructionsDialog(provider: widget.provider),
-      );
-    } finally {
-      if (mounted) instructionsOpen = false;
+  void navigate(_SetupPage target) {
+    setState(() {
+      returningFromInstructions =
+          page == _SetupPage.instructions && target == _SetupPage.configuration;
+      page = target;
+      linkRevision++;
+      launching = false;
+      linkError = null;
+      failedStep = null;
+    });
+    if (target == _SetupPage.instructions) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && page == target) backFocus.requestFocus();
+      });
     }
+  }
+
+  void chooseMethod(DesktopConnectionMethod value) {
+    method = value;
+    navigate(_SetupPage.configuration);
+  }
+
+  void showGuide() => navigate(_SetupPage.instructions);
+
+  void back() {
+    if (page == _SetupPage.instructions) {
+      navigate(_SetupPage.configuration);
+    } else if (page == _SetupPage.configuration) {
+      navigate(_SetupPage.methods);
+    }
+  }
+
+  bool get sharedAvailable => widget.provider == BusyProvider.google
+      ? setup.staging.config.hasBusyMaxGoogleRegistration
+      : setup.staging.config.hasBusyMaxMicrosoftRegistration;
+
+  void connectWithBusyMax() {
+    final selected = setup.connectWithBusyMax();
+    if (selected != null) Navigator.pop(context, selected);
   }
 
   void connect() {
@@ -82,6 +120,7 @@ class _RegistrationDialogState extends State<_RegistrationDialog> {
     setup.dispose();
     client.dispose();
     tenant.dispose();
+    backFocus.dispose();
     super.dispose();
   }
 
@@ -90,46 +129,156 @@ class _RegistrationDialogState extends State<_RegistrationDialog> {
     final l10n = AppLocalizations.of(context);
     final google = widget.provider == BusyProvider.google;
     final error = l10n.registrationSetupError(setup);
-    return BusyMaxDialogShell(
-      title: l10n.registrationSetupTitle(widget.provider.displayName),
+    final title = page == _SetupPage.methods
+        ? l10n.registrationSetupTitle(widget.provider.displayName)
+        : page == _SetupPage.instructions
+        ? l10n.registrationInstructionsTitle(widget.provider, method)
+        : l10n.registrationConfigurationTitle(widget.provider, method);
+    final dialog = BusyMaxDialogShell(
+      key: ValueKey('registration-${page.name}-dialog'),
+      title: title,
       maxWidth: 560,
-      actions: [
-        BusyMaxPushButton.standard(
-          onPressed: () => Navigator.pop(context),
-          child: Text(l10n.cancel),
-        ),
-        BusyMaxPushButton.suggested(
-          key: const ValueKey('registration-authorize'),
-          onPressed: setup.canConnect ? connect : null,
-          child: Text(l10n.registrationConnect),
-        ),
-      ],
-      children: [
-        Text(
-          google
-              ? l10n.registrationGoogleIntroduction
-              : l10n.registrationMicrosoftIntroduction,
-        ),
-        if (google) _googleForm(l10n) else _microsoftForm(l10n),
-        if (error != null) ...[
-          const SizedBox(height: BusyMaxSpacing.md),
-          _error(error, const ValueKey('registration-error')),
-        ],
-        BusyMaxGroupedList(
-          filled: true,
+      header: Padding(
+        padding: const EdgeInsets.all(BusyMaxSpacing.headerInset),
+        child: Row(
           children: [
-            BusyMaxActionRow(
-              key: const ValueKey('registration-guide'),
-              title: l10n.registrationSetupInstructions,
-              subtitleWidget: Text(l10n.registrationInstructionsDescription),
-              trailing: const Icon(YaruIcons.go_next),
-              onTap: showGuide,
+            SizedBox(
+              width: BusyMaxSizes.headerIconButton,
+              child: page == _SetupPage.methods
+                  ? null
+                  : BusyMaxHeaderIconButton(
+                      key: const ValueKey('registration-back'),
+                      focusNode: backFocus,
+                      tooltip: l10n.registrationBack,
+                      icon: const Icon(YaruIcons.go_previous),
+                      onPressed: back,
+                    ),
+            ),
+            Expanded(
+              child: Text(
+                title,
+                textAlign: TextAlign.center,
+                style: Theme.of(context).textTheme.titleMedium,
+              ),
+            ),
+            SizedBox(
+              width: BusyMaxSizes.headerIconButton,
+              child: Center(
+                child: YaruWindowControl(
+                  key: const ValueKey('registration-close'),
+                  type: YaruWindowControlType.close,
+                  semanticLabel: l10n.close,
+                  onTap: () => Navigator.pop(context),
+                ),
+              ),
             ),
           ],
         ),
-      ],
+      ),
+      actions: page == _SetupPage.instructions
+          ? const []
+          : [
+              BusyMaxPushButton.standard(
+                autofocus: page == _SetupPage.methods && !sharedAvailable,
+                onPressed: () => Navigator.pop(context),
+                child: Text(l10n.cancel),
+              ),
+              if (page == _SetupPage.configuration)
+                BusyMaxPushButton.suggested(
+                  key: const ValueKey('registration-authorize'),
+                  onPressed: setup.canConnect ? connect : null,
+                  child: Text(l10n.registrationConnect),
+                ),
+            ],
+      children: page == _SetupPage.instructions
+          ? _guide(l10n)
+          : page == _SetupPage.methods
+          ? _methods(l10n)
+          : [
+              Text(
+                google
+                    ? method == DesktopConnectionMethod.googleWorkspace
+                          ? l10n.registrationWorkspaceIntroduction
+                          : l10n.registrationGoogleIntroduction
+                    : l10n.registrationMicrosoftIntroduction,
+              ),
+              if (google) _googleForm(l10n) else _microsoftForm(l10n),
+              if (error != null)
+                _error(error, const ValueKey('registration-error')),
+              BusyMaxGroupedList(
+                filled: true,
+                children: [
+                  BusyMaxActionRow(
+                    key: const ValueKey('registration-guide'),
+                    autofocus: returningFromInstructions,
+                    title: l10n.registrationSetupInstructions,
+                    subtitleWidget: Text(
+                      l10n.registrationInstructionsDescription,
+                    ),
+                    trailing: const Icon(YaruIcons.go_next),
+                    onTap: showGuide,
+                  ),
+                ],
+              ),
+            ],
+    );
+    return CallbackShortcuts(
+      bindings: {BusyMaxShortcutActivators.back: back},
+      child: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxHeight: 640),
+          child: dialog,
+        ),
+      ),
     );
   }
+
+  List<Widget> _methods(AppLocalizations l10n) => [
+    Text(l10n.registrationMethodsIntroduction),
+    const SizedBox(height: BusyMaxSpacing.md),
+    Align(
+      alignment: AlignmentDirectional.centerStart,
+      child: BusyMaxPushButton.suggested(
+        key: const ValueKey('registration-busymax'),
+        autofocus: true,
+        onPressed: sharedAvailable ? connectWithBusyMax : null,
+        child: Text(l10n.registrationConnectBusyMax),
+      ),
+    ),
+    const SizedBox(height: BusyMaxSpacing.sm),
+    Text(l10n.registrationRecommended),
+    if (!sharedAvailable)
+      Padding(
+        padding: const EdgeInsets.only(top: BusyMaxSpacing.sm),
+        child: Text(
+          l10n.registrationSharedUnavailable,
+          key: const ValueKey('registration-shared-unavailable'),
+        ),
+      ),
+    BusyMaxGroupedList(
+      title: l10n.registrationOtherMethods,
+      filled: true,
+      children: [
+        if (widget.provider == BusyProvider.google)
+          BusyMaxActionRow(
+            key: const ValueKey('registration-workspace'),
+            title: l10n.registrationWorkspace,
+            subtitleWidget: Text(l10n.registrationWorkspaceDescription),
+            trailing: const Icon(YaruIcons.go_next),
+            onTap: () => chooseMethod(DesktopConnectionMethod.googleWorkspace),
+          ),
+        BusyMaxActionRow(
+          key: const ValueKey('registration-custom'),
+          title: widget.provider == BusyProvider.google
+              ? l10n.registrationGoogleCustom
+              : l10n.registrationMicrosoftCustom,
+          subtitleWidget: Text(l10n.registrationCustomDescription),
+          trailing: const Icon(YaruIcons.go_next),
+          onTap: () => chooseMethod(DesktopConnectionMethod.custom),
+        ),
+      ],
+    ),
+  ];
 
   Widget _googleForm(AppLocalizations l10n) {
     final selected = setup.handle;
@@ -145,7 +294,7 @@ class _RegistrationDialogState extends State<_RegistrationDialog> {
                 ),
           trailing: BusyMaxPushButton.standard(
             key: const ValueKey('registration-import'),
-            autofocus: true,
+            autofocus: !returningFromInstructions,
             onPressed: setup.busy ? null : setup.validate,
             child: Text(
               selected == null
@@ -172,7 +321,7 @@ class _RegistrationDialogState extends State<_RegistrationDialog> {
         title: TextField(
           key: const ValueKey('registration-client-id'),
           controller: client,
-          autofocus: true,
+          autofocus: !returningFromInstructions,
           textInputAction: TextInputAction.next,
           decoration: busyMaxGroupedTextFieldDecoration(
             context,
@@ -184,39 +333,17 @@ class _RegistrationDialogState extends State<_RegistrationDialog> {
           onChanged: setup.updateClientId,
         ),
       ),
-      LayoutBuilder(
-        builder: (context, constraints) {
-          final label = l10n.registrationAudienceLabel(setup.audience);
-          final labelLayout = TextPainter(
-            text: TextSpan(
-              text: label,
-              style: Theme.of(context).textTheme.bodyMedium,
-            ),
-            textDirection: Directionality.of(context),
-            textScaler: MediaQuery.textScalerOf(context),
-          )..layout();
-          final valueWidth =
-              (constraints.maxWidth * BusyMaxFormLayout.comboInlineMaxFraction)
-                  .clamp(0.0, BusyMaxSizes.comboWidth) -
-              BusyMaxSizes.iconSm -
-              BusyMaxSpacing.sm;
-          final showFullValue = labelLayout.width > valueWidth;
-          labelLayout.dispose();
-          return BusyMaxComboRow<MicrosoftAudience>(
-            key: const ValueKey('registration-audience'),
-            title: l10n.registrationAudience,
-            // Preserve a readable selection when the shared trailing value elides.
-            subtitle: showFullValue ? label : null,
-            values: MicrosoftAudience.values,
-            selected: setup.audience,
-            labelFor: l10n.registrationAudienceLabel,
-            tooltip: label,
-            onSelected: (value) {
-              if (value == setup.audience) return;
-              tenant.clear();
-              setup.updateAudience(value);
-            },
-          );
+      BusyMaxComboRow<MicrosoftAudience>(
+        key: const ValueKey('registration-audience'),
+        title: l10n.registrationAudience,
+        values: MicrosoftAudience.values,
+        selected: setup.audience,
+        labelFor: l10n.registrationAudienceLabel,
+        wrapSelectedValue: true,
+        onSelected: (value) {
+          if (value == setup.audience) return;
+          tenant.clear();
+          setup.updateAudience(value);
         },
       ),
       if (setup.audience == MicrosoftAudience.tenant)
@@ -248,26 +375,6 @@ class _RegistrationDialogState extends State<_RegistrationDialog> {
       color: Theme.of(context).colorScheme.error,
     ),
   );
-}
-
-class _RegistrationInstructionsDialog extends StatefulWidget {
-  const _RegistrationInstructionsDialog({required this.provider});
-
-  final BusyProvider provider;
-
-  @override
-  State<_RegistrationInstructionsDialog> createState() =>
-      _RegistrationInstructionsDialogState();
-}
-
-class _RegistrationInstructionsDialogState
-    extends State<_RegistrationInstructionsDialog> {
-  bool launching = false;
-  String? linkError;
-  int? failedStep;
-  int linkRevision = 0;
-  final linkErrorAnchor = GlobalKey();
-
   Future<void> openLink(String url, int step) async {
     if (launching) return;
     final revision = ++linkRevision;
@@ -285,7 +392,11 @@ class _RegistrationInstructionsDialogState
     } on Object {
       opened = false;
     }
-    if (!mounted || revision != linkRevision) return;
+    if (!mounted ||
+        page != _SetupPage.instructions ||
+        revision != linkRevision) {
+      return;
+    }
     setState(() {
       launching = false;
       if (!opened) {
@@ -295,7 +406,11 @@ class _RegistrationInstructionsDialogState
     });
     if (!opened) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (!mounted || revision != linkRevision) return;
+        if (!mounted ||
+            page != _SetupPage.instructions ||
+            revision != linkRevision) {
+          return;
+        }
         final errorContext = linkErrorAnchor.currentContext;
         if (errorContext != null) {
           Scrollable.ensureVisible(errorContext, alignment: 0.5);
@@ -304,56 +419,11 @@ class _RegistrationInstructionsDialogState
     }
   }
 
-  @override
-  Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context);
-    final title = widget.provider == BusyProvider.google
-        ? l10n.registrationGoogleSetupInstructions
-        : l10n.registrationMicrosoftSetupInstructions;
-    return Center(
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxHeight: 640),
-        child: BusyMaxDialogShell(
-          key: const ValueKey('registration-instructions-dialog'),
-          title: title,
-          maxWidth: 560,
-          header: Padding(
-            padding: const EdgeInsets.all(BusyMaxSpacing.headerInset),
-            child: Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    title,
-                    textAlign: TextAlign.center,
-                    style: Theme.of(context).textTheme.titleMedium,
-                  ),
-                ),
-                const SizedBox(width: BusyMaxSpacing.sm),
-                YaruWindowControl(
-                  key: const ValueKey('registration-instructions-close'),
-                  type: YaruWindowControlType.close,
-                  semanticLabel: l10n.close,
-                  onTap: () => Navigator.pop(context),
-                ),
-              ],
-            ),
-          ),
-          children: _guide(l10n),
-        ),
-      ),
-    );
-  }
-
-  Widget _error(String message, Key key) => Text(
-    message,
-    key: key,
-    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-      color: Theme.of(context).colorScheme.error,
-    ),
-  );
-
   List<Widget> _guide(AppLocalizations l10n) {
-    final steps = l10n.registrationDesktopSteps(widget.provider);
+    final steps = l10n.registrationDesktopSteps(
+      widget.provider,
+      method: method,
+    );
     return [
       for (var i = 0; i < steps.length; i++) ...[
         if (i > 0) const SizedBox(height: BusyMaxSpacing.lg),
@@ -415,6 +485,16 @@ class _RegistrationInstructionsDialogState
             ),
           ),
         ],
+        if (linkError != null && failedStep == i && steps[i].link != null)
+          YaruListTile.square(
+            title: SelectableText(steps[i].link!),
+            trailing: BusyMaxHeaderIconButton(
+              tooltip: l10n.registrationCopy,
+              icon: const Icon(YaruIcons.copy),
+              onPressed: () =>
+                  Clipboard.setData(ClipboardData(text: steps[i].link!)),
+            ),
+          ),
       ],
     ];
   }

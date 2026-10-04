@@ -1,3 +1,7 @@
+import '../../support/desktop_connection_fixture.dart';
+import '../../support/native_registration_reader_fixture.dart';
+import 'package:busymax/src/core/auth/oauth_registration.dart';
+import 'package:busymax/src/core/auth/registration_file_reader.dart';
 import 'package:busymax/src/core/secrets/secret_store.dart';
 import 'dart:async';
 import 'dart:convert';
@@ -24,6 +28,175 @@ import '../../support/fake_autostart_service.dart';
 import '../../support/memory_settings_store.dart';
 
 void main() {
+  late RegistrationFileReader reader;
+  setUpAll(() async {
+    reader = await buildNativeRegistrationReader();
+  });
+  for (final choice in [
+    (BusyProvider.google, DesktopConnectionMethod.busyMax),
+    (BusyProvider.google, DesktopConnectionMethod.googleWorkspace),
+    (BusyProvider.google, DesktopConnectionMethod.custom),
+    (BusyProvider.microsoft, DesktopConnectionMethod.busyMax),
+    (BusyProvider.microsoft, DesktopConnectionMethod.custom),
+  ]) {
+    testWidgets('Windows Settings connects ${choice.$1} through ${choice.$2}', (
+      tester,
+    ) async {
+      final (provider, method) = choice;
+      final fixture = DesktopConnectionFixture(
+        AppDatabase.memoryForTests(),
+        reader,
+      );
+      addTearDown(fixture.staging.dispose);
+      await _pumpRoutedApp(
+        tester,
+        initialLocation: '/settings?page=accounts',
+        connections: fixture,
+      );
+      await tester.ensureVisible(
+        find.text('Add ${provider.displayName} account'),
+      );
+      await tester.tap(find.text('Add ${provider.displayName} account'));
+      await _pumpConnectionPage(tester);
+      expect(
+        find.byKey(const ValueKey('registration-authorize')),
+        findsNothing,
+      );
+      if (method == DesktopConnectionMethod.busyMax) {
+        await tester.tap(find.byKey(const ValueKey('registration-busymax')));
+      } else {
+        await tester.tap(
+          find.byKey(
+            ValueKey(
+              'registration-${method == DesktopConnectionMethod.googleWorkspace ? 'workspace' : 'custom'}',
+            ),
+          ),
+        );
+        await _pumpConnectionPage(tester);
+        await tester.tap(find.byKey(const ValueKey('registration-guide')));
+        await _pumpConnectionPage(tester);
+        expect(find.byType(ContentDialog), findsOneWidget);
+        expect(
+          find.byKey(const ValueKey('registration-authorize')),
+          findsNothing,
+        );
+        await tester.sendKeyDownEvent(LogicalKeyboardKey.altLeft);
+        await tester.sendKeyEvent(LogicalKeyboardKey.arrowLeft);
+        await tester.sendKeyUpEvent(LogicalKeyboardKey.altLeft);
+        await _pumpConnectionPage(tester);
+        expect(
+          GoRouterState.of(
+            tester.element(find.byType(WindowsSettingsPage)),
+          ).uri.path,
+          '/settings',
+        );
+        expect(
+          find.byKey(const ValueKey('registration-configuration-dialog')),
+          findsOneWidget,
+        );
+        if (provider == BusyProvider.google) {
+          await tester.runAsync(() async {
+            await (tester
+                    .widget<Button>(
+                      find.byKey(const ValueKey('registration-import')),
+                    )
+                    .onPressed
+                as dynamic)();
+          });
+        } else {
+          await tester.enterText(
+            find.byKey(const ValueKey('registration-client-id')),
+            '33333333-3333-3333-3333-333333333333',
+          );
+        }
+        await _pumpConnectionPage(tester);
+        await tester.tap(find.byKey(const ValueKey('registration-authorize')));
+      }
+      final id = '${provider.storageValue}:fixture-user';
+      for (var i = 0; i < 40; i++) {
+        await tester.runAsync(
+          () => Future<void>.delayed(const Duration(milliseconds: 10)),
+        );
+        await _pumpConnectionPage(tester);
+        if (await tester.runAsync(() => fixture.secrets.readCredential(id)) !=
+            null) {
+          break;
+        }
+      }
+      final record =
+          await tester.runAsync(() => fixture.secrets.readCredential(id))
+              as BoundOAuthSecretRecord;
+      expect(
+        record.registration.summary().origin,
+        method == DesktopConnectionMethod.busyMax
+            ? RegistrationOrigin.busyMaxManaged
+            : RegistrationOrigin.userProvided,
+      );
+      expect(fixture.flow.clients.single, record.registration.clientId);
+      expect(find.byType(ContentDialog), findsNothing);
+      expect(find.byType(WindowsSettingsPage), findsOneWidget);
+      if (method == DesktopConnectionMethod.custom) {
+        await _pumpConnectionPage(tester);
+        await tester.ensureVisible(find.text('Connect'));
+        await tester.tap(find.text('Connect'));
+        await _pumpConnectionPage(tester);
+        expect(find.byType(ContentDialog), findsNothing);
+        for (var i = 0; i < 40; i++) {
+          await _pumpConnectionPage(tester);
+          if (await tester.runAsync(() => fixture.persistence.generation(id)) ==
+              2) {
+            break;
+          }
+        }
+        expect(fixture.flow.clients, [
+          record.registration.clientId,
+          record.registration.clientId,
+        ]);
+        await tester.ensureVisible(find.text('Replace registration'));
+        await tester.tap(find.text('Replace registration'));
+        await _pumpConnectionPage(tester);
+        expect(
+          find.byKey(const ValueKey('registration-methods-dialog')),
+          findsOneWidget,
+        );
+        await tester.tap(find.byKey(const ValueKey('registration-close')));
+        await _pumpConnectionPage(tester);
+        expect(fixture.flow.clients, hasLength(2));
+        expect(
+          await tester.runAsync(() => fixture.persistence.generation(id)),
+          2,
+        );
+        await tester.tap(find.text('Replace registration'));
+        await _pumpConnectionPage(tester);
+        await tester.tap(find.byKey(const ValueKey('registration-busymax')));
+        for (var i = 0; i < 40; i++) {
+          await _pumpConnectionPage(tester);
+          if (await tester.runAsync(() => fixture.persistence.generation(id)) ==
+              3) {
+            break;
+          }
+        }
+        final replaced =
+            await tester.runAsync(() => fixture.secrets.readCredential(id))
+                as BoundOAuthSecretRecord;
+        expect(replaced.generation, 3);
+        expect(replaced.subject, record.subject);
+        expect(
+          replaced.registration.summary().origin,
+          RegistrationOrigin.busyMaxManaged,
+        );
+        expect(fixture.flow.clients.last, replaced.registration.clientId);
+        expect(
+          await tester.runAsync(
+            () => (fixture.database.select(fixture.database.accounts)).get(),
+          ),
+          hasLength(1),
+        );
+        expect(find.byType(WindowsSettingsPage), findsOneWidget);
+      }
+    });
+  }
+
   for (final initialLocation in ['/', '/schedule']) {
     for (final width in [1200.0, 720.0]) {
       testWidgets(
@@ -328,14 +501,26 @@ void main() {
   });
 }
 
+// Settings shows a progress ring while it owns setup. Let modal animations and
+// real database replies progress without waiting for that ring to stop.
+Future<void> _pumpConnectionPage(WidgetTester tester) async {
+  await tester.runAsync(
+    () => Future<void>.delayed(const Duration(milliseconds: 20)),
+  );
+  await tester.pump();
+  await tester.pump(const Duration(milliseconds: 400));
+  await tester.pump();
+}
+
 Future<ProviderContainer> _pumpRoutedApp(
   WidgetTester tester, {
   double width = 1200,
   String initialLocation = '/',
   bool withSubscription = false,
+  DesktopConnectionFixture? connections,
 }) async {
-  final database = AppDatabase.memoryForTests();
-  final secrets = InMemorySecretStore();
+  final database = connections?.database ?? AppDatabase.memoryForTests();
+  final secrets = connections?.secrets ?? InMemorySecretStore();
   final subscriptions = WebCalSubscriptionService(
     database: database,
     secretStore: secrets,
@@ -357,6 +542,17 @@ Future<ProviderContainer> _pumpRoutedApp(
   await tester.pumpWidget(
     ProviderScope(
       overrides: [
+        if (connections != null) ...[
+          buildConfigProvider.overrideWithValue(connections.config),
+          registrationStagingProvider.overrideWithValue(connections.staging),
+          applicationOAuthGatewayProvider.overrideWithValue(connections.google),
+          applicationMicrosoftOAuthServiceProvider.overrideWithValue(
+            connections.microsoft,
+          ),
+          authorizationPersistenceProvider.overrideWithValue(
+            connections.persistence,
+          ),
+        ],
         databaseProvider.overrideWithValue(database),
         secretStoreProvider.overrideWithValue(secrets),
         webCalSubscriptionServiceProvider.overrideWithValue(subscriptions),

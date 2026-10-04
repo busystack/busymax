@@ -31,6 +31,27 @@ final class RegistrationSetupController extends ChangeNotifier {
   String tenantId = '';
   bool _clientEdited = false;
   bool _tenantEdited = false;
+  bool _sharedSelection = false;
+
+  RegistrationHandle? connectWithBusyMax() {
+    if (_disposed || _accepted || busy) return null;
+    try {
+      // Method changes do not discard a previously imported configuration until
+      // the selected active registration has been validated by the auth layer.
+      final selected = staging.stageBusyMax(provider);
+      handle = selected;
+      expired = false;
+      error = null;
+      errorCode = null;
+      _sharedSelection = true;
+      return accept();
+    } on OAuthException catch (failure) {
+      error = failure.message;
+      errorCode = failure.code;
+      notifyListeners();
+      return null;
+    }
+  }
 
   bool get invalidClientId => _clientEdited && !isUuid(clientId.trim());
   bool get invalidTenantId =>
@@ -88,6 +109,7 @@ final class RegistrationSetupController extends ChangeNotifier {
   }
 
   void _inputsChanged() {
+    _sharedSelection = false;
     _revision++;
     error = null;
     errorCode = null;
@@ -132,6 +154,7 @@ final class RegistrationSetupController extends ChangeNotifier {
 
   Future<void> validate() async {
     if (busy || _disposed || _accepted) return;
+    _sharedSelection = false;
     final revision = ++_revision;
     busy = true;
     error = null;
@@ -192,7 +215,7 @@ final class RegistrationSetupController extends ChangeNotifier {
       _stagingChanged();
       return null;
     }
-    if (provider == BusyProvider.microsoft) {
+    if (provider == BusyProvider.microsoft && !_sharedSelection) {
       // Recheck the same local rules without extending the staging lifetime.
       try {
         final registration = _microsoftRegistration();

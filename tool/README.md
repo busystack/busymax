@@ -20,8 +20,10 @@ in the linked development or release guides.
 `check_generated_sources.dart snapshot|verify <file>` compares regeneration
 against the reviewed source tree, including intentional uncommitted changes.
 Android and Windows local verification use this check; CI also requires checked-in
-generated sources. Windows `-Ci -UserOwnedOnly -Stage WindowsCompile` validates
-setup without original registrations; default official packaging preserves them.
+generated sources. Windows `-Ci -Unconfigured -Stage WindowsCompile` validates
+setup with the recommended method unavailable. Official packaging requires explicit
+active production registrations and preserves protected originals separately.
+See [desktop OAuth release prerequisites](../docs/oauth_next_release_checklist.md).
 Android's redirect/signing identity remains required even without the original
 Microsoft client. The pinned Gradle 9.4.1 supports JDK 17–26; use an installed
 supported runtime without downgrading it.

@@ -1,13 +1,21 @@
 import 'package:flutter/foundation.dart';
 
+import 'desktop_oauth_configuration.dart';
+
 enum BusyMaxDemoTheme { system, light, dark }
 
 class BuildConfig {
   const BuildConfig({
     required this.googleOAuthClientId,
     required this.googleOAuthClientSecret,
+    this.googleOAuthProjectId = '',
     this.microsoftOAuthClientId = '',
     this.microsoftOAuthAuthorityTenant = 'common',
+    this.busyMaxGoogleOAuthClientId = '',
+    this.busyMaxGoogleOAuthClientSecret = '',
+    this.busyMaxGoogleOAuthProjectId = '',
+    this.busyMaxMicrosoftOAuthClientId = '',
+    this.busyMaxMicrosoftOAuthAuthorityTenant = '',
     this.microsoftGraphBaseUrl = 'https://graph.microsoft.com/v1.0',
     this.googleApiBaseUrl = 'https://www.googleapis.com',
     this.feedbackEndpoint = 'https://busystack.org/api/feedback',
@@ -38,6 +46,24 @@ class BuildConfig {
       ),
       googleOAuthClientSecret: const String.fromEnvironment(
         'GOOGLE_OAUTH_CLIENT_SECRET',
+      ),
+      googleOAuthProjectId: const String.fromEnvironment(
+        'GOOGLE_OAUTH_PROJECT_ID',
+      ),
+      busyMaxGoogleOAuthClientId: const String.fromEnvironment(
+        'BUSYMAX_GOOGLE_OAUTH_CLIENT_ID',
+      ),
+      busyMaxGoogleOAuthClientSecret: const String.fromEnvironment(
+        'BUSYMAX_GOOGLE_OAUTH_CLIENT_SECRET',
+      ),
+      busyMaxGoogleOAuthProjectId: const String.fromEnvironment(
+        'BUSYMAX_GOOGLE_OAUTH_PROJECT_ID',
+      ),
+      busyMaxMicrosoftOAuthClientId: const String.fromEnvironment(
+        'BUSYMAX_MICROSOFT_OAUTH_CLIENT_ID',
+      ),
+      busyMaxMicrosoftOAuthAuthorityTenant: const String.fromEnvironment(
+        'BUSYMAX_MICROSOFT_OAUTH_AUTHORITY_TENANT',
       ),
       microsoftOAuthClientId: const String.fromEnvironment(
         'MICROSOFT_OAUTH_CLIENT_ID',
@@ -123,8 +149,14 @@ class BuildConfig {
 
   final String googleOAuthClientId;
   final String googleOAuthClientSecret;
+  final String googleOAuthProjectId;
   final String microsoftOAuthClientId;
   final String microsoftOAuthAuthorityTenant;
+  final String busyMaxGoogleOAuthClientId;
+  final String busyMaxGoogleOAuthClientSecret;
+  final String busyMaxGoogleOAuthProjectId;
+  final String busyMaxMicrosoftOAuthClientId;
+  final String busyMaxMicrosoftOAuthAuthorityTenant;
   final String microsoftGraphBaseUrl;
   final String googleApiBaseUrl;
   final String feedbackEndpoint;
@@ -145,6 +177,22 @@ class BuildConfig {
   /// Protected original registration values serve eligible existing accounts only.
   bool get googleSetupAvailable => true;
   bool get microsoftSetupAvailable => !useFakeProviderData;
+
+  /// Explicitly designated desktop registrations. Original values above remain
+  /// reserved for establishing legacy account bindings, including on Android.
+  bool get hasBusyMaxGoogleRegistration =>
+      !androidNativeAuthorization &&
+      validGoogleDesktopConfiguration(
+        clientId: busyMaxGoogleOAuthClientId,
+        clientSecret: busyMaxGoogleOAuthClientSecret,
+        projectId: busyMaxGoogleOAuthProjectId,
+      );
+  bool get hasBusyMaxMicrosoftRegistration =>
+      !androidNativeAuthorization &&
+      validMicrosoftDesktopConfiguration(
+        clientId: busyMaxMicrosoftOAuthClientId,
+        authorityTenant: busyMaxMicrosoftOAuthAuthorityTenant,
+      );
 
   bool get hasGoogleOAuthClientId =>
       useFakeProviderData ||

@@ -1,5 +1,8 @@
 # OAuth transition corrections and validation
 
+> Historical transition evidence. The current desktop release model supports explicitly active BusyMax-managed registrations plus optional custom registrations. Original registrations remain restricted to eligible existing accounts. There is no mandatory next-release retirement; use the [current release checklist](oauth_next_release_checklist.md). The measurements below describe the earlier transition and do not establish production readiness.
+
+
 This report concerns the F1–F5 corrections on top of
 `089afdeb3c55555275c80e7c5b613ecb582b4f30`. The starting tree was clean; the
 corrections remain uncommitted. No other BusyStack repository, external app
@@ -21,8 +24,8 @@ shared shortcut, fallback, time-based retirement, or switch back was added.
 Ownership remains separate from connection health. The warning uses the actual
 binding and transition eligibility, independently per account. Failed or
 cancelled replacement preserves the warning; successful migration removes it.
-The [next-release checklist](oauth_next_release_checklist.md) still distinguishes
-retiring Google's desktop client from its Android Cloud-project dependency.
+The [current release checklist](oauth_next_release_checklist.md) preserves
+original account bindings and the separate Android Cloud-project dependency.
 
 Scopes, PKCE/state, fixed provider endpoints, account IDs, provider-identity
 validation, native token ownership, generation rules, recoverable commits and

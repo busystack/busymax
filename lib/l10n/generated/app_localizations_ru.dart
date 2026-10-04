@@ -3213,7 +3213,7 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String registrationRetirementNotice(String provider, String setup) {
-    return 'Эта учётная запись использует общую регистрацию $provider BusyMax, которая будет отключена в следующем выпуске. Настройте собственный $setup и повторно подключите эту учётную запись для продолжения синхронизации. Календари, задачи и локальные изменения сохранятся.';
+    return 'Этот аккаунт использует исходную регистрацию $provider для существующих аккаунтов. Для замены настройте $setup и подключите аккаунт повторно. Календари, задачи и локальные изменения сохранятся.';
   }
 
   @override
@@ -3353,7 +3353,7 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String get registrationGuideGoogleAudience =>
-      'Откройте Google Auth Platform → Branding. Для новой настройки выберите Get started. Введите BusyMax в App name, выберите свой User support email и нажмите Next. В Audience выберите External для личного аккаунта Google; Internal доступен только для аккаунтов организации проекта. Нажмите Next, введите свой адрес в Contact Information и нажмите Next. Примите User Data Policy и выберите Continue и Create. Если настройка уже есть, проверьте Branding и Audience.\n\nДля External в режиме Testing откройте Audience → Test users → Add users, введите подключаемый аккаунт Google и нажмите Save. Подключиться могут только указанные тестовые пользователи; их разрешения и токены обновления истекают через семь дней.';
+      'Откройте Google Auth Platform → Branding. Для новой настройки выберите Get started. Введите BusyMax в App name, выберите свой User support email и нажмите Next. В Audience выберите External. Нажмите Next, введите свой адрес в Contact Information и нажмите Next. Примите User Data Policy и выберите Continue и Create. Если настройка уже есть, проверьте Branding и Audience.';
 
   @override
   String get registrationGuideGooglePermissions =>
@@ -3361,7 +3361,7 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String get registrationGuideGoogleClient =>
-      'Откройте Google Auth Platform → Clients → Create client. Выберите Desktop app в Application type, введите BusyMax в Name и нажмите Create. В диалоге создания выберите Download JSON и сохраните файл. Закройте эти инструкции кнопкой ×, чтобы вернуться к форме, выберите файл и проверьте проект и ID клиента. Нажмите Подключить и разрешите доступ к календарю и задачам в браузере.';
+      'Откройте Google Auth Platform → Clients → Create client. Выберите Desktop app в Application type, введите BusyMax в Name и нажмите Create. В диалоге создания выберите Download JSON и сохраните файл. Нажмите Назад, чтобы вернуться к форме, выберите файл и проверьте проект и ID клиента. Нажмите Подключить и разрешите доступ к календарю и задачам в браузере.';
 
   @override
   String get registrationGuideMicrosoftApp =>
@@ -3377,7 +3377,7 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String get registrationGuideMicrosoftConnect =>
-      'Закройте эти инструкции кнопкой ×, чтобы вернуться к форме. Вставьте Application (client) ID и выберите те же поддерживаемые аккаунты, что в регистрации. Для одного клиента организации вставьте также Directory (tenant) ID. Нажмите Подключить и войдите в нужный аккаунт в браузере. BusyMax проверяет поля локально; Microsoft запрашивает ваше согласие при входе в браузере.';
+      'Нажмите Назад, чтобы вернуться к форме. Вставьте Application (client) ID и выберите те же поддерживаемые аккаунты, что в регистрации. Для одного клиента организации вставьте также Directory (tenant) ID. Нажмите Подключить и войдите в нужный аккаунт в браузере. BusyMax проверяет поля локально; Microsoft запрашивает ваше согласие при входе в браузере.';
 
   @override
   String get registrationGoogleImportFailed =>
@@ -3470,4 +3470,85 @@ class AppLocalizationsRu extends AppLocalizations {
   @override
   String get registrationGuideMicrosoftAudience =>
       'В Supported account types выберите Personal accounts only для личного аккаунта, Multiple Entra ID tenants для аккаунтов организаций, Any Entra ID Tenant + Personal Microsoft accounts для обоих или Single tenant only для этого каталога. Нажмите Register. В Overview скопируйте Application (client) ID; для одного клиента также Directory (tenant) ID. Выберите соответствующий вариант поддерживаемых аккаунтов в BusyMax.';
+
+  @override
+  String get registrationConnectBusyMax => 'Подключить через BusyMax';
+
+  @override
+  String get registrationRecommended => 'Рекомендуется';
+
+  @override
+  String get registrationOtherMethods => 'Другие способы подключения';
+
+  @override
+  String get registrationWorkspace => 'Организация Google Workspace';
+
+  @override
+  String get registrationGoogleCustom => 'Собственный клиент OAuth';
+
+  @override
+  String get registrationMicrosoftCustom =>
+      'Собственная регистрация приложения';
+
+  @override
+  String get registrationMethodsIntroduction =>
+      'Выберите способ подключения аккаунта.';
+
+  @override
+  String get registrationWorkspaceDescription =>
+      'Используйте конфигурацию, управляемую организацией.';
+
+  @override
+  String get registrationCustomDescription =>
+      'Используйте регистрацию, которой управляете сами.';
+
+  @override
+  String get registrationSharedUnavailable =>
+      'Подключение через BusyMax недоступно в этой сборке. Ниже можно использовать другой способ подключения.';
+
+  @override
+  String get registrationWorkspaceIntroduction =>
+      'Выберите JSON OAuth для компьютера, предоставленный или управляемый организацией. Файл не подтверждает принадлежность организации, аудиторию или проверку.';
+
+  @override
+  String get registrationWorkspaceSetupInstructions =>
+      'Инструкции по настройке Google Workspace';
+
+  @override
+  String get registrationBusyMaxManaged =>
+      'Регистрация под управлением BusyMax';
+
+  @override
+  String get registrationBranding => 'Настройте бренд и домены';
+
+  @override
+  String get registrationPublishing => 'Опубликуйте для обычного использования';
+
+  @override
+  String get registrationOpenAudience =>
+      'Открыть Audience в Google Auth Platform';
+
+  @override
+  String get registrationGuideWorkspaceProject =>
+      'Запросите Desktop OAuth JSON у администратора или откройте Google Cloud Console и выберите проект вашей организации Google Workspace. Для создания откройте Управление ресурсами → Создать проект, введите Название проекта, выберите организацию или её папку в поле Родительский ресурс и нажмите Создать. Выберите этот проект для следующих шагов. Для создания нужны права Project Creator, для настройки OAuth — OAuth Config Editor, для включения API — Service Usage Admin или равноценные права. При блокировке обратитесь к администратору.';
+
+  @override
+  String get registrationGuideGoogleBranding =>
+      'В Branding → App domain добавьте разрешённые домены проекта перед адресами главной страницы, политики конфиденциальности и условий использования, затем Save. Приложения External в производстве требуют этих ссылок. Используйте собственные домены и подтвердите владение в Search Console, если Google требует проверку бренда. Ссылка на политику BusyMax не подтверждает владение busystack.org вашим проектом.';
+
+  @override
+  String get registrationGuideGooglePublishing =>
+      'В Audience выберите Publish app и подтвердите In production. Не оставляйте обычное использование в Testing: эти авторизации Calendar/Tasks и токены обновления истекают через семь дней. Публикация и проверка — отдельные процессы. Личное использование менее чем 100 пользователями может не требовать проверки, с предупреждениями и лимитом; широкое распространение может требовать одобрения бренда и разрешений. Производственные авторизации тоже могут истекать или отзываться.';
+
+  @override
+  String get registrationGuideWorkspacePermissions =>
+      'Согласуйте эти разрешения с администратором. Приложения Internal не обязаны перечислять их на экране согласия. По запросу откройте Data Access → Add or remove scopes, добавьте значения, затем Update и Save. Ограничения администратора могут препятствовать авторизации.';
+
+  @override
+  String get registrationGuideMicrosoftOptionalPermissions =>
+      'Разрешения для общих календарей и категорий запрашиваются отдельно при включении этих дополнительных функций; не добавляйте их к обязательной настройке выше.';
+
+  @override
+  String get registrationGuideWorkspaceAudience =>
+      'Откройте Google Auth Platform → Branding. Для новой настройки выберите Get started. Введите BusyMax в App name, выберите свой User support email и нажмите Next. В Audience выберите Internal. Нажмите Next, введите свой адрес в Contact Information и нажмите Next. Примите User Data Policy и выберите Continue и Create. Если настройка уже есть, проверьте Branding и Audience.\n\nInternal допускает только аккаунты родительской организации проекта с учётом ограничений администратора. Список тестовых пользователей не нужен. BusyMax не может проверить эти настройки консоли по JSON.';
 }

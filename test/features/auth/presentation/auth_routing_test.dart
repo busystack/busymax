@@ -1,3 +1,4 @@
+import '../../../support/desktop_connection_fixture.dart';
 import 'package:busymax/src/dav/auth/dav_account_onboarding_service.dart';
 import 'package:busymax/src/dav/auth/nextcloud_login_flow_v2.dart';
 import 'package:busymax/src/dav/discovery/dav_discovery_models.dart';
@@ -101,6 +102,186 @@ void main() {
         .setMockMethodCallHandler(_nativeDialogChannel, null);
     await database.close();
   });
+
+  for (final choice in [
+    (BusyProvider.google, DesktopConnectionMethod.busyMax),
+    (BusyProvider.google, DesktopConnectionMethod.googleWorkspace),
+    (BusyProvider.google, DesktopConnectionMethod.custom),
+    (BusyProvider.microsoft, DesktopConnectionMethod.busyMax),
+    (BusyProvider.microsoft, DesktopConnectionMethod.custom),
+  ]) {
+    testWidgets('Settings connects ${choice.$1} through ${choice.$2}', (
+      tester,
+    ) async {
+      final (provider, method) = choice;
+      final fixture = DesktopConnectionFixture(database, _nativeReader);
+      addTearDown(fixture.staging.dispose);
+      await _pumpApp(
+        tester,
+        database: database,
+        oAuth: fixture.google,
+        microsoftOAuth: fixture.microsoft,
+        secrets: fixture.secrets,
+        persistence: fixture.persistence,
+        staging: fixture.staging,
+      );
+      for (
+        var i = 0;
+        i < 20 && find.byType(ScheduleWorkspace).evaluate().isEmpty;
+        i++
+      ) {
+        await tester.runAsync(
+          () => Future<void>.delayed(const Duration(milliseconds: 10)),
+        );
+        await tester.pumpAndSettle();
+      }
+      await _openSettings(tester);
+      await tester.ensureVisible(
+        find.text('Add ${provider.displayName} account'),
+      );
+      await tester.tap(find.text('Add ${provider.displayName} account'));
+      await tester.pumpAndSettle();
+      expect(
+        find.byKey(const ValueKey('registration-authorize')),
+        findsNothing,
+      );
+      if (method == DesktopConnectionMethod.busyMax) {
+        await tester.tap(find.byKey(const ValueKey('registration-busymax')));
+      } else {
+        await tester.tap(
+          find.byKey(
+            ValueKey(
+              'registration-${method == DesktopConnectionMethod.googleWorkspace ? 'workspace' : 'custom'}',
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+        await tester.tap(find.byKey(const ValueKey('registration-guide')));
+        await tester.pumpAndSettle();
+        expect(
+          find.byKey(const ValueKey('registration-authorize')),
+          findsNothing,
+        );
+        await _sendAltLeft(tester);
+        expect(find.byType(SettingsScreen), findsOneWidget);
+        if (provider == BusyProvider.google) {
+          await tester.runAsync(() async {
+            await (tester
+                    .widget<FilledButton>(
+                      find.byKey(const ValueKey('registration-import')),
+                    )
+                    .onPressed
+                as dynamic)();
+          });
+        } else {
+          await tester.enterText(
+            find.byKey(const ValueKey('registration-client-id')),
+            '33333333-3333-3333-3333-333333333333',
+          );
+        }
+        await tester.pumpAndSettle();
+        await tester.tap(find.byKey(const ValueKey('registration-authorize')));
+      }
+      final id = '${provider.storageValue}:fixture-user';
+      for (var i = 0; i < 40; i++) {
+        await tester.runAsync(
+          () => Future<void>.delayed(const Duration(milliseconds: 10)),
+        );
+        await tester.pumpAndSettle();
+        if (await tester.runAsync(() => fixture.secrets.readCredential(id)) !=
+            null) {
+          break;
+        }
+      }
+      final record =
+          await tester.runAsync(() => fixture.secrets.readCredential(id))
+              as BoundOAuthSecretRecord;
+      expect(
+        record.registration.summary().origin,
+        method == DesktopConnectionMethod.busyMax
+            ? RegistrationOrigin.busyMaxManaged
+            : RegistrationOrigin.userProvided,
+      );
+      expect(fixture.flow.clients.single, record.registration.clientId);
+      expect(
+        find.byKey(const ValueKey('registration-methods-dialog')),
+        findsNothing,
+      );
+      expect(find.byType(SettingsScreen), findsOneWidget);
+      if (method == DesktopConnectionMethod.custom) {
+        await tester.runAsync(
+          () => Future<void>.delayed(const Duration(milliseconds: 20)),
+        );
+        await tester.pumpAndSettle();
+        await tester.ensureVisible(find.text('Connect'));
+        await tester.tap(find.text('Connect'));
+        await tester.pumpAndSettle();
+        expect(
+          find.byKey(const ValueKey('registration-methods-dialog')),
+          findsNothing,
+        );
+        for (var i = 0; i < 40; i++) {
+          await tester.runAsync(
+            () => Future<void>.delayed(const Duration(milliseconds: 10)),
+          );
+          await tester.pumpAndSettle();
+          if (await tester.runAsync(() => fixture.persistence.generation(id)) ==
+              2) {
+            break;
+          }
+        }
+        expect(fixture.flow.clients, [
+          record.registration.clientId,
+          record.registration.clientId,
+        ]);
+        await tester.ensureVisible(find.text('Replace registration'));
+        await tester.tap(find.text('Replace registration'));
+        await tester.pumpAndSettle();
+        expect(
+          find.byKey(const ValueKey('registration-methods-dialog')),
+          findsOneWidget,
+        );
+        await tester.tap(find.byKey(const ValueKey('registration-close')));
+        await tester.pumpAndSettle();
+        expect(fixture.flow.clients, hasLength(2));
+        expect(
+          await tester.runAsync(() => fixture.persistence.generation(id)),
+          2,
+        );
+        await tester.tap(find.text('Replace registration'));
+        await tester.pumpAndSettle();
+        await tester.tap(find.byKey(const ValueKey('registration-busymax')));
+        for (var i = 0; i < 40; i++) {
+          await tester.runAsync(
+            () => Future<void>.delayed(const Duration(milliseconds: 10)),
+          );
+          await tester.pumpAndSettle();
+          if (await tester.runAsync(() => fixture.persistence.generation(id)) ==
+              3) {
+            break;
+          }
+        }
+        final replaced =
+            await tester.runAsync(() => fixture.secrets.readCredential(id))
+                as BoundOAuthSecretRecord;
+        expect(replaced.generation, 3);
+        expect(replaced.subject, record.subject);
+        expect(
+          replaced.registration.summary().origin,
+          RegistrationOrigin.busyMaxManaged,
+        );
+        expect(fixture.flow.clients.last, replaced.registration.clientId);
+        expect(
+          await tester.runAsync(
+            () => (database.select(database.accounts)).get(),
+          ),
+          hasLength(1),
+        );
+        expect(find.byType(SettingsScreen), findsOneWidget);
+      }
+      await _disposeApp(tester);
+    });
+  }
 
   testWidgets(
     'retirement is account-specific; cancelled migration retries and survives restart',
@@ -1396,7 +1577,7 @@ Future<void> _pumpApp(
   return tester.pumpWidget(
     ProviderScope(
       overrides: [
-        buildConfigProvider.overrideWithValue(_configuredBuildConfig),
+        buildConfigProvider.overrideWithValue(registrationStaging.config),
         networkConnectivityMonitorProvider.overrideWithValue(
           NetworkConnectivityMonitor.withoutPlatformObservation(),
         ),
@@ -1568,6 +1749,8 @@ Future<void> _authorizeGoogleSetup(WidgetTester tester) async {
 }
 
 Future<void> _validateAndAuthorizeGoogleSetup(WidgetTester tester) async {
+  await tester.tap(find.byKey(const ValueKey('registration-custom')));
+  await tester.pumpAndSettle();
   await tester.runAsync(() async {
     final action = tester
         .widget<FilledButton>(find.byKey(const ValueKey('registration-import')))
@@ -1647,6 +1830,8 @@ Future<void> _connectControlledProvider(
   await tester.tap(find.text(label));
   await tester.pumpAndSettle();
   if (provider == BusyProvider.microsoft) {
+    await tester.tap(find.byKey(const ValueKey('registration-custom')));
+    await tester.pumpAndSettle();
     await tester.enterText(
       find.byKey(const ValueKey('registration-client-id')),
       '11111111-1111-1111-1111-111111111111',

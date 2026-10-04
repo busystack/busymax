@@ -3165,7 +3165,7 @@ class AppLocalizationsEt extends AppLocalizations {
 
   @override
   String registrationRetirementNotice(String provider, String setup) {
-    return 'See konto kasutab BusyMaxi ühist $provider rakenduse registreeringut, mis lõpetatakse järgmises väljalaskes. Seadista oma $setup ja ühenda konto uuesti, et sünkroonimine jätkuks. Kalendrid, ülesanded ja kohalikud muudatused säilivad.';
+    return 'See konto kasutab algset $provider registreeringut, mis on mõeldud olemasolevatele kontodele. Asendamiseks seadista $setup ja ühenda konto uuesti. Kalendrid, ülesanded ja kohalikud muudatused säilivad.';
   }
 
   @override
@@ -3302,7 +3302,7 @@ class AppLocalizationsEt extends AppLocalizations {
 
   @override
   String get registrationGuideGoogleAudience =>
-      'Ava Google Auth Platform → Branding. Kui seadistust pole alustatud, vali Get started. Sisesta väljale App name BusyMax, vali oma User support email ja vali Next. Vali jaotises Audience isikliku Google’i konto jaoks External; Internal on saadaval vaid projekti organisatsiooni kontodele. Vali Next, sisesta oma e-post jaotises Contact Information ning vali Next. Nõustu User Data Policyga ja vali Continue ning Create. Olemasoleva seadistuse puhul vaata üle Branding ja Audience.\n\nValiku External ja oleku Testing puhul ava Audience → Test users → Add users, sisesta ühendatav Google’i konto ja vali Save. Ühenduda saavad ainult loetletud testkasutajad; nende volitused ja värskendustõendid aeguvad seitsme päeva pärast.';
+      'Ava Google Auth Platform → Branding. Kui seadistust pole alustatud, vali Get started. Sisesta väljale App name BusyMax, vali oma User support email ja vali Next. Vali jaotises Audience External. Vali Next, sisesta oma e-post jaotises Contact Information ning vali Next. Nõustu User Data Policyga ja vali Continue ning Create. Olemasoleva seadistuse puhul vaata üle Branding ja Audience.';
 
   @override
   String get registrationGuideGooglePermissions =>
@@ -3310,7 +3310,7 @@ class AppLocalizationsEt extends AppLocalizations {
 
   @override
   String get registrationGuideGoogleClient =>
-      'Ava Google Auth Platform → Clients → Create client. Määra Application type väärtuseks Desktop app, sisesta väljale Name BusyMax ja vali Create. Vali loomisdialoogis Download JSON ja salvesta fail. Sulge need juhised nupuga ×, et naasta vormile, vali see fail ning kontrolli projekti ja kliendi ID-d. Vali Ühenda ning luba brauseris ligipääs kalendrile ja ülesannetele.';
+      'Ava Google Auth Platform → Clients → Create client. Määra Application type väärtuseks Desktop app, sisesta väljale Name BusyMax ja vali Create. Vali loomisdialoogis Download JSON ja salvesta fail. Vali Tagasi, et naasta vormile, vali see fail ning kontrolli projekti ja kliendi ID-d. Vali Ühenda ning luba brauseris ligipääs kalendrile ja ülesannetele.';
 
   @override
   String get registrationGuideMicrosoftApp =>
@@ -3326,7 +3326,7 @@ class AppLocalizationsEt extends AppLocalizations {
 
   @override
   String get registrationGuideMicrosoftConnect =>
-      'Sulge need juhised nupuga ×, et naasta vormile. Kleebi Application (client) ID ja vali samad toetatud kontod kui registreeringus. Ühe organisatsiooni rentniku puhul kleebi ka Directory (tenant) ID. Vali Ühenda ja logi brauseris soovitud kontole sisse. BusyMax kontrollib välju kohapeal; Microsoft küsib sinu nõusolekut brauseris sisselogimisel.';
+      'Vali Tagasi, et naasta vormile. Kleebi Application (client) ID ja vali samad toetatud kontod kui registreeringus. Ühe organisatsiooni rentniku puhul kleebi ka Directory (tenant) ID. Vali Ühenda ja logi brauseris soovitud kontole sisse. BusyMax kontrollib välju kohapeal; Microsoft küsib sinu nõusolekut brauseris sisselogimisel.';
 
   @override
   String get registrationGoogleImportFailed =>
@@ -3416,4 +3416,82 @@ class AppLocalizationsEt extends AppLocalizations {
   @override
   String get registrationGuideMicrosoftAudience =>
       'Vali jaotises Supported account types isikliku konto jaoks Personal accounts only, organisatsioonikontode jaoks Multiple Entra ID tenants, mõlema jaoks Any Entra ID Tenant + Personal Microsoft accounts või selle kataloogi jaoks Single tenant only. Vali Register. Kopeeri Overview lehelt Application (client) ID; ühe rentniku puhul ka Directory (tenant) ID. Vali BusyMaxis vastav toetatud kontode valik.';
+
+  @override
+  String get registrationConnectBusyMax => 'Ühenda BusyMaxiga';
+
+  @override
+  String get registrationRecommended => 'Soovitatav';
+
+  @override
+  String get registrationOtherMethods => 'Muud ühendusviisid';
+
+  @override
+  String get registrationWorkspace => 'Google Workspace’i organisatsioon';
+
+  @override
+  String get registrationGoogleCustom => 'Oma OAuthi klient';
+
+  @override
+  String get registrationMicrosoftCustom => 'Oma rakenduse registreering';
+
+  @override
+  String get registrationMethodsIntroduction =>
+      'Vali, kuidas oma konto ühendada.';
+
+  @override
+  String get registrationWorkspaceDescription =>
+      'Kasuta oma organisatsiooni hallatavat seadistust.';
+
+  @override
+  String get registrationCustomDescription =>
+      'Kasuta enda hallatavat registreeringut.';
+
+  @override
+  String get registrationSharedUnavailable =>
+      'BusyMaxiga ühendamine pole selles järgus saadaval. Allpool saad kasutada muud ühendusviisi.';
+
+  @override
+  String get registrationWorkspaceIntroduction =>
+      'Vali organisatsiooni antud või hallatav töölaua OAuthi JSON. Fail ei tõenda organisatsiooni omandiõigust, sihtrühma ega kinnitamise olekut.';
+
+  @override
+  String get registrationWorkspaceSetupInstructions =>
+      'Google Workspace’i seadistusjuhised';
+
+  @override
+  String get registrationBusyMaxManaged => 'BusyMaxi hallatav registreering';
+
+  @override
+  String get registrationBranding => 'Seadista bränding ja domeenid';
+
+  @override
+  String get registrationPublishing => 'Avalda tavakasutuseks';
+
+  @override
+  String get registrationOpenAudience => 'Ava Google Auth Platformi Audience';
+
+  @override
+  String get registrationGuideWorkspaceProject =>
+      'Küsi administraatorilt töölaua OAuth JSON või ava Google Cloud Console ja vali oma Google Workspace’i organisatsioonile kuuluv projekt. Loomiseks ava Ressursside haldamine → Loo projekt, sisesta Projekti nimi, vali Ülemressursi väljal oma organisatsioon või selle kaust ja vali Loo. Vali see projekt järgmisteks sammudeks. Loomiseks on vaja Project Creator õigust, OAuthi seadistamiseks OAuth Config Editor õigust ning APIde lubamiseks Service Usage Admin õigust või samaväärseid õigusi. Blokeeringu korral küsi abi administraatorilt.';
+
+  @override
+  String get registrationGuideGoogleBranding =>
+      'Lisa jaotises Branding → App domain kõigepealt projekti lubatud domeenid ja siis avalehe, privaatsuse ning kasutustingimuste URLid. Vali Save. Tootmises External-rakendused vajavad neid linke. Kasuta enda domeene ja kinnita omand Search Console’is, kui Google nõuab brändi kinnitamist. BusyMaxi privaatsuslink ei tõenda, et sinu projekt omab busystack.org-i.';
+
+  @override
+  String get registrationGuideGooglePublishing =>
+      'Vali jaotises Audience Publish app ja kinnita In production. Ära jäta tavakasutust olekusse Testing: need Calendar/Tasksi volitused ja värskendustõendid aeguvad seitsme päevaga. Avaldamine ja kinnitamine on eraldi. Alla 100 kasutajaga isiklik kasutus võib kinnitamisest vabastatud olla, hoiatuste ja kasutajapiiranguga; laiem levitamine võib nõuda brändi ja õiguste kinnitamist. Ka tootmisvolitused võivad aeguda või tühistatud saada.';
+
+  @override
+  String get registrationGuideWorkspacePermissions =>
+      'Vaata need õigused administraatoriga üle. Internal-rakendused ei pea neid nõusolekukuval loetlema. Kui seda nõutakse, ava Data Access → Add or remove scopes, lisa väärtused ning vali Update ja Save. Administraatori piirangud võivad volitust siiski takistada.';
+
+  @override
+  String get registrationGuideMicrosoftOptionalPermissions =>
+      'Jagatud kalendrite ja kategooriate õigusi küsitakse eraldi vastavate valikuliste funktsioonide lubamisel; ära lisa neid ülaltoodud kohustuslikku seadistusse.';
+
+  @override
+  String get registrationGuideWorkspaceAudience =>
+      'Ava Google Auth Platform → Branding. Kui seadistust pole alustatud, vali Get started. Sisesta väljale App name BusyMax, vali oma User support email ja vali Next. Vali jaotises Audience Internal. Vali Next, sisesta oma e-post jaotises Contact Information ning vali Next. Nõustu User Data Policyga ja vali Continue ning Create. Olemasoleva seadistuse puhul vaata üle Branding ja Audience.\n\nInternal lubab vaid projekti emaorganisatsiooni kontosid administraatori piirangute kohaselt. Testkasutajate loendit pole vaja. BusyMax ei saa neid konsoolisätteid JSON-faili põhjal kontrollida.';
 }

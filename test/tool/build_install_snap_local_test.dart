@@ -21,7 +21,7 @@ void main() {
       expect(
         output,
         contains(
-          'Google Desktop JSON import and Microsoft public-registration setup remain available.',
+          'Google Workspace/custom JSON import and Microsoft custom setup remain available.',
         ),
       );
       expect(

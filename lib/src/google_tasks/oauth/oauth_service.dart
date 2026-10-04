@@ -408,7 +408,9 @@ class OAuthService
       clientSecret: _config.googleOAuthClientSecret.trim().isEmpty
           ? null
           : _config.googleOAuthClientSecret.trim(),
-      projectId: 'original-shipped-project',
+      projectId: _config.googleOAuthProjectId.trim().isEmpty
+          ? null
+          : _config.googleOAuthProjectId.trim(),
       origin: RegistrationOrigin.retiringShared,
     );
     await persistence.checkTokenCooldown(id, registration.clientId, _nowUtc());

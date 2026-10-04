@@ -213,7 +213,7 @@ final class GoogleDesktopCredential extends BoundOAuthSecretRecord {
     'clientId': registration.clientId,
     if (registration.clientSecret != null)
       'clientSecret': registration.clientSecret,
-    'projectId': registration.projectId,
+    if (registration.projectId != null) 'projectId': registration.projectId,
     'origin': registration.origin.name,
   };
 }
@@ -281,7 +281,9 @@ SecretRecord _decodeBoundOAuth(Map<String, Object?> json) {
       registration: GoogleDesktopRegistration(
         clientId: clientId,
         clientSecret: _optionalSecretString(json, 'clientSecret'),
-        projectId: _requiredSecretString(json, 'projectId'),
+        projectId: origin == RegistrationOrigin.retiringShared
+            ? _optionalSecretString(json, 'projectId')
+            : _requiredSecretString(json, 'projectId'),
         origin: origin,
       ),
       tokenSet: legacy.tokenSet,

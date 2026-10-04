@@ -1,3 +1,4 @@
+import '../../support/desktop_registration_config.dart';
 import '../../support/native_registration_reader_fixture.dart';
 import 'package:busymax/src/core/auth/authorization_attempt.dart';
 import 'dart:async';
@@ -93,6 +94,175 @@ void main() {
     h.staging.dispose();
     await h.db.close();
   });
+  for (final provider in [BusyProvider.google, BusyProvider.microsoft]) {
+    test(
+      '$provider managed credentials remain account-bound after restart and a changed build',
+      () async {
+        h.staging.dispose();
+        await h.db.close();
+        h = Harness(buildConfig: syntheticDesktopConfig());
+        final handle = h.staging.stageBusyMax(provider);
+        if (provider == BusyProvider.google) {
+          await h.repository.signIn(
+            request: AuthorizationRequest.newConnection(handle),
+          );
+        } else {
+          await h.repository.signInWithMicrosoft(
+            request: AuthorizationRequest.newConnection(handle),
+          );
+        }
+        final id = provider == BusyProvider.google
+            ? 'google:subject'
+            : 'microsoft:ms-user';
+        final saved =
+            await h.secrets.readCredential(id) as BoundOAuthSecretRecord;
+        // Exercise the secure envelope decoder rather than retain an in-memory object.
+        await h.secrets.saveCredential(
+          id,
+          SecretRecord.fromJson(jsonDecode(jsonEncode(saved.toJson()))),
+        );
+        expect((await h.summary(id)).origin, RegistrationOrigin.busyMaxManaged);
+        expect((await h.summary(id)).showRetirementNotice, isFalse);
+        final later = syntheticDesktopConfig(later: true);
+        final laterStaging = RegistrationStaging(later);
+        addTearDown(laterStaging.dispose);
+        final restartedPersistence = AuthorizationPersistence(
+          database: h.db,
+          secrets: h.secrets,
+        );
+        if (provider == BusyProvider.google) {
+          final restarted = OAuthService(
+            config: later,
+            httpClient: h.client,
+            tokenStore: h.secrets,
+            loopbackFlow: h.flow,
+            registrations: laterStaging,
+            persistence: restartedPersistence,
+          );
+          await restarted.refreshTokenForAccount(id);
+          await restarted.connectGoogle(AuthorizationRequest.reconnect(id));
+        } else {
+          final restarted = MicrosoftOAuthService(
+            config: later,
+            httpClient: h.client,
+            tokenStore: h.secrets,
+            loopbackFlow: h.flow,
+            registrations: laterStaging,
+            persistence: restartedPersistence,
+          );
+          await restarted.refreshTokenForAccount(id);
+          await restarted.connectMicrosoft(AuthorizationRequest.reconnect(id));
+          await restarted.authorizeCategoryAccess(id);
+          await restarted.authorizeSharedCalendarAccess(id);
+          expect(h.flow.lastScope, contains(microsoftCategoryScope));
+          expect(h.flow.lastScope, contains(microsoftSharedCalendarScope));
+          expect(
+            h.requests
+                .where((r) => r.method == 'POST')
+                .every((r) => r.url.path.startsWith('/organizations/')),
+            isTrue,
+          );
+        }
+        final issuingClient = handle.summary.clientId;
+        expect(h.flow.clients.every((c) => c == issuingClient), isTrue);
+        expect(
+          h.requests
+              .where((r) => r.method == 'POST')
+              .every(
+                (r) =>
+                    Uri.splitQueryString(r.body)['client_id'] == issuingClient,
+              ),
+          isTrue,
+        );
+        final finalRecord =
+            await h.secrets.readCredential(id) as BoundOAuthSecretRecord;
+        expect(finalRecord.registration.clientId, issuingClient);
+        expect(
+          finalRecord.registration.summary().origin,
+          RegistrationOrigin.busyMaxManaged,
+        );
+      },
+    );
+    test(
+      '$provider explicit replacement can select a managed registration without changing account identity',
+      () async {
+        h.staging.dispose();
+        await h.db.close();
+        h = Harness(buildConfig: syntheticDesktopConfig());
+        if (provider == BusyProvider.google) {
+          await h.seed();
+        } else {
+          await h.seedMicrosoft(shared: true);
+        }
+        final id = provider == BusyProvider.google
+            ? 'opaque'
+            : 'microsoft:ms-user';
+        final before = await h.accounts.accountById(id);
+        final selected = h.staging.stageBusyMax(provider);
+        if (provider == BusyProvider.google) {
+          await h.repository.signIn(
+            request: AuthorizationRequest.replace(id, selected),
+          );
+        } else {
+          await h.repository.signInWithMicrosoft(
+            request: AuthorizationRequest.replace(id, selected),
+          );
+        }
+        final after = await h.accounts.accountById(id);
+        expect(after!.providerAccountId, before!.providerAccountId);
+        expect(after.tasksEnabled, before.tasksEnabled);
+        expect(await h.persistence.generation(id), 2);
+        expect((await h.summary(id)).origin, RegistrationOrigin.busyMaxManaged);
+        expect((await h.summary(id)).showRetirementNotice, isFalse);
+        expect(h.flow.clients.single, selected.summary.clientId);
+      },
+    );
+    test(
+      '$provider active build never promotes an existing original credential',
+      () async {
+        h.staging.dispose();
+        await h.db.close();
+        h = Harness(buildConfig: syntheticDesktopConfig());
+        if (provider == BusyProvider.google) {
+          await h.seed();
+        } else {
+          await h.seedMicrosoft(shared: true);
+        }
+        final id = provider == BusyProvider.google
+            ? 'opaque'
+            : 'microsoft:ms-user';
+        final existing = provider == BusyProvider.google
+            ? await h.google.boundCredentialForAccount(id)
+            : await h.microsoft.boundCredentialForAccount(id);
+        expect(
+          existing.registration.summary().origin,
+          RegistrationOrigin.retiringShared,
+        );
+        expect(
+          existing.registration.clientId,
+          provider == BusyProvider.google
+              ? config.googleOAuthClientId
+              : config.microsoftOAuthClientId,
+        );
+        if (provider == BusyProvider.google) {
+          await h.google.connectGoogle(AuthorizationRequest.reconnect(id));
+        } else {
+          await h.microsoft.connectMicrosoft(
+            AuthorizationRequest.reconnect(id),
+          );
+        }
+        expect(h.flow.clients.single, existing.registration.clientId);
+        expect(
+          (await h.secrets.readCredential(id) as BoundOAuthSecretRecord)
+              .registration
+              .summary()
+              .origin,
+          RegistrationOrigin.retiringShared,
+        );
+      },
+    );
+  }
+
   test(
     'a symlink substituted after path preparation cannot be imported',
     () async {
@@ -1167,9 +1337,10 @@ void main() {
 }
 
 class Harness {
-  Harness() {
+  Harness({this.buildConfig = config}) {
+    staging = RegistrationStaging(buildConfig);
     persistence = AuthorizationPersistence(database: db, secrets: secrets);
-    final client = MockClient((request) async {
+    client = MockClient((request) async {
       requests.add(request);
       final injected = await beforeRequest?.call(request);
       if (injected != null) return injected;
@@ -1216,7 +1387,7 @@ class Harness {
       );
     });
     google = OAuthService(
-      config: config,
+      config: buildConfig,
       httpClient: client,
       tokenStore: secrets,
       loopbackFlow: flow,
@@ -1224,7 +1395,7 @@ class Harness {
       persistence: persistence,
     );
     microsoft = MicrosoftOAuthService(
-      config: config,
+      config: buildConfig,
       httpClient: client,
       tokenStore: secrets,
       loopbackFlow: flow,
@@ -1241,7 +1412,9 @@ class Harness {
   }
   final db = AppDatabase.memoryForTests();
   final secrets = FailureStore();
-  final staging = RegistrationStaging(config);
+  final BuildConfig buildConfig;
+  late final http.Client client;
+  late final RegistrationStaging staging;
   final flow = ControlledFlow();
   final requests = <http.Request>[];
   String mode = 'success';

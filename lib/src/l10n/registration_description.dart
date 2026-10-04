@@ -5,6 +5,7 @@ extension RegistrationDescription on AppLocalizations {
   String registrationDescription(RegistrationSummary summary) => [
     switch (summary.origin) {
       RegistrationOrigin.userProvided => registrationUserOwned,
+      RegistrationOrigin.busyMaxManaged => registrationBusyMaxManaged,
       RegistrationOrigin.retiringShared => registrationShared,
       RegistrationOrigin.nativeGoogleAndroid => registrationNativeGoogle,
     },
