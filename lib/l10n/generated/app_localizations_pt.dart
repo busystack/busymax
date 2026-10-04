@@ -399,35 +399,6 @@ class AppLocalizationsPt extends AppLocalizations {
       'Google Calendar and Google Tasks permissions are required. Please try again and select both checkboxes.';
 
   @override
-  String get finishSetup => 'Finish setup';
-
-  @override
-  String get continueSetup => 'Continue';
-
-  @override
-  String get onboardingSetupTitle => 'Set Up BusyMax';
-
-  @override
-  String get onboardingAccountsStepTitle => 'Connect accounts';
-
-  @override
-  String get onboardingAccountsStepDescription =>
-      'Add every account you want to use. BusyMax syncs supported calendars, events, task lists, and tasks from each account.';
-
-  @override
-  String get onboardingPreferencesStepTitle => 'Choose system settings';
-
-  @override
-  String get onboardingPreferencesStepDescription =>
-      'Set desktop behavior, reminders, notification detail, and appearance before opening your schedule.';
-
-  @override
-  String get signInWithGoogle => 'Sign in with Google';
-
-  @override
-  String get signInWithMicrosoft => 'Sign in with Microsoft';
-
-  @override
   String get googleTasksProvider => 'Google Tasks';
 
   @override
@@ -596,13 +567,6 @@ class AppLocalizationsPt extends AppLocalizations {
   @override
   String get scheduleNoSourcesDescription =>
       'Choose what to show in Settings, then refresh.';
-
-  @override
-  String get scheduleSignInRequired => 'Connect an account';
-
-  @override
-  String get scheduleSignInDescription =>
-      'Sign in to sync calendars and tasks.';
 
   @override
   String get scheduleNoSearchResults => 'No matching events or tasks';
@@ -3325,6 +3289,9 @@ class AppLocalizationsPt extends AppLocalizations {
   @override
   String get oauthRevokedRemovalIncomplete =>
       'Remote authorization was revoked, but account cleanup could not finish. Restart BusyMax to retry local recovery.';
+
+  @override
+  String get addAccount => 'Add account';
 }
 
 /// The translations for Portuguese, as used in Portugal (`pt_PT`).
@@ -3720,35 +3687,6 @@ class AppLocalizationsPtPt extends AppLocalizationsPt {
       'As autorizações do Calendário Google e do Google Tasks são necessárias. Tente novamente e selecione ambas as caixas.';
 
   @override
-  String get finishSetup => 'Concluir configuração';
-
-  @override
-  String get continueSetup => 'Continuar';
-
-  @override
-  String get onboardingSetupTitle => 'Configurar o BusyMax';
-
-  @override
-  String get onboardingAccountsStepTitle => 'Ligar contas';
-
-  @override
-  String get onboardingAccountsStepDescription =>
-      'Adicione todas as contas que pretende utilizar. O BusyMax sincroniza calendários, eventos, listas de tarefas e tarefas suportados de cada conta.';
-
-  @override
-  String get onboardingPreferencesStepTitle => 'Escolher definições do sistema';
-
-  @override
-  String get onboardingPreferencesStepDescription =>
-      'Configure o comportamento da aplicação no ambiente de trabalho, os lembretes, o nível de detalhe das notificações e o aspeto antes de abrir a agenda.';
-
-  @override
-  String get signInWithGoogle => 'Iniciar sessão com a Google';
-
-  @override
-  String get signInWithMicrosoft => 'Iniciar sessão com a Microsoft';
-
-  @override
   String get googleTasksProvider => 'Google Tasks';
 
   @override
@@ -3916,13 +3854,6 @@ class AppLocalizationsPtPt extends AppLocalizationsPt {
   @override
   String get scheduleNoSourcesDescription =>
       'Escolha o que pretende mostrar nas Definições e atualize a agenda.';
-
-  @override
-  String get scheduleSignInRequired => 'Ligar uma conta';
-
-  @override
-  String get scheduleSignInDescription =>
-      'Inicie sessão para sincronizar calendários e tarefas.';
 
   @override
   String get scheduleNoSearchResults =>
@@ -6634,4 +6565,7 @@ class AppLocalizationsPtPt extends AppLocalizationsPt {
   @override
   String get oauthRevokedRemovalIncomplete =>
       'A autorização remota foi revogada, mas a limpeza da conta não pôde ser concluída. Reinicie o BusyMax para tentar novamente a recuperação local.';
+
+  @override
+  String get addAccount => 'Adicionar conta';
 }

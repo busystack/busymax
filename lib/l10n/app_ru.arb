@@ -115,15 +115,6 @@
   "connectGoogleAccount": "Подключите аккаунты Google, Microsoft, Apple iCloud Calendar или Nextcloud.",
   "googlePermissionsConsentNotice": "На экране запроса доступа Google установите флажки «Google Календарь» и «Google Задачи».",
   "googlePermissionsRequiredRetry": "BusyMax требуется доступ к Google Календарю и Google Задачам. Повторите попытку и установите оба флажка.",
-  "finishSetup": "Завершить настройку",
-  "continueSetup": "Продолжить",
-  "onboardingSetupTitle": "Настройка BusyMax",
-  "onboardingAccountsStepTitle": "Подключите аккаунты",
-  "onboardingAccountsStepDescription": "Добавьте все нужные аккаунты. BusyMax синхронизирует поддерживаемые календари, события, списки задач и задачи из каждого аккаунта.",
-  "onboardingPreferencesStepTitle": "Выберите системные параметры",
-  "onboardingPreferencesStepDescription": "Настройте поведение приложения на рабочем столе, напоминания, уровень детализации уведомлений и внешний вид, прежде чем открыть расписание.",
-  "signInWithGoogle": "Войти через Google",
-  "signInWithMicrosoft": "Войти через Microsoft",
   "googleTasksProvider": "Google Tasks",
   "microsoftTodoProvider": "Microsoft To Do",
   "providerNotConfigured": "Этот сервис не настроен.",
@@ -198,8 +189,6 @@
   "scheduleUnavailable": "Расписание недоступно",
   "scheduleNoSources": "Нет видимых календарей или списков задач",
   "scheduleNoSourcesDescription": "Выберите в настройках, что нужно показывать, а затем обновите расписание.",
-  "scheduleSignInRequired": "Подключите аккаунт",
-  "scheduleSignInDescription": "Войдите, чтобы синхронизировать календари и задачи.",
   "scheduleNoSearchResults": "Подходящих событий или задач нет",
   "scheduleNoSearchResultsDescription": "Попробуйте изменить запрос или сбросить текущие фильтры.",
   "refresh": "Обновить",
@@ -1205,5 +1194,6 @@
   "oauthAuthorizationTimedOut": "Время авторизации истекло. Повторите попытку и заново выберите импортированную конфигурацию.",
   "oauthWrongAccount": "Авторизуйте учётную запись, выбранную для повторного подключения. Существующее подключение сохранено.",
   "oauthSecureStorageUnavailable": "Защищённое хранилище недоступно. Восстановите доступ и повторите попытку.",
-  "oauthRevokedRemovalIncomplete": "Удалённая авторизация отозвана, но очистка учётной записи не завершена. Перезапустите BusyMax, чтобы повторить локальное восстановление."
+  "oauthRevokedRemovalIncomplete": "Удалённая авторизация отозвана, но очистка учётной записи не завершена. Перезапустите BusyMax, чтобы повторить локальное восстановление.",
+  "addAccount": "Добавить аккаунт"
 }

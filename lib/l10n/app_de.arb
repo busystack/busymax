@@ -115,15 +115,6 @@
   "connectGoogleAccount": "Verbinden Sie Google-, Microsoft-, Apple-iCloud-Kalender- oder Nextcloud-Konten.",
   "googlePermissionsConsentNotice": "Wählen Sie auf dem Google-Berechtigungsbildschirm sowohl Kalender- als auch Aufgabenberechtigungen aus.",
   "googlePermissionsRequiredRetry": "Die Berechtigungen für Google Kalender und Google Tasks sind erforderlich. Versuchen Sie es erneut und aktivieren Sie beide Kontrollkästchen.",
-  "finishSetup": "Einrichtung abschließen",
-  "continueSetup": "Weiter",
-  "onboardingSetupTitle": "BusyMax einrichten",
-  "onboardingAccountsStepTitle": "Konten verbinden",
-  "onboardingAccountsStepDescription": "Fügen Sie alle Konten hinzu, die Sie verwenden möchten. BusyMax synchronisiert unterstützte Kalender, Ereignisse, Aufgabenlisten und Aufgaben aus jedem Konto.",
-  "onboardingPreferencesStepTitle": "Systemeinstellungen wählen",
-  "onboardingPreferencesStepDescription": "Legen Sie Desktop-Verhalten, Erinnerungen, Benachrichtigungsdetails und Darstellung fest, bevor Sie Ihren Zeitplan öffnen.",
-  "signInWithGoogle": "Mit Google anmelden",
-  "signInWithMicrosoft": "Mit Microsoft anmelden",
   "googleTasksProvider": "Google Tasks",
   "microsoftTodoProvider": "Microsoft To Do",
   "providerNotConfigured": "Dieser Anbieter ist nicht konfiguriert.",
@@ -198,8 +189,6 @@
   "scheduleUnavailable": "Zeitplan nicht verfügbar",
   "scheduleNoSources": "Keine sichtbaren Kalender oder Aufgabenlisten",
   "scheduleNoSourcesDescription": "Wählen Sie in den Einstellungen aus, was angezeigt werden soll, und aktualisieren Sie anschließend den Zeitplan.",
-  "scheduleSignInRequired": "Konto verbinden",
-  "scheduleSignInDescription": "Melden Sie sich an, um Kalender und Aufgaben zu synchronisieren.",
   "scheduleNoSearchResults": "Keine passenden Termine oder Aufgaben",
   "scheduleNoSearchResultsDescription": "Versuchen Sie es mit einer anderen Suche oder setzen Sie die aktuellen Filter zurück.",
   "refresh": "Aktualisieren",
@@ -1268,5 +1257,6 @@
   "oauthAuthorizationTimedOut": "Die Autorisierung hat zu lange gedauert. Versuchen Sie es erneut und wählen Sie eine importierte Konfiguration neu aus.",
   "oauthWrongAccount": "Autorisieren Sie das für die Wiederverbindung ausgewählte Konto. Die bestehende Verbindung bleibt erhalten.",
   "oauthSecureStorageUnavailable": "Der sichere Speicher ist nicht verfügbar. Stellen Sie den Zugriff wieder her und versuchen Sie es erneut.",
-  "oauthRevokedRemovalIncomplete": "Die entfernte Autorisierung wurde widerrufen, aber die Kontobereinigung konnte nicht abgeschlossen werden. Starten Sie BusyMax neu, um die lokale Wiederherstellung erneut zu versuchen."
+  "oauthRevokedRemovalIncomplete": "Die entfernte Autorisierung wurde widerrufen, aber die Kontobereinigung konnte nicht abgeschlossen werden. Starten Sie BusyMax neu, um die lokale Wiederherstellung erneut zu versuchen.",
+  "addAccount": "Konto hinzufügen"
 }

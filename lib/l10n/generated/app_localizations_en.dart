@@ -399,35 +399,6 @@ class AppLocalizationsEn extends AppLocalizations {
       'Google Calendar and Google Tasks permissions are required. Please try again and select both checkboxes.';
 
   @override
-  String get finishSetup => 'Finish setup';
-
-  @override
-  String get continueSetup => 'Continue';
-
-  @override
-  String get onboardingSetupTitle => 'Set Up BusyMax';
-
-  @override
-  String get onboardingAccountsStepTitle => 'Connect accounts';
-
-  @override
-  String get onboardingAccountsStepDescription =>
-      'Add every account you want to use. BusyMax syncs supported calendars, events, task lists, and tasks from each account.';
-
-  @override
-  String get onboardingPreferencesStepTitle => 'Choose system settings';
-
-  @override
-  String get onboardingPreferencesStepDescription =>
-      'Set desktop behavior, reminders, notification detail, and appearance before opening your schedule.';
-
-  @override
-  String get signInWithGoogle => 'Sign in with Google';
-
-  @override
-  String get signInWithMicrosoft => 'Sign in with Microsoft';
-
-  @override
   String get googleTasksProvider => 'Google Tasks';
 
   @override
@@ -596,13 +567,6 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get scheduleNoSourcesDescription =>
       'Choose what to show in Settings, then refresh.';
-
-  @override
-  String get scheduleSignInRequired => 'Connect an account';
-
-  @override
-  String get scheduleSignInDescription =>
-      'Sign in to sync calendars and tasks.';
 
   @override
   String get scheduleNoSearchResults => 'No matching events or tasks';
@@ -3325,4 +3289,7 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get oauthRevokedRemovalIncomplete =>
       'Remote authorization was revoked, but account cleanup could not finish. Restart BusyMax to retry local recovery.';
+
+  @override
+  String get addAccount => 'Add account';
 }

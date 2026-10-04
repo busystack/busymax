@@ -398,35 +398,6 @@ class AppLocalizationsHi extends AppLocalizations {
       'Google Calendar और Google Tasks की अनुमतियाँ आवश्यक हैं। फिर से कोशिश करें और दोनों चेकबॉक्स चुनें।';
 
   @override
-  String get finishSetup => 'सेटअप पूरा करें';
-
-  @override
-  String get continueSetup => 'जारी रखें';
-
-  @override
-  String get onboardingSetupTitle => 'BusyMax सेट अप करें';
-
-  @override
-  String get onboardingAccountsStepTitle => 'खाते कनेक्ट करें';
-
-  @override
-  String get onboardingAccountsStepDescription =>
-      'वे सभी खाते जोड़ें जिनका आप उपयोग करना चाहते हैं। BusyMax हर खाते से समर्थित कैलेंडर, इवेंट, कार्य सूचियाँ और कार्य सिंक करता है।';
-
-  @override
-  String get onboardingPreferencesStepTitle => 'सिस्टम सेटिंग्स चुनें';
-
-  @override
-  String get onboardingPreferencesStepDescription =>
-      'अपना शेड्यूल खोलने से पहले डेस्कटॉप व्यवहार, रिमाइंडर, सूचनाओं के विवरण का स्तर और दिखावट सेट करें।';
-
-  @override
-  String get signInWithGoogle => 'Google से साइन इन करें';
-
-  @override
-  String get signInWithMicrosoft => 'Microsoft से साइन इन करें';
-
-  @override
   String get googleTasksProvider => 'Google Tasks';
 
   @override
@@ -594,13 +565,6 @@ class AppLocalizationsHi extends AppLocalizations {
   @override
   String get scheduleNoSourcesDescription =>
       'सेटिंग्स में चुनें कि क्या दिखाना है, फिर रीफ़्रेश करें।';
-
-  @override
-  String get scheduleSignInRequired => 'खाता कनेक्ट करें';
-
-  @override
-  String get scheduleSignInDescription =>
-      'कैलेंडर और कार्य सिंक करने के लिए साइन इन करें।';
 
   @override
   String get scheduleNoSearchResults => 'कोई मिलता-जुलता इवेंट या कार्य नहीं';
@@ -3294,4 +3258,7 @@ class AppLocalizationsHi extends AppLocalizations {
   @override
   String get oauthRevokedRemovalIncomplete =>
       'दूरस्थ प्राधिकरण रद्द हुआ, लेकिन खाते की सफ़ाई पूरी नहीं हो सकी। स्थानीय पुनर्प्राप्ति दोबारा आज़माने के लिए BusyMax पुनः शुरू करें।';
+
+  @override
+  String get addAccount => 'खाता जोड़ें';
 }

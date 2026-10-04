@@ -6,6 +6,7 @@ import 'dart:math' as math;
 
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 
@@ -87,6 +88,7 @@ class _WindowsSchedulePageState extends ConsumerState<WindowsSchedulePage> {
   Object? _searchItemsKey;
   Future<List<ScheduleItem>>? _searchItemsFuture;
   var _sourcePaneCollapsed = false;
+  var _accountInventoryResolved = false;
   var _sourcePaneTransitionGeneration = 0;
   Timer? _searchDebounce;
   ScheduleWorkspaceCommand? _pendingCommand;
@@ -237,6 +239,8 @@ class _WindowsSchedulePageState extends ConsumerState<WindowsSchedulePage> {
   @override
   Widget build(BuildContext context) {
     final accountsState = ref.watch(accountsStreamProvider);
+    _accountInventoryResolved =
+        !accountsState.isLoading && !accountsState.hasError;
     if (accountsState.isLoading && accountsState.valueOrNull == null) {
       return const ScaffoldPage(content: Center(child: ProgressRing()));
     }
@@ -395,6 +399,7 @@ class _WindowsSchedulePageState extends ConsumerState<WindowsSchedulePage> {
                 firstWeekday: _firstWeekday,
                 selectedDate: _selectedDate,
                 accounts: accounts,
+                accountInventoryResolved: _accountInventoryResolved,
                 calendarSources: sources,
                 taskLists: taskLists,
                 visibleCalendarSourceIds: visibility.visibleCalendarSourceIds,
@@ -402,6 +407,8 @@ class _WindowsSchedulePageState extends ConsumerState<WindowsSchedulePage> {
                 onDateSelected: _openDay,
                 onCalendarVisibilityChanged: _setCalendarVisible,
                 onTaskListVisibilityChanged: _setTaskListVisible,
+                onAddAccount: () =>
+                    unawaited(context.push<void>('/settings?page=accounts')),
                 onSourcesChanged: _reload,
               );
         return CallbackShortcuts(
@@ -819,6 +826,7 @@ class _WindowsSchedulePageState extends ConsumerState<WindowsSchedulePage> {
     DateTime? start,
     ScheduleInterval? interval,
   }) async {
+    if (_creationCalendar == null) return;
     final changed = await showWindowsEventEditorDialog(
       context,
       ref,
@@ -920,6 +928,7 @@ class _WindowsSchedulePageState extends ConsumerState<WindowsSchedulePage> {
   }
 
   Future<void> _createTask() async {
+    if (_creationTaskList == null) return;
     final result = await showWindowsTaskEditorDialog(
       context,
       ref,
@@ -1395,6 +1404,7 @@ class _WindowsSchedulePageState extends ConsumerState<WindowsSchedulePage> {
               firstWeekday: BusyMaxWeekPreferencesScope.firstWeekdayOf(context),
               selectedDate: _selectedDate,
               accounts: accounts,
+              accountInventoryResolved: _accountInventoryResolved,
               calendarSources: sources,
               taskLists: taskLists,
               visibleCalendarSourceIds: visibleCalendars,
@@ -1426,6 +1436,10 @@ class _WindowsSchedulePageState extends ConsumerState<WindowsSchedulePage> {
                   }
                 });
                 _setTaskListVisible(list, visible);
+              },
+              onAddAccount: () {
+                Navigator.pop(dialogContext);
+                unawaited(this.context.push<void>('/settings?page=accounts'));
               },
               onSourcesChanged: _reload,
             ),

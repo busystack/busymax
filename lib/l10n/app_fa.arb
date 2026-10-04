@@ -115,15 +115,6 @@
   "connectGoogleAccount": "حساب‌های Google، Microsoft، Apple iCloud Calendar یا Nextcloud را متصل کنید.",
   "googlePermissionsConsentNotice": "در صفحهٔ مجوزهای Google، مجوزهای تقویم و کارها را هر دو انتخاب کنید.",
   "googlePermissionsRequiredRetry": "مجوزهای Google Calendar و Google Tasks لازم هستند. دوباره تلاش کنید و هر دو کادر را علامت بزنید.",
-  "finishSetup": "پایان راه‌اندازی",
-  "continueSetup": "ادامه",
-  "onboardingSetupTitle": "راه‌اندازی BusyMax",
-  "onboardingAccountsStepTitle": "اتصال حساب‌ها",
-  "onboardingAccountsStepDescription": "همهٔ حساب‌هایی را که می‌خواهید استفاده کنید اضافه کنید. BusyMax تقویم‌ها، رویدادها، فهرست‌های کار و کارهای پشتیبانی‌شده را از هر حساب همگام می‌کند.",
-  "onboardingPreferencesStepTitle": "انتخاب تنظیمات سیستم",
-  "onboardingPreferencesStepDescription": "پیش از باز کردن برنامه، رفتار برنامه روی میزکار، یادآورها، سطح جزئیات اعلان‌ها و ظاهر را تنظیم کنید.",
-  "signInWithGoogle": "ورود با Google",
-  "signInWithMicrosoft": "ورود با Microsoft",
   "googleTasksProvider": "Google Tasks",
   "microsoftTodoProvider": "Microsoft To Do",
   "providerNotConfigured": "این سرویس پیکربندی نشده است.",
@@ -199,8 +190,6 @@
   "scheduleUnavailable": "برنامه در دسترس نیست",
   "scheduleNoSources": "هیچ تقویم یا فهرست کار قابل نمایشی وجود ندارد",
   "scheduleNoSourcesDescription": "در تنظیمات انتخاب کنید چه چیزهایی نمایش داده شوند، سپس برنامه را تازه‌سازی کنید.",
-  "scheduleSignInRequired": "اتصال حساب",
-  "scheduleSignInDescription": "برای همگام‌سازی تقویم‌ها و کارها وارد شوید.",
   "scheduleNoSearchResults": "هیچ رویداد یا کار منطبقی وجود ندارد",
   "scheduleNoSearchResultsDescription": "جست‌وجوی دیگری را امتحان کنید یا پالایه‌های فعلی را پاک کنید.",
   "refresh": "تازه‌سازی",
@@ -1279,5 +1268,6 @@
   "oauthAuthorizationTimedOut": "مهلت مجوزدهی تمام شد. دوباره تلاش کنید و پیکربندی واردشده را دوباره انتخاب کنید.",
   "oauthWrongAccount": "به حساب انتخاب‌شده برای اتصال مجدد مجوز بدهید. اتصال فعلی حفظ شده است.",
   "oauthSecureStorageUnavailable": "ذخیره‌سازی امن در دسترس نیست. دسترسی را بازیابی کنید و دوباره تلاش کنید.",
-  "oauthRevokedRemovalIncomplete": "مجوز راه دور لغو شد، اما پاک‌سازی حساب کامل نشد. برای تلاش دوباره جهت بازیابی محلی، BusyMax را راه‌اندازی مجدد کنید."
+  "oauthRevokedRemovalIncomplete": "مجوز راه دور لغو شد، اما پاک‌سازی حساب کامل نشد. برای تلاش دوباره جهت بازیابی محلی، BusyMax را راه‌اندازی مجدد کنید.",
+  "addAccount": "افزودن حساب"
 }

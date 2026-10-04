@@ -47,6 +47,7 @@ class ScheduleSidebar extends ConsumerWidget {
     required this.onYearSelected,
     required this.onWeekSelected,
     this.showEndBorder = true,
+    this.onAddAccount,
   });
 
   final DateTime selectedDate;
@@ -57,10 +58,17 @@ class ScheduleSidebar extends ConsumerWidget {
   final ValueChanged<DateTime> onYearSelected;
   final ValueChanged<DateTime> onWeekSelected;
   final bool showEndBorder;
+  final VoidCallback? onAddAccount;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     ref.watch(sidebarOrderRegistrationProvider);
+    final inventory = ref.watch(accountsStreamProvider);
+    final showAddAccount =
+        inventory.hasValue &&
+        !inventory.isLoading &&
+        !inventory.hasError &&
+        !inventory.requireValue.any((account) => !account.isSubscription);
     final accounts = ref
         .watch(appSettingsControllerProvider)
         .sidebarOrder
@@ -92,6 +100,25 @@ class ScheduleSidebar extends ConsumerWidget {
             child: ListView(
               padding: const EdgeInsets.symmetric(vertical: BusyMaxSpacing.sm),
               children: [
+                if (showAddAccount)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: BusyMaxSpacing.md,
+                      vertical: BusyMaxSpacing.sm,
+                    ),
+                    child: BusyMaxPushButton.standard(
+                      key: const ValueKey('schedule-add-account'),
+                      onPressed: onAddAccount,
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(YaruIcons.plus, size: BusyMaxSizes.iconSm),
+                          const SizedBox(width: BusyMaxSpacing.sm),
+                          Flexible(child: Text(context.l10n.addAccount)),
+                        ],
+                      ),
+                    ),
+                  ),
                 for (final account in accounts.where(
                   (account) => !account.isSubscription,
                 ))

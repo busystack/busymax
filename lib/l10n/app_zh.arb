@@ -115,15 +115,6 @@
   "connectGoogleAccount": "连接 Google、Microsoft、Apple iCloud Calendar 或 Nextcloud 账户。",
   "googlePermissionsConsentNotice": "在 Google 权限页面上，同时选择日历和任务权限。",
   "googlePermissionsRequiredRetry": "必须授予 Google 日历和 Google Tasks 权限。请重试并选中两个复选框。",
-  "finishSetup": "完成设置",
-  "continueSetup": "继续",
-  "onboardingSetupTitle": "设置 BusyMax",
-  "onboardingAccountsStepTitle": "连接账户",
-  "onboardingAccountsStepDescription": "添加所有要使用的账户。BusyMax 会同步每个账户中受支持的日历、日程、任务列表和任务。",
-  "onboardingPreferencesStepTitle": "选择系统设置",
-  "onboardingPreferencesStepDescription": "打开日程前，请设置桌面行为、提醒、通知详细程度和外观。",
-  "signInWithGoogle": "使用 Google 登录",
-  "signInWithMicrosoft": "使用 Microsoft 登录",
   "googleTasksProvider": "Google Tasks",
   "microsoftTodoProvider": "Microsoft To Do",
   "providerNotConfigured": "尚未配置此服务。",
@@ -198,8 +189,6 @@
   "scheduleUnavailable": "日程不可用",
   "scheduleNoSources": "没有可见的日历或任务列表",
   "scheduleNoSourcesDescription": "请在设置中选择要显示的内容，然后刷新。",
-  "scheduleSignInRequired": "连接账户",
-  "scheduleSignInDescription": "登录以同步日历和任务。",
   "scheduleNoSearchResults": "没有匹配的日程或任务",
   "scheduleNoSearchResultsDescription": "请尝试其他搜索内容或清除当前筛选条件。",
   "refresh": "刷新",
@@ -1205,5 +1194,6 @@
   "oauthAuthorizationTimedOut": "授权超时。请重试；若配置来自导入，请重新选择配置文件。",
   "oauthWrongAccount": "请授权为重新连接而选定的账户。现有连接已保留。",
   "oauthSecureStorageUnavailable": "安全存储不可用。请恢复安全存储访问后重试。",
-  "oauthRevokedRemovalIncomplete": "远程授权已撤销，但账户清理未能完成。请重启 BusyMax 以重试本地恢复。"
+  "oauthRevokedRemovalIncomplete": "远程授权已撤销，但账户清理未能完成。请重启 BusyMax 以重试本地恢复。",
+  "addAccount": "添加账户"
 }

@@ -223,7 +223,6 @@ class _BusyMaxAppState extends ConsumerState<LinuxBusyMaxApp> {
       DesktopNavigationDestination.schedule => '/schedule',
       DesktopNavigationDestination.tasks => '/tasks',
       DesktopNavigationDestination.settings => '/settings',
-      DesktopNavigationDestination.signIn => '/sign-in',
     });
   }
 

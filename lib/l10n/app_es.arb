@@ -115,15 +115,6 @@
   "connectGoogleAccount": "Conecta cuentas de Google, Microsoft, Calendario de Apple iCloud o Nextcloud.",
   "googlePermissionsConsentNotice": "En la pantalla de permisos de Google, selecciona los permisos de Calendario y Tareas.",
   "googlePermissionsRequiredRetry": "Los permisos de Google Calendar y Google Tasks son obligatorios. Inténtalo de nuevo y selecciona ambas casillas.",
-  "finishSetup": "Finalizar configuración",
-  "continueSetup": "Continuar",
-  "onboardingSetupTitle": "Configurar BusyMax",
-  "onboardingAccountsStepTitle": "Conectar cuentas",
-  "onboardingAccountsStepDescription": "Añade todas las cuentas que quieras usar. BusyMax sincroniza los calendarios, eventos, listas de tareas y tareas compatibles de cada cuenta.",
-  "onboardingPreferencesStepTitle": "Elegir ajustes del sistema",
-  "onboardingPreferencesStepDescription": "Configura el comportamiento de la aplicación en el escritorio, los recordatorios, el nivel de detalle de las notificaciones y la apariencia antes de abrir tu agenda.",
-  "signInWithGoogle": "Iniciar sesión con Google",
-  "signInWithMicrosoft": "Iniciar sesión con Microsoft",
   "googleTasksProvider": "Google Tasks",
   "microsoftTodoProvider": "Microsoft To Do",
   "providerNotConfigured": "Este proveedor no está configurado.",
@@ -198,8 +189,6 @@
   "scheduleUnavailable": "Agenda no disponible",
   "scheduleNoSources": "No hay calendarios ni listas de tareas visibles",
   "scheduleNoSourcesDescription": "Elige qué mostrar en Configuración y, después, actualiza la agenda.",
-  "scheduleSignInRequired": "Conectar una cuenta",
-  "scheduleSignInDescription": "Inicia sesión para sincronizar calendarios y tareas.",
   "scheduleNoSearchResults": "No hay eventos ni tareas coincidentes",
   "scheduleNoSearchResultsDescription": "Prueba con otra búsqueda o borra los filtros actuales.",
   "refresh": "Actualizar",
@@ -1268,5 +1257,6 @@
   "oauthAuthorizationTimedOut": "La autorización agotó el tiempo disponible. Reinténtalo y selecciona de nuevo la configuración importada.",
   "oauthWrongAccount": "Autoriza la cuenta seleccionada para reconectar. Se conserva la conexión existente.",
   "oauthSecureStorageUnavailable": "El almacenamiento seguro no está disponible. Restablece el acceso y reinténtalo.",
-  "oauthRevokedRemovalIncomplete": "Se revocó la autorización remota, pero no se pudo completar la limpieza de la cuenta. Reinicia BusyMax para volver a intentar la recuperación local."
+  "oauthRevokedRemovalIncomplete": "Se revocó la autorización remota, pero no se pudo completar la limpieza de la cuenta. Reinicia BusyMax para volver a intentar la recuperación local.",
+  "addAccount": "Añadir cuenta"
 }

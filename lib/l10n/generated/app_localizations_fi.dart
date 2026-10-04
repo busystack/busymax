@@ -399,35 +399,6 @@ class AppLocalizationsFi extends AppLocalizations {
       'Google Kalenterin ja Google Tasksin käyttöoikeudet vaaditaan. Yritä uudelleen ja valitse molemmat valintaruudut.';
 
   @override
-  String get finishSetup => 'Viimeistele määritys';
-
-  @override
-  String get continueSetup => 'Jatka';
-
-  @override
-  String get onboardingSetupTitle => 'Määritä BusyMax';
-
-  @override
-  String get onboardingAccountsStepTitle => 'Yhdistä tilit';
-
-  @override
-  String get onboardingAccountsStepDescription =>
-      'Lisää kaikki tilit, joita haluat käyttää. BusyMax synkronoi tuetut kalenterit, tapahtumat, tehtäväluettelot ja tehtävät jokaiselta tililtä.';
-
-  @override
-  String get onboardingPreferencesStepTitle => 'Valitse järjestelmäasetukset';
-
-  @override
-  String get onboardingPreferencesStepDescription =>
-      'Määritä sovelluksen toiminta työpöydällä, muistutukset, ilmoitusten yksityiskohtaisuus ja ulkoasu ennen aikataulun avaamista.';
-
-  @override
-  String get signInWithGoogle => 'Kirjaudu Google-tilillä';
-
-  @override
-  String get signInWithMicrosoft => 'Kirjaudu Microsoft-tilillä';
-
-  @override
   String get googleTasksProvider => 'Google Tasks';
 
   @override
@@ -601,13 +572,6 @@ class AppLocalizationsFi extends AppLocalizations {
   @override
   String get scheduleNoSourcesDescription =>
       'Valitse asetuksissa, mitä näytetään, ja päivitä sitten näkymä.';
-
-  @override
-  String get scheduleSignInRequired => 'Yhdistä tili';
-
-  @override
-  String get scheduleSignInDescription =>
-      'Kirjaudu sisään synkronoidaksesi kalenterit ja tehtävät.';
 
   @override
   String get scheduleNoSearchResults => 'Ei vastaavia tapahtumia tai tehtäviä';
@@ -3325,4 +3289,7 @@ class AppLocalizationsFi extends AppLocalizations {
   @override
   String get oauthRevokedRemovalIncomplete =>
       'Etävaltuutus peruttiin, mutta tilin siivousta ei voitu viimeistellä. Käynnistä BusyMax uudelleen ja yritä paikallista palautusta uudelleen.';
+
+  @override
+  String get addAccount => 'Lisää tili';
 }

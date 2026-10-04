@@ -223,22 +223,10 @@
   "appTitle": "BusyMax",
   "connectGoogleAccount": "Connect Google, Microsoft, Apple iCloud Calendar, or Nextcloud accounts.",
   "@connectGoogleAccount": {
-    "description": "Shown in account onboarding and settings; names the supported account providers."
+    "description": "Shown in account settings; names the supported account providers."
   },
   "googlePermissionsConsentNotice": "On the Google permission screen, select both Calendar and Tasks permissions.",
   "googlePermissionsRequiredRetry": "Google Calendar and Google Tasks permissions are required. Please try again and select both checkboxes.",
-  "finishSetup": "Finish setup",
-  "continueSetup": "Continue",
-  "onboardingSetupTitle": "Set Up BusyMax",
-  "onboardingAccountsStepTitle": "Connect accounts",
-  "onboardingAccountsStepDescription": "Add every account you want to use. BusyMax syncs supported calendars, events, task lists, and tasks from each account.",
-  "@onboardingAccountsStepDescription": {
-    "description": "Onboarding explanation of the account data BusyMax synchronizes."
-  },
-  "onboardingPreferencesStepTitle": "Choose system settings",
-  "onboardingPreferencesStepDescription": "Set desktop behavior, reminders, notification detail, and appearance before opening your schedule.",
-  "signInWithGoogle": "Sign in with Google",
-  "signInWithMicrosoft": "Sign in with Microsoft",
   "googleTasksProvider": "Google Tasks",
   "microsoftTodoProvider": "Microsoft To Do",
   "providerNotConfigured": "This provider is not configured.",
@@ -325,8 +313,6 @@
   "scheduleUnavailable": "Schedule unavailable",
   "scheduleNoSources": "No visible calendars or task lists",
   "scheduleNoSourcesDescription": "Choose what to show in Settings, then refresh.",
-  "scheduleSignInRequired": "Connect an account",
-  "scheduleSignInDescription": "Sign in to sync calendars and tasks.",
   "scheduleNoSearchResults": "No matching events or tasks",
   "scheduleNoSearchResultsDescription": "Try a different search or clear the current filters.",
   "refresh": "Refresh",
@@ -1903,5 +1889,6 @@
   "oauthAuthorizationTimedOut": "Authorization timed out. Try again; select a fresh configuration if it was imported.",
   "oauthWrongAccount": "Authorize the account selected for reconnection. Your existing connection is preserved.",
   "oauthSecureStorageUnavailable": "Secure storage is unavailable. Restore access to secure storage and try again.",
-  "oauthRevokedRemovalIncomplete": "Remote authorization was revoked, but account cleanup could not finish. Restart BusyMax to retry local recovery."
+  "oauthRevokedRemovalIncomplete": "Remote authorization was revoked, but account cleanup could not finish. Restart BusyMax to retry local recovery.",
+  "addAccount": "Add account"
 }

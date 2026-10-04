@@ -38,12 +38,10 @@ class ScheduleLoadingState extends StatelessWidget {
 class ScheduleNoSourcesState extends StatelessWidget {
   const ScheduleNoSourcesState({
     super.key,
-    required this.hasAccounts,
     required this.onOpenSettings,
     this.onRefresh,
   });
 
-  final bool hasAccounts;
   final VoidCallback onOpenSettings;
   final VoidCallback? onRefresh;
 
@@ -51,12 +49,8 @@ class ScheduleNoSourcesState extends StatelessWidget {
   Widget build(BuildContext context) {
     return BusyMaxEmptyState(
       icon: YaruIcons.calendar,
-      title: hasAccounts
-          ? context.l10n.scheduleNoSources
-          : context.l10n.scheduleSignInRequired,
-      message: hasAccounts
-          ? context.l10n.scheduleNoSourcesDescription
-          : context.l10n.scheduleSignInDescription,
+      title: context.l10n.scheduleNoSources,
+      message: context.l10n.scheduleNoSourcesDescription,
       actions: [
         BusyMaxPushButton.suggested(
           onPressed: onOpenSettings,

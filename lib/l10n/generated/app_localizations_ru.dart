@@ -398,35 +398,6 @@ class AppLocalizationsRu extends AppLocalizations {
       'BusyMax требуется доступ к Google Календарю и Google Задачам. Повторите попытку и установите оба флажка.';
 
   @override
-  String get finishSetup => 'Завершить настройку';
-
-  @override
-  String get continueSetup => 'Продолжить';
-
-  @override
-  String get onboardingSetupTitle => 'Настройка BusyMax';
-
-  @override
-  String get onboardingAccountsStepTitle => 'Подключите аккаунты';
-
-  @override
-  String get onboardingAccountsStepDescription =>
-      'Добавьте все нужные аккаунты. BusyMax синхронизирует поддерживаемые календари, события, списки задач и задачи из каждого аккаунта.';
-
-  @override
-  String get onboardingPreferencesStepTitle => 'Выберите системные параметры';
-
-  @override
-  String get onboardingPreferencesStepDescription =>
-      'Настройте поведение приложения на рабочем столе, напоминания, уровень детализации уведомлений и внешний вид, прежде чем открыть расписание.';
-
-  @override
-  String get signInWithGoogle => 'Войти через Google';
-
-  @override
-  String get signInWithMicrosoft => 'Войти через Microsoft';
-
-  @override
   String get googleTasksProvider => 'Google Tasks';
 
   @override
@@ -591,13 +562,6 @@ class AppLocalizationsRu extends AppLocalizations {
   @override
   String get scheduleNoSourcesDescription =>
       'Выберите в настройках, что нужно показывать, а затем обновите расписание.';
-
-  @override
-  String get scheduleSignInRequired => 'Подключите аккаунт';
-
-  @override
-  String get scheduleSignInDescription =>
-      'Войдите, чтобы синхронизировать календари и задачи.';
 
   @override
   String get scheduleNoSearchResults => 'Подходящих событий или задач нет';
@@ -3324,4 +3288,7 @@ class AppLocalizationsRu extends AppLocalizations {
   @override
   String get oauthRevokedRemovalIncomplete =>
       'Удалённая авторизация отозвана, но очистка учётной записи не завершена. Перезапустите BusyMax, чтобы повторить локальное восстановление.';
+
+  @override
+  String get addAccount => 'Добавить аккаунт';
 }

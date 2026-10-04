@@ -478,6 +478,9 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
                               onMonthSelected: _setMonth,
                               onYearSelected: _setYear,
                               onWeekSelected: _setWeek,
+                              onAddAccount: () => unawaited(
+                                context.push<void>('/settings?page=accounts'),
+                              ),
                             );
                           },
                         ),
@@ -807,7 +810,6 @@ class _ScheduleWorkspaceState extends ConsumerState<ScheduleWorkspace> {
   void _dispatchHeaderAction(BusyMaxHeaderAction action) {
     switch (action) {
       case BusyMaxHeaderAction.back:
-      case BusyMaxHeaderAction.continueSetup:
         return;
       case BusyMaxHeaderAction.sidebarToggle:
         if (!_latestCanShowSidebar) {
@@ -3007,9 +3009,8 @@ class _ScheduleBody extends StatelessWidget {
     if (isLoading) {
       return const ScheduleLoadingState();
     }
-    if (!hasAnySources && !searchActive) {
+    if (hasAccounts && !hasAnySources && !searchActive) {
       return ScheduleNoSourcesState(
-        hasAccounts: hasAccounts,
         onOpenSettings: onOpenSettings,
         onRefresh: onRefresh,
       );

@@ -4,7 +4,6 @@ import 'package:go_router/go_router.dart';
 import 'package:yaru/yaru.dart';
 
 import '../features/auth/data/auth_repository.dart';
-import '../features/auth/presentation/sign_in_screen.dart';
 import '../features/settings/presentation/settings_screen.dart';
 import '../features/schedule/presentation/schedule_workspace.dart';
 import '../schedule/schedule_scope.dart';
@@ -26,43 +25,16 @@ final appRouterProvider = Provider<GoRouter>((ref) {
   ref.listen(authSessionControllerProvider, (_, _) {
     refreshNotifier.refresh();
   });
-  ref.listen(webCalSubscriptionsProvider, (_, _) {
-    refreshNotifier.refresh();
-  });
-
-  final session = ref.read(authSessionControllerProvider);
-  final hasSubscriptions =
-      ref.read(webCalSubscriptionsProvider).valueOrNull?.isNotEmpty == true;
-  final canOpenSchedule = session.isSignedIn || hasSubscriptions;
-
+  // Listening above also starts session loading and authorization recovery.
+  // Keep the router stable while initialization completes.
   final router = GoRouter(
     navigatorKey: rootNavigatorKey,
     refreshListenable: refreshNotifier,
-    initialLocation: session.status == AuthSessionStatus.loading
-        ? '/'
-        : canOpenSchedule
-        ? '/schedule'
-        : '/sign-in',
+    initialLocation: '/',
     redirect: (context, state) {
-      final session = ref.read(authSessionControllerProvider);
-      final hasSubscriptions =
-          ref.read(webCalSubscriptionsProvider).valueOrNull?.isNotEmpty == true;
-      final canOpenSchedule = session.isSignedIn || hasSubscriptions;
-      if (session.status == AuthSessionStatus.loading) {
-        return null;
-      }
-
-      if (state.matchedLocation == '/') {
-        return canOpenSchedule ? '/schedule' : '/sign-in';
-      }
-
-      if (!canOpenSchedule &&
-          state.matchedLocation != '/sign-in' &&
-          state.matchedLocation != '/settings') {
-        return '/sign-in';
-      }
-
-      if (canOpenSchedule && state.matchedLocation == '/sign-in') {
+      if (state.matchedLocation == '/' &&
+          ref.read(authSessionControllerProvider).status !=
+              AuthSessionStatus.loading) {
         return '/schedule';
       }
       return null;
@@ -71,10 +43,6 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/',
         builder: (context, state) => const BusyMaxStartupView(),
-      ),
-      GoRoute(
-        path: '/sign-in',
-        builder: (context, state) => const SignInScreen(),
       ),
       GoRoute(
         path: '/schedule',

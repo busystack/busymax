@@ -405,35 +405,6 @@ class AppLocalizationsFr extends AppLocalizations {
       'Les autorisations Google Calendar et Google Tasks sont requises. Réessayez et sélectionnez les deux cases.';
 
   @override
-  String get finishSetup => 'Terminer la configuration';
-
-  @override
-  String get continueSetup => 'Continuer';
-
-  @override
-  String get onboardingSetupTitle => 'Configurer BusyMax';
-
-  @override
-  String get onboardingAccountsStepTitle => 'Connecter des comptes';
-
-  @override
-  String get onboardingAccountsStepDescription =>
-      'Ajoutez tous les comptes que vous souhaitez utiliser. BusyMax synchronise les calendriers, événements, listes de tâches et tâches pris en charge de chaque compte.';
-
-  @override
-  String get onboardingPreferencesStepTitle => 'Choisir les paramètres système';
-
-  @override
-  String get onboardingPreferencesStepDescription =>
-      'Réglez le comportement de l’application sur le bureau, les rappels, le niveau de détail des notifications et l’apparence avant d’ouvrir votre planning.';
-
-  @override
-  String get signInWithGoogle => 'Se connecter avec Google';
-
-  @override
-  String get signInWithMicrosoft => 'Se connecter avec Microsoft';
-
-  @override
   String get googleTasksProvider => 'Google Tasks';
 
   @override
@@ -599,13 +570,6 @@ class AppLocalizationsFr extends AppLocalizations {
   @override
   String get scheduleNoSourcesDescription =>
       'Choisissez les éléments à afficher dans les paramètres, puis actualisez.';
-
-  @override
-  String get scheduleSignInRequired => 'Connecter un compte';
-
-  @override
-  String get scheduleSignInDescription =>
-      'Connectez-vous pour synchroniser vos calendriers et vos tâches.';
 
   @override
   String get scheduleNoSearchResults =>
@@ -3302,4 +3266,7 @@ class AppLocalizationsFr extends AppLocalizations {
   @override
   String get oauthRevokedRemovalIncomplete =>
       'L’autorisation distante a été révoquée, mais le nettoyage du compte n’a pas pu être terminé. Redémarrez BusyMax pour réessayer la récupération locale.';
+
+  @override
+  String get addAccount => 'Ajouter un compte';
 }

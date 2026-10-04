@@ -401,35 +401,6 @@ class AppLocalizationsDe extends AppLocalizations {
       'Die Berechtigungen für Google Kalender und Google Tasks sind erforderlich. Versuchen Sie es erneut und aktivieren Sie beide Kontrollkästchen.';
 
   @override
-  String get finishSetup => 'Einrichtung abschließen';
-
-  @override
-  String get continueSetup => 'Weiter';
-
-  @override
-  String get onboardingSetupTitle => 'BusyMax einrichten';
-
-  @override
-  String get onboardingAccountsStepTitle => 'Konten verbinden';
-
-  @override
-  String get onboardingAccountsStepDescription =>
-      'Fügen Sie alle Konten hinzu, die Sie verwenden möchten. BusyMax synchronisiert unterstützte Kalender, Ereignisse, Aufgabenlisten und Aufgaben aus jedem Konto.';
-
-  @override
-  String get onboardingPreferencesStepTitle => 'Systemeinstellungen wählen';
-
-  @override
-  String get onboardingPreferencesStepDescription =>
-      'Legen Sie Desktop-Verhalten, Erinnerungen, Benachrichtigungsdetails und Darstellung fest, bevor Sie Ihren Zeitplan öffnen.';
-
-  @override
-  String get signInWithGoogle => 'Mit Google anmelden';
-
-  @override
-  String get signInWithMicrosoft => 'Mit Microsoft anmelden';
-
-  @override
   String get googleTasksProvider => 'Google Tasks';
 
   @override
@@ -595,13 +566,6 @@ class AppLocalizationsDe extends AppLocalizations {
   @override
   String get scheduleNoSourcesDescription =>
       'Wählen Sie in den Einstellungen aus, was angezeigt werden soll, und aktualisieren Sie anschließend den Zeitplan.';
-
-  @override
-  String get scheduleSignInRequired => 'Konto verbinden';
-
-  @override
-  String get scheduleSignInDescription =>
-      'Melden Sie sich an, um Kalender und Aufgaben zu synchronisieren.';
 
   @override
   String get scheduleNoSearchResults => 'Keine passenden Termine oder Aufgaben';
@@ -3295,4 +3259,7 @@ class AppLocalizationsDe extends AppLocalizations {
   @override
   String get oauthRevokedRemovalIncomplete =>
       'Die entfernte Autorisierung wurde widerrufen, aber die Kontobereinigung konnte nicht abgeschlossen werden. Starten Sie BusyMax neu, um die lokale Wiederherstellung erneut zu versuchen.';
+
+  @override
+  String get addAccount => 'Konto hinzufügen';
 }

@@ -111,12 +111,16 @@ class _RegistrationDialogState extends State<_RegistrationDialog> {
           },
         ),
         ComboBox<MicrosoftAudience>(
+          isExpanded: true,
           value: setup.audience,
           items: [
             for (final value in MicrosoftAudience.values)
               ComboBoxItem(
                 value: value,
-                child: Text(_audienceLabel(l10n, value)),
+                child: Text(
+                  _audienceLabel(l10n, value),
+                  overflow: TextOverflow.ellipsis,
+                ),
               ),
           ],
           onChanged: (value) {

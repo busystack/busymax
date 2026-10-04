@@ -115,15 +115,6 @@
   "connectGoogleAccount": "Ühendage Google’i, Microsofti, Apple iCloud Calendari või Nextcloudi kontod.",
   "googlePermissionsConsentNotice": "Valige Google’i õiguste kuval nii kalendri kui ka ülesannete õigused.",
   "googlePermissionsRequiredRetry": "Google Calendari ja Google Tasksi õigused on nõutavad. Proovige uuesti ja märkige mõlemad ruudud.",
-  "finishSetup": "Lõpeta seadistamine",
-  "continueSetup": "Jätka",
-  "onboardingSetupTitle": "BusyMaxi seadistamine",
-  "onboardingAccountsStepTitle": "Kontode ühendamine",
-  "onboardingAccountsStepDescription": "Lisage kõik kontod, mida soovite kasutada. BusyMax sünkroonib igast kontost toetatud kalendreid, sündmusi, ülesandeloendeid ja ülesandeid.",
-  "onboardingPreferencesStepTitle": "Süsteemiseadete valimine",
-  "onboardingPreferencesStepDescription": "Enne ajakava avamist määrake töölauakäitumine, meeldetuletused, teavituste üksikasjalikkus ja välimus.",
-  "signInWithGoogle": "Logi Google’iga sisse",
-  "signInWithMicrosoft": "Logi Microsoftiga sisse",
   "googleTasksProvider": "Google Tasks",
   "microsoftTodoProvider": "Microsoft To Do",
   "providerNotConfigured": "See teenusepakkuja pole seadistatud.",
@@ -205,8 +196,6 @@
   "scheduleUnavailable": "Ajakava pole saadaval",
   "scheduleNoSources": "Nähtavaid kalendreid ega ülesandeloendeid pole",
   "scheduleNoSourcesDescription": "Valige seadetes, mida kuvada, ja seejärel värskendage.",
-  "scheduleSignInRequired": "Ühendage konto",
-  "scheduleSignInDescription": "Kalendrite ja ülesannete sünkroonimiseks logige sisse.",
   "scheduleNoSearchResults": "Sobivaid sündmusi ega ülesandeid ei leitud",
   "scheduleNoSearchResultsDescription": "Proovige teistsugust otsingut või eemaldage praegused filtrid.",
   "refresh": "Värskenda",
@@ -1383,5 +1372,6 @@
   "oauthAuthorizationTimedOut": "Autoriseerimise aeg sai läbi. Proovi uuesti ja vali imporditud seadistus uuesti.",
   "oauthWrongAccount": "Autoriseeri taasühendamiseks valitud konto. Olemasolev ühendus säilib.",
   "oauthSecureStorageUnavailable": "Turvaline salvestus pole saadaval. Taasta juurdepääs ja proovi uuesti.",
-  "oauthRevokedRemovalIncomplete": "Kaugautoriseerimine tühistati, kuid konto puhastamist ei saanud lõpetada. Taaskäivita BusyMax kohaliku taastamise uuesti proovimiseks."
+  "oauthRevokedRemovalIncomplete": "Kaugautoriseerimine tühistati, kuid konto puhastamist ei saanud lõpetada. Taaskäivita BusyMax kohaliku taastamise uuesti proovimiseks.",
+  "addAccount": "Lisa konto"
 }

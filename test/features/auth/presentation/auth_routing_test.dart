@@ -1,3 +1,5 @@
+import 'package:busymax/src/webcal/webcal_http_client.dart';
+import 'package:busymax/src/webcal/webcal_subscription_service.dart';
 import 'package:busymax/src/core/auth/authorization_attempt.dart';
 import 'package:busymax/src/core/auth/registration_file_reader.dart';
 import '../../../support/native_registration_reader_fixture.dart';
@@ -23,8 +25,6 @@ import 'package:go_router/go_router.dart';
 import 'package:busymax/src/app/app_bootstrap.dart';
 import 'package:busymax/src/app/app_router.dart';
 import 'package:busymax/src/app/busymax_app.dart';
-import 'package:busymax/src/app/busymax_design.dart';
-import 'package:busymax/src/app/linux/linux_header_style.dart';
 import 'package:busymax/src/config/build_config.dart';
 import 'package:busymax/src/db/app_database.dart' hide AuthorizationCommit;
 import 'package:busymax/src/features/accounts/data/accounts_repository.dart';
@@ -262,189 +262,122 @@ void main() {
     },
   );
 
-  testWidgets('signed-out app shows sign-in route', (tester) async {
+  testWidgets('signed-out startup opens calendar and Accounts from sidebar', (
+    tester,
+  ) async {
     await _pumpApp(tester, database: database, oAuth: oAuth);
-
     await tester.pumpAndSettle();
-
-    expect(find.text('Connect accounts'), findsOneWidget);
+    expect(find.byType(ScheduleWorkspace), findsOneWidget);
+    expect(find.text('Add account'), findsOneWidget);
+    final workspace = tester.state(find.byType(ScheduleWorkspace));
+    final router = GoRouter.of(workspace.context);
+    expect(router.routeInformationProvider.value.uri.path, '/schedule');
+    await tester.tap(find.byKey(const ValueKey('schedule-add-account')));
+    await tester.pumpAndSettle();
+    expect(find.byType(SettingsScreen), findsOneWidget);
+    expect(router.canPop(), isTrue);
     expect(
-      find.text('Connect calendars and tasks from one of these providers.'),
-      findsOneWidget,
+      GoRouterState.of(
+        tester.element(find.byType(SettingsScreen)),
+      ).uri.queryParameters['page'],
+      'accounts',
     );
+    for (final label in [
+      'Add Google account',
+      'Add Microsoft account',
+      'Add Apple iCloud Calendar account',
+      'Add Nextcloud account',
+      'Add calendar subscription',
+    ]) {
+      expect(find.text(label), findsOneWidget);
+    }
     expect(
       find.text(
         'On the Google permission screen, select both Calendar and Tasks permissions.',
       ),
       findsOneWidget,
     );
-    expect(find.text('Add Google account'), findsOneWidget);
-    expect(find.text('Add Microsoft account'), findsOneWidget);
-    expect(find.text('Add Apple iCloud Calendar account'), findsOneWidget);
-    expect(find.text('Add Nextcloud account'), findsOneWidget);
-    expect(
-      tester.getTopLeft(find.text('Add Google account')).dy,
-      lessThan(tester.getTopLeft(find.text('Add Microsoft account')).dy),
-    );
-    expect(
-      tester.getTopLeft(find.text('Add Microsoft account')).dy,
-      lessThan(
-        tester.getTopLeft(find.text('Add Apple iCloud Calendar account')).dy,
-      ),
-    );
-    expect(
-      tester.getTopLeft(find.text('Add Apple iCloud Calendar account')).dy,
-      lessThan(tester.getTopLeft(find.text('Add Nextcloud account')).dy),
-    );
-    expect(find.text('Google'), findsNothing);
-    expect(find.text('Microsoft To Do'), findsNothing);
-    expect(find.text('Accounts'), findsNothing);
-    expect(find.textContaining('sync tasks'), findsNothing);
-    expect(find.text('Tasks'), findsNothing);
+    await _sendAltLeft(tester);
+    expect(tester.state(find.byType(ScheduleWorkspace)), same(workspace));
+    expect(find.text('Add account'), findsOneWidget);
     await _disposeApp(tester);
   });
 
-  testWidgets('onboarding content and actions share one responsive rail', (
+  testWidgets('subscription-only workspace and final unsubscribe stay usable', (
     tester,
   ) async {
-    tester.view.devicePixelRatio = 1;
-    tester.view.physicalSize = const Size(1000, 720);
-    addTearDown(tester.view.reset);
-
-    await _pumpApp(tester, database: database, oAuth: oAuth);
-    await tester.pumpAndSettle();
-
-    void expectAlignedActions({
-      required double expectedRailWidth,
-      required bool enoughRoomForCenteredHeader,
-    }) {
-      final rail = tester.getRect(
-        find.byKey(const ValueKey('onboarding-content-rail')),
-      );
-      final back = tester.getRect(
-        find.byKey(const ValueKey('onboarding-back-button')),
-      );
-      final continueButton = tester.getRect(
-        find.byKey(const ValueKey('onboarding-continue-button')),
-      );
-
-      expect(rail.width, closeTo(expectedRailWidth, 0.01));
-      if (enoughRoomForCenteredHeader) {
-        expect(back.left, closeTo(rail.left, 0.01));
-        expect(continueButton.right, closeTo(rail.right, 0.01));
-      } else {
-        expect(back.left, lessThanOrEqualTo(rail.left));
-        expect(continueButton.right, lessThan(rail.right));
-      }
-    }
-
-    expectAlignedActions(
-      expectedRailWidth: 480,
-      enoughRoomForCenteredHeader: true,
+    final subscriptions = WebCalSubscriptionService(
+      database: database,
+      secretStore: InMemorySecretStore(),
+      httpTransport: _FixtureCalendarTransport(),
     );
-    final headerTitle = find.byKey(const ValueKey('onboarding-header-title'));
-    final header = find.byType(BusyMaxLinuxHeaderLayout);
-    expect(
-      tester.getRect(headerTitle).center.dx,
-      closeTo(tester.getRect(header).center.dx, .01),
-    );
-    final headerText = tester.widget<Text>(
-      find.descendant(of: headerTitle, matching: find.byType(Text)),
-    );
-    final bodyStyle = Theme.of(
-      tester.element(headerTitle),
-    ).textTheme.bodyMedium;
-    expect(headerText.style?.fontSize, bodyStyle?.fontSize);
-    expect(headerText.style?.fontWeight, FontWeight.bold);
-    expect(
-      tester
-          .getSize(find.byKey(const ValueKey('onboarding-back-button')))
-          .height,
-      BusyMaxSizes.headerIconButton,
-    );
-    expect(
-      tester
-          .getSize(find.byKey(const ValueKey('onboarding-continue-button')))
-          .height,
-      BusyMaxSizes.headerIconButton,
-    );
-    final back = tester.widget<FilledButton>(
-      find.descendant(
-        of: find.byKey(const ValueKey('onboarding-back-button')),
-        matching: find.byType(FilledButton),
+    await tester.runAsync(
+      () => subscriptions.addSubscription(
+        subscriptionUrl: 'https://calendar.example.test/feed.ics',
+        localName: 'Subscribed calendar',
       ),
     );
-    final continueButton = tester.widget<ElevatedButton>(
-      find.descendant(
-        of: find.byKey(const ValueKey('onboarding-continue-button')),
-        matching: find.byType(ElevatedButton),
-      ),
+    await _pumpApp(
+      tester,
+      database: database,
+      oAuth: oAuth,
+      subscriptionService: subscriptions,
     );
-    expect(back.onPressed, null);
-    expect(continueButton.onPressed, null);
-
-    tester.view.physicalSize = const Size(420, 720);
     await tester.pumpAndSettle();
-
-    expectAlignedActions(
-      expectedRailWidth: 380,
-      enoughRoomForCenteredHeader: false,
+    expect(find.byType(ScheduleWorkspace), findsOneWidget);
+    expect(find.text('Add account'), findsOneWidget);
+    expect(find.text('Subscriptions'), findsOneWidget);
+    expect(find.textContaining('Subscribed calendar'), findsOneWidget);
+    expect(oAuth.signInCalls, 0);
+    await tester.tap(find.text('Add account'));
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.text('Unsubscribe'));
+    await tester.tap(find.text('Unsubscribe'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Unsubscribe').last);
+    await tester.pumpAndSettle();
+    expect(find.byType(SettingsScreen), findsOneWidget);
+    expect(
+      (await tester.runAsync(() => database.select(database.accounts).get()))!,
+      isEmpty,
     );
-    expect(tester.takeException(), null);
+    await _sendAltLeft(tester);
+    expect(find.byType(ScheduleWorkspace), findsOneWidget);
+    expect(find.text('Add account'), findsOneWidget);
+    expect(find.byKey(const ValueKey('schedule-week-planner')), findsOneWidget);
     await _disposeApp(tester);
   });
 
-  testWidgets('system settings cards retain their complete shadow gutter', (
+  testWidgets('account-free task routes preserve workspace identity', (
     tester,
   ) async {
-    tester.view.devicePixelRatio = 1;
-    tester.view.physicalSize = const Size(1000, 720);
-    addTearDown(tester.view.reset);
-
     await _pumpApp(tester, database: database, oAuth: oAuth);
     await tester.pumpAndSettle();
-    await _authorizeGoogleSetup(tester);
+    final router = GoRouter.of(tester.element(find.byType(ScheduleWorkspace)));
+    router.go('/tasks');
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Continue'));
+    final taskState = tester.state(find.byType(ScheduleWorkspace));
+    router.go('/tasks/missing/list/task');
     await tester.pumpAndSettle();
-
-    final viewport = tester.getRect(
-      find.byKey(const ValueKey('onboarding-scroll-viewport')),
+    expect(tester.state(find.byType(ScheduleWorkspace)), same(taskState));
+    expect(
+      router.routeInformationProvider.value.uri.path,
+      '/tasks/missing/list/task',
     );
-    final rail = tester.getRect(
-      find.byKey(const ValueKey('onboarding-content-rail')),
-    );
-    expect(viewport.width, rail.width + BusyMaxSpacing.sm * 2);
-    expect(rail.left - viewport.left, BusyMaxSpacing.sm);
-    expect(viewport.right - rail.right, BusyMaxSpacing.sm);
-
-    final cards = find.byType(BusyMaxGroupedSurface);
-    expect(cards, findsNWidgets(3));
-    for (final card in cards.evaluate()) {
-      final rect = tester.getRect(find.byWidget(card.widget));
-      expect(rect.left, rail.left);
-      expect(rect.right, rail.right);
-      expect(rect.left, greaterThan(viewport.left));
-      expect(rect.right, lessThan(viewport.right));
-    }
-    expect(tester.takeException(), null);
     await _disposeApp(tester);
   });
 
-  test('setup provider actions use BusyMax row patterns', () {
+  test('Settings provider actions use BusyMax row patterns', () {
     final source = File(
-      'lib/src/features/auth/presentation/sign_in_screen.dart',
+      'lib/src/features/settings/presentation/settings_screen.dart',
     ).readAsStringSync();
-    final start = source.indexOf('class _ProviderSignInButton');
-    final end = source.indexOf('class _OnboardingHeader');
-    final providerButton = source.substring(start, end);
-
-    expect(providerButton, contains('BusyMaxGroupedList'));
-    expect(providerButton, contains('BusyMaxActionRow'));
-    expect(providerButton, isNot(contains('BusyMaxPushButton')));
-    expect(providerButton, isNot(contains('FilledButton')));
-    expect(providerButton, isNot(contains('ElevatedButton')));
-    expect(providerButton, isNot(contains('OutlinedButton')));
+    final section = source.substring(
+      source.indexOf('class _AccountManagementSection'),
+      source.indexOf('class _AccountSettingsGroup'),
+    );
+    expect(section, contains('BusyMaxGroupedList'));
+    expect(section, contains('BusyMaxActionRow'));
+    expect(section, contains('l10n.googlePermissionsConsentNotice'));
   });
 
   testWidgets('missing Google permissions shows retry guidance', (
@@ -470,80 +403,69 @@ void main() {
     await _disposeApp(tester);
   });
 
-  testWidgets('successful sign-in waits for user to finish onboarding', (
+  testWidgets('successful connection stays in Settings until normal Back', (
     tester,
   ) async {
     await _pumpApp(tester, database: database, oAuth: oAuth);
     await tester.pumpAndSettle();
-
     await _authorizeGoogleSetup(tester);
     await tester.pumpAndSettle();
-
     final account = (await tester.runAsync(
       () => database.select(database.accounts).getSingle(),
     ))!;
     expect(account.authState, 'signed_in');
     expect(account.grantedScopes, googleBusyMaxOAuthScopes.join(' '));
-    expect(find.text('Choose system settings'), findsNothing);
+    expect(find.byType(SettingsScreen), findsOneWidget);
     expect(find.byType(ScheduleWorkspace), findsNothing);
-    expect(find.text('Accounts'), findsOneWidget);
-    expect(find.text('Test User'), findsOneWidget);
-    expect(find.text('user@example.com'), findsOneWidget);
-    expect(
-      tester
-          .widget<ElevatedButton>(
-            find.descendant(
-              of: find.byKey(const ValueKey('onboarding-continue-button')),
-              matching: find.byType(ElevatedButton),
-            ),
-          )
-          .onPressed,
-      isNot(null),
-    );
-
-    await tester.tap(find.text('Continue'));
-    await tester.pumpAndSettle();
-
-    expect(find.text('Choose system settings'), findsOneWidget);
-    expect(find.text('Finish setup'), findsOneWidget);
-    expect(
-      tester
-          .widget<FilledButton>(
-            find.descendant(
-              of: find.byKey(const ValueKey('onboarding-back-button')),
-              matching: find.byType(FilledButton),
-            ),
-          )
-          .onPressed,
-      isNot(null),
-    );
-    expect(find.text('Notification detail level'), findsOneWidget);
-    expect(find.text('Detailed notification text'), findsNothing);
-
-    await tester.tap(find.text('Finish setup'));
-    await tester.pumpAndSettle();
-
+    expect(find.textContaining('user@example.com'), findsOneWidget);
+    await _sendAltLeft(tester);
     expect(find.byType(ScheduleWorkspace), findsOneWidget);
-    expect(find.byTooltip('Today (Shift+T)'), findsOneWidget);
+    expect(find.text('Add account'), findsNothing);
     await _disposeApp(tester);
   });
 
-  testWidgets('Alt+Left follows onboarding Back availability', (tester) async {
+  testWidgets(
+    'final-account removal keeps Settings and returns to empty calendar',
+    (tester) async {
+      await _insertAccount(
+        database,
+        id: 'google:last',
+        provider: BusyProvider.google,
+      );
+      await _pumpApp(tester, database: database, oAuth: oAuth);
+      await tester.pumpAndSettle();
+      final workspace = tester.state(find.byType(ScheduleWorkspace));
+      unawaited(
+        GoRouter.of(workspace.context).push<void>('/settings?page=accounts'),
+      );
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(find.text('Remove account…'));
+      await tester.tap(find.text('Remove account…'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('confirm-account-removal')));
+      await tester.pumpAndSettle();
+      expect(find.byType(SettingsScreen), findsOneWidget);
+      await _sendAltLeft(tester);
+      expect(tester.state(find.byType(ScheduleWorkspace)), same(workspace));
+      expect(find.text('Add account'), findsOneWidget);
+      expect(
+        find.byKey(const ValueKey('schedule-week-planner')),
+        findsOneWidget,
+      );
+      await _disposeApp(tester);
+    },
+  );
+
+  testWidgets('Alt+Left returns from Accounts without connecting', (
+    tester,
+  ) async {
     await _pumpApp(tester, database: database, oAuth: oAuth);
     await tester.pumpAndSettle();
-
-    await _sendAltLeft(tester);
-    expect(find.text('Connect accounts'), findsOneWidget);
-
-    await _authorizeGoogleSetup(tester);
+    await tester.tap(find.text('Add account'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Continue'));
-    await tester.pumpAndSettle();
-    expect(find.text('Choose system settings'), findsOneWidget);
-
     await _sendAltLeft(tester);
-    expect(find.text('Connect accounts'), findsOneWidget);
-    expect(find.text('Choose system settings'), findsNothing);
+    expect(find.byType(ScheduleWorkspace), findsOneWidget);
+    expect(find.text('Add account'), findsOneWidget);
     await _disposeApp(tester);
   });
 
@@ -553,7 +475,7 @@ void main() {
     await _pumpApp(tester, database: database, oAuth: oAuth);
     await tester.pumpAndSettle();
 
-    await _completeOnboardingWithGoogle(tester);
+    await _connectGoogleThroughSettings(tester);
 
     expect(find.byType(ScheduleWorkspace), findsOneWidget);
 
@@ -709,7 +631,7 @@ void main() {
     );
     await tester.pumpAndSettle();
     expect(find.byType(ScheduleWorkspace), findsNothing);
-    expect(find.text('Continue'), findsOneWidget);
+    expect(find.byType(SettingsScreen), findsOneWidget);
     await _disposeApp(tester);
   });
 
@@ -1145,13 +1067,10 @@ void main() {
   );
 }
 
-Future<void> _completeOnboardingWithGoogle(WidgetTester tester) async {
+Future<void> _connectGoogleThroughSettings(WidgetTester tester) async {
   await _authorizeGoogleSetup(tester);
   await tester.pumpAndSettle();
-  await tester.tap(find.text('Continue'));
-  await tester.pumpAndSettle();
-  await tester.tap(find.text('Finish setup'));
-  await tester.pumpAndSettle();
+  await _sendAltLeft(tester);
 }
 
 Future<void> _sendAltLeft(WidgetTester tester) async {
@@ -1218,6 +1137,7 @@ Future<void> _pumpApp(
   AuthorizationPersistence? persistence,
   RegistrationStaging? staging,
   SignedInSyncRunner? onSignedIn,
+  WebCalSubscriptionService? subscriptionService,
 }) {
   final registrationStaging =
       staging ??
@@ -1231,6 +1151,10 @@ Future<void> _pumpApp(
           NetworkConnectivityMonitor.withoutPlatformObservation(),
         ),
         databaseProvider.overrideWithValue(database),
+        if (subscriptionService != null)
+          webCalSubscriptionServiceProvider.overrideWithValue(
+            subscriptionService,
+          ),
         registrationStagingProvider.overrideWithValue(registrationStaging),
         if (secrets != null) secretStoreProvider.overrideWithValue(secrets),
         if (persistence != null)
@@ -1355,6 +1279,11 @@ class _RegistrationFileSelector extends FileSelectorPlatform {
 }
 
 Future<void> _authorizeGoogleSetup(WidgetTester tester) async {
+  if (find.byType(SettingsScreen).evaluate().isEmpty) {
+    await tester.tap(find.byKey(const ValueKey('schedule-add-account')));
+    await tester.pumpAndSettle();
+  }
+  await tester.ensureVisible(find.text('Add Google account'));
   await tester.tap(find.text('Add Google account'));
   await tester.pumpAndSettle();
   await _validateAndAuthorizeGoogleSetup(tester);
@@ -1405,4 +1334,25 @@ class _MigrationBrowserFlow extends OAuthLoopbackFlow {
       codeVerifier: 'synthetic-verifier',
     );
   }
+}
+
+final class _FixtureCalendarTransport implements WebCalHttpTransport {
+  @override
+  Future<WebCalHttpResponse> get(
+    Uri uri, {
+    WebCalHttpValidators validators = const WebCalHttpValidators(),
+    Uri? validatorTarget,
+  }) async => WebCalHttpResponse(
+    statusCode: 200,
+    finalUri: uri,
+    body: Uint8List.fromList(
+      utf8.encode(
+        'BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//BusyMax Test//EN\r\nBEGIN:VEVENT\r\nUID:subscription-event\r\nDTSTAMP:20261003T000000Z\r\nDTSTART:20261003T090000Z\r\nDTEND:20261003T100000Z\r\nSUMMARY:Subscribed event\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n',
+      ),
+    ),
+    etag: null,
+    lastModified: null,
+    contentType: 'text/calendar',
+    conditionalRequestSent: false,
+  );
 }

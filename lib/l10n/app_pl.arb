@@ -222,18 +222,6 @@
   },
   "googlePermissionsConsentNotice": "Na ekranie uprawnień Google zaznacz uprawnienia do Kalendarza i Zadań.",
   "googlePermissionsRequiredRetry": "Wymagane są uprawnienia do Kalendarza Google i Zadań Google. Spróbuj ponownie i zaznacz oba pola wyboru.",
-  "finishSetup": "Zakończ konfigurację",
-  "continueSetup": "Kontynuuj",
-  "onboardingSetupTitle": "Skonfiguruj BusyMax",
-  "onboardingAccountsStepTitle": "Połącz konta",
-  "onboardingAccountsStepDescription": "Dodaj wszystkie konta, których chcesz używać. BusyMax synchronizuje obsługiwane kalendarze, wydarzenia, listy zadań i zadania z każdego konta.",
-  "@onboardingAccountsStepDescription": {
-    "description": "Onboarding explanation of the account data BusyMax synchronizes."
-  },
-  "onboardingPreferencesStepTitle": "Wybierz ustawienia systemowe",
-  "onboardingPreferencesStepDescription": "Przed otwarciem harmonogramu skonfiguruj działanie aplikacji na pulpicie, przypomnienia, szczegółowość powiadomień i wygląd.",
-  "signInWithGoogle": "Zaloguj się przez Google",
-  "signInWithMicrosoft": "Zaloguj się przez Microsoft",
   "googleTasksProvider": "Zadania Google",
   "microsoftTodoProvider": "Microsoft To Do",
   "providerNotConfigured": "Ten dostawca nie jest skonfigurowany.",
@@ -317,8 +305,6 @@
   "scheduleUnavailable": "Harmonogram niedostępny",
   "scheduleNoSources": "Brak widocznych kalendarzy i list zadań",
   "scheduleNoSourcesDescription": "Wybierz w ustawieniach, co ma być widoczne, a następnie odśwież.",
-  "scheduleSignInRequired": "Połącz konto",
-  "scheduleSignInDescription": "Zaloguj się, aby synchronizować kalendarze i zadania.",
   "scheduleNoSearchResults": "Brak pasujących wydarzeń i zadań",
   "scheduleNoSearchResultsDescription": "Zmień wyszukiwane hasło lub wyczyść bieżące filtry.",
   "refresh": "Odśwież",
@@ -1889,5 +1875,6 @@
   "oauthAuthorizationTimedOut": "Upłynął czas autoryzacji. Spróbuj ponownie i ponownie wybierz zaimportowaną konfigurację.",
   "oauthWrongAccount": "Autoryzuj konto wybrane do ponownego połączenia. Obecne połączenie zostaje zachowane.",
   "oauthSecureStorageUnavailable": "Bezpieczny magazyn jest niedostępny. Przywróć dostęp i spróbuj ponownie.",
-  "oauthRevokedRemovalIncomplete": "Zdalna autoryzacja została cofnięta, ale nie udało się ukończyć czyszczenia konta. Uruchom BusyMax ponownie, aby ponowić odzyskiwanie lokalne."
+  "oauthRevokedRemovalIncomplete": "Zdalna autoryzacja została cofnięta, ale nie udało się ukończyć czyszczenia konta. Uruchom BusyMax ponownie, aby ponowić odzyskiwanie lokalne.",
+  "addAccount": "Dodaj konto"
 }

@@ -115,15 +115,6 @@
   "connectGoogleAccount": "連接 Google、Microsoft、Apple iCloud Calendar 或 Nextcloud 帳戶。",
   "googlePermissionsConsentNotice": "在 Google 權限畫面中，同時選取行事曆和待辦事項權限。",
   "googlePermissionsRequiredRetry": "必須授予 Google 日曆和 Google Tasks 權限。請再試一次並勾選兩個核取方塊。",
-  "finishSetup": "完成設定",
-  "continueSetup": "繼續",
-  "onboardingSetupTitle": "設定 BusyMax",
-  "onboardingAccountsStepTitle": "連結帳戶",
-  "onboardingAccountsStepDescription": "新增所有要使用的帳戶。BusyMax 會同步每個帳戶中支援的行事曆、活動、待辦清單和待辦事項。",
-  "onboardingPreferencesStepTitle": "選擇系統設定",
-  "onboardingPreferencesStepDescription": "開啟行程前，請設定桌面行為、提醒、通知詳細程度和外觀。",
-  "signInWithGoogle": "使用 Google 登入",
-  "signInWithMicrosoft": "使用 Microsoft 登入",
   "googleTasksProvider": "Google Tasks",
   "microsoftTodoProvider": "Microsoft To Do",
   "providerNotConfigured": "尚未設定此服務。",
@@ -198,8 +189,6 @@
   "scheduleUnavailable": "無法使用行程",
   "scheduleNoSources": "沒有可見的行事曆或待辦清單",
   "scheduleNoSourcesDescription": "請在設定中選擇要顯示的內容，然後重新整理。",
-  "scheduleSignInRequired": "連結帳戶",
-  "scheduleSignInDescription": "登入以同步行事曆和待辦事項。",
   "scheduleNoSearchResults": "沒有相符的活動或待辦事項",
   "scheduleNoSearchResultsDescription": "請嘗試其他搜尋內容或清除目前的篩選條件。",
   "refresh": "重新整理",
@@ -1205,5 +1194,6 @@
   "oauthAuthorizationTimedOut": "授權逾時。請重試；若設定來自匯入，請重新選擇設定檔。",
   "oauthWrongAccount": "請授權為重新連線而選定的帳戶。現有連線已保留。",
   "oauthSecureStorageUnavailable": "安全儲存空間無法使用。請恢復存取後重試。",
-  "oauthRevokedRemovalIncomplete": "遠端授權已撤銷，但帳戶清理未能完成。請重新啟動 BusyMax 以重試本機復原。"
+  "oauthRevokedRemovalIncomplete": "遠端授權已撤銷，但帳戶清理未能完成。請重新啟動 BusyMax 以重試本機復原。",
+  "addAccount": "新增帳戶"
 }

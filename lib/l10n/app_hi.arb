@@ -115,15 +115,6 @@
   "connectGoogleAccount": "Google, Microsoft, Apple iCloud Calendar या Nextcloud खाते कनेक्ट करें।",
   "googlePermissionsConsentNotice": "Google अनुमति स्क्रीन पर, कैलेंडर और कार्य दोनों अनुमतियाँ चुनें।",
   "googlePermissionsRequiredRetry": "Google Calendar और Google Tasks की अनुमतियाँ आवश्यक हैं। फिर से कोशिश करें और दोनों चेकबॉक्स चुनें।",
-  "finishSetup": "सेटअप पूरा करें",
-  "continueSetup": "जारी रखें",
-  "onboardingSetupTitle": "BusyMax सेट अप करें",
-  "onboardingAccountsStepTitle": "खाते कनेक्ट करें",
-  "onboardingAccountsStepDescription": "वे सभी खाते जोड़ें जिनका आप उपयोग करना चाहते हैं। BusyMax हर खाते से समर्थित कैलेंडर, इवेंट, कार्य सूचियाँ और कार्य सिंक करता है।",
-  "onboardingPreferencesStepTitle": "सिस्टम सेटिंग्स चुनें",
-  "onboardingPreferencesStepDescription": "अपना शेड्यूल खोलने से पहले डेस्कटॉप व्यवहार, रिमाइंडर, सूचनाओं के विवरण का स्तर और दिखावट सेट करें।",
-  "signInWithGoogle": "Google से साइन इन करें",
-  "signInWithMicrosoft": "Microsoft से साइन इन करें",
   "googleTasksProvider": "Google Tasks",
   "microsoftTodoProvider": "Microsoft To Do",
   "providerNotConfigured": "यह प्रदाता कॉन्फ़िगर नहीं किया गया है।",
@@ -198,8 +189,6 @@
   "scheduleUnavailable": "शेड्यूल उपलब्ध नहीं है",
   "scheduleNoSources": "कोई दिखाई देने वाला कैलेंडर या कार्य सूची नहीं",
   "scheduleNoSourcesDescription": "सेटिंग्स में चुनें कि क्या दिखाना है, फिर रीफ़्रेश करें।",
-  "scheduleSignInRequired": "खाता कनेक्ट करें",
-  "scheduleSignInDescription": "कैलेंडर और कार्य सिंक करने के लिए साइन इन करें।",
   "scheduleNoSearchResults": "कोई मिलता-जुलता इवेंट या कार्य नहीं",
   "scheduleNoSearchResultsDescription": "कोई दूसरी खोज आज़माएँ या मौजूदा फ़िल्टर हटाएँ।",
   "refresh": "रीफ़्रेश करें",
@@ -1205,5 +1194,6 @@
   "oauthAuthorizationTimedOut": "प्राधिकरण का समय समाप्त हो गया। फिर प्रयास करें और आयातित कॉन्फ़िगरेशन दोबारा चुनें।",
   "oauthWrongAccount": "दोबारा जोड़ने के लिए चुने गए खाते को अधिकृत करें। मौजूदा कनेक्शन सुरक्षित है।",
   "oauthSecureStorageUnavailable": "सुरक्षित संग्रह उपलब्ध नहीं है। उसकी पहुँच बहाल करके फिर प्रयास करें।",
-  "oauthRevokedRemovalIncomplete": "दूरस्थ प्राधिकरण रद्द हुआ, लेकिन खाते की सफ़ाई पूरी नहीं हो सकी। स्थानीय पुनर्प्राप्ति दोबारा आज़माने के लिए BusyMax पुनः शुरू करें।"
+  "oauthRevokedRemovalIncomplete": "दूरस्थ प्राधिकरण रद्द हुआ, लेकिन खाते की सफ़ाई पूरी नहीं हो सकी। स्थानीय पुनर्प्राप्ति दोबारा आज़माने के लिए BusyMax पुनः शुरू करें।",
+  "addAccount": "खाता जोड़ें"
 }

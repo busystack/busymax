@@ -146,6 +146,7 @@ void main() {
       );
       expect(backend.requests, hasLength(2));
       await tester.pumpWidget(const SizedBox());
+      await tester.pump(const Duration(milliseconds: 1));
       await tester.runAsync(() async {
         container.dispose();
         await database.close();

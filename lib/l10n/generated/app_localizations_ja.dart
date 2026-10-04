@@ -384,35 +384,6 @@ class AppLocalizationsJa extends AppLocalizations {
       'Google カレンダーと Google Tasks の権限が必要です。もう一度試して、両方のチェックボックスを選択してください。';
 
   @override
-  String get finishSetup => 'セットアップを完了';
-
-  @override
-  String get continueSetup => '続行';
-
-  @override
-  String get onboardingSetupTitle => 'BusyMax をセットアップ';
-
-  @override
-  String get onboardingAccountsStepTitle => 'アカウントを接続';
-
-  @override
-  String get onboardingAccountsStepDescription =>
-      '使用するすべてのアカウントを追加します。BusyMax は各アカウントの対応するカレンダー、予定、タスクリスト、タスクを同期します。';
-
-  @override
-  String get onboardingPreferencesStepTitle => 'システム設定を選択';
-
-  @override
-  String get onboardingPreferencesStepDescription =>
-      'スケジュールを開く前に、デスクトップでの動作、リマインダー、通知の詳細度、外観を設定します。';
-
-  @override
-  String get signInWithGoogle => 'Google でサインイン';
-
-  @override
-  String get signInWithMicrosoft => 'Microsoft でサインイン';
-
-  @override
   String get googleTasksProvider => 'Google Tasks';
 
   @override
@@ -575,12 +546,6 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get scheduleNoSourcesDescription => '設定で表示する項目を選択してから、更新してください。';
-
-  @override
-  String get scheduleSignInRequired => 'アカウントを接続';
-
-  @override
-  String get scheduleSignInDescription => 'カレンダーとタスクを同期するにはサインインしてください。';
 
   @override
   String get scheduleNoSearchResults => '一致する予定またはタスクはありません';
@@ -3225,4 +3190,7 @@ class AppLocalizationsJa extends AppLocalizations {
   @override
   String get oauthRevokedRemovalIncomplete =>
       'リモート認証は取り消されましたが、アカウントのクリーンアップを完了できませんでした。BusyMax を再起動してローカル復旧を再試行してください。';
+
+  @override
+  String get addAccount => 'アカウントを追加';
 }

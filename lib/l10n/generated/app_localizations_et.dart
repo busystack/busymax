@@ -398,35 +398,6 @@ class AppLocalizationsEt extends AppLocalizations {
       'Google Calendari ja Google Tasksi õigused on nõutavad. Proovige uuesti ja märkige mõlemad ruudud.';
 
   @override
-  String get finishSetup => 'Lõpeta seadistamine';
-
-  @override
-  String get continueSetup => 'Jätka';
-
-  @override
-  String get onboardingSetupTitle => 'BusyMaxi seadistamine';
-
-  @override
-  String get onboardingAccountsStepTitle => 'Kontode ühendamine';
-
-  @override
-  String get onboardingAccountsStepDescription =>
-      'Lisage kõik kontod, mida soovite kasutada. BusyMax sünkroonib igast kontost toetatud kalendreid, sündmusi, ülesandeloendeid ja ülesandeid.';
-
-  @override
-  String get onboardingPreferencesStepTitle => 'Süsteemiseadete valimine';
-
-  @override
-  String get onboardingPreferencesStepDescription =>
-      'Enne ajakava avamist määrake töölauakäitumine, meeldetuletused, teavituste üksikasjalikkus ja välimus.';
-
-  @override
-  String get signInWithGoogle => 'Logi Google’iga sisse';
-
-  @override
-  String get signInWithMicrosoft => 'Logi Microsoftiga sisse';
-
-  @override
   String get googleTasksProvider => 'Google Tasks';
 
   @override
@@ -587,13 +558,6 @@ class AppLocalizationsEt extends AppLocalizations {
   @override
   String get scheduleNoSourcesDescription =>
       'Valige seadetes, mida kuvada, ja seejärel värskendage.';
-
-  @override
-  String get scheduleSignInRequired => 'Ühendage konto';
-
-  @override
-  String get scheduleSignInDescription =>
-      'Kalendrite ja ülesannete sünkroonimiseks logige sisse.';
 
   @override
   String get scheduleNoSearchResults =>
@@ -3274,4 +3238,7 @@ class AppLocalizationsEt extends AppLocalizations {
   @override
   String get oauthRevokedRemovalIncomplete =>
       'Kaugautoriseerimine tühistati, kuid konto puhastamist ei saanud lõpetada. Taaskäivita BusyMax kohaliku taastamise uuesti proovimiseks.';
+
+  @override
+  String get addAccount => 'Lisa konto';
 }

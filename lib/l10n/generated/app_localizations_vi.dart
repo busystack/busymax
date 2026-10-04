@@ -399,35 +399,6 @@ class AppLocalizationsVi extends AppLocalizations {
       'Cần có quyền truy cập Google Calendar và Google Tasks. Vui lòng thử lại và chọn cả hai hộp kiểm.';
 
   @override
-  String get finishSetup => 'Hoàn tất thiết lập';
-
-  @override
-  String get continueSetup => 'Tiếp tục';
-
-  @override
-  String get onboardingSetupTitle => 'Thiết lập BusyMax';
-
-  @override
-  String get onboardingAccountsStepTitle => 'Kết nối tài khoản';
-
-  @override
-  String get onboardingAccountsStepDescription =>
-      'Thêm mọi tài khoản bạn muốn sử dụng. BusyMax đồng bộ lịch, sự kiện, danh sách công việc và công việc được hỗ trợ từ từng tài khoản.';
-
-  @override
-  String get onboardingPreferencesStepTitle => 'Chọn cài đặt hệ thống';
-
-  @override
-  String get onboardingPreferencesStepDescription =>
-      'Thiết lập cách ứng dụng hoạt động trên máy tính, lời nhắc, mức độ chi tiết của thông báo và giao diện trước khi mở lịch biểu.';
-
-  @override
-  String get signInWithGoogle => 'Đăng nhập bằng Google';
-
-  @override
-  String get signInWithMicrosoft => 'Đăng nhập bằng Microsoft';
-
-  @override
   String get googleTasksProvider => 'Google Tasks';
 
   @override
@@ -592,13 +563,6 @@ class AppLocalizationsVi extends AppLocalizations {
   @override
   String get scheduleNoSourcesDescription =>
       'Chọn nội dung cần hiển thị trong Cài đặt, sau đó làm mới lịch biểu.';
-
-  @override
-  String get scheduleSignInRequired => 'Kết nối tài khoản';
-
-  @override
-  String get scheduleSignInDescription =>
-      'Đăng nhập để đồng bộ lịch và công việc.';
 
   @override
   String get scheduleNoSearchResults =>
@@ -3291,4 +3255,7 @@ class AppLocalizationsVi extends AppLocalizations {
   @override
   String get oauthRevokedRemovalIncomplete =>
       'Quyền truy cập từ xa đã bị thu hồi nhưng chưa thể hoàn tất việc dọn dẹp tài khoản. Khởi động lại BusyMax để thử khôi phục cục bộ.';
+
+  @override
+  String get addAccount => 'Thêm tài khoản';
 }

@@ -1482,7 +1482,9 @@ class _AccountManagementSection extends StatelessWidget {
               title: connectingProvider == BusyProvider.google
                   ? l10n.waitingForGoogleSignIn
                   : l10n.addGoogleAccount,
-              subtitle: googleConfigured ? null : l10n.providerNotConfigured,
+              subtitle: googleConfigured
+                  ? l10n.googlePermissionsConsentNotice
+                  : '${l10n.providerNotConfigured}\n${l10n.googlePermissionsConsentNotice}',
               leading: const Icon(YaruIcons.plus),
               onTap: connecting || !googleConfigured ? null : onAddGoogle,
             ),
@@ -2609,9 +2611,6 @@ Future<void> _afterAccountRemoved(
   if (remaining.isEmpty) {
     ref.read(selectedAccountIdProvider.notifier).state = null;
     await ref.read(authSessionControllerProvider.notifier).load();
-    if (context.mounted) {
-      context.go('/sign-in');
-    }
     return;
   }
 

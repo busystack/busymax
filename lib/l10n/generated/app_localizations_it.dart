@@ -402,36 +402,6 @@ class AppLocalizationsIt extends AppLocalizations {
       'Sono necessarie le autorizzazioni per Google Calendar e Google Tasks. Riprova e seleziona entrambe le caselle.';
 
   @override
-  String get finishSetup => 'Completa la configurazione';
-
-  @override
-  String get continueSetup => 'Continua';
-
-  @override
-  String get onboardingSetupTitle => 'Configura BusyMax';
-
-  @override
-  String get onboardingAccountsStepTitle => 'Collega gli account';
-
-  @override
-  String get onboardingAccountsStepDescription =>
-      'Aggiungi tutti gli account che vuoi usare. BusyMax sincronizza calendari, eventi, elenchi di attività e attività supportati da ogni account.';
-
-  @override
-  String get onboardingPreferencesStepTitle =>
-      'Scegli le impostazioni di sistema';
-
-  @override
-  String get onboardingPreferencesStepDescription =>
-      'Prima di aprire l’agenda, configura il comportamento sul desktop, i promemoria, il livello di dettaglio delle notifiche e l’aspetto.';
-
-  @override
-  String get signInWithGoogle => 'Accedi con Google';
-
-  @override
-  String get signInWithMicrosoft => 'Accedi con Microsoft';
-
-  @override
   String get googleTasksProvider => 'Google Tasks';
 
   @override
@@ -598,13 +568,6 @@ class AppLocalizationsIt extends AppLocalizations {
   @override
   String get scheduleNoSourcesDescription =>
       'Scegli cosa mostrare nelle Impostazioni, quindi aggiorna l’agenda.';
-
-  @override
-  String get scheduleSignInRequired => 'Collega un account';
-
-  @override
-  String get scheduleSignInDescription =>
-      'Accedi per sincronizzare calendari e attività.';
 
   @override
   String get scheduleNoSearchResults =>
@@ -3316,4 +3279,7 @@ class AppLocalizationsIt extends AppLocalizations {
   @override
   String get oauthRevokedRemovalIncomplete =>
       'L’autorizzazione remota è stata revocata, ma la pulizia dell’account non è stata completata. Riavvia BusyMax per riprovare il recupero locale.';
+
+  @override
+  String get addAccount => 'Aggiungi account';
 }

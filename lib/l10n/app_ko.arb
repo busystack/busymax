@@ -115,15 +115,6 @@
   "connectGoogleAccount": "Google, Microsoft, Apple iCloud Calendar 또는 Nextcloud 계정을 연결하세요.",
   "googlePermissionsConsentNotice": "Google 권한 화면에서 캘린더와 할 일 권한을 모두 선택하세요.",
   "googlePermissionsRequiredRetry": "Google Calendar 및 Google Tasks 권한이 필요합니다. 다시 시도하여 두 체크박스를 모두 선택하세요.",
-  "finishSetup": "설정 완료",
-  "continueSetup": "계속",
-  "onboardingSetupTitle": "BusyMax 설정",
-  "onboardingAccountsStepTitle": "계정 연결",
-  "onboardingAccountsStepDescription": "사용할 모든 계정을 추가하세요. BusyMax는 각 계정의 지원되는 캘린더, 일정, 할 일 목록 및 할 일을 동기화합니다.",
-  "onboardingPreferencesStepTitle": "시스템 설정 선택",
-  "onboardingPreferencesStepDescription": "일정을 열기 전에 데스크톱 동작, 미리 알림, 알림 세부 수준 및 화면 모양을 설정하세요.",
-  "signInWithGoogle": "Google로 로그인",
-  "signInWithMicrosoft": "Microsoft로 로그인",
   "googleTasksProvider": "Google Tasks",
   "microsoftTodoProvider": "Microsoft To Do",
   "providerNotConfigured": "이 서비스는 설정되어 있지 않습니다.",
@@ -198,8 +189,6 @@
   "scheduleUnavailable": "일정을 사용할 수 없습니다",
   "scheduleNoSources": "표시할 캘린더 또는 할 일 목록이 없습니다",
   "scheduleNoSourcesDescription": "설정에서 표시할 항목을 선택한 다음 새로 고침하세요.",
-  "scheduleSignInRequired": "계정 연결",
-  "scheduleSignInDescription": "캘린더와 할 일을 동기화하려면 로그인하세요.",
   "scheduleNoSearchResults": "일치하는 일정 또는 할 일이 없습니다",
   "scheduleNoSearchResultsDescription": "다른 검색어를 사용하거나 현재 필터를 지우세요.",
   "refresh": "새로 고침",
@@ -1205,5 +1194,6 @@
   "oauthAuthorizationTimedOut": "인증 시간이 초과되었습니다. 다시 시도하고 가져온 설정이라면 다시 선택하세요.",
   "oauthWrongAccount": "다시 연결하도록 선택한 계정을 인증하세요. 기존 연결은 유지됩니다.",
   "oauthSecureStorageUnavailable": "보안 저장소를 사용할 수 없습니다. 접근을 복구한 후 다시 시도하세요.",
-  "oauthRevokedRemovalIncomplete": "원격 인증은 취소되었지만 계정 정리를 완료하지 못했습니다. BusyMax를 다시 시작하여 로컬 복구를 재시도하세요."
+  "oauthRevokedRemovalIncomplete": "원격 인증은 취소되었지만 계정 정리를 완료하지 못했습니다. BusyMax를 다시 시작하여 로컬 복구를 재시도하세요.",
+  "addAccount": "계정 추가"
 }

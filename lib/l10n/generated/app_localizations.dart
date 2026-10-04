@@ -732,7 +732,7 @@ abstract class AppLocalizations {
   /// **'BusyMax'**
   String get appTitle;
 
-  /// Shown in account onboarding and settings; names the supported account providers.
+  /// Shown in account settings; names the supported account providers.
   ///
   /// In en, this message translates to:
   /// **'Connect Google, Microsoft, Apple iCloud Calendar, or Nextcloud accounts.'**
@@ -749,60 +749,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Google Calendar and Google Tasks permissions are required. Please try again and select both checkboxes.'**
   String get googlePermissionsRequiredRetry;
-
-  /// No description provided for @finishSetup.
-  ///
-  /// In en, this message translates to:
-  /// **'Finish setup'**
-  String get finishSetup;
-
-  /// No description provided for @continueSetup.
-  ///
-  /// In en, this message translates to:
-  /// **'Continue'**
-  String get continueSetup;
-
-  /// No description provided for @onboardingSetupTitle.
-  ///
-  /// In en, this message translates to:
-  /// **'Set Up BusyMax'**
-  String get onboardingSetupTitle;
-
-  /// No description provided for @onboardingAccountsStepTitle.
-  ///
-  /// In en, this message translates to:
-  /// **'Connect accounts'**
-  String get onboardingAccountsStepTitle;
-
-  /// Onboarding explanation of the account data BusyMax synchronizes.
-  ///
-  /// In en, this message translates to:
-  /// **'Add every account you want to use. BusyMax syncs supported calendars, events, task lists, and tasks from each account.'**
-  String get onboardingAccountsStepDescription;
-
-  /// No description provided for @onboardingPreferencesStepTitle.
-  ///
-  /// In en, this message translates to:
-  /// **'Choose system settings'**
-  String get onboardingPreferencesStepTitle;
-
-  /// No description provided for @onboardingPreferencesStepDescription.
-  ///
-  /// In en, this message translates to:
-  /// **'Set desktop behavior, reminders, notification detail, and appearance before opening your schedule.'**
-  String get onboardingPreferencesStepDescription;
-
-  /// No description provided for @signInWithGoogle.
-  ///
-  /// In en, this message translates to:
-  /// **'Sign in with Google'**
-  String get signInWithGoogle;
-
-  /// No description provided for @signInWithMicrosoft.
-  ///
-  /// In en, this message translates to:
-  /// **'Sign in with Microsoft'**
-  String get signInWithMicrosoft;
 
   /// No description provided for @googleTasksProvider.
   ///
@@ -1097,18 +1043,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Choose what to show in Settings, then refresh.'**
   String get scheduleNoSourcesDescription;
-
-  /// No description provided for @scheduleSignInRequired.
-  ///
-  /// In en, this message translates to:
-  /// **'Connect an account'**
-  String get scheduleSignInRequired;
-
-  /// No description provided for @scheduleSignInDescription.
-  ///
-  /// In en, this message translates to:
-  /// **'Sign in to sync calendars and tasks.'**
-  String get scheduleSignInDescription;
 
   /// No description provided for @scheduleNoSearchResults.
   ///
@@ -5531,6 +5465,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Remote authorization was revoked, but account cleanup could not finish. Restart BusyMax to retry local recovery.'**
   String get oauthRevokedRemovalIncomplete;
+
+  /// No description provided for @addAccount.
+  ///
+  /// In en, this message translates to:
+  /// **'Add account'**
+  String get addAccount;
 }
 
 class _AppLocalizationsDelegate

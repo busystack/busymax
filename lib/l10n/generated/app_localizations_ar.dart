@@ -395,35 +395,6 @@ class AppLocalizationsAr extends AppLocalizations {
       'أذونات تقويم Google وGoogle Tasks مطلوبة. حاول مرة أخرى وحدّد مربعي الاختيار.';
 
   @override
-  String get finishSetup => 'إنهاء الإعداد';
-
-  @override
-  String get continueSetup => 'متابعة';
-
-  @override
-  String get onboardingSetupTitle => 'إعداد BusyMax';
-
-  @override
-  String get onboardingAccountsStepTitle => 'ربط الحسابات';
-
-  @override
-  String get onboardingAccountsStepDescription =>
-      'أضف كل الحسابات التي تريد استخدامها. يزامن BusyMax التقويمات والأحداث وقوائم المهام والمهام المدعومة من كل حساب.';
-
-  @override
-  String get onboardingPreferencesStepTitle => 'اختيار إعدادات النظام';
-
-  @override
-  String get onboardingPreferencesStepDescription =>
-      'اضبط سلوك التطبيق على سطح المكتب والتذكيرات ومستوى تفاصيل الإشعارات والمظهر قبل فتح جدولك.';
-
-  @override
-  String get signInWithGoogle => 'تسجيل الدخول باستخدام Google';
-
-  @override
-  String get signInWithMicrosoft => 'تسجيل الدخول باستخدام Microsoft';
-
-  @override
   String get googleTasksProvider => 'Google Tasks';
 
   @override
@@ -597,13 +568,6 @@ class AppLocalizationsAr extends AppLocalizations {
   @override
   String get scheduleNoSourcesDescription =>
       'اختر ما تريد إظهاره في الإعدادات، ثم حدّث الجدول.';
-
-  @override
-  String get scheduleSignInRequired => 'ربط حساب';
-
-  @override
-  String get scheduleSignInDescription =>
-      'سجّل الدخول لمزامنة التقويمات والمهام.';
 
   @override
   String get scheduleNoSearchResults => 'لا توجد أحداث أو مهام مطابقة';
@@ -3357,4 +3321,7 @@ class AppLocalizationsAr extends AppLocalizations {
   @override
   String get oauthRevokedRemovalIncomplete =>
       'أُلغي التفويض عن بُعد، لكن تنظيف الحساب لم يكتمل. أعد تشغيل BusyMax لإعادة محاولة الاسترداد المحلي.';
+
+  @override
+  String get addAccount => 'إضافة حساب';
 }

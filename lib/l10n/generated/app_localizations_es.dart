@@ -403,35 +403,6 @@ class AppLocalizationsEs extends AppLocalizations {
       'Los permisos de Google Calendar y Google Tasks son obligatorios. Inténtalo de nuevo y selecciona ambas casillas.';
 
   @override
-  String get finishSetup => 'Finalizar configuración';
-
-  @override
-  String get continueSetup => 'Continuar';
-
-  @override
-  String get onboardingSetupTitle => 'Configurar BusyMax';
-
-  @override
-  String get onboardingAccountsStepTitle => 'Conectar cuentas';
-
-  @override
-  String get onboardingAccountsStepDescription =>
-      'Añade todas las cuentas que quieras usar. BusyMax sincroniza los calendarios, eventos, listas de tareas y tareas compatibles de cada cuenta.';
-
-  @override
-  String get onboardingPreferencesStepTitle => 'Elegir ajustes del sistema';
-
-  @override
-  String get onboardingPreferencesStepDescription =>
-      'Configura el comportamiento de la aplicación en el escritorio, los recordatorios, el nivel de detalle de las notificaciones y la apariencia antes de abrir tu agenda.';
-
-  @override
-  String get signInWithGoogle => 'Iniciar sesión con Google';
-
-  @override
-  String get signInWithMicrosoft => 'Iniciar sesión con Microsoft';
-
-  @override
   String get googleTasksProvider => 'Google Tasks';
 
   @override
@@ -599,13 +570,6 @@ class AppLocalizationsEs extends AppLocalizations {
   @override
   String get scheduleNoSourcesDescription =>
       'Elige qué mostrar en Configuración y, después, actualiza la agenda.';
-
-  @override
-  String get scheduleSignInRequired => 'Conectar una cuenta';
-
-  @override
-  String get scheduleSignInDescription =>
-      'Inicia sesión para sincronizar calendarios y tareas.';
 
   @override
   String get scheduleNoSearchResults => 'No hay eventos ni tareas coincidentes';
@@ -3299,4 +3263,7 @@ class AppLocalizationsEs extends AppLocalizations {
   @override
   String get oauthRevokedRemovalIncomplete =>
       'Se revocó la autorización remota, pero no se pudo completar la limpieza de la cuenta. Reinicia BusyMax para volver a intentar la recuperación local.';
+
+  @override
+  String get addAccount => 'Añadir cuenta';
 }

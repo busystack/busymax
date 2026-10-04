@@ -409,35 +409,6 @@ class AppLocalizationsPl extends AppLocalizations {
       'Wymagane są uprawnienia do Kalendarza Google i Zadań Google. Spróbuj ponownie i zaznacz oba pola wyboru.';
 
   @override
-  String get finishSetup => 'Zakończ konfigurację';
-
-  @override
-  String get continueSetup => 'Kontynuuj';
-
-  @override
-  String get onboardingSetupTitle => 'Skonfiguruj BusyMax';
-
-  @override
-  String get onboardingAccountsStepTitle => 'Połącz konta';
-
-  @override
-  String get onboardingAccountsStepDescription =>
-      'Dodaj wszystkie konta, których chcesz używać. BusyMax synchronizuje obsługiwane kalendarze, wydarzenia, listy zadań i zadania z każdego konta.';
-
-  @override
-  String get onboardingPreferencesStepTitle => 'Wybierz ustawienia systemowe';
-
-  @override
-  String get onboardingPreferencesStepDescription =>
-      'Przed otwarciem harmonogramu skonfiguruj działanie aplikacji na pulpicie, przypomnienia, szczegółowość powiadomień i wygląd.';
-
-  @override
-  String get signInWithGoogle => 'Zaloguj się przez Google';
-
-  @override
-  String get signInWithMicrosoft => 'Zaloguj się przez Microsoft';
-
-  @override
   String get googleTasksProvider => 'Zadania Google';
 
   @override
@@ -608,13 +579,6 @@ class AppLocalizationsPl extends AppLocalizations {
   @override
   String get scheduleNoSourcesDescription =>
       'Wybierz w ustawieniach, co ma być widoczne, a następnie odśwież.';
-
-  @override
-  String get scheduleSignInRequired => 'Połącz konto';
-
-  @override
-  String get scheduleSignInDescription =>
-      'Zaloguj się, aby synchronizować kalendarze i zadania.';
 
   @override
   String get scheduleNoSearchResults => 'Brak pasujących wydarzeń i zadań';
@@ -3469,4 +3433,7 @@ class AppLocalizationsPl extends AppLocalizations {
   @override
   String get oauthRevokedRemovalIncomplete =>
       'Zdalna autoryzacja została cofnięta, ale nie udało się ukończyć czyszczenia konta. Uruchom BusyMax ponownie, aby ponowić odzyskiwanie lokalne.';
+
+  @override
+  String get addAccount => 'Dodaj konto';
 }

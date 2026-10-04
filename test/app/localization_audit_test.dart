@@ -308,7 +308,7 @@ void main() {
 
     final estonian = File('lib/l10n/app_et.arb').readAsStringSync();
     expect(estonian, isNot(contains("Google'")));
-    expect(estonian, contains('Lisage kõik kontod, mida soovite kasutada.'));
+    expect(estonian, contains('Lisa konto'));
     expect(estonian, contains('Ühendage Google’i'));
 
     expect(

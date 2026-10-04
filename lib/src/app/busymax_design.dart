@@ -44,7 +44,6 @@ abstract final class BusyMaxSizes {
   static const double compactDetailsWidth = 700;
   static const double comboWidth = 220;
   static const double toolbarHeight = kYaruTitleBarHeight;
-  static const double onboardingContentMaxWidth = 480;
   static const double sidebarRowHeight = 36;
   static const double taskRowMinHeight = 48;
   static const double iconSm = 16;

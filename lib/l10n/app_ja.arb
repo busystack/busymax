@@ -115,15 +115,6 @@
   "connectGoogleAccount": "Google、Microsoft、Apple iCloud Calendar、または Nextcloud のアカウントを接続します。",
   "googlePermissionsConsentNotice": "Google の権限画面で、カレンダーとタスクの両方の権限を選択してください。",
   "googlePermissionsRequiredRetry": "Google カレンダーと Google Tasks の権限が必要です。もう一度試して、両方のチェックボックスを選択してください。",
-  "finishSetup": "セットアップを完了",
-  "continueSetup": "続行",
-  "onboardingSetupTitle": "BusyMax をセットアップ",
-  "onboardingAccountsStepTitle": "アカウントを接続",
-  "onboardingAccountsStepDescription": "使用するすべてのアカウントを追加します。BusyMax は各アカウントの対応するカレンダー、予定、タスクリスト、タスクを同期します。",
-  "onboardingPreferencesStepTitle": "システム設定を選択",
-  "onboardingPreferencesStepDescription": "スケジュールを開く前に、デスクトップでの動作、リマインダー、通知の詳細度、外観を設定します。",
-  "signInWithGoogle": "Google でサインイン",
-  "signInWithMicrosoft": "Microsoft でサインイン",
   "googleTasksProvider": "Google Tasks",
   "microsoftTodoProvider": "Microsoft To Do",
   "providerNotConfigured": "このプロバイダーは設定されていません。",
@@ -198,8 +189,6 @@
   "scheduleUnavailable": "スケジュールを利用できません",
   "scheduleNoSources": "表示できるカレンダーまたはタスクリストがありません",
   "scheduleNoSourcesDescription": "設定で表示する項目を選択してから、更新してください。",
-  "scheduleSignInRequired": "アカウントを接続",
-  "scheduleSignInDescription": "カレンダーとタスクを同期するにはサインインしてください。",
   "scheduleNoSearchResults": "一致する予定またはタスクはありません",
   "scheduleNoSearchResultsDescription": "別の条件で検索するか、現在のフィルターを解除してください。",
   "refresh": "更新",
@@ -1205,5 +1194,6 @@
   "oauthAuthorizationTimedOut": "認証がタイムアウトしました。再試行し、インポートした設定は再選択してください。",
   "oauthWrongAccount": "再接続用に選択したアカウントで認証してください。既存の接続は保持されています。",
   "oauthSecureStorageUnavailable": "安全なストレージを利用できません。アクセスを復旧して再試行してください。",
-  "oauthRevokedRemovalIncomplete": "リモート認証は取り消されましたが、アカウントのクリーンアップを完了できませんでした。BusyMax を再起動してローカル復旧を再試行してください。"
+  "oauthRevokedRemovalIncomplete": "リモート認証は取り消されましたが、アカウントのクリーンアップを完了できませんでした。BusyMax を再起動してローカル復旧を再試行してください。",
+  "addAccount": "アカウントを追加"
 }

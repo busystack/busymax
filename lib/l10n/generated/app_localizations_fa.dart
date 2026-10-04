@@ -395,35 +395,6 @@ class AppLocalizationsFa extends AppLocalizations {
       'مجوزهای Google Calendar و Google Tasks لازم هستند. دوباره تلاش کنید و هر دو کادر را علامت بزنید.';
 
   @override
-  String get finishSetup => 'پایان راه‌اندازی';
-
-  @override
-  String get continueSetup => 'ادامه';
-
-  @override
-  String get onboardingSetupTitle => 'راه‌اندازی BusyMax';
-
-  @override
-  String get onboardingAccountsStepTitle => 'اتصال حساب‌ها';
-
-  @override
-  String get onboardingAccountsStepDescription =>
-      'همهٔ حساب‌هایی را که می‌خواهید استفاده کنید اضافه کنید. BusyMax تقویم‌ها، رویدادها، فهرست‌های کار و کارهای پشتیبانی‌شده را از هر حساب همگام می‌کند.';
-
-  @override
-  String get onboardingPreferencesStepTitle => 'انتخاب تنظیمات سیستم';
-
-  @override
-  String get onboardingPreferencesStepDescription =>
-      'پیش از باز کردن برنامه، رفتار برنامه روی میزکار، یادآورها، سطح جزئیات اعلان‌ها و ظاهر را تنظیم کنید.';
-
-  @override
-  String get signInWithGoogle => 'ورود با Google';
-
-  @override
-  String get signInWithMicrosoft => 'ورود با Microsoft';
-
-  @override
   String get googleTasksProvider => 'Google Tasks';
 
   @override
@@ -592,13 +563,6 @@ class AppLocalizationsFa extends AppLocalizations {
   @override
   String get scheduleNoSourcesDescription =>
       'در تنظیمات انتخاب کنید چه چیزهایی نمایش داده شوند، سپس برنامه را تازه‌سازی کنید.';
-
-  @override
-  String get scheduleSignInRequired => 'اتصال حساب';
-
-  @override
-  String get scheduleSignInDescription =>
-      'برای همگام‌سازی تقویم‌ها و کارها وارد شوید.';
 
   @override
   String get scheduleNoSearchResults => 'هیچ رویداد یا کار منطبقی وجود ندارد';
@@ -3328,4 +3292,7 @@ class AppLocalizationsFa extends AppLocalizations {
   @override
   String get oauthRevokedRemovalIncomplete =>
       'مجوز راه دور لغو شد، اما پاک‌سازی حساب کامل نشد. برای تلاش دوباره جهت بازیابی محلی، BusyMax را راه‌اندازی مجدد کنید.';
+
+  @override
+  String get addAccount => 'افزودن حساب';
 }

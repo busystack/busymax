@@ -2054,9 +2054,7 @@ void main() {
     expect(find.text('tasks route'), findsOneWidget);
   });
 
-  testWidgets('Removing last account routes to sign in cleanly', (
-    tester,
-  ) async {
+  testWidgets('Removing last account leaves Settings open', (tester) async {
     final auth = _FakeAuthRepository();
     final container = _container(
       selectedAccountId: 'google:g',
@@ -2075,7 +2073,8 @@ void main() {
       const _AccountRemovalCall('google:g', revokeAuthorization: false),
     ]);
     expect(container.read(selectedAccountIdProvider), isNull);
-    expect(find.text('sign in route'), findsOneWidget);
+    expect(find.byType(SettingsScreen), findsOneWidget);
+    expect(find.text('Add Google account'), findsOneWidget);
   });
 }
 
@@ -2272,7 +2271,6 @@ Future<GoRouter> _pumpRoutedSettings(
         builder: (_, _) => const Text('schedule route'),
       ),
       GoRoute(path: '/tasks', builder: (_, _) => const Text('tasks route')),
-      GoRoute(path: '/sign-in', builder: (_, _) => const Text('sign in route')),
     ],
   );
   addTearDown(router.dispose);

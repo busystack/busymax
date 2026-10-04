@@ -18,6 +18,58 @@ import '../../support/memory_settings_store.dart';
 
 void main() {
   testWidgets(
+    'Fluent Add account uses resolved inventory and keeps subscription identity',
+    (tester) async {
+      var opened = 0;
+      await _pumpPane(
+        tester,
+        MemorySettingsStore(),
+        const [],
+        const [],
+        const [],
+        onAddAccount: () => opened++,
+      );
+      expect(find.text('Add account'), findsOneWidget);
+      await tester.tap(find.text('Add account'));
+      expect(opened, 1);
+      await _pumpPane(
+        tester,
+        MemorySettingsStore(),
+        const [],
+        const [],
+        const [],
+        accountInventoryResolved: false,
+      );
+      expect(find.text('Add account'), findsNothing);
+      await _pumpPane(
+        tester,
+        MemorySettingsStore(),
+        [_account('webcal', BusyProvider.webCal)],
+        const [],
+        const [],
+      );
+      expect(find.text('Add account'), findsOneWidget);
+      expect(find.text('Subscriptions'), findsOneWidget);
+      for (final provider in [BusyProvider.appleICloud, BusyProvider.google]) {
+        await _pumpPane(
+          tester,
+          MemorySettingsStore(),
+          [
+            _account(
+              'configured',
+              provider,
+              authState: accountAuthStateReauthRequired,
+            ),
+          ],
+          const [],
+          const [],
+        );
+        expect(find.text('Add account'), findsNothing);
+      }
+    },
+  );
+
+  testWidgets(
     'Fluent source rows use distinct type icons and actual collection titles',
     (tester) async {
       final store = MemorySettingsStore();
@@ -319,8 +371,10 @@ Future<void> _pumpPane(
   MemorySettingsStore store,
   List<AccountEntity> accounts,
   List<CalendarSourceEntity> calendars,
-  List<TaskListEntity> lists,
-) async {
+  List<TaskListEntity> lists, {
+  VoidCallback? onAddAccount,
+  bool accountInventoryResolved = true,
+}) async {
   tester.view.physicalSize = const Size(900, 1200);
   tester.view.devicePixelRatio = 1;
   addTearDown(tester.view.resetPhysicalSize);
@@ -348,6 +402,8 @@ Future<void> _pumpPane(
               firstWeekday: DateTime.monday,
               selectedDate: DateTime(2026, 9, 5),
               accounts: accounts,
+              onAddAccount: onAddAccount,
+              accountInventoryResolved: accountInventoryResolved,
               calendarSources: calendars,
               taskLists: lists,
               visibleCalendarSourceIds: const {},
@@ -381,12 +437,16 @@ void _expectRows(WidgetTester tester, List<Object> keys) {
   }
 }
 
-AccountEntity _account(String id, BusyProvider provider) => AccountEntity(
+AccountEntity _account(
+  String id,
+  BusyProvider provider, {
+  String authState = accountAuthStateSignedIn,
+}) => AccountEntity(
   id: id,
   provider: provider,
   authority: 'https://example.test',
   providerAccountId: id,
-  authState: accountAuthStateSignedIn,
+  authState: authState,
   displayName: id,
 );
 

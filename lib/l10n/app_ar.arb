@@ -115,15 +115,6 @@
   "connectGoogleAccount": "اربط حسابات Google أو Microsoft أو تقويم Apple iCloud أو Nextcloud.",
   "googlePermissionsConsentNotice": "في شاشة أذونات Google، حدّد أذونات التقويم والمهام معًا.",
   "googlePermissionsRequiredRetry": "أذونات تقويم Google وGoogle Tasks مطلوبة. حاول مرة أخرى وحدّد مربعي الاختيار.",
-  "finishSetup": "إنهاء الإعداد",
-  "continueSetup": "متابعة",
-  "onboardingSetupTitle": "إعداد BusyMax",
-  "onboardingAccountsStepTitle": "ربط الحسابات",
-  "onboardingAccountsStepDescription": "أضف كل الحسابات التي تريد استخدامها. يزامن BusyMax التقويمات والأحداث وقوائم المهام والمهام المدعومة من كل حساب.",
-  "onboardingPreferencesStepTitle": "اختيار إعدادات النظام",
-  "onboardingPreferencesStepDescription": "اضبط سلوك التطبيق على سطح المكتب والتذكيرات ومستوى تفاصيل الإشعارات والمظهر قبل فتح جدولك.",
-  "signInWithGoogle": "تسجيل الدخول باستخدام Google",
-  "signInWithMicrosoft": "تسجيل الدخول باستخدام Microsoft",
   "googleTasksProvider": "Google Tasks",
   "microsoftTodoProvider": "Microsoft To Do",
   "providerNotConfigured": "هذه الخدمة غير مهيأة.",
@@ -198,8 +189,6 @@
   "scheduleUnavailable": "الجدول غير متاح",
   "scheduleNoSources": "لا توجد تقويمات أو قوائم مهام ظاهرة",
   "scheduleNoSourcesDescription": "اختر ما تريد إظهاره في الإعدادات، ثم حدّث الجدول.",
-  "scheduleSignInRequired": "ربط حساب",
-  "scheduleSignInDescription": "سجّل الدخول لمزامنة التقويمات والمهام.",
   "scheduleNoSearchResults": "لا توجد أحداث أو مهام مطابقة",
   "scheduleNoSearchResultsDescription": "جرّب بحثًا مختلفًا أو امسح عوامل التصفية الحالية.",
   "refresh": "تحديث",
@@ -1205,5 +1194,6 @@
   "oauthAuthorizationTimedOut": "انتهت مهلة التفويض. حاول مجددًا واختر الإعداد المستورد مرة أخرى.",
   "oauthWrongAccount": "فوّض الحساب المحدد لإعادة الاتصال. الاتصال الحالي محفوظ.",
   "oauthSecureStorageUnavailable": "التخزين الآمن غير متاح. استعد الوصول إليه وحاول مجددًا.",
-  "oauthRevokedRemovalIncomplete": "أُلغي التفويض عن بُعد، لكن تنظيف الحساب لم يكتمل. أعد تشغيل BusyMax لإعادة محاولة الاسترداد المحلي."
+  "oauthRevokedRemovalIncomplete": "أُلغي التفويض عن بُعد، لكن تنظيف الحساب لم يكتمل. أعد تشغيل BusyMax لإعادة محاولة الاسترداد المحلي.",
+  "addAccount": "إضافة حساب"
 }

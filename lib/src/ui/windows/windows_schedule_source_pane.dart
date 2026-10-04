@@ -36,6 +36,8 @@ class WindowsScheduleSourcePane extends ConsumerStatefulWidget {
     required this.onCalendarVisibilityChanged,
     required this.onTaskListVisibilityChanged,
     required this.onSourcesChanged,
+    this.onAddAccount,
+    this.accountInventoryResolved = true,
     super.key,
   });
 
@@ -52,6 +54,8 @@ class WindowsScheduleSourcePane extends ConsumerStatefulWidget {
   final void Function(TaskListEntity list, bool visible)
   onTaskListVisibilityChanged;
   final VoidCallback onSourcesChanged;
+  final VoidCallback? onAddAccount;
+  final bool accountInventoryResolved;
 
   @override
   ConsumerState<WindowsScheduleSourcePane> createState() =>
@@ -167,7 +171,44 @@ class _WindowsScheduleSourcePaneState
             child: ListView(
               padding: const EdgeInsets.symmetric(vertical: 8),
               children: [
+                if (widget.accountInventoryResolved &&
+                    !accounts.any((account) => !account.isSubscription))
+                  Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 8,
+                    ),
+                    child: Button(
+                      key: const ValueKey('schedule-add-account'),
+                      onPressed: widget.onAddAccount,
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(windowsBusyMaxGlyph(BusyMaxGlyph.add)),
+                          const SizedBox(width: 8),
+                          Flexible(child: Text(l10n.addAccount)),
+                        ],
+                      ),
+                    ),
+                  ),
                 for (final account in accounts) ...[
+                  if (account.isSubscription &&
+                      account.id ==
+                          accounts
+                              .firstWhere((value) => value.isSubscription)
+                              .id)
+                    Padding(
+                      padding: const EdgeInsetsDirectional.fromSTEB(
+                        14,
+                        10,
+                        8,
+                        4,
+                      ),
+                      child: Text(
+                        l10n.subscriptions,
+                        style: FluentTheme.of(context).typography.bodyStrong,
+                      ),
+                    ),
                   _AccountHeader(
                     online:
                         (ref.watch(networkAvailabilityProvider).valueOrNull ??
@@ -231,7 +272,9 @@ class _WindowsScheduleSourcePaneState
                       menuItems: _taskListMenuItems(context, account, list),
                     ),
                 ],
-                if (widget.calendarSources.isEmpty && widget.taskLists.isEmpty)
+                if (accounts.isNotEmpty &&
+                    widget.calendarSources.isEmpty &&
+                    widget.taskLists.isEmpty)
                   Padding(
                     padding: const EdgeInsets.all(16),
                     child: Text(l10n.scheduleNoSources),

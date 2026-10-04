@@ -386,35 +386,6 @@ class AppLocalizationsKo extends AppLocalizations {
       'Google Calendar 및 Google Tasks 권한이 필요합니다. 다시 시도하여 두 체크박스를 모두 선택하세요.';
 
   @override
-  String get finishSetup => '설정 완료';
-
-  @override
-  String get continueSetup => '계속';
-
-  @override
-  String get onboardingSetupTitle => 'BusyMax 설정';
-
-  @override
-  String get onboardingAccountsStepTitle => '계정 연결';
-
-  @override
-  String get onboardingAccountsStepDescription =>
-      '사용할 모든 계정을 추가하세요. BusyMax는 각 계정의 지원되는 캘린더, 일정, 할 일 목록 및 할 일을 동기화합니다.';
-
-  @override
-  String get onboardingPreferencesStepTitle => '시스템 설정 선택';
-
-  @override
-  String get onboardingPreferencesStepDescription =>
-      '일정을 열기 전에 데스크톱 동작, 미리 알림, 알림 세부 수준 및 화면 모양을 설정하세요.';
-
-  @override
-  String get signInWithGoogle => 'Google로 로그인';
-
-  @override
-  String get signInWithMicrosoft => 'Microsoft로 로그인';
-
-  @override
   String get googleTasksProvider => 'Google Tasks';
 
   @override
@@ -577,12 +548,6 @@ class AppLocalizationsKo extends AppLocalizations {
 
   @override
   String get scheduleNoSourcesDescription => '설정에서 표시할 항목을 선택한 다음 새로 고침하세요.';
-
-  @override
-  String get scheduleSignInRequired => '계정 연결';
-
-  @override
-  String get scheduleSignInDescription => '캘린더와 할 일을 동기화하려면 로그인하세요.';
 
   @override
   String get scheduleNoSearchResults => '일치하는 일정 또는 할 일이 없습니다';
@@ -3229,4 +3194,7 @@ class AppLocalizationsKo extends AppLocalizations {
   @override
   String get oauthRevokedRemovalIncomplete =>
       '원격 인증은 취소되었지만 계정 정리를 완료하지 못했습니다. BusyMax를 다시 시작하여 로컬 복구를 재시도하세요.';
+
+  @override
+  String get addAccount => '계정 추가';
 }

@@ -115,15 +115,6 @@
   "connectGoogleAccount": "Kết nối tài khoản Google, Microsoft, Apple iCloud Calendar hoặc Nextcloud.",
   "googlePermissionsConsentNotice": "Trên màn hình cấp quyền của Google, hãy chọn cả quyền truy cập Lịch và Công việc.",
   "googlePermissionsRequiredRetry": "Cần có quyền truy cập Google Calendar và Google Tasks. Vui lòng thử lại và chọn cả hai hộp kiểm.",
-  "finishSetup": "Hoàn tất thiết lập",
-  "continueSetup": "Tiếp tục",
-  "onboardingSetupTitle": "Thiết lập BusyMax",
-  "onboardingAccountsStepTitle": "Kết nối tài khoản",
-  "onboardingAccountsStepDescription": "Thêm mọi tài khoản bạn muốn sử dụng. BusyMax đồng bộ lịch, sự kiện, danh sách công việc và công việc được hỗ trợ từ từng tài khoản.",
-  "onboardingPreferencesStepTitle": "Chọn cài đặt hệ thống",
-  "onboardingPreferencesStepDescription": "Thiết lập cách ứng dụng hoạt động trên máy tính, lời nhắc, mức độ chi tiết của thông báo và giao diện trước khi mở lịch biểu.",
-  "signInWithGoogle": "Đăng nhập bằng Google",
-  "signInWithMicrosoft": "Đăng nhập bằng Microsoft",
   "googleTasksProvider": "Google Tasks",
   "microsoftTodoProvider": "Microsoft To Do",
   "providerNotConfigured": "Dịch vụ này chưa được cấu hình.",
@@ -198,8 +189,6 @@
   "scheduleUnavailable": "Lịch biểu không khả dụng",
   "scheduleNoSources": "Không có lịch hoặc danh sách công việc nào đang hiển thị",
   "scheduleNoSourcesDescription": "Chọn nội dung cần hiển thị trong Cài đặt, sau đó làm mới lịch biểu.",
-  "scheduleSignInRequired": "Kết nối tài khoản",
-  "scheduleSignInDescription": "Đăng nhập để đồng bộ lịch và công việc.",
   "scheduleNoSearchResults": "Không có sự kiện hoặc công việc phù hợp",
   "scheduleNoSearchResultsDescription": "Thử tìm kiếm khác hoặc xóa các bộ lọc hiện tại.",
   "refresh": "Làm mới",
@@ -1205,5 +1194,6 @@
   "oauthAuthorizationTimedOut": "Việc cấp quyền đã hết thời gian. Thử lại và chọn lại cấu hình nếu đã nhập từ tệp.",
   "oauthWrongAccount": "Cấp quyền cho tài khoản đã chọn để kết nối lại. Kết nối hiện tại được giữ nguyên.",
   "oauthSecureStorageUnavailable": "Không thể truy cập kho lưu trữ bảo mật. Khôi phục quyền truy cập rồi thử lại.",
-  "oauthRevokedRemovalIncomplete": "Quyền truy cập từ xa đã bị thu hồi nhưng chưa thể hoàn tất việc dọn dẹp tài khoản. Khởi động lại BusyMax để thử khôi phục cục bộ."
+  "oauthRevokedRemovalIncomplete": "Quyền truy cập từ xa đã bị thu hồi nhưng chưa thể hoàn tất việc dọn dẹp tài khoản. Khởi động lại BusyMax để thử khôi phục cục bộ.",
+  "addAccount": "Thêm tài khoản"
 }

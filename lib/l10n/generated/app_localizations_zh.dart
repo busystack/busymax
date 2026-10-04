@@ -370,35 +370,6 @@ class AppLocalizationsZh extends AppLocalizations {
       '必须授予 Google 日历和 Google Tasks 权限。请重试并选中两个复选框。';
 
   @override
-  String get finishSetup => '完成设置';
-
-  @override
-  String get continueSetup => '继续';
-
-  @override
-  String get onboardingSetupTitle => '设置 BusyMax';
-
-  @override
-  String get onboardingAccountsStepTitle => '连接账户';
-
-  @override
-  String get onboardingAccountsStepDescription =>
-      '添加所有要使用的账户。BusyMax 会同步每个账户中受支持的日历、日程、任务列表和任务。';
-
-  @override
-  String get onboardingPreferencesStepTitle => '选择系统设置';
-
-  @override
-  String get onboardingPreferencesStepDescription =>
-      '打开日程前，请设置桌面行为、提醒、通知详细程度和外观。';
-
-  @override
-  String get signInWithGoogle => '使用 Google 登录';
-
-  @override
-  String get signInWithMicrosoft => '使用 Microsoft 登录';
-
-  @override
   String get googleTasksProvider => 'Google Tasks';
 
   @override
@@ -560,12 +531,6 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get scheduleNoSourcesDescription => '请在设置中选择要显示的内容，然后刷新。';
-
-  @override
-  String get scheduleSignInRequired => '连接账户';
-
-  @override
-  String get scheduleSignInDescription => '登录以同步日历和任务。';
 
   @override
   String get scheduleNoSearchResults => '没有匹配的日程或任务';
@@ -3177,6 +3142,9 @@ class AppLocalizationsZh extends AppLocalizations {
   @override
   String get oauthRevokedRemovalIncomplete =>
       '远程授权已撤销，但账户清理未能完成。请重启 BusyMax 以重试本地恢复。';
+
+  @override
+  String get addAccount => '添加账户';
 }
 
 /// The translations for Chinese, using the Han script (`zh_Hans`).
@@ -3541,35 +3509,6 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
       '必须授予 Google 日历和 Google Tasks 权限。请重试并选中两个复选框。';
 
   @override
-  String get finishSetup => '完成设置';
-
-  @override
-  String get continueSetup => '继续';
-
-  @override
-  String get onboardingSetupTitle => '设置 BusyMax';
-
-  @override
-  String get onboardingAccountsStepTitle => '连接账户';
-
-  @override
-  String get onboardingAccountsStepDescription =>
-      '添加所有要使用的账户。BusyMax 会同步每个账户中受支持的日历、日程、任务列表和任务。';
-
-  @override
-  String get onboardingPreferencesStepTitle => '选择系统设置';
-
-  @override
-  String get onboardingPreferencesStepDescription =>
-      '打开日程前，请设置桌面行为、提醒、通知详细程度和外观。';
-
-  @override
-  String get signInWithGoogle => '使用 Google 登录';
-
-  @override
-  String get signInWithMicrosoft => '使用 Microsoft 登录';
-
-  @override
   String get googleTasksProvider => 'Google Tasks';
 
   @override
@@ -3731,12 +3670,6 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
 
   @override
   String get scheduleNoSourcesDescription => '请在设置中选择要显示的内容，然后刷新。';
-
-  @override
-  String get scheduleSignInRequired => '连接账户';
-
-  @override
-  String get scheduleSignInDescription => '登录以同步日历和任务。';
 
   @override
   String get scheduleNoSearchResults => '没有匹配的日程或任务';
@@ -6348,6 +6281,9 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
   @override
   String get oauthRevokedRemovalIncomplete =>
       '远程授权已撤销，但账户清理未能完成。请重启 BusyMax 以重试本地恢复。';
+
+  @override
+  String get addAccount => '添加账户';
 }
 
 /// The translations for Chinese, using the Han script (`zh_Hant`).
@@ -6712,35 +6648,6 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
       '必須授予 Google 日曆和 Google Tasks 權限。請再試一次並勾選兩個核取方塊。';
 
   @override
-  String get finishSetup => '完成設定';
-
-  @override
-  String get continueSetup => '繼續';
-
-  @override
-  String get onboardingSetupTitle => '設定 BusyMax';
-
-  @override
-  String get onboardingAccountsStepTitle => '連結帳戶';
-
-  @override
-  String get onboardingAccountsStepDescription =>
-      '新增所有要使用的帳戶。BusyMax 會同步每個帳戶中支援的行事曆、活動、待辦清單和待辦事項。';
-
-  @override
-  String get onboardingPreferencesStepTitle => '選擇系統設定';
-
-  @override
-  String get onboardingPreferencesStepDescription =>
-      '開啟行程前，請設定桌面行為、提醒、通知詳細程度和外觀。';
-
-  @override
-  String get signInWithGoogle => '使用 Google 登入';
-
-  @override
-  String get signInWithMicrosoft => '使用 Microsoft 登入';
-
-  @override
   String get googleTasksProvider => 'Google Tasks';
 
   @override
@@ -6902,12 +6809,6 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get scheduleNoSourcesDescription => '請在設定中選擇要顯示的內容，然後重新整理。';
-
-  @override
-  String get scheduleSignInRequired => '連結帳戶';
-
-  @override
-  String get scheduleSignInDescription => '登入以同步行事曆和待辦事項。';
 
   @override
   String get scheduleNoSearchResults => '沒有相符的活動或待辦事項';
@@ -9520,4 +9421,7 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   @override
   String get oauthRevokedRemovalIncomplete =>
       '遠端授權已撤銷，但帳戶清理未能完成。請重新啟動 BusyMax 以重試本機復原。';
+
+  @override
+  String get addAccount => '新增帳戶';
 }
