@@ -3095,4 +3095,134 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get calendarOwnerEmail => 'カレンダー所有者のメールアドレス';
+
+  @override
+  String registrationSetupTitle(String provider) {
+    return '$provider を設定';
+  }
+
+  @override
+  String get registrationSetupGuide => '設定ガイド';
+
+  @override
+  String get registrationGoogleInstructions =>
+      '独自の Google Cloud プロジェクトを作成し、Calendar と Tasks API を有効にして、デスクトップ OAuth クライアントの JSON をインポートします。目的のアカウントを認証してください。';
+
+  @override
+  String get registrationMicrosoftInstructions =>
+      'アプリ登録を許可する Entra テナントでパブリックアプリを登録します。クライアント ID と対象アカウントを入力します。クライアントシークレットは不要です。';
+
+  @override
+  String get registrationImportGoogle => 'デスクトップ OAuth JSON を選択';
+
+  @override
+  String get registrationValidate => '登録を検証';
+
+  @override
+  String get registrationAuthorize => 'ブラウザで認証';
+
+  @override
+  String get registrationClientId => 'アプリケーション／クライアント ID';
+
+  @override
+  String get registrationTenantId => 'テナント ID';
+
+  @override
+  String get registrationAudience => '対応アカウント';
+
+  @override
+  String get registrationBothAudience => '個人および組織アカウント';
+
+  @override
+  String get registrationOrganizationAudience => '組織アカウント';
+
+  @override
+  String get registrationPersonalAudience => '個人アカウント';
+
+  @override
+  String get registrationTenantAudience => '単一の組織テナント';
+
+  @override
+  String registrationSummary(String clientId) {
+    return '登録: $clientId';
+  }
+
+  @override
+  String get registrationMigrate => '今すぐ移行';
+
+  @override
+  String get registrationReplace => '登録を置き換え';
+
+  @override
+  String registrationRetirementNotice(String provider, String setup) {
+    return 'このアカウントは BusyMax の共有 $provider アプリ登録を使用しています。この登録は次のリリースで廃止されます。独自の $setup を設定し、このアカウントを再接続して同期を継続してください。既存のカレンダー、タスク、ローカルの変更は保持されます。';
+  }
+
+  @override
+  String get registrationContinue => 'このアカウントを引き続き使用';
+
+  @override
+  String get registrationGoogleProject => 'Google Cloud プロジェクト';
+
+  @override
+  String get registrationMicrosoftApp => 'Microsoft アプリ登録';
+
+  @override
+  String get registrationUserOwned => 'ユーザーが提供した登録';
+
+  @override
+  String get registrationNativeGoogle => 'Google Android ネイティブ登録';
+
+  @override
+  String get registrationShared => '共有登録（移行期間）';
+
+  @override
+  String get registrationUnresolved => '登録の出所を確認できません。アカウントのデータは保持されています。';
+
+  @override
+  String get registrationOfficialDocumentation => '公式ドキュメント';
+
+  @override
+  String registrationAndroidIdentity(
+    String packageName,
+    String signatureHash,
+    String redirectUri,
+  ) {
+    return 'パッケージ: $packageName\n署名ハッシュ: $signatureHash\nリダイレクト URI: $redirectUri';
+  }
+
+  @override
+  String get oauthRegistrationRejected =>
+      '登録のクライアント種別、対応アカウント、権限、リダイレクトを確認してください。インポートした設定は再選択してください。';
+
+  @override
+  String get oauthAuthorizationCodeUnusable =>
+      'この認証を完了できませんでした。認証をやり直してください。既存の接続は保持されています。';
+
+  @override
+  String get oauthPermissionRefused =>
+      '認証が拒否されたか、必要な権限がありません。再試行して必要な権限を付与してください。';
+
+  @override
+  String get oauthProviderThrottled =>
+      'プロバイダーがリクエストを制限しています。しばらく待って再試行してください。既存の接続は保持されています。';
+
+  @override
+  String get oauthProviderTemporaryFailure =>
+      'プロバイダーの一時的な問題により認証を完了できませんでした。再試行してください。既存の接続は保持されています。';
+
+  @override
+  String get oauthAuthorizationTimedOut =>
+      '認証がタイムアウトしました。再試行し、インポートした設定は再選択してください。';
+
+  @override
+  String get oauthWrongAccount => '再接続用に選択したアカウントで認証してください。既存の接続は保持されています。';
+
+  @override
+  String get oauthSecureStorageUnavailable =>
+      '安全なストレージを利用できません。アクセスを復旧して再試行してください。';
+
+  @override
+  String get oauthRevokedRemovalIncomplete =>
+      'リモート認証は取り消されましたが、アカウントのクリーンアップを完了できませんでした。BusyMax を再起動してローカル復旧を再試行してください。';
 }

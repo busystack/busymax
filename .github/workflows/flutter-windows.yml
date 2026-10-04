@@ -152,6 +152,12 @@ jobs:
             Write-Host "::error title=Windows Flutter test failed::$safeName"
           }
 
+      - name: Compile user-owned Windows x64 release
+        shell: pwsh
+        run: >-
+          ./tool/windows/build_release.ps1 -ConfigPath build/windows/store-ci.json
+          -Ci -UserOwnedOnly -Stage WindowsCompile
+
       - name: Compile Windows x64 release
         id: windows-compile
         shell: pwsh

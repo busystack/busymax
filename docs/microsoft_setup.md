@@ -1,64 +1,47 @@
-# Microsoft OAuth registration
+# Microsoft account setup
 
-This guide is for developers and release maintainers who configure a BusyMax
-build. People installing an already configured package do not need their own
-Microsoft Entra application.
+BusyMax connects with a user-provided **public/native application registration**. Linux and Windows use the system browser and localhost callback. Android keeps native MSAL and supports multiple accounts with registration-specific client selection. **No client secret or signing private key is required.**
 
-BusyMax reads the public-client application ID from the compile-time setting
-`MICROSOFT_OAUTH_CLIENT_ID`.
+## Registration access and supported accounts
 
-## Create the application registration
+You need access to an Entra tenant that permits app registration and an appropriate role or administrator assistance. A personal Microsoft account can sign in to an application whose audience includes personal accounts, but it does not automatically have tenant app-registration privileges. Microsoft's [registration quickstart](https://learn.microsoft.com/en-us/entra/identity-platform/quickstart-register-app) describes current prerequisites and roles.
 
-1. In the [Microsoft Entra admin center](https://entra.microsoft.com/), open
-   **App registrations** and select **New registration**.
-2. Enter an application name.
-3. Select the supported account type that includes both organizational
-   directories and personal Microsoft accounts.
-4. Register the application and copy its **Application (client) ID**.
-5. Under **Authentication**, add the **Mobile and desktop applications**
-   platform and the redirect URI:
+1. Open App registrations in the [Entra admin center](https://entra.microsoft.com/) for a tenant where you may register applications. Create a registration with a recognizable name.
+2. Choose supported account types: both personal and organizational accounts, organizational accounts across tenants, personal accounts only, or your organizational tenant only.
+3. Copy **Application (client) ID**. This identifies the application. **Directory (tenant) ID** identifies a directory and is a different value.
+4. In BusyMax, enter the client ID and matching audience. For one organizational tenant, also enter its tenant UUID. The configured sign-in authority (`common`, `organizations`, `consumers`, or the selected tenant UUID) is distinct from the authenticated account's actual tenant context.
 
-   ```text
-   http://localhost
-   ```
+BusyMax constructs authority endpoints on `login.microsoftonline.com` and uses Microsoft Graph. Arbitrary authority URLs, alternate clouds, Graph hosts, application permissions, client secrets and private keys are not accepted by setup.
 
-BusyMax opens the system browser and listens on an ephemeral localhost port.
-Microsoft's
-[desktop registration guidance](https://learn.microsoft.com/en-us/entra/identity-platform/quickstart-desktop-app-sign-in)
-uses this redirect for a system-browser desktop flow.
+## Linux and Windows redirect
 
-## Add delegated permissions
+Under Authentication, add **Mobile and desktop applications** with the system-browser redirect **`http://localhost`**. BusyMax listens on an ephemeral localhost port. Configure a public desktop client, not a confidential Web application. See [Microsoft's desktop registration guidance](https://learn.microsoft.com/en-us/entra/identity-platform/scenario-desktop-app-registration). PKCE, state and the redirect destination are application-controlled.
 
-Under **API permissions**, add these **delegated** Microsoft Graph permissions:
+## Android redirect
 
-```text
-User.Read
-Tasks.ReadWrite
-Calendars.ReadWrite
-```
+Open Microsoft setup in the installed BusyMax app. It shows the package name, signature hash and redirect URI calculated from **that installed signing identity**, and checks the manifest callback configuration. Add the Android platform to the registration using those displayed public values. A development build and a distribution build may have different signing certificates: do not copy another variant's signature hash. Do not supply a signing private key.
 
-These are provider-console permission names. At runtime BusyMax requests their
-fully qualified Graph scope strings together with the identity scopes
-`openid`, `profile`, and `email`, plus `offline_access` so it can request
-refresh tokens. See the official
-[Microsoft Graph permissions reference](https://learn.microsoft.com/en-us/graph/permissions-reference)
-and
-[OpenID Connect scope reference](https://learn.microsoft.com/en-us/entra/identity-platform/scopes-oidc).
+MSAL configuration includes client ID, redirect URI, authority/audience and `MULTIPLE` account mode. BusyMax selects the registration and native account for silent acquisition and optional consent; it does not export refresh tokens or implement its own cache. A correctly signed build needs a matching manifest redirect even when the shared registration is omitted. See [MSAL Android configuration](https://learn.microsoft.com/en-us/entra/msal/android/msal-configuration).
 
-The existing `Calendars.ReadWrite` grant is also used for permission
-management on the signed-in account's primary calendar. Outlook determines
-each grant's allowed roles and removability; delegated owner-calendar access
-is a separate contextual grant and is not a general sharing-administration
-permission.
+## Delegated permissions and authorization
 
-Selecting from the account's existing Outlook master categories is optional.
-BusyMax asks for the delegated `MailboxSettings.Read` permission when that
-lookup is requested. Denied or unavailable category metadata does not prevent
-editing ordinary calendar events or To Do tasks, and BusyMax does not create
-or administer categories.
+Add delegated Microsoft Graph permissions `User.Read`, `Tasks.ReadWrite` and `Calendars.ReadWrite`. BusyMax also requests `openid profile email offline_access` in the desktop authorization flow. Do not select application permissions. Depending on tenant policy, an administrator may need to approve consent; app registration alone does not guarantee permission approval.
 
-Supply the application ID as `MICROSOFT_OAUTH_CLIENT_ID`. It is embedded in
-the desktop package, so treat it as public application configuration and do not
-commit private build configuration. Do not create or embed a client secret:
-BusyMax uses an authorization-code flow with PKCE as a public client, not a
-confidential-client flow.
+`Calendars.ReadWrite.Shared` is requested explicitly when opening shared calendars. `MailboxSettings.Read` is requested explicitly for category lookup. Neither is a mandatory new-account permission. Base Calendar and Tasks functionality remains available if optional consent is declined. See the [Graph permissions reference](https://learn.microsoft.com/en-us/graph/permissions-reference).
+
+Validate the form, review its safe summary, authorize the intended account and verify both Calendar and To Do reads. Reconnect uses the current registration. Replace registration targets that same Graph identity and tenant, preserving the local account ID and data.
+
+## Existing shared accounts
+
+During this release, eligible existing desktop and Android Microsoft accounts continue through their original registration and display an account-specific retirement notice. **Migrate now** opens setup targeted to that account. Successful migration removes only its notice, survives restart and does not offer a return to the shared registration. Cancellation, wrong-account consent, insufficient scopes, timeout or storage failure preserves existing authorization and local data. Retirement is controlled by the owner in the next release; there is no calendar expiry or remote disable mechanism in BusyMax.
+
+## Troubleshooting
+
+- **Audience/tenant mismatch:** use supported account types matching the form. Personal accounts need personal support; a tenant-specific choice requires its Directory/tenant UUID.
+- **Wrong client ID/type/redirect:** use Application/client ID from a public/native registration; desktop needs `http://localhost`, Android needs the installed package/signature redirect.
+- **Wrong account:** authorize the selected Graph user in the same actual tenant. A login hint or matching email is not an identity check.
+- **Missing scopes/admin restriction:** grant the delegated base permissions or ask the tenant administrator. Optional consent is feature-specific.
+- **Secure storage/configuration unavailable:** repair configuration or unlock credential storage and retry; do not remove an account to migrate it.
+- **Outage or throttling:** wait and retain credentials. BusyMax honors `Retry-After` and stores long cooldowns rather than retrying early. See [Graph throttling](https://learn.microsoft.com/en-us/graph/throttling).
+
+Official documents checked during implementation; no authenticated Entra portal walkthrough was performed.

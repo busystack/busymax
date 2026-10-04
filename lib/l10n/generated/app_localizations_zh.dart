@@ -3053,6 +3053,130 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get calendarOwnerEmail => '日历所有者的电子邮件地址';
+
+  @override
+  String registrationSetupTitle(String provider) {
+    return '设置 $provider';
+  }
+
+  @override
+  String get registrationSetupGuide => '设置指南';
+
+  @override
+  String get registrationGoogleInstructions =>
+      '创建自己的 Google Cloud 项目，启用 Calendar 和 Tasks API，然后导入桌面 OAuth 客户端的 JSON。请授权预期的账号。';
+
+  @override
+  String get registrationMicrosoftInstructions =>
+      '在允许应用注册的 Entra 租户中使用公共应用注册。输入客户端 ID 和支持的账号类型。无需客户端密码。';
+
+  @override
+  String get registrationImportGoogle => '选择桌面 OAuth JSON';
+
+  @override
+  String get registrationValidate => '验证注册';
+
+  @override
+  String get registrationAuthorize => '在浏览器中授权';
+
+  @override
+  String get registrationClientId => '应用程序／客户端 ID';
+
+  @override
+  String get registrationTenantId => '租户 ID';
+
+  @override
+  String get registrationAudience => '支持的账号';
+
+  @override
+  String get registrationBothAudience => '个人和组织账号';
+
+  @override
+  String get registrationOrganizationAudience => '组织账号';
+
+  @override
+  String get registrationPersonalAudience => '个人账号';
+
+  @override
+  String get registrationTenantAudience => '单个组织租户';
+
+  @override
+  String registrationSummary(String clientId) {
+    return '注册：$clientId';
+  }
+
+  @override
+  String get registrationMigrate => '立即迁移';
+
+  @override
+  String get registrationReplace => '替换注册';
+
+  @override
+  String registrationRetirementNotice(String provider, String setup) {
+    return '此账号使用 BusyMax 共享的 $provider 应用注册，该注册将在下一个版本中停用。请设置自己的 $setup 并重新连接此账号，以继续同步。现有日历、任务和本地更改将被保留。';
+  }
+
+  @override
+  String get registrationContinue => '继续使用此账号';
+
+  @override
+  String get registrationGoogleProject => 'Google Cloud 项目';
+
+  @override
+  String get registrationMicrosoftApp => 'Microsoft 应用注册';
+
+  @override
+  String get registrationUserOwned => '用户提供的注册';
+
+  @override
+  String get registrationNativeGoogle => 'Google Android 原生注册';
+
+  @override
+  String get registrationShared => '共享注册（过渡期）';
+
+  @override
+  String get registrationUnresolved => '无法确定注册来源。账号数据已保留。';
+
+  @override
+  String get registrationOfficialDocumentation => '官方文档';
+
+  @override
+  String registrationAndroidIdentity(
+    String packageName,
+    String signatureHash,
+    String redirectUri,
+  ) {
+    return '软件包：$packageName\n签名哈希：$signatureHash\n重定向 URI：$redirectUri';
+  }
+
+  @override
+  String get oauthRegistrationRejected =>
+      '请检查注册的客户端类型、支持的账户、权限和重定向设置。若配置来自导入，请重新选择配置文件。';
+
+  @override
+  String get oauthAuthorizationCodeUnusable => '此次授权未能完成。请重新开始授权；现有连接已保留。';
+
+  @override
+  String get oauthPermissionRefused => '授权被拒绝或缺少所需权限。请重试并授予所需权限。';
+
+  @override
+  String get oauthProviderThrottled => '服务提供方正在限制请求。请稍后重试；现有连接已保留。';
+
+  @override
+  String get oauthProviderTemporaryFailure => '服务提供方的临时问题导致授权未能完成。请重试；现有连接已保留。';
+
+  @override
+  String get oauthAuthorizationTimedOut => '授权超时。请重试；若配置来自导入，请重新选择配置文件。';
+
+  @override
+  String get oauthWrongAccount => '请授权为重新连接而选定的账户。现有连接已保留。';
+
+  @override
+  String get oauthSecureStorageUnavailable => '安全存储不可用。请恢复安全存储访问后重试。';
+
+  @override
+  String get oauthRevokedRemovalIncomplete =>
+      '远程授权已撤销，但账户清理未能完成。请重启 BusyMax 以重试本地恢复。';
 }
 
 /// The translations for Chinese, using the Han script (`zh_Hans`).
@@ -6100,6 +6224,130 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
 
   @override
   String get calendarOwnerEmail => '日历所有者的电子邮件地址';
+
+  @override
+  String registrationSetupTitle(String provider) {
+    return '设置 $provider';
+  }
+
+  @override
+  String get registrationSetupGuide => '设置指南';
+
+  @override
+  String get registrationGoogleInstructions =>
+      '创建自己的 Google Cloud 项目，启用 Calendar 和 Tasks API，然后导入桌面 OAuth 客户端的 JSON。请授权预期的账号。';
+
+  @override
+  String get registrationMicrosoftInstructions =>
+      '在允许应用注册的 Entra 租户中使用公共应用注册。输入客户端 ID 和支持的账号类型。无需客户端密码。';
+
+  @override
+  String get registrationImportGoogle => '选择桌面 OAuth JSON';
+
+  @override
+  String get registrationValidate => '验证注册';
+
+  @override
+  String get registrationAuthorize => '在浏览器中授权';
+
+  @override
+  String get registrationClientId => '应用程序／客户端 ID';
+
+  @override
+  String get registrationTenantId => '租户 ID';
+
+  @override
+  String get registrationAudience => '支持的账号';
+
+  @override
+  String get registrationBothAudience => '个人和组织账号';
+
+  @override
+  String get registrationOrganizationAudience => '组织账号';
+
+  @override
+  String get registrationPersonalAudience => '个人账号';
+
+  @override
+  String get registrationTenantAudience => '单个组织租户';
+
+  @override
+  String registrationSummary(String clientId) {
+    return '注册：$clientId';
+  }
+
+  @override
+  String get registrationMigrate => '立即迁移';
+
+  @override
+  String get registrationReplace => '替换注册';
+
+  @override
+  String registrationRetirementNotice(String provider, String setup) {
+    return '此账号使用 BusyMax 共享的 $provider 应用注册，该注册将在下一个版本中停用。请设置自己的 $setup 并重新连接此账号，以继续同步。现有日历、任务和本地更改将被保留。';
+  }
+
+  @override
+  String get registrationContinue => '继续使用此账号';
+
+  @override
+  String get registrationGoogleProject => 'Google Cloud 项目';
+
+  @override
+  String get registrationMicrosoftApp => 'Microsoft 应用注册';
+
+  @override
+  String get registrationUserOwned => '用户提供的注册';
+
+  @override
+  String get registrationNativeGoogle => 'Google Android 原生注册';
+
+  @override
+  String get registrationShared => '共享注册（过渡期）';
+
+  @override
+  String get registrationUnresolved => '无法确定注册来源。账号数据已保留。';
+
+  @override
+  String get registrationOfficialDocumentation => '官方文档';
+
+  @override
+  String registrationAndroidIdentity(
+    String packageName,
+    String signatureHash,
+    String redirectUri,
+  ) {
+    return '软件包：$packageName\n签名哈希：$signatureHash\n重定向 URI：$redirectUri';
+  }
+
+  @override
+  String get oauthRegistrationRejected =>
+      '请检查注册的客户端类型、支持的账户、权限和重定向设置。若配置来自导入，请重新选择配置文件。';
+
+  @override
+  String get oauthAuthorizationCodeUnusable => '此次授权未能完成。请重新开始授权；现有连接已保留。';
+
+  @override
+  String get oauthPermissionRefused => '授权被拒绝或缺少所需权限。请重试并授予所需权限。';
+
+  @override
+  String get oauthProviderThrottled => '服务提供方正在限制请求。请稍后重试；现有连接已保留。';
+
+  @override
+  String get oauthProviderTemporaryFailure => '服务提供方的临时问题导致授权未能完成。请重试；现有连接已保留。';
+
+  @override
+  String get oauthAuthorizationTimedOut => '授权超时。请重试；若配置来自导入，请重新选择配置文件。';
+
+  @override
+  String get oauthWrongAccount => '请授权为重新连接而选定的账户。现有连接已保留。';
+
+  @override
+  String get oauthSecureStorageUnavailable => '安全存储不可用。请恢复安全存储访问后重试。';
+
+  @override
+  String get oauthRevokedRemovalIncomplete =>
+      '远程授权已撤销，但账户清理未能完成。请重启 BusyMax 以重试本地恢复。';
 }
 
 /// The translations for Chinese, using the Han script (`zh_Hant`).
@@ -9148,4 +9396,128 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get calendarOwnerEmail => '行事曆擁有者的電子郵件地址';
+
+  @override
+  String registrationSetupTitle(String provider) {
+    return '設定 $provider';
+  }
+
+  @override
+  String get registrationSetupGuide => '設定指南';
+
+  @override
+  String get registrationGoogleInstructions =>
+      '建立自己的 Google Cloud 專案，啟用 Calendar 和 Tasks API，然後匯入桌面 OAuth 用戶端的 JSON。請授權預期的帳戶。';
+
+  @override
+  String get registrationMicrosoftInstructions =>
+      '在允許應用程式註冊的 Entra 租戶中使用公用應用程式註冊。輸入用戶端 ID 和支援的帳戶類型。無需用戶端密碼。';
+
+  @override
+  String get registrationImportGoogle => '選擇桌面 OAuth JSON';
+
+  @override
+  String get registrationValidate => '驗證註冊';
+
+  @override
+  String get registrationAuthorize => '在瀏覽器中授權';
+
+  @override
+  String get registrationClientId => '應用程式／用戶端 ID';
+
+  @override
+  String get registrationTenantId => '租戶 ID';
+
+  @override
+  String get registrationAudience => '支援的帳戶';
+
+  @override
+  String get registrationBothAudience => '個人和組織帳戶';
+
+  @override
+  String get registrationOrganizationAudience => '組織帳戶';
+
+  @override
+  String get registrationPersonalAudience => '個人帳戶';
+
+  @override
+  String get registrationTenantAudience => '單一組織租戶';
+
+  @override
+  String registrationSummary(String clientId) {
+    return '註冊：$clientId';
+  }
+
+  @override
+  String get registrationMigrate => '立即移轉';
+
+  @override
+  String get registrationReplace => '取代註冊';
+
+  @override
+  String registrationRetirementNotice(String provider, String setup) {
+    return '此帳戶使用 BusyMax 共用的 $provider 應用程式註冊，該註冊將在下一個版本中停用。請設定自己的 $setup 並重新連接此帳戶，以繼續同步。現有行事曆、工作和本機變更將被保留。';
+  }
+
+  @override
+  String get registrationContinue => '繼續使用此帳戶';
+
+  @override
+  String get registrationGoogleProject => 'Google Cloud 專案';
+
+  @override
+  String get registrationMicrosoftApp => 'Microsoft 應用程式註冊';
+
+  @override
+  String get registrationUserOwned => '使用者提供的註冊';
+
+  @override
+  String get registrationNativeGoogle => 'Google Android 原生註冊';
+
+  @override
+  String get registrationShared => '共用註冊（過渡期）';
+
+  @override
+  String get registrationUnresolved => '無法確定註冊來源。帳戶資料已保留。';
+
+  @override
+  String get registrationOfficialDocumentation => '官方文件';
+
+  @override
+  String registrationAndroidIdentity(
+    String packageName,
+    String signatureHash,
+    String redirectUri,
+  ) {
+    return '套件：$packageName\n簽章雜湊：$signatureHash\n重新導向 URI：$redirectUri';
+  }
+
+  @override
+  String get oauthRegistrationRejected =>
+      '請檢查註冊的用戶端類型、支援的帳戶、權限和重新導向設定。若設定來自匯入，請重新選擇設定檔。';
+
+  @override
+  String get oauthAuthorizationCodeUnusable => '此次授權未能完成。請重新開始授權；現有連線已保留。';
+
+  @override
+  String get oauthPermissionRefused => '授權遭拒或缺少所需權限。請重試並授予所需權限。';
+
+  @override
+  String get oauthProviderThrottled => '服務提供者正在限制請求。請稍後重試；現有連線已保留。';
+
+  @override
+  String get oauthProviderTemporaryFailure => '服務提供者的暫時問題導致授權未能完成。請重試；現有連線已保留。';
+
+  @override
+  String get oauthAuthorizationTimedOut => '授權逾時。請重試；若設定來自匯入，請重新選擇設定檔。';
+
+  @override
+  String get oauthWrongAccount => '請授權為重新連線而選定的帳戶。現有連線已保留。';
+
+  @override
+  String get oauthSecureStorageUnavailable => '安全儲存空間無法使用。請恢復存取後重試。';
+
+  @override
+  String get oauthRevokedRemovalIncomplete =>
+      '遠端授權已撤銷，但帳戶清理未能完成。請重新啟動 BusyMax 以重試本機復原。';
 }

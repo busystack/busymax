@@ -1,7 +1,19 @@
+import 'package:busymax/src/core/auth/authorization_attempt.dart';
+import 'package:busymax/src/core/auth/registration_file_reader.dart';
+import '../../../support/native_registration_reader_fixture.dart';
+import 'dart:convert';
+import 'package:busymax/src/core/auth/authorization_persistence.dart';
+import 'package:busymax/src/core/auth/oauth_registration.dart';
+import 'package:busymax/src/core/auth/registration_staging.dart';
+import 'package:busymax/src/google_tasks/oauth/oauth_loopback_flow.dart';
+import 'package:http/http.dart' as http;
+import 'package:http/testing.dart';
 import 'dart:async';
 import 'dart:io';
+import 'package:busymax/src/features/connectivity/network_connectivity_service.dart';
+import 'package:file_selector_platform_interface/file_selector_platform_interface.dart';
 
-import 'package:drift/drift.dart';
+import 'package:drift/drift.dart' hide isNotNull, isNull;
 import 'package:drift/native.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -14,7 +26,7 @@ import 'package:busymax/src/app/busymax_app.dart';
 import 'package:busymax/src/app/busymax_design.dart';
 import 'package:busymax/src/app/linux/linux_header_style.dart';
 import 'package:busymax/src/config/build_config.dart';
-import 'package:busymax/src/db/app_database.dart';
+import 'package:busymax/src/db/app_database.dart' hide AuthorizationCommit;
 import 'package:busymax/src/features/accounts/data/accounts_repository.dart';
 import 'package:busymax/src/features/auth/data/auth_repository.dart';
 import 'package:busymax/src/features/schedule/presentation/schedule_workspace.dart';
@@ -29,12 +41,45 @@ import 'package:busymax/src/schedule/schedule_scope.dart';
 import 'package:busymax/src/providers/busy_provider.dart';
 
 const _nativeDialogChannel = MethodChannel(nativeDialogChannelName);
+late RegistrationFileReader _nativeReader;
 
 void main() {
   late AppDatabase database;
   late _FakeOAuthGateway oAuth;
+  setUpAll(() async {
+    _nativeReader = await buildNativeRegistrationReader();
+  });
 
-  setUp(() {
+  setUp(() async {
+    for (final name in [
+      'io.busystack.busymax/gtk_theme_colors',
+      'io.busystack.busymax/gtk_font_settings',
+      'yaru_window',
+      'yaru_window/events',
+    ]) {
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(
+            MethodChannel(name),
+            (_) async => name == 'yaru_window' ? <String, Object?>{} : null,
+          );
+      addTearDown(
+        () => TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+            .setMockMethodCallHandler(MethodChannel(name), null),
+      );
+    }
+    final previousSelector = FileSelectorPlatform.instance;
+    final directory = await Directory.systemTemp.createTemp(
+      'busymax-widget-registration-',
+    );
+    final selected = File('${directory.path}/desktop.json');
+    await selected.writeAsString(
+      '{"installed":{"client_id":"fixture.apps.googleusercontent.com","project_id":"fixture-project"}}',
+    );
+    FileSelectorPlatform.instance = _RegistrationFileSelector(selected.path);
+    addTearDown(() async {
+      FileSelectorPlatform.instance = previousSelector;
+      await directory.delete(recursive: true);
+    });
     database = AppDatabase(NativeDatabase.memory());
     oAuth = _FakeOAuthGateway();
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
@@ -46,6 +91,176 @@ void main() {
         .setMockMethodCallHandler(_nativeDialogChannel, null);
     await database.close();
   });
+
+  testWidgets(
+    'retirement is account-specific; cancelled migration retries and survives restart',
+    (tester) async {
+      final secrets = InMemorySecretStore();
+      final persistence = AuthorizationPersistence(
+        database: database,
+        secrets: secrets,
+      );
+      final staging = RegistrationStaging(
+        _configuredBuildConfig,
+        fileReader: _nativeReader,
+      );
+      addTearDown(staging.dispose);
+      final flow = _MigrationBrowserFlow();
+      final google = OAuthService(
+        config: _configuredBuildConfig,
+        tokenStore: secrets,
+        registrations: staging,
+        persistence: persistence,
+        loopbackFlow: flow,
+        httpClient: MockClient(
+          (request) async => http.Response(
+            jsonEncode(
+              request.method == 'GET'
+                  ? {
+                      'sub': 'google:existing',
+                      'email': 'fixture@example.invalid',
+                    }
+                  : {
+                      'access_token': 'synthetic-access',
+                      'refresh_token': 'synthetic-refresh',
+                      'expires_in': 3600,
+                      'scope': googleBusyMaxOAuthScope,
+                    },
+            ),
+            200,
+          ),
+        ),
+      );
+      await _insertAccount(
+        database,
+        id: 'google:existing',
+        provider: BusyProvider.google,
+      );
+      await _insertAccount(
+        database,
+        id: 'microsoft:existing',
+        provider: BusyProvider.microsoft,
+      );
+      final records = <String, SecretRecord>{
+        'google:existing': GoogleDesktopCredential(
+          registration: const GoogleDesktopRegistration(
+            clientId: 'shared.apps.googleusercontent.com',
+            projectId: 'fixture-shared',
+            origin: RegistrationOrigin.retiringShared,
+          ),
+          tokenSet: _tokenSet(),
+          subject: 'google:existing',
+          generation: 1,
+          transitionEligible: true,
+        ),
+        'microsoft:existing': MicrosoftDesktopCredential(
+          registration: MicrosoftPublicRegistration(
+            clientId: '22222222-2222-2222-2222-222222222222',
+            audience: MicrosoftAudience.personalAndOrganizations,
+            origin: RegistrationOrigin.retiringShared,
+          ),
+          tokenSet: _tokenSet(),
+          subject: 'microsoft:existing',
+          tenantId: '11111111-1111-1111-1111-111111111111',
+          generation: 1,
+          transitionEligible: true,
+        ),
+      };
+      await tester.runAsync(() async {
+        for (final entry in records.entries) {
+          await secrets.saveCredential(entry.key, entry.value);
+          await database
+              .into(database.oAuthTransitionAccounts)
+              .insert(
+                OAuthTransitionAccountsCompanion.insert(accountId: entry.key),
+              );
+          await database
+              .into(database.authorizationGenerations)
+              .insert(
+                AuthorizationGenerationsCompanion.insert(
+                  accountId: entry.key,
+                  generation: 1,
+                ),
+              );
+          await database
+              .into(database.accountAuthorizations)
+              .insert(
+                AccountAuthorizationsCompanion.insert(
+                  accountId: entry.key,
+                  generation: 1,
+                  summaryJson: '{}',
+                ),
+              );
+        }
+      });
+      await _pumpApp(
+        tester,
+        database: database,
+        oAuth: google,
+        secrets: secrets,
+        persistence: persistence,
+        staging: staging,
+      );
+      await tester.pumpAndSettle();
+      await _openSettings(tester);
+      expect(find.text('Migrate now'), findsNWidgets(2));
+      await tester.ensureVisible(find.text('Migrate now').first);
+      await tester.tap(find.text('Migrate now').first);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Cancel').last);
+      await tester.pumpAndSettle();
+      expect(find.text('Migrate now'), findsNWidgets(2));
+      expect(flow.clients, isEmpty);
+      await tester.tap(find.text('Migrate now').first);
+      await tester.pumpAndSettle();
+      await _validateAndAuthorizeGoogleSetup(tester);
+      await tester.pumpAndSettle();
+      expect(flow.clients, ['fixture.apps.googleusercontent.com']);
+      for (var attempt = 0; attempt < 30; attempt++) {
+        await tester.runAsync(
+          () => Future<void>.delayed(const Duration(milliseconds: 10)),
+        );
+        await tester.pump();
+        if (await tester.runAsync(
+              () => persistence.generation('google:existing'),
+            ) ==
+            2) {
+          break;
+        }
+      }
+      await tester.pumpAndSettle();
+      expect(find.text('Migrate now'), findsOneWidget);
+      expect(
+        (await tester.runAsync(() => secrets.readCredential('google:existing')))
+            as GoogleDesktopCredential,
+        isA<GoogleDesktopCredential>().having(
+          (r) => r.registration.origin,
+          'origin',
+          RegistrationOrigin.userProvided,
+        ),
+      );
+      expect(
+        await tester.runAsync(
+          () => secrets.readCredential('google:google:existing'),
+        ),
+        isNull,
+      );
+      await _disposeApp(tester);
+      await _pumpApp(
+        tester,
+        database: database,
+        oAuth: google,
+        secrets: secrets,
+        persistence: persistence,
+        staging: staging,
+      );
+      await tester.pumpAndSettle();
+      await _openSettings(tester);
+      expect(find.text('Migrate now'), findsOneWidget);
+      expect(find.textContaining('User-provided registration'), findsOneWidget);
+      await _disposeApp(tester);
+    },
+  );
 
   testWidgets('signed-out app shows sign-in route', (tester) async {
     await _pumpApp(tester, database: database, oAuth: oAuth);
@@ -188,7 +403,7 @@ void main() {
 
     await _pumpApp(tester, database: database, oAuth: oAuth);
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Add Google account'));
+    await _authorizeGoogleSetup(tester);
     await tester.pumpAndSettle();
     await tester.tap(find.text('Continue'));
     await tester.pumpAndSettle();
@@ -239,7 +454,7 @@ void main() {
     await _pumpApp(tester, database: database, oAuth: oAuth);
     await tester.pumpAndSettle();
 
-    await tester.tap(find.text('Add Google account'));
+    await _authorizeGoogleSetup(tester);
     await tester.pumpAndSettle();
 
     expect(
@@ -248,7 +463,10 @@ void main() {
       ),
       findsOneWidget,
     );
-    expect(await database.select(database.accounts).get(), isEmpty);
+    expect(
+      (await tester.runAsync(() => database.select(database.accounts).get()))!,
+      isEmpty,
+    );
     await _disposeApp(tester);
   });
 
@@ -258,10 +476,12 @@ void main() {
     await _pumpApp(tester, database: database, oAuth: oAuth);
     await tester.pumpAndSettle();
 
-    await tester.tap(find.text('Add Google account'));
+    await _authorizeGoogleSetup(tester);
     await tester.pumpAndSettle();
 
-    final account = await database.select(database.accounts).getSingle();
+    final account = (await tester.runAsync(
+      () => database.select(database.accounts).getSingle(),
+    ))!;
     expect(account.authState, 'signed_in');
     expect(account.grantedScopes, googleBusyMaxOAuthScopes.join(' '));
     expect(find.text('Choose system settings'), findsNothing);
@@ -315,7 +535,7 @@ void main() {
     await _sendAltLeft(tester);
     expect(find.text('Connect accounts'), findsOneWidget);
 
-    await tester.tap(find.text('Add Google account'));
+    await _authorizeGoogleSetup(tester);
     await tester.pumpAndSettle();
     await tester.tap(find.text('Continue'));
     await tester.pumpAndSettle();
@@ -342,7 +562,9 @@ void main() {
 
     expect(find.byType(ScheduleWorkspace), findsOneWidget);
 
-    final accountId = (await database.select(database.accounts).getSingle()).id;
+    final accountId = ((await tester.runAsync(
+      () => database.select(database.accounts).getSingle(),
+    ))!).id;
     await database.taskListsDao.upsertTaskList(
       TaskListsCompanion.insert(
         accountId: accountId,
@@ -432,14 +654,12 @@ void main() {
     await _pumpApp(tester, database: database, oAuth: oAuth);
     await tester.pumpAndSettle();
 
-    await tester.tap(find.text('Add Google account'));
+    await _authorizeGoogleSetup(tester);
     await tester.pumpAndSettle();
 
     expect(
       find.text(
-        'Google sign-in callback was not received by BusyMax. Try signing in '
-        'again. If the browser opened an old tab, close it and start sign-in '
-        'again.',
+        'Authorization timed out. Try again; select a fresh configuration if it was imported.',
       ),
       findsOneWidget,
     );
@@ -456,7 +676,7 @@ void main() {
     await _pumpApp(tester, database: database, oAuth: oAuth);
     await tester.pumpAndSettle();
 
-    await tester.tap(find.text('Add Google account'));
+    await _authorizeGoogleSetup(tester);
     await tester.pumpAndSettle();
 
     expect(find.text(secretStorageUnavailableMessage), findsOneWidget);
@@ -470,7 +690,7 @@ void main() {
     await _pumpApp(tester, database: database, oAuth: oAuth);
     await tester.pumpAndSettle();
 
-    await tester.tap(find.text('Add Google account'));
+    await _authorizeGoogleSetup(tester);
     await tester.pump();
 
     expect(find.text('Waiting for Google sign-in...'), findsOneWidget);
@@ -630,7 +850,9 @@ void main() {
     await tester.tap(find.byKey(const Key('confirm-account-removal')));
     await tester.pumpAndSettle();
 
-    final accounts = await database.select(database.accounts).get();
+    final accounts = (await tester.runAsync(
+      () => database.select(database.accounts).get(),
+    ))!;
     expect(accounts.map((account) => account.id), ['microsoft:remain']);
     expect(container.read(selectedAccountIdProvider), 'microsoft:remain');
     expect(container.read(appRouterProvider), same(router));
@@ -692,7 +914,9 @@ void main() {
       await tester.tap(find.byKey(const Key('confirm-account-removal')));
       await tester.pumpAndSettle();
 
-      final accounts = await database.select(database.accounts).get();
+      final accounts = (await tester.runAsync(
+        () => database.select(database.accounts).get(),
+      ))!;
       expect(accounts.map((account) => account.id), ['microsoft:remain']);
       expect(container.read(selectedAccountIdProvider), 'microsoft:remain');
       expect(container.read(appRouterProvider), same(router));
@@ -736,7 +960,7 @@ void main() {
         tester.element(find.byType(SettingsScreen)),
       );
 
-      await tester.tap(find.text('Add Google account'));
+      await _authorizeGoogleSetup(tester);
       await tester.pump();
 
       final sessionWhileConnecting = container.read(
@@ -759,7 +983,9 @@ void main() {
         'google:existing',
       );
       expect(
-        (await database.select(database.accounts).getSingle()).authState,
+        (await tester.runAsync(
+          () => database.select(database.accounts).getSingle(),
+        ))!.authState,
         accountAuthStateSignedIn,
       );
       await _disposeApp(tester);
@@ -790,7 +1016,7 @@ void main() {
         tester.element(find.byType(SettingsScreen)),
       );
 
-      await tester.tap(find.text('Add Google account'));
+      await _authorizeGoogleSetup(tester);
       await tester.pumpAndSettle();
 
       expect(oAuth.signInCalls, 1);
@@ -801,7 +1027,9 @@ void main() {
       );
       expect(find.byType(SettingsScreen), findsOneWidget);
       expect(find.text('Connect accounts'), findsNothing);
-      final accounts = await database.select(database.accounts).get();
+      final accounts = (await tester.runAsync(
+        () => database.select(database.accounts).get(),
+      ))!;
       expect(
         accounts
             .where((account) => account.authState == accountAuthStateSignedIn)
@@ -812,50 +1040,49 @@ void main() {
     },
   );
 
-  testWidgets(
-    'account add failure stays in Settings and preserves the session',
-    (tester) async {
-      await _insertAccount(
-        database,
-        id: 'microsoft:existing',
-        provider: BusyProvider.microsoft,
-      );
-      oAuth.signInError = const OAuthException(
-        'OAuthCallbackTimeout',
-        'raw timeout',
-      );
-      await _pumpApp(tester, database: database, oAuth: oAuth);
-      await tester.pumpAndSettle();
-      await _openSettings(tester);
-      final container = ProviderScope.containerOf(
-        tester.element(find.byType(SettingsScreen)),
-      );
+  testWidgets('account add failure stays in Settings and preserves the session', (
+    tester,
+  ) async {
+    await _insertAccount(
+      database,
+      id: 'microsoft:existing',
+      provider: BusyProvider.microsoft,
+    );
+    oAuth.signInError = const OAuthException(
+      'OAuthCallbackTimeout',
+      'raw timeout',
+    );
+    await _pumpApp(tester, database: database, oAuth: oAuth);
+    await tester.pumpAndSettle();
+    await _openSettings(tester);
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(SettingsScreen)),
+    );
 
-      await tester.tap(find.text('Add Google account'));
-      await tester.pumpAndSettle();
+    await _authorizeGoogleSetup(tester);
+    await tester.pumpAndSettle();
 
-      expect(oAuth.signInCalls, 1);
-      expect(find.byType(SettingsScreen), findsOneWidget);
-      expect(
-        find.text(
-          'Google sign-in callback was not received by BusyMax. Try signing '
-          'in again. If the browser opened an old tab, close it and start '
-          'sign-in again.',
-        ),
-        findsOneWidget,
-      );
-      expect(find.textContaining('raw timeout'), findsNothing);
-      _expectExistingSessionSignedIn(
-        container.read(authSessionControllerProvider),
-        'microsoft:existing',
-      );
-      expect(
-        (await database.select(database.accounts).getSingle()).authState,
-        accountAuthStateSignedIn,
-      );
-      await _disposeApp(tester);
-    },
-  );
+    expect(oAuth.signInCalls, 1);
+    expect(find.byType(SettingsScreen), findsOneWidget);
+    expect(
+      find.text(
+        'Authorization timed out. Try again; select a fresh configuration if it was imported.',
+      ),
+      findsOneWidget,
+    );
+    expect(find.textContaining('raw timeout'), findsNothing);
+    _expectExistingSessionSignedIn(
+      container.read(authSessionControllerProvider),
+      'microsoft:existing',
+    );
+    expect(
+      (await tester.runAsync(
+        () => database.select(database.accounts).getSingle(),
+      ))!.authState,
+      accountAuthStateSignedIn,
+    );
+    await _disposeApp(tester);
+  });
 
   testWidgets(
     'reconnecting an account keeps the existing session and Settings route',
@@ -904,7 +1131,9 @@ void main() {
         container.read(authSessionControllerProvider),
         'microsoft:existing',
       );
-      final accounts = await database.select(database.accounts).get();
+      final accounts = (await tester.runAsync(
+        () => database.select(database.accounts).get(),
+      ))!;
       expect(
         accounts
             .singleWhere((account) => account.id == 'microsoft:existing')
@@ -917,7 +1146,7 @@ void main() {
 }
 
 Future<void> _completeOnboardingWithGoogle(WidgetTester tester) async {
-  await tester.tap(find.text('Add Google account'));
+  await _authorizeGoogleSetup(tester);
   await tester.pumpAndSettle();
   await tester.tap(find.text('Continue'));
   await tester.pumpAndSettle();
@@ -960,40 +1189,58 @@ Future<void> _insertAccount(
   required BusyProvider provider,
   String authState = accountAuthStateSignedIn,
 }) {
-  return database
-      .into(database.accounts)
-      .insert(
-        AccountsCompanion.insert(
-          id: id,
-          provider: provider.storageValue,
-          authority: provider == BusyProvider.microsoft
-              ? 'https://login.microsoftonline.com/common'
-              : 'https://accounts.google.com',
-          providerAccountId: id,
-          credentialKind: 'oauth',
-          authState: Value(authState),
-          displayName: Value(provider.displayName),
-          createdAtUtc: '2026-06-04T00:00:00.000Z',
-          updatedAtUtc: '2026-06-04T00:00:00.000Z',
-        ),
-      );
+  return TestWidgetsFlutterBinding.instance.runAsync(() async {
+    await database
+        .into(database.accounts)
+        .insert(
+          AccountsCompanion.insert(
+            id: id,
+            provider: provider.storageValue,
+            authority: provider == BusyProvider.microsoft
+                ? 'https://login.microsoftonline.com/common'
+                : 'https://accounts.google.com',
+            providerAccountId: id,
+            credentialKind: 'oauth',
+            authState: Value(authState),
+            displayName: Value(provider.displayName),
+            createdAtUtc: '2026-06-04T00:00:00.000Z',
+            updatedAtUtc: '2026-06-04T00:00:00.000Z',
+          ),
+        );
+  });
 }
 
 Future<void> _pumpApp(
   WidgetTester tester, {
   required AppDatabase database,
-  required _FakeOAuthGateway oAuth,
+  required OAuthGateway oAuth,
+  SecretStore? secrets,
+  AuthorizationPersistence? persistence,
+  RegistrationStaging? staging,
   SignedInSyncRunner? onSignedIn,
 }) {
+  final registrationStaging =
+      staging ??
+      RegistrationStaging(_configuredBuildConfig, fileReader: _nativeReader);
+  if (staging == null) addTearDown(registrationStaging.dispose);
   return tester.pumpWidget(
     ProviderScope(
       overrides: [
         buildConfigProvider.overrideWithValue(_configuredBuildConfig),
+        networkConnectivityMonitorProvider.overrideWithValue(
+          NetworkConnectivityMonitor.withoutPlatformObservation(),
+        ),
         databaseProvider.overrideWithValue(database),
+        registrationStagingProvider.overrideWithValue(registrationStaging),
+        if (secrets != null) secretStoreProvider.overrideWithValue(secrets),
+        if (persistence != null)
+          authorizationPersistenceProvider.overrideWithValue(persistence),
+        applicationOAuthGatewayProvider.overrideWithValue(oAuth),
         authRepositoryProvider.overrideWithValue(
           AuthRepository(
             oAuth: oAuth,
             database: database,
+            authorizationPersistence: persistence,
             nowUtc: () => DateTime.utc(2026, 6, 4),
           ),
         ),
@@ -1095,3 +1342,67 @@ const _configuredBuildConfig = BuildConfig(
   oauthTokenEndpoint: 'https://oauth2.googleapis.com/token',
   oauthRevocationEndpoint: 'https://oauth2.googleapis.com/revoke',
 );
+
+class _RegistrationFileSelector extends FileSelectorPlatform {
+  _RegistrationFileSelector(this.path);
+  final String path;
+  @override
+  Future<XFile?> openFile({
+    List<XTypeGroup>? acceptedTypeGroups,
+    String? initialDirectory,
+    String? confirmButtonText,
+  }) async => XFile(path);
+}
+
+Future<void> _authorizeGoogleSetup(WidgetTester tester) async {
+  await tester.tap(find.text('Add Google account'));
+  await tester.pumpAndSettle();
+  await _validateAndAuthorizeGoogleSetup(tester);
+}
+
+Future<void> _validateAndAuthorizeGoogleSetup(WidgetTester tester) async {
+  await tester.runAsync(() async {
+    final action = tester
+        .widget<FilledButton>(
+          find.byKey(const ValueKey('registration-validate')),
+        )
+        .onPressed;
+    expect(action, isNotNull);
+    await (action as dynamic)();
+  });
+  await tester.pumpAndSettle();
+  final button = tester.widget<FilledButton>(
+    find.byKey(const ValueKey('registration-authorize')),
+  );
+  expect(button.onPressed, isNotNull);
+  await tester.tap(find.byKey(const ValueKey('registration-authorize')));
+  await tester.pump();
+  await tester.pump(const Duration(milliseconds: 250));
+  await tester.pump();
+}
+
+class _MigrationBrowserFlow extends OAuthLoopbackFlow {
+  _MigrationBrowserFlow() : super(authorizationLauncher: (_) async => false);
+  final clients = <String>[];
+  @override
+  Future<OAuthLoopbackResult> start({
+    required Uri authorizationEndpoint,
+    required String clientId,
+    required String scope,
+    String redirectHost = '127.0.0.1',
+    String signInCancelledMessage = '',
+    String callbackNotReceivedMessage = '',
+    String serverStartFailureMessage = '',
+    String browserLaunchFailureMessage = '',
+    Map<String, String> extraAuthorizationParameters = const {},
+    String? loginHint,
+    AuthorizationAttempt? attempt,
+  }) async {
+    clients.add(clientId);
+    return OAuthLoopbackResult(
+      callback: OAuthCallbackResult(code: 'synthetic-code', scope: scope),
+      redirectUri: 'http://127.0.0.1:4321/',
+      codeVerifier: 'synthetic-verifier',
+    );
+  }
+}

@@ -3191,4 +3191,138 @@ class AppLocalizationsFi extends AppLocalizations {
 
   @override
   String get calendarOwnerEmail => 'Kalenterin omistajan sähköpostiosoite';
+
+  @override
+  String registrationSetupTitle(String provider) {
+    return 'Määritä $provider';
+  }
+
+  @override
+  String get registrationSetupGuide => 'Määritysohje';
+
+  @override
+  String get registrationGoogleInstructions =>
+      'Luo oma Google Cloud -projekti, ota Calendar ja Tasks käyttöön ja tuo työpöydän OAuth-asiakkaan JSON-tiedosto. Valtuuta haluamasi tili.';
+
+  @override
+  String get registrationMicrosoftInstructions =>
+      'Käytä julkisen sovelluksen rekisteröintiä Entra-vuokraajassa, joka sallii rekisteröinnit. Anna asiakastunnus ja tilityypit. Asiakassalaisuutta ei tarvita.';
+
+  @override
+  String get registrationImportGoogle => 'Valitse työpöydän OAuth-JSON';
+
+  @override
+  String get registrationValidate => 'Tarkista rekisteröinti';
+
+  @override
+  String get registrationAuthorize => 'Valtuuta selaimessa';
+
+  @override
+  String get registrationClientId => 'Sovellus-/asiakastunnus';
+
+  @override
+  String get registrationTenantId => 'Vuokraajan tunnus';
+
+  @override
+  String get registrationAudience => 'Tuetut tilit';
+
+  @override
+  String get registrationBothAudience =>
+      'Henkilökohtaiset ja organisaation tilit';
+
+  @override
+  String get registrationOrganizationAudience => 'Organisaation tilit';
+
+  @override
+  String get registrationPersonalAudience => 'Henkilökohtaiset tilit';
+
+  @override
+  String get registrationTenantAudience => 'Yksi organisaation vuokraaja';
+
+  @override
+  String registrationSummary(String clientId) {
+    return 'Rekisteröinti: $clientId';
+  }
+
+  @override
+  String get registrationMigrate => 'Siirry nyt';
+
+  @override
+  String get registrationReplace => 'Vaihda rekisteröinti';
+
+  @override
+  String registrationRetirementNotice(String provider, String setup) {
+    return 'Tämä tili käyttää BusyMaxin yhteistä $provider-sovellusrekisteröintiä, joka poistuu seuraavassa julkaisussa. Määritä oma $setup ja yhdistä tämä tili uudelleen, jotta synkronointi jatkuu. Kalenterit, tehtävät ja paikalliset muutokset säilyvät.';
+  }
+
+  @override
+  String get registrationContinue => 'Jatka tämän tilin käyttöä';
+
+  @override
+  String get registrationGoogleProject => 'Google Cloud -projekti';
+
+  @override
+  String get registrationMicrosoftApp => 'Microsoft-sovellusrekisteröinti';
+
+  @override
+  String get registrationUserOwned => 'Käyttäjän antama rekisteröinti';
+
+  @override
+  String get registrationNativeGoogle =>
+      'Natiivi Google Android -rekisteröinti';
+
+  @override
+  String get registrationShared => 'Yhteinen rekisteröinti (siirtymä)';
+
+  @override
+  String get registrationUnresolved =>
+      'Rekisteröinnin alkuperä on selvittämättä. Tilin tiedot säilytetään.';
+
+  @override
+  String get registrationOfficialDocumentation => 'Virallinen dokumentaatio';
+
+  @override
+  String registrationAndroidIdentity(
+    String packageName,
+    String signatureHash,
+    String redirectUri,
+  ) {
+    return 'Paketti: $packageName\nAllekirjoituksen tiiviste: $signatureHash\nUudelleenohjaus-URI: $redirectUri';
+  }
+
+  @override
+  String get oauthRegistrationRejected =>
+      'Tarkista rekisteröinnin asiakastyyppi, tuetut tilit, käyttöoikeudet ja uudelleenohjaus. Valitse tuotu määritystiedosto uudelleen.';
+
+  @override
+  String get oauthAuthorizationCodeUnusable =>
+      'Tätä valtuutusta ei voitu viimeistellä. Aloita uudelleen; nykyinen yhteys säilyy.';
+
+  @override
+  String get oauthPermissionRefused =>
+      'Valtuutus hylättiin tai vaadittuja käyttöoikeuksia puuttuu. Yritä uudelleen ja myönnä tarvittavat oikeudet.';
+
+  @override
+  String get oauthProviderThrottled =>
+      'Palveluntarjoaja rajoittaa pyyntöjä. Odota ennen uutta yritystä; nykyinen yhteys säilyy.';
+
+  @override
+  String get oauthProviderTemporaryFailure =>
+      'Palveluntarjoajan tilapäinen ongelma esti valtuutuksen. Yritä uudelleen; nykyinen yhteys säilyy.';
+
+  @override
+  String get oauthAuthorizationTimedOut =>
+      'Valtuutus aikakatkaistiin. Yritä uudelleen ja valitse tuotu määritystiedosto uudelleen.';
+
+  @override
+  String get oauthWrongAccount =>
+      'Valtuuta uudelleenyhdistämistä varten valittu tili. Nykyinen yhteys säilyy.';
+
+  @override
+  String get oauthSecureStorageUnavailable =>
+      'Suojattu tallennustila ei ole käytettävissä. Palauta sen käyttö ja yritä uudelleen.';
+
+  @override
+  String get oauthRevokedRemovalIncomplete =>
+      'Etävaltuutus peruttiin, mutta tilin siivousta ei voitu viimeistellä. Käynnistä BusyMax uudelleen ja yritä paikallista palautusta uudelleen.';
 }

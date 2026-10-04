@@ -1,3 +1,7 @@
+import '../../l10n/oauth_error_description.dart';
+import '../../core/auth/authorization_attempt.dart';
+import 'windows_registration_setup_dialog.dart';
+import '../../core/auth/oauth_registration.dart';
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -22,6 +26,14 @@ class WindowsSignInPage extends ConsumerStatefulWidget {
 class _WindowsSignInPageState extends ConsumerState<WindowsSignInPage> {
   BusyProvider? _connectingDavProvider;
   DavCancellationToken? _davCancellation;
+  AuthorizationCancellation? _authorizationCancellation;
+  @override
+  void dispose() {
+    _authorizationCancellation?.cancel();
+    _davCancellation?.cancel();
+    super.dispose();
+  }
+
   String? _davError;
 
   @override
@@ -36,7 +48,8 @@ class _WindowsSignInPageState extends ConsumerState<WindowsSignInPage> {
     }
     final busy =
         session.status == AuthSessionStatus.signingIn ||
-        _connectingDavProvider != null;
+        _connectingDavProvider != null ||
+        _authorizationCancellation != null;
     return NavigationView(
       content: ScaffoldPage(
         content: Center(
@@ -70,30 +83,29 @@ class _WindowsSignInPageState extends ConsumerState<WindowsSignInPage> {
                   if (session.message != null || _davError != null) ...[
                     const SizedBox(height: 16),
                     InfoBar(
-                      title: Text(_davError ?? session.message!),
+                      title: Text(
+                        _davError ??
+                            localizedOAuthFailure(
+                              l10n,
+                              session.failureKind,
+                              session.message!,
+                            ),
+                      ),
                       severity: InfoBarSeverity.error,
                     ),
                   ],
                   const SizedBox(height: 24),
                   FilledButton(
-                    onPressed: busy || !config.hasGoogleOAuthClientId
+                    onPressed: busy || !config.googleSetupAvailable
                         ? null
-                        : () => _signIn(
-                            ref
-                                .read(authSessionControllerProvider.notifier)
-                                .signIn,
-                          ),
+                        : () => _signIn(() => _setup(BusyProvider.google)),
                     child: Text(l10n.signInWithGoogle),
                   ),
                   const SizedBox(height: 8),
                   Button(
-                    onPressed: busy || !config.hasMicrosoftOAuthClientId
+                    onPressed: busy || !config.microsoftSetupAvailable
                         ? null
-                        : () => _signIn(
-                            ref
-                                .read(authSessionControllerProvider.notifier)
-                                .signInWithMicrosoft,
-                          ),
+                        : () => _signIn(() => _setup(BusyProvider.microsoft)),
                     child: Text(l10n.signInWithMicrosoft),
                   ),
                   const SizedBox(height: 8),
@@ -133,6 +145,35 @@ class _WindowsSignInPageState extends ConsumerState<WindowsSignInPage> {
         ),
       ),
     );
+  }
+
+  Future<void> _setup(BusyProvider provider) async {
+    if (_authorizationCancellation != null) return;
+    final cancellation = AuthorizationCancellation();
+    setState(() => _authorizationCancellation = cancellation);
+    try {
+      final handle = await showWindowsRegistrationSetup(context, ref, provider);
+      if (handle == null || !mounted || cancellation.isCancelled) return;
+      final controller = ref.read(authSessionControllerProvider.notifier);
+      final request = AuthorizationRequest.newConnection(
+        handle,
+        cancellation: cancellation,
+      );
+      if (provider == BusyProvider.google) {
+        await controller.signIn(request: request);
+      } else {
+        await controller.signInWithMicrosoft(request: request);
+      }
+    } finally {
+      cancellation.cancel();
+      if (identical(_authorizationCancellation, cancellation)) {
+        if (mounted) {
+          setState(() => _authorizationCancellation = null);
+        } else {
+          _authorizationCancellation = null;
+        }
+      }
+    }
   }
 
   Future<void> _signIn(Future<void> Function() action) async {
@@ -212,6 +253,8 @@ class _WindowsSignInPageState extends ConsumerState<WindowsSignInPage> {
       if (mounted) setState(() => _connectingDavProvider = null);
       return;
     }
-    await ref.read(authSessionControllerProvider.notifier).cancelSignIn();
+    await ref
+        .read(authSessionControllerProvider.notifier)
+        .cancelSignIn(cancellation: _authorizationCancellation);
   }
 }

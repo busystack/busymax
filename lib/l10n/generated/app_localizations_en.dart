@@ -3193,4 +3193,136 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get calendarOwnerEmail => 'Calendar owner email';
+
+  @override
+  String registrationSetupTitle(String provider) {
+    return 'Set up $provider';
+  }
+
+  @override
+  String get registrationSetupGuide => 'Setup guide';
+
+  @override
+  String get registrationGoogleInstructions =>
+      'Create your own Google Cloud project, enable both Calendar and Tasks APIs, and download a Desktop OAuth client JSON. Import the configuration, then authorize the intended account.';
+
+  @override
+  String get registrationMicrosoftInstructions =>
+      'Use a public app registration in an Entra tenant that permits registration. Enter its Application/client ID and supported account audience. No client secret is required.';
+
+  @override
+  String get registrationImportGoogle => 'Select Desktop OAuth JSON';
+
+  @override
+  String get registrationValidate => 'Validate registration';
+
+  @override
+  String get registrationAuthorize => 'Authorize in browser';
+
+  @override
+  String get registrationClientId => 'Application/client ID';
+
+  @override
+  String get registrationTenantId => 'Tenant ID';
+
+  @override
+  String get registrationAudience => 'Supported accounts';
+
+  @override
+  String get registrationBothAudience => 'Personal and organizational accounts';
+
+  @override
+  String get registrationOrganizationAudience => 'Organizational accounts';
+
+  @override
+  String get registrationPersonalAudience => 'Personal accounts';
+
+  @override
+  String get registrationTenantAudience => 'One organizational tenant';
+
+  @override
+  String registrationSummary(String clientId) {
+    return 'Registration: $clientId';
+  }
+
+  @override
+  String get registrationMigrate => 'Migrate now';
+
+  @override
+  String get registrationReplace => 'Replace registration';
+
+  @override
+  String registrationRetirementNotice(String provider, String setup) {
+    return 'This account uses BusyMax’s shared $provider app registration, which will be discontinued in the next release. Set up your own $setup and reconnect this account to keep synchronization working. Your existing calendars, tasks, and local changes will be preserved.';
+  }
+
+  @override
+  String get registrationContinue => 'Continue using this account';
+
+  @override
+  String get registrationGoogleProject => 'Google Cloud project';
+
+  @override
+  String get registrationMicrosoftApp => 'Microsoft app registration';
+
+  @override
+  String get registrationUserOwned => 'User-provided registration';
+
+  @override
+  String get registrationNativeGoogle => 'Native Google Android registration';
+
+  @override
+  String get registrationShared => 'Shared registration (transition)';
+
+  @override
+  String get registrationUnresolved =>
+      'Registration provenance is unresolved. Account data is preserved.';
+
+  @override
+  String get registrationOfficialDocumentation => 'Official documentation';
+
+  @override
+  String registrationAndroidIdentity(
+    String packageName,
+    String signatureHash,
+    String redirectUri,
+  ) {
+    return 'Package: $packageName\nSignature hash: $signatureHash\nRedirect URI: $redirectUri';
+  }
+
+  @override
+  String get oauthRegistrationRejected =>
+      'Check the client type, supported accounts, permissions, and redirect in your registration. Select the configuration again if it was imported.';
+
+  @override
+  String get oauthAuthorizationCodeUnusable =>
+      'This authorization attempt could not be completed. Start authorization again; your existing connection is preserved.';
+
+  @override
+  String get oauthPermissionRefused =>
+      'Authorization was refused or required permissions were not granted. Try again and grant the required permissions.';
+
+  @override
+  String get oauthProviderThrottled =>
+      'The provider is limiting requests. Wait before trying again; your existing connection is preserved.';
+
+  @override
+  String get oauthProviderTemporaryFailure =>
+      'Authorization could not complete because of a temporary provider problem. Try again; your existing connection is preserved.';
+
+  @override
+  String get oauthAuthorizationTimedOut =>
+      'Authorization timed out. Try again; select a fresh configuration if it was imported.';
+
+  @override
+  String get oauthWrongAccount =>
+      'Authorize the account selected for reconnection. Your existing connection is preserved.';
+
+  @override
+  String get oauthSecureStorageUnavailable =>
+      'Secure storage is unavailable. Restore access to secure storage and try again.';
+
+  @override
+  String get oauthRevokedRemovalIncomplete =>
+      'Remote authorization was revoked, but account cleanup could not finish. Restart BusyMax to retry local recovery.';
 }

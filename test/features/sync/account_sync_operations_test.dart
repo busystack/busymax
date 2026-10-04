@@ -6,6 +6,34 @@ import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   test(
+    'failed pull with no imported data retains eligible cached reminder delivery',
+    () async {
+      final coordinator = AccountSyncCoordinator();
+      await expectLater(
+        coordinator.trackTaskImport<void>('account', () async {
+          throw StateError('quota before any writes');
+        }, changedOnFailure: () => false),
+        throwsStateError,
+      );
+      expect(await coordinator.blocksDueToday('account'), false);
+      await expectLater(
+        coordinator.trackTaskImport<void>('account', () async {
+          throw StateError('partial import');
+        }),
+        throwsStateError,
+      );
+      await expectLater(
+        coordinator.trackTaskImport<void>('account', () async {
+          throw StateError('quota');
+        }, changedOnFailure: () => false),
+        throwsStateError,
+      );
+      expect(await coordinator.blocksDueToday('account'), true);
+      await coordinator.dispose();
+    },
+  );
+
+  test(
     'routes providers explicitly and never creates a WebCal task sync',
     () async {
       var provider = BusyProvider.webCal;

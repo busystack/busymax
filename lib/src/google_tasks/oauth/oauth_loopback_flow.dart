@@ -6,6 +6,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import 'package:busymax/src/core/auth/oauth_models.dart';
 import 'pkce.dart';
+import '../../core/auth/authorization_attempt.dart';
 
 const googleTasksOAuthScope = 'https://www.googleapis.com/auth/tasks';
 const googleSignInCallbackNotReceivedMessage =
@@ -24,9 +25,7 @@ class OAuthLoopbackFlow {
   final Future<bool> Function(Uri authorizationUri) _authorizationLauncher;
   final Logger _logger = Logger('OAuthLoopbackFlow');
 
-  HttpServer? _server;
-  Future<OAuthLoopbackResult>? _activeOperation;
-  var _cancelRequested = false;
+  _LoopbackInvocation? _current;
 
   Future<OAuthLoopbackResult> start({
     required Uri authorizationEndpoint,
@@ -41,38 +40,51 @@ class OAuthLoopbackFlow {
         'Could not open the browser for Google sign-in.',
     Map<String, String> extraAuthorizationParameters = const {},
     String? loginHint,
+    AuthorizationAttempt? attempt,
   }) {
-    if (_activeOperation != null) {
+    final captured =
+        attempt ??
+        AuthorizationAttempt(
+          nowUtc: () => DateTime.now().toUtc(),
+          lifetime: timeout,
+        );
+    captured.check();
+    if (_current case final current? when !current.attempt.cancelled) {
+      if (attempt == null) captured.dispose();
       throw const OAuthException(
         'OAuthServerAlreadyRunning',
         'An OAuth sign-in attempt is already running.',
       );
     }
-
-    _cancelRequested = false;
-    final operation = _start(
-      authorizationEndpoint: authorizationEndpoint,
-      clientId: clientId,
-      scope: scope,
-      redirectHost: redirectHost,
-      signInCancelledMessage: signInCancelledMessage,
-      callbackNotReceivedMessage: callbackNotReceivedMessage,
-      serverStartFailureMessage: serverStartFailureMessage,
-      browserLaunchFailureMessage: browserLaunchFailureMessage,
-      extraAuthorizationParameters: extraAuthorizationParameters,
-      loginHint: loginHint,
-    );
-    _activeOperation = operation;
+    final invocation = _LoopbackInvocation(captured);
+    _current = invocation;
+    unawaited(captured.cancellation.then((_) => _closeInvocation(invocation)));
+    final operation =
+        _start(
+          invocation,
+          authorizationEndpoint: authorizationEndpoint,
+          clientId: clientId,
+          scope: scope,
+          redirectHost: redirectHost,
+          signInCancelledMessage: signInCancelledMessage,
+          callbackNotReceivedMessage: callbackNotReceivedMessage,
+          serverStartFailureMessage: serverStartFailureMessage,
+          browserLaunchFailureMessage: browserLaunchFailureMessage,
+          extraAuthorizationParameters: extraAuthorizationParameters,
+          loginHint: loginHint,
+        ).whenComplete(() async {
+          await _closeInvocation(invocation);
+          if (identical(_current, invocation)) _current = null;
+          if (attempt == null) captured.dispose();
+        });
     unawaited(
-      operation.then<void>(
-        (_) => _clearActiveOperation(operation),
-        onError: (_, _) => _clearActiveOperation(operation),
-      ),
+      operation.then<void>((_) {}, onError: (Object _, StackTrace _) {}),
     );
     return operation;
   }
 
-  Future<OAuthLoopbackResult> _start({
+  Future<OAuthLoopbackResult> _start(
+    _LoopbackInvocation invocation, {
     required Uri authorizationEndpoint,
     required String clientId,
     required String scope,
@@ -84,113 +96,114 @@ class OAuthLoopbackFlow {
     required Map<String, String> extraAuthorizationParameters,
     String? loginHint,
   }) async {
-    final pkce = generatePkcePair();
-    final state = generateOAuthState();
-    final server = await _bindServer(
-      serverStartFailureMessage,
-      redirectHost: redirectHost,
-    );
-    _server = server;
-    _logger.info('OAuth loopback server selected port ${server.port}');
-
-    final redirectUri = 'http://$redirectHost:${server.port}/';
-    final authorizationUri = buildAuthorizationUri(
-      authorizationEndpoint: authorizationEndpoint,
-      clientId: clientId,
-      redirectUri: redirectUri,
-      scope: scope,
-      codeChallenge: pkce.codeChallenge,
-      state: state,
-      extraParameters: extraAuthorizationParameters,
-      loginHint: loginHint,
-    );
-    _logger.info(
-      'OAuth authorization URL built: '
-      '${_redactedAuthorizationUri(authorizationUri)}',
-    );
-
+    final attempt = invocation.attempt;
+    final deadline = Timer(timeout, () {
+      invocation.timedOut = true;
+      attempt.cancel();
+    });
     try {
-      if (_cancelRequested) {
-        throw OAuthException('OAuthSignInCancelled', signInCancelledMessage);
-      }
-      await _launchBrowser(authorizationUri, browserLaunchFailureMessage);
-
-      await for (final request in server.timeout(timeout)) {
-        _logger.info(
-          'OAuth callback request received: '
-          'method=${request.method} path=${request.uri.path} '
-          'hasQuery=${request.uri.hasQuery} '
-          'host=${request.headers.value(HttpHeaders.hostHeader) ?? ''}',
-        );
-
+      attempt.check();
+      final binding =
+          _bindServer(
+            serverStartFailureMessage,
+            redirectHost: redirectHost,
+          ).then((server) async {
+            if (attempt.cancelled) {
+              await server.close(force: true);
+              attempt.check();
+            }
+            invocation.server = server;
+            return server;
+          });
+      final server = await attempt.wait(binding);
+      final pkce = generatePkcePair();
+      final state = generateOAuthState();
+      final redirectUri = 'http://$redirectHost:${server.port}/';
+      final authorizationUri = buildAuthorizationUri(
+        authorizationEndpoint: authorizationEndpoint,
+        clientId: clientId,
+        redirectUri: redirectUri,
+        scope: scope,
+        codeChallenge: pkce.codeChallenge,
+        state: state,
+        extraParameters: extraAuthorizationParameters,
+        loginHint: loginHint,
+      );
+      attempt.check();
+      await attempt.wait(
+        _launchBrowser(authorizationUri, browserLaunchFailureMessage),
+      );
+      await for (final request in server) {
+        attempt.check();
         try {
+          if (request.method != 'GET') {
+            throw const OAuthException(
+              'OAuthCallbackInvalidMethod',
+              'Invalid callback method.',
+            );
+          }
           final callback = parseOAuthCallback(
             request.uri,
             expectedState: state,
             expectedPort: server.port,
             hostHeader: request.headers.value(HttpHeaders.hostHeader),
           );
-          await _writeBrowserResponse(request.response);
-          _logger.info('OAuth callback accepted');
+          await attempt.wait(_writeBrowserResponse(request.response));
           return OAuthLoopbackResult(
             callback: callback,
             redirectUri: redirectUri,
             codeVerifier: pkce.codeVerifier,
           );
         } on OAuthException catch (error) {
-          _logger.warning('OAuth callback rejected: ${error.code}');
-          await _writeBrowserErrorResponse(request.response, error);
-          if (_isTerminalCallbackError(error)) {
-            rethrow;
-          }
+          await attempt.wait(
+            _writeBrowserErrorResponse(request.response, error),
+          );
+          if (_isTerminalCallbackError(error)) rethrow;
         }
       }
-
-      if (_cancelRequested) {
-        throw OAuthException('OAuthSignInCancelled', signInCancelledMessage);
-      }
+      attempt.check();
       throw OAuthException(
         'OAuthCallbackListenerClosed',
         callbackNotReceivedMessage,
       );
-    } on TimeoutException {
-      throw OAuthException('OAuthCallbackTimeout', callbackNotReceivedMessage);
-    } on HttpException {
-      if (_cancelRequested) {
-        throw OAuthException('OAuthSignInCancelled', signInCancelledMessage);
+    } on Object catch (error) {
+      if (invocation.timedOut ||
+          (error is OAuthException &&
+              error.classification == OAuthFailureKind.timeout)) {
+        throw OAuthException(
+          'OAuthCallbackTimeout',
+          callbackNotReceivedMessage,
+        );
       }
-      throw OAuthException(
-        'OAuthCallbackListenerClosed',
-        callbackNotReceivedMessage,
-      );
+      attempt.check();
+      rethrow;
     } finally {
-      await close();
+      deadline.cancel();
     }
   }
 
   Future<void> cancel() => close();
-
-  Future<void> close() async {
-    _cancelRequested = true;
-    final server = _server;
-    _server = null;
-    if (server == null) {
-      return;
-    }
-
-    try {
-      await server.close(force: true);
-      _logger.info('OAuth loopback server closed');
-    } on HttpException {
-      _logger.warning('OAuth loopback server close ignored; already closed');
-    } on IOException {
-      _logger.warning('OAuth loopback server close ignored; already closed');
+  Future<void> cancelFor(AuthorizationAttempt attempt) async {
+    if (_current case final current? when identical(current.attempt, attempt)) {
+      attempt.cancel();
+      await _closeInvocation(current);
     }
   }
 
-  void _clearActiveOperation(Future<OAuthLoopbackResult> operation) {
-    if (identical(_activeOperation, operation)) {
-      _activeOperation = null;
+  Future<void> close() async {
+    final current = _current;
+    if (current == null) return;
+    current.attempt.cancel();
+    await _closeInvocation(current);
+  }
+
+  Future<void> _closeInvocation(_LoopbackInvocation invocation) async {
+    final server = invocation.server;
+    invocation.server = null;
+    try {
+      await server?.close(force: true);
+    } on IOException {
+      /* already closed */
     }
   }
 
@@ -232,7 +245,9 @@ class OAuthLoopbackFlow {
     String failureMessage,
   ) async {
     try {
-      final launched = await _authorizationLauncher(authorizationUri);
+      final launched = await _authorizationLauncher(
+        authorizationUri,
+      ).timeout(const Duration(seconds: 20));
       _logger.info('OAuth browser launch result: $launched');
       if (!launched) {
         throw OAuthException('OAuthBrowserLaunchFailed', failureMessage);
@@ -243,6 +258,13 @@ class OAuthLoopbackFlow {
       throw OAuthException('OAuthBrowserLaunchFailed', failureMessage);
     }
   }
+}
+
+final class _LoopbackInvocation {
+  _LoopbackInvocation(this.attempt);
+  final AuthorizationAttempt attempt;
+  HttpServer? server;
+  bool timedOut = false;
 }
 
 class OAuthLoopbackResult {
@@ -305,6 +327,15 @@ OAuthCallbackResult parseOAuthCallback(
     );
   }
 
+  if (uri.hasFragment ||
+      uri.queryParametersAll.values.any((values) => values.length != 1) ||
+      (uri.queryParameters.containsKey('code') &&
+          uri.queryParameters.containsKey('error'))) {
+    throw const OAuthException(
+      'OAuthCallbackContradictoryParameters',
+      'Invalid callback parameters.',
+    );
+  }
   final state = uri.queryParameters['state'];
   if (state == null || !_constantTimeEquals(state, expectedState)) {
     throw const OAuthException(
@@ -315,7 +346,10 @@ OAuthCallbackResult parseOAuthCallback(
 
   final error = uri.queryParameters['error'];
   if (error != null && error.isNotEmpty) {
-    throw OAuthException('OAuthCallbackProviderError', error);
+    throw authorizationOutcomeFailure(
+      code: 'OAuthCallbackAuthorizationFailed',
+      providerError: error,
+    );
   }
 
   final code = uri.queryParameters['code'];
@@ -342,24 +376,11 @@ bool _constantTimeEquals(String left, String right) {
 }
 
 bool _isTerminalCallbackError(OAuthException error) {
+  if (error is OAuthAuthorizationException) return true;
   return switch (error.code) {
-    'OAuthCallbackStateMismatch' ||
-    'OAuthCallbackProviderError' ||
-    'OAuthCallbackMissingCode' => true,
+    'OAuthSignInCancelled' => true,
     _ => false,
   };
-}
-
-Uri _redactedAuthorizationUri(Uri uri) {
-  return uri.replace(
-    queryParameters: {
-      for (final entry in uri.queryParameters.entries)
-        entry.key: switch (entry.key) {
-          'code_challenge' || 'login_hint' || 'state' => '[REDACTED]',
-          _ => entry.value,
-        },
-    },
-  );
 }
 
 Future<bool> _defaultAuthorizationLauncher(Uri authorizationUri) async {

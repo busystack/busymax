@@ -114,7 +114,9 @@ void main() {
     expect(buildScript, isNot(matches(RegExp(r'&\s+flutter\s'))));
     expect(
       buildScript,
-      contains('& git diff --exit-code -- lib/l10n/generated lib/src/db'),
+      contains(
+        r'& $dartExecutable run tool/check_generated_sources.dart verify $snapshot',
+      ),
     );
     expect(prerequisiteScript, contains('Get-Command flutter'));
     expect(prerequisiteScript, contains('-All'));

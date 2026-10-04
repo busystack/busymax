@@ -74,9 +74,11 @@ final class AccountSyncCoordinator {
   /// local cache.
   Future<T> trackTaskImport<T>(
     String accountId,
-    Future<T> Function() import,
-  ) async {
+    Future<T> Function() import, {
+    bool Function()? changedOnFailure,
+  }) async {
     await _restoration;
+    final alreadyIncomplete = _incompleteTaskImports.contains(accountId);
     if ((_activeTaskImportCounts[accountId] ?? 0) == 0) {
       _incompleteTaskImports.add(accountId);
       await _persistTaskImportIncomplete(accountId, true);
@@ -90,7 +92,9 @@ final class AccountSyncCoordinator {
     try {
       return await import();
     } on Object {
-      _taskImportFailed.add(accountId);
+      if (alreadyIncomplete || changedOnFailure == null || changedOnFailure()) {
+        _taskImportFailed.add(accountId);
+      }
       rethrow;
     } finally {
       final remaining = (_activeTaskImportCounts[accountId] ?? 1) - 1;
@@ -280,6 +284,15 @@ final class DisabledAccountSyncOperations implements AccountSyncOperations {
   Future<void> syncCalendar(String accountId, {required bool full}) async {}
 }
 
+final class PartialAccountSyncException implements Exception {
+  const PartialAccountSyncException(this.failures, this.successfulDomains);
+  final Map<String, Object> failures;
+  final Set<String> successfulDomains;
+  @override
+  String toString() =>
+      'Some synchronization domains failed: ${failures.keys.join(', ')}. Completed: ${successfulDomains.join(', ')}.';
+}
+
 final class RoutingAccountSyncOperations implements AccountSyncOperations {
   const RoutingAccountSyncOperations({
     required AccountProvider providerForAccount,
@@ -309,8 +322,23 @@ final class RoutingAccountSyncOperations implements AccountSyncOperations {
         await _syncWebCal(accountId, full: full);
       case BusyProvider.google:
       case BusyProvider.microsoft:
-        await _syncTasksRest(accountId, full: full);
-        await _syncCalendarRest(accountId, full: full);
+        final failures = <String, Object>{};
+        final successful = <String>{};
+        try {
+          await _syncTasksRest(accountId, full: full);
+          successful.add('tasks');
+        } on Object catch (error) {
+          failures['tasks'] = error;
+        }
+        try {
+          await _syncCalendarRest(accountId, full: full);
+          successful.add('calendar');
+        } on Object catch (error) {
+          failures['calendar'] = error;
+        }
+        if (failures.isNotEmpty) {
+          throw PartialAccountSyncException(failures, successful);
+        }
     }
   }
 

@@ -16,7 +16,13 @@
   "settingsSaveFailed": "No se pudo guardar la configuración. Los cambios podrían perderse al reiniciar BusyMax.",
   "nextcloudExportCollection": "Exportar recursos de la colección",
   "nextcloudImportItems": "Se encontraron {count} recursos de eventos/tareas",
-  "@nextcloudImportItems": {"placeholders": {"count": {"type": "int"}}},
+  "@nextcloudImportItems": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "nextcloudSchedulingInbox": "Bandeja de invitaciones",
   "nextcloudInboxExplanation": "Nextcloud procesa estos mensajes en tus calendarios. Confirmar un mensaje elimina solo el mensaje, no el evento.",
   "nextcloudInboxEmpty": "No hay mensajes de planificación.",
@@ -24,7 +30,13 @@
   "nextcloudAcknowledgeConfirm": "¿Eliminar este mensaje de la bandeja? Se conservará el evento.",
   "nextcloudGuestAvailability": "Consultar disponibilidad de invitados",
   "nextcloudTrashRetention": "Retención en la papelera del servidor: {days} días",
-  "@nextcloudTrashRetention": {"placeholders": {"days": {"type": "int"}}},
+  "@nextcloudTrashRetention": {
+    "placeholders": {
+      "days": {
+        "type": "int"
+      }
+    }
+  },
   "nextcloudCancelMeeting": "Cancelar reunión",
   "nextcloudDeclineAndRemove": "Rechazar y quitar invitación",
   "nextcloudDeclineRemovalWarning": "Al sincronizar se enviará un rechazo. No se cancela la reunión del organizador.",
@@ -171,7 +183,7 @@
   },
   "newEvent": "Nuevo evento",
   "refreshCalendar": "Actualizar calendario",
-"openInProvider": "Abrir en el proveedor",
+  "openInProvider": "Abrir en el proveedor",
   "linkedResources": "Recursos vinculados",
   "noLinkedResources": "No hay recursos vinculados",
   "attachments": "Archivos adjuntos",
@@ -513,7 +525,7 @@
   "moveToTop": "Mover al principio",
   "deleteTask": "Eliminar tarea",
   "newSubtask": "Nueva subtarea",
- "deleteTaskConfirmation": "¿Eliminar \"{title}\"?",
+  "deleteTaskConfirmation": "¿Eliminar \"{title}\"?",
   "deleteAssignedTaskWarning": "Esto también elimina la tarea original de Documentos de Google o los espacios de Chat.",
   "metadata": "Metadatos",
   "id": "ID",
@@ -1088,19 +1100,33 @@
   "@repeatYearlyOnMonthDaysSummary": {
     "description": "Complete yearly recurrence summary for selected month days; placeholders may be reordered by locale.",
     "placeholders": {
-      "frequency": {"type": "String"},
-      "month": {"type": "String"},
-      "days": {"type": "String"}
+      "frequency": {
+        "type": "String"
+      },
+      "month": {
+        "type": "String"
+      },
+      "days": {
+        "type": "String"
+      }
     }
   },
   "repeatYearlyOnOrdinalSummary": "{frequency} {position, select, first{el primer {days} de {month}} second{el segundo {days} de {month}} third{el tercer {days} de {month}} fourth{el cuarto {days} de {month}} fifth{el quinto {days} de {month}} secondToLast{el penúltimo {days} de {month}} last{el último {days} de {month}} other{en {days} de {month}}}",
   "@repeatYearlyOnOrdinalSummary": {
     "description": "Complete yearly ordinal recurrence summary; {position} selects the ordinal wording and placeholders may be reordered by locale.",
     "placeholders": {
-      "frequency": {"type": "String"},
-      "month": {"type": "String"},
-      "position": {"type": "String"},
-      "days": {"type": "String"}
+      "frequency": {
+        "type": "String"
+      },
+      "month": {
+        "type": "String"
+      },
+      "position": {
+        "type": "String"
+      },
+      "days": {
+        "type": "String"
+      }
     }
   },
   "searchFilters": "Filtros de búsqueda",
@@ -1163,5 +1189,84 @@
   "sharingRateLimited": "El uso compartido está limitado temporalmente. Inténtalo de nuevo cuando termine la espera.",
   "attachmentUploadRateLimited": "La carga de archivos adjuntos está limitada temporalmente. Inténtalo de nuevo cuando termine la espera.",
   "unknownEventLabel": "Etiqueta desconocida ({id})",
-  "@unknownEventLabel": {"placeholders": {"id": {"type": "String"}}}
+  "@unknownEventLabel": {
+    "placeholders": {
+      "id": {
+        "type": "String"
+      }
+    }
+  },
+  "registrationSetupTitle": "Configurar {provider}",
+  "@registrationSetupTitle": {
+    "placeholders": {
+      "provider": {
+        "type": "String"
+      }
+    }
+  },
+  "registrationSetupGuide": "Guía de configuración",
+  "registrationGoogleInstructions": "Crea tu propio proyecto de Google Cloud, activa Calendar y Tasks e importa el JSON de un cliente OAuth de escritorio. Autoriza la cuenta deseada.",
+  "registrationMicrosoftInstructions": "Usa un registro de aplicación pública en un inquilino de Entra que permita registros. Introduce el ID de cliente y los tipos de cuenta. No se necesita un secreto de cliente.",
+  "registrationImportGoogle": "Seleccionar JSON OAuth de escritorio",
+  "registrationValidate": "Validar registro",
+  "registrationAuthorize": "Autorizar en el navegador",
+  "registrationClientId": "ID de aplicación/cliente",
+  "registrationTenantId": "ID de inquilino",
+  "registrationAudience": "Cuentas compatibles",
+  "registrationBothAudience": "Cuentas personales y organizativas",
+  "registrationOrganizationAudience": "Cuentas organizativas",
+  "registrationPersonalAudience": "Cuentas personales",
+  "registrationTenantAudience": "Un inquilino organizativo",
+  "registrationSummary": "Registro: {clientId}",
+  "@registrationSummary": {
+    "placeholders": {
+      "clientId": {
+        "type": "String"
+      }
+    }
+  },
+  "registrationMigrate": "Migrar ahora",
+  "registrationReplace": "Reemplazar registro",
+  "registrationRetirementNotice": "Esta cuenta usa el registro compartido de {provider} de BusyMax, que se retirará en la próxima versión. Configura tu propio {setup} y vuelve a conectar esta cuenta para mantener la sincronización. Se conservarán tus calendarios, tareas y cambios locales.",
+  "@registrationRetirementNotice": {
+    "placeholders": {
+      "provider": {
+        "type": "String"
+      },
+      "setup": {
+        "type": "String"
+      }
+    }
+  },
+  "registrationContinue": "Seguir usando esta cuenta",
+  "registrationGoogleProject": "Proyecto de Google Cloud",
+  "registrationMicrosoftApp": "Registro de aplicación de Microsoft",
+  "registrationUserOwned": "Registro proporcionado por el usuario",
+  "registrationNativeGoogle": "Registro nativo de Google para Android",
+  "registrationShared": "Registro compartido (transición)",
+  "registrationUnresolved": "No se ha identificado el origen del registro. Se conservan los datos de la cuenta.",
+  "registrationOfficialDocumentation": "Documentación oficial",
+  "registrationAndroidIdentity": "Paquete: {packageName}\nHash de firma: {signatureHash}\nURI de redirección: {redirectUri}",
+  "@registrationAndroidIdentity": {
+    "placeholders": {
+      "packageName": {
+        "type": "String"
+      },
+      "signatureHash": {
+        "type": "String"
+      },
+      "redirectUri": {
+        "type": "String"
+      }
+    }
+  },
+  "oauthRegistrationRejected": "Comprueba el tipo de cliente, las cuentas admitidas, los permisos y la redirección del registro. Vuelve a seleccionar la configuración importada.",
+  "oauthAuthorizationCodeUnusable": "No se pudo completar esta autorización. Iníciala de nuevo; se conserva la conexión existente.",
+  "oauthPermissionRefused": "Se rechazó la autorización o faltan permisos necesarios. Reinténtalo y concede los permisos requeridos.",
+  "oauthProviderThrottled": "El proveedor limita las solicitudes. Espera antes de reintentarlo; se conserva la conexión existente.",
+  "oauthProviderTemporaryFailure": "Un problema temporal del proveedor impide la autorización. Reinténtalo; se conserva la conexión existente.",
+  "oauthAuthorizationTimedOut": "La autorización agotó el tiempo disponible. Reinténtalo y selecciona de nuevo la configuración importada.",
+  "oauthWrongAccount": "Autoriza la cuenta seleccionada para reconectar. Se conserva la conexión existente.",
+  "oauthSecureStorageUnavailable": "El almacenamiento seguro no está disponible. Restablece el acceso y reinténtalo.",
+  "oauthRevokedRemovalIncomplete": "Se revocó la autorización remota, pero no se pudo completar la limpieza de la cuenta. Reinicia BusyMax para volver a intentar la recuperación local."
 }

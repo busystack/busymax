@@ -16,7 +16,13 @@
   "settingsSaveFailed": "Asetuksia ei voitu tallentaa. Muutokset saattavat kadota, kun BusyMax käynnistetään uudelleen.",
   "nextcloudExportCollection": "Vie kokoelman resurssit",
   "nextcloudImportItems": "Löytyi {count} tapahtuma-/tehtäväresurssia",
-  "@nextcloudImportItems": {"placeholders": {"count": {"type": "int"}}},
+  "@nextcloudImportItems": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "nextcloudSchedulingInbox": "Kutsujen saapuneet",
   "nextcloudInboxExplanation": "Nextcloud käsittelee nämä viestit kalentereihisi. Kuittaus poistaa vain viestin, ei tapahtumaa.",
   "nextcloudInboxEmpty": "Ei ajoitusviestejä.",
@@ -24,7 +30,13 @@
   "nextcloudAcknowledgeConfirm": "Poistetaanko tämä viesti saapuneista? Kalenteritapahtuma säilytetään.",
   "nextcloudGuestAvailability": "Tarkista vieraiden saatavuus",
   "nextcloudTrashRetention": "Palvelimen roskakorin säilytysaika: {days} päivää",
-  "@nextcloudTrashRetention": {"placeholders": {"days": {"type": "int"}}},
+  "@nextcloudTrashRetention": {
+    "placeholders": {
+      "days": {
+        "type": "int"
+      }
+    }
+  },
   "nextcloudCancelMeeting": "Peru kokous",
   "nextcloudDeclineAndRemove": "Hylkää ja poista kutsu",
   "nextcloudDeclineRemovalWarning": "Poisto lähettää hylkäyksen synkronoinnissa. Se ei peru järjestäjän kokousta.",
@@ -171,7 +183,7 @@
   },
   "newEvent": "Uusi tapahtuma",
   "refreshCalendar": "Päivitä kalenteri",
-"openInProvider": "Avaa palvelussa",
+  "openInProvider": "Avaa palvelussa",
   "linkedResources": "Linkitetyt resurssit",
   "noLinkedResources": "Ei linkitettyjä resursseja",
   "attachments": "Liitteet",
@@ -471,7 +483,7 @@
   "moveToTop": "Siirrä ylimmäksi",
   "deleteTask": "Poista tehtävä",
   "newSubtask": "Uusi alitehtävä",
- "deleteTaskConfirmation": "Poistetaanko \"{title}\"?",
+  "deleteTaskConfirmation": "Poistetaanko \"{title}\"?",
   "deleteAssignedTaskWarning": "Tämä poistaa myös alkuperäisen tehtävän Google Docsista tai Chat-tiloista.",
   "metadata": "Metatiedot",
   "id": "Tunnus",
@@ -1025,19 +1037,33 @@
   "@repeatYearlyOnMonthDaysSummary": {
     "description": "Complete yearly recurrence summary for selected month days; placeholders may be reordered by locale.",
     "placeholders": {
-      "frequency": {"type": "String"},
-      "month": {"type": "String"},
-      "days": {"type": "String"}
+      "frequency": {
+        "type": "String"
+      },
+      "month": {
+        "type": "String"
+      },
+      "days": {
+        "type": "String"
+      }
     }
   },
   "repeatYearlyOnOrdinalSummary": "{frequency} {month} {position, select, first{ensimmäisenä} second{toisena} third{kolmantena} fourth{neljäntenä} fifth{viidentenä} secondToLast{toiseksi viimeisenä} last{viimeisenä} other{}} {days}",
   "@repeatYearlyOnOrdinalSummary": {
     "description": "Complete yearly ordinal recurrence summary; {position} selects the ordinal wording and placeholders may be reordered by locale.",
     "placeholders": {
-      "frequency": {"type": "String"},
-      "month": {"type": "String"},
-      "position": {"type": "String"},
-      "days": {"type": "String"}
+      "frequency": {
+        "type": "String"
+      },
+      "month": {
+        "type": "String"
+      },
+      "position": {
+        "type": "String"
+      },
+      "days": {
+        "type": "String"
+      }
     }
   },
   "searchFilters": "Hakusuodattimet",
@@ -1100,5 +1126,84 @@
   "sharingRateLimited": "Jakamista on rajoitettu tilapäisesti. Yritä uudelleen odotusajan päätyttyä.",
   "attachmentUploadRateLimited": "Liitteiden lataamista on rajoitettu tilapäisesti. Yritä uudelleen odotusajan päätyttyä.",
   "unknownEventLabel": "Tuntematon tunniste ({id})",
-  "@unknownEventLabel": {"placeholders": {"id": {"type": "String"}}}
+  "@unknownEventLabel": {
+    "placeholders": {
+      "id": {
+        "type": "String"
+      }
+    }
+  },
+  "registrationSetupTitle": "Määritä {provider}",
+  "@registrationSetupTitle": {
+    "placeholders": {
+      "provider": {
+        "type": "String"
+      }
+    }
+  },
+  "registrationSetupGuide": "Määritysohje",
+  "registrationGoogleInstructions": "Luo oma Google Cloud -projekti, ota Calendar ja Tasks käyttöön ja tuo työpöydän OAuth-asiakkaan JSON-tiedosto. Valtuuta haluamasi tili.",
+  "registrationMicrosoftInstructions": "Käytä julkisen sovelluksen rekisteröintiä Entra-vuokraajassa, joka sallii rekisteröinnit. Anna asiakastunnus ja tilityypit. Asiakassalaisuutta ei tarvita.",
+  "registrationImportGoogle": "Valitse työpöydän OAuth-JSON",
+  "registrationValidate": "Tarkista rekisteröinti",
+  "registrationAuthorize": "Valtuuta selaimessa",
+  "registrationClientId": "Sovellus-/asiakastunnus",
+  "registrationTenantId": "Vuokraajan tunnus",
+  "registrationAudience": "Tuetut tilit",
+  "registrationBothAudience": "Henkilökohtaiset ja organisaation tilit",
+  "registrationOrganizationAudience": "Organisaation tilit",
+  "registrationPersonalAudience": "Henkilökohtaiset tilit",
+  "registrationTenantAudience": "Yksi organisaation vuokraaja",
+  "registrationSummary": "Rekisteröinti: {clientId}",
+  "@registrationSummary": {
+    "placeholders": {
+      "clientId": {
+        "type": "String"
+      }
+    }
+  },
+  "registrationMigrate": "Siirry nyt",
+  "registrationReplace": "Vaihda rekisteröinti",
+  "registrationRetirementNotice": "Tämä tili käyttää BusyMaxin yhteistä {provider}-sovellusrekisteröintiä, joka poistuu seuraavassa julkaisussa. Määritä oma {setup} ja yhdistä tämä tili uudelleen, jotta synkronointi jatkuu. Kalenterit, tehtävät ja paikalliset muutokset säilyvät.",
+  "@registrationRetirementNotice": {
+    "placeholders": {
+      "provider": {
+        "type": "String"
+      },
+      "setup": {
+        "type": "String"
+      }
+    }
+  },
+  "registrationContinue": "Jatka tämän tilin käyttöä",
+  "registrationGoogleProject": "Google Cloud -projekti",
+  "registrationMicrosoftApp": "Microsoft-sovellusrekisteröinti",
+  "registrationUserOwned": "Käyttäjän antama rekisteröinti",
+  "registrationNativeGoogle": "Natiivi Google Android -rekisteröinti",
+  "registrationShared": "Yhteinen rekisteröinti (siirtymä)",
+  "registrationUnresolved": "Rekisteröinnin alkuperä on selvittämättä. Tilin tiedot säilytetään.",
+  "registrationOfficialDocumentation": "Virallinen dokumentaatio",
+  "registrationAndroidIdentity": "Paketti: {packageName}\nAllekirjoituksen tiiviste: {signatureHash}\nUudelleenohjaus-URI: {redirectUri}",
+  "@registrationAndroidIdentity": {
+    "placeholders": {
+      "packageName": {
+        "type": "String"
+      },
+      "signatureHash": {
+        "type": "String"
+      },
+      "redirectUri": {
+        "type": "String"
+      }
+    }
+  },
+  "oauthRegistrationRejected": "Tarkista rekisteröinnin asiakastyyppi, tuetut tilit, käyttöoikeudet ja uudelleenohjaus. Valitse tuotu määritystiedosto uudelleen.",
+  "oauthAuthorizationCodeUnusable": "Tätä valtuutusta ei voitu viimeistellä. Aloita uudelleen; nykyinen yhteys säilyy.",
+  "oauthPermissionRefused": "Valtuutus hylättiin tai vaadittuja käyttöoikeuksia puuttuu. Yritä uudelleen ja myönnä tarvittavat oikeudet.",
+  "oauthProviderThrottled": "Palveluntarjoaja rajoittaa pyyntöjä. Odota ennen uutta yritystä; nykyinen yhteys säilyy.",
+  "oauthProviderTemporaryFailure": "Palveluntarjoajan tilapäinen ongelma esti valtuutuksen. Yritä uudelleen; nykyinen yhteys säilyy.",
+  "oauthAuthorizationTimedOut": "Valtuutus aikakatkaistiin. Yritä uudelleen ja valitse tuotu määritystiedosto uudelleen.",
+  "oauthWrongAccount": "Valtuuta uudelleenyhdistämistä varten valittu tili. Nykyinen yhteys säilyy.",
+  "oauthSecureStorageUnavailable": "Suojattu tallennustila ei ole käytettävissä. Palauta sen käyttö ja yritä uudelleen.",
+  "oauthRevokedRemovalIncomplete": "Etävaltuutus peruttiin, mutta tilin siivousta ei voitu viimeistellä. Käynnistä BusyMax uudelleen ja yritä paikallista palautusta uudelleen."
 }

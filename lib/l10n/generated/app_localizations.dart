@@ -5311,6 +5311,226 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Calendar owner email'**
   String get calendarOwnerEmail;
+
+  /// No description provided for @registrationSetupTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Set up {provider}'**
+  String registrationSetupTitle(String provider);
+
+  /// No description provided for @registrationSetupGuide.
+  ///
+  /// In en, this message translates to:
+  /// **'Setup guide'**
+  String get registrationSetupGuide;
+
+  /// No description provided for @registrationGoogleInstructions.
+  ///
+  /// In en, this message translates to:
+  /// **'Create your own Google Cloud project, enable both Calendar and Tasks APIs, and download a Desktop OAuth client JSON. Import the configuration, then authorize the intended account.'**
+  String get registrationGoogleInstructions;
+
+  /// No description provided for @registrationMicrosoftInstructions.
+  ///
+  /// In en, this message translates to:
+  /// **'Use a public app registration in an Entra tenant that permits registration. Enter its Application/client ID and supported account audience. No client secret is required.'**
+  String get registrationMicrosoftInstructions;
+
+  /// No description provided for @registrationImportGoogle.
+  ///
+  /// In en, this message translates to:
+  /// **'Select Desktop OAuth JSON'**
+  String get registrationImportGoogle;
+
+  /// No description provided for @registrationValidate.
+  ///
+  /// In en, this message translates to:
+  /// **'Validate registration'**
+  String get registrationValidate;
+
+  /// No description provided for @registrationAuthorize.
+  ///
+  /// In en, this message translates to:
+  /// **'Authorize in browser'**
+  String get registrationAuthorize;
+
+  /// No description provided for @registrationClientId.
+  ///
+  /// In en, this message translates to:
+  /// **'Application/client ID'**
+  String get registrationClientId;
+
+  /// No description provided for @registrationTenantId.
+  ///
+  /// In en, this message translates to:
+  /// **'Tenant ID'**
+  String get registrationTenantId;
+
+  /// No description provided for @registrationAudience.
+  ///
+  /// In en, this message translates to:
+  /// **'Supported accounts'**
+  String get registrationAudience;
+
+  /// No description provided for @registrationBothAudience.
+  ///
+  /// In en, this message translates to:
+  /// **'Personal and organizational accounts'**
+  String get registrationBothAudience;
+
+  /// No description provided for @registrationOrganizationAudience.
+  ///
+  /// In en, this message translates to:
+  /// **'Organizational accounts'**
+  String get registrationOrganizationAudience;
+
+  /// No description provided for @registrationPersonalAudience.
+  ///
+  /// In en, this message translates to:
+  /// **'Personal accounts'**
+  String get registrationPersonalAudience;
+
+  /// No description provided for @registrationTenantAudience.
+  ///
+  /// In en, this message translates to:
+  /// **'One organizational tenant'**
+  String get registrationTenantAudience;
+
+  /// No description provided for @registrationSummary.
+  ///
+  /// In en, this message translates to:
+  /// **'Registration: {clientId}'**
+  String registrationSummary(String clientId);
+
+  /// No description provided for @registrationMigrate.
+  ///
+  /// In en, this message translates to:
+  /// **'Migrate now'**
+  String get registrationMigrate;
+
+  /// No description provided for @registrationReplace.
+  ///
+  /// In en, this message translates to:
+  /// **'Replace registration'**
+  String get registrationReplace;
+
+  /// No description provided for @registrationRetirementNotice.
+  ///
+  /// In en, this message translates to:
+  /// **'This account uses BusyMax’s shared {provider} app registration, which will be discontinued in the next release. Set up your own {setup} and reconnect this account to keep synchronization working. Your existing calendars, tasks, and local changes will be preserved.'**
+  String registrationRetirementNotice(String provider, String setup);
+
+  /// No description provided for @registrationContinue.
+  ///
+  /// In en, this message translates to:
+  /// **'Continue using this account'**
+  String get registrationContinue;
+
+  /// No description provided for @registrationGoogleProject.
+  ///
+  /// In en, this message translates to:
+  /// **'Google Cloud project'**
+  String get registrationGoogleProject;
+
+  /// No description provided for @registrationMicrosoftApp.
+  ///
+  /// In en, this message translates to:
+  /// **'Microsoft app registration'**
+  String get registrationMicrosoftApp;
+
+  /// No description provided for @registrationUserOwned.
+  ///
+  /// In en, this message translates to:
+  /// **'User-provided registration'**
+  String get registrationUserOwned;
+
+  /// No description provided for @registrationNativeGoogle.
+  ///
+  /// In en, this message translates to:
+  /// **'Native Google Android registration'**
+  String get registrationNativeGoogle;
+
+  /// No description provided for @registrationShared.
+  ///
+  /// In en, this message translates to:
+  /// **'Shared registration (transition)'**
+  String get registrationShared;
+
+  /// No description provided for @registrationUnresolved.
+  ///
+  /// In en, this message translates to:
+  /// **'Registration provenance is unresolved. Account data is preserved.'**
+  String get registrationUnresolved;
+
+  /// No description provided for @registrationOfficialDocumentation.
+  ///
+  /// In en, this message translates to:
+  /// **'Official documentation'**
+  String get registrationOfficialDocumentation;
+
+  /// No description provided for @registrationAndroidIdentity.
+  ///
+  /// In en, this message translates to:
+  /// **'Package: {packageName}\nSignature hash: {signatureHash}\nRedirect URI: {redirectUri}'**
+  String registrationAndroidIdentity(
+    String packageName,
+    String signatureHash,
+    String redirectUri,
+  );
+
+  /// No description provided for @oauthRegistrationRejected.
+  ///
+  /// In en, this message translates to:
+  /// **'Check the client type, supported accounts, permissions, and redirect in your registration. Select the configuration again if it was imported.'**
+  String get oauthRegistrationRejected;
+
+  /// No description provided for @oauthAuthorizationCodeUnusable.
+  ///
+  /// In en, this message translates to:
+  /// **'This authorization attempt could not be completed. Start authorization again; your existing connection is preserved.'**
+  String get oauthAuthorizationCodeUnusable;
+
+  /// No description provided for @oauthPermissionRefused.
+  ///
+  /// In en, this message translates to:
+  /// **'Authorization was refused or required permissions were not granted. Try again and grant the required permissions.'**
+  String get oauthPermissionRefused;
+
+  /// No description provided for @oauthProviderThrottled.
+  ///
+  /// In en, this message translates to:
+  /// **'The provider is limiting requests. Wait before trying again; your existing connection is preserved.'**
+  String get oauthProviderThrottled;
+
+  /// No description provided for @oauthProviderTemporaryFailure.
+  ///
+  /// In en, this message translates to:
+  /// **'Authorization could not complete because of a temporary provider problem. Try again; your existing connection is preserved.'**
+  String get oauthProviderTemporaryFailure;
+
+  /// No description provided for @oauthAuthorizationTimedOut.
+  ///
+  /// In en, this message translates to:
+  /// **'Authorization timed out. Try again; select a fresh configuration if it was imported.'**
+  String get oauthAuthorizationTimedOut;
+
+  /// No description provided for @oauthWrongAccount.
+  ///
+  /// In en, this message translates to:
+  /// **'Authorize the account selected for reconnection. Your existing connection is preserved.'**
+  String get oauthWrongAccount;
+
+  /// No description provided for @oauthSecureStorageUnavailable.
+  ///
+  /// In en, this message translates to:
+  /// **'Secure storage is unavailable. Restore access to secure storage and try again.'**
+  String get oauthSecureStorageUnavailable;
+
+  /// No description provided for @oauthRevokedRemovalIncomplete.
+  ///
+  /// In en, this message translates to:
+  /// **'Remote authorization was revoked, but account cleanup could not finish. Restart BusyMax to retry local recovery.'**
+  String get oauthRevokedRemovalIncomplete;
 }
 
 class _AppLocalizationsDelegate

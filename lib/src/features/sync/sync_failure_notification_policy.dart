@@ -1,3 +1,5 @@
+import 'account_sync_operations.dart';
+import 'domain_sync_schedule.dart';
 import 'dart:async';
 import 'dart:io';
 
@@ -26,6 +28,17 @@ SyncFailureNotificationDisposition syncFailureNotificationDisposition(
   Object error,
 ) {
   final effectiveError = resolveEffectiveSyncFailure(error);
+  if (effectiveError is DomainCooldownException) {
+    return SyncFailureNotificationDisposition.suppressed;
+  }
+  if (effectiveError is PartialAccountSyncException) {
+    var disposition = SyncFailureNotificationDisposition.suppressed;
+    for (final failure in effectiveError.failures.values) {
+      final next = syncFailureNotificationDisposition(failure);
+      if (_priority(next) > _priority(disposition)) disposition = next;
+    }
+    return disposition;
+  }
   if (effectiveError is DavAccountSyncException) {
     return _aggregateDavFailures(effectiveError.failures);
   }
@@ -50,6 +63,9 @@ SyncFailureNotificationDisposition syncFailureNotificationDisposition(
     return _httpDisposition(effectiveError.statusCode);
   }
   if (effectiveError is GoogleCalendarApiError) {
+    if (effectiveError.isRateLimited) {
+      return SyncFailureNotificationDisposition.suppressed;
+    }
     return _httpDisposition(effectiveError.statusCode);
   }
   if (effectiveError is MicrosoftCalendarApiError) {
@@ -59,7 +75,9 @@ SyncFailureNotificationDisposition syncFailureNotificationDisposition(
     return _httpDisposition(effectiveError.statusCode);
   }
   if (effectiveError is OAuthRefreshException) {
-    if (effectiveError.oauthError == 'invalid_grant') {
+    if ((effectiveError.statusCode == 400 ||
+            effectiveError.statusCode == 401) &&
+        effectiveError.oauthError == 'invalid_grant') {
       return SyncFailureNotificationDisposition.reconnectRequired;
     }
     return _oauthRefreshHttpDisposition(effectiveError.statusCode);

@@ -16,7 +16,13 @@
   "settingsSaveFailed": "設定を保存できませんでした。BusyMax を再起動すると変更が失われる可能性があります。",
   "nextcloudExportCollection": "コレクションのリソースをエクスポート",
   "nextcloudImportItems": "予定／タスクのリソースが {count} 件見つかりました",
-  "@nextcloudImportItems": {"placeholders": {"count": {"type": "int"}}},
+  "@nextcloudImportItems": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "nextcloudSchedulingInbox": "招待の受信トレイ",
   "nextcloudInboxExplanation": "Nextcloud はこれらのメッセージをカレンダーに反映します。確認するとメッセージだけが削除され、予定は残ります。",
   "nextcloudInboxEmpty": "日程調整メッセージはありません。",
@@ -24,7 +30,13 @@
   "nextcloudAcknowledgeConfirm": "このメッセージを受信トレイから削除しますか？予定は保持されます。",
   "nextcloudGuestAvailability": "参加者の空き時間を確認",
   "nextcloudTrashRetention": "サーバーのごみ箱の保存期間：{days} 日",
-  "@nextcloudTrashRetention": {"placeholders": {"days": {"type": "int"}}},
+  "@nextcloudTrashRetention": {
+    "placeholders": {
+      "days": {
+        "type": "int"
+      }
+    }
+  },
   "nextcloudCancelMeeting": "会議をキャンセル",
   "nextcloudDeclineAndRemove": "招待を辞退して削除",
   "nextcloudDeclineRemovalWarning": "同期時に辞退の返信を送信します。主催者の会議はキャンセルされません。",
@@ -171,7 +183,7 @@
   },
   "newEvent": "新しい予定",
   "refreshCalendar": "カレンダーを更新",
-"openInProvider": "サービスで開く",
+  "openInProvider": "サービスで開く",
   "linkedResources": "リンクされたリソース",
   "noLinkedResources": "リンクされたリソースはありません",
   "attachments": "添付ファイル",
@@ -471,7 +483,7 @@
   "moveToTop": "一番上に移動",
   "deleteTask": "タスクを削除",
   "newSubtask": "新しいサブタスク",
- "deleteTaskConfirmation": "「{title}」を削除しますか？",
+  "deleteTaskConfirmation": "「{title}」を削除しますか？",
   "deleteAssignedTaskWarning": "Google ドキュメントまたは Chat スペースの元のタスクも削除されます。",
   "metadata": "メタデータ",
   "id": "ID",
@@ -1025,19 +1037,33 @@
   "@repeatYearlyOnMonthDaysSummary": {
     "description": "Complete yearly recurrence summary for selected month days; placeholders may be reordered by locale.",
     "placeholders": {
-      "frequency": {"type": "String"},
-      "month": {"type": "String"},
-      "days": {"type": "String"}
+      "frequency": {
+        "type": "String"
+      },
+      "month": {
+        "type": "String"
+      },
+      "days": {
+        "type": "String"
+      }
     }
   },
   "repeatYearlyOnOrdinalSummary": "{frequency}{month}の{position, select, first{第1{days}} second{第2{days}} third{第3{days}} fourth{第4{days}} fifth{第5{days}} secondToLast{最後から2番目の{days}} last{最後の{days}} other{{days}}}",
   "@repeatYearlyOnOrdinalSummary": {
     "description": "Complete yearly ordinal recurrence summary; {position} selects the ordinal wording and placeholders may be reordered by locale.",
     "placeholders": {
-      "frequency": {"type": "String"},
-      "month": {"type": "String"},
-      "position": {"type": "String"},
-      "days": {"type": "String"}
+      "frequency": {
+        "type": "String"
+      },
+      "month": {
+        "type": "String"
+      },
+      "position": {
+        "type": "String"
+      },
+      "days": {
+        "type": "String"
+      }
     }
   },
   "searchFilters": "検索フィルター",
@@ -1100,5 +1126,84 @@
   "sharingRateLimited": "共有は一時的に制限されています。待機時間が終了してから再試行してください。",
   "attachmentUploadRateLimited": "添付ファイルのアップロードは一時的に制限されています。待機時間が終了してから再試行してください。",
   "unknownEventLabel": "不明なラベル（{id}）",
-  "@unknownEventLabel": {"placeholders": {"id": {"type": "String"}}}
+  "@unknownEventLabel": {
+    "placeholders": {
+      "id": {
+        "type": "String"
+      }
+    }
+  },
+  "registrationSetupTitle": "{provider} を設定",
+  "@registrationSetupTitle": {
+    "placeholders": {
+      "provider": {
+        "type": "String"
+      }
+    }
+  },
+  "registrationSetupGuide": "設定ガイド",
+  "registrationGoogleInstructions": "独自の Google Cloud プロジェクトを作成し、Calendar と Tasks API を有効にして、デスクトップ OAuth クライアントの JSON をインポートします。目的のアカウントを認証してください。",
+  "registrationMicrosoftInstructions": "アプリ登録を許可する Entra テナントでパブリックアプリを登録します。クライアント ID と対象アカウントを入力します。クライアントシークレットは不要です。",
+  "registrationImportGoogle": "デスクトップ OAuth JSON を選択",
+  "registrationValidate": "登録を検証",
+  "registrationAuthorize": "ブラウザで認証",
+  "registrationClientId": "アプリケーション／クライアント ID",
+  "registrationTenantId": "テナント ID",
+  "registrationAudience": "対応アカウント",
+  "registrationBothAudience": "個人および組織アカウント",
+  "registrationOrganizationAudience": "組織アカウント",
+  "registrationPersonalAudience": "個人アカウント",
+  "registrationTenantAudience": "単一の組織テナント",
+  "registrationSummary": "登録: {clientId}",
+  "@registrationSummary": {
+    "placeholders": {
+      "clientId": {
+        "type": "String"
+      }
+    }
+  },
+  "registrationMigrate": "今すぐ移行",
+  "registrationReplace": "登録を置き換え",
+  "registrationRetirementNotice": "このアカウントは BusyMax の共有 {provider} アプリ登録を使用しています。この登録は次のリリースで廃止されます。独自の {setup} を設定し、このアカウントを再接続して同期を継続してください。既存のカレンダー、タスク、ローカルの変更は保持されます。",
+  "@registrationRetirementNotice": {
+    "placeholders": {
+      "provider": {
+        "type": "String"
+      },
+      "setup": {
+        "type": "String"
+      }
+    }
+  },
+  "registrationContinue": "このアカウントを引き続き使用",
+  "registrationGoogleProject": "Google Cloud プロジェクト",
+  "registrationMicrosoftApp": "Microsoft アプリ登録",
+  "registrationUserOwned": "ユーザーが提供した登録",
+  "registrationNativeGoogle": "Google Android ネイティブ登録",
+  "registrationShared": "共有登録（移行期間）",
+  "registrationUnresolved": "登録の出所を確認できません。アカウントのデータは保持されています。",
+  "registrationOfficialDocumentation": "公式ドキュメント",
+  "registrationAndroidIdentity": "パッケージ: {packageName}\n署名ハッシュ: {signatureHash}\nリダイレクト URI: {redirectUri}",
+  "@registrationAndroidIdentity": {
+    "placeholders": {
+      "packageName": {
+        "type": "String"
+      },
+      "signatureHash": {
+        "type": "String"
+      },
+      "redirectUri": {
+        "type": "String"
+      }
+    }
+  },
+  "oauthRegistrationRejected": "登録のクライアント種別、対応アカウント、権限、リダイレクトを確認してください。インポートした設定は再選択してください。",
+  "oauthAuthorizationCodeUnusable": "この認証を完了できませんでした。認証をやり直してください。既存の接続は保持されています。",
+  "oauthPermissionRefused": "認証が拒否されたか、必要な権限がありません。再試行して必要な権限を付与してください。",
+  "oauthProviderThrottled": "プロバイダーがリクエストを制限しています。しばらく待って再試行してください。既存の接続は保持されています。",
+  "oauthProviderTemporaryFailure": "プロバイダーの一時的な問題により認証を完了できませんでした。再試行してください。既存の接続は保持されています。",
+  "oauthAuthorizationTimedOut": "認証がタイムアウトしました。再試行し、インポートした設定は再選択してください。",
+  "oauthWrongAccount": "再接続用に選択したアカウントで認証してください。既存の接続は保持されています。",
+  "oauthSecureStorageUnavailable": "安全なストレージを利用できません。アクセスを復旧して再試行してください。",
+  "oauthRevokedRemovalIncomplete": "リモート認証は取り消されましたが、アカウントのクリーンアップを完了できませんでした。BusyMax を再起動してローカル復旧を再試行してください。"
 }

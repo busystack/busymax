@@ -74,9 +74,13 @@ void main() {
       matching: find.byType(ListTile),
     );
     await tester.ensureVisible(accountRow);
-    await tester.tap(
-      find.descendant(of: accountRow, matching: find.byType(DropDownButton)),
+    final menu = find.descendant(
+      of: accountRow,
+      matching: find.byType(DropDownButton),
     );
+    await tester.ensureVisible(menu);
+    await tester.pumpAndSettle();
+    await tester.tap(menu);
     await tester.pumpAndSettle();
     await tester.tap(find.text('Manage calendar sharing').last);
     await tester.pumpAndSettle();

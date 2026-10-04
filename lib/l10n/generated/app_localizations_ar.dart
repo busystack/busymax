@@ -3225,4 +3225,136 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String get calendarOwnerEmail => 'البريد الإلكتروني لمالك التقويم';
+
+  @override
+  String registrationSetupTitle(String provider) {
+    return 'إعداد ⁨$provider⁩';
+  }
+
+  @override
+  String get registrationSetupGuide => 'دليل الإعداد';
+
+  @override
+  String get registrationGoogleInstructions =>
+      'أنشئ مشروع Google Cloud خاصًا بك، وفعّل واجهتي Calendar وTasks، ثم استورد JSON لعميل OAuth لسطح المكتب. امنح الإذن للحساب المقصود.';
+
+  @override
+  String get registrationMicrosoftInstructions =>
+      'استخدم تسجيل تطبيق عميل عام في مستأجر Entra يسمح بالتسجيل. أدخل معرّف العميل وأنواع الحسابات. لا يلزم سر عميل.';
+
+  @override
+  String get registrationImportGoogle => 'اختيار JSON لعميل OAuth لسطح المكتب';
+
+  @override
+  String get registrationValidate => 'التحقق من التسجيل';
+
+  @override
+  String get registrationAuthorize => 'منح الإذن في المتصفح';
+
+  @override
+  String get registrationClientId => 'معرّف التطبيق/العميل';
+
+  @override
+  String get registrationTenantId => 'معرّف المستأجر';
+
+  @override
+  String get registrationAudience => 'الحسابات المدعومة';
+
+  @override
+  String get registrationBothAudience => 'حسابات شخصية ومؤسسية';
+
+  @override
+  String get registrationOrganizationAudience => 'حسابات مؤسسية';
+
+  @override
+  String get registrationPersonalAudience => 'حسابات شخصية';
+
+  @override
+  String get registrationTenantAudience => 'مستأجر مؤسسة واحد';
+
+  @override
+  String registrationSummary(String clientId) {
+    return 'التسجيل: ⁨$clientId⁩';
+  }
+
+  @override
+  String get registrationMigrate => 'الانتقال الآن';
+
+  @override
+  String get registrationReplace => 'استبدال التسجيل';
+
+  @override
+  String registrationRetirementNotice(String provider, String setup) {
+    return 'يستخدم هذا الحساب تسجيل ⁨$provider⁩ المشترك في BusyMax، الذي سيتوقف في الإصدار القادم. أعدّ ⁨$setup⁩ خاصًا بك وأعد توصيل الحساب لمواصلة المزامنة. ستُحفظ التقويمات والمهام والتغييرات المحلية الحالية.';
+  }
+
+  @override
+  String get registrationContinue => 'متابعة استخدام هذا الحساب';
+
+  @override
+  String get registrationGoogleProject => 'مشروع Google Cloud';
+
+  @override
+  String get registrationMicrosoftApp => 'تسجيل تطبيق Microsoft';
+
+  @override
+  String get registrationUserOwned => 'تسجيل يقدمه المستخدم';
+
+  @override
+  String get registrationNativeGoogle => 'تسجيل Google الأصلي على Android';
+
+  @override
+  String get registrationShared => 'تسجيل مشترك (مرحلة انتقالية)';
+
+  @override
+  String get registrationUnresolved =>
+      'لم يُحدّد مصدر التسجيل. بيانات الحساب محفوظة.';
+
+  @override
+  String get registrationOfficialDocumentation => 'الوثائق الرسمية';
+
+  @override
+  String registrationAndroidIdentity(
+    String packageName,
+    String signatureHash,
+    String redirectUri,
+  ) {
+    return 'الحزمة: ⁨$packageName⁩\nبصمة التوقيع: ⁨$signatureHash⁩\nعنوان إعادة التوجيه: ⁨$redirectUri⁩';
+  }
+
+  @override
+  String get oauthRegistrationRejected =>
+      'تحقق من نوع العميل والحسابات المدعومة والأذونات وإعادة التوجيه في التسجيل. اختر الإعداد المستورد مرة أخرى.';
+
+  @override
+  String get oauthAuthorizationCodeUnusable =>
+      'تعذر إكمال محاولة التفويض هذه. ابدأ من جديد؛ الاتصال الحالي محفوظ.';
+
+  @override
+  String get oauthPermissionRefused =>
+      'رُفض التفويض أو لم تُمنح الأذونات المطلوبة. حاول مجددًا وامنح الأذونات اللازمة.';
+
+  @override
+  String get oauthProviderThrottled =>
+      'يحد موفر الخدمة من الطلبات. انتظر قبل المحاولة مجددًا؛ الاتصال الحالي محفوظ.';
+
+  @override
+  String get oauthProviderTemporaryFailure =>
+      'تعذر إكمال التفويض بسبب مشكلة مؤقتة لدى موفر الخدمة. حاول مجددًا؛ الاتصال الحالي محفوظ.';
+
+  @override
+  String get oauthAuthorizationTimedOut =>
+      'انتهت مهلة التفويض. حاول مجددًا واختر الإعداد المستورد مرة أخرى.';
+
+  @override
+  String get oauthWrongAccount =>
+      'فوّض الحساب المحدد لإعادة الاتصال. الاتصال الحالي محفوظ.';
+
+  @override
+  String get oauthSecureStorageUnavailable =>
+      'التخزين الآمن غير متاح. استعد الوصول إليه وحاول مجددًا.';
+
+  @override
+  String get oauthRevokedRemovalIncomplete =>
+      'أُلغي التفويض عن بُعد، لكن تنظيف الحساب لم يكتمل. أعد تشغيل BusyMax لإعادة محاولة الاسترداد المحلي.';
 }

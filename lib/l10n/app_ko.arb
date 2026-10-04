@@ -16,7 +16,13 @@
   "settingsSaveFailed": "설정을 저장할 수 없습니다. BusyMax를 다시 시작하면 변경 사항이 사라질 수 있습니다.",
   "nextcloudExportCollection": "컬렉션 리소스 내보내기",
   "nextcloudImportItems": "일정/작업 리소스 {count}개 발견",
-  "@nextcloudImportItems": {"placeholders": {"count": {"type": "int"}}},
+  "@nextcloudImportItems": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "nextcloudSchedulingInbox": "일정 초대 수신함",
   "nextcloudInboxExplanation": "Nextcloud가 이 메시지를 캘린더에 반영합니다. 확인하면 메시지만 삭제되고 일정은 유지됩니다.",
   "nextcloudInboxEmpty": "일정 메시지가 없습니다.",
@@ -24,7 +30,13 @@
   "nextcloudAcknowledgeConfirm": "수신함에서 이 메시지를 삭제할까요? 캘린더 일정은 유지됩니다.",
   "nextcloudGuestAvailability": "참석자의 가능한 시간 확인",
   "nextcloudTrashRetention": "서버 휴지통 보관 기간: {days}일",
-  "@nextcloudTrashRetention": {"placeholders": {"days": {"type": "int"}}},
+  "@nextcloudTrashRetention": {
+    "placeholders": {
+      "days": {
+        "type": "int"
+      }
+    }
+  },
   "nextcloudCancelMeeting": "회의 취소",
   "nextcloudDeclineAndRemove": "초대 거절 및 삭제",
   "nextcloudDeclineRemovalWarning": "동기화할 때 거절 응답을 보냅니다. 주최자의 회의는 취소되지 않습니다.",
@@ -171,7 +183,7 @@
   },
   "newEvent": "새 일정",
   "refreshCalendar": "캘린더 새로 고침",
-"openInProvider": "서비스에서 열기",
+  "openInProvider": "서비스에서 열기",
   "linkedResources": "연결된 리소스",
   "noLinkedResources": "연결된 리소스가 없습니다",
   "attachments": "첨부 파일",
@@ -471,7 +483,7 @@
   "moveToTop": "맨 위로 이동",
   "deleteTask": "할 일 삭제",
   "newSubtask": "새 하위 할 일",
- "deleteTaskConfirmation": "“{title}” 항목을 삭제할까요?",
+  "deleteTaskConfirmation": "“{title}” 항목을 삭제할까요?",
   "deleteAssignedTaskWarning": "Google Docs 또는 Chat 스페이스의 원본 할 일도 삭제됩니다.",
   "metadata": "메타데이터",
   "id": "ID",
@@ -1025,19 +1037,33 @@
   "@repeatYearlyOnMonthDaysSummary": {
     "description": "Complete yearly recurrence summary for selected month days; placeholders may be reordered by locale.",
     "placeholders": {
-      "frequency": {"type": "String"},
-      "month": {"type": "String"},
-      "days": {"type": "String"}
+      "frequency": {
+        "type": "String"
+      },
+      "month": {
+        "type": "String"
+      },
+      "days": {
+        "type": "String"
+      }
     }
   },
   "repeatYearlyOnOrdinalSummary": "{frequency} {month}의 {position, select, first{첫 번째 {days}} second{두 번째 {days}} third{세 번째 {days}} fourth{네 번째 {days}} fifth{다섯 번째 {days}} secondToLast{끝에서 두 번째 {days}} last{마지막 {days}} other{{days}}}",
   "@repeatYearlyOnOrdinalSummary": {
     "description": "Complete yearly ordinal recurrence summary; {position} selects the ordinal wording and placeholders may be reordered by locale.",
     "placeholders": {
-      "frequency": {"type": "String"},
-      "month": {"type": "String"},
-      "position": {"type": "String"},
-      "days": {"type": "String"}
+      "frequency": {
+        "type": "String"
+      },
+      "month": {
+        "type": "String"
+      },
+      "position": {
+        "type": "String"
+      },
+      "days": {
+        "type": "String"
+      }
     }
   },
   "searchFilters": "검색 필터",
@@ -1100,5 +1126,84 @@
   "sharingRateLimited": "공유가 일시적으로 제한되었습니다. 대기 시간이 끝나면 다시 시도하세요.",
   "attachmentUploadRateLimited": "첨부 파일 업로드가 일시적으로 제한되었습니다. 대기 시간이 끝나면 다시 시도하세요.",
   "unknownEventLabel": "알 수 없는 라벨 ({id})",
-  "@unknownEventLabel": {"placeholders": {"id": {"type": "String"}}}
+  "@unknownEventLabel": {
+    "placeholders": {
+      "id": {
+        "type": "String"
+      }
+    }
+  },
+  "registrationSetupTitle": "{provider} 설정",
+  "@registrationSetupTitle": {
+    "placeholders": {
+      "provider": {
+        "type": "String"
+      }
+    }
+  },
+  "registrationSetupGuide": "설정 안내",
+  "registrationGoogleInstructions": "자신의 Google Cloud 프로젝트를 만들고 Calendar 및 Tasks API를 사용 설정한 후 Desktop OAuth 클라이언트 JSON을 가져오세요. 원하는 계정에 권한을 부여하세요.",
+  "registrationMicrosoftInstructions": "앱 등록을 허용하는 Entra 테넌트에서 공용 앱 등록을 사용하세요. 클라이언트 ID와 지원 계정 유형을 입력하세요. 클라이언트 암호는 필요 없습니다.",
+  "registrationImportGoogle": "Desktop OAuth JSON 선택",
+  "registrationValidate": "등록 확인",
+  "registrationAuthorize": "브라우저에서 권한 부여",
+  "registrationClientId": "애플리케이션/클라이언트 ID",
+  "registrationTenantId": "테넌트 ID",
+  "registrationAudience": "지원 계정",
+  "registrationBothAudience": "개인 및 조직 계정",
+  "registrationOrganizationAudience": "조직 계정",
+  "registrationPersonalAudience": "개인 계정",
+  "registrationTenantAudience": "하나의 조직 테넌트",
+  "registrationSummary": "등록: {clientId}",
+  "@registrationSummary": {
+    "placeholders": {
+      "clientId": {
+        "type": "String"
+      }
+    }
+  },
+  "registrationMigrate": "지금 이전",
+  "registrationReplace": "등록 교체",
+  "registrationRetirementNotice": "이 계정은 다음 릴리스에서 중단될 BusyMax의 공유 {provider} 앱 등록을 사용합니다. 자신의 {setup}을 설정하고 이 계정을 다시 연결하여 동기화를 유지하세요. 기존 캘린더, 작업 및 로컬 변경 사항은 보존됩니다.",
+  "@registrationRetirementNotice": {
+    "placeholders": {
+      "provider": {
+        "type": "String"
+      },
+      "setup": {
+        "type": "String"
+      }
+    }
+  },
+  "registrationContinue": "이 계정 계속 사용",
+  "registrationGoogleProject": "Google Cloud 프로젝트",
+  "registrationMicrosoftApp": "Microsoft 앱 등록",
+  "registrationUserOwned": "사용자가 제공한 등록",
+  "registrationNativeGoogle": "Google Android 기본 등록",
+  "registrationShared": "공유 등록(전환 기간)",
+  "registrationUnresolved": "등록 출처를 확인할 수 없습니다. 계정 데이터는 보존됩니다.",
+  "registrationOfficialDocumentation": "공식 문서",
+  "registrationAndroidIdentity": "패키지: {packageName}\n서명 해시: {signatureHash}\n리디렉션 URI: {redirectUri}",
+  "@registrationAndroidIdentity": {
+    "placeholders": {
+      "packageName": {
+        "type": "String"
+      },
+      "signatureHash": {
+        "type": "String"
+      },
+      "redirectUri": {
+        "type": "String"
+      }
+    }
+  },
+  "oauthRegistrationRejected": "등록의 클라이언트 유형, 지원 계정, 권한 및 리디렉션을 확인하세요. 가져온 설정이라면 다시 선택하세요.",
+  "oauthAuthorizationCodeUnusable": "이 인증을 완료하지 못했습니다. 인증을 다시 시작하세요. 기존 연결은 유지됩니다.",
+  "oauthPermissionRefused": "인증이 거부되었거나 필요한 권한이 부여되지 않았습니다. 다시 시도하여 필요한 권한을 부여하세요.",
+  "oauthProviderThrottled": "제공자가 요청을 제한하고 있습니다. 잠시 기다린 후 다시 시도하세요. 기존 연결은 유지됩니다.",
+  "oauthProviderTemporaryFailure": "제공자의 일시적인 문제로 인증을 완료하지 못했습니다. 다시 시도하세요. 기존 연결은 유지됩니다.",
+  "oauthAuthorizationTimedOut": "인증 시간이 초과되었습니다. 다시 시도하고 가져온 설정이라면 다시 선택하세요.",
+  "oauthWrongAccount": "다시 연결하도록 선택한 계정을 인증하세요. 기존 연결은 유지됩니다.",
+  "oauthSecureStorageUnavailable": "보안 저장소를 사용할 수 없습니다. 접근을 복구한 후 다시 시도하세요.",
+  "oauthRevokedRemovalIncomplete": "원격 인증은 취소되었지만 계정 정리를 완료하지 못했습니다. BusyMax를 다시 시작하여 로컬 복구를 재시도하세요."
 }

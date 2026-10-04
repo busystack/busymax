@@ -16,7 +16,13 @@
   "settingsSaveFailed": "Seadeid ei õnnestunud salvestada. Muudatused võivad BusyMaxi taaskäivitamisel kaduda.",
   "nextcloudExportCollection": "Ekspordi kogu ressursid",
   "nextcloudImportItems": "Leiti {count} sündmuse/ülesande ressurssi",
-  "@nextcloudImportItems": {"placeholders": {"count": {"type": "int"}}},
+  "@nextcloudImportItems": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "nextcloudSchedulingInbox": "Kutsete postkast",
   "nextcloudInboxExplanation": "Nextcloud töötleb need sõnumid sinu kalendritesse. Kinnitamine eemaldab ainult sõnumi, mitte sündmuse.",
   "nextcloudInboxEmpty": "Ajastussõnumeid pole.",
@@ -24,7 +30,13 @@
   "nextcloudAcknowledgeConfirm": "Kas eemaldada see sõnum postkastist? Kalendrisündmus säilib.",
   "nextcloudGuestAvailability": "Kontrolli külaliste saadavust",
   "nextcloudTrashRetention": "Serveri prügikasti säilitusaeg: {days} päeva",
-  "@nextcloudTrashRetention": {"placeholders": {"days": {"type": "int"}}},
+  "@nextcloudTrashRetention": {
+    "placeholders": {
+      "days": {
+        "type": "int"
+      }
+    }
+  },
   "nextcloudCancelMeeting": "Tühista koosolek",
   "nextcloudDeclineAndRemove": "Keeldu ja eemalda kutse",
   "nextcloudDeclineRemovalWarning": "Eemaldamine saadab sünkroonimisel keeldumise. See ei tühista korraldaja koosolekut.",
@@ -171,7 +183,7 @@
   },
   "newEvent": "Uus sündmus",
   "refreshCalendar": "Värskenda kalendrit",
-"openInProvider": "Ava teenuses",
+  "openInProvider": "Ava teenuses",
   "linkedResources": "Seotud ressursid",
   "noLinkedResources": "Seotud ressursse pole",
   "attachments": "Manused",
@@ -565,7 +577,7 @@
   "moveToTop": "Teisalda kõige üles",
   "deleteTask": "Kustuta ülesanne",
   "newSubtask": "Uus alamülesanne",
- "deleteTaskConfirmation": "Kas kustutada „{title}”?",
+  "deleteTaskConfirmation": "Kas kustutada „{title}”?",
   "deleteAssignedTaskWarning": "See kustutab ka algse ülesande Google Docsis või Chati ruumides.",
   "@deleteTaskConfirmation": {
     "placeholders": {
@@ -1203,19 +1215,33 @@
   "@repeatYearlyOnMonthDaysSummary": {
     "description": "Complete yearly recurrence summary for selected month days; placeholders may be reordered by locale.",
     "placeholders": {
-      "frequency": {"type": "String"},
-      "month": {"type": "String"},
-      "days": {"type": "String"}
+      "frequency": {
+        "type": "String"
+      },
+      "month": {
+        "type": "String"
+      },
+      "days": {
+        "type": "String"
+      }
     }
   },
   "repeatYearlyOnOrdinalSummary": "{frequency} {month}: {position, select, first{esimene} second{teine} third{kolmas} fourth{neljas} fifth{viies} secondToLast{eelviimane} last{viimane} other{}} {days}",
   "@repeatYearlyOnOrdinalSummary": {
     "description": "Complete yearly ordinal recurrence summary; {position} selects the ordinal wording and placeholders may be reordered by locale.",
     "placeholders": {
-      "frequency": {"type": "String"},
-      "month": {"type": "String"},
-      "position": {"type": "String"},
-      "days": {"type": "String"}
+      "frequency": {
+        "type": "String"
+      },
+      "month": {
+        "type": "String"
+      },
+      "position": {
+        "type": "String"
+      },
+      "days": {
+        "type": "String"
+      }
     }
   },
   "searchFilters": "Otsingufiltrid",
@@ -1278,5 +1304,84 @@
   "sharingRateLimited": "Jagamine on ajutiselt piiratud. Proovi pärast ooteaja lõppu uuesti.",
   "attachmentUploadRateLimited": "Manuste üleslaadimine on ajutiselt piiratud. Proovi pärast ooteaja lõppu uuesti.",
   "unknownEventLabel": "Tundmatu silt ({id})",
-  "@unknownEventLabel": {"placeholders": {"id": {"type": "String"}}}
+  "@unknownEventLabel": {
+    "placeholders": {
+      "id": {
+        "type": "String"
+      }
+    }
+  },
+  "registrationSetupTitle": "Seadista {provider}",
+  "@registrationSetupTitle": {
+    "placeholders": {
+      "provider": {
+        "type": "String"
+      }
+    }
+  },
+  "registrationSetupGuide": "Seadistusjuhend",
+  "registrationGoogleInstructions": "Loo oma Google Cloudi projekt, luba Calendar ja Tasks ning impordi töölaua OAuth-kliendi JSON-fail. Autoriseeri soovitud konto.",
+  "registrationMicrosoftInstructions": "Kasuta avalikku rakenduse registreeringut Entra rentnikus, mis lubab registreerimist. Sisesta kliendi ID ja kontotüübid. Kliendisaladust pole vaja.",
+  "registrationImportGoogle": "Vali töölaua OAuthi JSON",
+  "registrationValidate": "Kontrolli registreeringut",
+  "registrationAuthorize": "Autoriseeri brauseris",
+  "registrationClientId": "Rakenduse/kliendi ID",
+  "registrationTenantId": "Rentniku ID",
+  "registrationAudience": "Toetatud kontod",
+  "registrationBothAudience": "Isiklikud ja organisatsiooni kontod",
+  "registrationOrganizationAudience": "Organisatsiooni kontod",
+  "registrationPersonalAudience": "Isiklikud kontod",
+  "registrationTenantAudience": "Üks organisatsiooni rentnik",
+  "registrationSummary": "Registreering: {clientId}",
+  "@registrationSummary": {
+    "placeholders": {
+      "clientId": {
+        "type": "String"
+      }
+    }
+  },
+  "registrationMigrate": "Migreeri kohe",
+  "registrationReplace": "Asenda registreering",
+  "registrationRetirementNotice": "See konto kasutab BusyMaxi ühist {provider} rakenduse registreeringut, mis lõpetatakse järgmises väljalaskes. Seadista oma {setup} ja ühenda konto uuesti, et sünkroonimine jätkuks. Kalendrid, ülesanded ja kohalikud muudatused säilivad.",
+  "@registrationRetirementNotice": {
+    "placeholders": {
+      "provider": {
+        "type": "String"
+      },
+      "setup": {
+        "type": "String"
+      }
+    }
+  },
+  "registrationContinue": "Jätka selle konto kasutamist",
+  "registrationGoogleProject": "Google Cloudi projekt",
+  "registrationMicrosoftApp": "Microsofti rakenduse registreering",
+  "registrationUserOwned": "Kasutaja antud registreering",
+  "registrationNativeGoogle": "Google Androidi natiivne registreering",
+  "registrationShared": "Ühine registreering (üleminek)",
+  "registrationUnresolved": "Registreeringu päritolu on teadmata. Konto andmed säilivad.",
+  "registrationOfficialDocumentation": "Ametlik dokumentatsioon",
+  "registrationAndroidIdentity": "Pakett: {packageName}\nAllkirja räsi: {signatureHash}\nÜmbersuunamise URI: {redirectUri}",
+  "@registrationAndroidIdentity": {
+    "placeholders": {
+      "packageName": {
+        "type": "String"
+      },
+      "signatureHash": {
+        "type": "String"
+      },
+      "redirectUri": {
+        "type": "String"
+      }
+    }
+  },
+  "oauthRegistrationRejected": "Kontrolli registreeringu klienditüüpi, toetatud kontosid, õigusi ja ümbersuunamist. Vali imporditud seadistus uuesti.",
+  "oauthAuthorizationCodeUnusable": "Seda autoriseerimist ei saanud lõpetada. Alusta uuesti; olemasolev ühendus säilib.",
+  "oauthPermissionRefused": "Autoriseerimisest keelduti või nõutud õigused puuduvad. Proovi uuesti ja anna vajalikud õigused.",
+  "oauthProviderThrottled": "Teenusepakkuja piirab päringuid. Oota enne uut katset; olemasolev ühendus säilib.",
+  "oauthProviderTemporaryFailure": "Teenusepakkuja ajutine probleem takistas autoriseerimist. Proovi uuesti; olemasolev ühendus säilib.",
+  "oauthAuthorizationTimedOut": "Autoriseerimise aeg sai läbi. Proovi uuesti ja vali imporditud seadistus uuesti.",
+  "oauthWrongAccount": "Autoriseeri taasühendamiseks valitud konto. Olemasolev ühendus säilib.",
+  "oauthSecureStorageUnavailable": "Turvaline salvestus pole saadaval. Taasta juurdepääs ja proovi uuesti.",
+  "oauthRevokedRemovalIncomplete": "Kaugautoriseerimine tühistati, kuid konto puhastamist ei saanud lõpetada. Taaskäivita BusyMax kohaliku taastamise uuesti proovimiseks."
 }

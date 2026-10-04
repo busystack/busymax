@@ -12,6 +12,7 @@ import '../tasks/domain/task_remote_models.dart';
 import 'conflict_detector.dart';
 import 'collection_id_replacement.dart';
 import 'pending_ops_replay_coordinator.dart';
+import 'domain_sync_schedule.dart';
 import '../task_lists/data/task_lists_repository.dart';
 import '../tasks/data/tasks_repository.dart';
 import '../tasks/domain/task_checklist_item.dart';
@@ -51,6 +52,8 @@ class PendingOpsReplayer {
   }
 
   Future<int> _replayDueOps() async {
+    final policy = DomainSyncPolicy(_database, nowUtc: _nowUtc);
+    await policy.checkCooldown(_accountId, SyncDomain.tasks);
     final ops = await _database.pendingOpsDao.pendingOpsForReplay(
       _accountId,
       _nowUtc(),
@@ -62,6 +65,7 @@ class PendingOpsReplayer {
     while (madeProgress) {
       madeProgress = false;
       for (final originalOp in ops) {
+        await policy.checkCooldown(_accountId, SyncDomain.tasks);
         if (handledIds.contains(originalOp.id)) continue;
         final op = await _readOp(originalOp.id);
         if (op == null || !_isTaskOp(op)) {
@@ -106,6 +110,13 @@ class PendingOpsReplayer {
             error.code,
             'The request was not sent and can be retried safely.',
           );
+          if (await policy.recordFailureCooldown(
+            _accountId,
+            SyncDomain.tasks,
+            error,
+          )) {
+            rethrow;
+          }
         } on TaskRemoteError catch (error) {
           if (_isSuccessfulMissingDelete(op, error)) {
             await _applyDeleteSideEffect(op);
@@ -114,14 +125,22 @@ class PendingOpsReplayer {
           } else if (_isCreationOp(op) &&
               _hasUnknownCreationOutcome(error.statusCode)) {
             await _blockUnknownCreationOutcome(op, error.message);
-          } else if (_isRetryableStatus(error.statusCode)) {
+          } else if (error.retryable || _isRetryableStatus(error.statusCode)) {
             await _scheduleRetry(
               op,
               error.statusCode.toString(),
               error.message,
+              retryAfter: error.retryAfter,
             );
           } else {
             await _blockOp(op, error.statusCode.toString(), error.message);
+          }
+          if (await policy.recordFailureCooldown(
+            _accountId,
+            SyncDomain.tasks,
+            error,
+          )) {
+            rethrow;
           }
         } on _PendingOpBlocked {
           continue;
@@ -1354,9 +1373,16 @@ class PendingOpsReplayer {
   Future<void> _scheduleRetry(
     PendingOp op,
     String errorCode,
-    String errorMessage,
-  ) async {
-    final nextAttempt = _nextAttempt(op.attemptCount);
+    String errorMessage, {
+    Duration? retryAfter,
+  }) async {
+    var nextAttempt = _nextAttempt(op.attemptCount);
+    if (retryAfter != null) {
+      final providerNotBefore = _nowUtc().add(retryAfter);
+      if (providerNotBefore.isAfter(nextAttempt)) {
+        nextAttempt = providerNotBefore;
+      }
+    }
     await _database.pendingOpsDao.updateAttempt(
       id: op.id,
       attemptCount: op.attemptCount + 1,

@@ -1,3 +1,5 @@
+import '../features/sync/domain_sync_schedule.dart';
+import '../core/auth/registration_staging.dart';
 import 'dart:async';
 import 'dart:ui';
 
@@ -40,7 +42,10 @@ void busyMaxWorkmanagerDispatcher() {
       try {
         if (taskName == busyMaxPeriodicSyncTaskName) {
           try {
-            await runtime.container.read(allAccountsSyncRunnerProvider)();
+            await withSyncTrigger(
+              SyncTrigger.background,
+              () => runtime.container.read(allAccountsSyncRunnerProvider)(),
+            );
           } on Object {
             // Provider-specific failures are persisted by the shared engines.
             succeeded = false;
@@ -122,7 +127,7 @@ final class AndroidHeadlessRuntime {
   static Future<AndroidHeadlessRuntime> create() async {
     final platform = BusyMaxAndroidPlatform.instance;
     const storage = FlutterSecureStorage(
-      aOptions: AndroidOptions(resetOnError: true),
+      aOptions: AndroidOptions(resetOnError: false),
     );
     final settings = await loadInitialAppSettings(
       const JsonFileLocalSettingsStore(),
@@ -131,12 +136,16 @@ final class AndroidHeadlessRuntime {
     final uses24Hour = await platform.uses24HourFormat();
     final database = AppDatabase.open();
     final client = http.Client();
+    final registrations = RegistrationStaging(BuildConfig.forAndroid());
     final broker = AndroidAuthorizationBroker(
       platform: platform,
       httpClient: client,
       secretStore: SecureSecretStore(storage),
       config: BuildConfig.forAndroid(),
+      database: database,
+      registrations: registrations,
     );
+    await broker.persistence!.recover();
     late ProviderContainer container;
     final notifications = AndroidNotificationService(
       database: database,
@@ -183,6 +192,8 @@ final class AndroidHeadlessRuntime {
         applicationOAuthGatewayProvider.overrideWithValue(broker),
         applicationMicrosoftOAuthServiceProvider.overrideWithValue(broker),
         accountTokenBrokerProvider.overrideWithValue(broker),
+        authorizationPersistenceProvider.overrideWithValue(broker.persistence!),
+        registrationStagingProvider.overrideWithValue(registrations),
         crossEngineAccountGateProvider.overrideWithValue(
           AndroidCrossEngineAccountGate(platform),
         ),

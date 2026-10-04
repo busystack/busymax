@@ -16,7 +16,13 @@
   "settingsSaveFailed": "تعذر حفظ الإعدادات. قد تُفقد تغييراتك عند إعادة تشغيل BusyMax.",
   "nextcloudExportCollection": "تصدير موارد المجموعة",
   "nextcloudImportItems": "تم العثور على {count} من موارد الأحداث والمهام",
-  "@nextcloudImportItems": {"placeholders": {"count": {"type": "int"}}},
+  "@nextcloudImportItems": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "nextcloudSchedulingInbox": "صندوق وارد الدعوات",
   "nextcloudInboxExplanation": "يعالج Nextcloud هذه الرسائل في تقاويمك. يؤدي الإقرار إلى إزالة الرسالة فقط، وليس الحدث.",
   "nextcloudInboxEmpty": "لا توجد رسائل جدولة.",
@@ -24,7 +30,13 @@
   "nextcloudAcknowledgeConfirm": "إزالة هذه الرسالة من صندوق الوارد؟ سيُحتفظ بحدث التقويم.",
   "nextcloudGuestAvailability": "التحقق من توفر المدعوين",
   "nextcloudTrashRetention": "مدة الاحتفاظ في مهملات الخادم: {days} يومًا",
-  "@nextcloudTrashRetention": {"placeholders": {"days": {"type": "int"}}},
+  "@nextcloudTrashRetention": {
+    "placeholders": {
+      "days": {
+        "type": "int"
+      }
+    }
+  },
   "nextcloudCancelMeeting": "إلغاء الاجتماع",
   "nextcloudDeclineAndRemove": "رفض الدعوة وإزالتها",
   "nextcloudDeclineRemovalWarning": "ستُرسل رسالة رفض عند المزامنة. لن يُلغى اجتماع المنظّم.",
@@ -171,7 +183,7 @@
   },
   "newEvent": "حدث جديد",
   "refreshCalendar": "تحديث التقويم",
-"openInProvider": "فتح في الخدمة",
+  "openInProvider": "فتح في الخدمة",
   "linkedResources": "الموارد المرتبطة",
   "noLinkedResources": "لا توجد موارد مرتبطة",
   "attachments": "المرفقات",
@@ -471,7 +483,7 @@
   "moveToTop": "نقل إلى الأعلى",
   "deleteTask": "حذف المهمة",
   "newSubtask": "مهمة فرعية جديدة",
- "deleteTaskConfirmation": "حذف «⁨⁨{title}⁩⁩»؟",
+  "deleteTaskConfirmation": "حذف «⁨⁨{title}⁩⁩»؟",
   "deleteAssignedTaskWarning": "سيؤدي هذا أيضًا إلى حذف المهمة الأصلية في مستندات Google أو مساحات Chat.",
   "metadata": "البيانات الوصفية",
   "id": "المعرّف",
@@ -1025,19 +1037,33 @@
   "@repeatYearlyOnMonthDaysSummary": {
     "description": "Complete yearly recurrence summary for selected month days; placeholders may be reordered by locale.",
     "placeholders": {
-      "frequency": {"type": "String"},
-      "month": {"type": "String"},
-      "days": {"type": "String"}
+      "frequency": {
+        "type": "String"
+      },
+      "month": {
+        "type": "String"
+      },
+      "days": {
+        "type": "String"
+      }
     }
   },
   "repeatYearlyOnOrdinalSummary": "{frequency} {position, select, first{في أول {days} من {month}} second{في ثاني {days} من {month}} third{في ثالث {days} من {month}} fourth{في رابع {days} من {month}} fifth{في خامس {days} من {month}} secondToLast{في {days} قبل الأخير من {month}} last{في آخر {days} من {month}} other{في {days} من {month}}}",
   "@repeatYearlyOnOrdinalSummary": {
     "description": "Complete yearly ordinal recurrence summary; {position} selects the ordinal wording and placeholders may be reordered by locale.",
     "placeholders": {
-      "frequency": {"type": "String"},
-      "month": {"type": "String"},
-      "position": {"type": "String"},
-      "days": {"type": "String"}
+      "frequency": {
+        "type": "String"
+      },
+      "month": {
+        "type": "String"
+      },
+      "position": {
+        "type": "String"
+      },
+      "days": {
+        "type": "String"
+      }
     }
   },
   "searchFilters": "عوامل تصفية البحث",
@@ -1100,5 +1126,84 @@
   "sharingRateLimited": "المشاركة مقيّدة مؤقتًا. حاول مرة أخرى بعد انتهاء فترة الانتظار.",
   "attachmentUploadRateLimited": "تحميل المرفقات مقيّد مؤقتًا. حاول مرة أخرى بعد انتهاء فترة الانتظار.",
   "unknownEventLabel": "تسمية غير معروفة (⁨{id}⁩)",
-  "@unknownEventLabel": {"placeholders": {"id": {"type": "String"}}}
+  "@unknownEventLabel": {
+    "placeholders": {
+      "id": {
+        "type": "String"
+      }
+    }
+  },
+  "registrationSetupTitle": "إعداد ⁨{provider}⁩",
+  "@registrationSetupTitle": {
+    "placeholders": {
+      "provider": {
+        "type": "String"
+      }
+    }
+  },
+  "registrationSetupGuide": "دليل الإعداد",
+  "registrationGoogleInstructions": "أنشئ مشروع Google Cloud خاصًا بك، وفعّل واجهتي Calendar وTasks، ثم استورد JSON لعميل OAuth لسطح المكتب. امنح الإذن للحساب المقصود.",
+  "registrationMicrosoftInstructions": "استخدم تسجيل تطبيق عميل عام في مستأجر Entra يسمح بالتسجيل. أدخل معرّف العميل وأنواع الحسابات. لا يلزم سر عميل.",
+  "registrationImportGoogle": "اختيار JSON لعميل OAuth لسطح المكتب",
+  "registrationValidate": "التحقق من التسجيل",
+  "registrationAuthorize": "منح الإذن في المتصفح",
+  "registrationClientId": "معرّف التطبيق/العميل",
+  "registrationTenantId": "معرّف المستأجر",
+  "registrationAudience": "الحسابات المدعومة",
+  "registrationBothAudience": "حسابات شخصية ومؤسسية",
+  "registrationOrganizationAudience": "حسابات مؤسسية",
+  "registrationPersonalAudience": "حسابات شخصية",
+  "registrationTenantAudience": "مستأجر مؤسسة واحد",
+  "registrationSummary": "التسجيل: ⁨{clientId}⁩",
+  "@registrationSummary": {
+    "placeholders": {
+      "clientId": {
+        "type": "String"
+      }
+    }
+  },
+  "registrationMigrate": "الانتقال الآن",
+  "registrationReplace": "استبدال التسجيل",
+  "registrationRetirementNotice": "يستخدم هذا الحساب تسجيل ⁨{provider}⁩ المشترك في BusyMax، الذي سيتوقف في الإصدار القادم. أعدّ ⁨{setup}⁩ خاصًا بك وأعد توصيل الحساب لمواصلة المزامنة. ستُحفظ التقويمات والمهام والتغييرات المحلية الحالية.",
+  "@registrationRetirementNotice": {
+    "placeholders": {
+      "provider": {
+        "type": "String"
+      },
+      "setup": {
+        "type": "String"
+      }
+    }
+  },
+  "registrationContinue": "متابعة استخدام هذا الحساب",
+  "registrationGoogleProject": "مشروع Google Cloud",
+  "registrationMicrosoftApp": "تسجيل تطبيق Microsoft",
+  "registrationUserOwned": "تسجيل يقدمه المستخدم",
+  "registrationNativeGoogle": "تسجيل Google الأصلي على Android",
+  "registrationShared": "تسجيل مشترك (مرحلة انتقالية)",
+  "registrationUnresolved": "لم يُحدّد مصدر التسجيل. بيانات الحساب محفوظة.",
+  "registrationOfficialDocumentation": "الوثائق الرسمية",
+  "registrationAndroidIdentity": "الحزمة: ⁨{packageName}⁩\nبصمة التوقيع: ⁨{signatureHash}⁩\nعنوان إعادة التوجيه: ⁨{redirectUri}⁩",
+  "@registrationAndroidIdentity": {
+    "placeholders": {
+      "packageName": {
+        "type": "String"
+      },
+      "signatureHash": {
+        "type": "String"
+      },
+      "redirectUri": {
+        "type": "String"
+      }
+    }
+  },
+  "oauthRegistrationRejected": "تحقق من نوع العميل والحسابات المدعومة والأذونات وإعادة التوجيه في التسجيل. اختر الإعداد المستورد مرة أخرى.",
+  "oauthAuthorizationCodeUnusable": "تعذر إكمال محاولة التفويض هذه. ابدأ من جديد؛ الاتصال الحالي محفوظ.",
+  "oauthPermissionRefused": "رُفض التفويض أو لم تُمنح الأذونات المطلوبة. حاول مجددًا وامنح الأذونات اللازمة.",
+  "oauthProviderThrottled": "يحد موفر الخدمة من الطلبات. انتظر قبل المحاولة مجددًا؛ الاتصال الحالي محفوظ.",
+  "oauthProviderTemporaryFailure": "تعذر إكمال التفويض بسبب مشكلة مؤقتة لدى موفر الخدمة. حاول مجددًا؛ الاتصال الحالي محفوظ.",
+  "oauthAuthorizationTimedOut": "انتهت مهلة التفويض. حاول مجددًا واختر الإعداد المستورد مرة أخرى.",
+  "oauthWrongAccount": "فوّض الحساب المحدد لإعادة الاتصال. الاتصال الحالي محفوظ.",
+  "oauthSecureStorageUnavailable": "التخزين الآمن غير متاح. استعد الوصول إليه وحاول مجددًا.",
+  "oauthRevokedRemovalIncomplete": "أُلغي التفويض عن بُعد، لكن تنظيف الحساب لم يكتمل. أعد تشغيل BusyMax لإعادة محاولة الاسترداد المحلي."
 }

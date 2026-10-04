@@ -965,6 +965,7 @@ Future<void> _pumpSidebar(
   await tester.pumpWidget(
     ProviderScope(
       overrides: [
+        authorizationGenerationReaderProvider.overrideWithValue((_) async => 0),
         localSettingsStoreProvider.overrideWithValue(
           settingsStore ?? MemorySettingsStore(),
         ),
@@ -1226,7 +1227,10 @@ final class _ReconnectRecordingAuthRepository implements AuthRepository {
   final markedAccountIds = <String>[];
 
   @override
-  Future<void> markReconnectRequired(String accountId) async {
+  Future<void> markReconnectRequired(
+    String accountId, {
+    int? authorizationGeneration,
+  }) async {
     markedAccountIds.add(accountId);
     accounts.requireReconnect();
   }

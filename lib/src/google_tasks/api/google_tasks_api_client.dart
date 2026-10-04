@@ -222,6 +222,7 @@ class GoogleTasksRestApiClient implements TaskRemoteClient {
       throw GoogleTasksApiError.fromResponse(
         statusCode: response.statusCode,
         body: response.body,
+        headers: response.headers,
       );
     }
   }
@@ -237,6 +238,7 @@ class GoogleTasksRestApiClient implements TaskRemoteClient {
       throw GoogleTasksApiError.fromResponse(
         statusCode: response.statusCode,
         body: response.body,
+        headers: response.headers,
       );
     }
     return jsonObjectFromBody(response.body);

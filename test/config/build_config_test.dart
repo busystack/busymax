@@ -81,6 +81,8 @@ void main() {
     expect(config.hasAppleICloudProvider, isTrue);
     expect(config.hasNextcloudProvider, isTrue);
     expect(config.hasAnyProviderConfigured, isTrue);
+    expect(config.googleSetupAvailable, true);
+    expect(config.microsoftSetupAvailable, true);
   });
 
   test('demo theme parser is tolerant and defaults to system', () {

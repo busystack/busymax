@@ -1,3 +1,4 @@
+import 'package:busymax/src/core/auth/authorization_attempt.dart';
 import 'task_recurrence.dart';
 import 'dart:async';
 import 'dart:convert';
@@ -131,6 +132,8 @@ class TaskDetailsEditor extends StatefulWidget {
 }
 
 class _TaskDetailsEditorState extends State<TaskDetailsEditor> {
+  AuthorizationCancellation? _consentCancellation;
+
   final _titleController = TextEditingController();
   final _notesController = TextEditingController();
   final _shortcutFocusNode = FocusNode(debugLabel: 'Task editor shortcuts');
@@ -179,6 +182,7 @@ class _TaskDetailsEditorState extends State<TaskDetailsEditor> {
 
   @override
   void dispose() {
+    _consentCancellation?.cancel();
     _shortcutFocusNode.dispose();
     _titleController.dispose();
     _notesController.dispose();
@@ -1151,20 +1155,36 @@ class _TaskDetailsEditorState extends State<TaskDetailsEditor> {
               loading: () => const SizedBox.shrink(),
               error: (_, _) => BusyMaxPushButton.standard(
                 onPressed: () async {
+                  _consentCancellation?.cancel();
+                  final consent = AuthorizationCancellation();
+                  _consentCancellation = consent;
                   try {
-                    await ref
-                        .read(microsoftCategoryAuthorizationProvider)
-                        ?.authorizeCategoryAccess(_editingTask.accountId);
-                    ref.invalidate(
-                      microsoftMasterCategoriesProvider(_editingTask.accountId),
-                    );
-                  } on Object {
-                    if (context.mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text(l10n.outlookCategoriesUnavailable),
+                    try {
+                      await ref
+                          .read(microsoftCategoryAuthorizationProvider)
+                          ?.authorizeCategoryAccess(
+                            _editingTask.accountId,
+                            cancellation: consent,
+                          );
+                      if (!mounted || consent.isCancelled) return;
+                      ref.invalidate(
+                        microsoftMasterCategoriesProvider(
+                          _editingTask.accountId,
                         ),
                       );
+                    } on Object {
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text(l10n.outlookCategoriesUnavailable),
+                          ),
+                        );
+                      }
+                    }
+                  } finally {
+                    consent.cancel();
+                    if (identical(_consentCancellation, consent)) {
+                      _consentCancellation = null;
                     }
                   }
                 },

@@ -14,6 +14,7 @@ import '../calendar/data/calendar_repository.dart';
 import '../notifications/notification_schedule_service.dart';
 import 'calendar_pending_ops_replayer.dart';
 import 'collection_id_replacement.dart';
+import 'domain_sync_schedule.dart';
 
 // Google sync tokens are bound to their request shape. Bump this marker when
 // changing token-compatible event-list parameters so old cursors are rebased.
@@ -46,6 +47,22 @@ class CalendarSyncEngine {
   final Future<void> Function()? _onNotificationScheduleChanged;
   final DateTime Function() _nowUtc;
 
+  Future<void> dispatchPendingWrites() async {
+    try {
+      await _replayPendingOps();
+    } finally {
+      await maintainCachedReminders();
+    }
+  }
+
+  Future<void> maintainCachedReminders() async {
+    await NotificationScheduleService(
+      database: _database,
+      nowUtc: _nowUtc,
+    ).rebuildUpcomingNotifications(_accountId);
+    await _onNotificationScheduleChanged?.call();
+  }
+
   BusyProvider get provider => _client.provider;
 
   /// Retrieves one additional month as an independent snapshot. Range reads
@@ -69,8 +86,11 @@ class CalendarSyncEngine {
       query.where((row) => row.id.isIn(sourceIds));
     }
     final sources = await query.get();
+    final policy = DomainSyncPolicy(_database, nowUtc: _nowUtc);
     try {
+      await policy.checkCooldown(_accountId, SyncDomain.calendar);
       for (final source in sources) {
+        await policy.checkCooldown(_accountId, SyncDomain.calendar);
         // Both clients finish pagination before returning. A failed later page
         // therefore cannot turn a partial response into an empty snapshot.
         final events = await _client.listEvents(
@@ -79,8 +99,7 @@ class CalendarSyncEngine {
           rangeEnd: end,
         );
         final recurringIds = <String>{
-          for (final event in events)
-            if (event.providerRecurringEventId case final id?) id,
+          for (final event in events) ?event.providerRecurringEventId,
         };
         final existingInstances =
             await (_database.select(_database.calendarEvents)..where(
@@ -100,6 +119,7 @@ class CalendarSyncEngine {
         final masters = <CalendarEventDto>[];
         for (final id in recurringIds) {
           try {
+            await policy.checkCooldown(_accountId, SyncDomain.calendar);
             instances.addAll(
               await _client.listEventInstances(
                 calendarId: source.providerCalendarId,
@@ -108,6 +128,7 @@ class CalendarSyncEngine {
                 rangeEnd: end,
               ),
             );
+            await policy.checkCooldown(_accountId, SyncDomain.calendar);
             masters.add(
               await _client.getEvent(
                 calendarId: source.providerCalendarId,
@@ -170,6 +191,13 @@ class CalendarSyncEngine {
           full: true,
         );
       }
+    } on Object catch (error) {
+      await policy.recordFailureCooldown(
+        _accountId,
+        SyncDomain.calendar,
+        error,
+      );
+      rethrow;
     } finally {
       await NotificationScheduleService(
         database: _database,

@@ -3,7 +3,7 @@ import 'package:drift/drift.dart';
 import 'app_database.dart';
 import 'location_migration.dart';
 
-const latestSchemaVersion = 18;
+const latestSchemaVersion = 19;
 
 /// A recoverable, non-secret diagnostic raised when an on-disk schema cannot
 /// be migrated without guessing remote identity or losing synchronized data.
@@ -89,6 +89,16 @@ MigrationStrategy busyMaxMigrationStrategy(AppDatabase database) {
       }
       if (from < 18) {
         await migrator.createTable(database.androidDailySummarySchedules);
+      }
+      if (from < 19) {
+        await migrator.createTable(database.oAuthTransitionAccounts);
+        await migrator.createTable(database.accountAuthorizations);
+        await migrator.createTable(database.authorizationCommits);
+        await migrator.createTable(database.authorizationGenerations);
+        await migrator.createTable(database.domainSyncSchedules);
+        await database.customStatement(
+          "INSERT INTO ${database.oAuthTransitionAccounts.actualTableName} (account_id) SELECT id FROM accounts WHERE provider IN ('google', 'microsoft')",
+        );
       }
       await _createIndexes(database);
       await createLocationLifecycleTriggers(database);

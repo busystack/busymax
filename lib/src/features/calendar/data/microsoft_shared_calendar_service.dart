@@ -1,3 +1,4 @@
+import '../../../core/auth/authorization_attempt.dart';
 import '../../../microsoft_calendar/microsoft_calendar_api_client.dart';
 import '../../../microsoft_todo/oauth/microsoft_oauth_service.dart';
 import '../../../providers/busy_provider.dart';
@@ -36,8 +37,12 @@ final class MicrosoftSharedCalendarService {
   Future<MicrosoftSharedCalendarOpenResult> openPrimaryCalendar({
     required String accountId,
     required String owner,
+    AuthorizationCancellation? cancellation,
   }) async {
-    await authorization.authorizeSharedCalendarAccess(accountId);
+    await authorization.authorizeSharedCalendarAccess(
+      accountId,
+      cancellation: cancellation,
+    );
     final source = await clientForAccount(
       accountId,
     ).getSharedPrimaryCalendar(owner);

@@ -16,7 +16,13 @@
   "settingsSaveFailed": "无法保存设置。重新启动 BusyMax 时，您的更改可能会丢失。",
   "nextcloudExportCollection": "导出集合资源",
   "nextcloudImportItems": "找到 {count} 个事件/任务资源",
-  "@nextcloudImportItems": {"placeholders": {"count": {"type": "int"}}},
+  "@nextcloudImportItems": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "nextcloudSchedulingInbox": "日程邀请收件箱",
   "nextcloudInboxExplanation": "Nextcloud 会将这些消息处理到日历中。确认消息只会移除收件箱消息，不会删除事件。",
   "nextcloudInboxEmpty": "没有日程消息。",
@@ -24,7 +30,13 @@
   "nextcloudAcknowledgeConfirm": "从收件箱移除此消息？日历事件将被保留。",
   "nextcloudGuestAvailability": "查看受邀者的空闲时间",
   "nextcloudTrashRetention": "服务器回收站保留时间：{days} 天",
-  "@nextcloudTrashRetention": {"placeholders": {"days": {"type": "int"}}},
+  "@nextcloudTrashRetention": {
+    "placeholders": {
+      "days": {
+        "type": "int"
+      }
+    }
+  },
   "nextcloudCancelMeeting": "取消会议",
   "nextcloudDeclineAndRemove": "拒绝并移除邀请",
   "nextcloudDeclineRemovalWarning": "同步时会发送拒绝回复。此操作不会取消组织者的会议。",
@@ -171,7 +183,7 @@
   },
   "newEvent": "新建日程",
   "refreshCalendar": "刷新日历",
-"openInProvider": "在服务中打开",
+  "openInProvider": "在服务中打开",
   "linkedResources": "关联资源",
   "noLinkedResources": "没有关联资源",
   "attachments": "附件",
@@ -471,7 +483,7 @@
   "moveToTop": "移到顶部",
   "deleteTask": "删除任务",
   "newSubtask": "新建子任务",
- "deleteTaskConfirmation": "删除“{title}”？",
+  "deleteTaskConfirmation": "删除“{title}”？",
   "deleteAssignedTaskWarning": "这也会删除 Google 文档或 Chat 聊天室中的原始任务。",
   "metadata": "元数据",
   "id": "ID",
@@ -1025,19 +1037,33 @@
   "@repeatYearlyOnMonthDaysSummary": {
     "description": "Complete yearly recurrence summary for selected month days; placeholders may be reordered by locale.",
     "placeholders": {
-      "frequency": {"type": "String"},
-      "month": {"type": "String"},
-      "days": {"type": "String"}
+      "frequency": {
+        "type": "String"
+      },
+      "month": {
+        "type": "String"
+      },
+      "days": {
+        "type": "String"
+      }
     }
   },
   "repeatYearlyOnOrdinalSummary": "{frequency}{month}的{position, select, first{第一个{days}} second{第二个{days}} third{第三个{days}} fourth{第四个{days}} fifth{第五个{days}} secondToLast{倒数第二个{days}} last{最后一个{days}} other{{days}}}",
   "@repeatYearlyOnOrdinalSummary": {
     "description": "Complete yearly ordinal recurrence summary; {position} selects the ordinal wording and placeholders may be reordered by locale.",
     "placeholders": {
-      "frequency": {"type": "String"},
-      "month": {"type": "String"},
-      "position": {"type": "String"},
-      "days": {"type": "String"}
+      "frequency": {
+        "type": "String"
+      },
+      "month": {
+        "type": "String"
+      },
+      "position": {
+        "type": "String"
+      },
+      "days": {
+        "type": "String"
+      }
     }
   },
   "searchFilters": "搜索筛选条件",
@@ -1100,5 +1126,84 @@
   "sharingRateLimited": "共享暂时受到限制。请在等待时间结束后重试。",
   "attachmentUploadRateLimited": "附件上传暂时受到限制。请在等待时间结束后重试。",
   "unknownEventLabel": "未知标签（{id}）",
-  "@unknownEventLabel": {"placeholders": {"id": {"type": "String"}}}
+  "@unknownEventLabel": {
+    "placeholders": {
+      "id": {
+        "type": "String"
+      }
+    }
+  },
+  "registrationSetupTitle": "设置 {provider}",
+  "registrationSetupGuide": "设置指南",
+  "registrationGoogleInstructions": "创建自己的 Google Cloud 项目，启用 Calendar 和 Tasks API，然后导入桌面 OAuth 客户端的 JSON。请授权预期的账号。",
+  "registrationMicrosoftInstructions": "在允许应用注册的 Entra 租户中使用公共应用注册。输入客户端 ID 和支持的账号类型。无需客户端密码。",
+  "registrationImportGoogle": "选择桌面 OAuth JSON",
+  "registrationValidate": "验证注册",
+  "registrationAuthorize": "在浏览器中授权",
+  "registrationClientId": "应用程序／客户端 ID",
+  "registrationTenantId": "租户 ID",
+  "registrationAudience": "支持的账号",
+  "registrationBothAudience": "个人和组织账号",
+  "registrationOrganizationAudience": "组织账号",
+  "registrationPersonalAudience": "个人账号",
+  "registrationTenantAudience": "单个组织租户",
+  "registrationSummary": "注册：{clientId}",
+  "registrationMigrate": "立即迁移",
+  "registrationReplace": "替换注册",
+  "registrationRetirementNotice": "此账号使用 BusyMax 共享的 {provider} 应用注册，该注册将在下一个版本中停用。请设置自己的 {setup} 并重新连接此账号，以继续同步。现有日历、任务和本地更改将被保留。",
+  "registrationContinue": "继续使用此账号",
+  "registrationGoogleProject": "Google Cloud 项目",
+  "registrationMicrosoftApp": "Microsoft 应用注册",
+  "registrationUserOwned": "用户提供的注册",
+  "registrationNativeGoogle": "Google Android 原生注册",
+  "registrationShared": "共享注册（过渡期）",
+  "registrationUnresolved": "无法确定注册来源。账号数据已保留。",
+  "registrationOfficialDocumentation": "官方文档",
+  "registrationAndroidIdentity": "软件包：{packageName}\n签名哈希：{signatureHash}\n重定向 URI：{redirectUri}",
+  "@registrationSetupTitle": {
+    "placeholders": {
+      "provider": {
+        "type": "String"
+      }
+    }
+  },
+  "@registrationSummary": {
+    "placeholders": {
+      "clientId": {
+        "type": "String"
+      }
+    }
+  },
+  "@registrationRetirementNotice": {
+    "placeholders": {
+      "provider": {
+        "type": "String"
+      },
+      "setup": {
+        "type": "String"
+      }
+    }
+  },
+  "@registrationAndroidIdentity": {
+    "placeholders": {
+      "packageName": {
+        "type": "String"
+      },
+      "signatureHash": {
+        "type": "String"
+      },
+      "redirectUri": {
+        "type": "String"
+      }
+    }
+  },
+  "oauthRegistrationRejected": "请检查注册的客户端类型、支持的账户、权限和重定向设置。若配置来自导入，请重新选择配置文件。",
+  "oauthAuthorizationCodeUnusable": "此次授权未能完成。请重新开始授权；现有连接已保留。",
+  "oauthPermissionRefused": "授权被拒绝或缺少所需权限。请重试并授予所需权限。",
+  "oauthProviderThrottled": "服务提供方正在限制请求。请稍后重试；现有连接已保留。",
+  "oauthProviderTemporaryFailure": "服务提供方的临时问题导致授权未能完成。请重试；现有连接已保留。",
+  "oauthAuthorizationTimedOut": "授权超时。请重试；若配置来自导入，请重新选择配置文件。",
+  "oauthWrongAccount": "请授权为重新连接而选定的账户。现有连接已保留。",
+  "oauthSecureStorageUnavailable": "安全存储不可用。请恢复安全存储访问后重试。",
+  "oauthRevokedRemovalIncomplete": "远程授权已撤销，但账户清理未能完成。请重启 BusyMax 以重试本地恢复。"
 }

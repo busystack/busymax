@@ -16,7 +16,13 @@
   "settingsSaveFailed": "Не удалось сохранить настройки. Изменения могут быть потеряны при перезапуске BusyMax.",
   "nextcloudExportCollection": "Экспортировать ресурсы коллекции",
   "nextcloudImportItems": "Найдено ресурсов событий/задач: {count}",
-  "@nextcloudImportItems": {"placeholders": {"count": {"type": "int"}}},
+  "@nextcloudImportItems": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "nextcloudSchedulingInbox": "Входящие приглашения",
   "nextcloudInboxExplanation": "Nextcloud обрабатывает эти сообщения в ваших календарях. Подтверждение удаляет только сообщение, но не событие.",
   "nextcloudInboxEmpty": "Сообщений планирования нет.",
@@ -24,7 +30,13 @@
   "nextcloudAcknowledgeConfirm": "Удалить это сообщение из входящих? Событие останется в календаре.",
   "nextcloudGuestAvailability": "Проверить доступность участников",
   "nextcloudTrashRetention": "Хранение в корзине сервера: {days} дн.",
-  "@nextcloudTrashRetention": {"placeholders": {"days": {"type": "int"}}},
+  "@nextcloudTrashRetention": {
+    "placeholders": {
+      "days": {
+        "type": "int"
+      }
+    }
+  },
   "nextcloudCancelMeeting": "Отменить встречу",
   "nextcloudDeclineAndRemove": "Отклонить и удалить приглашение",
   "nextcloudDeclineRemovalWarning": "При синхронизации будет отправлен отказ. Встреча организатора не отменяется.",
@@ -171,7 +183,7 @@
   },
   "newEvent": "Новое событие",
   "refreshCalendar": "Обновить календарь",
-"openInProvider": "Открыть в сервисе",
+  "openInProvider": "Открыть в сервисе",
   "linkedResources": "Связанные ресурсы",
   "noLinkedResources": "Нет связанных ресурсов",
   "attachments": "Вложения",
@@ -471,7 +483,7 @@
   "moveToTop": "Переместить в самый верх",
   "deleteTask": "Удалить задачу",
   "newSubtask": "Новая подзадача",
- "deleteTaskConfirmation": "Удалить «{title}»?",
+  "deleteTaskConfirmation": "Удалить «{title}»?",
   "deleteAssignedTaskWarning": "Это также удалит исходную задачу в Google Документах или пространствах Chat.",
   "metadata": "Метаданные",
   "id": "Идентификатор",
@@ -1025,19 +1037,33 @@
   "@repeatYearlyOnMonthDaysSummary": {
     "description": "Complete yearly recurrence summary for selected month days; placeholders may be reordered by locale.",
     "placeholders": {
-      "frequency": {"type": "String"},
-      "month": {"type": "String"},
-      "days": {"type": "String"}
+      "frequency": {
+        "type": "String"
+      },
+      "month": {
+        "type": "String"
+      },
+      "days": {
+        "type": "String"
+      }
     }
   },
   "repeatYearlyOnOrdinalSummary": "{frequency}: {month}, {position, select, first{в первый {days}} second{во второй {days}} third{в третий {days}} fourth{в четвёртый {days}} fifth{в пятый {days}} secondToLast{в предпоследний {days}} last{в последний {days}} other{в {days}}}",
   "@repeatYearlyOnOrdinalSummary": {
     "description": "Complete yearly ordinal recurrence summary; {position} selects the ordinal wording and placeholders may be reordered by locale.",
     "placeholders": {
-      "frequency": {"type": "String"},
-      "month": {"type": "String"},
-      "position": {"type": "String"},
-      "days": {"type": "String"}
+      "frequency": {
+        "type": "String"
+      },
+      "month": {
+        "type": "String"
+      },
+      "position": {
+        "type": "String"
+      },
+      "days": {
+        "type": "String"
+      }
     }
   },
   "searchFilters": "Фильтры поиска",
@@ -1100,5 +1126,84 @@
   "sharingRateLimited": "Общий доступ временно ограничен. Повторите попытку после окончания ожидания.",
   "attachmentUploadRateLimited": "Загрузка вложений временно ограничена. Повторите попытку после окончания ожидания.",
   "unknownEventLabel": "Неизвестная метка ({id})",
-  "@unknownEventLabel": {"placeholders": {"id": {"type": "String"}}}
+  "@unknownEventLabel": {
+    "placeholders": {
+      "id": {
+        "type": "String"
+      }
+    }
+  },
+  "registrationSetupTitle": "Настроить {provider}",
+  "@registrationSetupTitle": {
+    "placeholders": {
+      "provider": {
+        "type": "String"
+      }
+    }
+  },
+  "registrationSetupGuide": "Руководство по настройке",
+  "registrationGoogleInstructions": "Создайте свой проект Google Cloud, включите Calendar и Tasks и импортируйте JSON настольного клиента OAuth. Авторизуйте нужную учётную запись.",
+  "registrationMicrosoftInstructions": "Используйте регистрацию общедоступного приложения в клиенте Entra, разрешающем регистрацию приложений. Укажите ID приложения и типы учётных записей. Секрет клиента не нужен.",
+  "registrationImportGoogle": "Выбрать JSON настольного OAuth",
+  "registrationValidate": "Проверить регистрацию",
+  "registrationAuthorize": "Авторизовать в браузере",
+  "registrationClientId": "ID приложения/клиента",
+  "registrationTenantId": "ID клиента Entra",
+  "registrationAudience": "Поддерживаемые учётные записи",
+  "registrationBothAudience": "Личные и организационные учётные записи",
+  "registrationOrganizationAudience": "Организационные учётные записи",
+  "registrationPersonalAudience": "Личные учётные записи",
+  "registrationTenantAudience": "Один клиент организации",
+  "registrationSummary": "Регистрация: {clientId}",
+  "@registrationSummary": {
+    "placeholders": {
+      "clientId": {
+        "type": "String"
+      }
+    }
+  },
+  "registrationMigrate": "Перейти сейчас",
+  "registrationReplace": "Заменить регистрацию",
+  "registrationRetirementNotice": "Эта учётная запись использует общую регистрацию {provider} BusyMax, которая будет отключена в следующем выпуске. Настройте собственный {setup} и повторно подключите эту учётную запись для продолжения синхронизации. Календари, задачи и локальные изменения сохранятся.",
+  "@registrationRetirementNotice": {
+    "placeholders": {
+      "provider": {
+        "type": "String"
+      },
+      "setup": {
+        "type": "String"
+      }
+    }
+  },
+  "registrationContinue": "Продолжить пользоваться этой учётной записью",
+  "registrationGoogleProject": "Проект Google Cloud",
+  "registrationMicrosoftApp": "Регистрация приложения Microsoft",
+  "registrationUserOwned": "Регистрация, предоставленная пользователем",
+  "registrationNativeGoogle": "Нативная регистрация Google для Android",
+  "registrationShared": "Общая регистрация (переходный период)",
+  "registrationUnresolved": "Происхождение регистрации не установлено. Данные учётной записи сохранены.",
+  "registrationOfficialDocumentation": "Официальная документация",
+  "registrationAndroidIdentity": "Пакет: {packageName}\nХеш подписи: {signatureHash}\nURI перенаправления: {redirectUri}",
+  "@registrationAndroidIdentity": {
+    "placeholders": {
+      "packageName": {
+        "type": "String"
+      },
+      "signatureHash": {
+        "type": "String"
+      },
+      "redirectUri": {
+        "type": "String"
+      }
+    }
+  },
+  "oauthRegistrationRejected": "Проверьте тип клиента, поддерживаемые учётные записи, разрешения и перенаправление регистрации. Выберите импортированную конфигурацию заново.",
+  "oauthAuthorizationCodeUnusable": "Не удалось завершить эту авторизацию. Начните заново; существующее подключение сохранено.",
+  "oauthPermissionRefused": "В авторизации отказано или не предоставлены нужные разрешения. Повторите попытку и предоставьте необходимые разрешения.",
+  "oauthProviderThrottled": "Поставщик ограничивает запросы. Подождите перед новой попыткой; существующее подключение сохранено.",
+  "oauthProviderTemporaryFailure": "Временная проблема поставщика помешала авторизации. Повторите попытку; существующее подключение сохранено.",
+  "oauthAuthorizationTimedOut": "Время авторизации истекло. Повторите попытку и заново выберите импортированную конфигурацию.",
+  "oauthWrongAccount": "Авторизуйте учётную запись, выбранную для повторного подключения. Существующее подключение сохранено.",
+  "oauthSecureStorageUnavailable": "Защищённое хранилище недоступно. Восстановите доступ и повторите попытку.",
+  "oauthRevokedRemovalIncomplete": "Удалённая авторизация отозвана, но очистка учётной записи не завершена. Перезапустите BusyMax, чтобы повторить локальное восстановление."
 }

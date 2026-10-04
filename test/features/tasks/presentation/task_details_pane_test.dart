@@ -2788,6 +2788,10 @@ Future<void> _pumpDetails(
   await tester.pumpWidget(
     ProviderScope(
       overrides: [
+        if (database == null)
+          authorizationGenerationReaderProvider.overrideWithValue(
+            (_) async => 0,
+          ),
         if (database != null) databaseProvider.overrideWithValue(database),
         if (authRepository != null)
           authRepositoryProvider.overrideWithValue(authRepository),

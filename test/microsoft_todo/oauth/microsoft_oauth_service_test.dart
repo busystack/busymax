@@ -1,3 +1,5 @@
+import 'package:busymax/src/core/auth/authorization_attempt.dart';
+import '../../support/oauth_binding_fixture.dart';
 import 'dart:async';
 import 'dart:convert';
 
@@ -16,17 +18,6 @@ void main() {
     'short Graph optional scopes authorize their existing account',
     () async {
       final store = InMemorySecretStore();
-      final service = MicrosoftOAuthService(
-        config: _config,
-        httpClient: MockClient(
-          (_) async => throw StateError('No HTTP expected'),
-        ),
-        tokenStore: store,
-        loopbackFlow: OAuthLoopbackFlow(
-          authorizationLauncher: (_) async => false,
-        ),
-        nowUtc: () => DateTime.utc(2026, 6, 6),
-      );
       await store.saveOAuthTokenSet(
         'microsoft:user',
         BusyProvider.microsoft,
@@ -43,6 +34,18 @@ void main() {
             'MailboxSettings.Read',
           },
         ),
+      );
+      final service = MicrosoftOAuthService(
+        config: _config,
+        persistence: await seedBoundFixtures(store),
+        httpClient: MockClient(
+          (_) async => throw StateError('No HTTP expected'),
+        ),
+        tokenStore: store,
+        loopbackFlow: OAuthLoopbackFlow(
+          authorizationLauncher: (_) async => false,
+        ),
+        nowUtc: () => DateTime.utc(2026, 6, 6),
       );
       expect(
         await service.sharedCalendarAuthorizationHeaderForAccount(
@@ -74,6 +77,7 @@ void main() {
         captured = request;
         return http.Response(
           jsonEncode({
+            'id_token': fixtureMicrosoftIdToken,
             'access_token': 'renewed',
             'expires_in': 3600,
             'scope': 'User.Read Tasks.ReadWrite Calendars.ReadWrite',
@@ -140,11 +144,13 @@ void main() {
         );
         final service = MicrosoftOAuthService(
           config: _config,
+          persistence: await seedBoundFixtures(store),
           httpClient: MockClient(
             (request) async => request.method == 'GET'
                 ? http.Response(jsonEncode({'id': 'user'}), 200)
                 : http.Response(
                     jsonEncode({
+                      'id_token': fixtureMicrosoftIdToken,
                       'access_token': 'consented',
                       'expires_in': 3600,
                       'scope':
@@ -196,6 +202,7 @@ void main() {
       );
       final service = MicrosoftOAuthService(
         config: _config,
+        persistence: await seedBoundFixtures(store),
         httpClient: MockClient(
           (_) async => throw StateError('No HTTP expected'),
         ),
@@ -245,6 +252,7 @@ void main() {
         );
         final service = MicrosoftOAuthService(
           config: _config,
+          persistence: await seedBoundFixtures(store),
           httpClient: MockClient((request) async {
             if (request.method == 'GET') {
               return http.Response(
@@ -256,6 +264,7 @@ void main() {
             }
             return http.Response(
               jsonEncode({
+                'id_token': fixtureMicrosoftIdToken,
                 'access_token': 'candidate-access',
                 'expires_in': 3600,
                 'scope': denial == 'missing grant'
@@ -296,7 +305,7 @@ void main() {
         'login.microsoftonline.com',
         '/common/oauth2/v2.0/authorize',
       ),
-      clientId: 'microsoft-client-id',
+      clientId: fixtureMicrosoftClient,
       redirectUri: 'http://localhost:4321/',
       scope: microsoftTodoOAuthScopes,
       codeChallenge: 'challenge',
@@ -311,7 +320,7 @@ void main() {
       uri.toString(),
       startsWith('https://login.microsoftonline.com/common/oauth2/v2.0/'),
     );
-    expect(uri.queryParameters['client_id'], 'microsoft-client-id');
+    expect(uri.queryParameters['client_id'], fixtureMicrosoftClient);
     expect(uri.queryParameters['redirect_uri'], 'http://localhost:4321/');
     expect(uri.queryParameters['response_type'], 'code');
     expect(uri.queryParameters['response_mode'], 'query');
@@ -337,7 +346,7 @@ void main() {
 
     final body = Uri.splitQueryString(captured.body);
     expect(captured.url.toString(), contains('/common/oauth2/v2.0/token'));
-    expect(body['client_id'], 'microsoft-client-id');
+    expect(body['client_id'], fixtureMicrosoftClient);
     expect(body['code'], 'auth-code');
     expect(body['code_verifier'], 'verifier');
     expect(body['redirect_uri'], 'http://localhost:4321/');
@@ -364,7 +373,7 @@ void main() {
     );
 
     final body = Uri.splitQueryString(captured.body);
-    expect(body['client_id'], 'microsoft-client-id');
+    expect(body['client_id'], fixtureMicrosoftClient);
     expect(body['grant_type'], 'refresh_token');
     expect(body['refresh_token'], 'refresh');
     expect(body['scope'], microsoftTodoOAuthScopes);
@@ -379,6 +388,7 @@ void main() {
         captured = request;
         return http.Response(
           jsonEncode({
+            'id_token': fixtureMicrosoftIdToken,
             'access_token': 'renewed',
             'refresh_token': 'refresh',
             'expires_in': 3600,
@@ -409,17 +419,6 @@ void main() {
     'owner-context header refuses a token without optional consent',
     () async {
       final store = InMemorySecretStore();
-      final service = MicrosoftOAuthService(
-        config: _config,
-        httpClient: MockClient(
-          (_) async => throw StateError('No request expected'),
-        ),
-        tokenStore: store,
-        loopbackFlow: OAuthLoopbackFlow(
-          authorizationLauncher: (_) async => true,
-        ),
-        nowUtc: () => DateTime.utc(2026, 6, 6),
-      );
       await store.saveOAuthTokenSet(
         'microsoft:user',
         BusyProvider.microsoft,
@@ -430,6 +429,18 @@ void main() {
           tokenType: 'Bearer',
           scopes: const {'https://graph.microsoft.com/Calendars.ReadWrite'},
         ),
+      );
+      final service = MicrosoftOAuthService(
+        config: _config,
+        persistence: await seedBoundFixtures(store),
+        httpClient: MockClient(
+          (_) async => throw StateError('No request expected'),
+        ),
+        tokenStore: store,
+        loopbackFlow: OAuthLoopbackFlow(
+          authorizationLauncher: (_) async => true,
+        ),
+        nowUtc: () => DateTime.utc(2026, 6, 6),
       );
       expect(
         await service.authorizationHeaderForAccount('microsoft:user'),
@@ -454,6 +465,7 @@ void main() {
         captured = request;
         return http.Response(
           jsonEncode({
+            'id_token': fixtureMicrosoftIdToken,
             'access_token': 'renewed',
             'refresh_token': 'refresh',
             'expires_in': 3600,
@@ -517,17 +529,6 @@ void main() {
     final store = InMemorySecretStore();
     final started = Completer<void>();
     final release = Completer<void>();
-    final service = MicrosoftOAuthService(
-      config: _config,
-      httpClient: MockClient((request) async {
-        started.complete();
-        await release.future;
-        return _tokenResponse();
-      }),
-      tokenStore: store,
-      loopbackFlow: OAuthLoopbackFlow(authorizationLauncher: (_) async => true),
-      nowUtc: () => DateTime.utc(2026, 6, 6),
-    );
     final original = OAuthTokenSet(
       accessToken: 'old-access',
       refreshToken: 'old-refresh',
@@ -541,6 +542,18 @@ void main() {
       original,
     );
 
+    final service = MicrosoftOAuthService(
+      config: _config,
+      persistence: await seedBoundFixtures(store),
+      httpClient: MockClient((request) async {
+        started.complete();
+        await release.future;
+        return _tokenResponse();
+      }),
+      tokenStore: store,
+      loopbackFlow: OAuthLoopbackFlow(authorizationLauncher: (_) async => true),
+      nowUtc: () => DateTime.utc(2026, 6, 6),
+    );
     final refresh = service.refreshTokenForAccount('microsoft:user-1');
     await started.future;
     await service.signOutAccount('microsoft:user-1');
@@ -576,11 +589,7 @@ void main() {
                 'code',
                 'MicrosoftOAuthTokenExchangeFailed',
               )
-              .having(
-                (error) => error.message,
-                'message',
-                contains('invalid_grant'),
-              )
+              .having((error) => error.message, 'message', contains('HTTP 400'))
               .having(
                 (error) => error.message,
                 'message',
@@ -607,7 +616,7 @@ MicrosoftOAuthService _service(
 const _config = BuildConfig(
   googleOAuthClientId: '',
   googleOAuthClientSecret: '',
-  microsoftOAuthClientId: 'microsoft-client-id',
+  microsoftOAuthClientId: fixtureMicrosoftClient,
   apiBaseUrl: 'https://tasks.googleapis.com',
   oauthAuthorizationEndpoint: 'https://accounts.google.com/o/oauth2/v2/auth',
   oauthTokenEndpoint: 'https://oauth2.googleapis.com/token',
@@ -617,6 +626,7 @@ const _config = BuildConfig(
 http.Response _tokenResponse() {
   return http.Response(
     jsonEncode({
+      'id_token': fixtureMicrosoftIdToken,
       'access_token': 'access',
       'refresh_token': 'refresh',
       'expires_in': 3600,
@@ -648,6 +658,7 @@ class _ConsentFlow extends OAuthLoopbackFlow {
         'Could not open the browser for Google sign-in.',
     Map<String, String> extraAuthorizationParameters = const {},
     String? loginHint,
+    AuthorizationAttempt? attempt,
   }) async {
     requestedScope = scope;
     if (error case final failure?) throw failure;

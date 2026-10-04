@@ -3187,4 +3187,141 @@ class AppLocalizationsRu extends AppLocalizations {
   @override
   String get calendarOwnerEmail =>
       'Адрес электронной почты владельца календаря';
+
+  @override
+  String registrationSetupTitle(String provider) {
+    return 'Настроить $provider';
+  }
+
+  @override
+  String get registrationSetupGuide => 'Руководство по настройке';
+
+  @override
+  String get registrationGoogleInstructions =>
+      'Создайте свой проект Google Cloud, включите Calendar и Tasks и импортируйте JSON настольного клиента OAuth. Авторизуйте нужную учётную запись.';
+
+  @override
+  String get registrationMicrosoftInstructions =>
+      'Используйте регистрацию общедоступного приложения в клиенте Entra, разрешающем регистрацию приложений. Укажите ID приложения и типы учётных записей. Секрет клиента не нужен.';
+
+  @override
+  String get registrationImportGoogle => 'Выбрать JSON настольного OAuth';
+
+  @override
+  String get registrationValidate => 'Проверить регистрацию';
+
+  @override
+  String get registrationAuthorize => 'Авторизовать в браузере';
+
+  @override
+  String get registrationClientId => 'ID приложения/клиента';
+
+  @override
+  String get registrationTenantId => 'ID клиента Entra';
+
+  @override
+  String get registrationAudience => 'Поддерживаемые учётные записи';
+
+  @override
+  String get registrationBothAudience =>
+      'Личные и организационные учётные записи';
+
+  @override
+  String get registrationOrganizationAudience =>
+      'Организационные учётные записи';
+
+  @override
+  String get registrationPersonalAudience => 'Личные учётные записи';
+
+  @override
+  String get registrationTenantAudience => 'Один клиент организации';
+
+  @override
+  String registrationSummary(String clientId) {
+    return 'Регистрация: $clientId';
+  }
+
+  @override
+  String get registrationMigrate => 'Перейти сейчас';
+
+  @override
+  String get registrationReplace => 'Заменить регистрацию';
+
+  @override
+  String registrationRetirementNotice(String provider, String setup) {
+    return 'Эта учётная запись использует общую регистрацию $provider BusyMax, которая будет отключена в следующем выпуске. Настройте собственный $setup и повторно подключите эту учётную запись для продолжения синхронизации. Календари, задачи и локальные изменения сохранятся.';
+  }
+
+  @override
+  String get registrationContinue =>
+      'Продолжить пользоваться этой учётной записью';
+
+  @override
+  String get registrationGoogleProject => 'Проект Google Cloud';
+
+  @override
+  String get registrationMicrosoftApp => 'Регистрация приложения Microsoft';
+
+  @override
+  String get registrationUserOwned =>
+      'Регистрация, предоставленная пользователем';
+
+  @override
+  String get registrationNativeGoogle =>
+      'Нативная регистрация Google для Android';
+
+  @override
+  String get registrationShared => 'Общая регистрация (переходный период)';
+
+  @override
+  String get registrationUnresolved =>
+      'Происхождение регистрации не установлено. Данные учётной записи сохранены.';
+
+  @override
+  String get registrationOfficialDocumentation => 'Официальная документация';
+
+  @override
+  String registrationAndroidIdentity(
+    String packageName,
+    String signatureHash,
+    String redirectUri,
+  ) {
+    return 'Пакет: $packageName\nХеш подписи: $signatureHash\nURI перенаправления: $redirectUri';
+  }
+
+  @override
+  String get oauthRegistrationRejected =>
+      'Проверьте тип клиента, поддерживаемые учётные записи, разрешения и перенаправление регистрации. Выберите импортированную конфигурацию заново.';
+
+  @override
+  String get oauthAuthorizationCodeUnusable =>
+      'Не удалось завершить эту авторизацию. Начните заново; существующее подключение сохранено.';
+
+  @override
+  String get oauthPermissionRefused =>
+      'В авторизации отказано или не предоставлены нужные разрешения. Повторите попытку и предоставьте необходимые разрешения.';
+
+  @override
+  String get oauthProviderThrottled =>
+      'Поставщик ограничивает запросы. Подождите перед новой попыткой; существующее подключение сохранено.';
+
+  @override
+  String get oauthProviderTemporaryFailure =>
+      'Временная проблема поставщика помешала авторизации. Повторите попытку; существующее подключение сохранено.';
+
+  @override
+  String get oauthAuthorizationTimedOut =>
+      'Время авторизации истекло. Повторите попытку и заново выберите импортированную конфигурацию.';
+
+  @override
+  String get oauthWrongAccount =>
+      'Авторизуйте учётную запись, выбранную для повторного подключения. Существующее подключение сохранено.';
+
+  @override
+  String get oauthSecureStorageUnavailable =>
+      'Защищённое хранилище недоступно. Восстановите доступ и повторите попытку.';
+
+  @override
+  String get oauthRevokedRemovalIncomplete =>
+      'Удалённая авторизация отозвана, но очистка учётной записи не завершена. Перезапустите BusyMax, чтобы повторить локальное восстановление.';
 }

@@ -4,6 +4,7 @@ class TaskRemoteError implements Exception {
     this.code,
     required this.message,
     this.retryable = false,
+    this.retryAfter,
     this.providerDetails,
   });
 
@@ -11,6 +12,7 @@ class TaskRemoteError implements Exception {
   final String? code;
   final String message;
   final bool retryable;
+  final Duration? retryAfter;
   final Map<String, Object?>? providerDetails;
 
   @override
