@@ -557,7 +557,7 @@ Future<ProviderContainer> _mount(
     overrides: [
       databaseProvider.overrideWithValue(db),
       davTaskCollectionCapabilitiesProvider.overrideWith(
-        (ref, key) async => davCapabilities,
+        (ref, key) => Stream.value(davCapabilities),
       ),
       desktopWindowServiceProvider.overrideWithValue(
         const NoOpDesktopWindowService(),

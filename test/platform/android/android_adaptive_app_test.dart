@@ -3005,7 +3005,7 @@ Future<_AndroidAppHarness> _pumpApp(
       ),
       androidNotificationServiceProvider.overrideWithValue(notifications),
       davTaskCollectionCapabilitiesProvider.overrideWith(
-        (ref, key) async => nextcloudTaskCollectionCapabilities,
+        (ref, key) => Stream.value(nextcloudTaskCollectionCapabilities),
       ),
     ],
   );

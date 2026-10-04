@@ -518,14 +518,14 @@ final davConflictResolutionServiceProvider =
     });
 
 final davTaskCollectionCapabilitiesProvider =
-    FutureProvider.family<
+    StreamProvider.family<
       TaskCollectionCapabilities?,
       ({String accountId, String taskListId})
-    >((ref, key) async {
-      final collection = await ref
+    >((ref, key) {
+      return ref
           .watch(davSettingsRepositoryProvider)
-          .collectionByTaskListId(key.accountId, key.taskListId);
-      return collection?.taskCapabilities;
+          .watchCollectionByTaskListId(key.accountId, key.taskListId)
+          .map((collection) => collection?.taskCapabilities);
     });
 
 final selectedAccountIdProvider = StateProvider<String?>((ref) => null);

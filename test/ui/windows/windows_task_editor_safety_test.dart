@@ -479,7 +479,7 @@ Future<AppDatabase> _mount(
             (ref) => uploadCoordinator,
           ),
         davTaskCollectionCapabilitiesProvider.overrideWith(
-          (ref, key) async => davCapabilities,
+          (ref, key) => Stream.value(davCapabilities),
         ),
       ],
       child: FluentApp(

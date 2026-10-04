@@ -2808,7 +2808,7 @@ Future<void> _pumpDetails(
         ),
         selectedAccountCapabilitiesProvider.overrideWithValue(capabilities),
         davTaskCollectionCapabilitiesProvider.overrideWith(
-          (ref, key) async => capabilities,
+          (ref, key) => Stream.value(capabilities),
         ),
         davCollectionsStreamProvider.overrideWith(
           (ref) => Stream.value(const []),
