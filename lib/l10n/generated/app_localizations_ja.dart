@@ -3193,4 +3193,171 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get addAccount => 'アカウントを追加';
+
+  @override
+  String get registrationConnect => '接続';
+
+  @override
+  String get registrationBack => '戻る';
+
+  @override
+  String get registrationReplaceGoogle => 'デスクトップ OAuth JSON を置き換え';
+
+  @override
+  String get registrationSelectedConfiguration => '選択した設定';
+
+  @override
+  String get registrationDirectoryId => 'ディレクトリ／テナント ID';
+
+  @override
+  String get registrationInvalidId => '有効な UUID を入力してください。';
+
+  @override
+  String get registrationExpired =>
+      'この設定は期限切れです。接続する前に再インポートするか、登録項目を編集してください。';
+
+  @override
+  String get registrationOwnProjectRequired => '自分のプロジェクトまたはテナントの登録を選択してください。';
+
+  @override
+  String get registrationSetupFailed => '設定を完了できませんでした。もう一度お試しください。';
+
+  @override
+  String get registrationLinkFailed => 'リンクを開けませんでした。ブラウザーを確認して再試行してください。';
+
+  @override
+  String get registrationPermissions => 'アクセス許可';
+
+  @override
+  String get registrationDesktopClient => 'デスクトップアプリ';
+
+  @override
+  String get registrationOpenGoogleConsole => 'Google Cloud Console を開く';
+
+  @override
+  String get registrationGoogleAudienceHelp => 'Google の公開とテストユーザーの要件';
+
+  @override
+  String get registrationDesktopHelp => 'デスクトップアプリの登録手順';
+
+  @override
+  String get registrationOpenEntra => 'Microsoft Entra 管理センターを開く';
+
+  @override
+  String get registrationGuideGoogleProject =>
+      'Google Cloud Console を開きます。上部のプロジェクト選択からご自身のプロジェクトを選ぶか、New project を選び、名前を入力して Create を選択します。以降の手順でも同じプロジェクトを選択したままにしてください。';
+
+  @override
+  String get registrationGuideGoogleAudience =>
+      'Google Auth Platform → Branding に移動します。未設定の場合は Get started を選択します。App name に BusyMax を入力し、ご自身の User support email を選んで Next を選択します。Audience では個人の Google アカウントには External を選びます。Internal はプロジェクトの組織のアカウントのみ利用できます。Next を選び、Contact Information にメールアドレスを入力して Next を選択します。User Data Policy に同意し、Continue、Create の順に選択します。設定済みの場合は Branding と Audience を確認します。\n\nExternal の Testing では Audience → Test users → Add users を開き、接続する Google アカウントを入力して Save を選択します。登録されたテストユーザーのみ接続でき、認可と更新トークンは 7 日後に期限切れになります。';
+
+  @override
+  String get registrationGuideGooglePermissions =>
+      'Google Auth Platform → Data Access → Add or remove scopes を開きます。以下の 5 つのスコープを選び、必要なら Manually add scopes を使います。手動で追加する場合は不足している値を貼り付け、Add to table を選択します。Update、Save の順に選択します。BusyMax にはカレンダーとタスク両方へのアクセスが必要です。';
+
+  @override
+  String get registrationGuideGoogleClient =>
+      'Google Auth Platform → Clients → Create client を開きます。Application type を Desktop app にし、Name に BusyMax を入力して Create を選択します。作成ダイアログで Download JSON を選び、ファイルを保存します。× でこの説明を閉じてフォームに戻り、ファイルを選んでプロジェクトとクライアント ID を確認します。接続を選び、ブラウザーでカレンダーとタスクへのアクセスを許可します。';
+
+  @override
+  String get registrationGuideMicrosoftApp =>
+      'Microsoft Entra 管理センターにサインインします。Settings でアプリを登録できるテナントを選びます。Entra ID → App registrations → New registration を開きます。Name に BusyMax を入力し、次の手順で対応アカウントの種類を選びます。登録が制限されている場合はテナント管理者にアクセスを依頼してください。';
+
+  @override
+  String get registrationGuideMicrosoftRedirect =>
+      'アプリ登録で Authentication → Add a platform → Mobile and desktop applications を開きます。以下のリダイレクト URI を選択または入力し、Configure で保存します。BusyMax はシステムのブラウザーを使います。クライアントシークレットは不要です。';
+
+  @override
+  String get registrationGuideMicrosoftPermissions =>
+      'API permissions → Add a permission → Microsoft Graph → Delegated permissions を開きます。以下のスコープをそれぞれ検索して選び、Add permissions を選択します。User.Read が既にある場合は残します。組織で管理者の同意が必要な場合は、管理者にテナントの Grant admin consent を依頼してください。';
+
+  @override
+  String get registrationGuideMicrosoftConnect =>
+      '× でこの説明を閉じてフォームに戻ります。Application (client) ID を貼り付け、登録と同じ対応アカウントを選びます。単一の組織テナントの場合は Directory (tenant) ID も貼り付けます。接続を選び、ブラウザーで目的のアカウントにサインインします。BusyMax は入力欄をローカルで確認し、Microsoft はブラウザーでのサインイン中に同意を求めます。';
+
+  @override
+  String get registrationGoogleImportFailed =>
+      'このファイルをインポートできませんでした。有効なデスクトップ OAuth JSON を選択してください。以前の有効な設定は保持されます。';
+
+  @override
+  String get registrationGoogleSetupInstructions => 'Google の設定手順';
+
+  @override
+  String get registrationMicrosoftSetupInstructions => 'Microsoft の設定手順';
+
+  @override
+  String get registrationDesktopConfiguration => 'デスクトップ OAuth 設定';
+
+  @override
+  String get registrationNoFileSelected => 'ファイルが選択されていません';
+
+  @override
+  String get registrationChooseFile => 'ファイルを選択…';
+
+  @override
+  String get registrationReplaceFile => '置き換え…';
+
+  @override
+  String get registrationGoogleIntroduction =>
+      'ご自身の Google Cloud プロジェクトのデスクトップ OAuth JSON を選択してください。';
+
+  @override
+  String get registrationMicrosoftIntroduction =>
+      'ご自身の Microsoft アプリ登録の情報を入力してください。';
+
+  @override
+  String get registrationSetupInstructions => '設定手順';
+
+  @override
+  String get registrationInstructionsDescription => 'アカウントの接続に必要な設定を作成します。';
+
+  @override
+  String get registrationEnableApis => 'Calendar と Tasks を有効にする';
+
+  @override
+  String get registrationConsentScreen => '同意画面を設定する';
+
+  @override
+  String get registrationAppName => 'アプリ名';
+
+  @override
+  String get registrationScopes => 'スコープ';
+
+  @override
+  String get registrationRedirectUri => 'リダイレクト URI';
+
+  @override
+  String get registrationOpenApiLibrary => 'Google API ライブラリを開く';
+
+  @override
+  String get registrationOpenBranding => 'Google Auth Platform の Branding を開く';
+
+  @override
+  String get registrationOpenDataAccess =>
+      'Google Auth Platform の Data Access を開く';
+
+  @override
+  String get registrationOpenClients => 'Google Auth Platform の Clients を開く';
+
+  @override
+  String get registrationOpenEntraAuthentication =>
+      'Authentication 用に Entra のアプリ登録を開く';
+
+  @override
+  String get registrationOpenEntraPermissions =>
+      'API permissions 用に Entra のアプリ登録を開く';
+
+  @override
+  String get registrationCopy => 'コピー';
+
+  @override
+  String get registrationCopyAll => 'すべてコピー';
+
+  @override
+  String get registrationGuideGoogleApis =>
+      'APIs & Services → Library に移動します。Google Calendar API を検索し、ページを開いて Enable を選択します。Library に戻り、Google Tasks API でも同じ操作を行います。';
+
+  @override
+  String get registrationGuideMicrosoftAudience =>
+      'Supported account types で、個人用は Personal accounts only、組織用は Multiple Entra ID tenants、両方は Any Entra ID Tenant + Personal Microsoft accounts、このディレクトリのみは Single tenant only を選びます。Register を選択します。Overview で Application (client) ID をコピーし、単一テナントの場合は Directory (tenant) ID もコピーします。BusyMax で同じ対応アカウントを選びます。';
 }

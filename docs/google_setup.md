@@ -4,13 +4,17 @@ On Linux and Windows, BusyMax uses a Desktop OAuth client from your Google Cloud
 
 ## Set up your project
 
-1. In the [Google Cloud console](https://console.cloud.google.com/), create a project that you own or administer. Adding another client inside BusyStack's project does not create your own project or isolate project quota. The JSON project identifier is a description, not proof of ownership.
-2. Enable **Google Calendar API** and **Google Tasks API** in that project.
-3. Complete Google Auth Platform's Branding, Audience, Contact Information and Data Access sections. Follow the fields and verification requirements shown for your configuration; BusyMax cannot promise that branding, privacy-policy, domain or ownership fields may be omitted.
-4. Add `openid`, `email`, `profile`, `https://www.googleapis.com/auth/tasks` and `https://www.googleapis.com/auth/calendar`. The identity scopes identify the account; both API scopes are required for BusyMax's unified Calendar and Tasks connection.
-5. Under Clients, create a **Desktop app** OAuth client and download its JSON configuration. Do not create a Web client or service account. No Drive permission or API key is needed.
-6. In BusyMax's account setup, read the guide, select the downloaded JSON, review the client/project summary, and authorize in the system browser. Select the intended Google account and grant both Calendar and Tasks access.
-7. Refresh and verify a calendar and task list. Reconnect uses the account's current client. Replace registration authorizes a different client for that same account without changing its local ID.
+1. Open the [Google Cloud Console](https://console.cloud.google.com/). Use the project selector at the top to select your own project, or choose **New project**, enter a name and select **Create**. Keep that project selected for the remaining steps.
+2. Open **APIs & Services → Library**. Search for **Google Calendar API**, open its page and select **Enable**. Return to Library and repeat for **Google Tasks API**.
+3. Open **Google Auth Platform → Branding**. For a new configuration, select **Get started**. Enter **BusyMax** as the app name, select your own support email and choose **Next**. In **Audience**, select **External** for a personal Google account; **Internal** is restricted to accounts in the project's organization. Choose **Next**, enter your email under **Contact Information**, then choose **Next**. Accept the User Data Policy and choose **Continue → Create**. If already configured, review Branding and Audience.
+4. For **External** in **Testing**, open **Audience → Test users → Add users**, enter the Google account you will connect and choose **Save**. Only listed test users can connect; authorizations and refresh tokens expire after seven days. See [Google's audience requirements](https://support.google.com/cloud/answer/15549945?hl=en).
+5. Open **Data Access → Add or remove scopes**. Select `openid`, `email`, `profile`, `https://www.googleapis.com/auth/tasks` and `https://www.googleapis.com/auth/calendar`, using **Manually add scopes** if needed. For manual entry, paste the missing values and choose **Add to table**. Choose **Update**, then **Save**. Both Calendar and Tasks access are required.
+6. Open **Clients → Create client**. Set **Application type** to **Desktop app**, enter **BusyMax** as the name and select **Create**. In the creation dialog, select **Download JSON** and save the file.
+7. In BusyMax Settings, add a Google account and choose **Choose file…**. Review the project and client ID, then select **Connect** and approve calendar and task access in your browser. **Setup instructions** opens an additional bounded modal with a fixed title and **×** close control, without a form footer. Close the instructions to return to the unchanged account form underneath. Required values have Copy controls; the scope group has **Copy all**. **Replace…** keeps the previous valid selection if you cancel or choose an invalid file.
+
+The instructions follow Google's [consent-screen setup](https://developers.google.com/workspace/guides/configure-oauth-consent) and [desktop credential creation](https://developers.google.com/workspace/guides/create-credentials). They do not verify changes made in the Console.
+
+Imported selections expire after ten minutes and are single-use. If the selection expires before connecting, select the JSON again.
 
 The importer accepts `installed` configuration with a client ID, project ID and optional client secret, up to 64 KiB. It snapshots the file without modifying it; the original can be moved afterward. A configuration file describes your client, whereas a token file contains issued credentials and cannot be imported. Never share either file publicly. Imported endpoint URLs and redirect arrays cannot redirect credentials. BusyMax controls endpoints, scopes, PKCE and its ephemeral loopback callback. See [Google's native-app OAuth protocol](https://developers.google.com/identity/protocols/oauth2/native-app).
 
@@ -40,4 +44,4 @@ User-owned projects still need efficient requests. Tasks has a documented 50,000
 
 Android's Google OAuth identity depends on the unique package/signing-certificate pairing. Desktop JSON cannot replace that native registration. The desktop client's retirement does **not** authorize deletion of the Cloud project still needed by Android. See [Google's pairing constraint](https://support.google.com/firebase/answer/6401008?hl=en).
 
-Official documents checked during implementation; no authenticated Console walkthrough was performed.
+Official desktop setup documents checked on 2026-10-04; no authenticated Console walkthrough was performed.

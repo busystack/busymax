@@ -3262,4 +3262,181 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get addAccount => 'Konto hinzufügen';
+
+  @override
+  String get registrationConnect => 'Verbinden';
+
+  @override
+  String get registrationBack => 'Zurück';
+
+  @override
+  String get registrationReplaceGoogle => 'Desktop-OAuth-JSON ersetzen';
+
+  @override
+  String get registrationSelectedConfiguration => 'Ausgewählte Konfiguration';
+
+  @override
+  String get registrationDirectoryId => 'Verzeichnis-/Mandanten-ID';
+
+  @override
+  String get registrationInvalidId => 'Geben Sie eine gültige UUID ein.';
+
+  @override
+  String get registrationExpired =>
+      'Diese Konfiguration ist abgelaufen. Importieren Sie sie erneut oder bearbeiten Sie die Registrierungsfelder.';
+
+  @override
+  String get registrationOwnProjectRequired =>
+      'Wählen Sie eine Registrierung aus Ihrem eigenen Projekt oder Mandanten.';
+
+  @override
+  String get registrationSetupFailed =>
+      'Die Einrichtung konnte nicht abgeschlossen werden. Versuchen Sie es erneut.';
+
+  @override
+  String get registrationLinkFailed =>
+      'Der Link konnte nicht geöffnet werden. Prüfen Sie Ihren Browser und versuchen Sie es erneut.';
+
+  @override
+  String get registrationPermissions => 'Berechtigungen';
+
+  @override
+  String get registrationDesktopClient => 'Desktopanwendung';
+
+  @override
+  String get registrationOpenGoogleConsole => 'Google Cloud Console öffnen';
+
+  @override
+  String get registrationGoogleAudienceHelp =>
+      'Google: Veröffentlichung und Testnutzer';
+
+  @override
+  String get registrationDesktopHelp =>
+      'Anleitung zur Registrierung von Desktopanwendungen';
+
+  @override
+  String get registrationOpenEntra => 'Microsoft Entra Admin Center öffnen';
+
+  @override
+  String get registrationGuideGoogleProject =>
+      'Öffnen Sie die Google Cloud Console. Wählen Sie oben in der Projektauswahl Ihr eigenes Projekt aus oder wählen Sie New project, geben Sie einen Namen ein und wählen Sie Create. Lassen Sie dieses Projekt für die weiteren Schritte ausgewählt.';
+
+  @override
+  String get registrationGuideGoogleAudience =>
+      'Öffnen Sie Google Auth Platform → Branding. Wählen Sie bei einer neuen Einrichtung Get started. Geben Sie BusyMax als App name ein, wählen Sie Ihre eigene User support email und anschließend Next. Wählen Sie unter Audience für ein persönliches Google-Konto External; Internal ist nur für Konten in der Organisation Ihres Projekts verfügbar. Wählen Sie Next, geben Sie unter Contact Information Ihre E-Mail-Adresse ein und wählen Sie Next. Akzeptieren Sie die User Data Policy und wählen Sie Continue und Create. Prüfen Sie bei einer vorhandenen Einrichtung Branding und Audience.\n\nÖffnen Sie für External im Status Testing Audience → Test users → Add users, geben Sie das zu verbindende Google-Konto ein und wählen Sie Save. Nur eingetragene Testnutzer können sich verbinden; ihre Autorisierungen und Aktualisierungstoken laufen nach sieben Tagen ab.';
+
+  @override
+  String get registrationGuideGooglePermissions =>
+      'Öffnen Sie Google Auth Platform → Data Access → Add or remove scopes. Wählen Sie die fünf folgenden Bereiche; verwenden Sie bei Bedarf Manually add scopes. Fügen Sie bei manueller Eingabe die fehlenden Werte ein und wählen Sie Add to table. Wählen Sie Update und dann Save. BusyMax benötigt Zugriff auf Kalender und Aufgaben.';
+
+  @override
+  String get registrationGuideGoogleClient =>
+      'Öffnen Sie Google Auth Platform → Clients → Create client. Wählen Sie als Application type Desktop app, geben Sie BusyMax als Name ein und wählen Sie Create. Wählen Sie im Erstellungsdialog Download JSON und speichern Sie die Datei. Schließen Sie diese Anleitung mit ×, um zum Formular zurückzukehren, wählen Sie die Datei aus und prüfen Sie Projekt und Client-ID. Wählen Sie Verbinden und genehmigen Sie im Browser den Zugriff auf Kalender und Aufgaben.';
+
+  @override
+  String get registrationGuideMicrosoftApp =>
+      'Melden Sie sich im Microsoft Entra Admin Center an. Wählen Sie über Settings einen Mandanten aus, in dem Sie Anwendungen registrieren dürfen. Öffnen Sie Entra ID → App registrations → New registration. Geben Sie BusyMax als Name ein und wählen Sie im nächsten Schritt die unterstützten Kontotypen. Bitten Sie bei gesperrter Registrierung Ihren Mandantenadministrator um Zugriff.';
+
+  @override
+  String get registrationGuideMicrosoftRedirect =>
+      'Öffnen Sie in Ihrer Registrierung Authentication → Add a platform → Mobile and desktop applications. Wählen Sie die folgende Umleitungs-URI aus oder geben Sie sie ein und speichern Sie mit Configure. BusyMax verwendet Ihren Systembrowser. Ein Clientgeheimnis ist nicht erforderlich.';
+
+  @override
+  String get registrationGuideMicrosoftPermissions =>
+      'Öffnen Sie API permissions → Add a permission → Microsoft Graph → Delegated permissions. Suchen und wählen Sie jeden folgenden Bereich und wählen Sie Add permissions. Behalten Sie User.Read, falls es bereits vorhanden ist. Falls Ihre Organisation eine Administratorzustimmung verlangt, bitten Sie einen Administrator, Grant admin consent für Ihren Mandanten zu verwenden.';
+
+  @override
+  String get registrationGuideMicrosoftConnect =>
+      'Schließen Sie diese Anleitung mit ×, um zum Formular zurückzukehren. Fügen Sie die Application (client) ID ein und wählen Sie dieselben unterstützten Konten wie in der Registrierung. Fügen Sie bei einem Organisationsmandanten auch die Directory (tenant) ID ein. Wählen Sie Verbinden und melden Sie sich im Browser am gewünschten Konto an. BusyMax prüft die Felder lokal; Microsoft fragt während der Browseranmeldung nach Ihrer Zustimmung.';
+
+  @override
+  String get registrationGoogleImportFailed =>
+      'Diese Datei konnte nicht importiert werden. Wählen Sie eine gültige Desktop-OAuth-JSON. Eine vorherige gültige Auswahl bleibt erhalten.';
+
+  @override
+  String get registrationGoogleSetupInstructions =>
+      'Google-Einrichtungsanleitung';
+
+  @override
+  String get registrationMicrosoftSetupInstructions =>
+      'Microsoft-Einrichtungsanleitung';
+
+  @override
+  String get registrationDesktopConfiguration => 'Desktop-OAuth-Konfiguration';
+
+  @override
+  String get registrationNoFileSelected => 'Keine Datei ausgewählt';
+
+  @override
+  String get registrationChooseFile => 'Datei auswählen…';
+
+  @override
+  String get registrationReplaceFile => 'Ersetzen…';
+
+  @override
+  String get registrationGoogleIntroduction =>
+      'Wählen Sie die Desktop-OAuth-JSON-Datei aus Ihrem eigenen Google-Cloud-Projekt.';
+
+  @override
+  String get registrationMicrosoftIntroduction =>
+      'Geben Sie die Daten Ihrer eigenen Microsoft-App-Registrierung ein.';
+
+  @override
+  String get registrationSetupInstructions => 'Einrichtungsanleitung';
+
+  @override
+  String get registrationInstructionsDescription =>
+      'Erstellen Sie die Konfiguration zum Verbinden Ihres Kontos.';
+
+  @override
+  String get registrationEnableApis => 'Kalender und Tasks aktivieren';
+
+  @override
+  String get registrationConsentScreen => 'Zustimmungsbildschirm konfigurieren';
+
+  @override
+  String get registrationAppName => 'App-Name';
+
+  @override
+  String get registrationScopes => 'Berechtigungsbereiche';
+
+  @override
+  String get registrationRedirectUri => 'Umleitungs-URI';
+
+  @override
+  String get registrationOpenApiLibrary => 'Google-API-Bibliothek öffnen';
+
+  @override
+  String get registrationOpenBranding =>
+      'Branding in Google Auth Platform öffnen';
+
+  @override
+  String get registrationOpenDataAccess =>
+      'Datenzugriff in Google Auth Platform öffnen';
+
+  @override
+  String get registrationOpenClients =>
+      'Clients in Google Auth Platform öffnen';
+
+  @override
+  String get registrationOpenEntraAuthentication =>
+      'Entra-App-Registrierungen für die Authentifizierung öffnen';
+
+  @override
+  String get registrationOpenEntraPermissions =>
+      'Entra-App-Registrierungen für API-Berechtigungen öffnen';
+
+  @override
+  String get registrationCopy => 'Kopieren';
+
+  @override
+  String get registrationCopyAll => 'Alle kopieren';
+
+  @override
+  String get registrationGuideGoogleApis =>
+      'Öffnen Sie APIs & Services → Library. Suchen Sie Google Calendar API, öffnen Sie die Seite und wählen Sie Enable. Kehren Sie zur Library zurück und wiederholen Sie dies für Google Tasks API.';
+
+  @override
+  String get registrationGuideMicrosoftAudience =>
+      'Wählen Sie unter Supported account types Personal accounts only für persönliche Konten, Multiple Entra ID tenants für Organisationskonten, Any Entra ID Tenant + Personal Microsoft accounts für beide oder Single tenant only für dieses Verzeichnis. Wählen Sie Register. Kopieren Sie unter Overview die Application (client) ID; bei einem Mandanten auch die Directory (tenant) ID. Wählen Sie in BusyMax die entsprechende Option unter Unterstützte Konten.';
 }

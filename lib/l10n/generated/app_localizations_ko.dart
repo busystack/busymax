@@ -3197,4 +3197,171 @@ class AppLocalizationsKo extends AppLocalizations {
 
   @override
   String get addAccount => '계정 추가';
+
+  @override
+  String get registrationConnect => '연결';
+
+  @override
+  String get registrationBack => '뒤로';
+
+  @override
+  String get registrationReplaceGoogle => '데스크톱 OAuth JSON 교체';
+
+  @override
+  String get registrationSelectedConfiguration => '선택한 구성';
+
+  @override
+  String get registrationDirectoryId => '디렉터리/테넌트 ID';
+
+  @override
+  String get registrationInvalidId => '올바른 UUID를 입력하세요.';
+
+  @override
+  String get registrationExpired =>
+      '이 구성이 만료되었습니다. 연결하기 전에 다시 가져오거나 등록 필드를 수정하세요.';
+
+  @override
+  String get registrationOwnProjectRequired => '본인 프로젝트 또는 테넌트의 등록을 선택하세요.';
+
+  @override
+  String get registrationSetupFailed => '설정을 완료하지 못했습니다. 다시 시도하세요.';
+
+  @override
+  String get registrationLinkFailed => '링크를 열지 못했습니다. 브라우저를 확인하고 다시 시도하세요.';
+
+  @override
+  String get registrationPermissions => '권한';
+
+  @override
+  String get registrationDesktopClient => '데스크톱 앱';
+
+  @override
+  String get registrationOpenGoogleConsole => 'Google Cloud Console 열기';
+
+  @override
+  String get registrationGoogleAudienceHelp => 'Google 게시 및 테스트 사용자 요구사항';
+
+  @override
+  String get registrationDesktopHelp => '데스크톱 앱 등록 안내';
+
+  @override
+  String get registrationOpenEntra => 'Microsoft Entra 관리 센터 열기';
+
+  @override
+  String get registrationGuideGoogleProject =>
+      'Google Cloud Console을 여세요. 위쪽 프로젝트 선택기에서 본인 프로젝트를 선택하거나 New project를 선택하고 이름을 입력한 뒤 Create를 선택하세요. 나머지 단계에서도 같은 프로젝트를 유지하세요.';
+
+  @override
+  String get registrationGuideGoogleAudience =>
+      'Google Auth Platform → Branding으로 이동하세요. 아직 설정하지 않았다면 Get started를 선택하세요. App name에 BusyMax를 입력하고 본인 User support email을 선택한 뒤 Next를 선택하세요. Audience에서 개인 Google 계정은 External을 선택하세요. Internal은 프로젝트 조직의 계정에만 사용할 수 있습니다. Next를 선택하고 Contact Information에 이메일을 입력한 뒤 Next를 선택하세요. User Data Policy에 동의하고 Continue와 Create를 선택하세요. 이미 설정했다면 Branding과 Audience를 확인하세요.\n\nExternal의 Testing 상태에서는 Audience → Test users → Add users를 열고 연결할 Google 계정을 입력한 뒤 Save를 선택하세요. 등록된 테스트 사용자만 연결할 수 있으며 승인과 갱신 토큰은 7일 후 만료됩니다.';
+
+  @override
+  String get registrationGuideGooglePermissions =>
+      'Google Auth Platform → Data Access → Add or remove scopes를 여세요. 아래 다섯 범위를 선택하고 필요하면 Manually add scopes를 사용하세요. 수동 입력 시 누락된 값을 붙여넣고 Add to table을 선택하세요. Update를 선택한 뒤 Save를 선택하세요. BusyMax에는 캘린더와 작업 모두의 접근 권한이 필요합니다.';
+
+  @override
+  String get registrationGuideGoogleClient =>
+      'Google Auth Platform → Clients → Create client를 여세요. Application type을 Desktop app으로 설정하고 Name에 BusyMax를 입력한 뒤 Create를 선택하세요. 생성 대화상자에서 Download JSON을 선택하고 파일을 저장하세요. ×로 이 안내를 닫고 양식으로 돌아와 파일을 선택하고 프로젝트 및 클라이언트 ID를 확인하세요. 연결을 선택하고 브라우저에서 캘린더와 작업 접근을 승인하세요.';
+
+  @override
+  String get registrationGuideMicrosoftApp =>
+      'Microsoft Entra 관리 센터에 로그인하세요. Settings에서 앱을 등록할 수 있는 테넌트를 선택하세요. Entra ID → App registrations → New registration을 여세요. Name에 BusyMax를 입력하고 다음 단계에서 지원하는 계정 유형을 선택하세요. 등록이 차단되면 테넌트 관리자에게 권한을 요청하세요.';
+
+  @override
+  String get registrationGuideMicrosoftRedirect =>
+      '앱 등록에서 Authentication → Add a platform → Mobile and desktop applications를 여세요. 아래 리디렉션 URI를 선택하거나 입력하고 Configure로 저장하세요. BusyMax는 시스템 브라우저를 사용합니다. 클라이언트 암호는 필요하지 않습니다.';
+
+  @override
+  String get registrationGuideMicrosoftPermissions =>
+      'API permissions → Add a permission → Microsoft Graph → Delegated permissions를 여세요. 아래 범위를 각각 검색하여 선택한 뒤 Add permissions를 선택하세요. User.Read가 이미 있다면 유지하세요. 조직에서 관리자 동의를 요구하면 관리자에게 테넌트의 Grant admin consent 사용을 요청하세요.';
+
+  @override
+  String get registrationGuideMicrosoftConnect =>
+      '×로 이 안내를 닫고 양식으로 돌아오세요. Application (client) ID를 붙여넣고 등록과 같은 지원 계정을 선택하세요. 단일 조직 테넌트라면 Directory (tenant) ID도 붙여넣으세요. 연결을 선택하고 브라우저에서 원하는 계정으로 로그인하세요. BusyMax는 필드를 로컬에서 검사하며 Microsoft는 브라우저 로그인 중 동의를 요청합니다.';
+
+  @override
+  String get registrationGoogleImportFailed =>
+      '이 파일을 가져오지 못했습니다. 올바른 데스크톱 OAuth JSON을 선택하세요. 이전의 유효한 선택은 유지됩니다.';
+
+  @override
+  String get registrationGoogleSetupInstructions => 'Google 설정 안내';
+
+  @override
+  String get registrationMicrosoftSetupInstructions => 'Microsoft 설정 안내';
+
+  @override
+  String get registrationDesktopConfiguration => '데스크톱 OAuth 구성';
+
+  @override
+  String get registrationNoFileSelected => '선택한 파일 없음';
+
+  @override
+  String get registrationChooseFile => '파일 선택…';
+
+  @override
+  String get registrationReplaceFile => '바꾸기…';
+
+  @override
+  String get registrationGoogleIntroduction =>
+      '본인 Google Cloud 프로젝트의 데스크톱 OAuth JSON을 선택하세요.';
+
+  @override
+  String get registrationMicrosoftIntroduction =>
+      '본인 Microsoft 앱 등록 정보를 입력하세요.';
+
+  @override
+  String get registrationSetupInstructions => '설정 안내';
+
+  @override
+  String get registrationInstructionsDescription => '계정 연결에 필요한 구성을 만드세요.';
+
+  @override
+  String get registrationEnableApis => 'Calendar 및 Tasks 사용 설정';
+
+  @override
+  String get registrationConsentScreen => '동의 화면 설정';
+
+  @override
+  String get registrationAppName => '앱 이름';
+
+  @override
+  String get registrationScopes => '범위';
+
+  @override
+  String get registrationRedirectUri => '리디렉션 URI';
+
+  @override
+  String get registrationOpenApiLibrary => 'Google API 라이브러리 열기';
+
+  @override
+  String get registrationOpenBranding => 'Google Auth Platform의 Branding 열기';
+
+  @override
+  String get registrationOpenDataAccess =>
+      'Google Auth Platform의 Data Access 열기';
+
+  @override
+  String get registrationOpenClients => 'Google Auth Platform의 Clients 열기';
+
+  @override
+  String get registrationOpenEntraAuthentication =>
+      'Authentication 설정을 위해 Entra 앱 등록 열기';
+
+  @override
+  String get registrationOpenEntraPermissions =>
+      'API permissions 설정을 위해 Entra 앱 등록 열기';
+
+  @override
+  String get registrationCopy => '복사';
+
+  @override
+  String get registrationCopyAll => '모두 복사';
+
+  @override
+  String get registrationGuideGoogleApis =>
+      'APIs & Services → Library로 이동하세요. Google Calendar API를 검색하여 페이지를 열고 Enable을 선택하세요. Library로 돌아가 Google Tasks API에도 같은 작업을 하세요.';
+
+  @override
+  String get registrationGuideMicrosoftAudience =>
+      'Supported account types에서 개인 계정은 Personal accounts only, 조직 계정은 Multiple Entra ID tenants, 둘 다는 Any Entra ID Tenant + Personal Microsoft accounts, 이 디렉터리만은 Single tenant only를 선택하세요. Register를 선택하세요. Overview에서 Application (client) ID를 복사하고 단일 테넌트라면 Directory (tenant) ID도 복사하세요. BusyMax에서 같은 지원 계정 선택을 사용하세요.';
 }

@@ -3436,4 +3436,182 @@ class AppLocalizationsPl extends AppLocalizations {
 
   @override
   String get addAccount => 'Dodaj konto';
+
+  @override
+  String get registrationConnect => 'Połącz';
+
+  @override
+  String get registrationBack => 'Wstecz';
+
+  @override
+  String get registrationReplaceGoogle => 'Zastąp JSON OAuth dla komputera';
+
+  @override
+  String get registrationSelectedConfiguration => 'Wybrana konfiguracja';
+
+  @override
+  String get registrationDirectoryId => 'Identyfikator katalogu/dzierżawy';
+
+  @override
+  String get registrationInvalidId => 'Wpisz poprawny UUID.';
+
+  @override
+  String get registrationExpired =>
+      'Ta konfiguracja wygasła. Zaimportuj ją ponownie lub zmień pola rejestracji przed połączeniem.';
+
+  @override
+  String get registrationOwnProjectRequired =>
+      'Wybierz rejestrację z własnego projektu lub dzierżawy.';
+
+  @override
+  String get registrationSetupFailed =>
+      'Nie udało się ukończyć konfiguracji. Spróbuj ponownie.';
+
+  @override
+  String get registrationLinkFailed =>
+      'Nie udało się otworzyć odnośnika. Sprawdź przeglądarkę i spróbuj ponownie.';
+
+  @override
+  String get registrationPermissions => 'Uprawnienia';
+
+  @override
+  String get registrationDesktopClient => 'Aplikacja komputerowa';
+
+  @override
+  String get registrationOpenGoogleConsole => 'Otwórz konsolę Google Cloud';
+
+  @override
+  String get registrationGoogleAudienceHelp =>
+      'Wymagania Google dotyczące publikacji i użytkowników testowych';
+
+  @override
+  String get registrationDesktopHelp =>
+      'Instrukcje rejestracji aplikacji komputerowej';
+
+  @override
+  String get registrationOpenEntra =>
+      'Otwórz centrum administracyjne Microsoft Entra';
+
+  @override
+  String get registrationGuideGoogleProject =>
+      'Otwórz Google Cloud Console. Wybierz własny projekt w selektorze na górze lub wybierz New project, wpisz nazwę i wybierz Create. Pozostaw ten projekt wybrany w kolejnych krokach.';
+
+  @override
+  String get registrationGuideGoogleAudience =>
+      'Przejdź do Google Auth Platform → Branding. Jeśli konfiguracja nie została rozpoczęta, wybierz Get started. Wpisz BusyMax w App name, wybierz własny User support email i wybierz Next. W Audience wybierz External dla osobistego konta Google; Internal jest dostępne tylko dla kont organizacji projektu. Wybierz Next, wpisz swój e-mail w Contact Information i wybierz Next. Zaakceptuj User Data Policy, a następnie wybierz Continue i Create. Jeśli konfiguracja już istnieje, sprawdź Branding i Audience.\n\nDla External w trybie Testing otwórz Audience → Test users → Add users, wpisz konto Google do połączenia i wybierz Save. Łączyć się mogą tylko dodani użytkownicy testowi; ich upoważnienia i tokeny odświeżania wygasają po siedmiu dniach.';
+
+  @override
+  String get registrationGuideGooglePermissions =>
+      'Otwórz Google Auth Platform → Data Access → Add or remove scopes. Wybierz pięć zakresów poniżej; w razie potrzeby użyj Manually add scopes. Przy ręcznym wprowadzaniu wklej brakujące wartości i wybierz Add to table. Wybierz Update, a następnie Save. BusyMax potrzebuje dostępu do kalendarza i zadań.';
+
+  @override
+  String get registrationGuideGoogleClient =>
+      'Otwórz Google Auth Platform → Clients → Create client. Ustaw Application type na Desktop app, wpisz BusyMax w Name i wybierz Create. W oknie tworzenia wybierz Download JSON i zapisz plik. Zamknij te instrukcje przyciskiem ×, aby wrócić do formularza, wybierz plik i sprawdź projekt oraz ID klienta. Wybierz Połącz i zezwól w przeglądarce na dostęp do kalendarza i zadań.';
+
+  @override
+  String get registrationGuideMicrosoftApp =>
+      'Zaloguj się do centrum administracyjnego Microsoft Entra. W Settings wybierz dzierżawę, w której możesz rejestrować aplikacje. Otwórz Entra ID → App registrations → New registration. Wpisz BusyMax w Name, a w następnym kroku wybierz typy kont. Jeśli rejestracja jest zablokowana, poproś administratora dzierżawy o dostęp.';
+
+  @override
+  String get registrationGuideMicrosoftRedirect =>
+      'W rejestracji otwórz Authentication → Add a platform → Mobile and desktop applications. Wybierz lub wpisz URI przekierowania poniżej, a następnie wybierz Configure, aby je zapisać. BusyMax używa przeglądarki systemowej. Wpis tajny klienta nie jest wymagany.';
+
+  @override
+  String get registrationGuideMicrosoftPermissions =>
+      'Otwórz API permissions → Add a permission → Microsoft Graph → Delegated permissions. Wyszukaj i wybierz każdy zakres poniżej, a następnie Add permissions. Zachowaj User.Read, jeśli już istnieje. Jeśli organizacja wymaga zgody administratora, poproś administratora o użycie Grant admin consent dla dzierżawy.';
+
+  @override
+  String get registrationGuideMicrosoftConnect =>
+      'Zamknij te instrukcje przyciskiem ×, aby wrócić do formularza. Wklej Application (client) ID i wybierz takie same Obsługiwane konta jak w rejestracji. Dla jednej dzierżawy organizacji wklej również Directory (tenant) ID. Wybierz Połącz i zaloguj się w przeglądarce na właściwe konto. BusyMax sprawdza pola lokalnie; Microsoft prosi o zgodę podczas logowania w przeglądarce.';
+
+  @override
+  String get registrationGoogleImportFailed =>
+      'Nie udało się zaimportować tego pliku. Wybierz poprawny JSON OAuth dla komputera. Poprzedni poprawny wybór zostaje zachowany.';
+
+  @override
+  String get registrationGoogleSetupInstructions =>
+      'Instrukcje konfiguracji Google';
+
+  @override
+  String get registrationMicrosoftSetupInstructions =>
+      'Instrukcje konfiguracji Microsoft';
+
+  @override
+  String get registrationDesktopConfiguration =>
+      'Konfiguracja OAuth na komputerze';
+
+  @override
+  String get registrationNoFileSelected => 'Nie wybrano pliku';
+
+  @override
+  String get registrationChooseFile => 'Wybierz plik…';
+
+  @override
+  String get registrationReplaceFile => 'Zastąp…';
+
+  @override
+  String get registrationGoogleIntroduction =>
+      'Wybierz plik JSON OAuth na komputerze z własnego projektu Google Cloud.';
+
+  @override
+  String get registrationMicrosoftIntroduction =>
+      'Wprowadź dane własnej rejestracji aplikacji Microsoft.';
+
+  @override
+  String get registrationSetupInstructions => 'Instrukcje konfiguracji';
+
+  @override
+  String get registrationInstructionsDescription =>
+      'Utwórz konfigurację potrzebną do połączenia konta.';
+
+  @override
+  String get registrationEnableApis => 'Włącz Calendar i Tasks';
+
+  @override
+  String get registrationConsentScreen => 'Skonfiguruj ekran zgody';
+
+  @override
+  String get registrationAppName => 'Nazwa aplikacji';
+
+  @override
+  String get registrationScopes => 'Zakresy';
+
+  @override
+  String get registrationRedirectUri => 'URI przekierowania';
+
+  @override
+  String get registrationOpenApiLibrary => 'Otwórz bibliotekę API Google';
+
+  @override
+  String get registrationOpenBranding =>
+      'Otwórz Branding w Google Auth Platform';
+
+  @override
+  String get registrationOpenDataAccess =>
+      'Otwórz Data Access w Google Auth Platform';
+
+  @override
+  String get registrationOpenClients => 'Otwórz Clients w Google Auth Platform';
+
+  @override
+  String get registrationOpenEntraAuthentication =>
+      'Otwórz rejestracje Entra, aby ustawić Authentication';
+
+  @override
+  String get registrationOpenEntraPermissions =>
+      'Otwórz rejestracje Entra, aby ustawić API permissions';
+
+  @override
+  String get registrationCopy => 'Kopiuj';
+
+  @override
+  String get registrationCopyAll => 'Kopiuj wszystko';
+
+  @override
+  String get registrationGuideGoogleApis =>
+      'Przejdź do APIs & Services → Library. Wyszukaj Google Calendar API, otwórz stronę i wybierz Enable. Wróć do Library i powtórz dla Google Tasks API.';
+
+  @override
+  String get registrationGuideMicrosoftAudience =>
+      'W Supported account types wybierz Personal accounts only dla konta osobistego, Multiple Entra ID tenants dla kont organizacji, Any Entra ID Tenant + Personal Microsoft accounts dla obu lub Single tenant only dla tego katalogu. Wybierz Register. W Overview skopiuj Application (client) ID; dla jednej dzierżawy również Directory (tenant) ID. Użyj odpowiedniej opcji Obsługiwane konta w BusyMax.';
 }

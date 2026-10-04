@@ -3241,4 +3241,179 @@ class AppLocalizationsEt extends AppLocalizations {
 
   @override
   String get addAccount => 'Lisa konto';
+
+  @override
+  String get registrationConnect => 'Ühenda';
+
+  @override
+  String get registrationBack => 'Tagasi';
+
+  @override
+  String get registrationReplaceGoogle => 'Asenda töölaua OAuthi JSON';
+
+  @override
+  String get registrationSelectedConfiguration => 'Valitud seadistus';
+
+  @override
+  String get registrationDirectoryId => 'Kataloogi/rentniku ID';
+
+  @override
+  String get registrationInvalidId => 'Sisesta kehtiv UUID.';
+
+  @override
+  String get registrationExpired =>
+      'See seadistus aegus. Impordi see uuesti või muuda enne ühendamist registreeringu välju.';
+
+  @override
+  String get registrationOwnProjectRequired =>
+      'Vali oma projekti või rentniku registreering.';
+
+  @override
+  String get registrationSetupFailed =>
+      'Seadistust ei saanud lõpetada. Proovi uuesti.';
+
+  @override
+  String get registrationLinkFailed =>
+      'Linki ei saanud avada. Kontrolli brauserit ja proovi uuesti.';
+
+  @override
+  String get registrationPermissions => 'Õigused';
+
+  @override
+  String get registrationDesktopClient => 'Töölauarakendus';
+
+  @override
+  String get registrationOpenGoogleConsole => 'Ava Google Cloud Console';
+
+  @override
+  String get registrationGoogleAudienceHelp =>
+      'Google’i avaldamise ja testkasutajate nõuded';
+
+  @override
+  String get registrationDesktopHelp =>
+      'Töölauarakenduse registreerimise juhised';
+
+  @override
+  String get registrationOpenEntra => 'Ava Microsoft Entra halduskeskus';
+
+  @override
+  String get registrationGuideGoogleProject =>
+      'Ava Google Cloud Console. Vali ülemise projektivaliku kaudu oma projekt või vali New project, sisesta nimi ja vali Create. Jäta see projekt järgmisteks sammudeks valituks.';
+
+  @override
+  String get registrationGuideGoogleAudience =>
+      'Ava Google Auth Platform → Branding. Kui seadistust pole alustatud, vali Get started. Sisesta väljale App name BusyMax, vali oma User support email ja vali Next. Vali jaotises Audience isikliku Google’i konto jaoks External; Internal on saadaval vaid projekti organisatsiooni kontodele. Vali Next, sisesta oma e-post jaotises Contact Information ning vali Next. Nõustu User Data Policyga ja vali Continue ning Create. Olemasoleva seadistuse puhul vaata üle Branding ja Audience.\n\nValiku External ja oleku Testing puhul ava Audience → Test users → Add users, sisesta ühendatav Google’i konto ja vali Save. Ühenduda saavad ainult loetletud testkasutajad; nende volitused ja värskendustõendid aeguvad seitsme päeva pärast.';
+
+  @override
+  String get registrationGuideGooglePermissions =>
+      'Ava Google Auth Platform → Data Access → Add or remove scopes. Vali allolevad viis õiguste ulatust; vajadusel kasuta Manually add scopes. Käsitsi sisestamisel kleebi puuduvad väärtused ja vali Add to table. Vali Update ja seejärel Save. BusyMax vajab kalendri ja ülesannete kasutusõigust.';
+
+  @override
+  String get registrationGuideGoogleClient =>
+      'Ava Google Auth Platform → Clients → Create client. Määra Application type väärtuseks Desktop app, sisesta väljale Name BusyMax ja vali Create. Vali loomisdialoogis Download JSON ja salvesta fail. Sulge need juhised nupuga ×, et naasta vormile, vali see fail ning kontrolli projekti ja kliendi ID-d. Vali Ühenda ning luba brauseris ligipääs kalendrile ja ülesannetele.';
+
+  @override
+  String get registrationGuideMicrosoftApp =>
+      'Logi sisse Microsoft Entra halduskeskusse. Vali Settingsi kaudu rentnik, kus saad rakendusi registreerida. Ava Entra ID → App registrations → New registration. Sisesta väljale Name BusyMax ja vali järgmises sammus toetatud kontotüübid. Kui registreerimine on blokeeritud, küsi rentniku administraatorilt õigust.';
+
+  @override
+  String get registrationGuideMicrosoftRedirect =>
+      'Ava registreeringus Authentication → Add a platform → Mobile and desktop applications. Vali või sisesta allolev ümbersuunamise URI ning salvesta valikuga Configure. BusyMax kasutab süsteemi brauserit. Kliendisaladust pole vaja.';
+
+  @override
+  String get registrationGuideMicrosoftPermissions =>
+      'Ava API permissions → Add a permission → Microsoft Graph → Delegated permissions. Otsi ja vali iga allolev õiguse ulatus ning vali Add permissions. Säilita User.Read, kui see on juba olemas. Kui organisatsioon nõuab administraatori nõusolekut, palu administraatoril kasutada rentniku jaoks Grant admin consent.';
+
+  @override
+  String get registrationGuideMicrosoftConnect =>
+      'Sulge need juhised nupuga ×, et naasta vormile. Kleebi Application (client) ID ja vali samad toetatud kontod kui registreeringus. Ühe organisatsiooni rentniku puhul kleebi ka Directory (tenant) ID. Vali Ühenda ja logi brauseris soovitud kontole sisse. BusyMax kontrollib välju kohapeal; Microsoft küsib sinu nõusolekut brauseris sisselogimisel.';
+
+  @override
+  String get registrationGoogleImportFailed =>
+      'Seda faili ei saanud importida. Vali kehtiv töölaua OAuthi JSON. Eelmine kehtiv valik säilib.';
+
+  @override
+  String get registrationGoogleSetupInstructions =>
+      'Google’i seadistamisjuhised';
+
+  @override
+  String get registrationMicrosoftSetupInstructions =>
+      'Microsofti seadistamisjuhised';
+
+  @override
+  String get registrationDesktopConfiguration => 'Töölaua OAuthi seadistus';
+
+  @override
+  String get registrationNoFileSelected => 'Faili pole valitud';
+
+  @override
+  String get registrationChooseFile => 'Vali fail…';
+
+  @override
+  String get registrationReplaceFile => 'Asenda…';
+
+  @override
+  String get registrationGoogleIntroduction =>
+      'Vali oma Google Cloudi projekti töölaua OAuthi JSON-fail.';
+
+  @override
+  String get registrationMicrosoftIntroduction =>
+      'Sisesta oma Microsofti rakenduse registreeringu andmed.';
+
+  @override
+  String get registrationSetupInstructions => 'Seadistamisjuhised';
+
+  @override
+  String get registrationInstructionsDescription =>
+      'Loo konto ühendamiseks vajalik seadistus.';
+
+  @override
+  String get registrationEnableApis => 'Luba Calendar ja Tasks';
+
+  @override
+  String get registrationConsentScreen => 'Seadista nõusolekukuva';
+
+  @override
+  String get registrationAppName => 'Rakenduse nimi';
+
+  @override
+  String get registrationScopes => 'Õiguste ulatused';
+
+  @override
+  String get registrationRedirectUri => 'Ümbersuunamise URI';
+
+  @override
+  String get registrationOpenApiLibrary => 'Ava Google’i API-teek';
+
+  @override
+  String get registrationOpenBranding => 'Ava Google Auth Platformi Branding';
+
+  @override
+  String get registrationOpenDataAccess =>
+      'Ava Google Auth Platformi Data Access';
+
+  @override
+  String get registrationOpenClients => 'Ava Google Auth Platformi Clients';
+
+  @override
+  String get registrationOpenEntraAuthentication =>
+      'Ava Entra rakenduste registreeringud Authenticationi jaoks';
+
+  @override
+  String get registrationOpenEntraPermissions =>
+      'Ava Entra rakenduste registreeringud API permissionsi jaoks';
+
+  @override
+  String get registrationCopy => 'Kopeeri';
+
+  @override
+  String get registrationCopyAll => 'Kopeeri kõik';
+
+  @override
+  String get registrationGuideGoogleApis =>
+      'Ava APIs & Services → Library. Otsi Google Calendar API, ava selle leht ja vali Enable. Naase Library juurde ning korda Google Tasks API jaoks.';
+
+  @override
+  String get registrationGuideMicrosoftAudience =>
+      'Vali jaotises Supported account types isikliku konto jaoks Personal accounts only, organisatsioonikontode jaoks Multiple Entra ID tenants, mõlema jaoks Any Entra ID Tenant + Personal Microsoft accounts või selle kataloogi jaoks Single tenant only. Vali Register. Kopeeri Overview lehelt Application (client) ID; ühe rentniku puhul ka Directory (tenant) ID. Vali BusyMaxis vastav toetatud kontode valik.';
 }

@@ -1324,6 +1324,10 @@ Future<void> _sendAltLeft(WidgetTester tester) async {
 }
 
 Future<void> _disposeApp(WidgetTester tester) async {
+  // Mock gateways do not consume registration handles like production OAuth.
+  ProviderScope.containerOf(
+    tester.element(find.byType(BusyMaxApp)),
+  ).read(registrationStagingProvider).cancel();
   await tester.pumpWidget(const SizedBox.shrink());
   await tester.pump(const Duration(milliseconds: 1));
 }
@@ -1566,15 +1570,13 @@ Future<void> _authorizeGoogleSetup(WidgetTester tester) async {
 Future<void> _validateAndAuthorizeGoogleSetup(WidgetTester tester) async {
   await tester.runAsync(() async {
     final action = tester
-        .widget<FilledButton>(
-          find.byKey(const ValueKey('registration-validate')),
-        )
+        .widget<FilledButton>(find.byKey(const ValueKey('registration-import')))
         .onPressed;
     expect(action, isNotNull);
     await (action as dynamic)();
   });
   await tester.pumpAndSettle();
-  final button = tester.widget<FilledButton>(
+  final button = tester.widget<ElevatedButton>(
     find.byKey(const ValueKey('registration-authorize')),
   );
   expect(button.onPressed, isNotNull);
@@ -1649,7 +1651,15 @@ Future<void> _connectControlledProvider(
       find.byKey(const ValueKey('registration-client-id')),
       '11111111-1111-1111-1111-111111111111',
     );
-    await _validateAndAuthorizeGoogleSetup(tester);
+    await tester.pumpAndSettle();
+    final connect = tester.widget<ElevatedButton>(
+      find.byKey(const ValueKey('registration-authorize')),
+    );
+    expect(connect.onPressed, isNotNull);
+    await tester.tap(find.byKey(const ValueKey('registration-authorize')));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 250));
+    await tester.pump();
     return;
   }
   if (provider == BusyProvider.appleICloud) {

@@ -5291,7 +5291,7 @@ abstract class AppLocalizations {
   /// No description provided for @registrationClientId.
   ///
   /// In en, this message translates to:
-  /// **'Application/client ID'**
+  /// **'Application (client) ID'**
   String get registrationClientId;
 
   /// No description provided for @registrationTenantId.
@@ -5471,6 +5471,306 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Add account'**
   String get addAccount;
+
+  /// No description provided for @registrationConnect.
+  ///
+  /// In en, this message translates to:
+  /// **'Connect'**
+  String get registrationConnect;
+
+  /// No description provided for @registrationBack.
+  ///
+  /// In en, this message translates to:
+  /// **'Back'**
+  String get registrationBack;
+
+  /// No description provided for @registrationReplaceGoogle.
+  ///
+  /// In en, this message translates to:
+  /// **'Replace Desktop OAuth JSON'**
+  String get registrationReplaceGoogle;
+
+  /// No description provided for @registrationSelectedConfiguration.
+  ///
+  /// In en, this message translates to:
+  /// **'Selected configuration'**
+  String get registrationSelectedConfiguration;
+
+  /// No description provided for @registrationDirectoryId.
+  ///
+  /// In en, this message translates to:
+  /// **'Directory (tenant) ID'**
+  String get registrationDirectoryId;
+
+  /// No description provided for @registrationInvalidId.
+  ///
+  /// In en, this message translates to:
+  /// **'Enter a valid UUID.'**
+  String get registrationInvalidId;
+
+  /// No description provided for @registrationExpired.
+  ///
+  /// In en, this message translates to:
+  /// **'This configuration expired. Import it again or edit the registration fields before connecting.'**
+  String get registrationExpired;
+
+  /// No description provided for @registrationOwnProjectRequired.
+  ///
+  /// In en, this message translates to:
+  /// **'Choose a registration from your own project or tenant.'**
+  String get registrationOwnProjectRequired;
+
+  /// No description provided for @registrationSetupFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Setup could not complete. Try again.'**
+  String get registrationSetupFailed;
+
+  /// No description provided for @registrationLinkFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not open the link. Check your browser and try again.'**
+  String get registrationLinkFailed;
+
+  /// No description provided for @registrationPermissions.
+  ///
+  /// In en, this message translates to:
+  /// **'Permissions'**
+  String get registrationPermissions;
+
+  /// No description provided for @registrationDesktopClient.
+  ///
+  /// In en, this message translates to:
+  /// **'Desktop application'**
+  String get registrationDesktopClient;
+
+  /// No description provided for @registrationOpenGoogleConsole.
+  ///
+  /// In en, this message translates to:
+  /// **'Open Google Cloud Console'**
+  String get registrationOpenGoogleConsole;
+
+  /// No description provided for @registrationGoogleAudienceHelp.
+  ///
+  /// In en, this message translates to:
+  /// **'Google publishing and test-user requirements'**
+  String get registrationGoogleAudienceHelp;
+
+  /// No description provided for @registrationDesktopHelp.
+  ///
+  /// In en, this message translates to:
+  /// **'Desktop app registration instructions'**
+  String get registrationDesktopHelp;
+
+  /// No description provided for @registrationOpenEntra.
+  ///
+  /// In en, this message translates to:
+  /// **'Open Microsoft Entra admin center'**
+  String get registrationOpenEntra;
+
+  /// No description provided for @registrationGuideGoogleProject.
+  ///
+  /// In en, this message translates to:
+  /// **'Open Google Cloud Console. Use the project selector at the top to select your own project, or choose New project, enter a name and select Create. Keep that project selected for the remaining steps.'**
+  String get registrationGuideGoogleProject;
+
+  /// No description provided for @registrationGuideGoogleAudience.
+  ///
+  /// In en, this message translates to:
+  /// **'Go to Google Auth Platform → Branding. If setup has not started, select Get started. Enter BusyMax as the App name, choose your own User support email and select Next. In Audience, choose External for a personal Google account; Internal is available only for accounts in your project’s organization. Select Next, enter your email under Contact Information and select Next. Accept the User Data Policy, then select Continue and Create. If already configured, review Branding and Audience.\n\nFor External in Testing, open Audience → Test users → Add users, enter the Google account you will connect and select Save. Only listed test users can connect; their authorizations and refresh tokens expire after seven days.'**
+  String get registrationGuideGoogleAudience;
+
+  /// No description provided for @registrationGuideGooglePermissions.
+  ///
+  /// In en, this message translates to:
+  /// **'Open Google Auth Platform → Data Access → Add or remove scopes. Select the five scopes below; use Manually add scopes if needed. For manual entry, paste the missing values and select Add to table. Select Update, then Save. BusyMax needs both calendar and task access.'**
+  String get registrationGuideGooglePermissions;
+
+  /// No description provided for @registrationGuideGoogleClient.
+  ///
+  /// In en, this message translates to:
+  /// **'Open Google Auth Platform → Clients → Create client. Set Application type to Desktop app, enter BusyMax as the Name and select Create. In the creation dialog, select Download JSON and save the file. Close these instructions with × to return to the form, choose that file and review its project and client ID. Select Connect and approve calendar and task access in your browser.'**
+  String get registrationGuideGoogleClient;
+
+  /// No description provided for @registrationGuideMicrosoftApp.
+  ///
+  /// In en, this message translates to:
+  /// **'Sign in to Microsoft Entra admin center. Use Settings to select a tenant where you can register applications. Open Entra ID → App registrations → New registration. Enter BusyMax as the Name, then choose the supported account types in the next step. If registration is blocked, ask your tenant administrator for access.'**
+  String get registrationGuideMicrosoftApp;
+
+  /// No description provided for @registrationGuideMicrosoftRedirect.
+  ///
+  /// In en, this message translates to:
+  /// **'In your registration, open Authentication → Add a platform → Mobile and desktop applications. Select or enter the redirect URI below, then select Configure to save it. BusyMax uses your system browser. No client secret is required.'**
+  String get registrationGuideMicrosoftRedirect;
+
+  /// No description provided for @registrationGuideMicrosoftPermissions.
+  ///
+  /// In en, this message translates to:
+  /// **'Open API permissions → Add a permission → Microsoft Graph → Delegated permissions. Search for and select each scope below, then select Add permissions. Keep User.Read if it is already present. If your organization requires administrator consent, ask an administrator to use Grant admin consent for your tenant.'**
+  String get registrationGuideMicrosoftPermissions;
+
+  /// No description provided for @registrationGuideMicrosoftConnect.
+  ///
+  /// In en, this message translates to:
+  /// **'Close these instructions with × to return to the form. Paste Application (client) ID and select the same Supported accounts as the registration. For One organizational tenant, also paste Directory (tenant) ID. Select Connect and sign in to the intended account in your browser. BusyMax checks the fields locally; Microsoft requests your permission during browser sign-in.'**
+  String get registrationGuideMicrosoftConnect;
+
+  /// No description provided for @registrationGoogleImportFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not import this file. Select a valid Desktop OAuth JSON. Any previous valid selection is kept.'**
+  String get registrationGoogleImportFailed;
+
+  /// No description provided for @registrationGoogleSetupInstructions.
+  ///
+  /// In en, this message translates to:
+  /// **'Google setup instructions'**
+  String get registrationGoogleSetupInstructions;
+
+  /// No description provided for @registrationMicrosoftSetupInstructions.
+  ///
+  /// In en, this message translates to:
+  /// **'Microsoft setup instructions'**
+  String get registrationMicrosoftSetupInstructions;
+
+  /// No description provided for @registrationDesktopConfiguration.
+  ///
+  /// In en, this message translates to:
+  /// **'Desktop OAuth configuration'**
+  String get registrationDesktopConfiguration;
+
+  /// No description provided for @registrationNoFileSelected.
+  ///
+  /// In en, this message translates to:
+  /// **'No file selected'**
+  String get registrationNoFileSelected;
+
+  /// No description provided for @registrationChooseFile.
+  ///
+  /// In en, this message translates to:
+  /// **'Choose file…'**
+  String get registrationChooseFile;
+
+  /// No description provided for @registrationReplaceFile.
+  ///
+  /// In en, this message translates to:
+  /// **'Replace…'**
+  String get registrationReplaceFile;
+
+  /// No description provided for @registrationGoogleIntroduction.
+  ///
+  /// In en, this message translates to:
+  /// **'Choose the Desktop OAuth JSON from your own Google Cloud project.'**
+  String get registrationGoogleIntroduction;
+
+  /// No description provided for @registrationMicrosoftIntroduction.
+  ///
+  /// In en, this message translates to:
+  /// **'Enter the details of your own Microsoft app registration.'**
+  String get registrationMicrosoftIntroduction;
+
+  /// No description provided for @registrationSetupInstructions.
+  ///
+  /// In en, this message translates to:
+  /// **'Setup instructions'**
+  String get registrationSetupInstructions;
+
+  /// No description provided for @registrationInstructionsDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Create the configuration needed to connect your account.'**
+  String get registrationInstructionsDescription;
+
+  /// No description provided for @registrationEnableApis.
+  ///
+  /// In en, this message translates to:
+  /// **'Enable Calendar and Tasks'**
+  String get registrationEnableApis;
+
+  /// No description provided for @registrationConsentScreen.
+  ///
+  /// In en, this message translates to:
+  /// **'Configure the consent screen'**
+  String get registrationConsentScreen;
+
+  /// No description provided for @registrationAppName.
+  ///
+  /// In en, this message translates to:
+  /// **'App name'**
+  String get registrationAppName;
+
+  /// No description provided for @registrationScopes.
+  ///
+  /// In en, this message translates to:
+  /// **'Scopes'**
+  String get registrationScopes;
+
+  /// No description provided for @registrationRedirectUri.
+  ///
+  /// In en, this message translates to:
+  /// **'Redirect URI'**
+  String get registrationRedirectUri;
+
+  /// No description provided for @registrationOpenApiLibrary.
+  ///
+  /// In en, this message translates to:
+  /// **'Open Google API Library'**
+  String get registrationOpenApiLibrary;
+
+  /// No description provided for @registrationOpenBranding.
+  ///
+  /// In en, this message translates to:
+  /// **'Open Google Auth Platform Branding'**
+  String get registrationOpenBranding;
+
+  /// No description provided for @registrationOpenDataAccess.
+  ///
+  /// In en, this message translates to:
+  /// **'Open Google Auth Platform Data Access'**
+  String get registrationOpenDataAccess;
+
+  /// No description provided for @registrationOpenClients.
+  ///
+  /// In en, this message translates to:
+  /// **'Open Google Auth Platform Clients'**
+  String get registrationOpenClients;
+
+  /// No description provided for @registrationOpenEntraAuthentication.
+  ///
+  /// In en, this message translates to:
+  /// **'Open Entra app registrations for Authentication'**
+  String get registrationOpenEntraAuthentication;
+
+  /// No description provided for @registrationOpenEntraPermissions.
+  ///
+  /// In en, this message translates to:
+  /// **'Open Entra app registrations for API permissions'**
+  String get registrationOpenEntraPermissions;
+
+  /// No description provided for @registrationCopy.
+  ///
+  /// In en, this message translates to:
+  /// **'Copy'**
+  String get registrationCopy;
+
+  /// No description provided for @registrationCopyAll.
+  ///
+  /// In en, this message translates to:
+  /// **'Copy all'**
+  String get registrationCopyAll;
+
+  /// No description provided for @registrationGuideGoogleApis.
+  ///
+  /// In en, this message translates to:
+  /// **'Go to APIs & Services → Library. Search for Google Calendar API, open its page and select Enable. Return to Library and repeat for Google Tasks API.'**
+  String get registrationGuideGoogleApis;
+
+  /// No description provided for @registrationGuideMicrosoftAudience.
+  ///
+  /// In en, this message translates to:
+  /// **'Under Supported account types, choose Personal accounts only for a personal account, Multiple Entra ID tenants for organizational accounts, Any Entra ID Tenant + Personal Microsoft accounts for both, or Single tenant only for this directory. Select Register. In Overview, copy Application (client) ID; for one tenant, also copy Directory (tenant) ID. Use the matching Supported accounts choice in BusyMax.'**
+  String get registrationGuideMicrosoftAudience;
 }
 
 class _AppLocalizationsDelegate

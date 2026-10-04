@@ -3292,4 +3292,178 @@ class AppLocalizationsFi extends AppLocalizations {
 
   @override
   String get addAccount => 'Lisää tili';
+
+  @override
+  String get registrationConnect => 'Yhdistä';
+
+  @override
+  String get registrationBack => 'Takaisin';
+
+  @override
+  String get registrationReplaceGoogle => 'Vaihda työpöydän OAuth-JSON';
+
+  @override
+  String get registrationSelectedConfiguration => 'Valittu määritys';
+
+  @override
+  String get registrationDirectoryId => 'Hakemiston/vuokraajan tunnus';
+
+  @override
+  String get registrationInvalidId => 'Anna kelvollinen UUID.';
+
+  @override
+  String get registrationExpired =>
+      'Tämä määritys on vanhentunut. Tuo se uudelleen tai muokkaa rekisteröintikenttiä ennen yhdistämistä.';
+
+  @override
+  String get registrationOwnProjectRequired =>
+      'Valitse oman projektisi tai vuokraajasi rekisteröinti.';
+
+  @override
+  String get registrationSetupFailed =>
+      'Määritystä ei voitu viimeistellä. Yritä uudelleen.';
+
+  @override
+  String get registrationLinkFailed =>
+      'Linkkiä ei voitu avata. Tarkista selain ja yritä uudelleen.';
+
+  @override
+  String get registrationPermissions => 'Käyttöoikeudet';
+
+  @override
+  String get registrationDesktopClient => 'Työpöytäsovellus';
+
+  @override
+  String get registrationOpenGoogleConsole => 'Avaa Google Cloud Console';
+
+  @override
+  String get registrationGoogleAudienceHelp =>
+      'Googlen julkaisu- ja testikäyttäjävaatimukset';
+
+  @override
+  String get registrationDesktopHelp =>
+      'Työpöytäsovelluksen rekisteröintiohjeet';
+
+  @override
+  String get registrationOpenEntra => 'Avaa Microsoft Entra -hallintakeskus';
+
+  @override
+  String get registrationGuideGoogleProject =>
+      'Avaa Google Cloud Console. Valitse yläreunan projektivalitsimesta oma projektisi tai valitse New project, anna nimi ja valitse Create. Pidä tämä projekti valittuna seuraavissa vaiheissa.';
+
+  @override
+  String get registrationGuideGoogleAudience =>
+      'Avaa Google Auth Platform → Branding. Aloita uusi määritys valitsemalla Get started. Anna App name -kenttään BusyMax, valitse oma User support email ja valitse Next. Valitse Audience-kohdassa henkilökohtaiselle Google-tilille External; Internal on vain projektin organisaation tileille. Valitse Next, anna sähköpostiosoitteesi Contact Information -kohdassa ja valitse Next. Hyväksy User Data Policy ja valitse Continue ja Create. Tarkista aiemmassa määrityksessä Branding ja Audience.\n\nKun valittuna on External ja Testing, avaa Audience → Test users → Add users, anna yhdistettävä Google-tili ja valitse Save. Vain luettelon testikäyttäjät voivat yhdistää; valtuutukset ja päivitystunnukset vanhenevat seitsemän päivän kuluttua.';
+
+  @override
+  String get registrationGuideGooglePermissions =>
+      'Avaa Google Auth Platform → Data Access → Add or remove scopes. Valitse alla olevat viisi käyttöoikeusaluetta; käytä tarvittaessa Manually add scopes -toimintoa. Liitä puuttuvat arvot käsin lisättäessä ja valitse Add to table. Valitse Update ja sitten Save. BusyMax tarvitsee kalenterin ja tehtävien käyttöoikeudet.';
+
+  @override
+  String get registrationGuideGoogleClient =>
+      'Avaa Google Auth Platform → Clients → Create client. Valitse Application type -arvoksi Desktop app, anna Name-kenttään BusyMax ja valitse Create. Valitse luonti-ikkunassa Download JSON ja tallenna tiedosto. Sulje nämä ohjeet ×-painikkeella palataksesi lomakkeeseen, valitse tiedosto ja tarkista projekti ja asiakastunnus. Valitse Yhdistä ja hyväksy kalenterin ja tehtävien käyttö selaimessa.';
+
+  @override
+  String get registrationGuideMicrosoftApp =>
+      'Kirjaudu Microsoft Entra -hallintakeskukseen. Valitse Settings-kohdassa vuokraaja, jossa voit rekisteröidä sovelluksia. Avaa Entra ID → App registrations → New registration. Anna Name-kenttään BusyMax ja valitse seuraavassa vaiheessa tuetut tilityypit. Jos rekisteröinti on estetty, pyydä oikeutta vuokraajan ylläpitäjältä.';
+
+  @override
+  String get registrationGuideMicrosoftRedirect =>
+      'Avaa rekisteröinnissä Authentication → Add a platform → Mobile and desktop applications. Valitse tai anna alla oleva uudelleenohjaus-URI ja tallenna valitsemalla Configure. BusyMax käyttää järjestelmän selainta. Asiakkaan salaisuutta ei tarvita.';
+
+  @override
+  String get registrationGuideMicrosoftPermissions =>
+      'Avaa API permissions → Add a permission → Microsoft Graph → Delegated permissions. Etsi ja valitse jokainen alla oleva käyttöoikeusalue ja valitse Add permissions. Säilytä User.Read, jos se on jo lisätty. Jos organisaatiosi vaatii ylläpitäjän suostumuksen, pyydä ylläpitäjää käyttämään vuokraajan Grant admin consent -toimintoa.';
+
+  @override
+  String get registrationGuideMicrosoftConnect =>
+      'Sulje nämä ohjeet ×-painikkeella palataksesi lomakkeeseen. Liitä Application (client) ID ja valitse rekisteröintiä vastaavat Tuetut tilit. Yhdelle organisaation vuokraajalle liitä myös Directory (tenant) ID. Valitse Yhdistä ja kirjaudu haluamallesi tilille selaimessa. BusyMax tarkistaa kentät paikallisesti; Microsoft pyytää suostumuksesi selaimessa kirjautuessa.';
+
+  @override
+  String get registrationGoogleImportFailed =>
+      'Tätä tiedostoa ei voitu tuoda. Valitse kelvollinen työpöydän OAuth-JSON. Aiempi kelvollinen valinta säilyy.';
+
+  @override
+  String get registrationGoogleSetupInstructions => 'Googlen määritysohjeet';
+
+  @override
+  String get registrationMicrosoftSetupInstructions =>
+      'Microsoftin määritysohjeet';
+
+  @override
+  String get registrationDesktopConfiguration => 'Työpöydän OAuth-määritys';
+
+  @override
+  String get registrationNoFileSelected => 'Tiedostoa ei ole valittu';
+
+  @override
+  String get registrationChooseFile => 'Valitse tiedosto…';
+
+  @override
+  String get registrationReplaceFile => 'Korvaa…';
+
+  @override
+  String get registrationGoogleIntroduction =>
+      'Valitse oman Google Cloud -projektisi työpöydän OAuth-JSON-tiedosto.';
+
+  @override
+  String get registrationMicrosoftIntroduction =>
+      'Anna oman Microsoft-sovellusrekisteröintisi tiedot.';
+
+  @override
+  String get registrationSetupInstructions => 'Määritysohjeet';
+
+  @override
+  String get registrationInstructionsDescription =>
+      'Luo tilin yhdistämiseen tarvittava määritys.';
+
+  @override
+  String get registrationEnableApis => 'Ota Calendar ja Tasks käyttöön';
+
+  @override
+  String get registrationConsentScreen => 'Määritä suostumusnäyttö';
+
+  @override
+  String get registrationAppName => 'Sovelluksen nimi';
+
+  @override
+  String get registrationScopes => 'Käyttöoikeusalueet';
+
+  @override
+  String get registrationRedirectUri => 'Uudelleenohjaus-URI';
+
+  @override
+  String get registrationOpenApiLibrary => 'Avaa Googlen API-kirjasto';
+
+  @override
+  String get registrationOpenBranding => 'Avaa Google Auth Platformin Branding';
+
+  @override
+  String get registrationOpenDataAccess =>
+      'Avaa Google Auth Platformin Data Access';
+
+  @override
+  String get registrationOpenClients => 'Avaa Google Auth Platformin Clients';
+
+  @override
+  String get registrationOpenEntraAuthentication =>
+      'Avaa Entran sovellusrekisteröinnit Authentication-määritystä varten';
+
+  @override
+  String get registrationOpenEntraPermissions =>
+      'Avaa Entran sovellusrekisteröinnit API permissions -määritystä varten';
+
+  @override
+  String get registrationCopy => 'Kopioi';
+
+  @override
+  String get registrationCopyAll => 'Kopioi kaikki';
+
+  @override
+  String get registrationGuideGoogleApis =>
+      'Avaa APIs & Services → Library. Etsi Google Calendar API, avaa sen sivu ja valitse Enable. Palaa Library-sivulle ja toista Google Tasks API:lle.';
+
+  @override
+  String get registrationGuideMicrosoftAudience =>
+      'Valitse Supported account types -kohdassa Personal accounts only henkilökohtaiselle tilille, Multiple Entra ID tenants organisaatioiden tileille, Any Entra ID Tenant + Personal Microsoft accounts molemmille tai Single tenant only tälle hakemistolle. Valitse Register. Kopioi Overview-kohdasta Application (client) ID; yhdelle vuokraajalle myös Directory (tenant) ID. Valitse vastaava Tuetut tilit -vaihtoehto BusyMaxissa.';
 }
