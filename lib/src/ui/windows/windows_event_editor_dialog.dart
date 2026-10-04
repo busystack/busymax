@@ -1,3 +1,4 @@
+import 'package:busymax/src/core/auth/authorization_attempt.dart';
 import 'dart:async';
 
 import 'windows_time_picker.dart';
@@ -239,6 +240,7 @@ Future<bool> showWindowsEventEditorDialog(
       showAs != initialShowAs ||
       visibility != initialVisibility;
 
+  AuthorizationCancellation? consentCancellation;
   await showDialog<void>(
     context: context,
     barrierDismissible: false,
@@ -789,25 +791,44 @@ Future<bool> showWindowsEventEditorDialog(
                                 return snapshot.hasError
                                     ? Button(
                                         onPressed: () async {
+                                          consentCancellation?.cancel();
+                                          final consent =
+                                              AuthorizationCancellation();
+                                          consentCancellation = consent;
                                           try {
-                                            await ref
-                                                .read(
-                                                  microsoftCategoryAuthorizationProvider,
-                                                )
-                                                ?.authorizeCategoryAccess(
+                                            try {
+                                              await ref
+                                                  .read(
+                                                    microsoftCategoryAuthorizationProvider,
+                                                  )
+                                                  ?.authorizeCategoryAccess(
+                                                    selectedSource.accountId,
+                                                    cancellation: consent,
+                                                  );
+                                              if (!context.mounted ||
+                                                  consent.isCancelled) {
+                                                return;
+                                              }
+                                              ref.invalidate(
+                                                microsoftMasterCategoriesProvider(
                                                   selectedSource.accountId,
-                                                );
-                                            ref.invalidate(
-                                              microsoftMasterCategoriesProvider(
-                                                selectedSource.accountId,
-                                              ),
-                                            );
-                                            setState(() {});
-                                          } on Object {
-                                            setState(
-                                              () => error = l10n
-                                                  .outlookCategoriesUnavailable,
-                                            );
+                                                ),
+                                              );
+                                              setState(() {});
+                                            } on Object {
+                                              setState(
+                                                () => error = l10n
+                                                    .outlookCategoriesUnavailable,
+                                              );
+                                            }
+                                          } finally {
+                                            consent.cancel();
+                                            if (identical(
+                                              consentCancellation,
+                                              consent,
+                                            )) {
+                                              consentCancellation = null;
+                                            }
                                           }
                                         },
                                         child: Text(l10n.loadOutlookCategories),
@@ -1745,6 +1766,7 @@ Future<bool> showWindowsEventEditorDialog(
       },
     ),
   );
+  consentCancellation?.cancel();
   title.dispose();
   description.dispose();
   location.dispose();

@@ -1,3 +1,4 @@
+import 'package:busymax/src/core/auth/authorization_attempt.dart';
 import '../../support/oauth_binding_fixture.dart';
 import 'dart:async';
 import 'dart:convert';
@@ -657,6 +658,7 @@ class _ConsentFlow extends OAuthLoopbackFlow {
         'Could not open the browser for Google sign-in.',
     Map<String, String> extraAuthorizationParameters = const {},
     String? loginHint,
+    AuthorizationAttempt? attempt,
   }) async {
     requestedScope = scope;
     if (error case final failure?) throw failure;

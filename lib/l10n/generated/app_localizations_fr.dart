@@ -3266,4 +3266,40 @@ class AppLocalizationsFr extends AppLocalizations {
   ) {
     return 'Paquet : $packageName\nEmpreinte de signature : $signatureHash\nURI de redirection : $redirectUri';
   }
+
+  @override
+  String get oauthRegistrationRejected =>
+      'Vérifiez le type de client, les comptes pris en charge, les autorisations et la redirection de votre inscription. Sélectionnez à nouveau la configuration importée.';
+
+  @override
+  String get oauthAuthorizationCodeUnusable =>
+      'Cette tentative d’autorisation n’a pas abouti. Recommencez ; votre connexion existante est préservée.';
+
+  @override
+  String get oauthPermissionRefused =>
+      'L’autorisation a été refusée ou des permissions requises manquent. Réessayez et accordez les permissions nécessaires.';
+
+  @override
+  String get oauthProviderThrottled =>
+      'Le fournisseur limite les requêtes. Patientez avant de réessayer ; votre connexion existante est préservée.';
+
+  @override
+  String get oauthProviderTemporaryFailure =>
+      'Un problème temporaire du fournisseur empêche l’autorisation. Réessayez ; votre connexion existante est préservée.';
+
+  @override
+  String get oauthAuthorizationTimedOut =>
+      'Le délai d’autorisation est dépassé. Réessayez et sélectionnez à nouveau la configuration importée.';
+
+  @override
+  String get oauthWrongAccount =>
+      'Autorisez le compte sélectionné pour la reconnexion. Votre connexion existante est préservée.';
+
+  @override
+  String get oauthSecureStorageUnavailable =>
+      'Le stockage sécurisé est indisponible. Rétablissez son accès et réessayez.';
+
+  @override
+  String get oauthRevokedRemovalIncomplete =>
+      'L’autorisation distante a été révoquée, mais le nettoyage du compte n’a pas pu être terminé. Redémarrez BusyMax pour réessayer la récupération locale.';
 }

@@ -1,3 +1,11 @@
+import 'dart:io';
+import 'package:drift/native.dart';
+import 'package:busymax/src/calendar_providers/cloud_calendar_client.dart';
+import 'package:busymax/src/features/sync/calendar_sync_engine.dart';
+import 'package:busymax/src/google_calendar/google_calendar_api_client.dart';
+import 'package:busymax/src/microsoft_calendar/microsoft_calendar_api_client.dart';
+import 'package:busymax/src/microsoft_todo/api/microsoft_todo_api_client.dart';
+import 'package:busymax/src/microsoft_todo/api/microsoft_todo_task_remote_client.dart';
 import 'dart:async';
 import 'dart:convert';
 import 'package:busymax/src/db/app_database.dart';
@@ -15,10 +23,14 @@ import 'package:http/testing.dart';
 
 void main() {
   late AppDatabase db;
+  late Directory directory;
+  late File databaseFile;
   late DateTime now;
   late DomainSyncPolicy policy;
   setUp(() async {
-    db = AppDatabase.memoryForTests();
+    directory = await Directory.systemTemp.createTemp('busymax-cooldown-test-');
+    databaseFile = File('${directory.path}/schedule.sqlite');
+    db = AppDatabase(NativeDatabase(databaseFile));
     now = DateTime.utc(2026, 10, 3, 12);
     await AccountsRepository(database: db).upsertSignedInAccount(
       id: 'a',
@@ -28,8 +40,335 @@ void main() {
     );
     policy = DomainSyncPolicy(db, nowUtc: () => now);
   });
-  tearDown(() => db.close());
+  tearDown(() async {
+    await db.close();
+    await directory.delete(recursive: true);
+  });
 
+  for (final microsoft in [false, true]) {
+    for (final domain in SyncDomain.values) {
+      for (final trigger in [
+        SyncTrigger.manual,
+        SyncTrigger.localMutation,
+        SyncTrigger.background,
+      ]) {
+        test(
+          'real replay establishes domain cooldown before remaining writes and pull: microsoft=$microsoft $domain $trigger',
+          () async {
+            final requests = <http.Request>[];
+            var throttled = true;
+            final transport = MockClient((request) async {
+              requests.add(request);
+              if (request.method == 'POST' && throttled) {
+                return http.Response(
+                  '{"error":{"code":429,"message":"Rate limited"}}',
+                  429,
+                  headers: {'retry-after': '7200'},
+                );
+              }
+              if (request.method == 'POST') {
+                return http.Response(
+                  jsonEncode({
+                    'id': 'created-${requests.length}',
+                    'title': 'Offline',
+                    'summary': 'Offline',
+                    'status': microsoft ? 'notStarted' : 'needsAction',
+                  }),
+                  200,
+                );
+              }
+              return http.Response(
+                microsoft ? '{"value":[]}' : '{"items":[]}',
+                200,
+              );
+            });
+            final tasksClient = microsoft
+                ? MicrosoftTodoTaskRemoteClient(
+                    client: MicrosoftTodoRestApiClient(
+                      httpClient: transport,
+                      baseUri: Uri.https('graph.microsoft.com', '/v1.0/'),
+                    ),
+                    defaultTimeZone: 'UTC',
+                    nowUtc: () => now,
+                  )
+                : GoogleTasksRestApiClient(
+                    httpClient: transport,
+                    baseUri: Uri.https('tasks.googleapis.com', '/'),
+                  );
+            final CloudCalendarClient calendarClient = microsoft
+                ? MicrosoftCalendarApiClient(
+                    httpClient: transport,
+                    baseUri: Uri.https('graph.microsoft.com', '/v1.0/'),
+                    responseTimeZone: 'UTC',
+                  )
+                : GoogleCalendarApiClient(
+                    httpClient: transport,
+                    baseUri: Uri.https('www.googleapis.com', '/calendar/v3/'),
+                  );
+            if (microsoft) {
+              await (db.update(db.accounts)..where((r) => r.id.equals('a')))
+                  .write(const AccountsCompanion(provider: Value('microsoft')));
+            }
+            await db
+                .into(db.taskLists)
+                .insert(
+                  TaskListsCompanion.insert(
+                    accountId: 'a',
+                    id: 'l',
+                    title: 'Fixture',
+                    rawJson: '{}',
+                    createdLocalAtUtc: now.toIso8601String(),
+                    updatedLocalAtUtc: now.toIso8601String(),
+                  ),
+                );
+            for (var i = 0; i < 3; i++) {
+              await db.pendingOpsDao.enqueue(
+                PendingOpsCompanion.insert(
+                  id: 'write-$i',
+                  accountId: 'a',
+                  entityType: domain == SyncDomain.tasks ? 'task' : 'calendar',
+                  provider: Value(microsoft ? 'microsoft' : 'google'),
+                  operationType: Value(
+                    domain == SyncDomain.tasks
+                        ? 'create_task'
+                        : 'calendar.create',
+                  ),
+                  operation: 'create_task',
+                  taskListId: const Value('l'),
+                  taskId: Value('local-$i'),
+                  localTempId: Value('local-$i'),
+                  requestJson: domain == SyncDomain.tasks
+                      ? '{"body":{"title":"Offline"}}'
+                      : '{"summary":"Offline"}',
+                  createdAtUtc: now.toIso8601String(),
+                  updatedAtUtc: now.toIso8601String(),
+                ),
+              );
+            }
+            var engine = SyncEngine(
+              database: db,
+              apiClient: tasksClient,
+              accountId: 'a',
+              nowUtc: () => now,
+            );
+            var calendar = CalendarSyncEngine(
+              database: db,
+              client: calendarClient,
+              accountId: 'a',
+              nowUtc: () => now,
+            );
+            Future<void> pull() => domain == SyncDomain.tasks
+                ? engine.incrementalSync()
+                : calendar.incrementalSync();
+            Future<void> dispatch() => domain == SyncDomain.tasks
+                ? engine.dispatchPendingWrites()
+                : calendar.dispatchPendingWrites();
+            Future<void> maintenance() => domain == SyncDomain.tasks
+                ? engine.maintainCachedReminders()
+                : calendar.maintainCachedReminders();
+            Future<void> run(SyncTrigger current) => withSyncTrigger(
+              current,
+              () => policy.run(
+                'a',
+                domain,
+                pull: pull,
+                deferred: dispatch,
+                maintainCached: maintenance,
+              ),
+            );
+            await expectLater(run(trigger), throwsA(anything));
+            expect(requests.map((r) => r.method).toList(), ['POST']);
+            final schedule = await db
+                .select(db.domainSyncSchedules)
+                .getSingle();
+            expect(
+              DateTime.parse(schedule.cooldownUntilUtc!),
+              now.add(const Duration(hours: 2)),
+            );
+            expect(schedule.lastSuccessfulPullUtc, isNull);
+            for (final op in await db.select(db.pendingOps).get()) {
+              expect(op.attemptCount, op.id == 'write-0' ? 1 : 0);
+              expect(op.state, op.id == 'write-0' ? 'retry' : 'pending');
+            }
+            for (final wake in SyncTrigger.values) {
+              await expectLater(
+                run(wake),
+                throwsA(isA<DomainCooldownException>()),
+              );
+            }
+            expect(requests.length, 1);
+            if (domain == SyncDomain.calendar) {
+              await expectLater(
+                calendar.retrieveMonth(DateTime.utc(2027, 1)),
+                throwsA(isA<DomainCooldownException>()),
+              );
+              expect(requests.length, 1);
+            }
+            await db.close();
+            db = AppDatabase(NativeDatabase(databaseFile));
+            policy = DomainSyncPolicy(db, nowUtc: () => now);
+            engine = SyncEngine(
+              database: db,
+              apiClient: tasksClient,
+              accountId: 'a',
+              nowUtc: () => now,
+            );
+            calendar = CalendarSyncEngine(
+              database: db,
+              client: calendarClient,
+              accountId: 'a',
+              nowUtc: () => now,
+            );
+            final restarted = policy;
+            await expectLater(
+              restarted.run('a', domain, pull: pull, deferred: dispatch),
+              throwsA(isA<DomainCooldownException>()),
+            );
+            expect(requests.length, 1);
+            if (domain == SyncDomain.calendar) {
+              await expectLater(
+                calendar.retrieveMonth(DateTime.utc(2027, 1)),
+                throwsA(isA<DomainCooldownException>()),
+              );
+              expect(requests.length, 1);
+            }
+            // Independent domains remain eligible; no application-wide blackout.
+            var independent = 0;
+            await policy.run(
+              'a',
+              domain == SyncDomain.tasks
+                  ? SyncDomain.calendar
+                  : SyncDomain.tasks,
+              pull: () async {
+                independent++;
+              },
+              deferred: () async {},
+            );
+            expect(independent, 1);
+            throttled = false;
+            now = now.add(const Duration(hours: 2));
+            await run(SyncTrigger.manual);
+            expect(requests.where((r) => r.method == 'POST'), hasLength(4));
+            expect(await db.select(db.pendingOps).get(), isEmpty);
+            final persisted = await (db.select(
+              db.domainSyncSchedules,
+            )..where((r) => r.domain.equals(domain.name))).getSingle();
+            expect(persisted.lastSuccessfulPullUtc, now.toIso8601String());
+            expect(persisted.cooldownUntilUtc, isNull);
+          },
+        );
+      }
+    }
+  }
+
+  test(
+    'concurrent cooldown writers retain the longest value and stale success cannot clear it',
+    () async {
+      final entered = Completer<void>(), release = Completer<void>();
+      final pull = policy.run(
+        'a',
+        SyncDomain.tasks,
+        pull: () async {
+          entered.complete();
+          await release.future;
+        },
+        deferred: () async {},
+      );
+      final rejected = expectLater(
+        pull,
+        throwsA(isA<DomainCooldownException>()),
+      );
+      await entered.future;
+      await Future.wait([
+        policy.recordFailureCooldown(
+          'a',
+          SyncDomain.tasks,
+          const TaskRemoteError(
+            statusCode: 429,
+            code: 'throttled',
+            message: 'synthetic',
+            retryable: true,
+            retryAfter: Duration(hours: 4),
+          ),
+        ),
+        DomainSyncPolicy(db, nowUtc: () => now).recordFailureCooldown(
+          'a',
+          SyncDomain.tasks,
+          const TaskRemoteError(
+            statusCode: 429,
+            code: 'throttled',
+            message: 'synthetic',
+            retryable: true,
+            retryAfter: Duration(seconds: 1),
+          ),
+        ),
+      ]);
+      release.complete();
+      await rejected;
+      final row = await db.select(db.domainSyncSchedules).getSingle();
+      expect(
+        row.cooldownUntilUtc,
+        now.add(const Duration(hours: 4)).toIso8601String(),
+      );
+      expect(row.lastSuccessfulPullUtc, isNull);
+    },
+  );
+  for (final quota in [false, true]) {
+    for (final retryHeader in [null, 'malformed']) {
+      test(
+        'real Google quota=$quota missing/invalid retry timing $retryHeader uses durable fallback',
+        () async {
+          var requests = 0;
+          final client = GoogleTasksRestApiClient(
+            httpClient: MockClient((r) async {
+              requests++;
+              return http.Response(
+                '{"error":{"code":${quota ? 403 : 429},"errors":[{"reason":"userRateLimitExceeded"}]}}',
+                quota ? 403 : 429,
+                headers: {if (retryHeader != null) 'retry-after': retryHeader},
+              );
+            }),
+            baseUri: Uri.https('tasks.googleapis.com', '/'),
+          );
+          await db.pendingOpsDao.enqueue(
+            PendingOpsCompanion.insert(
+              id: 'throttled',
+              accountId: 'a',
+              entityType: 'task',
+              operation: 'create_task',
+              taskListId: const Value('l'),
+              taskId: const Value('local'),
+              localTempId: const Value('local'),
+              requestJson: '{"body":{"title":"Offline"}}',
+              createdAtUtc: now.toIso8601String(),
+              updatedAtUtc: now.toIso8601String(),
+            ),
+          );
+          final engine = SyncEngine(
+            database: db,
+            apiClient: client,
+            accountId: 'a',
+            nowUtc: () => now,
+          );
+          await expectLater(
+            engine.incrementalSync(),
+            throwsA(isA<TaskRemoteError>()),
+          );
+          expect(
+            (await db.select(db.domainSyncSchedules).getSingle())
+                .cooldownUntilUtc,
+            now.add(const Duration(minutes: 1)).toIso8601String(),
+          );
+          await expectLater(
+            engine.dispatchPendingWrites(),
+            throwsA(isA<DomainCooldownException>()),
+          );
+          expect(requests, 1);
+          expect((await db.select(db.pendingOps).getSingle()).attemptCount, 1);
+        },
+      );
+    }
+  }
   for (final collections in [1, 5, 20]) {
     test(
       'quiet $collections collections: real Tasks engine request budget and checkpoint overlap',

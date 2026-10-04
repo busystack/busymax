@@ -1,3 +1,6 @@
+import 'package:busymax/src/core/auth/authorization_attempt.dart';
+import 'package:busymax/src/core/auth/registration_file_reader.dart';
+import '../../../support/native_registration_reader_fixture.dart';
 import 'dart:convert';
 import 'package:busymax/src/core/auth/authorization_persistence.dart';
 import 'package:busymax/src/core/auth/oauth_registration.dart';
@@ -38,10 +41,14 @@ import 'package:busymax/src/schedule/schedule_scope.dart';
 import 'package:busymax/src/providers/busy_provider.dart';
 
 const _nativeDialogChannel = MethodChannel(nativeDialogChannelName);
+late RegistrationFileReader _nativeReader;
 
 void main() {
   late AppDatabase database;
   late _FakeOAuthGateway oAuth;
+  setUpAll(() async {
+    _nativeReader = await buildNativeRegistrationReader();
+  });
 
   setUp(() async {
     for (final name in [
@@ -93,7 +100,10 @@ void main() {
         database: database,
         secrets: secrets,
       );
-      final staging = RegistrationStaging(_configuredBuildConfig);
+      final staging = RegistrationStaging(
+        _configuredBuildConfig,
+        fileReader: _nativeReader,
+      );
       addTearDown(staging.dispose);
       final flow = _MigrationBrowserFlow();
       final google = OAuthService(
@@ -649,9 +659,7 @@ void main() {
 
     expect(
       find.text(
-        'Google sign-in callback was not received by BusyMax. Try signing in '
-        'again. If the browser opened an old tab, close it and start sign-in '
-        'again.',
+        'Authorization timed out. Try again; select a fresh configuration if it was imported.',
       ),
       findsOneWidget,
     );
@@ -1032,52 +1040,49 @@ void main() {
     },
   );
 
-  testWidgets(
-    'account add failure stays in Settings and preserves the session',
-    (tester) async {
-      await _insertAccount(
-        database,
-        id: 'microsoft:existing',
-        provider: BusyProvider.microsoft,
-      );
-      oAuth.signInError = const OAuthException(
-        'OAuthCallbackTimeout',
-        'raw timeout',
-      );
-      await _pumpApp(tester, database: database, oAuth: oAuth);
-      await tester.pumpAndSettle();
-      await _openSettings(tester);
-      final container = ProviderScope.containerOf(
-        tester.element(find.byType(SettingsScreen)),
-      );
+  testWidgets('account add failure stays in Settings and preserves the session', (
+    tester,
+  ) async {
+    await _insertAccount(
+      database,
+      id: 'microsoft:existing',
+      provider: BusyProvider.microsoft,
+    );
+    oAuth.signInError = const OAuthException(
+      'OAuthCallbackTimeout',
+      'raw timeout',
+    );
+    await _pumpApp(tester, database: database, oAuth: oAuth);
+    await tester.pumpAndSettle();
+    await _openSettings(tester);
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(SettingsScreen)),
+    );
 
-      await _authorizeGoogleSetup(tester);
-      await tester.pumpAndSettle();
+    await _authorizeGoogleSetup(tester);
+    await tester.pumpAndSettle();
 
-      expect(oAuth.signInCalls, 1);
-      expect(find.byType(SettingsScreen), findsOneWidget);
-      expect(
-        find.text(
-          'Google sign-in callback was not received by BusyMax. Try signing '
-          'in again. If the browser opened an old tab, close it and start '
-          'sign-in again.',
-        ),
-        findsOneWidget,
-      );
-      expect(find.textContaining('raw timeout'), findsNothing);
-      _expectExistingSessionSignedIn(
-        container.read(authSessionControllerProvider),
-        'microsoft:existing',
-      );
-      expect(
-        (await tester.runAsync(
-          () => database.select(database.accounts).getSingle(),
-        ))!.authState,
-        accountAuthStateSignedIn,
-      );
-      await _disposeApp(tester);
-    },
-  );
+    expect(oAuth.signInCalls, 1);
+    expect(find.byType(SettingsScreen), findsOneWidget);
+    expect(
+      find.text(
+        'Authorization timed out. Try again; select a fresh configuration if it was imported.',
+      ),
+      findsOneWidget,
+    );
+    expect(find.textContaining('raw timeout'), findsNothing);
+    _expectExistingSessionSignedIn(
+      container.read(authSessionControllerProvider),
+      'microsoft:existing',
+    );
+    expect(
+      (await tester.runAsync(
+        () => database.select(database.accounts).getSingle(),
+      ))!.authState,
+      accountAuthStateSignedIn,
+    );
+    await _disposeApp(tester);
+  });
 
   testWidgets(
     'reconnecting an account keeps the existing session and Settings route',
@@ -1214,6 +1219,10 @@ Future<void> _pumpApp(
   RegistrationStaging? staging,
   SignedInSyncRunner? onSignedIn,
 }) {
+  final registrationStaging =
+      staging ??
+      RegistrationStaging(_configuredBuildConfig, fileReader: _nativeReader);
+  if (staging == null) addTearDown(registrationStaging.dispose);
   return tester.pumpWidget(
     ProviderScope(
       overrides: [
@@ -1222,8 +1231,7 @@ Future<void> _pumpApp(
           NetworkConnectivityMonitor.withoutPlatformObservation(),
         ),
         databaseProvider.overrideWithValue(database),
-        if (staging != null)
-          registrationStagingProvider.overrideWithValue(staging),
+        registrationStagingProvider.overrideWithValue(registrationStaging),
         if (secrets != null) secretStoreProvider.overrideWithValue(secrets),
         if (persistence != null)
           authorizationPersistenceProvider.overrideWithValue(persistence),
@@ -1388,6 +1396,7 @@ class _MigrationBrowserFlow extends OAuthLoopbackFlow {
     String browserLaunchFailureMessage = '',
     Map<String, String> extraAuthorizationParameters = const {},
     String? loginHint,
+    AuthorizationAttempt? attempt,
   }) async {
     clients.add(clientId);
     return OAuthLoopbackResult(

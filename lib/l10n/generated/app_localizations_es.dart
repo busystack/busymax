@@ -3263,4 +3263,40 @@ class AppLocalizationsEs extends AppLocalizations {
   ) {
     return 'Paquete: $packageName\nHash de firma: $signatureHash\nURI de redirección: $redirectUri';
   }
+
+  @override
+  String get oauthRegistrationRejected =>
+      'Comprueba el tipo de cliente, las cuentas admitidas, los permisos y la redirección del registro. Vuelve a seleccionar la configuración importada.';
+
+  @override
+  String get oauthAuthorizationCodeUnusable =>
+      'No se pudo completar esta autorización. Iníciala de nuevo; se conserva la conexión existente.';
+
+  @override
+  String get oauthPermissionRefused =>
+      'Se rechazó la autorización o faltan permisos necesarios. Reinténtalo y concede los permisos requeridos.';
+
+  @override
+  String get oauthProviderThrottled =>
+      'El proveedor limita las solicitudes. Espera antes de reintentarlo; se conserva la conexión existente.';
+
+  @override
+  String get oauthProviderTemporaryFailure =>
+      'Un problema temporal del proveedor impide la autorización. Reinténtalo; se conserva la conexión existente.';
+
+  @override
+  String get oauthAuthorizationTimedOut =>
+      'La autorización agotó el tiempo disponible. Reinténtalo y selecciona de nuevo la configuración importada.';
+
+  @override
+  String get oauthWrongAccount =>
+      'Autoriza la cuenta seleccionada para reconectar. Se conserva la conexión existente.';
+
+  @override
+  String get oauthSecureStorageUnavailable =>
+      'El almacenamiento seguro no está disponible. Restablece el acceso y reinténtalo.';
+
+  @override
+  String get oauthRevokedRemovalIncomplete =>
+      'Se revocó la autorización remota, pero no se pudo completar la limpieza de la cuenta. Reinicia BusyMax para volver a intentar la recuperación local.';
 }

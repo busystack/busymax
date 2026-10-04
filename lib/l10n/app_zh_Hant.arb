@@ -1196,5 +1196,14 @@
         "type": "String"
       }
     }
-  }
+  },
+  "oauthRegistrationRejected": "請檢查註冊的用戶端類型、支援的帳戶、權限和重新導向設定。若設定來自匯入，請重新選擇設定檔。",
+  "oauthAuthorizationCodeUnusable": "此次授權未能完成。請重新開始授權；現有連線已保留。",
+  "oauthPermissionRefused": "授權遭拒或缺少所需權限。請重試並授予所需權限。",
+  "oauthProviderThrottled": "服務提供者正在限制請求。請稍後重試；現有連線已保留。",
+  "oauthProviderTemporaryFailure": "服務提供者的暫時問題導致授權未能完成。請重試；現有連線已保留。",
+  "oauthAuthorizationTimedOut": "授權逾時。請重試；若設定來自匯入，請重新選擇設定檔。",
+  "oauthWrongAccount": "請授權為重新連線而選定的帳戶。現有連線已保留。",
+  "oauthSecureStorageUnavailable": "安全儲存空間無法使用。請恢復存取後重試。",
+  "oauthRevokedRemovalIncomplete": "遠端授權已撤銷，但帳戶清理未能完成。請重新啟動 BusyMax 以重試本機復原。"
 }

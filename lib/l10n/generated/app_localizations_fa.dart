@@ -3292,4 +3292,40 @@ class AppLocalizationsFa extends AppLocalizations {
   ) {
     return 'بسته: ⁨$packageName⁩\nهش امضا: ⁨$signatureHash⁩\nنشانی هدایت: ⁨$redirectUri⁩';
   }
+
+  @override
+  String get oauthRegistrationRejected =>
+      'نوع کارخواه، حساب‌های پشتیبانی‌شده، مجوزها و تغییر مسیر ثبت را بررسی کنید. پیکربندی واردشده را دوباره انتخاب کنید.';
+
+  @override
+  String get oauthAuthorizationCodeUnusable =>
+      'این مجوزدهی کامل نشد. دوباره شروع کنید؛ اتصال فعلی حفظ شده است.';
+
+  @override
+  String get oauthPermissionRefused =>
+      'مجوزدهی رد شد یا مجوزهای لازم داده نشد. دوباره تلاش کنید و مجوزهای لازم را بدهید.';
+
+  @override
+  String get oauthProviderThrottled =>
+      'ارائه‌دهنده درخواست‌ها را محدود می‌کند. پیش از تلاش دوباره صبر کنید؛ اتصال فعلی حفظ شده است.';
+
+  @override
+  String get oauthProviderTemporaryFailure =>
+      'مشکل موقت ارائه‌دهنده مانع تکمیل مجوزدهی شد. دوباره تلاش کنید؛ اتصال فعلی حفظ شده است.';
+
+  @override
+  String get oauthAuthorizationTimedOut =>
+      'مهلت مجوزدهی تمام شد. دوباره تلاش کنید و پیکربندی واردشده را دوباره انتخاب کنید.';
+
+  @override
+  String get oauthWrongAccount =>
+      'به حساب انتخاب‌شده برای اتصال مجدد مجوز بدهید. اتصال فعلی حفظ شده است.';
+
+  @override
+  String get oauthSecureStorageUnavailable =>
+      'ذخیره‌سازی امن در دسترس نیست. دسترسی را بازیابی کنید و دوباره تلاش کنید.';
+
+  @override
+  String get oauthRevokedRemovalIncomplete =>
+      'مجوز راه دور لغو شد، اما پاک‌سازی حساب کامل نشد. برای تلاش دوباره جهت بازیابی محلی، BusyMax را راه‌اندازی مجدد کنید.';
 }

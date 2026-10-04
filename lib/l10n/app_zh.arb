@@ -1196,5 +1196,14 @@
         "type": "String"
       }
     }
-  }
+  },
+  "oauthRegistrationRejected": "请检查注册的客户端类型、支持的账户、权限和重定向设置。若配置来自导入，请重新选择配置文件。",
+  "oauthAuthorizationCodeUnusable": "此次授权未能完成。请重新开始授权；现有连接已保留。",
+  "oauthPermissionRefused": "授权被拒绝或缺少所需权限。请重试并授予所需权限。",
+  "oauthProviderThrottled": "服务提供方正在限制请求。请稍后重试；现有连接已保留。",
+  "oauthProviderTemporaryFailure": "服务提供方的临时问题导致授权未能完成。请重试；现有连接已保留。",
+  "oauthAuthorizationTimedOut": "授权超时。请重试；若配置来自导入，请重新选择配置文件。",
+  "oauthWrongAccount": "请授权为重新连接而选定的账户。现有连接已保留。",
+  "oauthSecureStorageUnavailable": "安全存储不可用。请恢复安全存储访问后重试。",
+  "oauthRevokedRemovalIncomplete": "远程授权已撤销，但账户清理未能完成。请重启 BusyMax 以重试本地恢复。"
 }

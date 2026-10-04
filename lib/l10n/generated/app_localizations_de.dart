@@ -3259,4 +3259,40 @@ class AppLocalizationsDe extends AppLocalizations {
   ) {
     return 'Paket: $packageName\nSignaturhash: $signatureHash\nUmleitungs-URI: $redirectUri';
   }
+
+  @override
+  String get oauthRegistrationRejected =>
+      'Prüfen Sie Clienttyp, unterstützte Konten, Berechtigungen und Weiterleitung Ihrer Registrierung. Wählen Sie eine importierte Konfiguration erneut aus.';
+
+  @override
+  String get oauthAuthorizationCodeUnusable =>
+      'Dieser Autorisierungsversuch konnte nicht abgeschlossen werden. Starten Sie erneut; die bestehende Verbindung bleibt erhalten.';
+
+  @override
+  String get oauthPermissionRefused =>
+      'Die Autorisierung wurde verweigert oder erforderliche Berechtigungen fehlen. Versuchen Sie es erneut und erteilen Sie die Berechtigungen.';
+
+  @override
+  String get oauthProviderThrottled =>
+      'Der Anbieter begrenzt Anfragen. Warten Sie vor einem neuen Versuch; die bestehende Verbindung bleibt erhalten.';
+
+  @override
+  String get oauthProviderTemporaryFailure =>
+      'Ein vorübergehendes Anbieterproblem verhindert die Autorisierung. Versuchen Sie es erneut; die bestehende Verbindung bleibt erhalten.';
+
+  @override
+  String get oauthAuthorizationTimedOut =>
+      'Die Autorisierung hat zu lange gedauert. Versuchen Sie es erneut und wählen Sie eine importierte Konfiguration neu aus.';
+
+  @override
+  String get oauthWrongAccount =>
+      'Autorisieren Sie das für die Wiederverbindung ausgewählte Konto. Die bestehende Verbindung bleibt erhalten.';
+
+  @override
+  String get oauthSecureStorageUnavailable =>
+      'Der sichere Speicher ist nicht verfügbar. Stellen Sie den Zugriff wieder her und versuchen Sie es erneut.';
+
+  @override
+  String get oauthRevokedRemovalIncomplete =>
+      'Die entfernte Autorisierung wurde widerrufen, aber die Kontobereinigung konnte nicht abgeschlossen werden. Starten Sie BusyMax neu, um die lokale Wiederherstellung erneut zu versuchen.';
 }

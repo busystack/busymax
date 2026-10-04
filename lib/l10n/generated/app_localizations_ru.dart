@@ -3288,4 +3288,40 @@ class AppLocalizationsRu extends AppLocalizations {
   ) {
     return 'Пакет: $packageName\nХеш подписи: $signatureHash\nURI перенаправления: $redirectUri';
   }
+
+  @override
+  String get oauthRegistrationRejected =>
+      'Проверьте тип клиента, поддерживаемые учётные записи, разрешения и перенаправление регистрации. Выберите импортированную конфигурацию заново.';
+
+  @override
+  String get oauthAuthorizationCodeUnusable =>
+      'Не удалось завершить эту авторизацию. Начните заново; существующее подключение сохранено.';
+
+  @override
+  String get oauthPermissionRefused =>
+      'В авторизации отказано или не предоставлены нужные разрешения. Повторите попытку и предоставьте необходимые разрешения.';
+
+  @override
+  String get oauthProviderThrottled =>
+      'Поставщик ограничивает запросы. Подождите перед новой попыткой; существующее подключение сохранено.';
+
+  @override
+  String get oauthProviderTemporaryFailure =>
+      'Временная проблема поставщика помешала авторизации. Повторите попытку; существующее подключение сохранено.';
+
+  @override
+  String get oauthAuthorizationTimedOut =>
+      'Время авторизации истекло. Повторите попытку и заново выберите импортированную конфигурацию.';
+
+  @override
+  String get oauthWrongAccount =>
+      'Авторизуйте учётную запись, выбранную для повторного подключения. Существующее подключение сохранено.';
+
+  @override
+  String get oauthSecureStorageUnavailable =>
+      'Защищённое хранилище недоступно. Восстановите доступ и повторите попытку.';
+
+  @override
+  String get oauthRevokedRemovalIncomplete =>
+      'Удалённая авторизация отозвана, но очистка учётной записи не завершена. Перезапустите BusyMax, чтобы повторить локальное восстановление.';
 }

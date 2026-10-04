@@ -1,5 +1,6 @@
 import '../../providers/busy_provider.dart';
 import 'oauth_models.dart';
+import 'authorization_attempt.dart';
 
 enum AuthenticationPlatform { desktop, android }
 
@@ -169,17 +170,39 @@ final class RegistrationHandle {
 }
 
 final class AuthorizationRequest {
-  const AuthorizationRequest.newConnection(this.registration)
-    : intent = AuthorizationIntent.newConnection,
-      accountId = null;
-  const AuthorizationRequest.reconnect(this.accountId)
+  const AuthorizationRequest.newConnection(
+    this.registration, {
+    this.cancellation,
+  }) : intent = AuthorizationIntent.newConnection,
+       accountId = null;
+  const AuthorizationRequest.reconnect(this.accountId, {this.cancellation})
     : intent = AuthorizationIntent.reconnect,
       registration = null;
-  const AuthorizationRequest.replace(this.accountId, this.registration)
-    : intent = AuthorizationIntent.replaceRegistration;
+  const AuthorizationRequest.replace(
+    this.accountId,
+    this.registration, {
+    this.cancellation,
+  }) : intent = AuthorizationIntent.replaceRegistration;
   final AuthorizationIntent intent;
   final String? accountId;
   final RegistrationHandle? registration;
+  final AuthorizationCancellation? cancellation;
+  AuthorizationRequest withCancellation(AuthorizationCancellation signal) =>
+      switch (intent) {
+        AuthorizationIntent.newConnection => AuthorizationRequest.newConnection(
+          registration,
+          cancellation: signal,
+        ),
+        AuthorizationIntent.reconnect => AuthorizationRequest.reconnect(
+          accountId,
+          cancellation: signal,
+        ),
+        AuthorizationIntent.replaceRegistration => AuthorizationRequest.replace(
+          accountId,
+          registration,
+          cancellation: signal,
+        ),
+      };
 }
 
 typedef AuthorizationCommit =

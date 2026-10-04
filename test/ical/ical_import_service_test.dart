@@ -6,6 +6,8 @@ import 'package:busymax/src/db/app_database.dart';
 import 'package:busymax/src/features/calendar/data/calendar_repository.dart';
 import 'package:busymax/src/features/schedule/presentation/cloud_calendar_series_export.dart';
 import 'package:busymax/src/features/sync/calendar_pending_ops_replayer.dart';
+import 'package:busymax/src/features/sync/domain_sync_schedule.dart';
+import 'package:busymax/src/microsoft_calendar/microsoft_calendar_errors.dart';
 import 'package:busymax/src/google_calendar/google_calendar_api_client.dart';
 import 'package:busymax/src/microsoft_calendar/microsoft_calendar_api_client.dart';
 import 'package:busymax/src/microsoft_calendar/microsoft_calendar_mapper.dart';
@@ -1351,21 +1353,31 @@ END:VEVENT
           baseUri: Uri.parse('https://graph.microsoft.com/v1.0'),
           responseTimeZone: 'UTC',
         );
+        var replayClock = DateTime.utc(2026, 8, 29);
         final replayer = CalendarPendingOpsReplayer(
           database: database,
           client: client,
           accountId: 'microsoft-account',
-          nowUtc: () => DateTime.utc(2026, 8, 29),
+          nowUtc: () => replayClock,
         );
         await replayer.replayDueOps();
-        await replayer.replayDueOps();
         if (scenario.transientPatchFailure) {
+          await expectLater(
+            replayer.replayDueOps(),
+            throwsA(isA<MicrosoftCalendarApiError>()),
+          );
+          final beforeCooldownWake = requests.length;
+          await expectLater(
+            replayer.replayDueOps(),
+            throwsA(isA<DomainCooldownException>()),
+          );
+          expect(requests.length, beforeCooldownWake);
+          replayClock = replayClock.add(const Duration(minutes: 1));
           final pending = await database.select(database.pendingOps).get();
           expect(pending, hasLength(1));
-          await database.pendingOpsDao.retryNow(
-            pending.single.id,
-            DateTime.utc(2026, 8, 29),
-          );
+          await database.pendingOpsDao.retryNow(pending.single.id, replayClock);
+        } else {
+          await replayer.replayDueOps();
         }
         await replayer.replayDueOps();
         expect(

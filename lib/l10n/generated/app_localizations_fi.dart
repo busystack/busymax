@@ -3289,4 +3289,40 @@ class AppLocalizationsFi extends AppLocalizations {
   ) {
     return 'Paketti: $packageName\nAllekirjoituksen tiiviste: $signatureHash\nUudelleenohjaus-URI: $redirectUri';
   }
+
+  @override
+  String get oauthRegistrationRejected =>
+      'Tarkista rekisteröinnin asiakastyyppi, tuetut tilit, käyttöoikeudet ja uudelleenohjaus. Valitse tuotu määritystiedosto uudelleen.';
+
+  @override
+  String get oauthAuthorizationCodeUnusable =>
+      'Tätä valtuutusta ei voitu viimeistellä. Aloita uudelleen; nykyinen yhteys säilyy.';
+
+  @override
+  String get oauthPermissionRefused =>
+      'Valtuutus hylättiin tai vaadittuja käyttöoikeuksia puuttuu. Yritä uudelleen ja myönnä tarvittavat oikeudet.';
+
+  @override
+  String get oauthProviderThrottled =>
+      'Palveluntarjoaja rajoittaa pyyntöjä. Odota ennen uutta yritystä; nykyinen yhteys säilyy.';
+
+  @override
+  String get oauthProviderTemporaryFailure =>
+      'Palveluntarjoajan tilapäinen ongelma esti valtuutuksen. Yritä uudelleen; nykyinen yhteys säilyy.';
+
+  @override
+  String get oauthAuthorizationTimedOut =>
+      'Valtuutus aikakatkaistiin. Yritä uudelleen ja valitse tuotu määritystiedosto uudelleen.';
+
+  @override
+  String get oauthWrongAccount =>
+      'Valtuuta uudelleenyhdistämistä varten valittu tili. Nykyinen yhteys säilyy.';
+
+  @override
+  String get oauthSecureStorageUnavailable =>
+      'Suojattu tallennustila ei ole käytettävissä. Palauta sen käyttö ja yritä uudelleen.';
+
+  @override
+  String get oauthRevokedRemovalIncomplete =>
+      'Etävaltuutus peruttiin, mutta tilin siivousta ei voitu viimeistellä. Käynnistä BusyMax uudelleen ja yritä paikallista palautusta uudelleen.';
 }

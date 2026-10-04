@@ -1,3 +1,4 @@
+import '../../core/auth/authorization_attempt.dart';
 import '../../core/http/bounded_http.dart';
 import '../../core/http/retry_after.dart';
 import 'package:drift/drift.dart' show BooleanExpressionOperators, Value;
@@ -44,10 +45,17 @@ abstract interface class GoogleConnectionGateway {
   Future<OAuthSignInResult> connectGoogle(AuthorizationRequest request);
 }
 
+abstract interface class GoogleRemovalRevoker {
+  Future<void> revokeSelectedAuthorization(
+    AuthorizationRemovalSnapshot snapshot,
+  );
+}
+
 class OAuthService
     implements
         OAuthGateway,
         GoogleConnectionGateway,
+        GoogleRemovalRevoker,
         RegistrationBindingResolver {
   OAuthService({
     required BuildConfig config,
@@ -70,8 +78,7 @@ class OAuthService
   final RegistrationStaging _registrations;
   final AuthorizationPersistence? _persistence;
   final Map<String, Future<OAuthTokenSet>> _refreshes = {};
-  int _attemptGeneration = 0;
-  Completer<void>? _authorizationAbort;
+  final AuthorizationAttemptOwner _attempts = AuthorizationAttemptOwner();
   final BuildConfig _config;
   final http.Client _httpClient;
   final SecretStore _tokenStore;
@@ -154,7 +161,25 @@ class OAuthService
       connectGoogle(const AuthorizationRequest.newConnection(null));
 
   @override
-  Future<OAuthSignInResult> connectGoogle(AuthorizationRequest request) async {
+  Future<OAuthSignInResult> connectGoogle(AuthorizationRequest request) {
+    final attempt = _attempts.begin(_nowUtc, request.cancellation);
+    return _connectGoogle(request, attempt).catchError((
+      Object error,
+      StackTrace stack,
+    ) {
+      attempt.cancel();
+      _attempts.finish(attempt);
+      if (request.registration case final handle?) {
+        _registrations.discard(handle.id);
+      }
+      Error.throwWithStackTrace(error, stack);
+    });
+  }
+
+  Future<OAuthSignInResult> _connectGoogle(
+    AuthorizationRequest request,
+    AuthorizationAttempt attempt,
+  ) async {
     final persistence = _persistence;
     if (persistence == null) {
       throw const OAuthException(
@@ -162,20 +187,22 @@ class OAuthService
         'Account authorization storage is unavailable.',
       );
     }
-    await persistence.recover();
-    final attempt = ++_attemptGeneration;
-    final candidateDeadline = _nowUtc().add(const Duration(minutes: 10));
-    _authorizationAbort = Completer<void>();
+    attempt.check();
+    await attempt.wait(persistence.recover());
     final target = request.accountId;
     final previous = target == null
         ? null
         : request.intent == AuthorizationIntent.reconnect
-        ? await boundCredentialForAccount(target)
-        : await _existingBoundCredential(target);
+        ? await attempt.wait(boundCredentialForAccount(target))
+        : await attempt.wait(_existingBoundCredential(target));
     final intendedSubject = target == null
         ? null
-        : previous?.subject ?? await _existingSubject(target);
-    var expected = target == null ? 0 : await persistence.generation(target);
+        : previous?.subject ??
+              await attempt.wait(_existingSubject(target, attempt));
+    var expected = target == null
+        ? 0
+        : await attempt.wait(persistence.generation(target));
+    attempt.check();
     final registration = request.intent == AuthorizationIntent.reconnect
         ? previous!.registration
         : request.registration == null
@@ -196,7 +223,9 @@ class OAuthService
         'This is the retiring shared client. Select a Desktop client from your own Google Cloud project.',
       );
     }
+    attempt.check();
     final result = await _loopbackFlow.start(
+      attempt: attempt,
       authorizationEndpoint: Uri.https(
         'accounts.google.com',
         '/o/oauth2/v2/auth',
@@ -209,13 +238,14 @@ class OAuthService
       },
       loginHint: previous?.subject,
     );
+    attempt.check();
     final tokens = await exchangeAuthorizationCode(
       code: result.callback.code,
       codeVerifier: result.codeVerifier,
       redirectUri: result.redirectUri,
       fallbackScopeText: result.callback.scope,
       registration: registration,
-      cancellation: _authorizationAbort!.future,
+      cancellation: attempt.cancellation,
     );
     if (!tokens.scopes.contains(googleTasksReadWriteScope) ||
         !tokens.scopes.contains(googleCalendarReadWriteScope)) {
@@ -224,9 +254,10 @@ class OAuthService
         'Grant both Google Tasks and Google Calendar permissions.',
       );
     }
+    attempt.check();
     final user = await fetchUserInfo(
       tokens,
-      cancellation: _authorizationAbort!.future,
+      cancellation: attempt.cancellation,
     );
     final subject = user?.subject;
     if (subject == null || subject.isEmpty) {
@@ -241,13 +272,7 @@ class OAuthService
         'Authorize the account selected for reconnection.',
       );
     }
-    if (attempt != _attemptGeneration ||
-        !_nowUtc().isBefore(candidateDeadline)) {
-      throw const OAuthException(
-        'OAuthSignInCancelled',
-        'Google sign-in was cancelled.',
-      );
-    }
+    attempt.check();
     final id = target ?? 'google:$subject';
     if (target == null) {
       expected = await persistence.generation(id);
@@ -283,29 +308,23 @@ class OAuthService
       tokenSet: tokens,
       user: user,
       commit: (persistAccount) async {
-        if (attempt != _attemptGeneration ||
-            !_nowUtc().isBefore(candidateDeadline)) {
-          throw const OAuthException(
-            'OAuthSignInCancelled',
-            'Google sign-in was cancelled.',
+        try {
+          attempt.check();
+          await persistence.commit(
+            accountId: id,
+            expectedGeneration: expected,
+            candidate: candidate,
+            onCommitted: attempt.committed,
+            validateCandidate: () {
+              attempt.check();
+            },
+            requireExisting: target != null,
+            persistAccount: persistAccount,
           );
+          attempt.committed();
+        } finally {
+          _attempts.finish(attempt);
         }
-        await persistence.commit(
-          accountId: id,
-          expectedGeneration: expected,
-          candidate: candidate,
-          validateCandidate: () {
-            if (attempt != _attemptGeneration ||
-                !_nowUtc().isBefore(candidateDeadline)) {
-              throw const OAuthException(
-                'OAuthSignInCancelled',
-                'Authorization was cancelled.',
-              );
-            }
-          },
-          requireExisting: target != null,
-          persistAccount: persistAccount,
-        );
       },
     );
   }
@@ -317,7 +336,10 @@ class OAuthService
     return record is GoogleDesktopCredential ? record : null;
   }
 
-  Future<String> _existingSubject(String id) async {
+  Future<String> _existingSubject(
+    String id,
+    AuthorizationAttempt attempt,
+  ) async {
     final account = await (_persistence!.database.select(
       _persistence.database.accounts,
     )..where((r) => r.id.equals(id))).getSingleOrNull();
@@ -336,7 +358,7 @@ class OAuthService
     if (record is OAuthSecretRecord && record.provider == BusyProvider.google) {
       final user = await fetchUserInfo(
         record.tokenSet,
-        cancellation: _authorizationAbort!.future,
+        cancellation: attempt.cancellation,
       );
       if (user?.subject case final subject? when subject.isNotEmpty) {
         return subject;
@@ -447,12 +469,10 @@ class OAuthService
 
   @override
   Future<void> cancelSignIn() async {
-    _attemptGeneration++;
-    if (_authorizationAbort case final abort? when !abort.isCompleted) {
-      abort.complete();
-    }
-    _registrations.cancel();
-    await _loopbackFlow.cancel();
+    final attempt = _attempts.current;
+    if (attempt == null) return;
+    attempt.cancel();
+    await _loopbackFlow.cancelFor(attempt);
   }
 
   Future<OAuthTokenSet> exchangeAuthorizationCode({
@@ -503,9 +523,11 @@ class OAuthService
     );
 
     if (response.statusCode < 200 || response.statusCode >= 300) {
-      throw OAuthException(
+      throw codeExchangeFailure(
         'OAuthTokenExchangeFailed',
-        _tokenEndpointFailureMessage(operation: 'exchange', response: response),
+        response.body,
+        response.statusCode,
+        parseHttpRetryAfter(response.headers['retry-after'], now: _nowUtc()),
       );
     }
 
@@ -648,6 +670,24 @@ class OAuthService
   @override
   Future<void> revokeAuthorization(String accountId) async {
     final tokenSet = await _readTokenSet(accountId);
+    await _revokeTokenSet(tokenSet);
+  }
+
+  @override
+  Future<void> revokeSelectedAuthorization(
+    AuthorizationRemovalSnapshot snapshot,
+  ) async {
+    final record = snapshot.credential;
+    // Revocation requires the token, not discovery of its issuing client or a
+    // refresh. In particular an unbound preserved record needs no new login.
+    await _revokeTokenSet(
+      record is OAuthSecretRecord && record.provider == BusyProvider.google
+          ? record.tokenSet
+          : null,
+    );
+  }
+
+  Future<void> _revokeTokenSet(OAuthTokenSet? tokenSet) async {
     final token = tokenSet?.refreshToken ?? tokenSet?.accessToken;
     if (token == null || token.isEmpty) {
       throw const OAuthException(

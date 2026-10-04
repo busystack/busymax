@@ -1,3 +1,5 @@
+import '../../support/native_registration_reader_fixture.dart';
+import 'package:busymax/src/core/auth/authorization_attempt.dart';
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
@@ -91,6 +93,197 @@ void main() {
     h.staging.dispose();
     await h.db.close();
   });
+  test(
+    'a symlink substituted after path preparation cannot be imported',
+    () async {
+      final directory = await Directory.systemTemp.createTemp(
+        'busymax-config-substitution-',
+      );
+      addTearDown(() => directory.delete(recursive: true));
+      final selected = File('${directory.path}/selected.json');
+      final substitute = File('${directory.path}/substitute.json');
+      final fixture = await File(
+        'test/fixtures/oauth/desktop_synthetic.json',
+      ).readAsString();
+      await selected.writeAsString(fixture);
+      await substitute.writeAsString(fixture);
+      final staging = RegistrationStaging(
+        config,
+        fileReader: await buildNativeRegistrationReader(),
+        beforeConfigurationOpen: () async {
+          await selected.delete();
+          await Link(selected.path).create(substitute.path);
+        },
+      );
+      addTearDown(staging.dispose);
+      await expectLater(
+        staging.importGoogle(XFile(selected.path)),
+        throwsA(
+          isA<OAuthException>().having(
+            (error) => error.code,
+            'actual object rejected',
+            'OAuthUnsupportedFileSource',
+          ),
+        ),
+      );
+    },
+  );
+  for (final provider in [BusyProvider.google, BusyProvider.microsoft]) {
+    test(
+      'cancellation before recovery finishes prevents later desktop dispatch: $provider',
+      () async {
+        final request = provider == BusyProvider.google
+            ? AuthorizationRequest.newConnection(h.staging.stage(owned))
+            : AuthorizationRequest.newConnection(
+                h.staging.stageMicrosoft(
+                  clientId: msOwned,
+                  audience: MicrosoftAudience.personalAndOrganizations,
+                ),
+              );
+        final operation = provider == BusyProvider.google
+            ? h.repository.signIn(request: request)
+            : h.repository.signInWithMicrosoft(request: request);
+        final rejected = expectLater(
+          operation,
+          throwsA(
+            isA<OAuthException>().having(
+              (e) => e.classification,
+              'cancelled',
+              OAuthFailureKind.cancelled,
+            ),
+          ),
+        );
+        await h.repository.cancelSignIn();
+        await rejected;
+        expect(h.flow.clients, isEmpty);
+        expect(h.requests, isEmpty);
+        expect(await h.accounts.listVisibleAccounts(), isEmpty);
+      },
+    );
+  }
+  for (final provider in [BusyProvider.google, BusyProvider.microsoft]) {
+    for (final shared in [false, true]) {
+      for (final scenario in [
+        (400, 'invalid_client', OAuthFailureKind.configuration),
+        (400, 'invalid_scope', OAuthFailureKind.configuration),
+        (400, 'invalid_grant', OAuthFailureKind.authorizationCode),
+        (429, 'invalid_grant', OAuthFailureKind.throttled),
+        (503, 'invalid_grant', OAuthFailureKind.temporary),
+        (400, 'unknown-sensitive-value', OAuthFailureKind.temporary),
+      ]) {
+        test(
+          'complete replacement preserves original after exchange ${scenario.$1}/${scenario.$2} $provider shared=$shared',
+          () async {
+            final id = provider == BusyProvider.google
+                ? 'opaque'
+                : 'microsoft:ms-user';
+            if (provider == BusyProvider.google) {
+              await h.seed();
+              if (!shared) await h.makeGoogleUserOwned();
+            } else {
+              await h.seedMicrosoft(shared: shared);
+            }
+            final before = (await h.secrets.readCredential(id))!.toJson();
+            final previousGeneration = await h.persistence.generation(id);
+            h.beforeRequest = (r) async => r.method == 'POST'
+                ? http.Response(
+                    jsonEncode({
+                      'error': scenario.$2,
+                      'error_description': 'sensitive-description',
+                    }),
+                    scenario.$1,
+                    headers: {'retry-after': '7200'},
+                  )
+                : null;
+            AuthorizationRequest request() => AuthorizationRequest.replace(
+              id,
+              provider == BusyProvider.google
+                  ? h.staging.stage(owned)
+                  : h.staging.stageMicrosoft(
+                      clientId: msOwned,
+                      audience: MicrosoftAudience.personalAndOrganizations,
+                    ),
+            );
+            Future<AuthSessionState> connect(AuthorizationRequest r) =>
+                provider == BusyProvider.google
+                ? h.repository.signIn(request: r)
+                : h.repository.signInWithMicrosoft(request: r);
+            await expectLater(
+              connect(request()),
+              throwsA(
+                isA<OAuthAuthorizationException>()
+                    .having(
+                      (e) => e.classification,
+                      'safe recovery',
+                      scenario.$3,
+                    )
+                    .having(
+                      (e) => e.toString(),
+                      'redaction',
+                      isNot(contains('sensitive')),
+                    )
+                    .having(
+                      (e) => e.retryAfter,
+                      'timing',
+                      const Duration(hours: 2),
+                    ),
+              ),
+            );
+            expect(h.requests.length, 1);
+            expect((await h.secrets.readCredential(id))!.toJson(), before);
+            expect(await h.persistence.generation(id), previousGeneration);
+            expect((await h.summary(id)).showRetirementNotice, shared);
+            h.beforeRequest = null;
+            await connect(request());
+            expect(await h.persistence.generation(id), previousGeneration + 1);
+            expect((await h.summary(id)).showRetirementNotice, false);
+          },
+        );
+      }
+    }
+  }
+  for (final shared in [false, true]) {
+    test(
+      'optional Microsoft consent captures cancellation during binding preparation shared=$shared',
+      () async {
+        await h.seedMicrosoft(shared: shared);
+        final before = (await h.secrets.readCredential(
+          'microsoft:ms-user',
+        ))!.toJson();
+        final cancellation = AuthorizationCancellation();
+        final work = h.microsoft.authorizeCategoryAccess(
+          'microsoft:ms-user',
+          cancellation: cancellation,
+        );
+        final failed = expectLater(
+          work,
+          throwsA(
+            isA<OAuthException>().having(
+              (e) => e.classification,
+              'cancelled',
+              OAuthFailureKind.cancelled,
+            ),
+          ),
+        );
+        cancellation.cancel();
+        await failed;
+        expect(h.flow.clients, isEmpty);
+        expect(h.requests, isEmpty);
+        expect(
+          (await h.secrets.readCredential('microsoft:ms-user'))!.toJson(),
+          before,
+        );
+        await h.microsoft.authorizeCategoryAccess('microsoft:ms-user');
+        expect(
+          (await h.secrets.readCredential('microsoft:ms-user')
+                  as MicrosoftDesktopCredential)
+              .tokenSet
+              .scopes,
+          contains(microsoftCategoryScope),
+        );
+      },
+    );
+  }
   test('shared compiled values never give new accounts a shortcut', () async {
     await expectLater(h.google.signIn(), throwsA(isA<OAuthException>()));
     await expectLater(h.microsoft.signIn(), throwsA(isA<OAuthException>()));
@@ -212,6 +405,107 @@ void main() {
       expect(await restarted.generation('opaque'), 0);
     },
   );
+  for (final shared in [true, false]) {
+    test(
+      'cancelled preparation lets durable recovery finish shared=$shared',
+      () async {
+        await h.seed();
+        if (!shared) await h.makeGoogleUserOwned();
+        final originalRecord = (await h.secrets.readCredential('opaque'))!;
+        await h.secrets.saveCredential(
+          'busymax.authorization.rollback:opaque',
+          originalRecord,
+        );
+        await h.db
+            .into(h.db.authorizationCommits)
+            .insert(
+              AuthorizationCommitsCompanion.insert(
+                accountId: 'opaque',
+                generation: await h.persistence.generation('opaque'),
+                hadCredential: true,
+                previousNativeBindingJson: Value(
+                  const AuthorizationRecoveryState(committed: false).encode(),
+                ),
+              ),
+            );
+        final entered = Completer<void>();
+        final release = Completer<void>();
+        h.secrets.beforeSave = (id, _) async {
+          if (id == 'opaque') {
+            entered.complete();
+            await release.future;
+          }
+        };
+        final cancellation = AuthorizationCancellation();
+        final connection = h.repository.signIn(
+          request: AuthorizationRequest.reconnect(
+            'opaque',
+          ).withCancellation(cancellation),
+        );
+        final rejected = expectLater(
+          connection,
+          throwsA(
+            isA<OAuthException>().having(
+              (e) => e.classification,
+              'kind',
+              OAuthFailureKind.cancelled,
+            ),
+          ),
+        );
+        await entered.future;
+        cancellation.cancel();
+        await rejected;
+        expect(h.flow.started.isCompleted, false);
+        expect(h.requests, isEmpty);
+        h.secrets.beforeSave = null;
+        release.complete();
+        // Recovery retains its serialized owner even after the UI stops waiting.
+        await h.persistence.run('opaque', () async {});
+        expect(await h.db.select(h.db.authorizationCommits).get(), isEmpty);
+        expect(
+          (await h.secrets.readCredential('opaque'))!.toJson(),
+          originalRecord.toJson(),
+        );
+        await h.repository.signIn(
+          request: AuthorizationRequest.reconnect('opaque'),
+        );
+        expect((await h.summary('opaque')).showRetirementNotice, shared);
+      },
+    );
+    test(
+      'cancel after coherent commit cannot undo accepted connection shared=$shared',
+      () async {
+        await h.seed();
+        if (!shared) await h.makeGoogleUserOwned();
+        final cancellation = AuthorizationCancellation();
+        final entered = Completer<void>();
+        final release = Completer<void>();
+        h.secrets.beforeDelete = (id) async {
+          if (id == 'busymax.authorization.rollback:opaque') {
+            entered.complete();
+            await release.future;
+          }
+        };
+        final before = await h.persistence.generation('opaque');
+        final connection = h.repository.signIn(
+          request: AuthorizationRequest.replace(
+            'opaque',
+            h.staging.stage(owned),
+          ).withCancellation(cancellation),
+        );
+        await entered.future;
+        expect(cancellation.wasCommitted, true);
+        cancellation.cancel();
+        expect(cancellation.isCancelled, false);
+        h.secrets.beforeDelete = null;
+        release.complete();
+        await connection;
+        expect(await h.persistence.generation('opaque'), before + 1);
+        expect((await h.summary('opaque')).showRetirementNotice, false);
+        expect(await h.db.select(h.db.authorizationCommits).get(), isEmpty);
+      },
+    );
+  }
   test(
     'unknown recovery receipt version preserves the account and journal',
     () async {
@@ -832,12 +1126,17 @@ void main() {
           },
         }),
       );
-      final handle = await h.staging.importGoogle(XFile(file.path));
+      final importer = RegistrationStaging(
+        config,
+        fileReader: await buildNativeRegistrationReader(),
+      );
+      addTearDown(importer.dispose);
+      final handle = await importer.importGoogle(XFile(file.path));
       await file.delete();
       expect(handle.summary.clientId, owned.clientId);
       expect(handle.summary.toString(), isNot(contains('fixture-secret')));
-      expect(h.staging.consume(handle), isA<GoogleDesktopRegistration>());
-      expect(() => h.staging.consume(handle), throwsA(isA<OAuthException>()));
+      expect(importer.consume(handle), isA<GoogleDesktopRegistration>());
+      expect(() => importer.consume(handle), throwsA(isA<OAuthException>()));
     },
   );
   for (final data in [
@@ -872,6 +1171,8 @@ class Harness {
     persistence = AuthorizationPersistence(database: db, secrets: secrets);
     final client = MockClient((request) async {
       requests.add(request);
+      final injected = await beforeRequest?.call(request);
+      if (injected != null) return injected;
       if (request.method == 'GET') {
         return http.Response(
           jsonEncode(
@@ -944,11 +1245,70 @@ class Harness {
   final flow = ControlledFlow();
   final requests = <http.Request>[];
   String mode = 'success';
+  Future<http.Response?> Function(http.Request)? beforeRequest;
   late final AuthorizationPersistence persistence;
   late final OAuthService google;
   late final MicrosoftOAuthService microsoft;
   late final AuthRepository repository;
   AccountsRepository get accounts => AccountsRepository(database: db);
+  Future<RegistrationSummary> summary(String id) async {
+    final row = await (db.select(
+      db.accountAuthorizations,
+    )..where((r) => r.accountId.equals(id))).getSingle();
+    return decodeRegistrationSummary(row.summaryJson)!;
+  }
+
+  Future<void> makeGoogleUserOwned() => persistence.commit(
+    accountId: 'opaque',
+    expectedGeneration: 1,
+    candidate: GoogleDesktopCredential(
+      registration: owned,
+      tokenSet: tokens(),
+      subject: 'subject',
+      generation: 2,
+      transitionEligible: false,
+    ),
+    requireExisting: true,
+    persistAccount: () async {},
+  );
+  Future<void> seedMicrosoft({required bool shared}) async {
+    final id = 'microsoft:ms-user';
+    await accounts.upsertSignedInAccount(
+      id: id,
+      provider: BusyProvider.microsoft,
+      providerAccountId: 'ms-user',
+      tenantId: tenant,
+      grantedScopes: microsoftTodoOAuthScopes,
+    );
+    if (shared) {
+      await db
+          .into(db.oAuthTransitionAccounts)
+          .insert(OAuthTransitionAccountsCompanion.insert(accountId: id));
+    }
+    await persistence.commit(
+      accountId: id,
+      expectedGeneration: 0,
+      candidate: MicrosoftDesktopCredential(
+        registration: MicrosoftPublicRegistration(
+          clientId: shared ? config.microsoftOAuthClientId : msOwned,
+          audience: MicrosoftAudience.personalAndOrganizations,
+          origin: shared
+              ? RegistrationOrigin.retiringShared
+              : RegistrationOrigin.userProvided,
+        ),
+        subject: 'ms-user',
+        tenantId: tenant,
+        generation: 1,
+        transitionEligible: shared,
+        tokenSet: tokens().copyWith(
+          scopes: microsoftTodoOAuthScopes.split(' ').toSet(),
+        ),
+      ),
+      requireExisting: true,
+      persistAccount: () async {},
+    );
+  }
+
   Future<void> seed() async {
     await accounts.upsertSignedInAccount(
       id: 'opaque',
@@ -994,6 +1354,13 @@ class Harness {
 
 class FailureStore extends InMemorySecretStore {
   bool failActiveOnce = false;
+  Future<void> Function(String id)? beforeDelete;
+  @override
+  Future<void> deleteCredential(String id) async {
+    await beforeDelete?.call(id);
+    await super.deleteCredential(id);
+  }
+
   Future<void> Function(String id, SecretRecord record)? beforeSave;
   @override
   Future<void> saveCredential(String id, SecretRecord record) async {
@@ -1033,11 +1400,19 @@ class ControlledFlow extends OAuthLoopbackFlow {
     String browserLaunchFailureMessage = '',
     Map<String, String> extraAuthorizationParameters = const {},
     String? loginHint,
+    AuthorizationAttempt? attempt,
   }) async {
     clients.add(clientId);
     lastScope = scope;
     if (!started.isCompleted) started.complete();
-    await barrier?.future;
+    if (barrier != null) {
+      if (attempt == null) {
+        await barrier!.future;
+      } else {
+        await attempt.wait(barrier!.future);
+      }
+    }
+    attempt?.check();
     if (cancelled?.call() == true) {
       throw const OAuthException('OAuthSignInCancelled', 'Cancelled.');
     }

@@ -1,3 +1,4 @@
+import '../core/auth/authorization_attempt.dart';
 import '../core/http/request_dispatch_exception.dart';
 import '../core/auth/oauth_registration.dart';
 import '../core/auth/registration_staging.dart';
@@ -101,8 +102,7 @@ final class AndroidAuthorizationBroker
   AuthorizationPersistence? persistence;
   final RegistrationStaging _registrations;
   final DateTime Function() _nowUtc;
-  int _attemptGeneration = 0;
-  Completer<void>? _attemptCancellation;
+  final AuthorizationAttemptOwner _attempts = AuthorizationAttemptOwner();
   final BusyMaxAndroidPlatform _platform;
   final http.Client _httpClient;
   final SecretStore _secretStore;
@@ -122,7 +122,22 @@ final class AndroidAuthorizationBroker
   Future<OAuthSignInResult> signIn({String? loginHint}) =>
       connectGoogle(const AuthorizationRequest.newConnection(null));
   @override
-  Future<OAuthSignInResult> connectGoogle(AuthorizationRequest request) async {
+  Future<OAuthSignInResult> connectGoogle(AuthorizationRequest request) {
+    final attempt = _attempts.begin(_nowUtc, request.cancellation);
+    return _connectGoogle(request, attempt).catchError((
+      Object error,
+      StackTrace stack,
+    ) {
+      attempt.cancel();
+      _attempts.finish(attempt);
+      Error.throwWithStackTrace(error, stack);
+    });
+  }
+
+  Future<OAuthSignInResult> _connectGoogle(
+    AuthorizationRequest request,
+    AuthorizationAttempt attempt,
+  ) async {
     if (request.registration != null ||
         request.intent == AuthorizationIntent.replaceRegistration) {
       throw const OAuthException(
@@ -136,18 +151,23 @@ final class AndroidAuthorizationBroker
         'Account storage is unavailable.',
       );
     }
-    await persistence!.recover();
-    final attempt = _beginAttempt();
-    final cancellation = _attemptCancellation!.future;
-    final deadline = _nowUtc().add(const Duration(minutes: 10));
+    attempt.check();
+    await attempt.wait(persistence!.recover());
+    final cancellation = attempt.cancellation;
     final target = request.accountId;
     final previous = target == null
         ? null
         : await nativeCredential(target, BusyProvider.google);
-    var expected = target == null ? 0 : await persistence!.generation(target);
+    var expected = target == null
+        ? 0
+        : await attempt.wait(persistence!.generation(target));
     try {
       final native = await _boundedNative(
-        () => _platform.authorizeGoogleInteractively(scopes: _googleScopes),
+        attempt,
+        () => _platform.authorizeGoogleInteractively(
+          scopes: _googleScopes,
+          authorizationAttemptId: attempt.id,
+        ),
       );
       final tokens = _tokenSet(native);
       _requireSilentScopes(BusyProvider.google, tokens, candidate: true);
@@ -178,14 +198,7 @@ final class AndroidAuthorizationBroker
         accountId: id,
         tokenSet: tokens,
         user: user,
-        commit: _nativeCommit(
-          id,
-          expected,
-          attempt,
-          deadline,
-          candidate,
-          target != null,
-        ),
+        commit: _nativeCommit(id, expected, attempt, candidate, target != null),
       );
     } on PlatformException catch (error) {
       throw _oauthError(error, provider: 'Google');
@@ -202,26 +215,48 @@ final class AndroidAuthorizationBroker
   Future<MicrosoftOAuthSignInResult> _connectMicrosoft(
     AuthorizationRequest request, {
     List<String> optional = const [],
-  }) async {
+    AuthorizationAttempt? capturedAttempt,
+  }) {
+    final attempt =
+        capturedAttempt ?? _attempts.begin(_nowUtc, request.cancellation);
+    return _connectMicrosoftPrepared(request, attempt, optional).catchError((
+      Object error,
+      StackTrace stack,
+    ) {
+      attempt.cancel();
+      _attempts.finish(attempt);
+      if (request.registration case final handle?) {
+        _registrations.discard(handle.id);
+      }
+      Error.throwWithStackTrace(error, stack);
+    });
+  }
+
+  Future<MicrosoftOAuthSignInResult> _connectMicrosoftPrepared(
+    AuthorizationRequest request,
+    AuthorizationAttempt attempt,
+    List<String> optional,
+  ) async {
     if (persistence == null) {
       throw const OAuthException(
         'OAuthConfigurationRejected',
         'Account storage is unavailable.',
       );
     }
-    await persistence!.recover();
-    final attempt = _beginAttempt();
-    final cancellation = _attemptCancellation!.future;
-    final deadline = _nowUtc().add(const Duration(minutes: 10));
+    attempt.check();
+    await attempt.wait(persistence!.recover());
+    final cancellation = attempt.cancellation;
     final target = request.accountId;
     final stored = target == null
         ? null
-        : await (persistence?.readCurrentCredential(target) ??
-              _secretStore.readCredential(target));
+        : await attempt.wait(
+            persistence?.readCurrentCredential(target) ??
+                _secretStore.readCredential(target),
+          );
     final previous = target == null
         ? null
         : request.intent == AuthorizationIntent.reconnect
-        ? await nativeCredential(target, BusyProvider.microsoft)
+        ? await attempt.wait(nativeCredential(target, BusyProvider.microsoft))
               as MicrosoftAndroidCredential
         : stored is MicrosoftAndroidCredential
         ? stored
@@ -229,9 +264,12 @@ final class AndroidAuthorizationBroker
     final intendedIdentity = target == null
         ? null
         : previous == null
-        ? await _existingMicrosoftIdentity(target)
+        ? await attempt.wait(_existingMicrosoftIdentity(target))
         : (previous.subject, previous.tenantId);
-    var expected = target == null ? 0 : await persistence!.generation(target);
+    var expected = target == null
+        ? 0
+        : await attempt.wait(persistence!.generation(target));
+    attempt.check();
     final registration = request.intent == AuthorizationIntent.reconnect
         ? previous!.registration
         : request.registration == null
@@ -244,7 +282,9 @@ final class AndroidAuthorizationBroker
         'Set up your Microsoft public registration for the installed Android package and signature.',
       );
     }
-    final installedIdentity = await _platform.microsoftRegistrationIdentity();
+    final installedIdentity = await attempt.wait(
+      _platform.microsoftRegistrationIdentity(),
+    );
     if ((registration.origin == RegistrationOrigin.retiringShared ||
             registration.clientId == installedIdentity.retiringClientId) &&
         (request.intent != AuthorizationIntent.reconnect ||
@@ -257,7 +297,9 @@ final class AndroidAuthorizationBroker
     }
     try {
       final native = await _boundedNative(
+        attempt,
         () => _platform.authorizeMicrosoftInteractively(
+          authorizationAttemptId: attempt.id,
           scopes: [..._microsoftNativeScopes, ...optional],
           clientId: registration.clientId,
           authorityTenant: registration.authorityTenant,
@@ -311,14 +353,7 @@ final class AndroidAuthorizationBroker
         tokenSet: tokens,
         user: user,
         tenantId: tenant,
-        commit: _nativeCommit(
-          id,
-          expected,
-          attempt,
-          deadline,
-          candidate,
-          target != null,
-        ),
+        commit: _nativeCommit(id, expected, attempt, candidate, target != null),
       );
     } on PlatformException catch (error) {
       throw _oauthError(error, provider: 'Microsoft');
@@ -328,38 +363,33 @@ final class AndroidAuthorizationBroker
   AuthorizationCommit _nativeCommit(
     String id,
     int expected,
-    int attempt,
-    DateTime deadline,
+    AuthorizationAttempt attempt,
     NativeOAuthCredential candidate,
     bool existing,
   ) => (persistAccount) async {
-    if (attempt != _attemptGeneration || !_nowUtc().isBefore(deadline)) {
-      throw const OAuthException(
-        'OAuthSignInCancelled',
-        'Authorization was cancelled.',
+    try {
+      attempt.check();
+      if (persistence == null) {
+        throw const OAuthException(
+          'OAuthConfigurationRejected',
+          'Account storage is unavailable.',
+        );
+      }
+      await persistence!.commit(
+        accountId: id,
+        expectedGeneration: expected,
+        candidate: candidate,
+        onCommitted: attempt.committed,
+        validateCandidate: () {
+          attempt.check();
+        },
+        requireExisting: existing,
+        persistAccount: persistAccount,
       );
+      attempt.committed();
+    } finally {
+      _attempts.finish(attempt);
     }
-    if (persistence == null) {
-      throw const OAuthException(
-        'OAuthConfigurationRejected',
-        'Account storage is unavailable.',
-      );
-    }
-    await persistence!.commit(
-      accountId: id,
-      expectedGeneration: expected,
-      candidate: candidate,
-      validateCandidate: () {
-        if (attempt != _attemptGeneration || !_nowUtc().isBefore(deadline)) {
-          throw const OAuthException(
-            'OAuthSignInCancelled',
-            'Authorization was cancelled.',
-          );
-        }
-      },
-      requireExisting: existing,
-      persistAccount: persistAccount,
-    );
   };
   Future<void> _rejectDuplicate(
     String? target,
@@ -519,26 +549,34 @@ final class AndroidAuthorizationBroker
   );
 
   Future<AndroidAuthorizationToken> _boundedNative(
+    AuthorizationAttempt attempt,
     Future<AndroidAuthorizationToken> Function() authorize,
-  ) =>
-      Future.any([
-        authorize(),
-        _attemptCancellation!.future.then<AndroidAuthorizationToken>(
-          (_) => throw const OAuthException(
-            'OAuthSignInCancelled',
-            'Authorization was cancelled.',
-          ),
-        ),
-      ]).timeout(
-        const Duration(minutes: 5),
-        onTimeout: () {
-          unawaited(_platform.cancelInteractiveAuthorization());
-          throw const OAuthException(
-            'OAuthRequestTimeout',
-            'Native authorization timed out.',
-          );
-        },
-      );
+  ) {
+    attempt.check();
+    unawaited(attempt.cancellation.then((_) => _cancelNativeAttempt(attempt)));
+    return attempt
+        .wait(authorize())
+        .timeout(
+          const Duration(minutes: 5),
+          onTimeout: () {
+            attempt.cancel();
+            throw const OAuthException(
+              'OAuthRequestTimeout',
+              'Native authorization timed out.',
+            );
+          },
+        );
+  }
+
+  Future<void> _cancelNativeAttempt(AuthorizationAttempt attempt) async {
+    try {
+      await _platform
+          .cancelInteractiveAuthorization(authorizationAttemptId: attempt.id)
+          .timeout(const Duration(seconds: 10));
+    } on Object {
+      /* result rejection remains effective if platform dismissal is unavailable */
+    }
+  }
 
   Future<(String, String)> _existingMicrosoftIdentity(String id) async {
     final account = await (persistence!.database.select(
@@ -638,29 +676,51 @@ final class AndroidAuthorizationBroker
   }
 
   @override
-  Future<void> authorizeCategoryAccess(String id) async {
-    await _optionalNativeConsent(id, _microsoftCategoryNativeScope);
+  Future<void> authorizeCategoryAccess(
+    String id, {
+    AuthorizationCancellation? cancellation,
+  }) async {
+    await _optionalNativeConsent(
+      id,
+      _microsoftCategoryNativeScope,
+      cancellation,
+    );
   }
 
   @override
-  Future<void> authorizeSharedCalendarAccess(String id) async {
-    await _optionalNativeConsent(id, _microsoftSharedNativeScope);
+  Future<void> authorizeSharedCalendarAccess(
+    String id, {
+    AuthorizationCancellation? cancellation,
+  }) async {
+    await _optionalNativeConsent(id, _microsoftSharedNativeScope, cancellation);
   }
 
-  Future<void> _optionalNativeConsent(String id, String scope) async {
-    final current = await nativeCredential(id, BusyProvider.microsoft);
+  Future<void> _optionalNativeConsent(
+    String id,
+    String scope,
+    AuthorizationCancellation? cancellation,
+  ) async {
+    final attempt = _attempts.begin(_nowUtc, cancellation);
+    NativeOAuthCredential? current;
     try {
+      current = await attempt.wait(
+        nativeCredential(id, BusyProvider.microsoft),
+      );
       final result = await _connectMicrosoft(
         AuthorizationRequest.reconnect(id),
         optional: [scope],
+        capturedAttempt: attempt,
       );
       await result.commit!(() async {});
     } on OAuthException catch (error) {
+      if (current == null) rethrow;
       throw AuthorizationScopedOAuthException(
         accountId: id,
         generation: current.generation,
         cause: error,
       );
+    } finally {
+      _attempts.finish(attempt);
     }
   }
 
@@ -946,21 +1006,10 @@ final class AndroidAuthorizationBroker
 
   @override
   Future<void> cancelSignIn() async {
-    _attemptGeneration++;
-    _attemptCancellation?.complete();
-    _attemptCancellation = null;
-    _registrations.cancel();
-    await _platform.cancelInteractiveAuthorization().timeout(
-      const Duration(seconds: 10),
-    );
-  }
-
-  int _beginAttempt() {
-    if (_attemptCancellation?.isCompleted == false) {
-      _attemptCancellation!.complete();
-    }
-    _attemptCancellation = Completer<void>();
-    return ++_attemptGeneration;
+    final attempt = _attempts.current;
+    if (attempt == null) return;
+    attempt.cancel();
+    await _cancelNativeAttempt(attempt);
   }
 
   OAuthTokenSet _tokenSet(AndroidAuthorizationToken token) => OAuthTokenSet(

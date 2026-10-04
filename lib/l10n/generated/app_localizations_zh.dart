@@ -3148,6 +3148,35 @@ class AppLocalizationsZh extends AppLocalizations {
   ) {
     return '软件包：$packageName\n签名哈希：$signatureHash\n重定向 URI：$redirectUri';
   }
+
+  @override
+  String get oauthRegistrationRejected =>
+      '请检查注册的客户端类型、支持的账户、权限和重定向设置。若配置来自导入，请重新选择配置文件。';
+
+  @override
+  String get oauthAuthorizationCodeUnusable => '此次授权未能完成。请重新开始授权；现有连接已保留。';
+
+  @override
+  String get oauthPermissionRefused => '授权被拒绝或缺少所需权限。请重试并授予所需权限。';
+
+  @override
+  String get oauthProviderThrottled => '服务提供方正在限制请求。请稍后重试；现有连接已保留。';
+
+  @override
+  String get oauthProviderTemporaryFailure => '服务提供方的临时问题导致授权未能完成。请重试；现有连接已保留。';
+
+  @override
+  String get oauthAuthorizationTimedOut => '授权超时。请重试；若配置来自导入，请重新选择配置文件。';
+
+  @override
+  String get oauthWrongAccount => '请授权为重新连接而选定的账户。现有连接已保留。';
+
+  @override
+  String get oauthSecureStorageUnavailable => '安全存储不可用。请恢复安全存储访问后重试。';
+
+  @override
+  String get oauthRevokedRemovalIncomplete =>
+      '远程授权已撤销，但账户清理未能完成。请重启 BusyMax 以重试本地恢复。';
 }
 
 /// The translations for Chinese, using the Han script (`zh_Hans`).
@@ -6290,6 +6319,35 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
   ) {
     return '软件包：$packageName\n签名哈希：$signatureHash\n重定向 URI：$redirectUri';
   }
+
+  @override
+  String get oauthRegistrationRejected =>
+      '请检查注册的客户端类型、支持的账户、权限和重定向设置。若配置来自导入，请重新选择配置文件。';
+
+  @override
+  String get oauthAuthorizationCodeUnusable => '此次授权未能完成。请重新开始授权；现有连接已保留。';
+
+  @override
+  String get oauthPermissionRefused => '授权被拒绝或缺少所需权限。请重试并授予所需权限。';
+
+  @override
+  String get oauthProviderThrottled => '服务提供方正在限制请求。请稍后重试；现有连接已保留。';
+
+  @override
+  String get oauthProviderTemporaryFailure => '服务提供方的临时问题导致授权未能完成。请重试；现有连接已保留。';
+
+  @override
+  String get oauthAuthorizationTimedOut => '授权超时。请重试；若配置来自导入，请重新选择配置文件。';
+
+  @override
+  String get oauthWrongAccount => '请授权为重新连接而选定的账户。现有连接已保留。';
+
+  @override
+  String get oauthSecureStorageUnavailable => '安全存储不可用。请恢复安全存储访问后重试。';
+
+  @override
+  String get oauthRevokedRemovalIncomplete =>
+      '远程授权已撤销，但账户清理未能完成。请重启 BusyMax 以重试本地恢复。';
 }
 
 /// The translations for Chinese, using the Han script (`zh_Hant`).
@@ -9433,4 +9491,33 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   ) {
     return '套件：$packageName\n簽章雜湊：$signatureHash\n重新導向 URI：$redirectUri';
   }
+
+  @override
+  String get oauthRegistrationRejected =>
+      '請檢查註冊的用戶端類型、支援的帳戶、權限和重新導向設定。若設定來自匯入，請重新選擇設定檔。';
+
+  @override
+  String get oauthAuthorizationCodeUnusable => '此次授權未能完成。請重新開始授權；現有連線已保留。';
+
+  @override
+  String get oauthPermissionRefused => '授權遭拒或缺少所需權限。請重試並授予所需權限。';
+
+  @override
+  String get oauthProviderThrottled => '服務提供者正在限制請求。請稍後重試；現有連線已保留。';
+
+  @override
+  String get oauthProviderTemporaryFailure => '服務提供者的暫時問題導致授權未能完成。請重試；現有連線已保留。';
+
+  @override
+  String get oauthAuthorizationTimedOut => '授權逾時。請重試；若設定來自匯入，請重新選擇設定檔。';
+
+  @override
+  String get oauthWrongAccount => '請授權為重新連線而選定的帳戶。現有連線已保留。';
+
+  @override
+  String get oauthSecureStorageUnavailable => '安全儲存空間無法使用。請恢復存取後重試。';
+
+  @override
+  String get oauthRevokedRemovalIncomplete =>
+      '遠端授權已撤銷，但帳戶清理未能完成。請重新啟動 BusyMax 以重試本機復原。';
 }

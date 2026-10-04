@@ -3321,4 +3321,40 @@ class AppLocalizationsAr extends AppLocalizations {
   ) {
     return 'الحزمة: ⁨$packageName⁩\nبصمة التوقيع: ⁨$signatureHash⁩\nعنوان إعادة التوجيه: ⁨$redirectUri⁩';
   }
+
+  @override
+  String get oauthRegistrationRejected =>
+      'تحقق من نوع العميل والحسابات المدعومة والأذونات وإعادة التوجيه في التسجيل. اختر الإعداد المستورد مرة أخرى.';
+
+  @override
+  String get oauthAuthorizationCodeUnusable =>
+      'تعذر إكمال محاولة التفويض هذه. ابدأ من جديد؛ الاتصال الحالي محفوظ.';
+
+  @override
+  String get oauthPermissionRefused =>
+      'رُفض التفويض أو لم تُمنح الأذونات المطلوبة. حاول مجددًا وامنح الأذونات اللازمة.';
+
+  @override
+  String get oauthProviderThrottled =>
+      'يحد موفر الخدمة من الطلبات. انتظر قبل المحاولة مجددًا؛ الاتصال الحالي محفوظ.';
+
+  @override
+  String get oauthProviderTemporaryFailure =>
+      'تعذر إكمال التفويض بسبب مشكلة مؤقتة لدى موفر الخدمة. حاول مجددًا؛ الاتصال الحالي محفوظ.';
+
+  @override
+  String get oauthAuthorizationTimedOut =>
+      'انتهت مهلة التفويض. حاول مجددًا واختر الإعداد المستورد مرة أخرى.';
+
+  @override
+  String get oauthWrongAccount =>
+      'فوّض الحساب المحدد لإعادة الاتصال. الاتصال الحالي محفوظ.';
+
+  @override
+  String get oauthSecureStorageUnavailable =>
+      'التخزين الآمن غير متاح. استعد الوصول إليه وحاول مجددًا.';
+
+  @override
+  String get oauthRevokedRemovalIncomplete =>
+      'أُلغي التفويض عن بُعد، لكن تنظيف الحساب لم يكتمل. أعد تشغيل BusyMax لإعادة محاولة الاسترداد المحلي.';
 }

@@ -1,7 +1,9 @@
+import '../../l10n/oauth_error_description.dart';
+import '../../core/auth/oauth_models.dart';
+import '../../core/auth/authorization_attempt.dart';
 import '../../l10n/registration_description.dart';
 import 'windows_registration_setup_dialog.dart';
 import '../../core/auth/oauth_registration.dart';
-import '../../features/auth/data/auth_repository.dart';
 import 'windows_time_picker.dart';
 import 'dart:async';
 import 'windows_nextcloud_dialogs.dart';
@@ -50,6 +52,7 @@ class WindowsSettingsPage extends ConsumerStatefulWidget {
 
 class _WindowsSettingsPageState extends ConsumerState<WindowsSettingsPage> {
   late final LaunchAtLoginRefreshObserver _autostartRefresh;
+  AuthorizationCancellation? _sharedConsentCancellation;
 
   @override
   void initState() {
@@ -61,8 +64,23 @@ class _WindowsSettingsPageState extends ConsumerState<WindowsSettingsPage> {
 
   @override
   void dispose() {
+    _sharedConsentCancellation?.cancel();
     _autostartRefresh.dispose();
     super.dispose();
+  }
+
+  Future<void> _openSharedCalendarOwned(String id) async {
+    _sharedConsentCancellation?.cancel();
+    final cancellation = AuthorizationCancellation();
+    _sharedConsentCancellation = cancellation;
+    try {
+      await _openWindowsSharedCalendar(context, ref, id, cancellation);
+    } finally {
+      cancellation.cancel();
+      if (identical(_sharedConsentCancellation, cancellation)) {
+        _sharedConsentCancellation = null;
+      }
+    }
   }
 
   @override
@@ -468,11 +486,7 @@ class _WindowsSettingsPageState extends ConsumerState<WindowsSettingsPage> {
                           MenuFlyoutItem(
                             text: Text(l10n.openSharedCalendar),
                             onPressed: () => unawaited(
-                              _openWindowsSharedCalendar(
-                                context,
-                                ref,
-                                values[index].id,
-                              ),
+                              _openSharedCalendarOwned(values[index].id),
                             ),
                           ),
                         if (values[index].isSignedIn &&
@@ -1087,9 +1101,12 @@ Future<void> _removeWindowsAccount(
       );
     }
     if (remaining.isEmpty && context.mounted) context.go('/sign-in');
-  } on Object {
+  } on Object catch (error) {
     if (context.mounted) {
-      await _showWindowsMessage(context, l10n.removeAccountFailed);
+      await _showWindowsMessage(
+        context,
+        localizedAccountRemovalError(l10n, error),
+      );
     }
   }
 }
@@ -1204,6 +1221,7 @@ Future<void> _openWindowsSharedCalendar(
   BuildContext context,
   WidgetRef ref,
   String accountId,
+  AuthorizationCancellation cancellation,
 ) async {
   final l10n = AppLocalizations.of(context);
   final owner = await _showWindowsTextPrompt(
@@ -1217,7 +1235,11 @@ Future<void> _openWindowsSharedCalendar(
   try {
     final result = await ref
         .read(microsoftSharedCalendarServiceProvider)
-        .openPrimaryCalendar(accountId: accountId, owner: owner);
+        .openPrimaryCalendar(
+          accountId: accountId,
+          owner: owner,
+          cancellation: cancellation,
+        );
     if (context.mounted &&
         result.outcome == MicrosoftSharedCalendarOpenOutcome.rangeUnavailable) {
       await showDialog<void>(
@@ -1539,6 +1561,13 @@ class _WindowsRegistrationCard extends ConsumerStatefulWidget {
 class _WindowsRegistrationCardState
     extends ConsumerState<_WindowsRegistrationCard> {
   bool connecting = false;
+  AuthorizationCancellation? _authorizationCancellation;
+  @override
+  void dispose() {
+    _authorizationCancellation?.cancel();
+    super.dispose();
+  }
+
   AccountEntity get account => widget.account;
   @override
   Widget build(BuildContext context) {
@@ -1549,6 +1578,8 @@ class _WindowsRegistrationCardState
     Future<void> connect(bool replace) async {
       if (connecting) return;
       setState(() => connecting = true);
+      final cancellation = AuthorizationCancellation();
+      _authorizationCancellation = cancellation;
       try {
         AuthorizationRequest request;
         if (replace) {
@@ -1562,6 +1593,8 @@ class _WindowsRegistrationCardState
         } else {
           request = AuthorizationRequest.reconnect(account.id);
         }
+        if (!mounted || cancellation.isCancelled) return;
+        request = request.withCancellation(cancellation);
         final repository = ref.read(authRepositoryProvider);
         if (account.provider == BusyProvider.google) {
           await repository.signIn(request: request);
@@ -1570,18 +1603,31 @@ class _WindowsRegistrationCardState
         }
         await ref.read(signedInSyncRunnerProvider)(account.id, false);
       } on Object catch (error) {
+        if (error is OAuthException &&
+            error.classification == OAuthFailureKind.cancelled) {
+          return;
+        }
         if (context.mounted) {
           await displayInfoBar(
             context,
             builder: (_, close) => InfoBar(
-              title: Text(authErrorMessage(error)),
+              title: Text(
+                localizedAuthorizationError(
+                  AppLocalizations.of(context),
+                  error,
+                ),
+              ),
               severity: InfoBarSeverity.error,
               onClose: close,
             ),
           );
         }
       } finally {
-        if (mounted) setState(() => connecting = false);
+        cancellation.cancel();
+        if (identical(_authorizationCancellation, cancellation)) {
+          _authorizationCancellation = null;
+          if (mounted) setState(() => connecting = false);
+        }
       }
     }
 
@@ -1614,6 +1660,14 @@ class _WindowsRegistrationCardState
                   : l10n.registrationReplace,
             ),
           ),
+          if (connecting)
+            Button(
+              onPressed: () {
+                _authorizationCancellation?.cancel();
+                setState(() => connecting = false);
+              },
+              child: Text(l10n.cancelAccountConnection),
+            ),
           Button(
             onPressed: connecting ? null : () => connect(false),
             child: Text(l10n.connectAccountAction),

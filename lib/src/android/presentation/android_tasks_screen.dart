@@ -1,3 +1,4 @@
+import 'package:busymax/src/core/auth/authorization_attempt.dart';
 import 'dart:async';
 import 'dart:convert';
 import 'package:busymax_android_platform/busymax_android_platform.dart';
@@ -565,6 +566,8 @@ class AndroidTaskEditor extends ConsumerStatefulWidget {
 }
 
 class _AndroidTaskEditorState extends ConsumerState<AndroidTaskEditor> {
+  AuthorizationCancellation? _consentCancellation;
+
   Future<List<TaskSourceLink>>? _linkedResourcesFuture;
   Future<List<MicrosoftTodoAttachmentDto>>? _attachmentsFuture;
   bool _attachmentBusy = false;
@@ -641,6 +644,7 @@ class _AndroidTaskEditorState extends ConsumerState<AndroidTaskEditor> {
 
   @override
   void dispose() {
+    _consentCancellation?.cancel();
     _recoveryTimer?.cancel();
     if (_recoveryLoaded && _hasPendingEdits && !_allowPop) {
       unawaited(_persistRecovery());
@@ -1863,22 +1867,36 @@ class _AndroidTaskEditorState extends ConsumerState<AndroidTaskEditor> {
       loading: () => const LinearProgressIndicator(),
       error: (_, _) => TextButton(
         onPressed: () async {
+          _consentCancellation?.cancel();
+          final consent = AuthorizationCancellation();
+          _consentCancellation = consent;
           try {
-            await ref
-                .read(microsoftCategoryAuthorizationProvider)
-                ?.authorizeCategoryAccess(widget.accountId);
-            if (mounted) {
-              ref.invalidate(
-                microsoftMasterCategoriesProvider(widget.accountId),
-              );
+            try {
+              await ref
+                  .read(microsoftCategoryAuthorizationProvider)
+                  ?.authorizeCategoryAccess(
+                    widget.accountId,
+                    cancellation: consent,
+                  );
+              if (!mounted || consent.isCancelled) return;
+              if (mounted) {
+                ref.invalidate(
+                  microsoftMasterCategoriesProvider(widget.accountId),
+                );
+              }
+            } on Object {
+              if (mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(context.l10n.outlookCategoriesUnavailable),
+                  ),
+                );
+              }
             }
-          } on Object {
-            if (mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text(context.l10n.outlookCategoriesUnavailable),
-                ),
-              );
+          } finally {
+            consent.cancel();
+            if (identical(_consentCancellation, consent)) {
+              _consentCancellation = null;
             }
           }
         },

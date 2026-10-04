@@ -3433,4 +3433,40 @@ class AppLocalizationsPl extends AppLocalizations {
   ) {
     return 'Pakiet: $packageName\nSkrót podpisu: $signatureHash\nURI przekierowania: $redirectUri';
   }
+
+  @override
+  String get oauthRegistrationRejected =>
+      'Sprawdź typ klienta, obsługiwane konta, uprawnienia i przekierowanie rejestracji. Ponownie wybierz zaimportowaną konfigurację.';
+
+  @override
+  String get oauthAuthorizationCodeUnusable =>
+      'Nie udało się ukończyć tej autoryzacji. Rozpocznij ponownie; obecne połączenie zostaje zachowane.';
+
+  @override
+  String get oauthPermissionRefused =>
+      'Odmówiono autoryzacji lub brakuje wymaganych uprawnień. Spróbuj ponownie i przyznaj potrzebne uprawnienia.';
+
+  @override
+  String get oauthProviderThrottled =>
+      'Dostawca ogranicza żądania. Poczekaj przed kolejną próbą; obecne połączenie zostaje zachowane.';
+
+  @override
+  String get oauthProviderTemporaryFailure =>
+      'Tymczasowy problem dostawcy uniemożliwił autoryzację. Spróbuj ponownie; obecne połączenie zostaje zachowane.';
+
+  @override
+  String get oauthAuthorizationTimedOut =>
+      'Upłynął czas autoryzacji. Spróbuj ponownie i ponownie wybierz zaimportowaną konfigurację.';
+
+  @override
+  String get oauthWrongAccount =>
+      'Autoryzuj konto wybrane do ponownego połączenia. Obecne połączenie zostaje zachowane.';
+
+  @override
+  String get oauthSecureStorageUnavailable =>
+      'Bezpieczny magazyn jest niedostępny. Przywróć dostęp i spróbuj ponownie.';
+
+  @override
+  String get oauthRevokedRemovalIncomplete =>
+      'Zdalna autoryzacja została cofnięta, ale nie udało się ukończyć czyszczenia konta. Uruchom BusyMax ponownie, aby ponowić odzyskiwanie lokalne.';
 }

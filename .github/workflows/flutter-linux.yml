@@ -157,6 +157,12 @@ jobs:
           xvfb-run -a env GDK_BACKEND=x11 \
             build/linux/native-tests/gtk_search_entry_theme_test
 
+      - name: Test native registration configuration handles
+        run: |
+          cmake -S native/registration_reader -B build/linux/registration-reader-tests
+          cmake --build build/linux/registration-reader-tests --target busymax_registration_reader_tests
+          ctest --test-dir build/linux/registration-reader-tests --output-on-failure
+
       - name: Build release with user-owned setup and no shared registrations
         run: |
           "$BUSYMAX_FLUTTER_EXECUTABLE" build linux --release -t lib/main_linux.dart

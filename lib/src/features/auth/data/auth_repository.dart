@@ -1,3 +1,4 @@
+import '../../../core/auth/authorization_attempt.dart';
 import '../../../core/http/request_dispatch_exception.dart';
 import 'dart:async';
 
@@ -38,6 +39,7 @@ class AuthSessionState {
     required this.status,
     this.accountId,
     this.message,
+    this.failureKind,
   });
 
   const AuthSessionState.unconfigured()
@@ -57,12 +59,17 @@ class AuthSessionState {
   const AuthSessionState.expired(String accountId)
     : this._(status: AuthSessionStatus.expired, accountId: accountId);
 
-  const AuthSessionState.error(String message)
-    : this._(status: AuthSessionStatus.error, message: message);
+  const AuthSessionState.error(String message, {OAuthFailureKind? failureKind})
+    : this._(
+        status: AuthSessionStatus.error,
+        message: message,
+        failureKind: failureKind,
+      );
 
   final AuthSessionStatus status;
   final String? accountId;
   final String? message;
+  final OAuthFailureKind? failureKind;
 
   bool get isSignedIn => status == AuthSessionStatus.signedIn;
 }
@@ -87,6 +94,17 @@ class AccountRemovalResult {
   bool get authorizationRevocationFailed =>
       authorizationRevocationStatus ==
       AccountAuthorizationRevocationStatus.failed;
+}
+
+class AccountRemovalPersistenceException extends OAuthException {
+  const AccountRemovalPersistenceException()
+    : super(
+        'OAuthRemovalAfterRevocationFailed',
+        'Google authorization was revoked, but account cleanup could not finish. Restart BusyMax to retry local recovery.',
+      );
+  bool get remoteAuthorizationRevoked => true;
+  @override
+  OAuthFailureKind get classification => OAuthFailureKind.storage;
 }
 
 class AuthRepository {
@@ -234,11 +252,12 @@ class AuthRepository {
         revokeAuthorization: revokeAuthorization,
       );
     }
-    return persistence.run(
+    return persistence.runRemoval(
       accountId,
-      () => _removeAccount(
+      (snapshot) => _removeAccount(
         accountId: accountId,
         revokeAuthorization: revokeAuthorization,
+        snapshot: snapshot,
       ),
     );
   }
@@ -246,6 +265,7 @@ class AuthRepository {
   Future<AccountRemovalResult> _removeAccount({
     required String accountId,
     bool revokeAuthorization = false,
+    AuthorizationRemovalSnapshot? snapshot,
   }) async {
     final account = await _accountsRepository.accountById(accountId);
     if (account == null) {
@@ -255,7 +275,14 @@ class AuthRepository {
     var revocationStatus = AccountAuthorizationRevocationStatus.notRequested;
     if (revokeAuthorization && account.provider == BusyProvider.google) {
       try {
-        await _oAuth.revokeAuthorization(accountId);
+        final gateway = _oAuth;
+        if (snapshot != null && gateway is GoogleRemovalRevoker) {
+          await (gateway as GoogleRemovalRevoker).revokeSelectedAuthorization(
+            snapshot,
+          );
+        } else {
+          await gateway.revokeAuthorization(accountId);
+        }
         revocationStatus = AccountAuthorizationRevocationStatus.succeeded;
       } on Object catch (error) {
         _logger.warning(
@@ -275,11 +302,19 @@ class AuthRepository {
     }
 
     if (_authorizationPersistence case final persistence?) {
-      await persistence.removeCoherently(
-        accountId,
-        clearAuthorization,
-        () => _accountsRepository.deleteAccount(accountId),
-      );
+      try {
+        await persistence.removeCoherently(
+          accountId,
+          clearAuthorization,
+          () => _accountsRepository.deleteAccount(accountId),
+        );
+      } on Object {
+        if (revocationStatus ==
+            AccountAuthorizationRevocationStatus.succeeded) {
+          throw const AccountRemovalPersistenceException();
+        }
+        rethrow;
+      }
     } else {
       await clearAuthorization();
       await _accountsRepository.deleteAccount(accountId);
@@ -291,8 +326,10 @@ class AuthRepository {
   }
 
   Future<void> cancelSignIn() async {
-    await _oAuth.cancelSignIn();
-    await _microsoftOAuth?.cancelSignIn();
+    await Future.wait([
+      _oAuth.cancelSignIn(),
+      if (_microsoftOAuth != null) _microsoftOAuth.cancelSignIn(),
+    ]);
   }
 
   Set<String> _missingRequiredGoogleApiScopes(OAuthTokenSet tokenSet) {
@@ -426,7 +463,10 @@ class AuthSessionController extends StateNotifier<AuthSessionState> {
         _startSignedInSync(loaded.accountId!, false);
       }
     } on Object catch (error) {
-      state = AuthSessionState.error(authErrorMessage(error));
+      state = AuthSessionState.error(
+        authErrorMessage(error),
+        failureKind: error is OAuthException ? error.classification : null,
+      );
     }
   }
 
@@ -457,7 +497,10 @@ class AuthSessionController extends StateNotifier<AuthSessionState> {
         state = const AuthSessionState.signedOut();
         return;
       }
-      state = AuthSessionState.error(authErrorMessage(error));
+      state = AuthSessionState.error(
+        authErrorMessage(error),
+        failureKind: error is OAuthException ? error.classification : null,
+      );
     }
   }
 
@@ -488,13 +531,21 @@ class AuthSessionController extends StateNotifier<AuthSessionState> {
         state = const AuthSessionState.signedOut();
         return;
       }
-      state = AuthSessionState.error(authErrorMessage(error));
+      state = AuthSessionState.error(
+        authErrorMessage(error),
+        failureKind: error is OAuthException ? error.classification : null,
+      );
     }
   }
 
-  Future<void> cancelSignIn() async {
+  Future<void> cancelSignIn({AuthorizationCancellation? cancellation}) async {
+    if (cancellation?.wasCommitted == true) return;
     _signInGeneration += 1;
-    await _repository.cancelSignIn();
+    if (cancellation == null) {
+      await _repository.cancelSignIn();
+    } else {
+      cancellation.cancel();
+    }
     state = const AuthSessionState.signedOut();
   }
 

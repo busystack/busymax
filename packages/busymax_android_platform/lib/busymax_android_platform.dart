@@ -48,10 +48,12 @@ final class BusyMaxAndroidPlatform {
 
   Future<AndroidAuthorizationToken> authorizeGoogleInteractively({
     required List<String> scopes,
+    String? authorizationAttemptId,
   }) async => AndroidAuthorizationToken.fromMap(
     _stringMap(
       await _methodChannel.invokeMethod<Object?>('authorizeGoogleInteractive', {
         'scopes': scopes,
+        'authorizationAttemptId': ?authorizationAttemptId,
       }),
     ),
   );
@@ -70,6 +72,7 @@ final class BusyMaxAndroidPlatform {
 
   Future<AndroidAuthorizationToken> authorizeMicrosoftInteractively({
     required List<String> scopes,
+    String? authorizationAttemptId,
     String? clientId,
     String? authorityTenant,
   }) async => AndroidAuthorizationToken.fromMap(
@@ -77,6 +80,7 @@ final class BusyMaxAndroidPlatform {
       await _methodChannel
           .invokeMethod<Object?>('authorizeMicrosoftInteractive', {
             'scopes': scopes,
+            'authorizationAttemptId': ?authorizationAttemptId,
             'clientId': ?clientId,
             'authorityTenant': ?authorityTenant,
           }),
@@ -164,8 +168,11 @@ final class BusyMaxAndroidPlatform {
     'revoke': revoke,
   });
 
-  Future<void> cancelInteractiveAuthorization() =>
-      _methodChannel.invokeMethod<void>('cancelInteractiveAuthorization');
+  Future<void> cancelInteractiveAuthorization({
+    String? authorizationAttemptId,
+  }) => _methodChannel.invokeMethod<void>('cancelInteractiveAuthorization', {
+    'authorizationAttemptId': ?authorizationAttemptId,
+  });
 
   Future<AndroidDocument?> openDocument({
     List<String> mimeTypes = const ['text/calendar'],

@@ -394,15 +394,15 @@ void main() {
       );
       client.transientUpdateFailures = 1;
 
-      expect(
-        await CalendarPendingOpsReplayer(
+      await expectLater(
+        CalendarPendingOpsReplayer(
           database: database,
           client: client,
           accountId: 'account',
           random: Random(0),
           nowUtc: () => DateTime.utc(2026, 6, 8),
         ).replayDueOps(),
-        1,
+        throwsA(isA<GoogleCalendarApiError>()),
       );
 
       final local = await database.select(database.calendarEvents).getSingle();
@@ -468,15 +468,15 @@ void main() {
         ..persistEventUpdates = true
         ..transientUpdateFailureCall = 2;
 
-      expect(
-        await CalendarPendingOpsReplayer(
+      await expectLater(
+        CalendarPendingOpsReplayer(
           database: database,
           client: client,
           accountId: 'account',
           random: Random(0),
           nowUtc: () => DateTime.utc(2026, 6, 8),
         ).replayDueOps(),
-        2,
+        throwsA(isA<GoogleCalendarApiError>()),
       );
       final pending = await database.select(database.pendingOps).getSingle();
       expect(pending.operationType, 'event.patch');
@@ -3326,12 +3326,15 @@ END:VEVENT
         ..remoteEvent = _googleSeriesMaster()
         ..transientUpdateFailures = 1;
 
-      final firstApplied = await CalendarPendingOpsReplayer(
-        database: database,
-        client: client,
-        accountId: 'account',
-        nowUtc: () => DateTime.utc(2026, 6, 8),
-      ).replayDueOps();
+      await expectLater(
+        CalendarPendingOpsReplayer(
+          database: database,
+          client: client,
+          accountId: 'account',
+          nowUtc: () => DateTime.utc(2026, 6, 8),
+        ).replayDueOps(),
+        throwsA(isA<GoogleCalendarApiError>()),
+      );
       final secondApplied = await CalendarPendingOpsReplayer(
         database: database,
         client: client,
@@ -3339,7 +3342,6 @@ END:VEVENT
         nowUtc: () => DateTime.utc(2026, 6, 9),
       ).replayDueOps();
 
-      expect(firstApplied, 0);
       expect(secondApplied, 1);
       expect(client.updatedMutations, hasLength(2));
       expect(
@@ -5653,18 +5655,15 @@ END:VEVENT
         1,
       );
       var pending = await database.select(database.pendingOps).getSingle();
-      expect(pending.operationType, 'calendar.patch');
-      expect(pending.providerCalendarId, 'cal-created');
-
-      expect(
-        await CalendarPendingOpsReplayer(
+      await expectLater(
+        CalendarPendingOpsReplayer(
           database: database,
           client: client,
           accountId: 'account',
           random: Random(0),
           nowUtc: () => DateTime.utc(2026, 6, 8),
         ).replayDueOps(),
-        0,
+        throwsA(isA<GoogleCalendarApiError>()),
       );
       pending = await database.select(database.pendingOps).getSingle();
       expect(pending.attemptCount, 1);
@@ -6060,18 +6059,21 @@ END:VEVENT
         updatedAtServer: '2026-06-08T01:00:00.000Z',
       );
 
-      await CalendarSyncEngine(
-        database: database,
-        client: client,
-        accountId: 'account',
-        nowUtc: () => DateTime.utc(2026, 6, 8),
-      ).fullSync();
+      await expectLater(
+        CalendarSyncEngine(
+          database: database,
+          client: client,
+          accountId: 'account',
+          nowUtc: () => DateTime.utc(2026, 6, 8),
+        ).fullSync(),
+        throwsA(isA<GoogleCalendarApiError>()),
+      );
 
       final pendingAfterFailure = await database.pendingOpsDao.getOp(pendingId);
       final localAfterPull = await (database.select(
         database.calendarEvents,
       )..where((table) => table.id.equals(eventId))).getSingle();
-      expect(client.calls, contains('syncEvents:cal-1'));
+      expect(client.calls, isNot(contains('syncEvents:cal-1')));
       expect(pendingAfterFailure, isNot(equals(null)));
       expect(pendingAfterFailure!.attemptCount, 1);
       expect(pendingAfterFailure.nextAttemptAtUtc, isNot(equals(null)));

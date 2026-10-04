@@ -1,3 +1,4 @@
+import 'package:busymax/src/features/tasks/domain/task_remote_error.dart';
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
@@ -721,15 +722,16 @@ void main() {
       message: 'Rate limited',
     );
 
-    final firstApplied = await PendingOpsReplayer(
-      database: database,
-      apiClient: apiClient,
-      accountId: 'account',
-      random: Random(0),
-      nowUtc: () => DateTime.utc(2026, 6, 4, 1),
-    ).replayDueOps();
-
-    expect(firstApplied, 0);
+    await expectLater(
+      PendingOpsReplayer(
+        database: database,
+        apiClient: apiClient,
+        accountId: 'account',
+        random: Random(0),
+        nowUtc: () => DateTime.utc(2026, 6, 4, 1),
+      ).replayDueOps(),
+      throwsA(isA<TaskRemoteError>()),
+    );
     expect(apiClient.calls, ['create_task:list-1']);
     var operations = await database.select(database.pendingOps).get();
     final pendingCreate = operations.singleWhere(
@@ -787,15 +789,15 @@ void main() {
       message: 'Temporary failure',
     );
 
-    expect(
-      await PendingOpsReplayer(
+    await expectLater(
+      PendingOpsReplayer(
         database: database,
         apiClient: apiClient,
         accountId: 'account',
         random: Random(0),
         nowUtc: () => DateTime.utc(2026, 6, 4, 1),
       ).replayDueOps(),
-      1,
+      throwsA(isA<TaskRemoteError>()),
     );
 
     final visible = (await database.tasksDao.listTasks(
@@ -846,15 +848,15 @@ void main() {
         const TaskPatchInput({'title': 'Local title'}),
       );
 
-      expect(
-        await PendingOpsReplayer(
+      await expectLater(
+        PendingOpsReplayer(
           database: database,
           apiClient: apiClient,
           accountId: 'account',
           random: Random(0),
           nowUtc: () => DateTime.utc(2026, 6, 4, 1),
         ).replayDueOps(),
-        1,
+        throwsA(isA<TaskRemoteError>()),
       );
 
       var pending = await database.select(database.pendingOps).getSingle();
@@ -1510,15 +1512,15 @@ void main() {
         statusCode: 429,
         message: 'Rate limited',
       );
-      expect(
-        await PendingOpsReplayer(
+      await expectLater(
+        PendingOpsReplayer(
           database: database,
           apiClient: apiClient,
           accountId: 'account',
           random: Random(0),
           nowUtc: () => DateTime.utc(2026, 6, 4, 1),
         ).replayDueOps(),
-        0,
+        throwsA(isA<TaskRemoteError>()),
       );
       expect(apiClient.calls, ['move_task:task-1']);
       expect(
@@ -1947,15 +1949,15 @@ void main() {
         message: 'Rate limited',
       );
 
-      expect(
-        await PendingOpsReplayer(
+      await expectLater(
+        PendingOpsReplayer(
           database: database,
           apiClient: apiClient,
           accountId: 'account',
           random: Random(0),
           nowUtc: () => DateTime.utc(2026, 6, 4, 1),
         ).replayDueOps(),
-        0,
+        throwsA(isA<TaskRemoteError>()),
       );
       expect(apiClient.taskListPatchTitles, isEmpty);
       expect(
@@ -2278,15 +2280,16 @@ void main() {
       message: 'Temporarily unavailable',
     );
 
-    final firstApplied = await PendingOpsReplayer(
-      database: database,
-      apiClient: apiClient,
-      accountId: 'account',
-      random: Random(0),
-      nowUtc: () => DateTime.utc(2026, 6, 4, 1),
-    ).replayDueOps();
-
-    expect(firstApplied, 1);
+    await expectLater(
+      PendingOpsReplayer(
+        database: database,
+        apiClient: apiClient,
+        accountId: 'account',
+        random: Random(0),
+        nowUtc: () => DateTime.utc(2026, 6, 4, 1),
+      ).replayDueOps(),
+      throwsA(isA<TaskRemoteError>()),
+    );
     var pending = await database.select(database.pendingOps).get();
     expect(pending, hasLength(1));
     expect(pending.single.operation, 'move_task');
@@ -4084,16 +4087,18 @@ void main() {
       request: {'title': 'Patched'},
     );
 
-    final applied = await PendingOpsReplayer(
-      database: database,
-      apiClient: apiClient,
-      accountId: 'account',
-      random: Random(0),
-      nowUtc: () => DateTime.utc(2026, 6, 4),
-    ).replayDueOps();
+    await expectLater(
+      PendingOpsReplayer(
+        database: database,
+        apiClient: apiClient,
+        accountId: 'account',
+        random: Random(0),
+        nowUtc: () => DateTime.utc(2026, 6, 4),
+      ).replayDueOps(),
+      throwsA(isA<TaskRemoteError>()),
+    );
 
     final op = await database.select(database.pendingOps).getSingle();
-    expect(applied, 0);
     expect(op.attemptCount, 1);
     expect(op.lastErrorCode, '500');
     expect(op.nextAttemptAtUtc, isNot(equals(null)));
@@ -4181,16 +4186,18 @@ void main() {
         request: {'title': 'Patched'},
       );
 
-      final applied = await PendingOpsReplayer(
-        database: database,
-        apiClient: _microsoftAdapter(microsoftClient),
-        accountId: 'account',
-        random: Random(0),
-        nowUtc: () => now,
-      ).replayDueOps();
+      await expectLater(
+        PendingOpsReplayer(
+          database: database,
+          apiClient: _microsoftAdapter(microsoftClient),
+          accountId: 'account',
+          random: Random(0),
+          nowUtc: () => now,
+        ).replayDueOps(),
+        throwsA(isA<TaskRemoteError>()),
+      );
 
       final op = await database.select(database.pendingOps).getSingle();
-      expect(applied, 0);
       expect(op.attemptCount, 1);
       expect(op.lastErrorCode, '$statusCode');
       expect(op.lastErrorMessage, 'Transient Microsoft Graph error');

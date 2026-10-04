@@ -1196,5 +1196,14 @@
         "type": "String"
       }
     }
-  }
+  },
+  "oauthRegistrationRejected": "Tarkista rekisteröinnin asiakastyyppi, tuetut tilit, käyttöoikeudet ja uudelleenohjaus. Valitse tuotu määritystiedosto uudelleen.",
+  "oauthAuthorizationCodeUnusable": "Tätä valtuutusta ei voitu viimeistellä. Aloita uudelleen; nykyinen yhteys säilyy.",
+  "oauthPermissionRefused": "Valtuutus hylättiin tai vaadittuja käyttöoikeuksia puuttuu. Yritä uudelleen ja myönnä tarvittavat oikeudet.",
+  "oauthProviderThrottled": "Palveluntarjoaja rajoittaa pyyntöjä. Odota ennen uutta yritystä; nykyinen yhteys säilyy.",
+  "oauthProviderTemporaryFailure": "Palveluntarjoajan tilapäinen ongelma esti valtuutuksen. Yritä uudelleen; nykyinen yhteys säilyy.",
+  "oauthAuthorizationTimedOut": "Valtuutus aikakatkaistiin. Yritä uudelleen ja valitse tuotu määritystiedosto uudelleen.",
+  "oauthWrongAccount": "Valtuuta uudelleenyhdistämistä varten valittu tili. Nykyinen yhteys säilyy.",
+  "oauthSecureStorageUnavailable": "Suojattu tallennustila ei ole käytettävissä. Palauta sen käyttö ja yritä uudelleen.",
+  "oauthRevokedRemovalIncomplete": "Etävaltuutus peruttiin, mutta tilin siivousta ei voitu viimeistellä. Käynnistä BusyMax uudelleen ja yritä paikallista palautusta uudelleen."
 }

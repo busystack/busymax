@@ -3238,4 +3238,40 @@ class AppLocalizationsEt extends AppLocalizations {
   ) {
     return 'Pakett: $packageName\nAllkirja räsi: $signatureHash\nÜmbersuunamise URI: $redirectUri';
   }
+
+  @override
+  String get oauthRegistrationRejected =>
+      'Kontrolli registreeringu klienditüüpi, toetatud kontosid, õigusi ja ümbersuunamist. Vali imporditud seadistus uuesti.';
+
+  @override
+  String get oauthAuthorizationCodeUnusable =>
+      'Seda autoriseerimist ei saanud lõpetada. Alusta uuesti; olemasolev ühendus säilib.';
+
+  @override
+  String get oauthPermissionRefused =>
+      'Autoriseerimisest keelduti või nõutud õigused puuduvad. Proovi uuesti ja anna vajalikud õigused.';
+
+  @override
+  String get oauthProviderThrottled =>
+      'Teenusepakkuja piirab päringuid. Oota enne uut katset; olemasolev ühendus säilib.';
+
+  @override
+  String get oauthProviderTemporaryFailure =>
+      'Teenusepakkuja ajutine probleem takistas autoriseerimist. Proovi uuesti; olemasolev ühendus säilib.';
+
+  @override
+  String get oauthAuthorizationTimedOut =>
+      'Autoriseerimise aeg sai läbi. Proovi uuesti ja vali imporditud seadistus uuesti.';
+
+  @override
+  String get oauthWrongAccount =>
+      'Autoriseeri taasühendamiseks valitud konto. Olemasolev ühendus säilib.';
+
+  @override
+  String get oauthSecureStorageUnavailable =>
+      'Turvaline salvestus pole saadaval. Taasta juurdepääs ja proovi uuesti.';
+
+  @override
+  String get oauthRevokedRemovalIncomplete =>
+      'Kaugautoriseerimine tühistati, kuid konto puhastamist ei saanud lõpetada. Taaskäivita BusyMax kohaliku taastamise uuesti proovimiseks.';
 }

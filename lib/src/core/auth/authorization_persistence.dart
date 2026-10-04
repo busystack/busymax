@@ -49,7 +49,10 @@ final class AuthorizationPersistence {
 
   /// Readers use the same serialized boundary as replacement/removal. They
   /// cannot select the temporary secure write before its SQLite commit.
-  Future<SecretRecord?> readCurrentCredential(String id) => run(id, () async {
+  Future<SecretRecord?> readCurrentCredential(String id) =>
+      run(id, () => _readCurrentCredential(id));
+
+  Future<SecretRecord?> _readCurrentCredential(String id) async {
     final record = await secrets.readCredential(id);
     final recordGeneration = switch (record) {
       BoundOAuthSecretRecord() => record.generation,
@@ -63,7 +66,37 @@ final class AuthorizationPersistence {
       );
     }
     return record;
-  });
+  }
+
+  /// Recovery precedes the boundary. The callback owns it once, including
+  /// revocation and local removal; it receives a validated snapshot, no reader.
+  Future<T> runRemoval<T>(
+    String id,
+    Future<T> Function(AuthorizationRemovalSnapshot snapshot) operation,
+  ) async {
+    await recover();
+    return run(id, () async {
+      final account = await (database.select(
+        database.accounts,
+      )..where((row) => row.id.equals(id))).getSingleOrNull();
+      final provider = account?.provider;
+      if (provider == 'google' || provider == 'microsoft') {
+        await secrets.migrateLegacyOAuthCredential(
+          id,
+          provider == 'google' ? BusyProvider.google : BusyProvider.microsoft,
+        );
+      }
+      final snapshot = AuthorizationRemovalSnapshot._(
+        id,
+        await _readCurrentCredential(id),
+      );
+      try {
+        return await operation(snapshot);
+      } finally {
+        snapshot._active = false;
+      }
+    });
+  }
 
   Future<void> recover() async {
     final journals = await database.select(database.authorizationCommits).get();
@@ -127,6 +160,7 @@ final class AuthorizationPersistence {
     required Future<void> Function() persistAccount,
     bool requireExisting = false,
     void Function()? validateCandidate,
+    void Function()? onCommitted,
   }) => run(accountId, () async {
     validateCandidate?.call();
     final existingAccount = await (database.select(
@@ -216,6 +250,7 @@ final class AuthorizationPersistence {
                 summaryJson: jsonEncode(summaryJson(_summary(credential))),
               ),
             );
+        validateCandidate?.call();
         await (database.update(
           database.authorizationCommits,
         )..where((row) => row.accountId.equals(accountId))).write(
@@ -228,6 +263,7 @@ final class AuthorizationPersistence {
             ),
           ),
         );
+        validateCandidate?.call();
       });
     } on Object {
       // Leave journal intact if rollback fails: restart recovery runs before auth/sync.
@@ -245,6 +281,7 @@ final class AuthorizationPersistence {
       await _clearJournal(accountId);
       rethrow;
     }
+    onCommitted?.call();
     // Cleanup is optional after the durable commit; recovery can finish it.
     try {
       await _clearJournal(accountId);
@@ -454,6 +491,19 @@ final class AuthorizationPersistence {
   }
 
   String _backupKey(String id) => 'busymax.authorization.rollback:$id';
+}
+
+/// Issued only inside runRemoval. It cannot be used as an unlocked reader or
+/// after the operation releases the account boundary.
+final class AuthorizationRemovalSnapshot {
+  AuthorizationRemovalSnapshot._(this.accountId, this._credential);
+  final String accountId;
+  final SecretRecord? _credential;
+  bool _active = true;
+  SecretRecord? get credential {
+    if (!_active) throw StateError('The removal boundary was released.');
+    return _credential;
+  }
 }
 
 /// Versioned non-secret recovery receipt. Its committed flag is written in the

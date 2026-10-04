@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:http/http.dart' as http;
 import '../auth/oauth_models.dart';
@@ -16,8 +17,9 @@ Future<http.Response> boundedHttpRequest(
 }) async {
   final abort = Completer<void>();
   var timedOut = false;
+  var finished = false;
   void stop() {
-    if (!abort.isCompleted) abort.complete();
+    if (!finished && !abort.isCompleted) abort.complete();
   }
 
   final timer = Timer(timeout, () {
@@ -38,10 +40,29 @@ Future<http.Response> boundedHttpRequest(
           ? 'The provider request timed out.'
           : 'Authorization was cancelled.',
     );
+    // Let an already-completed captured cancellation signal run before send.
+    await Future<void>.value();
+    if (abort.isCompleted) throw stopped();
+    var claimed = false;
+    final sending = client.send(request);
+    unawaited(
+      sending.then<void>((response) {
+        if (!claimed && abort.isCompleted) {
+          unawaited(
+            response.stream
+                .listen((_) {})
+                .cancel()
+                .then<void>((_) {}, onError: (Object _, StackTrace _) {}),
+          );
+        }
+      }, onError: (Object _, StackTrace _) {}),
+    );
     final streamed = await Future.any([
-      client.send(request),
+      sending,
       abort.future.then<http.StreamedResponse>((_) => throw stopped()),
     ]);
+    claimed = true;
+    if (abort.isCompleted) throw stopped();
     final bytes = <int>[];
     final iterator = StreamIterator(streamed.stream);
     try {
@@ -61,7 +82,14 @@ Future<http.Response> boundedHttpRequest(
         bytes.addAll(chunk);
       }
     } finally {
-      await iterator.cancel();
+      // Cancellation stops subscription delivery synchronously. A transport's
+      // asynchronous cleanup acknowledgement must not extend this deadline.
+      unawaited(
+        iterator.cancel().then<void>(
+          (_) {},
+          onError: (Object _, StackTrace _) {},
+        ),
+      );
     }
     if (abort.isCompleted) throw stopped();
     return http.Response.bytes(
@@ -71,7 +99,18 @@ Future<http.Response> boundedHttpRequest(
       reasonPhrase: streamed.reasonPhrase,
       request: request,
     );
+  } on http.ClientException {
+    throw const OAuthException(
+      'OAuthTemporaryTransport',
+      'The provider request could not complete. Try again.',
+    );
+  } on SocketException {
+    throw const OAuthException(
+      'OAuthTemporaryTransport',
+      'The provider request could not complete. Try again.',
+    );
   } finally {
+    finished = true;
     timer.cancel();
   }
 }

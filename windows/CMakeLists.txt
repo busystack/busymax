@@ -64,6 +64,9 @@ add_subdirectory("runner")
 include(flutter/generated_plugins.cmake)
 
 
+add_subdirectory("${CMAKE_CURRENT_SOURCE_DIR}/../native/registration_reader"
+  "${CMAKE_BINARY_DIR}/registration_reader")
+
 # === Installation ===
 # Support files are copied into place next to the executable, so that it can
 # run in place. This is done instead of making a separate bundle (as on Linux)
@@ -77,6 +80,10 @@ endif()
 
 set(INSTALL_BUNDLE_DATA_DIR "${CMAKE_INSTALL_PREFIX}/data")
 set(INSTALL_BUNDLE_LIB_DIR "${CMAKE_INSTALL_PREFIX}")
+
+install(TARGETS busymax_registration_reader
+  LIBRARY DESTINATION "${INSTALL_BUNDLE_LIB_DIR}"
+  RUNTIME DESTINATION "${INSTALL_BUNDLE_LIB_DIR}" COMPONENT Runtime)
 
 install(TARGETS ${BINARY_NAME} RUNTIME DESTINATION "${CMAKE_INSTALL_PREFIX}"
   COMPONENT Runtime)

@@ -9,3 +9,13 @@ absolute path of `desktop_synthetic.json`, run
 (or `-d windows` on Windows), and select this file when the system dialog opens.
 The integration test also writes and removes its own disposable synthetic secure
 storage key; it does not change accounts or the active-account key.
+
+For automated Linux coverage of the real Settings Cancel/disposal controls,
+native storage, chooser and handle reader, run
+`DISPLAY=:1 python3 tool/linux/test_oauth_corrective_native.py` with the approved
+Flutter executable on PATH (or set `BUSYMAX_FLUTTER_EXECUTABLE`). This requires
+an available X11 display and installed D-Bus, GNOME keyring and system Python GI/AT-SPI libraries.
+It creates a private temporary keyring and targets only its own chooser through accessibility.
+Run it sequentially with other Linux Flutter builds so generated entry points
+are not changed while its app is compiling. It uses this fixture only and never
+authorizes, revokes or removes a provider account.

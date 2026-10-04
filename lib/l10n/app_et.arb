@@ -1374,5 +1374,14 @@
         "type": "String"
       }
     }
-  }
+  },
+  "oauthRegistrationRejected": "Kontrolli registreeringu klienditüüpi, toetatud kontosid, õigusi ja ümbersuunamist. Vali imporditud seadistus uuesti.",
+  "oauthAuthorizationCodeUnusable": "Seda autoriseerimist ei saanud lõpetada. Alusta uuesti; olemasolev ühendus säilib.",
+  "oauthPermissionRefused": "Autoriseerimisest keelduti või nõutud õigused puuduvad. Proovi uuesti ja anna vajalikud õigused.",
+  "oauthProviderThrottled": "Teenusepakkuja piirab päringuid. Oota enne uut katset; olemasolev ühendus säilib.",
+  "oauthProviderTemporaryFailure": "Teenusepakkuja ajutine probleem takistas autoriseerimist. Proovi uuesti; olemasolev ühendus säilib.",
+  "oauthAuthorizationTimedOut": "Autoriseerimise aeg sai läbi. Proovi uuesti ja vali imporditud seadistus uuesti.",
+  "oauthWrongAccount": "Autoriseeri taasühendamiseks valitud konto. Olemasolev ühendus säilib.",
+  "oauthSecureStorageUnavailable": "Turvaline salvestus pole saadaval. Taasta juurdepääs ja proovi uuesti.",
+  "oauthRevokedRemovalIncomplete": "Kaugautoriseerimine tühistati, kuid konto puhastamist ei saanud lõpetada. Taaskäivita BusyMax kohaliku taastamise uuesti proovimiseks."
 }

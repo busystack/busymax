@@ -135,6 +135,7 @@ enum OAuthFailureKind {
   temporary,
   stale,
   alreadyConnected,
+  authorizationCode,
 }
 
 class OAuthException implements Exception {
@@ -201,4 +202,94 @@ class OAuthRefreshException extends OAuthException {
 
   /// The provider's redacted OAuth `error_description`, when present.
   final String? oauthErrorDescription;
+}
+
+/// A failed candidate authorization never describes the existing refresh grant.
+/// Only allowlisted outcomes affect recovery; raw provider text is not retained.
+class OAuthAuthorizationException extends OAuthException {
+  const OAuthAuthorizationException(
+    super.code,
+    super.message, {
+    required this.kind,
+    this.statusCode,
+    this.retryAfter,
+  });
+  final OAuthFailureKind kind;
+  final int? statusCode;
+  final Duration? retryAfter;
+  @override
+  OAuthFailureKind get classification => kind;
+}
+
+OAuthAuthorizationException authorizationOutcomeFailure({
+  required String code,
+  String? providerError,
+  int? statusCode,
+  Duration? retryAfter,
+}) {
+  final kind = statusCode == 429
+      ? OAuthFailureKind.throttled
+      : statusCode != null && statusCode >= 500
+      ? OAuthFailureKind.temporary
+      : switch (providerError) {
+          'invalid_client' ||
+          'unauthorized_client' ||
+          'invalid_request' ||
+          'invalid_scope' ||
+          'unsupported_response_type' ||
+          'unsupported_grant_type' => OAuthFailureKind.configuration,
+          'invalid_grant' => OAuthFailureKind.authorizationCode,
+          'access_denied' ||
+          'consent_required' ||
+          'interaction_required' ||
+          'login_required' => OAuthFailureKind.permission,
+          _ =>
+            statusCode == 403
+                ? OAuthFailureKind.permission
+                : OAuthFailureKind.temporary,
+        };
+  final message = switch (kind) {
+    OAuthFailureKind.configuration =>
+      'The provider rejected this registration or its permission configuration. Check setup before authorizing again.',
+    OAuthFailureKind.authorizationCode =>
+      'The authorization code could not be used. Start a fresh authorization attempt.',
+    OAuthFailureKind.permission =>
+      'Authorization was declined or permission is required. Your existing connection is preserved.',
+    OAuthFailureKind.throttled =>
+      'Authorization is rate limited. Wait for the provider cooldown before trying again.',
+    _ => 'The provider could not complete authorization. Try again later.',
+  };
+  return OAuthAuthorizationException(
+    code,
+    '$message${statusCode == null ? '' : ' (HTTP $statusCode)'}',
+    kind: kind,
+    statusCode: statusCode,
+    retryAfter: retryAfter,
+  );
+}
+
+OAuthAuthorizationException codeExchangeFailure(
+  String code,
+  String body,
+  int status,
+  Duration? retryAfter,
+) {
+  String? error;
+  // Temporary status wins even if decoding fails or a misleading error is sent.
+  if (status < 500 && status != 429) {
+    try {
+      final decoded = jsonDecode(body);
+      if (decoded is Map && decoded['error'] is String) {
+        error = decoded['error'] as String;
+      }
+    } on Object {
+      /* malformed response has safe generic recovery */
+    }
+  }
+  return authorizationOutcomeFailure(
+    code: code,
+    providerError: error,
+    statusCode: status,
+    retryAfter: retryAfter,
+  );
 }

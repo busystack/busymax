@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 
 import '../../providers/busy_provider.dart';
 import 'oauth_models.dart';
+import 'authorization_attempt.dart';
 import 'oauth_registration.dart';
 import 'registration_staging.dart';
 
@@ -19,6 +20,7 @@ final class RegistrationSetupController extends ChangeNotifier {
   bool busy = false;
   bool _disposed = false;
   bool _accepted = false;
+  final _cancellation = AuthorizationCancellation();
   MicrosoftAudience audience = MicrosoftAudience.personalAndOrganizations;
   String clientId = '';
   String tenantId = '';
@@ -28,12 +30,14 @@ final class RegistrationSetupController extends ChangeNotifier {
   }
 
   Future<void> validate() async {
+    if (busy || _disposed) return;
+    clearSelection();
     busy = true;
     error = null;
     notifyListeners();
     try {
       handle = provider == BusyProvider.google
-          ? await staging.selectGoogle()
+          ? await staging.selectGoogle(cancellation: _cancellation)
           : staging.stageMicrosoft(
               clientId: clientId,
               audience: audience,
@@ -70,7 +74,8 @@ final class RegistrationSetupController extends ChangeNotifier {
   @override
   void dispose() {
     _disposed = true;
-    if (!_accepted) staging.cancel();
+    _cancellation.cancel();
+    if (!_accepted) clearSelection();
     super.dispose();
   }
 }

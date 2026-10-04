@@ -1196,5 +1196,14 @@
         "type": "String"
       }
     }
-  }
+  },
+  "oauthRegistrationRejected": "Verifique o tipo de cliente, as contas suportadas, as permissões e o redirecionamento do registo. Selecione novamente a configuração importada.",
+  "oauthAuthorizationCodeUnusable": "Não foi possível concluir esta autorização. Inicie novamente; a ligação existente é preservada.",
+  "oauthPermissionRefused": "A autorização foi recusada ou faltam permissões necessárias. Tente novamente e conceda as permissões exigidas.",
+  "oauthProviderThrottled": "O fornecedor está a limitar pedidos. Aguarde antes de tentar novamente; a ligação existente é preservada.",
+  "oauthProviderTemporaryFailure": "Um problema temporário do fornecedor impediu a autorização. Tente novamente; a ligação existente é preservada.",
+  "oauthAuthorizationTimedOut": "O tempo de autorização expirou. Tente novamente e selecione uma nova configuração, se foi importada.",
+  "oauthWrongAccount": "Autorize a conta selecionada para voltar a ligar. A ligação existente é preservada.",
+  "oauthSecureStorageUnavailable": "O armazenamento seguro está indisponível. Restabeleça o acesso e tente novamente.",
+  "oauthRevokedRemovalIncomplete": "A autorização remota foi revogada, mas a limpeza da conta não pôde ser concluída. Reinicie o BusyMax para tentar novamente a recuperação local."
 }

@@ -5477,6 +5477,60 @@ abstract class AppLocalizations {
     String signatureHash,
     String redirectUri,
   );
+
+  /// No description provided for @oauthRegistrationRejected.
+  ///
+  /// In en, this message translates to:
+  /// **'Check the client type, supported accounts, permissions, and redirect in your registration. Select the configuration again if it was imported.'**
+  String get oauthRegistrationRejected;
+
+  /// No description provided for @oauthAuthorizationCodeUnusable.
+  ///
+  /// In en, this message translates to:
+  /// **'This authorization attempt could not be completed. Start authorization again; your existing connection is preserved.'**
+  String get oauthAuthorizationCodeUnusable;
+
+  /// No description provided for @oauthPermissionRefused.
+  ///
+  /// In en, this message translates to:
+  /// **'Authorization was refused or required permissions were not granted. Try again and grant the required permissions.'**
+  String get oauthPermissionRefused;
+
+  /// No description provided for @oauthProviderThrottled.
+  ///
+  /// In en, this message translates to:
+  /// **'The provider is limiting requests. Wait before trying again; your existing connection is preserved.'**
+  String get oauthProviderThrottled;
+
+  /// No description provided for @oauthProviderTemporaryFailure.
+  ///
+  /// In en, this message translates to:
+  /// **'Authorization could not complete because of a temporary provider problem. Try again; your existing connection is preserved.'**
+  String get oauthProviderTemporaryFailure;
+
+  /// No description provided for @oauthAuthorizationTimedOut.
+  ///
+  /// In en, this message translates to:
+  /// **'Authorization timed out. Try again; select a fresh configuration if it was imported.'**
+  String get oauthAuthorizationTimedOut;
+
+  /// No description provided for @oauthWrongAccount.
+  ///
+  /// In en, this message translates to:
+  /// **'Authorize the account selected for reconnection. Your existing connection is preserved.'**
+  String get oauthWrongAccount;
+
+  /// No description provided for @oauthSecureStorageUnavailable.
+  ///
+  /// In en, this message translates to:
+  /// **'Secure storage is unavailable. Restore access to secure storage and try again.'**
+  String get oauthSecureStorageUnavailable;
+
+  /// No description provided for @oauthRevokedRemovalIncomplete.
+  ///
+  /// In en, this message translates to:
+  /// **'Remote authorization was revoked, but account cleanup could not finish. Restart BusyMax to retry local recovery.'**
+  String get oauthRevokedRemovalIncomplete;
 }
 
 class _AppLocalizationsDelegate

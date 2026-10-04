@@ -10,9 +10,43 @@ import java.util.Locale
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNotNull
 import org.junit.jupiter.api.Test
+import sun.misc.Unsafe
 import org.mockito.Mockito
 
 internal class BusymaxAndroidPlatformPluginTest {
+    @Test
+    fun scopedCancellation_cannotCancelNewerInteractiveReservation() {
+        val plugin = BusymaxAndroidPlatformPlugin()
+        val activityField = BusymaxAndroidPlatformPlugin::class.java.getDeclaredField("activity")
+        activityField.isAccessible = true
+        // This JVM test only needs the production host-presence check. No
+        // Activity method/SDK is invoked; device execution is a separate check.
+        val unsafeField = Unsafe::class.java.getDeclaredField("theUnsafe")
+        unsafeField.isAccessible = true
+        val allocator = unsafeField.get(null) as Unsafe
+        activityField.set(plugin, allocator.allocateInstance(android.app.Activity::class.java))
+        val reserve = BusymaxAndroidPlatformPlugin::class.java.getDeclaredMethod(
+            "reserveInteractive", String::class.java, MethodChannel.Result::class.java, String::class.java)
+        reserve.isAccessible = true
+        class RecordingResult : MethodChannel.Result {
+            val errors = mutableListOf<String>()
+            override fun success(value: Any?) {}
+            override fun error(code: String, message: String?, details: Any?) { errors.add(code) }
+            override fun notImplemented() { throw AssertionError("Unexpected method") }
+        }
+        val old = RecordingResult()
+        val fresh = RecordingResult()
+        val cancel = RecordingResult()
+        assertEquals(true, reserve.invoke(plugin, "microsoft", old, "old"))
+        plugin.onMethodCall(MethodCall("cancelInteractiveAuthorization", mapOf("authorizationAttemptId" to "old")), cancel)
+        assertEquals(listOf("android/auth-cancelled"), old.errors)
+        assertEquals(true, reserve.invoke(plugin, "microsoft", fresh, "fresh"))
+        plugin.onMethodCall(MethodCall("cancelInteractiveAuthorization", mapOf("authorizationAttemptId" to "old")), cancel)
+        assertEquals(emptyList<String>(), fresh.errors)
+        plugin.onMethodCall(MethodCall("cancelInteractiveAuthorization", mapOf("authorizationAttemptId" to "fresh")), cancel)
+        assertEquals(listOf("android/auth-cancelled"), fresh.errors)
+    }
+
     @Test
     fun firstWeekday_convertsEveryAndroidxValueToDartNumbering() {
         val values = listOf(

@@ -357,7 +357,7 @@ class BusymaxAndroidPlatformPlugin : FlutterPlugin,
             "bindAuthorization" -> bindAuthorization(call, result)
             "clearRejectedGoogleToken" -> clearGoogleToken(call, result)
             "removeAuthorization" -> removeAuthorization(call, result)
-            "cancelInteractiveAuthorization" -> cancelInteractive(result)
+            "cancelInteractiveAuthorization" -> cancelInteractive(call, result)
             "openDocument" -> openDocument(call, result)
             "readDocumentUri" -> readDocumentUri(call, result)
             "createDocument" -> createDocument(call, result)
@@ -400,7 +400,7 @@ class BusymaxAndroidPlatformPlugin : FlutterPlugin,
     private fun authorizeGoogle(call: MethodCall, result: MethodChannel.Result, interactive: Boolean) {
         val scopes = stringList(call.argument<List<*>>("scopes"))
         if (scopes.isEmpty()) return result.error("android/invalid-arguments", "Scopes are required.", null)
-        if (interactive && !reserveInteractive("google", result)) return
+        if (interactive && !reserveInteractive("google", result, call.argument<String>("authorizationAttemptId"))) return
         val attempt = if (interactive) pendingInteractive else null
         val builder = AuthorizationRequest.builder()
             .setRequestedScopes(scopes.map(::Scope))
@@ -460,7 +460,7 @@ class BusymaxAndroidPlatformPlugin : FlutterPlugin,
     private fun authorizeMicrosoft(call: MethodCall, result: MethodChannel.Result, interactive: Boolean) {
         val scopes = stringList(call.argument<List<*>>("scopes"))
         if (scopes.isEmpty()) return result.error("android/invalid-arguments", "Scopes are required.", null)
-        if (interactive && !reserveInteractive("microsoft", result)) return
+        if (interactive && !reserveInteractive("microsoft", result, call.argument<String>("authorizationAttemptId"))) return
         val attempt = if (interactive) pendingInteractive else null
         val selectedBinding = if (interactive) null else readBinding("microsoft", call.argument<String>("accountId").orEmpty())
         val explicitClient = call.argument<String>("clientId")
@@ -647,10 +647,10 @@ class BusymaxAndroidPlatformPlugin : FlutterPlugin,
         removeBinding(); result.success(null)
     }
 
-    private fun reserveInteractive(provider: String, result: MethodChannel.Result): Boolean {
+    private fun reserveInteractive(provider: String, result: MethodChannel.Result, authorizationAttemptId: String?): Boolean {
         if (activity == null) { result.error("android/activity-unavailable", "Sign-in requires a visible Activity.", null); return false }
         if (pendingInteractive != null) { result.error("android/auth-in-progress", "Another sign-in is already in progress.", null); return false }
-        pendingInteractive = PendingInteractive(provider, result, 0x5200 + (++interactiveSequence % 0x1000))
+        pendingInteractive = PendingInteractive(provider, result, 0x5200 + (++interactiveSequence % 0x1000), authorizationAttemptId)
         return true
     }
 
@@ -662,8 +662,10 @@ class BusymaxAndroidPlatformPlugin : FlutterPlugin,
     }
 
     private fun clearPendingInteractive(expected: PendingInteractive? = pendingInteractive) { if (pendingInteractive === expected) pendingInteractive = null }
-    private fun cancelInteractive(result: MethodChannel.Result) {
+    private fun cancelInteractive(call: MethodCall, result: MethodChannel.Result) {
         val pending = pendingInteractive
+        val requestedId = call.argument<String>("authorizationAttemptId")
+        if (requestedId != null && pending?.authorizationAttemptId != requestedId) { result.success(null); return }
         pendingInteractive = null
         pending?.result?.error("android/auth-cancelled", "Sign-in was cancelled.", null)
         result.success(null)
@@ -878,7 +880,7 @@ class BusymaxAndroidPlatformPlugin : FlutterPlugin,
     private fun postSuccess(result: MethodChannel.Result, value: Any?) { main.post { result.success(value) } }
     private fun postError(result: MethodChannel.Result, code: String, message: String, error: Throwable?) { main.post { result.error(code, message, error?.let(::safeError)) } }
 
-    private data class PendingInteractive(val provider: String, val result: MethodChannel.Result, val requestCode: Int)
+    private data class PendingInteractive(val provider: String, val result: MethodChannel.Result, val requestCode: Int, val authorizationAttemptId: String?)
     private data class ExportResource(val name: String, val bytes: ByteArray)
     private sealed class PendingDocument(val result: MethodChannel.Result, val requestCode: Int) {
         class Open(result: MethodChannel.Result, val maximumBytes: Long) : PendingDocument(result, OPEN_DOCUMENT_REQUEST)

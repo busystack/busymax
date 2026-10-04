@@ -3190,4 +3190,39 @@ class AppLocalizationsJa extends AppLocalizations {
   ) {
     return 'パッケージ: $packageName\n署名ハッシュ: $signatureHash\nリダイレクト URI: $redirectUri';
   }
+
+  @override
+  String get oauthRegistrationRejected =>
+      '登録のクライアント種別、対応アカウント、権限、リダイレクトを確認してください。インポートした設定は再選択してください。';
+
+  @override
+  String get oauthAuthorizationCodeUnusable =>
+      'この認証を完了できませんでした。認証をやり直してください。既存の接続は保持されています。';
+
+  @override
+  String get oauthPermissionRefused =>
+      '認証が拒否されたか、必要な権限がありません。再試行して必要な権限を付与してください。';
+
+  @override
+  String get oauthProviderThrottled =>
+      'プロバイダーがリクエストを制限しています。しばらく待って再試行してください。既存の接続は保持されています。';
+
+  @override
+  String get oauthProviderTemporaryFailure =>
+      'プロバイダーの一時的な問題により認証を完了できませんでした。再試行してください。既存の接続は保持されています。';
+
+  @override
+  String get oauthAuthorizationTimedOut =>
+      '認証がタイムアウトしました。再試行し、インポートした設定は再選択してください。';
+
+  @override
+  String get oauthWrongAccount => '再接続用に選択したアカウントで認証してください。既存の接続は保持されています。';
+
+  @override
+  String get oauthSecureStorageUnavailable =>
+      '安全なストレージを利用できません。アクセスを復旧して再試行してください。';
+
+  @override
+  String get oauthRevokedRemovalIncomplete =>
+      'リモート認証は取り消されましたが、アカウントのクリーンアップを完了できませんでした。BusyMax を再起動してローカル復旧を再試行してください。';
 }

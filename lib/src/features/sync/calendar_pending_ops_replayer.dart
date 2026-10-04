@@ -26,6 +26,7 @@ import '../calendar/data/calendar_repository.dart';
 import '../recurrence/domain/event_recurrence_codec.dart';
 import '../recurrence/domain/recurrence_rule.dart';
 import 'pending_ops_replay_coordinator.dart';
+import 'domain_sync_schedule.dart';
 import 'collection_id_replacement.dart';
 
 const _microsoftLocationStateField = 'locationState';
@@ -72,6 +73,8 @@ class CalendarPendingOpsReplayer {
   }
 
   Future<int> _replayDueOps() async {
+    final policy = DomainSyncPolicy(_database, nowUtc: _nowUtc);
+    await policy.checkCooldown(_accountId, SyncDomain.calendar);
     final dueOps = await _database.pendingOpsDao.pendingOpsForReplay(
       _accountId,
       _nowUtc(),
@@ -83,6 +86,7 @@ class CalendarPendingOpsReplayer {
     var applied = 0;
 
     for (final originalOp in ops) {
+      await policy.checkCooldown(_accountId, SyncDomain.calendar);
       var op = await _readOp(originalOp.id);
       if (op == null || !_isCalendarOp(op)) {
         continue;
@@ -122,6 +126,13 @@ class CalendarPendingOpsReplayer {
           error.code,
           'The calendar creation request was not sent and can be retried.',
         );
+        if (await policy.recordFailureCooldown(
+          _accountId,
+          SyncDomain.calendar,
+          error,
+        )) {
+          rethrow;
+        }
       } on GoogleCalendarApiError catch (error) {
         if (_isSuccessfulMissingDelete(op, error.statusCode)) {
           await _applyDeleteSideEffect(op);
@@ -149,6 +160,13 @@ class CalendarPendingOpsReplayer {
         } else {
           await _blockOp(op, error.code, error.message);
         }
+        if (await policy.recordFailureCooldown(
+          _accountId,
+          SyncDomain.calendar,
+          error,
+        )) {
+          rethrow;
+        }
       } on MicrosoftCalendarApiError catch (error) {
         if (_isSuccessfulMissingDelete(op, error.statusCode)) {
           await _applyDeleteSideEffect(op);
@@ -167,6 +185,13 @@ class CalendarPendingOpsReplayer {
           );
         } else {
           await _blockOp(op, error.code, error.message);
+        }
+        if (await policy.recordFailureCooldown(
+          _accountId,
+          SyncDomain.calendar,
+          error,
+        )) {
+          rethrow;
         }
       } on _PendingOpBlocked {
         continue;

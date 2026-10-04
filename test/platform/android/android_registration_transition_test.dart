@@ -1,3 +1,4 @@
+import 'package:busymax/src/core/auth/authorization_attempt.dart';
 import 'dart:convert';
 import 'dart:async';
 import 'package:busymax/src/core/auth/oauth_models.dart';
@@ -32,6 +33,10 @@ void main() {
   late List<MethodCall> calls;
   late Map<String, Map<String, Object?>> bindings;
   var wrongAccount = false;
+  Completer<void>? interactiveStarted;
+  Completer<void>? interactiveRelease;
+  Completer<void>? identityStarted;
+  Completer<void>? identityRelease;
   Completer<void>? silentStarted;
   Completer<void>? silentRelease;
   setUp(() {
@@ -41,6 +46,10 @@ void main() {
     calls = [];
     bindings = {};
     wrongAccount = false;
+    interactiveStarted = null;
+    interactiveRelease = null;
+    identityStarted = null;
+    identityRelease = null;
     silentStarted = null;
     silentRelease = null;
     messenger.setMockMethodCallHandler(channel, (call) async {
@@ -68,7 +77,14 @@ void main() {
         case 'clearAuthorizationBinding':
           bindings.remove(args['accountId']);
           return null;
+        case 'cancelInteractiveAuthorization':
+          return null;
         case 'authorizeMicrosoftInteractive':
+          final wait = interactiveRelease;
+          if (interactiveStarted != null && !interactiveStarted!.isCompleted) {
+            interactiveStarted!.complete();
+          }
+          await wait?.future;
           return {
             'nativeAccountId': wrongAccount
                 ? 'wrong'
@@ -104,8 +120,12 @@ void main() {
       secretStore: secrets,
       database: db,
       registrations: staging,
-      httpClient: MockClient(
-        (r) async => http.Response(
+      httpClient: MockClient((r) async {
+        if (identityStarted != null && !identityStarted!.isCompleted) {
+          identityStarted!.complete();
+        }
+        await identityRelease?.future;
+        return http.Response(
           jsonEncode({
             'id': r.headers['authorization'] == 'Bearer wrong'
                 ? 'different'
@@ -113,8 +133,8 @@ void main() {
             'displayName': 'Fixture',
           }),
           200,
-        ),
-      ),
+        );
+      }),
     );
     repository = AuthRepository(
       oAuth: broker,
@@ -154,6 +174,123 @@ void main() {
     await broker.nativeCredential('opaque', BusyProvider.microsoft);
   }
 
+  test(
+    'Android cancellation captured before recovery prevents later native dispatch and fresh retry succeeds',
+    () async {
+      final cancellation = AuthorizationCancellation();
+      final operation = repository.signInWithMicrosoft(
+        request: AuthorizationRequest.newConnection(
+          own(),
+          cancellation: cancellation,
+        ),
+      );
+      final rejected = expectLater(
+        operation,
+        throwsA(
+          isA<OAuthException>().having(
+            (e) => e.classification,
+            'cancelled',
+            OAuthFailureKind.cancelled,
+          ),
+        ),
+      );
+      cancellation.cancel();
+      await rejected;
+      expect(
+        calls.where((c) => c.method == 'authorizeMicrosoftInteractive'),
+        isEmpty,
+      );
+      expect(await db.select(db.accounts).get(), isEmpty);
+      await repository.signInWithMicrosoft(
+        request: AuthorizationRequest.newConnection(own()),
+      );
+      expect(
+        calls.where((c) => c.method == 'authorizeMicrosoftInteractive'),
+        hasLength(1),
+      );
+    },
+  );
+  for (final shared in [false, true]) {
+    for (final phase in ['identity', 'native']) {
+      test(
+        'Android cancelled $phase result cannot replace selected registration shared=$shared',
+        () async {
+          await seedShared();
+          if (!shared) {
+            await repository.signInWithMicrosoft(
+              request: AuthorizationRequest.replace('opaque', own()),
+            );
+          }
+          final before = (await secrets.readCredential('opaque'))!.toJson();
+          final entered = Completer<void>(), release = Completer<void>();
+          if (phase == 'native') {
+            interactiveStarted = entered;
+            interactiveRelease = release;
+          } else {
+            identityStarted = entered;
+            identityRelease = release;
+          }
+          final cancellation = AuthorizationCancellation();
+          final old = repository.signInWithMicrosoft(
+            request: AuthorizationRequest.replace(
+              'opaque',
+              own(),
+              cancellation: cancellation,
+            ),
+          );
+          final rejected = expectLater(
+            old,
+            throwsA(
+              isA<OAuthException>().having(
+                (e) => e.classification,
+                'cancelled',
+                OAuthFailureKind.cancelled,
+              ),
+            ),
+          );
+          await entered.future;
+          cancellation.cancel();
+          await rejected;
+          final attempt =
+              calls
+                      .lastWhere(
+                        (c) => c.method == 'authorizeMicrosoftInteractive',
+                      )
+                      .arguments
+                  as Map;
+          if (phase == 'native') {
+            expect(
+              calls
+                  .lastWhere(
+                    (c) => c.method == 'cancelInteractiveAuthorization',
+                  )
+                  .arguments,
+              containsPair(
+                'authorizationAttemptId',
+                attempt['authorizationAttemptId'],
+              ),
+            );
+          }
+          // A new invocation is dispatched while the cancelled native result is
+          // still pending; its cancellation identity remains independent.
+          interactiveStarted = null;
+          interactiveRelease = null;
+          identityStarted = null;
+          identityRelease = null;
+          await repository.signInWithMicrosoft(
+            request: AuthorizationRequest.reconnect('opaque'),
+          );
+          release.complete();
+          final after =
+              await secrets.readCredential('opaque')
+                  as MicrosoftAndroidCredential;
+          expect(after.registration.clientId, shared ? clientA : clientB);
+          expect(after.summary.showRetirementNotice, shared);
+          expect(after.generation, (before['generation'] as int) + 1);
+        },
+      );
+    }
+  }
   test(
     'original native binding upgrades idempotently and user-owned migration selects its own MSAL registration',
     () async {
@@ -221,6 +358,10 @@ void main() {
       );
       silentRelease!.complete();
       await rejected;
+      interactiveStarted = null;
+      interactiveRelease = null;
+      identityStarted = null;
+      identityRelease = null;
       silentStarted = null;
       silentRelease = null;
       expect(

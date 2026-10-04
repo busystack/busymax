@@ -34,7 +34,8 @@ def main():
     manifest = []
     for relative in paths:
         path = root / relative
-        if (Path(relative).parts[0] in excluded or path.name in local_names
+        if (Path(relative).parts[0] in excluded or ".kotlin" in Path(relative).parts
+                or path.name in local_names
                 or path.suffix in {".jks", ".keystore", ".pfx", ".p12", ".pem", ".key"}
                 or path == output or not path.exists()):
             continue

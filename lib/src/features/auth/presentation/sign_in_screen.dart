@@ -1,3 +1,5 @@
+import '../../../l10n/oauth_error_description.dart';
+import 'package:busymax/src/core/auth/authorization_attempt.dart';
 import '../../../core/http/request_dispatch_exception.dart';
 import '../../../providers/busy_provider.dart';
 import 'registration_setup_dialog.dart';
@@ -25,11 +27,9 @@ import '../../../dav/http/dav_http_transport.dart';
 import '../../accounts/data/accounts_repository.dart';
 import '../../accounts/domain/account_connection_state.dart';
 import '../../connectivity/network_connectivity_service.dart';
-import '../../../google_tasks/oauth/oauth_loopback_flow.dart';
 import 'package:busymax/src/core/auth/oauth_models.dart';
 import 'package:busymax/src/core/secrets/secret_store.dart';
 import '../../../l10n/l10n.dart';
-import '../../../microsoft_todo/oauth/microsoft_oauth_service.dart';
 import '../../sync/sync_auth_error.dart';
 
 enum _OnboardingStep { accounts, preferences }
@@ -46,9 +46,17 @@ class SignInScreen extends ConsumerStatefulWidget {
 class _SignInScreenState extends ConsumerState<SignInScreen> {
   var _step = _OnboardingStep.accounts;
   _OnboardingProvider? _signingInProvider;
+  AuthorizationCancellation? _authorizationCancellation;
   String? _errorMessage;
   var _finishingSetup = false;
   DavCancellationToken? _davCancellation;
+
+  @override
+  void dispose() {
+    _authorizationCancellation?.cancel();
+    _davCancellation?.cancel();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -206,86 +214,103 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
   }
 
   Future<void> _signIn(_OnboardingProvider provider) async {
-    if (_signingInProvider != null) {
+    if (_signingInProvider != null ||
+        _authorizationCancellation?.isCancelled == false) {
       return;
     }
-    AppleICloudCredentialInput? appleInput;
-    String? nextcloudServer;
-    if (provider == _OnboardingProvider.appleICloud) {
-      appleInput = await showAppleICloudCredentialDialog(context);
-      if (appleInput == null || !mounted) return;
-    } else if (provider == _OnboardingProvider.nextcloud) {
-      nextcloudServer = await showNextcloudServerDialog(context);
-      if (nextcloudServer == null || !mounted) return;
-    }
-    AuthorizationRequest? request;
-    if (provider == _OnboardingProvider.google ||
-        provider == _OnboardingProvider.microsoft) {
-      final handle = await showRegistrationSetup(
-        context,
-        ref,
-        provider == _OnboardingProvider.google
-            ? BusyProvider.google
-            : BusyProvider.microsoft,
-      );
-      if (handle == null || !mounted) return;
-      request = AuthorizationRequest.newConnection(handle);
-    }
-    setState(() {
-      _signingInProvider = provider;
-      _errorMessage = null;
-    });
-
+    final ownedCancellation = AuthorizationCancellation();
+    _authorizationCancellation = ownedCancellation;
     try {
-      final repository = ref.read(authRepositoryProvider);
-      String? accountId;
-      switch (provider) {
-        case _OnboardingProvider.google:
-          accountId = (await repository.signIn(request: request)).accountId;
-        case _OnboardingProvider.microsoft:
-          accountId = (await repository.signInWithMicrosoft(
-            request: request,
-          )).accountId;
-        case _OnboardingProvider.appleICloud:
-          final cancellation = DavCancellationToken();
-          _davCancellation = cancellation;
-          accountId =
-              (await ref
-                      .read(davAccountOnboardingServiceProvider)
-                      .connectAppleICloud(
-                        email: appleInput!.email,
-                        appSpecificPassword: appleInput.password,
-                        cancellationToken: cancellation,
-                      ))
-                  .accountId;
-        case _OnboardingProvider.nextcloud:
-          final cancellation = DavCancellationToken();
-          _davCancellation = cancellation;
-          accountId =
-              (await ref
-                      .read(davAccountOnboardingServiceProvider)
-                      .connectNextcloud(
-                        enteredServer: nextcloudServer!,
-                        cancellationToken: cancellation,
-                      ))
-                  .accountId;
+      AppleICloudCredentialInput? appleInput;
+      String? nextcloudServer;
+      if (provider == _OnboardingProvider.appleICloud) {
+        appleInput = await showAppleICloudCredentialDialog(context);
+        if (appleInput == null || !mounted) return;
+      } else if (provider == _OnboardingProvider.nextcloud) {
+        nextcloudServer = await showNextcloudServerDialog(context);
+        if (nextcloudServer == null || !mounted) return;
       }
-      if (accountId != null) {
-        unawaited(_runInitialSync(accountId));
+      AuthorizationRequest? request;
+      if (provider == _OnboardingProvider.google ||
+          provider == _OnboardingProvider.microsoft) {
+        final handle = await showRegistrationSetup(
+          context,
+          ref,
+          provider == _OnboardingProvider.google
+              ? BusyProvider.google
+              : BusyProvider.microsoft,
+        );
+        if (handle == null || !mounted) return;
+        request = AuthorizationRequest.newConnection(handle);
       }
-    } on Object catch (error) {
-      if (error is OAuthException && error.code == 'OAuthSignInCancelled') {
-        return;
-      }
-      if (mounted) {
-        setState(() => _errorMessage = _onboardingErrorMessage(context, error));
+      setState(() {
+        _signingInProvider = provider;
+        _errorMessage = null;
+      });
+
+      if (!mounted || ownedCancellation.isCancelled) return;
+      request = (request ?? const AuthorizationRequest.newConnection(null))
+          .withCancellation(ownedCancellation);
+      try {
+        final repository = ref.read(authRepositoryProvider);
+        String? accountId;
+        switch (provider) {
+          case _OnboardingProvider.google:
+            accountId = (await repository.signIn(request: request)).accountId;
+          case _OnboardingProvider.microsoft:
+            accountId = (await repository.signInWithMicrosoft(
+              request: request,
+            )).accountId;
+          case _OnboardingProvider.appleICloud:
+            final cancellation = DavCancellationToken();
+            _davCancellation = cancellation;
+            accountId =
+                (await ref
+                        .read(davAccountOnboardingServiceProvider)
+                        .connectAppleICloud(
+                          email: appleInput!.email,
+                          appSpecificPassword: appleInput.password,
+                          cancellationToken: cancellation,
+                        ))
+                    .accountId;
+          case _OnboardingProvider.nextcloud:
+            final cancellation = DavCancellationToken();
+            _davCancellation = cancellation;
+            accountId =
+                (await ref
+                        .read(davAccountOnboardingServiceProvider)
+                        .connectNextcloud(
+                          enteredServer: nextcloudServer!,
+                          cancellationToken: cancellation,
+                        ))
+                    .accountId;
+        }
+        if (accountId != null) {
+          unawaited(_runInitialSync(accountId));
+        }
+      } on Object catch (error) {
+        if (error is OAuthException && error.code == 'OAuthSignInCancelled') {
+          return;
+        }
+        if (mounted) {
+          setState(
+            () => _errorMessage = _onboardingErrorMessage(context, error),
+          );
+        }
+      } finally {
+        if (mounted &&
+            identical(_authorizationCancellation, ownedCancellation)) {
+          setState(() {
+            _signingInProvider = null;
+            _davCancellation = null;
+          });
+        }
       }
     } finally {
-      if (mounted) {
-        setState(() {
-          _signingInProvider = null;
-          _davCancellation = null;
-        });
+      ownedCancellation.cancel();
+      if (identical(_authorizationCancellation, ownedCancellation)) {
+        _authorizationCancellation = null;
+        if (mounted) setState(() => _signingInProvider = null);
       }
     }
   }
@@ -323,7 +348,7 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
   Future<void> _cancelSignIn() async {
     _davCancellation?.cancel();
     ref.read(davAccountOnboardingServiceProvider).cancelNextcloudLogin();
-    await ref.read(authRepositoryProvider).cancelSignIn();
+    _authorizationCancellation?.cancel();
     if (mounted) {
       setState(() => _signingInProvider = null);
     }
@@ -822,28 +847,12 @@ String _onboardingErrorMessage(BuildContext context, Object error) {
     if (error.code == 'OAuthMissingRequiredScope') {
       return context.l10n.googlePermissionsRequiredRetry;
     }
-    if (_isCallbackFailure(error.code)) {
-      if (error.message == microsoftSignInCallbackNotReceivedMessage) {
-        return error.message;
-      }
-      return googleSignInCallbackNotReceivedMessage;
-    }
-    return error.message;
+    return localizedAuthorizationError(context.l10n, error);
   }
   if (error is PlatformException) {
     return secretStorageUnavailableMessage;
   }
   return error.toString();
-}
-
-bool _isCallbackFailure(String code) {
-  return code == 'OAuthCallbackTimeout' ||
-      code == 'OAuthCallbackListenerClosed' ||
-      code == 'OAuthCallbackStateMismatch' ||
-      code == 'OAuthCallbackProviderError' ||
-      code == 'OAuthCallbackMissingCode' ||
-      code == 'OAuthCallbackInvalidPath' ||
-      code == 'OAuthCallbackError';
 }
 
 String _themeModeLabel(

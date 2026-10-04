@@ -1,3 +1,4 @@
+import 'package:busymax/src/core/auth/authorization_attempt.dart';
 import 'dart:async';
 import 'dart:io';
 
@@ -7,6 +8,140 @@ import 'package:busymax/src/google_tasks/oauth/oauth_loopback_flow.dart';
 import 'package:busymax/src/core/auth/oauth_models.dart';
 
 void main() {
+  test('an already cancelled invocation cannot bind or launch', () async {
+    var launches = 0;
+    final flow = OAuthLoopbackFlow(
+      authorizationLauncher: (_) async {
+        launches++;
+        return true;
+      },
+    );
+    final attempt = AuthorizationAttempt(nowUtc: () => DateTime.now().toUtc())
+      ..cancel();
+    addTearDown(attempt.dispose);
+    expect(
+      () => flow.start(
+        attempt: attempt,
+        authorizationEndpoint: _authorizationEndpoint,
+        clientId: 'fixture',
+        scope: googleTasksOAuthScope,
+      ),
+      throwsA(
+        isA<OAuthException>().having(
+          (e) => e.classification,
+          'kind',
+          OAuthFailureKind.cancelled,
+        ),
+      ),
+    );
+    expect(launches, 0);
+  });
+  for (final error in [
+    'access_denied',
+    'invalid_client',
+    'temporarily_unavailable',
+    'unknown-sensitive-description',
+  ]) {
+    test(
+      'validated callback $error ends real loopback with actionable failure',
+      () async {
+        final started = await _startFlow();
+        final failed = expectLater(
+          started.result,
+          throwsA(
+            isA<OAuthAuthorizationException>()
+                .having(
+                  (e) => e.classification,
+                  'kind',
+                  error == 'access_denied'
+                      ? OAuthFailureKind.permission
+                      : error == 'invalid_client'
+                      ? OAuthFailureKind.configuration
+                      : OAuthFailureKind.temporary,
+                )
+                .having(
+                  (e) => e.toString(),
+                  'safe',
+                  isNot(contains('sensitive')),
+                ),
+          ),
+        );
+        final response = await http.get(
+          Uri.http('127.0.0.1:${started.port}', '/', {
+            'state': started.state,
+            'error': error,
+            'error_description': 'sensitive-description',
+          }),
+        );
+        expect(response.statusCode, HttpStatus.badRequest);
+        await failed;
+      },
+    );
+  }
+  test(
+    'cancel during browser launch permits retry and old cleanup cannot close new server',
+    () async {
+      final oldLaunched = Completer<void>(),
+          releaseOld = Completer<bool>(),
+          newLaunched = Completer<Uri>();
+      var launches = 0;
+      final flow = OAuthLoopbackFlow(
+        authorizationLauncher: (uri) {
+          launches++;
+          if (launches == 1) {
+            oldLaunched.complete();
+            return releaseOld.future;
+          }
+          newLaunched.complete(uri);
+          return Future.value(true);
+        },
+      );
+      final a = AuthorizationAttempt(nowUtc: () => DateTime.now().toUtc());
+      final b = AuthorizationAttempt(nowUtc: () => DateTime.now().toUtc());
+      addTearDown(() => a.dispose());
+      addTearDown(() => b.dispose());
+      final old = flow.start(
+        attempt: a,
+        authorizationEndpoint: _authorizationEndpoint,
+        clientId: 'fixture',
+        scope: googleTasksOAuthScope,
+      );
+      final failed = expectLater(
+        old,
+        throwsA(
+          isA<OAuthException>().having(
+            (e) => e.classification,
+            'kind',
+            OAuthFailureKind.cancelled,
+          ),
+        ),
+      );
+      await oldLaunched.future;
+      a.cancel();
+      final next = flow.start(
+        attempt: b,
+        authorizationEndpoint: _authorizationEndpoint,
+        clientId: 'fixture',
+        scope: googleTasksOAuthScope,
+      );
+      final uri = await newLaunched.future;
+      releaseOld.complete(true);
+      await failed;
+      final redirect = Uri.parse(uri.queryParameters['redirect_uri']!);
+      expect(
+        (await http.get(
+          redirect.replace(
+            queryParameters: {
+              'state': uri.queryParameters['state']!,
+              'code': 'fresh',
+            },
+          ),
+        )).statusCode,
+        HttpStatus.ok,
+      );
+      expect((await next).callback.code, 'fresh');
+    },
+  );
   test('cancelSignIn is idempotent after server already closed', () async {
     final started = await _startFlow();
 

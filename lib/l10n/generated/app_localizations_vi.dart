@@ -3255,4 +3255,40 @@ class AppLocalizationsVi extends AppLocalizations {
   ) {
     return 'Gói: $packageName\nMã băm chữ ký: $signatureHash\nURI chuyển hướng: $redirectUri';
   }
+
+  @override
+  String get oauthRegistrationRejected =>
+      'Kiểm tra loại ứng dụng khách, tài khoản được hỗ trợ, quyền và chuyển hướng của đăng ký. Chọn lại cấu hình nếu đã nhập từ tệp.';
+
+  @override
+  String get oauthAuthorizationCodeUnusable =>
+      'Không thể hoàn tất lần cấp quyền này. Bắt đầu lại; kết nối hiện tại được giữ nguyên.';
+
+  @override
+  String get oauthPermissionRefused =>
+      'Việc cấp quyền bị từ chối hoặc thiếu quyền bắt buộc. Thử lại và cấp các quyền cần thiết.';
+
+  @override
+  String get oauthProviderThrottled =>
+      'Nhà cung cấp đang giới hạn yêu cầu. Hãy chờ trước khi thử lại; kết nối hiện tại được giữ nguyên.';
+
+  @override
+  String get oauthProviderTemporaryFailure =>
+      'Sự cố tạm thời của nhà cung cấp khiến việc cấp quyền không hoàn tất. Thử lại; kết nối hiện tại được giữ nguyên.';
+
+  @override
+  String get oauthAuthorizationTimedOut =>
+      'Việc cấp quyền đã hết thời gian. Thử lại và chọn lại cấu hình nếu đã nhập từ tệp.';
+
+  @override
+  String get oauthWrongAccount =>
+      'Cấp quyền cho tài khoản đã chọn để kết nối lại. Kết nối hiện tại được giữ nguyên.';
+
+  @override
+  String get oauthSecureStorageUnavailable =>
+      'Không thể truy cập kho lưu trữ bảo mật. Khôi phục quyền truy cập rồi thử lại.';
+
+  @override
+  String get oauthRevokedRemovalIncomplete =>
+      'Quyền truy cập từ xa đã bị thu hồi nhưng chưa thể hoàn tất việc dọn dẹp tài khoản. Khởi động lại BusyMax để thử khôi phục cục bộ.';
 }

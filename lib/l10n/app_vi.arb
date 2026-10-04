@@ -1196,5 +1196,14 @@
         "type": "String"
       }
     }
-  }
+  },
+  "oauthRegistrationRejected": "Kiểm tra loại ứng dụng khách, tài khoản được hỗ trợ, quyền và chuyển hướng của đăng ký. Chọn lại cấu hình nếu đã nhập từ tệp.",
+  "oauthAuthorizationCodeUnusable": "Không thể hoàn tất lần cấp quyền này. Bắt đầu lại; kết nối hiện tại được giữ nguyên.",
+  "oauthPermissionRefused": "Việc cấp quyền bị từ chối hoặc thiếu quyền bắt buộc. Thử lại và cấp các quyền cần thiết.",
+  "oauthProviderThrottled": "Nhà cung cấp đang giới hạn yêu cầu. Hãy chờ trước khi thử lại; kết nối hiện tại được giữ nguyên.",
+  "oauthProviderTemporaryFailure": "Sự cố tạm thời của nhà cung cấp khiến việc cấp quyền không hoàn tất. Thử lại; kết nối hiện tại được giữ nguyên.",
+  "oauthAuthorizationTimedOut": "Việc cấp quyền đã hết thời gian. Thử lại và chọn lại cấu hình nếu đã nhập từ tệp.",
+  "oauthWrongAccount": "Cấp quyền cho tài khoản đã chọn để kết nối lại. Kết nối hiện tại được giữ nguyên.",
+  "oauthSecureStorageUnavailable": "Không thể truy cập kho lưu trữ bảo mật. Khôi phục quyền truy cập rồi thử lại.",
+  "oauthRevokedRemovalIncomplete": "Quyền truy cập từ xa đã bị thu hồi nhưng chưa thể hoàn tất việc dọn dẹp tài khoản. Khởi động lại BusyMax để thử khôi phục cục bộ."
 }

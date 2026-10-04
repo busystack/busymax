@@ -63,6 +63,7 @@ dev_dependencies:
   very_good_analysis: ^10.1.0
 
   file_selector_platform_interface: any
+  fake_async: any
 dependency_overrides:
   fluent_ui:
     path: third_party/fluent_ui

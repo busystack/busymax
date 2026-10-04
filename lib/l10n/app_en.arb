@@ -1894,5 +1894,14 @@
         "type": "String"
       }
     }
-  }
+  },
+  "oauthRegistrationRejected": "Check the client type, supported accounts, permissions, and redirect in your registration. Select the configuration again if it was imported.",
+  "oauthAuthorizationCodeUnusable": "This authorization attempt could not be completed. Start authorization again; your existing connection is preserved.",
+  "oauthPermissionRefused": "Authorization was refused or required permissions were not granted. Try again and grant the required permissions.",
+  "oauthProviderThrottled": "The provider is limiting requests. Wait before trying again; your existing connection is preserved.",
+  "oauthProviderTemporaryFailure": "Authorization could not complete because of a temporary provider problem. Try again; your existing connection is preserved.",
+  "oauthAuthorizationTimedOut": "Authorization timed out. Try again; select a fresh configuration if it was imported.",
+  "oauthWrongAccount": "Authorize the account selected for reconnection. Your existing connection is preserved.",
+  "oauthSecureStorageUnavailable": "Secure storage is unavailable. Restore access to secure storage and try again.",
+  "oauthRevokedRemovalIncomplete": "Remote authorization was revoked, but account cleanup could not finish. Restart BusyMax to retry local recovery."
 }

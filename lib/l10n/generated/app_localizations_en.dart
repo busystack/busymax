@@ -3289,4 +3289,40 @@ class AppLocalizationsEn extends AppLocalizations {
   ) {
     return 'Package: $packageName\nSignature hash: $signatureHash\nRedirect URI: $redirectUri';
   }
+
+  @override
+  String get oauthRegistrationRejected =>
+      'Check the client type, supported accounts, permissions, and redirect in your registration. Select the configuration again if it was imported.';
+
+  @override
+  String get oauthAuthorizationCodeUnusable =>
+      'This authorization attempt could not be completed. Start authorization again; your existing connection is preserved.';
+
+  @override
+  String get oauthPermissionRefused =>
+      'Authorization was refused or required permissions were not granted. Try again and grant the required permissions.';
+
+  @override
+  String get oauthProviderThrottled =>
+      'The provider is limiting requests. Wait before trying again; your existing connection is preserved.';
+
+  @override
+  String get oauthProviderTemporaryFailure =>
+      'Authorization could not complete because of a temporary provider problem. Try again; your existing connection is preserved.';
+
+  @override
+  String get oauthAuthorizationTimedOut =>
+      'Authorization timed out. Try again; select a fresh configuration if it was imported.';
+
+  @override
+  String get oauthWrongAccount =>
+      'Authorize the account selected for reconnection. Your existing connection is preserved.';
+
+  @override
+  String get oauthSecureStorageUnavailable =>
+      'Secure storage is unavailable. Restore access to secure storage and try again.';
+
+  @override
+  String get oauthRevokedRemovalIncomplete =>
+      'Remote authorization was revoked, but account cleanup could not finish. Restart BusyMax to retry local recovery.';
 }

@@ -3258,4 +3258,40 @@ class AppLocalizationsHi extends AppLocalizations {
   ) {
     return 'पैकेज: $packageName\nहस्ताक्षर हैश: $signatureHash\nरीडायरेक्ट URI: $redirectUri';
   }
+
+  @override
+  String get oauthRegistrationRejected =>
+      'पंजीकरण में क्लाइंट प्रकार, समर्थित खाते, अनुमतियाँ और रीडायरेक्ट जाँचें। आयातित कॉन्फ़िगरेशन दोबारा चुनें।';
+
+  @override
+  String get oauthAuthorizationCodeUnusable =>
+      'यह प्राधिकरण पूरा नहीं हुआ। फिर से शुरू करें; मौजूदा कनेक्शन सुरक्षित है।';
+
+  @override
+  String get oauthPermissionRefused =>
+      'प्राधिकरण अस्वीकार किया गया या आवश्यक अनुमतियाँ नहीं मिलीं। फिर प्रयास करें और आवश्यक अनुमतियाँ दें।';
+
+  @override
+  String get oauthProviderThrottled =>
+      'प्रदाता अनुरोध सीमित कर रहा है। दोबारा प्रयास करने से पहले प्रतीक्षा करें; मौजूदा कनेक्शन सुरक्षित है।';
+
+  @override
+  String get oauthProviderTemporaryFailure =>
+      'प्रदाता की अस्थायी समस्या के कारण प्राधिकरण पूरा नहीं हुआ। फिर प्रयास करें; मौजूदा कनेक्शन सुरक्षित है।';
+
+  @override
+  String get oauthAuthorizationTimedOut =>
+      'प्राधिकरण का समय समाप्त हो गया। फिर प्रयास करें और आयातित कॉन्फ़िगरेशन दोबारा चुनें।';
+
+  @override
+  String get oauthWrongAccount =>
+      'दोबारा जोड़ने के लिए चुने गए खाते को अधिकृत करें। मौजूदा कनेक्शन सुरक्षित है।';
+
+  @override
+  String get oauthSecureStorageUnavailable =>
+      'सुरक्षित संग्रह उपलब्ध नहीं है। उसकी पहुँच बहाल करके फिर प्रयास करें।';
+
+  @override
+  String get oauthRevokedRemovalIncomplete =>
+      'दूरस्थ प्राधिकरण रद्द हुआ, लेकिन खाते की सफ़ाई पूरी नहीं हो सकी। स्थानीय पुनर्प्राप्ति दोबारा आज़माने के लिए BusyMax पुनः शुरू करें।';
 }

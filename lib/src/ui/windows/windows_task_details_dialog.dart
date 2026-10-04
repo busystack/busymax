@@ -1,3 +1,4 @@
+import 'package:busymax/src/core/auth/authorization_attempt.dart';
 import 'windows_time_picker.dart';
 import 'package:busymax/src/l10n/time_format_scope.dart';
 import '../../features/tasks/presentation/task_recurrence.dart';
@@ -203,6 +204,7 @@ Future<bool> showWindowsTaskDetailsDialog(
     Future<void>.sync(() async => callback(result)).ignore();
   }
 
+  AuthorizationCancellation? consentCancellation;
   await showDialog<void>(
     context: context,
     barrierDismissible: false,
@@ -1033,25 +1035,44 @@ Future<bool> showWindowsTaskDetailsDialog(
                                     return snapshot.hasError
                                         ? Button(
                                             onPressed: () async {
+                                              consentCancellation?.cancel();
+                                              final consent =
+                                                  AuthorizationCancellation();
+                                              consentCancellation = consent;
                                               try {
-                                                await ref
-                                                    .read(
-                                                      microsoftCategoryAuthorizationProvider,
-                                                    )
-                                                    ?.authorizeCategoryAccess(
+                                                try {
+                                                  await ref
+                                                      .read(
+                                                        microsoftCategoryAuthorizationProvider,
+                                                      )
+                                                      ?.authorizeCategoryAccess(
+                                                        task.accountId,
+                                                        cancellation: consent,
+                                                      );
+                                                  if (!context.mounted ||
+                                                      consent.isCancelled) {
+                                                    return;
+                                                  }
+                                                  ref.invalidate(
+                                                    microsoftMasterCategoriesProvider(
                                                       task.accountId,
-                                                    );
-                                                ref.invalidate(
-                                                  microsoftMasterCategoriesProvider(
-                                                    task.accountId,
-                                                  ),
-                                                );
-                                                setState(() {});
-                                              } on Object {
-                                                setState(
-                                                  () => error = l10n
-                                                      .outlookCategoriesUnavailable,
-                                                );
+                                                    ),
+                                                  );
+                                                  setState(() {});
+                                                } on Object {
+                                                  setState(
+                                                    () => error = l10n
+                                                        .outlookCategoriesUnavailable,
+                                                  );
+                                                }
+                                              } finally {
+                                                consent.cancel();
+                                                if (identical(
+                                                  consentCancellation,
+                                                  consent,
+                                                )) {
+                                                  consentCancellation = null;
+                                                }
                                               }
                                             },
                                             child: Text(
@@ -1974,6 +1995,7 @@ Future<bool> showWindowsTaskDetailsDialog(
       },
     ),
   );
+  consentCancellation?.cancel();
   title.dispose();
   notes.dispose();
   categories.dispose();

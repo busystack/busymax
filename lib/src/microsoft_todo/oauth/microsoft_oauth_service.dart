@@ -1,3 +1,4 @@
+import '../../core/auth/authorization_attempt.dart';
 import '../../core/http/request_dispatch_exception.dart';
 import '../../core/http/bounded_http.dart';
 import '../../core/http/retry_after.dart';
@@ -33,11 +34,17 @@ const microsoftCategoryScope =
     'https://graph.microsoft.com/MailboxSettings.Read';
 
 abstract interface class MicrosoftCategoryAuthorization {
-  Future<void> authorizeCategoryAccess(String accountId);
+  Future<void> authorizeCategoryAccess(
+    String accountId, {
+    AuthorizationCancellation? cancellation,
+  });
 }
 
 abstract interface class MicrosoftSharedCalendarAuthorization {
-  Future<void> authorizeSharedCalendarAccess(String accountId);
+  Future<void> authorizeSharedCalendarAccess(
+    String accountId, {
+    AuthorizationCancellation? cancellation,
+  });
 }
 
 const microsoftSignInCallbackNotReceivedMessage =
@@ -85,8 +92,7 @@ class MicrosoftOAuthService
   final RegistrationStaging _registrations;
   final AuthorizationPersistence? _persistence;
   final Map<String, Future<OAuthTokenSet>> _refreshes = {};
-  int _attemptGeneration = 0;
-  Completer<void>? _authorizationAbort;
+  final AuthorizationAttemptOwner _attempts = AuthorizationAttemptOwner();
   final BuildConfig _config;
   final http.Client _httpClient;
   final SecretStore _tokenStore;
@@ -109,7 +115,28 @@ class MicrosoftOAuthService
   Future<MicrosoftOAuthSignInResult> _connect(
     AuthorizationRequest request, {
     Set<String> optionalScopes = const {},
-  }) async {
+    AuthorizationAttempt? capturedAttempt,
+  }) {
+    final attempt =
+        capturedAttempt ?? _attempts.begin(_nowUtc, request.cancellation);
+    return _connectPrepared(request, attempt, optionalScopes).catchError((
+      Object error,
+      StackTrace stack,
+    ) {
+      attempt.cancel();
+      _attempts.finish(attempt);
+      if (request.registration case final handle?) {
+        _registrations.discard(handle.id);
+      }
+      Error.throwWithStackTrace(error, stack);
+    });
+  }
+
+  Future<MicrosoftOAuthSignInResult> _connectPrepared(
+    AuthorizationRequest request,
+    AuthorizationAttempt attempt,
+    Set<String> optionalScopes,
+  ) async {
     final persistence = _persistence;
     if (persistence == null) {
       throw const OAuthException(
@@ -117,22 +144,23 @@ class MicrosoftOAuthService
         'Account authorization storage is unavailable.',
       );
     }
-    await persistence.recover();
-    final attempt = ++_attemptGeneration;
-    final candidateDeadline = _nowUtc().add(const Duration(minutes: 10));
-    _authorizationAbort = Completer<void>();
+    attempt.check();
+    await attempt.wait(persistence.recover());
     final target = request.accountId;
     final previous = target == null
         ? null
         : request.intent == AuthorizationIntent.reconnect
-        ? await boundCredentialForAccount(target)
-        : await _existingBoundCredential(target);
+        ? await attempt.wait(boundCredentialForAccount(target))
+        : await attempt.wait(_existingBoundCredential(target));
     final intendedIdentity = target == null
         ? null
         : previous == null
-        ? await _existingIdentity(target)
+        ? await attempt.wait(_existingIdentity(target))
         : (previous.subject, previous.tenantId);
-    var expected = target == null ? 0 : await persistence.generation(target);
+    var expected = target == null
+        ? 0
+        : await attempt.wait(persistence.generation(target));
+    attempt.check();
     final registration = request.intent == AuthorizationIntent.reconnect
         ? previous!.registration
         : request.registration == null
@@ -170,7 +198,9 @@ class MicrosoftOAuthService
           ))
         microsoftCategoryScope,
     ].join(' ');
+    attempt.check();
     final result = await _loopbackFlow.start(
+      attempt: attempt,
       authorizationEndpoint: registration.endpoint('authorize'),
       clientId: registration.clientId,
       scope: scopes,
@@ -182,13 +212,14 @@ class MicrosoftOAuthService
         'prompt': 'consent',
       },
     );
+    attempt.check();
     final tokens = await exchangeAuthorizationCode(
       code: result.callback.code,
       codeVerifier: result.codeVerifier,
       redirectUri: result.redirectUri,
       fallbackScopeText: '',
       registration: registration,
-      cancellation: _authorizationAbort!.future,
+      cancellation: attempt.cancellation,
     );
     if (!hasMicrosoftGraphScopes(tokens.scopes, {
       'User.Read',
@@ -201,10 +232,8 @@ class MicrosoftOAuthService
         'Grant Microsoft Tasks and Calendar permissions.',
       );
     }
-    final user = await _getMe(
-      tokens,
-      cancellation: _authorizationAbort!.future,
-    );
+    attempt.check();
+    final user = await _getMe(tokens, cancellation: attempt.cancellation);
     final tenant = microsoftTenantIdFromIdToken(
       tokens.idToken,
       clientId: registration.clientId,
@@ -222,13 +251,7 @@ class MicrosoftOAuthService
         'Authorize the selected Microsoft account in the same tenant.',
       );
     }
-    if (attempt != _attemptGeneration ||
-        !_nowUtc().isBefore(candidateDeadline)) {
-      throw const OAuthException(
-        'OAuthSignInCancelled',
-        'Microsoft sign-in was cancelled.',
-      );
-    }
+    attempt.check();
     final id = target ?? 'microsoft:${user.id}';
     if (target == null) {
       expected = await persistence.generation(id);
@@ -266,29 +289,23 @@ class MicrosoftOAuthService
       user: user,
       tenantId: tenant,
       commit: (persistAccount) async {
-        if (attempt != _attemptGeneration ||
-            !_nowUtc().isBefore(candidateDeadline)) {
-          throw const OAuthException(
-            'OAuthSignInCancelled',
-            'Microsoft sign-in was cancelled.',
+        try {
+          attempt.check();
+          await persistence.commit(
+            accountId: id,
+            expectedGeneration: expected,
+            candidate: candidate,
+            onCommitted: attempt.committed,
+            validateCandidate: () {
+              attempt.check();
+            },
+            requireExisting: target != null,
+            persistAccount: persistAccount,
           );
+          attempt.committed();
+        } finally {
+          _attempts.finish(attempt);
         }
-        await persistence.commit(
-          accountId: id,
-          expectedGeneration: expected,
-          candidate: candidate,
-          validateCandidate: () {
-            if (attempt != _attemptGeneration ||
-                !_nowUtc().isBefore(candidateDeadline)) {
-              throw const OAuthException(
-                'OAuthSignInCancelled',
-                'Authorization was cancelled.',
-              );
-            }
-          },
-          requireExisting: target != null,
-          persistAccount: persistAccount,
-        );
       },
     );
   }
@@ -419,12 +436,10 @@ class MicrosoftOAuthService
 
   @override
   Future<void> cancelSignIn() async {
-    _attemptGeneration++;
-    if (_authorizationAbort case final abort? when !abort.isCompleted) {
-      abort.complete();
-    }
-    _registrations.cancel();
-    await _loopbackFlow.cancel();
+    final attempt = _attempts.current;
+    if (attempt == null) return;
+    attempt.cancel();
+    await _loopbackFlow.cancelFor(attempt);
   }
 
   Future<OAuthTokenSet?> readTokenSet(String accountId) {
@@ -478,26 +493,44 @@ class MicrosoftOAuthService
   }
 
   @override
-  Future<void> authorizeCategoryAccess(String accountId) =>
-      _optionalConsent(accountId, microsoftCategoryScope);
+  Future<void> authorizeCategoryAccess(
+    String accountId, {
+    AuthorizationCancellation? cancellation,
+  }) => _optionalConsent(accountId, microsoftCategoryScope, cancellation);
   @override
-  Future<void> authorizeSharedCalendarAccess(String accountId) =>
-      _optionalConsent(accountId, microsoftSharedCalendarScope);
-  Future<void> _optionalConsent(String id, String scope) async {
-    final current = await boundCredentialForAccount(id);
-    if (hasMicrosoftGraphScope(current.tokenSet.scopes, scope)) return;
+  Future<void> authorizeSharedCalendarAccess(
+    String accountId, {
+    AuthorizationCancellation? cancellation,
+  }) => _optionalConsent(accountId, microsoftSharedCalendarScope, cancellation);
+  Future<void> _optionalConsent(
+    String id,
+    String scope,
+    AuthorizationCancellation? cancellation,
+  ) async {
+    final attempt = _attempts.begin(_nowUtc, cancellation);
+    MicrosoftDesktopCredential? current;
     try {
+      final active = await attempt.wait(boundCredentialForAccount(id));
+      current = active;
+      if (hasMicrosoftGraphScope(active.tokenSet.scopes, scope)) {
+        attempt.committed();
+        return;
+      }
       final result = await _connect(
         AuthorizationRequest.reconnect(id),
         optionalScopes: {scope},
+        capturedAttempt: attempt,
       );
       await result.commit!(() async {});
     } on OAuthException catch (error) {
+      if (current == null) rethrow;
       throw AuthorizationScopedOAuthException(
         accountId: id,
         generation: current.generation,
         cause: error,
       );
+    } finally {
+      _attempts.finish(attempt);
     }
   }
 
@@ -548,9 +581,11 @@ class MicrosoftOAuthService
       },
     );
     if (response.statusCode < 200 || response.statusCode >= 300) {
-      throw OAuthException(
+      throw codeExchangeFailure(
         'MicrosoftOAuthTokenExchangeFailed',
-        _tokenEndpointFailureMessage('exchange', response),
+        response.body,
+        response.statusCode,
+        parseHttpRetryAfter(response.headers['retry-after'], now: _nowUtc()),
       );
     }
 

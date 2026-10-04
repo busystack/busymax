@@ -3194,4 +3194,39 @@ class AppLocalizationsKo extends AppLocalizations {
   ) {
     return '패키지: $packageName\n서명 해시: $signatureHash\n리디렉션 URI: $redirectUri';
   }
+
+  @override
+  String get oauthRegistrationRejected =>
+      '등록의 클라이언트 유형, 지원 계정, 권한 및 리디렉션을 확인하세요. 가져온 설정이라면 다시 선택하세요.';
+
+  @override
+  String get oauthAuthorizationCodeUnusable =>
+      '이 인증을 완료하지 못했습니다. 인증을 다시 시작하세요. 기존 연결은 유지됩니다.';
+
+  @override
+  String get oauthPermissionRefused =>
+      '인증이 거부되었거나 필요한 권한이 부여되지 않았습니다. 다시 시도하여 필요한 권한을 부여하세요.';
+
+  @override
+  String get oauthProviderThrottled =>
+      '제공자가 요청을 제한하고 있습니다. 잠시 기다린 후 다시 시도하세요. 기존 연결은 유지됩니다.';
+
+  @override
+  String get oauthProviderTemporaryFailure =>
+      '제공자의 일시적인 문제로 인증을 완료하지 못했습니다. 다시 시도하세요. 기존 연결은 유지됩니다.';
+
+  @override
+  String get oauthAuthorizationTimedOut =>
+      '인증 시간이 초과되었습니다. 다시 시도하고 가져온 설정이라면 다시 선택하세요.';
+
+  @override
+  String get oauthWrongAccount => '다시 연결하도록 선택한 계정을 인증하세요. 기존 연결은 유지됩니다.';
+
+  @override
+  String get oauthSecureStorageUnavailable =>
+      '보안 저장소를 사용할 수 없습니다. 접근을 복구한 후 다시 시도하세요.';
+
+  @override
+  String get oauthRevokedRemovalIncomplete =>
+      '원격 인증은 취소되었지만 계정 정리를 완료하지 못했습니다. BusyMax를 다시 시작하여 로컬 복구를 재시도하세요.';
 }

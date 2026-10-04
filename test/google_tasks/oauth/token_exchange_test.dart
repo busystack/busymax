@@ -1,3 +1,4 @@
+import 'package:busymax/src/core/auth/authorization_attempt.dart';
 import '../../support/oauth_binding_fixture.dart';
 import 'package:busymax/src/core/auth/oauth_registration.dart';
 import 'package:busymax/src/core/auth/registration_staging.dart';
@@ -1223,6 +1224,7 @@ class _FakeOAuthLoopbackFlow extends OAuthLoopbackFlow {
         'Could not open the browser for Google sign-in.',
     Map<String, String> extraAuthorizationParameters = const {},
     String? loginHint,
+    AuthorizationAttempt? attempt,
   }) async {
     this.extraAuthorizationParameters = extraAuthorizationParameters;
     return OAuthLoopbackResult(
