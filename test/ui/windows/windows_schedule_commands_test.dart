@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:busymax/src/features/tasks/domain/task_capabilities.dart';
 
 import 'package:flutter/services.dart';
 import 'package:busymax/src/features/schedule/presentation/schedule_workspace.dart';
@@ -30,6 +31,162 @@ import '../../support/recording_notification_backend.dart';
 import '../../support/memory_settings_store.dart';
 
 void main() {
+  for (final preference in [
+    'none',
+    'invalid-default',
+    'default',
+    'last-used',
+  ]) {
+    testWidgets(
+      'Windows creates in eligible hidden list with $preference preference',
+      (tester) async {
+        final db = AppDatabase.memoryForTests();
+        addTearDown(() async {
+          await tester.pumpWidget(const SizedBox.shrink());
+          await db.close();
+        });
+        final calendar = CalendarRepository(database: db);
+        await _seed(db, calendar);
+        final container = await _mount(tester, db, calendar);
+        await tester.pumpAndSettle();
+        final settings = container.read(appSettingsControllerProvider.notifier);
+        await settings.setTaskListVisibleInSchedule(
+          accountId: 'account',
+          taskListId: 'list',
+          visible: false,
+        );
+        const destination = CreationDestination(
+          accountId: 'account',
+          id: 'list',
+        );
+        if (preference == 'default') {
+          await settings.setDefaultTaskList(destination);
+        }
+        if (preference == 'last-used') {
+          await settings.rememberTaskList(destination);
+        }
+        if (preference == 'invalid-default') {
+          await settings.setDefaultTaskList(
+            const CreationDestination(accountId: 'missing', id: 'missing'),
+          );
+        }
+        await tester.pumpAndSettle();
+        await tester.tap(find.byTooltip('See more'));
+        await tester.pumpAndSettle();
+        final action = tester.widget<FlyoutListTile>(
+          find.ancestor(
+            of: find.text('New task'),
+            matching: find.byType(FlyoutListTile),
+          ),
+        );
+        expect(action.onPressed, isNotNull);
+        await tester.tap(find.text('New task'));
+        await _until(tester, find.byType(ContentDialog));
+        expect(find.byType(ContentDialog), findsOneWidget);
+        expect(find.text('No task lists have been synced yet.'), findsNothing);
+        expect(find.byType(TextBox), findsWidgets);
+        final selected = tester
+            .widgetList<ComboBox<TaskListEntity>>(
+              find.byType(ComboBox<TaskListEntity>),
+            )
+            .single
+            .value!;
+        expect(selected.accountId, 'account');
+        expect(selected.id, 'list');
+        expect(
+          container
+              .read(appSettingsControllerProvider)
+              .isTaskListVisibleInSchedule('account', 'list'),
+          isFalse,
+        );
+        await tester.tap(find.text('Cancel').last);
+        await tester.pumpAndSettle();
+        await tester.pumpWidget(const SizedBox.shrink());
+      },
+    );
+  }
+  for (final exclusion in ['read-only', 'pending-deletion']) {
+    testWidgets('Windows creation rejects $exclusion destinations', (
+      tester,
+    ) async {
+      final db = AppDatabase.memoryForTests();
+      final calendar = CalendarRepository(database: db);
+      addTearDown(db.close);
+      await _seed(db, calendar, provider: BusyProvider.nextcloud);
+      await db
+          .update(db.calendarSources)
+          .write(const CalendarSourcesCompanion(readOnly: Value(true)));
+      if (exclusion == 'pending-deletion') {
+        await db
+            .update(db.taskLists)
+            .write(const TaskListsCompanion(pendingDelete: Value(true)));
+      }
+      await _mount(
+        tester,
+        db,
+        calendar,
+        davCapabilities: exclusion == 'read-only'
+            ? nextcloudTaskCollectionCapabilities.asReadOnly()
+            : nextcloudTaskCollectionCapabilities,
+      );
+      await tester.pumpAndSettle();
+      expect(_eventAction(tester).onPressed, isNull);
+      expect((await _taskAction(tester)).onPressed, isNull);
+      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+      await tester.pumpAndSettle();
+      _focusWorkspace(tester);
+      await tester.sendKeyEvent(LogicalKeyboardKey.keyE);
+      await tester.sendKeyEvent(LogicalKeyboardKey.keyT);
+      await tester.pumpAndSettle();
+      expect(find.byType(ContentDialog), findsNothing);
+      await tester.pumpWidget(const SizedBox.shrink());
+    });
+  }
+  testWidgets(
+    'Windows creation availability follows destination additions and removals',
+    (tester) async {
+      final db = AppDatabase.memoryForTests();
+      final calendar = CalendarRepository(database: db);
+      addTearDown(db.close);
+      await _mount(tester, db, calendar);
+      await tester.pumpAndSettle();
+      final workspace = tester.state(find.byType(WindowsSchedulePage));
+      expect(_eventAction(tester).onPressed, isNull);
+      expect((await _taskAction(tester)).onPressed, isNull);
+      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+      await tester.pumpAndSettle();
+      await _seed(db, calendar);
+      await tester.pumpAndSettle();
+      expect(_eventAction(tester).onPressed, isNotNull);
+      expect((await _taskAction(tester)).onPressed, isNotNull);
+      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+      await tester.pumpAndSettle();
+      _focusWorkspace(tester);
+      await tester.sendKeyEvent(LogicalKeyboardKey.keyT);
+      await _until(tester, find.byType(ContentDialog));
+      expect(find.byType(ComboBox<TaskListEntity>), findsOneWidget);
+      await tester.tap(find.text('Cancel').last);
+      await tester.pumpAndSettle();
+      await db
+          .update(db.taskLists)
+          .write(const TaskListsCompanion(pendingDelete: Value(true)));
+      await db
+          .update(db.calendarSources)
+          .write(const CalendarSourcesCompanion(readOnly: Value(true)));
+      await tester.pumpAndSettle();
+      expect(_eventAction(tester).onPressed, isNull);
+      expect((await _taskAction(tester)).onPressed, isNull);
+      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+      await tester.pumpAndSettle();
+      _focusWorkspace(tester);
+      await tester.sendKeyEvent(LogicalKeyboardKey.keyE);
+      await tester.sendKeyEvent(LogicalKeyboardKey.keyT);
+      await tester.pumpAndSettle();
+      expect(find.byType(ContentDialog), findsNothing);
+      expect(tester.state(find.byType(WindowsSchedulePage)), same(workspace));
+      await tester.pumpWidget(const SizedBox.shrink());
+    },
+  );
   for (final linux in [false, true]) {
     for (final filter in ['scope', 'search', 'hidden']) {
       testWidgets(
@@ -390,6 +547,8 @@ Future<ProviderContainer> _mount(
   ScheduleWorkspaceCommand? command,
   bool linux = false,
   ScheduleScope scope = ScheduleScope.all,
+  TaskCollectionCapabilities davCapabilities =
+      nextcloudTaskCollectionCapabilities,
 }) async {
   tester.view.physicalSize = const Size(1280, 800);
   tester.view.devicePixelRatio = 1;
@@ -397,6 +556,9 @@ Future<ProviderContainer> _mount(
   final container = ProviderContainer(
     overrides: [
       databaseProvider.overrideWithValue(db),
+      davTaskCollectionCapabilitiesProvider.overrideWith(
+        (ref, key) async => davCapabilities,
+      ),
       desktopWindowServiceProvider.overrideWithValue(
         const NoOpDesktopWindowService(),
       ),
@@ -445,16 +607,21 @@ Future<void> _seed(
   AppDatabase db,
   CalendarRepository calendar, {
   DateTime? date,
+  BusyProvider provider = BusyProvider.google,
 }) async {
   await db
       .into(db.accounts)
       .insert(
         AccountsCompanion.insert(
           id: 'account',
-          provider: 'google',
-          authority: 'https://accounts.google.com',
+          provider: provider.storageValue,
+          authority: provider == BusyProvider.nextcloud
+              ? 'https://cloud.example.test/'
+              : 'https://accounts.google.com',
           providerAccountId: 'me@example.test',
-          credentialKind: 'oauth',
+          credentialKind: provider == BusyProvider.nextcloud
+              ? 'nextcloud_app_password'
+              : 'oauth',
           authState: const Value('signed_in'),
           createdAtUtc: _now,
           updatedAtUtc: _now,
@@ -507,6 +674,28 @@ Future<void> _until(WidgetTester tester, Finder finder) async {
   }
   expect(finder, findsWidgets);
   await tester.pumpAndSettle();
+}
+
+IconButton _eventAction(WidgetTester tester) =>
+    tester.widget<IconButton>(find.byKey(const ValueKey('windows-new-event')));
+
+Future<FlyoutListTile> _taskAction(WidgetTester tester) async {
+  await tester.tap(find.byTooltip('See more'));
+  await tester.pumpAndSettle();
+  return tester.widget<FlyoutListTile>(
+    find.ancestor(
+      of: find.text('New task'),
+      matching: find.byType(FlyoutListTile),
+    ),
+  );
+}
+
+void _focusWorkspace(WidgetTester tester) {
+  final scaffold = find.descendant(
+    of: find.byType(WindowsSchedulePage),
+    matching: find.byType(ScaffoldPage),
+  );
+  Focus.of(tester.element(scaffold)).requestFocus();
 }
 
 const _now = '2026-09-01T12:00:00Z';

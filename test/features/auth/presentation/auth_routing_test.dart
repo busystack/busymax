@@ -1,3 +1,13 @@
+import 'package:busymax/src/dav/auth/dav_account_onboarding_service.dart';
+import 'package:busymax/src/dav/auth/nextcloud_login_flow_v2.dart';
+import 'package:busymax/src/dav/discovery/dav_discovery_models.dart';
+import 'package:busymax/src/providers/provider_capabilities.dart';
+import 'package:busymax/src/microsoft_todo/oauth/microsoft_oauth_service.dart';
+import 'package:busymax/src/microsoft_todo/api/microsoft_todo_api_models.dart';
+import 'package:busymax/src/platform/common/desktop_services.dart';
+import '../../../support/desktop_activation_fixture.dart';
+import '../../../support/memory_settings_store.dart';
+import 'package:busymax/src/platform/busymax_tray_service.dart';
 import 'package:busymax/src/webcal/webcal_http_client.dart';
 import 'package:busymax/src/webcal/webcal_subscription_service.dart';
 import 'package:busymax/src/core/auth/authorization_attempt.dart';
@@ -262,6 +272,231 @@ void main() {
     },
   );
 
+  for (final provider in [
+    BusyProvider.microsoft,
+    BusyProvider.appleICloud,
+    BusyProvider.nextcloud,
+  ]) {
+    for (final existing in [false, true]) {
+      testWidgets(
+        'Settings reconciles persisted $provider connection with existing=$existing before sync completes',
+        (tester) async {
+          if (existing) {
+            await _insertAccount(
+              database,
+              id: 'google:existing',
+              provider: BusyProvider.google,
+            );
+          }
+          final secrets = InMemorySecretStore();
+          final dav = _controlledDavService(database, secrets);
+          final syncing = Completer<void>();
+          final calls = <({String accountId, bool initial})>[];
+          await _pumpApp(
+            tester,
+            database: database,
+            oAuth: oAuth,
+            secrets: secrets,
+            davService: dav,
+            microsoftOAuth: _ControlledMicrosoftGateway(),
+            onSignedIn: (accountId, initial) async {
+              calls.add((accountId: accountId, initial: initial));
+              if (initial) await syncing.future;
+            },
+          );
+          await tester.pumpAndSettle();
+          calls.clear();
+          await _openSettings(tester);
+          await _connectControlledProvider(tester, provider);
+          for (
+            var attempt = 0;
+            attempt < 40 && !calls.any((call) => call.initial);
+            attempt++
+          ) {
+            await tester.runAsync(
+              () => Future<void>.delayed(const Duration(milliseconds: 5)),
+            );
+            await tester.pump(const Duration(milliseconds: 100));
+          }
+          await tester.pumpAndSettle();
+          final rows = (await tester.runAsync(
+            () => database.select(database.accounts).get(),
+          ))!;
+          expect(
+            rows,
+            hasLength(existing ? 2 : 1),
+            reason: tester
+                .widgetList<Text>(find.byType(Text))
+                .map((text) => text.data)
+                .join(' | '),
+          );
+          final connected = rows.singleWhere(
+            (row) => row.id != 'google:existing',
+          );
+          expect(connected.authState, accountAuthStateSignedIn);
+          final container = ProviderScope.containerOf(
+            tester.element(find.byType(SettingsScreen)),
+          );
+          _expectExistingSessionSignedIn(
+            container.read(authSessionControllerProvider),
+            existing ? 'google:existing' : connected.id,
+          );
+          expect(calls, [(accountId: connected.id, initial: true)]);
+          expect(syncing.isCompleted, isFalse);
+          expect(find.byType(SettingsScreen), findsOneWidget);
+          syncing.complete();
+          await tester.pumpAndSettle();
+          await _disposeApp(tester);
+        },
+      );
+    }
+  }
+
+  for (final cancelled in [true, false]) {
+    testWidgets(
+      'unsuccessful first connection preserves session with cancelled=$cancelled',
+      (tester) async {
+        oAuth.signInError = OAuthException(
+          cancelled ? 'OAuthSignInCancelled' : 'OAuthTokenExchangeFailed',
+          'Controlled unsuccessful connection',
+        );
+        final calls = <({String accountId, bool initial})>[];
+        await _pumpApp(
+          tester,
+          database: database,
+          oAuth: oAuth,
+          onSignedIn: (accountId, initial) async =>
+              calls.add((accountId: accountId, initial: initial)),
+        );
+        await tester.pumpAndSettle();
+        final container = ProviderScope.containerOf(
+          tester.element(find.byType(ScheduleWorkspace)),
+        );
+        final original = container.read(authSessionControllerProvider);
+        await _authorizeGoogleSetup(tester);
+        await tester.pumpAndSettle();
+        expect(container.read(authSessionControllerProvider), same(original));
+        expect(original.isSignedIn, isFalse);
+        expect(
+          (await tester.runAsync(
+            () => database.select(database.accounts).get(),
+          ))!,
+          isEmpty,
+        );
+        expect(calls, isEmpty);
+        expect(find.byType(SettingsScreen), findsOneWidget);
+        await _sendAltLeft(tester);
+        expect(find.byType(ScheduleWorkspace), findsOneWidget);
+        expect(find.text('Add account'), findsOneWidget);
+        await _disposeApp(tester);
+      },
+    );
+  }
+  testWidgets(
+    'successful Settings reconnection syncs only that account and preserves session',
+    (tester) async {
+      await _insertAccount(
+        database,
+        id: 'microsoft:existing',
+        provider: BusyProvider.microsoft,
+      );
+      await _insertAccount(
+        database,
+        id: 'account-1',
+        provider: BusyProvider.google,
+        authState: accountAuthStateReauthRequired,
+      );
+      final calls = <({String accountId, bool initial})>[];
+      await _pumpApp(
+        tester,
+        database: database,
+        oAuth: oAuth,
+        onSignedIn: (accountId, initial) async =>
+            calls.add((accountId: accountId, initial: initial)),
+      );
+      await tester.pumpAndSettle();
+      await _openSettings(tester);
+      final container = ProviderScope.containerOf(
+        tester.element(find.byType(SettingsScreen)),
+      );
+      final original = container.read(authSessionControllerProvider);
+      calls.clear();
+      await tester.tap(find.text(accountReconnectRequiredActionLabel));
+      await tester.pumpAndSettle();
+      final rows = (await tester.runAsync(
+        () => database.select(database.accounts).get(),
+      ))!;
+      expect(
+        rows.singleWhere((row) => row.id == 'account-1').authState,
+        accountAuthStateSignedIn,
+      );
+      expect(container.read(authSessionControllerProvider), same(original));
+      expect(original.accountId, 'microsoft:existing');
+      expect(calls, [(accountId: 'account-1', initial: true)]);
+      expect(find.byType(SettingsScreen), findsOneWidget);
+      await _disposeApp(tester);
+    },
+  );
+
+  testWidgets('first Settings connection updates session before ICS activation', (
+    tester,
+  ) async {
+    final activations = TestDesktopActivationService();
+    addTearDown(activations.dispose);
+    late Directory directory;
+    await tester.runAsync(() async {
+      directory = await Directory.systemTemp.createTemp(
+        'busymax-session-activation-',
+      );
+    });
+    addTearDown(() => directory.delete(recursive: true));
+    final file = File('${directory.path}/fixture.ics');
+    await tester.runAsync(
+      () => file.writeAsString(
+        'BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//BusyMax Fixture//EN\r\nBEGIN:VEVENT\r\nUID:fixture-activation\r\nDTSTAMP:20261004T000000Z\r\nDTSTART:20301004T090000Z\r\nDTEND:20301004T100000Z\r\nSUMMARY:Controlled activation\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n',
+      ),
+    );
+    await _pumpApp(
+      tester,
+      database: database,
+      oAuth: oAuth,
+      activations: activations,
+      settings: AppSettings.defaults().copyWith(
+        firstDayOfWeekPreference: BusyMaxFirstDayOfWeekPreference.monday,
+        showTrayIcon: false,
+        runInBackgroundWhenClosed: false,
+      ),
+    );
+    await tester.pumpAndSettle();
+    await _authorizeGoogleSetup(tester);
+    await tester.pumpAndSettle();
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(SettingsScreen)),
+    );
+    _expectExistingSessionSignedIn(
+      container.read(authSessionControllerProvider),
+      'account-1',
+    );
+    activations.add(
+      DesktopActivation(kind: DesktopActivationKind.icsFile, value: file.path),
+    );
+    for (
+      var attempt = 0;
+      attempt < 30 &&
+          container.read(appRouterProvider).state.uri.path != '/schedule';
+      attempt++
+    ) {
+      await tester.runAsync(
+        () => Future<void>.delayed(const Duration(milliseconds: 10)),
+      );
+      await tester.pump(const Duration(milliseconds: 20));
+    }
+    expect(container.read(appRouterProvider).state.uri.path, '/schedule');
+    expect(find.byType(SettingsScreen), findsNothing);
+    await tester.pumpAndSettle();
+    await _disposeApp(tester);
+  });
+
   testWidgets('signed-out startup opens calendar and Accounts from sidebar', (
     tester,
   ) async {
@@ -415,6 +650,13 @@ void main() {
     ))!;
     expect(account.authState, 'signed_in');
     expect(account.grantedScopes, googleBusyMaxOAuthScopes.join(' '));
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(SettingsScreen)),
+    );
+    _expectExistingSessionSignedIn(
+      container.read(authSessionControllerProvider),
+      account.id,
+    );
     expect(find.byType(SettingsScreen), findsOneWidget);
     expect(find.byType(ScheduleWorkspace), findsNothing);
     expect(find.textContaining('user@example.com'), findsOneWidget);
@@ -1138,6 +1380,10 @@ Future<void> _pumpApp(
   RegistrationStaging? staging,
   SignedInSyncRunner? onSignedIn,
   WebCalSubscriptionService? subscriptionService,
+  DavAccountOnboardingService? davService,
+  MicrosoftOAuthGateway? microsoftOAuth,
+  DesktopActivationService? activations,
+  AppSettings? settings,
 }) {
   final registrationStaging =
       staging ??
@@ -1151,6 +1397,19 @@ Future<void> _pumpApp(
           NetworkConnectivityMonitor.withoutPlatformObservation(),
         ),
         databaseProvider.overrideWithValue(database),
+        localSettingsStoreProvider.overrideWithValue(MemorySettingsStore()),
+        initialAppSettingsProvider.overrideWithValue(
+          settings ??
+              AppSettings.defaults().copyWith(
+                runInBackgroundWhenClosed: false,
+                showTrayIcon: false,
+                startMinimizedToTray: false,
+              ),
+        ),
+        if (activations != null)
+          desktopActivationServiceProvider.overrideWithValue(activations),
+        if (davService != null)
+          davAccountOnboardingServiceProvider.overrideWithValue(davService),
         if (subscriptionService != null)
           webCalSubscriptionServiceProvider.overrideWithValue(
             subscriptionService,
@@ -1163,6 +1422,7 @@ Future<void> _pumpApp(
         authRepositoryProvider.overrideWithValue(
           AuthRepository(
             oAuth: oAuth,
+            microsoftOAuth: microsoftOAuth,
             database: database,
             authorizationPersistence: persistence,
             nowUtc: () => DateTime.utc(2026, 6, 4),
@@ -1172,9 +1432,23 @@ Future<void> _pumpApp(
           onSignedIn ?? (accountId, initial) async {},
         ),
       ],
-      child: const BusyMaxApp(),
+      child: BusyMaxApp(trayServiceFactory: _RoutingTrayService.new),
     ),
   );
+}
+
+class _RoutingTrayService extends BusyMaxTrayService {
+  _RoutingTrayService(BusyMaxTrayServiceConfiguration configuration)
+    : super(configuration: configuration);
+
+  @override
+  Future<void> start() async {}
+
+  @override
+  Future<void> stop() async {}
+
+  @override
+  Future<bool> refreshPresentation() async => true;
 }
 
 class _FakeOAuthGateway implements OAuthGateway {
@@ -1356,3 +1630,129 @@ final class _FixtureCalendarTransport implements WebCalHttpTransport {
     conditionalRequestSent: false,
   );
 }
+
+Future<void> _connectControlledProvider(
+  WidgetTester tester,
+  BusyProvider provider,
+) async {
+  final label = switch (provider) {
+    BusyProvider.microsoft => 'Add Microsoft account',
+    BusyProvider.appleICloud => 'Add Apple iCloud Calendar account',
+    BusyProvider.nextcloud => 'Add Nextcloud account',
+    _ => throw StateError('Unsupported fixture provider'),
+  };
+  await tester.ensureVisible(find.text(label));
+  await tester.tap(find.text(label));
+  await tester.pumpAndSettle();
+  if (provider == BusyProvider.microsoft) {
+    await tester.enterText(
+      find.byKey(const ValueKey('registration-client-id')),
+      '11111111-1111-1111-1111-111111111111',
+    );
+    await _validateAndAuthorizeGoogleSetup(tester);
+    return;
+  }
+  if (provider == BusyProvider.appleICloud) {
+    await tester.enterText(
+      find.byKey(const Key('apple-account-email-field')),
+      'fixture@example.test',
+    );
+    await tester.enterText(
+      find.byKey(const Key('apple-app-specific-password-field')),
+      'abcd-efgh-ijkl-mnop',
+    );
+  } else {
+    await tester.enterText(
+      find.byKey(const Key('nextcloud-server-field')),
+      'https://cloud.example.test/',
+    );
+  }
+  await tester.tap(find.text('Connect').last);
+  for (var attempt = 0; attempt < 15; attempt++) {
+    await tester.runAsync(
+      () => Future<void>.delayed(const Duration(milliseconds: 5)),
+    );
+    await tester.pump();
+  }
+}
+
+class _ControlledMicrosoftGateway implements MicrosoftOAuthGateway {
+  @override
+  Future<MicrosoftOAuthSignInResult> signInWithMicrosoft() async =>
+      MicrosoftOAuthSignInResult(
+        accountId: 'microsoft:new',
+        tokenSet: _tokenSet(
+          scopes: Set.of(microsoftTodoOAuthScopes.split(' ')),
+        ),
+        user: const MicrosoftTodoUserDto(
+          id: 'new',
+          rawJson: {},
+          displayName: 'Microsoft fixture',
+        ),
+      );
+  @override
+  Future<void> cancelSignIn() async {}
+  @override
+  Future<void> signOutAccount(String accountId) async {}
+}
+
+DavAccountOnboardingService _controlledDavService(
+  AppDatabase database,
+  InMemorySecretStore secrets,
+) => DavAccountOnboardingService(
+  database: database,
+  secretStore: secrets,
+  idFactory: () => 'fixture',
+  nextcloudLoginFlow: NextcloudLoginFlowV2(
+    client: MockClient(
+      (request) async => http.Response(
+        jsonEncode(
+          request.url.path.endsWith('/poll')
+              ? {
+                  'server': 'https://cloud.example.test/',
+                  'loginName': 'fixture',
+                  'appPassword': 'abcd-efgh-ijkl-mnop',
+                }
+              : {
+                  'poll': {
+                    'token': 'fixture',
+                    'endpoint': 'https://cloud.example.test/login/v2/poll',
+                  },
+                  'login': 'https://cloud.example.test/login/v2/browser',
+                },
+        ),
+        200,
+      ),
+    ),
+    browserLauncher: (_) async => true,
+    delay: (_) async {},
+  ),
+  discover:
+      ({
+        required accountId,
+        required provider,
+        required accountAuthority,
+        required credential,
+        cancellationToken,
+      }) async => DavDiscoveryResult(
+        accountId: accountId,
+        provider: provider,
+        service: DavServiceDiscovery(
+          canonicalServiceUri: accountAuthority,
+          canonicalOrigin: accountAuthority.replace(path: ''),
+          principalHref: accountAuthority.resolve('/principals/fixture/'),
+          calendarHomeHref: accountAuthority.resolve('/calendars/fixture/'),
+          calendarUserAddresses: const [],
+          scheduleInboxHref: null,
+          scheduleOutboxHref: null,
+          capabilities: const AccountServiceCapabilities(
+            hasPrincipal: true,
+            hasCalendarHome: true,
+          ),
+          discoveredAtUtc: DateTime.utc(2026, 10, 4),
+          lastValidatedAtUtc: DateTime.utc(2026, 10, 4),
+          providerProfileVersion: 1,
+        ),
+        collections: const [],
+      ),
+);

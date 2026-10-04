@@ -11,6 +11,8 @@ import 'windows_nextcloud_dialogs.dart';
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+import 'windows_workspace_shell.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -254,7 +256,15 @@ class _WindowsSettingsPageState extends ConsumerState<WindowsSettingsPage> {
         _authorizationCancellation != null;
     return ScaffoldPage.scrollable(
       scrollController: _scrollController,
-      header: PageHeader(title: Text(l10n.settings)),
+      header: PageHeader(
+        leading: (GoRouter.maybeOf(context)?.canPop() ?? false)
+            ? PaneBackButton(
+                key: const ValueKey('windows-settings-back'),
+                onPressed: () => WindowsWorkspaceShell.popSettings(context),
+              )
+            : null,
+        title: Text(l10n.settings),
+      ),
       bottomBar: ref.watch(appSettingsPersistenceFailedProvider)
           ? Padding(
               padding: const EdgeInsets.all(16),
@@ -729,9 +739,19 @@ class _WindowsSettingsPageState extends ConsumerState<WindowsSettingsPage> {
                             windowsBusyMaxGlyph(BusyMaxGlyph.delete),
                           ),
                           text: Text(l10n.removeAccount),
-                          onPressed: () => unawaited(
-                            _removeWindowsAccount(context, ref, values[index]),
-                          ),
+                          closeAfterClick: false,
+                          onPressed: () {
+                            // Close the menu before pushing the confirmation;
+                            // an asynchronous menu pop can race the dialog.
+                            Navigator.of(context).pop();
+                            unawaited(
+                              _removeWindowsAccount(
+                                context,
+                                ref,
+                                values[index],
+                              ),
+                            );
+                          },
                         ),
                       ],
                     ),
@@ -861,13 +881,17 @@ class _WindowsSettingsPageState extends ConsumerState<WindowsSettingsPage> {
                               windowsBusyMaxGlyph(BusyMaxGlyph.delete),
                             ),
                             text: Text(l10n.unsubscribe),
-                            onPressed: () => unawaited(
-                              _unsubscribeWindowsSubscription(
-                                context,
-                                ref,
-                                subscription,
-                              ),
-                            ),
+                            closeAfterClick: false,
+                            onPressed: () {
+                              Navigator.of(context).pop();
+                              unawaited(
+                                _unsubscribeWindowsSubscription(
+                                  context,
+                                  ref,
+                                  subscription,
+                                ),
+                              );
+                            },
                           ),
                         ],
                       ),

@@ -134,12 +134,24 @@ class _WindowsScheduleSourcePaneState
     final l10n = AppLocalizations.of(context);
     final locale = Localizations.localeOf(context).toLanguageTag();
     final order = ref.watch(appSettingsControllerProvider).sidebarOrder;
-    final accounts = order.apply(
+    final orderedAccounts = order.apply(
       SidebarOrderSection.accounts,
       widget.accounts,
       (account) => account.id,
     );
-    final accountIds = accounts.map((account) => account.id).toList();
+    final authenticationAccounts = orderedAccounts
+        .where((account) => !account.isSubscription)
+        .toList();
+    final subscriptionAccounts = orderedAccounts
+        .where((account) => account.isSubscription)
+        .toList();
+    final accounts = [...authenticationAccounts, ...subscriptionAccounts];
+    final authenticationIds = authenticationAccounts
+        .map((account) => account.id)
+        .toList();
+    final subscriptionIds = subscriptionAccounts
+        .map((account) => account.id)
+        .toList();
     return ColoredBox(
       color: FluentTheme.of(context).cardColor,
       child: Column(
@@ -172,7 +184,7 @@ class _WindowsScheduleSourcePaneState
               padding: const EdgeInsets.symmetric(vertical: 8),
               children: [
                 if (widget.accountInventoryResolved &&
-                    !accounts.any((account) => !account.isSubscription))
+                    authenticationAccounts.isEmpty)
                   Padding(
                     padding: const EdgeInsets.symmetric(
                       horizontal: 12,
@@ -193,10 +205,7 @@ class _WindowsScheduleSourcePaneState
                   ),
                 for (final account in accounts) ...[
                   if (account.isSubscription &&
-                      account.id ==
-                          accounts
-                              .firstWhere((value) => value.isSubscription)
-                              .id)
+                      account.id == subscriptionIds.first)
                     Padding(
                       padding: const EdgeInsetsDirectional.fromSTEB(
                         14,
@@ -222,7 +231,9 @@ class _WindowsScheduleSourcePaneState
                       context,
                       SidebarOrderSection.accounts,
                       account.id,
-                      accountIds,
+                      account.isSubscription
+                          ? subscriptionIds
+                          : authenticationIds,
                     ),
                     capabilities: AccountCollectionCreationCapabilities.resolve(
                       account: account,

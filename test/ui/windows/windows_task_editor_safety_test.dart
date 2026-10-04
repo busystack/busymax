@@ -22,6 +22,32 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 
 void main() {
+  for (final exclusion in ['read-only', 'pending-deletion']) {
+    testWidgets(
+      'Windows task editor validates $exclusion initial destination',
+      (tester) async {
+        await _mount(
+          tester,
+          davCapabilities: exclusion == 'read-only'
+              ? nextcloudTaskCollectionCapabilities.asReadOnly()
+              : nextcloudTaskCollectionCapabilities,
+          pendingDavList: exclusion == 'pending-deletion',
+        );
+        final destination = tester.widget<ComboBox<TaskListEntity>>(
+          find.byType(ComboBox<TaskListEntity>),
+        );
+        expect(destination.value!.accountId, isNot('nextcloud'));
+        expect(
+          destination.items!.map((item) => item.value!.accountId),
+          unorderedEquals(['google', 'microsoft']),
+        );
+        expect(find.byType(TextBox), findsWidgets);
+        await tester.tap(find.text('Cancel').last);
+        await tester.pumpAndSettle();
+        expect(find.byType(ContentDialog), findsNothing);
+      },
+    );
+  }
   testWidgets(
     'Windows task detail requires review before retrying an uncertain upload',
     (tester) async {
@@ -366,6 +392,9 @@ Future<AppDatabase> _mount(
   MicrosoftTodoApiClient? todoClient,
   AttachmentUploadCoordinator? uploadCoordinator,
   String initialAccount = 'nextcloud',
+  TaskCollectionCapabilities davCapabilities =
+      nextcloudTaskCollectionCapabilities,
+  bool pendingDavList = false,
 }) async {
   tester.view.physicalSize = const Size(1280, 1000);
   tester.view.devicePixelRatio = 1;
@@ -422,6 +451,11 @@ Future<AppDatabase> _mount(
       ),
     );
   }
+  if (pendingDavList) {
+    await (db.update(db.taskLists)
+          ..where((row) => row.accountId.equals('nextcloud')))
+        .write(const TaskListsCompanion(pendingDelete: Value(true)));
+  }
   await tester.pumpWidget(
     ProviderScope(
       overrides: [
@@ -445,7 +479,7 @@ Future<AppDatabase> _mount(
             (ref) => uploadCoordinator,
           ),
         davTaskCollectionCapabilitiesProvider.overrideWith(
-          (ref, key) async => nextcloudTaskCollectionCapabilities,
+          (ref, key) async => davCapabilities,
         ),
       ],
       child: FluentApp(

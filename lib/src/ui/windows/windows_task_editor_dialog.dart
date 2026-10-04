@@ -52,6 +52,7 @@ Future<WindowsTaskEditorResult?> showWindowsTaskEditorDialog(
         .read(taskListsRepositoryForAccountProvider(account.id))
         .listTaskLists();
     for (final list in accountLists) {
+      if (list.pendingDelete) continue;
       final value = account.provider == BusyProvider.nextcloud
           ? await ref.read(
                   davTaskCollectionCapabilitiesProvider((

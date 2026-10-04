@@ -142,6 +142,26 @@ class AuthRepository {
     return AuthSessionState.signedIn(accounts.first.id);
   }
 
+  /// Reads only persisted connection state; recovery belongs to startup/load.
+  Future<AuthSessionState?> sessionAfterConnection(
+    String connectedAccountId, {
+    String? currentAccountId,
+  }) async {
+    final connected = await _accountsRepository.accountById(connectedAccountId);
+    if (connected == null ||
+        connected.isSubscription ||
+        !connected.isSignedIn) {
+      return null;
+    }
+    if (currentAccountId != null && currentAccountId != connectedAccountId) {
+      final current = await _accountsRepository.accountById(currentAccountId);
+      if (current != null && !current.isSubscription && current.isSignedIn) {
+        return AuthSessionState.signedIn(current.id);
+      }
+    }
+    return AuthSessionState.signedIn(connected.id);
+  }
+
   Future<AuthSessionState> signIn({AuthorizationRequest? request}) async {
     final gateway = _oAuth;
     final result = request != null && gateway is GoogleConnectionGateway
@@ -449,6 +469,26 @@ class AuthSessionController extends StateNotifier<AuthSessionState> {
     Logger('AuthSessionController'),
   );
   var _signInGeneration = 0;
+
+  /// Reconciles a committed Settings connection without scheduling any sync.
+  Future<void> reconcileConnectedAccount(String accountId) async {
+    if (!mounted) return;
+    final previous = state;
+    final generation = _signInGeneration;
+    final reconciled = await _repository.sessionAfterConnection(
+      accountId,
+      currentAccountId: previous.isSignedIn ? previous.accountId : null,
+    );
+    if (!mounted ||
+        generation != _signInGeneration ||
+        !identical(state, previous) ||
+        reconciled == null) {
+      return;
+    }
+    if (!previous.isSignedIn || previous.accountId != reconciled.accountId) {
+      state = reconciled;
+    }
+  }
 
   Future<void> load() async {
     if (!_isConfigured) {

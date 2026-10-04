@@ -17,6 +17,89 @@ import 'package:flutter_test/flutter_test.dart';
 import '../../support/memory_settings_store.dart';
 
 void main() {
+  for (final saved in [
+    ['s1', 'a', 's2', 'b'],
+    ['s1', 's2', 'b', 'a'],
+  ]) {
+    testWidgets('Fluent partitions and reorders saved account groups $saved', (
+      tester,
+    ) async {
+      final store = MemorySettingsStore({
+        'sidebarOrder': ScheduleSidebarOrder(accountIds: saved).toJson(),
+      });
+      final accounts = [
+        _account('s1', BusyProvider.webCal),
+        _account('a', BusyProvider.google),
+        _account('s2', BusyProvider.webCal),
+        _account('b', BusyProvider.microsoft),
+      ];
+      await _pumpPane(tester, store, accounts, const [], const []);
+      accounts.add(_account('new', BusyProvider.nextcloud));
+      await _pumpPane(tester, store, accounts, const [], const []);
+      final authIds = [...saved.where((id) => !id.startsWith('s')), 'new'];
+      void checkOrder(List<String> auth, List<String> subs) {
+        _expectRows(tester, [
+          for (final id in [...auth, ...subs]) ('schedule-account', id),
+        ]);
+        final heading = tester.getTopLeft(find.text('Subscriptions')).dy;
+        for (final id in auth) {
+          expect(
+            tester.getTopLeft(_row(('schedule-account', id))).dy,
+            lessThan(heading),
+          );
+        }
+        for (final id in subs) {
+          expect(
+            tester.getTopLeft(_row(('schedule-account', id))).dy,
+            greaterThan(heading),
+          );
+        }
+        expect(find.text('Subscriptions'), findsOneWidget);
+        expect(find.text('Add account'), findsNothing);
+      }
+
+      MenuFlyoutItem movement(String id, String label) => tester
+          .widget<DropDownButton>(
+            find.descendant(
+              of: _row(('schedule-account', id)),
+              matching: find.byType(DropDownButton),
+            ),
+          )
+          .items
+          .whereType<MenuFlyoutItem>()
+          .singleWhere((item) => (item.text as Text).data == label);
+      checkOrder(authIds, ['s1', 's2']);
+      expect(movement(authIds.first, 'Move up').onPressed, isNull);
+      expect(movement('new', 'Move down').onPressed, isNull);
+      expect(movement('s1', 'Move up').onPressed, isNull);
+      expect(movement('s2', 'Move down').onPressed, isNull);
+      await tester.tap(
+        find.descendant(
+          of: _row(('schedule-account', authIds.first)),
+          matching: find.byType(DropDownButton),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Move down').last);
+      await tester.pumpAndSettle();
+      final moved = [authIds[1], authIds[0], 'new'];
+      checkOrder(moved, ['s1', 's2']);
+      await tester.tap(
+        find.descendant(
+          of: _row(('schedule-account', 's2')),
+          matching: find.byType(DropDownButton),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Move up').last);
+      await tester.pumpAndSettle();
+      checkOrder(moved, ['s2', 's1']);
+      await tester.pumpWidget(const SizedBox.shrink());
+      await _pumpPane(tester, store, accounts, const [], const []);
+      checkOrder(moved, ['s2', 's1']);
+      expect(tester.takeException(), isNull);
+    });
+  }
   testWidgets(
     'Fluent Add account uses resolved inventory and keeps subscription identity',
     (tester) async {

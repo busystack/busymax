@@ -24,6 +24,7 @@ import '../../features/calendar/presentation/google_status_event_labels.dart';
 import '../../features/schedule/presentation/schedule_item_exporter.dart';
 import '../../features/schedule/presentation/cloud_calendar_series_export.dart';
 import '../../features/task_lists/data/task_lists_repository.dart';
+import '../../features/tasks/domain/task_capabilities.dart';
 import '../../schedule/schedule_filters.dart';
 import '../../schedule/schedule_commands.dart';
 import '../../schedule/schedule_projection.dart';
@@ -329,18 +330,49 @@ class _WindowsSchedulePageState extends ConsumerState<WindowsSchedulePage> {
         ) ??
         visibleCalendars.firstOrNull ??
         allCalendars.firstOrNull;
-    final preferredTaskList = preferredCreationDestination(
-      taskLists.where((list) => !list.pendingDelete),
-      selected: settings.defaultTaskList,
-      lastUsed: settings.lastUsedTaskList,
-      destinationOf: (list) =>
-          CreationDestination(accountId: list.accountId, id: list.id),
-    );
-    _creationTaskList = preferredTaskList == null
-        ? visibility.visibleTaskListKeys.firstOrNull
+    final accountsById = {for (final account in accounts) account.id: account};
+    final eligibleTaskLists = taskLists.where((list) {
+      if (list.pendingDelete) return false;
+      final account = accountsById[list.accountId];
+      if (account == null || !account.isTaskCapable) return false;
+      if (account.provider == BusyProvider.nextcloud) {
+        return ref
+                .watch(
+                  davTaskCollectionCapabilitiesProvider((
+                    accountId: account.id,
+                    taskListId: list.id,
+                  )),
+                )
+                .valueOrNull
+                ?.canCreateTasks ==
+            true;
+      }
+      return adapterDefaultTaskCapabilities(account.provider).canCreateTasks;
+    }).toList();
+    final creationTaskList =
+        preferredCreationDestination(
+          eligibleTaskLists,
+          selected: settings.defaultTaskList,
+          lastUsed: settings.lastUsedTaskList,
+          destinationOf: (list) =>
+              CreationDestination(accountId: list.accountId, id: list.id),
+        ) ??
+        eligibleTaskLists
+            .where(
+              (list) => visibility.visibleTaskListKeys.contains(
+                ScheduleTaskListKey(
+                  accountId: list.accountId,
+                  taskListId: list.id,
+                ),
+              ),
+            )
+            .firstOrNull ??
+        eligibleTaskLists.firstOrNull;
+    _creationTaskList = creationTaskList == null
+        ? null
         : ScheduleTaskListKey(
-            accountId: preferredTaskList.accountId,
-            taskListId: preferredTaskList.id,
+            accountId: creationTaskList.accountId,
+            taskListId: creationTaskList.id,
           );
     final l10n = AppLocalizations.of(context);
     final locale = Localizations.localeOf(context).toLanguageTag();
@@ -540,14 +572,19 @@ class _WindowsSchedulePageState extends ConsumerState<WindowsSchedulePage> {
                     CommandBarButton(
                       icon: Icon(windowsBusyMaxGlyph(BusyMaxGlyph.add)),
                       label: Text(l10n.newEvent),
-                      onPressed: () => unawaited(_createEvent()),
+                      key: const ValueKey('windows-new-event'),
+                      onPressed: _creationCalendar == null
+                          ? null
+                          : () => unawaited(_createEvent()),
                     ),
                   ],
                   secondaryItems: [
                     CommandBarButton(
                       icon: Icon(windowsBusyMaxGlyph(BusyMaxGlyph.task)),
                       label: Text(l10n.newTask),
-                      onPressed: () => unawaited(_createTask()),
+                      onPressed: _creationTaskList == null
+                          ? null
+                          : () => unawaited(_createTask()),
                     ),
                     CommandBarButton(
                       icon: Icon(windowsBusyMaxGlyph(BusyMaxGlyph.refresh)),

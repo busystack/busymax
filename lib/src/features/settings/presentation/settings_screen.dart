@@ -794,6 +794,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       }
       final repository = ref.read(authRepositoryProvider);
       final runSync = ref.read(signedInSyncRunnerProvider);
+      final sessionController = ref.read(
+        authSessionControllerProvider.notifier,
+      );
       setState(() => _connectingProvider = provider);
       if (!mounted || ownedCancellation.isCancelled) return;
       request = (request ?? const AuthorizationRequest.newConnection(null))
@@ -843,6 +846,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         }
         if (accountId != null) {
           unawaited(_syncConnectedAccount(runSync, accountId));
+          await sessionController.reconcileConnectedAccount(accountId);
         }
       } on Object catch (error) {
         if ((error is OAuthException && error.code == 'OAuthSignInCancelled') ||

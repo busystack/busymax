@@ -1,5 +1,8 @@
 import 'package:busymax/src/core/secrets/secret_store.dart';
 import 'dart:async';
+import 'dart:convert';
+import 'package:busymax/src/webcal/webcal_http_client.dart';
+import 'package:busymax/src/webcal/webcal_subscription_service.dart';
 
 import 'package:busymax/l10n/generated/app_localizations.dart';
 import 'package:busymax/src/app/app_bootstrap.dart';
@@ -21,104 +24,156 @@ import '../../support/fake_autostart_service.dart';
 import '../../support/memory_settings_store.dart';
 
 void main() {
-  for (final width in [1200.0, 720.0]) {
-    testWidgets('Windows empty startup and Accounts targeting at width $width', (
-      tester,
-    ) async {
-      final container = await _pumpRoutedApp(tester, width: width);
-      expect(container.read(authSessionControllerProvider).isSignedIn, isFalse);
-      expect(find.byType(WindowsSchedulePage), findsOneWidget);
-      expect(find.byType(WindowsScheduleDayWeekView), findsOneWidget);
-      if (width < 1000) {
-        expect(
-          find.byType(WindowsScheduleSourcePane).hitTestable(),
-          findsNothing,
-        );
-        final button = tester
-            .widget<CommandBar>(find.byType(CommandBar))
-            .primaryItems
-            .whereType<CommandBarButton>()
-            .firstWhere(
-              (item) =>
-                  item.label is Text &&
-                  [
-                    'Show sidebar panel',
-                    'Filters',
-                  ].contains((item.label as Text).data),
+  for (final initialLocation in ['/', '/schedule']) {
+    for (final width in [1200.0, 720.0]) {
+      testWidgets(
+        'Windows empty startup $initialLocation and Accounts targeting at width $width',
+        (tester) async {
+          final container = await _pumpRoutedApp(
+            tester,
+            width: width,
+            initialLocation: initialLocation,
+          );
+          final workspace = tester.state(find.byType(WindowsSchedulePage));
+          final selectedDate = await _navigateCalendar(tester);
+          expect(
+            container.read(authSessionControllerProvider).isSignedIn,
+            isFalse,
+          );
+          expect(find.byType(WindowsSchedulePage), findsOneWidget);
+          expect(find.byType(WindowsScheduleDayWeekView), findsOneWidget);
+          if (width < 1000) {
+            expect(
+              find.byType(WindowsScheduleSourcePane).hitTestable(),
+              findsNothing,
             );
-        button.onPressed!();
-        await tester.pumpAndSettle();
-        expect(find.byType(ContentDialog), findsOneWidget);
-      }
-      expect(find.text('Add account').hitTestable(), findsOneWidget);
-      await tester.tap(find.text('Add account').hitTestable());
-      await tester.pumpAndSettle();
-      expect(find.byType(ContentDialog), findsNothing);
-      expect(find.byType(WindowsSettingsPage), findsOneWidget);
-      final uri = GoRouterState.of(
-        tester.element(find.byType(WindowsSettingsPage)),
-      ).uri;
-      expect(uri.path, '/settings');
-      expect(uri.queryParameters['page'], 'accounts');
-      expect(windowsAppRouter.canPop(), isTrue);
-      for (final title in [
-        'Add Google account',
-        'Add Microsoft account',
-        'Add Apple iCloud Calendar account',
-        'Add Nextcloud account',
-      ]) {
-        expect(find.text(title).hitTestable(), findsOneWidget);
-        final row = tester.widget<ListTile>(
-          find.ancestor(of: find.text(title), matching: find.byType(ListTile)),
-        );
-        expect(row.onPressed, isNotNull);
-        if (title == 'Add Google account') {
-          expect(row.focusNode!.hasFocus, isTrue);
-        }
-      }
-      // Cancel each local setup dialog before any credentials or authorization.
-      for (final title in [
-        'Add Google account',
-        'Add Microsoft account',
-        'Add Apple iCloud Calendar account',
-        'Add Nextcloud account',
-      ]) {
-        await tester.ensureVisible(find.text(title));
-        await tester.tap(find.text(title));
-        await tester.pump();
-        await tester.pump(const Duration(milliseconds: 300));
-        expect(tester.takeException(), isNull, reason: 'Opening $title');
-        expect(find.byType(ContentDialog), findsOneWidget);
-        await tester.tap(find.text('Cancel').last);
-        await tester.pumpAndSettle();
-        expect(find.byType(WindowsSettingsPage), findsOneWidget);
-      }
-      await tester.scrollUntilVisible(
-        find.text('Add calendar subscription'),
-        200,
-        scrollable: find.byType(Scrollable).first,
+            final button = tester
+                .widget<CommandBar>(find.byType(CommandBar))
+                .primaryItems
+                .whereType<CommandBarButton>()
+                .firstWhere(
+                  (item) =>
+                      item.label is Text &&
+                      [
+                        'Show sidebar panel',
+                        'Filters',
+                      ].contains((item.label as Text).data),
+                );
+            button.onPressed!();
+            await tester.pumpAndSettle();
+            expect(find.byType(ContentDialog), findsOneWidget);
+          }
+          expect(find.text('Add account').hitTestable(), findsOneWidget);
+          await tester.tap(find.text('Add account').hitTestable());
+          await tester.pumpAndSettle();
+          expect(find.byType(ContentDialog), findsNothing);
+          expect(find.byType(WindowsSettingsPage), findsOneWidget);
+          final uri = GoRouterState.of(
+            tester.element(find.byType(WindowsSettingsPage)),
+          ).uri;
+          expect(uri.path, '/settings');
+          expect(uri.queryParameters['page'], 'accounts');
+          expect(windowsAppRouter.canPop(), isTrue);
+          for (final title in [
+            'Add Google account',
+            'Add Microsoft account',
+            'Add Apple iCloud Calendar account',
+            'Add Nextcloud account',
+          ]) {
+            expect(find.text(title).hitTestable(), findsOneWidget);
+            final row = tester.widget<ListTile>(
+              find.ancestor(
+                of: find.text(title),
+                matching: find.byType(ListTile),
+              ),
+            );
+            expect(row.onPressed, isNotNull);
+            if (title == 'Add Google account') {
+              expect(row.focusNode!.hasFocus, isTrue);
+            }
+          }
+          // Cancel each local setup dialog before any credentials or authorization.
+          for (final title in [
+            'Add Google account',
+            'Add Microsoft account',
+            'Add Apple iCloud Calendar account',
+            'Add Nextcloud account',
+          ]) {
+            await tester.ensureVisible(find.text(title));
+            await tester.tap(find.text(title));
+            await tester.pump();
+            await tester.pump(const Duration(milliseconds: 300));
+            expect(tester.takeException(), isNull, reason: 'Opening $title');
+            expect(find.byType(ContentDialog), findsOneWidget);
+            await tester.tap(find.text('Cancel').last);
+            await tester.pumpAndSettle();
+            expect(find.byType(WindowsSettingsPage), findsOneWidget);
+          }
+          await tester.scrollUntilVisible(
+            find.text('Add calendar subscription'),
+            200,
+            scrollable: find.byType(Scrollable).first,
+          );
+          await tester.tap(find.text('Add calendar subscription'));
+          await tester.pumpAndSettle();
+          expect(tester.takeException(), isNull, reason: 'Subscription dialog');
+          expect(find.byType(ContentDialog), findsOneWidget);
+          await tester.tap(find.text('Cancel').last);
+          await tester.pumpAndSettle();
+          if (initialLocation == '/schedule' && width == 720) {
+            await _backShortcut(tester);
+          } else {
+            await tester.tap(
+              find.byKey(const ValueKey('windows-settings-back')),
+            );
+            await tester.pumpAndSettle();
+          }
+          expect(find.byType(WindowsSchedulePage), findsOneWidget);
+          expect(
+            container.read(appSettingsControllerProvider).scheduleViewMode,
+            ScheduleViewMode.day,
+          );
+          expect(
+            tester.state(find.byType(WindowsSchedulePage)),
+            same(workspace),
+          );
+          final planner = tester.widget<WindowsScheduleDayWeekView>(
+            find.byType(WindowsScheduleDayWeekView),
+          );
+          expect(planner.daysShowed, 1);
+          expect(planner.initialDate, selectedDate);
+        },
       );
-      await tester.tap(find.text('Add calendar subscription'));
-      await tester.pumpAndSettle();
-      expect(tester.takeException(), isNull, reason: 'Subscription dialog');
-      expect(find.byType(ContentDialog), findsOneWidget);
-      await tester.tap(find.text('Cancel').last);
-      await tester.pumpAndSettle();
-      windowsAppRouter.pop();
-      await tester.pumpAndSettle();
-      expect(find.byType(WindowsSchedulePage), findsOneWidget);
-      expect(
-        container.read(appSettingsControllerProvider).scheduleViewMode,
-        ScheduleViewMode.week,
-      );
-    });
+    }
   }
 
   testWidgets('Windows empty calendar creation shortcuts do not open editors', (
     tester,
   ) async {
     await _pumpRoutedApp(tester);
-    FocusManager.instance.primaryFocus?.unfocus();
+    final eventButton = tester.widget<IconButton>(
+      find.byKey(const ValueKey('windows-new-event')),
+    );
+    expect(eventButton.onPressed, isNull);
+    await tester.tap(find.byTooltip('See more'));
+    await tester.pumpAndSettle();
+    final taskButton = tester.widget<FlyoutListTile>(
+      find.ancestor(
+        of: find.text('New task'),
+        matching: find.byType(FlyoutListTile),
+      ),
+    );
+    expect(taskButton.onPressed, isNull);
+    await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+    await tester.pumpAndSettle();
+    Focus.of(
+      tester.element(
+        find.descendant(
+          of: find.byType(WindowsSchedulePage),
+          matching: find.byType(ScaffoldPage),
+        ),
+      ),
+    ).requestFocus();
     await tester.pump();
     await tester.sendKeyEvent(LogicalKeyboardKey.keyE);
     await tester.sendKeyEvent(LogicalKeyboardKey.keyT);
@@ -132,6 +187,8 @@ void main() {
     'Windows final-account removal leaves Settings and empty calendar',
     (tester) async {
       final container = await _pumpRoutedApp(tester);
+      final workspace = tester.state(find.byType(WindowsSchedulePage));
+      final selectedDate = await _navigateCalendar(tester);
       await tester.runAsync(
         () => container
             .read(accountsRepositoryProvider)
@@ -192,7 +249,7 @@ void main() {
             .map((w) => w.data)
             .join(' | '),
       );
-      windowsAppRouter.go('/schedule');
+      await tester.tap(find.byKey(const ValueKey('windows-settings-back')));
       await tester.pumpAndSettle();
       expect(
         find.byType(WindowsScheduleDayWeekView),
@@ -201,15 +258,97 @@ void main() {
             'mode=${container.read(appSettingsControllerProvider).scheduleViewMode}, route=${windowsAppRouter.state.uri}, texts=${tester.widgetList<Text>(find.byType(Text)).map((w) => w.data).join(' | ')}',
       );
       expect(find.text('Add account'), findsOneWidget);
+      expect(tester.state(find.byType(WindowsSchedulePage)), same(workspace));
+      final planner = tester.widget<WindowsScheduleDayWeekView>(
+        find.byType(WindowsScheduleDayWeekView),
+      );
+      expect(planner.initialDate, selectedDate);
+      expect(planner.daysShowed, 1);
     },
   );
+  testWidgets(
+    'Windows final subscription removal preserves Settings Back history',
+    (tester) async {
+      final container = await _pumpRoutedApp(tester, withSubscription: true);
+      final workspace = tester.state(find.byType(WindowsSchedulePage));
+      final selectedDate = await _navigateCalendar(tester);
+      expect(find.text('Add account'), findsOneWidget);
+      await tester.tap(find.text('Add account'));
+      await tester.pumpAndSettle();
+      await tester.scrollUntilVisible(
+        find.text('Last subscription'),
+        150,
+        scrollable: find.byType(Scrollable).first,
+      );
+      final row = find.ancestor(
+        of: find.text('Last subscription'),
+        matching: find.byType(ListTile),
+      );
+      await tester.tap(
+        find.descendant(of: row, matching: find.byType(DropDownButton)),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Unsubscribe').last);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Unsubscribe').last);
+      await tester.pumpAndSettle();
+      expect(find.byType(WindowsSettingsPage), findsOneWidget);
+      expect(
+        (await tester.runAsync(() {
+          final database = container.read(databaseProvider);
+          return database.select(database.accounts).get();
+        }))!,
+        isEmpty,
+      );
+      expect(
+        find.byKey(const ValueKey('windows-settings-back')).hitTestable(),
+        findsOneWidget,
+      );
+      await tester.tap(find.byKey(const ValueKey('windows-settings-back')));
+      await tester.pumpAndSettle();
+      expect(tester.state(find.byType(WindowsSchedulePage)), same(workspace));
+      final planner = tester.widget<WindowsScheduleDayWeekView>(
+        find.byType(WindowsScheduleDayWeekView),
+      );
+      expect(planner.initialDate, selectedDate);
+      expect(planner.daysShowed, 1);
+      expect(find.text('Add account'), findsOneWidget);
+    },
+  );
+  testWidgets('direct Windows Settings has no fabricated Back history', (
+    tester,
+  ) async {
+    await _pumpRoutedApp(tester, initialLocation: '/settings?page=accounts');
+    expect(windowsAppRouter.canPop(), isFalse);
+    expect(find.byKey(const ValueKey('windows-settings-back')), findsNothing);
+    await _backShortcut(tester);
+    expect(find.byType(WindowsSettingsPage), findsOneWidget);
+    expect(windowsAppRouter.state.uri.toString(), '/settings?page=accounts');
+    expect(windowsAppRouter.canPop(), isFalse);
+  });
 }
 
 Future<ProviderContainer> _pumpRoutedApp(
   WidgetTester tester, {
   double width = 1200,
+  String initialLocation = '/',
+  bool withSubscription = false,
 }) async {
   final database = AppDatabase.memoryForTests();
+  final secrets = InMemorySecretStore();
+  final subscriptions = WebCalSubscriptionService(
+    database: database,
+    secretStore: secrets,
+    httpTransport: _SubscriptionTransport(),
+  );
+  if (withSubscription) {
+    await tester.runAsync(
+      () => subscriptions.addSubscription(
+        subscriptionUrl: 'https://calendar.example.test/fixture.ics',
+        localName: 'Last subscription',
+      ),
+    );
+  }
   addTearDown(database.close);
   tester.view
     ..devicePixelRatio = 1
@@ -219,7 +358,8 @@ Future<ProviderContainer> _pumpRoutedApp(
     ProviderScope(
       overrides: [
         databaseProvider.overrideWithValue(database),
-        secretStoreProvider.overrideWithValue(InMemorySecretStore()),
+        secretStoreProvider.overrideWithValue(secrets),
+        webCalSubscriptionServiceProvider.overrideWithValue(subscriptions),
         localSettingsStoreProvider.overrideWithValue(MemorySettingsStore()),
         localTimeZoneProvider.overrideWithValue('UTC'),
         desktopAutostartServiceProvider.overrideWithValue(
@@ -239,9 +379,67 @@ Future<ProviderContainer> _pumpRoutedApp(
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pump(const Duration(milliseconds: 1));
   });
-  windowsAppRouter.go('/');
+  windowsAppRouter.go(initialLocation);
   await tester.pumpAndSettle();
   return ProviderScope.containerOf(
+    tester.element(
+      find.byType(
+        initialLocation.startsWith('/settings')
+            ? WindowsSettingsPage
+            : WindowsSchedulePage,
+      ),
+    ),
+  );
+}
+
+Future<DateTime> _navigateCalendar(WidgetTester tester) async {
+  await tester.tap(find.widgetWithText(DropDownButton, 'Week'));
+  await tester.pumpAndSettle();
+  await tester.tap(find.text('Day').last);
+  await tester.pumpAndSettle();
+  final l10n = AppLocalizations.of(
     tester.element(find.byType(WindowsSchedulePage)),
   );
+  await tester.tap(find.byTooltip(l10n.shortcutNextPeriodDescription));
+  await tester.pumpAndSettle();
+  await tester.tap(find.byTooltip(l10n.shortcutNextPeriodDescription));
+  await tester.pumpAndSettle();
+  final planner = tester.widget<WindowsScheduleDayWeekView>(
+    find.byType(WindowsScheduleDayWeekView),
+  );
+  expect(planner.daysShowed, 1);
+  final today = DateTime.now();
+  expect(
+    planner.initialDate,
+    isNot(DateTime(today.year, today.month, today.day)),
+  );
+  return planner.initialDate;
+}
+
+final class _SubscriptionTransport implements WebCalHttpTransport {
+  @override
+  Future<WebCalHttpResponse> get(
+    Uri uri, {
+    WebCalHttpValidators validators = const WebCalHttpValidators(),
+    Uri? validatorTarget,
+  }) async => WebCalHttpResponse(
+    statusCode: 200,
+    finalUri: uri,
+    body: Uint8List.fromList(
+      utf8.encode(
+        'BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//BusyMax Fixture//EN\r\nBEGIN:VEVENT\r\nUID:fixture\r\nDTSTAMP:20261004T000000Z\r\nDTSTART:20301004T090000Z\r\nDTEND:20301004T100000Z\r\nSUMMARY:Controlled subscription\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n',
+      ),
+    ),
+    etag: null,
+    lastModified: null,
+    contentType: 'text/calendar',
+    conditionalRequestSent: false,
+  );
+}
+
+Future<void> _backShortcut(WidgetTester tester) async {
+  await tester.sendKeyDownEvent(LogicalKeyboardKey.altLeft);
+  await tester.sendKeyEvent(LogicalKeyboardKey.arrowLeft);
+  await tester.sendKeyUpEvent(LogicalKeyboardKey.altLeft);
+  await tester.pumpAndSettle();
 }
