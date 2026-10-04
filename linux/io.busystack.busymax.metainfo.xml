@@ -93,10 +93,6 @@
       <caption>BusyMax agenda view with upcoming events and tasks.</caption>
       <image type="source">https://raw.githubusercontent.com/busystack/busymax/main/docs/screenshots/main_window_agenda.png</image>
     </screenshot>
-    <screenshot>
-      <caption>Direct Google, Microsoft, Apple iCloud Calendar, and Nextcloud account choices.</caption>
-      <image type="source">https://raw.githubusercontent.com/busystack/busymax/main/docs/screenshots/account_provider_selection.png</image>
-    </screenshot>
   </screenshots>
   <content_rating type="oars-1.1" />
   <releases>

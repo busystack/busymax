@@ -33,6 +33,12 @@ migrate_working_dir/
 /build/
 /coverage/
 
+# Per-run evidence belongs in build/ or a temporary directory.
+/docs/validation/
+
+# Transient Kotlin compiler session state.
+.kotlin/
+
 # Symbolication related
 app.*.symbols
 

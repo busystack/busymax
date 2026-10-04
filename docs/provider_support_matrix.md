@@ -9,8 +9,8 @@ that a workflow has completed live-provider verification.
 
 | Provider | Calendar service | Task service | Account connection |
 |---|---|---|---|
-| Google | Google Calendar | Google Tasks | Browser OAuth with a configured desktop client |
-| Microsoft | Microsoft Calendar | Microsoft To Do | Browser OAuth with a configured public client |
+| Google | Google Calendar | Google Tasks | Configured desktop browser OAuth; native Google Identity Services on Android |
+| Microsoft | Microsoft Calendar | Microsoft To Do | Configured desktop public-client OAuth; native MSAL on Android |
 | Apple | iCloud Calendar | Not supported | Apple Account email and app-specific password |
 | Nextcloud | CalDAV events | CalDAV tasks | Login Flow v2 in the default browser |
 | WebCal | Read-only subscription | Not supported | Confirmed subscription URL |
@@ -19,6 +19,14 @@ Apple Reminders, generic CalDAV accounts, Nextcloud Deck, and Nextcloud Notes
 are not supported. Production connections require normal platform TLS
 validation; BusyMax has no HTTP or invalid-certificate mode. The loopback HTTP
 fixtures documented for live tests are test-only.
+
+Android Google authorization requires Google Play services; when absent, only
+Google is unavailable. Microsoft requires a registered MSAL redirect matching
+the certificate that signs the installed APK. Android uses native account
+authorization rather than desktop loopback flows. Local Nextcloud hosts on
+Android 17 require contextual local-network permission; denial stops the
+connection. See [Android setup](android_setup.md) for registrations and
+permissions.
 
 ## Event objects
 
@@ -179,5 +187,5 @@ Deterministic tests cover projections, provider adapters, DAV preservation,
 permission handling, mutation queues, conflicts, and UI state. Real account
 authorization, provider delivery, server/version interoperability, installed
 desktop integration, and permission changes still require the
-[live-provider test guide](live_provider_testing.md) and the applicable release
-checklist.
+[live-provider tests](development.md#live-provider-tests) and the applicable
+release checklist.

@@ -120,5 +120,5 @@ Official setup references:
 [Nextcloud Login Flow v2](https://docs.nextcloud.com/server/stable/developer_manual/client_apis/LoginFlow/index.html)
 and
 [Nextcloud WebDAV basics](https://docs.nextcloud.com/server/stable/developer_manual/client_apis/WebDAV/basic.html).
-Maintainers should use [live-provider testing](live_provider_testing.md) before
+Maintainers should use [live-provider tests](development.md#live-provider-tests) before
 making release-specific interoperability claims.

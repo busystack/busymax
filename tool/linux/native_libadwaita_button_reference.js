@@ -1,8 +1,8 @@
 #!/usr/bin/gjs
 
-// Development-only native reference for the libadwaita generation pinned in
-// docs/linux_button_reference.md. It intentionally uses real Gtk.Button
-// controls and native CSS states; no BusyMax styling is applied here.
+// Development-only native libadwaita reference; see tool/README.md for usage.
+// It uses real Gtk.Button controls and native CSS states; no BusyMax styling
+// is applied here.
 imports.gi.versions.Gtk = '4.0';
 imports.gi.versions.Adw = '1';
 

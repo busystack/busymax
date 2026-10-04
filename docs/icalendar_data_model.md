@@ -122,7 +122,7 @@ version. Useful versioned sources include the
 and
 [trash restore target](https://github.com/nextcloud/server/blob/v34.0.3/apps/dav/lib/CalDAV/Trashbin/RestoreTarget.php).
 Record the versions actually installed during
-[live-provider testing](live_provider_testing.md).
+[live-provider tests](development.md#live-provider-tests).
 
 ## Standards
 

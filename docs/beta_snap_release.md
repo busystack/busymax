@@ -46,6 +46,14 @@ desktop/public-client configuration; never use server credentials or commit
 the JSON or generated Snap. Apple iCloud and Nextcloud per-user credentials do
 not belong in this file.
 
+Active `BUSYMAX_*` registrations enable new managed connections; protected
+originals serve existing account bindings and must retain their original
+values. Never use CI fixture values as production credentials. The
+[desktop OAuth release checklist](oauth_next_release_checklist.md) covers the
+provider publishing, verification, and consent prerequisites. Validate the
+define file with `tool/check_desktop_oauth_config.dart` before building, as
+shown below.
+
 ## Build the canonical artifact
 
 Complete the shared preparation and normal validation in
@@ -208,15 +216,3 @@ Official references:
 [upload](https://documentation.ubuntu.com/snapcraft/stable/reference/commands/upload/),
 and
 [revision management](https://documentation.ubuntu.com/snapcraft/stable/how-to/publishing/manage-revisions-and-releases/).
-
-Official desktop packages require explicit active registration values in addition
-to preserved originals. Provide `BUSYMAX_GOOGLE_OAUTH_CLIENT_ID`,
-`BUSYMAX_GOOGLE_OAUTH_CLIENT_SECRET`, `BUSYMAX_GOOGLE_OAUTH_PROJECT_ID`,
-`BUSYMAX_MICROSOFT_OAUTH_CLIENT_ID`, and
-`BUSYMAX_MICROSOFT_OAUTH_AUTHORITY_TENANT` in a protected define file, along with
-`BUSYMAX_PRIVACY_POLICY_URL=https://busystack.org/privacy-busymax`. Validate it
-with `dart run tool/check_desktop_oauth_config.dart --config <file>` before
-building. Retain original IDs/secrets separately for existing account bindings.
-Never use CI fixture values as production credentials. See the
-[current OAuth release prerequisites](oauth_next_release_checklist.md);
-provider publishing, verification and consent require owner approval.

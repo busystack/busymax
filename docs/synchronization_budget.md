@@ -1,4 +1,4 @@
-# Synchronization policy and request-budget evidence
+# Synchronization policy and request cost
 
 Periodic account wakeups remain at 15 minutes, including Android WorkManager.
 Eligibility is persisted separately for each account and Tasks/Calendar domain,
@@ -19,22 +19,9 @@ another 15 minutes before consuming that window; operating-system deferral,
 offline periods and provider cooldowns can add further delay. Calendar becomes
 eligible after 15–16.5 minutes and has the same wakeup granularity. Opening or
 resuming the app checks 15-minute freshness, and local edits dispatch immediately.
-Calendar keeps its established incremental cursor/recovery behavior. User-owned
-desktop projects still need this efficiency.
+Calendar keeps its established incremental cursor/recovery behavior.
 
-## Deterministic measurements
-
-`test/features/sync/domain_sync_schedule_test.dart` counts actual HTTP requests
-through GoogleTasksRestApiClient and SyncEngine, including checkpoints and durable
-replay. These are reproducible synthetic workloads, not live quota telemetry.
-
-| Workload | One eligible Tasks pull | Three intervening 15-minute wakes | Next eligible pull | Manual refresh |
-|---|---:|---:|---:|---:|
-| Quiet, 1 collection, one page each | 2 | 0 | 2 | 2 |
-| Quiet, 5 collections, one page each | 6 | 0 | 6 | 6 |
-| Quiet, 20 collections, one page each | 21 | 0 | 21 | 21 |
-| Changed, 2 collection pages and 2 task pages | 4 | 0 when ineligible | 4 for that page pattern | preserves incremental overlap |
-| One local task creation after a recent pull | 1 POST | no collection poll | independent of passive eligibility | durable replay remains responsible |
+## Request costs
 
 A quiet Tasks pull costs `collection-list pages + sum(task pages per collection)`.
 `updatedMin` reduces response contents; it does not eliminate requests to each
@@ -46,22 +33,17 @@ Clock reversal permits stale pulls, while explicit provider cooldowns remain hel
 A Tasks quota failure is reported as a partial account failure and Calendar still
 runs; cached reminders continue while Tasks is deferred.
 
-## Android shared Google project quota request preparation
+The [domain scheduling tests](../test/features/sync/domain_sync_schedule_test.dart)
+exercise request counts, freshness checkpoints, and durable replay with synthetic
+workloads. They do not measure production quota usage.
 
-[Google Tasks limits](https://developers.google.com/workspace/tasks/limits) describes
-a 50,000-query/day courtesy limit, notes that actual project limits vary, and permits
-quota adjustment requests without guaranteeing approval. No quota change or
-approval is claimed here. Google's native Android registration remains a shared
-project dependency and must not be deleted with the desktop client.
+## Provider quotas
 
-For continuously enabled quiet background accounts, an upper bound without
-jitter is 24 eligible pulls/day rather than 96 scheduler wakes/day. The measured
-1/5/20-collection workloads therefore cost at most 48/144/504 Tasks reads per
-account/day, compared with 192/576/2,016 at every 15-minute wake. At 50,000 queries,
-the arithmetic ceilings are 1,041/347/99 such accounts before manual pulls,
-foreground activity, pagination, writes, retries and other project usage. These
-are budget estimates, not supported user counts. Hourly scheduling alone does not
-resolve a shared project's scaling limits.
+Actual [Google Tasks limits](https://developers.google.com/workspace/tasks/limits)
+depend on the project; quota adjustments require provider approval. Android's
+native Google registration uses a shared project, whose capacity also depends
+on manual pulls, foreground activity, pagination, writes, retries, and other
+project usage. Hourly scheduling alone does not resolve shared-project limits.
 
 Collect production evidence before requesting an adjustment: actual project
 quota, active Android account count, enabled collections/pages, quiet versus

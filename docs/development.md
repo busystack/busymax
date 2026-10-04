@@ -24,14 +24,25 @@ Dependency resolution must precede localization generation, which must precede
 Drift generation. Generated localization and database files are committed; a
 generation run should leave them unchanged.
 
-Google and Microsoft sign-in require provider-specific build configuration.
-You can build, inspect, and test the application without registering both
-providers. Add only the configuration for the sign-in flows you need:
+New desktop **Connect with BusyMax** connections require explicitly active
+registrations in [`BuildConfig`](../lib/src/config/build_config.dart):
 
-- `GOOGLE_OAUTH_CLIENT_ID` and `GOOGLE_OAUTH_CLIENT_SECRET`: see
-  [Google OAuth registration](google_setup.md).
-- `MICROSOFT_OAUTH_CLIENT_ID`: see
-  [Microsoft OAuth registration](microsoft_setup.md).
+- Google: `BUSYMAX_GOOGLE_OAUTH_CLIENT_ID`,
+  `BUSYMAX_GOOGLE_OAUTH_CLIENT_SECRET`, and `BUSYMAX_GOOGLE_OAUTH_PROJECT_ID`.
+- Microsoft: `BUSYMAX_MICROSOFT_OAUTH_CLIENT_ID` and an explicit
+  `BUSYMAX_MICROSOFT_OAUTH_AUTHORITY_TENANT`.
+
+Protected `GOOGLE_OAUTH_*` and `MICROSOFT_OAUTH_*` originals serve eligible
+existing account bindings. Keep them separate from active registrations; they
+do not enable new managed connections or provide an implicit fallback. You can
+build and run offline tests without provider configuration; unconfigured
+desktop builds keep custom registration setup available.
+
+Use the [Google](google_setup.md) and [Microsoft](microsoft_setup.md) registration
+guides for custom setup. Official packages must pass
+`dart run tool/check_desktop_oauth_config.dart --config <dart-defines.json>`;
+the [desktop OAuth release checklist](oauth_next_release_checklist.md) owns the
+complete configuration and provider approval requirements.
 
 Apple iCloud Calendar and Nextcloud do not use compile-time OAuth client
 credentials.
@@ -108,16 +119,17 @@ flutter config --enable-windows-desktop
 .\tool\windows\check_prerequisites.ps1
 ```
 
-Run the Windows composition explicitly. This example configures both browser
-sign-in providers and includes the Google desktop client secret required by the
-Google setup guide:
+Run the Windows composition explicitly. This example supplies active
+registrations for both browser sign-in providers:
 
 ```powershell
 flutter run -d windows -t lib/main_windows.dart `
   --dart-define=BUSYMAX_WINDOWS_AUMID=BusyStack.BusyMax.Development `
-  --dart-define=GOOGLE_OAUTH_CLIENT_ID=<desktop-client-id> `
-  --dart-define=GOOGLE_OAUTH_CLIENT_SECRET=<desktop-client-secret> `
-  --dart-define=MICROSOFT_OAUTH_CLIENT_ID=<public-client-id>
+  --dart-define=BUSYMAX_GOOGLE_OAUTH_CLIENT_ID=<desktop-client-id> `
+  --dart-define=BUSYMAX_GOOGLE_OAUTH_CLIENT_SECRET=<desktop-client-secret> `
+  --dart-define=BUSYMAX_GOOGLE_OAUTH_PROJECT_ID=<actual-project-id> `
+  --dart-define=BUSYMAX_MICROSOFT_OAUTH_CLIENT_ID=<public-client-id> `
+  --dart-define=BUSYMAX_MICROSOFT_OAUTH_AUTHORITY_TENANT=<supported-audience-or-tenant>
 ```
 
 Omit the defines for providers you are not testing. An unpackaged development
@@ -141,9 +153,8 @@ The platform-boundary checker prevents shared or Windows code from reaching
 Linux-only UI and services, and prevents shared business or Linux code from
 depending on Fluent UI.
 
-Normal `flutter test` skips credential-gated provider tests. Those tests mutate
-remote data and have separate setup and safety requirements in
-[Live-provider testing](live_provider_testing.md).
+Normal `flutter test` skips credential-gated provider tests. See
+[Live-provider tests](#live-provider-tests) for their setup and safety requirements.
 
 The Linux and Windows workflows run for pull requests targeting `main` and
 pushes to `main`; Windows also supports a manual dispatch. A newer run for the
@@ -155,6 +166,51 @@ The workflows do not deploy Windows packages.
 For release artifacts, follow [Snap beta release](beta_snap_release.md) or
 [Windows packaging](windows_packaging.md) and the
 [Windows release checklist](windows_release_checklist.md).
+
+## Live-provider tests
+
+Live tests require explicit opt-in through the environment variables below.
+Use only disposable QA accounts, isolated test servers, and QA-only invitation
+recipients: these tests create and delete remote collections and objects,
+change sharing permissions, and revoke app passwords. Never send invitations
+to arbitrary attendees from imported data or use trash bypass for ordinary
+deletion. Pass credentials through the test process environment; keep
+credentials, DAV paths, Login Flow URLs/tokens, raw iCalendar, and user content
+out of logs, screenshots, and bug reports.
+
+Run `flutter test <path>` for the selected entry point:
+
+| Test path | Required environment variables |
+|---|---|
+| [test/dav/nextcloud_live_integration_test.dart](../test/dav/nextcloud_live_integration_test.dart) | `BUSYMAX_NEXTCLOUD_LIVE=1`, `BUSYMAX_NEXTCLOUD_LIVE_URL`, `BUSYMAX_NEXTCLOUD_LIVE_USERNAME`, `BUSYMAX_NEXTCLOUD_LIVE_PASSWORD` (QA app password) |
+| [test/dav/nextcloud_login_flow_live_test.dart](../test/dav/nextcloud_login_flow_live_test.dart) | `BUSYMAX_NEXTCLOUD_LOGIN_LIVE=1`, `BUSYMAX_NEXTCLOUD_LOGIN_LIVE_URL`, `BUSYMAX_NEXTCLOUD_LOGIN_LIVE_USERNAME`, `BUSYMAX_NEXTCLOUD_LOGIN_LIVE_APP_PASSWORD` (disposable bootstrap password), `BUSYMAX_NEXTCLOUD_LOGIN_LIVE_TLS_CERT` (test CA PEM) |
+| [test/dav/nextcloud_sharing_live_test.dart](../test/dav/nextcloud_sharing_live_test.dart) | `BUSYMAX_NEXTCLOUD_SHARING_LIVE=1`, `BUSYMAX_NEXTCLOUD_SHARING_LIVE_URL`, `BUSYMAX_NEXTCLOUD_SHARING_LIVE_GROUP`, and `BUSYMAX_NEXTCLOUD_SHARING_LIVE_<ROLE>_USERNAME` / `BUSYMAX_NEXTCLOUD_SHARING_LIVE_<ROLE>_PASSWORD` for each of `OWNER`, `WRITER`, `READER`, `GROUP_MEMBER` |
+| [test/dav/apple_icloud_live_integration_test.dart](../test/dav/apple_icloud_live_integration_test.dart) | `BUSYMAX_ICLOUD_LIVE=1`, `BUSYMAX_ICLOUD_LIVE_USERNAME` (QA Apple Account email), `BUSYMAX_ICLOUD_LIVE_PASSWORD` (BusyMax-only app-specific password) |
+
+Every Nextcloud suite also requires `BUSYMAX_NEXTCLOUD_QA_CALENDAR_VERSION`
+and `BUSYMAX_NEXTCLOUD_QA_TASKS_VERSION` with the versions actually installed;
+Server version is read from `status.php`. Supply the installation root,
+including any path prefix. DAV and sharing fixtures allow HTTP only on isolated
+loopback hosts. Login Flow requires HTTPS with its test CA; optionally set
+`BUSYMAX_NEXTCLOUD_LOGIN_LIVE_BROWSER` to a Chrome-compatible executable. Run
+Login Flow at both the server root and a path-prefixed installation; it revokes
+the returned app password. Production connections always require HTTPS and
+normal platform certificate validation.
+
+For the DAV suite's large-collection case, also set
+`BUSYMAX_NEXTCLOUD_LIVE_LARGE=1`. To test restart persistence, set a unique
+`BUSYMAX_NEXTCLOUD_LIVE_RESTART_ID` and
+`BUSYMAX_NEXTCLOUD_LIVE_RESTART_STAGE=prepare`, run the DAV suite, restart the
+server without replacing its storage, then rerun the same suite with the same
+ID and `BUSYMAX_NEXTCLOUD_LIVE_RESTART_STAGE=verify`.
+
+The Apple fixture needs two-factor authentication and at least two calendars.
+Set `BUSYMAX_ICLOUD_LIVE_EXPECT_SHARED_WRITABLE=1` and/or
+`BUSYMAX_ICLOUD_LIVE_EXPECT_SHARED_READ_ONLY=1` only when those shared fixtures
+exist. Deterministic tests do not establish live authorization, provider
+delivery, or server interoperability. Keep per-run logs, captures, evidence,
+archives, and checksums in ignored `build/` locations or temporary directories;
+CI artifact uploads remain appropriate.
 
 ## Optional feedback endpoint
 

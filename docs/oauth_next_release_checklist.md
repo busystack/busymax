@@ -29,4 +29,4 @@ Official desktop releases support explicitly active BusyMax-managed registration
 - Inspect actual production Settings dialogs, native menus, all instruction pages and errors in light/dark, narrow, enlarged-text, long-label and keyboard cases. Use isolated synthetic configurations; owner-authorized accounts are required for real provider authorization.
 - Review cancellation, invalid/cancelled replacement, expiry, disposal/stale work, duplicate submits, wrong account, missing scopes, secure-storage failure, restart/reconnect and optional-consent evidence before publication.
 
-Production Google and Microsoft values and approvals have not been supplied for this change. Keep both recommended actions unavailable until the owner supplies configuration and completes the respective external prerequisites.
+Enable recommended Google and Microsoft connections only after the owner supplies production configuration and completes the respective external prerequisites.
