@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/python3
 """Exercise native registration storage, the GTK chooser and its handle reader.
 
 The accessible chooser is operated only in this subprocess's private D-Bus
@@ -14,6 +14,20 @@ import subprocess
 import sys
 import tempfile
 import time
+
+
+def ensure_system_python():
+    system_python = Path("/usr/bin/python3")
+    if Path(sys.executable).resolve() != system_python.resolve():
+        # Accessibility and pidfd cleanup both require the system interpreter.
+        # Switch before allocating resources, preserving arguments and environment.
+        os.execv(str(system_python), [
+            str(system_python), str(Path(__file__).resolve()), *sys.argv[1:],
+        ])
+    if not callable(getattr(os, "pidfd_open", None)) or not callable(
+        getattr(signal, "pidfd_send_signal", None)
+    ):
+        raise RuntimeError("System Python must support os.pidfd_open and signal.pidfd_send_signal.")
 
 
 def exercise_registration(root):
@@ -294,4 +308,5 @@ def main():
 
 
 if __name__ == "__main__":
+    ensure_system_python()
     raise SystemExit(main())

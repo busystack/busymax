@@ -3,6 +3,7 @@ import contextlib
 import importlib.util
 import io
 from pathlib import Path
+import runpy
 import subprocess
 import tempfile
 import unittest
@@ -15,6 +16,31 @@ SPEC = importlib.util.spec_from_file_location(
 )
 helper = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(helper)
+
+
+class InterpreterTest(unittest.TestCase):
+    def test_alternate_python_reexecutes_before_allocating_resources(self):
+        arguments = [helper.__file__, "--session", "extra-argument"]
+        with patch.object(helper.sys, "executable", "/alternate/python3"), \
+                patch.object(helper.sys, "argv", arguments), \
+                patch.object(helper.os, "pidfd_open", None, create=True), \
+                patch.object(helper.signal, "pidfd_send_signal", None, create=True), \
+                patch.object(helper.os, "execv", side_effect=SystemExit(0)) as execute, \
+                patch.object(helper.tempfile, "mkdtemp") as allocate:
+            with self.assertRaises(SystemExit):
+                runpy.run_path(helper.__file__, run_name="__main__")
+        execute.assert_called_once_with("/usr/bin/python3", ["/usr/bin/python3", *arguments])
+        allocate.assert_not_called()
+
+    def test_missing_system_pidfd_support_fails_before_allocating_resources(self):
+        with patch.object(helper.sys, "executable", "/usr/bin/python3"), \
+                patch.object(helper.os, "pidfd_open", None, create=True), \
+                patch.object(helper.os, "execv") as execute, \
+                patch.object(helper.tempfile, "mkdtemp") as allocate:
+            with self.assertRaisesRegex(RuntimeError, "System Python must support"):
+                runpy.run_path(helper.__file__, run_name="__main__")
+        execute.assert_not_called()
+        allocate.assert_not_called()
 
 
 class TeardownTest(unittest.TestCase):
@@ -182,7 +208,14 @@ class OwnershipTest(unittest.TestCase):
             try:
                 self.assertTrue(helper.wait_until(lambda: owned.pid in helper.private_processes(runtime), 2))
                 self.assertNotIn(other.pid, helper.private_processes(runtime))
-                helper.signal_private_processes(runtime, helper.signal.SIGTERM)
+                result = subprocess.run([
+                    "/usr/bin/python3", "-c",
+                    "import runpy, sys; from pathlib import Path; "
+                    "helper = runpy.run_path(sys.argv[1]); "
+                    "helper['signal_private_processes'](Path(sys.argv[2]), int(sys.argv[3]))",
+                    helper.__file__, str(runtime), str(helper.signal.SIGTERM),
+                ], capture_output=True, text=True, timeout=3)
+                self.assertEqual(result.returncode, 0, result.stderr)
                 self.assertEqual(owned.wait(timeout=3), -helper.signal.SIGTERM)
                 self.assertIsNone(other.poll())
                 self.assertFalse(helper.private_processes(runtime))
@@ -207,9 +240,9 @@ class OwnershipTest(unittest.TestCase):
     def test_pid_reuse_does_not_signal_an_unrelated_process(self):
         runtime = Path("/tmp/private-registration-fixture/runtime")
         with patch.object(helper, "private_processes", side_effect=[{123: "old"}, {123: "new"}]), \
-                patch.object(helper.os, "pidfd_open", return_value=42), \
+                patch.object(helper.os, "pidfd_open", return_value=42, create=True), \
                 patch.object(helper.os, "close") as close, \
-                patch.object(helper.signal, "pidfd_send_signal") as send:
+                patch.object(helper.signal, "pidfd_send_signal", create=True) as send:
             helper.signal_private_processes(runtime, helper.signal.SIGTERM)
         send.assert_not_called()
         close.assert_called_once_with(42)

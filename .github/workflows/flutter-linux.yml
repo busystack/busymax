@@ -157,6 +157,9 @@ jobs:
           xvfb-run -a env GDK_BACKEND=x11 \
             build/linux/native-tests/gtk_search_entry_theme_test
 
+      - name: Test native registration helper teardown
+        run: python3 test/tool/registration_native_helper_test.py
+
       - name: Test native registration configuration handles
         run: |
           cmake -S native/registration_reader -B build/linux/registration-reader-tests

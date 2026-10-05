@@ -15,6 +15,8 @@ handle reader, run
 `python3 tool/linux/test_registration_native.py` with the
 Flutter executable on PATH (or set `BUSYMAX_FLUTTER_EXECUTABLE`). This requires
 an available X11 display and installed D-Bus, GNOME keyring and system Python GI/AT-SPI libraries.
+The helper switches to `/usr/bin/python3` before creating private resources;
+that interpreter must provide Linux pidfd APIs for process cleanup.
 It creates a private temporary keyring and targets only its own chooser through accessibility.
 Run it sequentially with other Linux Flutter builds so generated entry points
 are not changed while its app is compiling. It uses this fixture only and never
