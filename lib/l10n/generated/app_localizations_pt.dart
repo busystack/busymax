@@ -392,7 +392,7 @@ class AppLocalizationsPt extends AppLocalizations {
 
   @override
   String get googlePermissionsConsentNotice =>
-      'On the Google permission screen, select both Calendar and Tasks permissions.';
+      'On the Google permissions screen, select both Calendar and Tasks permissions.';
 
   @override
   String get googlePermissionsRequiredRetry =>

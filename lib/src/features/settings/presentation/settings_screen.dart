@@ -1483,12 +1483,17 @@ class _AccountManagementSection extends StatelessWidget {
           filled: true,
           children: [
             BusyMaxActionRow(
+              title: connectingProvider == BusyProvider.nextcloud
+                  ? l10n.waitingForNextcloud
+                  : l10n.addNextcloudAccount,
+              leading: const Icon(YaruIcons.plus),
+              onTap: connecting ? null : onAddNextcloud,
+            ),
+            BusyMaxActionRow(
               title: connectingProvider == BusyProvider.google
                   ? l10n.waitingForGoogleSignIn
                   : l10n.addGoogleAccount,
-              subtitle: googleConfigured
-                  ? l10n.googlePermissionsConsentNotice
-                  : '${l10n.providerNotConfigured}\n${l10n.googlePermissionsConsentNotice}',
+              subtitle: googleConfigured ? null : l10n.providerNotConfigured,
               leading: const Icon(YaruIcons.plus),
               onTap: connecting || !googleConfigured ? null : onAddGoogle,
             ),
@@ -1506,13 +1511,6 @@ class _AccountManagementSection extends StatelessWidget {
                   : l10n.addAppleICloudAccount,
               leading: const Icon(YaruIcons.plus),
               onTap: connecting ? null : onAddApple,
-            ),
-            BusyMaxActionRow(
-              title: connectingProvider == BusyProvider.nextcloud
-                  ? l10n.waitingForNextcloud
-                  : l10n.addNextcloudAccount,
-              leading: const Icon(YaruIcons.plus),
-              onTap: connecting ? null : onAddNextcloud,
             ),
             if (connecting)
               BusyMaxActionRow(

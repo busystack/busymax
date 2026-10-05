@@ -1,6 +1,7 @@
 import 'package:fluent_ui/fluent_ui.dart';
 
 import '../../../l10n/generated/app_localizations.dart';
+import '../../providers/busy_provider.dart';
 
 class WindowsAppleCredentialInput {
   const WindowsAppleCredentialInput({
@@ -100,8 +101,24 @@ Future<String?> showWindowsNextcloudServerDialog(BuildContext context) async {
     builder: (dialogContext) => StatefulBuilder(
       builder: (context, setState) {
         final l10n = AppLocalizations.of(context);
+        final title = l10n.registrationSetupTitle(
+          BusyProvider.nextcloud.displayName,
+        );
         return ContentDialog(
-          title: Text(l10n.connectNextcloudTitle),
+          title: Row(
+            children: [
+              const SizedBox(width: 40),
+              Expanded(child: Text(title, textAlign: TextAlign.center)),
+              Tooltip(
+                message: l10n.close,
+                child: IconButton(
+                  icon: const Icon(FluentIcons.chrome_close),
+                  onPressed: () => Navigator.pop(dialogContext),
+                ),
+              ),
+            ],
+          ),
+          constraints: const BoxConstraints(maxWidth: 560),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -111,15 +128,9 @@ Future<String?> showWindowsNextcloudServerDialog(BuildContext context) async {
                 child: TextBox(controller: server, autofocus: true),
               ),
               const SizedBox(height: 8),
-              Text(
-                l10n.nextcloudServerUrlHelp,
-                style: FluentTheme.of(context).typography.caption,
-              ),
+              Text(l10n.nextcloudServerUrlHelp),
               const SizedBox(height: 8),
-              Text(
-                l10n.nextcloudBrowserAuthorizationHelp,
-                style: FluentTheme.of(context).typography.caption,
-              ),
+              Text(l10n.nextcloudBrowserAuthorizationHelp),
               if (validationAttempted && server.text.trim().isEmpty) ...[
                 const SizedBox(height: 12),
                 InfoBar(

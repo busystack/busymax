@@ -629,12 +629,17 @@ class _WindowsSettingsPageState extends ConsumerState<WindowsSettingsPage> {
                 ListTile(
                   leading: Icon(windowsBusyMaxGlyph(BusyMaxGlyph.add)),
                   focusNode: _accountsFocus,
+                  title: Text(l10n.addNextcloudAccount),
+                  onPressed: busy
+                      ? null
+                      : () => _connectDav(BusyProvider.nextcloud),
+                ),
+                ListTile(
+                  leading: Icon(windowsBusyMaxGlyph(BusyMaxGlyph.add)),
                   title: Text(l10n.addGoogleAccount),
-                  subtitle: Text(
-                    config.googleSetupAvailable
-                        ? l10n.googlePermissionsConsentNotice
-                        : '${l10n.providerNotConfigured}\n${l10n.googlePermissionsConsentNotice}',
-                  ),
+                  subtitle: config.googleSetupAvailable
+                      ? null
+                      : Text(l10n.providerNotConfigured),
                   onPressed: busy || !config.googleSetupAvailable
                       ? null
                       : () => _signIn(() => _setup(BusyProvider.google)),
@@ -655,13 +660,6 @@ class _WindowsSettingsPageState extends ConsumerState<WindowsSettingsPage> {
                   onPressed: busy
                       ? null
                       : () => _connectDav(BusyProvider.appleICloud),
-                ),
-                ListTile(
-                  leading: Icon(windowsBusyMaxGlyph(BusyMaxGlyph.add)),
-                  title: Text(l10n.addNextcloudAccount),
-                  onPressed: busy
-                      ? null
-                      : () => _connectDav(BusyProvider.nextcloud),
                 ),
                 if (busy) ...[
                   const ProgressRing(),

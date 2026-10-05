@@ -741,7 +741,7 @@ abstract class AppLocalizations {
   /// No description provided for @googlePermissionsConsentNotice.
   ///
   /// In en, this message translates to:
-  /// **'On the Google permission screen, select both Calendar and Tasks permissions.'**
+  /// **'On the Google permissions screen, select both Calendar and Tasks permissions.'**
   String get googlePermissionsConsentNotice;
 
   /// No description provided for @googlePermissionsRequiredRetry.

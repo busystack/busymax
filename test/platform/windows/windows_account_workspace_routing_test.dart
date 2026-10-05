@@ -58,6 +58,13 @@ void main() {
       );
       await tester.tap(find.text('Add ${provider.displayName} account'));
       await _pumpConnectionPage(tester);
+      expect(find.text('Recommended'), findsNothing);
+      expect(
+        find.text(
+          'On the Google permissions screen, select both Calendar and Tasks permissions.',
+        ),
+        provider == BusyProvider.google ? findsOneWidget : findsNothing,
+      );
       expect(
         find.byKey(const ValueKey('registration-authorize')),
         findsNothing,
@@ -248,10 +255,10 @@ void main() {
           expect(uri.queryParameters['page'], 'accounts');
           expect(windowsAppRouter.canPop(), isTrue);
           for (final title in [
+            'Add Nextcloud account',
             'Add Google account',
             'Add Microsoft account',
             'Add Apple iCloud Calendar account',
-            'Add Nextcloud account',
           ]) {
             expect(find.text(title).hitTestable(), findsOneWidget);
             final row = tester.widget<ListTile>(
@@ -261,16 +268,20 @@ void main() {
               ),
             );
             expect(row.onPressed, isNotNull);
-            if (title == 'Add Google account') {
+            if (title == 'Add Nextcloud account') {
               expect(row.focusNode!.hasFocus, isTrue);
             }
           }
+          expect(
+            tester.getTopLeft(find.text('Add Nextcloud account')).dy,
+            lessThan(tester.getTopLeft(find.text('Add Google account')).dy),
+          );
           // Cancel each local setup dialog before any credentials or authorization.
           for (final title in [
+            'Add Nextcloud account',
             'Add Google account',
             'Add Microsoft account',
             'Add Apple iCloud Calendar account',
-            'Add Nextcloud account',
           ]) {
             await tester.ensureVisible(find.text(title));
             await tester.tap(find.text(title));
@@ -278,6 +289,10 @@ void main() {
             await tester.pump(const Duration(milliseconds: 300));
             expect(tester.takeException(), isNull, reason: 'Opening $title');
             expect(find.byType(ContentDialog), findsOneWidget);
+            if (title == 'Add Nextcloud account') {
+              expect(find.text('Set up Nextcloud'), findsOneWidget);
+              expect(find.text('Connect Nextcloud'), findsNothing);
+            }
             await tester.tap(find.text('Cancel').last);
             await tester.pumpAndSettle();
             expect(find.byType(WindowsSettingsPage), findsOneWidget);

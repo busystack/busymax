@@ -139,8 +139,21 @@ void main() {
       await tester.ensureVisible(
         find.text('Add ${provider.displayName} account'),
       );
+      expect(
+        find.text(
+          'On the Google permissions screen, select both Calendar and Tasks permissions.',
+        ),
+        findsNothing,
+      );
       await tester.tap(find.text('Add ${provider.displayName} account'));
       await tester.pumpAndSettle();
+      expect(find.text('Recommended'), findsNothing);
+      expect(
+        find.text(
+          'On the Google permissions screen, select both Calendar and Tasks permissions.',
+        ),
+        provider == BusyProvider.google ? findsOneWidget : findsNothing,
+      );
       expect(
         find.byKey(const ValueKey('registration-authorize')),
         findsNothing,
@@ -699,19 +712,23 @@ void main() {
       'accounts',
     );
     for (final label in [
+      'Add Nextcloud account',
       'Add Google account',
       'Add Microsoft account',
       'Add Apple iCloud Calendar account',
-      'Add Nextcloud account',
       'Add calendar subscription',
     ]) {
       expect(find.text(label), findsOneWidget);
     }
     expect(
       find.text(
-        'On the Google permission screen, select both Calendar and Tasks permissions.',
+        'On the Google permissions screen, select both Calendar and Tasks permissions.',
       ),
-      findsOneWidget,
+      findsNothing,
+    );
+    expect(
+      tester.getTopLeft(find.text('Add Nextcloud account')).dy,
+      lessThan(tester.getTopLeft(find.text('Add Google account')).dy),
     );
     await _sendAltLeft(tester);
     expect(tester.state(find.byType(ScheduleWorkspace)), same(workspace));
@@ -793,7 +810,11 @@ void main() {
     );
     expect(section, contains('BusyMaxGroupedList'));
     expect(section, contains('BusyMaxActionRow'));
-    expect(section, contains('l10n.googlePermissionsConsentNotice'));
+    expect(section, isNot(contains('l10n.googlePermissionsConsentNotice')));
+    expect(
+      section.indexOf('l10n.addNextcloudAccount'),
+      lessThan(section.indexOf('l10n.addGoogleAccount')),
+    );
   });
 
   testWidgets('missing Google permissions shows retry guidance', (

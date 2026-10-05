@@ -246,7 +246,8 @@ class _RegistrationDialogState extends State<_RegistrationDialog> {
       ),
     ),
     const SizedBox(height: BusyMaxSpacing.sm),
-    Text(l10n.registrationRecommended),
+    if (widget.provider == BusyProvider.google)
+      Text(l10n.googlePermissionsConsentNotice),
     if (!sharedAvailable)
       Padding(
         padding: const EdgeInsets.only(top: BusyMaxSpacing.sm),

@@ -225,7 +225,7 @@
   "@connectGoogleAccount": {
     "description": "Shown in account settings; names the supported account providers."
   },
-  "googlePermissionsConsentNotice": "On the Google permission screen, select both Calendar and Tasks permissions.",
+  "googlePermissionsConsentNotice": "On the Google permissions screen, select both Calendar and Tasks permissions.",
   "googlePermissionsRequiredRetry": "Google Calendar and Google Tasks permissions are required. Please try again and select both checkboxes.",
   "googleTasksProvider": "Google Tasks",
   "microsoftTodoProvider": "Microsoft To Do",
