@@ -7,13 +7,16 @@ account or existing keyring is accessed. Requires system Python's GI/Atspi.
 """
 import os
 from pathlib import Path
+import re
+import shutil
+import signal
 import subprocess
 import sys
 import tempfile
 import time
 
 
-def session(root):
+def exercise_registration(root):
     import gi
     gi.require_version("Atspi", "2.0")
     from gi.repository import Atspi, GLib
@@ -80,52 +83,215 @@ def session(root):
                     if selected:
                         break
             time.sleep(0.05)  # Poll native accessibility readiness, not a race assertion.
-        if process.returncode or not selected:
-            raise SystemExit(process.returncode or "The native picker was not exercised.")
+        if process.returncode:
+            return process.returncode
+        if not selected:
+            raise RuntimeError("The native picker was not exercised.")
         print("PASSED: real GTK chooser selected and imported the packaged synthetic fixture.")
+        return 0
     finally:
         if process.poll() is None:
-            process.terminate()
-            process.wait(timeout=30)
+            stop_child(process)
+
+
+def stop_child(process):
+    if process.poll() is not None:
+        return
+    process.terminate()
+    try:
+        process.wait(timeout=3)
+    except subprocess.TimeoutExpired:
+        process.kill()
+        process.wait(timeout=3)
+
+
+def session(root):
+    # Keep the keyring in the foreground so it is reaped with this private
+    # session instead of becoming an orphaned desktop daemon.
+    keyring = subprocess.Popen([
+        "gnome-keyring-daemon", "--foreground", "--unlock",
+        "--components=secrets",
+        f"--control-directory={os.environ['BUSYMAX_NATIVE_KEYRING_CONTROL']}",
+    ], stdin=subprocess.PIPE)
+    result = 1
+    try:
+        keyring.stdin.write(b"\n")
+        keyring.stdin.close()
+        result = exercise_registration(root)
+    except (Exception, SystemExit) as error:
+        print(f"Native integration failed: {error}", file=sys.stderr, flush=True)
+    finally:
+        try:
+            stop_child(keyring)
+        except Exception as error:
+            print(f"Private keyring teardown failed: {error}", file=sys.stderr, flush=True)
+            result = result or 1
+    return result
+
+
+def private_mounts(runtime):
+    mounts = []
+    for line in Path("/proc/self/mountinfo").read_text().splitlines():
+        # mountinfo escapes spaces, tabs, newlines and backslashes as octal.
+        mount = Path(re.sub(r"\\([0-7]{3})", lambda match: chr(int(match[1], 8)), line.split()[4]))
+        if mount == runtime or runtime in mount.parents:
+            mounts.append(mount)
+    return sorted(mounts, key=lambda mount: len(mount.parts), reverse=True)
+
+
+def private_processes(runtime):
+    marker = b"XDG_RUNTIME_DIR=" + os.fsencode(runtime)
+    processes = {}
+    for proc in Path("/proc").iterdir():
+        if not proc.name.isdigit() or int(proc.name) == os.getpid():
+            continue
+        try:
+            if proc.stat().st_uid != os.getuid():
+                continue
+            if marker not in (proc / "environ").read_bytes().split(b"\0"):
+                continue
+            fields = (proc / "stat").read_text().rsplit(")", 1)[1].split()
+            if fields[0] != "Z":
+                processes[int(proc.name)] = fields[19]  # Process start time.
+        except (FileNotFoundError, ProcessLookupError, PermissionError):
+            continue
+    return processes
+
+
+def wait_until(predicate, timeout):
+    deadline = time.monotonic() + timeout
+    while not predicate():
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            return False
+        time.sleep(min(0.05, remaining))
+    return True
+
+
+def signal_private_processes(runtime, sig):
+    for pid, started in private_processes(runtime).items():
+        try:
+            # A pidfd prevents a reused PID from receiving our signal. Recheck
+            # ownership after opening it; only this random runtime is eligible.
+            descriptor = os.pidfd_open(pid)
+            try:
+                if private_processes(runtime).get(pid) == started:
+                    signal.pidfd_send_signal(descriptor, sig)
+            finally:
+                os.close(descriptor)
+        except ProcessLookupError:
+            continue
+
+
+def detach_mount(mount, runtime):
+    diagnostics = []
+    for options in (["-u"], ["-u", "-z"]):
+        if mount not in private_mounts(runtime):
+            return
+        try:
+            result = subprocess.run(
+                ["fusermount3", *options, str(mount)],
+                capture_output=True, text=True, timeout=3,
+            )
+            if result.returncode:
+                diagnostics.append(result.stderr.strip() or f"exit {result.returncode}")
+        except (OSError, subprocess.TimeoutExpired) as error:
+            diagnostics.append(str(error))
+        # An unmount can race natural GVFS exit or return before mountinfo is
+        # updated. Its exit code alone is neither success nor failure.
+        if wait_until(lambda: mount not in private_mounts(runtime), 2):
+            return
+    raise RuntimeError(f"Private mount could not be detached: {mount}; {'; '.join(diagnostics)}")
+
+
+def teardown_private_runtime(home):
+    runtime = home / "runtime"
+    # dbus-run-session has exited. Give its services a bounded natural exit
+    # period before unmounting or stopping this runtime's stragglers.
+    wait_until(lambda: not private_mounts(runtime) and not private_processes(runtime), 3)
+    failed_mounts = {}
+    # Accessibility can also activate the private document portal (runtime/doc).
+    # Try normal user unmounts before a bounded lazy fallback, deepest first.
+    attempted_mounts = private_mounts(runtime)
+    for mount in attempted_mounts:
+        try:
+            detach_mount(mount, runtime)
+        except Exception as error:
+            failed_mounts[mount] = str(error)
+
+    if private_processes(runtime):
+        signal_private_processes(runtime, signal.SIGTERM)
+        if not wait_until(lambda: not private_processes(runtime), 2):
+            signal_private_processes(runtime, signal.SIGKILL)
+            wait_until(lambda: not private_processes(runtime), 2)
+    # Catch a mount created during service shutdown, confined to this runtime.
+    for mount in private_mounts(runtime):
+        if mount in attempted_mounts:
+            continue
+        try:
+            detach_mount(mount, runtime)
+        except Exception as error:
+            failed_mounts[mount] = str(error)
+    remaining_mounts = private_mounts(runtime)
+    remaining_processes = private_processes(runtime)
+    # A daemon's exit may finish detaching an initially stuck mount. Success
+    # still requires the final mountinfo check, regardless of command results.
+    errors = [failed_mounts[mount] for mount in remaining_mounts if mount in failed_mounts]
+    if remaining_mounts:
+        errors.append(f"Remaining private mounts: {remaining_mounts}")
+    if remaining_processes:
+        errors.append(f"Remaining private processes: {list(remaining_processes)}")
+    if errors:
+        raise RuntimeError("; ".join(errors))
+    shutil.rmtree(home)
+    print(f"PASSED: private runtime detached and temporary tree removed: {home}", flush=True)
+
+
+def run_private_session(command, root, env, home):
+    result = 1
+    try:
+        result = subprocess.call(command, cwd=root, env=env)
+    except Exception as error:
+        print(f"Native integration session failed: {error}", file=sys.stderr, flush=True)
+    finally:
+        print(f"Native integration session exit code: {result}", flush=True)
+        try:
+            teardown_private_runtime(home)
+        except Exception as error:
+            print(f"TEARDOWN FAILED: {error}", file=sys.stderr, flush=True)
+            # Preserve a failing integration result; a passing test still fails
+            # the helper if its private resources could not be removed.
+            result = result or 1
+    return result
 
 
 def main():
     root = Path(__file__).resolve().parents[2]
     if "--session" in sys.argv:
-        session(root)
-        return
+        return session(root)
     flutter = os.environ.get("BUSYMAX_FLUTTER_EXECUTABLE", "flutter")
-    with tempfile.TemporaryDirectory(prefix="busymax-native-registration-") as temporary:
-        home = Path(temporary)
+    home = Path(tempfile.mkdtemp(prefix="busymax-native-registration-"))
+    try:
         env = os.environ.copy()
         for name in ("DATA", "CONFIG", "CACHE", "RUNTIME"):
             directory = home / name.lower()
             directory.mkdir(mode=0o700)
             env[f"XDG_{name}_HOME" if name != "RUNTIME" else "XDG_RUNTIME_DIR"] = str(directory)
         env["BUSYMAX_NATIVE_KEYRING_CONTROL"] = str(home / "keyring")
+        env["GNOME_KEYRING_CONTROL"] = env["BUSYMAX_NATIVE_KEYRING_CONTROL"]
         env["BUSYMAX_NATIVE_IMPORT_FIXTURE"] = str(root / "test/fixtures/oauth/desktop_synthetic.json")
         env["GTK_USE_PORTAL"] = "0"
         env["GDK_BACKEND"] = "x11"
         env["GIO_USE_VFS"] = "local"
         env["NO_AT_BRIDGE"] = "0"
         env["BUSYMAX_FLUTTER_EXECUTABLE"] = flutter
-        command = ["/usr/bin/dbus-run-session", "--", "bash", "-c", r'''
-set -euo pipefail
-mkdir -m 700 -p "$BUSYMAX_NATIVE_KEYRING_CONTROL"
-eval "$(printf '\n' | gnome-keyring-daemon --unlock --components=secrets --control-directory="$BUSYMAX_NATIVE_KEYRING_CONTROL")"
-exec /usr/bin/python3 "$1" --session
-''', "busymax-native-test", str(Path(__file__).resolve())]
-        try:
-            result = subprocess.call(command, cwd=root, env=env)
-        finally:
-            # GTK accessibility may start GVFS in this private session. Unmount
-            # only its temporary runtime mount before deleting our directory.
-            mount = home / "runtime/gvfs"
-            mounted = any(line.split()[4] == str(mount) for line in Path("/proc/self/mountinfo").read_text().splitlines())
-            if mounted:
-                subprocess.run(["fusermount3", "-u", "-z", str(mount)], check=True)
-    raise SystemExit(result)
+        (home / "keyring").mkdir(mode=0o700)
+        command = ["/usr/bin/dbus-run-session", "--", "/usr/bin/python3", str(Path(__file__).resolve()), "--session"]
+    except BaseException:
+        teardown_private_runtime(home)
+        raise
+    return run_private_session(command, root, env, home)
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

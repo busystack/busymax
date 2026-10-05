@@ -21,6 +21,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 
+import '../../support/persistence_test_directory.dart';
+
 void main() {
   late AppDatabase db;
   late Directory directory;
@@ -28,7 +30,7 @@ void main() {
   late DateTime now;
   late DomainSyncPolicy policy;
   setUp(() async {
-    directory = await Directory.systemTemp.createTemp('busymax-cooldown-test-');
+    directory = await createPersistenceTestDirectory('busymax-cooldown-test-');
     databaseFile = File('${directory.path}/schedule.sqlite');
     db = AppDatabase(NativeDatabase(databaseFile));
     now = DateTime.utc(2026, 10, 3, 12);

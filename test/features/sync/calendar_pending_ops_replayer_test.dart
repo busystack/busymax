@@ -38,6 +38,7 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 
 import '../../support/memory_settings_store.dart';
+import '../../support/persistence_test_directory.dart';
 import '../../support/process_time_zone.dart';
 
 void main() {
@@ -1515,9 +1516,14 @@ void main() {
     'recurring Google import keeps its supplemental point after create and expanded sync',
     () async {
       await database.close();
-      final directory = await Directory.systemTemp.createTemp(
+      final directory = await createPersistenceTestDirectory(
         'busymax-google-series-location-',
       );
+      addTearDown(() async {
+        await database.close();
+        database = AppDatabase(NativeDatabase.memory());
+        await directory.delete(recursive: true);
+      });
       final databaseFile = File('${directory.path}/busymax.sqlite');
       database = AppDatabase(NativeDatabase(databaseFile));
       await _insertAccount(database);
@@ -1769,10 +1775,6 @@ END:VEVENT
         rememberedBeforeResolution,
       );
       expect(await database.select(database.pendingOps).get(), isEmpty);
-
-      await database.close();
-      database = AppDatabase(NativeDatabase.memory());
-      await directory.delete(recursive: true);
     },
   );
 
