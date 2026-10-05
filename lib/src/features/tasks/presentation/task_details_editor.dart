@@ -150,7 +150,10 @@ class _TaskDetailsEditorState extends State<TaskDetailsEditor> {
   var _creatingSubtask = false;
   Future<List<TaskSourceLink>>? _linkedResourcesFuture;
   Future<List<MicrosoftTodoAttachmentDto>>? _attachmentsFuture;
-  bool _attachmentBusy = false;
+  final _attachmentBusyTasks = <String>{};
+
+  bool get _attachmentBusy =>
+      _attachmentBusyTasks.contains(_taskKey(_editingTask));
 
   @override
   void initState() {
@@ -427,8 +430,10 @@ class _TaskDetailsEditorState extends State<TaskDetailsEditor> {
                                     : l10n.completed,
                               ),
                               BusyMaxPushButton.standard(
-                                onPressed: () =>
-                                    unawaited(_reconcileTaskUpload(ref)),
+                                onPressed: _attachmentBusy
+                                    ? null
+                                    : () =>
+                                          unawaited(_reconcileTaskUpload(ref)),
                                 child: Text(l10n.refresh),
                               ),
                               if (ref
@@ -1551,121 +1556,127 @@ class _TaskDetailsEditorState extends State<TaskDetailsEditor> {
     if (!attachment.isFile || safeAttachmentFileName(attachment.name) == null) {
       return;
     }
+    final task = _editingTask;
     try {
       final client = ref.read(
-        microsoftTodoApiClientForAccountProvider(_editingTask.accountId),
+        microsoftTodoApiClientForAccountProvider(task.accountId),
       );
       if (client is! MicrosoftTodoAttachmentsApiClient) {
         throw StateError('Microsoft task attachments are unavailable.');
       }
       final bytes = await (client as MicrosoftTodoAttachmentsApiClient)
           .downloadTaskAttachment(
-            taskListId: _editingTask.taskListId,
-            taskId: _editingTask.id,
+            taskListId: task.taskListId,
+            taskId: task.id,
             attachmentId: attachment.id,
           );
+      if (!mounted) return;
       await saveAttachmentOnDesktop(name: attachment.name, bytes: bytes);
     } on Object catch (error) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(context.l10n.exportFailed('$error'))),
-        );
-      }
+      _showAttachmentError(error, task);
     }
   }
 
   Future<void> _uploadTaskAttachment(WidgetRef ref) async {
-    if (!_canWrite ||
+    if (_attachmentBusy ||
+        !_canWrite ||
         _editingTask.pendingDelete ||
         _editingTask.id.startsWith('local-task-')) {
       return;
     }
-    final file = await openFile();
-    if (file == null || !mounted) return;
-    final name = safeAttachmentFileName(file.name);
-    if (name == null) {
-      _showAttachmentError(const FormatException('Invalid attachment name.'));
-      return;
-    }
-    setState(() => _attachmentBusy = true);
+    final task = _editingTask;
+    _setAttachmentBusy(task, true);
     try {
       final client = ref.read(
-        microsoftTodoApiClientForAccountProvider(_editingTask.accountId),
+        microsoftTodoApiClientForAccountProvider(task.accountId),
       );
+      final coordinator = ref.read(attachmentUploadCoordinatorProvider);
       if (client is! MicrosoftTodoAttachmentsApiClient) {
         throw StateError('Microsoft task attachments are unavailable.');
+      }
+      final file = await openFile();
+      if (file == null || !mounted) return;
+      final name = safeAttachmentFileName(file.name);
+      if (name == null) {
+        throw const FormatException('Invalid attachment name.');
       }
       final size = await file.length();
       if (size > 25 * 1024 * 1024) {
         throw StateError('Task file exceeds 25 MB.');
       }
-      await ref
-          .read(attachmentUploadCoordinatorProvider)
-          .uploadTask(
-            client: client as MicrosoftTodoAttachmentsApiClient,
-            accountId: _editingTask.accountId,
-            taskListId: _editingTask.taskListId,
-            taskId: _editingTask.id,
-            name: name,
-            contentType: file.mimeType ?? 'application/octet-stream',
-            bytes: await file.readAsBytes(),
-          );
-      _reloadTaskAttachments(ref);
+      final bytes = await file.readAsBytes();
+      if (!mounted) return;
+      await coordinator.uploadTask(
+        client: client as MicrosoftTodoAttachmentsApiClient,
+        accountId: task.accountId,
+        taskListId: task.taskListId,
+        taskId: task.id,
+        name: name,
+        contentType: file.mimeType ?? 'application/octet-stream',
+        bytes: bytes,
+      );
+      _reloadTaskAttachments(task);
     } on Object catch (error) {
-      _reloadTaskAttachments(ref);
-      _showAttachmentError(error);
+      _reloadTaskAttachments(task);
+      _showAttachmentError(error, task);
     } finally {
-      if (mounted) setState(() => _attachmentBusy = false);
+      _setAttachmentBusy(task, false);
     }
   }
 
   Future<void> _reconcileTaskUpload(WidgetRef ref) async {
-    setState(() => _attachmentBusy = true);
+    if (_attachmentBusy) return;
+    final task = _editingTask;
+    _setAttachmentBusy(task, true);
     try {
       final client = ref.read(
-        microsoftTodoApiClientForAccountProvider(_editingTask.accountId),
+        microsoftTodoApiClientForAccountProvider(task.accountId),
       );
       if (client is! MicrosoftTodoAttachmentsApiClient) return;
       await ref
           .read(attachmentUploadCoordinatorProvider)
           .reconcileTask(
             client: client as MicrosoftTodoAttachmentsApiClient,
-            accountId: _editingTask.accountId,
-            taskListId: _editingTask.taskListId,
-            taskId: _editingTask.id,
+            accountId: task.accountId,
+            taskListId: task.taskListId,
+            taskId: task.id,
           );
-      _reloadTaskAttachments(ref);
+      _reloadTaskAttachments(task);
     } on Object catch (error) {
-      _showAttachmentError(error);
+      _showAttachmentError(error, task);
     } finally {
-      if (mounted) setState(() => _attachmentBusy = false);
+      _setAttachmentBusy(task, false);
     }
   }
 
   Future<void> _cancelTaskUpload(WidgetRef ref) async {
-    setState(() => _attachmentBusy = true);
+    if (_attachmentBusy) return;
+    final task = _editingTask;
+    _setAttachmentBusy(task, true);
     try {
       final client = ref.read(
-        microsoftTodoApiClientForAccountProvider(_editingTask.accountId),
+        microsoftTodoApiClientForAccountProvider(task.accountId),
       );
       if (client is! MicrosoftTodoAttachmentsApiClient) return;
       await ref
           .read(attachmentUploadCoordinatorProvider)
           .cancelTask(
             client: client as MicrosoftTodoAttachmentsApiClient,
-            accountId: _editingTask.accountId,
-            taskListId: _editingTask.taskListId,
-            taskId: _editingTask.id,
+            accountId: task.accountId,
+            taskListId: task.taskListId,
+            taskId: task.id,
           );
-      _reloadTaskAttachments(ref);
+      _reloadTaskAttachments(task);
     } on Object catch (error) {
-      _showAttachmentError(error);
+      _showAttachmentError(error, task);
     } finally {
-      if (mounted) setState(() => _attachmentBusy = false);
+      _setAttachmentBusy(task, false);
     }
   }
 
   Future<void> _resolveTaskUpload(WidgetRef ref, {required bool exists}) async {
+    final task = _editingTask;
+    final coordinator = ref.read(attachmentUploadCoordinatorProvider);
     final l10n = context.l10n;
     final confirmed = await showBusyMaxConfirm(
       context,
@@ -1674,76 +1685,87 @@ class _TaskDetailsEditorState extends State<TaskDetailsEditor> {
       confirmLabel: exists ? l10n.completed : l10n.retry,
     );
     if (confirmed != true || !mounted) return;
-    ref
-        .read(attachmentUploadCoordinatorProvider)
-        .resolveUncertainManually(
-          AttachmentUploadCoordinator.taskKey(
-            _editingTask.accountId,
-            _editingTask.taskListId,
-            _editingTask.id,
-          ),
-          exists: exists,
-        );
-    _reloadTaskAttachments(ref);
+    coordinator.resolveUncertainManually(
+      AttachmentUploadCoordinator.taskKey(
+        task.accountId,
+        task.taskListId,
+        task.id,
+      ),
+      exists: exists,
+    );
+    _reloadTaskAttachments(task);
   }
 
   Future<void> _deleteTaskAttachment(
     WidgetRef ref,
     MicrosoftTodoAttachmentDto attachment,
   ) async {
-    if (!_canWrite ||
+    if (_attachmentBusy ||
+        !_canWrite ||
         _editingTask.pendingDelete ||
         _editingTask.id.startsWith('local-task-')) {
       return;
     }
-    setState(() => _attachmentBusy = true);
+    final task = _editingTask;
+    _setAttachmentBusy(task, true);
     try {
       final client = ref.read(
-        microsoftTodoApiClientForAccountProvider(_editingTask.accountId),
+        microsoftTodoApiClientForAccountProvider(task.accountId),
       );
+      final coordinator = ref.read(attachmentUploadCoordinatorProvider);
       if (client is! MicrosoftTodoAttachmentsApiClient) {
         throw StateError('Microsoft task attachments are unavailable.');
       }
       await (client as MicrosoftTodoAttachmentsApiClient).deleteTaskAttachment(
-        taskListId: _editingTask.taskListId,
-        taskId: _editingTask.id,
+        taskListId: task.taskListId,
+        taskId: task.id,
         attachmentId: attachment.id,
       );
-      ref
-          .read(attachmentUploadCoordinatorProvider)
-          .attachmentRemoved(
-            AttachmentUploadCoordinator.taskKey(
-              _editingTask.accountId,
-              _editingTask.taskListId,
-              _editingTask.id,
-            ),
-            attachment.id,
-          );
-      _reloadTaskAttachments(ref);
+      coordinator.attachmentRemoved(
+        AttachmentUploadCoordinator.taskKey(
+          task.accountId,
+          task.taskListId,
+          task.id,
+        ),
+        attachment.id,
+      );
+      _reloadTaskAttachments(task);
     } on Object catch (error) {
-      _showAttachmentError(error);
+      _showAttachmentError(error, task);
     } finally {
-      if (mounted) setState(() => _attachmentBusy = false);
+      _setAttachmentBusy(task, false);
     }
   }
 
-  void _reloadTaskAttachments(WidgetRef ref) {
-    final key = (
-      accountId: _editingTask.accountId,
-      taskListId: _editingTask.taskListId,
-      taskId: _editingTask.id,
-    );
-    ref.invalidate(microsoftTaskAttachmentsProvider(key));
-    final future = ref.read(microsoftTaskAttachmentsProvider(key).future);
-    if (mounted) {
-      setState(() {
-        _attachmentsFuture = future;
-      });
-    }
-  }
-
-  void _showAttachmentError(Object error) {
+  void _reloadTaskAttachments(TaskEntity task) {
     if (!mounted) return;
+    final key = (
+      accountId: task.accountId,
+      taskListId: task.taskListId,
+      taskId: task.id,
+    );
+    final container = ProviderScope.containerOf(context, listen: false);
+    container.invalidate(microsoftTaskAttachmentsProvider(key));
+    if (_taskKey(task) != _taskKey(_editingTask)) return;
+    final future = container.read(microsoftTaskAttachmentsProvider(key).future);
+    setState(() {
+      _attachmentsFuture = future;
+    });
+  }
+
+  void _setAttachmentBusy(TaskEntity task, bool busy) {
+    if (!mounted) return;
+    setState(() {
+      if (busy) {
+        _attachmentBusyTasks.add(_taskKey(task));
+      } else {
+        _attachmentBusyTasks.remove(_taskKey(task));
+      }
+    });
+  }
+
+  void _showAttachmentError(Object error, TaskEntity task) {
+    if (!mounted || _taskKey(task) != _taskKey(_editingTask)) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text(context.l10n.exportFailed('$error'))),
     );

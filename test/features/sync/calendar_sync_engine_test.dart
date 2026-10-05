@@ -13,6 +13,7 @@ import 'package:busymax/src/features/calendar/data/calendar_repository.dart';
 import 'package:busymax/src/features/calendar/presentation/event_editor_draft.dart';
 import 'package:busymax/src/features/notifications/notification_schedule_service.dart';
 import 'package:busymax/src/features/sync/calendar_sync_engine.dart';
+import 'package:busymax/src/features/sync/account_sync_operations.dart';
 import 'package:busymax/src/features/sync/cloud_calendar_range_coverage_service.dart';
 import 'package:busymax/src/microsoft_calendar/microsoft_calendar_api_client.dart';
 import 'package:busymax/src/microsoft_calendar/microsoft_calendar_errors.dart';
@@ -1531,6 +1532,59 @@ void main() {
     },
   );
 
+  for (final provider in [BusyProvider.google, BusyProvider.microsoft]) {
+    test('$provider range retrieval skips disabled calendar domains', () async {
+      final source = CalendarSourceDto(
+        provider: provider,
+        providerCalendarId: 'cal-1',
+        summary: 'Work',
+      );
+      await _insertAccount(database, provider: provider);
+      await _insertSource(database, source);
+      await _insertEvent(
+        database,
+        provider: provider,
+        providerCalendarId: source.providerCalendarId,
+      );
+      await (database.update(database.accounts)
+            ..where((row) => row.id.equals('account')))
+          .write(const AccountsCompanion(calendarsEnabled: Value(false)));
+      final client = _FakeCalendarClient(
+        provider: provider,
+        calendars: [source],
+        pages: const [],
+      );
+      var retrievals = 0;
+      final engine = CalendarSyncEngine(
+        database: database,
+        client: client,
+        accountId: 'account',
+      );
+      final coverage = CloudCalendarRangeCoverageService(
+        database: database,
+        retrieveMonth: (accountId, provider, month, {required sourceIds}) {
+          retrievals++;
+          return engine.retrieveMonth(month, sourceIds: sourceIds);
+        },
+      );
+      expect(
+        await coverage.ensureRange(
+          DateTime.utc(2026, 7),
+          DateTime.utc(2026, 8),
+        ),
+        isTrue,
+      );
+      expect(retrievals, 0);
+      await engine.retrieveMonth(DateTime.utc(2026, 7));
+      expect(client.listCalls, isEmpty);
+      expect(await database.select(database.syncCursors).get(), isEmpty);
+      expect(
+        (await database.select(database.calendarEvents).get()).single.isDeleted,
+        isFalse,
+      );
+    });
+  }
+
   test('range snapshot is separate from the baseline cursor', () async {
     const source = CalendarSourceDto(
       provider: BusyProvider.google,
@@ -1659,10 +1713,9 @@ void main() {
       final coverage = CloudCalendarRangeCoverageService(
         database: database,
         nowUtc: () => DateTime.utc(2026, 7, 15),
-        engineForAccount: (_, _) => CalendarSyncEngine(
-          database: database,
-          client: client,
-          accountId: 'account',
+        retrieveMonth: _monthRetriever(
+          database,
+          (_) => client,
           nowUtc: () => DateTime.utc(2026, 7, 15),
         ),
       );
@@ -1730,11 +1783,7 @@ void main() {
       );
       final coverage = CloudCalendarRangeCoverageService(
         database: database,
-        engineForAccount: (_, _) => CalendarSyncEngine(
-          database: database,
-          client: client,
-          accountId: 'account',
-        ),
+        retrieveMonth: _monthRetriever(database, (_) => client),
       );
 
       expect(
@@ -1760,72 +1809,63 @@ void main() {
     },
   );
 
-  test(
-    'changing explicit sources does not inherit an in-flight month',
-    () async {
-      const firstSource = CalendarSourceDto(
-        provider: BusyProvider.google,
-        providerCalendarId: 'first',
-        summary: 'First',
-      );
-      const secondSource = CalendarSourceDto(
-        provider: BusyProvider.google,
-        providerCalendarId: 'second',
-        summary: 'Second',
-      );
-      await _insertAccount(database, provider: BusyProvider.google);
-      await _insertSource(database, firstSource);
-      await _insertSource(database, secondSource);
-      String sourceId(String calendarId) => CalendarRepository.sourceId(
-        accountId: 'account',
-        provider: BusyProvider.google,
-        providerCalendarId: calendarId,
-      );
-      final firstStarted = Completer<void>();
-      final releaseFirst = Completer<List<CalendarEventDto>>();
-      final client = _FakeCalendarClient(
-        provider: BusyProvider.google,
-        calendars: const [firstSource, secondSource],
-        pages: const [],
-        onListEvents: (calendarId, _, _) {
-          if (calendarId == 'first') {
-            firstStarted.complete();
-            return releaseFirst.future;
-          }
-          return Future.value(const []);
-        },
-      );
-      final coverage = CloudCalendarRangeCoverageService(
-        database: database,
-        engineForAccount: (_, _) => CalendarSyncEngine(
-          database: database,
-          client: client,
-          accountId: 'account',
-        ),
-      );
-      final first = coverage.ensureRange(
-        DateTime.utc(2020, 1),
-        DateTime.utc(2020, 2),
-        sourceIds: {sourceId('first')},
-        sourceFilterActive: true,
-      );
-      await firstStarted.future;
-      expect(
-        await coverage
-            .ensureRange(
-              DateTime.utc(2020, 1),
-              DateTime.utc(2020, 2),
-              sourceIds: {sourceId('second')},
-              sourceFilterActive: true,
-            )
-            .timeout(const Duration(seconds: 3)),
-        isTrue,
-      );
-      expect(client.listCalendarIds, containsAll(['first', 'second']));
-      releaseFirst.complete(const []);
-      expect(await first, isTrue);
-    },
-  );
+  test('changing explicit sources queues a separate range snapshot', () async {
+    const firstSource = CalendarSourceDto(
+      provider: BusyProvider.google,
+      providerCalendarId: 'first',
+      summary: 'First',
+    );
+    const secondSource = CalendarSourceDto(
+      provider: BusyProvider.google,
+      providerCalendarId: 'second',
+      summary: 'Second',
+    );
+    await _insertAccount(database, provider: BusyProvider.google);
+    await _insertSource(database, firstSource);
+    await _insertSource(database, secondSource);
+    String sourceId(String calendarId) => CalendarRepository.sourceId(
+      accountId: 'account',
+      provider: BusyProvider.google,
+      providerCalendarId: calendarId,
+    );
+    final firstStarted = Completer<void>();
+    final releaseFirst = Completer<List<CalendarEventDto>>();
+    final client = _FakeCalendarClient(
+      provider: BusyProvider.google,
+      calendars: const [firstSource, secondSource],
+      pages: const [],
+      onListEvents: (calendarId, _, _) {
+        if (calendarId == 'first') {
+          firstStarted.complete();
+          return releaseFirst.future;
+        }
+        return Future.value(const []);
+      },
+    );
+    final coverage = CloudCalendarRangeCoverageService(
+      database: database,
+      retrieveMonth: _monthRetriever(database, (_) => client),
+    );
+    final first = coverage.ensureRange(
+      DateTime.utc(2020, 1),
+      DateTime.utc(2020, 2),
+      sourceIds: {sourceId('first')},
+      sourceFilterActive: true,
+    );
+    await firstStarted.future;
+    final second = coverage.ensureRange(
+      DateTime.utc(2020, 1),
+      DateTime.utc(2020, 2),
+      sourceIds: {sourceId('second')},
+      sourceFilterActive: true,
+    );
+    await Future<void>.delayed(Duration.zero);
+    expect(client.listCalendarIds, ['first']);
+    releaseFirst.complete(const []);
+    expect(await first, isTrue);
+    expect(await second, isTrue);
+    expect(client.listCalendarIds, ['first', 'second']);
+  });
 
   test('an unrelated account failure cannot fail an explicit source', () async {
     const selected = CalendarSourceDto(
@@ -1877,10 +1917,10 @@ void main() {
     );
     final coverage = CloudCalendarRangeCoverageService(
       database: database,
-      engineForAccount: (accountId, _) => CalendarSyncEngine(
-        database: database,
-        client: accountId == 'account' ? requestedClient : unrelatedClient,
-        accountId: accountId,
+      retrieveMonth: _monthRetriever(
+        database,
+        (accountId) =>
+            accountId == 'account' ? requestedClient : unrelatedClient,
       ),
     );
     expect(
@@ -2059,6 +2099,24 @@ CalendarEventDto _event({
       'summary': 'Planning',
       'updated': '2026-07-01T00:00:00.000Z',
     },
+  );
+}
+
+CalendarMonthRetriever _monthRetriever(
+  AppDatabase database,
+  CloudCalendarClient Function(String accountId) clientForAccount, {
+  DateTime Function()? nowUtc,
+}) {
+  final coordinator = AccountSyncCoordinator();
+  addTearDown(coordinator.dispose);
+  return (accountId, provider, month, {required sourceIds}) => coordinator.run(
+    accountId,
+    () => CalendarSyncEngine(
+      database: database,
+      client: clientForAccount(accountId),
+      accountId: accountId,
+      nowUtc: nowUtc,
+    ).retrieveMonth(month, sourceIds: sourceIds),
   );
 }
 

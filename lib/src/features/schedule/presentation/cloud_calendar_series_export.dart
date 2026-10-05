@@ -185,8 +185,15 @@ String cloudSeriesToICalendar({
         exception,
         uid: uid,
         nowUtc: nowUtc,
-        originalStart: original,
-        originalZone: master.startTimeZone,
+        // Identity keeps the master's time type when an exception changes its
+        // interval or a cancelled resource omits its start entirely.
+        recurrenceIdLine: _dateLine(
+          'RECURRENCE-ID',
+          original,
+          master.startTimeZone,
+          master.allDay,
+          targetZone: microsoftZone,
+        ),
         microsoftSeriesZone: microsoftZone,
         googleDefaultReminders: googleDefaultReminders,
       ),
@@ -238,8 +245,7 @@ List<String> _eventLines(
   CalendarEventDto event, {
   required String uid,
   required DateTime nowUtc,
-  String? originalStart,
-  String? originalZone,
+  String? recurrenceIdLine,
   String? microsoftSeriesZone,
   List<Map<String, Object?>>? googleDefaultReminders,
 }) {
@@ -248,17 +254,7 @@ List<String> _eventLines(
     'UID:${_text(uid)}',
     'DTSTAMP:${_utc(nowUtc)}',
   ];
-  if (originalStart != null) {
-    lines.add(
-      _dateLine(
-        'RECURRENCE-ID',
-        originalStart,
-        originalZone ?? event.startTimeZone,
-        event.allDay,
-        targetZone: microsoftSeriesZone,
-      ),
-    );
-  }
+  if (recurrenceIdLine != null) lines.add(recurrenceIdLine);
   if (event.isCancelled) {
     lines.add('STATUS:CANCELLED');
   } else {

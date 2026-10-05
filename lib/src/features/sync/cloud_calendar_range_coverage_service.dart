@@ -12,14 +12,14 @@ import 'calendar_sync_engine.dart';
 final class CloudCalendarRangeCoverageService {
   CloudCalendarRangeCoverageService({
     required AppDatabase database,
-    required CalendarSyncEngine Function(String, BusyProvider) engineForAccount,
+    required CalendarMonthRetriever retrieveMonth,
     DateTime Function()? nowUtc,
   }) : _database = database,
-       _engineForAccount = engineForAccount,
+       _retrieveMonth = retrieveMonth,
        _nowUtc = nowUtc ?? (() => DateTime.now().toUtc());
 
   final AppDatabase _database;
-  final CalendarSyncEngine Function(String, BusyProvider) _engineForAccount;
+  final CalendarMonthRetriever _retrieveMonth;
   final DateTime Function() _nowUtc;
   final Map<String, Future<void>> _inFlight = {};
 
@@ -37,7 +37,8 @@ final class CloudCalendarRangeCoverageService {
     final until = end.toUtc();
     if (!until.isAfter(from)) return false;
     if (sourceFilterActive && sourceIds.isEmpty) return true;
-    final accountQuery = _database.select(_database.accounts);
+    final accountQuery = _database.select(_database.accounts)
+      ..where((row) => row.calendarsEnabled.equals(true));
     if (accountIds.isNotEmpty) {
       accountQuery.where((row) => row.id.isIn(accountIds));
     }
@@ -118,10 +119,12 @@ final class CloudCalendarRangeCoverageService {
     if (!source.online) return false;
     final key =
         '${source.accountId}|${source.sourceId}|${month.year}|${month.month}';
-    final running = _inFlight[key] ??= _engineForAccount(
+    final running = _inFlight[key] ??= _retrieveMonth(
       source.accountId,
       source.provider,
-    ).retrieveMonth(month, sourceIds: {source.sourceId});
+      month,
+      sourceIds: {source.sourceId},
+    );
     try {
       await running;
       return fresh(await state());
