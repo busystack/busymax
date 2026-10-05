@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Exercise real Settings controls, a private keyring and the native GTK chooser.
+"""Exercise native registration storage, the GTK chooser and its handle reader.
 
 The accessible chooser is operated only in this subprocess's private D-Bus
 session, and only the packaged synthetic fixture is selected. No provider
@@ -19,7 +19,7 @@ def session(root):
     from gi.repository import Atspi, GLib
 
     flutter = os.environ["BUSYMAX_FLUTTER_EXECUTABLE"]
-    command = [flutter, "test", "integration_test/oauth_corrective_native_test.dart", "-d", "linux"]
+    command = [flutter, "test", "integration_test/native_registration_storage_test.dart", "-d", "linux"]
     if os.environ.get("BUSYMAX_NATIVE_CHOOSER_ONLY") == "1":
         command += ["--name", "native file selection"]
     process = subprocess.Popen(command, cwd=root)
@@ -95,7 +95,7 @@ def main():
         session(root)
         return
     flutter = os.environ.get("BUSYMAX_FLUTTER_EXECUTABLE", "flutter")
-    with tempfile.TemporaryDirectory(prefix="busymax-native-oauth-") as temporary:
+    with tempfile.TemporaryDirectory(prefix="busymax-native-registration-") as temporary:
         home = Path(temporary)
         env = os.environ.copy()
         for name in ("DATA", "CONFIG", "CACHE", "RUNTIME"):

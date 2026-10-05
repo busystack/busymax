@@ -119,7 +119,7 @@ Development and maintenance:
 - [Google developer OAuth registration](docs/google_setup.md) and
   [Microsoft developer OAuth registration](docs/microsoft_setup.md)
 - [iCalendar and DAV data model](docs/icalendar_data_model.md)
-- [Desktop OAuth release checklist](docs/oauth_next_release_checklist.md)
+- [Desktop OAuth release checklist](docs/desktop_oauth_release_checklist.md)
 - [Windows architecture](docs/windows_architecture.md)
 - [Snap beta release](docs/beta_snap_release.md)
 - [Windows packaging](docs/windows_packaging.md) and

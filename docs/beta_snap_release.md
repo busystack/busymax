@@ -49,7 +49,7 @@ not belong in this file.
 Active `BUSYMAX_*` registrations enable new managed connections; protected
 originals serve existing account bindings and must retain their original
 values. Never use CI fixture values as production credentials. The
-[desktop OAuth release checklist](oauth_next_release_checklist.md) covers the
+[desktop OAuth release checklist](desktop_oauth_release_checklist.md) covers the
 provider publishing, verification, and consent prerequisites. Validate the
 define file with `tool/check_desktop_oauth_config.dart` before building, as
 shown below.

@@ -172,4 +172,4 @@ by the owner. Local and CI tests do not prove these prerequisites.
 Synthetic CI clients may be included only in the explicit nonproduction
 CI package. Unconfigured CI builds show Connect with BusyMax as unavailable
 and leave custom registration usable; they cannot become official packages.
-See the [desktop OAuth release checklist](oauth_next_release_checklist.md).
+See the [desktop OAuth release checklist](desktop_oauth_release_checklist.md).

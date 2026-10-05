@@ -41,7 +41,7 @@ desktop builds keep custom registration setup available.
 Use the [Google](google_setup.md) and [Microsoft](microsoft_setup.md) registration
 guides for custom setup. Official packages must pass
 `dart run tool/check_desktop_oauth_config.dart --config <dart-defines.json>`;
-the [desktop OAuth release checklist](oauth_next_release_checklist.md) owns the
+the [desktop OAuth release checklist](desktop_oauth_release_checklist.md) owns the
 complete configuration and provider approval requirements.
 
 Apple iCloud Calendar and Nextcloud do not use compile-time OAuth client
