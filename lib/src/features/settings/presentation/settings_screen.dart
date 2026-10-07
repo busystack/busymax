@@ -1,10 +1,14 @@
 import '../../../l10n/oauth_error_description.dart';
+
 import 'package:busymax/src/core/auth/authorization_attempt.dart';
+
 import '../../../l10n/registration_description.dart';
 import '../../auth/presentation/registration_setup_dialog.dart';
 import '../../../core/auth/oauth_registration.dart';
+
 import 'package:busymax/src/l10n/time_format_scope.dart';
 import 'package:busymax/src/l10n/week_preferences_scope.dart';
+
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -12,6 +16,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:logging/logging.dart';
 import 'package:yaru/yaru.dart';
+import 'package:busystack_contacts/busystack_contacts.dart';
+import 'package:uuid/uuid.dart';
 
 import '../../../app/busymax_about_dialog.dart';
 import '../../../app/busymax_yaru_theme.dart';
@@ -25,20 +31,25 @@ import '../../../app/busymax_shortcuts.dart';
 import '../../../app/linux/linux_page_frame.dart';
 import '../../../app/linux/linux_header_style.dart';
 import '../../../core/logging/redacting_logger.dart';
+import '../../../contacts/busymax_contacts_controller.dart';
 import '../../../dav/auth/dav_account_dialogs.dart';
 import '../../../dav/presentation/nextcloud_collection_dialog.dart';
 import '../../../dav/dav_errors.dart';
 import '../../../dav/http/dav_http_transport.dart';
 import '../../../dav/mutation/dav_conflict_repository.dart';
 import '../../../dav/storage/dav_settings_repository.dart';
+
 import 'package:busymax/src/core/auth/oauth_models.dart';
+
 import '../../../l10n/app_locale.dart';
 import '../../../l10n/l10n.dart';
 import '../../../platform/common/desktop_services.dart';
 import '../../../platform/gtk_header_icon_service.dart';
 import '../../../webcal/webcal_subscription_service.dart';
 import '../../../webcal/webcal_uri.dart';
+
 import 'package:busymax/src/providers/busy_provider.dart';
+
 import '../../accounts/data/accounts_repository.dart';
 import '../../accounts/domain/account_connection_state.dart';
 import '../../calendar/data/calendar_repository.dart';
@@ -77,6 +88,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   DavCancellationToken? _davCancellation;
   final _removingAccountIds = <String>{};
   final _busySubscriptionIds = <String>{};
+  final _busyContactAccountIds = <String>{};
   late final LaunchAtLoginRefreshObserver _autostartRefresh;
 
   @override
@@ -124,6 +136,12 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         : const <TaskListEntity>[];
     final subscriptions =
         ref.watch(webCalSubscriptionsProvider).valueOrNull ?? const [];
+    final contactAccounts =
+        ref.watch(busyMaxContactAccountsProvider).valueOrNull ??
+        const <ContactAccount>[];
+    final contactSources =
+        ref.watch(busyMaxContactSourceSettingsProvider).valueOrNull ??
+        const <BusyMaxContactSourceSetting>[];
     final config = ref.watch(buildConfigProvider);
     final settings = ref.watch(appSettingsControllerProvider);
     final launchAtLogin = ref.watch(launchAtLoginStateProvider);
@@ -186,6 +204,21 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         removingAccountIds: _removingAccountIds,
         onRemoveAccount: (account) =>
             unawaited(_removeAccount(context, ref, account)),
+        contactAccounts: contactAccounts,
+        contactSources: contactSources,
+        busyContactAccountIds: _busyContactAccountIds,
+        onEnableContacts: (account, writable) =>
+            unawaited(_enableContacts(account, writable: writable)),
+        onDisableContacts: (account) => unawaited(_disableContacts(account.id)),
+        onSourceEnabled: (sourceKey, enabled) => unawaited(
+          ref
+              .read(busyMaxContactsControllerProvider)
+              .setSourceEnabled(sourceKey, enabled: enabled),
+        ),
+        onAddCardDavContacts: () => unawaited(_addCardDavContacts()),
+        onAddNextcloudContacts: () => unawaited(_addNextcloudContacts()),
+        onRemoveContactsOnly: (account) =>
+            unawaited(_disableContacts(account.id)),
         davCollections: davCollections,
         calendarSources: calendarSources,
         onCalendarSelected: (source, selected) => unawaited(
@@ -581,6 +614,90 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     );
   }
 
+  Future<void> _enableContacts(
+    AccountEntity account, {
+    required bool writable,
+  }) => _runContactOperation(account.id, () async {
+    final controller = ref.read(busyMaxContactsControllerProvider);
+    if (account.provider == BusyProvider.nextcloud) {
+      await controller.enableLinkedNextcloudContacts(
+        account.id,
+        writable: writable,
+      );
+    } else {
+      await controller.enableLinkedContacts(account.id, writable: writable);
+    }
+  });
+
+  Future<void> _disableContacts(String id) => _runContactOperation(
+    id,
+    () async {
+      final controller = ref.read(busyMaxContactsControllerProvider);
+      if (id.startsWith('contacts:')) {
+        await controller.removeLinkedAccount(id.substring('contacts:'.length));
+      } else {
+        await controller.removeContactsAccount(id);
+      }
+    },
+  );
+
+  Future<void> _addCardDavContacts() async {
+    final input = await showBusyMaxModalDialog<_CardDavContactsInput>(
+      context,
+      barrierDismissible: false,
+      builder: (_) => const _CardDavContactsDialog(),
+    );
+    if (input == null || !mounted) return;
+    final id = const Uuid().v7();
+    await _runContactOperation(id, () async {
+      await ref
+          .read(busyMaxContactsControllerProvider)
+          .addCardDavContactsOnly(
+            id: id,
+            label: input.label,
+            server: input.server,
+            username: input.username,
+            password: input.password,
+            readOnly: input.readOnly,
+          );
+    });
+  }
+
+  Future<void> _addNextcloudContacts() async {
+    final server = await showNextcloudServerDialog(context);
+    if (server == null || !mounted) return;
+    final id = const Uuid().v7();
+    await _runContactOperation(id, () async {
+      await ref
+          .read(busyMaxContactsControllerProvider)
+          .addNextcloudContactsOnly(
+            id: id,
+            label: context.l10n.nextcloudProvider,
+            server: Uri.parse(server),
+          );
+    });
+  }
+
+  Future<void> _runContactOperation(
+    String id,
+    Future<void> Function() operation,
+  ) async {
+    if (_busyContactAccountIds.contains(id)) return;
+    setState(() => _busyContactAccountIds.add(id));
+    try {
+      await operation();
+    } on Object catch (error) {
+      _settingsLogger.warning(
+        'Contacts configuration failed: ${redactForLog(error)}',
+      );
+      if (mounted) {
+        _showMessage(context, context.l10n.operationFailed);
+      }
+    } finally {
+      if (mounted) setState(() => _busyContactAccountIds.remove(id));
+    }
+  }
+
   Future<void> _addSubscription({String? initialUrl}) async {
     await showAddCalendarSubscriptionFlow(context, ref, initialUrl: initialUrl);
   }
@@ -807,9 +924,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           case BusyProvider.google:
             accountId = (await repository.signIn(request: request)).accountId;
           case BusyProvider.microsoft:
-            accountId = (await repository.signInWithMicrosoft(
-              request: request,
-            )).accountId;
+            accountId = (await repository.signInWithMicrosoft(request: request))
+                .accountId;
           case BusyProvider.appleICloud:
             final cancellation = DavCancellationToken();
             _davCancellation = cancellation;
@@ -1148,9 +1264,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   }
 
   void _showMessage(BuildContext context, String message) {
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(SnackBar(content: Text(message)));
+    ScaffoldMessenger.of(context)
+        .showSnackBar(SnackBar(content: Text(message)));
   }
 }
 
@@ -1410,6 +1525,15 @@ class _AccountManagementSection extends StatelessWidget {
     required this.onMigrate,
     required this.removingAccountIds,
     required this.onRemoveAccount,
+    required this.contactAccounts,
+    required this.contactSources,
+    required this.busyContactAccountIds,
+    required this.onEnableContacts,
+    required this.onDisableContacts,
+    required this.onSourceEnabled,
+    required this.onAddCardDavContacts,
+    required this.onAddNextcloudContacts,
+    required this.onRemoveContactsOnly,
     required this.davCollections,
     required this.calendarSources,
     required this.onCalendarSelected,
@@ -1444,6 +1568,15 @@ class _AccountManagementSection extends StatelessWidget {
   final void Function(AccountEntity account) onMigrate;
   final Set<String> removingAccountIds;
   final void Function(AccountEntity account) onRemoveAccount;
+  final List<ContactAccount> contactAccounts;
+  final List<BusyMaxContactSourceSetting> contactSources;
+  final Set<String> busyContactAccountIds;
+  final void Function(AccountEntity account, bool writable) onEnableContacts;
+  final void Function(ContactAccount account) onDisableContacts;
+  final void Function(String sourceKey, bool enabled) onSourceEnabled;
+  final VoidCallback onAddCardDavContacts;
+  final VoidCallback onAddNextcloudContacts;
+  final void Function(ContactAccount account) onRemoveContactsOnly;
   final List<DavCollectionSettingsEntity> davCollections;
   final List<CalendarSourceEntity> calendarSources;
   final void Function(CalendarSourceEntity source, bool selected)
@@ -1539,6 +1672,51 @@ class _AccountManagementSection extends StatelessWidget {
             ),
             subsections: [
               if (account.provider == BusyProvider.google ||
+                  account.provider == BusyProvider.microsoft ||
+                  account.provider == BusyProvider.nextcloud)
+                _ContactsSettingsCard(
+                  account: account,
+                  contactAccount: contactAccounts
+                      .where(
+                        (candidate) =>
+                            candidate.id ==
+                            BusyMaxContactsController.linkedContactAccountId(
+                              account.id,
+                            ),
+                      )
+                      .firstOrNull,
+                  sources: [
+                    for (final setting in contactSources)
+                      if (setting.source.accountId ==
+                          BusyMaxContactsController.linkedContactAccountId(
+                            account.id,
+                          ))
+                        setting,
+                  ],
+                  busy:
+                      busyContactAccountIds.contains(account.id) ||
+                      busyContactAccountIds.contains(
+                        BusyMaxContactsController.linkedContactAccountId(
+                          account.id,
+                        ),
+                      ),
+                  onEnableRead: () => onEnableContacts(account, false),
+                  onEnableWrite: () => onEnableContacts(account, true),
+                  onDisable: () {
+                    final contact = contactAccounts
+                        .where(
+                          (candidate) =>
+                              candidate.id ==
+                              BusyMaxContactsController.linkedContactAccountId(
+                                account.id,
+                              ),
+                        )
+                        .firstOrNull;
+                    if (contact != null) onDisableContacts(contact);
+                  },
+                  onSourceEnabled: onSourceEnabled,
+                ),
+              if (account.provider == BusyProvider.google ||
                   account.provider == BusyProvider.microsoft)
                 _RegistrationAccountCard(
                   account: account,
@@ -1624,6 +1802,18 @@ class _AccountManagementSection extends StatelessWidget {
                 ),
             ],
           ),
+        _ContactsOnlySettingsCard(
+          accounts: [
+            for (final account in contactAccounts)
+              if (!account.id.startsWith('contacts:')) account,
+          ],
+          sources: contactSources,
+          busyAccountIds: busyContactAccountIds,
+          onAddCardDav: onAddCardDavContacts,
+          onAddNextcloud: onAddNextcloudContacts,
+          onRemove: onRemoveContactsOnly,
+          onSourceEnabled: onSourceEnabled,
+        ),
         _CalendarImportCard(onImport: onImportIcs),
         _CalendarSubscriptionsCard(
           subscriptions: subscriptions,
@@ -1691,6 +1881,200 @@ class _AccountSettingsGroup extends StatelessWidget {
     );
   }
 }
+
+class _ContactsSettingsCard extends StatelessWidget {
+  const _ContactsSettingsCard({
+    required this.account,
+    required this.contactAccount,
+    required this.sources,
+    required this.busy,
+    required this.onEnableRead,
+    required this.onEnableWrite,
+    required this.onDisable,
+    required this.onSourceEnabled,
+  });
+
+  final AccountEntity account;
+  final ContactAccount? contactAccount;
+  final List<BusyMaxContactSourceSetting> sources;
+  final bool busy;
+  final VoidCallback onEnableRead;
+  final VoidCallback onEnableWrite;
+  final VoidCallback onDisable;
+  final void Function(String sourceKey, bool enabled) onSourceEnabled;
+
+  @override
+  Widget build(BuildContext context) {
+    final contact = contactAccount;
+    final l10n = context.l10n;
+    return BusyMaxGroupedList(
+      title: l10n.contactsTitle,
+      titleStyle: _settingsAccountSubsectionStyle(context),
+      description: l10n.contactsLinkedDescription,
+      filled: true,
+      children: contact == null
+          ? [
+              BusyMaxActionRow(
+                key: ValueKey('enable-contacts-read-${account.id}'),
+                title: l10n.contactsEnableSuggestions,
+                subtitle: l10n.contactsReadPermissionDescription,
+                leading: const Icon(YaruIcons.user),
+                onTap: busy ? null : onEnableRead,
+              ),
+              BusyMaxActionRow(
+                key: ValueKey('enable-contacts-write-${account.id}'),
+                title: l10n.contactsEnableEditing,
+                subtitle: l10n.contactsWritePermissionDescription,
+                leading: const Icon(Icons.edit_outlined),
+                onTap: busy ? null : onEnableWrite,
+              ),
+            ]
+          : [
+              BusyMaxActionRow(
+                title: contact.errorCode == null
+                    ? l10n.contactsSuggestionsEnabled
+                    : l10n.contactsNeedsAttention,
+                subtitle: _contactsWritable(contact)
+                    ? l10n.contactsReadWriteAccess
+                    : l10n.readOnlySharedCollection,
+                leading: Icon(
+                  contact.errorCode == null
+                      ? YaruIcons.checkmark
+                      : YaruIcons.warning,
+                ),
+              ),
+              if (!_contactsWritable(contact))
+                BusyMaxActionRow(
+                  key: ValueKey('upgrade-contacts-write-${account.id}'),
+                  title: l10n.contactsEnableEditing,
+                  leading: const Icon(Icons.edit_outlined),
+                  onTap: busy ? null : onEnableWrite,
+                ),
+              for (final setting in sources)
+                _ContactSourceSettingsRow(
+                  setting: setting,
+                  onChanged: (enabled) =>
+                      onSourceEnabled(setting.source.key, enabled),
+                ),
+              BusyMaxActionRow(
+                key: ValueKey('disable-contacts-${account.id}'),
+                title: l10n.contactsDisableForAccount,
+                leading: Icon(
+                  YaruIcons.trash,
+                  color: Theme.of(context).colorScheme.error,
+                ),
+                destructive: true,
+                onTap: busy ? null : onDisable,
+              ),
+            ],
+    );
+  }
+}
+
+class _ContactsOnlySettingsCard extends StatelessWidget {
+  const _ContactsOnlySettingsCard({
+    required this.accounts,
+    required this.sources,
+    required this.busyAccountIds,
+    required this.onAddCardDav,
+    required this.onAddNextcloud,
+    required this.onRemove,
+    required this.onSourceEnabled,
+  });
+
+  final List<ContactAccount> accounts;
+  final List<BusyMaxContactSourceSetting> sources;
+  final Set<String> busyAccountIds;
+  final VoidCallback onAddCardDav;
+  final VoidCallback onAddNextcloud;
+  final void Function(ContactAccount account) onRemove;
+  final void Function(String sourceKey, bool enabled) onSourceEnabled;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = context.l10n;
+    return BusyMaxGroupedList(
+      title: l10n.contactsTitle,
+      titleStyle: _settingsSectionHeaderStyle(context),
+      description: l10n.contactsOnlyDescription,
+      filled: true,
+      children: [
+        BusyMaxActionRow(
+          key: const ValueKey('add-carddav-contacts'),
+          title: l10n.contactsAddCardDav,
+          leading: const Icon(YaruIcons.plus),
+          onTap: onAddCardDav,
+        ),
+        BusyMaxActionRow(
+          key: const ValueKey('add-nextcloud-contacts'),
+          title: l10n.contactsAddNextcloud,
+          leading: const Icon(YaruIcons.plus),
+          onTap: onAddNextcloud,
+        ),
+        for (final account in accounts) ...[
+          BusyMaxActionRow(
+            title: account.displayName,
+            subtitle: _contactsWritable(account)
+                ? l10n.contactsReadWriteAccess
+                : l10n.readOnlySharedCollection,
+            leading: const Icon(YaruIcons.user),
+          ),
+          for (final setting in sources)
+            if (setting.source.accountId == account.id)
+              _ContactSourceSettingsRow(
+                setting: setting,
+                onChanged: (enabled) =>
+                    onSourceEnabled(setting.source.key, enabled),
+              ),
+          BusyMaxActionRow(
+            key: ValueKey('remove-contacts-only-${account.id}'),
+            title: l10n.removeAction,
+            leading: Icon(
+              YaruIcons.trash,
+              color: Theme.of(context).colorScheme.error,
+            ),
+            destructive: true,
+            onTap: busyAccountIds.contains(account.id)
+                ? null
+                : () => onRemove(account),
+          ),
+        ],
+      ],
+    );
+  }
+}
+
+class _ContactSourceSettingsRow extends StatelessWidget {
+  const _ContactSourceSettingsRow({
+    required this.setting,
+    required this.onChanged,
+  });
+
+  final BusyMaxContactSourceSetting setting;
+  final ValueChanged<bool> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return BusyMaxActionRow(
+      title: setting.source.name,
+      subtitle: context.l10n.contactsUseForAttendees,
+      leading: const Icon(YaruIcons.user),
+      trailing: YaruSwitch(
+        key: ValueKey('contact-source-${setting.source.key}'),
+        value: setting.enabled,
+        onChanged: onChanged,
+      ),
+    );
+  }
+}
+
+bool _contactsWritable(ContactAccount account) =>
+    account.grantedScopes.any((scope) {
+      final normalized = scope.toLowerCase();
+      return normalized == 'contacts.readwrite' ||
+          normalized == 'carddav:write' ||
+          normalized == 'https://www.googleapis.com/auth/contacts';
+    });
 
 TextStyle? _settingsAccountSubsectionStyle(BuildContext context) {
   final theme = Theme.of(context);
@@ -2081,6 +2465,144 @@ String _subscriptionTiming(
   return last == null
       ? context.l10n.subscriptionNeverRefreshed
       : context.l10n.subscriptionLastRefresh(_formatDavDateTime(context, last));
+}
+
+final class _CardDavContactsInput {
+  const _CardDavContactsInput({
+    required this.label,
+    required this.server,
+    required this.username,
+    required this.password,
+    required this.readOnly,
+  });
+
+  final String label;
+  final Uri server;
+  final String username;
+  final String password;
+  final bool readOnly;
+}
+
+class _CardDavContactsDialog extends StatefulWidget {
+  const _CardDavContactsDialog();
+
+  @override
+  State<_CardDavContactsDialog> createState() => _CardDavContactsDialogState();
+}
+
+class _CardDavContactsDialogState extends State<_CardDavContactsDialog> {
+  final _label = TextEditingController();
+  final _server = TextEditingController();
+  final _username = TextEditingController();
+  final _password = TextEditingController();
+  bool _readOnly = false;
+
+  @override
+  void initState() {
+    super.initState();
+    for (final controller in [_label, _server, _username, _password]) {
+      controller.addListener(_changed);
+    }
+  }
+
+  @override
+  void dispose() {
+    for (final controller in [_label, _server, _username, _password]) {
+      controller
+        ..removeListener(_changed)
+        ..dispose();
+    }
+    super.dispose();
+  }
+
+  void _changed() => setState(() {});
+
+  Uri? get _validServer {
+    final value = Uri.tryParse(_server.text.trim());
+    return value != null &&
+            value.scheme == 'https' &&
+            value.host.isNotEmpty &&
+            value.userInfo.isEmpty &&
+            !value.hasQuery &&
+            !value.hasFragment
+        ? value
+        : null;
+  }
+
+  bool get _valid =>
+      _label.text.trim().isNotEmpty &&
+      _validServer != null &&
+      _username.text.isNotEmpty &&
+      _password.text.isNotEmpty;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = context.l10n;
+    return BusyMaxDialogShell(
+      title: l10n.contactsAddCardDav,
+      maxWidth: BusyMaxSizes.compactDetailsWidth,
+      // The shared shell names the content list `children`; its action bar is
+      // intentionally specified afterwards for visual reading order.
+      // ignore: sort_child_properties_last
+      children: [
+        TextField(
+          key: const ValueKey('carddav-contacts-label'),
+          controller: _label,
+          decoration: InputDecoration(labelText: l10n.subscriptionName),
+        ),
+        const SizedBox(height: BusyMaxSpacing.md),
+        TextField(
+          key: const ValueKey('carddav-contacts-server'),
+          controller: _server,
+          keyboardType: TextInputType.url,
+          decoration: InputDecoration(labelText: l10n.contactsServerUrlLabel),
+        ),
+        const SizedBox(height: BusyMaxSpacing.md),
+        TextField(
+          key: const ValueKey('carddav-contacts-username'),
+          controller: _username,
+          decoration: InputDecoration(labelText: l10n.contactsUsernameLabel),
+        ),
+        const SizedBox(height: BusyMaxSpacing.md),
+        TextField(
+          key: const ValueKey('carddav-contacts-password'),
+          controller: _password,
+          obscureText: true,
+          enableSuggestions: false,
+          autocorrect: false,
+          decoration: InputDecoration(labelText: l10n.contactsPasswordLabel),
+        ),
+        const SizedBox(height: BusyMaxSpacing.md),
+        SwitchListTile.adaptive(
+          value: _readOnly,
+          title: Text(l10n.readOnlySharedCollection),
+          contentPadding: EdgeInsets.zero,
+          onChanged: (value) => setState(() => _readOnly = value),
+        ),
+      ],
+      actions: [
+        BusyMaxPushButton.standard(
+          onPressed: () => Navigator.of(context).pop(),
+          child: Text(context.l10n.cancel),
+        ),
+        BusyMaxPushButton.suggested(
+          key: const ValueKey('confirm-carddav-contacts'),
+          onPressed: !_valid
+              ? null
+              : () => Navigator.of(context).pop(
+                  _CardDavContactsInput(
+                    label: _label.text.trim(),
+                    server: _validServer!,
+                    username: _username.text,
+                    password: _password.text,
+                    readOnly: _readOnly,
+                  ),
+                ),
+          child: Text(l10n.connectAccountAction),
+        ),
+      ],
+    );
+  }
 }
 
 final class _WebCalAddInput {

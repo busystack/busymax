@@ -1,7 +1,10 @@
 import '../../core/auth/authorization_attempt.dart';
+import '../../core/http/request_dispatch_exception.dart';
 import '../../core/http/bounded_http.dart';
 import '../../core/http/retry_after.dart';
+
 import 'package:drift/drift.dart' show BooleanExpressionOperators, Value;
+
 import 'dart:async';
 import 'dart:convert';
 
@@ -18,6 +21,7 @@ import '../../core/logging/redacting_logger.dart';
 import '../../providers/busy_provider.dart';
 import '../api/google_tasks_api_surface.dart';
 import 'oauth_loopback_flow.dart';
+
 import 'package:busymax/src/core/auth/oauth_models.dart';
 import 'package:busymax/src/core/secrets/secret_store.dart';
 
@@ -45,6 +49,24 @@ abstract interface class GoogleConnectionGateway {
   Future<OAuthSignInResult> connectGoogle(AuthorizationRequest request);
 }
 
+const googleContactsReadScope =
+    'https://www.googleapis.com/auth/contacts.readonly';
+const googleContactsWriteScope = 'https://www.googleapis.com/auth/contacts';
+
+abstract interface class GoogleContactsAuthorization {
+  Future<void> authorizeGoogleContacts(
+    String accountId, {
+    required bool writable,
+    AuthorizationCancellation? cancellation,
+    Future<void> Function()? persistContacts,
+  });
+
+  Future<String> googleContactsAuthorizationHeader(
+    String accountId, {
+    required bool writable,
+  });
+}
+
 abstract interface class GoogleRemovalRevoker {
   Future<void> revokeSelectedAuthorization(
     AuthorizationRemovalSnapshot snapshot,
@@ -55,6 +77,7 @@ class OAuthService
     implements
         OAuthGateway,
         GoogleConnectionGateway,
+        GoogleContactsAuthorization,
         GoogleRemovalRevoker,
         RegistrationBindingResolver {
   OAuthService({
@@ -163,7 +186,7 @@ class OAuthService
   @override
   Future<OAuthSignInResult> connectGoogle(AuthorizationRequest request) {
     final attempt = _attempts.begin(_nowUtc, request.cancellation);
-    return _connectGoogle(request, attempt).catchError((
+    return _connectGoogle(request, attempt, const <String>{}).catchError((
       Object error,
       StackTrace stack,
     ) {
@@ -179,6 +202,7 @@ class OAuthService
   Future<OAuthSignInResult> _connectGoogle(
     AuthorizationRequest request,
     AuthorizationAttempt attempt,
+    Set<String> optionalScopes,
   ) async {
     final persistence = _persistence;
     if (persistence == null) {
@@ -224,6 +248,15 @@ class OAuthService
       );
     }
     attempt.check();
+    final requestedScopes = <String>{
+      ...googleBusyMaxOAuthScope.split(' '),
+      ...optionalScopes,
+      if (previous != null)
+        for (final scope in previous.tokenSet.scopes)
+          if (scope == googleContactsReadScope ||
+              scope == googleContactsWriteScope)
+            scope,
+    };
     final result = await _loopbackFlow.start(
       attempt: attempt,
       authorizationEndpoint: Uri.https(
@@ -231,7 +264,7 @@ class OAuthService
         '/o/oauth2/v2/auth',
       ),
       clientId: registration.clientId,
-      scope: googleBusyMaxOAuthScope,
+      scope: requestedScopes.join(' '),
       extraAuthorizationParameters: const {
         'access_type': 'offline',
         'prompt': 'consent',
@@ -252,6 +285,12 @@ class OAuthService
       throw const OAuthException(
         'OAuthMissingRequiredScope',
         'Grant both Google Tasks and Google Calendar permissions.',
+      );
+    }
+    if (!optionalScopes.every(tokens.scopes.contains)) {
+      throw const OAuthException(
+        'OAuthMissingRequiredScope',
+        'The requested Google Contacts permission was not granted.',
       );
     }
     attempt.check();
@@ -327,6 +366,78 @@ class OAuthService
         }
       },
     );
+  }
+
+  @override
+  Future<void> authorizeGoogleContacts(
+    String accountId, {
+    required bool writable,
+    AuthorizationCancellation? cancellation,
+    Future<void> Function()? persistContacts,
+  }) async {
+    final attempt = _attempts.begin(_nowUtc, cancellation);
+    GoogleDesktopCredential? current;
+    final scope = writable ? googleContactsWriteScope : googleContactsReadScope;
+    try {
+      current = await attempt.wait(boundCredentialForAccount(accountId));
+      if (current == null) {
+        throw const OAuthException(
+          'OAuthAccountMissing',
+          'The selected Google account is no longer available.',
+        );
+      }
+      if (current.tokenSet.scopes.contains(googleContactsWriteScope) ||
+          !writable && current.tokenSet.scopes.contains(scope)) {
+        if (persistContacts != null) {
+          final persistence = _persistence!;
+          final generation = current.generation;
+          await persistence.run(accountId, () async {
+            if (await persistence.generation(accountId) != generation) {
+              throw const OAuthException(
+                'OAuthStaleAuthorization',
+                'The account changed while contacts were being enabled.',
+              );
+            }
+            await persistence.database.transaction(persistContacts);
+          });
+        }
+        attempt.committed();
+        return;
+      }
+      final result = await _connectGoogle(
+        AuthorizationRequest.reconnect(accountId),
+        attempt,
+        <String>{scope},
+      );
+      await result.commit!(persistContacts ?? () async {});
+    } on OAuthException catch (error) {
+      if (current == null) rethrow;
+      throw AuthorizationScopedOAuthException(
+        accountId: accountId,
+        generation: current.generation,
+        cause: error,
+      );
+    } finally {
+      _attempts.finish(attempt);
+    }
+  }
+
+  @override
+  Future<String> googleContactsAuthorizationHeader(
+    String accountId, {
+    required bool writable,
+  }) async {
+    final tokenSet = await validTokenForAccount(accountId);
+    if (writable
+        ? !tokenSet.scopes.contains(googleContactsWriteScope)
+        : !tokenSet.scopes.contains(googleContactsReadScope) &&
+              !tokenSet.scopes.contains(googleContactsWriteScope)) {
+      throw const OAuthException(
+        'OAuthContactsConsentRequired',
+        'Google Contacts permission must be granted for this account.',
+      );
+    }
+    return 'Bearer ${tokenSet.accessToken}';
   }
 
   Future<GoogleDesktopCredential?> _existingBoundCredential(String id) async {

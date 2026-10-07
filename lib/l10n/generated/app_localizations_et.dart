@@ -4,6 +4,7 @@
 
 // ignore: unused_import
 import 'package:intl/intl.dart' as intl;
+
 import 'app_localizations.dart';
 
 // ignore_for_file: type=lint
@@ -3494,4 +3495,59 @@ class AppLocalizationsEt extends AppLocalizations {
   @override
   String get registrationGuideWorkspaceAudience =>
       'Ava Google Auth Platform → Branding. Kui seadistust pole alustatud, vali Get started. Sisesta väljale App name BusyMax, vali oma User support email ja vali Next. Vali jaotises Audience Internal. Vali Next, sisesta oma e-post jaotises Contact Information ning vali Next. Nõustu User Data Policyga ja vali Continue ning Create. Olemasoleva seadistuse puhul vaata üle Branding ja Audience.\n\nInternal lubab vaid projekti emaorganisatsiooni kontosid administraatori piirangute kohaselt. Testkasutajate loendit pole vaja. BusyMax ei saa neid konsoolisätteid JSON-faili põhjal kontrollida.';
+
+  @override
+  String get contactsTitle => 'Kontaktid';
+
+  @override
+  String get contactsLinkedDescription =>
+      'Kasuta sündmuse külaliste lisamisel selle konto vahemällu salvestatud kontakte.';
+
+  @override
+  String get contactsEnableSuggestions => 'Luba kontaktisoovitused';
+
+  @override
+  String get contactsReadPermissionDescription =>
+      'Taotleb kontaktidele kirjutuskaitstud juurdepääsu';
+
+  @override
+  String get contactsEnableEditing => 'Luba kontaktide muutmine';
+
+  @override
+  String get contactsWritePermissionDescription =>
+      'Taotleb kontaktidele lugemis- ja kirjutusõigust';
+
+  @override
+  String get contactsSuggestionsEnabled => 'Kontaktisoovitused on lubatud';
+
+  @override
+  String get contactsNeedsAttention => 'Kontaktid vajavad tähelepanu';
+
+  @override
+  String get contactsReadWriteAccess => 'Lugemis- ja kirjutusõigus';
+
+  @override
+  String get contactsDisableForAccount => 'Keela selle konto kontaktid';
+
+  @override
+  String get contactsOnlyDescription =>
+      'Need allikad on kalendri- ja ülesandekontodest sõltumatud.';
+
+  @override
+  String get contactsAddCardDav => 'Lisa CardDAV-i kontaktid';
+
+  @override
+  String get contactsAddNextcloud => 'Lisa Nextcloudi kontaktid';
+
+  @override
+  String get contactsUseForAttendees => 'Kasuta osalejate soovitamiseks';
+
+  @override
+  String get contactsServerUrlLabel => 'HTTPS-serveri URL';
+
+  @override
+  String get contactsUsernameLabel => 'Kasutajanimi';
+
+  @override
+  String get contactsPasswordLabel => 'Parool';
 }

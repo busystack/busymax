@@ -288,8 +288,10 @@ class _LinuxEventAttachmentsDialogState
             contentType: file.mimeType ?? 'application/octet-stream',
             bytes: await file.readAsBytes(),
           );
+      if (!mounted) return;
       _refresh();
     } on Object catch (error) {
+      if (!mounted) return;
       _refresh();
       _error(error);
     } finally {

@@ -3,7 +3,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 
 import '../../calendar_providers/attachment_upload_session.dart';
-import '../../core/http/request_dispatch_exception.dart';
+import '../../core/http/shared_graph_transport.dart';
 import 'microsoft_todo_api_error.dart';
 import 'microsoft_todo_api_models.dart';
 import 'microsoft_todo_json.dart';
@@ -128,16 +128,23 @@ class MicrosoftTodoRestApiClient
     required http.Client httpClient,
     required Uri baseUri,
     Future<String> Function()? authorizationHeaderProvider,
+    Future<String> Function(String? claims)?
+    authorizationHeaderWithClaimsProvider,
     Future<void> Function()? unauthorizedRefreshProvider,
-  }) : _httpClient = httpClient,
-       _baseUri = baseUri,
-       _authorizationHeaderProvider = authorizationHeaderProvider,
-       _unauthorizedRefreshProvider = unauthorizedRefreshProvider;
+  }) : _baseUri = baseUri,
+       _graph = BusyMaxGraphTransport(
+         httpClient: httpClient,
+         authorizationHeader:
+             authorizationHeaderWithClaimsProvider ??
+             (_) async =>
+                 await authorizationHeaderProvider?.call() ??
+                 'Bearer fixture-token',
+         recoverUnauthorized: unauthorizedRefreshProvider,
+         maximumResponseBytes: 32 * 1024 * 1024,
+       );
 
-  final http.Client _httpClient;
   final Uri _baseUri;
-  final Future<String> Function()? _authorizationHeaderProvider;
-  final Future<void> Function()? _unauthorizedRefreshProvider;
+  final BusyMaxGraphTransport _graph;
 
   @override
   Future<MicrosoftTodoUserDto> getMe() async {
@@ -285,20 +292,10 @@ class MicrosoftTodoRestApiClient
     required String taskId,
     required String attachmentId,
   }) async {
-    final response = await _send(
-      'GET',
-      _uri(
-        '${microsoftTaskAttachmentPath(taskListId, taskId, attachmentId)}/\$value',
-      ),
+    final uri = _uri(
+      '${microsoftTaskAttachmentPath(taskListId, taskId, attachmentId)}/\$value',
     );
-    if (response.statusCode < 200 || response.statusCode >= 300) {
-      throw MicrosoftTodoApiError.fromResponse(
-        statusCode: response.statusCode,
-        body: response.body,
-        headers: response.headers,
-      );
-    }
-    return response.bodyBytes;
+    return _graph.download(uri, maximumBytes: 25 * 1024 * 1024);
   }
 
   @override
@@ -430,16 +427,15 @@ class MicrosoftTodoRestApiClient
         if (end == bytes.length) {
           session.finalRangeMayHaveBeenSubmitted = true;
         }
-        final authorization = await _authorizationHeaderProvider?.call();
-        final response = await _httpClient.put(
+        final response = await _graph.request(
+          'PUT',
           contentUri,
           headers: {
-            if (authorization != null) 'Authorization': authorization,
             'Content-Type': 'application/octet-stream',
             'Content-Length': '${end - offset}',
             'Content-Range': 'bytes $offset-${end - 1}/${bytes.length}',
           },
-          body: bytes.sublist(offset, end),
+          bytes: bytes.sublist(offset, end),
         );
         if (end == bytes.length) {
           if (response.statusCode != 201) {
@@ -587,69 +583,8 @@ class MicrosoftTodoRestApiClient
     Uri uri, {
     Map<String, Object?>? body,
   }) async {
-    final encodedBody = body == null ? null : jsonEncode(body);
-    var response = await _sendOnce(
-      method,
-      uri,
-      body: body,
-      encodedBody: encodedBody,
-    );
-    final refresh = _unauthorizedRefreshProvider;
-    if (response.statusCode == 401 && refresh != null) {
-      try {
-        await refresh();
-      } on Object catch (error, stackTrace) {
-        Error.throwWithStackTrace(
-          KnownUnsentRequestException(
-            kind: RequestPreDispatchFailureKind.authentication,
-            cause: error,
-          ),
-          stackTrace,
-        );
-      }
-      response = await _sendOnce(
-        method,
-        uri,
-        body: body,
-        encodedBody: encodedBody,
-      );
-    }
-    return response;
-  }
-
-  Future<http.Response> _sendOnce(
-    String method,
-    Uri uri, {
-    Map<String, Object?>? body,
-    String? encodedBody,
-  }) async {
-    final headers = <String, String>{};
-    if (body != null) {
-      headers['Content-Type'] = 'application/json; charset=utf-8';
-    }
-    String? authorizationHeader;
-    try {
-      authorizationHeader = await _authorizationHeaderProvider?.call();
-    } on Object catch (error, stackTrace) {
-      Error.throwWithStackTrace(
-        KnownUnsentRequestException(
-          kind: RequestPreDispatchFailureKind.authentication,
-          cause: error,
-        ),
-        stackTrace,
-      );
-    }
-    if (authorizationHeader != null) {
-      headers['Authorization'] = authorizationHeader;
-    }
-
-    return switch (method) {
-      'DELETE' => _httpClient.delete(uri, headers: headers),
-      'GET' => _httpClient.get(uri, headers: headers),
-      'PATCH' => _httpClient.patch(uri, headers: headers, body: encodedBody),
-      'POST' => _httpClient.post(uri, headers: headers, body: encodedBody),
-      _ => throw ArgumentError.value(method, 'method'),
-    };
+    _trustedNextLink(uri.toString());
+    return _graph.request(method, uri, body: body);
   }
 
   Uri _uriOrFullUrl(String? fullUrl, String path) {

@@ -1,0 +1,24 @@
+{
+  "schema": 1,
+  "layout": "sibling-working-trees",
+  "dependencies": [
+    {
+      "name": "busystack_contacts",
+      "repository": "https://github.com/ChenZhenIO/busystack_contacts.git",
+      "revision": "a51ac611f987aa500e35d819cd9daf77e01c5671",
+      "path": "../busystack_contacts"
+    },
+    {
+      "name": "busystack_dav",
+      "repository": "https://github.com/ChenZhenIO/busystack_dav.git",
+      "revision": "18f636f3227e3df8c1406bafd85b45e7f12cf8bd",
+      "path": "../busystack_dav"
+    },
+    {
+      "name": "busystack_graph",
+      "repository": "https://github.com/ChenZhenIO/busystack_graph.git",
+      "revision": "ad97b118e80882c7d51f4b02fb9351b7c7ce6fbf",
+      "path": "../busystack_graph"
+    }
+  ]
+}

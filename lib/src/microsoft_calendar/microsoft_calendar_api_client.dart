@@ -8,9 +8,11 @@ import '../calendar_providers/calendar_mutation.dart';
 import '../calendar_providers/calendar_provider_capabilities.dart';
 import '../calendar_providers/calendar_sync_dto.dart';
 import '../calendar_providers/cloud_calendar_client.dart';
-import '../core/http/request_dispatch_exception.dart';
+import '../core/http/shared_graph_transport.dart';
 import '../core/time/provider_date_time.dart';
+
 import 'package:busymax/src/providers/busy_provider.dart';
+
 import 'microsoft_calendar_errors.dart';
 import 'microsoft_calendar_mapper.dart';
 import 'microsoft_calendar_models.dart';
@@ -27,25 +29,60 @@ class MicrosoftCalendarApiClient
     Future<String> Function()? authorizationHeaderProvider,
     Future<String> Function()? sharedCalendarAuthorizationHeaderProvider,
     Future<String> Function()? categoryAuthorizationHeaderProvider,
+    Future<String> Function(String? claims)?
+    authorizationHeaderWithClaimsProvider,
+    Future<String> Function(String? claims)?
+    sharedCalendarAuthorizationHeaderWithClaimsProvider,
+    Future<String> Function(String? claims)?
+    categoryAuthorizationHeaderWithClaimsProvider,
     Future<void> Function()? unauthorizedRefreshProvider,
   }) : _httpClient = httpClient,
        _baseUri = baseUri,
        _responseTimeZone = responseTimeZone,
-       _authorizationHeaderProvider = authorizationHeaderProvider,
-       _sharedCalendarAuthorizationHeaderProvider =
-           sharedCalendarAuthorizationHeaderProvider,
-       _categoryAuthorizationHeaderProvider =
-           categoryAuthorizationHeaderProvider,
-       _unauthorizedRefreshProvider = unauthorizedRefreshProvider;
+       _ordinaryGraph = BusyMaxGraphTransport(
+         httpClient: httpClient,
+         authorizationHeader:
+             authorizationHeaderWithClaimsProvider ??
+             (_) async =>
+                 await authorizationHeaderProvider?.call() ??
+                 'Bearer fixture-token',
+         recoverUnauthorized: unauthorizedRefreshProvider,
+         maximumResponseBytes: 160 * 1024 * 1024,
+       ),
+       _sharedGraph = BusyMaxGraphTransport(
+         httpClient: httpClient,
+         authorizationHeader:
+             sharedCalendarAuthorizationHeaderWithClaimsProvider ??
+             authorizationHeaderWithClaimsProvider ??
+             (_) async =>
+                 await (sharedCalendarAuthorizationHeaderProvider ??
+                         authorizationHeaderProvider)
+                     ?.call() ??
+                 'Bearer fixture-token',
+         recoverUnauthorized: unauthorizedRefreshProvider,
+         maximumResponseBytes: 160 * 1024 * 1024,
+       ),
+       _categoryGraph = BusyMaxGraphTransport(
+         httpClient: httpClient,
+         authorizationHeader:
+             categoryAuthorizationHeaderWithClaimsProvider ??
+             authorizationHeaderWithClaimsProvider ??
+             (_) async =>
+                 await (categoryAuthorizationHeaderProvider ??
+                         authorizationHeaderProvider)
+                     ?.call() ??
+                 'Bearer fixture-token',
+         recoverUnauthorized: unauthorizedRefreshProvider,
+         maximumResponseBytes: 160 * 1024 * 1024,
+       );
 
   final http.Client _httpClient;
   final Uri _baseUri;
   final String _responseTimeZone;
   final String? accountTenantId;
-  final Future<String> Function()? _authorizationHeaderProvider;
-  final Future<String> Function()? _sharedCalendarAuthorizationHeaderProvider;
-  final Future<String> Function()? _categoryAuthorizationHeaderProvider;
-  final Future<void> Function()? _unauthorizedRefreshProvider;
+  final BusyMaxGraphTransport _ordinaryGraph;
+  final BusyMaxGraphTransport _sharedGraph;
+  final BusyMaxGraphTransport _categoryGraph;
 
   @override
   BusyProvider get provider => BusyProvider.microsoft;
@@ -331,17 +368,11 @@ class MicrosoftCalendarApiClient
         'This attachment has no downloadable file content.',
       );
     }
-    final response = await _send(
-      'GET',
-      _uri(
-        '${_calendarPath(calendarId)}/events/${_enc(eventId)}'
-        '/attachments/${_enc(attachment.id)}/\$value',
-      ),
+    final uri = _uri(
+      '${_calendarPath(calendarId)}/events/${_enc(eventId)}'
+      '/attachments/${_enc(attachment.id)}/\$value',
     );
-    if (response.statusCode < 200 || response.statusCode >= 300) {
-      throw MicrosoftCalendarApiError.fromResponse(response);
-    }
-    return response.bodyBytes;
+    return _graphFor(uri).download(uri, maximumBytes: 150 * 1024 * 1024);
   }
 
   Future<MicrosoftEventAttachment> createSmallEventAttachment({
@@ -465,8 +496,9 @@ class MicrosoftCalendarApiClient
         if (end == bytes.length) {
           session.finalRangeMayHaveBeenSubmitted = true;
         }
-        final response = await _httpClient.put(
+        final response = await _ordinaryGraph.uploadPreauthorized(
           session.url,
+          bytes: bytes.sublist(offset, end),
           headers: {
             // This opaque Outlook URL is pre-authenticated. Never include the
             // Graph bearer token, including when it has a different host.
@@ -474,7 +506,6 @@ class MicrosoftCalendarApiClient
             'Content-Length': '${end - offset}',
             'Content-Range': 'bytes $offset-${end - 1}/${bytes.length}',
           },
-          body: bytes.sublist(offset, end),
         );
         if (end == bytes.length) {
           if (response.statusCode != 201) {
@@ -485,10 +516,7 @@ class MicrosoftCalendarApiClient
         if (response.statusCode != 200) {
           throw const MicrosoftAttachmentUploadUncertain();
         }
-        session.update(
-          (jsonDecode(response.body) as Map).cast<String, Object?>(),
-          bytes.length,
-        );
+        session.update(response.jsonObject(), bytes.length);
         if (session.nextOffset <= offset) {
           throw const MicrosoftAttachmentUploadUncertain();
         }
@@ -916,69 +944,25 @@ class MicrosoftCalendarApiClient
     String method,
     Uri uri, {
     Map<String, Object?>? body,
-    bool retried = false,
   }) async {
     _trustedNextLink(uri.toString());
-    final authorizationHeaderProvider =
-        uri.pathSegments.contains('masterCategories')
-        ? _categoryAuthorizationHeaderProvider ?? _authorizationHeaderProvider
-        : uri.pathSegments.contains('users')
-        ? _sharedCalendarAuthorizationHeaderProvider ??
-              _authorizationHeaderProvider
-        : _authorizationHeaderProvider;
-    String? authorizationHeader;
-    try {
-      authorizationHeader = await authorizationHeaderProvider?.call();
-    } on Object catch (error, stackTrace) {
-      Error.throwWithStackTrace(
-        KnownUnsentRequestException(
-          kind: RequestPreDispatchFailureKind.authentication,
-          cause: error,
-        ),
-        stackTrace,
-      );
-    }
-    final headers = <String, String>{
-      'Accept': 'application/json',
-      'Prefer': 'outlook.timezone="$_responseTimeZone"',
-      if (body != null) 'Content-Type': 'application/json',
-      if (authorizationHeader != null) 'Authorization': authorizationHeader,
-    };
-    final encodedBody = body == null ? null : jsonEncode(body);
-    final response = switch (method) {
-      'GET' => await _httpClient.get(uri, headers: headers),
-      'POST' => await _httpClient.post(
-        uri,
-        headers: headers,
-        body: encodedBody,
-      ),
-      'PATCH' => await _httpClient.patch(
-        uri,
-        headers: headers,
-        body: encodedBody,
-      ),
-      'DELETE' => await _httpClient.delete(uri, headers: headers),
-      _ => throw ArgumentError.value(method, 'method', 'Unsupported method'),
-    };
-    final unauthorizedRefreshProvider = _unauthorizedRefreshProvider;
-    if (response.statusCode == 401 &&
-        !retried &&
-        unauthorizedRefreshProvider != null) {
-      try {
-        await unauthorizedRefreshProvider();
-      } on Object catch (error, stackTrace) {
-        Error.throwWithStackTrace(
-          KnownUnsentRequestException(
-            kind: RequestPreDispatchFailureKind.authentication,
-            cause: error,
-          ),
-          stackTrace,
-        );
-      }
-      return _send(method, uri, body: body, retried: true);
-    }
-    return response;
+    return _graphFor(uri).request(
+      method,
+      uri,
+      body: body,
+      headers: <String, String>{
+        'Accept': 'application/json',
+        'Prefer': 'outlook.timezone="$_responseTimeZone"',
+      },
+    );
   }
+
+  BusyMaxGraphTransport _graphFor(Uri uri) =>
+      uri.pathSegments.contains('masterCategories')
+      ? _categoryGraph
+      : uri.pathSegments.contains('users')
+      ? _sharedGraph
+      : _ordinaryGraph;
 
   Uri _uri(String path, {Map<String, String>? query}) {
     final basePath = _baseUri.path.endsWith('/')

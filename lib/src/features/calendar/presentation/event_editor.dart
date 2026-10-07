@@ -1,5 +1,7 @@
 import 'package:busymax/src/core/auth/authorization_attempt.dart';
+
 import '../domain/event_property_policy.dart';
+
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -9,6 +11,7 @@ import 'package:yaru/yaru.dart';
 
 import '../../../app/busymax_design.dart';
 import '../../../app/app_bootstrap.dart';
+import '../../../contacts/busymax_contacts_controller.dart';
 import '../../../app/busymax_dialogs.dart';
 import '../../../app/busymax_window_close.dart';
 import '../../../calendar_providers/calendar_colors.dart';
@@ -17,7 +20,9 @@ import '../../../calendar_providers/calendar_provider_capabilities.dart';
 import '../../../microsoft_calendar/microsoft_calendar_models.dart';
 import '../../../l10n/l10n.dart';
 import '../../../schedule/schedule_projection.dart';
+
 import 'package:busymax/src/providers/busy_provider.dart';
+
 import '../../accounts/data/accounts_repository.dart';
 import '../../recurrence/domain/event_recurrence_codec.dart';
 import '../../recurrence/domain/recurrence_rule.dart';
@@ -288,8 +293,10 @@ bool _hasExternalGuests(
   ].any((attendee) => !attendee.self && !attendee.organizer);
 }
 
-typedef EventEditorDeleteCallback =
-    void Function(String eventId, RecurringEventMutationScope? scope);
+typedef EventEditorDeleteCallback = void Function(
+  String eventId,
+  RecurringEventMutationScope? scope,
+);
 
 class EventEditor extends ConsumerStatefulWidget {
   const EventEditor({
@@ -322,6 +329,8 @@ class _EventEditorState extends ConsumerState<EventEditor> {
   final _shortcutFocusNode = FocusNode(debugLabel: 'Event editor shortcuts');
   final _guestController = TextEditingController();
   String? _guestError;
+  List<BusyMaxContactSuggestion> _guestSuggestions = const [];
+  int _guestSuggestionGeneration = 0;
   var _addingGuest = false;
   var _addingCategory = false;
   var _confirmingCancel = false;
@@ -949,14 +958,14 @@ class _EventEditorState extends ConsumerState<EventEditor> {
 
   Widget _accountRow() {
     final accountIds =
-        <String>{
-          for (final source in _selectableSources) source.accountId,
-        }.toList()..sort((first, second) {
-          final labelOrder = _accountLabel(
-            first,
-          ).toLowerCase().compareTo(_accountLabel(second).toLowerCase());
-          return labelOrder != 0 ? labelOrder : first.compareTo(second);
-        });
+        <String>{for (final source in _selectableSources) source.accountId}
+            .toList()
+          ..sort((first, second) {
+            final labelOrder = _accountLabel(first)
+                .toLowerCase()
+                .compareTo(_accountLabel(second).toLowerCase());
+            return labelOrder != 0 ? labelOrder : first.compareTo(second);
+          });
     final selected = accountIds.contains(_draft.accountId)
         ? _draft.accountId
         : accountIds.first;
@@ -1326,10 +1335,23 @@ class _EventEditorState extends ConsumerState<EventEditor> {
               labelText: context.l10n.addGuestEmail,
               errorText: _guestError,
             ),
+            onChanged: _loadGuestSuggestions,
             onSubmitted: (_) => _addGuest(),
           ),
         ),
       );
+      rows.addAll([
+        for (final suggestion in _guestSuggestions)
+          BusyMaxActionRow(
+            key: ValueKey('guest-contact-${suggestion.email}'),
+            title: suggestion.displayName.isEmpty
+                ? suggestion.email
+                : suggestion.displayName,
+            subtitle: suggestion.displayName.isEmpty ? null : suggestion.email,
+            leading: const Icon(Icons.person_outline),
+            onTap: () => _addSuggestedGuest(suggestion),
+          ),
+      ]);
     }
     return rows;
   }
@@ -1853,6 +1875,57 @@ class _EventEditorState extends ConsumerState<EventEditor> {
     });
   }
 
+  Future<void> _loadGuestSuggestions(String query) async {
+    final generation = ++_guestSuggestionGeneration;
+    if (query.trim().isEmpty) {
+      setState(() => _guestSuggestions = const []);
+      return;
+    }
+    try {
+      final suggestions = await ref
+          .read(busyMaxContactsControllerProvider)
+          .suggestAttendees(
+            query,
+            busyMaxAccountId: _draft.accountId,
+            excludedAddresses: {
+              for (final attendee in _draft.attendees) attendee.email,
+            },
+          );
+      if (!mounted || generation != _guestSuggestionGeneration) return;
+      setState(() => _guestSuggestions = suggestions);
+    } on Object {
+      // Manual attendee entry remains available when contacts are unavailable.
+      if (!mounted || generation != _guestSuggestionGeneration) return;
+      setState(() => _guestSuggestions = const []);
+    }
+  }
+
+  void _addSuggestedGuest(BusyMaxContactSuggestion suggestion) {
+    final duplicate = _draft.attendees.any(
+      (attendee) =>
+          attendee.email.toLowerCase() == suggestion.email.toLowerCase(),
+    );
+    _guestController.clear();
+    setState(() {
+      _guestSuggestions = const [];
+      _addingGuest = false;
+      _guestError = null;
+      if (!duplicate) {
+        _draft = _draft.copyWith(
+          attendees: [
+            ..._draft.attendees,
+            EventAttendeeDraft(
+              email: suggestion.email,
+              displayName: suggestion.displayName.isEmpty
+                  ? null
+                  : suggestion.displayName,
+            ),
+          ],
+        );
+      }
+    });
+  }
+
   void _addCategory(String value) {
     final category = value.trim();
     if (category.isEmpty ||
@@ -2015,9 +2088,8 @@ TextStyle? _eventEditorProminentActionStyle(
   Color? color,
   FontWeight fontWeight = FontWeight.w600,
 }) {
-  return Theme.of(
-    context,
-  ).textTheme.labelLarge?.copyWith(color: color, fontWeight: fontWeight);
+  return Theme.of(context).textTheme.labelLarge
+      ?.copyWith(color: color, fontWeight: fontWeight);
 }
 
 String? _dateString(DateTime? value) {

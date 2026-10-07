@@ -1,4 +1,5 @@
 import 'dart:convert';
+
 import 'package:busymax/src/calendar_providers/calendar_mutation.dart';
 import 'package:busymax/l10n/generated/app_localizations.dart';
 import 'package:busymax/src/app/app_bootstrap.dart';
@@ -99,9 +100,8 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
-          calendarRemoteApiClientForAccountProvider(
-            'account',
-          ).overrideWithValue(client),
+          calendarRemoteApiClientForAccountProvider('account')
+              .overrideWithValue(client),
         ],
         child: FluentApp(
           localizationsDelegates: const [AppLocalizations.delegate],
@@ -329,9 +329,9 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.widgetWithText(FilledButton, 'Save').last);
     await tester.pumpAndSettle();
-    final request =
-        jsonDecode((await db.select(db.pendingOps).getSingle()).requestJson)
-            as Map;
+    final request = jsonDecode(
+      (await db.select(db.pendingOps).getSingle()).requestJson,
+    ) as Map;
     expect(request['categoriesJson'], ['Unknown', 'Work']);
   });
 
@@ -417,9 +417,9 @@ void main() {
       await tester.pumpAndSettle();
       await tester.tap(find.widgetWithText(FilledButton, 'Create').last);
       await tester.pumpAndSettle();
-      final request =
-          jsonDecode((await db.select(db.pendingOps).getSingle()).requestJson)
-              as Map;
+      final request = jsonDecode(
+        (await db.select(db.pendingOps).getSingle()).requestJson,
+      ) as Map;
       expect(request['eventType'], 'workingLocation');
       expect((request['googleStatusProperties'] as Map)['type'], 'homeOffice');
     },
@@ -632,9 +632,8 @@ void main() {
             ),
             calendarRepositoryProvider.overrideWithValue(repository),
             localTimeZoneProvider.overrideWithValue('UTC'),
-            calendarRemoteApiClientForAccountProvider(
-              'microsoft-account',
-            ).overrideWithValue(client),
+            calendarRemoteApiClientForAccountProvider('microsoft-account')
+                .overrideWithValue(client),
           ],
           child: FluentApp(
             localizationsDelegates: const [AppLocalizations.delegate],
@@ -660,7 +659,13 @@ void main() {
       final action = find.text('Check guest availability');
       expect(action, findsOneWidget);
       await tester.ensureVisible(action);
+      // The shared Graph transport consumes a streamed response on the real
+      // async queue. Let that response complete before settling animations.
       await tester.tap(action);
+      await tester.pump();
+      await tester.runAsync(() async {
+        await Future<void>.delayed(const Duration(milliseconds: 50));
+      });
       await tester.pumpAndSettle();
       expect(
         find.byKey(const ValueKey('windows-cloud-availability-dialog')),
@@ -891,25 +896,17 @@ void main() {
         // Google retains source identity until the remote move succeeds. The
         // dependent patch must keep all existing properties and the title edit.
         final operations = await db.select(db.pendingOps).get();
-        final patch =
-            jsonDecode(
-                  operations
-                      .singleWhere((op) => op.operation == 'patch')
-                      .requestJson,
-                )
-                as Map;
+        final patch = jsonDecode(
+          operations.singleWhere((op) => op.operation == 'patch').requestJson,
+        ) as Map;
         expect(patch['title'], 'Renamed flight');
         expect(patch.keys, isNot(contains('start')));
         expect(patch.keys, isNot(contains('end')));
         expect(patch.keys, isNot(contains('remindersJson')));
         if (scenario == 'compatible move') {
-          final move =
-              jsonDecode(
-                    operations
-                        .singleWhere((op) => op.operation == 'move')
-                        .requestJson,
-                  )
-                  as Map;
+          final move = jsonDecode(
+            operations.singleWhere((op) => op.operation == 'move').requestJson,
+          ) as Map;
           expect(move[calendarEventDestinationCalendarIdKey], 'destination');
         } else {
           expect(operations.where((op) => op.operation == 'move'), isEmpty);

@@ -44,6 +44,7 @@ import 'package:busymax/src/platform/native_menu_service.dart';
 import 'package:busymax/src/providers/busy_provider.dart';
 import 'package:busymax/src/google_tasks/oauth/oauth_service.dart';
 import 'package:busymax/src/microsoft_todo/api/microsoft_todo_api_client.dart';
+import 'package:busymax/src/microsoft_todo/api/microsoft_todo_api_models.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:busymax/src/features/tasks/domain/task_capabilities.dart';
@@ -106,6 +107,19 @@ class _DelayedAttachmentTestFile extends XFile {
   Future<Uint8List> readAsBytes() async => Uint8List.fromList(const [1, 2, 3]);
 }
 
+final class _ImmediateTodoAttachmentsClient
+    implements MicrosoftTodoApiClient, MicrosoftTodoAttachmentsApiClient {
+  @override
+  Future<MicrosoftTodoAttachmentsPageDto> listTaskAttachmentsPage({
+    required String taskListId,
+    required String taskId,
+    String? nextLink,
+  }) async => const MicrosoftTodoAttachmentsPageDto(attachments: []);
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
+
 void main() {
   testWidgets(
     'task attachment upload retains its target across selection changes',
@@ -161,7 +175,10 @@ void main() {
       await tester.pumpAndSettle();
       final add = find.widgetWithText(FilledButton, 'Attachments').last;
       await tester.ensureVisible(add);
-      await tester.tap(add);
+      await tester.runAsync(() async {
+        await tester.tap(add);
+        await Future<void>.delayed(const Duration(milliseconds: 50));
+      });
       await tester.pump();
       expect(file.lengthRequested.isCompleted, isTrue);
 
@@ -172,10 +189,13 @@ void main() {
         find.byKey(const Key('task-attachments-load')),
       );
       await tester.tap(find.byKey(const Key('task-attachments-load')));
-      await tester.pumpAndSettle();
+      await _pumpAndSettleGraphIo(tester);
       expect(find.text('second.txt'), findsOneWidget);
 
-      file.releaseLength.complete(3);
+      await tester.runAsync(() async {
+        file.releaseLength.complete(3);
+        await Future<void>.delayed(const Duration(milliseconds: 50));
+      });
       await tester.pumpAndSettle();
       expect(posts, ['/v1.0/me/todo/lists/list-1/tasks/task-1/attachments']);
       expect(secondTaskLists, 1);
@@ -224,24 +244,27 @@ void main() {
     await tester.pumpAndSettle();
     final add = find.widgetWithText(FilledButton, 'Attachments').last;
     await tester.ensureVisible(add);
-    await tester.tap(add);
-    for (var i = 0; i < 10 && !posted; i++) {
-      await tester.pump();
-    }
+    await tester.runAsync(() async {
+      await tester.tap(add);
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+    });
     expect(posted, isTrue);
     selection.value = null;
     await tester.pump();
-    response.complete(
-      http.Response(
-        jsonEncode({
-          'id': 'attachment-a',
-          'name': 'agenda.txt',
-          'size': 3,
-          '@odata.type': '#microsoft.graph.taskFileAttachment',
-        }),
-        201,
-      ),
-    );
+    await tester.runAsync(() async {
+      response.complete(
+        http.Response(
+          jsonEncode({
+            'id': 'attachment-a',
+            'name': 'agenda.txt',
+            'size': 3,
+            '@odata.type': '#microsoft.graph.taskFileAttachment',
+          }),
+          201,
+        ),
+      );
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+    });
     await tester.pumpAndSettle();
     expect(tester.takeException(), isNull);
     expect(
@@ -300,9 +323,10 @@ void main() {
           attachmentUploadCoordinatorProvider.overrideWith(
             (ref) => coordinator,
           ),
-          microsoftTodoApiClientForAccountProvider(
-            'microsoft:m',
-          ).overrideWithValue(client),
+          microsoftTodoApiClientForAccountProvider('microsoft:m')
+              .overrideWithValue(client),
+          microsoftMasterCategoriesProvider('microsoft:m')
+              .overrideWith((ref) async => []),
         ],
         child: localizedTestApp(
           child: Scaffold(
@@ -338,10 +362,10 @@ void main() {
     }
     final add = find.widgetWithText(FilledButton, 'Attachments').last;
     await tester.ensureVisible(add);
-    await tester.tap(add);
-    for (var i = 0; i < 30 && !held; i++) {
-      await tester.pump(const Duration(milliseconds: 1));
-    }
+    await tester.runAsync(() async {
+      await tester.tap(add);
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+    });
     try {
       expect(held, isTrue);
       expect(coordinator.status(key), AttachmentUploadStatus.committed);
@@ -351,9 +375,13 @@ void main() {
       expect(tester.widget<FilledButton>(add).onPressed, isNot(equals(null)));
       expect(uploads, 1);
     } finally {
-      heldRefresh.complete(http.Response(jsonEncode({'value': []}), 200));
-      await tester.pump();
+      await tester.runAsync(() async {
+        heldRefresh.complete(http.Response(jsonEncode({'value': []}), 200));
+        await Future<void>.delayed(const Duration(milliseconds: 50));
+      });
+      await tester.pumpAndSettle();
     }
+    await _disposeProviderTree(tester);
   });
 
   testWidgets(
@@ -390,14 +418,16 @@ void main() {
         'list-1',
         'task-1',
       );
-      await coordinator.uploadTask(
-        client: client,
-        accountId: 'microsoft:m',
-        taskListId: 'list-1',
-        taskId: 'task-1',
-        name: 'a.txt',
-        contentType: 'text/plain',
-        bytes: const [1],
+      await tester.runAsync(
+        () => coordinator.uploadTask(
+          client: client,
+          accountId: 'microsoft:m',
+          taskListId: 'list-1',
+          taskId: 'task-1',
+          name: 'a.txt',
+          contentType: 'text/plain',
+          bytes: const [1],
+        ),
       );
       await tester.pumpWidget(
         ProviderScope(
@@ -405,9 +435,10 @@ void main() {
             attachmentUploadCoordinatorProvider.overrideWith(
               (ref) => coordinator,
             ),
-            microsoftTodoApiClientForAccountProvider(
-              'microsoft:m',
-            ).overrideWithValue(client),
+            microsoftTodoApiClientForAccountProvider('microsoft:m')
+                .overrideWithValue(client),
+            microsoftMasterCategoriesProvider('microsoft:m')
+                .overrideWith((ref) async => []),
           ],
           child: localizedTestApp(
             child: Scaffold(
@@ -450,14 +481,16 @@ void main() {
         isTrue,
       );
       expect(coordinator.canSubmit(key), isTrue);
-      await coordinator.uploadTask(
-        client: client,
-        accountId: 'microsoft:m',
-        taskListId: 'list-1',
-        taskId: 'task-1',
-        name: 'b.txt',
-        contentType: 'text/plain',
-        bytes: const [2],
+      await tester.runAsync(
+        () => coordinator.uploadTask(
+          client: client,
+          accountId: 'microsoft:m',
+          taskListId: 'list-1',
+          taskId: 'task-1',
+          name: 'b.txt',
+          contentType: 'text/plain',
+          bytes: const [2],
+        ),
       );
       expect(posts, 2);
     },
@@ -483,7 +516,7 @@ void main() {
                 'error': {'code': 'TooManyRequests', 'message': 'Throttled'},
               }),
               429,
-              headers: {'retry-after': '30'},
+              headers: {'retry-after': '1'},
             );
           }
           return http.Response(
@@ -511,9 +544,10 @@ void main() {
             attachmentUploadCoordinatorProvider.overrideWith(
               (ref) => coordinator,
             ),
-            microsoftTodoApiClientForAccountProvider(
-              'microsoft:m',
-            ).overrideWithValue(client),
+            microsoftTodoApiClientForAccountProvider('microsoft:m')
+                .overrideWithValue(client),
+            microsoftMasterCategoriesProvider('microsoft:m')
+                .overrideWith((ref) async => []),
           ],
           child: localizedTestApp(
             child: Scaffold(
@@ -549,10 +583,10 @@ void main() {
       }
       final add = find.widgetWithText(FilledButton, 'Attachments').last;
       await tester.ensureVisible(add);
-      await tester.tap(add);
-      for (var i = 0; i < 20 && posts == 0; i++) {
-        await tester.pump(const Duration(milliseconds: 1));
-      }
+      await tester.runAsync(() async {
+        await tester.tap(add);
+        await Future<void>.delayed(const Duration(milliseconds: 50));
+      });
       for (var i = 0; i < 3; i++) {
         await tester.pump();
       }
@@ -565,14 +599,18 @@ void main() {
         ),
         findsOneWidget,
       );
-      now = now.add(const Duration(seconds: 31));
-      await tester.pump(const Duration(seconds: 31));
+      now = now.add(const Duration(seconds: 2));
+      await tester.runAsync(
+        () => Future<void>.delayed(const Duration(milliseconds: 1100)),
+      );
+      await tester.pump();
       expect(tester.widget<FilledButton>(add).onPressed, isNot(equals(null)));
-      await tester.tap(add);
-      for (var i = 0; i < 20 && posts < 2; i++) {
-        await tester.pump(const Duration(milliseconds: 1));
-      }
+      await tester.runAsync(() async {
+        await tester.tap(add);
+        await Future<void>.delayed(const Duration(milliseconds: 50));
+      });
       expect(posts, 2);
+      await _disposeProviderTree(tester);
     },
   );
 
@@ -597,24 +635,28 @@ void main() {
         'list-1',
         'task-1',
       );
-      await expectLater(
-        coordinator.uploadTask(
-          client: client,
-          accountId: 'microsoft:m',
-          taskListId: 'list-1',
-          taskId: 'task-1',
-          name: 'notes.txt',
-          contentType: 'text/plain',
-          bytes: [1],
+      await tester.runAsync(
+        () => expectLater(
+          coordinator.uploadTask(
+            client: client,
+            accountId: 'microsoft:m',
+            taskListId: 'list-1',
+            taskId: 'task-1',
+            name: 'notes.txt',
+            contentType: 'text/plain',
+            bytes: [1],
+          ),
+          throwsA(isA<AttachmentUploadUnresolvedException>()),
         ),
-        throwsA(isA<AttachmentUploadUnresolvedException>()),
       );
       expect(
-        await coordinator.reconcileTask(
-          client: client,
-          accountId: 'microsoft:m',
-          taskListId: 'list-1',
-          taskId: 'task-1',
+        await tester.runAsync(
+          () => coordinator.reconcileTask(
+            client: client,
+            accountId: 'microsoft:m',
+            taskListId: 'list-1',
+            taskId: 'task-1',
+          ),
         ),
         AttachmentUploadStatus.unresolved,
       );
@@ -624,9 +666,10 @@ void main() {
             attachmentUploadCoordinatorProvider.overrideWith(
               (ref) => coordinator,
             ),
-            microsoftTodoApiClientForAccountProvider(
-              'microsoft:m',
-            ).overrideWithValue(client),
+            microsoftTodoApiClientForAccountProvider('microsoft:m')
+                .overrideWithValue(_ImmediateTodoAttachmentsClient()),
+            microsoftMasterCategoriesProvider('microsoft:m')
+                .overrideWith((ref) async => []),
           ],
           child: localizedTestApp(
             child: Scaffold(
@@ -666,8 +709,10 @@ void main() {
       expect(coordinator.canSubmit(key), isFalse);
       await tester.tap(find.text('Retry').last);
       await tester.pumpAndSettle();
+      await tester.pump();
       expect(coordinator.canSubmit(key), isTrue);
       expect(posts, 1);
+      await _disposeProviderTree(tester);
     },
   );
   testWidgets('Linux Microsoft task opens linked resources on demand', (
@@ -716,9 +761,10 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
-          microsoftTodoApiClientForAccountProvider(
-            'microsoft:m',
-          ).overrideWithValue(client),
+          microsoftTodoApiClientForAccountProvider('microsoft:m')
+              .overrideWithValue(client),
+          microsoftMasterCategoriesProvider('microsoft:m')
+              .overrideWith((ref) async => []),
         ],
         child: localizedTestApp(
           child: Scaffold(
@@ -752,14 +798,15 @@ void main() {
     await tester.pumpAndSettle();
     expect(requests, 0);
     await tester.tap(find.text('Linked resources'));
-    await tester.pumpAndSettle();
+    await _pumpAndSettleGraphIo(tester);
     expect(requests, 1);
     expect(find.text('Launch plan · Planner'), findsOneWidget);
     await tester.tap(find.byKey(const Key('task-attachments-load')));
-    await tester.pumpAndSettle();
+    await _pumpAndSettleGraphIo(tester);
     expect(requests, 2);
     expect(find.text('Notes.txt'), findsOneWidget);
     expect(find.text('Task'), findsWidgets);
+    await _disposeProviderTree(tester);
   });
 
   testWidgets(
@@ -773,8 +820,7 @@ void main() {
               task: _switchTask(
                 'assigned',
                 'Assigned task',
-                assignmentInfoJson:
-                    '{"surfaceType":"DOCUMENT","linkToTask":"https://docs.google.com/document/d/example"}',
+                assignmentInfoJson: '{"surfaceType":"DOCUMENT","linkToTask":"https://docs.google.com/document/d/example"}',
               ),
               taskLists: [
                 TaskListEntity(
@@ -3430,12 +3476,10 @@ Widget _switchingAttachmentEditor(
 ) => ProviderScope(
   overrides: [
     attachmentUploadCoordinatorProvider.overrideWith((ref) => coordinator),
-    microsoftTodoApiClientForAccountProvider(
-      'microsoft:m',
-    ).overrideWithValue(client),
-    microsoftMasterCategoriesProvider(
-      'microsoft:m',
-    ).overrideWith((ref) async => []),
+    microsoftTodoApiClientForAccountProvider('microsoft:m')
+        .overrideWithValue(client),
+    microsoftMasterCategoriesProvider('microsoft:m')
+        .overrideWith((ref) async => []),
   ],
   child: localizedTestApp(
     child: Scaffold(
@@ -3485,6 +3529,23 @@ TaskEntity _switchTask(String id, String title, {String? assignmentInfoJson}) {
     status: 'needsAction',
     assignmentInfoJson: assignmentInfoJson,
   );
+}
+
+Future<void> _drainGraphIo(WidgetTester tester) async {
+  await tester.pump();
+  await tester.runAsync(
+    () => Future<void>.delayed(const Duration(milliseconds: 50)),
+  );
+}
+
+Future<void> _pumpAndSettleGraphIo(WidgetTester tester) async {
+  await _drainGraphIo(tester);
+  await tester.pumpAndSettle();
+}
+
+Future<void> _disposeProviderTree(WidgetTester tester) async {
+  await tester.pumpWidget(const SizedBox.shrink());
+  await tester.pump();
 }
 
 TaskEntity _switchTimedTask(String id, String title) {

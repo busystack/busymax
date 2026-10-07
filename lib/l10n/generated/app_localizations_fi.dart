@@ -4,6 +4,7 @@
 
 // ignore: unused_import
 import 'package:intl/intl.dart' as intl;
+
 import 'app_localizations.dart';
 
 // ignore_for_file: type=lint
@@ -3544,4 +3545,60 @@ class AppLocalizationsFi extends AppLocalizations {
   @override
   String get registrationGuideWorkspaceAudience =>
       'Avaa Google Auth Platform → Branding. Aloita uusi määritys valitsemalla Get started. Anna App name -kenttään BusyMax, valitse oma User support email ja valitse Next. Valitse Audience-kohdassa Internal. Valitse Next, anna sähköpostiosoitteesi Contact Information -kohdassa ja valitse Next. Hyväksy User Data Policy ja valitse Continue ja Create. Tarkista aiemmassa määrityksessä Branding ja Audience.\n\nInternal sallii vain projektin emo-organisaation tilit ylläpitäjän rajoitusten mukaisesti. Testikäyttäjäluetteloa ei tarvita. BusyMax ei voi vahvistaa näitä konsoliasetuksia JSON-tiedostosta.';
+
+  @override
+  String get contactsTitle => 'Yhteystiedot';
+
+  @override
+  String get contactsLinkedDescription =>
+      'Käytä tämän tilin välimuistissa olevia yhteystietoja tapahtuman vieraita lisättäessä.';
+
+  @override
+  String get contactsEnableSuggestions => 'Ota yhteystietoehdotukset käyttöön';
+
+  @override
+  String get contactsReadPermissionDescription =>
+      'Pyytää yhteystietoihin vain luku -oikeuden';
+
+  @override
+  String get contactsEnableEditing => 'Ota yhteystietojen muokkaus käyttöön';
+
+  @override
+  String get contactsWritePermissionDescription =>
+      'Pyytää yhteystietoihin luku- ja kirjoitusoikeuden';
+
+  @override
+  String get contactsSuggestionsEnabled => 'Yhteystietoehdotukset käytössä';
+
+  @override
+  String get contactsNeedsAttention => 'Yhteystiedot vaativat huomiota';
+
+  @override
+  String get contactsReadWriteAccess => 'Luku- ja kirjoitusoikeus';
+
+  @override
+  String get contactsDisableForAccount =>
+      'Poista tämän tilin yhteystiedot käytöstä';
+
+  @override
+  String get contactsOnlyDescription =>
+      'Nämä lähteet ovat erillisiä kalenteri- ja tehtävätileistä.';
+
+  @override
+  String get contactsAddCardDav => 'Lisää CardDAV-yhteystiedot';
+
+  @override
+  String get contactsAddNextcloud => 'Lisää Nextcloud-yhteystiedot';
+
+  @override
+  String get contactsUseForAttendees => 'Käytä osallistujaehdotuksiin';
+
+  @override
+  String get contactsServerUrlLabel => 'HTTPS-palvelimen URL';
+
+  @override
+  String get contactsUsernameLabel => 'Käyttäjänimi';
+
+  @override
+  String get contactsPasswordLabel => 'Salasana';
 }

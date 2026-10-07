@@ -57,59 +57,89 @@ class _AttachmentTestFileSelector extends FileSelectorPlatform {
   );
 }
 
+Future<void> _pumpStreamedResponse(WidgetTester tester) async {
+  for (var i = 0; i < 6; i++) {
+    await tester.pump(const Duration(milliseconds: 20));
+    await tester.runAsync(() => Future<void>.delayed(Duration.zero));
+  }
+  await tester.pumpAndSettle();
+}
+
 void main() {
-  test(
-    'R3 missing retry header backs off repeated direct 429s without creating uncertainty',
-    () async {
-      var now = DateTime.utc(2026, 10, 1);
-      var submissions = 0;
-      final coordinator = AttachmentUploadCoordinator(now: () => now);
-      addTearDown(coordinator.dispose);
-      final key = AttachmentUploadCoordinator.eventKey(
-        'account',
-        'calendar',
-        'event',
-      );
-      Future<void> upload() => coordinator.upload(
-        key: key,
-        name: 'a.txt',
-        size: 1,
-        contentType: 'text/plain',
-        bytes: const [1],
-        list: () async => const [],
-        submit: (_) async {
-          submissions++;
-          if (submissions <= 2) {
-            throw const MicrosoftCalendarApiError(
-              statusCode: 429,
-              code: 'TooManyRequests',
-              message: 'Throttled',
-            );
-          }
-          return 'confirmed';
-        },
-      );
-      await expectLater(upload(), throwsA(isA<MicrosoftCalendarApiError>()));
-      final first = coordinator.retryAfter(key)!;
-      expect(first, greaterThanOrEqualTo(const Duration(seconds: 2)));
-      expect(first, lessThan(const Duration(seconds: 3)));
-      await expectLater(
-        upload(),
-        throwsA(isA<AttachmentUploadRateLimitedException>()),
-      );
-      expect(submissions, 1);
-      now = now.add(first + const Duration(milliseconds: 1));
-      await expectLater(upload(), throwsA(isA<MicrosoftCalendarApiError>()));
-      final second = coordinator.retryAfter(key)!;
-      expect(second, greaterThanOrEqualTo(const Duration(seconds: 4)));
-      expect(second, lessThan(const Duration(seconds: 5)));
-      expect(coordinator.needsReconciliation(key), isFalse);
-      now = now.add(second + const Duration(milliseconds: 1));
-      await upload();
-      expect(submissions, 3);
-      expect(coordinator.canSubmit(key), isTrue);
-    },
-  );
+  TestWidgetsFlutterBinding.ensureInitialized();
+
+  const yaruWindowChannel = MethodChannel('yaru_window');
+  const yaruEventsChannel = EventChannel('yaru_window/events');
+
+  setUp(() {
+    final messenger =
+        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+    messenger.setMockMethodCallHandler(
+      yaruWindowChannel,
+      (call) async => call.method == 'state' ? <String, Object?>{} : null,
+    );
+    messenger.setMockStreamHandler(
+      yaruEventsChannel,
+      MockStreamHandler.inline(onListen: (_, _) {}),
+    );
+  });
+
+  tearDown(() {
+    final messenger =
+        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+    messenger.setMockMethodCallHandler(yaruWindowChannel, null);
+    messenger.setMockStreamHandler(yaruEventsChannel, null);
+  });
+
+  test('R3 missing retry header backs off repeated direct 429s without creating uncertainty', () async {
+    var now = DateTime.utc(2026, 10, 1);
+    var submissions = 0;
+    final coordinator = AttachmentUploadCoordinator(now: () => now);
+    addTearDown(coordinator.dispose);
+    final key = AttachmentUploadCoordinator.eventKey(
+      'account',
+      'calendar',
+      'event',
+    );
+    Future<void> upload() => coordinator.upload(
+      key: key,
+      name: 'a.txt',
+      size: 1,
+      contentType: 'text/plain',
+      bytes: const [1],
+      list: () async => const [],
+      submit: (_) async {
+        submissions++;
+        if (submissions <= 2) {
+          throw const MicrosoftCalendarApiError(
+            statusCode: 429,
+            code: 'TooManyRequests',
+            message: 'Throttled',
+          );
+        }
+        return 'confirmed';
+      },
+    );
+    await expectLater(upload(), throwsA(isA<MicrosoftCalendarApiError>()));
+    final first = coordinator.retryAfter(key)!;
+    expect(first, greaterThanOrEqualTo(const Duration(seconds: 2)));
+    expect(first, lessThan(const Duration(seconds: 3)));
+    await expectLater(
+      upload(),
+      throwsA(isA<AttachmentUploadRateLimitedException>()),
+    );
+    expect(submissions, 1);
+    now = now.add(first + const Duration(milliseconds: 1));
+    await expectLater(upload(), throwsA(isA<MicrosoftCalendarApiError>()));
+    final second = coordinator.retryAfter(key)!;
+    expect(second, greaterThanOrEqualTo(const Duration(seconds: 4)));
+    expect(second, lessThan(const Duration(seconds: 5)));
+    expect(coordinator.needsReconciliation(key), isFalse);
+    now = now.add(second + const Duration(milliseconds: 1));
+    await upload();
+    expect(submissions, 3);
+    expect(coordinator.canSubmit(key), isTrue);
+  });
 
   test(
     'R3 throttled chunk does not discard an existing upload session',
@@ -307,9 +337,8 @@ void main() {
               attachmentUploadCoordinatorProvider.overrideWith(
                 (ref) => coordinator,
               ),
-              microsoftCalendarApiClientForAccountProvider(
-                'microsoft:a',
-              ).overrideWithValue(client),
+              microsoftCalendarApiClientForAccountProvider('microsoft:a')
+                  .overrideWithValue(client),
             ],
             child: platform == 'Windows'
                 ? fluent.FluentApp(
@@ -348,7 +377,14 @@ void main() {
           await tester.pump();
         }
         await tester.tap(find.byKey(const Key('event-attachment-add')));
-        for (var i = 0; i < 20 && posts == 0; i++) {
+        for (
+          var i = 0;
+          i < 50 &&
+              (posts == 0 ||
+                  coordinator.status(key) == AttachmentUploadStatus.submitting);
+          i++
+        ) {
+          await tester.runAsync(() => Future<void>.delayed(Duration.zero));
           await tester.pump(const Duration(milliseconds: 1));
         }
         for (var i = 0; i < 4; i++) {
@@ -383,10 +419,18 @@ void main() {
         await tester.pump(const Duration(seconds: 31));
         expect(coordinator.canSubmit(key), isTrue);
         await tester.tap(find.byKey(const Key('event-attachment-add')));
-        for (var i = 0; i < 20 && posts < 2; i++) {
+        for (
+          var i = 0;
+          i < 50 &&
+              (posts < 2 ||
+                  coordinator.status(key) == AttachmentUploadStatus.submitting);
+          i++
+        ) {
+          await tester.runAsync(() => Future<void>.delayed(Duration.zero));
           await tester.pump(const Duration(milliseconds: 1));
         }
         expect(posts, 2);
+        expect(coordinator.status(key), AttachmentUploadStatus.committed);
         if (platform == 'Windows') {
           await tester.pump(const Duration(milliseconds: 200));
         }
@@ -544,9 +588,8 @@ void main() {
                 attachmentUploadCoordinatorProvider.overrideWith(
                   (ref) => coordinator,
                 ),
-                microsoftCalendarApiClientForAccountProvider(
-                  'microsoft:a',
-                ).overrideWithValue(client),
+                microsoftCalendarApiClientForAccountProvider('microsoft:a')
+                    .overrideWithValue(client),
               ],
               child: platform == 'Windows'
                   ? fluent.FluentApp(
@@ -588,6 +631,7 @@ void main() {
           }
           await tester.tap(find.byKey(const Key('event-attachment-add')));
           for (var i = 0; i < 30 && !held; i++) {
+            await tester.runAsync(() => Future<void>.delayed(Duration.zero));
             await tester.pump(const Duration(milliseconds: 1));
           }
           expect(held, isTrue, reason: 'uploads=$uploads lists=$listRequests');
@@ -632,6 +676,7 @@ void main() {
           } else {
             heldRefresh.complete(http.Response(jsonEncode({'value': []}), 200));
           }
+          await tester.runAsync(() => Future<void>.delayed(Duration.zero));
           for (var i = 0; i < 4; i++) {
             await tester.pump();
           }
@@ -863,8 +908,7 @@ void main() {
             '',
             201,
             headers: {
-              'Location':
-                  'https://outlook.office.com/events/event/attachments/confirmed-id',
+              'Location': 'https://outlook.office.com/events/event/attachments/confirmed-id',
             },
           );
         }
@@ -1280,14 +1324,16 @@ void main() {
       responseTimeZone: 'UTC',
     );
     final coordinator = AttachmentUploadCoordinator();
-    await coordinator.uploadEvent(
-      client: client,
-      accountId: 'microsoft:a',
-      calendarId: 'remote-calendar',
-      eventId: 'remote-event',
-      name: 'a.txt',
-      contentType: 'text/plain',
-      bytes: const [1],
+    await tester.runAsync(
+      () => coordinator.uploadEvent(
+        client: client,
+        accountId: 'microsoft:a',
+        calendarId: 'remote-calendar',
+        eventId: 'remote-event',
+        name: 'a.txt',
+        contentType: 'text/plain',
+        bytes: const [1],
+      ),
     );
     await tester.pumpWidget(
       ProviderScope(
@@ -1295,9 +1341,8 @@ void main() {
           attachmentUploadCoordinatorProvider.overrideWith(
             (ref) => coordinator,
           ),
-          microsoftCalendarApiClientForAccountProvider(
-            'microsoft:a',
-          ).overrideWithValue(client),
+          microsoftCalendarApiClientForAccountProvider('microsoft:a')
+              .overrideWithValue(client),
         ],
         child: localizedTestApp(
           child: Scaffold(
@@ -1313,15 +1358,21 @@ void main() {
       ),
     );
     await tester.tap(find.text('Open attachments'));
-    await tester.pumpAndSettle();
+    for (var i = 0; i < 4; i++) {
+      await tester.runAsync(() => Future<void>.delayed(Duration.zero));
+      await tester.pump(const Duration(milliseconds: 100));
+    }
     final add = tester.widget<FilledButton>(
       find.byKey(const Key('event-attachment-add')),
     );
     expect(add.onPressed, isNot(equals(null)));
     await tester.tap(find.text('Close'));
-    await tester.pumpAndSettle();
+    await tester.pump(const Duration(milliseconds: 400));
     await tester.tap(find.text('Open attachments'));
-    await tester.pumpAndSettle();
+    for (var i = 0; i < 4; i++) {
+      await tester.runAsync(() => Future<void>.delayed(Duration.zero));
+      await tester.pump(const Duration(milliseconds: 100));
+    }
     expect(
       tester
           .widget<FilledButton>(find.byKey(const Key('event-attachment-add')))
@@ -1479,24 +1530,28 @@ void main() {
           'remote-calendar',
           'remote-event',
         );
-        await expectLater(
-          coordinator.uploadEvent(
-            client: client,
-            accountId: 'microsoft:a',
-            calendarId: 'remote-calendar',
-            eventId: 'remote-event',
-            name: 'notes.txt',
-            contentType: 'text/plain',
-            bytes: [1],
+        await tester.runAsync(
+          () => expectLater(
+            coordinator.uploadEvent(
+              client: client,
+              accountId: 'microsoft:a',
+              calendarId: 'remote-calendar',
+              eventId: 'remote-event',
+              name: 'notes.txt',
+              contentType: 'text/plain',
+              bytes: [1],
+            ),
+            throwsA(isA<AttachmentUploadUnresolvedException>()),
           ),
-          throwsA(isA<AttachmentUploadUnresolvedException>()),
         );
         expect(
-          await coordinator.reconcileEvent(
-            client: client,
-            accountId: 'microsoft:a',
-            calendarId: 'remote-calendar',
-            eventId: 'remote-event',
+          await tester.runAsync(
+            () => coordinator.reconcileEvent(
+              client: client,
+              accountId: 'microsoft:a',
+              calendarId: 'remote-calendar',
+              eventId: 'remote-event',
+            ),
           ),
           AttachmentUploadStatus.unresolved,
         );
@@ -1506,9 +1561,8 @@ void main() {
               attachmentUploadCoordinatorProvider.overrideWith(
                 (ref) => coordinator,
               ),
-              microsoftCalendarApiClientForAccountProvider(
-                'microsoft:a',
-              ).overrideWithValue(client),
+              microsoftCalendarApiClientForAccountProvider('microsoft:a')
+                  .overrideWithValue(client),
             ],
             child: platform == 'Windows'
                 ? fluent.FluentApp(
@@ -1543,14 +1597,26 @@ void main() {
           ),
         );
         await tester.tap(find.text('Open attachments'));
+        await tester.pump();
+        await tester.runAsync(() async {
+          await Future<void>.delayed(const Duration(milliseconds: 50));
+        });
         await tester.pumpAndSettle();
         expect(find.text('Retry'), findsOneWidget);
         expect(find.byKey(const Key('event-attachment-add')), findsOneWidget);
         expect(coordinator.canSubmit(key), isFalse);
         await tester.tap(find.text('Retry'));
+        await tester.pump();
+        await tester.runAsync(() async {
+          await Future<void>.delayed(const Duration(milliseconds: 50));
+        });
         await tester.pumpAndSettle();
         expect(coordinator.canSubmit(key), isFalse);
         await tester.tap(find.text('Retry').last);
+        await tester.pump();
+        await tester.runAsync(() async {
+          await Future<void>.delayed(const Duration(milliseconds: 50));
+        });
         await tester.pumpAndSettle();
         expect(coordinator.canSubmit(key), isTrue);
         expect(posts, 1);
@@ -1804,9 +1870,8 @@ void main() {
         ProviderScope(
           overrides: [
             calendarRepositoryProvider.overrideWithValue(repository),
-            googleCalendarApiClientForAccountProvider(
-              'google:a',
-            ).overrideWithValue(client),
+            googleCalendarApiClientForAccountProvider('google:a')
+                .overrideWithValue(client),
           ],
           child: platform == 'Windows'
               ? fluent.FluentApp(
@@ -1900,9 +1965,8 @@ void main() {
       await tester.pumpWidget(
         ProviderScope(
           overrides: [
-            microsoftCalendarApiClientForAccountProvider(
-              'google:a',
-            ).overrideWithValue(graph),
+            microsoftCalendarApiClientForAccountProvider('google:a')
+                .overrideWithValue(graph),
           ],
           child: platform == 'Windows'
               ? fluent.FluentApp(
@@ -1989,9 +2053,8 @@ void main() {
       await tester.pumpWidget(
         ProviderScope(
           overrides: [
-            microsoftCalendarApiClientForAccountProvider(
-              'microsoft:a',
-            ).overrideWithValue(client),
+            microsoftCalendarApiClientForAccountProvider('microsoft:a')
+                .overrideWithValue(client),
           ],
           child: platform == 'Windows'
               ? fluent.FluentApp(
@@ -2004,7 +2067,7 @@ void main() {
       );
       expect(requests, 0);
       await tester.tap(find.text('Open attachments'));
-      await tester.pumpAndSettle();
+      await _pumpStreamedResponse(tester);
       expect(requests, 1);
       expect(find.text('Agenda.pdf'), findsOneWidget);
       expect(find.text('4 B'), findsOneWidget);
@@ -2068,15 +2131,23 @@ void main() {
           'remote-calendar',
           'remote-event',
         );
-        await coordinator.uploadEvent(
-          client: client,
-          accountId: 'microsoft:a',
-          calendarId: 'remote-calendar',
-          eventId: 'remote-event',
-          name: 'Agenda.pdf',
-          contentType: 'application/pdf',
-          bytes: const [1, 2, 3, 4],
+        await tester.runAsync(
+          () => coordinator.uploadEvent(
+            client: client,
+            accountId: 'microsoft:a',
+            calendarId: 'remote-calendar',
+            eventId: 'remote-event',
+            name: 'Agenda.pdf',
+            contentType: 'application/pdf',
+            bytes: const [1, 2, 3, 4],
+          ),
         );
+        await tester.runAsync(() async {
+          for (var i = 0; i < 20 && failRefresh; i++) {
+            await Future<void>.delayed(Duration.zero);
+          }
+        });
+        expect(failRefresh, isFalse);
         expect(coordinator.confirmedId(uploadKey), 'file');
         expect(coordinator.canSubmit(uploadKey), isTrue);
         await tester.pumpWidget(
@@ -2085,9 +2156,8 @@ void main() {
               attachmentUploadCoordinatorProvider.overrideWith(
                 (ref) => coordinator,
               ),
-              microsoftCalendarApiClientForAccountProvider(
-                'microsoft:a',
-              ).overrideWithValue(client),
+              microsoftCalendarApiClientForAccountProvider('microsoft:a')
+                  .overrideWithValue(client),
             ],
             child: platform == 'Windows'
                 ? fluent.FluentApp(
@@ -2122,7 +2192,7 @@ void main() {
           ),
         );
         await tester.tap(find.text('Open attachments'));
-        await tester.pumpAndSettle();
+        await _pumpStreamedResponse(tester);
         if (platform == 'Android') {
           await tester.tap(find.byTooltip('Delete').last);
         } else {
@@ -2140,7 +2210,17 @@ void main() {
         }
         await tester.pumpAndSettle();
         await tester.tap(find.text('Delete').last);
-        await tester.pumpAndSettle();
+        await _pumpStreamedResponse(tester);
+        await tester.runAsync(() async {
+          for (
+            var i = 0;
+            i < 20 && coordinator.confirmedId(uploadKey) != null;
+            i++
+          ) {
+            await Future<void>.delayed(Duration.zero);
+          }
+        });
+        await tester.pump();
         expect(deletes, 1);
         expect(posts, 1);
         expect(coordinator.confirmedId(uploadKey), equals(null));

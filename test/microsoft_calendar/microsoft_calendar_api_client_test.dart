@@ -53,6 +53,33 @@ void main() {
     },
   );
 
+  test('primary permission ignores an unusable Retry-After value', () async {
+    final client = MicrosoftCalendarApiClient(
+      httpClient: MockClient(
+        (_) async => http.Response(
+          jsonEncode({
+            'error': {'code': 'TooManyRequests', 'message': 'Throttled'},
+          }),
+          429,
+          headers: {'retry-after': 'invalid'},
+        ),
+      ),
+      baseUri: Uri.parse('https://graph.microsoft.com/v1.0'),
+      responseTimeZone: 'UTC',
+    );
+    await expectLater(
+      client.addPrimaryCalendarPermission(
+        email: 'friend@example.test',
+        role: 'read',
+      ),
+      throwsA(
+        isA<MicrosoftCalendarApiError>()
+            .having((e) => e.statusCode, 'status', 429)
+            .having((e) => e.retryAfter, 'retry-after', isNull),
+      ),
+    );
+  });
+
   test('primary sharing authorization fails before Graph dispatch', () async {
     const failure = OAuthException('TokenUnavailable', 'Token unavailable');
     var requests = 0;
@@ -194,8 +221,7 @@ void main() {
               },
             ],
             if (request.url.queryParameters[r'$skiptoken'] == null)
-              '@odata.nextLink':
-                  'https://graph.microsoft.com/v1.0/me/calendar/calendarPermissions?%24skiptoken=next',
+              '@odata.nextLink': 'https://graph.microsoft.com/v1.0/me/calendar/calendarPermissions?%24skiptoken=next',
           });
         }
         if (request.method == 'DELETE') return http.Response('', 204);
@@ -251,35 +277,37 @@ void main() {
       );
     },
   );
-  test('master category lookup paginates and keeps every named color', () async {
-    final requests = <http.Request>[];
-    final client = MicrosoftCalendarApiClient(
-      httpClient: MockClient((request) async {
-        requests.add(request);
-        if (request.url.queryParameters[r'$skiptoken'] == 'next') {
+  test(
+    'master category lookup paginates and keeps every named color',
+    () async {
+      final requests = <http.Request>[];
+      final client = MicrosoftCalendarApiClient(
+        httpClient: MockClient((request) async {
+          requests.add(request);
+          if (request.url.queryParameters[r'$skiptoken'] == 'next') {
+            return _json({
+              'value': [
+                {'id': 'c2', 'displayName': 'Personal', 'color': 'preset1'},
+              ],
+            });
+          }
           return _json({
             'value': [
-              {'id': 'c2', 'displayName': 'Personal', 'color': 'preset1'},
+              {'id': 'c1', 'displayName': 'Work', 'color': 'preset7'},
             ],
+            '@odata.nextLink': 'https://graph.microsoft.com/v1.0/me/outlook/masterCategories?%24skiptoken=next',
           });
-        }
-        return _json({
-          'value': [
-            {'id': 'c1', 'displayName': 'Work', 'color': 'preset7'},
-          ],
-          '@odata.nextLink':
-              'https://graph.microsoft.com/v1.0/me/outlook/masterCategories?%24skiptoken=next',
-        });
-      }),
-      baseUri: Uri.parse('https://graph.microsoft.com/v1.0'),
-      responseTimeZone: 'UTC',
-    );
-    final categories = await client.listMasterCategories();
-    expect(categories.map((item) => item.displayName), ['Work', 'Personal']);
-    expect(categories.map((item) => item.color), ['preset7', 'preset1']);
-    expect(requests, hasLength(2));
-    expect(requests.first.url.path, '/v1.0/me/outlook/masterCategories');
-  });
+        }),
+        baseUri: Uri.parse('https://graph.microsoft.com/v1.0'),
+        responseTimeZone: 'UTC',
+      );
+      final categories = await client.listMasterCategories();
+      expect(categories.map((item) => item.displayName), ['Work', 'Personal']);
+      expect(categories.map((item) => item.color), ['preset7', 'preset1']);
+      expect(requests, hasLength(2));
+      expect(requests.first.url.path, '/v1.0/me/outlook/masterCategories');
+    },
+  );
 
   test('malformed master category response does not look empty', () async {
     final client = MicrosoftCalendarApiClient(
@@ -290,25 +318,22 @@ void main() {
     await expectLater(client.listMasterCategories(), throwsFormatException);
   });
 
-  test(
-    'master categories use the optional category grant, not ordinary calendar authorization',
-    () async {
-      final headers = <String>[];
-      final client = MicrosoftCalendarApiClient(
-        httpClient: MockClient((request) async {
-          headers.add(request.headers['Authorization'] ?? '');
-          return _json({'value': <Object>[]});
-        }),
-        baseUri: Uri.parse('https://graph.microsoft.com/v1.0'),
-        responseTimeZone: 'UTC',
-        authorizationHeaderProvider: () async => 'Bearer calendar',
-        categoryAuthorizationHeaderProvider: () async => 'Bearer categories',
-      );
-      expect(await client.listMasterCategories(), isEmpty);
-      await client.listCalendars();
-      expect(headers, ['Bearer categories', 'Bearer calendar']);
-    },
-  );
+  test('master categories use the optional category grant, not ordinary calendar authorization', () async {
+    final headers = <String>[];
+    final client = MicrosoftCalendarApiClient(
+      httpClient: MockClient((request) async {
+        headers.add(request.headers['Authorization'] ?? '');
+        return _json({'value': <Object>[]});
+      }),
+      baseUri: Uri.parse('https://graph.microsoft.com/v1.0'),
+      responseTimeZone: 'UTC',
+      authorizationHeaderProvider: () async => 'Bearer calendar',
+      categoryAuthorizationHeaderProvider: () async => 'Bearer categories',
+    );
+    expect(await client.listMasterCategories(), isEmpty);
+    await client.listCalendars();
+    expect(headers, ['Bearer categories', 'Bearer calendar']);
+  });
 
   test(
     'series exception snapshot retains moved and cancelled identities',
@@ -489,8 +514,7 @@ void main() {
                 '',
                 201,
                 headers: {
-                  'Location':
-                      "https://outlook.office.com/api/v2.0/Events('event')/Attachments('new-id')",
+                  'Location': "https://outlook.office.com/api/v2.0/Events('event')/Attachments('new-id')",
                 },
               )
             : _json({
@@ -547,8 +571,7 @@ void main() {
                     'size': 5,
                   },
                 ],
-                '@odata.nextLink':
-                    'https://graph.microsoft.com/v1.0/me/calendars/cal/events/event/attachments?\$skiptoken=next',
+                '@odata.nextLink': 'https://graph.microsoft.com/v1.0/me/calendars/cal/events/event/attachments?\$skiptoken=next',
               });
       });
       final attachments = await client.listEventAttachments(

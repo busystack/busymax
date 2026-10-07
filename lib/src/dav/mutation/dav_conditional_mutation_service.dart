@@ -511,8 +511,7 @@ final class DavConditionalMutationService {
               : throw const DavException(
                   kind: DavErrorKind.unsupportedComponent,
                   code: 'DavSilentImportUnsupported',
-                  safeMessage:
-                      'This transport cannot suppress scheduling for an import.',
+                  safeMessage: 'This transport cannot suppress scheduling for an import.',
                 ))
         : _remoteClient;
     var memberName = object.initialMemberName;
@@ -1161,7 +1160,9 @@ DavException _partialMoveFailure(DavException error) {
 }
 
 bool _isUnknownOutcome(DavException error) =>
-    error.kind == DavErrorKind.network || error.kind == DavErrorKind.timeout;
+    error.kind == DavErrorKind.network ||
+    error.kind == DavErrorKind.timeout ||
+    error.kind == DavErrorKind.unknownOutcome;
 
 DavException _readOnlyError(String correlationId) => DavException(
   kind: DavErrorKind.authorization,

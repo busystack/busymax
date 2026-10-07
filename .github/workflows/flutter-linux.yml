@@ -18,6 +18,9 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v7
 
+      - name: Materialize pinned shared dependencies
+        run: python3 tool/checkout_shared_dependencies.py
+
       - name: Install Linux build dependencies
         run: |
           printf 'https://archive.ubuntu.com/ubuntu/\n' | \
@@ -241,12 +244,24 @@ jobs:
         id: snapcraft
         uses: snapcore/action-build@v1
 
+      - name: Build deterministic sibling-layout source archive
+        run: python3 tool/package_source.py
+
       - name: Upload Snap artifact
         if: github.event_name == 'push'
         uses: actions/upload-artifact@v7
         with:
           name: busymax-snap
           path: ${{ steps.snapcraft.outputs.snap }}
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Upload pinned source artifact
+        if: github.event_name == 'push'
+        uses: actions/upload-artifact@v7
+        with:
+          name: busymax-source
+          path: dist/source/
           if-no-files-found: error
           retention-days: 7
 

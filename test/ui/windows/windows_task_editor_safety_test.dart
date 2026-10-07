@@ -68,24 +68,28 @@ void main() {
         'list',
         'task',
       );
-      await expectLater(
-        coordinator.uploadTask(
-          client: client,
-          accountId: 'microsoft',
-          taskListId: 'list',
-          taskId: 'task',
-          name: 'notes.txt',
-          contentType: 'text/plain',
-          bytes: [1],
+      await tester.runAsync(
+        () => expectLater(
+          coordinator.uploadTask(
+            client: client,
+            accountId: 'microsoft',
+            taskListId: 'list',
+            taskId: 'task',
+            name: 'notes.txt',
+            contentType: 'text/plain',
+            bytes: [1],
+          ),
+          throwsA(isA<AttachmentUploadUnresolvedException>()),
         ),
-        throwsA(isA<AttachmentUploadUnresolvedException>()),
       );
       expect(
-        await coordinator.reconcileTask(
-          client: client,
-          accountId: 'microsoft',
-          taskListId: 'list',
-          taskId: 'task',
+        await tester.runAsync(
+          () => coordinator.reconcileTask(
+            client: client,
+            accountId: 'microsoft',
+            taskListId: 'list',
+            taskId: 'task',
+          ),
         ),
         AttachmentUploadStatus.unresolved,
       );
@@ -102,7 +106,7 @@ void main() {
       await tester.pumpAndSettle();
       expect(coordinator.canSubmit(key), isFalse);
       await tester.tap(find.text('Retry').last);
-      await tester.pumpAndSettle();
+      await _pumpAndSettleGraphIo(tester);
       expect(coordinator.canSubmit(key), isTrue);
       expect(posts, 1);
       expect(tester.takeException(), isNull);
@@ -161,13 +165,13 @@ void main() {
     final action = find.text('Linked resources');
     await tester.ensureVisible(action);
     await tester.tap(action);
-    await tester.pumpAndSettle();
+    await _pumpAndSettleGraphIo(tester);
     expect(requests, 1);
     expect(find.text('Launch plan · Planner'), findsOneWidget);
     final attachments = find.byKey(const Key('task-attachments-load'));
     await tester.ensureVisible(attachments);
     await tester.tap(attachments);
-    await tester.pumpAndSettle();
+    await _pumpAndSettleGraphIo(tester);
     expect(requests, 2);
     expect(find.text('Notes.txt'), findsOneWidget);
     expect(await db.select(db.pendingOps).get(), isEmpty);
@@ -212,9 +216,8 @@ void main() {
       final rule = RecurrenceRule.fromIcalendar(
         rules: ['FREQ=MONTHLY;BYMONTHDAY=1,15'],
       );
-      Navigator.of(
-        tester.element(find.byType(ComboBox<RecurrenceFrequency>)),
-      ).pop(rule);
+      Navigator.of(tester.element(find.byType(ComboBox<RecurrenceFrequency>)))
+          .pop(rule);
       await tester.pumpAndSettle();
       await _selectList(tester, 'microsoft');
       expect(tester.takeException(), isNull);
@@ -357,6 +360,14 @@ void main() {
       },
     );
   }
+}
+
+Future<void> _pumpAndSettleGraphIo(WidgetTester tester) async {
+  await tester.pump();
+  await tester.runAsync(
+    () => Future<void>.delayed(const Duration(milliseconds: 50)),
+  );
+  await tester.pumpAndSettle();
 }
 
 Future<void> _selectList(WidgetTester tester, String accountId) async {

@@ -1,4 +1,5 @@
 import 'package:busymax/src/core/auth/authorization_attempt.dart';
+
 import 'dart:async';
 import 'dart:convert';
 
@@ -9,6 +10,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
 import '../../app/app_bootstrap.dart';
+import '../../contacts/busymax_contacts_controller.dart';
 import '../../app/common/busymax_motion_widgets.dart';
 import '../../app/common/busymax_mutation_list.dart';
 import '../../calendar_providers/calendar_mutation.dart';
@@ -201,9 +203,8 @@ class _AndroidScheduleScreenState extends ConsumerState<AndroidScheduleScreen> {
                     hintText: context.l10n.windowsSearch,
                     border: InputBorder.none,
                     suffixIcon: IconButton(
-                      tooltip: MaterialLocalizations.of(
-                        context,
-                      ).clearButtonTooltip,
+                      tooltip: MaterialLocalizations.of(context)
+                          .clearButtonTooltip,
                       icon: const Icon(Icons.clear),
                       onPressed: () {
                         _searchController.clear();
@@ -816,9 +817,8 @@ class _AndroidScheduleScreenState extends ConsumerState<AndroidScheduleScreen> {
                       child: Text(uri.toString()),
                     ),
                 ],
-                if (item case CalendarScheduleItem(
-                  :final location?,
-                ) when location.isNotEmpty)
+                if (item case CalendarScheduleItem(:final location?)
+                    when location.isNotEmpty)
                   ListTile(
                     contentPadding: EdgeInsets.zero,
                     leading: const Icon(Icons.place),
@@ -830,9 +830,8 @@ class _AndroidScheduleScreenState extends ConsumerState<AndroidScheduleScreen> {
                       ).open(projectedScheduleItemLocationDestination(item)),
                     ),
                   ),
-                if (item case TaskScheduleItem(
-                  :final notes?,
-                ) when notes.isNotEmpty)
+                if (item case TaskScheduleItem(:final notes?)
+                    when notes.isNotEmpty)
                   Padding(
                     padding: const EdgeInsets.only(top: 12),
                     child: Text(notes),
@@ -1182,9 +1181,8 @@ class _AndroidScheduleScreenState extends ConsumerState<AndroidScheduleScreen> {
         if (_taskMutationIntent?.generation == intent.generation) {
           setState(() => _taskMutationIntent = null);
         }
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('$error')));
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('$error')));
       }
     }
   }
@@ -1592,12 +1590,11 @@ class _AndroidTimeGrid extends StatelessWidget {
                                     top: hour * 60 * _minuteHeight - 8,
                                     end: 6,
                                     child: Text(
-                                      BusyMaxTimeFormatScope.of(
-                                        context,
-                                      ).format(DateTime(2026, 1, 1, hour)),
-                                      style: Theme.of(
-                                        context,
-                                      ).textTheme.labelSmall,
+                                      BusyMaxTimeFormatScope.of(context)
+                                          .format(DateTime(2026, 1, 1, hour)),
+                                      style: Theme.of(context)
+                                          .textTheme
+                                          .labelSmall,
                                     ),
                                   ),
                               ],
@@ -2197,6 +2194,9 @@ class _AndroidEventEditorState extends ConsumerState<AndroidEventEditor> {
     text: _draft.categories.join(', '),
   );
   final Map<String, bool> _guestOptionalOverrides = {};
+  final Map<String, String> _suggestedGuestNames = {};
+  List<BusyMaxContactSuggestion> _guestSuggestions = const [];
+  int _guestSuggestionGeneration = 0;
   int? _reminderMinutes;
   Object? _editedGoogleReminders;
   List<AndroidNextcloudReminderRow>? _editedNextcloudReminders;
@@ -2276,6 +2276,75 @@ class _AndroidEventEditorState extends ConsumerState<AndroidEventEditor> {
       _editedGoogleReminders != null ||
       _editedNextcloudReminders != null ||
       _recurrenceChanged;
+
+  List<EventAttendeeDraft> _currentAttendees() {
+    final merged = mergeAndroidEventAttendees(
+      widget.draft.attendees,
+      _guests.text,
+    ).attendees;
+    final originalEmails = {
+      for (final attendee in widget.draft.attendees)
+        attendee.email.toLowerCase(),
+    };
+    return merged
+        .map((attendee) {
+          final key = attendee.email.toLowerCase();
+          final name = _suggestedGuestNames[key];
+          return !originalEmails.contains(key) && name != null
+              ? EventAttendeeDraft(email: attendee.email, displayName: name)
+              : attendee;
+        })
+        .toList(growable: false);
+  }
+
+  Future<void> _loadGuestSuggestions(String query) async {
+    final generation = ++_guestSuggestionGeneration;
+    final term = query.split(',').last.trim();
+    if (term.isEmpty) {
+      setState(() => _guestSuggestions = const []);
+      return;
+    }
+    try {
+      final suggestions = await ref
+          .read(busyMaxContactsControllerProvider)
+          .suggestAttendees(
+            term,
+            busyMaxAccountId: _draft.accountId,
+            excludedAddresses: {
+              for (final attendee in _currentAttendees()) attendee.email,
+            },
+          );
+      if (!mounted || generation != _guestSuggestionGeneration) return;
+      setState(() => _guestSuggestions = suggestions);
+    } on Object {
+      if (!mounted || generation != _guestSuggestionGeneration) return;
+      setState(() => _guestSuggestions = const []);
+    }
+  }
+
+  void _selectGuestSuggestion(BusyMaxContactSuggestion suggestion) {
+    final emails = _guests.text
+        .split(RegExp(r'[,;\n]'))
+        .map((value) => value.trim())
+        .where((value) => value.isNotEmpty)
+        .toList();
+    if (emails.isNotEmpty && !_androidLooksLikeEmail(emails.last)) {
+      emails.removeLast();
+    }
+    if (!emails.any(
+      (email) => email.toLowerCase() == suggestion.email.toLowerCase(),
+    )) {
+      emails.add(suggestion.email);
+    }
+    setState(() {
+      _guests.text = emails.join(', ');
+      if (suggestion.displayName.isNotEmpty) {
+        _suggestedGuestNames[suggestion.email.toLowerCase()] =
+            suggestion.displayName;
+      }
+      _guestSuggestions = const [];
+    });
+  }
 
   Future<void> _editRecurrence() async {
     final start = _draft.start;
@@ -2454,9 +2523,8 @@ class _AndroidEventEditorState extends ConsumerState<AndroidEventEditor> {
               DropdownButtonFormField<String>(
                 key: ValueKey('android-event-visibility-${_provider.name}'),
                 initialValue:
-                    _eventVisibilityValues(
-                      _provider,
-                    ).contains(_draft.visibilityOrSensitivity)
+                    _eventVisibilityValues(_provider)
+                        .contains(_draft.visibilityOrSensitivity)
                     ? _draft.visibilityOrSensitivity
                     : _eventVisibilityValues(_provider).first,
                 decoration: InputDecoration(labelText: context.l10n.visibility),
@@ -2646,12 +2714,31 @@ class _AndroidEventEditorState extends ConsumerState<AndroidEventEditor> {
                   hintText: context.l10n.addGuestEmail,
                 ),
                 keyboardType: TextInputType.emailAddress,
-                onChanged: (_) => setState(() {}),
+                onChanged: (value) {
+                  setState(() {});
+                  unawaited(_loadGuestSuggestions(value));
+                },
               ),
-              for (final attendee in mergeAndroidEventAttendees(
-                widget.draft.attendees,
-                _guests.text,
-              ).attendees.where((a) => !a.self && !a.organizer))
+              for (final suggestion in _guestSuggestions)
+                ListTile(
+                  key: ValueKey('android-guest-contact-${suggestion.email}'),
+                  contentPadding: EdgeInsets.zero,
+                  leading: const Icon(Icons.person_add_alt_outlined),
+                  title: Text(
+                    suggestion.displayName.isEmpty
+                        ? suggestion.email
+                        : suggestion.displayName,
+                  ),
+                  subtitle: suggestion.displayName.isEmpty
+                      ? null
+                      : Text(suggestion.email),
+                  onTap: _canEdit && _draft.canManageAttendees
+                      ? () => _selectGuestSuggestion(suggestion)
+                      : null,
+                ),
+              for (final attendee in _currentAttendees().where(
+                (a) => !a.self && !a.organizer,
+              ))
                 ListTile(
                   key: ValueKey('android-event-guest-${attendee.email}'),
                   contentPadding: EdgeInsets.zero,
@@ -2711,6 +2798,9 @@ class _AndroidEventEditorState extends ConsumerState<AndroidEventEditor> {
                                         .map((a) => a.email)
                                         .join(', ');
                                 _guestOptionalOverrides.remove(
+                                  attendee.email.toLowerCase(),
+                                );
+                                _suggestedGuestNames.remove(
                                   attendee.email.toLowerCase(),
                                 );
                               })
@@ -3312,7 +3402,10 @@ class _AndroidEventEditorState extends ConsumerState<AndroidEventEditor> {
     final start = _draft.start;
     if (_title.text.trim().isEmpty || start == null) return;
     final attendeeEdit = applyAndroidEventAttendeeRoles(
-      mergeAndroidEventAttendees(widget.draft.attendees, _guests.text),
+      AndroidEventAttendeeEdit(
+        attendees: _currentAttendees(),
+        changed: !listEquals(_currentAttendees(), widget.draft.attendees),
+      ),
       _guestOptionalOverrides,
     );
     final categories = _categories.text
@@ -3419,9 +3512,8 @@ class _AndroidEventEditorState extends ConsumerState<AndroidEventEditor> {
       }
     } on Object catch (error) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('$error')));
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('$error')));
       }
     } finally {
       if (mounted) setState(() => _saving = false);
@@ -3525,9 +3617,8 @@ class _AndroidEventEditorState extends ConsumerState<AndroidEventEditor> {
       }
     } on Object catch (error) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('$error')));
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('$error')));
       }
     } finally {
       if (mounted) setState(() => _saving = false);
@@ -3690,6 +3781,14 @@ class _AndroidEventEditorState extends ConsumerState<AndroidEventEditor> {
             }
           }
         }
+        _suggestedGuestNames.clear();
+        if (map['guestDisplayNames'] case final Map names) {
+          for (final entry in names.entries) {
+            if (entry.key is String && entry.value is String) {
+              _suggestedGuestNames[entry.key as String] = entry.value as String;
+            }
+          }
+        }
         _categories.text = map['categories']?.toString() ?? _categories.text;
         _reminderMinutes = map['reminderMinutes'] as int?;
         _editedGoogleReminders = map['googleReminders'] is Map
@@ -3797,6 +3896,7 @@ class _AndroidEventEditorState extends ConsumerState<AndroidEventEditor> {
       'description': _description.text,
       'guests': _guests.text,
       'guestOptionalOverrides': _guestOptionalOverrides,
+      'guestDisplayNames': _suggestedGuestNames,
       'categories': _categories.text,
       'allDay': _draft.allDay,
       'start': _draft.start?.toIso8601String(),
@@ -3840,6 +3940,9 @@ class _AndroidEventEditorState extends ConsumerState<AndroidEventEditor> {
     return result.catchError((_) {});
   }
 }
+
+bool _androidLooksLikeEmail(String value) =>
+    RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$').hasMatch(value);
 
 final class AndroidEventAttendeeEdit {
   const AndroidEventAttendeeEdit({

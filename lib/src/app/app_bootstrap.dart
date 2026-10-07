@@ -3,18 +3,24 @@ import '../features/sync/domain_sync_schedule.dart';
 import '../core/auth/authorization_persistence.dart';
 import '../core/auth/registration_staging.dart';
 import '../core/auth/oauth_registration.dart';
+
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:drift/drift.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:http/http.dart' as http;
+import 'package:busystack_contacts/busystack_contacts.dart';
 import 'package:uuid/uuid.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'package:busymax/src/core/secrets/secret_store.dart';
 import 'package:busymax/src/providers/busy_provider.dart';
 import 'package:busymax/src/features/tasks/domain/task_capabilities.dart';
 
 import '../core/time/provider_date_time.dart';
+import '../contacts/busymax_contacts_controller.dart';
+import '../contacts/busymax_contacts_store.dart';
 import '../core/auth/account_token_broker.dart';
 import '../core/http/native_terminating_http_client.dart';
 import '../core/time/stored_temporal_projection.dart';
@@ -336,6 +342,49 @@ final accountTokenBrokerProvider = Provider<AccountTokenBroker>((ref) {
   );
 });
 
+final busyMaxContactsStoreProvider = Provider<BusyMaxContactsStore>((ref) {
+  return BusyMaxContactsStore(ref.watch(databaseProvider));
+});
+
+final busyMaxContactsControllerProvider = Provider<BusyMaxContactsController>((
+  ref,
+) {
+  final broker = ref.watch(accountTokenBrokerProvider);
+  if (broker is! ContactsAuthorizationBroker) {
+    throw StateError('Contacts authorization is unavailable.');
+  }
+  final storage = ref.watch(secureStorageProvider);
+  String key(String accountId) =>
+      'busymax.contacts.dav.${base64UrlEncode(utf8.encode(accountId))}';
+  final controller = BusyMaxContactsController(
+    store: ref.watch(busyMaxContactsStoreProvider),
+    accounts: ref.watch(accountsRepositoryProvider),
+    authorization: broker as ContactsAuthorizationBroker,
+    httpClient: ref.watch(baseHttpClientProvider),
+    readDavSecret: (accountId) => storage.read(key: key(accountId)),
+    writeDavSecret: (accountId, value) =>
+        storage.write(key: key(accountId), value: value),
+    deleteDavSecret: (accountId) => storage.delete(key: key(accountId)),
+    readLinkedDavCredential: (accountId) async {
+      final credential = await ref
+          .read(secretStoreProvider)
+          .readCredential(accountId);
+      return credential is NextcloudSecretRecord
+          ? BusyMaxLinkedDavCredential(
+              server: credential.canonicalServer,
+              username: credential.loginName,
+              password: credential.appPassword,
+            )
+          : null;
+    },
+    launchBrowser: (uri) =>
+        launchUrl(uri, mode: LaunchMode.externalApplication),
+  );
+  unawaited(controller.start());
+  ref.onDispose(() => unawaited(controller.close()));
+  return controller;
+});
+
 final authenticatedHttpClientProvider = Provider<http.Client>((ref) {
   return AuthenticatedHttpClient(
     inner: ref.watch(retryingHttpClientProvider),
@@ -381,6 +430,27 @@ final operationalNotificationReporterProvider =
         onSyncFailure: desktop.notifySyncFailure,
         onConflict: desktop.notifyConflict,
       );
+    });
+
+final busyMaxContactAccountsProvider = StreamProvider<List<ContactAccount>>((
+  ref,
+) async* {
+  final controller = ref.watch(busyMaxContactsControllerProvider);
+  Future<List<ContactAccount>> read() =>
+      controller.store.read((tx) => tx.accounts());
+  yield await read();
+  await for (final _ in controller.changes) {
+    yield await read();
+  }
+});
+
+final busyMaxContactSourceSettingsProvider =
+    StreamProvider<List<BusyMaxContactSourceSetting>>((ref) async* {
+      final controller = ref.watch(busyMaxContactsControllerProvider);
+      yield await controller.sourceSettings();
+      await for (final _ in controller.changes) {
+        yield await controller.sourceSettings();
+      }
     });
 
 final desktopWindowServiceProvider = Provider<DesktopWindowService>(
@@ -463,6 +533,18 @@ final authRepositoryProvider = Provider<AuthRepository>((ref) {
     database: ref.watch(databaseProvider),
     accountsRepository: ref.watch(accountsRepositoryProvider),
     microsoftOAuth: ref.watch(applicationMicrosoftOAuthServiceProvider),
+    onAccountRemoving: (accountId) => ref
+        .read(busyMaxContactsControllerProvider)
+        .prepareLinkedAccountRemoval(accountId),
+    persistLinkedAccountRemoval: (accountId) => ref
+        .read(busyMaxContactsControllerProvider)
+        .persistLinkedAccountRemoval(accountId),
+    onAccountRemovalFailed: (accountId) => ref
+        .read(busyMaxContactsControllerProvider)
+        .restoreLinkedAccountAfterFailedRemoval(accountId),
+    onAccountRemoved: () => ref
+        .read(busyMaxContactsControllerProvider)
+        .linkedAccountRemovalCommitted(),
   );
 });
 
@@ -510,9 +592,8 @@ final davConflictResolutionServiceProvider =
         database: database,
         pendingQueue: DavPendingOperationQueue(database: database),
         rebuildNotifications: (accountId, _) async {
-          await NotificationScheduleService(
-            database: database,
-          ).rebuildUpcomingNotifications(accountId);
+          await NotificationScheduleService(database: database)
+              .rebuildUpcomingNotifications(accountId);
         },
       );
     });
@@ -612,12 +693,21 @@ final googleEventLabelsForCalendarProvider =
 final microsoftTodoApiClientForAccountProvider =
     Provider.family<MicrosoftTodoApiClient, String>((ref, accountId) {
       final config = ref.watch(buildConfigProvider);
+      final broker = ref.watch(accountTokenBrokerProvider);
       return MicrosoftTodoRestApiClient(
-        httpClient: ref.watch(retryingHttpClientProvider),
+        httpClient: ref.watch(baseHttpClientProvider),
         baseUri: Uri.parse(config.microsoftGraphBaseUrl),
-        authorizationHeaderProvider: () => ref
-            .read(accountTokenBrokerProvider)
-            .authorizationHeader(BusyProvider.microsoft, accountId),
+        authorizationHeaderWithClaimsProvider: (claims) =>
+            broker is MicrosoftGraphAuthorizationBroker
+            ? (broker as MicrosoftGraphAuthorizationBroker)
+                  .microsoftGraphAuthorizationHeader(
+                    accountId,
+                    MicrosoftGraphAuthorizationKind.ordinary,
+                    claims: claims,
+                  )
+            : claims == null
+            ? broker.authorizationHeader(BusyProvider.microsoft, accountId)
+            : throw StateError('Claims authorization is unavailable.'),
         unauthorizedRefreshProvider: () => ref
             .read(accountTokenBrokerProvider)
             .recoverUnauthorized(BusyProvider.microsoft, accountId),
@@ -734,20 +824,41 @@ final microsoftCalendarApiClientForAccountProvider =
           .valueOrNull
           ?.where((candidate) => candidate.id == accountId)
           .firstOrNull;
+      final broker = ref.watch(accountTokenBrokerProvider);
+      Future<String> authorization(
+        MicrosoftGraphAuthorizationKind kind,
+        String? claims,
+      ) => broker is MicrosoftGraphAuthorizationBroker
+          ? (broker as MicrosoftGraphAuthorizationBroker)
+                .microsoftGraphAuthorizationHeader(
+                  accountId,
+                  kind,
+                  claims: claims,
+                )
+          : claims == null
+          ? switch (kind) {
+              MicrosoftGraphAuthorizationKind.ordinary =>
+                broker.authorizationHeader(BusyProvider.microsoft, accountId),
+              MicrosoftGraphAuthorizationKind.sharedCalendar =>
+                broker.microsoftSharedCalendarAuthorizationHeader(accountId),
+              MicrosoftGraphAuthorizationKind.category =>
+                broker.microsoftCategoryAuthorizationHeader(accountId),
+            }
+          : throw StateError('Claims authorization is unavailable.');
       return MicrosoftCalendarApiClient(
-        httpClient: ref.watch(retryingHttpClientProvider),
+        httpClient: ref.watch(baseHttpClientProvider),
         baseUri: Uri.parse(config.microsoftGraphBaseUrl),
         responseTimeZone: ref.watch(localTimeZoneProvider),
         accountTenantId: account?.tenantId,
-        authorizationHeaderProvider: () => ref
-            .read(accountTokenBrokerProvider)
-            .authorizationHeader(BusyProvider.microsoft, accountId),
-        sharedCalendarAuthorizationHeaderProvider: () => ref
-            .read(accountTokenBrokerProvider)
-            .microsoftSharedCalendarAuthorizationHeader(accountId),
-        categoryAuthorizationHeaderProvider: () => ref
-            .read(accountTokenBrokerProvider)
-            .microsoftCategoryAuthorizationHeader(accountId),
+        authorizationHeaderWithClaimsProvider: (claims) =>
+            authorization(MicrosoftGraphAuthorizationKind.ordinary, claims),
+        sharedCalendarAuthorizationHeaderWithClaimsProvider: (claims) =>
+            authorization(
+              MicrosoftGraphAuthorizationKind.sharedCalendar,
+              claims,
+            ),
+        categoryAuthorizationHeaderWithClaimsProvider: (claims) =>
+            authorization(MicrosoftGraphAuthorizationKind.category, claims),
         unauthorizedRefreshProvider: () => ref
             .read(accountTokenBrokerProvider)
             .recoverUnauthorized(BusyProvider.microsoft, accountId),
@@ -827,8 +938,10 @@ final calendarRemoteApiClientForAccountProvider =
       };
     });
 
-typedef SyncEngineForAccountFactory =
-    SyncEngine Function(String accountId, BusyProvider provider);
+typedef SyncEngineForAccountFactory = SyncEngine Function(
+  String accountId,
+  BusyProvider provider,
+);
 
 final syncEngineForAccountFactoryProvider =
     Provider<SyncEngineForAccountFactory>((ref) {
@@ -869,8 +982,10 @@ final syncEngineForAccountFactoryProvider =
       };
     });
 
-typedef CalendarSyncEngineForAccountFactory =
-    CalendarSyncEngine Function(String accountId, BusyProvider provider);
+typedef CalendarSyncEngineForAccountFactory = CalendarSyncEngine Function(
+  String accountId,
+  BusyProvider provider,
+);
 
 final calendarSyncEngineForAccountFactoryProvider =
     Provider<CalendarSyncEngineForAccountFactory>((ref) {
@@ -911,8 +1026,9 @@ final calendarSyncEngineForAccountFactoryProvider =
       };
     });
 
-typedef DavAccountSyncEngineFactory =
-    DavAccountSyncEngine Function(String accountId);
+typedef DavAccountSyncEngineFactory = DavAccountSyncEngine Function(
+  String accountId,
+);
 
 final davAccountSyncEngineFactoryProvider =
     Provider<DavAccountSyncEngineFactory>((ref) {
@@ -1047,8 +1163,10 @@ final accountSyncOperationsProvider = Provider<AccountSyncOperations>((ref) {
   );
 });
 
-typedef SignedInSyncRunner =
-    Future<void> Function(String accountId, bool initial);
+typedef SignedInSyncRunner = Future<void> Function(
+  String accountId,
+  bool initial,
+);
 
 final signedInSyncRunnerProvider = Provider<SignedInSyncRunner>((ref) {
   return (accountId, initial) async {
@@ -1173,9 +1291,8 @@ final icalImportServiceProvider = Provider<IcalImportService>((ref) {
     calendarRepository: ref.watch(calendarRepositoryProvider),
     onNativeImported: (accountId) async {
       try {
-        await NotificationScheduleService(
-          database: ref.read(databaseProvider),
-        ).rebuildUpcomingNotifications(accountId);
+        await NotificationScheduleService(database: ref.read(databaseProvider))
+            .rebuildUpcomingNotifications(accountId);
         await ref.read(notificationReconcilerProvider).reconcile();
       } finally {
         ref
@@ -1561,9 +1678,8 @@ final trayPresentationServiceProvider =
         canCreateTask: (account, taskList) async {
           if (account.provider == BusyProvider.google ||
               account.provider == BusyProvider.microsoft) {
-            return adapterDefaultTaskCapabilities(
-              account.provider,
-            ).canCreateTasks;
+            return adapterDefaultTaskCapabilities(account.provider)
+                .canCreateTasks;
           }
           if (account.provider != BusyProvider.nextcloud) return false;
           final capabilities = await ref.read(

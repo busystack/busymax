@@ -2,7 +2,9 @@ import '../../core/auth/authorization_attempt.dart';
 import '../../core/http/request_dispatch_exception.dart';
 import '../../core/http/bounded_http.dart';
 import '../../core/http/retry_after.dart';
+
 import 'package:drift/drift.dart' show BooleanExpressionOperators;
+
 import 'dart:async';
 import 'dart:convert';
 
@@ -17,8 +19,10 @@ import '../../core/logging/redacting_logger.dart';
 import '../../core/auth/microsoft_graph_scopes.dart';
 import '../../google_tasks/oauth/oauth_loopback_flow.dart';
 import '../../providers/busy_provider.dart';
+
 import 'package:busymax/src/core/auth/oauth_models.dart';
 import 'package:busymax/src/core/secrets/secret_store.dart';
+
 import '../api/microsoft_todo_api_models.dart';
 
 const microsoftTodoOAuthScopes =
@@ -32,6 +36,9 @@ const microsoftSharedCalendarScope =
 
 const microsoftCategoryScope =
     'https://graph.microsoft.com/MailboxSettings.Read';
+const microsoftContactsReadScope = 'https://graph.microsoft.com/Contacts.Read';
+const microsoftContactsWriteScope =
+    'https://graph.microsoft.com/Contacts.ReadWrite';
 
 abstract interface class MicrosoftCategoryAuthorization {
   Future<void> authorizeCategoryAccess(
@@ -44,6 +51,21 @@ abstract interface class MicrosoftSharedCalendarAuthorization {
   Future<void> authorizeSharedCalendarAccess(
     String accountId, {
     AuthorizationCancellation? cancellation,
+  });
+}
+
+abstract interface class MicrosoftContactsAuthorization {
+  Future<void> authorizeMicrosoftContacts(
+    String accountId, {
+    required bool writable,
+    AuthorizationCancellation? cancellation,
+    Future<void> Function()? persistContacts,
+  });
+
+  Future<String> microsoftContactsAuthorizationHeader(
+    String accountId, {
+    required bool writable,
+    String? claims,
   });
 }
 
@@ -72,7 +94,8 @@ class MicrosoftOAuthService
         MicrosoftConnectionGateway,
         RegistrationBindingResolver,
         MicrosoftSharedCalendarAuthorization,
-        MicrosoftCategoryAuthorization {
+        MicrosoftCategoryAuthorization,
+        MicrosoftContactsAuthorization {
   MicrosoftOAuthService({
     required BuildConfig config,
     required http.Client httpClient,
@@ -197,6 +220,18 @@ class MicrosoftOAuthService
             microsoftCategoryScope,
           ))
         microsoftCategoryScope,
+      if (previous != null &&
+          hasMicrosoftGraphScope(
+            previous.tokenSet.scopes,
+            microsoftContactsWriteScope,
+          ))
+        microsoftContactsWriteScope
+      else if (previous != null &&
+          hasMicrosoftGraphScope(
+            previous.tokenSet.scopes,
+            microsoftContactsReadScope,
+          ))
+        microsoftContactsReadScope,
     ].join(' ');
     attempt.check();
     final result = await _loopbackFlow.start(
@@ -460,15 +495,23 @@ class MicrosoftOAuthService
     return tokenSet;
   }
 
-  Future<String> authorizationHeaderForAccount(String accountId) async {
-    final tokenSet = await validTokenForAccount(accountId);
+  Future<String> authorizationHeaderForAccount(
+    String accountId, {
+    String? claims,
+  }) async {
+    final tokenSet = claims == null || claims.isEmpty
+        ? await validTokenForAccount(accountId)
+        : await _refreshBound(accountId, claims: claims);
     return 'Bearer ${tokenSet.accessToken}';
   }
 
   Future<String> sharedCalendarAuthorizationHeaderForAccount(
-    String accountId,
-  ) async {
-    final tokenSet = await validTokenForAccount(accountId);
+    String accountId, {
+    String? claims,
+  }) async {
+    final tokenSet = claims == null || claims.isEmpty
+        ? await validTokenForAccount(accountId)
+        : await _refreshBound(accountId, claims: claims);
     if (!hasMicrosoftGraphScope(
       tokenSet.scopes,
       microsoftSharedCalendarScope,
@@ -481,8 +524,13 @@ class MicrosoftOAuthService
     return 'Bearer ${tokenSet.accessToken}';
   }
 
-  Future<String> categoryAuthorizationHeaderForAccount(String accountId) async {
-    final tokenSet = await validTokenForAccount(accountId);
+  Future<String> categoryAuthorizationHeaderForAccount(
+    String accountId, {
+    String? claims,
+  }) async {
+    final tokenSet = claims == null || claims.isEmpty
+        ? await validTokenForAccount(accountId)
+        : await _refreshBound(accountId, claims: claims);
     if (!hasMicrosoftGraphScope(tokenSet.scopes, microsoftCategoryScope)) {
       throw const OAuthException(
         'MicrosoftOAuthCategoryConsentRequired',
@@ -502,17 +550,70 @@ class MicrosoftOAuthService
     String accountId, {
     AuthorizationCancellation? cancellation,
   }) => _optionalConsent(accountId, microsoftSharedCalendarScope, cancellation);
+  @override
+  Future<void> authorizeMicrosoftContacts(
+    String accountId, {
+    required bool writable,
+    AuthorizationCancellation? cancellation,
+    Future<void> Function()? persistContacts,
+  }) => _optionalConsent(
+    accountId,
+    writable ? microsoftContactsWriteScope : microsoftContactsReadScope,
+    cancellation,
+    persistContacts: persistContacts,
+  );
+
+  @override
+  Future<String> microsoftContactsAuthorizationHeader(
+    String accountId, {
+    required bool writable,
+    String? claims,
+  }) async {
+    final tokenSet = claims == null || claims.isEmpty
+        ? await validTokenForAccount(accountId)
+        : await _refreshBound(accountId, claims: claims);
+    final hasRead = hasMicrosoftGraphScope(
+      tokenSet.scopes,
+      microsoftContactsReadScope,
+    );
+    final hasWrite = hasMicrosoftGraphScope(
+      tokenSet.scopes,
+      microsoftContactsWriteScope,
+    );
+    if (writable ? !hasWrite : !hasRead && !hasWrite) {
+      throw const OAuthException(
+        'MicrosoftOAuthContactsConsentRequired',
+        'Microsoft Contacts permission must be granted for this account.',
+      );
+    }
+    return 'Bearer ${tokenSet.accessToken}';
+  }
+
   Future<void> _optionalConsent(
     String id,
     String scope,
-    AuthorizationCancellation? cancellation,
-  ) async {
+    AuthorizationCancellation? cancellation, {
+    Future<void> Function()? persistContacts,
+  }) async {
     final attempt = _attempts.begin(_nowUtc, cancellation);
     MicrosoftDesktopCredential? current;
     try {
       final active = await attempt.wait(boundCredentialForAccount(id));
       current = active;
       if (hasMicrosoftGraphScope(active.tokenSet.scopes, scope)) {
+        if (persistContacts != null) {
+          final persistence = _persistence!;
+          final generation = active.generation;
+          await persistence.run(id, () async {
+            if (await persistence.generation(id) != generation) {
+              throw const OAuthException(
+                'OAuthStaleAuthorization',
+                'The account changed while contacts were being enabled.',
+              );
+            }
+            await persistence.database.transaction(persistContacts);
+          });
+        }
         attempt.committed();
         return;
       }
@@ -521,7 +622,7 @@ class MicrosoftOAuthService
         optionalScopes: {scope},
         capturedAttempt: attempt,
       );
-      await result.commit!(() async {});
+      await result.commit!(persistContacts ?? () async {});
     } on OAuthException catch (error) {
       if (current == null) rethrow;
       throw AuthorizationScopedOAuthException(
@@ -615,7 +716,7 @@ class MicrosoftOAuthService
     return operation;
   }
 
-  Future<OAuthTokenSet> _refreshBound(String id) async {
+  Future<OAuthTokenSet> _refreshBound(String id, {String? claims}) async {
     final current = await boundCredentialForAccount(id);
     await _persistence!.checkTokenCooldown(
       id,
@@ -627,6 +728,7 @@ class MicrosoftOAuthService
       refreshed = await refreshToken(
         current.tokenSet,
         registration: current.registration,
+        claims: claims,
       );
     } on OAuthRefreshException catch (error) {
       await _persistence.recordTokenCooldown(id, current, error, _nowUtc());
@@ -644,6 +746,7 @@ class MicrosoftOAuthService
   Future<OAuthTokenSet> refreshToken(
     OAuthTokenSet current, {
     MicrosoftPublicRegistration? registration,
+    String? claims,
   }) async {
     final clientId =
         registration?.clientId ?? _config.microsoftOAuthClientId.trim();
@@ -681,7 +784,18 @@ class MicrosoftOAuthService
             microsoftSharedCalendarScope,
           if (hasMicrosoftGraphScope(current.scopes, microsoftCategoryScope))
             microsoftCategoryScope,
+          if (hasMicrosoftGraphScope(
+            current.scopes,
+            microsoftContactsWriteScope,
+          ))
+            microsoftContactsWriteScope
+          else if (hasMicrosoftGraphScope(
+            current.scopes,
+            microsoftContactsReadScope,
+          ))
+            microsoftContactsReadScope,
         ].join(' '),
+        if (claims != null && claims.isNotEmpty) 'claims': claims,
       },
     );
     if (response.statusCode < 200 || response.statusCode >= 300) {
@@ -807,9 +921,8 @@ String? microsoftTenantIdFromIdToken(String? idToken, {String? clientId}) {
     final value = decoded['tid'];
     if (value is! String) return null;
     final tenantId = value.toLowerCase();
-    return RegExp(
-          r'^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$',
-        ).hasMatch(tenantId)
+    return RegExp(r'^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$')
+            .hasMatch(tenantId)
         ? tenantId
         : null;
   } on Object {

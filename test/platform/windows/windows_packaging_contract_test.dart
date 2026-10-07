@@ -5,9 +5,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:xml/xml.dart';
 
 void main() {
-  final manifestSource = File(
-    'tool/windows/AppxManifest.xml.template',
-  ).readAsStringSync();
+  final manifestSource = File('tool/windows/AppxManifest.xml.template')
+      .readAsStringSync();
   final manifest = XmlDocument.parse(manifestSource);
 
   Iterable<XmlElement> elements(String localName) => manifest.descendants
@@ -31,9 +30,9 @@ void main() {
   });
 
   test('Store manifest registers only required activation surfaces', () {
-    final categories = elements(
-      'Extension',
-    ).map((element) => element.getAttribute('Category')).toSet();
+    final categories = elements('Extension')
+        .map((element) => element.getAttribute('Category'))
+        .toSet();
     expect(categories, {
       'windows.fileTypeAssociation',
       'windows.protocol',
@@ -55,15 +54,14 @@ void main() {
     expect(
       startup.parentElement!.getAttribute(
         'Parameters',
-        namespace:
+        namespaceUri:
             'http://schemas.microsoft.com/appx/manifest/uap/windows10/10',
       ),
       '--start-minimized',
     );
 
-    final toastClsid = elements(
-      'ToastNotificationActivation',
-    ).single.getAttribute('ToastActivatorCLSID');
+    final toastClsid = elements('ToastNotificationActivation').single
+        .getAttribute('ToastActivatorCLSID');
     final toast = elements('ToastNotificationActivation').single;
     expect(
       toast.name.namespaceUri,
@@ -115,12 +113,10 @@ void main() {
   });
 
   test('runner preserves native DPI and acknowledged per-user IPC', () {
-    final executableManifest = File(
-      'windows/runner/runner.exe.manifest',
-    ).readAsStringSync();
-    final runner = File(
-      'windows/runner/single_instance.cpp',
-    ).readAsStringSync();
+    final executableManifest = File('windows/runner/runner.exe.manifest')
+        .readAsStringSync();
+    final runner = File('windows/runner/single_instance.cpp')
+        .readAsStringSync();
 
     expect(executableManifest, contains('PerMonitorV2'));
     expect(

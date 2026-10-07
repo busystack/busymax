@@ -4,6 +4,7 @@
 
 // ignore: unused_import
 import 'package:intl/intl.dart' as intl;
+
 import 'app_localizations.dart';
 
 // ignore_for_file: type=lint
@@ -3438,4 +3439,56 @@ class AppLocalizationsKo extends AppLocalizations {
   @override
   String get registrationGuideWorkspaceAudience =>
       'Google Auth Platform → Branding으로 이동하세요. 아직 설정하지 않았다면 Get started를 선택하세요. App name에 BusyMax를 입력하고 본인 User support email을 선택한 뒤 Next를 선택하세요. Audience에서 Internal을 선택하세요. Next를 선택하고 Contact Information에 이메일을 입력한 뒤 Next를 선택하세요. User Data Policy에 동의하고 Continue와 Create를 선택하세요. 이미 설정했다면 Branding과 Audience를 확인하세요.\n\nInternal은 프로젝트의 상위 조직 계정만 허용하며 관리자 제어도 적용됩니다. 테스트 사용자 목록은 필요 없습니다. BusyMax는 다운로드한 JSON으로 이러한 콘솔 설정을 확인할 수 없습니다.';
+
+  @override
+  String get contactsTitle => '연락처';
+
+  @override
+  String get contactsLinkedDescription =>
+      '이벤트 참석자를 추가할 때 이 계정에 캐시된 연락처를 사용합니다.';
+
+  @override
+  String get contactsEnableSuggestions => '연락처 추천 사용';
+
+  @override
+  String get contactsReadPermissionDescription => '연락처 읽기 전용 권한을 요청합니다';
+
+  @override
+  String get contactsEnableEditing => '연락처 편집 사용';
+
+  @override
+  String get contactsWritePermissionDescription => '연락처 읽기 및 쓰기 권한을 요청합니다';
+
+  @override
+  String get contactsSuggestionsEnabled => '연락처 추천을 사용 중입니다';
+
+  @override
+  String get contactsNeedsAttention => '연락처를 확인해야 합니다';
+
+  @override
+  String get contactsReadWriteAccess => '읽기 및 쓰기 권한';
+
+  @override
+  String get contactsDisableForAccount => '이 계정의 연락처 사용 중지';
+
+  @override
+  String get contactsOnlyDescription => '이 원본은 캘린더 및 작업 계정과 별개입니다.';
+
+  @override
+  String get contactsAddCardDav => 'CardDAV 연락처 추가';
+
+  @override
+  String get contactsAddNextcloud => 'Nextcloud 연락처 추가';
+
+  @override
+  String get contactsUseForAttendees => '참석자 추천에 사용';
+
+  @override
+  String get contactsServerUrlLabel => 'HTTPS 서버 URL';
+
+  @override
+  String get contactsUsernameLabel => '사용자 이름';
+
+  @override
+  String get contactsPasswordLabel => '비밀번호';
 }

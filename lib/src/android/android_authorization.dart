@@ -5,7 +5,9 @@ import '../core/auth/registration_staging.dart';
 import '../core/auth/authorization_persistence.dart';
 import '../db/app_database.dart' hide AuthorizationCommit;
 import 'android_account_gate.dart';
+
 import 'dart:async';
+
 import '../core/http/bounded_http.dart';
 
 import 'package:busymax_android_platform/busymax_android_platform.dart';
@@ -39,6 +41,8 @@ const _microsoftNativeScopes = <String>[
 
 const _microsoftSharedNativeScope = 'Calendars.ReadWrite.Shared';
 const _microsoftCategoryNativeScope = 'MailboxSettings.Read';
+const _microsoftContactsReadNativeScope = 'Contacts.Read';
+const _microsoftContactsWriteNativeScope = 'Contacts.ReadWrite';
 
 const _microsoftStoredScopes = <String>{
   'https://graph.microsoft.com/User.Read',
@@ -56,9 +60,8 @@ String? microsoftTenantIdFromAuthority(String? authority) {
   }
   final segment = uri.pathSegments.first.toLowerCase();
   if (segment == 'consumers') return microsoftPersonalTenantId;
-  return RegExp(
-        r'^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$',
-      ).hasMatch(segment)
+  return RegExp(r'^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$')
+          .hasMatch(segment)
       ? segment
       : null;
 }
@@ -72,7 +75,11 @@ final class AndroidAuthorizationBroker
         MicrosoftOAuthGateway,
         MicrosoftSharedCalendarAuthorization,
         MicrosoftCategoryAuthorization,
-        AccountTokenBroker {
+        MicrosoftContactsAuthorization,
+        GoogleContactsAuthorization,
+        AccountTokenBroker,
+        ContactsAuthorizationBroker,
+        MicrosoftGraphAuthorizationBroker {
   AndroidAuthorizationBroker({
     required BusyMaxAndroidPlatform platform,
     required http.Client httpClient,
@@ -124,7 +131,7 @@ final class AndroidAuthorizationBroker
   @override
   Future<OAuthSignInResult> connectGoogle(AuthorizationRequest request) {
     final attempt = _attempts.begin(_nowUtc, request.cancellation);
-    return _connectGoogle(request, attempt).catchError((
+    return _connectGoogle(request, attempt, const <String>[]).catchError((
       Object error,
       StackTrace stack,
     ) {
@@ -137,6 +144,7 @@ final class AndroidAuthorizationBroker
   Future<OAuthSignInResult> _connectGoogle(
     AuthorizationRequest request,
     AuthorizationAttempt attempt,
+    List<String> optional,
   ) async {
     if (request.registration != null ||
         request.intent == AuthorizationIntent.replaceRegistration) {
@@ -165,12 +173,18 @@ final class AndroidAuthorizationBroker
       final native = await _boundedNative(
         attempt,
         () => _platform.authorizeGoogleInteractively(
-          scopes: _googleScopes,
+          scopes: [..._googleScopes, ...optional],
           authorizationAttemptId: attempt.id,
         ),
       );
       final tokens = _tokenSet(native);
       _requireSilentScopes(BusyProvider.google, tokens, candidate: true);
+      if (!optional.every(tokens.scopes.contains)) {
+        throw const OAuthException(
+          'OAuthMissingRequiredScope',
+          'The requested Google Contacts permission was not granted.',
+        );
+      }
       final user = await fetchUserInfo(tokens, cancellation: cancellation);
       final subject = user?.subject;
       if (subject == null || subject.isEmpty) {
@@ -695,11 +709,80 @@ final class AndroidAuthorizationBroker
     await _optionalNativeConsent(id, _microsoftSharedNativeScope, cancellation);
   }
 
+  @override
+  Future<void> authorizeGoogleContacts(
+    String id, {
+    required bool writable,
+    AuthorizationCancellation? cancellation,
+    Future<void> Function()? persistContacts,
+  }) async {
+    final attempt = _attempts.begin(_nowUtc, cancellation);
+    NativeOAuthCredential? current;
+    final scope = writable ? googleContactsWriteScope : googleContactsReadScope;
+    try {
+      current = await attempt.wait(nativeCredential(id, BusyProvider.google));
+      final result = await _connectGoogle(
+        AuthorizationRequest.reconnect(id),
+        attempt,
+        <String>[scope],
+      );
+      await result.commit!(persistContacts ?? () async {});
+    } on OAuthException catch (error) {
+      if (current == null) rethrow;
+      throw AuthorizationScopedOAuthException(
+        accountId: id,
+        generation: current.generation,
+        cause: error,
+      );
+    } finally {
+      _attempts.finish(attempt);
+    }
+  }
+
+  @override
+  Future<void> authorizeMicrosoftContacts(
+    String id, {
+    required bool writable,
+    AuthorizationCancellation? cancellation,
+    Future<void> Function()? persistContacts,
+  }) => _optionalNativeConsent(
+    id,
+    writable
+        ? _microsoftContactsWriteNativeScope
+        : _microsoftContactsReadNativeScope,
+    cancellation,
+    persistContacts: persistContacts,
+  );
+
+  @override
+  Future<void> authorizeContacts(
+    BusyProvider provider,
+    String accountId, {
+    required bool writable,
+    AuthorizationCancellation? cancellation,
+    Future<void> Function()? persistContacts,
+  }) => switch (provider) {
+    BusyProvider.google => authorizeGoogleContacts(
+      accountId,
+      writable: writable,
+      cancellation: cancellation,
+      persistContacts: persistContacts,
+    ),
+    BusyProvider.microsoft => authorizeMicrosoftContacts(
+      accountId,
+      writable: writable,
+      cancellation: cancellation,
+      persistContacts: persistContacts,
+    ),
+    _ => throw StateError('$provider does not use OAuth contacts access.'),
+  };
+
   Future<void> _optionalNativeConsent(
     String id,
     String scope,
-    AuthorizationCancellation? cancellation,
-  ) async {
+    AuthorizationCancellation? cancellation, {
+    Future<void> Function()? persistContacts,
+  }) async {
     final attempt = _attempts.begin(_nowUtc, cancellation);
     NativeOAuthCredential? current;
     try {
@@ -711,7 +794,7 @@ final class AndroidAuthorizationBroker
         optional: [scope],
         capturedAttempt: attempt,
       );
-      await result.commit!(() async {});
+      await result.commit!(persistContacts ?? () async {});
     } on OAuthException catch (error) {
       if (current == null) rethrow;
       throw AuthorizationScopedOAuthException(
@@ -803,6 +886,180 @@ final class AndroidAuthorizationBroker
       return 'Bearer ${token.accessToken}';
     } on PlatformException catch (error) {
       throw _silentOAuthError(error, provider: provider);
+    }
+  }
+
+  @override
+  Future<String> microsoftGraphAuthorizationHeader(
+    String accountId,
+    MicrosoftGraphAuthorizationKind kind, {
+    String? claims,
+  }) {
+    if (claims == null || claims.isEmpty) {
+      return switch (kind) {
+        MicrosoftGraphAuthorizationKind.ordinary => authorizationHeader(
+          BusyProvider.microsoft,
+          accountId,
+        ),
+        MicrosoftGraphAuthorizationKind.sharedCalendar =>
+          microsoftSharedCalendarAuthorizationHeader(accountId),
+        MicrosoftGraphAuthorizationKind.category =>
+          microsoftCategoryAuthorizationHeader(accountId),
+      };
+    }
+    return _microsoftGraphHeader(
+      accountId,
+      claims: claims,
+      extraScope: switch (kind) {
+        MicrosoftGraphAuthorizationKind.ordinary => null,
+        MicrosoftGraphAuthorizationKind.sharedCalendar =>
+          _microsoftSharedNativeScope,
+        MicrosoftGraphAuthorizationKind.category =>
+          _microsoftCategoryNativeScope,
+      },
+    );
+  }
+
+  Future<String> _microsoftGraphHeader(
+    String accountId, {
+    required String claims,
+    required String? extraScope,
+  }) async {
+    try {
+      final current = persistence == null
+          ? null
+          : await nativeCredential(accountId, BusyProvider.microsoft)
+                as MicrosoftAndroidCredential;
+      final native = await _boundedSilent(
+        _platform.authorizeMicrosoftSilently(
+          accountId: accountId,
+          scopes: [
+            ..._microsoftNativeScopes,
+            if (extraScope != null) extraScope,
+          ],
+          clientId: current?.registration.clientId,
+          authorityTenant: current?.registration.authorityTenant,
+          nativeAccountId: current?.nativeAccountId,
+          authority: current?.authority,
+          claims: claims,
+        ),
+      );
+      final tokenSet = _tokenSet(native);
+      _requireSilentScopes(BusyProvider.microsoft, tokenSet);
+      if (extraScope != null &&
+          !tokenSet.scopes.any(
+            (scope) =>
+                scope.toLowerCase() == extraScope.toLowerCase() ||
+                scope.toLowerCase() ==
+                    'https://graph.microsoft.com/${extraScope.toLowerCase()}',
+          )) {
+        throw const OAuthException(
+          'MicrosoftOAuthOptionalConsentRequired',
+          'The required optional Microsoft permission is unavailable.',
+        );
+      }
+      await _acceptNativeToken(accountId, current, native);
+      return 'Bearer ${native.accessToken}';
+    } on PlatformException catch (error) {
+      throw _silentOAuthError(error, provider: BusyProvider.microsoft);
+    }
+  }
+
+  @override
+  Future<String> contactsAuthorizationHeader(
+    BusyProvider provider,
+    String accountId, {
+    required bool writable,
+    String? claims,
+  }) => switch (provider) {
+    BusyProvider.google => googleContactsAuthorizationHeader(
+      accountId,
+      writable: writable,
+    ),
+    BusyProvider.microsoft => microsoftContactsAuthorizationHeader(
+      accountId,
+      writable: writable,
+      claims: claims,
+    ),
+    _ => throw StateError('$provider does not use OAuth contacts access.'),
+  };
+
+  @override
+  Future<String> googleContactsAuthorizationHeader(
+    String accountId, {
+    required bool writable,
+  }) async {
+    try {
+      final current = persistence == null
+          ? null
+          : await nativeCredential(accountId, BusyProvider.google);
+      final requiredScope = writable
+          ? googleContactsWriteScope
+          : googleContactsReadScope;
+      final native = await _boundedSilent(
+        _platform.authorizeGoogleSilently(
+          accountId: accountId,
+          scopes: [..._googleScopes, requiredScope],
+        ),
+      );
+      final tokenSet = _tokenSet(native);
+      _requireSilentScopes(BusyProvider.google, tokenSet);
+      if (!tokenSet.scopes.contains(requiredScope) &&
+          (writable || !tokenSet.scopes.contains(googleContactsWriteScope))) {
+        throw const OAuthException(
+          'OAuthContactsConsentRequired',
+          'Google Contacts permission must be granted for this account.',
+        );
+      }
+      await _acceptNativeToken(accountId, current, native);
+      return 'Bearer ${native.accessToken}';
+    } on PlatformException catch (error) {
+      throw _silentOAuthError(error, provider: BusyProvider.google);
+    }
+  }
+
+  @override
+  Future<String> microsoftContactsAuthorizationHeader(
+    String accountId, {
+    required bool writable,
+    String? claims,
+  }) async {
+    try {
+      final current = persistence == null
+          ? null
+          : await nativeCredential(accountId, BusyProvider.microsoft)
+                as MicrosoftAndroidCredential;
+      final requiredNativeScope = writable
+          ? _microsoftContactsWriteNativeScope
+          : _microsoftContactsReadNativeScope;
+      final native = await _boundedSilent(
+        _platform.authorizeMicrosoftSilently(
+          accountId: accountId,
+          scopes: [..._microsoftNativeScopes, requiredNativeScope],
+          clientId: current?.registration.clientId,
+          authorityTenant: current?.registration.authorityTenant,
+          nativeAccountId: current?.nativeAccountId,
+          authority: current?.authority,
+          claims: claims,
+        ),
+      );
+      final tokenSet = _tokenSet(native);
+      _requireSilentScopes(BusyProvider.microsoft, tokenSet);
+      final requiredScope = writable
+          ? microsoftContactsWriteScope
+          : microsoftContactsReadScope;
+      if (!tokenSet.scopes.contains(requiredScope) &&
+          (writable ||
+              !tokenSet.scopes.contains(microsoftContactsWriteScope))) {
+        throw const OAuthException(
+          'MicrosoftOAuthContactsConsentRequired',
+          'Microsoft Contacts permission must be granted for this account.',
+        );
+      }
+      await _acceptNativeToken(accountId, current, native);
+      return 'Bearer ${native.accessToken}';
+    } on PlatformException catch (error) {
+      throw _silentOAuthError(error, provider: BusyProvider.microsoft);
     }
   }
 
@@ -1055,6 +1312,8 @@ String _storedScope(String value) {
     ..._microsoftNativeScopes,
     _microsoftSharedNativeScope,
     _microsoftCategoryNativeScope,
+    _microsoftContactsReadNativeScope,
+    _microsoftContactsWriteNativeScope,
   ]) {
     if (scope.toLowerCase() == nativeScope.toLowerCase()) {
       return 'https://graph.microsoft.com/$nativeScope';

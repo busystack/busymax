@@ -1181,7 +1181,8 @@ void main() {
     await _scrollUntilBuilt(tester, action);
     await tester.ensureVisible(action);
     await tester.tap(action);
-    await tester.pumpAndSettle();
+    await tester.pump();
+    await _pumpAndSettleGraphIo(tester);
     expect(
       find.text('No busy periods reported for this interval'),
       findsOneWidget,
@@ -1337,8 +1338,7 @@ void main() {
       pendingDelete: false,
       pendingMove: false,
       rawJson: '{}',
-      assignmentInfoJson:
-          '{"surfaceType":"DOCUMENT","linkToTask":"https://docs.google.com/document/d/example"}',
+      assignmentInfoJson: '{"surfaceType":"DOCUMENT","linkToTask":"https://docs.google.com/document/d/example"}',
       updatedLocalAtUtc: '2026-09-14T00:00:00.000Z',
     );
     var mutationStarted = false;
@@ -1467,12 +1467,12 @@ void main() {
       await tester.pumpAndSettle();
       expect(requests, 0);
       await tester.tap(find.text('Linked resources'));
-      await tester.pumpAndSettle();
+      await _pumpAndSettleGraphIo(tester);
       expect(requests, 1);
       expect(find.text('Launch plan · Planner'), findsOneWidget);
       expect(find.text('Message · Outlook'), findsNothing);
       await tester.tap(find.byKey(const Key('task-attachments-load')));
-      await tester.pumpAndSettle();
+      await _pumpAndSettleGraphIo(tester);
       expect(requests, 2);
       expect(find.text('Notes.txt'), findsOneWidget);
       expect(find.text('Task'), findsWidgets);
@@ -1512,24 +1512,28 @@ void main() {
       taskListId,
       taskId,
     );
-    await expectLater(
-      coordinator.uploadTask(
-        client: todoClient,
-        accountId: accountId,
-        taskListId: taskListId,
-        taskId: taskId,
-        name: 'notes.txt',
-        contentType: 'text/plain',
-        bytes: [1],
+    await tester.runAsync(
+      () => expectLater(
+        coordinator.uploadTask(
+          client: todoClient,
+          accountId: accountId,
+          taskListId: taskListId,
+          taskId: taskId,
+          name: 'notes.txt',
+          contentType: 'text/plain',
+          bytes: [1],
+        ),
+        throwsA(isA<AttachmentUploadUnresolvedException>()),
       ),
-      throwsA(isA<AttachmentUploadUnresolvedException>()),
     );
     expect(
-      await coordinator.reconcileTask(
-        client: todoClient,
-        accountId: accountId,
-        taskListId: taskListId,
-        taskId: taskId,
+      await tester.runAsync(
+        () => coordinator.reconcileTask(
+          client: todoClient,
+          accountId: accountId,
+          taskListId: taskListId,
+          taskId: taskId,
+        ),
       ),
       AttachmentUploadStatus.unresolved,
     );
@@ -1734,6 +1738,7 @@ void main() {
         findsOneWidget,
       );
       expect(tester.takeException(), isNull);
+      await harness.dispose();
     });
   }
 
@@ -2578,12 +2583,11 @@ void main() {
     expect(operations, hasLength(1));
     expect(operations.single.operationType, 'dav.update');
     final queuedBody =
-        DavMutationPatch.fromJsonString(
-          operations.single.mutationPatchJson!,
-        ).applyTo(
-          operations.single.baselineRawIcs!,
-          nowUtc: DateTime.now().toUtc(),
-        );
+        DavMutationPatch.fromJsonString(operations.single.mutationPatchJson!)
+            .applyTo(
+              operations.single.baselineRawIcs!,
+              nowUtc: DateTime.now().toUtc(),
+            );
     expect(queuedBody, contains('TRIGGER:-PT45M'));
     expect(queuedBody, contains('X-KEEP:first'));
     expect(queuedBody, contains('X-KEEP:second'));
@@ -2724,14 +2728,10 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.widgetWithText(TextButton, 'Save'));
     await tester.pumpAndSettle();
-    final request =
-        jsonDecode(
-              (await harness.database
-                      .select(harness.database.pendingOps)
-                      .getSingle())
-                  .requestJson,
-            )
-            as Map;
+    final request = jsonDecode(
+      (await harness.database.select(harness.database.pendingOps).getSingle())
+          .requestJson,
+    ) as Map;
     expect(request['eventType'], 'focusTime');
     expect(
       (request['googleStatusProperties'] as Map)['autoDeclineMode'],
@@ -2791,14 +2791,10 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.widgetWithText(TextButton, 'Save'));
     await tester.pumpAndSettle();
-    final request =
-        jsonDecode(
-              (await harness.database
-                      .select(harness.database.pendingOps)
-                      .getSingle())
-                  .requestJson,
-            )
-            as Map;
+    final request = jsonDecode(
+      (await harness.database.select(harness.database.pendingOps).getSingle())
+          .requestJson,
+    ) as Map;
     expect(request['categoriesJson'], ['Unknown', 'Work']);
     await tester.pump(const Duration(seconds: 6));
   });
@@ -2863,6 +2859,14 @@ void main() {
     expect(find.text('A detailed failure message'), findsNothing);
     expect(tester.takeException(), isNull);
   });
+}
+
+Future<void> _pumpAndSettleGraphIo(WidgetTester tester) async {
+  await tester.pump();
+  await tester.runAsync(
+    () => Future<void>.delayed(const Duration(milliseconds: 50)),
+  );
+  await tester.pumpAndSettle();
 }
 
 TaskEntity _movableTask({String taskListId = 'source-list'}) => TaskEntity(
@@ -3426,13 +3430,16 @@ final class _PermissionOnlyNotifications extends Fake
 }
 
 final class _AndroidAppHarness {
-  const _AndroidAppHarness(this.tester, this.container, this.database);
+  _AndroidAppHarness(this.tester, this.container, this.database);
 
   final WidgetTester tester;
   final ProviderContainer container;
   final AppDatabase database;
+  bool _disposed = false;
 
   Future<void> dispose() async {
+    if (_disposed) return;
+    _disposed = true;
     await tester.pumpWidget(const SizedBox.shrink());
     container.dispose();
     await database.close();

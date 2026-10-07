@@ -106,17 +106,16 @@ void main() {
           ),
         ),
       );
-      await tester.tap(find.text('Open sharing'));
-      await tester.pumpAndSettle();
+      await _tapAndSettleGraphIo(tester, find.text('Open sharing'));
       await tester.enterText(
         find.byKey(const Key('windows-sharing-recipient')),
         'friend@example.test',
       );
       await tester.ensureVisible(find.byKey(const Key('windows-sharing-add')));
-      await tester.tap(find.byKey(const Key('windows-sharing-add')));
-      for (var i = 0; i < 4; i++) {
-        await tester.pump();
-      }
+      await _tapAndSettleGraphIo(
+        tester,
+        find.byKey(const Key('windows-sharing-add')),
+      );
       expect(posts, 1);
       expect(
         find.text(
@@ -148,10 +147,7 @@ void main() {
       expect(tester.widget<Button>(revoke).onPressed, isNull);
       await tester.ensureVisible(find.text('Retry'));
       await tester.pump();
-      await tester.tap(find.text('Retry'));
-      for (var i = 0; i < 4; i++) {
-        await tester.pump();
-      }
+      await _tapAndSettleGraphIo(tester, find.text('Retry'));
       expect(posts, 1);
       expect(
         tester
@@ -161,8 +157,7 @@ void main() {
       );
       await tester.tap(find.text('Close'));
       await tester.pumpAndSettle();
-      await tester.tap(find.text('Open sharing'));
-      await tester.pumpAndSettle();
+      await _tapAndSettleGraphIo(tester, find.text('Open sharing'));
       expect(
         tester
             .widget<Button>(find.byKey(const Key('windows-sharing-add')))
@@ -189,8 +184,10 @@ void main() {
         'friend@example.test',
       );
       await tester.ensureVisible(find.byKey(const Key('windows-sharing-add')));
-      await tester.tap(find.byKey(const Key('windows-sharing-add')));
-      await tester.pumpAndSettle();
+      await _tapAndSettleGraphIo(
+        tester,
+        find.byKey(const Key('windows-sharing-add')),
+      );
       expect(posts, 2);
       expect(
         find.byKey(const Key('windows-sharing-grant-new-grant')),
@@ -286,8 +283,7 @@ void main() {
         ),
       ),
     );
-    await tester.tap(find.text('Open sharing'));
-    await tester.pumpAndSettle();
+    await _tapAndSettleGraphIo(tester, find.text('Open sharing'));
     await tester.enterText(
       find.byKey(const Key('windows-sharing-recipient')),
       'friend@example.com',
@@ -305,6 +301,7 @@ void main() {
       isNull,
     );
     preflight.complete();
+    await _drainGraphIo(tester);
     for (var i = 0; i < 4; i++) {
       await tester.pump();
     }
@@ -340,8 +337,7 @@ void main() {
     await tester.tap(find.text('Close'));
     await tester.pumpAndSettle();
     blockDispatch = false;
-    await tester.tap(find.text('Open sharing'));
-    await tester.pumpAndSettle();
+    await _tapAndSettleGraphIo(tester, find.text('Open sharing'));
     expect(
       tester
           .widget<Button>(find.byKey(const Key('windows-sharing-add')))
@@ -354,8 +350,10 @@ void main() {
     );
     await tester.ensureVisible(find.byKey(const Key('windows-sharing-add')));
     await tester.pumpAndSettle();
-    await tester.tap(find.byKey(const Key('windows-sharing-add')));
-    await tester.pumpAndSettle();
+    await _tapAndSettleGraphIo(
+      tester,
+      find.byKey(const Key('windows-sharing-add')),
+    );
     expect(providerMutations, 1);
   });
 
@@ -425,15 +423,17 @@ void main() {
           ),
         ),
       );
-      await tester.tap(find.text('Open sharing'));
-      await tester.pumpAndSettle();
+      await _tapAndSettleGraphIo(tester, find.text('Open sharing'));
       await tester.enterText(
         find.byKey(const Key('windows-sharing-recipient')),
         'friend@example.com',
       );
       await tester.ensureVisible(find.byKey(const Key('windows-sharing-add')));
       await tester.pumpAndSettle();
-      await tester.tap(find.byKey(const Key('windows-sharing-add')));
+      await _tapWithGraphIo(
+        tester,
+        find.byKey(const Key('windows-sharing-add')),
+      );
       for (var i = 0; i < 4; i++) {
         await tester.pump();
       }
@@ -445,6 +445,7 @@ void main() {
         isNull,
       );
       heldRead.complete(http.Response('unavailable', 503));
+      await _drainGraphIo(tester);
       for (var i = 0; i < 4; i++) {
         await tester.pump();
       }
@@ -457,10 +458,7 @@ void main() {
       expect(find.text('Retry'), findsOneWidget);
       await tester.tap(find.text('Close'));
       await tester.pumpAndSettle();
-      await tester.tap(find.text('Open sharing'));
-      for (var i = 0; i < 5; i++) {
-        await tester.pump();
-      }
+      await _tapAndSettleGraphIo(tester, find.text('Open sharing'));
       expect(
         tester
             .widget<Button>(find.byKey(const Key('windows-sharing-add')))
@@ -468,8 +466,7 @@ void main() {
         isNull,
       );
       failed = false;
-      await tester.tap(find.text('Retry'));
-      await tester.pumpAndSettle();
+      await _tapAndSettleGraphIo(tester, find.text('Retry'));
       expect(posts, 1);
       expect(
         tester
@@ -563,17 +560,38 @@ void main() {
         ),
       ),
     );
-    await tester.tap(find.text('Open sharing'));
-    await tester.pumpAndSettle();
+    await _tapAndSettleGraphIo(tester, find.text('Open sharing'));
     await tester.enterText(
       find.byKey(const Key('windows-sharing-recipient')),
       'friend@example.com',
     );
     await tester.ensureVisible(find.byKey(const Key('windows-sharing-add')));
     await tester.pumpAndSettle();
-    await tester.tap(find.byKey(const Key('windows-sharing-add')));
-    await tester.pumpAndSettle();
+    await _tapAndSettleGraphIo(
+      tester,
+      find.byKey(const Key('windows-sharing-add')),
+    );
     expect(posts, 1);
     expect(find.text('friend@example.com'), findsOneWidget);
   });
+}
+
+Future<void> _tapWithGraphIo(WidgetTester tester, Finder finder) async {
+  await tester.tap(finder);
+  await tester.pump();
+  await _drainGraphIo(tester);
+}
+
+Future<void> _tapAndSettleGraphIo(WidgetTester tester, Finder finder) async {
+  await _tapWithGraphIo(tester, finder);
+  await tester.pumpAndSettle();
+}
+
+Future<void> _drainGraphIo(WidgetTester tester) async {
+  for (var i = 0; i < 3; i++) {
+    await tester.runAsync(
+      () => Future<void>.delayed(const Duration(milliseconds: 50)),
+    );
+    await tester.pump();
+  }
 }

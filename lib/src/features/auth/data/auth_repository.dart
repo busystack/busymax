@@ -1,5 +1,6 @@
 import '../../../core/auth/authorization_attempt.dart';
 import '../../../core/http/request_dispatch_exception.dart';
+
 import 'dart:async';
 
 import 'package:flutter/foundation.dart';
@@ -16,11 +17,16 @@ import '../../../db/app_database.dart';
 import '../../../features/accounts/data/accounts_repository.dart';
 import '../../../google_tasks/api/google_tasks_api_surface.dart';
 import '../../../google_tasks/oauth/oauth_loopback_flow.dart';
+
 import 'package:busymax/src/core/auth/oauth_models.dart';
+
 import '../../../google_tasks/oauth/oauth_service.dart';
+
 import 'package:busymax/src/core/secrets/secret_store.dart';
+
 import '../../../microsoft_todo/oauth/microsoft_oauth_service.dart';
 import '../../sync/sync_auth_error.dart';
+
 import 'package:busymax/src/providers/busy_provider.dart';
 
 enum AuthSessionStatus {
@@ -115,6 +121,10 @@ class AuthRepository {
     MicrosoftOAuthGateway? microsoftOAuth,
     DateTime Function()? nowUtc,
     AuthorizationPersistence? authorizationPersistence,
+    this.onAccountRemoving,
+    this.persistLinkedAccountRemoval,
+    this.onAccountRemovalFailed,
+    this.onAccountRemoved,
   }) : _authorizationPersistence = authorizationPersistence,
        _oAuth = oAuth,
        _accountsRepository =
@@ -126,6 +136,10 @@ class AuthRepository {
   final OAuthGateway _oAuth;
   final AccountsRepository _accountsRepository;
   final MicrosoftOAuthGateway? _microsoftOAuth;
+  final Future<void> Function(String accountId)? onAccountRemoving;
+  final Future<void> Function(String accountId)? persistLinkedAccountRemoval;
+  final Future<void> Function(String accountId)? onAccountRemovalFailed;
+  final void Function()? onAccountRemoved;
   final RedactingLogger _logger = RedactingLogger(Logger('AuthRepository'));
 
   Future<AuthSessionState> loadSession() async {
@@ -292,6 +306,8 @@ class AuthRepository {
       return const AccountRemovalResult.alreadyRemoved();
     }
 
+    await onAccountRemoving?.call(accountId);
+
     var revocationStatus = AccountAuthorizationRevocationStatus.notRequested;
     if (revokeAuthorization && account.provider == BusyProvider.google) {
       try {
@@ -321,24 +337,35 @@ class AuthRepository {
       }
     }
 
-    if (_authorizationPersistence case final persistence?) {
-      try {
-        await persistence.removeCoherently(
-          accountId,
-          clearAuthorization,
-          () => _accountsRepository.deleteAccount(accountId),
-        );
-      } on Object {
-        if (revocationStatus ==
-            AccountAuthorizationRevocationStatus.succeeded) {
-          throw const AccountRemovalPersistenceException();
+    try {
+      if (_authorizationPersistence case final persistence?) {
+        try {
+          await persistence.removeCoherently(
+            accountId,
+            clearAuthorization,
+            () async {
+              await persistLinkedAccountRemoval?.call(accountId);
+              await _accountsRepository.deleteAccount(accountId);
+            },
+          );
+        } on Object {
+          if (revocationStatus ==
+              AccountAuthorizationRevocationStatus.succeeded) {
+            throw const AccountRemovalPersistenceException();
+          }
+          rethrow;
         }
-        rethrow;
+      } else {
+        await clearAuthorization();
+        await persistLinkedAccountRemoval?.call(accountId);
+        await _accountsRepository.deleteAccount(accountId);
       }
-    } else {
-      await clearAuthorization();
-      await _accountsRepository.deleteAccount(accountId);
+    } on Object {
+      await onAccountRemovalFailed?.call(accountId);
+      rethrow;
     }
+
+    onAccountRemoved?.call();
 
     return AccountRemovalResult(
       authorizationRevocationStatus: revocationStatus,
