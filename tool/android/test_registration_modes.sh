@@ -26,7 +26,7 @@ if [[ ! -f "$apk" ]]; then
 fi
 sdk_root="${ANDROID_SDK_ROOT:-${ANDROID_HOME:-}}"
 if [[ -z "$sdk_root" ]]; then sdk_root="$(sed -n 's/^sdk\.dir=//p' android/local.properties | head -n 1)"; fi
-signature_sha1="$("$sdk_root/build-tools/37.0.0/apksigner" verify --print-certs "$apk" | sed -n 's/^Signer #1 certificate SHA-1 digest: //p')"
+signature_sha1="$("$sdk_root/build-tools/37.0.0/apksigner" verify --print-certs "$apk" | sed -n 's/^.* certificate SHA-1 digest: //p' | sort -u)"
 if [[ ! "$signature_sha1" =~ ^[[:xdigit:]]{40}$ ]]; then
   echo 'Could not read the test-signed APK certificate SHA-1 digest.' >&2
   exit 1

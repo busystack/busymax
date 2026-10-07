@@ -74,6 +74,8 @@ void main() {
         );
       }
     },
+    // Includes a cold CMake/MSVC build on Windows CI.
+    timeout: const Timeout(Duration(minutes: 2)),
   );
   test(
     'cancellation during preparation and a stale completion cannot stage over a newer import',
@@ -123,6 +125,8 @@ void main() {
       expect(staging.consume(fresh).clientId, fresh.summary.clientId);
       expect(() => staging.consume(fresh), throwsA(isA<OAuthException>()));
     },
+    // Includes a cold CMake/MSVC build on Windows CI.
+    timeout: const Timeout(Duration(minutes: 2)),
   );
   test(
     'native read cancellation and deadline return safely without staging late bytes',
@@ -164,5 +168,7 @@ void main() {
         ),
       );
     },
+    // Includes a cold CMake/MSVC build on Windows CI.
+    timeout: const Timeout(Duration(minutes: 2)),
   );
 }

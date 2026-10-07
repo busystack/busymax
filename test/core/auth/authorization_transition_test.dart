@@ -297,6 +297,8 @@ void main() {
         ),
       );
     },
+    // Includes a cold CMake/MSVC build on Windows CI.
+    timeout: const Timeout(Duration(minutes: 2)),
   );
   for (final provider in [BusyProvider.google, BusyProvider.microsoft]) {
     test(
@@ -1308,6 +1310,8 @@ void main() {
       expect(importer.consume(handle), isA<GoogleDesktopRegistration>());
       expect(() => importer.consume(handle), throwsA(isA<OAuthException>()));
     },
+    // Includes a cold CMake/MSVC build on Windows CI.
+    timeout: const Timeout(Duration(minutes: 2)),
   );
   for (final data in [
     {'web': {}},
