@@ -52,7 +52,7 @@ class _AttachmentTestFileSelector extends FileSelectorPlatform {
     String? confirmButtonText,
   }) async => XFile.fromData(
     Uint8List.fromList(const [1, 2, 3]),
-    path: '/test/agenda.txt',
+    path: 'agenda.txt',
     mimeType: 'text/plain',
   );
 }

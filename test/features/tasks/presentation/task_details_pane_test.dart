@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:ui';
+
 import 'package:busymax/src/l10n/time_format_scope.dart';
 import 'package:busymax/src/dav/ical/ical_task_alarm.dart';
 import 'package:busymax/src/features/recurrence/domain/recurrence_rule.dart';
@@ -84,14 +85,13 @@ class _AttachmentTestFileSelector extends FileSelectorPlatform {
       file ??
       XFile.fromData(
         Uint8List.fromList(const [1, 2, 3]),
-        path: '/test/agenda.txt',
+        path: 'agenda.txt',
         mimeType: 'text/plain',
       );
 }
 
 class _DelayedAttachmentTestFile extends XFile {
-  _DelayedAttachmentTestFile()
-    : super('/test/agenda.txt', mimeType: 'text/plain');
+  _DelayedAttachmentTestFile() : super('agenda.txt', mimeType: 'text/plain');
 
   final lengthRequested = Completer<void>();
   final releaseLength = Completer<int>();
