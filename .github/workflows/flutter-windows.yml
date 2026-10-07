@@ -52,6 +52,7 @@ jobs:
             homepageUrl = 'https://busystack.org'
             googleOAuthClientId = 'busymax-ci-original.apps.googleusercontent.com'
             googleOAuthClientSecret = ''
+            googleOAuthProjectId = ''
             microsoftOAuthClientId = '22222222-2222-2222-2222-222222222222'
             microsoftOAuthAuthorityTenant = 'common'
             busyMaxGoogleOAuthClientId = 'busymax-ci-managed.apps.googleusercontent.com'

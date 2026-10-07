@@ -49,13 +49,13 @@ for mode in transitional user-owned; do
   cp build/android/android-artifact-inspection.txt "$destination/inspection.txt"
   "$sdk_root/build-tools/37.0.0/aapt2" dump resources "$destination/app-release.apk" > "$destination/resources.txt"
   if [[ "$mode" == transitional ]]; then
-    rg -q 'raw/busymax_msal_config' "$destination/resources.txt"
-  elif rg -q 'raw/busymax_msal_config' "$destination/resources.txt"; then
+    grep -Fq 'raw/busymax_msal_config' "$destination/resources.txt"
+  elif grep -Fq 'raw/busymax_msal_config' "$destination/resources.txt"; then
     echo 'The user-owned build unexpectedly contains the original native MSAL resource.' >&2
     exit 1
   fi
   unzip -Z1 "$destination/app-release.apk" > "$destination/entries.txt"
-  rg -q 'assets/flutter_assets/docs/google_setup.md' "$destination/entries.txt"
-  rg -q 'assets/flutter_assets/docs/microsoft_setup.md' "$destination/entries.txt"
+  grep -Fq 'assets/flutter_assets/docs/google_setup.md' "$destination/entries.txt"
+  grep -Fq 'assets/flutter_assets/docs/microsoft_setup.md' "$destination/entries.txt"
   echo "PASSED: $mode release configuration, installed debug-signature redirect, and packaged help."
 done
