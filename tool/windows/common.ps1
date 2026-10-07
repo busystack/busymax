@@ -65,6 +65,11 @@ function Test-BusyMaxProhibitedPackageFile {
   )
   $relative = Get-BusyMaxPackageRelativePath -PackageRoot $PackageRoot `
     -Path $File.FullName
+  if ($relative -cin @(
+      'data/flutter_assets/docs/google_setup.md',
+      'data/flutter_assets/docs/microsoft_setup.md')) {
+    return $false
+  }
   return $File.Extension -in @(
     '.pfx', '.cer', '.log', '.db', '.sqlite', '.dart', '.cc', '.h', '.pdb',
     '.cpp', '.c', '.hpp', '.cmake', '.ps1', '.jsonl', '.yaml', '.yml',
