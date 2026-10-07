@@ -1,3 +1,16 @@
+import '../../../support/desktop_connection_fixture.dart';
+import 'package:busymax/src/dav/auth/dav_account_onboarding_service.dart';
+import 'package:busymax/src/dav/auth/nextcloud_login_flow_v2.dart';
+import 'package:busymax/src/dav/discovery/dav_discovery_models.dart';
+import 'package:busymax/src/providers/provider_capabilities.dart';
+import 'package:busymax/src/microsoft_todo/oauth/microsoft_oauth_service.dart';
+import 'package:busymax/src/microsoft_todo/api/microsoft_todo_api_models.dart';
+import 'package:busymax/src/platform/common/desktop_services.dart';
+import '../../../support/desktop_activation_fixture.dart';
+import '../../../support/memory_settings_store.dart';
+import 'package:busymax/src/platform/busymax_tray_service.dart';
+import 'package:busymax/src/webcal/webcal_http_client.dart';
+import 'package:busymax/src/webcal/webcal_subscription_service.dart';
 import 'package:busymax/src/core/auth/authorization_attempt.dart';
 import 'package:busymax/src/core/auth/registration_file_reader.dart';
 import '../../../support/native_registration_reader_fixture.dart';
@@ -23,8 +36,6 @@ import 'package:go_router/go_router.dart';
 import 'package:busymax/src/app/app_bootstrap.dart';
 import 'package:busymax/src/app/app_router.dart';
 import 'package:busymax/src/app/busymax_app.dart';
-import 'package:busymax/src/app/busymax_design.dart';
-import 'package:busymax/src/app/linux/linux_header_style.dart';
 import 'package:busymax/src/config/build_config.dart';
 import 'package:busymax/src/db/app_database.dart' hide AuthorizationCommit;
 import 'package:busymax/src/features/accounts/data/accounts_repository.dart';
@@ -91,6 +102,199 @@ void main() {
         .setMockMethodCallHandler(_nativeDialogChannel, null);
     await database.close();
   });
+
+  for (final choice in [
+    (BusyProvider.google, DesktopConnectionMethod.busyMax),
+    (BusyProvider.google, DesktopConnectionMethod.googleWorkspace),
+    (BusyProvider.google, DesktopConnectionMethod.custom),
+    (BusyProvider.microsoft, DesktopConnectionMethod.busyMax),
+    (BusyProvider.microsoft, DesktopConnectionMethod.custom),
+  ]) {
+    testWidgets('Settings connects ${choice.$1} through ${choice.$2}', (
+      tester,
+    ) async {
+      final (provider, method) = choice;
+      final fixture = DesktopConnectionFixture(database, _nativeReader);
+      addTearDown(fixture.staging.dispose);
+      await _pumpApp(
+        tester,
+        database: database,
+        oAuth: fixture.google,
+        microsoftOAuth: fixture.microsoft,
+        secrets: fixture.secrets,
+        persistence: fixture.persistence,
+        staging: fixture.staging,
+      );
+      for (
+        var i = 0;
+        i < 20 && find.byType(ScheduleWorkspace).evaluate().isEmpty;
+        i++
+      ) {
+        await tester.runAsync(
+          () => Future<void>.delayed(const Duration(milliseconds: 10)),
+        );
+        await tester.pumpAndSettle();
+      }
+      await _openSettings(tester);
+      await tester.ensureVisible(
+        find.text('Add ${provider.displayName} account'),
+      );
+      expect(
+        find.text(
+          'On the Google permissions screen, select both Calendar and Tasks permissions.',
+        ),
+        findsNothing,
+      );
+      await tester.tap(find.text('Add ${provider.displayName} account'));
+      await tester.pumpAndSettle();
+      expect(find.text('Recommended'), findsNothing);
+      expect(
+        find.text(
+          'On the Google permissions screen, select both Calendar and Tasks permissions.',
+        ),
+        provider == BusyProvider.google ? findsOneWidget : findsNothing,
+      );
+      expect(
+        find.byKey(const ValueKey('registration-authorize')),
+        findsNothing,
+      );
+      if (method == DesktopConnectionMethod.busyMax) {
+        await tester.tap(find.byKey(const ValueKey('registration-busymax')));
+      } else {
+        await tester.tap(
+          find.byKey(
+            ValueKey(
+              'registration-${method == DesktopConnectionMethod.googleWorkspace ? 'workspace' : 'custom'}',
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+        await tester.tap(find.byKey(const ValueKey('registration-guide')));
+        await tester.pumpAndSettle();
+        expect(
+          find.byKey(const ValueKey('registration-authorize')),
+          findsNothing,
+        );
+        await _sendAltLeft(tester);
+        expect(find.byType(SettingsScreen), findsOneWidget);
+        if (provider == BusyProvider.google) {
+          await tester.runAsync(() async {
+            await (tester
+                    .widget<FilledButton>(
+                      find.byKey(const ValueKey('registration-import')),
+                    )
+                    .onPressed
+                as dynamic)();
+          });
+        } else {
+          await tester.enterText(
+            find.byKey(const ValueKey('registration-client-id')),
+            '33333333-3333-3333-3333-333333333333',
+          );
+        }
+        await tester.pumpAndSettle();
+        await tester.tap(find.byKey(const ValueKey('registration-authorize')));
+      }
+      final id = '${provider.storageValue}:fixture-user';
+      for (var i = 0; i < 40; i++) {
+        await tester.runAsync(
+          () => Future<void>.delayed(const Duration(milliseconds: 10)),
+        );
+        await tester.pumpAndSettle();
+        if (await tester.runAsync(() => fixture.secrets.readCredential(id)) !=
+            null) {
+          break;
+        }
+      }
+      final record =
+          await tester.runAsync(() => fixture.secrets.readCredential(id))
+              as BoundOAuthSecretRecord;
+      expect(
+        record.registration.summary().origin,
+        method == DesktopConnectionMethod.busyMax
+            ? RegistrationOrigin.busyMaxManaged
+            : RegistrationOrigin.userProvided,
+      );
+      expect(fixture.flow.clients.single, record.registration.clientId);
+      expect(
+        find.byKey(const ValueKey('registration-methods-dialog')),
+        findsNothing,
+      );
+      expect(find.byType(SettingsScreen), findsOneWidget);
+      if (method == DesktopConnectionMethod.custom) {
+        await tester.runAsync(
+          () => Future<void>.delayed(const Duration(milliseconds: 20)),
+        );
+        await tester.pumpAndSettle();
+        await tester.ensureVisible(find.text('Connect'));
+        await tester.tap(find.text('Connect'));
+        await tester.pumpAndSettle();
+        expect(
+          find.byKey(const ValueKey('registration-methods-dialog')),
+          findsNothing,
+        );
+        for (var i = 0; i < 40; i++) {
+          await tester.runAsync(
+            () => Future<void>.delayed(const Duration(milliseconds: 10)),
+          );
+          await tester.pumpAndSettle();
+          if (await tester.runAsync(() => fixture.persistence.generation(id)) ==
+              2) {
+            break;
+          }
+        }
+        expect(fixture.flow.clients, [
+          record.registration.clientId,
+          record.registration.clientId,
+        ]);
+        await tester.ensureVisible(find.text('Replace registration'));
+        await tester.tap(find.text('Replace registration'));
+        await tester.pumpAndSettle();
+        expect(
+          find.byKey(const ValueKey('registration-methods-dialog')),
+          findsOneWidget,
+        );
+        await tester.tap(find.byKey(const ValueKey('registration-close')));
+        await tester.pumpAndSettle();
+        expect(fixture.flow.clients, hasLength(2));
+        expect(
+          await tester.runAsync(() => fixture.persistence.generation(id)),
+          2,
+        );
+        await tester.tap(find.text('Replace registration'));
+        await tester.pumpAndSettle();
+        await tester.tap(find.byKey(const ValueKey('registration-busymax')));
+        for (var i = 0; i < 40; i++) {
+          await tester.runAsync(
+            () => Future<void>.delayed(const Duration(milliseconds: 10)),
+          );
+          await tester.pumpAndSettle();
+          if (await tester.runAsync(() => fixture.persistence.generation(id)) ==
+              3) {
+            break;
+          }
+        }
+        final replaced =
+            await tester.runAsync(() => fixture.secrets.readCredential(id))
+                as BoundOAuthSecretRecord;
+        expect(replaced.generation, 3);
+        expect(replaced.subject, record.subject);
+        expect(
+          replaced.registration.summary().origin,
+          RegistrationOrigin.busyMaxManaged,
+        );
+        expect(fixture.flow.clients.last, replaced.registration.clientId);
+        expect(
+          await tester.runAsync(
+            () => (database.select(database.accounts)).get(),
+          ),
+          hasLength(1),
+        );
+        expect(find.byType(SettingsScreen), findsOneWidget);
+      }
+      await _disposeApp(tester);
+    });
+  }
 
   testWidgets(
     'retirement is account-specific; cancelled migration retries and survives restart',
@@ -262,189 +466,355 @@ void main() {
     },
   );
 
-  testWidgets('signed-out app shows sign-in route', (tester) async {
-    await _pumpApp(tester, database: database, oAuth: oAuth);
-
-    await tester.pumpAndSettle();
-
-    expect(find.text('Connect accounts'), findsOneWidget);
-    expect(
-      find.text('Connect calendars and tasks from one of these providers.'),
-      findsOneWidget,
-    );
-    expect(
-      find.text(
-        'On the Google permission screen, select both Calendar and Tasks permissions.',
-      ),
-      findsOneWidget,
-    );
-    expect(find.text('Add Google account'), findsOneWidget);
-    expect(find.text('Add Microsoft account'), findsOneWidget);
-    expect(find.text('Add Apple iCloud Calendar account'), findsOneWidget);
-    expect(find.text('Add Nextcloud account'), findsOneWidget);
-    expect(
-      tester.getTopLeft(find.text('Add Google account')).dy,
-      lessThan(tester.getTopLeft(find.text('Add Microsoft account')).dy),
-    );
-    expect(
-      tester.getTopLeft(find.text('Add Microsoft account')).dy,
-      lessThan(
-        tester.getTopLeft(find.text('Add Apple iCloud Calendar account')).dy,
-      ),
-    );
-    expect(
-      tester.getTopLeft(find.text('Add Apple iCloud Calendar account')).dy,
-      lessThan(tester.getTopLeft(find.text('Add Nextcloud account')).dy),
-    );
-    expect(find.text('Google'), findsNothing);
-    expect(find.text('Microsoft To Do'), findsNothing);
-    expect(find.text('Accounts'), findsNothing);
-    expect(find.textContaining('sync tasks'), findsNothing);
-    expect(find.text('Tasks'), findsNothing);
-    await _disposeApp(tester);
-  });
-
-  testWidgets('onboarding content and actions share one responsive rail', (
-    tester,
-  ) async {
-    tester.view.devicePixelRatio = 1;
-    tester.view.physicalSize = const Size(1000, 720);
-    addTearDown(tester.view.reset);
-
-    await _pumpApp(tester, database: database, oAuth: oAuth);
-    await tester.pumpAndSettle();
-
-    void expectAlignedActions({
-      required double expectedRailWidth,
-      required bool enoughRoomForCenteredHeader,
-    }) {
-      final rail = tester.getRect(
-        find.byKey(const ValueKey('onboarding-content-rail')),
+  for (final provider in [
+    BusyProvider.microsoft,
+    BusyProvider.appleICloud,
+    BusyProvider.nextcloud,
+  ]) {
+    for (final existing in [false, true]) {
+      testWidgets(
+        'Settings reconciles persisted $provider connection with existing=$existing before sync completes',
+        (tester) async {
+          if (existing) {
+            await _insertAccount(
+              database,
+              id: 'google:existing',
+              provider: BusyProvider.google,
+            );
+          }
+          final secrets = InMemorySecretStore();
+          final dav = _controlledDavService(database, secrets);
+          final syncing = Completer<void>();
+          final calls = <({String accountId, bool initial})>[];
+          await _pumpApp(
+            tester,
+            database: database,
+            oAuth: oAuth,
+            secrets: secrets,
+            davService: dav,
+            microsoftOAuth: _ControlledMicrosoftGateway(),
+            onSignedIn: (accountId, initial) async {
+              calls.add((accountId: accountId, initial: initial));
+              if (initial) await syncing.future;
+            },
+          );
+          await tester.pumpAndSettle();
+          calls.clear();
+          await _openSettings(tester);
+          await _connectControlledProvider(tester, provider);
+          for (
+            var attempt = 0;
+            attempt < 40 && !calls.any((call) => call.initial);
+            attempt++
+          ) {
+            await tester.runAsync(
+              () => Future<void>.delayed(const Duration(milliseconds: 5)),
+            );
+            await tester.pump(const Duration(milliseconds: 100));
+          }
+          await tester.pumpAndSettle();
+          final rows = (await tester.runAsync(
+            () => database.select(database.accounts).get(),
+          ))!;
+          expect(
+            rows,
+            hasLength(existing ? 2 : 1),
+            reason: tester
+                .widgetList<Text>(find.byType(Text))
+                .map((text) => text.data)
+                .join(' | '),
+          );
+          final connected = rows.singleWhere(
+            (row) => row.id != 'google:existing',
+          );
+          expect(connected.authState, accountAuthStateSignedIn);
+          final container = ProviderScope.containerOf(
+            tester.element(find.byType(SettingsScreen)),
+          );
+          _expectExistingSessionSignedIn(
+            container.read(authSessionControllerProvider),
+            existing ? 'google:existing' : connected.id,
+          );
+          expect(calls, [(accountId: connected.id, initial: true)]);
+          expect(syncing.isCompleted, isFalse);
+          expect(find.byType(SettingsScreen), findsOneWidget);
+          syncing.complete();
+          await tester.pumpAndSettle();
+          await _disposeApp(tester);
+        },
       );
-      final back = tester.getRect(
-        find.byKey(const ValueKey('onboarding-back-button')),
-      );
-      final continueButton = tester.getRect(
-        find.byKey(const ValueKey('onboarding-continue-button')),
-      );
-
-      expect(rail.width, closeTo(expectedRailWidth, 0.01));
-      if (enoughRoomForCenteredHeader) {
-        expect(back.left, closeTo(rail.left, 0.01));
-        expect(continueButton.right, closeTo(rail.right, 0.01));
-      } else {
-        expect(back.left, lessThanOrEqualTo(rail.left));
-        expect(continueButton.right, lessThan(rail.right));
-      }
     }
+  }
 
-    expectAlignedActions(
-      expectedRailWidth: 480,
-      enoughRoomForCenteredHeader: true,
+  for (final cancelled in [true, false]) {
+    testWidgets(
+      'unsuccessful first connection preserves session with cancelled=$cancelled',
+      (tester) async {
+        oAuth.signInError = OAuthException(
+          cancelled ? 'OAuthSignInCancelled' : 'OAuthTokenExchangeFailed',
+          'Controlled unsuccessful connection',
+        );
+        final calls = <({String accountId, bool initial})>[];
+        await _pumpApp(
+          tester,
+          database: database,
+          oAuth: oAuth,
+          onSignedIn: (accountId, initial) async =>
+              calls.add((accountId: accountId, initial: initial)),
+        );
+        await tester.pumpAndSettle();
+        final container = ProviderScope.containerOf(
+          tester.element(find.byType(ScheduleWorkspace)),
+        );
+        final original = container.read(authSessionControllerProvider);
+        await _authorizeGoogleSetup(tester);
+        await tester.pumpAndSettle();
+        expect(container.read(authSessionControllerProvider), same(original));
+        expect(original.isSignedIn, isFalse);
+        expect(
+          (await tester.runAsync(
+            () => database.select(database.accounts).get(),
+          ))!,
+          isEmpty,
+        );
+        expect(calls, isEmpty);
+        expect(find.byType(SettingsScreen), findsOneWidget);
+        await _sendAltLeft(tester);
+        expect(find.byType(ScheduleWorkspace), findsOneWidget);
+        expect(find.text('Add account'), findsOneWidget);
+        await _disposeApp(tester);
+      },
     );
-    final headerTitle = find.byKey(const ValueKey('onboarding-header-title'));
-    final header = find.byType(BusyMaxLinuxHeaderLayout);
-    expect(
-      tester.getRect(headerTitle).center.dx,
-      closeTo(tester.getRect(header).center.dx, .01),
-    );
-    final headerText = tester.widget<Text>(
-      find.descendant(of: headerTitle, matching: find.byType(Text)),
-    );
-    final bodyStyle = Theme.of(
-      tester.element(headerTitle),
-    ).textTheme.bodyMedium;
-    expect(headerText.style?.fontSize, bodyStyle?.fontSize);
-    expect(headerText.style?.fontWeight, FontWeight.bold);
-    expect(
-      tester
-          .getSize(find.byKey(const ValueKey('onboarding-back-button')))
-          .height,
-      BusyMaxSizes.headerIconButton,
-    );
-    expect(
-      tester
-          .getSize(find.byKey(const ValueKey('onboarding-continue-button')))
-          .height,
-      BusyMaxSizes.headerIconButton,
-    );
-    final back = tester.widget<FilledButton>(
-      find.descendant(
-        of: find.byKey(const ValueKey('onboarding-back-button')),
-        matching: find.byType(FilledButton),
-      ),
-    );
-    final continueButton = tester.widget<ElevatedButton>(
-      find.descendant(
-        of: find.byKey(const ValueKey('onboarding-continue-button')),
-        matching: find.byType(ElevatedButton),
-      ),
-    );
-    expect(back.onPressed, null);
-    expect(continueButton.onPressed, null);
+  }
+  testWidgets(
+    'successful Settings reconnection syncs only that account and preserves session',
+    (tester) async {
+      await _insertAccount(
+        database,
+        id: 'microsoft:existing',
+        provider: BusyProvider.microsoft,
+      );
+      await _insertAccount(
+        database,
+        id: 'account-1',
+        provider: BusyProvider.google,
+        authState: accountAuthStateReauthRequired,
+      );
+      final calls = <({String accountId, bool initial})>[];
+      await _pumpApp(
+        tester,
+        database: database,
+        oAuth: oAuth,
+        onSignedIn: (accountId, initial) async =>
+            calls.add((accountId: accountId, initial: initial)),
+      );
+      await tester.pumpAndSettle();
+      await _openSettings(tester);
+      final container = ProviderScope.containerOf(
+        tester.element(find.byType(SettingsScreen)),
+      );
+      final original = container.read(authSessionControllerProvider);
+      calls.clear();
+      await tester.tap(find.text(accountReconnectRequiredActionLabel));
+      await tester.pumpAndSettle();
+      final rows = (await tester.runAsync(
+        () => database.select(database.accounts).get(),
+      ))!;
+      expect(
+        rows.singleWhere((row) => row.id == 'account-1').authState,
+        accountAuthStateSignedIn,
+      );
+      expect(container.read(authSessionControllerProvider), same(original));
+      expect(original.accountId, 'microsoft:existing');
+      expect(calls, [(accountId: 'account-1', initial: true)]);
+      expect(find.byType(SettingsScreen), findsOneWidget);
+      await _disposeApp(tester);
+    },
+  );
 
-    tester.view.physicalSize = const Size(420, 720);
-    await tester.pumpAndSettle();
-
-    expectAlignedActions(
-      expectedRailWidth: 380,
-      enoughRoomForCenteredHeader: false,
-    );
-    expect(tester.takeException(), null);
-    await _disposeApp(tester);
-  });
-
-  testWidgets('system settings cards retain their complete shadow gutter', (
+  testWidgets('first Settings connection updates session before ICS activation', (
     tester,
   ) async {
-    tester.view.devicePixelRatio = 1;
-    tester.view.physicalSize = const Size(1000, 720);
-    addTearDown(tester.view.reset);
-
-    await _pumpApp(tester, database: database, oAuth: oAuth);
+    final activations = TestDesktopActivationService();
+    addTearDown(activations.dispose);
+    late Directory directory;
+    await tester.runAsync(() async {
+      directory = await Directory.systemTemp.createTemp(
+        'busymax-session-activation-',
+      );
+    });
+    addTearDown(() => directory.delete(recursive: true));
+    final file = File('${directory.path}/fixture.ics');
+    await tester.runAsync(
+      () => file.writeAsString(
+        'BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//BusyMax Fixture//EN\r\nBEGIN:VEVENT\r\nUID:fixture-activation\r\nDTSTAMP:20261004T000000Z\r\nDTSTART:20301004T090000Z\r\nDTEND:20301004T100000Z\r\nSUMMARY:Controlled activation\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n',
+      ),
+    );
+    await _pumpApp(
+      tester,
+      database: database,
+      oAuth: oAuth,
+      activations: activations,
+      settings: AppSettings.defaults().copyWith(
+        firstDayOfWeekPreference: BusyMaxFirstDayOfWeekPreference.monday,
+        showTrayIcon: false,
+        runInBackgroundWhenClosed: false,
+      ),
+    );
     await tester.pumpAndSettle();
     await _authorizeGoogleSetup(tester);
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Continue'));
-    await tester.pumpAndSettle();
-
-    final viewport = tester.getRect(
-      find.byKey(const ValueKey('onboarding-scroll-viewport')),
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(SettingsScreen)),
     );
-    final rail = tester.getRect(
-      find.byKey(const ValueKey('onboarding-content-rail')),
+    _expectExistingSessionSignedIn(
+      container.read(authSessionControllerProvider),
+      'account-1',
     );
-    expect(viewport.width, rail.width + BusyMaxSpacing.sm * 2);
-    expect(rail.left - viewport.left, BusyMaxSpacing.sm);
-    expect(viewport.right - rail.right, BusyMaxSpacing.sm);
-
-    final cards = find.byType(BusyMaxGroupedSurface);
-    expect(cards, findsNWidgets(3));
-    for (final card in cards.evaluate()) {
-      final rect = tester.getRect(find.byWidget(card.widget));
-      expect(rect.left, rail.left);
-      expect(rect.right, rail.right);
-      expect(rect.left, greaterThan(viewport.left));
-      expect(rect.right, lessThan(viewport.right));
+    activations.add(
+      DesktopActivation(kind: DesktopActivationKind.icsFile, value: file.path),
+    );
+    for (
+      var attempt = 0;
+      attempt < 30 &&
+          container.read(appRouterProvider).state.uri.path != '/schedule';
+      attempt++
+    ) {
+      await tester.runAsync(
+        () => Future<void>.delayed(const Duration(milliseconds: 10)),
+      );
+      await tester.pump(const Duration(milliseconds: 20));
     }
-    expect(tester.takeException(), null);
+    expect(container.read(appRouterProvider).state.uri.path, '/schedule');
+    expect(find.byType(SettingsScreen), findsNothing);
+    await tester.pumpAndSettle();
     await _disposeApp(tester);
   });
 
-  test('setup provider actions use BusyMax row patterns', () {
-    final source = File(
-      'lib/src/features/auth/presentation/sign_in_screen.dart',
-    ).readAsStringSync();
-    final start = source.indexOf('class _ProviderSignInButton');
-    final end = source.indexOf('class _OnboardingHeader');
-    final providerButton = source.substring(start, end);
+  testWidgets('signed-out startup opens calendar and Accounts from sidebar', (
+    tester,
+  ) async {
+    await _pumpApp(tester, database: database, oAuth: oAuth);
+    await tester.pumpAndSettle();
+    expect(find.byType(ScheduleWorkspace), findsOneWidget);
+    expect(find.text('Add account'), findsOneWidget);
+    final workspace = tester.state(find.byType(ScheduleWorkspace));
+    final router = GoRouter.of(workspace.context);
+    expect(router.routeInformationProvider.value.uri.path, '/schedule');
+    await tester.tap(find.byKey(const ValueKey('schedule-add-account')));
+    await tester.pumpAndSettle();
+    expect(find.byType(SettingsScreen), findsOneWidget);
+    expect(router.canPop(), isTrue);
+    expect(
+      GoRouterState.of(
+        tester.element(find.byType(SettingsScreen)),
+      ).uri.queryParameters['page'],
+      'accounts',
+    );
+    for (final label in [
+      'Add Nextcloud account',
+      'Add Google account',
+      'Add Microsoft account',
+      'Add Apple iCloud Calendar account',
+      'Add calendar subscription',
+    ]) {
+      expect(find.text(label), findsOneWidget);
+    }
+    expect(
+      find.text(
+        'On the Google permissions screen, select both Calendar and Tasks permissions.',
+      ),
+      findsNothing,
+    );
+    expect(
+      tester.getTopLeft(find.text('Add Nextcloud account')).dy,
+      lessThan(tester.getTopLeft(find.text('Add Google account')).dy),
+    );
+    await _sendAltLeft(tester);
+    expect(tester.state(find.byType(ScheduleWorkspace)), same(workspace));
+    expect(find.text('Add account'), findsOneWidget);
+    await _disposeApp(tester);
+  });
 
-    expect(providerButton, contains('BusyMaxGroupedList'));
-    expect(providerButton, contains('BusyMaxActionRow'));
-    expect(providerButton, isNot(contains('BusyMaxPushButton')));
-    expect(providerButton, isNot(contains('FilledButton')));
-    expect(providerButton, isNot(contains('ElevatedButton')));
-    expect(providerButton, isNot(contains('OutlinedButton')));
+  testWidgets('subscription-only workspace and final unsubscribe stay usable', (
+    tester,
+  ) async {
+    final subscriptions = WebCalSubscriptionService(
+      database: database,
+      secretStore: InMemorySecretStore(),
+      httpTransport: _FixtureCalendarTransport(),
+    );
+    await tester.runAsync(
+      () => subscriptions.addSubscription(
+        subscriptionUrl: 'https://calendar.example.test/feed.ics',
+        localName: 'Subscribed calendar',
+      ),
+    );
+    await _pumpApp(
+      tester,
+      database: database,
+      oAuth: oAuth,
+      subscriptionService: subscriptions,
+    );
+    await tester.pumpAndSettle();
+    expect(find.byType(ScheduleWorkspace), findsOneWidget);
+    expect(find.text('Add account'), findsOneWidget);
+    expect(find.text('Subscriptions'), findsOneWidget);
+    expect(find.textContaining('Subscribed calendar'), findsOneWidget);
+    expect(oAuth.signInCalls, 0);
+    await tester.tap(find.text('Add account'));
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.text('Unsubscribe'));
+    await tester.tap(find.text('Unsubscribe'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Unsubscribe').last);
+    await tester.pumpAndSettle();
+    expect(find.byType(SettingsScreen), findsOneWidget);
+    expect(
+      (await tester.runAsync(() => database.select(database.accounts).get()))!,
+      isEmpty,
+    );
+    await _sendAltLeft(tester);
+    expect(find.byType(ScheduleWorkspace), findsOneWidget);
+    expect(find.text('Add account'), findsOneWidget);
+    expect(find.byKey(const ValueKey('schedule-week-planner')), findsOneWidget);
+    await _disposeApp(tester);
+  });
+
+  testWidgets('account-free task routes preserve workspace identity', (
+    tester,
+  ) async {
+    await _pumpApp(tester, database: database, oAuth: oAuth);
+    await tester.pumpAndSettle();
+    final router = GoRouter.of(tester.element(find.byType(ScheduleWorkspace)));
+    router.go('/tasks');
+    await tester.pumpAndSettle();
+    final taskState = tester.state(find.byType(ScheduleWorkspace));
+    router.go('/tasks/missing/list/task');
+    await tester.pumpAndSettle();
+    expect(tester.state(find.byType(ScheduleWorkspace)), same(taskState));
+    expect(
+      router.routeInformationProvider.value.uri.path,
+      '/tasks/missing/list/task',
+    );
+    await _disposeApp(tester);
+  });
+
+  test('Settings provider actions use BusyMax row patterns', () {
+    final source = File(
+      'lib/src/features/settings/presentation/settings_screen.dart',
+    ).readAsStringSync();
+    final section = source.substring(
+      source.indexOf('class _AccountManagementSection'),
+      source.indexOf('class _AccountSettingsGroup'),
+    );
+    expect(section, contains('BusyMaxGroupedList'));
+    expect(section, contains('BusyMaxActionRow'));
+    expect(section, isNot(contains('l10n.googlePermissionsConsentNotice')));
+    expect(
+      section.indexOf('l10n.addNextcloudAccount'),
+      lessThan(section.indexOf('l10n.addGoogleAccount')),
+    );
   });
 
   testWidgets('missing Google permissions shows retry guidance', (
@@ -470,80 +840,76 @@ void main() {
     await _disposeApp(tester);
   });
 
-  testWidgets('successful sign-in waits for user to finish onboarding', (
+  testWidgets('successful connection stays in Settings until normal Back', (
     tester,
   ) async {
     await _pumpApp(tester, database: database, oAuth: oAuth);
     await tester.pumpAndSettle();
-
     await _authorizeGoogleSetup(tester);
     await tester.pumpAndSettle();
-
     final account = (await tester.runAsync(
       () => database.select(database.accounts).getSingle(),
     ))!;
     expect(account.authState, 'signed_in');
     expect(account.grantedScopes, googleBusyMaxOAuthScopes.join(' '));
-    expect(find.text('Choose system settings'), findsNothing);
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(SettingsScreen)),
+    );
+    _expectExistingSessionSignedIn(
+      container.read(authSessionControllerProvider),
+      account.id,
+    );
+    expect(find.byType(SettingsScreen), findsOneWidget);
     expect(find.byType(ScheduleWorkspace), findsNothing);
-    expect(find.text('Accounts'), findsOneWidget);
-    expect(find.text('Test User'), findsOneWidget);
-    expect(find.text('user@example.com'), findsOneWidget);
-    expect(
-      tester
-          .widget<ElevatedButton>(
-            find.descendant(
-              of: find.byKey(const ValueKey('onboarding-continue-button')),
-              matching: find.byType(ElevatedButton),
-            ),
-          )
-          .onPressed,
-      isNot(null),
-    );
-
-    await tester.tap(find.text('Continue'));
-    await tester.pumpAndSettle();
-
-    expect(find.text('Choose system settings'), findsOneWidget);
-    expect(find.text('Finish setup'), findsOneWidget);
-    expect(
-      tester
-          .widget<FilledButton>(
-            find.descendant(
-              of: find.byKey(const ValueKey('onboarding-back-button')),
-              matching: find.byType(FilledButton),
-            ),
-          )
-          .onPressed,
-      isNot(null),
-    );
-    expect(find.text('Notification detail level'), findsOneWidget);
-    expect(find.text('Detailed notification text'), findsNothing);
-
-    await tester.tap(find.text('Finish setup'));
-    await tester.pumpAndSettle();
-
+    expect(find.textContaining('user@example.com'), findsOneWidget);
+    await _sendAltLeft(tester);
     expect(find.byType(ScheduleWorkspace), findsOneWidget);
-    expect(find.byTooltip('Today (Shift+T)'), findsOneWidget);
+    expect(find.text('Add account'), findsNothing);
     await _disposeApp(tester);
   });
 
-  testWidgets('Alt+Left follows onboarding Back availability', (tester) async {
+  testWidgets(
+    'final-account removal keeps Settings and returns to empty calendar',
+    (tester) async {
+      await _insertAccount(
+        database,
+        id: 'google:last',
+        provider: BusyProvider.google,
+      );
+      await _pumpApp(tester, database: database, oAuth: oAuth);
+      await tester.pumpAndSettle();
+      final workspace = tester.state(find.byType(ScheduleWorkspace));
+      unawaited(
+        GoRouter.of(workspace.context).push<void>('/settings?page=accounts'),
+      );
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(find.text('Remove account…'));
+      await tester.tap(find.text('Remove account…'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('confirm-account-removal')));
+      await tester.pumpAndSettle();
+      expect(find.byType(SettingsScreen), findsOneWidget);
+      await _sendAltLeft(tester);
+      expect(tester.state(find.byType(ScheduleWorkspace)), same(workspace));
+      expect(find.text('Add account'), findsOneWidget);
+      expect(
+        find.byKey(const ValueKey('schedule-week-planner')),
+        findsOneWidget,
+      );
+      await _disposeApp(tester);
+    },
+  );
+
+  testWidgets('Alt+Left returns from Accounts without connecting', (
+    tester,
+  ) async {
     await _pumpApp(tester, database: database, oAuth: oAuth);
     await tester.pumpAndSettle();
-
-    await _sendAltLeft(tester);
-    expect(find.text('Connect accounts'), findsOneWidget);
-
-    await _authorizeGoogleSetup(tester);
+    await tester.tap(find.text('Add account'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Continue'));
-    await tester.pumpAndSettle();
-    expect(find.text('Choose system settings'), findsOneWidget);
-
     await _sendAltLeft(tester);
-    expect(find.text('Connect accounts'), findsOneWidget);
-    expect(find.text('Choose system settings'), findsNothing);
+    expect(find.byType(ScheduleWorkspace), findsOneWidget);
+    expect(find.text('Add account'), findsOneWidget);
     await _disposeApp(tester);
   });
 
@@ -553,7 +919,7 @@ void main() {
     await _pumpApp(tester, database: database, oAuth: oAuth);
     await tester.pumpAndSettle();
 
-    await _completeOnboardingWithGoogle(tester);
+    await _connectGoogleThroughSettings(tester);
 
     expect(find.byType(ScheduleWorkspace), findsOneWidget);
 
@@ -709,7 +1075,7 @@ void main() {
     );
     await tester.pumpAndSettle();
     expect(find.byType(ScheduleWorkspace), findsNothing);
-    expect(find.text('Continue'), findsOneWidget);
+    expect(find.byType(SettingsScreen), findsOneWidget);
     await _disposeApp(tester);
   });
 
@@ -1145,13 +1511,10 @@ void main() {
   );
 }
 
-Future<void> _completeOnboardingWithGoogle(WidgetTester tester) async {
+Future<void> _connectGoogleThroughSettings(WidgetTester tester) async {
   await _authorizeGoogleSetup(tester);
   await tester.pumpAndSettle();
-  await tester.tap(find.text('Continue'));
-  await tester.pumpAndSettle();
-  await tester.tap(find.text('Finish setup'));
-  await tester.pumpAndSettle();
+  await _sendAltLeft(tester);
 }
 
 Future<void> _sendAltLeft(WidgetTester tester) async {
@@ -1163,6 +1526,10 @@ Future<void> _sendAltLeft(WidgetTester tester) async {
 }
 
 Future<void> _disposeApp(WidgetTester tester) async {
+  // Mock gateways do not consume registration handles like production OAuth.
+  ProviderScope.containerOf(
+    tester.element(find.byType(BusyMaxApp)),
+  ).read(registrationStagingProvider).cancel();
   await tester.pumpWidget(const SizedBox.shrink());
   await tester.pump(const Duration(milliseconds: 1));
 }
@@ -1218,6 +1585,11 @@ Future<void> _pumpApp(
   AuthorizationPersistence? persistence,
   RegistrationStaging? staging,
   SignedInSyncRunner? onSignedIn,
+  WebCalSubscriptionService? subscriptionService,
+  DavAccountOnboardingService? davService,
+  MicrosoftOAuthGateway? microsoftOAuth,
+  DesktopActivationService? activations,
+  AppSettings? settings,
 }) {
   final registrationStaging =
       staging ??
@@ -1226,11 +1598,28 @@ Future<void> _pumpApp(
   return tester.pumpWidget(
     ProviderScope(
       overrides: [
-        buildConfigProvider.overrideWithValue(_configuredBuildConfig),
+        buildConfigProvider.overrideWithValue(registrationStaging.config),
         networkConnectivityMonitorProvider.overrideWithValue(
           NetworkConnectivityMonitor.withoutPlatformObservation(),
         ),
         databaseProvider.overrideWithValue(database),
+        localSettingsStoreProvider.overrideWithValue(MemorySettingsStore()),
+        initialAppSettingsProvider.overrideWithValue(
+          settings ??
+              AppSettings.defaults().copyWith(
+                runInBackgroundWhenClosed: false,
+                showTrayIcon: false,
+                startMinimizedToTray: false,
+              ),
+        ),
+        if (activations != null)
+          desktopActivationServiceProvider.overrideWithValue(activations),
+        if (davService != null)
+          davAccountOnboardingServiceProvider.overrideWithValue(davService),
+        if (subscriptionService != null)
+          webCalSubscriptionServiceProvider.overrideWithValue(
+            subscriptionService,
+          ),
         registrationStagingProvider.overrideWithValue(registrationStaging),
         if (secrets != null) secretStoreProvider.overrideWithValue(secrets),
         if (persistence != null)
@@ -1239,6 +1628,7 @@ Future<void> _pumpApp(
         authRepositoryProvider.overrideWithValue(
           AuthRepository(
             oAuth: oAuth,
+            microsoftOAuth: microsoftOAuth,
             database: database,
             authorizationPersistence: persistence,
             nowUtc: () => DateTime.utc(2026, 6, 4),
@@ -1248,9 +1638,23 @@ Future<void> _pumpApp(
           onSignedIn ?? (accountId, initial) async {},
         ),
       ],
-      child: const BusyMaxApp(),
+      child: BusyMaxApp(trayServiceFactory: _RoutingTrayService.new),
     ),
   );
+}
+
+class _RoutingTrayService extends BusyMaxTrayService {
+  _RoutingTrayService(BusyMaxTrayServiceConfiguration configuration)
+    : super(configuration: configuration);
+
+  @override
+  Future<void> start() async {}
+
+  @override
+  Future<void> stop() async {}
+
+  @override
+  Future<bool> refreshPresentation() async => true;
 }
 
 class _FakeOAuthGateway implements OAuthGateway {
@@ -1355,23 +1759,28 @@ class _RegistrationFileSelector extends FileSelectorPlatform {
 }
 
 Future<void> _authorizeGoogleSetup(WidgetTester tester) async {
+  if (find.byType(SettingsScreen).evaluate().isEmpty) {
+    await tester.tap(find.byKey(const ValueKey('schedule-add-account')));
+    await tester.pumpAndSettle();
+  }
+  await tester.ensureVisible(find.text('Add Google account'));
   await tester.tap(find.text('Add Google account'));
   await tester.pumpAndSettle();
   await _validateAndAuthorizeGoogleSetup(tester);
 }
 
 Future<void> _validateAndAuthorizeGoogleSetup(WidgetTester tester) async {
+  await tester.tap(find.byKey(const ValueKey('registration-custom')));
+  await tester.pumpAndSettle();
   await tester.runAsync(() async {
     final action = tester
-        .widget<FilledButton>(
-          find.byKey(const ValueKey('registration-validate')),
-        )
+        .widget<FilledButton>(find.byKey(const ValueKey('registration-import')))
         .onPressed;
     expect(action, isNotNull);
     await (action as dynamic)();
   });
   await tester.pumpAndSettle();
-  final button = tester.widget<FilledButton>(
+  final button = tester.widget<ElevatedButton>(
     find.byKey(const ValueKey('registration-authorize')),
   );
   expect(button.onPressed, isNotNull);
@@ -1406,3 +1815,160 @@ class _MigrationBrowserFlow extends OAuthLoopbackFlow {
     );
   }
 }
+
+final class _FixtureCalendarTransport implements WebCalHttpTransport {
+  @override
+  Future<WebCalHttpResponse> get(
+    Uri uri, {
+    WebCalHttpValidators validators = const WebCalHttpValidators(),
+    Uri? validatorTarget,
+  }) async => WebCalHttpResponse(
+    statusCode: 200,
+    finalUri: uri,
+    body: Uint8List.fromList(
+      utf8.encode(
+        'BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//BusyMax Test//EN\r\nBEGIN:VEVENT\r\nUID:subscription-event\r\nDTSTAMP:20261003T000000Z\r\nDTSTART:20261003T090000Z\r\nDTEND:20261003T100000Z\r\nSUMMARY:Subscribed event\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n',
+      ),
+    ),
+    etag: null,
+    lastModified: null,
+    contentType: 'text/calendar',
+    conditionalRequestSent: false,
+  );
+}
+
+Future<void> _connectControlledProvider(
+  WidgetTester tester,
+  BusyProvider provider,
+) async {
+  final label = switch (provider) {
+    BusyProvider.microsoft => 'Add Microsoft account',
+    BusyProvider.appleICloud => 'Add Apple iCloud Calendar account',
+    BusyProvider.nextcloud => 'Add Nextcloud account',
+    _ => throw StateError('Unsupported fixture provider'),
+  };
+  await tester.ensureVisible(find.text(label));
+  await tester.tap(find.text(label));
+  await tester.pumpAndSettle();
+  if (provider == BusyProvider.microsoft) {
+    await tester.tap(find.byKey(const ValueKey('registration-custom')));
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.byKey(const ValueKey('registration-client-id')),
+      '11111111-1111-1111-1111-111111111111',
+    );
+    await tester.pumpAndSettle();
+    final connect = tester.widget<ElevatedButton>(
+      find.byKey(const ValueKey('registration-authorize')),
+    );
+    expect(connect.onPressed, isNotNull);
+    await tester.tap(find.byKey(const ValueKey('registration-authorize')));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 250));
+    await tester.pump();
+    return;
+  }
+  if (provider == BusyProvider.appleICloud) {
+    await tester.enterText(
+      find.byKey(const Key('apple-account-email-field')),
+      'fixture@example.test',
+    );
+    await tester.enterText(
+      find.byKey(const Key('apple-app-specific-password-field')),
+      'abcd-efgh-ijkl-mnop',
+    );
+  } else {
+    await tester.enterText(
+      find.byKey(const Key('nextcloud-server-field')),
+      'https://cloud.example.test/',
+    );
+  }
+  await tester.tap(find.text('Connect').last);
+  for (var attempt = 0; attempt < 15; attempt++) {
+    await tester.runAsync(
+      () => Future<void>.delayed(const Duration(milliseconds: 5)),
+    );
+    await tester.pump();
+  }
+}
+
+class _ControlledMicrosoftGateway implements MicrosoftOAuthGateway {
+  @override
+  Future<MicrosoftOAuthSignInResult> signInWithMicrosoft() async =>
+      MicrosoftOAuthSignInResult(
+        accountId: 'microsoft:new',
+        tokenSet: _tokenSet(
+          scopes: Set.of(microsoftTodoOAuthScopes.split(' ')),
+        ),
+        user: const MicrosoftTodoUserDto(
+          id: 'new',
+          rawJson: {},
+          displayName: 'Microsoft fixture',
+        ),
+      );
+  @override
+  Future<void> cancelSignIn() async {}
+  @override
+  Future<void> signOutAccount(String accountId) async {}
+}
+
+DavAccountOnboardingService _controlledDavService(
+  AppDatabase database,
+  InMemorySecretStore secrets,
+) => DavAccountOnboardingService(
+  database: database,
+  secretStore: secrets,
+  idFactory: () => 'fixture',
+  nextcloudLoginFlow: NextcloudLoginFlowV2(
+    client: MockClient(
+      (request) async => http.Response(
+        jsonEncode(
+          request.url.path.endsWith('/poll')
+              ? {
+                  'server': 'https://cloud.example.test/',
+                  'loginName': 'fixture',
+                  'appPassword': 'abcd-efgh-ijkl-mnop',
+                }
+              : {
+                  'poll': {
+                    'token': 'fixture',
+                    'endpoint': 'https://cloud.example.test/login/v2/poll',
+                  },
+                  'login': 'https://cloud.example.test/login/v2/browser',
+                },
+        ),
+        200,
+      ),
+    ),
+    browserLauncher: (_) async => true,
+    delay: (_) async {},
+  ),
+  discover:
+      ({
+        required accountId,
+        required provider,
+        required accountAuthority,
+        required credential,
+        cancellationToken,
+      }) async => DavDiscoveryResult(
+        accountId: accountId,
+        provider: provider,
+        service: DavServiceDiscovery(
+          canonicalServiceUri: accountAuthority,
+          canonicalOrigin: accountAuthority.replace(path: ''),
+          principalHref: accountAuthority.resolve('/principals/fixture/'),
+          calendarHomeHref: accountAuthority.resolve('/calendars/fixture/'),
+          calendarUserAddresses: const [],
+          scheduleInboxHref: null,
+          scheduleOutboxHref: null,
+          capabilities: const AccountServiceCapabilities(
+            hasPrincipal: true,
+            hasCalendarHome: true,
+          ),
+          discoveredAtUtc: DateTime.utc(2026, 10, 4),
+          lastValidatedAtUtc: DateTime.utc(2026, 10, 4),
+          providerProfileVersion: 1,
+        ),
+        collections: const [],
+      ),
+);

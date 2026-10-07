@@ -9,6 +9,11 @@ import 'package:busymax/src/features/accounts/data/accounts_repository.dart';
 import 'package:busymax/src/features/schedule/presentation/schedule_empty_states.dart';
 import 'package:busymax/src/features/schedule/presentation/schedule_sidebar.dart';
 import 'package:busymax/src/features/schedule/presentation/schedule_workspace.dart';
+import 'package:busymax/src/features/schedule/presentation/schedule_agenda_view.dart';
+import 'package:busymax/src/features/schedule/presentation/schedule_month_view.dart';
+import 'package:busymax/src/features/schedule/presentation/schedule_year_view.dart';
+import 'package:busymax/src/schedule/schedule_view_mode.dart';
+import 'package:busymax/src/providers/busy_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/services.dart';
@@ -18,6 +23,63 @@ import 'package:yaru/yaru.dart';
 import '../../../test_localized_app.dart';
 
 void main() {
+  for (final mode in ScheduleViewMode.values) {
+    testWidgets('empty inventory renders the saved ${mode.name} calendar', (
+      tester,
+    ) async {
+      await _pumpWorkspace(
+        tester,
+        mode: mode,
+        accountsFactory: () => Stream.value(const <AccountEntity>[]),
+      );
+      await tester.pumpAndSettle();
+      expect(find.byType(ScheduleNoSourcesState), findsNothing);
+      expect(find.byType(ScheduleLoadingState), findsNothing);
+      expect(find.text('Add account'), findsOneWidget);
+      switch (mode) {
+        case ScheduleViewMode.day:
+        case ScheduleViewMode.week:
+          expect(
+            find.byKey(ValueKey('schedule-${mode.name}-planner')),
+            findsOneWidget,
+          );
+        case ScheduleViewMode.month:
+          expect(find.byType(ScheduleMonthView), findsOneWidget);
+        case ScheduleViewMode.year:
+          expect(find.byType(ScheduleYearView), findsOneWidget);
+        case ScheduleViewMode.agenda:
+          expect(find.byType(ScheduleAgendaView), findsOneWidget);
+          expect(find.byType(ScheduleEmptyState), findsOneWidget);
+      }
+      // Creation shortcuts and empty slots cannot create an unsavable draft.
+      await tester.sendKeyEvent(LogicalKeyboardKey.keyE);
+      await tester.sendKeyEvent(LogicalKeyboardKey.keyT);
+      await tester.pumpAndSettle();
+      expect(find.text('New event'), findsNothing);
+      expect(tester.takeException(), isNull);
+    });
+  }
+
+  testWidgets('configured account without collections retains source status', (
+    tester,
+  ) async {
+    await _pumpWorkspace(
+      tester,
+      accountsFactory: () => Stream.value(const [
+        AccountEntity(
+          id: 'apple:calendar',
+          provider: BusyProvider.appleICloud,
+          authority: 'https://caldav.icloud.com',
+          providerAccountId: 'calendar',
+          authState: accountAuthStateSignedIn,
+        ),
+      ]),
+    );
+    await tester.pumpAndSettle();
+    expect(find.byType(ScheduleNoSourcesState), findsOneWidget);
+    expect(find.text('Add account'), findsNothing);
+  });
+
   testWidgets('no-source state is a compact centered status page', (
     tester,
   ) async {
@@ -32,7 +94,6 @@ void main() {
       localizedTestApp(
         child: Scaffold(
           body: ScheduleNoSourcesState(
-            hasAccounts: true,
             onOpenSettings: () => settingsOpened = true,
             onRefresh: () => refreshed = true,
           ),
@@ -117,6 +178,7 @@ void main() {
 
     expect(find.byType(ScheduleLoadingState), findsOneWidget);
     expect(find.text('Loading schedule...'), findsOneWidget);
+    expect(find.text('Add account'), findsNothing);
     final loadingContext = tester.element(find.byType(ScheduleLoadingState));
     expect(
       tester.widget<Scaffold>(find.byType(Scaffold)).backgroundColor,
@@ -144,6 +206,7 @@ void main() {
 
     expect(find.byType(ScheduleUnavailableState), findsOneWidget);
     expect(find.text('Schedule unavailable'), findsOneWidget);
+    expect(find.text('Add account'), findsNothing);
     expect(
       find.textContaining('private account database details'),
       findsNothing,
@@ -154,9 +217,9 @@ void main() {
 
     expect(attempts, 2);
     expect(find.byType(ScheduleUnavailableState), findsNothing);
-    expect(find.byType(ScheduleNoSourcesState), findsOneWidget);
-    expect(find.text('Connect an account'), findsOneWidget);
-    expect(find.text('Settings'), findsOneWidget);
+    expect(find.byType(ScheduleNoSourcesState), findsNothing);
+    expect(find.byKey(const ValueKey('schedule-week-planner')), findsOneWidget);
+    expect(find.text('Add account'), findsOneWidget);
   });
 
   testWidgets('standard search shortcut opens and dismisses schedule search', (
@@ -217,6 +280,7 @@ void main() {
       find.byType(BusyMaxLinuxHeaderSearchField).hitTestable(),
       findsNothing,
     );
+    await tester.pumpAndSettle();
   });
 
   testWidgets('F9 hides and shows the schedule sidebar', (tester) async {
@@ -301,9 +365,14 @@ bool _searchFieldHasPrimaryFocus(WidgetTester tester) {
 Future<void> _pumpWorkspace(
   WidgetTester tester, {
   required Stream<List<AccountEntity>> Function() accountsFactory,
+  ScheduleViewMode mode = ScheduleViewMode.week,
 }) async {
   final database = AppDatabase.memoryForTests();
   addTearDown(database.close);
+  addTearDown(() async {
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump(const Duration(milliseconds: 1));
+  });
 
   await tester.pumpWidget(
     ProviderScope(
@@ -311,7 +380,9 @@ Future<void> _pumpWorkspace(
         databaseProvider.overrideWithValue(database),
         accountsStreamProvider.overrideWith((ref) => accountsFactory()),
         localTimeZoneProvider.overrideWithValue('UTC'),
-        localSettingsStoreProvider.overrideWithValue(_MemorySettingsStore()),
+        localSettingsStoreProvider.overrideWithValue(
+          _MemorySettingsStore(mode),
+        ),
       ],
       child: localizedTestApp(child: const ScheduleWorkspace()),
     ),
@@ -319,8 +390,10 @@ Future<void> _pumpWorkspace(
 }
 
 class _MemorySettingsStore implements LocalSettingsStore {
+  _MemorySettingsStore(this.mode);
+  final ScheduleViewMode mode;
   @override
-  Future<Map<String, Object?>> load() async => <String, Object?>{};
+  Future<Map<String, Object?>> load() async => {'scheduleViewMode': mode.name};
 
   @override
   Future<void> save(Map<String, Object?> json) async {}

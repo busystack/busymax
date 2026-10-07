@@ -10,6 +10,7 @@ import '../../microsoft_calendar/microsoft_calendar_api_client.dart';
 import '../../microsoft_calendar/microsoft_shared_calendar_address.dart';
 import 'package:drift/drift.dart';
 import 'package:busymax/src/providers/busy_provider.dart';
+import '../accounts/data/accounts_repository.dart';
 import '../calendar/data/calendar_repository.dart';
 import '../notifications/notification_schedule_service.dart';
 import 'calendar_pending_ops_replayer.dart';
@@ -19,6 +20,14 @@ import 'domain_sync_schedule.dart';
 // Google sync tokens are bound to their request shape. Bump this marker when
 // changing token-compatible event-list parameters so old cursors are rebased.
 const _googleExpandedEventsSyncState = '{"singleEvents":true,"version":1}';
+
+typedef CalendarMonthRetriever =
+    Future<void> Function(
+      String accountId,
+      BusyProvider provider,
+      DateTime month, {
+      required Set<String> sourceIds,
+    });
 
 class CalendarSyncEngine {
   CalendarSyncEngine({
@@ -69,6 +78,13 @@ class CalendarSyncEngine {
   /// must never consume or replace the baseline events cursor.
   Future<void> retrieveMonth(DateTime month, {Set<String>? sourceIds}) async {
     if (sourceIds != null && sourceIds.isEmpty) return;
+    final account = await (_database.select(
+      _database.accounts,
+    )..where((row) => row.id.equals(_accountId))).getSingleOrNull();
+    if (account?.calendarsEnabled != true ||
+        account?.authState != accountAuthStateSignedIn) {
+      return;
+    }
     final start = DateTime.utc(month.year, month.month);
     final end = DateTime.utc(month.year, month.month + 1);
     final query = _database.select(_database.calendarSources)

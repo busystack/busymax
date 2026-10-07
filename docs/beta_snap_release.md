@@ -26,9 +26,16 @@ For a configured release, create the ignored file
 
 ```json
 {
-  "GOOGLE_OAUTH_CLIENT_ID": "your-google-client-id",
-  "GOOGLE_OAUTH_CLIENT_SECRET": "your-google-client-secret",
-  "MICROSOFT_OAUTH_CLIENT_ID": "your-microsoft-client-id"
+  "GOOGLE_OAUTH_CLIENT_ID": "PROTECTED_ORIGINAL_GOOGLE_CLIENT_ID",
+  "GOOGLE_OAUTH_CLIENT_SECRET": "PROTECTED_ORIGINAL_GOOGLE_CLIENT_SECRET",
+  "MICROSOFT_OAUTH_CLIENT_ID": "PROTECTED_ORIGINAL_MICROSOFT_CLIENT_ID",
+  "MICROSOFT_OAUTH_AUTHORITY_TENANT": "PROTECTED_ORIGINAL_AUTHORITY",
+  "BUSYMAX_GOOGLE_OAUTH_CLIENT_ID": "PRODUCTION_GOOGLE_DESKTOP_CLIENT_ID",
+  "BUSYMAX_GOOGLE_OAUTH_CLIENT_SECRET": "PRODUCTION_GOOGLE_DESKTOP_CLIENT_SECRET",
+  "BUSYMAX_GOOGLE_OAUTH_PROJECT_ID": "ACTUAL_PRODUCTION_GOOGLE_PROJECT_ID",
+  "BUSYMAX_MICROSOFT_OAUTH_CLIENT_ID": "PRODUCTION_MICROSOFT_PUBLIC_CLIENT_ID",
+  "BUSYMAX_MICROSOFT_OAUTH_AUTHORITY_TENANT": "EXPLICIT_PRODUCTION_AUDIENCE_OR_TENANT",
+  "BUSYMAX_PRIVACY_POLICY_URL": "https://busystack.org/privacy-busymax"
 }
 ```
 
@@ -39,12 +46,22 @@ desktop/public-client configuration; never use server credentials or commit
 the JSON or generated Snap. Apple iCloud and Nextcloud per-user credentials do
 not belong in this file.
 
+Active `BUSYMAX_*` registrations enable new managed connections; protected
+originals serve existing account bindings and must retain their original
+values. Never use CI fixture values as production credentials. The
+[desktop OAuth release checklist](desktop_oauth_release_checklist.md) covers the
+provider publishing, verification, and consent prerequisites. Validate the
+define file with `tool/check_desktop_oauth_config.dart` before building, as
+shown below.
+
 ## Build the canonical artifact
 
 Complete the shared preparation and normal validation in
-[Development](development.md), then run:
+[Development](development.md), supply the real owner-controlled values, then run:
 
 ```bash
+dart run tool/check_desktop_oauth_config.dart \
+  --config .snap-local/busymax-dart-defines.json
 flutter build linux --release -t lib/main_linux.dart \
   --dart-define-from-file=.snap-local/busymax-dart-defines.json
 snapcraft pack --use-lxd

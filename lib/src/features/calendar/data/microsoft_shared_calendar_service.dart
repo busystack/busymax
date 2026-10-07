@@ -24,14 +24,14 @@ final class MicrosoftSharedCalendarService {
     required this.authorization,
     required this.clientForAccount,
     required this.repository,
-    required this.engineForAccount,
+    required this.retrieveMonth,
     required this.now,
   });
 
   final MicrosoftSharedCalendarAuthorization authorization;
   final MicrosoftCalendarApiClient Function(String) clientForAccount;
   final CalendarRepository repository;
-  final CalendarSyncEngine Function(String, BusyProvider) engineForAccount;
+  final CalendarMonthRetriever retrieveMonth;
   final DateTime Function() now;
 
   Future<MicrosoftSharedCalendarOpenResult> openPrimaryCalendar({
@@ -57,10 +57,12 @@ final class MicrosoftSharedCalendarService {
       providerCalendarId: source.providerCalendarId,
     );
     try {
-      await engineForAccount(
+      await retrieveMonth(
         accountId,
         BusyProvider.microsoft,
-      ).retrieveMonth(now(), sourceIds: {sourceId});
+        now(),
+        sourceIds: {sourceId},
+      );
       return MicrosoftSharedCalendarOpenResult(
         sourceId: sourceId,
         outcome: MicrosoftSharedCalendarOpenOutcome.ready,

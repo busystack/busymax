@@ -518,14 +518,14 @@ final davConflictResolutionServiceProvider =
     });
 
 final davTaskCollectionCapabilitiesProvider =
-    FutureProvider.family<
+    StreamProvider.family<
       TaskCollectionCapabilities?,
       ({String accountId, String taskListId})
-    >((ref, key) async {
-      final collection = await ref
+    >((ref, key) {
+      return ref
           .watch(davSettingsRepositoryProvider)
-          .collectionByTaskListId(key.accountId, key.taskListId);
-      return collection?.taskCapabilities;
+          .watchCollectionByTaskListId(key.accountId, key.taskListId)
+          .map((collection) => collection?.taskCapabilities);
     });
 
 final selectedAccountIdProvider = StateProvider<String?>((ref) => null);
@@ -948,6 +948,26 @@ final crossEngineAccountGateProvider = Provider<CrossEngineAccountGate>(
   (ref) => const InProcessAccountGate(),
 );
 
+/// Range snapshots share the account locks used by baseline sync and writes.
+final calendarMonthRetrieverProvider = Provider<CalendarMonthRetriever>((ref) {
+  final gate = ref.watch(crossEngineAccountGateProvider);
+  final coordinator = ref.watch(accountSyncCoordinatorProvider);
+  final connectivity = ref.watch(networkConnectivityMonitorProvider);
+  final engineForAccount = ref.watch(
+    calendarSyncEngineForAccountFactoryProvider,
+  );
+  return (accountId, provider, month, {required sourceIds}) => gate.run(
+    accountId,
+    () => coordinator.run(accountId, () async {
+      await connectivity.requireNetwork();
+      await engineForAccount(
+        accountId,
+        provider,
+      ).retrieveMonth(month, sourceIds: sourceIds);
+    }),
+  );
+});
+
 final accountSyncOperationsProvider = Provider<AccountSyncOperations>((ref) {
   final accountsRepository = ref.watch(accountsRepositoryProvider);
   final connectivity = ref.watch(networkConnectivityMonitorProvider);
@@ -1111,7 +1131,7 @@ final microsoftSharedCalendarServiceProvider =
         clientForAccount: (accountId) =>
             ref.read(microsoftCalendarApiClientForAccountProvider(accountId)),
         repository: ref.read(calendarRepositoryProvider),
-        engineForAccount: ref.read(calendarSyncEngineForAccountFactoryProvider),
+        retrieveMonth: ref.watch(calendarMonthRetrieverProvider),
         now: DateTime.now,
       );
     });
@@ -1230,7 +1250,7 @@ final cloudCalendarRangeCoverageServiceProvider =
     Provider<CloudCalendarRangeCoverageService>((ref) {
       return CloudCalendarRangeCoverageService(
         database: ref.watch(databaseProvider),
-        engineForAccount: ref.read(calendarSyncEngineForAccountFactoryProvider),
+        retrieveMonth: ref.watch(calendarMonthRetrieverProvider),
       );
     });
 

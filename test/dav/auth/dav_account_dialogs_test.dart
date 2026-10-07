@@ -17,6 +17,11 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.byType(BusyMaxDialogShell), findsOneWidget);
+    expect(find.text('Set up Nextcloud'), findsOneWidget);
+    expect(find.text('Connect Nextcloud'), findsNothing);
+    final title = tester.widget<Text>(find.text('Set up Nextcloud'));
+    expect(title.textAlign, TextAlign.center);
+    expect(title.style, Theme.of(hostContext).textTheme.titleMedium);
     expect(find.byType(BusyMaxGroupedList), findsOneWidget);
     expect(find.byType(YaruListTile), findsOneWidget);
     final field = tester.widget<TextField>(

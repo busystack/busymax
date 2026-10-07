@@ -514,6 +514,8 @@ void main() {
       find.byType(BusyMaxLinuxHeaderSearchField).hitTestable(),
       findsOneWidget,
     );
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump(const Duration(milliseconds: 1));
   });
 }
 

@@ -666,20 +666,21 @@ _PreparedImportDraft _prepareDraft(
         fields['endTimeZone'] = _timeZone(end);
       }
       final minutes = _alarmMinutes(component.alarms);
-      if (minutes.isNotEmpty) {
-        fields['remindersJson'] = destination.provider == BusyProvider.microsoft
-            ? {
-                'isReminderOn': true,
+      // An exception is its own VEVENT. No VALARM means reminders are off,
+      // even when the newly created provider occurrence inherits master alarms.
+      fields['remindersJson'] = destination.provider == BusyProvider.microsoft
+          ? {
+              'isReminderOn': minutes.isNotEmpty,
+              if (minutes.isNotEmpty)
                 'reminderMinutesBeforeStart': minutes.first,
-              }
-            : {
-                'useDefault': false,
-                'overrides': [
-                  for (final value in minutes)
-                    {'method': 'popup', 'minutes': value},
-                ],
-              };
-      }
+            }
+          : {
+              'useDefault': false,
+              'overrides': [
+                for (final value in minutes)
+                  {'method': 'popup', 'minutes': value},
+              ],
+            };
     }
     exceptions.add(
       ImportedEventException(

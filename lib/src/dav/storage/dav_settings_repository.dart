@@ -162,15 +162,56 @@ final class DavSettingsRepository {
   Future<DavCollectionSettingsEntity?> collectionByTaskListId(
     String accountId,
     String taskListId,
-  ) async {
-    final list =
-        await (_database.select(_database.taskLists)..where(
-              (row) =>
-                  row.accountId.equals(accountId) & row.id.equals(taskListId),
-            ))
-            .getSingleOrNull();
-    if (list?.davCollectionId == null) return null;
-    return collectionById(list!.davCollectionId!);
+  ) => watchCollectionByTaskListId(accountId, taskListId).first;
+
+  Stream<DavCollectionSettingsEntity?> watchCollectionByTaskListId(
+    String accountId,
+    String taskListId,
+  ) {
+    final query =
+        _database.select(_database.davCollections).join([
+          innerJoin(
+            _database.taskLists,
+            _database.taskLists.davCollectionId.equalsExp(
+                  _database.davCollections.id,
+                ) &
+                _database.taskLists.accountId.equalsExp(
+                  _database.davCollections.accountId,
+                ),
+          ),
+          innerJoin(
+            _database.accounts,
+            _database.accounts.id.equalsExp(_database.davCollections.accountId),
+          ),
+          leftOuterJoin(
+            _database.davAccountServices,
+            _database.davAccountServices.accountId.equalsExp(
+              _database.davCollections.accountId,
+            ),
+          ),
+          leftOuterJoin(
+            _database.syncCursors,
+            _database.syncCursors.davCollectionId.equalsExp(
+                  _database.davCollections.id,
+                ) &
+                _database.syncCursors.transport.equals('caldav'),
+          ),
+        ])..where(
+          _database.taskLists.accountId.equals(accountId) &
+              _database.taskLists.id.equals(taskListId) &
+              _database.davCollections.deleted.equals(false) &
+              _database.davCollections.serverMissing.equals(false),
+        );
+    return query.watchSingleOrNull().map(
+      (row) => row == null
+          ? null
+          : _fromRow(
+              row.readTable(_database.davCollections),
+              row.readTable(_database.accounts),
+              row.readTableOrNull(_database.davAccountServices),
+              row.readTableOrNull(_database.syncCursors),
+            ),
+    );
   }
 
   Future<DavCollectionSettingsEntity?> collectionById(String id) async {

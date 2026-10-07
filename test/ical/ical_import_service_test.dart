@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:busymax/src/calendar_providers/calendar_mutation.dart';
+import 'package:busymax/src/calendar_providers/calendar_sync_dto.dart';
 import 'package:busymax/src/calendar_providers/cloud_calendar_client.dart';
 import 'package:busymax/src/db/app_database.dart';
 import 'package:busymax/src/features/calendar/data/calendar_repository.dart';
@@ -9,6 +10,7 @@ import 'package:busymax/src/features/sync/calendar_pending_ops_replayer.dart';
 import 'package:busymax/src/features/sync/domain_sync_schedule.dart';
 import 'package:busymax/src/microsoft_calendar/microsoft_calendar_errors.dart';
 import 'package:busymax/src/google_calendar/google_calendar_api_client.dart';
+import 'package:busymax/src/google_calendar/google_calendar_mapper.dart';
 import 'package:busymax/src/microsoft_calendar/microsoft_calendar_api_client.dart';
 import 'package:busymax/src/microsoft_calendar/microsoft_calendar_mapper.dart';
 import 'package:busymax/src/providers/busy_provider.dart';
@@ -42,6 +44,238 @@ void main() {
   });
 
   tearDown(() async => database.close());
+
+  test(
+    'exported sparse Google all-day cancellation imports its original date',
+    () async {
+      final master = googleCalendarEventFromJson('source-calendar', {
+        'id': 'master',
+        'iCalUID': 'all-day-cancellation',
+        'summary': 'All day',
+        'start': {'date': '2026-08-30'},
+        'end': {'date': '2026-08-31'},
+        'recurrence': ['RRULE:FREQ=DAILY;COUNT=3'],
+      });
+      final cancelled = googleCalendarEventFromJson('source-calendar', {
+        'id': 'cancelled',
+        'recurringEventId': 'master',
+        'originalStartTime': {'date': '2026-09-01'},
+        'status': 'cancelled',
+      });
+      final preview = importService.parsePreview(
+        utf8.encode(
+          cloudSeriesToICalendar(
+            master: master,
+            exceptions: [cancelled],
+            nowUtc: DateTime.utc(2026, 8, 29),
+          ),
+        ),
+      );
+      final report = await importService.importPreview(
+        preview: preview,
+        destination: (await importService.writableDestinations()).single,
+      );
+      expect(report.queued, 1);
+      expect(report.unsupportedRecurrenceSets, isEmpty);
+      final pending = await database.select(database.pendingOps).get();
+      final request =
+          jsonDecode(
+                pending
+                    .singleWhere(
+                      (op) => op.operationType == 'event.importException',
+                    )
+                    .requestJson,
+              )
+              as Map;
+      expect(request['originalStart'], '2026-09-01');
+      expect(request['cancelled'], true);
+      expect(request, isNot(contains('remindersJson')));
+    },
+  );
+
+  for (final provider in [BusyProvider.google, BusyProvider.microsoft]) {
+    test(
+      '$provider series round trip keeps exception reminders off during replay',
+      () async {
+        final isMicrosoft = provider == BusyProvider.microsoft;
+        if (isMicrosoft) await _seedMicrosoftDestination(database);
+        final masterReminders = isMicrosoft
+            ? {'isReminderOn': true, 'reminderMinutesBeforeStart': 10}
+            : {
+                'useDefault': false,
+                'overrides': [
+                  {'method': 'popup', 'minutes': 10},
+                ],
+              };
+        final offReminders = isMicrosoft
+            ? {'isReminderOn': false}
+            : {'useDefault': false, 'overrides': <Object>[]};
+        CalendarEventDto event({bool exception = false}) => CalendarEventDto(
+          provider: provider,
+          providerCalendarId: 'source-calendar',
+          providerEventId: exception ? 'exception' : 'master',
+          providerRecurringEventId: exception ? 'master' : null,
+          providerOriginalStartKey: exception ? '2026-08-31T16:00:00Z' : null,
+          title: exception ? 'No reminder' : 'Master reminder',
+          startDateTime: exception
+              ? '2026-08-31T16:00:00Z'
+              : '2026-08-30T16:00:00Z',
+          endDateTime: exception
+              ? '2026-08-31T17:00:00Z'
+              : '2026-08-30T17:00:00Z',
+          startTimeZone: 'UTC',
+          endTimeZone: 'UTC',
+          recurrenceJson: exception
+              ? null
+              : isMicrosoft
+              ? {
+                  'pattern': {'type': 'daily', 'interval': 1},
+                  'range': {
+                    'type': 'numbered',
+                    'startDate': '2026-08-30',
+                    'numberOfOccurrences': 2,
+                    'recurrenceTimeZone': 'UTC',
+                  },
+                }
+              : ['RRULE:FREQ=DAILY;COUNT=2'],
+          remindersJson: exception ? offReminders : masterReminders,
+          rawJson: const {
+            'iCalUID': 'reminder-round-trip',
+            'uid': 'reminder-round-trip',
+          },
+        );
+        final exported = cloudSeriesToICalendar(
+          master: event(),
+          exceptions: [event(exception: true)],
+          nowUtc: DateTime.utc(2026, 8, 29),
+        );
+        final preview = importService.parsePreview(utf8.encode(exported));
+        final destination = (await importService.writableDestinations())
+            .singleWhere((source) => source.provider == provider);
+        final report = await importService.importPreview(
+          preview: preview,
+          destination: destination,
+        );
+        expect(report.queued, 1);
+        expect(report.unsupportedRecurrenceSets, isEmpty);
+        final pending = await database.select(database.pendingOps).get();
+        final request =
+            jsonDecode(
+                  pending
+                      .singleWhere(
+                        (op) => op.operationType == 'event.importException',
+                      )
+                      .requestJson,
+                )
+                as Map;
+        expect(request['remindersJson'], offReminders);
+
+        final masterRemote = <String, Object?>{};
+        final occurrenceRemote = <String, Object?>{
+          'id': 'imported-occurrence',
+          if (isMicrosoft)
+            'seriesMasterId': 'imported-master'
+          else
+            'recurringEventId': 'imported-master',
+          if (isMicrosoft)
+            'originalStart': '2026-08-31T16:00:00Z'
+          else
+            'originalStartTime': {'dateTime': '2026-08-31T16:00:00Z'},
+          if (isMicrosoft)
+            'subject': 'Inherited reminder'
+          else
+            'summary': 'Inherited reminder',
+          'start': {
+            'dateTime': '2026-08-31T16:00:00Z',
+            if (isMicrosoft) 'timeZone': 'UTC',
+          },
+          'end': {
+            'dateTime': '2026-08-31T17:00:00Z',
+            if (isMicrosoft) 'timeZone': 'UTC',
+          },
+          if (isMicrosoft) ...masterReminders else 'reminders': masterReminders,
+        };
+        final patches = <Map<String, Object?>>[];
+        final httpClient = MockClient((httpRequest) async {
+          if (httpRequest.method == 'POST') {
+            masterRemote.addAll({
+              ...(jsonDecode(httpRequest.body) as Map).cast<String, Object?>(),
+              'id': 'imported-master',
+              if (isMicrosoft) 'type': 'seriesMaster',
+            });
+            return http.Response(
+              jsonEncode(masterRemote),
+              isMicrosoft ? 201 : 200,
+            );
+          }
+          if (httpRequest.url.path.endsWith('/instances')) {
+            return http.Response(
+              jsonEncode({
+                isMicrosoft ? 'value' : 'items': [occurrenceRemote],
+              }),
+              200,
+            );
+          }
+          if (httpRequest.method == 'GET') {
+            return http.Response(
+              jsonEncode(
+                isMicrosoft
+                    ? {
+                        ...masterRemote,
+                        'exceptionOccurrences': <Object>[],
+                        'cancelledOccurrences': <Object>[],
+                      }
+                    : {'items': <Object>[]},
+              ),
+              200,
+            );
+          }
+          if (httpRequest.method == 'PATCH') {
+            final patch = (jsonDecode(httpRequest.body) as Map)
+                .cast<String, Object?>();
+            patches.add(patch);
+            occurrenceRemote.addAll(patch);
+          }
+          return http.Response(jsonEncode(occurrenceRemote), 200);
+        });
+        final CloudCalendarClient client = isMicrosoft
+            ? MicrosoftCalendarApiClient(
+                httpClient: httpClient,
+                baseUri: Uri.parse('https://graph.microsoft.com/v1.0'),
+                responseTimeZone: 'UTC',
+              )
+            : GoogleCalendarApiClient(
+                httpClient: httpClient,
+                baseUri: Uri.parse('https://www.googleapis.com'),
+              );
+        final replayer = CalendarPendingOpsReplayer(
+          database: database,
+          client: client,
+          accountId: destination.accountId,
+          nowUtc: () => DateTime.utc(2026, 8, 29),
+        );
+        await replayer.replayDueOps();
+        await replayer.replayDueOps();
+        expect(patches, hasLength(1));
+        final reloaded = (await database.select(database.calendarEvents).get())
+            .singleWhere((row) => row.providerEventId == 'imported-occurrence');
+        if (isMicrosoft) {
+          expect(patches.single['isReminderOn'], false);
+          expect(masterRemote['isReminderOn'], true);
+          expect(masterRemote['reminderMinutesBeforeStart'], 10);
+          expect(
+            (jsonDecode(reloaded.remindersJson!) as Map)['isReminderOn'],
+            false,
+          );
+        } else {
+          expect(patches.single['reminders'], offReminders);
+          expect(masterRemote['reminders'], masterReminders);
+          expect(jsonDecode(reloaded.remindersJson!), offReminders);
+        }
+        expect(await database.select(database.pendingOps).get(), isEmpty);
+      },
+    );
+  }
 
   test(
     'R1 exported Microsoft exception retains privacy, availability and categories in queued patch',
@@ -1213,7 +1447,7 @@ END:VEVENT
     ),
   ]) {
     test(
-      'Microsoft all-day import ${scenario.cancelled ? 'cancellation' : 'move'} matches Graph UTC originalStart in ${scenario.zone} on ${scenario.original}${scenario.transientPatchFailure ? ' after retry' : ''}',
+      'Microsoft all-day export/import ${scenario.cancelled ? 'cancellation' : 'move'} matches Graph UTC originalStart in ${scenario.zone} on ${scenario.original}${scenario.transientPatchFailure ? ' after retry' : ''}',
       () async {
         await database
             .into(database.accounts)
@@ -1256,23 +1490,54 @@ END:VEVENT
         final movedEnd = DateTime.parse(
           scenario.moved,
         ).add(const Duration(days: 1)).toIso8601String().substring(0, 10);
-        String basic(String date) => date.replaceAll('-', '');
+        final sourceMaster = microsoftCalendarEventFromJson('source', {
+          'id': 'source-master',
+          'uid': 'all-day-ms',
+          'subject': 'Master',
+          'isAllDay': true,
+          'start': {
+            'dateTime': '${scenario.master}T00:00:00',
+            'timeZone': scenario.zone,
+          },
+          'end': {
+            'dateTime': '${masterEnd}T00:00:00',
+            'timeZone': scenario.zone,
+          },
+          'recurrence': {
+            'pattern': {'type': 'daily', 'interval': 1},
+            'range': {
+              'type': 'numbered',
+              'startDate': scenario.master,
+              'numberOfOccurrences': 2,
+              'recurrenceTimeZone': scenario.zone,
+            },
+          },
+        });
+        final sourceException = microsoftCalendarEventFromJson('source', {
+          'id': 'source-exception',
+          'seriesMasterId': 'source-master',
+          'originalStart': scenario.originalUtc,
+          'isCancelled': scenario.cancelled,
+          if (!scenario.cancelled) ...{
+            'subject': 'Moved',
+            'isAllDay': true,
+            'start': {
+              'dateTime': '${scenario.moved}T00:00:00',
+              'timeZone': scenario.zone,
+            },
+            'end': {
+              'dateTime': '${movedEnd}T00:00:00',
+              'timeZone': scenario.zone,
+            },
+          },
+        });
         final preview = importService.parsePreview(
           utf8.encode(
-            _calendar('''
-BEGIN:VEVENT
-UID:all-day-ms
-DTSTART;VALUE=DATE:${basic(scenario.master)}
-DTEND;VALUE=DATE:${basic(masterEnd)}
-SUMMARY:Master
-RRULE:FREQ=DAILY;COUNT=2
-END:VEVENT
-BEGIN:VEVENT
-UID:all-day-ms
-RECURRENCE-ID;VALUE=DATE:${basic(scenario.original)}
-${scenario.cancelled ? 'STATUS:CANCELLED' : 'DTSTART;VALUE=DATE:${basic(scenario.moved)}\nDTEND;VALUE=DATE:${basic(movedEnd)}\nSUMMARY:Moved'}
-END:VEVENT
-'''),
+            cloudSeriesToICalendar(
+              master: sourceMaster,
+              exceptions: [sourceException],
+              nowUtc: DateTime.utc(2026, 8, 29),
+            ),
           ),
         );
         final destination = (await importService.writableDestinations())

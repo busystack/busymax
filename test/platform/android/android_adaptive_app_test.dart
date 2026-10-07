@@ -1215,6 +1215,15 @@ void main() {
         2;
     await tester.pumpAndSettle();
 
+    final nextcloud = find.text('Add Nextcloud account');
+    await _scrollUntilBuilt(tester, nextcloud);
+    await tester.tap(nextcloud);
+    await tester.pumpAndSettle();
+    expect(find.text('Set up Nextcloud'), findsOneWidget);
+    expect(find.text('Connect Nextcloud'), findsNothing);
+    await tester.tap(find.widgetWithText(TextButton, 'Cancel'));
+    await tester.pumpAndSettle();
+
     final apple = find.text('Add Apple iCloud Calendar account');
     await _scrollUntilBuilt(tester, apple);
     await tester.tap(apple);
@@ -3005,7 +3014,7 @@ Future<_AndroidAppHarness> _pumpApp(
       ),
       androidNotificationServiceProvider.overrideWithValue(notifications),
       davTaskCollectionCapabilitiesProvider.overrideWith(
-        (ref, key) async => nextcloudTaskCollectionCapabilities,
+        (ref, key) => Stream.value(nextcloudTaskCollectionCapabilities),
       ),
     ],
   );

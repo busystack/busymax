@@ -26,6 +26,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 
+import '../../support/persistence_test_directory.dart';
+
 void main() {
   late AppDatabase database;
   late InMemorySecretStore secrets;
@@ -959,7 +961,7 @@ void main() {
   test(
     'restart reconciles an in-progress MOVE after source synchronization',
     () async {
-      final temporaryDirectory = await Directory.systemTemp.createTemp(
+      final temporaryDirectory = await createPersistenceTestDirectory(
         'busymax-dav-move-restart-',
       );
       final databaseFile = File('${temporaryDirectory.path}/busymax.sqlite');

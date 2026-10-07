@@ -289,8 +289,9 @@ void main() {
               (ref, accountId) => lists,
             ),
             davTaskCollectionCapabilitiesProvider.overrideWith(
-              (ref, key) async =>
-                  nextcloudTaskCollectionCapabilities.asReadOnly(),
+              (ref, key) => Stream.value(
+                nextcloudTaskCollectionCapabilities.asReadOnly(),
+              ),
             ),
           ],
           child: FluentApp(

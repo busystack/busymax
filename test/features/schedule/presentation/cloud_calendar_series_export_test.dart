@@ -412,6 +412,199 @@ void main() {
   });
 
   test(
+    'Google sparse cancelled all-day occurrence retains DATE identity',
+    () async {
+      final master = <String, Object?>{
+        ..._googleMaster,
+        'start': {'date': '2026-08-30'},
+        'end': {'date': '2026-08-31'},
+      };
+      final cancelled = <String, Object?>{
+        ..._googleCancelled,
+        'originalStartTime': {'date': '2026-09-01'},
+      };
+      final client = GoogleCalendarApiClient(
+        httpClient: MockClient(
+          (request) async => http.Response(
+            jsonEncode(
+              request.url.path.endsWith('/events/master')
+                  ? master
+                  : {
+                      'items': [master, cancelled],
+                    },
+            ),
+            200,
+          ),
+        ),
+        baseUri: Uri.parse('https://www.googleapis.com'),
+      );
+      final data = await exportGoogleEventSeries(
+        client: client,
+        calendarId: 'primary',
+        eventId: 'master',
+        nowUtc: DateTime.utc(2026, 8, 1),
+      );
+      final components = IcalIngestion.parseString(
+        data,
+        policy: IcalIngestionPolicy.fileImport,
+      ).recurrenceSets.single.semantic.components;
+      expect(components.first.start!.kind, IcalTemporalKind.date);
+      expect(components.last.status, 'CANCELLED');
+      expect(components.last.start, isNull);
+      expect(components.last.recurrenceId!.kind, IcalTemporalKind.date);
+      expect(
+        components.last.recurrenceId!.localValue,
+        DateTime.utc(2026, 9, 1),
+      );
+    },
+  );
+
+  for (final provider in [BusyProvider.google, BusyProvider.microsoft]) {
+    for (final masterAllDay in [false, true]) {
+      test(
+        '$provider exception changes time type without changing recurrence identity ($masterAllDay)',
+        () {
+          final recurrence = provider == BusyProvider.microsoft
+              ? {
+                  'pattern': {'type': 'daily', 'interval': 1},
+                  'range': {
+                    'type': 'numbered',
+                    'startDate': '2026-08-30',
+                    'numberOfOccurrences': 2,
+                    'recurrenceTimeZone': 'UTC',
+                  },
+                }
+              : ['RRULE:FREQ=DAILY;COUNT=2'];
+          final master = CalendarEventDto(
+            provider: provider,
+            providerCalendarId: 'calendar',
+            providerEventId: 'master',
+            title: 'Master',
+            allDay: masterAllDay,
+            startDate: masterAllDay ? '2026-08-30' : null,
+            endDate: masterAllDay ? '2026-08-31' : null,
+            startDateTime: '2026-08-30T16:00:00Z',
+            endDateTime: '2026-08-30T17:00:00Z',
+            startTimeZone: 'UTC',
+            endTimeZone: 'UTC',
+            recurrenceJson: recurrence,
+            rawJson: const {'iCalUID': 'type-change', 'uid': 'type-change'},
+          );
+          final exception = CalendarEventDto(
+            provider: provider,
+            providerCalendarId: 'calendar',
+            providerEventId: 'exception',
+            providerRecurringEventId: 'master',
+            providerOriginalStartKey: masterAllDay
+                ? '2026-08-31'
+                : '2026-08-31T16:00:00Z',
+            title: 'Changed',
+            allDay: !masterAllDay,
+            startDate: !masterAllDay ? '2026-08-31' : null,
+            endDate: !masterAllDay ? '2026-09-01' : null,
+            startDateTime: '2026-08-31T18:00:00Z',
+            endDateTime: '2026-08-31T19:00:00Z',
+            startTimeZone: 'UTC',
+            endTimeZone: 'UTC',
+          );
+          final data = cloudSeriesToICalendar(
+            master: master,
+            exceptions: [exception],
+            nowUtc: DateTime.utc(2026, 8, 1),
+          );
+          final components = IcalIngestion.parseString(
+            data,
+            policy: IcalIngestionPolicy.fileImport,
+          ).recurrenceSets.single.semantic.components;
+          expect(
+            components.last.recurrenceId!.kind,
+            components.first.start!.kind,
+          );
+          expect(
+            components.last.start!.kind,
+            isNot(components.first.start!.kind),
+          );
+          expect(
+            components.last.recurrenceId!.localValue,
+            masterAllDay
+                ? DateTime.utc(2026, 8, 31)
+                : DateTime.utc(2026, 8, 31, 16),
+          );
+        },
+      );
+    }
+  }
+
+  for (final cancelled in [false, true]) {
+    test(
+      'Microsoft Tokyo all-day exception converts UTC originalStart to its civil date ($cancelled)',
+      () {
+        final master = microsoftCalendarEventFromJson('calendar', {
+          ..._microsoftMaster,
+          'isAllDay': true,
+          'start': {
+            'dateTime': '2026-08-30T00:00:00',
+            'timeZone': 'Tokyo Standard Time',
+          },
+          'end': {
+            'dateTime': '2026-08-31T00:00:00',
+            'timeZone': 'Tokyo Standard Time',
+          },
+          'recurrence': {
+            'pattern': {'type': 'daily', 'interval': 1},
+            'range': {
+              'type': 'numbered',
+              'startDate': '2026-08-30',
+              'numberOfOccurrences': 2,
+              'recurrenceTimeZone': 'Tokyo Standard Time',
+            },
+          },
+        });
+        final exception = microsoftCalendarEventFromJson('calendar', {
+          'id': 'exception',
+          'seriesMasterId': 'master',
+          'originalStart': '2026-08-30T15:00:00Z',
+          'isCancelled': cancelled,
+          if (!cancelled) ...{
+            'isAllDay': true,
+            'subject': 'Moved',
+            'start': {
+              'dateTime': '2026-09-02T00:00:00',
+              'timeZone': 'Tokyo Standard Time',
+            },
+            'end': {
+              'dateTime': '2026-09-03T00:00:00',
+              'timeZone': 'Tokyo Standard Time',
+            },
+          },
+        });
+        final data = cloudSeriesToICalendar(
+          master: master,
+          exceptions: [exception],
+          nowUtc: DateTime.utc(2026, 8, 1),
+        );
+        final components = IcalIngestion.parseString(
+          data,
+          policy: IcalIngestionPolicy.fileImport,
+        ).recurrenceSets.single.semantic.components;
+        expect(components.first.start!.localValue, DateTime.utc(2026, 8, 30));
+        expect(components.last.recurrenceId!.kind, IcalTemporalKind.date);
+        expect(
+          components.last.recurrenceId!.localValue,
+          DateTime.utc(2026, 8, 31),
+        );
+        if (cancelled) {
+          expect(components.last.start, isNull);
+          expect(components.last.status, 'CANCELLED');
+        } else {
+          expect(components.last.start!.localValue, DateTime.utc(2026, 9, 2));
+          expect(components.last.end!.localValue, DateTime.utc(2026, 9, 3));
+        }
+      },
+    );
+  }
+
+  test(
     'Microsoft series export reads full exceptions and cancellation identities',
     () async {
       final requests = <http.Request>[];

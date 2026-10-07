@@ -399,35 +399,6 @@ class AppLocalizationsVi extends AppLocalizations {
       'Cần có quyền truy cập Google Calendar và Google Tasks. Vui lòng thử lại và chọn cả hai hộp kiểm.';
 
   @override
-  String get finishSetup => 'Hoàn tất thiết lập';
-
-  @override
-  String get continueSetup => 'Tiếp tục';
-
-  @override
-  String get onboardingSetupTitle => 'Thiết lập BusyMax';
-
-  @override
-  String get onboardingAccountsStepTitle => 'Kết nối tài khoản';
-
-  @override
-  String get onboardingAccountsStepDescription =>
-      'Thêm mọi tài khoản bạn muốn sử dụng. BusyMax đồng bộ lịch, sự kiện, danh sách công việc và công việc được hỗ trợ từ từng tài khoản.';
-
-  @override
-  String get onboardingPreferencesStepTitle => 'Chọn cài đặt hệ thống';
-
-  @override
-  String get onboardingPreferencesStepDescription =>
-      'Thiết lập cách ứng dụng hoạt động trên máy tính, lời nhắc, mức độ chi tiết của thông báo và giao diện trước khi mở lịch biểu.';
-
-  @override
-  String get signInWithGoogle => 'Đăng nhập bằng Google';
-
-  @override
-  String get signInWithMicrosoft => 'Đăng nhập bằng Microsoft';
-
-  @override
   String get googleTasksProvider => 'Google Tasks';
 
   @override
@@ -592,13 +563,6 @@ class AppLocalizationsVi extends AppLocalizations {
   @override
   String get scheduleNoSourcesDescription =>
       'Chọn nội dung cần hiển thị trong Cài đặt, sau đó làm mới lịch biểu.';
-
-  @override
-  String get scheduleSignInRequired => 'Kết nối tài khoản';
-
-  @override
-  String get scheduleSignInDescription =>
-      'Đăng nhập để đồng bộ lịch và công việc.';
 
   @override
   String get scheduleNoSearchResults =>
@@ -3219,7 +3183,7 @@ class AppLocalizationsVi extends AppLocalizations {
 
   @override
   String registrationRetirementNotice(String provider, String setup) {
-    return 'Tài khoản này dùng đăng ký $provider chung của BusyMax, sẽ ngừng hoạt động ở bản phát hành tiếp theo. Thiết lập $setup của riêng bạn và kết nối lại tài khoản để tiếp tục đồng bộ. Lịch, công việc và thay đổi cục bộ của bạn sẽ được giữ lại.';
+    return 'Tài khoản này dùng đăng ký $provider gốc dành cho tài khoản hiện có. Để thay thế, thiết lập $setup và kết nối lại tài khoản. Lịch, tác vụ và thay đổi cục bộ sẽ được giữ nguyên.';
   }
 
   @override
@@ -3291,4 +3255,259 @@ class AppLocalizationsVi extends AppLocalizations {
   @override
   String get oauthRevokedRemovalIncomplete =>
       'Quyền truy cập từ xa đã bị thu hồi nhưng chưa thể hoàn tất việc dọn dẹp tài khoản. Khởi động lại BusyMax để thử khôi phục cục bộ.';
+
+  @override
+  String get addAccount => 'Thêm tài khoản';
+
+  @override
+  String get registrationConnect => 'Kết nối';
+
+  @override
+  String get registrationBack => 'Quay lại';
+
+  @override
+  String get registrationReplaceGoogle => 'Thay JSON OAuth máy tính';
+
+  @override
+  String get registrationSelectedConfiguration => 'Cấu hình đã chọn';
+
+  @override
+  String get registrationDirectoryId => 'ID thư mục/đối tượng thuê';
+
+  @override
+  String get registrationInvalidId => 'Nhập UUID hợp lệ.';
+
+  @override
+  String get registrationExpired =>
+      'Cấu hình này đã hết hạn. Nhập lại hoặc sửa các trường đăng ký trước khi kết nối.';
+
+  @override
+  String get registrationOwnProjectRequired =>
+      'Chọn đăng ký từ dự án hoặc đối tượng thuê của bạn.';
+
+  @override
+  String get registrationSetupFailed =>
+      'Không thể hoàn tất thiết lập. Hãy thử lại.';
+
+  @override
+  String get registrationLinkFailed =>
+      'Không thể mở liên kết. Kiểm tra trình duyệt và thử lại.';
+
+  @override
+  String get registrationPermissions => 'Quyền truy cập';
+
+  @override
+  String get registrationDesktopClient => 'Ứng dụng máy tính';
+
+  @override
+  String get registrationOpenGoogleConsole => 'Mở Google Cloud Console';
+
+  @override
+  String get registrationGoogleAudienceHelp =>
+      'Yêu cầu Google về xuất bản và người dùng thử nghiệm';
+
+  @override
+  String get registrationDesktopHelp => 'Hướng dẫn đăng ký ứng dụng máy tính';
+
+  @override
+  String get registrationOpenEntra => 'Mở trung tâm quản trị Microsoft Entra';
+
+  @override
+  String get registrationGuideGoogleProject =>
+      'Mở Google Cloud Console. Dùng bộ chọn dự án ở trên cùng để chọn dự án của bạn, hoặc chọn New project, nhập tên rồi chọn Create. Giữ dự án này được chọn trong các bước tiếp theo.';
+
+  @override
+  String get registrationGuideGoogleAudience =>
+      'Vào Google Auth Platform → Branding. Nếu chưa bắt đầu thiết lập, chọn Get started. Nhập BusyMax vào App name, chọn User support email của bạn rồi chọn Next. Trong Audience, chọn External. Chọn Next, nhập email vào Contact Information rồi chọn Next. Chấp nhận User Data Policy rồi chọn Continue và Create. Nếu đã thiết lập, kiểm tra Branding và Audience.';
+
+  @override
+  String get registrationGuideGooglePermissions =>
+      'Mở Google Auth Platform → Data Access → Add or remove scopes. Chọn năm phạm vi bên dưới; dùng Manually add scopes nếu cần. Khi nhập thủ công, dán các giá trị còn thiếu rồi chọn Add to table. Chọn Update rồi Save. BusyMax cần quyền truy cập lịch và tác vụ.';
+
+  @override
+  String get registrationGuideGoogleClient =>
+      'Mở Google Auth Platform → Clients → Create client. Đặt Application type thành Desktop app, nhập BusyMax vào Name rồi chọn Create. Trong hộp thoại tạo, chọn Download JSON và lưu tệp. Chọn Quay lại để trở về biểu mẫu, chọn tệp rồi kiểm tra dự án và ID máy khách. Chọn Kết nối và cho phép truy cập lịch và tác vụ trong trình duyệt.';
+
+  @override
+  String get registrationGuideMicrosoftApp =>
+      'Đăng nhập trung tâm quản trị Microsoft Entra. Dùng Settings để chọn đối tượng thuê cho phép bạn đăng ký ứng dụng. Mở Entra ID → App registrations → New registration. Nhập BusyMax vào Name rồi chọn loại tài khoản ở bước tiếp theo. Nếu đăng ký bị chặn, hãy xin quyền truy cập từ quản trị viên đối tượng thuê.';
+
+  @override
+  String get registrationGuideMicrosoftRedirect =>
+      'Trong đăng ký, mở Authentication → Add a platform → Mobile and desktop applications. Chọn hoặc nhập URI chuyển hướng bên dưới rồi chọn Configure để lưu. BusyMax dùng trình duyệt hệ thống. Không cần bí mật máy khách.';
+
+  @override
+  String get registrationGuideMicrosoftPermissions =>
+      'Mở API permissions → Add a permission → Microsoft Graph → Delegated permissions. Tìm và chọn từng phạm vi bên dưới rồi chọn Add permissions. Giữ User.Read nếu đã có. Nếu tổ chức yêu cầu sự đồng ý của quản trị viên, hãy nhờ quản trị viên dùng Grant admin consent cho đối tượng thuê.';
+
+  @override
+  String get registrationGuideMicrosoftConnect =>
+      'Chọn Quay lại để trở về biểu mẫu. Dán Application (client) ID và chọn Tài khoản được hỗ trợ giống đăng ký. Với Một đối tượng thuê tổ chức, dán cả Directory (tenant) ID. Chọn Kết nối và đăng nhập tài khoản mong muốn trong trình duyệt. BusyMax kiểm tra các trường cục bộ; Microsoft yêu cầu sự đồng ý khi đăng nhập trong trình duyệt.';
+
+  @override
+  String get registrationGoogleImportFailed =>
+      'Không thể nhập tệp này. Chọn JSON OAuth máy tính hợp lệ. Lựa chọn hợp lệ trước đó được giữ lại.';
+
+  @override
+  String get registrationGoogleSetupInstructions =>
+      'Hướng dẫn thiết lập Google';
+
+  @override
+  String get registrationMicrosoftSetupInstructions =>
+      'Hướng dẫn thiết lập Microsoft';
+
+  @override
+  String get registrationDesktopConfiguration => 'Cấu hình OAuth cho máy tính';
+
+  @override
+  String get registrationNoFileSelected => 'Chưa chọn tệp';
+
+  @override
+  String get registrationChooseFile => 'Chọn tệp…';
+
+  @override
+  String get registrationReplaceFile => 'Thay thế…';
+
+  @override
+  String get registrationGoogleIntroduction =>
+      'Chọn tệp JSON OAuth cho máy tính từ dự án Google Cloud của riêng bạn.';
+
+  @override
+  String get registrationMicrosoftIntroduction =>
+      'Nhập thông tin đăng ký ứng dụng Microsoft của riêng bạn.';
+
+  @override
+  String get registrationSetupInstructions => 'Hướng dẫn thiết lập';
+
+  @override
+  String get registrationInstructionsDescription =>
+      'Tạo cấu hình cần thiết để kết nối tài khoản.';
+
+  @override
+  String get registrationEnableApis => 'Bật Calendar và Tasks';
+
+  @override
+  String get registrationConsentScreen => 'Thiết lập màn hình đồng ý';
+
+  @override
+  String get registrationAppName => 'Tên ứng dụng';
+
+  @override
+  String get registrationScopes => 'Phạm vi';
+
+  @override
+  String get registrationRedirectUri => 'URI chuyển hướng';
+
+  @override
+  String get registrationOpenApiLibrary => 'Mở Thư viện API Google';
+
+  @override
+  String get registrationOpenBranding =>
+      'Mở Branding trong Google Auth Platform';
+
+  @override
+  String get registrationOpenDataAccess =>
+      'Mở Data Access trong Google Auth Platform';
+
+  @override
+  String get registrationOpenClients => 'Mở Clients trong Google Auth Platform';
+
+  @override
+  String get registrationOpenEntraAuthentication =>
+      'Mở đăng ký ứng dụng Entra để thiết lập Authentication';
+
+  @override
+  String get registrationOpenEntraPermissions =>
+      'Mở đăng ký ứng dụng Entra để thiết lập API permissions';
+
+  @override
+  String get registrationCopy => 'Sao chép';
+
+  @override
+  String get registrationCopyAll => 'Sao chép tất cả';
+
+  @override
+  String get registrationGuideGoogleApis =>
+      'Vào APIs & Services → Library. Tìm Google Calendar API, mở trang rồi chọn Enable. Quay lại Library và làm tương tự với Google Tasks API.';
+
+  @override
+  String get registrationGuideMicrosoftAudience =>
+      'Trong Supported account types, chọn Personal accounts only cho tài khoản cá nhân, Multiple Entra ID tenants cho tài khoản tổ chức, Any Entra ID Tenant + Personal Microsoft accounts cho cả hai, hoặc Single tenant only cho thư mục này. Chọn Register. Trong Overview, sao chép Application (client) ID; với một đối tượng thuê, sao chép cả Directory (tenant) ID. Chọn mục Tài khoản được hỗ trợ tương ứng trong BusyMax.';
+
+  @override
+  String get registrationConnectBusyMax => 'Kết nối bằng BusyMax';
+
+  @override
+  String get registrationRecommended => 'Được đề xuất';
+
+  @override
+  String get registrationOtherMethods => 'Các cách kết nối khác';
+
+  @override
+  String get registrationWorkspace => 'Tổ chức Google Workspace';
+
+  @override
+  String get registrationGoogleCustom => 'Ứng dụng khách OAuth tùy chỉnh';
+
+  @override
+  String get registrationMicrosoftCustom => 'Đăng ký ứng dụng tùy chỉnh';
+
+  @override
+  String get registrationMethodsIntroduction =>
+      'Chọn cách kết nối tài khoản của bạn.';
+
+  @override
+  String get registrationWorkspaceDescription =>
+      'Dùng cấu hình do tổ chức của bạn quản lý.';
+
+  @override
+  String get registrationCustomDescription => 'Dùng đăng ký do bạn quản lý.';
+
+  @override
+  String get registrationSharedUnavailable =>
+      'Kết nối bằng BusyMax không khả dụng trong bản dựng này. Bạn có thể dùng cách kết nối khác bên dưới.';
+
+  @override
+  String get registrationWorkspaceIntroduction =>
+      'Chọn JSON OAuth máy tính do tổ chức cung cấp hoặc quản lý. Tệp không chứng minh quyền sở hữu của tổ chức, đối tượng hay trạng thái xác minh.';
+
+  @override
+  String get registrationWorkspaceSetupInstructions =>
+      'Hướng dẫn thiết lập Google Workspace';
+
+  @override
+  String get registrationBusyMaxManaged => 'Đăng ký do BusyMax quản lý';
+
+  @override
+  String get registrationBranding => 'Cấu hình thương hiệu và miền';
+
+  @override
+  String get registrationPublishing => 'Xuất bản để sử dụng thông thường';
+
+  @override
+  String get registrationOpenAudience => 'Mở Audience của Google Auth Platform';
+
+  @override
+  String get registrationGuideWorkspaceProject =>
+      'Xin Desktop OAuth JSON từ quản trị viên hoặc mở Google Cloud Console và chọn dự án thuộc tổ chức Google Workspace của bạn. Để tạo dự án, mở Quản lý tài nguyên → Tạo dự án, nhập Tên dự án, chọn tổ chức hoặc thư mục của tổ chức trong Tài nguyên mẹ rồi chọn Tạo. Chọn dự án đó cho các bước tiếp theo. Việc tạo cần Project Creator, cấu hình OAuth cần OAuth Config Editor, và bật API cần Service Usage Admin hoặc quyền tương đương. Nhờ quản trị viên trợ giúp nếu bị chặn.';
+
+  @override
+  String get registrationGuideGoogleBranding =>
+      'Trong Branding → App domain, thêm miền được ủy quyền của dự án trước URL trang chủ, quyền riêng tư và điều khoản dịch vụ, rồi Save. Ứng dụng External trong sản xuất cần các liên kết này. Dùng miền bạn sở hữu và xác minh quyền sở hữu trong Search Console khi Google yêu cầu xác minh thương hiệu. Liên kết quyền riêng tư BusyMax không chứng minh dự án của bạn sở hữu busystack.org.';
+
+  @override
+  String get registrationGuideGooglePublishing =>
+      'Trong Audience, chọn Publish app và xác nhận In production. Không để sử dụng thông thường ở Testing: các ủy quyền Calendar/Tasks và mã làm mới này hết hạn sau bảy ngày. Xuất bản và xác minh là hai việc riêng. Sử dụng cá nhân dưới 100 người có thể được miễn xác minh, với cảnh báo và giới hạn người dùng; phân phối rộng hơn có thể cần phê duyệt thương hiệu và phạm vi. Ủy quyền sản xuất vẫn có thể hết hạn hoặc bị thu hồi.';
+
+  @override
+  String get registrationGuideWorkspacePermissions =>
+      'Xem các phạm vi này với quản trị viên. Ứng dụng Internal không cần liệt kê phạm vi trên màn hình đồng ý. Nếu được yêu cầu, mở Data Access → Add or remove scopes, thêm giá trị rồi Update và Save. Kiểm soát quản trị vẫn có thể hạn chế ủy quyền.';
+
+  @override
+  String get registrationGuideMicrosoftOptionalPermissions =>
+      'Quyền lịch dùng chung và danh mục được yêu cầu riêng khi bật các tính năng tùy chọn; không thêm chúng vào thiết lập bắt buộc ở trên.';
+
+  @override
+  String get registrationGuideWorkspaceAudience =>
+      'Vào Google Auth Platform → Branding. Nếu chưa bắt đầu thiết lập, chọn Get started. Nhập BusyMax vào App name, chọn User support email của bạn rồi chọn Next. Trong Audience, chọn Internal. Chọn Next, nhập email vào Contact Information rồi chọn Next. Chấp nhận User Data Policy rồi chọn Continue và Create. Nếu đã thiết lập, kiểm tra Branding và Audience.\n\nInternal chỉ cho phép tài khoản thuộc tổ chức mẹ của dự án, chịu kiểm soát của quản trị viên. Không cần danh sách người dùng thử. BusyMax không thể xác minh các thiết lập này từ JSON tải xuống.';
 }

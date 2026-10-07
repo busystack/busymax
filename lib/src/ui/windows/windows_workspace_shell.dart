@@ -19,12 +19,19 @@ class WindowsWorkspaceShell extends StatelessWidget {
   final WindowsWorkspaceDestination destination;
   final Widget child;
 
+  static void popSettings(BuildContext context) {
+    final router = GoRouter.maybeOf(context);
+    if (router?.canPop() ?? false) router!.pop();
+  }
+
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     final selected = destination.index;
     return CallbackShortcuts(
       bindings: {
+        if (destination == WindowsWorkspaceDestination.settings)
+          BusyMaxShortcutActivators.back: () => popSettings(context),
         BusyMaxShortcutActivators.settings: () => context.go('/settings'),
         BusyMaxShortcutActivators.keyboardShortcuts: () =>
             showWindowsKeyboardShortcutsDialog(context),

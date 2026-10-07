@@ -4,7 +4,15 @@ import 'authorization_attempt.dart';
 
 enum AuthenticationPlatform { desktop, android }
 
-enum RegistrationOrigin { userProvided, retiringShared, nativeGoogleAndroid }
+enum RegistrationOrigin {
+  userProvided,
+  busyMaxManaged,
+  retiringShared,
+  nativeGoogleAndroid,
+}
+
+/// Ownership guidance only; Workspace and custom use the same Google client type.
+enum DesktopConnectionMethod { busyMax, googleWorkspace, custom }
 
 enum AuthorizationIntent { newConnection, reconnect, replaceRegistration }
 
@@ -83,6 +91,21 @@ sealed class OAuthRegistration {
   const OAuthRegistration();
   String get clientId;
   RegistrationSummary summary({bool transitionEligible = false});
+  OAuthRegistration withOrigin(RegistrationOrigin origin) => switch (this) {
+    GoogleDesktopRegistration value => GoogleDesktopRegistration(
+      clientId: value.clientId,
+      clientSecret: value.clientSecret,
+      projectId: value.projectId,
+      origin: origin,
+    ),
+    MicrosoftPublicRegistration value => MicrosoftPublicRegistration(
+      clientId: value.clientId,
+      audience: value.audience,
+      tenantId: value.tenantId,
+      platform: value.platform,
+      origin: origin,
+    ),
+  };
 }
 
 final class GoogleDesktopRegistration extends OAuthRegistration {
@@ -95,7 +118,7 @@ final class GoogleDesktopRegistration extends OAuthRegistration {
   @override
   final String clientId;
   final String? clientSecret;
-  final String projectId;
+  final String? projectId;
   final RegistrationOrigin origin;
   @override
   RegistrationSummary summary({bool transitionEligible = false}) =>

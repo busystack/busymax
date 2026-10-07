@@ -731,7 +731,9 @@ class _AndroidSettingsScreenState extends ConsumerState<AndroidSettingsScreen> {
         (email, password) = input;
       } else if (provider == BusyProvider.nextcloud) {
         server = await _textPrompt(
-          title: context.l10n.connectNextcloudTitle,
+          title: context.l10n.registrationSetupTitle(
+            BusyProvider.nextcloud.displayName,
+          ),
           label: context.l10n.nextcloudServerUrl,
           initialValue: reconnecting?.authority,
           helper: context.l10n.nextcloudBrowserAuthorizationHelp,
@@ -2306,6 +2308,11 @@ class _AccountButtons extends StatelessWidget {
       spacing: 8,
       runSpacing: 8,
       children: [
+        _button(
+          context,
+          BusyProvider.nextcloud,
+          context.l10n.addNextcloudAccount,
+        ),
         _button(context, BusyProvider.google, context.l10n.addGoogleAccount),
         _button(
           context,
@@ -2316,11 +2323,6 @@ class _AccountButtons extends StatelessWidget {
           context,
           BusyProvider.appleICloud,
           context.l10n.addAppleICloudAccount,
-        ),
-        _button(
-          context,
-          BusyProvider.nextcloud,
-          context.l10n.addNextcloudAccount,
         ),
       ],
     ),

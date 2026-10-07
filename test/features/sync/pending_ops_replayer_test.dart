@@ -30,6 +30,8 @@ import 'package:busymax/src/microsoft_todo/api/microsoft_todo_task_remote_client
 import '../../support/recording_notification_backend.dart';
 import '../../support/memory_settings_store.dart';
 
+import '../../support/persistence_test_directory.dart';
+
 void main() {
   late AppDatabase database;
   late _FakeTaskRemoteClient apiClient;
@@ -899,7 +901,7 @@ void main() {
     test(
       '$entity creation restart after identity persistence stays acknowledged',
       () async {
-        final directory = await Directory.systemTemp.createTemp(
+        final directory = await createPersistenceTestDirectory(
           'busymax-$entity-create-ack-',
         );
         final databaseFile = File('${directory.path}/busymax.sqlite');
@@ -1008,7 +1010,7 @@ void main() {
   test(
     'checklist creation restart after identity persistence stays acknowledged',
     () async {
-      final directory = await Directory.systemTemp.createTemp(
+      final directory = await createPersistenceTestDirectory(
         'busymax-checklist-create-ack-',
       );
       final databaseFile = File('${directory.path}/busymax.sqlite');

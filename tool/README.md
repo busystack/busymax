@@ -7,21 +7,19 @@ in the linked development or release guides.
 
 - `verify_flutter_sdk.dart` verifies an explicitly supplied Flutter executable,
   its bundled Dart executable, and exact expected versions. It invokes only
-  version commands and writes a JSON summary to standard output. Both CI
+  version commands and writes a JSON summary to standard output. CI
   workflows call it; see [Development](../docs/development.md).
 - `check_platform_boundaries.dart` scans `lib/` and generated plugin
   registrations for forbidden Linux/Windows dependency crossings. It is
   read-only and is part of normal validation.
-- `create_source_handoff.py --output build/handoff/busymax-source.tar.gz`
-  archives tracked and unignored source, generated code, help and fixtures.
-  It excludes Git metadata, local credentials/configuration and build outputs,
-  and includes a per-file SHA-256 manifest plus an archive checksum sidecar.
 
 `check_generated_sources.dart snapshot|verify <file>` compares regeneration
 against the reviewed source tree, including intentional uncommitted changes.
 Android and Windows local verification use this check; CI also requires checked-in
-generated sources. Windows `-Ci -UserOwnedOnly -Stage WindowsCompile` validates
-setup without original registrations; default official packaging preserves them.
+generated sources. Windows `-Ci -Unconfigured -Stage WindowsCompile` validates
+setup with the recommended method unavailable. Official packaging requires explicit
+active production registrations and preserves protected originals separately.
+See [desktop OAuth release prerequisites](../docs/desktop_oauth_release_checklist.md).
 Android's redirect/signing identity remains required even without the original
 Microsoft client. The pinned Gradle 9.4.1 supports JDK 17–26; use an installed
 supported runtime without downgrading it.
@@ -39,6 +37,33 @@ supported runtime without downgrading it.
   marked temporary root and does not purge user data. `--no-run` still
   installs the package. This is a scaffold helper, not the canonical release
   build; see [Snap beta release](../docs/beta_snap_release.md).
+
+### Visual comparison fixtures
+
+The native GTK 3 and GTK 4/libadwaita fixtures require their installed runtimes;
+GTK 3 compilation needs development headers, and the libadwaita fixture needs
+GJS introspection bindings. Run them alongside the production Flutter button
+and header fixtures, keeping generated captures in ignored `build/`:
+
+```bash
+mkdir -p build/linux/visual-review
+g++ tool/linux/native_button_reference.cc \
+  -o build/linux/visual-review/native_button_reference \
+  $(pkg-config --cflags --libs gtk+-3.0)
+build/linux/visual-review/native_button_reference build/linux/visual-review/gtk-buttons.png
+gjs tool/linux/native_libadwaita_button_reference.js build/linux/visual-review/libadwaita-buttons.png
+flutter run -d linux -t tool/linux_button_comparison.dart \
+  --dart-define=BUSYMAX_BUTTON_SCREENSHOT=build/linux/visual-review/flutter-buttons.png
+flutter run -d linux -t tool/linux_header_comparison.dart \
+  --dart-define=BUSYMAX_HEADER_SCREENSHOT=build/linux/visual-review/flutter-header.png
+flutter test test/app/busymax_button_visual_test.dart
+```
+
+Compare theme, font, accent, scale, hover/pressed states, and keyboard-focus
+outlines before deliberately updating
+[`test/app/goldens/linux_buttons_reviewed.png`](../test/app/goldens/linux_buttons_reviewed.png).
+The [button fixture](linux_button_comparison.dart) is also imported by the
+[visual regression test](../test/app/busymax_button_visual_test.dart).
 
 ## Generated assets and API references
 

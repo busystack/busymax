@@ -18,6 +18,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import '../support/memory_settings_store.dart';
+import '../support/desktop_activation_fixture.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -342,7 +343,7 @@ final class _RootHarness {
   final _TestPlatform platform;
   final _NativeWeekdayResponder native;
   final AppDatabase database;
-  final _ActivationService activations;
+  final TestDesktopActivationService activations;
   final ProviderContainer container;
   final Directory directory;
   final NetworkConnectivityMonitor networkMonitor;
@@ -379,7 +380,7 @@ final class _RootHarness {
       );
     });
     final database = AppDatabase.memoryForTests();
-    final activations = _ActivationService();
+    final activations = TestDesktopActivationService();
     final networkMonitor =
         NetworkConnectivityMonitor.withoutPlatformObservation();
     final initialSettings = settingsStore == null
@@ -563,21 +564,6 @@ final class _NativeWeekdayResponder {
   }
 
   void finishPending() => succeed(null);
-}
-
-final class _ActivationService implements DesktopActivationService {
-  final _controller = StreamController<DesktopActivation>.broadcast();
-
-  void add(DesktopActivation activation) => _controller.add(activation);
-
-  @override
-  Stream<DesktopActivation> get activations => _controller.stream;
-
-  @override
-  Future<void> initialize() async {}
-
-  @override
-  Future<void> dispose() => _controller.close();
 }
 
 final class _SignedOutController extends StateNotifier<AuthSessionState>

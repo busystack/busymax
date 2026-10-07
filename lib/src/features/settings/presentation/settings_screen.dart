@@ -794,6 +794,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       }
       final repository = ref.read(authRepositoryProvider);
       final runSync = ref.read(signedInSyncRunnerProvider);
+      final sessionController = ref.read(
+        authSessionControllerProvider.notifier,
+      );
       setState(() => _connectingProvider = provider);
       if (!mounted || ownedCancellation.isCancelled) return;
       request = (request ?? const AuthorizationRequest.newConnection(null))
@@ -843,6 +846,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         }
         if (accountId != null) {
           unawaited(_syncConnectedAccount(runSync, accountId));
+          await sessionController.reconcileConnectedAccount(accountId);
         }
       } on Object catch (error) {
         if ((error is OAuthException && error.code == 'OAuthSignInCancelled') ||
@@ -1479,6 +1483,13 @@ class _AccountManagementSection extends StatelessWidget {
           filled: true,
           children: [
             BusyMaxActionRow(
+              title: connectingProvider == BusyProvider.nextcloud
+                  ? l10n.waitingForNextcloud
+                  : l10n.addNextcloudAccount,
+              leading: const Icon(YaruIcons.plus),
+              onTap: connecting ? null : onAddNextcloud,
+            ),
+            BusyMaxActionRow(
               title: connectingProvider == BusyProvider.google
                   ? l10n.waitingForGoogleSignIn
                   : l10n.addGoogleAccount,
@@ -1500,13 +1511,6 @@ class _AccountManagementSection extends StatelessWidget {
                   : l10n.addAppleICloudAccount,
               leading: const Icon(YaruIcons.plus),
               onTap: connecting ? null : onAddApple,
-            ),
-            BusyMaxActionRow(
-              title: connectingProvider == BusyProvider.nextcloud
-                  ? l10n.waitingForNextcloud
-                  : l10n.addNextcloudAccount,
-              leading: const Icon(YaruIcons.plus),
-              onTap: connecting ? null : onAddNextcloud,
             ),
             if (connecting)
               BusyMaxActionRow(
@@ -2609,9 +2613,6 @@ Future<void> _afterAccountRemoved(
   if (remaining.isEmpty) {
     ref.read(selectedAccountIdProvider.notifier).state = null;
     await ref.read(authSessionControllerProvider.notifier).load();
-    if (context.mounted) {
-      context.go('/sign-in');
-    }
     return;
   }
 

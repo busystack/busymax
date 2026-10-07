@@ -12,12 +12,17 @@ import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'windows_workspace_shell.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../../l10n/generated/app_localizations.dart';
 import '../../app/app_bootstrap.dart';
 import '../../features/accounts/data/accounts_repository.dart';
+import '../../features/auth/data/auth_repository.dart';
+import '../../dav/dav_errors.dart';
+import '../../dav/http/dav_http_transport.dart';
+import 'windows_dav_account_dialogs.dart';
 import '../../features/calendar/data/calendar_repository.dart';
 import '../../features/calendar/data/cloud_calendar_sharing_service.dart';
 import '../../features/calendar/data/microsoft_shared_calendar_service.dart';
@@ -43,7 +48,9 @@ const _apacheLicenseUrl = 'https://www.apache.org/licenses/LICENSE-2.0';
 const _systemLocaleTag = 'system';
 
 class WindowsSettingsPage extends ConsumerStatefulWidget {
-  const WindowsSettingsPage({super.key});
+  const WindowsSettingsPage({super.key, this.initialPage});
+
+  final String? initialPage;
 
   @override
   ConsumerState<WindowsSettingsPage> createState() =>
@@ -53,10 +60,46 @@ class WindowsSettingsPage extends ConsumerStatefulWidget {
 class _WindowsSettingsPageState extends ConsumerState<WindowsSettingsPage> {
   late final LaunchAtLoginRefreshObserver _autostartRefresh;
   AuthorizationCancellation? _sharedConsentCancellation;
+  final _scrollController = ScrollController();
+  final _accountsKey = GlobalKey();
+  final _accountsFocus = FocusNode();
+  BusyProvider? _connectingDavProvider;
+  DavCancellationToken? _davCancellation;
+  AuthorizationCancellation? _authorizationCancellation;
+  String? _davError;
+
+  void _revealAccounts() {
+    if (!mounted || widget.initialPage != 'accounts') return;
+    final target = _accountsKey.currentContext;
+    if (target != null) {
+      unawaited(Scrollable.ensureVisible(target));
+      _accountsFocus.requestFocus();
+    } else if (_scrollController.hasClients) {
+      // ListView builds lazily. Advance until the account section is laid out,
+      // then align and focus its first connection action.
+      final position = _scrollController.position;
+      final next = (position.pixels + position.viewportDimension).clamp(
+        0.0,
+        position.maxScrollExtent,
+      );
+      if (next == position.pixels) return;
+      _scrollController.jumpTo(next);
+      WidgetsBinding.instance.addPostFrameCallback((_) => _revealAccounts());
+    }
+  }
+
+  @override
+  void didUpdateWidget(covariant WindowsSettingsPage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.initialPage != oldWidget.initialPage) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _revealAccounts());
+    }
+  }
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _revealAccounts());
     _autostartRefresh = LaunchAtLoginRefreshObserver(
       () => ref.invalidate(launchAtLoginStateProvider),
     );
@@ -65,6 +108,10 @@ class _WindowsSettingsPageState extends ConsumerState<WindowsSettingsPage> {
   @override
   void dispose() {
     _sharedConsentCancellation?.cancel();
+    _authorizationCancellation?.cancel();
+    _davCancellation?.cancel();
+    _scrollController.dispose();
+    _accountsFocus.dispose();
     _autostartRefresh.dispose();
     super.dispose();
   }
@@ -83,6 +130,111 @@ class _WindowsSettingsPageState extends ConsumerState<WindowsSettingsPage> {
     }
   }
 
+  Future<void> _setup(BusyProvider provider) async {
+    if (_authorizationCancellation != null) return;
+    final cancellation = AuthorizationCancellation();
+    setState(() => _authorizationCancellation = cancellation);
+    try {
+      final handle = await showWindowsRegistrationSetup(context, ref, provider);
+      if (handle == null || !mounted || cancellation.isCancelled) return;
+      final controller = ref.read(authSessionControllerProvider.notifier);
+      final request = AuthorizationRequest.newConnection(
+        handle,
+        cancellation: cancellation,
+      );
+      if (provider == BusyProvider.google) {
+        await controller.signIn(request: request);
+      } else {
+        await controller.signInWithMicrosoft(request: request);
+      }
+    } finally {
+      cancellation.cancel();
+      if (identical(_authorizationCancellation, cancellation)) {
+        if (mounted) {
+          setState(() => _authorizationCancellation = null);
+        } else {
+          _authorizationCancellation = null;
+        }
+      }
+    }
+  }
+
+  Future<void> _signIn(Future<void> Function() action) async {
+    setState(() => _davError = null);
+    try {
+      await action();
+    } finally {
+      if (mounted) {
+        try {
+          await ref.read(desktopWindowServiceProvider).showWindow();
+        } on Object {
+          // Authentication state remains authoritative if foregrounding is
+          // temporarily denied by Windows.
+        }
+      }
+    }
+    if (!mounted) return;
+  }
+
+  Future<void> _connectDav(BusyProvider provider) async {
+    WindowsAppleCredentialInput? apple;
+    String? server;
+    if (provider == BusyProvider.appleICloud) {
+      apple = await showWindowsAppleICloudDialog(context);
+    } else {
+      server = await showWindowsNextcloudServerDialog(context);
+    }
+    if (!mounted ||
+        (provider == BusyProvider.appleICloud && apple == null) ||
+        (provider == BusyProvider.nextcloud && server == null)) {
+      return;
+    }
+    setState(() {
+      _connectingDavProvider = provider;
+      _davError = null;
+    });
+    final cancellation = DavCancellationToken();
+    _davCancellation = cancellation;
+    try {
+      final onboarding = ref.read(davAccountOnboardingServiceProvider);
+      if (provider == BusyProvider.appleICloud) {
+        await onboarding.connectAppleICloud(
+          email: apple!.email,
+          appSpecificPassword: apple.password,
+          cancellationToken: cancellation,
+        );
+      } else {
+        await onboarding.connectNextcloud(
+          enteredServer: server!,
+          cancellationToken: cancellation,
+        );
+      }
+      if (!mounted || cancellation.isCancelled) return;
+      await ref.read(authSessionControllerProvider.notifier).load();
+    } on Object catch (error) {
+      if (error is DavException && error.kind == DavErrorKind.cancelled) return;
+      if (mounted) {
+        setState(() => _davError = authErrorMessage(error));
+      }
+    } finally {
+      _davCancellation = null;
+      if (mounted) setState(() => _connectingDavProvider = null);
+    }
+  }
+
+  Future<void> _cancelConnection() async {
+    if (_connectingDavProvider != null) {
+      _davCancellation?.cancel();
+      if (_connectingDavProvider == BusyProvider.nextcloud) {
+        ref.read(davAccountOnboardingServiceProvider).cancelNextcloudLogin();
+      }
+      return;
+    }
+    await ref
+        .read(authSessionControllerProvider.notifier)
+        .cancelSignIn(cancellation: _authorizationCancellation);
+  }
+
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
@@ -97,8 +249,22 @@ class _WindowsSettingsPageState extends ConsumerState<WindowsSettingsPage> {
     final notificationReadiness = ref.watch(
       desktopNotificationReadinessProvider,
     );
+    final session = ref.watch(authSessionControllerProvider);
+    final busy =
+        session.status == AuthSessionStatus.signingIn ||
+        _connectingDavProvider != null ||
+        _authorizationCancellation != null;
     return ScaffoldPage.scrollable(
-      header: PageHeader(title: Text(l10n.settings)),
+      scrollController: _scrollController,
+      header: PageHeader(
+        leading: (GoRouter.maybeOf(context)?.canPop() ?? false)
+            ? PaneBackButton(
+                key: const ValueKey('windows-settings-back'),
+                onPressed: () => WindowsWorkspaceShell.popSettings(context),
+              )
+            : null,
+        title: Text(l10n.settings),
+      ),
       bottomBar: ref.watch(appSettingsPersistenceFailedProvider)
           ? Padding(
               padding: const EdgeInsets.all(16),
@@ -435,7 +601,7 @@ class _WindowsSettingsPageState extends ConsumerState<WindowsSettingsPage> {
           ),
         ),
         const SizedBox(height: 20),
-        _SectionTitle(l10n.accounts),
+        KeyedSubtree(key: _accountsKey, child: _SectionTitle(l10n.accounts)),
         Card(
           child: accounts.when(
             loading: () => const Padding(
@@ -448,11 +614,60 @@ class _WindowsSettingsPageState extends ConsumerState<WindowsSettingsPage> {
             ),
             data: (values) => Column(
               children: [
+                if (session.message != null || _davError != null)
+                  InfoBar(
+                    title: Text(
+                      _davError ??
+                          localizedOAuthFailure(
+                            l10n,
+                            session.failureKind,
+                            session.message!,
+                          ),
+                    ),
+                    severity: InfoBarSeverity.error,
+                  ),
                 ListTile(
                   leading: Icon(windowsBusyMaxGlyph(BusyMaxGlyph.add)),
-                  title: Text(l10n.connectAccountAction),
-                  onPressed: () => context.go('/sign-in?add=true'),
+                  focusNode: _accountsFocus,
+                  title: Text(l10n.addNextcloudAccount),
+                  onPressed: busy
+                      ? null
+                      : () => _connectDav(BusyProvider.nextcloud),
                 ),
+                ListTile(
+                  leading: Icon(windowsBusyMaxGlyph(BusyMaxGlyph.add)),
+                  title: Text(l10n.addGoogleAccount),
+                  subtitle: config.googleSetupAvailable
+                      ? null
+                      : Text(l10n.providerNotConfigured),
+                  onPressed: busy || !config.googleSetupAvailable
+                      ? null
+                      : () => _signIn(() => _setup(BusyProvider.google)),
+                ),
+                ListTile(
+                  leading: Icon(windowsBusyMaxGlyph(BusyMaxGlyph.add)),
+                  title: Text(l10n.addMicrosoftAccount),
+                  subtitle: config.microsoftSetupAvailable
+                      ? null
+                      : Text(l10n.providerNotConfigured),
+                  onPressed: busy || !config.microsoftSetupAvailable
+                      ? null
+                      : () => _signIn(() => _setup(BusyProvider.microsoft)),
+                ),
+                ListTile(
+                  leading: Icon(windowsBusyMaxGlyph(BusyMaxGlyph.add)),
+                  title: Text(l10n.addAppleICloudAccount),
+                  onPressed: busy
+                      ? null
+                      : () => _connectDav(BusyProvider.appleICloud),
+                ),
+                if (busy) ...[
+                  const ProgressRing(),
+                  Button(
+                    onPressed: _cancelConnection,
+                    child: Text(l10n.cancelAccountConnection),
+                  ),
+                ],
                 if (values.isNotEmpty) const Divider(),
                 for (var index = 0; index < values.length; index++) ...[
                   if (values[index].provider == BusyProvider.google ||
@@ -522,9 +737,19 @@ class _WindowsSettingsPageState extends ConsumerState<WindowsSettingsPage> {
                             windowsBusyMaxGlyph(BusyMaxGlyph.delete),
                           ),
                           text: Text(l10n.removeAccount),
-                          onPressed: () => unawaited(
-                            _removeWindowsAccount(context, ref, values[index]),
-                          ),
+                          closeAfterClick: false,
+                          onPressed: () {
+                            // Close the menu before pushing the confirmation;
+                            // an asynchronous menu pop can race the dialog.
+                            Navigator.of(context).pop();
+                            unawaited(
+                              _removeWindowsAccount(
+                                context,
+                                ref,
+                                values[index],
+                              ),
+                            );
+                          },
                         ),
                       ],
                     ),
@@ -654,13 +879,17 @@ class _WindowsSettingsPageState extends ConsumerState<WindowsSettingsPage> {
                               windowsBusyMaxGlyph(BusyMaxGlyph.delete),
                             ),
                             text: Text(l10n.unsubscribe),
-                            onPressed: () => unawaited(
-                              _unsubscribeWindowsSubscription(
-                                context,
-                                ref,
-                                subscription,
-                              ),
-                            ),
+                            closeAfterClick: false,
+                            onPressed: () {
+                              Navigator.of(context).pop();
+                              unawaited(
+                                _unsubscribeWindowsSubscription(
+                                  context,
+                                  ref,
+                                  subscription,
+                                ),
+                              );
+                            },
                           ),
                         ],
                       ),
@@ -1100,7 +1329,6 @@ Future<void> _removeWindowsAccount(
         l10n.nextcloudAccountRemovedRevokeFailed,
       );
     }
-    if (remaining.isEmpty && context.mounted) context.go('/sign-in');
   } on Object catch (error) {
     if (context.mounted) {
       await _showWindowsMessage(

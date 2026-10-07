@@ -5,12 +5,14 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:busymax/src/platform/windows/windows_notification_id_store.dart';
 
+import '../../support/persistence_test_directory.dart';
+
 void main() {
   late Directory directory;
   late File file;
 
   setUp(() async {
-    directory = await Directory.systemTemp.createTemp(
+    directory = await createPersistenceTestDirectory(
       'busymax-notification-ids-',
     );
     file = File('${directory.path}/ids.json');
@@ -79,9 +81,15 @@ void main() {
 
   test('serializes concurrent allocation without collisions', () async {
     final store = WindowsNotificationIdStore(file);
-    final ids = await Future.wait([
+    final allocations = Future.wait([
       for (var index = 0; index < 100; index++) store.idFor('schedule-$index'),
     ]);
+    // Drain all queued writes before the directory teardown, including when
+    // the test body fails or times out.
+    addTearDown(() async {
+      await allocations;
+    });
+    final ids = await allocations;
     expect(ids.toSet(), hasLength(100));
   });
 

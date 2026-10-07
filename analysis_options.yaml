@@ -7,8 +7,6 @@ analyzer:
     - windows/**
     - linux/**
     - android/**
-    - packages/**/example/**
-    - packages/busymax_android_platform/example/**
 
 linter:
   rules:

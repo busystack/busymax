@@ -405,35 +405,6 @@ class AppLocalizationsFr extends AppLocalizations {
       'Les autorisations Google Calendar et Google Tasks sont requises. Réessayez et sélectionnez les deux cases.';
 
   @override
-  String get finishSetup => 'Terminer la configuration';
-
-  @override
-  String get continueSetup => 'Continuer';
-
-  @override
-  String get onboardingSetupTitle => 'Configurer BusyMax';
-
-  @override
-  String get onboardingAccountsStepTitle => 'Connecter des comptes';
-
-  @override
-  String get onboardingAccountsStepDescription =>
-      'Ajoutez tous les comptes que vous souhaitez utiliser. BusyMax synchronise les calendriers, événements, listes de tâches et tâches pris en charge de chaque compte.';
-
-  @override
-  String get onboardingPreferencesStepTitle => 'Choisir les paramètres système';
-
-  @override
-  String get onboardingPreferencesStepDescription =>
-      'Réglez le comportement de l’application sur le bureau, les rappels, le niveau de détail des notifications et l’apparence avant d’ouvrir votre planning.';
-
-  @override
-  String get signInWithGoogle => 'Se connecter avec Google';
-
-  @override
-  String get signInWithMicrosoft => 'Se connecter avec Microsoft';
-
-  @override
   String get googleTasksProvider => 'Google Tasks';
 
   @override
@@ -599,13 +570,6 @@ class AppLocalizationsFr extends AppLocalizations {
   @override
   String get scheduleNoSourcesDescription =>
       'Choisissez les éléments à afficher dans les paramètres, puis actualisez.';
-
-  @override
-  String get scheduleSignInRequired => 'Connecter un compte';
-
-  @override
-  String get scheduleSignInDescription =>
-      'Connectez-vous pour synchroniser vos calendriers et vos tâches.';
 
   @override
   String get scheduleNoSearchResults =>
@@ -3229,7 +3193,7 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String registrationRetirementNotice(String provider, String setup) {
-    return 'Ce compte utilise l’inscription $provider partagée de BusyMax, qui sera abandonnée dans la prochaine version. Configurez votre propre $setup et reconnectez ce compte pour maintenir la synchronisation. Vos calendriers, tâches et modifications locales seront conservés.';
+    return 'Ce compte utilise une inscription $provider d’origine réservée aux comptes existants. Pour la remplacer, configurez $setup et reconnectez ce compte. Vos calendriers, tâches et modifications locales seront conservés.';
   }
 
   @override
@@ -3302,4 +3266,267 @@ class AppLocalizationsFr extends AppLocalizations {
   @override
   String get oauthRevokedRemovalIncomplete =>
       'L’autorisation distante a été révoquée, mais le nettoyage du compte n’a pas pu être terminé. Redémarrez BusyMax pour réessayer la récupération locale.';
+
+  @override
+  String get addAccount => 'Ajouter un compte';
+
+  @override
+  String get registrationConnect => 'Connecter';
+
+  @override
+  String get registrationBack => 'Retour';
+
+  @override
+  String get registrationReplaceGoogle => 'Remplacer le JSON OAuth de bureau';
+
+  @override
+  String get registrationSelectedConfiguration => 'Configuration sélectionnée';
+
+  @override
+  String get registrationDirectoryId => 'ID du répertoire/locataire';
+
+  @override
+  String get registrationInvalidId => 'Saisissez un UUID valide.';
+
+  @override
+  String get registrationExpired =>
+      'Cette configuration a expiré. Importez-la à nouveau ou modifiez les champs avant de vous connecter.';
+
+  @override
+  String get registrationOwnProjectRequired =>
+      'Choisissez une inscription de votre propre projet ou locataire.';
+
+  @override
+  String get registrationSetupFailed =>
+      'La configuration n’a pas pu être terminée. Réessayez.';
+
+  @override
+  String get registrationLinkFailed =>
+      'Impossible d’ouvrir le lien. Vérifiez votre navigateur et réessayez.';
+
+  @override
+  String get registrationPermissions => 'Autorisations';
+
+  @override
+  String get registrationDesktopClient => 'Application de bureau';
+
+  @override
+  String get registrationOpenGoogleConsole => 'Ouvrir Google Cloud Console';
+
+  @override
+  String get registrationGoogleAudienceHelp =>
+      'Conditions de publication et utilisateurs de test Google';
+
+  @override
+  String get registrationDesktopHelp =>
+      'Instructions d’inscription des applications de bureau';
+
+  @override
+  String get registrationOpenEntra =>
+      'Ouvrir le centre d’administration Microsoft Entra';
+
+  @override
+  String get registrationGuideGoogleProject =>
+      'Ouvrez Google Cloud Console. Utilisez le sélecteur de projet en haut pour choisir votre propre projet, ou choisissez New project, saisissez un nom et sélectionnez Create. Gardez ce projet sélectionné pour les étapes suivantes.';
+
+  @override
+  String get registrationGuideGoogleAudience =>
+      'Allez dans Google Auth Platform → Branding. Pour une nouvelle configuration, sélectionnez Get started. Saisissez BusyMax dans App name, choisissez votre propre User support email et sélectionnez Next. Dans Audience, choisissez External. Sélectionnez Next, saisissez votre adresse e-mail dans Contact Information et sélectionnez Next. Acceptez User Data Policy, puis sélectionnez Continue et Create. Si la configuration existe, vérifiez Branding et Audience.';
+
+  @override
+  String get registrationGuideGooglePermissions =>
+      'Ouvrez Google Auth Platform → Data Access → Add or remove scopes. Sélectionnez les cinq champs d’accès ci-dessous ; utilisez Manually add scopes si nécessaire. Pour la saisie manuelle, collez les valeurs manquantes et sélectionnez Add to table. Sélectionnez Update, puis Save. BusyMax a besoin de l’accès au calendrier et aux tâches.';
+
+  @override
+  String get registrationGuideGoogleClient =>
+      'Ouvrez Google Auth Platform → Clients → Create client. Choisissez Desktop app dans Application type, saisissez BusyMax dans Name et sélectionnez Create. Dans la boîte de création, sélectionnez Download JSON et enregistrez le fichier. Sélectionnez Retour pour revenir au formulaire, choisissez ce fichier et vérifiez le projet et l’ID client. Sélectionnez Connecter et autorisez l’accès au calendrier et aux tâches dans le navigateur.';
+
+  @override
+  String get registrationGuideMicrosoftApp =>
+      'Connectez-vous au centre d’administration Microsoft Entra. Utilisez Settings pour choisir un locataire où vous pouvez inscrire des applications. Ouvrez Entra ID → App registrations → New registration. Saisissez BusyMax dans Name, puis choisissez les types de comptes à l’étape suivante. Si l’inscription est bloquée, demandez l’accès à l’administrateur du locataire.';
+
+  @override
+  String get registrationGuideMicrosoftRedirect =>
+      'Dans votre inscription, ouvrez Authentication → Add a platform → Mobile and desktop applications. Sélectionnez ou saisissez l’URI de redirection ci-dessous, puis sélectionnez Configure pour l’enregistrer. BusyMax utilise votre navigateur système. Aucun secret client n’est nécessaire.';
+
+  @override
+  String get registrationGuideMicrosoftPermissions =>
+      'Ouvrez API permissions → Add a permission → Microsoft Graph → Delegated permissions. Recherchez et sélectionnez chaque champ d’accès ci-dessous, puis sélectionnez Add permissions. Conservez User.Read s’il est déjà présent. Si votre organisation exige un consentement administrateur, demandez à un administrateur d’utiliser Grant admin consent pour le locataire.';
+
+  @override
+  String get registrationGuideMicrosoftConnect =>
+      'Sélectionnez Retour pour revenir au formulaire. Collez Application (client) ID et choisissez les mêmes Comptes pris en charge que dans l’inscription. Pour Un locataire organisationnel, collez aussi Directory (tenant) ID. Sélectionnez Connecter et connectez-vous au compte souhaité dans le navigateur. BusyMax vérifie les champs localement ; Microsoft demande votre consentement lors de la connexion dans le navigateur.';
+
+  @override
+  String get registrationGoogleImportFailed =>
+      'Impossible d’importer ce fichier. Sélectionnez un JSON OAuth de bureau valide. Toute sélection valide précédente est conservée.';
+
+  @override
+  String get registrationGoogleSetupInstructions =>
+      'Instructions de configuration Google';
+
+  @override
+  String get registrationMicrosoftSetupInstructions =>
+      'Instructions de configuration Microsoft';
+
+  @override
+  String get registrationDesktopConfiguration =>
+      'Configuration OAuth pour ordinateur';
+
+  @override
+  String get registrationNoFileSelected => 'Aucun fichier sélectionné';
+
+  @override
+  String get registrationChooseFile => 'Choisir un fichier…';
+
+  @override
+  String get registrationReplaceFile => 'Remplacer…';
+
+  @override
+  String get registrationGoogleIntroduction =>
+      'Choisissez le fichier JSON OAuth pour ordinateur de votre propre projet Google Cloud.';
+
+  @override
+  String get registrationMicrosoftIntroduction =>
+      'Saisissez les informations de votre propre inscription d’application Microsoft.';
+
+  @override
+  String get registrationSetupInstructions => 'Instructions de configuration';
+
+  @override
+  String get registrationInstructionsDescription =>
+      'Créez la configuration nécessaire pour connecter votre compte.';
+
+  @override
+  String get registrationEnableApis => 'Activer Calendar et Tasks';
+
+  @override
+  String get registrationConsentScreen => 'Configurer l’écran de consentement';
+
+  @override
+  String get registrationAppName => 'Nom de l’application';
+
+  @override
+  String get registrationScopes => 'Champs d’accès';
+
+  @override
+  String get registrationRedirectUri => 'URI de redirection';
+
+  @override
+  String get registrationOpenApiLibrary =>
+      'Ouvrir la bibliothèque d’API Google';
+
+  @override
+  String get registrationOpenBranding =>
+      'Ouvrir Branding dans Google Auth Platform';
+
+  @override
+  String get registrationOpenDataAccess =>
+      'Ouvrir Data Access dans Google Auth Platform';
+
+  @override
+  String get registrationOpenClients =>
+      'Ouvrir Clients dans Google Auth Platform';
+
+  @override
+  String get registrationOpenEntraAuthentication =>
+      'Ouvrir les inscriptions Entra pour Authentication';
+
+  @override
+  String get registrationOpenEntraPermissions =>
+      'Ouvrir les inscriptions Entra pour API permissions';
+
+  @override
+  String get registrationCopy => 'Copier';
+
+  @override
+  String get registrationCopyAll => 'Tout copier';
+
+  @override
+  String get registrationGuideGoogleApis =>
+      'Allez dans APIs & Services → Library. Recherchez Google Calendar API, ouvrez sa page et sélectionnez Enable. Revenez à Library et répétez l’opération pour Google Tasks API.';
+
+  @override
+  String get registrationGuideMicrosoftAudience =>
+      'Dans Supported account types, choisissez Personal accounts only pour un compte personnel, Multiple Entra ID tenants pour des comptes professionnels, Any Entra ID Tenant + Personal Microsoft accounts pour les deux, ou Single tenant only pour cet annuaire. Sélectionnez Register. Dans Overview, copiez Application (client) ID ; pour un seul locataire, copiez aussi Directory (tenant) ID. Choisissez l’option correspondante dans Comptes pris en charge de BusyMax.';
+
+  @override
+  String get registrationConnectBusyMax => 'Connecter avec BusyMax';
+
+  @override
+  String get registrationRecommended => 'Recommandé';
+
+  @override
+  String get registrationOtherMethods => 'Autres méthodes de connexion';
+
+  @override
+  String get registrationWorkspace => 'Organisation Google Workspace';
+
+  @override
+  String get registrationGoogleCustom => 'Client OAuth personnalisé';
+
+  @override
+  String get registrationMicrosoftCustom =>
+      'Inscription d’application personnalisée';
+
+  @override
+  String get registrationMethodsIntroduction =>
+      'Choisissez comment connecter votre compte.';
+
+  @override
+  String get registrationWorkspaceDescription =>
+      'Utilisez une configuration gérée par votre organisation.';
+
+  @override
+  String get registrationCustomDescription =>
+      'Utilisez une inscription que vous gérez.';
+
+  @override
+  String get registrationSharedUnavailable =>
+      'La connexion avec BusyMax est indisponible dans cette version. Vous pouvez utiliser une autre méthode ci-dessous.';
+
+  @override
+  String get registrationWorkspaceIntroduction =>
+      'Choisissez le JSON OAuth de bureau fourni ou géré par votre organisation. Le fichier ne prouve ni la propriété de l’organisation, ni l’audience, ni l’état de validation.';
+
+  @override
+  String get registrationWorkspaceSetupInstructions =>
+      'Instructions de configuration de Google Workspace';
+
+  @override
+  String get registrationBusyMaxManaged => 'Inscription gérée par BusyMax';
+
+  @override
+  String get registrationBranding => 'Configurer la marque et les domaines';
+
+  @override
+  String get registrationPublishing => 'Publier pour un usage normal';
+
+  @override
+  String get registrationOpenAudience =>
+      'Ouvrir Audience dans Google Auth Platform';
+
+  @override
+  String get registrationGuideWorkspaceProject =>
+      'Demandez le JSON OAuth de bureau à votre administrateur ou ouvrez Google Cloud Console et sélectionnez un projet de votre organisation Google Workspace. Pour en créer un, ouvrez Gérer les ressources → Créer un projet, saisissez le Nom du projet, choisissez votre organisation ou un de ses dossiers dans Ressource parente, puis Créer. Sélectionnez ce projet pour la suite. La création nécessite Project Creator, la configuration OAuth nécessite OAuth Config Editor et l’activation des API nécessite Service Usage Admin ou des autorisations équivalentes. Contactez l’administrateur en cas de blocage.';
+
+  @override
+  String get registrationGuideGoogleBranding =>
+      'Dans Branding → App domain, ajoutez les domaines autorisés de votre projet avant ses URL de page d’accueil, confidentialité et conditions d’utilisation, puis sélectionnez Save. Les applications External en production nécessitent ces liens. Utilisez vos propres domaines et vérifiez leur propriété dans Search Console si Google exige la validation de marque. Le lien de confidentialité BusyMax ci-dessous ne prouve pas que votre projet possède busystack.org.';
+
+  @override
+  String get registrationGuideGooglePublishing =>
+      'Dans Audience, sélectionnez Publish app et confirmez In production. Ne laissez pas l’usage normal en Testing : ces autorisations Calendar/Tasks et jetons d’actualisation expirent après sept jours. Publication et validation sont distinctes. Un usage personnel avec moins de 100 utilisateurs peut être exempté de validation, avec avertissements et plafond d’utilisateurs ; une diffusion plus large peut nécessiter la validation de marque et des portées. Les autorisations de production peuvent toujours expirer ou être révoquées.';
+
+  @override
+  String get registrationGuideWorkspacePermissions =>
+      'Examinez ces portées avec votre administrateur. Les applications Internal n’ont pas à les lister sur l’écran de consentement. Si demandé, ouvrez Data Access → Add or remove scopes, ajoutez ces valeurs, puis Update et Save. Les contrôles administratifs peuvent encore limiter l’autorisation.';
+
+  @override
+  String get registrationGuideMicrosoftOptionalPermissions =>
+      'Les autorisations de calendriers partagés et de catégories sont demandées séparément lors de l’activation de ces fonctions facultatives ; ne les ajoutez pas à la configuration obligatoire ci-dessus.';
+
+  @override
+  String get registrationGuideWorkspaceAudience =>
+      'Allez dans Google Auth Platform → Branding. Pour une nouvelle configuration, sélectionnez Get started. Saisissez BusyMax dans App name, choisissez votre propre User support email et sélectionnez Next. Dans Audience, choisissez Internal. Sélectionnez Next, saisissez votre adresse e-mail dans Contact Information et sélectionnez Next. Acceptez User Data Policy, puis sélectionnez Continue et Create. Si la configuration existe, vérifiez Branding et Audience.\n\nInternal autorise uniquement les comptes de l’organisation parente du projet, sous réserve des contrôles administratifs. Aucune liste de testeurs n’est nécessaire. BusyMax ne peut pas vérifier ces réglages à partir du JSON.';
 }

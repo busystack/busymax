@@ -289,10 +289,11 @@ DEFINE_ENTRY_COUNT=$((${#DART_DEFINE_ARGS[@]} + ${#DART_DEFINE_FILE_ARGS[@]}))
 echo "Defines:  $DEFINE_ENTRY_COUNT build-time entries"
 if [[ "$DEFINE_ENTRY_COUNT" -eq 0 ]]; then
   cat >&2 <<'EOF'
-No original shared registrations were supplied for this local build.
-Google Desktop JSON import and Microsoft public-registration setup remain available.
+No protected original registrations were supplied for this local build.
+Connect with BusyMax is unavailable without explicit BUSYMAX_* production values.
+Google Workspace/custom JSON import and Microsoft custom setup remain available.
 Existing unbound shared accounts need their original protected configuration.
-For the official transitional release, rebuild with:
+For existing original account bindings, retain the protected original values:
   ./tool/build_install_snap_local.sh --dart-define-from-file .snap-local/busymax-dart-defines.json
 EOF
 fi

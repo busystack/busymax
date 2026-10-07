@@ -71,19 +71,187 @@ String _testAuthority(BusyProvider provider) => switch (provider) {
 };
 
 class _AttachmentTestFileSelector extends FileSelectorPlatform {
+  _AttachmentTestFileSelector([this.file]);
+
+  final XFile? file;
+
   @override
   Future<XFile?> openFile({
     List<XTypeGroup>? acceptedTypeGroups,
     String? initialDirectory,
     String? confirmButtonText,
-  }) async => XFile.fromData(
-    Uint8List.fromList(const [1, 2, 3]),
-    path: '/test/agenda.txt',
-    mimeType: 'text/plain',
-  );
+  }) async =>
+      file ??
+      XFile.fromData(
+        Uint8List.fromList(const [1, 2, 3]),
+        path: '/test/agenda.txt',
+        mimeType: 'text/plain',
+      );
+}
+
+class _DelayedAttachmentTestFile extends XFile {
+  _DelayedAttachmentTestFile()
+    : super('/test/agenda.txt', mimeType: 'text/plain');
+
+  final lengthRequested = Completer<void>();
+  final releaseLength = Completer<int>();
+
+  @override
+  Future<int> length() {
+    lengthRequested.complete();
+    return releaseLength.future;
+  }
+
+  @override
+  Future<Uint8List> readAsBytes() async => Uint8List.fromList(const [1, 2, 3]);
 }
 
 void main() {
+  testWidgets(
+    'task attachment upload retains its target across selection changes',
+    (tester) async {
+      final previousSelector = FileSelectorPlatform.instance;
+      final file = _DelayedAttachmentTestFile();
+      FileSelectorPlatform.instance = _AttachmentTestFileSelector(file);
+      addTearDown(() => FileSelectorPlatform.instance = previousSelector);
+      final selection = ValueNotifier<TaskEntity?>(
+        _switchTask('task-1', 'First task'),
+      );
+      addTearDown(selection.dispose);
+      final posts = <String>[];
+      var secondTaskLists = 0;
+      final client = MicrosoftTodoRestApiClient(
+        httpClient: MockClient((request) async {
+          if (request.method == 'GET') {
+            final isSecondTask = request.url.path.contains('/task-2/');
+            if (isSecondTask) secondTaskLists++;
+            return http.Response(
+              jsonEncode({
+                'value': [
+                  if (isSecondTask || posts.isNotEmpty)
+                    {
+                      'id': isSecondTask ? 'attachment-b' : 'attachment-a',
+                      'name': isSecondTask ? 'second.txt' : 'agenda.txt',
+                      'size': 3,
+                      '@odata.type': '#microsoft.graph.taskFileAttachment',
+                    },
+                ],
+              }),
+              200,
+            );
+          }
+          posts.add(request.url.path);
+          return http.Response(
+            jsonEncode({
+              'id': 'attachment-a',
+              'name': 'agenda.txt',
+              'size': 3,
+              '@odata.type': '#microsoft.graph.taskFileAttachment',
+            }),
+            201,
+          );
+        }),
+        baseUri: Uri.parse('https://graph.microsoft.com/v1.0'),
+        authorizationHeaderProvider: () async => 'Bearer token',
+      );
+      final coordinator = AttachmentUploadCoordinator();
+      await tester.pumpWidget(
+        _switchingAttachmentEditor(selection, client, coordinator),
+      );
+      await tester.pumpAndSettle();
+      final add = find.widgetWithText(FilledButton, 'Attachments').last;
+      await tester.ensureVisible(add);
+      await tester.tap(add);
+      await tester.pump();
+      expect(file.lengthRequested.isCompleted, isTrue);
+
+      selection.value = _switchTask('task-2', 'Second task');
+      await tester.pump();
+      expect(tester.widget<FilledButton>(add).onPressed, isNotNull);
+      await tester.ensureVisible(
+        find.byKey(const Key('task-attachments-load')),
+      );
+      await tester.tap(find.byKey(const Key('task-attachments-load')));
+      await tester.pumpAndSettle();
+      expect(find.text('second.txt'), findsOneWidget);
+
+      file.releaseLength.complete(3);
+      await tester.pumpAndSettle();
+      expect(posts, ['/v1.0/me/todo/lists/list-1/tasks/task-1/attachments']);
+      expect(secondTaskLists, 1);
+      expect(find.text('second.txt'), findsOneWidget);
+      expect(find.text('agenda.txt'), findsNothing);
+      expect(
+        coordinator.status(
+          AttachmentUploadCoordinator.taskKey(
+            'microsoft:m',
+            'list-1',
+            'task-1',
+          ),
+        ),
+        AttachmentUploadStatus.committed,
+      );
+    },
+  );
+
+  testWidgets('task attachment completion safely outlives its editor', (
+    tester,
+  ) async {
+    final previousSelector = FileSelectorPlatform.instance;
+    FileSelectorPlatform.instance = _AttachmentTestFileSelector();
+    addTearDown(() => FileSelectorPlatform.instance = previousSelector);
+    final selection = ValueNotifier<TaskEntity?>(
+      _switchTask('task-1', 'First task'),
+    );
+    addTearDown(selection.dispose);
+    final response = Completer<http.Response>();
+    var posted = false;
+    final client = MicrosoftTodoRestApiClient(
+      httpClient: MockClient((request) async {
+        if (request.method == 'GET') {
+          return http.Response(jsonEncode({'value': []}), 200);
+        }
+        posted = true;
+        return response.future;
+      }),
+      baseUri: Uri.parse('https://graph.microsoft.com/v1.0'),
+      authorizationHeaderProvider: () async => 'Bearer token',
+    );
+    final coordinator = AttachmentUploadCoordinator();
+    await tester.pumpWidget(
+      _switchingAttachmentEditor(selection, client, coordinator),
+    );
+    await tester.pumpAndSettle();
+    final add = find.widgetWithText(FilledButton, 'Attachments').last;
+    await tester.ensureVisible(add);
+    await tester.tap(add);
+    for (var i = 0; i < 10 && !posted; i++) {
+      await tester.pump();
+    }
+    expect(posted, isTrue);
+    selection.value = null;
+    await tester.pump();
+    response.complete(
+      http.Response(
+        jsonEncode({
+          'id': 'attachment-a',
+          'name': 'agenda.txt',
+          'size': 3,
+          '@odata.type': '#microsoft.graph.taskFileAttachment',
+        }),
+        201,
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
+    expect(
+      coordinator.status(
+        AttachmentUploadCoordinator.taskKey('microsoft:m', 'list-1', 'task-1'),
+      ),
+      AttachmentUploadStatus.committed,
+    );
+  });
+
   testWidgets('Linux task Add releases after confirmed upload', (tester) async {
     final previousSelector = FileSelectorPlatform.instance;
     FileSelectorPlatform.instance = _AttachmentTestFileSelector();
@@ -2808,7 +2976,7 @@ Future<void> _pumpDetails(
         ),
         selectedAccountCapabilitiesProvider.overrideWithValue(capabilities),
         davTaskCollectionCapabilitiesProvider.overrideWith(
-          (ref, key) async => capabilities,
+          (ref, key) => Stream.value(capabilities),
         ),
         davCollectionsStreamProvider.overrideWith(
           (ref) => Stream.value(const []),
@@ -3254,6 +3422,54 @@ class _SwitchingTasksRepository implements TasksRepository {
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
+
+Widget _switchingAttachmentEditor(
+  ValueNotifier<TaskEntity?> selection,
+  MicrosoftTodoRestApiClient client,
+  AttachmentUploadCoordinator coordinator,
+) => ProviderScope(
+  overrides: [
+    attachmentUploadCoordinatorProvider.overrideWith((ref) => coordinator),
+    microsoftTodoApiClientForAccountProvider(
+      'microsoft:m',
+    ).overrideWithValue(client),
+    microsoftMasterCategoriesProvider(
+      'microsoft:m',
+    ).overrideWith((ref) async => []),
+  ],
+  child: localizedTestApp(
+    child: Scaffold(
+      body: ValueListenableBuilder<TaskEntity?>(
+        valueListenable: selection,
+        builder: (context, task, _) => task == null
+            ? const SizedBox()
+            : TaskDetailsEditor(
+                task: task,
+                provider: BusyProvider.microsoft,
+                taskLists: const [
+                  TaskListEntity(
+                    accountId: 'microsoft:m',
+                    id: 'list-1',
+                    title: 'Tasks',
+                    localDirty: false,
+                    pendingDelete: false,
+                    rawJson: '{}',
+                  ),
+                ],
+                capabilities: microsoftTaskCollectionCapabilities,
+                localTimeZone: 'UTC',
+                accountLabel: 'Account',
+                onRefresh: () {},
+                onSave: (_, _) async {},
+                onCreateSubtask: (_) async {},
+                onMoveToTop: () {},
+                onDelete: () async {},
+                onCancel: () {},
+              ),
+      ),
+    ),
+  ),
+);
 
 TaskEntity _switchTask(String id, String title, {String? assignmentInfoJson}) {
   return TaskEntity(

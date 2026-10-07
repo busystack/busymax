@@ -10,6 +10,8 @@ import 'package:busymax/src/db/app_database.dart';
 import 'package:busymax/src/db/migrations.dart';
 import 'package:busymax/src/features/tasks/domain/task_remote_models.dart';
 
+import '../support/persistence_test_directory.dart';
+
 void main() {
   late AppDatabase database;
 
@@ -104,9 +106,14 @@ void main() {
     'reopens the current schema with coordinates, remembered provenance, and pending work',
     () async {
       await database.close();
-      final directory = await Directory.systemTemp.createTemp(
+      final directory = await createPersistenceTestDirectory(
         'busymax-schema14-location-',
       );
+      addTearDown(() async {
+        await database.close();
+        database = AppDatabase(NativeDatabase.memory());
+        await directory.delete(recursive: true);
+      });
       final file = File('${directory.path}/busymax.sqlite');
       database = AppDatabase(NativeDatabase(file));
       await _insertAccount(database);
@@ -182,16 +189,12 @@ void main() {
         (await database.select(database.pendingOps).getSingle()).id,
         'pending',
       );
-
-      await database.close();
-      database = AppDatabase(NativeDatabase.memory());
-      await directory.delete(recursive: true);
     },
   );
 
   test('schema 14 migration preserves actionable legacy reminders', () async {
     await database.close();
-    final directory = await Directory.systemTemp.createTemp(
+    final directory = await createPersistenceTestDirectory(
       'busymax-reminder-migration-',
     );
     addTearDown(() => directory.delete(recursive: true));
@@ -249,7 +252,7 @@ void main() {
 
   test('schema 15 migration adds the durable task-import guard', () async {
     await database.close();
-    final directory = await Directory.systemTemp.createTemp(
+    final directory = await createPersistenceTestDirectory(
       'busymax-task-import-migration-',
     );
     addTearDown(() => directory.delete(recursive: true));
@@ -281,7 +284,7 @@ void main() {
 
   test('schema 10 migration preserves accounts and enables WebCal', () async {
     await database.close();
-    final tempDir = await Directory.systemTemp.createTemp(
+    final tempDir = await createPersistenceTestDirectory(
       'busymax-db-v10-test-',
     );
     final file = File('${tempDir.path}/busymax.sqlite');
@@ -340,9 +343,7 @@ void main() {
     'schema 13 migration reprojects coordinates without changing pending work',
     () async {
       await database.close();
-      final directory = await Directory.systemTemp.createTemp(
-        'busymax-db-v13-',
-      );
+      final directory = await createPersistenceTestDirectory('busymax-db-v13-');
       final file = File('${directory.path}/busymax.sqlite');
       database = AppDatabase(NativeDatabase(file));
       await _insertAccount(database);
@@ -431,7 +432,7 @@ void main() {
     'schema 11 migration enables task-list reminders without data loss',
     () async {
       await database.close();
-      final tempDir = await Directory.systemTemp.createTemp(
+      final tempDir = await createPersistenceTestDirectory(
         'busymax-db-v11-test-',
       );
       final file = File('${tempDir.path}/busymax.sqlite');
@@ -476,7 +477,7 @@ void main() {
     'schema 12 migration adds WebCal coverage and account pair constraints',
     () async {
       await database.close();
-      final tempDir = await Directory.systemTemp.createTemp(
+      final tempDir = await createPersistenceTestDirectory(
         'busymax-db-v12-test-',
       );
       final file = File('${tempDir.path}/busymax.sqlite');
@@ -544,7 +545,7 @@ void main() {
     'schema 12 migration rejects a corrupt provider credential pair',
     () async {
       await database.close();
-      final tempDir = await Directory.systemTemp.createTemp(
+      final tempDir = await createPersistenceTestDirectory(
         'busymax-db-v12-corrupt-test-',
       );
       final file = File('${tempDir.path}/busymax.sqlite');
@@ -586,7 +587,7 @@ void main() {
     'schema 9 migration adds calendar ownership columns without data loss',
     () async {
       await database.close();
-      final tempDir = await Directory.systemTemp.createTemp(
+      final tempDir = await createPersistenceTestDirectory(
         'busymax-db-v9-test-',
       );
       final file = File('${tempDir.path}/busymax.sqlite');
@@ -970,7 +971,7 @@ void main() {
     () async {
       await database.close();
 
-      final tempDir = await Directory.systemTemp.createTemp('busymax-db-test-');
+      final tempDir = await createPersistenceTestDirectory('busymax-db-test-');
       final file = File('${tempDir.path}/busymax.sqlite');
       final raw = sqlite3.sqlite3.open(file.path);
       try {
@@ -1177,7 +1178,7 @@ void _removeProviderCredentialPairConstraint(sqlite3.Database database) {
 Future<({AppDatabase database, Directory directory})> _openSchema5Fixture({
   void Function(sqlite3.Database raw)? prepare,
 }) async {
-  final directory = await Directory.systemTemp.createTemp(
+  final directory = await createPersistenceTestDirectory(
     'busymax-schema5-fixture-',
   );
   final file = File('${directory.path}/busymax.sqlite');

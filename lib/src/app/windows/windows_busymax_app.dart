@@ -16,7 +16,6 @@ import '../../platform/windows/windows_first_weekday_source.dart';
 import '../../platform/common/desktop_services.dart';
 import '../../ui/windows/windows_schedule_page.dart';
 import '../../ui/windows/windows_settings_page.dart';
-import '../../ui/windows/windows_sign_in_page.dart';
 import '../../ui/windows/windows_tasks_page.dart';
 import '../../ui/windows/windows_workspace_shell.dart';
 import '../../ui/windows/windows_desktop_runtime.dart';
@@ -31,12 +30,6 @@ final windowsAppRouter = GoRouter(
   initialLocation: '/',
   routes: [
     GoRoute(path: '/', builder: (_, _) => const _WindowsHomeGate()),
-    GoRoute(
-      path: '/sign-in',
-      builder: (_, state) => WindowsSignInPage(
-        addingAccount: state.uri.queryParameters['add'] == 'true',
-      ),
-    ),
     GoRoute(
       path: '/schedule',
       builder: (_, _) => const WindowsWorkspaceShell(
@@ -53,9 +46,11 @@ final windowsAppRouter = GoRouter(
     ),
     GoRoute(
       path: '/settings',
-      builder: (_, _) => const WindowsWorkspaceShell(
+      builder: (_, state) => WindowsWorkspaceShell(
         destination: WindowsWorkspaceDestination.settings,
-        child: WindowsSettingsPage(),
+        child: WindowsSettingsPage(
+          initialPage: state.uri.queryParameters['page'],
+        ),
       ),
     ),
   ],
@@ -232,7 +227,6 @@ class _WindowsBusyMaxAppState extends ConsumerState<WindowsBusyMaxApp>
       DesktopNavigationDestination.schedule => '/schedule',
       DesktopNavigationDestination.tasks => '/tasks',
       DesktopNavigationDestination.settings => '/settings',
-      DesktopNavigationDestination.signIn => '/sign-in',
     });
   }
 
@@ -360,11 +354,10 @@ class _WindowsHomeGate extends ConsumerWidget {
     final session = ref.watch(authSessionControllerProvider);
     return switch (session.status) {
       AuthSessionStatus.loading => const Center(child: ProgressRing()),
-      AuthSessionStatus.signedIn => const WindowsWorkspaceShell(
+      _ => const WindowsWorkspaceShell(
         destination: WindowsWorkspaceDestination.schedule,
         child: WindowsSchedulePage(),
       ),
-      _ => const WindowsSignInPage(),
     };
   }
 }

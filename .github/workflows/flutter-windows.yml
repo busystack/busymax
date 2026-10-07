@@ -47,13 +47,18 @@ jobs:
             publisherDisplayName = 'BusyMax CI'
             msixVersion = '1.0.0.0'
             previousMsixVersion = ''
-            privacyPolicyUrl = 'https://busystack.org/privacy'
+            privacyPolicyUrl = 'https://busystack.org/privacy-busymax'
             supportUrl = 'https://busystack.org/support'
             homepageUrl = 'https://busystack.org'
-            googleOAuthClientId = 'busymax-ci-google-client-id'
+            googleOAuthClientId = 'busymax-ci-original.apps.googleusercontent.com'
             googleOAuthClientSecret = ''
-            microsoftOAuthClientId = 'busymax-ci-microsoft-client-id'
+            microsoftOAuthClientId = '22222222-2222-2222-2222-222222222222'
             microsoftOAuthAuthorityTenant = 'common'
+            busyMaxGoogleOAuthClientId = 'busymax-ci-managed.apps.googleusercontent.com'
+            busyMaxGoogleOAuthClientSecret = 'synthetic-ci-public-secret'
+            busyMaxGoogleOAuthProjectId = 'busymax-ci-managed'
+            busyMaxMicrosoftOAuthClientId = '44444444-4444-4444-4444-444444444444'
+            busyMaxMicrosoftOAuthAuthorityTenant = 'common'
             fakeData = $false
             developmentBackend = $false
           } | ConvertTo-Json | Set-Content `
@@ -152,11 +157,11 @@ jobs:
             Write-Host "::error title=Windows Flutter test failed::$safeName"
           }
 
-      - name: Compile user-owned Windows x64 release
+      - name: Compile unconfigured Windows x64 release
         shell: pwsh
         run: >-
           ./tool/windows/build_release.ps1 -ConfigPath build/windows/store-ci.json
-          -Ci -UserOwnedOnly -Stage WindowsCompile
+          -Ci -Unconfigured -Stage WindowsCompile
 
       - name: Compile Windows x64 release
         id: windows-compile
